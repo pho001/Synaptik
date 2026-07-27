@@ -3,6 +3,7 @@ package io.github.pho001.synaptik.compiler;
 import static org.junit.jupiter.api.Assertions.assertAll;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -197,7 +198,7 @@ final class ForwardConstantFoldingTest {
     }
 
     @Test
-    void retainsGraphOutputsBackwardMultiOutputFloatingAndUnselectedOperations() {
+    void retainsGraphOutputsMultiOutputFloatingAndUnselectedButFoldsBackward() {
         TensorDescriptor intDescriptor = descriptor(
                 DataType.INT32, Shape.of(3), Optional.empty());
         TensorDescriptor floatDescriptor = descriptor(
@@ -240,9 +241,15 @@ final class ForwardConstantFoldingTest {
         CompileTimeConstantGraph multi = sidecar(
                 multiGraph, Map.of(0L, ScalarValue.int32(4)));
 
+        CompileTimeConstantGraph foldedBackward = ForwardConstantFolding.fold(backward);
         assertAll(
                 () -> assertSame(graphOutput, ForwardConstantFolding.fold(graphOutput)),
-                () -> assertSame(backward, ForwardConstantFolding.fold(backward)),
+                () -> assertNotSame(backward, foldedBackward),
+                () -> assertEquals(1, foldedBackward.graph().nodes().size()),
+                () -> assertEquals(
+                        GraphPhase.FORWARD,
+                        foldedBackward.graph().nodePhases().get(new NodeId(0))),
+                () -> assertEquals(3, foldedBackward.constants().size()),
                 () -> assertSame(floating, ForwardConstantFolding.fold(floating)),
                 () -> assertSame(scalarDiv, ForwardConstantFolding.fold(scalarDiv)),
                 () -> assertSame(multi, ForwardConstantFolding.fold(multi)));

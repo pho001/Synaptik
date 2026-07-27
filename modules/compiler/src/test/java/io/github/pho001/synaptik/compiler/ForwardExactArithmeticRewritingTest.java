@@ -161,7 +161,7 @@ final class ForwardExactArithmeticRewritingTest {
     }
 
     @Test
-    void excludesGraphOutputAndBackwardOccurrences() {
+    void excludesGraphOutputsButRewritesBackwardOccurrences() {
         TensorDescriptor descriptor = descriptor(DataType.FLOAT64, Shape.of(2), false);
         Operation multiply = scalarOperation(
                 ScalarElementwiseKind.MUL, ScalarValue.float64(1.0d));
@@ -181,8 +181,10 @@ final class ForwardExactArithmeticRewritingTest {
         assertAll(
                 () -> assertSame(graphOutput,
                         ForwardExactArithmeticRewriting.rewrite(graphOutput)),
-                () -> assertSame(backward,
-                        ForwardExactArithmeticRewriting.rewrite(backward)));
+                () -> assertNotSame(backward,
+                        ForwardExactArithmeticRewriting.rewrite(backward)),
+                () -> assertTrue(
+                        ForwardExactArithmeticRewriting.rewrite(backward).nodes().isEmpty()));
     }
 
     @Test

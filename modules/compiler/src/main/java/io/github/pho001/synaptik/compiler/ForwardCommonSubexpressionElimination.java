@@ -18,18 +18,20 @@ import java.util.Objects;
 import java.util.Set;
 
 /**
- * Merges exact internal forward common subexpressions in one topological scan.
+ * Merges exact internal common subexpressions within each graph phase in one topological scan.
  *
- * <p>Equality covers the forward phase, complete immutable operation value, ordered
+ * <p>Equality covers the exact {@link GraphPhase}, complete immutable operation value, ordered
  * already-remapped inputs including repetitions, and every ordered output descriptor. A merge
- * remaps every output slot as one indivisible occurrence. Graph-output producers and non-forward
- * occurrences are never candidates or representatives.</p>
+ * remaps every output slot as one indivisible occurrence. {@code FORWARD} and {@code BACKWARD}
+ * occurrences never compare equal, and graph-output producers are never candidates or
+ * representatives.</p>
  */
 final class ForwardCommonSubexpressionElimination {
     private ForwardCommonSubexpressionElimination() {}
 
     /**
-     * Reuses the first eligible exact forward occurrence and remaps every output position.
+     * Reuses the first eligible exact occurrence in the same phase and remaps every output
+     * position.
      *
      * @param graph the non-null immutable graph in topological order; it is not mutated
      * @return the exact {@code graph} reference when no occurrence merges; otherwise a canonical,
@@ -66,8 +68,7 @@ final class ForwardCommonSubexpressionElimination {
             List<ValueId> remappedInputs = remap(node.inputs(), valueRemapping);
             List<TensorDescriptor> outputDescriptors = descriptors(
                     node.outputs(), originalValues);
-            boolean eligible = phase == GraphPhase.FORWARD
-                    && node.outputs().stream().noneMatch(graphOutputs::contains);
+            boolean eligible = node.outputs().stream().noneMatch(graphOutputs::contains);
             ExpressionKey key = eligible
                     ? new ExpressionKey(phase, node.operation(), remappedInputs, outputDescriptors)
                     : null;

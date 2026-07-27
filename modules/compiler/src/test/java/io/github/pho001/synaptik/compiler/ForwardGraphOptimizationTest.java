@@ -161,6 +161,49 @@ final class ForwardGraphOptimizationTest {
     }
 
     @Test
+    void standardPipelineAppliesExistingExactRulesToBackwardPhase() {
+        TensorDescriptor descriptor = descriptor(Shape.of(2), false);
+        Operation identity = new Operation(
+                ScalarElementwiseKind.MUL,
+                new ScalarValueAttrs(ScalarValue.float32(1.0f)));
+        Operation output = operation(UnaryElementwiseKind.NEG);
+        CompiledGraphModel graph = new CompiledGraphModel(
+                List.of(
+                        new GraphValue(new ValueId(0), descriptor),
+                        new GraphValue(new ValueId(1), descriptor),
+                        new GraphValue(new ValueId(2), descriptor)),
+                List.of(
+                        new CompiledNode(
+                                new NodeId(0),
+                                identity,
+                                List.of(new ValueId(0)),
+                                List.of(new ValueId(1))),
+                        new CompiledNode(
+                                new NodeId(1),
+                                output,
+                                List.of(new ValueId(1)),
+                                List.of(new ValueId(2)))),
+                List.of(new ValueId(0)),
+                List.of(new ValueId(2)),
+                Map.of(
+                        new NodeId(0), GraphPhase.BACKWARD,
+                        new NodeId(1), GraphPhase.FORWARD));
+        ValidatedGraph incoming = CapturedGraphInference.inferAndValidate(graph);
+
+        ValidatedGraph disabled = ForwardGraphOptimization.optimize(
+                incoming, GraphOptimizationConfig.disabled());
+        ValidatedGraph standard = ForwardGraphOptimization.optimize(
+                incoming, GraphOptimizationConfig.standard());
+
+        assertAll(
+                () -> assertEquals(2, disabled.graph().nodes().size()),
+                () -> assertEquals(1, standard.graph().nodes().size()),
+                () -> assertEquals(
+                        GraphPhase.FORWARD,
+                        standard.graph().nodePhases().get(new NodeId(0))));
+    }
+
+    @Test
     void disabledSkipsExactRewritingWhileStandardAppliesItBeforeCleanup() {
         TensorDescriptor descriptor = descriptor(Shape.of(2), false);
         Operation identity = new Operation(

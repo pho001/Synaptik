@@ -659,8 +659,10 @@ and provenance. Rank-two `transpose()` is implemented over `PERMUTE` mapping `[1
 separate semantic kind. Public `Tensor.expandDims` normalizes against rank plus one and inserts a
 static singleton; public `Tensor.squeeze` normalizes an existing axis and removes it only when the
 dimension is statically known as one. Resolved geometry inserts or removes one stride in a new
-same-offset logical view descriptor, while unresolved geometry remains unresolved. Gradients,
-compiler behavior, materialization, backend behavior, and execution remain planned. See
+same-offset logical view descriptor, while unresolved geometry remains unresolved. Current
+package-private compiler autograd reverses supported floating rank edits through the opposite
+public Tensor operation. Public gradient requests/publication, materialization, backend behavior,
+and execution remain planned. See
 [Expand-dimensions and squeeze expressions](api/tensor-api.md#expand-dimensions-and-squeeze-expressions)
 and [Axis-transform semantic kinds and
 attributes](api/tensor-api.md#axis-transform-semantic-kinds-and-attributes).
@@ -680,8 +682,9 @@ does not perform global autograd; it prepares and executes only its assigned reg
 The accepted [pre-capture Tensor-expression autograd](#pre-capture-tensor-expression-autograd)
 design uses ordinary public Tensor operations over the original forward expression. This strategy
 does not add public Tensor gradient/backward lifecycle state. Model task 0025 is Complete and
-supplies canonical producer-output wrappers; Compiler task 0004 remains Draft without a detailed
-task specification or implementation. See [Training graph](architecture/training-graph.md).
+supplies canonical producer-output wrappers; Compiler task 0004 is Complete with its first
+bounded package-private implementation. See
+[Training graph](architecture/training-graph.md).
 
 ### Autotuning / model autotuning
 
@@ -1024,6 +1027,10 @@ and creates immutable compile artifacts. Compile creates a logical recipe; it do
 physical buffers, choose concrete kernels, or create backend executables. See
 [Lifecycle](architecture/lifecycle.md).
 
+The current package-private compiler implements this lifecycle only through a validated
+forward-only or combined first-order graph-stage result. Public compilation, publication,
+planning orchestration, `CompileArtifacts`, preparation, and execution remain planned.
+
 ### Compile artifacts
 
 The planned immutable output of compilation: an implemented compiled graph model plus planned
@@ -1052,13 +1059,15 @@ executable constant.
 The implemented standalone config enum that records requested compile-time graph scope. Its exact
 values, in declaration order, are `FORWARD_ONLY`, `FORWARD_AND_BACKWARD`, and `TRAINING_STEP`.
 Forward-only requests forward graph construction and requested forward publications. Forward-and-
-backward requests later compiler autograd expansion plus combined forward/backward compile-time
-graph work. Training-step records the architecture's future direction without adding an optimizer,
-optimizer-update graph, training session, schedule, or execution behavior.
+backward requests compiler autograd expansion plus combined forward/backward compile-time graph
+work. Package-private `GraphCompiler` currently consumes these two modes and `TRAINING_STEP`; the
+latter performs the same internal first-order combined graph stage without adding an optimizer,
+optimizer-update graph, training session, publication, schedule, or execution behavior.
 
-A compile mode is a request, not compiler behavior. No current aggregate or compiler entry point
-consumes it, and constructing a value does not capture or transform a graph, construct gradients,
-bind publications, prepare an executable, or run a computation. It differs from
+A compile mode is a request, not completed public compiler behavior. No current public aggregate
+or compiler entry point consumes it, and constructing a value does not capture or transform a
+graph, construct gradients, bind publications, prepare an executable, or run a computation. It
+differs from
 [`GraphPhase`](#graph-phase), which classifies a compiled node's forward or backward origin.
 
 ### Contiguous request
@@ -1080,6 +1089,15 @@ or defining compiler, planning, prepare, backend, runtime, gradient, or executio
 [Contiguous expressions](api/tensor-api.md#contiguous-expressions), [Contiguous semantic
 kind](api/tensor-api.md#contiguous-semantic-kind), [Layout](#layout), and
 [Materialization](#materialization).
+
+### Cotangent
+
+The reverse-mode sensitivity that flows backward from a scalar objective toward an earlier Tensor.
+Current package-private first-order autograd supplies one implicit exact typed scalar unit
+cotangent at the objective, combines multiple incoming contributions with ordinary `Tensor.add`,
+and returns the accumulated cotangent for each requested target. A cotangent here is a temporary
+compiler Tensor expression, not mutable Tensor gradient state, a runtime tape value, or an
+optimizer slot.
 
 ### Compiled graph / `CompiledGraphModel`
 
@@ -1303,22 +1321,33 @@ preserve signed zero, map positive infinity to positive infinity, and propagate 
 `Tensor.gelu()` and `geluTanhApproximation()` construct model metadata and provenance only; they do
 not execute either function or define compiler decomposition, gradients, or backend algorithms.
 
+### First-order autograd request
+
+The current package-private compiler request for exactly one reverse-mode derivative order. It
+contains one exact requested scalar floating objective and an ordered, non-empty,
+identity-unique target list in that objective's selected differentiable ancestry. The compiler
+supplies one implicit exact typed unit [cotangent](#cotangent); callers cannot yet provide an
+explicit seed or request a higher derivative order. `FORWARD_AND_BACKWARD` and the initial
+`TRAINING_STEP` require this request, while `FORWARD_ONLY` rejects it.
+
 ### Forward graph
 
 The graph that computes outputs from user inputs in the original direction of the tensor expression. It exists before any gradient computation is added. A forward-only compile uses this computation; a backward-capable compile may expand it with a [backward graph](#backward-graph).
 
 ### Forward graph optimization
 
-The current package-private compiler's optional, semantics-preserving transformation of forward
-graph occurrences. The current bounded order is exact arithmetic rewriting, logical-splat
-constant folding, dead-code elimination (DCE), exact common-subexpression elimination (CSE), and
-one DCE cleanup, once each. A changed candidate is revalidated before the following transform.
+The historical name for the current package-private compiler's optional semantics-preserving
+transformation pipeline. It now operates on the complete graph selected by the compile mode:
+forward-only or combined forward/backward. The bounded order is exact arithmetic rewriting,
+logical-splat constant folding, whole-graph dead-code elimination (DCE), phase-local exact
+common-subexpression elimination (CSE), and whole-graph DCE cleanup, once each. A changed
+candidate is revalidated before the following transform.
 
-The graph-only DCE contract removes only forward nodes unreachable from graph outputs and non-
-forward dependency roots while retaining every graph input and every output slot of a live node.
-The sidecar-aware form additionally prunes only unused fixed constant sources and retains every
-bindable input. Exact CSE merges whole forward occurrences only when their operation value,
-ordered remapped inputs, phase, and complete ordered output descriptors match. A graph-output
+DCE walks from the complete ordered graph-output boundary and does not keep a node merely because
+its phase is `BACKWARD`; every live occurrence retains all output slots. The sidecar-aware form
+additionally prunes only unused fixed constant sources and retains every bindable input. Exact CSE
+merges whole occurrences only when their operation value, ordered remapped inputs, phase, and
+complete ordered output descriptors match. It never merges across phases, and a graph-output
 producer cannot merge or represent another occurrence.
 
 This optional work is distinct from mandatory [graph canonicalization](#graph-canonicalization).
@@ -1326,11 +1355,12 @@ The selected fold matrix is limited to BOOL logic, signed-integral binary arithm
 and same-typed signed-integral scalar arithmetic over explicit splats. It does not evaluate
 floating/BFLOAT16 facts, casts, unselected operations, or dense payloads; construct autograd;
 derive publication or planning; allocate physical values; or expose a public compiler API. See
-[Compile API](api/compile-api.md#current-package-private-canonicalization-and-forward-optimization).
+[Compile API](api/compile-api.md#current-package-private-canonicalization-and-whole-graph-optimization).
 
 ### Pre-capture Tensor-expression autograd
 
-The accepted compiler design for constructing gradient formulas with the existing public Tensor
+The current bounded package-private compiler design for constructing gradient formulas with the
+existing public Tensor
 operation vocabulary before graph capture. Named compiler gradient-rule components traverse the
 original forward expression, use exact Tensor identity for temporary contribution bookkeeping,
 and combine contributions with ordinary `Tensor.add`.
@@ -1341,10 +1371,24 @@ identities, and constant facts. It assigns graph-local IDs once and records each
 `FORWARD` or `BACKWARD` phase. The immutable combined graph then receives inference, validation,
 exact optimization, and final validation.
 
+Compiler task 0004 implements the general package-private entry owner `GraphCompiler` and its
+mode-neutral internal result `GraphCompilation`; it adds no request aggregate. `FORWARD_ONLY`
+produces no BACKWARD nodes and empty gradient results, while backward-capable modes may produce
+the combined forward/backward graph described above. `GraphCompilation` is graph-stage state and
+is distinct from the later `CompileArtifacts` aggregate.
+
+The current request contains one exact requested scalar floating objective, an ordered non-empty
+identity-unique target list in its selected differentiable ancestry, and one implicit exact typed
+unit seed. Its closed matrix covers same-floating-type binary/scalar ADD/SUB/MUL, same-type
+branch-only WHERE and floating CAST, NEG/EXP/EXPM1/SIGMOID/TANH, ordinary SUM, CUM_SUM,
+CONTIGUOUS, RESHAPE, EXPAND, EXPAND_DIMS, SQUEEZE, and PERMUTE. Everything else fails closed on a
+selected route until its formula or derivative policy is selected.
+
 The technique adds no placeholder Tensor for a captured `ValueId`, second gradient algebra,
 public gradient, runtime tape, model derivative rule, or Tensor gradient/backward lifecycle.
-Model task 0025 is Complete; Compiler task 0004 remains Draft without a detailed specification or
-implementation.
+Model task 0025 and Compiler task 0004 are Complete. Public requests/publication,
+`CompileArtifacts`, higher derivatives, optimizer updates, preparation, and execution remain
+planned.
 
 ### Neural-network module, parameter, buffer, and forward context
 
@@ -1386,6 +1430,14 @@ compile-time work. It helps later compiler, publication, planning, and diagnosti
 the two regions. It is not a compile mode, runtime schedule, prepared-execution boundary, ordinal
 serialization, or optimizer-update phase.
 
+### Gradient result role
+
+The current package-private `GraphCompilation.GradientResultRole` association from one exact
+requested target Tensor identity to the `ValueId` of its captured first-order gradient. Roles
+retain request order and remain distinct when multiple targets share one captured value. The
+combined graph output boundary instead lists each distinct gradient value once. A role is not a
+public gradient object, mutable Tensor state, storage binding, optimizer slot, or runtime result.
+
 ### Graph optimization configuration / `GraphOptimizationConfig`
 
 The implemented standalone config record whose sole boolean component,
@@ -1399,9 +1451,9 @@ representation, mode-required autograd, publication binding, backend-neutral pla
 preparation, or execution. True does not freeze a pass list, pass order, internal graph shape, or
 implementation strategy and permits no approximate mathematics, changed numerical semantics,
 backend-specific fusion, preparation, or execution behavior. No current `CompileConfig` or public
-compiler entry point consumes this value. The current package-private compiler transformation
-boundary consumes it only to enable or skip the optional forward pipeline; mandatory [graph
-canonicalization](#graph-canonicalization) and validation always run.
+compiler entry point consumes this value. The current package-private `GraphCompiler` consumes it
+only to enable or skip the optional pipeline over the complete mode-selected graph; mandatory
+[graph canonicalization](#graph-canonicalization) and validation always run.
 
 ### Graph canonicalization
 
@@ -1505,7 +1557,9 @@ A logical splat has constant payload size even for a dynamic, scalar, or empty S
 no Shape, Tensor, host storage, array, memory segment, dense element payload, physical buffer,
 backend value, or runtime state. The compiler can fold only the explicitly selected BOOL and
 signed-integral operation matrix over these facts. Floating/BFLOAT16 splats are representable but
-are not currently evaluated. Physical repetition and storage allocation remain future
+are not currently evaluated. Current pre-capture autograd registers its generated typed zero and
+unit derivative leaves as exact logical splats, including raw floating or BFLOAT16 bits, without
+reading or allocating storage. Physical repetition and storage allocation remain future
 prepare/backend materialization work.
 
 ### Logical memory plan

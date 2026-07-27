@@ -38,7 +38,10 @@ The order above is the default delivery sequence, not a new dependency rule. All
 
 ## Current frontier
 
-No implementation task is currently Ready. The latest completed implementation frontier is
+There is no Ready implementation task. The latest completed compiler frontier is
+[Compiler 0004 Compiler-owned pre-capture autograd and graph compilation](modules/compiler/tasks/0004-compiler-owned-pre-capture-autograd-and-combined-graph-compilation.md).
+Compiler 0004A is the next Draft planning frontier and has no detailed specification. Its latest
+completed prerequisite frontier is
 [Model 0025 Canonical TensorProducer outputs](modules/model/tasks/0025-canonical-tensor-producer-outputs.md).
 The historical selected model capability milestone remains closed; this focused interleave reopens
 the model plan only to supply the smallest missing prerequisite for compiler-owned pre-capture
@@ -53,18 +56,18 @@ gradient storage, derivative rules, graph capture changes, or compiler behavior.
 final state and is ordinarily garbage-collectable when unreachable. This is a model contract and
 Javadoc/test task, not a new dependency direction.
 
-The latest completed compiler frontier remains
+Compiler 0004 follows completed
 [Compiler 0003B Compile-time constants and constant folding](modules/compiler/tasks/0003b-compile-time-constants-and-constant-folding.md),
-after completed
 [Compiler 0003A Exact arithmetic rewriting](modules/compiler/tasks/0003a-exact-arithmetic-rewriting.md),
 [Compiler 0003 Canonicalization and forward optimization](modules/compiler/tasks/0003-canonicalization-and-forward-optimization.md),
 [Compiler 0002 Captured-graph inference and validation](modules/compiler/tasks/0002-captured-graph-inference-and-validation.md),
 and [Compiler 0001 Tensor expression graph capture](modules/compiler/tasks/0001-tensor-expression-graph-capture.md).
 Their completed contracts remain unchanged.
 
-Compiler 0004 is Draft and deliberately has no detailed task specification or implementation.
-Its Model 0025 prerequisite is complete. Its accepted architecture is compiler-owned pre-capture
-Tensor-expression autograd:
+Compiler 0004 is Complete with its detailed task specification, implementation, focused and full
+compiler validation, and independent documentation pass. Its Model 0025 and Compiler 0001–0003B
+prerequisites are complete. Its implemented architecture is
+compiler-owned pre-capture Tensor-expression autograd:
 
 ```text
 original forward Tensor expression DAG
@@ -75,23 +78,49 @@ original forward Tensor expression DAG
   -> inference, canonicalization, exact combined optimization, and validation
 ```
 
-Compiler-owned named rule families will build ordinary Tensor expressions, accumulate
+Compiler-owned named rule families build ordinary Tensor expressions, accumulate
 contributions by original Tensor object identity, and keep all identity maps local to one compile.
-Generated zeros and ones will be explicit storage-free logical-splat constants. Capture will
-receive forward outputs, gradient publication roles, the original forward producer identity set,
-and explicit constants; it will assign graph IDs once and classify original occurrences as
-`FORWARD` and generated derivative occurrences as `BACKWARD`. Distinct requested gradient targets
-may intentionally share one captured `ValueId`, while the final publication boundary lists each
-distinct output value once.
+Generated zeros and ones are explicit storage-free logical-splat constants. Capture receives
+forward outputs, target-specific gradient result roles, the original forward producer identity
+set, and explicit constants; it assigns graph IDs once and classifies original
+occurrences as `FORWARD` and generated derivative occurrences as `BACKWARD`. Distinct requested
+gradient targets may intentionally share one captured `ValueId`, while the final graph-output
+boundary lists each distinct output value once.
 
-The combined graph, not an already optimized captured forward graph, is the optimization unit.
-Only exact rules already proved by Compiler 0003, 0003A, and 0003B may be applied; CSE remains
-phase-local and every changed graph is revalidated through Compiler 0002. Compiler 0004 also owns
-the bounded first fail-closed rule matrix and this exact combined optimization, so no separate
-0004C task is planned. Compiler 0004A retains later exact formula extensions, Compiler 0004B
-retains explicit derivative-policy work, Compiler 0005 retains compile artifacts and
-publication/planning orchestration, and Compiler 0006 retains an explicit higher-derivative
-create-graph/order contract. All remain Draft without detailed specifications.
+The package-private 0004 frontier accepts one scalar floating objective among the requested
+forward outputs, an ordered non-empty identity-unique target list, and one implicit exact typed
+rank-zero unit seed. `FORWARD_ONLY` requires no gradient request.
+`FORWARD_AND_BACKWARD` and the initial `TRAINING_STEP` require the same first-order request and
+perform identical combined construction; `TRAINING_STEP` adds no optimizer update.
+
+The current general package-private entry owner is `GraphCompiler`; its exact parameter list
+remains direct and has no request aggregate. It returns mode-neutral `GraphCompilation`.
+`FORWARD_ONLY` has no BACKWARD nodes and empty gradient results; backward-capable modes may carry
+the combined forward/backward graph. This graph-stage result is not the later `CompileArtifacts`
+aggregate.
+
+The closed initial rule matrix contains only same-floating-type binary ADD/SUB/MUL, scalar
+ADD/SUB/MUL, same-type WHERE branches, same-type floating CAST, NEG/EXP/EXPM1/SIGMOID/TANH,
+ordinary full/single-/multi-axis SUM, CUM_SUM, CONTIGUOUS, RESHAPE, EXPAND, EXPAND_DIMS, SQUEEZE,
+and PERMUTE. Every operation whose rule would require mixed-floating cotangent conversion or an
+unselected tie, discontinuity, singularity, empty-domain, or exceptional-value policy fails
+preflight before any derivative Tensor identity is allocated.
+
+Before implementation, the task verified that six exact obsolete Java prototype paths under the
+compiler production source root were present and untracked, then deleted them as its first cleanup
+step without reading or adapting their contents. Their absence passed before Gradle and at final
+status. They remain six removal-only paths in addition to the 32 tracked create/modify paths, for
+the specified 38 touched-path ceiling.
+
+For backward-capable modes, the combined graph, not an already optimized captured forward graph,
+is the optimization unit. Only exact rules already proved by Compiler 0003, 0003A, and 0003B may
+be applied; CSE remains phase-local and every changed graph is revalidated through Compiler 0002.
+Compiler 0004 also owns the bounded first fail-closed rule matrix and this exact combined
+optimization, so no separate 0004C task is planned. Compiler 0004A retains later exact formula
+extensions, Compiler 0004B retains explicit derivative-policy work, Compiler 0005 retains compile
+artifacts and publication/planning orchestration, and Compiler 0006 retains an explicit
+higher-derivative create-graph/order contract. Those follow-ups remain Draft without detailed
+specifications.
 
 This interleave changes neither allowed dependencies nor downstream lifecycle readiness. Config
 0004, Trace 0003 and later, Runtime, Prepare, backends, Engine, and training extensions remain
@@ -165,10 +194,11 @@ frontier. At Planning 0006 closure, Config 0004 and later work remained Draft wi
 detailed specification. Subsequent reassessments completed Compiler 0001 capture, Compiler 0002
 validation, Compiler 0003 transformation, and Compiler 0003A exact arithmetic rewriting in order.
 The subsequent reassessment selected only Compiler 0003B compile-time constants/folding before
-autograd, and that task is now Complete. The current reassessment selected only focused Model 0025
-before compiler work resumes, and that task is now Complete. It does not advance cost, tuning, or
-downstream lifecycle work. Compiler 0004, 0004A, 0004B, 0005, and 0006 remain Draft rows without detailed
-specifications; Compiler 0004 owns combined exact cleanup before 0005
+autograd, and that task is now Complete. The subsequent reassessment selected only focused Model
+0025 before compiler work resumed, and that task is Complete. Compiler 0004 is now also Complete;
+it does not advance cost, tuning, or downstream lifecycle work. There is no Ready implementation
+task. Compiler 0004A is the next Draft planning frontier, and 0004A, 0004B, 0005, and 0006 remain
+Draft rows without detailed specifications. Compiler 0004 owns combined exact cleanup before 0005
 partitioning/orchestration, while 0006 waits for the stable public compile/artifact boundary.
 
 The preceding completed planning step is
@@ -192,10 +222,11 @@ documentation-only closure audit and `CLOSED` verdict. Config 0004 remains Draft
 baseline, same-owner grouping, and descriptor-retaining logical requirements consume no cost
 classification or profile. Subsequent frontier reassessments selected bounded Compiler 0001
 capture, Compiler 0002 validation, and Compiler 0003 transformation in order; all are Complete.
-Compiler 0003A and Compiler 0003B are Complete. No compiler task is Ready. Focused
+Compiler 0003A, Compiler 0003B, and Compiler 0004 are Complete. Focused
 [Model 0025](modules/model/tasks/0025-canonical-tensor-producer-outputs.md) is Complete and
-supplies Compiler 0004's canonical-output prerequisite. Compiler 0004, 0004A, 0004B, 0005, and
-0006 have no detailed specifications. Compiler 0004 owns combined exact cleanup before 0005
+supplies Compiler 0004's canonical-output prerequisite. There is no Ready compiler task;
+Compiler 0004A is the next Draft planning frontier, and 0004A, 0004B, 0005, and 0006 remain Draft
+without detailed specifications. Compiler 0004 owns combined exact cleanup before 0005
 partitioning/orchestration; 0006 follows the stable public compile/artifact boundary. No compiler
 task consumes or advances Config 0004.
 

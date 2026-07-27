@@ -33,6 +33,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import org.junit.jupiter.api.Test;
 
 final class GraphCaptureTest {
@@ -41,6 +42,12 @@ final class GraphCaptureTest {
         var capture = GraphCapture.class.getDeclaredMethod("capture", List.class);
         var captureConstants = GraphCapture.class.getDeclaredMethod(
                 "capture", List.class, CompileTimeConstantGraph.Ingress.class);
+        var captureCombined = GraphCapture.class.getDeclaredMethod(
+                "captureCombined",
+                List.class,
+                List.class,
+                Set.class,
+                CompileTimeConstantGraph.Ingress.class);
         assertAll(
                 () -> assertTrue(Modifier.isFinal(GraphCapture.class.getModifiers())),
                 () -> assertFalse(Modifier.isPublic(GraphCapture.class.getModifiers())),
@@ -50,7 +57,9 @@ final class GraphCaptureTest {
                 () -> assertSame(CompiledGraphModel.class, capture.getReturnType()),
                 () -> assertSame(
                         CompileTimeConstantGraph.class, captureConstants.getReturnType()),
-                () -> assertEquals(2, Arrays.stream(GraphCapture.class.getDeclaredMethods())
+                () -> assertSame(
+                        GraphCapture.CombinedCapture.class, captureCombined.getReturnType()),
+                () -> assertEquals(3, Arrays.stream(GraphCapture.class.getDeclaredMethods())
                         .filter(method -> !method.isSynthetic())
                         .filter(method -> !Modifier.isPrivate(method.getModifiers()))
                         .count()));

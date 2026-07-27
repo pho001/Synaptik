@@ -73,6 +73,26 @@ final class ForwardCommonSubexpressionEliminationTest {
     }
 
     @Test
+    void mergesExactBackwardOccurrencesWithinTheBackwardPhase() {
+        TensorDescriptor descriptor = descriptor(DataType.FLOAT32, Shape.of(2), true);
+        Operation operation = operation(UnaryElementwiseKind.ABS);
+        CompiledGraphModel graph = graph(
+                List.of(descriptor, descriptor, descriptor),
+                List.of(
+                        node(0, operation, List.of(0L), List.of(1L)),
+                        node(1, operation, List.of(0L), List.of(2L))),
+                List.of(0L),
+                List.of(0L),
+                List.of(GraphPhase.BACKWARD, GraphPhase.BACKWARD));
+
+        CompiledGraphModel result =
+                ForwardCommonSubexpressionElimination.eliminate(graph);
+
+        assertEquals(1, result.nodes().size());
+        assertEquals(GraphPhase.BACKWARD, result.nodePhases().get(new NodeId(0)));
+    }
+
+    @Test
     void retainsFirstExactRepresentativeAndUsesAlreadyRemappedInputs() {
         TensorDescriptor descriptor = descriptor(DataType.FLOAT32, Shape.of(4), true);
         Operation firstAbs = operation(UnaryElementwiseKind.ABS);

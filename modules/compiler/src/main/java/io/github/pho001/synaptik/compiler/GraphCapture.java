@@ -17,15 +17,22 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 
 /**
- * Converts public Tensor expression provenance into immutable forward graph structure.
+ * Converts public Tensor-expression provenance into immutable forward-only or combined graph
+ * structure.
  *
  * <p>This package-private compiler boundary translates exact leaf and producer occurrences into
  * graph-local identities for one capture call. It preserves deterministic operand and
- * producer-output ordering, including output positions with no public Tensor wrapper and opaque
- * state positions, but performs no semantic inference, transformation, differentiation,
- * planning, preparation, or execution.</p>
+ * producer-output ordering, including hidden canonical wrappers and opaque state positions.
+ * Forward-only entries classify every producer as {@link GraphPhase#FORWARD}; combined capture
+ * uses original producer object identity to classify each occurrence as {@code FORWARD} or
+ * {@link GraphPhase#BACKWARD} while assigning every {@link NodeId} and {@link ValueId} once.</p>
+ *
+ * <p>Capture performs no semantic inference, optimization, derivative-rule selection, numerical
+ * evaluation, planning, storage access, preparation, backend work, or execution. Returned graph
+ * state retains operations and descriptors but no Tensor, producer, or provenance reference.</p>
  */
 final class GraphCapture {
     private GraphCapture() {
@@ -76,6 +83,52 @@ final class GraphCapture {
      */
     static CompileTimeConstantGraph capture(
             List<Tensor> outputs, CompileTimeConstantGraph.Ingress ingress) {
+        validateForwardOutputs(outputs);
+        Objects.requireNonNull(ingress, "ingress");
+        return captureInternal(outputs, List.of(), null, ingress).constantGraph();
+    }
+
+    /**
+     * Captures one combined forward/backward expression and records stable gradient-boundary
+     * ordinals.
+     *
+     * <p>Traversal roots are the ordered forward outputs followed by gradient roots in target-role
+     * order. Each exact producer occurrence is emitted once in deterministic input-first
+     * depth-first postorder, and every declared output slot receives a graph value. The public
+     * graph boundary is the distinct forward prefix followed by each gradient value absent from
+     * that prefix at its first role occurrence. Every target role retains the ordinal of its
+     * resolved boundary value, including roles that share a gradient or reuse a forward value.</p>
+     *
+     * @param forwardOutputs non-null, non-empty ordered forward boundary with no repeated exact
+     *     Tensor reference or resolved logical value
+     * @param targetGradients non-null ordered exact target/gradient roles; elements are observed
+     *     but not mutated
+     * @param originalProducers non-null identity set of every producer in the complete original
+     *     forward request; membership selects {@link GraphPhase#FORWARD}
+     * @param ingress non-null ordered merged caller and generated logical-splat bindings; every
+     *     bound Tensor must be encountered as a reachable provenance-free leaf
+     * @return a non-null immutable combined graph with a forward-boundary count and one
+     *     graph-output ordinal per target role
+     * @throws NullPointerException if a required argument or target-role element is {@code null}
+     * @throws IllegalArgumentException if the forward boundary is empty or duplicated, an ingress
+     *     binding is not a reachable leaf, or structural graph construction rejects the result
+     */
+    static CombinedCapture captureCombined(
+            List<Tensor> forwardOutputs,
+            List<FirstOrderAutograd.TargetGradient> targetGradients,
+            Set<TensorProducer> originalProducers,
+            CompileTimeConstantGraph.Ingress ingress) {
+        validateForwardOutputs(forwardOutputs);
+        Objects.requireNonNull(targetGradients, "targetGradients");
+        for (int index = 0; index < targetGradients.size(); index++) {
+            Objects.requireNonNull(targetGradients.get(index), "targetGradients[" + index + "]");
+        }
+        Objects.requireNonNull(originalProducers, "originalProducers");
+        Objects.requireNonNull(ingress, "ingress");
+        return captureInternal(forwardOutputs, targetGradients, originalProducers, ingress);
+    }
+
+    private static void validateForwardOutputs(List<Tensor> outputs) {
         Objects.requireNonNull(outputs, "outputs");
         if (outputs.isEmpty()) {
             throw new IllegalArgumentException("outputs must not be empty");
@@ -91,7 +144,19 @@ final class GraphCapture {
                         "outputs[" + index + "] duplicates outputs[" + firstIndex + "]");
             }
         }
-        Objects.requireNonNull(ingress, "ingress");
+    }
+
+    private static CombinedCapture captureInternal(
+            List<Tensor> forwardOutputs,
+            List<FirstOrderAutograd.TargetGradient> targetGradients,
+            Set<TensorProducer> originalProducers,
+            CompileTimeConstantGraph.Ingress ingress) {
+        List<Tensor> traversalRoots =
+                new ArrayList<>(forwardOutputs.size() + targetGradients.size());
+        traversalRoots.addAll(forwardOutputs);
+        for (FirstOrderAutograd.TargetGradient role : targetGradients) {
+            traversalRoots.add(role.gradient());
+        }
 
         var requestedConstants = new IdentityHashMap<
                 Tensor, CompileTimeConstantGraph.Splat>();
@@ -111,7 +176,7 @@ final class GraphCapture {
         long nextValueId = 0;
         long nextNodeId = 0;
 
-        for (Tensor requested : outputs) {
+        for (Tensor requested : traversalRoots) {
             TensorProvenance requestedProvenance = requested.provenance().orElse(null);
             if (requestedProvenance == null) {
                 if (!leafValues.containsKey(requested)) {
@@ -183,16 +248,21 @@ final class GraphCapture {
                 producerOutputs.put(producer, outputSnapshot);
                 NodeId nodeId = new NodeId(nextNodeId++);
                 nodes.add(new CompiledNode(nodeId, producer.operation(), inputIds, outputSnapshot));
-                nodePhases.put(nodeId, GraphPhase.FORWARD);
+                nodePhases.put(
+                        nodeId,
+                        originalProducers == null || originalProducers.contains(producer)
+                                ? GraphPhase.FORWARD
+                                : GraphPhase.BACKWARD);
                 visiting.remove(producer);
                 stack.pop();
             }
         }
 
-        var graphOutputs = new ArrayList<ValueId>(outputs.size());
+        var graphOutputs =
+                new ArrayList<ValueId>(forwardOutputs.size() + targetGradients.size());
         Map<ValueId, Integer> outputPositions = new HashMap<>();
-        for (int index = 0; index < outputs.size(); index++) {
-            ValueId valueId = resolve(outputs.get(index), leafValues, producerOutputs);
+        for (int index = 0; index < forwardOutputs.size(); index++) {
+            ValueId valueId = resolve(forwardOutputs.get(index), leafValues, producerOutputs);
             Integer firstIndex = outputPositions.putIfAbsent(valueId, index);
             if (firstIndex != null) {
                 throw new IllegalArgumentException(
@@ -200,6 +270,17 @@ final class GraphCapture {
                                 + "] at " + valueId);
             }
             graphOutputs.add(valueId);
+        }
+        List<Integer> gradientOutputOrdinals = new ArrayList<>(targetGradients.size());
+        for (FirstOrderAutograd.TargetGradient role : targetGradients) {
+            ValueId valueId = resolve(role.gradient(), leafValues, producerOutputs);
+            Integer ordinal = outputPositions.get(valueId);
+            if (ordinal == null) {
+                ordinal = graphOutputs.size();
+                outputPositions.put(valueId, ordinal);
+                graphOutputs.add(valueId);
+            }
+            gradientOutputOrdinals.add(ordinal);
         }
         for (int index = 0; index < ingress.bindings().size(); index++) {
             Tensor tensor = ingress.bindings().get(index).tensor();
@@ -210,7 +291,10 @@ final class GraphCapture {
         }
         CompiledGraphModel graph =
                 new CompiledGraphModel(values, nodes, graphInputs, graphOutputs, nodePhases);
-        return new CompileTimeConstantGraph(graph, constants);
+        return new CombinedCapture(
+                new CompileTimeConstantGraph(graph, constants),
+                forwardOutputs.size(),
+                gradientOutputOrdinals);
     }
 
     private static void addConstant(
@@ -238,5 +322,31 @@ final class GraphCapture {
     }
 
     private record TraversalFrame(TensorProducer producer, int nextInputIndex) {
+    }
+
+    /**
+     * Combined-capture state whose positional roles survive graph-local identifier rebuilds.
+     *
+     * @param constantGraph non-null captured immutable graph and exact source facts
+     * @param forwardOutputCount number of leading forward boundary positions
+     * @param gradientOutputOrdinals non-null ordered graph-output ordinal per target role;
+     *     snapshotted and permitted to contain repeated ordinals
+     */
+    record CombinedCapture(
+            CompileTimeConstantGraph constantGraph,
+            int forwardOutputCount,
+            List<Integer> gradientOutputOrdinals) {
+        /**
+         * Validates and snapshots one combined-capture result.
+         *
+         * @param constantGraph non-null captured immutable graph and exact source facts
+         * @param forwardOutputCount number of leading forward boundary positions
+         * @param gradientOutputOrdinals non-null ordered graph-output ordinal per target role
+         * @throws NullPointerException if {@code constantGraph},
+         *     {@code gradientOutputOrdinals}, or an ordinal element is {@code null}
+         */CombinedCapture {
+            Objects.requireNonNull(constantGraph, "constantGraph");
+            gradientOutputOrdinals = List.copyOf(gradientOutputOrdinals);
+        }
     }
 }

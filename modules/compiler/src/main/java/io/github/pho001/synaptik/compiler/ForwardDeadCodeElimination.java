@@ -17,23 +17,25 @@ import java.util.Objects;
 import java.util.Set;
 
 /**
- * Removes unreachable forward occurrences while retaining every non-forward dependency closure.
+ * Removes unreachable occurrences from the complete selected graph regardless of phase.
  *
- * <p>Liveness is walked iteratively from graph outputs and every non-forward occurrence. Those
- * occurrences and their dependency closures are roots outside forward-only elimination. A live
- * node is indivisible: all of its output slots are retained even when only one slot is needed.</p>
+ * <p>Liveness is walked iteratively from the ordered graph-output boundary through producer
+ * dependencies. A {@link GraphPhase#BACKWARD BACKWARD} occurrence is not retained merely because
+ * of its phase. A live producer occurrence remains indivisible: all of its output slots are
+ * retained when any slot is needed. Rebuilds preserve every live node's exact operation,
+ * descriptors, and phase.</p>
  */
 final class ForwardDeadCodeElimination {
     private ForwardDeadCodeElimination() {}
 
     /**
-     * Eliminates only forward nodes unreachable from observable and phase-classified roots.
+     * Eliminates every node unreachable from the complete graph-output boundary.
      *
      * @param graph the non-null immutable graph whose stored node order is topological; it is not
      *     mutated
      * @return the exact {@code graph} reference when no node is removed; otherwise a canonical,
-     *     non-null immutable graph retaining every graph input, graph output, non-forward
-     *     dependency closure, and complete output set of every live node
+     *     non-null immutable graph retaining every graph input, graph output, complete dependency
+     *     closure, and complete output set of every live node
      * @throws NullPointerException if {@code graph} is {@code null}
      */
     static CompiledGraphModel eliminate(CompiledGraphModel graph) {
@@ -50,15 +52,6 @@ final class ForwardDeadCodeElimination {
         Set<ValueId> neededValues = new HashSet<>();
         ArrayDeque<ValueId> work = new ArrayDeque<>();
         addNeeded(graph.outputs(), neededValues, work);
-        for (int index = 0; index < graph.nodes().size(); index++) {
-            CompiledNode node = graph.nodes().get(index);
-            if (graph.nodePhases().get(node.id()) != GraphPhase.FORWARD) {
-                liveNodes[index] = true;
-                addNeeded(node.outputs(), neededValues, work);
-                addNeeded(node.inputs(), neededValues, work);
-            }
-        }
-
         while (!work.isEmpty()) {
             Integer producerIndex = producerIndexes.get(work.removeLast());
             if (producerIndex == null || liveNodes[producerIndex]) {
@@ -84,7 +77,7 @@ final class ForwardDeadCodeElimination {
     }
 
     /**
-     * Eliminates dead forward work and prunes only unused fixed constant sources.
+     * Eliminates dead whole-graph work and prunes only unused fixed constant sources.
      *
      * <p>The graph-only pass runs first and preserves its existing contract. Source roles are then
      * remapped by input position. Every bindable input remains even when unused; a constant input

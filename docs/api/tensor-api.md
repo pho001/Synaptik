@@ -79,14 +79,15 @@ select expressions. `unfold` adds general-axis window materialization and `foldA
 overlap-summing target transformation. The two `unfold2d` forms add NCHW im2col with conceptual
 positive-zero or exact typed padding, while `fold2d` adds overlap-summing col2im with exact static
 or symbolic compatibility.
-Typed access, other expression families, gradient objects and publication behavior,
-native/runtime/backend allocation, public compiler integration, runtime residency, and backend
-execution remain planned. Package-private compiler capture, binding-free operand/descriptor
-verification, mandatory dense graph-local canonicalization, explicit logical-splat ingress,
-bounded integral/BOOL constant folding, and sidecar-aware forward DCE/CSE/DCE are current internal
-consumers of this model metadata. These compiler steps do not turn public Tensor host storage into
-constant evidence, perform general numerical execution, or add a public compiler surface. The authoritative module
-boundary remains [`ARCHITECTURE.md`](../../ARCHITECTURE.md).
+Typed access, public gradient requests and publication, native/runtime/backend allocation, public
+compiler integration, runtime residency, and backend execution remain planned. Current
+package-private compiler consumers include forward-only and phase-aware combined capture,
+binding-free operand/descriptor verification, closed first-order automatic differentiation
+(autograd), mandatory dense graph-local canonicalization, explicit logical-splat ingress, bounded
+integral/BOOL constant folding, whole-graph dead-code elimination, and phase-local
+common-subexpression elimination. These compiler steps do not turn public Tensor host storage
+into constant evidence, perform general numerical execution, or add a public compiler surface.
+The authoritative module boundary remains [`ARCHITECTURE.md`](../../ARCHITECTURE.md).
 
 Completed model task 0025 supplies one narrow producer contract needed by pre-capture autograd:
 every producer retains and returns the canonical exact Tensor wrapper for each ordered output
@@ -95,12 +96,30 @@ unpublished immutable occurrence before returning a result. The resulting
 Tensor/provenance/producer/output cycle is ordinary collectable model metadata, not graph
 membership or runtime ownership.
 
-Compiler task 0004 remains Draft without a detailed specification or implementation. Its accepted
-design says named gradient rules will reuse the existing public Tensor expression methods directly
-on the original forward expression and capture the combined forward and gradient expression once.
-No current Tensor method or ergonomic result carrier changes. The design adds no
+Compiler task 0004 is Complete. Package-private named gradient rules reuse existing public Tensor
+expression methods directly on the original forward expression, and package-private
+`GraphCompiler` captures forward outputs and generated gradient roots together once. This changes
+no public Tensor method or ergonomic result carrier. Its mode-neutral internal
+`GraphCompilation` is not a Tensor result carrier or the later `CompileArtifacts` aggregate. The
+implementation adds no
 `Tensor.gradient`, `Tensor.backward`, mutable gradient state, placeholder Tensor for a captured
 `ValueId`, or model-owned derivative rule.
+
+The current internal first-order boundary accepts one exact scalar floating objective among the
+forward outputs and an ordered non-empty identity-unique target list in its ancestry. Every target
+must use the objective's exact floating type, request gradients, and have a selected
+differentiable route. The compiler preflights the complete selected slice before creating the
+implicit exact typed unit seed or any formula Tensor. Exact target/producer object identity is
+temporary compiler bookkeeping, not public Tensor state or graph membership.
+
+The closed matrix currently covers same-floating-type binary and exact-scalar
+`ADD`/`SUB`/`MUL`, same-type branch-only `WHERE`, same-type floating `CAST`,
+`NEG`/`EXP`/`EXPM1`/`SIGMOID`/`TANH`, ordinary full/single-/multi-axis `SUM`, `CUM_SUM`,
+`CONTIGUOUS`, `RESHAPE`, `EXPAND`, `EXPAND_DIMS`, `SQUEEZE`, and `PERMUTE`. Generated BFLOAT16,
+FLOAT32, and FLOAT64 positive-zero/one leaves are storage-free and explicitly registered as
+logical splats. Everything else fails closed on a selected route until a follow-up selects the
+required formula or tie, boundary, discontinuity, singularity, exceptional-value, empty-domain,
+or mixed-floating conversion policy.
 
 The current semantic vocabulary also includes `BatchNormKind.BATCH_NORM_INFERENCE` and
 `BATCH_NORM_TRAINING`. Inference has one output. Training has five ordered outputs: normalized
@@ -117,9 +136,11 @@ validation, while `Tensor.reshape(Shape)` retains an exact normalized target. Th
 `Tensor.expand` overloads retain literal or exact target Shapes, validate directional
 right-aligned compatibility, and derive logical view strides when geometry is resolved.
 Package-private compiler verification of captured descriptors and retained reshape obligations is
-current. Mandatory graph-local ID canonicalization and general exact CSE/DCE are also current
-internal behavior; reshape- or view-specific rewriting, concrete binding, materialization,
-gradient, and execution behavior remain planned.
+current. The closed first-order matrix also currently reverses `CONTIGUOUS`, `RESHAPE`, `EXPAND`,
+`PERMUTE`, `EXPAND_DIMS`, and `SQUEEZE` through public Tensor metadata operations. Mandatory
+graph-local ID canonicalization and whole-graph DCE plus phase-local CSE are current internal
+behavior. Physical aliasing/materialization, concrete binding, backend lowering, public gradient
+requests/publication, and execution remain planned.
 
 `AxisTransformKind.PERMUTE`, `EXPAND_DIMS`, and `SQUEEZE` are current semantic identities.
 `PermutationAttrs` stores a complete normalized output-to-input axis permutation, while
@@ -2404,8 +2425,10 @@ The fresh result has a new factory identity, no label, and no host storage. Its 
 one `Operation` with the matching `BinaryArithmeticKind` and `NoOperationAttrs.INSTANCE`, followed
 by the exact ordered input references `[left, right]`. Repeated calls create distinct results, and
 even identities such as adding a stored zero or multiplying by a stored one are not simplified at
-this boundary. Compiler-owned graph capture, canonicalization, common-subexpression elimination,
-autograd, and backend execution remain later responsibilities.
+this boundary. Current package-private compiler autograd supports only same-floating-type
+`ADD`, `SUB`, and `MUL`, with public `sumToShape` expressions reversing broadcast for selected
+roles. Binary `DIV`, `POW`, `MIN`, and `MAX`, mixed-floating cotangent conversion, public gradient
+requests/publication, and backend execution remain deferred.
 
 #### Complete binary-expression example
 
@@ -2700,6 +2723,11 @@ convert values, simplify equal branches, create gradient-routing rules, capture 
 or execute backend code. Conditional `where` is also distinct from scalar-index `select`, which
 belongs to the later indexing family.
 
+Current package-private compiler autograd routes cotangents only to selected floating branches
+when both branches and the output have one exact equal type; the BOOL condition is
+non-differentiable. Mixed-floating branch promotion remains unsupported because no cross-floating
+cotangent-conversion policy is selected.
+
 #### Complete conditional-selection example
 
 ##### Goal and inputs
@@ -2813,6 +2841,9 @@ reused, copied, or materialized. The result has no label and no host storage.
 Result gradient eligibility is true exactly when the input already requests gradients and both
 the source and target data types are floating. This flag is descriptor metadata only. It neither
 creates a backward rule nor promises that a backend supports differentiation through the cast.
+Current package-private compiler autograd passes a cotangent through only when source, target, and
+output have the same exact floating type. Cross-floating and non-floating cast differentiation
+remain deferred.
 
 Every call returns a fresh Tensor with a new factory identity. A same-type call is still an
 explicit `CAST` expression rather than an early return of the receiver. Repeated calls remain
@@ -3134,14 +3165,19 @@ value meaning `minimum(maximum(input, lower), upper)`, but no stored intermediat
 producer. Repeated, nested, identity-like, and special-value calls are not interned, folded, or
 simplified at this public expression-construction boundary.
 
+Current package-private compiler autograd supports exact same-floating-type scalar `ADD`, `SUB`,
+and `MUL`. Scalar `DIV`, `POW`, extrema, and clamp variants remain outside the closed first matrix
+until their singularity, tie, endpoint, discontinuity, and exceptional-value policies are
+selected.
+
 The current package-private compiler has one narrower, guarded internal rewrite after canonical
 validation. It may bypass scalar `MUL` by exact typed positive one for all five numeric types,
 scalar `DIV` and `POW` by exact typed positive one for floating types, and scalar `ADD` and `SUB`
 by exact typed zero for `INT32` and `INT64`. It also recognizes duplicate-input binary `MIN` and
-`MAX`. Each bypass is limited to a non-gradient, one-output internal `FORWARD` occurrence with
-complete input/output descriptor equality and a result that is not a graph output. This does not
-change the public Tensor's fresh identity or provenance construction: the compiler consumes the
-later immutable graph occurrence.
+`MAX`. Each bypass is limited to a non-gradient, one-output internal occurrence in either graph
+phase with complete input/output descriptor equality and a result that is not a graph output.
+The occurrence phase is preserved. This does not change the public Tensor's fresh identity or
+provenance construction: the compiler consumes the later immutable graph occurrence.
 
 For the scalar rows, `ScalarValueAttrs` is immutable semantic metadata, not a Tensor constant.
 The compiler reads only its exact type and typed value; it does not inspect Tensor host storage or
@@ -3315,6 +3351,11 @@ no label, and no host storage. Its provenance contains the matching `SUM`, `MEAN
 or `MAX` aggregate operation and exactly the receiver reference. The eligibility flag remains a
 request in model metadata; preserving it for product or an extrema reduction does not install or
 promise a gradient rule or a policy for distributing gradients across tied extrema.
+
+Current package-private compiler autograd supports ordinary floating full and single-axis
+`SUM`, including retained dimensions. It restores removed axes and expands the cotangent to the
+exact input Shape. `MEAN`, `PROD`, extrema, masked SUM, and binding-aware `sumToShape` when it
+appears as a forward operation remain outside the closed matrix.
 
 The aggregate `min()` and `max()` families are distinct from pairwise elementwise
 `minimum(Tensor)` and `maximum(Tensor)`. An aggregate form has one provenance input, uses
@@ -3597,6 +3638,11 @@ both norms accept only floating input. Every result preserves exact input data t
 eligibility, leaves layout unresolved, has no label/storage, and records a fresh one-output
 producer with exact input `[input]` and provenance index zero. Construction does not read values,
 create a gradient, capture a graph, lower, report backend support, or execute.
+
+Current package-private compiler autograd supports only ordinary floating multi-axis `SUM` here.
+It restores removed axes in ascending axis order before expanding to the input Shape; an empty
+axis list passes the cotangent through. Statistical, norm, log-sum-exp, product, extrema, mean, and
+BOOL families remain excluded from the closed first matrix.
 
 The portable floating target is exact real arithmetic plus the rules below, rounded once to result
 format with round-to-nearest, ties-to-even. Equal-or-wider intermediates and reassociation are
@@ -3970,8 +4016,10 @@ intermediate rounding, NaN payload, bitwise cross-backend result, algorithm, or 
 Provenance records the matching `CumulativeScanKind.CUM_SUM` or `CUM_PROD`, one
 `CumulativeScanAttrs(normalizedAxis, exclusive, reverse)`, and exact ordered inputs `[input]`.
 Repeated equivalent requests remain distinct expressions with fresh identities. Construction
-defines no gradient rule, compiler capture or canonicalization, backend lowering, runtime behavior,
-or execution.
+defines no model-owned gradient rule, compiler capture or canonicalization, backend lowering,
+runtime behavior, or execution. Current package-private compiler autograd supports floating
+`CUM_SUM` for all four exclusive/reverse combinations by retaining exclusivity and reversing the
+scan direction. `CUM_PROD` differentiation remains deferred.
 
 Failure behavior is local and deterministic:
 
@@ -4740,6 +4788,10 @@ remain distinct until a later compiler proves a legal canonicalization. Resolved
 describes the requested logical representation; it does not prove allocation, copying, distinct
 physical storage, runtime residency, backend support, or execution.
 
+Current package-private compiler autograd passes a cotangent through a floating
+`CONTIGUOUS` occurrence with exact matching input/output type and Shape. This logical formula
+does not choose physical aliasing, copying, or materialization.
+
 #### Complete expression-construction example
 
 ##### Goal and inputs
@@ -4837,6 +4889,11 @@ Both overloads accept all six current data types, retain the exact input data ty
 `requiresGrad` value, and return an unlabeled, storage-free Tensor. Provenance contains exactly
 `Operation(ShapeTransformKind.RESHAPE, new TargetShapeAttrs(targetShape))` and ordered input
 `[input]`. Same-shape, repeated, and nested requests remain explicit fresh expressions.
+
+Current package-private compiler autograd reverses a supported floating reshape with
+`gradient.reshape(input.descriptor().shape())` after preflight verifies the current element-count
+contract. The formula constructs metadata only and does not select physical view or copy
+behavior.
 
 The raw `long...` overload treats its array as caller-owned input: it neither mutates nor retains
 the array. An empty request means the canonical rank-zero scalar Shape. Every ordinary extent must
@@ -4972,6 +5029,10 @@ overloads accept every current data type, retain the exact input data type and `
 value, and return an unlabeled, storage-free Tensor. Provenance contains exactly
 `Operation(ShapeTransformKind.EXPAND, new TargetShapeAttrs(targetShape))` and ordered input
 `[input]`. Identity-like, repeated, and nested calls remain explicit fresh expressions.
+
+Current package-private compiler autograd reverses a supported floating expand with
+`gradient.sumToShape(input.descriptor().shape())`, using the existing public binding-aware
+reduction. This logical formula does not select storage aliasing or materialization.
 
 Expansion is directional rather than symmetric broadcasting. Input and target axes align from
 the right. Each aligned input dimension must equal its target dimension structurally, or the input
@@ -5117,8 +5178,9 @@ Identity, inverse, repeated, and nested requests remain explicit expressions.
 
 Resolved view layout is logical metadata. It does not attach or inspect storage, prove a physical
 alias, promise zero-copy execution, or choose whether a backend must materialize a copy. Compiler
-capture and permutation canonicalization, planning and prepare-time materialization, backend
-lowering, gradients, runtime residency, and execution remain planned in their owning layers.
+permutation canonicalization, planning and prepare-time materialization, backend lowering,
+runtime residency, and execution remain planned in their owning layers. Current package-private
+compiler autograd reverses a supported floating `PERMUTE` with the exact inverse permutation.
 
 #### Complete expression-construction example
 
@@ -5245,6 +5307,10 @@ Tensor with one-input provenance. `expandDims` records `AxisTransformKind.EXPAND
 `AxisTransformAttrs` containing the normalized output insertion position; `squeeze` records
 `AxisTransformKind.SQUEEZE` and the normalized input removal position. Repeated, nested, and
 inverse-like requests remain explicit and are not canonicalized at this boundary.
+
+Current package-private compiler autograd reverses a supported floating `EXPAND_DIMS` with
+`squeeze` at the recorded axis and reverses `SQUEEZE` with `expandDims`. These are logical Tensor
+expressions; they do not establish physical aliasing or materialization.
 
 When input layout is unresolved, result layout stays unresolved. For any resolved input layout,
 `expandDims` constructs a new same-offset view descriptor by inserting one stride while preserving
@@ -9671,8 +9737,9 @@ The following contracts appear in the architecture and planning documents but ar
   family-specific attribute values beyond those documented above;
 - public compiler entry points, concrete dimension binding,
   compiler-owned `PublicationPlan` and `CompileArtifacts`, and the engine `CompiledGraph` facade;
-  package-private structural capture, binding-free verification inference, canonicalization,
-  exact rewriting, bounded logical-splat folding, and forward DCE/CSE are current; and
+  package-private forward-only and phase-aware combined capture, closed first-order autograd,
+  binding-free verification inference, canonicalization, exact rewriting, bounded logical-splat
+  folding, whole-graph DCE, and phase-local CSE are current; and
 - planning, prepare, runtime, publication execution, and backend execution.
 
 `OperationKind`, `OperationAttrs`, `NoOperationAttrs`, `Operation`, `BinaryArithmeticKind`,

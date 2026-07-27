@@ -3,6 +3,7 @@ package io.github.pho001.synaptik.compiler;
 import static org.junit.jupiter.api.Assertions.assertAll;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -94,7 +95,7 @@ final class ForwardDeadCodeEliminationTest {
     }
 
     @Test
-    void sidecarRetainsConstantGraphOutputsConsumedConstantsAndNonForwardDependencies() {
+    void sidecarRetainsConstantGraphOutputsAndRemovesDeadWorkRegardlessOfPhase() {
         TensorDescriptor descriptor = descriptor(DataType.INT32, Shape.of(2), false);
         var splat = new CompileTimeConstantGraph.Splat(ScalarValue.int32(3));
         CompiledGraphModel passThrough = graph(
@@ -110,11 +111,13 @@ final class ForwardDeadCodeEliminationTest {
         CompileTimeConstantGraph backwardSidecar = new CompileTimeConstantGraph(
                 backwardGraph, Map.of(new ValueId(0), splat));
 
+        CompileTimeConstantGraph eliminated =
+                ForwardDeadCodeElimination.eliminate(backwardSidecar);
         assertAll(
                 () -> assertSame(graphOutput,
                         ForwardDeadCodeElimination.eliminate(graphOutput)),
-                () -> assertSame(backwardSidecar,
-                        ForwardDeadCodeElimination.eliminate(backwardSidecar)),
+                () -> assertNotSame(backwardSidecar, eliminated),
+                () -> assertTrue(eliminated.graph().nodes().isEmpty()),
                 () -> assertEquals(1, ForwardDeadCodeElimination
                         .eliminate(backwardSidecar).constants().size()));
     }
@@ -198,7 +201,7 @@ final class ForwardDeadCodeEliminationTest {
     }
 
     @Test
-    void retainsNonForwardWorkAndItsForwardDependencyClosure() {
+    void removesDeadBackwardWorkInsteadOfTreatingPhaseAsALivenessRoot() {
         TensorDescriptor descriptor = descriptor(DataType.FLOAT32, Shape.of(2), true);
         Operation dependency = operation(UnaryElementwiseKind.ABS);
         Operation backward = operation(UnaryElementwiseKind.NEG);
@@ -216,11 +219,8 @@ final class ForwardDeadCodeEliminationTest {
         CompiledGraphModel result = ForwardDeadCodeElimination.eliminate(graph);
 
         assertAll(
-                () -> assertEquals(2, result.nodes().size()),
-                () -> assertSame(dependency, result.nodes().get(0).operation()),
-                () -> assertSame(backward, result.nodes().get(1).operation()),
-                () -> assertEquals(GraphPhase.BACKWARD,
-                        result.nodePhases().get(new NodeId(1))),
+                () -> assertTrue(result.nodes().isEmpty()),
+                () -> assertTrue(result.nodePhases().isEmpty()),
                 () -> assertEquals(List.of(new ValueId(0)), result.outputs()));
     }
 

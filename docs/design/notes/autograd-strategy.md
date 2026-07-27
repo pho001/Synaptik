@@ -6,9 +6,12 @@
 ## Purpose and status
 
 Automatic differentiation (autograd) derives gradient computations from a forward expression.
-The design is accepted, but implementation remains planned. Model task 0025 is Complete and every
-producer can return its canonical exact Tensor wrapper for each output position. Compiler task
-0004 remains Draft and awaits its dedicated planning pass.
+The design is accepted and its first bounded package-private implementation is current. Model task
+0025 lets every producer return its canonical exact Tensor wrapper for each output position.
+[Compiler task 0004](../../planning/modules/compiler/tasks/0004-compiler-owned-pre-capture-autograd-and-combined-graph-compilation.md)
+is Complete with the scalar-objective, implicit-unit-seed first-order graph-stage contract.
+Public gradient requests, publication, compile artifacts, higher derivatives, optimizer updates,
+preparation, and execution remain planned.
 
 ## Mental model
 
@@ -27,6 +30,28 @@ original forward Tensor expression DAG
 Tensor expression objects are the single construction language before capture.
 `CompiledGraphModel` is the immutable graph state after capture. The compiler does not convert
 captured `ValueId` values back into placeholder Tensors and does not maintain a second algebra.
+
+Compiler task 0004 implements the general package-private entry owner `GraphCompiler` and its
+mode-neutral graph-stage result `GraphCompilation`, without adding a request aggregate.
+`FORWARD_ONLY` produces no BACKWARD nodes and empty gradient results. Backward-capable modes may
+produce the combined forward/backward graph described below. `GraphCompilation` is distinct from
+the later `CompileArtifacts` aggregate.
+
+## Current first-order request
+
+One backward-capable internal request contains:
+
+- one exact objective Tensor that is also a requested forward output, has scalar Shape, one
+  floating data type, and gradient eligibility;
+- one non-empty ordered list of exact-object-identity-unique target Tensors in the objective
+  ancestry, each with the objective's exact type, gradient eligibility, and a selected
+  differentiable route; and
+- one implicit rank-zero positive-one seed with the objective's exact type.
+
+A target may be a leaf, an intermediate, or the objective itself. Target order becomes
+gradient-result-role order; it does not stop traversal needed by another upstream target. There
+is no current caller-supplied seed, non-scalar objective, disconnected-target zero policy,
+vector-Jacobian product, public target/publication request, or higher derivative.
 
 ## Ownership and reverse accumulation
 
@@ -51,6 +76,26 @@ producer occurrence, output role, exact attributes, and required derivative poli
 or ambiguous work fails closed. This prevents a known incomplete rule matrix from creating a
 partial backward expression.
 
+The closed `SUPPORTED_0004` matrix is:
+
+| Family | Current exact variants |
+|---|---|
+| Elementwise | Same-floating-type binary and exact-scalar `ADD`/`SUB`/`MUL`; same-type branch-only `WHERE`; same-type floating `CAST`; `NEG`/`EXP`/`EXPM1`/`SIGMOID`/`TANH` |
+| Reduction/scan | Floating ordinary full, single-axis, and multi-axis `SUM`; floating `CUM_SUM` |
+| Logical layout | Floating `CONTIGUOUS`, `RESHAPE`, `EXPAND`, `EXPAND_DIMS`, `SQUEEZE`, and `PERMUTE` |
+
+Broadcast reversal uses public `sumToShape`; SUM restores removed axes before expansion; CUM_SUM
+retains exclusivity and reverses scan direction; PERMUTE uses the inverse permutation. WHERE's
+BOOL condition is non-differentiable.
+
+Everything outside this table fails closed on a selected route. Task 0004A retains policy-free
+exact-composition formulas. Task 0004B retains mixed-floating cotangent conversion and
+tie/endpoint/discontinuity/singularity/empty-domain/NaN/infinity policies. In particular, the
+current matrix excludes division, power, extrema, clamp and nonsmooth unary families,
+reciprocal/log/root families, product/mean/extrema/statistical reductions, `CUM_PROD`, softmax and
+normalization, linear algebra, indexing, random/dropout, losses, and other unlisted operation
+families.
+
 Preflight is not full graph inference. The compiler performs authoritative inference and
 validation after the one combined capture. A later Tensor construction, capture, inference,
 validation, or optimization failure can therefore consume temporary `TensorId` values. This is
@@ -58,10 +103,11 @@ compatible with the existing opaque, monotonic, non-reusable ID contract.
 
 ## Constants and hidden outputs
 
-Unit seeds, disconnected zeros, and other derivative constants are storage-free Tensor leaves or
-expressions. The compiler registers each leaf explicitly with one exact logical-splat fact for
-the combined capture. Host storage, labels, factory history, layout, and provenance absence never
-imply constant status.
+The implicit unit seed, WHERE routing zeros, and other derivative constants are storage-free
+Tensor leaves or expressions. The compiler registers each BFLOAT16, FLOAT32, or FLOAT64 scalar
+base explicitly with one exact logical-splat fact for combined capture. BFLOAT16 zero/one use
+exact bits `0x0000`/`0x3F80`; FLOAT32 and FLOAT64 use exact positive zero/one. Host storage,
+labels, factory history, Shape, layout, and provenance absence never imply constant status.
 
 Some formulas need producer outputs omitted from a public ergonomic result. Dropout, for example,
 returns the public result and next RNG state while its same-occurrence keep mask is hidden.
@@ -100,7 +146,7 @@ lists each distinct gradient value once; no manufactured identity node is needed
 ## Combined optimization
 
 The immutable combined graph, not a forward-only prefix, enters optimization. Compiler task 0004
-must reassess the completed task-0003, 0003A, and 0003B orchestration:
+adapts the completed task-0003, 0003A, and 0003B orchestration:
 
 - canonicalization remains mandatory;
 - the already selected exact rewrites and constant folds may apply in either phase only when
@@ -109,8 +155,10 @@ must reassess the completed task-0003, 0003A, and 0003B orchestration:
 - common-subexpression elimination remains phase-local initially; and
 - every changed candidate returns through Compiler 0002 validation.
 
-This migration authorizes no new rewrite, relaxed arithmetic, or physical constant
-materialization.
+The sequence runs once: canonicalize/validate, exact rewrite, exact fold, whole-graph dead-code
+elimination, phase-local common-subexpression elimination, then whole-graph cleanup dead-code
+elimination. This migration authorizes no new rewrite, fixed point, relaxed arithmetic, floating
+evaluation, or physical constant materialization.
 
 ## Compile modes and future derivatives
 

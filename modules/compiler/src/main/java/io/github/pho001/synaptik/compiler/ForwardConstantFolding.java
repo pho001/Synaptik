@@ -26,13 +26,15 @@ import java.util.Objects;
 import java.util.Set;
 
 /**
- * Folds a closed set of exact logical-splat operations in one forward topological scan.
+ * Folds a closed set of exact logical-splat operations in one whole-graph topological scan.
  *
  * <p>The selected set is BOOL {@code NOT}/{@code AND}/{@code OR}, signed-integral binary
  * {@code ADD}/{@code SUB}/{@code MUL}/{@code MIN}/{@code MAX}, all signed-integral binary
  * comparisons, and same-typed signed-integral scalar {@code ADD}/{@code SUB}/{@code MUL}/
  * {@code MIN}/{@code MAX}. Floating and BFLOAT16 evaluation, casts, other operations, graph-output
- * producers, gradient-eligible results, and multi-output occurrences remain unchanged.</p>
+ * producers, gradient-eligible results, and multi-output occurrences remain unchanged. An
+ * otherwise eligible occurrence may be {@link GraphPhase#FORWARD FORWARD} or
+ * {@link GraphPhase#BACKWARD BACKWARD}; its phase is not a constant-folding policy.</p>
  *
  * <p>A folded result becomes a new fixed structural source with one scalar payload. The pass does
  * not enumerate elements, read Tensor storage, allocate physical storage, intern constants, or
@@ -42,7 +44,8 @@ final class ForwardConstantFolding {
     private ForwardConstantFolding() {}
 
     /**
-     * Folds selected exact occurrences and propagates their splats to later nodes in the same scan.
+     * Folds selected exact occurrences in either phase and propagates their splats to later nodes
+     * in the same scan.
      *
      * @param constantGraph non-null successfully validated immutable graph and source facts; it is
      *     not mutated
@@ -80,8 +83,7 @@ final class ForwardConstantFolding {
             Map<ValueId, CompileTimeConstantGraph.Splat> propagated,
             Map<ValueId, GraphValue> values,
             Set<ValueId> graphOutputs) {
-        if (graph.nodePhases().get(node.id()) != GraphPhase.FORWARD
-                || node.outputs().size() != 1
+        if (node.outputs().size() != 1
                 || graphOutputs.contains(node.outputs().getFirst())) {
             return null;
         }

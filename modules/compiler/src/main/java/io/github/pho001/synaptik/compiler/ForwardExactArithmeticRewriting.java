@@ -24,8 +24,8 @@ import java.util.Objects;
 import java.util.Set;
 
 /**
- * Bypasses a closed seven-rule set of exact non-gradient forward arithmetic identities in one
- * topological scan.
+ * Bypasses a closed seven-rule set of exact non-gradient arithmetic identities in one
+ * whole-graph topological scan.
  *
  * <p>The rules are duplicate-input binary {@code MIN} and {@code MAX}; scalar {@code MUL} by exact
  * typed positive one for BFLOAT16, FLOAT32, FLOAT64, INT32, and INT64; scalar {@code DIV} and
@@ -34,17 +34,19 @@ import java.util.Set;
  * {@code ScalarValueAttrs} operation metadata. They are not Tensor constants, host storage, or
  * evaluated values.</p>
  *
- * <p>Every bypass requires a {@link GraphPhase#FORWARD FORWARD} occurrence with exactly one
- * non-graph-output result, complete equality between that output descriptor and the selected input
- * descriptor, and {@code requiresGrad == false}. The scan compares already-remapped inputs, so an
- * earlier bypass can expose a later identity without iteration. It neither discovers or creates
- * Tensor constants nor evaluates arithmetic.</p>
+ * <p>A guarded occurrence may be {@link GraphPhase#FORWARD FORWARD} or
+ * {@link GraphPhase#BACKWARD BACKWARD}. Every bypass still requires exactly one non-graph-output
+ * result, complete equality between that output descriptor and the selected input descriptor,
+ * and {@code requiresGrad == false}. The scan compares already-remapped inputs, so an earlier
+ * bypass can expose a later identity without iteration. It preserves the occurrence phase and
+ * neither discovers or creates Tensor constants nor evaluates arithmetic.</p>
  */
 final class ForwardExactArithmeticRewriting {
     private ForwardExactArithmeticRewriting() {}
 
     /**
-     * Rewrites the guarded seven-rule set while rebuilding changed graph-local IDs.
+     * Rewrites the guarded seven-rule set in either graph phase while rebuilding changed
+     * graph-local IDs.
      *
      * @param graph the non-null, successfully validated immutable graph in topological order; it
      *     is not mutated
@@ -110,8 +112,7 @@ final class ForwardExactArithmeticRewriting {
             List<ValueId> remappedInputs,
             Map<ValueId, GraphValue> originalValues,
             Set<ValueId> graphOutputs) {
-        if (graph.nodePhases().get(node.id()) != GraphPhase.FORWARD
-                || node.outputs().size() != 1
+        if (node.outputs().size() != 1
                 || graphOutputs.contains(node.outputs().getFirst())) {
             return null;
         }

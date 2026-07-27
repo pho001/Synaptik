@@ -41,7 +41,8 @@ validation, exact graph transformation, compiler-owned autograd, and planning or
 - Compiler has no concrete backend dependency.
 - Autograd rules and reverse accumulation belong to compiler.
 - Tensor identity maps exist only during one compile request and are not graph representations.
-- One phase-aware capture assigns combined graph-local IDs once.
+- One phase-aware capture assigns graph-local IDs once, including the combined graph for
+  backward-capable modes.
 - Compiler owns graph-candidate semantics and validity; tuning may measure bounded complete
   candidates but does not construct or reinterpret them.
 
@@ -61,10 +62,10 @@ validation, exact graph transformation, compiler-owned autograd, and planning or
 
 ```text
 io.github.pho001.synaptik.compiler/
-  <root>  package-private forward/combined capture, inference and typed constraints,
+  <root>  package-private forward capture and backward-capable combined capture, inference and typed constraints,
           deterministic canonicalization, exact arithmetic rewriting, logical-splat facts and
           folding, DCE/CSE orchestration, named Tensor-expression gradient rules, reverse
-          accumulation, and combined graph result roles; later narrow public or cross-package
+          accumulation, and combined-graph gradient result roles; later narrow public or cross-package
           orchestration only when a concrete consumer justifies it
 ```
 
@@ -82,7 +83,7 @@ cross-package/public orchestration boundary from a concrete consumer.
 | 0003 | [Canonicalization and forward optimization](tasks/0003-canonicalization-and-forward-optimization.md) | Complete | 0002 | Added mandatory deterministic graph-local reindexing plus one config-controlled forward DCE/CSE/DCE sequence, revalidating every changed immutable candidate through 0002. |
 | 0003A | [Exact arithmetic rewriting](tasks/0003a-exact-arithmetic-rewriting.md) | Complete | 0003 | Added the closed seven-rule guarded exact arithmetic matrix before the forward DCE/CSE/DCE sequence, with 0002 revalidation and no relaxed algebra. |
 | 0003B | [Compile-time constants and constant folding](tasks/0003b-compile-time-constants-and-constant-folding.md) | Complete | 0003A | Added explicit logical-splat ingress, bounded BOOL/signed-integral folding, and sidecar-aware constant-source pruning without storage reads or physical values. |
-| 0004 | Compiler-owned pre-capture autograd and combined graph compilation | Draft | Model 0025; Compiler 0001–0003B | Preflight the original forward Tensor DAG, build a closed first gradient matrix through ordinary public Tensor operations, capture forward outputs and gradient roles together once, infer/validate, and apply only proved exact rewriting, folding, DCE, and phase-local CSE to the immutable combined graph before final validation. |
+| 0004 | [Compiler-owned pre-capture autograd and graph compilation](tasks/0004-compiler-owned-pre-capture-autograd-and-combined-graph-compilation.md) | Complete | Model 0025; Compiler 0001–0003B; Config 0002 | Added fail-closed preflight for one scalar-objective/implicit-unit-seed first-order request, the closed initial gradient matrix through ordinary public Tensor operations, one combined phase-aware capture, and proved exact whole-graph optimization with phase-local CSE. |
 | 0004A | Exact-composition gradient-rule extensions | Draft | 0004 | Extend the supported matrix with bounded regular formulas after the core one-capture pipeline is proved. |
 | 0004B | Derivative-policy selection and policy-dependent gradient rules | Draft | 0004A | Select explicit boundary, tie, discontinuity, singularity, and cross-floating conversion policies before adding policy-dependent formulas. |
 | 0005 | Publication, planning orchestration, and compile artifacts | Draft | 0001–0004B, stable config/planning/trace consumers | Orchestrate publication, backend-neutral ownership/partition/logical-memory planning, diagnostics, and immutable `CompileArtifacts` without prepare/runtime/backend state. |
@@ -92,28 +93,40 @@ cross-package/public orchestration boundary from a concrete consumer.
 
 - Capture and validation — Complete through task 0002.
 - Exact optimization foundations — Complete through task 0003B.
-- Pre-capture autograd and combined graph compilation — tasks 0004–0004B; run the compiler
+- Pre-capture autograd and graph compilation — tasks 0004–0004B; run the compiler
   transformation/autograd capability checkpoint after 0004B.
 - Planning orchestration and compile artifacts — task 0005.
 
 ## Current status
 
-In progress through an explicitly bounded roadmap interleave, but no compiler task is Ready.
-Tasks 0001–0003B remain Complete with their recorded source, tests, documentation, and validation.
+In progress through an explicitly bounded roadmap interleave. Compiler 0004 is Complete with its
+recorded source, tests, documentation, and validation. There is no Ready compiler implementation
+task. Compiler 0004A is the next Draft planning frontier and has no detailed specification.
 
 Accepted ADR 0009 changes the next compiler architecture from captured-forward placeholder
 conversion to compiler-owned pre-capture Tensor-expression autograd. The prerequisite is
 [Model task 0025](../model/tasks/0025-canonical-tensor-producer-outputs.md), which is Complete. It
-makes exact hidden producer outputs retrievable without reconstructing wrappers. Compiler 0004
-remains Draft without a detailed task specification and awaits a separate dedicated planning
-pass; completion of the model prerequisite does not automatically advance compiler status.
+makes exact hidden producer outputs retrievable without reconstructing wrappers. The dedicated
+planning and implementation passes made
+[Compiler 0004](tasks/0004-compiler-owned-pre-capture-autograd-and-combined-graph-compilation.md)
+Complete with a bounded package-private scalar-objective/implicit-unit-seed request, an exact
+fail-closed first rule matrix, one phase-aware capture, immutable result roles, and combined exact
+optimization. The implementation first verified exactly six obsolete untracked Java prototypes,
+deleted them without reading or adapting their contents, and verified their absence before Gradle
+and at final status. Those removal-only paths plus 32 tracked create/modify paths stayed within
+the 38 touched-path ceiling.
+
+The current general package-private entry owner is `GraphCompiler`, and its exact
+parameter list is not wrapped in a request aggregate. It returns mode-neutral package-private
+`GraphCompilation`: `FORWARD_ONLY` has no BACKWARD nodes and empty gradient results, while
+backward-capable modes may carry the combined forward/backward graph. This internal graph-stage
+result is distinct from the later `CompileArtifacts` aggregate owned by task 0005.
 
 This reordering preserves completed history. Tasks 0003, 0003A, and 0003B were correctly completed
-for a forward-only immutable graph. Compiler 0004 must reassess their orchestration rather than
-rewrite that history: after one combined capture and initial validation, it applies their existing
-exact rules only where current guards prove them phase-safe, performs whole-graph liveness, keeps
-CSE phase-local initially, and revalidates every changed candidate through task 0002. It invents
-no new rewrite.
+for a forward-only immutable graph. Compiler 0004 reused their existing exact rules only where
+their guards are phase-safe: after one combined capture and initial validation, it performs exact
+rewrite/fold, whole-graph liveness, phase-local CSE, and DCE cleanup once each and revalidates every
+changed candidate through task 0002. It adds no new algebra.
 
 Config 0004 remains Draft because these compiler transformations require no planning-cost
 classification. Trace 0003 and later remain Draft because no stable emission schema is selected.
@@ -121,11 +134,14 @@ Runtime and prepare remain Draft because no prepared or executable state is intr
 
 ## Open questions
 
-- The exact first gradient-rule matrix and package-private result type remain Draft task-0004
-  planning decisions for a separate dedicated planning pass after completed model task 0025. They
-  must fit the accepted architecture rather than reopen placeholder conversion.
-- The public/artifact boundary for explicit objectives, targets, seeds, unresolved constraints,
-  and gradient roles remains deferred until task 0005 and its consumers are stable.
+- The artifact boundary for unresolved constraints and gradient roles remains deferred until task
+  0005 and its consumers are stable.
+- The public functional boundary for explicit objectives, targets, seeds, and derivative order
+  remains deferred to task 0006 after the compile/artifact consumer is stable.
+- The next policy-free exact-composition additions remain task-0004A planning decisions after
+  0004 completes.
+- Tie, discontinuity, singularity, exceptional-value, empty-domain, and cross-floating cotangent
+  policies remain task-0004B decisions; 0004 selects none of them.
 - The first cross-package collaboration with planning remains deferred to task 0005.
 
 ## Decisions made
@@ -138,8 +154,8 @@ Runtime and prepare remain Draft because no prepared or executable state is intr
   before capture. `TRAINING_STEP` adds no optimizer updates yet.
 - Before backward construction, compiler inventories every backward-reachable producer occurrence,
   output role, exact attributes, and required derivative policy. Unsupported work fails closed.
-- Full inference/validation occurs after the one combined capture. Later failures may consume
-  temporary Tensor IDs; IDs are never rolled back or reused.
+- Full inference/validation occurs after the one backward-capable combined capture. Later failures
+  may consume temporary Tensor IDs; IDs are never rolled back or reused.
 - Named compiler components such as `ElementwiseGradientRules` own dispatch. Formulas use only
   ordinary public Tensor operations such as `mul`, `add`, `sumToShape`, and `transpose`.
 - One compile request may use `IdentityHashMap`-style Tensor-to-contribution and
@@ -161,6 +177,10 @@ Runtime and prepare remain Draft because no prepared or executable state is intr
 - Generated gradients remain ordinary differentiable Tensor expressions. Higher derivatives wait
   for 0006's explicit create-graph/derivative-order lifecycle, complete rule coverage for formula
   operations, and phase/order representation.
+- Compiler 0004 first verifies the exact path/status of six obsolete untracked Java prototypes
+  under the production source root, deletes them before any implementation edit or compiler
+  invocation, and never copies, adapts, moves, stages, or treats their contents as design
+  authority.
 - No task adds `Tensor.gradient`, `Tensor.backward`, mutable gradient state, placeholder
   `ValueId` conversion, a second low-level algebra, a public gradient registry/facade, a physical
   tape, or backend-owned global autograd.
@@ -170,6 +190,8 @@ Runtime and prepare remain Draft because no prepared or executable state is intr
 ## Risks
 
 - Treating pre-capture Tensor expressions as graph-local IR.
+- Leaving the six obsolete untracked prototypes under the compiler production source root, where
+  Gradle would compile unauthorized code, or adapting their contents instead of deleting them.
 - Publishing or reconstructing a sibling output instead of using the producer's canonical exact
   wrapper.
 - Constructing partial backward expressions before discovering an unsupported exact attribute or
@@ -189,6 +211,6 @@ Runtime and prepare remain Draft because no prepared or executable state is intr
 
 ## Notes
 
-Follow the planning guide's progressive-planning rule. Model 0025 is Complete. Compiler 0004
-remains Draft without a detailed task specification until a separate dedicated planning pass
-advances the roadmap.
+Follow the planning guide's progressive-planning rule. Model 0025 and Compiler 0004 are Complete.
+There is no Ready compiler implementation task. Compiler 0004A is the next Draft planning
+frontier; it and later tasks remain without detailed specifications until the frontier advances.
