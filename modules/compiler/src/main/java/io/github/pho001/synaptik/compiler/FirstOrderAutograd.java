@@ -15,6 +15,10 @@ import io.github.pho001.synaptik.model.operation.layout.SliceKind;
 import io.github.pho001.synaptik.model.operation.layout.TensorCompositionKind;
 import io.github.pho001.synaptik.model.operation.layout.TileKind;
 import io.github.pho001.synaptik.model.operation.linalg.MatmulKind;
+import io.github.pho001.synaptik.model.operation.normalization.BatchNormKind;
+import io.github.pho001.synaptik.model.operation.normalization.LayerNormKind;
+import io.github.pho001.synaptik.model.operation.normalization.RmsNormKind;
+import io.github.pho001.synaptik.model.operation.normalization.SoftmaxKind;
 import io.github.pho001.synaptik.model.operation.reduction.AggregateReductionKind;
 import io.github.pho001.synaptik.model.operation.scan.CumulativeScanKind;
 import io.github.pho001.synaptik.model.operation.index.SelectKind;
@@ -37,19 +41,21 @@ import java.util.Set;
  * Constructs one deterministic first-order Tensor expression after successful preflight.
  *
  * <p>Incoming contributions and accumulated cotangents are keyed by exact Tensor identity.
- * Contributions are appended in reverse producer-postorder and input-position order, then merged
- * through left-associated public Tensor addition. The only seed is an implicit exact typed
- * positive one for the scalar objective. Request-local BFLOAT16, FLOAT32, or FLOAT64 scalar
- * leaves are cached by exact {@link ScalarValue} type and represented bits, remain storage-free,
- * and are registered explicitly as logical splats in deterministic first-use order.
- * Shape-specific values are ordinary public {@code expand} expressions.</p>
+ * Contributions are appended in reverse producer-postorder, ascending selected-output-slot, and
+ * ascending input-position order, then merged through left-associated public Tensor addition.
+ * This keeps existing one-output order stable while allowing several selected public outputs of
+ * one batch-normalization occurrence to contribute to the same input. The only seed is an
+ * implicit exact typed positive one for the scalar objective. Request-local BFLOAT16, FLOAT32, or
+ * FLOAT64 scalar leaves are cached by exact {@link ScalarValue} type and represented bits, remain
+ * storage-free, and are registered explicitly as logical splats in deterministic first-use
+ * order. Shape-specific values are ordinary public {@code expand} expressions.</p>
  *
  * <p>Formula ownership remains split among {@link ElementwiseGradientRules},
- * {@link ReductionGradientRules}, {@link LinearAlgebraGradientRules}, and
- * {@link LayoutGradientRules}. This class dispatches only preflight-approved occurrences and
- * preserves every selected positional contribution, including repeated MATMUL, slice-update,
- * concat, and stack operands. Its closed reduction dispatch includes ordinary and masked
- * {@code MEAN}; it does not absorb family formulas or infer support.</p>
+ * {@link ReductionGradientRules}, {@link NormalizationGradientRules},
+ * {@link LinearAlgebraGradientRules}, and {@link LayoutGradientRules}. This class dispatches only
+ * preflight-approved occurrences and preserves every selected positional contribution,
+ * including repeated MATMUL, slice-update, concat, stack, and batch-normalization output routes.
+ * It does not absorb family formulas or infer support.</p>
  *
  * <p>The returned Tensor roles and original-producer identities are an ephemeral handoff to one
  * combined capture. Generated logical-splat bindings, including extrema or clamp bounds needed
@@ -90,28 +96,37 @@ final class FirstOrderAutograd {
                 plan.objective().descriptor().dataType()));
 
         List<AutogradPreflight.SelectedOccurrence> selected = plan.selectedOccurrences();
-        for (int index = selected.size() - 1; index >= 0; index--) {
-            AutogradPreflight.SelectedOccurrence occurrence = selected.get(index);
-            TensorProducer producer = occurrence.producer();
-            Tensor output = producer.output(occurrence.outputIndex());
-            List<Tensor> incoming = contributions.get(output);
-            if (incoming == null || incoming.isEmpty()) {
-                continue;
+        for (int end = selected.size(); end > 0; ) {
+            int start = end - 1;
+            int postorderIndex = selected.get(start).postorderIndex();
+            while (start > 0
+                    && selected.get(start - 1).postorderIndex() == postorderIndex) {
+                start--;
             }
-            Tensor gradient = accumulate(incoming);
-            accumulated.put(output, gradient);
-            Tensor[] inputGradients = apply(occurrence, gradient, constants);
-            for (int input = 0; input < producer.inputs().size(); input++) {
-                if (!occurrence.selectedInput(input)) {
+            for (int index = start; index < end; index++) {
+                AutogradPreflight.SelectedOccurrence occurrence = selected.get(index);
+                TensorProducer producer = occurrence.producer();
+                Tensor output = producer.output(occurrence.outputIndex());
+                List<Tensor> incoming = contributions.get(output);
+                if (incoming == null || incoming.isEmpty()) {
                     continue;
                 }
-                Tensor inputGradient = inputGradients[input];
-                if (inputGradient == null) {
-                    throw new IllegalStateException(
-                            "preflight selected a non-differentiable input role " + input);
+                Tensor gradient = accumulate(incoming);
+                accumulated.put(output, gradient);
+                Tensor[] inputGradients = apply(occurrence, gradient, constants);
+                for (int input = 0; input < producer.inputs().size(); input++) {
+                    if (!occurrence.selectedInput(input)) {
+                        continue;
+                    }
+                    Tensor inputGradient = inputGradients[input];
+                    if (inputGradient == null) {
+                        throw new IllegalStateException(
+                                "preflight selected a non-differentiable input role " + input);
+                    }
+                    append(contributions, producer.inputs().get(input), inputGradient);
                 }
-                append(contributions, producer.inputs().get(input), inputGradient);
             }
+            end = start;
         }
 
         List<TargetGradient> roles = new ArrayList<>(plan.targets().size());
@@ -197,10 +212,25 @@ final class FirstOrderAutograd {
                     occurrence.selectedInputs(),
                     constants);
         }
-        if (kind == AggregateReductionKind.SUM
-                || kind == AggregateReductionKind.MEAN
-                || kind == CumulativeScanKind.CUM_SUM) {
-            return ReductionGradientRules.apply(producer, gradient, constants);
+        if (kind instanceof AggregateReductionKind
+                || kind instanceof CumulativeScanKind
+                || kind instanceof SoftmaxKind) {
+            return ReductionGradientRules.apply(
+                    producer,
+                    occurrence.outputIndex(),
+                    gradient,
+                    occurrence.selectedInputs(),
+                    constants);
+        }
+        if (kind instanceof LayerNormKind
+                || kind instanceof RmsNormKind
+                || kind instanceof BatchNormKind) {
+            return NormalizationGradientRules.apply(
+                    producer,
+                    occurrence.outputIndex(),
+                    gradient,
+                    occurrence.selectedInputs(),
+                    constants);
         }
         if (kind == MatmulKind.MATMUL) {
             return LinearAlgebraGradientRules.apply(
@@ -308,6 +338,42 @@ final class FirstOrderAutograd {
          */
         Tensor oneBase(DataType dataType) {
             return base(scalar(dataType, true));
+        }
+
+        /**
+         * Returns the exact fixed typed scalar-operation value {@code 2}.
+         *
+         * @param dataType non-null BFLOAT16, FLOAT32, or FLOAT64 type
+         * @return the exact represented coefficient selected by Compiler 0005A
+         * @throws IllegalArgumentException if {@code dataType} is not floating
+         */
+        ScalarValue two(DataType dataType) {
+            return switch (dataType) {
+                case BFLOAT16 -> ScalarValue.bfloat16Bits((short) 0x4000);
+                case FLOAT32 -> ScalarValue.float32(Float.intBitsToFloat(0x40000000));
+                case FLOAT64 ->
+                        ScalarValue.float64(Double.longBitsToDouble(0x4000000000000000L));
+                case INT32, INT64, BOOL -> throw new IllegalArgumentException(
+                        "derivative constants require floating data type: " + dataType);
+            };
+        }
+
+        /**
+         * Returns the exact fixed typed scalar-operation value {@code -0.5}.
+         *
+         * @param dataType non-null BFLOAT16, FLOAT32, or FLOAT64 type
+         * @return the exact represented coefficient selected by Compiler 0005A
+         * @throws IllegalArgumentException if {@code dataType} is not floating
+         */
+        ScalarValue negativeHalf(DataType dataType) {
+            return switch (dataType) {
+                case BFLOAT16 -> ScalarValue.bfloat16Bits((short) 0xBF00);
+                case FLOAT32 -> ScalarValue.float32(Float.intBitsToFloat(0xBF000000));
+                case FLOAT64 ->
+                        ScalarValue.float64(Double.longBitsToDouble(0xBFE0000000000000L));
+                case INT32, INT64, BOOL -> throw new IllegalArgumentException(
+                        "derivative constants require floating data type: " + dataType);
+            };
         }
 
         /**

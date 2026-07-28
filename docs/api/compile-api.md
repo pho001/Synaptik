@@ -10,7 +10,8 @@ nine-argument entry completes publication and backend-neutral planning and retur
 immutable `CompileArtifacts`.
 
 The current stages are fail-closed autograd preflight, formula construction through public Tensor
-operations, one phase-aware capture, binding-free captured-graph verification, mandatory dense
+operations, one phase-aware capture, binding-free captured-graph verification with retained
+occurrence-local Shape predicates, mandatory dense
 canonicalization, explicit logical-splat facts, one bounded exact whole-graph optimization
 pipeline, publication-role validation, one owner selection per final graph node, maximal
 same-owner partitioning, logical-memory derivation, and immutable artifact assembly. The
@@ -254,6 +255,8 @@ Complete and supplies the first internal autograd consumer of that identity cont
 tasks 0004A and 0004B are also Complete with the exact-composition and shared-algebra local-rule
 extensions described below. Compiler task 0005A is Complete and closes the exact 48-kind current
 elementwise/activation inventory with explicit derivative and non-differentiable-role policies.
+Compiler task 0005B is Complete and adds binding-aware expansion plus the current reduction,
+scan, softmax, statistics, norm, and Layer/RMS/batch-normalization first-order matrix.
 
 Package-private `GraphCompiler.compile` takes `CompileMode`, ordered forward outputs, an optional
 package-private first-order request, explicit forward constant ingress, and
@@ -280,20 +283,23 @@ the complete original forward request and validates every selected objective-to-
 occurrence, exact output and input role, attributes variant, data-type and Shape relationship,
 and derivative policy. Known unsupported work fails before allocating derivative Tensor
 identity. Named `ElementwiseGradientRules`, `ReductionGradientRules`,
-`LinearAlgebraGradientRules`, and `LayoutGradientRules` then build formulas only with existing
-public Tensor operations. Exact Tensor identity keys ordered contributions during one compile
-request, and ordinary left-associated `Tensor.add` accumulates them. This ephemeral state is
-neither Tensor state nor graph intermediate representation (IR).
+`NormalizationGradientRules`, `LinearAlgebraGradientRules`, and `LayoutGradientRules` then build
+formulas only with existing public Tensor operations. Exact Tensor identity keys ordered
+contributions during one compile request. Reverse accumulation visits producer postorder in
+reverse, selected output slots in ascending order for that producer, and input positions in
+ascending order; ordinary left-associated `Tensor.add` accumulates contributions. This ephemeral
+state is neither Tensor state nor graph intermediate representation (IR).
 
-The current matrix is the union of the Compiler 0004–0004B rows and the Compiler 0005A
-elementwise/activation completion:
+The current matrix is the union of the Compiler 0004–0004B rows and the Compiler 0005A–0005B
+family completions:
 
 | Family | Current exact supported variants |
 |---|---|
 | Elementwise and activation | All seven promoted floating binary arithmetic kinds: `ADD`, `SUB`, `MUL`, `DIV`, `MIN`, `MAX`, and `POW`; all eight exact-type floating scalar kinds, including first-class `CLAMP`; promoted floating branch-only `WHERE`; floating-to-floating `CAST`; and all nineteen floating unary kinds from `ABS` through `SILU` |
-| Reductions and scan | Ordinary full, single-axis, and ordered multi-axis floating `SUM` and `MEAN`; masked floating `SUM` and `MEAN`; locally invertible floating `SUM_TO_SHAPE`; floating `CUM_SUM` for all current exclusive/reverse combinations |
+| Reductions, scans, and softmax | Ordinary full, single-axis, and ordered multi-axis floating `SUM`, `MEAN`, `PROD`, `MIN`, and `MAX`; masked floating `SUM` and `MEAN`; binding-aware floating `SUM_TO_SHAPE`; floating `LOG_SUM_EXP`, `VARIANCE`, `STANDARD_DEVIATION`, `L1_NORM`, and `L2_NORM`; floating `CUM_SUM` and `CUM_PROD` for every exclusive/reverse combination; floating `SOFTMAX` and `LOG_SOFTMAX` |
+| Normalization | No-affine and affine floating `LAYER_NORM`; no-scale and scaled floating `RMS_NORM`; all five floating inputs of batch-normalization inference; and the exact output-slot-specific batch-normalization-training roles for public slots zero through two |
 | Linear algebra | Every current floating `MATMUL` vector/matrix rank pairing, with role-aware mixed-floating normalization and batch unbroadcasting |
-| Logical layout and selection | Floating `CONTIGUOUS`, `RESHAPE`, locally established `EXPAND`, `EXPAND_DIMS`, `SQUEEZE`, `PERMUTE`, normalized `SLICE`, both normalized `SLICE_UPDATE` data roles, `SELECT`, `PAD`, `TILE`, `CONCAT`, and `STACK` |
+| Logical layout and selection | Floating `CONTIGUOUS`, `RESHAPE`, binding-aware `EXPAND`, `EXPAND_DIMS`, `SQUEEZE`, `PERMUTE`, normalized `SLICE`, both normalized `SLICE_UPDATE` data roles, `SELECT`, `PAD`, `TILE`, `CONCAT`, and `STACK` |
 
 Forward and generated expressions use one model-owned Tensor algebra. For a selected mixed-
 floating input, the compiler first reverses ordinary broadcasting with `sumToShape` when needed
@@ -372,8 +378,51 @@ coefficient Tensor leaf.
 Masked SUM restores the removed axis, expands `g` to the data Shape, and selects that value where
 the exact BOOL mask is true or an explicit typed zero where it is false. The mask receives no
 cotangent. A forward `sumToShape` is inverted only when every right-aligned target Dimension is
-the exact input Dimension or static one; leading input axes are permitted. Any
-binding-dependent singleton-or-equal pair still fails preflight.
+the exact input Dimension, is static one, or retains the exact target-one-or-target-equal-source
+predicate needed by the inverse `expand`. Leading input axes are permitted. Conversely, a
+binding-dependent forward `EXPAND` emits, in aligned-axis order,
+`source == 1 || source == target`; its inverse `SUM_TO_SHAPE` is admitted only through that same
+predicate. Deferred predicates remain attached to the occurrence for later binding validation.
+The compiler does not bind a Dimension, choose a stride, or treat a deferred result as execution
+permission.
+
+`PROD` uses sequential keep-dimension product stages and reverses each stage with exclusive
+prefix and suffix `CUM_PROD`; it never divides by the selected input. `CUM_PROD` replaces
+represented zeros with one for safe products, counts zeros with `CUM_SUM`, and accumulates in the
+opposite scan direction. These formulas handle zero-free, one-zero, multiple-zero, exclusive,
+reverse, and zero-length structure without a gradient-specific infinity or NaN repair.
+
+Reduction `MIN` and `MAX` compare each input with the exact restored forward output and divide the
+restored cotangent equally among all matching coordinates. Opposite signed zeros are ties. A NaN
+forward output matches no coordinate, so the selected contribution is exact positive zero.
+`LOG_SUM_EXP` uses `restored(g) * exp(input - restored(output))`.
+
+`VARIANCE` and `STANDARD_DEVIATION` derive selected-domain count by reducing exact logical ones
+and construct correction as a typed logical-one reduction rather than a host floating
+conversion. Standard deviation returns exact zero when the saved result is not strictly
+positive. `L1_NORM` selects sign with exact zero at signed zero or NaN; `L2_NORM` returns exact
+zero when its saved norm is not strictly positive. Other exceptional values follow the ordinary
+Tensor formulas in their recorded order.
+
+`SOFTMAX` consumes exact forward output `y` and constructs
+`y * (g - sum(g * y, axis, true))`. `LOG_SOFTMAX` constructs
+`g - exp(y) * sum(g, axis, true)`. Neither rule recomputes a softmax occurrence or selects a
+forward numerical algorithm.
+
+Layer and root-mean-square (RMS) normalization rebuild their population statistics with ordinary
+Tensor operations over the exact trailing normalized axes. Mixed-floating occurrences compute in
+the selected forward-output type, align affine operands by visible reshape/expand expressions,
+and cast each completed Shape-correct contribution back to its selected input type. Layer
+normalization supports input, scale, and bias roles; RMS normalization supports input and
+optional scale.
+
+Batch-normalization inference supports input, scale, bias, running mean, and running variance.
+Batch-normalization training is output-slot-aware: normalized output slot zero contributes to
+input/scale/bias, next-running-mean slot one contributes to input/running mean, and
+next-running-variance slot two contributes to input/running variance. Its formulas retrieve the
+exact same-occurrence saved mean and inverse-standard-deviation wrappers from slots three and
+four. Those saved slots are formula inputs, not independent cotangent roots, publications,
+physical buffers, or a runtime tape.
 
 MATMUL handles vector/vector, vector/matrix, matrix/vector, and matrix/matrix formulas with public
 rank edits, last-two-axis permutation, multiplication or MATMUL, followed by `sumToShape` for
@@ -442,10 +491,10 @@ is intentionally explicit:
 
 | Classification | Current deferred or rejected families |
 |---|---|
-| Later reduction and normalization work | Binding-dependent `SUM_TO_SHAPE`; binding-dependent `EXPAND` adoption; `PROD`, `CUM_PROD`, reduction extrema, `LOG_SUM_EXP`, softmax/log-softmax, statistics and norms, and layer/RMS/batch normalization |
-| Later layout, indexing, and stochastic work | Target-relative crop and unselected layout variants outside current exact guards; Gather/scatter, ordering/top-K, windows, dropout, and RNG-state roles |
+| Later layout, indexing, and stochastic work | Target-relative crop and unselected layout variants outside current exact guards; Gather/scatter, ordering/top-K, windows, dropout, and RNG-state roles assigned to Compiler 0005C |
 | Later structured differentiation work | Attention, convolution, pooling, losses, and other structured families assigned to Compiler 0005D |
-| Non-differentiable roles and outputs | Comparisons, BOOL logic/classification, `ALL`, `ANY`, arg-extrema results, one-hot and other index roles, masks, padding constants, select coordinates, and graph RNG state |
+| First-order closure work | Complete source-backed role/output audit and transitive differentiability proof assigned to Compiler 0005E |
+| Non-differentiable roles and outputs | Comparisons, BOOL logic/classification, `ALL`, `ANY`, arg-extrema results, batch-training saved auxiliary roots, one-hot and other index roles, masks, padding constants, select coordinates, and graph RNG state |
 
 Unknown/custom kinds, wrong attribute classes or cardinalities, missing canonical outputs, and
 descriptor contradictions also fail deterministically. Later formulas must continue using the
@@ -958,18 +1007,16 @@ expanded-singleton axes. Every result retains exact type and gradient eligibilit
 EXPAND/target-shape semantics with one-input provenance, and remains fresh, unlabeled, and
 storage-free.
 
-Package-private capture can carry that broadened Model occurrence into graph validation, but
-current compiler inference has not adopted its obligation. The EXPAND branch still admits an
-aligned pair only when the dimensions are structurally equal or the source is a static singleton;
-a non-equal pair containing an unresolved dimension is rejected rather than translated into a
-deferred predicate. The currently supported floating EXPAND gradient therefore covers only those
-locally admitted occurrences and continues to use
-`gradient.sumToShape(input.descriptor().shape())`. Compiler task 0005B remains Draft, has no
-detailed task file, and is planned to add the occurrence-owned
-`AnyOf(DimensionEqual(source, 1), DimensionEqual(source, target))` inference/proof, preflight, and
-gradient consistency. Existing `SUM_TO_SHAPE` reduction semantics are unchanged. Neither the
-current nor planned boundary claims value repetition, storage aliasing, materialization, backend
-lowering, or execution.
+Package-private compiler inference now adopts that broadened occurrence. For each non-equal,
+non-static-source-singleton unresolved aligned pair, it emits the occurrence-owned predicate
+`AnyOf(DimensionEqual(source, 1), DimensionEqual(source, target))` in aligned-axis order and
+leaves layout unresolved. Floating EXPAND autograd constructs
+`gradient.sumToShape(input.descriptor().shape())`; preflight admits the route only when that
+inverse uses the same forward predicate relationship. Binding-dependent `SUM_TO_SHAPE` similarly
+inverts through `gradient.expand(input.descriptor().shape())` under the matching
+target-one-or-target-equal-source obligation. Existing Model reduction semantics are unchanged.
+This compiler contract binds no dimension and claims no value repetition, storage aliasing,
+materialization, backend lowering, or execution.
 `Tensor.permute(int...)` accepts every current data type, requires a complete output-to-input axis
 mapping, normalizes each negative axis once, and reorders exact Dimension references. Any resolved
 input layout produces a new same-offset view descriptor with exact reordered strides; unresolved

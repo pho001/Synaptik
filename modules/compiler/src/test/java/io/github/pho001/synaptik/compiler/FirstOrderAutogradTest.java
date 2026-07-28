@@ -13,6 +13,7 @@ import io.github.pho001.synaptik.model.operation.reduction.AggregateReductionKin
 import io.github.pho001.synaptik.model.shape.DynamicDimension;
 import io.github.pho001.synaptik.model.shape.Shape;
 import io.github.pho001.synaptik.model.tensor.Tensor;
+import io.github.pho001.synaptik.model.tensor.BatchNormTrainingResult;
 import io.github.pho001.synaptik.model.tensor.TensorDescriptor;
 import io.github.pho001.synaptik.model.tensor.TensorFactory;
 import java.util.List;
@@ -169,6 +170,60 @@ final class FirstOrderAutogradTest {
                         .provenance().orElseThrow().operation().kind());
     }
 
+    @Test
+    void exposesExactTwoAndNegativeHalfCoefficientsForEveryFloatingType() {
+        var constants = new FirstOrderAutograd.DerivativeConstants();
+        assertEquals((short) 0x4000, constants.two(DataType.BFLOAT16).bfloat16Bits());
+        assertEquals((short) 0xBF00, constants.negativeHalf(DataType.BFLOAT16).bfloat16Bits());
+        assertEquals(
+                0x40000000,
+                Float.floatToRawIntBits(constants.two(DataType.FLOAT32).float32Value()));
+        assertEquals(
+                0xBF000000,
+                Float.floatToRawIntBits(constants.negativeHalf(DataType.FLOAT32).float32Value()));
+        assertEquals(
+                0x4000000000000000L,
+                Double.doubleToRawLongBits(constants.two(DataType.FLOAT64).float64Value()));
+        assertEquals(
+                0xBFE0000000000000L,
+                Double.doubleToRawLongBits(
+                        constants.negativeHalf(DataType.FLOAT64).float64Value()));
+    }
+
+    @Test
+    void accumulatesBatchTrainingSlotsAscendingAndLeftAssociated() {
+        Tensor input = tensor(Shape.of(2, 3, 4));
+        Tensor vector = tensor(Shape.of(3));
+        BatchNormTrainingResult result = input.batchNormTraining(
+                1,
+                vector,
+                vector,
+                vector,
+                vector,
+                ScalarValue.float32(0.1f),
+                ScalarValue.float32(1.0e-5f));
+        Tensor objective = result.output().sum()
+                .add(result.nextRunningMean().sum())
+                .add(result.nextRunningVariance().sum());
+        AutogradPreflight.Plan plan = AutogradPreflight.preflight(
+                CompileMode.FORWARD_AND_BACKWARD,
+                List.of(objective),
+                new AutogradPreflight.FirstOrderRequest(objective, List.of(input)),
+                CompileTimeConstantGraph.Ingress.empty());
+
+        Tensor gradient = FirstOrderAutograd.expand(
+                        plan, CompileTimeConstantGraph.Ingress.empty())
+                .targetGradients()
+                .getFirst()
+                .gradient();
+
+        assertEquals(BinaryArithmeticKind.ADD,
+                gradient.provenance().orElseThrow().operation().kind());
+        assertEquals(BinaryArithmeticKind.ADD,
+                gradient.provenance().orElseThrow().inputs().getFirst()
+                        .provenance().orElseThrow().operation().kind());
+    }
+
     private static void assertTrueLeaf(Tensor tensor) {
         assertFalse(tensor.provenance().isPresent());
         assertFalse(tensor.label().isPresent());
@@ -176,7 +231,11 @@ final class FirstOrderAutogradTest {
     }
 
     private static Tensor tensor() {
+        return tensor(Shape.of(2));
+    }
+
+    private static Tensor tensor(Shape shape) {
         return TensorFactory.create(new TensorDescriptor(
-                DataType.FLOAT32, Shape.of(2), Optional.empty(), true));
+                DataType.FLOAT32, shape, Optional.empty(), true));
     }
 }

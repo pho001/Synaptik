@@ -12,7 +12,16 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
-/** Derives descriptors and constraints for layout, Shape, composition, and window transforms. */
+/**
+ * Derives descriptors and occurrence-local constraints for layout, Shape, composition, and
+ * window transforms.
+ *
+ * <p>Binding-dependent {@code EXPAND} keeps the exact requested target Shape, emits one ordered
+ * source-one-or-source-equal predicate for each unresolved aligned pair, and leaves layout
+ * unresolved. Structural equality, a static source singleton, and fully resolved zero-stride
+ * view geometry retain their existing behavior. This owner records obligations only; it does not
+ * bind dimensions, select materialization, or authorize execution.</p>
+ */
 final class LayoutInference {
     private LayoutInference() {}
 
@@ -21,9 +30,11 @@ final class LayoutInference {
      *
      * @param op non-null typed operation whose kind belongs to this family
      * @param in non-null ordered input descriptors supplied by the captured node
-     * @return immutable derived descriptors and ordered candidate constraints; never {@code null}
+     * @return immutable derived descriptors and ordered occurrence-local candidate constraints;
+     *     never {@code null}
      * @throws IllegalArgumentException if the kind is unsupported here or the occurrence violates
-     *     its rank, Shape, layout, or attribute contract
+     *     its rank, Shape, layout, or attribute contract, including a fully static incompatible
+     *     expansion pair
      */
     static CapturedGraphInference.InferenceResult infer(Operation op,List<TensorDescriptor> in){
         if(op.kind() instanceof ContiguousKind)return contiguous(in);
@@ -40,7 +51,39 @@ final class LayoutInference {
     private static CapturedGraphInference.InferenceResult shapeTransform(ShapeTransformKind kind,TargetShapeAttrs attrs,List<TensorDescriptor> in){
         TensorDescriptor x=in.get(0);Shape target=attrs.targetShape();Optional<LayoutDescriptor> layout=Optional.empty();List<CapturedGraphInference.ConstraintRequest> cs=new ArrayList<>();
         if(kind==ShapeTransformKind.RESHAPE){cs.add(new CapturedGraphInference.ConstraintRequest("reshape element count",new ShapeElementCountEqual(x.shape(),target)));if(target.isFullyStatic()&&x.layout().isPresent()&&x.layout().orElseThrow().isContiguous()){LayoutDescriptor c=LayoutDescriptor.contiguous(target);layout=Optional.of(LayoutDescriptor.of(target,c.strides(),x.layout().orElseThrow().storageOffset(),true));}}
-        else {if(target.rank()<x.shape().rank())throw new IllegalArgumentException("expand target rank below input rank");int off=target.rank()-x.shape().rank();for(int i=0;i<x.shape().rank();i++){Dimension a=x.shape().dimension(i),b=target.dimension(off+i);if(!a.equals(b)&&!(a instanceof StaticDimension s&&s.size()==1))throw new IllegalArgumentException("incompatible expand dimension");}if(target.isFullyStatic()&&x.layout().isPresent()){long[] strides=new long[target.rank()];for(int i=0;i<x.shape().rank();i++){int j=off+i;Dimension a=x.shape().dimension(i),b=target.dimension(j);strides[j]=a instanceof StaticDimension s&&s.size()==1&&!a.equals(b)?0:x.layout().orElseThrow().stride(i);}layout=Optional.of(LayoutDescriptor.of(target,strides,x.layout().orElseThrow().storageOffset(),true));}}
+        else {
+            if(target.rank()<x.shape().rank())throw new IllegalArgumentException("expand target rank below input rank");
+            int off=target.rank()-x.shape().rank();
+            boolean bindingDependent=false;
+            for(int i=0;i<x.shape().rank();i++){
+                Dimension source=x.shape().dimension(i),targetDimension=target.dimension(off+i);
+                if(source.equals(targetDimension)
+                        || source instanceof StaticDimension singleton&&singleton.size()==1){
+                    continue;
+                }
+                if(source instanceof StaticDimension&&targetDimension instanceof StaticDimension){
+                    throw new IllegalArgumentException("incompatible expand dimension");
+                }
+                bindingDependent=true;
+                cs.add(new CapturedGraphInference.ConstraintRequest(
+                        "expand target axis "+(off+i),
+                        new AnyOf(List.of(
+                                new DimensionEqual(source,new StaticDimension(1)),
+                                new DimensionEqual(source,targetDimension)))));
+            }
+            if(!bindingDependent&&target.isFullyStatic()&&x.layout().isPresent()){
+                long[] strides=new long[target.rank()];
+                for(int i=0;i<x.shape().rank();i++){
+                    int j=off+i;
+                    Dimension source=x.shape().dimension(i),targetDimension=target.dimension(j);
+                    strides[j]=source instanceof StaticDimension singleton
+                                    &&singleton.size()==1&&!source.equals(targetDimension)
+                            ?0:x.layout().orElseThrow().stride(i);
+                }
+                layout=Optional.of(LayoutDescriptor.of(
+                        target,strides,x.layout().orElseThrow().storageOffset(),true));
+            }
+        }
         return new CapturedGraphInference.InferenceResult(List.of(new TensorDescriptor(x.dataType(),target,layout,x.requiresGrad())),cs);
     }
     private static CapturedGraphInference.InferenceResult axisTransform(AxisTransformKind kind,Object raw,List<TensorDescriptor> in){

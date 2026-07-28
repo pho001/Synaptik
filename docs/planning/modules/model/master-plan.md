@@ -310,8 +310,9 @@ Operation-family subpackages are introduced only when a focused operation task d
   portable floating comparison/extrema/clamp forward contract explicit before Compiler 0005A
   chose its separate derivative policies; Compiler 0005A is now Complete
 - Compiler-gradient binding prerequisite: task 0025B, now Complete after reopening Model only to
-  let existing EXPAND retain unresolved source-one-or-source-equal compatibility before Draft
-  Compiler 0005B adopts the matching graph constraint and gradient/preflight path
+  let existing EXPAND retain unresolved source-one-or-source-equal compatibility so Complete
+  [Compiler 0005B](../compiler/tasks/0005b-reduction-scan-softmax-statistics-and-normalization-gradient-completion.md)
+  could adopt the matching graph constraint and gradient/preflight path
 
 Each listed checkpoint runs the full repository test suite, affected architecture tests, final
 Javadoc and documentation validation, and the cross-task checks deferred by the preceding tasks.
@@ -321,8 +322,9 @@ Individual single-module tasks use the task-level validation defined in the plan
 
 The historical selected model milestone and focused tasks 0025, 0025A, and
 [0025B](tasks/0025b-binding-aware-expansion.md) are Complete. Task 0025B broadened only existing
-EXPAND construction for unresolved source-one-or-source-equal compatibility before Draft Compiler
-0005B adopts that obligation; it added no public method, kind, attributes, Shape/constraint type,
+EXPAND construction for unresolved source-one-or-source-equal compatibility so Complete
+[Compiler 0005B](../compiler/tasks/0005b-reduction-scan-softmax-statistics-and-normalization-gradient-completion.md)
+could adopt that obligation; it added no public method, kind, attributes, Shape/constraint type,
 binding implementation, or compiler behavior. There is no unfinished detailed Model task.
 Tasks 0014A through 0015H remain complete with the post-0014B vertical-slice reassessment
 recorded. The broad former task 0016 is decomposed into 0016A–0016J. Tasks 0016A through 0016E are
@@ -1711,7 +1713,8 @@ model capability milestone remains historically closed. Accepted ADR 0009 expose
 compiler-enabling foundation gap, and task 0025 is Complete. The post-Compiler-0005 reassessment
 selected task 0025A for the remaining portable floating comparison/extrema/clamp forward-contract
 prerequisite, and that focused task is Complete. The post-Compiler-0005A reassessment selected and
-completed only task 0025B as the binding-aware EXPAND prerequisite for Draft Compiler 0005B.
+completed only task 0025B as the binding-aware EXPAND prerequisite for
+[Compiler 0005B](../compiler/tasks/0005b-reduction-scan-softmax-statistics-and-normalization-gradient-completion.md).
 Other operation-family rows are not permission for oversized
 implementations; apply the normal limits in the
 [planning guide](../../planning-guide.md).
@@ -1795,8 +1798,9 @@ compiler prerequisite. Task 0025A is the completed later detailed model prerequi
 [Compiler 0005A task](../compiler/tasks/0005a-derivative-policy-and-elementwise-activation-gradient-completion.md).
 The compiler selected derivative ties, endpoints, discontinuities, raw-domain behavior, and
 activation infinity handling without changing the model's represented-value forward contracts.
-Task 0025B is Complete as the latest detailed Model specification. Compiler 0005B is the next
-unfinished frontier but remains Draft without a task file; every later compiler family also
-remains Draft without a detailed specification.
+Task 0025B is Complete as the latest detailed Model specification.
+[Compiler 0005B](../compiler/tasks/0005b-reduction-scan-softmax-statistics-and-normalization-gradient-completion.md)
+is Complete; every later compiler family remains Draft without a detailed specification, and no
+later compiler row is Ready.
 The legacy branch must be consulted read-only for capability and test evidence when preparing each
 applicable capability task.

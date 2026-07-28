@@ -7,6 +7,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import io.github.pho001.synaptik.config.compile.CompileMode;
 import io.github.pho001.synaptik.model.datatype.DataType;
+import io.github.pho001.synaptik.model.datatype.ScalarValue;
 import io.github.pho001.synaptik.model.operation.elementwise.binary.BinaryArithmeticKind;
 import io.github.pho001.synaptik.model.operation.elementwise.cast.CastKind;
 import io.github.pho001.synaptik.model.operation.elementwise.classification.FloatingClassificationKind;
@@ -15,10 +16,17 @@ import io.github.pho001.synaptik.model.operation.elementwise.logical.BooleanLogi
 import io.github.pho001.synaptik.model.operation.elementwise.scalar.ScalarElementwiseKind;
 import io.github.pho001.synaptik.model.operation.elementwise.selection.WhereSelectionKind;
 import io.github.pho001.synaptik.model.operation.elementwise.unary.UnaryElementwiseKind;
+import io.github.pho001.synaptik.model.operation.normalization.BatchNormKind;
+import io.github.pho001.synaptik.model.operation.normalization.LayerNormKind;
+import io.github.pho001.synaptik.model.operation.normalization.RmsNormKind;
+import io.github.pho001.synaptik.model.operation.normalization.SoftmaxKind;
+import io.github.pho001.synaptik.model.operation.reduction.AggregateReductionKind;
+import io.github.pho001.synaptik.model.operation.scan.CumulativeScanKind;
 import io.github.pho001.synaptik.model.shape.DynamicDimension;
 import io.github.pho001.synaptik.model.shape.Shape;
 import io.github.pho001.synaptik.model.shape.StaticDimension;
 import io.github.pho001.synaptik.model.tensor.Tensor;
+import io.github.pho001.synaptik.model.tensor.BatchNormTrainingResult;
 import io.github.pho001.synaptik.model.tensor.TensorDescriptor;
 import io.github.pho001.synaptik.model.tensor.TensorFactory;
 import java.util.List;
@@ -126,7 +134,7 @@ final class AutogradPreflightTest {
     @Test
     void rejectsUnsupportedAndNonDifferentiableSelectedRoutes() {
         Tensor target = tensor(Shape.of(2), true);
-        Tensor unsupportedObjective = target.softmax(0).sum();
+        Tensor unsupportedObjective = target.cropToShape(Shape.of(1), Shape.of(0)).sum();
         IllegalArgumentException unsupported = assertThrows(
                 IllegalArgumentException.class,
                 () -> AutogradPreflight.preflight(
@@ -135,7 +143,7 @@ final class AutogradPreflightTest {
                         new AutogradPreflight.FirstOrderRequest(
                                 unsupportedObjective, List.of(target)),
                         CompileTimeConstantGraph.Ingress.empty()));
-        assertTrue(unsupported.getMessage().contains("SOFTMAX"));
+        assertTrue(unsupported.getMessage().contains("producerPostorder["));
 
         Tensor branch = tensor(Shape.of(2), true);
         Tensor conditionSource = tensor(Shape.of(2), true);
@@ -170,7 +178,7 @@ final class AutogradPreflightTest {
     }
 
     @Test
-    void admitsOnlyLocallyProvableSumToShapeInversion() {
+    void admitsExactAndBindingDependentSumToShapeInversion() {
         DynamicDimension sourceExtent = new DynamicDimension("N");
         Tensor exactTarget = tensor(Shape.ofDimensions(sourceExtent), true);
         Tensor exactObjective =
@@ -183,18 +191,16 @@ final class AutogradPreflightTest {
         assertEquals(2, plan.selectedOccurrences().size());
 
         Tensor bindingDependent = tensor(Shape.ofDimensions(sourceExtent), true);
-        Tensor unsupportedObjective = bindingDependent
+        Tensor bindingObjective = bindingDependent
                 .sumToShape(Shape.ofDimensions(new DynamicDimension("M")))
                 .sum();
-        IllegalArgumentException failure = assertThrows(
-                IllegalArgumentException.class,
-                () -> AutogradPreflight.preflight(
-                        CompileMode.FORWARD_AND_BACKWARD,
-                        List.of(unsupportedObjective),
-                        new AutogradPreflight.FirstOrderRequest(
-                                unsupportedObjective, List.of(bindingDependent)),
-                        CompileTimeConstantGraph.Ingress.empty()));
-        assertTrue(failure.getMessage().contains("SUM_TO_SHAPE"));
+        AutogradPreflight.Plan bindingPlan = AutogradPreflight.preflight(
+                CompileMode.FORWARD_AND_BACKWARD,
+                List.of(bindingObjective),
+                new AutogradPreflight.FirstOrderRequest(
+                        bindingObjective, List.of(bindingDependent)),
+                CompileTimeConstantGraph.Ingress.empty());
+        assertEquals(2, bindingPlan.selectedOccurrences().size());
     }
 
     @Test
@@ -243,7 +249,6 @@ final class AutogradPreflightTest {
                         CompileTimeConstantGraph.Ingress.empty()));
 
         for (Tensor objective : List.of(
-                data.softmax(0).sum(),
                 data.cropToShape(Shape.of(2), Shape.of(0)).sum())) {
             IllegalArgumentException failure = assertThrows(
                     IllegalArgumentException.class,
@@ -255,6 +260,120 @@ final class AutogradPreflightTest {
                             CompileTimeConstantGraph.Ingress.empty()));
             assertTrue(failure.getMessage().contains("producerPostorder["));
         }
+    }
+
+    @Test
+    void locksTheExactSourceBacked0005BKindInventory() {
+        assertArrayEquals(new AggregateReductionKind[] {
+            AggregateReductionKind.SUM,
+            AggregateReductionKind.MEAN,
+            AggregateReductionKind.PROD,
+            AggregateReductionKind.MIN,
+            AggregateReductionKind.MAX,
+            AggregateReductionKind.ALL,
+            AggregateReductionKind.ANY,
+            AggregateReductionKind.ARG_MAX,
+            AggregateReductionKind.ARG_MIN,
+            AggregateReductionKind.LOG_SUM_EXP,
+            AggregateReductionKind.VARIANCE,
+            AggregateReductionKind.STANDARD_DEVIATION,
+            AggregateReductionKind.L1_NORM,
+            AggregateReductionKind.L2_NORM
+        }, AggregateReductionKind.values());
+        assertArrayEquals(
+                new CumulativeScanKind[] {
+                    CumulativeScanKind.CUM_SUM, CumulativeScanKind.CUM_PROD
+                },
+                CumulativeScanKind.values());
+        assertArrayEquals(
+                new SoftmaxKind[] {SoftmaxKind.SOFTMAX, SoftmaxKind.LOG_SOFTMAX},
+                SoftmaxKind.values());
+        assertArrayEquals(
+                new LayerNormKind[] {LayerNormKind.LAYER_NORM},
+                LayerNormKind.values());
+        assertArrayEquals(
+                new RmsNormKind[] {RmsNormKind.RMS_NORM},
+                RmsNormKind.values());
+        assertArrayEquals(
+                new BatchNormKind[] {
+                    BatchNormKind.BATCH_NORM_INFERENCE,
+                    BatchNormKind.BATCH_NORM_TRAINING
+                },
+                BatchNormKind.values());
+    }
+
+    @Test
+    void selectsBatchTrainingRolesByAscendingPublicOutputSlot() {
+        Tensor input = tensor(Shape.of(2, 3, 4), true);
+        Tensor scale = tensor(Shape.of(3), true);
+        Tensor bias = tensor(Shape.of(3), true);
+        Tensor runningMean = tensor(Shape.of(3), true);
+        Tensor runningVariance = tensor(Shape.of(3), true);
+        BatchNormTrainingResult result = input.batchNormTraining(
+                1,
+                scale,
+                bias,
+                runningMean,
+                runningVariance,
+                ScalarValue.float32(0.1f),
+                ScalarValue.float32(1.0e-5f));
+        Tensor objective = result.output().sum()
+                .add(result.nextRunningMean().sum())
+                .add(result.nextRunningVariance().sum());
+
+        AutogradPreflight.Plan plan = AutogradPreflight.preflight(
+                CompileMode.FORWARD_AND_BACKWARD,
+                List.of(objective),
+                new AutogradPreflight.FirstOrderRequest(
+                        objective,
+                        List.of(input, scale, bias, runningMean, runningVariance)),
+                CompileTimeConstantGraph.Ingress.empty());
+        List<AutogradPreflight.SelectedOccurrence> batch = plan.selectedOccurrences().stream()
+                .filter(occurrence -> occurrence.producer().operation().kind()
+                        == BatchNormKind.BATCH_NORM_TRAINING)
+                .toList();
+
+        assertEquals(List.of(0, 1, 2),
+                batch.stream().map(AutogradPreflight.SelectedOccurrence::outputIndex).toList());
+        assertArrayEquals(new boolean[] {true, true, true, false, false},
+                batch.get(0).selectedInputs());
+        assertArrayEquals(new boolean[] {true, false, false, true, false},
+                batch.get(1).selectedInputs());
+        assertArrayEquals(new boolean[] {true, false, false, false, true},
+                batch.get(2).selectedInputs());
+    }
+
+    @Test
+    void rejectsBatchTrainingSavedAuxiliarySlotsAsSelectedRoutes() {
+        Tensor input = tensor(Shape.of(2, 3, 4), true);
+        Tensor vector = tensor(Shape.of(3), true);
+        BatchNormTrainingResult result = input.batchNormTraining(
+                1,
+                vector,
+                vector,
+                vector,
+                vector,
+                ScalarValue.float32(0.1f),
+                ScalarValue.float32(1.0e-5f));
+        Tensor savedMean = result.output().provenance().orElseThrow().producer().output(3);
+        Tensor objective = savedMean.sum();
+
+        IllegalArgumentException failure = assertThrows(
+                IllegalArgumentException.class,
+                () -> AutogradPreflight.preflight(
+                        CompileMode.FORWARD_AND_BACKWARD,
+                        List.of(objective),
+                        new AutogradPreflight.FirstOrderRequest(objective, List.of(savedMean)),
+                        CompileTimeConstantGraph.Ingress.empty()));
+        assertTrue(failure.getMessage().contains("saved auxiliary"));
+        IllegalArgumentException routeFailure = assertThrows(
+                IllegalArgumentException.class,
+                () -> AutogradPreflight.preflight(
+                        CompileMode.FORWARD_AND_BACKWARD,
+                        List.of(objective),
+                        new AutogradPreflight.FirstOrderRequest(objective, List.of(input)),
+                        CompileTimeConstantGraph.Ingress.empty()));
+        assertTrue(routeFailure.getMessage().contains("non-differentiable"));
     }
 
     @Test

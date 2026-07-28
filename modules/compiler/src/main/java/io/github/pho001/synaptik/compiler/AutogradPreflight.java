@@ -33,6 +33,14 @@ import io.github.pho001.synaptik.model.operation.layout.TensorCompositionKind;
 import io.github.pho001.synaptik.model.operation.layout.TileAttrs;
 import io.github.pho001.synaptik.model.operation.layout.TileKind;
 import io.github.pho001.synaptik.model.operation.linalg.MatmulKind;
+import io.github.pho001.synaptik.model.operation.normalization.BatchNormKind;
+import io.github.pho001.synaptik.model.operation.normalization.AffineLayerNormAttrs;
+import io.github.pho001.synaptik.model.operation.normalization.LayerNormKind;
+import io.github.pho001.synaptik.model.operation.normalization.LayerNormAttrs;
+import io.github.pho001.synaptik.model.operation.normalization.RmsNormKind;
+import io.github.pho001.synaptik.model.operation.normalization.RmsNormAttrs;
+import io.github.pho001.synaptik.model.operation.normalization.SoftmaxKind;
+import io.github.pho001.synaptik.model.operation.normalization.SoftmaxAttrs;
 import io.github.pho001.synaptik.model.operation.reduction.AggregateReductionKind;
 import io.github.pho001.synaptik.model.operation.reduction.AxisReductionAttrs;
 import io.github.pho001.synaptik.model.operation.reduction.MaskedReductionAttrs;
@@ -50,6 +58,7 @@ import io.github.pho001.synaptik.model.tensor.TensorProducer;
 import io.github.pho001.synaptik.model.tensor.TensorProvenance;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.BitSet;
 import java.util.Collections;
 import java.util.IdentityHashMap;
 import java.util.List;
@@ -57,7 +66,7 @@ import java.util.Objects;
 import java.util.Set;
 
 /**
- * Preflights the closed first-order rule matrices through Compiler 0005A before constructing any
+ * Preflights the closed first-order rule matrices through Compiler 0005B before constructing any
  * derivative Tensor expression.
  *
  * <p>The iterative inventory covers every producer and canonical output wrapper reachable from
@@ -97,13 +106,22 @@ import java.util.Set;
  * conventions belong to the compiler rules; preflight selects those fixed rows without
  * inspecting represented Tensor values.</p>
  *
- * <p>This owner selects rules and rejects unsupported operation, attribute, role, data-type,
- * Shape, and policy combinations. A known rejection occurs before the seed, a derivative
- * constant, or a formula Tensor is constructed, so it consumes no derivative {@code TensorId}.
- * The guarantee ends after a successful plan is returned: later public Tensor construction,
- * capture, inference, validation, or optimization may consume IDs before failing. This owner
- * neither performs captured-graph inference nor reads Tensor payloads, captures a graph,
- * allocates storage, lowers work, or executes computation.</p>
+ * <p>Compiler 0005B adds floating products, reduction extrema, cumulative product,
+ * softmax/log-softmax, statistics, norms, and Layer/RMS/batch-normalization routes. It also admits
+ * binding-dependent {@code EXPAND} and {@code SUM_TO_SHAPE} only when the inverse uses the same
+ * occurrence-local source-one-or-source-equal predicate retained by forward inference. Batch
+ * normalization is output-slot-aware: public result slots zero through two select their exact
+ * input roles in ascending slot order, while saved mean and saved inverse-standard-deviation
+ * slots three and four remain same-occurrence auxiliaries and cannot seed an independent
+ * cotangent route.</p>
+ *
+ * <p>This owner selects rules and rejects unsupported operation, input/output signature,
+ * attribute, role, data-type, Shape, and policy combinations. A known rejection occurs before the
+ * seed, a derivative constant, or a formula Tensor is constructed, so it consumes no derivative
+ * {@code TensorId}. The guarantee ends after a successful plan is returned: later public Tensor
+ * construction, capture, inference, validation, or optimization may consume IDs before failing.
+ * This owner neither performs captured-graph inference nor reads Tensor payloads, captures a
+ * graph, allocates storage, lowers work, or executes computation.</p>
  */
 final class AutogradPreflight {
     private AutogradPreflight() {}
@@ -158,11 +176,14 @@ final class AutogradPreflight {
      * <p>The method inventories all requested forward producers, then the objective ancestry. It
      * validates exact objective and target membership, retains only routes that can reach at
      * least one requested target through a differentiable input role, and validates every
-     * selected occurrence against the closed matrix. The first known failure is reported before
-     * derivative Tensor identity allocation. Full captured-graph inference and validation remain
-     * a later compiler stage. The returned plan retains exact original object references and is
-     * owned by the current compile request; callers must hand it directly to reverse accumulation
-     * and discard it after combined capture.</p>
+     * selected output-slot occurrence, including its exact input/output signature and inferred
+     * descriptors, against the closed matrix. Selected slots of one multi-output producer are
+     * retained in ascending numeric order. Saved batch-normalization slots are rejected both as
+     * independent targets and as selected cotangent roots. The first known failure is reported
+     * before derivative Tensor identity allocation. Full captured-graph inference and validation
+     * remain a later compiler stage. The returned plan retains exact original object references
+     * and is owned by the current compile request; callers must hand it directly to reverse
+     * accumulation and discard it after combined capture.</p>
      *
      * @param mode non-null backward-capable compile mode; {@link CompileMode#FORWARD_ONLY} is
      *     rejected
@@ -175,8 +196,9 @@ final class AutogradPreflight {
      *     immediate reverse accumulation and combined capture
      * @throws NullPointerException if a top-level argument is {@code null}
      * @throws IllegalArgumentException if the mode, objective, target membership, differentiable
-     *     route, canonical wrapper, ingress membership, or any selected operation, attribute,
-     *     role, data-type, Shape, or derivative-policy fact is unsupported
+     *     route, canonical wrapper, ingress membership, saved batch-normalization target, or any
+     *     selected operation, input/output signature, attribute, role, data-type, Shape, or
+     *     derivative-policy fact is unsupported
      */
     static Plan preflight(
             CompileMode mode,
@@ -232,53 +254,76 @@ final class AutogradPreflight {
                         "firstOrderRequest.targets[" + index
                                 + "] must be floating and require gradients");
             }
+            TensorProvenance targetProvenance = target.provenance().orElse(null);
+            if (targetProvenance != null
+                    && targetProvenance.producer().operation().kind()
+                            == BatchNormKind.BATCH_NORM_TRAINING
+                    && targetProvenance.outputIndex() >= 3) {
+                throw new IllegalArgumentException(
+                        "firstOrderRequest.targets[" + index
+                                + "] is a batch-normalization saved auxiliary output");
+            }
         }
 
-        IdentityHashMap<Tensor, Boolean> containsTarget = new IdentityHashMap<>();
-        for (Tensor target : request.targets()) {
-            containsTarget.put(target, Boolean.TRUE);
+        IdentityHashMap<Tensor, BitSet> containsTargets = new IdentityHashMap<>();
+        for (int targetIndex = 0; targetIndex < request.targets().size(); targetIndex++) {
+            containsTargets
+                    .computeIfAbsent(request.targets().get(targetIndex), ignored -> new BitSet())
+                    .set(targetIndex);
         }
+        String[] blockedRoutes = new String[request.targets().size()];
         List<SelectedOccurrence> selected = new ArrayList<>();
         for (int producerIndex = 0;
                 producerIndex < ancestry.producerPostorder().size();
                 producerIndex++) {
             TensorProducer producer = ancestry.producerPostorder().get(producerIndex);
-            boolean[] selectedInputs = new boolean[producer.inputs().size()];
-            boolean anySelectedInput = false;
-            for (int input = 0; input < producer.inputs().size(); input++) {
-                selectedInputs[input] = containsTarget.containsKey(producer.inputs().get(input));
-                anySelectedInput |= selectedInputs[input];
-            }
-            int selectedOutput = ancestry.selectedOutput(producer);
-            boolean selectedOutputContains =
-                    selectedOutput >= 0
-                            && containsTarget.containsKey(producer.output(selectedOutput));
-            if (anySelectedInput && selectedOutput >= 0) {
-                containsTarget.put(producer.output(selectedOutput), Boolean.TRUE);
-                selectedOutputContains = true;
-            }
-            if (!anySelectedInput) {
-                continue;
-            }
-            if (selectedOutput < 0) {
-                throw new IllegalArgumentException(
-                        occurrence(producerIndex, producer, -1, -1)
-                                + "missing selected canonical output");
-            }
-            validateOccurrence(
-                    producerIndex, producer, selectedOutput, selectedInputs);
-            selected.add(new SelectedOccurrence(
-                    producerIndex, producer, selectedOutput, selectedInputs));
-            if (!selectedOutputContains) {
-                throw new IllegalArgumentException(
-                        occurrence(producerIndex, producer, selectedOutput, -1)
-                                + "selected route is not differentiable");
+            List<Integer> selectedOutputs = ancestry.selectedOutputs(producer);
+            for (int selectedOutput : selectedOutputs) {
+                boolean[] selectedInputs = new boolean[producer.inputs().size()];
+                BitSet outputTargets = copyOf(containsTargets.get(producer.output(selectedOutput)));
+                boolean anySelectedInput = false;
+                for (int input = 0; input < producer.inputs().size(); input++) {
+                    BitSet inputTargets = containsTargets.get(producer.inputs().get(input));
+                    if (inputTargets == null || inputTargets.isEmpty()) {
+                        continue;
+                    }
+                    if (isDifferentiableRole(producer, selectedOutput, input)) {
+                        selectedInputs[input] = true;
+                        anySelectedInput = true;
+                        outputTargets.or(inputTargets);
+                    } else {
+                        for (int targetIndex = inputTargets.nextSetBit(0);
+                                targetIndex >= 0;
+                                targetIndex = inputTargets.nextSetBit(targetIndex + 1)) {
+                            if (blockedRoutes[targetIndex] == null) {
+                                blockedRoutes[targetIndex] = occurrence(
+                                                producerIndex,
+                                                producer,
+                                                selectedOutput,
+                                                input)
+                                        + "input role is non-differentiable";
+                            }
+                        }
+                    }
+                }
+                if (anySelectedInput) {
+                    validateOccurrence(
+                            producerIndex, producer, selectedOutput, selectedInputs);
+                    selected.add(new SelectedOccurrence(
+                            producerIndex, producer, selectedOutput, selectedInputs));
+                }
+                if (!outputTargets.isEmpty()) {
+                    containsTargets.put(producer.output(selectedOutput), outputTargets);
+                }
             }
         }
+        BitSet objectiveTargets = containsTargets.get(objective);
         for (int index = 0; index < request.targets().size(); index++) {
-            if (!containsTarget.containsKey(objective)) {
-                throw new IllegalArgumentException(
-                        "firstOrderRequest.targets[" + index
+            if (objectiveTargets == null || !objectiveTargets.get(index)) {
+                String detail = blockedRoutes[index];
+                throw new IllegalArgumentException(detail != null
+                        ? detail
+                        : "firstOrderRequest.targets[" + index
                                 + "] has no differentiable path from objective");
             }
         }
@@ -291,13 +336,74 @@ final class AutogradPreflight {
                 complete.producers());
     }
 
+    private static BitSet copyOf(BitSet source) {
+        return source == null ? new BitSet() : (BitSet) source.clone();
+    }
+
+    private static boolean isDifferentiableRole(
+            TensorProducer producer, int outputIndex, int inputIndex) {
+        var kind = producer.operation().kind();
+        if (kind instanceof BinaryComparisonKind
+                || kind instanceof BooleanLogicalKind
+                || kind instanceof FloatingClassificationKind) {
+            return false;
+        }
+        if (kind == WhereSelectionKind.WHERE) {
+            return inputIndex == 1 || inputIndex == 2;
+        }
+        if (kind instanceof AggregateReductionKind aggregate) {
+            if (aggregate == AggregateReductionKind.ALL
+                    || aggregate == AggregateReductionKind.ANY
+                    || aggregate == AggregateReductionKind.ARG_MIN
+                    || aggregate == AggregateReductionKind.ARG_MAX) {
+                return false;
+            }
+            return inputIndex == 0;
+        }
+        if (kind instanceof CumulativeScanKind) {
+            return producer.inputs().get(inputIndex).descriptor().dataType().isFloating();
+        }
+        if (kind instanceof SoftmaxKind
+                || kind instanceof LayerNormKind
+                || kind instanceof RmsNormKind
+                || kind == BatchNormKind.BATCH_NORM_INFERENCE) {
+            return true;
+        }
+        if (kind == BatchNormKind.BATCH_NORM_TRAINING) {
+            return switch (outputIndex) {
+                case 0 -> inputIndex <= 2;
+                case 1 -> inputIndex == 0 || inputIndex == 3;
+                case 2 -> inputIndex == 0 || inputIndex == 4;
+                case 3, 4 -> false;
+                default -> true;
+            };
+        }
+        return true;
+    }
+
     private static void validateOccurrence(
             int producerIndex,
             TensorProducer producer,
             int outputIndex,
             boolean[] selectedInputs) {
         Operation operation = producer.operation();
-        if (producer.outputCount() != 1 || outputIndex != 0) {
+        if (operation.kind() == BatchNormKind.BATCH_NORM_TRAINING) {
+            if (producer.outputCount() != 5) {
+                throw unsupported(
+                        producerIndex, producer, outputIndex, -1,
+                        "batch-normalization training requires five outputs");
+            }
+            if (outputIndex < 0 || outputIndex >= 5) {
+                throw unsupported(
+                        producerIndex, producer, outputIndex, -1,
+                        "selected output slot is outside the five-output occurrence");
+            }
+            if (outputIndex >= 3) {
+                throw unsupported(
+                        producerIndex, producer, outputIndex, -1,
+                        "saved auxiliary output cannot be an independent cotangent root");
+            }
+        } else if (producer.outputCount() != 1 || outputIndex != 0) {
             throw unsupported(producerIndex, producer, outputIndex, -1, "requires one output");
         }
         Tensor output = producer.output(outputIndex);
@@ -478,10 +584,26 @@ final class AutogradPreflight {
             requireSameFloatingDescriptors(producerIndex, producer, outputIndex, true);
             return;
         }
-        if (operation.kind() == AggregateReductionKind.SUM
-                || operation.kind() == AggregateReductionKind.MEAN) {
-            boolean mean = operation.kind() == AggregateReductionKind.MEAN;
+        if (operation.kind() instanceof AggregateReductionKind kind) {
+            if (kind == AggregateReductionKind.ALL
+                    || kind == AggregateReductionKind.ANY
+                    || kind == AggregateReductionKind.ARG_MIN
+                    || kind == AggregateReductionKind.ARG_MAX) {
+                throw unsupported(
+                        producerIndex,
+                        producer,
+                        outputIndex,
+                        firstSelected(selectedInputs),
+                        "aggregate roles are non-differentiable");
+            }
+            boolean mean = kind == AggregateReductionKind.MEAN;
             if (operation.attrs() instanceof MaskedReductionAttrs attrs) {
+                if (kind != AggregateReductionKind.SUM
+                        && kind != AggregateReductionKind.MEAN) {
+                    throw unsupported(
+                            producerIndex, producer, outputIndex, -1,
+                            "masked attributes require SUM or MEAN");
+                }
                 requireInputs(producerIndex, producer, outputIndex, 2);
                 if (selectedInputs[1]) {
                     throw unsupported(
@@ -516,10 +638,10 @@ final class AutogradPreflight {
                 return;
             }
             if (operation.attrs() instanceof SumToShapeAttrs attrs) {
-                if (mean) {
+                if (kind != AggregateReductionKind.SUM) {
                     throw unsupported(
                             producerIndex, producer, outputIndex, -1,
-                            "MEAN does not support SUM_TO_SHAPE attributes");
+                            "SUM_TO_SHAPE attributes require SUM");
                 }
                 requireInputs(producerIndex, producer, outputIndex, 1);
                 requireSameFloatingType(producerIndex, producer, outputIndex, 0);
@@ -535,47 +657,33 @@ final class AutogradPreflight {
                 for (int axis = 0; axis < targetShape.rank(); axis++) {
                     Dimension target = targetShape.dimension(axis);
                     Dimension input = inputShape.dimension(offset + axis);
-                    if (!target.equals(input) && !isStaticOne(target)) {
+                    if (!target.equals(input)
+                            && !isStaticOne(target)
+                            && target instanceof StaticDimension
+                            && input instanceof StaticDimension) {
                         throw unsupported(
                                 producerIndex, producer, outputIndex, 0,
-                                "SUM_TO_SHAPE aligned target must be exact input Dimension or static one");
+                                "SUM_TO_SHAPE aligned target contradicts source-one-or-equal proof");
                     }
                 }
+                validateReductionNormalizationOccurrence(
+                        producerIndex, producer, outputIndex);
                 return;
             }
             if (operation.attrs() != NoOperationAttrs.INSTANCE
                     && !(operation.attrs() instanceof AxisReductionAttrs)
-                    && !(operation.attrs() instanceof MultiAxisReductionAttrs)) {
-                throw unsupported(producerIndex, producer, outputIndex, -1, "unsupported SUM attrs");
+                    && !(operation.attrs() instanceof MultiAxisReductionAttrs)
+                    && !(operation.attrs()
+                            instanceof io.github.pho001.synaptik.model.operation.reduction
+                                    .StatisticalReductionAttrs)) {
+                throw unsupported(
+                        producerIndex, producer, outputIndex, -1,
+                        "unsupported aggregate attrs");
             }
             requireInputs(producerIndex, producer, outputIndex, 1);
             requireSameFloatingTypes(producerIndex, producer, outputIndex);
-            if (mean) {
-                Shape inputShape = producer.inputs().getFirst().descriptor().shape();
-                Shape expected;
-                try {
-                    if (operation.attrs() == NoOperationAttrs.INSTANCE) {
-                        expected = Shape.scalar();
-                    } else if (operation.attrs() instanceof AxisReductionAttrs attrs) {
-                        expected = reductionShape(
-                                inputShape, List.of(attrs.axis()), attrs.keepDimensions());
-                    } else {
-                        MultiAxisReductionAttrs attrs =
-                                (MultiAxisReductionAttrs) operation.attrs();
-                        expected = reductionShape(
-                                inputShape, attrs.axes(), attrs.keepDimensions());
-                    }
-                } catch (IllegalArgumentException exception) {
-                    throw unsupported(
-                            producerIndex, producer, outputIndex, 0,
-                            "MEAN axes are not normalized and distinct");
-                }
-                if (!expected.equals(output.descriptor().shape())) {
-                    throw unsupported(
-                            producerIndex, producer, outputIndex, 0,
-                            "MEAN output Shape or normalized axes are inconsistent");
-                }
-            }
+            validateReductionNormalizationOccurrence(
+                    producerIndex, producer, outputIndex);
             return;
         }
         if (operation.kind() == MatmulKind.MATMUL) {
@@ -611,12 +719,61 @@ final class AutogradPreflight {
             }
             return;
         }
-        if (operation.kind() == CumulativeScanKind.CUM_SUM) {
+        if (operation.kind() instanceof CumulativeScanKind) {
             if (!(operation.attrs() instanceof CumulativeScanAttrs)) {
-                throw unsupported(producerIndex, producer, outputIndex, -1, "unsupported CUM_SUM attrs");
+                throw unsupported(
+                        producerIndex, producer, outputIndex, -1,
+                        "unsupported cumulative-scan attrs");
             }
             requireInputs(producerIndex, producer, outputIndex, 1);
             requireSameFloatingDescriptors(producerIndex, producer, outputIndex, true);
+            validateReductionNormalizationOccurrence(
+                    producerIndex, producer, outputIndex);
+            return;
+        }
+        if (operation.kind() instanceof SoftmaxKind) {
+            if (!(operation.attrs() instanceof SoftmaxAttrs)) {
+                throw unsupported(
+                        producerIndex, producer, outputIndex, -1,
+                        "unsupported softmax attrs");
+            }
+            requireInputs(producerIndex, producer, outputIndex, 1);
+            validateReductionNormalizationOccurrence(
+                    producerIndex, producer, outputIndex);
+            return;
+        }
+        if (operation.kind() instanceof LayerNormKind) {
+            int expectedInputs;
+            if (operation.attrs() instanceof LayerNormAttrs) {
+                expectedInputs = 1;
+            } else if (operation.attrs() instanceof AffineLayerNormAttrs) {
+                expectedInputs = 3;
+            } else {
+                throw unsupported(
+                        producerIndex, producer, outputIndex, -1,
+                        "unsupported layer-normalization attrs");
+            }
+            requireInputs(producerIndex, producer, outputIndex, expectedInputs);
+            validateReductionNormalizationOccurrence(
+                    producerIndex, producer, outputIndex);
+            return;
+        }
+        if (operation.kind() instanceof RmsNormKind) {
+            if (!(operation.attrs() instanceof RmsNormAttrs)
+                    || (producer.inputs().size() != 1
+                            && producer.inputs().size() != 2)) {
+                throw unsupported(
+                        producerIndex, producer, outputIndex, -1,
+                        "unsupported RMS-normalization signature");
+            }
+            validateReductionNormalizationOccurrence(
+                    producerIndex, producer, outputIndex);
+            return;
+        }
+        if (operation.kind() instanceof BatchNormKind) {
+            requireInputs(producerIndex, producer, outputIndex, 5);
+            validateReductionNormalizationOccurrence(
+                    producerIndex, producer, outputIndex);
             return;
         }
         if (operation.kind() == ContiguousKind.CONTIGUOUS) {
@@ -629,13 +786,27 @@ final class AutogradPreflight {
             return;
         }
         if (operation.kind() instanceof ShapeTransformKind kind) {
-            if (!(operation.attrs() instanceof TargetShapeAttrs)
+            if (!(operation.attrs() instanceof TargetShapeAttrs attrs)
                     || (kind != ShapeTransformKind.RESHAPE && kind != ShapeTransformKind.EXPAND)) {
                 throw unsupported(
                         producerIndex, producer, outputIndex, -1, "unsupported shape transform");
             }
             requireInputs(producerIndex, producer, outputIndex, 1);
             requireSameFloatingTypes(producerIndex, producer, outputIndex);
+            Tensor input = producer.inputs().getFirst();
+            if (!producer.output(0).descriptor().shape().equals(attrs.targetShape())) {
+                throw unsupported(
+                        producerIndex, producer, outputIndex, 0,
+                        "shape-transform target and output Shape differ");
+            }
+            if (kind == ShapeTransformKind.EXPAND) {
+                validateExpandInverse(
+                        producerIndex,
+                        producer,
+                        outputIndex,
+                        input.descriptor().shape(),
+                        attrs.targetShape());
+            }
             return;
         }
         if (operation.kind() instanceof AxisTransformKind kind) {
@@ -841,6 +1012,101 @@ final class AutogradPreflight {
             throw unsupported(
                     producerIndex, producer, outputIndex, inputIndex,
                     "selected input/output floating types must match exactly");
+        }
+    }
+
+    /**
+     * Re-derives one reduction, scan, or normalization occurrence without constructing Tensors.
+     *
+     * @param producerIndex deterministic producer postorder position used in diagnostics
+     * @param producer non-null original producer occurrence
+     * @param outputIndex valid selected producer-output position
+     * @throws IllegalArgumentException if inference rejects the occurrence, a derived output
+     *     differs, or an occurrence-local predicate is statically contradicted
+     */
+    private static void validateReductionNormalizationOccurrence(
+            int producerIndex, TensorProducer producer, int outputIndex) {
+        CapturedGraphInference.InferenceResult inferred;
+        try {
+            inferred = ReductionNormalizationInference.infer(
+                    producer.operation(),
+                    producer.inputs().stream().map(Tensor::descriptor).toList());
+        } catch (RuntimeException exception) {
+            throw unsupported(
+                    producerIndex, producer, outputIndex, -1,
+                    "reduction, scan, or normalization inference rejected the occurrence");
+        }
+        if (inferred.outputs().size() != producer.outputCount()) {
+            throw unsupported(
+                    producerIndex, producer, outputIndex, -1,
+                    "derived output count differs from the original occurrence");
+        }
+        for (int output = 0; output < producer.outputCount(); output++) {
+            if (!inferred.outputs().get(output).equals(producer.output(output).descriptor())) {
+                throw unsupported(
+                        producerIndex, producer, outputIndex, -1,
+                        "derived output descriptor differs at output[" + output + "]");
+            }
+        }
+        for (CapturedGraphInference.ConstraintRequest constraint : inferred.constraints()) {
+            if (GraphPredicateProof.evaluate(constraint.predicate()) == ProofStatus.DISPROVEN) {
+                throw unsupported(
+                        producerIndex, producer, outputIndex, -1,
+                        "occurrence-local constraint is contradicted: " + constraint.subject());
+            }
+        }
+    }
+
+    /**
+     * Proves that reversing one EXPAND with SUM_TO_SHAPE uses the exact forward predicate.
+     *
+     * @param producerIndex deterministic producer postorder position used in diagnostics
+     * @param producer non-null original producer occurrence
+     * @param outputIndex valid selected producer-output position
+     * @param source non-null exact pre-expand Shape
+     * @param target non-null exact expanded Shape
+     * @throws IllegalArgumentException if the target rank is smaller or a static aligned pair
+     *     contradicts source-one-or-equal
+     */
+    private static void validateExpandInverse(
+            int producerIndex,
+            TensorProducer producer,
+            int outputIndex,
+            Shape source,
+            Shape target) {
+        if (target.rank() < source.rank()) {
+            throw unsupported(
+                    producerIndex, producer, outputIndex, 0,
+                    "EXPAND target rank is smaller than its source rank");
+        }
+        int offset = target.rank() - source.rank();
+        for (int sourceAxis = 0; sourceAxis < source.rank(); sourceAxis++) {
+            Dimension sourceDimension = source.dimension(sourceAxis);
+            Dimension targetDimension = target.dimension(sourceAxis + offset);
+            if (sourceDimension.equals(targetDimension) || isStaticOne(sourceDimension)) {
+                continue;
+            }
+            if (sourceDimension instanceof StaticDimension
+                    && targetDimension instanceof StaticDimension) {
+                throw unsupported(
+                        producerIndex, producer, outputIndex, 0,
+                        "EXPAND aligned dimensions contradict source-one-or-equal proof");
+            }
+            /*
+             * Layout inference and SUM_TO_SHAPE use this same ordered predicate. A deferred
+             * binding therefore proves the inverse by construction without resolving a symbol.
+             */
+            var forward = new AnyOf(List.of(
+                    new DimensionEqual(sourceDimension, new StaticDimension(1)),
+                    new DimensionEqual(sourceDimension, targetDimension)));
+            var inverse = new AnyOf(List.of(
+                    new DimensionEqual(sourceDimension, new StaticDimension(1)),
+                    new DimensionEqual(sourceDimension, targetDimension)));
+            if (!forward.equals(inverse)) {
+                throw unsupported(
+                        producerIndex, producer, outputIndex, 0,
+                        "EXPAND and SUM_TO_SHAPE inverse predicates differ");
+            }
         }
     }
 
@@ -1130,7 +1396,7 @@ final class AutogradPreflight {
         List<Tensor> encountered = new ArrayList<>();
         Set<TensorProducer> producers =
                 Collections.newSetFromMap(new IdentityHashMap<>());
-        IdentityHashMap<TensorProducer, Integer> selectedOutputs = new IdentityHashMap<>();
+        IdentityHashMap<TensorProducer, BitSet> selectedOutputs = new IdentityHashMap<>();
         List<TensorProducer> postorder = new ArrayList<>();
         IdentityHashMap<TensorProducer, Boolean> complete = new IdentityHashMap<>();
         IdentityHashMap<TensorProducer, Boolean> visiting = new IdentityHashMap<>();
@@ -1143,7 +1409,7 @@ final class AutogradPreflight {
             if (provenance == null) {
                 continue;
             }
-            selectedOutputs.putIfAbsent(provenance.producer(), provenance.outputIndex());
+            selectOutput(selectedOutputs, provenance);
             if (complete.containsKey(provenance.producer())) {
                 continue;
             }
@@ -1163,8 +1429,7 @@ final class AutogradPreflight {
                     routeTensors.put(input, Boolean.TRUE);
                     TensorProvenance inputProvenance = input.provenance().orElse(null);
                     if (inputProvenance != null) {
-                        selectedOutputs.putIfAbsent(
-                                inputProvenance.producer(), inputProvenance.outputIndex());
+                        selectOutput(selectedOutputs, inputProvenance);
                         if (!complete.containsKey(inputProvenance.producer())
                                 && !visiting.containsKey(inputProvenance.producer())) {
                             visiting.put(inputProvenance.producer(), Boolean.TRUE);
@@ -1198,6 +1463,16 @@ final class AutogradPreflight {
         if (tensors.putIfAbsent(tensor, Boolean.TRUE) == null) {
             encountered.add(tensor);
         }
+    }
+
+    private static void selectOutput(
+            IdentityHashMap<TensorProducer, BitSet> selectedOutputs,
+            TensorProvenance provenance) {
+        selectedOutputs
+                .computeIfAbsent(
+                        provenance.producer(),
+                        ignored -> new BitSet(provenance.producer().outputCount()))
+                .set(provenance.outputIndex());
     }
 
     private static void validateCanonicalWrapper(Tensor tensor) {
@@ -1299,9 +1574,19 @@ final class AutogradPreflight {
             List<Tensor> encounteredOrder,
             Set<TensorProducer> producers,
             List<TensorProducer> producerPostorder,
-            IdentityHashMap<TensorProducer, Integer> selectedOutputs) {
-        int selectedOutput(TensorProducer producer) {
-            return selectedOutputs.getOrDefault(producer, -1);
+            IdentityHashMap<TensorProducer, BitSet> selectedOutputs) {
+        List<Integer> selectedOutputs(TensorProducer producer) {
+            BitSet selected = selectedOutputs.get(producer);
+            if (selected == null) {
+                return List.of();
+            }
+            List<Integer> ordered = new ArrayList<>(selected.cardinality());
+            for (int output = selected.nextSetBit(0);
+                    output >= 0;
+                    output = selected.nextSetBit(output + 1)) {
+                ordered.add(output);
+            }
+            return List.copyOf(ordered);
         }
     }
 

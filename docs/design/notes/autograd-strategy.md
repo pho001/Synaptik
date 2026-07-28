@@ -16,9 +16,12 @@ is Complete with the first policy-free exact-composition rule extension.
 is Complete with mixed-floating cotangent normalization, division, direct-zero local conventions,
 and ordinary or masked mean.
 [Compiler task 0005A](../../planning/modules/compiler/tasks/0005a-derivative-policy-and-elementwise-activation-gradient-completion.md)
-is Complete with the exact 48-kind elementwise/activation classification and formulas. Compiler
-0005 already provides current immutable compile artifacts, while public gradient requests,
-higher derivatives, optimizer updates, preparation, and execution remain planned.
+is Complete with the exact 48-kind elementwise/activation classification and formulas.
+[Compiler task 0005B](../../planning/modules/compiler/tasks/0005b-reduction-scan-softmax-statistics-and-normalization-gradient-completion.md)
+is Complete with binding-aware expansion plus reduction, scan, softmax, statistics, norm, and
+Layer/RMS/batch-normalization rules. Compiler 0005 already provides current immutable compile
+artifacts, while public gradient requests, higher derivatives, optimizer updates, preparation,
+and execution remain planned.
 
 ## Mental model
 
@@ -73,8 +76,10 @@ vector-Jacobian product, public target/publication request, or higher derivative
 Named compiler components such as `ElementwiseGradientRules` call only existing public methods
 such as `mul`, `add`, `sumToShape`, and `transpose`. During one compile request, identity-based
 maps associate exact Tensor objects with ordered contributions and accumulated gradients. The
-compiler combines contributions with ordinary `Tensor.add`. These maps are temporary bookkeeping,
-not graph IR, public Tensor state, a tape, or a registry.
+compiler processes selected occurrences in reverse producer postorder, ascending selected output
+slot for one producer, and ascending input position, then combines contributions with ordinary
+left-associated `Tensor.add`. These maps are temporary bookkeeping, not graph IR, public Tensor
+state, a tape, or a registry.
 
 ## Preflight and construction failures
 
@@ -83,14 +88,15 @@ producer occurrence, output role, exact attributes, and required derivative poli
 or ambiguous work fails closed. This prevents a known incomplete rule matrix from creating a
 partial backward expression.
 
-The closed implemented matrix through Compiler 0005A is:
+The closed implemented matrix through Compiler 0005B is:
 
 | Family | Current exact variants |
 |---|---|
 | Elementwise | All seven promoted floating binary arithmetic kinds; all eight exact-type floating scalar kinds, including first-class `CLAMP`; promoted branch-only `WHERE`; floating-to-floating `CAST`; and all nineteen floating unary kinds |
-| Reduction/scan | Floating ordinary full, single-axis, and multi-axis `SUM`/`MEAN`; masked floating `SUM`/`MEAN`; locally invertible floating `SUM_TO_SHAPE`; floating `CUM_SUM` |
+| Reduction/scan/softmax | Floating ordinary full, single-axis, and ordered multi-axis `SUM`/`MEAN`/`PROD`/`MIN`/`MAX`; masked floating `SUM`/`MEAN`; binding-aware floating `SUM_TO_SHAPE`; floating `LOG_SUM_EXP`, `VARIANCE`, `STANDARD_DEVIATION`, `L1_NORM`, `L2_NORM`, `CUM_SUM`, `CUM_PROD`, `SOFTMAX`, and `LOG_SOFTMAX` |
+| Normalization | No-affine and affine floating Layer normalization; no-scale and scaled floating RMS normalization; all five floating batch-inference inputs; and batch-training public output slots zero through two with their exact input-role matrices |
 | Linear algebra | Every current floating `MATMUL` vector/matrix rank pairing, with role-aware mixed-floating normalization and batch unbroadcasting |
-| Logical layout/selection | Floating `CONTIGUOUS`, `RESHAPE`, `EXPAND`, `EXPAND_DIMS`, `SQUEEZE`, `PERMUTE`, normalized `SLICE`, both normalized `SLICE_UPDATE` data roles, `SELECT`, `PAD`, `TILE`, `CONCAT`, and `STACK` |
+| Logical layout/selection | Floating `CONTIGUOUS`, `RESHAPE`, binding-aware `EXPAND`, `EXPAND_DIMS`, `SQUEEZE`, `PERMUTE`, normalized `SLICE`, both normalized `SLICE_UPDATE` data roles, `SELECT`, `PAD`, `TILE`, `CONCAT`, and `STACK` |
 
 Forward and generated expressions use one model-owned Tensor algebra, inference/validation
 contract, numerical-semantics contract, and exact optimization pipeline. For a selected mixed-
@@ -120,8 +126,37 @@ while placing an exact typed zero elsewhere. Masked MEAN constructs its true cou
 all-false-slice convention returns zero at every input coordinate; it neither suppresses the
 intermediate quotient nor defines branch evaluation. BOOL conditions and masks receive no
 cotangent. `SUM_TO_SHAPE` is invertible only when every aligned input/target Dimension is either
-exactly equal or the static target extent is one. CUM_SUM retains exclusivity and reverses scan
-direction; PERMUTE uses the inverse permutation.
+exactly equal, the static target extent is one, or the binding-dependent inverse uses the exact
+forward target-one-or-target-equal-source predicate. Binding-dependent `EXPAND` similarly emits
+`source == 1 || source == target` for each unresolved aligned pair. These obligations remain
+deferred compile constraints; preflight proves the inverse relationship without binding a symbol.
+CUM_SUM retains exclusivity and reverses scan direction; PERMUTE uses the inverse permutation.
+
+Product reduction is division-free: sequential keep-dimension reductions are reversed with
+exclusive prefix and suffix products. Cumulative product replaces zeros with one for its safe
+product, tracks zero-prefix counts, and accumulates in the opposite direction. Reduction extrema
+compare with the exact saved output and divide among all matching positions. A NaN output matches
+nothing and therefore selects exact zero.
+
+Softmax and log-softmax consume their exact forward output rather than recomputing it:
+
+```text
+softmax:     y * (g - sum(g * y, axis, true))
+logSoftmax:  g - exp(y) * sum(g, axis, true)
+```
+
+Log-sum-exp uses its restored saved output. Variance and standard deviation derive count and
+correction through exact logical-one Tensor expressions. Standard deviation and L2 norm select
+zero when their saved result is not strictly positive; L1 norm selects zero at signed zero and
+NaN. Other exceptional values flow through ordinary Tensor operations in formula order.
+
+Layer and RMS normalization reconstruct their population statistics over exact trailing axes.
+Affine operands are visibly aligned, mixed-floating calculation uses the selected forward-output
+type, and each completed contribution is cast back to its selected input type. Batch inference
+supports all five floating Tensor inputs. Batch training selects input/scale/bias from output slot
+zero, input/running mean from slot one, and input/running variance from slot two. Its formulas
+consume the canonical saved mean and inverse-standard-deviation wrappers at slots three and four;
+those slots cannot be independent cotangent roots.
 
 ERF constructs `g * exp(-(x * x)) * (2 / sqrt(pi))`. Its coefficient is exact scalar-operation
 metadata with fixed BFLOAT16/FLOAT32/FLOAT64 bits `0x3F90`, `0x3F906EBB`, and
@@ -157,12 +192,12 @@ to interleaved repeat/input axes and sums the repeat axes. CONCAT crops by order
 prefixes. STACK selects the corresponding inserted-axis coordinate. Repeated input positions
 remain repeated contributions and therefore accumulate deterministically.
 
-Everything outside this table fails closed on a selected route. Compiler 0005B–0005D retain
-products, reduction extrema, softmax/log-softmax, statistics/norms/normalization,
-binding-dependent Shape work, remaining layout/indexing/stochastic families, attention,
-convolution, pooling, and losses. Comparisons, BOOL logic/classification, the `WHERE` condition,
-scalar attributes and bounds, non-floating casts, `ALL`, `ANY`, arg-extrema outputs, one-hot and
-other index roles, masks, and graph RNG state remain non-differentiable.
+Everything outside this table fails closed on a selected route. Compiler 0005C retains remaining
+layout/indexing/ordering/stochastic families; Compiler 0005D retains attention, convolution,
+pooling, and losses; Compiler 0005E owns the complete first-order closure audit. Comparisons, BOOL
+logic/classification, the `WHERE` condition, scalar attributes and bounds, non-floating casts,
+`ALL`, `ANY`, arg-extrema outputs, batch saved auxiliary roots, one-hot and other index roles,
+masks, and graph RNG state remain non-differentiable.
 
 Preflight is not full graph inference. The compiler performs authoritative inference and
 validation after the one combined capture. A later Tensor construction, capture, inference,
@@ -185,7 +220,9 @@ Some formulas need producer outputs omitted from a public ergonomic result. Drop
 returns the public result and next RNG state while its same-occurrence keep mask is hidden.
 Batch-normalization training similarly hides saved batch statistics. Model task 0025 makes each
 producer retain the canonical Tensor wrapper for every slot and exposes the smallest indexed
-retrieval contract needed by compiler. It never reconstructs an equal wrapper.
+retrieval contract needed by compiler. Compiler 0005B now consumes the exact batch saved mean and
+inverse-standard-deviation wrappers from slots three and four without reconstructing a wrapper or
+recomputing the statistics.
 
 This creates an intentional reference cycle:
 
@@ -238,7 +275,8 @@ evaluation, or physical constant materialization.
 combined expression before capture. `TRAINING_STEP` does not add optimizer updates yet.
 
 Generated gradients are ordinary differentiable Tensor expressions, preserving a route to higher
-derivatives. Higher derivatives are not part of Compiler 0004. A later task must define an
+derivatives. Higher derivatives are not part of the current first-order implementation. A later
+task must define an
 explicit create-graph or derivative-order lifecycle contract, provide rules for every operation
 used in gradient formulas, and represent derivative order in addition to graph phase.
 

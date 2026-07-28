@@ -16,6 +16,7 @@ import io.github.pho001.synaptik.model.operation.elementwise.scalar.ScalarElemen
 import io.github.pho001.synaptik.model.operation.elementwise.scalar.ScalarValueAttrs;
 import io.github.pho001.synaptik.model.operation.elementwise.selection.WhereSelectionKind;
 import io.github.pho001.synaptik.model.operation.elementwise.unary.UnaryElementwiseKind;
+import io.github.pho001.synaptik.model.operation.OperationKind;
 import io.github.pho001.synaptik.model.operation.index.SelectKind;
 import io.github.pho001.synaptik.model.operation.layout.CropToShapeAttrs;
 import io.github.pho001.synaptik.model.operation.layout.ShapeTransformKind;
@@ -23,11 +24,13 @@ import io.github.pho001.synaptik.model.operation.layout.SliceAttrs;
 import io.github.pho001.synaptik.model.operation.layout.SliceKind;
 import io.github.pho001.synaptik.model.operation.reduction.SumToShapeAttrs;
 import io.github.pho001.synaptik.model.operation.reduction.AggregateReductionKind;
+import io.github.pho001.synaptik.model.operation.scan.CumulativeScanKind;
 import io.github.pho001.synaptik.model.shape.DimensionExpressions;
 import io.github.pho001.synaptik.model.shape.DynamicDimension;
 import io.github.pho001.synaptik.model.shape.Shape;
 import io.github.pho001.synaptik.model.shape.StaticDimension;
 import io.github.pho001.synaptik.model.tensor.Tensor;
+import io.github.pho001.synaptik.model.tensor.BatchNormTrainingResult;
 import io.github.pho001.synaptik.model.tensor.TensorDescriptor;
 import io.github.pho001.synaptik.model.tensor.TensorFactory;
 import java.util.ArrayDeque;
@@ -330,6 +333,145 @@ final class GradientRulesTest {
         assertEquals(
                 ShapeTransformKind.EXPAND,
                 zeroGradient.provenance().orElseThrow().operation().kind());
+    }
+
+    @Test
+    void productExtremaAndAdvancedReductionRulesUseOnlyTheSpecifiedTensorAlgebra() {
+        Tensor input = tensor(Shape.of(2, 3));
+        for (Tensor reduced : List.of(
+                input.prod(),
+                input.prod(1),
+                input.prod(1, true),
+                input.prod(new int[] {1, 0}, false),
+                input.prod(new int[] {}, false),
+                input.min(),
+                input.max(1, true),
+                input.logSumExp(new int[] {1}, false),
+                input.variance(new int[] {1}, false, 1),
+                input.standardDeviation(new int[] {1}, true, 1),
+                input.l1Norm(new int[] {1}, false),
+                input.l2Norm(new int[] {1}, true))) {
+            Tensor objective = reduced.descriptor().shape().rank() == 0
+                    ? reduced
+                    : reduced.sum();
+            assertGradientCompiles(objective, input);
+        }
+
+        Tensor productGradient = gradient(input.prod(), input);
+        Set<OperationKind> productKinds = collectKinds(productGradient);
+        assertTrue(productKinds.contains(CumulativeScanKind.CUM_PROD));
+        assertTrue(!productKinds.contains(BinaryArithmeticKind.DIV));
+
+        Tensor extremaGradient = gradient(input.max(1).sum(), input);
+        Set<OperationKind> extremaKinds = collectKinds(extremaGradient);
+        assertTrue(extremaKinds.contains(BinaryComparisonKind.EQUAL));
+        assertTrue(extremaKinds.contains(WhereSelectionKind.WHERE));
+        assertTrue(extremaKinds.contains(AggregateReductionKind.SUM));
+
+        Tensor varianceGradient =
+                gradient(input.variance(new int[] {1}, false, 1).sum(), input);
+        assertTrue(collectKinds(varianceGradient).contains(BinaryArithmeticKind.DIV));
+        assertTrue(collectScalarValues(varianceGradient).contains(ScalarValue.float32(2.0f)));
+    }
+
+    @Test
+    void cumulativeProductUsesZeroSafeFormulaForEveryTraversalMode() {
+        Tensor input = tensor(Shape.of(2, 3));
+        for (boolean exclusive : List.of(false, true)) {
+            for (boolean reverse : List.of(false, true)) {
+                Tensor gradient = gradient(
+                        input.cumProd(1, exclusive, reverse).sum(), input);
+                Set<OperationKind> kinds = collectKinds(gradient);
+                assertTrue(kinds.contains(CumulativeScanKind.CUM_PROD));
+                assertTrue(kinds.contains(CumulativeScanKind.CUM_SUM));
+                assertTrue(kinds.contains(WhereSelectionKind.WHERE));
+                assertTrue(kinds.contains(BinaryArithmeticKind.DIV));
+            }
+        }
+        Tensor empty = tensor(Shape.of(2, 0));
+        assertGradientCompiles(empty.cumProd(1, true, true).sum(), empty);
+    }
+
+    @Test
+    void softmaxRulesConsumeTheExactSavedForwardOutput() {
+        Tensor input = tensor(Shape.of(2, 3));
+        for (Tensor output : List.of(input.softmax(1), input.logSoftmax(1))) {
+            Tensor gradient = gradient(output.sum(), input);
+            assertTrue(containsExactTensor(gradient, output));
+            assertEquals(input.descriptor().shape(), gradient.descriptor().shape());
+            assertGradientCompiles(output.sum(), input);
+        }
+    }
+
+    @Test
+    void layerRmsAndBatchNormalizationCoverEverySelectedFloatingRole() {
+        Tensor input = tensor(DataType.BFLOAT16, Shape.of(2, 3, 4));
+        Tensor scale32 = tensor(DataType.FLOAT32, Shape.of(3, 4));
+        Tensor bias64 = tensor(DataType.FLOAT64, Shape.of(3, 4));
+        Tensor layer = input.layerNorm(
+                Shape.of(3, 4),
+                scale32,
+                bias64,
+                ScalarValue.float64(1.0e-5d));
+        for (Tensor target : List.of(input, scale32, bias64)) {
+            assertGradientCompiles(layer.sum(), target);
+        }
+        assertGradientCompiles(
+                input.layerNorm(
+                                Shape.of(3, 4),
+                                ScalarValue.bfloat16Bits((short) 0x3728))
+                        .sum(),
+                input);
+
+        Tensor rmsScale = tensor(DataType.FLOAT32, Shape.of(3, 4));
+        Tensor rms = input.rmsNorm(
+                Shape.of(3, 4), rmsScale, ScalarValue.float32(1.0e-5f));
+        for (Tensor target : List.of(input, rmsScale)) {
+            assertGradientCompiles(rms.sum(), target);
+        }
+        assertGradientCompiles(
+                input.rmsNorm(
+                                Shape.of(3, 4),
+                                ScalarValue.bfloat16Bits((short) 0x3728))
+                        .sum(),
+                input);
+
+        Tensor channelInput = tensor(DataType.BFLOAT16, Shape.of(2, 3, 4));
+        Tensor channelScale = tensor(DataType.FLOAT32, Shape.of(3));
+        Tensor channelBias = tensor(DataType.FLOAT64, Shape.of(3));
+        Tensor runningMean = tensor(DataType.FLOAT32, Shape.of(3));
+        Tensor runningVariance = tensor(DataType.FLOAT64, Shape.of(3));
+        Tensor inference = channelInput.batchNormInference(
+                1,
+                channelScale,
+                channelBias,
+                runningMean,
+                runningVariance,
+                ScalarValue.float64(1.0e-5d));
+        for (Tensor target : List.of(
+                channelInput, channelScale, channelBias, runningMean, runningVariance)) {
+            assertGradientCompiles(inference.sum(), target);
+        }
+
+        BatchNormTrainingResult training = channelInput.batchNormTraining(
+                1,
+                channelScale,
+                channelBias,
+                runningMean,
+                runningVariance,
+                ScalarValue.float64(0.1d),
+                ScalarValue.float64(1.0e-5d));
+        for (Tensor target : List.of(channelInput, channelScale, channelBias)) {
+            assertGradientCompiles(training.output().sum(), target);
+        }
+        assertGradientCompiles(training.nextRunningMean().sum(), channelInput);
+        assertGradientCompiles(training.nextRunningMean().sum(), runningMean);
+        assertGradientCompiles(training.nextRunningVariance().sum(), channelInput);
+        assertGradientCompiles(training.nextRunningVariance().sum(), runningVariance);
+        Tensor inputGradient = gradient(training.output().sum(), channelInput);
+        Tensor producerOutput = training.output()
+                .provenance().orElseThrow().producer().output(4);
+        assertTrue(containsExactTensor(inputGradient, producerOutput));
     }
 
     @Test
@@ -719,6 +861,24 @@ final class GradientRulesTest {
             });
         }
         return values;
+    }
+
+    private static Set<OperationKind> collectKinds(Tensor root) {
+        Set<OperationKind> kinds = new HashSet<>();
+        Set<Tensor> seen = java.util.Collections.newSetFromMap(new java.util.IdentityHashMap<>());
+        ArrayDeque<Tensor> pending = new ArrayDeque<>();
+        pending.add(root);
+        while (!pending.isEmpty()) {
+            Tensor tensor = pending.removeLast();
+            if (!seen.add(tensor)) {
+                continue;
+            }
+            tensor.provenance().ifPresent(provenance -> {
+                kinds.add(provenance.operation().kind());
+                pending.addAll(provenance.inputs());
+            });
+        }
+        return kinds;
     }
 
     private static boolean containsOperation(Tensor root, Object kind) {

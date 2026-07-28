@@ -6,9 +6,10 @@ This guide explains what Synaptik's current internal automatic differentiation (
 construct and what a user still cannot invoke. Autograd derives gradient expressions from a
 forward Tensor expression.
 
-Compiler tasks 0004, 0004A, 0004B, and 0005A implement a bounded package-private first-order
-graph stage, its exact-composition and shared-algebra extensions, and the exact current 48-kind
-elementwise/activation policy.
+Compiler tasks 0004 through 0005B implement a bounded package-private first-order graph stage,
+its exact-composition and shared-algebra extensions, the exact current 48-kind
+elementwise/activation policy, and the current reduction, scan, softmax, statistics, norm, and
+normalization matrix.
 There is no public compile request for an objective, targets, or seed; no gradient publication;
 and no prepared or executable training workflow. The current `CompileMode` enum is standalone
 declarative configuration, not a public compiler entry point:
@@ -64,9 +65,10 @@ The closed current matrix contains only:
 | Family | Supported variants |
 |---|---|
 | Elementwise | All seven promoted floating binary arithmetic kinds; all eight exact-type floating scalar kinds, including first-class `CLAMP`; promoted branch-only `WHERE`; floating-to-floating `CAST`; and all nineteen floating unary kinds |
-| Reduction and scan | Floating ordinary full, single-axis, and multi-axis `SUM`/`MEAN`; masked floating `SUM`/`MEAN`; locally invertible floating `SUM_TO_SHAPE`; floating `CUM_SUM` |
+| Reduction, scan, and softmax | Floating ordinary full, single-axis, and ordered multi-axis `SUM`/`MEAN`/`PROD`/`MIN`/`MAX`; masked floating `SUM`/`MEAN`; binding-aware floating `SUM_TO_SHAPE`; floating advanced statistics/norms; floating `CUM_SUM`/`CUM_PROD`; and floating `SOFTMAX`/`LOG_SOFTMAX` |
+| Normalization | No-affine and affine floating Layer normalization; no-scale and scaled floating root-mean-square (RMS) normalization; all five floating batch-inference inputs; and the output-slot-specific public batch-training routes |
 | Linear algebra | Every floating `MATMUL` vector/matrix rank pairing, including mixed-floating selected operands |
-| Logical layout and selection | Floating `CONTIGUOUS`, `RESHAPE`, `EXPAND`, `EXPAND_DIMS`, `SQUEEZE`, `PERMUTE`, normalized `SLICE`, both normalized `SLICE_UPDATE` data roles, `SELECT`, `PAD`, `TILE`, `CONCAT`, and `STACK` |
+| Logical layout and selection | Floating `CONTIGUOUS`, `RESHAPE`, binding-aware `EXPAND`, `EXPAND_DIMS`, `SQUEEZE`, `PERMUTE`, normalized `SLICE`, both normalized `SLICE_UPDATE` data roles, `SELECT`, `PAD`, `TILE`, `CONCAT`, and `STACK` |
 
 Forward expressions and generated gradients use the same ordinary Tensor operations, model
 numerical semantics, inference, validation, and exact optimization rules. A mixed-floating
@@ -106,8 +108,44 @@ Ordinary SUM restores removed axes before expansion; masked SUM additionally rou
 cotangent through the original mask. CUM_SUM retains exclusivity while reversing scan direction,
 and PERMUTE applies the inverse permutation. WHERE routes no cotangent through its BOOL
 condition, and masked reductions route none through their mask. A `SUM_TO_SHAPE` route is accepted
-only when each aligned input/target Dimension is exactly equal or the target extent is statically
-one.
+when each aligned input/target Dimension is exactly equal, the target extent is statically one,
+or the binding-dependent inverse uses the same target-one-or-target-equal-source predicate.
+Binding-dependent `EXPAND` retains the corresponding
+`source == 1 || source == target` obligation. The compiler records these predicates but does not
+assign concrete sizes.
+
+Product reduction uses exclusive prefix and suffix products rather than `forwardProduct / input`,
+so represented zeros do not cause division by the selected input. Cumulative product uses safe
+products, cumulative zero counts, and an opposite-direction cumulative sum for all exclusive and
+reverse combinations. Reduction MIN/MAX shares a tie among every coordinate equal to the exact
+saved result; a NaN result matches no coordinate and returns exact zero.
+
+Softmax rules reuse their exact forward output `y`:
+
+```text
+softmax:     y * (g - sum(g * y, axis, true))
+logSoftmax:  g - exp(y) * sum(g, axis, true)
+```
+
+Log-sum-exp, variance, standard deviation, L1 norm, and L2 norm also use ordinary Tensor
+expressions. Statistical counts and correction are built from exact logical ones rather than a
+host floating conversion. Standard deviation and L2 norm select zero when their saved result is
+not strictly positive; L1 norm selects zero at signed zero and NaN.
+
+Layer and RMS normalization compute formula metadata in the exact selected forward-output type,
+align scale/bias operands to their logical axes, and cast completed contributions to the selected
+input type. Batch inference supports input, scale, bias, running mean, and running variance.
+Batch training is output-slot-aware:
+
+| Selected public output | Inputs that receive contributions |
+|---|---|
+| normalized output | input, scale, bias |
+| next running mean | input, running mean |
+| next running variance | input, running variance |
+
+The batch-training rules retrieve the exact saved batch mean and inverse standard deviation from
+hidden slots of the same producer. Those slots are compiler formula operands, not public gradient
+roots, physical buffers, or a runtime tape.
 
 MATMUL supports all four vector/matrix rank pairings. Each selected contribution reverses batch
 broadcasting and then casts once when its promoted type differs from the operand. SLICE and SELECT
@@ -117,12 +155,13 @@ inserted axis. The SLICE_UPDATE update-role rule needs static selected base exte
 operand positions remain repeated contributions.
 
 An unlisted operation on a selected route fails before the compiler creates the seed or any
-formula Tensor. Product/reduction-extrema/softmax/statistics/normalization, remaining
-layout/indexing/stochastic work, attention, convolution, pooling, and losses remain later
-Compiler 0005B–0005D families. Binding-dependent `SUM_TO_SHAPE`, target-relative crop, and other
+formula Tensor. Remaining layout/indexing/ordering/stochastic work is assigned to Compiler 0005C;
+attention, convolution, pooling, and losses are assigned to Compiler 0005D; and Compiler 0005E
+owns the complete source-backed first-order closure audit. Target-relative crop and other
 unselected layout cases retain their existing fail-closed guards. Comparisons, BOOL
 logic/classification, the `WHERE` condition, scalar attributes and bounds, non-floating casts,
-`ALL`, `ANY`, arg-extrema outputs, indices, masks, and graph RNG state are non-differentiable.
+`ALL`, `ANY`, arg-extrema outputs, batch saved auxiliary roots, indices, masks, and graph RNG state
+are non-differentiable.
 
 ## Conceptual example
 
@@ -168,7 +207,8 @@ prepare storage, or execute a graph.
 |---|---|---|
 | A public call site cannot provide objective and targets | The current request and `GraphCompiler` are package-private. | Wait for the planned public compile/publication contract; do not depend on internal compiler types. |
 | Preflight rejects an operation that has a public Tensor method | Public expression construction does not imply a selected derivative rule or policy. | Keep the selected route inside the closed matrix or wait for its owning follow-up. |
-| Preflight rejects a mixed-floating route | Mixed types are accepted only for the exact binary, `WHERE`, floating `CAST`, and `MATMUL` rows with a complete `sumToShape`-then-`cast` normalization path. | Make every selected role floating and keep the route inside those current promotion and Shape guards. |
+| Preflight rejects a mixed-floating route | Mixed types are accepted only where the selected family has a complete promotion and Shape/type-normalization path. | Make every selected role floating and keep its descriptors inside the family-specific guards. |
+| Preflight rejects a batch saved output | Saved batch mean and inverse standard deviation are same-occurrence formula auxiliaries, not independent cotangent roots. | Request a supported public batch-training output route and a floating input role from its row. |
 | A BOOL condition or comparison is requested as a target | BOOL roles are non-differentiable. | Request a floating target reached through selected differentiable input roles. |
 | `TRAINING_STEP` produces no optimizer update | The current internal mode covers only the same combined forward/backward graph stage as `FORWARD_AND_BACKWARD`. | Keep optimizer behavior in the planned training lifecycle. |
 

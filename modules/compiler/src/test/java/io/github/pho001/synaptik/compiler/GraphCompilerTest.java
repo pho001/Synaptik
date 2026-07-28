@@ -19,10 +19,12 @@ import io.github.pho001.synaptik.model.datatype.ScalarValue;
 import io.github.pho001.synaptik.model.graph.GraphValue;
 import io.github.pho001.synaptik.model.graph.GraphPhase;
 import io.github.pho001.synaptik.model.graph.ValueId;
+import io.github.pho001.synaptik.model.operation.normalization.BatchNormKind;
 import io.github.pho001.synaptik.model.shape.DynamicDimension;
 import io.github.pho001.synaptik.model.shape.Shape;
 import io.github.pho001.synaptik.model.shape.StaticDimension;
 import io.github.pho001.synaptik.model.tensor.Tensor;
+import io.github.pho001.synaptik.model.tensor.BatchNormTrainingResult;
 import io.github.pho001.synaptik.model.tensor.TensorDescriptor;
 import io.github.pho001.synaptik.model.tensor.TensorFactory;
 import io.github.pho001.synaptik.planning.capability.BackendCapabilityProvider;
@@ -390,8 +392,7 @@ final class GraphCompilerTest {
     @Test
     void knownUnsupportedPreflightFailureConsumesNoTensorIdentity() throws Exception {
         Tensor target = tensor();
-        Tensor other = tensor();
-        Tensor objective = target.softmax(0).mul(other).sum();
+        Tensor objective = target.cropToShape(Shape.of(1), Shape.of(0)).sum();
         var request = new AutogradPreflight.FirstOrderRequest(objective, List.of(target));
         long before = nextTensorId();
 
@@ -430,26 +431,47 @@ final class GraphCompilerTest {
     }
 
     @Test
+    void capturesBatchTrainingForwardAndBackwardTogetherWithAllFiveSlots() {
+        Tensor input = TensorFactory.create(new TensorDescriptor(
+                DataType.FLOAT32, Shape.of(2, 3, 4), Optional.empty(), true));
+        Tensor vector = TensorFactory.create(new TensorDescriptor(
+                DataType.FLOAT32, Shape.of(3), Optional.empty(), true));
+        BatchNormTrainingResult training = input.batchNormTraining(
+                1,
+                vector,
+                vector,
+                vector,
+                vector,
+                ScalarValue.float32(0.1f),
+                ScalarValue.float32(1.0e-5f));
+        Tensor objective = training.output().sum()
+                .add(training.nextRunningMean().sum())
+                .add(training.nextRunningVariance().sum());
+
+        GraphCompilation compilation = GraphCompiler.compile(
+                CompileMode.FORWARD_AND_BACKWARD,
+                List.of(objective),
+                Optional.of(new AutogradPreflight.FirstOrderRequest(
+                        objective, List.of(input))),
+                CompileTimeConstantGraph.Ingress.empty(),
+                GraphOptimizationConfig.disabled());
+
+        var batchNode = compilation.validatedGraph().graph().nodes().stream()
+                .filter(node -> node.operation().kind() == BatchNormKind.BATCH_NORM_TRAINING)
+                .findFirst()
+                .orElseThrow();
+        assertEquals(5, batchNode.outputs().size());
+        assertEquals(
+                GraphPhase.FORWARD,
+                compilation.validatedGraph().graph().nodePhases().get(batchNode.id()));
+        assertTrue(compilation.validatedGraph().graph().nodePhases()
+                .containsValue(GraphPhase.BACKWARD));
+        assertEquals(1, compilation.gradientResults().size());
+    }
+
+    @Test
     void preflightOnly0004AFailuresConsumeNoTensorIdentity() throws Exception {
         DynamicDimension dynamic = new DynamicDimension("N");
-        Tensor source = TensorFactory.create(new TensorDescriptor(
-                DataType.FLOAT32,
-                Shape.ofDimensions(dynamic),
-                Optional.empty(),
-                true));
-        Tensor bindingDependent = source
-                .sumToShape(Shape.ofDimensions(new DynamicDimension("M")))
-                .sum();
-        long beforeShapeFailure = nextTensorId();
-        assertThrows(IllegalArgumentException.class, () -> GraphCompiler.compile(
-                CompileMode.FORWARD_AND_BACKWARD,
-                List.of(bindingDependent),
-                Optional.of(new AutogradPreflight.FirstOrderRequest(
-                        bindingDependent, List.of(source))),
-                CompileTimeConstantGraph.Ingress.empty(),
-                GraphOptimizationConfig.disabled()));
-        assertEquals(beforeShapeFailure, nextTensorId());
-
         Tensor base = TensorFactory.create(new TensorDescriptor(
                 DataType.FLOAT32,
                 Shape.ofDimensions(dynamic),

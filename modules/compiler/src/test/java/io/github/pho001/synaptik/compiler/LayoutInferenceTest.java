@@ -6,12 +6,49 @@ import io.github.pho001.synaptik.model.datatype.*;
 import io.github.pho001.synaptik.model.graph.*;
 import io.github.pho001.synaptik.model.operation.Operation;
 import io.github.pho001.synaptik.model.operation.layout.*;
+import io.github.pho001.synaptik.model.shape.DynamicDimension;
 import io.github.pho001.synaptik.model.shape.Shape;
+import io.github.pho001.synaptik.model.shape.StaticDimension;
 import io.github.pho001.synaptik.model.tensor.*;
 import java.util.*;
 import org.junit.jupiter.api.Test;
 
 final class LayoutInferenceTest {
+    @Test
+    void emitsOrderedBindingAwareExpandPredicatesAndLeavesLayoutUnresolved() {
+        DynamicDimension n = new DynamicDimension("N");
+        DynamicDimension m = new DynamicDimension("M");
+        DynamicDimension p = new DynamicDimension("P");
+        DynamicDimension q = new DynamicDimension("Q");
+        TensorDescriptor input = descriptor(Shape.ofDimensions(n, m));
+        Shape target = Shape.ofDimensions(new StaticDimension(7), p, q);
+
+        CapturedGraphInference.InferenceResult inferred = LayoutInference.infer(
+                new Operation(
+                        ShapeTransformKind.EXPAND,
+                        new TargetShapeAttrs(target)),
+                List.of(input));
+
+        assertAll(
+                () -> assertEquals(target, inferred.outputs().getFirst().shape()),
+                () -> assertTrue(inferred.outputs().getFirst().layout().isEmpty()),
+                () -> assertEquals(
+                        List.of("expand target axis 1", "expand target axis 2"),
+                        inferred.constraints().stream()
+                                .map(CapturedGraphInference.ConstraintRequest::subject)
+                                .toList()),
+                () -> assertEquals(
+                        new AnyOf(List.of(
+                                new DimensionEqual(n, new StaticDimension(1)),
+                                new DimensionEqual(n, p))),
+                        inferred.constraints().getFirst().predicate()),
+                () -> assertEquals(
+                        new AnyOf(List.of(
+                                new DimensionEqual(m, new StaticDimension(1)),
+                                new DimensionEqual(m, q))),
+                        inferred.constraints().get(1).predicate()));
+    }
+
     @Test
     void acceptsLayoutAndWindowFamilies() {
         Tensor x = tensor(Shape.of(2, 3));

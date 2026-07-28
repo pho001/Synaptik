@@ -142,20 +142,27 @@ elementwise `AND`/`OR`. Axis-only `Tensor.argMin` and `Tensor.argMax` accept flo
 input and produce fixed non-differentiable INT64 expressions with explicit first- or last-index
 policy. Their shared ordering prefers NaN, orders signed zero and infinities deterministically,
 uses signed integral order, and rejects a statically empty selected axis. Numerical or truth
-evaluation, gradients, compiler capture, lowering, backend support, and execution remain planned.
+evaluation, lowering, backend support, and execution remain planned. Current package-private
+compiler autograd supports the floating SUM/MEAN/PROD/MIN/MAX, masked SUM/MEAN, SUM_TO_SHAPE,
+LOG_SUM_EXP, VARIANCE, STANDARD_DEVIATION, L1_NORM, and L2_NORM roles described under
+[pre-capture Tensor-expression autograd](#pre-capture-tensor-expression-autograd); BOOL and
+arg-extrema results remain non-differentiable.
 The `CumulativeScanKind` vocabulary is implemented with `CUM_SUM` and `CUM_PROD` semantic
 identities, together with `CumulativeScanAttrs` carrying one normalized axis and exact exclusive/
 reverse mode flags. Public `Tensor.cumSum` and `Tensor.cumProd` construct all four traversal/
 inclusion modes for floating and integral inputs, retaining exact Shape/type/eligibility metadata
-in an unresolved descriptor and recording one-input provenance. Value accumulation, gradients,
-compiler behavior, and execution remain planned.
+in an unresolved descriptor and recording one-input provenance. Value accumulation and execution
+remain planned. Current package-private compiler autograd supports floating CUM_SUM and CUM_PROD;
+integral scans remain non-differentiable.
 The `SoftmaxKind` vocabulary is implemented with distinct `SOFTMAX` probability and
 `LOG_SOFTMAX` log-probability meanings, together with `SoftmaxAttrs` carrying one normalized axis.
 These semantic values preserve logical positions and describe complete normalization slices
 without storing a Tensor or Shape. Public `Tensor.softmax` and `Tensor.logSoftmax` now construct
 fresh floating expressions with Shape-aware axis normalization, exact Shape/type/eligibility
-retention, unresolved layout, and one-input provenance. Numerical evaluation, gradients, compiler
-behavior, backend behavior, and execution remain planned.
+retention, unresolved layout, and one-input provenance. Tensor construction performs no numerical
+evaluation, gradient construction, compiler work, backend work, or execution. Current
+package-private compiler autograd supports both floating kinds through their exact forward
+outputs; numerical evaluation, lowering, backend support, and execution remain planned.
 The `LossKind` vocabulary is implemented with mean-squared error plus dense-target and index-target
 categorical cross entropy directly from logits. The shared loss-only `LossReduction` values are
 `NONE`, `SUM`, and `MEAN`; exact attributes retain each meaning's reduction and, for categorical
@@ -172,9 +179,10 @@ affine/statistic vectors, preserves the exact input Shape, and records one fresh
 provenance index zero. It reads or updates no statistic, creates no saved output or hidden state,
 and performs no compiler, backend, runtime, or execution work. Public `Tensor.batchNormTraining`
 records five shared outputs and exposes normalized output plus explicit next running statistics;
-saved batch mean and inverse standard deviation remain producer-described for later compiler
-work. It retains no state across calls and performs no compiler, backend, runtime, or execution
-work.
+saved batch mean and inverse standard deviation remain producer-described. Current package-private
+compiler autograd retrieves those exact wrappers and implements the public-output role matrix. The
+Tensor construction path retains no state across calls and performs no compiler, backend,
+runtime, or execution work.
 The `ScaledDotProductAttentionKind` vocabulary is implemented with one first-class attention
 meaning and an exact one-through-two-output occurrence signature, together with
 `ScaledDotProductAttentionAttrs` carrying optional exact scale and causal eligibility. The four
@@ -202,8 +210,9 @@ and `Tensor.expand(Shape)` now add directional right-aligned compatibility plus 
 same-offset, zero-stride view geometry. An aligned pair containing an unresolved dimension is
 retained as a binding-dependent Model expression; the later condition is that the source extent
 is one or equals the target extent, and Model creates no deferred constraint. Current compiler
-inference has not adopted that widened case. Its occurrence-owned proof, matching preflight and
-gradient handling, materialization, backend behavior, and execution remain planned.
+inference adopts that widened case with an occurrence-owned proof and matching preflight and
+gradient handling. Concrete binding, materialization, backend behavior, and execution remain
+planned.
 The `AxisTransformKind` vocabulary is implemented with distinct `PERMUTE`, `EXPAND_DIMS`, and
 `SQUEEZE` meanings. `PermutationAttrs` stores an immutable complete normalized output-to-input
 axis mapping, and `AxisTransformAttrs` stores one normalized non-negative insertion or removal
@@ -694,7 +703,9 @@ supplies canonical producer-output wrappers; Compiler task 0004 is Complete with
 bounded package-private implementation; Compiler task 0004A is Complete with its first
 policy-free exact-composition rule extension; and Compiler task 0004B is Complete with mixed-
 floating cotangent normalization, ordinary DIV/MEAN formulas, and the selected direct-zero local
-conventions. See
+conventions. Compiler task 0005A is Complete with the exact elementwise/activation policy, and
+Compiler task 0005B is Complete with binding-aware expansion plus reduction, scan, softmax,
+statistics, norm, and normalization formulas. See
 [Training graph](architecture/training-graph.md).
 
 ### Autotuning / model autotuning
@@ -1201,8 +1212,12 @@ inclusive-forward, exclusive-forward, inclusive-reverse, and exclusive-reverse m
 boundary identity. A zero-length axis has no result position and therefore emits no identity.
 Integral product uses exact-width two's-complement modular multiplication. Floating product
 propagates NaN, makes zero times infinity NaN, and follows multiplication parity for zero and
-infinity signs. No algorithm, intermediate rounding, NaN payload, bitwise backend result,
-gradient, compiler adoption, runtime behavior, backend support, or execution is defined. See
+infinity signs. Current package-private first-order autograd supports floating `CUM_SUM` and
+`CUM_PROD`. `CUM_SUM` preserves exclusivity and reverses direction. `CUM_PROD` uses safe products,
+cumulative zero counts, and an opposite-direction cumulative sum rather than dividing by the
+original input. This is compiler expression construction, not a forward algorithm, intermediate
+rounding rule, NaN-payload promise, bitwise backend result, runtime behavior, backend support, or
+execution. See
 [Cumulative-scan semantic kinds and attributes](api/tensor-api.md#cumulative-scan-semantic-kinds-and-attributes).
 
 ### Dropout / inverted dropout
@@ -1350,11 +1365,12 @@ inference](api/compile-api.md#current-package-private-verification-inference).
 
 Accepting a binding-dependent `Tensor.expand` expression in Model does not itself create a
 deferred graph constraint. Model retains only the exact target Shape and the EXPAND occurrence.
-Current compiler inference still rejects a non-equal, non-static-source-singleton aligned pair
-when either dimension is unresolved. Planned Compiler task 0005B owns translation of that
-occurrence to
-`AnyOf(DimensionEqual(source, 1), DimensionEqual(source, target))`, together with proof, preflight,
-and gradient consistency.
+Current compiler inference translates each non-equal, non-static-source-singleton unresolved
+aligned pair to
+`AnyOf(DimensionEqual(source, 1), DimensionEqual(source, target))` in aligned-axis order.
+Preflight admits the inverse `SUM_TO_SHAPE` only through the same predicate relationship. A
+deferred result remains an occurrence-owned compile obligation; it is not a concrete binding,
+stride choice, materialization decision, or execution permission.
 
 ### Element stride
 
@@ -1451,8 +1467,10 @@ identity-unique target list in its selected differentiable ancestry, and one imp
 unit seed. Targets may differ from the objective's floating type. Its closed matrix covers all
 seven promoted floating binary arithmetic kinds, all eight exact-type floating scalar kinds,
 promoted branch-only WHERE, floating-to-floating CAST, all nineteen floating unary kinds,
-ordinary and masked SUM/MEAN, locally invertible SUM_TO_SHAPE, CUM_SUM, every floating MATMUL
-vector/matrix rank pairing, and the guarded floating
+ordinary full/axis/multi-axis SUM/MEAN/PROD/MIN/MAX, masked SUM/MEAN, binding-aware SUM_TO_SHAPE,
+LOG_SUM_EXP, VARIANCE, STANDARD_DEVIATION, L1_NORM, L2_NORM, CUM_SUM, CUM_PROD, SOFTMAX,
+LOG_SOFTMAX, Layer/RMS/batch normalization, every floating MATMUL vector/matrix rank pairing, and
+the guarded floating
 CONTIGUOUS/RESHAPE/EXPAND/EXPAND_DIMS/SQUEEZE/PERMUTE/SLICE/SLICE_UPDATE/SELECT/PAD/TILE/
 CONCAT/STACK families.
 
@@ -1475,12 +1493,16 @@ without gradient-only domain masks. Comparisons, Boolean logic/classification, c
 attribute, bound, and non-floating cast roles remain non-differentiable.
 
 SLICE_UPDATE's selected update role requires static selected base extents, and SUM_TO_SHAPE
-accepts only aligned exact Dimension equality or a static target singleton. Everything else fails
-closed on a selected route until its shared formula or derivative policy is selected.
+accepts aligned exact Dimension equality, a static target singleton, or the exact
+binding-dependent inverse predicate. Reduction products are division-free, reduction extrema
+share exact ties, and softmax formulas consume exact forward outputs. Batch training selects
+roles by public output slot and consumes canonical saved-statistic slots three and four only as
+formula auxiliaries. Everything else fails closed on a selected route until its shared formula or
+derivative policy is selected.
 
 The technique adds no placeholder Tensor for a captured `ValueId`, second gradient algebra,
 public gradient, runtime tape, model derivative rule, or Tensor gradient/backward lifecycle.
-Model task 0025 and Compiler tasks 0004, 0004A, 0004B, 0005, and 0005A are Complete. Public
+Model task 0025 and Compiler tasks 0004, 0004A, 0004B, 0005, 0005A, and 0005B are Complete. Public
 requests, higher derivatives, optimizer updates, preparation, and execution remain planned.
 
 ### Neural-network module, parameter, buffer, and forward context
@@ -2617,8 +2639,11 @@ construct descriptors or provenance, define data-type eligibility or gradients, 
 decomposition, report backend support, or execute normalization. Public `Tensor.softmax` and
 `Tensor.logSoftmax` now add floating input validation, Shape-aware caller-axis normalization,
 exact Shape/type/eligibility retention with unresolved layout, and fresh one-input provenance.
-They still calculate none of the example values and define no gradient, compiler, backend, or
-execution behavior. See [Softmax expressions](api/tensor-api.md#softmax-expressions) and [Softmax
+They still calculate none of the example values. Current package-private compiler autograd uses
+the exact forward output `y`: softmax constructs `y * (g - sum(g * y, axis, true))`, while
+log-softmax constructs `g - exp(y) * sum(g, axis, true)`. This compiler behavior defines no
+forward numerical algorithm, backend route, or execution result. See [Softmax
+expressions](api/tensor-api.md#softmax-expressions) and [Softmax
 semantic kinds and attributes](api/tensor-api.md#softmax-semantic-kinds-and-attributes).
 
 ### Layer normalization
@@ -2631,8 +2656,10 @@ one input; the affine form then applies explicit scale and bias and records orde
 
 `LayerNormKind.LAYER_NORM` has distinct `LayerNormAttrs` and `AffineLayerNormAttrs` signatures so
 the exact valid input counts are one and three, never two. Current `Tensor.layerNorm` constructs
-metadata and provenance but does not calculate statistics, capture a graph, define gradients,
-select an algorithm, or execute. See [Layer-normalization
+metadata and provenance but does not calculate statistics, capture a graph, select an algorithm,
+or execute. Current package-private compiler autograd supports the input in both forms and the
+scale/bias roles in the affine form. It rebuilds the population statistics through ordinary
+Tensor expressions over the exact trailing axes. See [Layer-normalization
 expressions](api/tensor-api.md#layer-normalization-expressions).
 
 ### RMS normalization
@@ -2646,7 +2673,9 @@ scaled form records `[input, scale]`, with scale Shape exactly equal to the
 and exactly one output.
 
 Current `Tensor.rmsNorm` constructs metadata and provenance but does not calculate the root mean
-square, capture a graph, create saved statistics or gradients, select an algorithm, or execute.
+square, capture a graph, create saved statistics, select an algorithm, or execute. Current
+package-private compiler autograd supports the input and optional scale roles through ordinary
+population-mean Tensor expressions.
 See [RMS-normalization expressions](api/tensor-api.md#rms-normalization-expressions).
 
 ### Batch normalization / batch-normalization inference and training
@@ -2671,9 +2700,10 @@ to this occurrence. The variance is used directly: the operation performs no cor
 conversion, recomputation, clamp, momentum update, or mutation. Construction also creates no
 training/evaluation mode, saved statistic, auxiliary output, or hidden state.
 
-Current `Tensor.batchNormInference` constructs metadata and provenance only. Compiler capture,
-deferred equality proof, saved-value and gradient construction, legal decomposition, backend
-preparation, and runtime execution remain planned in their owning layers.
+Current `Tensor.batchNormInference` constructs metadata and provenance only. Current
+package-private compiler autograd constructs contributions for all five floating Tensor inputs,
+aligning each channel vector to the input Shape. Legal decomposition, backend preparation, and
+runtime execution remain planned in their owning layers.
 
 **Batch-normalization training** reduces every non-channel axis to calculate batch mean and
 variance. Forward normalization uses biased population variance, while the explicit next running
@@ -2684,8 +2714,11 @@ for another call. Here **momentum** is the weight of the new batch, not the old 
 
 `Tensor.batchNormTraining` returns normalized output, next running mean, and next running variance.
 Its shared producer additionally describes saved batch mean and saved inverse standard deviation.
-Compiler capture and saved-value lifetime, autograd/backward construction, training-session and
-checkpoint ownership, publication, lowering, and execution remain planned in their owning layers.
+Current package-private compiler autograd routes normalized output to input/scale/bias, next
+running mean to input/running mean, and next running variance to input/running variance. It
+retrieves the exact same-occurrence saved wrappers for formulas; saved slots are not independent
+cotangent roots. Training-session and checkpoint ownership, physical saved-value lifetime,
+publication, lowering, and execution remain planned in their owning layers.
 See [batch-normalization inference](api/tensor-api.md#batch-normalization-inference-expressions) and
 [batch-normalization training](api/tensor-api.md#batch-normalization-training-and-statistic-transition-expressions).
 
@@ -2759,7 +2792,10 @@ standard deviation retained for backward construction. Current public layer and 
 and batch-normalization inference create no saved-statistic output. Batch-normalization training
 instead describes saved batch mean and inverse standard deviation at producer positions three and
 four, without exposing their Tensor wrappers in `BatchNormTrainingResult`. They are current model
-metadata, while compiler capture, materialization, lifetime, and backward use remain planned.
+metadata. Current package-private compiler autograd retrieves those canonical wrappers for
+batch-training output-slot-zero and output-slot-two formulas without recomputation. They remain
+logical forward values rather than a runtime tape, physical saved buffer, public publication, or
+independent cotangent root; materialization and runtime lifetime remain future concerns.
 
 ### Referenced element span
 
@@ -2808,11 +2844,11 @@ expanded-singleton axes. A dynamic target, unresolved input geometry, or binding
 stays layout-unresolved. Results are fresh, unlabeled, storage-free, retain exact input type and
 gradient eligibility, and record exact EXPAND/target-shape semantics with provenance `[input]`.
 
-The current compiler supports only locally established equal or static-source-singleton EXPAND
-occurrences; it still rejects a non-equal unresolved pair during inference. Planned Compiler task
-0005B owns the corresponding source-one-or-source-equal deferred predicate, preflight, and
-gradient consistency. Compiler canonicalization, materialization, backend support, and execution
-remain outside Model construction. Generic
+The current compiler accepts a binding-dependent EXPAND occurrence by emitting the exact
+source-one-or-source-equal predicate for each unresolved aligned pair. Preflight admits the
+inverse SUM_TO_SHAPE only when it uses the same obligation. This does not bind a Dimension or
+resolve layout. Compiler canonicalization, materialization, backend support, and execution remain
+outside Model construction. Generic
 [`Operation`](#operation) composition retains the exact kind and attributes references but does
 not enforce the family pairing or one-input context. See [Reshape
 expressions](api/tensor-api.md#reshape-expressions) and [Expand
