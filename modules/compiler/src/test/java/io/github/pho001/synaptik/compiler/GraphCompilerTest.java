@@ -391,7 +391,7 @@ final class GraphCompilerTest {
     void knownUnsupportedPreflightFailureConsumesNoTensorIdentity() throws Exception {
         Tensor target = tensor();
         Tensor other = tensor();
-        Tensor objective = target.pow(other).sum();
+        Tensor objective = target.softmax(0).mul(other).sum();
         var request = new AutogradPreflight.FirstOrderRequest(objective, List.of(target));
         long before = nextTensorId();
 
@@ -505,6 +505,35 @@ final class GraphCompilerTest {
                     optimization);
 
             assertEquals(1, result.forwardOutputs().size());
+            assertEquals(target.id(), result.gradientResults().getFirst().target());
+            assertTrue(result.validatedGraph().graph().nodePhases()
+                    .containsValue(GraphPhase.FORWARD));
+            assertTrue(result.validatedGraph().graph().nodePhases()
+                    .containsValue(GraphPhase.BACKWARD));
+            assertTrue(result.validatedGraph().constants().size() >= 2);
+        }
+    }
+
+    @Test
+    void capturesAndOptimizesRepresentative0005AFormulasThroughTheSharedPipeline() {
+        for (GraphOptimizationConfig optimization :
+                List.of(GraphOptimizationConfig.disabled(), GraphOptimizationConfig.standard())) {
+            Tensor target = tensor();
+            Tensor other = tensor();
+            Tensor objective = target.minimum(other)
+                    .pow(ScalarValue.float32(2.0f))
+                    .geluTanhApproximation()
+                    .silu()
+                    .sum();
+
+            GraphCompilation result = GraphCompiler.compile(
+                    CompileMode.FORWARD_AND_BACKWARD,
+                    List.of(objective),
+                    Optional.of(new AutogradPreflight.FirstOrderRequest(
+                            objective, List.of(target))),
+                    CompileTimeConstantGraph.Ingress.empty(),
+                    optimization);
+
             assertEquals(target.id(), result.gradientResults().getFirst().target());
             assertTrue(result.validatedGraph().graph().nodePhases()
                     .containsValue(GraphPhase.FORWARD));

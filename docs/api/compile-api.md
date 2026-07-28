@@ -252,7 +252,8 @@ every output slot, including hidden dropout masks and batch-normalization saved 
 without changing public Tensor methods or ergonomic result carriers. Compiler task 0004 is
 Complete and supplies the first internal autograd consumer of that identity contract. Compiler
 tasks 0004A and 0004B are also Complete with the exact-composition and shared-algebra local-rule
-extensions described below.
+extensions described below. Compiler task 0005A is Complete and closes the exact 48-kind current
+elementwise/activation inventory with explicit derivative and non-differentiable-role policies.
 
 Package-private `GraphCompiler.compile` takes `CompileMode`, ordered forward outputs, an optional
 package-private first-order request, explicit forward constant ingress, and
@@ -284,12 +285,12 @@ public Tensor operations. Exact Tensor identity keys ordered contributions durin
 request, and ordinary left-associated `Tensor.add` accumulates them. This ephemeral state is
 neither Tensor state nor graph intermediate representation (IR).
 
-The current matrix is the union of the original `SUPPORTED_0004` rows and the additive
-`SUPPORTED_0004A` exact-composition and `SUPPORTED_0004B` shared-algebra rows:
+The current matrix is the union of the Compiler 0004–0004B rows and the Compiler 0005A
+elementwise/activation completion:
 
 | Family | Current exact supported variants |
 |---|---|
-| Elementwise | Promoted floating binary `ADD`, `SUB`, `MUL`, and `DIV`; exact same-type floating scalar `ADD`, `SUB`, `MUL`, and `DIV`; promoted floating branch-only `WHERE`; floating-to-floating `CAST`; `NEG`, `EXP`, `EXPM1`, `SIGMOID`, `TANH`, and `ERF`; direct-zero `FLOOR`, `CEIL`, and `SIGN` |
+| Elementwise and activation | All seven promoted floating binary arithmetic kinds: `ADD`, `SUB`, `MUL`, `DIV`, `MIN`, `MAX`, and `POW`; all eight exact-type floating scalar kinds, including first-class `CLAMP`; promoted floating branch-only `WHERE`; floating-to-floating `CAST`; and all nineteen floating unary kinds from `ABS` through `SILU` |
 | Reductions and scan | Ordinary full, single-axis, and ordered multi-axis floating `SUM` and `MEAN`; masked floating `SUM` and `MEAN`; locally invertible floating `SUM_TO_SHAPE`; floating `CUM_SUM` for all current exclusive/reverse combinations |
 | Linear algebra | Every current floating `MATMUL` vector/matrix rank pairing, with role-aware mixed-floating normalization and batch unbroadcasting |
 | Logical layout and selection | Floating `CONTIGUOUS`, `RESHAPE`, `EXPAND`, `EXPAND_DIMS`, `SQUEEZE`, `PERMUTE`, normalized `SLICE`, both normalized `SLICE_UPDATE` data roles, `SELECT`, `PAD`, `TILE`, `CONCAT`, and `STACK` |
@@ -308,6 +309,46 @@ ordinary Tensor expressions: they inherit the same division, multiplication, neg
 infinity, signed-zero, overflow, underflow, rounding, validation, and exact-optimization
 contracts as forward expressions. No gradient-specific singularity or exceptional-value rule is
 added.
+
+Binary `MIN` and `MAX` route `g` to the strictly selected operand and split an exact numeric tie
+equally. Each selected contribution then uses ordinary `sumToShape`-then-`cast` normalization.
+Binary `POW(left, right)` constructs `g * right * pow(left, right - 1)` for `left` and
+`g * output * log(left)` for `right`; it deliberately does not replace the first formula with
+`output / left`.
+
+Scalar `MIN` and `MAX` give the Tensor receiver `g` on its strict side, `g * 0.5` at an exact
+numeric tie, and exact positive zero otherwise. Scalar `POW` constructs
+`g * exponent * pow(input, exponentMinusOne)`. The derived scalar uses exactly one subtraction in
+the represented type: BFLOAT16 expands to binary32, subtracts binary32 one, and rounds back;
+FLOAT32 and FLOAT64 subtract one in their own formats. First-class `CLAMP` differentiates the
+exact ordered forward composition `MIN(MAX(input, minValue), maxValue)`. With distinct finite
+bounds the contribution is zero outside, `g` strictly inside, and `g / 2` at either endpoint;
+when both extrema stages tie it is `g / 4`.
+
+The added unary formulas are:
+
+| Kind | Input contribution |
+|---|---|
+| `ABS` | `where(x > 0, g, where(x < 0, -g, 0))` |
+| `RECIPROCAL` | `-g / (x * x)` |
+| `LOG` | `g / x` |
+| `LOG1P` | `g / (x + 1)` |
+| `SQRT` | `g / (2 * output)` |
+| `RSQRT` | `-0.5 * g * output * output * output` |
+| `RELU` | `where(x > 0, g, 0)` |
+
+Exact GELU uses the derivative of `x * Phi(x)`. Fixed tanh-approximation GELU differentiates its
+specified `0.044715` cubic approximation, and SiLU differentiates `x * sigmoid(x)`. Each of these
+three activations selects `g` at positive infinity and exact positive zero at negative infinity
+to avoid a spurious infinity-times-zero NaN; finite and NaN inputs use the ordinary analytic
+formula. Every other raw formula retains ordinary shared Tensor exceptional behavior without a
+compiler-inserted finite, domain, singularity, or continuous-extension mask.
+
+Piecewise extrema, `CLAMP`, `ABS`, and `RELU` use represented-value comparisons. Equal finite
+values, equal same-sign infinities, and opposite signed zeros are ties. An unordered NaN makes
+the ordered and equality tests false, so these piecewise rules return exact positive zero.
+Comparisons, Boolean logic, floating classifications, the `WHERE` condition, scalar attributes
+and clamp bounds, and non-floating cast roles remain non-differentiable.
 
 `FLOOR`, `CEIL`, and `SIGN` use a direct exact positive-zero cotangent as their selected
 first-order local convention. They do not construct `g * 0` or a floating comparison. This
@@ -353,13 +394,34 @@ ordinary SUM restores removed axes before expansion; CUM_SUM reverses scan direc
 retaining exclusivity; and PERMUTE uses the inverse axis order. WHERE routes no cotangent through
 its BOOL condition.
 
-Generated BFLOAT16, FLOAT32, and FLOAT64 positive-zero and positive-one bases are
+Generated BFLOAT16, FLOAT32, and FLOAT64 exact scalar bases are
 provenance-free, storage-free, non-gradient scalar leaves. BFLOAT16 uses exact bits `0x0000` and
 `0x3F80`; FLOAT32 and FLOAT64 use exact positive `0.0` and `1.0`. Each base is registered
 explicitly as one logical splat, and Shape-specific values are ordinary `expand` expressions.
+One request-local cache keys zero, one, extrema/clamp bounds, and other Tensor comparison
+operands by exact data type and represented bits, preserves deterministic first-use order, and
+creates at most one base for each exact value.
 No storage, factory history, label, descriptor, layout, Shape, or provenance absence implies a
 constant. Only bases reachable from returned gradient expressions remain in combined-capture
 ingress; direct-zero local formulas therefore do not retain an unreachable unit seed.
+
+Arithmetic-only coefficients remain scalar operation metadata. Compiler 0005A fixes these exact
+BFLOAT16/FLOAT32/FLOAT64 bit triples:
+
+| Coefficient | BFLOAT16 | FLOAT32 | FLOAT64 |
+|---|---:|---:|---:|
+| `0.5` | `0x3F00` | `0x3F000000` | `0x3FE0000000000000` |
+| `-0.5` | `0xBF00` | `0xBF000000` | `0xBFE0000000000000` |
+| `2` | `0x4000` | `0x40000000` | `0x4000000000000000` |
+| `invSqrt2` | `0x3F35` | `0x3F3504F3` | `0x3FE6A09E667F3BCD` |
+| `invSqrt2Pi` | `0x3ECC` | `0x3ECC422A` | `0x3FD9884533D43651` |
+| `sqrt2OverPi` | `0x3F4C` | `0x3F4C422A` | `0x3FE9884533D43651` |
+| `0.044715` | `0x3D37` | `0x3D372713` | `0x3FA6E4E26D4801F7` |
+| `0.134145` | `0x3E09` | `0x3E095D4F` | `0x3FC12BA9D1F60179` |
+
+The existing ERF coefficient remains `0x3F90`, `0x3F906EBB`, and
+`0x3FF20DD750429B6D`. Compilation derives none of these coefficients with a host transcendental
+function.
 
 The compiler captures forward outputs and generated gradient roots together once. The request
 includes target-specific roles, the original forward-producer identity set, and merged explicit
@@ -380,10 +442,9 @@ is intentionally explicit:
 
 | Classification | Current deferred or rejected families |
 |---|---|
-| Blocked by incomplete shared model semantics | Binary/scalar `POW`; `RECIPROCAL`, `LOG`, and `SQRT`; `SOFTMAX` and `LOG_SOFTMAX` numerical-edge behavior |
-| Fixed forward semantics but deferred derivative policy | Binary/scalar extrema, first-class clamp, `ABS`, and `RELU`; the model comparison/extrema/clamp prerequisite is complete, while Compiler 0005A must still choose ties, endpoints, discontinuities, and exceptional-value derivative behavior |
-| Later cohesive differentiation work | `LOG1P`, `RSQRT`; GELU variants and SiLU; `PROD`, `CUM_PROD`, `LOG_SUM_EXP`, statistics and norms; layer/RMS/batch normalization; pooling; losses; attention; ordering/top-K; indexing/scatter; windows, convolution, dropout, and other unlisted structured families |
-| Unchanged binding- or role-dependent work | Binding-dependent `SUM_TO_SHAPE`, target-relative crop, and unselected layout variants outside the current exact guards |
+| Later reduction and normalization work | Binding-dependent `SUM_TO_SHAPE`; `PROD`, `CUM_PROD`, reduction extrema, `LOG_SUM_EXP`, softmax/log-softmax, statistics and norms, and layer/RMS/batch normalization |
+| Later layout, indexing, and stochastic work | Target-relative crop and unselected layout variants outside current exact guards; Gather/scatter, ordering/top-K, windows, dropout, and RNG-state roles |
+| Later structured differentiation work | Attention, convolution, pooling, losses, and other structured families assigned to Compiler 0005D |
 | Non-differentiable roles and outputs | Comparisons, BOOL logic/classification, `ALL`, `ANY`, arg-extrema results, one-hot and other index roles, masks, padding constants, select coordinates, and graph RNG state |
 
 Unknown/custom kinds, wrong attribute classes or cardinalities, missing canonical outputs, and

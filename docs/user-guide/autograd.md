@@ -6,8 +6,9 @@ This guide explains what Synaptik's current internal automatic differentiation (
 construct and what a user still cannot invoke. Autograd derives gradient expressions from a
 forward Tensor expression.
 
-Compiler tasks 0004, 0004A, and 0004B implement a bounded package-private first-order graph stage,
-its first policy-free exact-composition extension, and its shared-algebra local-rule extension.
+Compiler tasks 0004, 0004A, 0004B, and 0005A implement a bounded package-private first-order
+graph stage, its exact-composition and shared-algebra extensions, and the exact current 48-kind
+elementwise/activation policy.
 There is no public compile request for an objective, targets, or seed; no gradient publication;
 and no prepared or executable training workflow. The current `CompileMode` enum is standalone
 declarative configuration, not a public compiler entry point:
@@ -49,10 +50,12 @@ request gradients, and lie on a selected differentiable route. A target may have
 floating type from the objective and may be a leaf, an intermediate, or the objective itself.
 
 The only current seed is an implicit rank-zero positive one with the objective's exact type.
-Generated BFLOAT16, FLOAT32, and FLOAT64 zero/one bases are storage-free leaves registered
-explicitly as logical splats: one scalar value repeated at every logical coordinate. BFLOAT16
-uses exact zero/one bits `0x0000` and `0x3F80`. Storage, labels, layout, Shape, factory history,
-and missing provenance never imply a constant.
+Generated BFLOAT16, FLOAT32, and FLOAT64 scalar bases are storage-free leaves registered
+explicitly as logical splats: one scalar value repeated at every logical coordinate. One
+request-local cache keys zero, one, and extrema/clamp bounds by exact data type and represented
+bits and preserves deterministic first-use order. BFLOAT16 uses exact zero/one bits `0x0000` and
+`0x3F80`. Storage, labels, layout, Shape, factory history, and missing provenance never imply a
+constant.
 
 ## Supported formulas
 
@@ -60,7 +63,7 @@ The closed current matrix contains only:
 
 | Family | Supported variants |
 |---|---|
-| Elementwise | Promoted floating binary `ADD`/`SUB`/`MUL`/`DIV`; exact-type floating scalar `ADD`/`SUB`/`MUL`/`DIV`; promoted branch-only `WHERE`; floating-to-floating `CAST`; `NEG`/`EXP`/`EXPM1`/`SIGMOID`/`TANH`/`ERF`; direct-zero `FLOOR`/`CEIL`/`SIGN` |
+| Elementwise | All seven promoted floating binary arithmetic kinds; all eight exact-type floating scalar kinds, including first-class `CLAMP`; promoted branch-only `WHERE`; floating-to-floating `CAST`; and all nineteen floating unary kinds |
 | Reduction and scan | Floating ordinary full, single-axis, and multi-axis `SUM`/`MEAN`; masked floating `SUM`/`MEAN`; locally invertible floating `SUM_TO_SHAPE`; floating `CUM_SUM` |
 | Linear algebra | Every floating `MATMUL` vector/matrix rank pairing, including mixed-floating selected operands |
 | Logical layout and selection | Floating `CONTIGUOUS`, `RESHAPE`, `EXPAND`, `EXPAND_DIMS`, `SQUEEZE`, `PERMUTE`, normalized `SLICE`, both normalized `SLICE_UPDATE` data roles, `SELECT`, `PAD`, `TILE`, `CONCAT`, and `STACK` |
@@ -77,6 +80,20 @@ have no gradient-only rule for singularities, NaNs, infinities, signed zeros, ov
 underflow, rounding, rewriting, or folding. `FLOOR`, `CEIL`, and `SIGN` instead use an explicit
 first-order local convention: a direct exact positive-zero cotangent, without `g * 0` or a
 floating comparison.
+
+MIN and MAX split an exact numeric tie equally between Tensor inputs; scalar extrema give the
+Tensor receiver one half. CLAMP applies that convention to the ordered composition
+`MIN(MAX(input, min), max)`, so a normal endpoint receives one half and a simultaneous two-stage
+tie receives one quarter. Opposite signed zeros are ties. Unordered NaN makes the comparisons
+false, so extrema, CLAMP, ABS, and RELU return exact positive zero at NaN positions.
+
+POW, reciprocal, logarithm, square-root, and inverse-square-root rules use their direct analytic
+Tensor formulas without compiler-inserted domain masks. Scalar POW subtracts one exactly once in
+the represented exponent type. ABS returns zero at both signed zeros; RELU returns `g` only above
+positive zero. Exact GELU, fixed tanh-approximation GELU, and SiLU use their analytic formula for
+finite and NaN inputs, `g` at positive infinity, and exact positive zero at negative infinity.
+Their coefficients use fixed BFLOAT16/FLOAT32/FLOAT64 bit patterns rather than host
+transcendental calculation.
 
 Ordinary MEAN restores and expands `g`, reduces an input-shaped logical-one expression over the
 same axes to obtain a count, expands that count, and divides. This represents static, dynamic,
@@ -100,14 +117,12 @@ inserted axis. The SLICE_UPDATE update-role rule needs static selected base exte
 operand positions remain repeated contributions.
 
 An unlisted operation on a selected route fails before the compiler creates the seed or any
-formula Tensor. Power, reciprocal/log/square-root, and softmax families remain blocked where the
-shared model numerical-edge contract is incomplete. Extrema, clamp, `ABS`, and `RELU` remain
-blocked by the general floating-comparison contract. `LOG1P`, `RSQRT`, activations, product,
-statistics/norms, normalization, pooling, losses, attention, ordering, indexing/scatter, windows,
-convolution, dropout, and batch normalization remain later cohesive work. Binding-dependent
-`SUM_TO_SHAPE`, target-relative crop, and other unselected layout cases retain their existing
-fail-closed guards. Comparisons, BOOL logic/classification, `ALL`, `ANY`, arg-extrema outputs,
-indices, masks, and graph RNG state are non-differentiable.
+formula Tensor. Product/reduction-extrema/softmax/statistics/normalization, remaining
+layout/indexing/stochastic work, attention, convolution, pooling, and losses remain later
+Compiler 0005B–0005D families. Binding-dependent `SUM_TO_SHAPE`, target-relative crop, and other
+unselected layout cases retain their existing fail-closed guards. Comparisons, BOOL
+logic/classification, the `WHERE` condition, scalar attributes and bounds, non-floating casts,
+`ALL`, `ANY`, arg-extrema outputs, indices, masks, and graph RNG state are non-differentiable.
 
 ## Conceptual example
 

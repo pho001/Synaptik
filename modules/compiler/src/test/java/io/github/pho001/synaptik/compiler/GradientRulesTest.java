@@ -11,6 +11,8 @@ import io.github.pho001.synaptik.model.datatype.DataType;
 import io.github.pho001.synaptik.model.datatype.ScalarValue;
 import io.github.pho001.synaptik.model.operation.elementwise.binary.BinaryArithmeticKind;
 import io.github.pho001.synaptik.model.operation.elementwise.cast.CastKind;
+import io.github.pho001.synaptik.model.operation.elementwise.comparison.BinaryComparisonKind;
+import io.github.pho001.synaptik.model.operation.elementwise.scalar.ScalarElementwiseKind;
 import io.github.pho001.synaptik.model.operation.elementwise.scalar.ScalarValueAttrs;
 import io.github.pho001.synaptik.model.operation.elementwise.selection.WhereSelectionKind;
 import io.github.pho001.synaptik.model.operation.elementwise.unary.UnaryElementwiseKind;
@@ -28,8 +30,11 @@ import io.github.pho001.synaptik.model.shape.StaticDimension;
 import io.github.pho001.synaptik.model.tensor.Tensor;
 import io.github.pho001.synaptik.model.tensor.TensorDescriptor;
 import io.github.pho001.synaptik.model.tensor.TensorFactory;
+import java.util.ArrayDeque;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import org.junit.jupiter.api.Test;
 
 final class GradientRulesTest {
@@ -55,6 +60,232 @@ final class GradientRulesTest {
                         Double.doubleToRawLongBits(coefficient.float64Value()));
                 case INT32, INT64, BOOL -> throw new AssertionError(dataType);
             }
+        }
+    }
+
+    @Test
+    void extremaUseOrderedSelectionNumericTieSharingAndMixedRoleNormalization() {
+        Tensor narrow = tensor(DataType.BFLOAT16, Shape.of(2, 1));
+        Tensor wide = tensor(DataType.FLOAT64, Shape.of(2, 3));
+
+        for (Tensor output : List.of(narrow.minimum(wide), narrow.maximum(wide))) {
+            Tensor narrowGradient = gradient(output.sum(), narrow);
+            assertEquals(CastKind.CAST,
+                    narrowGradient.provenance().orElseThrow().operation().kind());
+            Tensor unbroadcast = narrowGradient.provenance().orElseThrow().inputs().getFirst();
+            assertTrue(unbroadcast.provenance().orElseThrow().operation().attrs()
+                    instanceof SumToShapeAttrs);
+
+            Tensor routed = unbroadcast.provenance().orElseThrow().inputs().getFirst();
+            var outerWhere = routed.provenance().orElseThrow();
+            assertEquals(WhereSelectionKind.WHERE, outerWhere.operation().kind());
+            assertInstanceOf(
+                    BinaryComparisonKind.class,
+                    outerWhere.inputs().get(0).provenance().orElseThrow().operation().kind());
+            Tensor tieWhere = outerWhere.inputs().get(2);
+            assertEquals(
+                    WhereSelectionKind.WHERE,
+                    tieWhere.provenance().orElseThrow().operation().kind());
+            assertTrue(collectScalarValues(routed).contains(ScalarValue.float64(0.5d)));
+        }
+    }
+
+    @Test
+    void scalarExtremaAndClampUseExplicitCachedBoundSplatsAndOrderedComposition() {
+        Tensor input = tensor(Shape.of(3));
+        ScalarValue lower = ScalarValue.float32(
+                Float.intBitsToFloat(0x80000000));
+        ScalarValue upper = ScalarValue.float32(2.0f);
+
+        Tensor scalarMinimum = gradient(input.minimum(lower).sum(), input);
+        assertEquals(
+                WhereSelectionKind.WHERE,
+                scalarMinimum.provenance().orElseThrow().operation().kind());
+        assertEquals(
+                1,
+                expansion(input.minimum(lower).sum(), input).ingress().bindings().stream()
+                        .filter(binding -> binding.splat().value().equals(lower))
+                        .count());
+
+        Tensor forwardClamp = input.clamp(lower, upper);
+        assertEquals(
+                ScalarElementwiseKind.CLAMP,
+                forwardClamp.provenance().orElseThrow().operation().kind());
+        Tensor clampGradient = gradient(forwardClamp.sum(), input);
+        assertEquals(
+                WhereSelectionKind.WHERE,
+                clampGradient.provenance().orElseThrow().operation().kind());
+        assertTrue(collectScalarValues(clampGradient).containsAll(List.of(
+                lower, ScalarValue.float32(0.5f))));
+
+        FirstOrderAutograd.Expansion expansion = expansion(forwardClamp.sum(), input);
+        long lowerBindings = expansion.ingress().bindings().stream()
+                .filter(binding -> binding.splat().value().equals(lower))
+                .count();
+        long upperBindings = expansion.ingress().bindings().stream()
+                .filter(binding -> binding.splat().value().equals(upper))
+                .count();
+        assertEquals(1, lowerBindings);
+        assertEquals(1, upperBindings);
+    }
+
+    @Test
+    void powUsesExactTensorAndRepresentedScalarExponentFormulas() {
+        Tensor left = tensor(DataType.FLOAT32, Shape.of(2, 1));
+        Tensor right = tensor(DataType.FLOAT64, Shape.of(2, 3));
+        Tensor output = left.pow(right);
+
+        Tensor leftGradient = gradient(output.sum(), left);
+        assertEquals(CastKind.CAST,
+                leftGradient.provenance().orElseThrow().operation().kind());
+        Tensor rightGradient = gradient(output.sum(), right);
+        assertTrue(containsOperation(rightGradient, UnaryElementwiseKind.LOG));
+        assertTrue(containsExactTensor(rightGradient, output));
+
+        for (ScalarValue exponent : List.of(
+                ScalarValue.bfloat16Bits((short) 0x4000),
+                ScalarValue.float32(2.0f),
+                ScalarValue.float64(2.0d))) {
+            Tensor input = tensor(exponent.dataType(), Shape.of(2));
+            Tensor scalarGradient = gradient(input.pow(exponent).sum(), input);
+            ScalarValue expected = switch (exponent.dataType()) {
+                case BFLOAT16 -> ScalarValue.bfloat16Bits((short) 0x3F80);
+                case FLOAT32 -> ScalarValue.float32(1.0f);
+                case FLOAT64 -> ScalarValue.float64(1.0d);
+                case INT32, INT64, BOOL -> throw new AssertionError();
+            };
+            assertTrue(collectScalarValues(scalarGradient).contains(exponent));
+            assertTrue(collectScalarValues(scalarGradient).contains(expected));
+        }
+    }
+
+    @Test
+    void everyNewUnaryFormulaUsesTheSelectedOrdinaryTensorStructure() {
+        Tensor input = tensor(Shape.of(3));
+        for (Tensor output : List.of(
+                input.abs(),
+                input.reciprocal(),
+                input.log(),
+                input.log1p(),
+                input.sqrt(),
+                input.rsqrt(),
+                input.relu(),
+                input.gelu(),
+                input.geluTanhApproximation(),
+                input.silu())) {
+            Tensor result = gradient(output.sum(), input);
+            assertEquals(input.descriptor().shape(), result.descriptor().shape());
+            assertEquals(input.descriptor().dataType(), result.descriptor().dataType());
+        }
+
+        assertEquals(
+                WhereSelectionKind.WHERE,
+                gradient(input.abs().sum(), input)
+                        .provenance().orElseThrow().operation().kind());
+        assertEquals(
+                BinaryArithmeticKind.DIV,
+                gradient(input.log().sum(), input)
+                        .provenance().orElseThrow().operation().kind());
+        assertEquals(
+                WhereSelectionKind.WHERE,
+                gradient(input.relu().sum(), input)
+                        .provenance().orElseThrow().operation().kind());
+        for (Tensor activation : List.of(input.gelu(), input.geluTanhApproximation(), input.silu())) {
+            Tensor result = gradient(activation.sum(), input);
+            assertEquals(
+                    WhereSelectionKind.WHERE,
+                    result.provenance().orElseThrow().operation().kind());
+            assertEquals(
+                    io.github.pho001.synaptik.model.operation.elementwise.classification
+                            .FloatingClassificationKind.IS_INF,
+                    result.provenance().orElseThrow().inputs().get(0)
+                            .provenance().orElseThrow().operation().kind());
+        }
+    }
+
+    @Test
+    void fixedCoefficientTableIsUsedForEveryFloatingTypeWithoutHostDerivation() {
+        for (DataType dataType :
+                List.of(DataType.BFLOAT16, DataType.FLOAT32, DataType.FLOAT64)) {
+            Tensor input = tensor(dataType, Shape.of(2));
+            Set<ScalarValue> values = new HashSet<>();
+            for (Tensor output : List.of(
+                    input.sqrt(), input.rsqrt(), input.gelu(), input.geluTanhApproximation())) {
+                values.addAll(collectScalarValues(gradient(output.sum(), input)));
+            }
+
+            for (long[] bits : List.of(
+                    new long[] {0x3F00L, 0x3F000000L, 0x3FE0000000000000L},
+                    new long[] {0xBF00L, 0xBF000000L, 0xBFE0000000000000L},
+                    new long[] {0x4000L, 0x40000000L, 0x4000000000000000L},
+                    new long[] {0x3F35L, 0x3F3504F3L, 0x3FE6A09E667F3BCDL},
+                    new long[] {0x3ECCL, 0x3ECC422AL, 0x3FD9884533D43651L},
+                    new long[] {0x3F4CL, 0x3F4C422AL, 0x3FE9884533D43651L},
+                    new long[] {0x3D37L, 0x3D372713L, 0x3FA6E4E26D4801F7L},
+                    new long[] {0x3E09L, 0x3E095D4FL, 0x3FC12BA9D1F60179L})) {
+                assertTrue(values.contains(scalarFromBits(dataType, bits)));
+            }
+        }
+    }
+
+    @Test
+    void exceptionalAndBoundaryInputsSelectTheSameFixedStructuralPolicies() {
+        for (float[] pair : List.of(
+                new float[] {2.0f, 2.0f},
+                new float[] {0.0f, -0.0f},
+                new float[] {Float.POSITIVE_INFINITY, Float.POSITIVE_INFINITY},
+                new float[] {Float.NaN, 1.0f})) {
+            Tensor left = TensorFactory.scalar(pair[0], Optional.empty(), true);
+            Tensor right = TensorFactory.scalar(pair[1], Optional.empty(), true);
+            for (Tensor output : List.of(left.minimum(right), left.maximum(right))) {
+                assertEquals(
+                        WhereSelectionKind.WHERE,
+                        gradient(output, left).provenance().orElseThrow().operation().kind());
+            }
+        }
+
+        for (ScalarValue[] bounds : List.of(
+                new ScalarValue[] {
+                    ScalarValue.float32(0.0f), ScalarValue.float32(1.0f)
+                },
+                new ScalarValue[] {
+                    ScalarValue.float32(1.0f), ScalarValue.float32(1.0f)
+                },
+                new ScalarValue[] {
+                    ScalarValue.float32(-0.0f), ScalarValue.float32(0.0f)
+                },
+                new ScalarValue[] {
+                    ScalarValue.float32(0.0f), ScalarValue.float32(-0.0f)
+                })) {
+            Tensor input = TensorFactory.scalar(
+                    bounds[0].float32Value(), Optional.empty(), true);
+            assertEquals(
+                    WhereSelectionKind.WHERE,
+                    gradient(input.clamp(bounds[0], bounds[1]), input)
+                            .provenance().orElseThrow().operation().kind());
+        }
+
+        Tensor zero = TensorFactory.scalar(0.0f, Optional.empty(), true);
+        Tensor negative = TensorFactory.scalar(-2.0f, Optional.empty(), true);
+        Tensor positiveInfinity =
+                TensorFactory.scalar(Float.POSITIVE_INFINITY, Optional.empty(), true);
+        Tensor negativeInfinity =
+                TensorFactory.scalar(Float.NEGATIVE_INFINITY, Optional.empty(), true);
+        Tensor nan = TensorFactory.scalar(Float.NaN, Optional.empty(), true);
+        for (Tensor output : List.of(
+                zero.abs(),
+                zero.relu(),
+                negative.floor(),
+                negative.ceil(),
+                negative.sign(),
+                negative.log(),
+                zero.reciprocal(),
+                negative.pow(ScalarValue.float32(0.5f)),
+                positiveInfinity.gelu(),
+                negativeInfinity.geluTanhApproximation(),
+                nan.silu())) {
+            Tensor source = output.provenance().orElseThrow().inputs().getFirst();
+            assertGradientCompiles(output, source);
         }
     }
 
@@ -283,7 +514,7 @@ final class GradientRulesTest {
     }
 
     @Test
-    void compilesEverySupported0004VariantForEveryFloatingType() {
+    void compilesEverySupportedElementwiseVariantForEveryFloatingType() {
         for (DataType dataType :
                 List.of(DataType.BFLOAT16, DataType.FLOAT32, DataType.FLOAT64)) {
             Tensor target = tensor(dataType, Shape.of(2, 3));
@@ -296,13 +527,24 @@ final class GradientRulesTest {
             assertGradientCompiles(target.sub(other).sum(), target);
             assertGradientCompiles(target.mul(other).sum(), target);
             assertGradientCompiles(target.div(other).sum(), target);
+            assertGradientCompiles(target.minimum(other).sum(), target);
+            assertGradientCompiles(target.maximum(other).sum(), target);
+            assertGradientCompiles(target.pow(other).sum(), target);
             assertGradientCompiles(target.add(scalar).sum(), target);
             assertGradientCompiles(target.sub(scalar).sum(), target);
             assertGradientCompiles(target.mul(scalar).sum(), target);
             assertGradientCompiles(target.div(scalar).sum(), target);
+            assertGradientCompiles(target.minimum(scalar).sum(), target);
+            assertGradientCompiles(target.maximum(scalar).sum(), target);
+            assertGradientCompiles(target.pow(scalar).sum(), target);
+            assertGradientCompiles(target.clamp(zero(dataType), scalar).sum(), target);
             assertGradientCompiles(Tensor.where(condition, target, other).sum(), target);
             assertGradientCompiles(target.cast(dataType).sum(), target);
             assertGradientCompiles(target.neg().sum(), target);
+            assertGradientCompiles(target.abs().sum(), target);
+            assertGradientCompiles(target.reciprocal().sum(), target);
+            assertGradientCompiles(target.log().sum(), target);
+            assertGradientCompiles(target.log1p().sum(), target);
             assertGradientCompiles(target.exp().sum(), target);
             assertGradientCompiles(target.expm1().sum(), target);
             assertGradientCompiles(target.sigmoid().sum(), target);
@@ -310,6 +552,12 @@ final class GradientRulesTest {
             assertGradientCompiles(target.floor().sum(), target);
             assertGradientCompiles(target.ceil().sum(), target);
             assertGradientCompiles(target.sign().sum(), target);
+            assertGradientCompiles(target.sqrt().sum(), target);
+            assertGradientCompiles(target.rsqrt().sum(), target);
+            assertGradientCompiles(target.relu().sum(), target);
+            assertGradientCompiles(target.gelu().sum(), target);
+            assertGradientCompiles(target.geluTanhApproximation().sum(), target);
+            assertGradientCompiles(target.silu().sum(), target);
             assertGradientCompiles(target.sum(), target);
             assertGradientCompiles(target.sum(1).sum(), target);
             assertGradientCompiles(target.sum(1, true).sum(), target);
@@ -410,16 +658,17 @@ final class GradientRulesTest {
     }
 
     private static Tensor gradient(Tensor objective, Tensor target) {
+        return expansion(objective, target).targetGradients().getFirst().gradient();
+    }
+
+    private static FirstOrderAutograd.Expansion expansion(Tensor objective, Tensor target) {
         AutogradPreflight.Plan plan = AutogradPreflight.preflight(
                 CompileMode.FORWARD_AND_BACKWARD,
                 List.of(objective),
                 new AutogradPreflight.FirstOrderRequest(objective, List.of(target)),
                 CompileTimeConstantGraph.Ingress.empty());
         return FirstOrderAutograd.expand(
-                        plan, CompileTimeConstantGraph.Ingress.empty())
-                .targetGradients()
-                .getFirst()
-                .gradient();
+                plan, CompileTimeConstantGraph.Ingress.empty());
     }
 
     private static void assertMatmulGradient(
@@ -439,6 +688,82 @@ final class GradientRulesTest {
             case BFLOAT16 -> ScalarValue.bfloat16Bits((short) 0x3F80);
             case FLOAT32 -> ScalarValue.float32(1.0f);
             case FLOAT64 -> ScalarValue.float64(1.0d);
+            case INT32, INT64, BOOL -> throw new AssertionError(dataType);
+        };
+    }
+
+    private static ScalarValue zero(DataType dataType) {
+        return switch (dataType) {
+            case BFLOAT16 -> ScalarValue.bfloat16Bits((short) 0x0000);
+            case FLOAT32 -> ScalarValue.float32(0.0f);
+            case FLOAT64 -> ScalarValue.float64(0.0d);
+            case INT32, INT64, BOOL -> throw new AssertionError(dataType);
+        };
+    }
+
+    private static Set<ScalarValue> collectScalarValues(Tensor root) {
+        Set<ScalarValue> values = new HashSet<>();
+        Set<Tensor> seen = java.util.Collections.newSetFromMap(new java.util.IdentityHashMap<>());
+        ArrayDeque<Tensor> pending = new ArrayDeque<>();
+        pending.add(root);
+        while (!pending.isEmpty()) {
+            Tensor tensor = pending.removeLast();
+            if (!seen.add(tensor)) {
+                continue;
+            }
+            tensor.provenance().ifPresent(provenance -> {
+                if (provenance.operation().attrs() instanceof ScalarValueAttrs attrs) {
+                    values.add(attrs.value());
+                }
+                pending.addAll(provenance.inputs());
+            });
+        }
+        return values;
+    }
+
+    private static boolean containsOperation(Tensor root, Object kind) {
+        Set<Tensor> seen = java.util.Collections.newSetFromMap(new java.util.IdentityHashMap<>());
+        ArrayDeque<Tensor> pending = new ArrayDeque<>();
+        pending.add(root);
+        while (!pending.isEmpty()) {
+            Tensor tensor = pending.removeLast();
+            if (!seen.add(tensor)) {
+                continue;
+            }
+            var provenance = tensor.provenance().orElse(null);
+            if (provenance == null) {
+                continue;
+            }
+            if (provenance.operation().kind() == kind) {
+                return true;
+            }
+            pending.addAll(provenance.inputs());
+        }
+        return false;
+    }
+
+    private static boolean containsExactTensor(Tensor root, Tensor expected) {
+        Set<Tensor> seen = java.util.Collections.newSetFromMap(new java.util.IdentityHashMap<>());
+        ArrayDeque<Tensor> pending = new ArrayDeque<>();
+        pending.add(root);
+        while (!pending.isEmpty()) {
+            Tensor tensor = pending.removeLast();
+            if (tensor == expected) {
+                return true;
+            }
+            if (!seen.add(tensor)) {
+                continue;
+            }
+            tensor.provenance().ifPresent(provenance -> pending.addAll(provenance.inputs()));
+        }
+        return false;
+    }
+
+    private static ScalarValue scalarFromBits(DataType dataType, long[] bits) {
+        return switch (dataType) {
+            case BFLOAT16 -> ScalarValue.bfloat16Bits((short) bits[0]);
+            case FLOAT32 -> ScalarValue.float32(Float.intBitsToFloat((int) bits[1]));
+            case FLOAT64 -> ScalarValue.float64(Double.longBitsToDouble(bits[2]));
             case INT32, INT64, BOOL -> throw new AssertionError(dataType);
         };
     }

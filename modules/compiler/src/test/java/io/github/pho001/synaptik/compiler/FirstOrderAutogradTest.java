@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertSame;
 
 import io.github.pho001.synaptik.config.compile.CompileMode;
 import io.github.pho001.synaptik.model.datatype.DataType;
+import io.github.pho001.synaptik.model.datatype.ScalarValue;
 import io.github.pho001.synaptik.model.operation.elementwise.binary.BinaryArithmeticKind;
 import io.github.pho001.synaptik.model.operation.layout.CropToShapeAttrs;
 import io.github.pho001.synaptik.model.operation.reduction.AggregateReductionKind;
@@ -90,6 +91,27 @@ final class FirstOrderAutogradTest {
                         constants.bindings().get(1).splat().value().bfloat16Bits());
             }
         }
+    }
+
+    @Test
+    void cachesEveryExactTypedSplatByBitsAndExpandsOnlyThroughPublicExpressions() {
+        var constants = new FirstOrderAutograd.DerivativeConstants();
+        ScalarValue positiveZero = ScalarValue.float32(0.0f);
+        ScalarValue negativeZero = ScalarValue.float32(-0.0f);
+        Tensor positive = constants.base(positiveZero);
+        Tensor negative = constants.base(negativeZero);
+
+        assertSame(positive, constants.base(ScalarValue.float32(0.0f)));
+        assertSame(negative, constants.base(ScalarValue.float32(-0.0f)));
+        assertEquals(2, constants.bindings().size());
+        assertTrueLeaf(positive);
+        assertTrueLeaf(negative);
+
+        Tensor shaped = constants.valueLike(negativeZero, tensor());
+        assertEquals(
+                io.github.pho001.synaptik.model.operation.layout.ShapeTransformKind.EXPAND,
+                shaped.provenance().orElseThrow().operation().kind());
+        assertSame(negative, shaped.provenance().orElseThrow().inputs().getFirst());
     }
 
     @Test

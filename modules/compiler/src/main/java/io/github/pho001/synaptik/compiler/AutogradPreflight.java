@@ -8,6 +8,10 @@ import io.github.pho001.synaptik.model.operation.Operation;
 import io.github.pho001.synaptik.model.operation.elementwise.binary.BinaryArithmeticKind;
 import io.github.pho001.synaptik.model.operation.elementwise.cast.CastAttrs;
 import io.github.pho001.synaptik.model.operation.elementwise.cast.CastKind;
+import io.github.pho001.synaptik.model.operation.elementwise.classification.FloatingClassificationKind;
+import io.github.pho001.synaptik.model.operation.elementwise.comparison.BinaryComparisonKind;
+import io.github.pho001.synaptik.model.operation.elementwise.logical.BooleanLogicalKind;
+import io.github.pho001.synaptik.model.operation.elementwise.scalar.ClampRangeAttrs;
 import io.github.pho001.synaptik.model.operation.elementwise.scalar.ScalarElementwiseKind;
 import io.github.pho001.synaptik.model.operation.elementwise.scalar.ScalarValueAttrs;
 import io.github.pho001.synaptik.model.operation.elementwise.selection.WhereSelectionKind;
@@ -53,9 +57,8 @@ import java.util.Objects;
 import java.util.Set;
 
 /**
- * Preflights the closed {@code SUPPORTED_0004}, {@code SUPPORTED_0004A}, and
- * {@code SUPPORTED_0004B} first-order rule matrices before constructing any derivative Tensor
- * expression.
+ * Preflights the closed first-order rule matrices through Compiler 0005A before constructing any
+ * derivative Tensor expression.
  *
  * <p>The iterative inventory covers every producer and canonical output wrapper reachable from
  * the requested forward boundary. Objective ancestry, target reachability, occurrence selection,
@@ -81,6 +84,18 @@ import java.util.Set;
  * floating {@code MEAN}. Mask roles remain non-differentiable. The checks select local
  * differentiation rules and normalization paths; they do not create a gradient-specific
  * arithmetic, cast, comparison, exceptional-value, validation, or optimization contract.</p>
+ *
+ * <p>Compiler 0005A completes the exact current 48-kind elementwise and activation inventory:
+ * seven binary arithmetic kinds, eight scalar elementwise kinds, nineteen unary kinds, one
+ * {@code WHERE}, one {@code CAST}, six comparisons, three Boolean logical kinds, and three
+ * floating-classification kinds. Floating binary {@code MIN}/{@code MAX}/{@code POW}, scalar
+ * {@code MIN}/{@code MAX}/{@code POW}/{@code CLAMP}, and the remaining unary and activation
+ * formulas are accepted only with their exact current signatures and same-type or promoted
+ * floating descriptors. Comparisons, Boolean logic, classifications, the {@code WHERE}
+ * condition, scalar attributes and bounds, and non-floating cast roles are non-differentiable.
+ * The selected extrema-tie, clamp-endpoint, discontinuity, NaN, infinity, and raw-domain
+ * conventions belong to the compiler rules; preflight selects those fixed rows without
+ * inspecting represented Tensor values.</p>
  *
  * <p>This owner selects rules and rejects unsupported operation, attribute, role, data-type,
  * Shape, and policy combinations. A known rejection occurs before the seed, a derivative
@@ -308,7 +323,10 @@ final class AutogradPreflight {
                     || (kind != BinaryArithmeticKind.ADD
                             && kind != BinaryArithmeticKind.SUB
                             && kind != BinaryArithmeticKind.MUL
-                            && kind != BinaryArithmeticKind.DIV)) {
+                            && kind != BinaryArithmeticKind.DIV
+                            && kind != BinaryArithmeticKind.MIN
+                            && kind != BinaryArithmeticKind.MAX
+                            && kind != BinaryArithmeticKind.POW)) {
                 throw unsupported(producerIndex, producer, outputIndex, -1, "unsupported binary variant");
             }
             requireInputs(producerIndex, producer, outputIndex, 2);
@@ -340,16 +358,30 @@ final class AutogradPreflight {
             return;
         }
         if (operation.kind() instanceof ScalarElementwiseKind kind) {
-            if (!(operation.attrs() instanceof ScalarValueAttrs attrs)
-                    || (kind != ScalarElementwiseKind.ADD
-                            && kind != ScalarElementwiseKind.SUB
-                            && kind != ScalarElementwiseKind.MUL
-                            && kind != ScalarElementwiseKind.DIV)) {
-                throw unsupported(producerIndex, producer, outputIndex, -1, "unsupported scalar variant");
+            ScalarValueAttrs scalarAttrs = operation.attrs() instanceof ScalarValueAttrs attrs
+                    ? attrs
+                    : null;
+            ClampRangeAttrs clampAttrs = operation.attrs() instanceof ClampRangeAttrs attrs
+                    ? attrs
+                    : null;
+            if ((kind == ScalarElementwiseKind.CLAMP && clampAttrs == null)
+                    || (kind != ScalarElementwiseKind.CLAMP && scalarAttrs == null)) {
+                throw unsupported(
+                        producerIndex, producer, outputIndex, -1,
+                        "unsupported scalar kind/attributes pairing");
             }
             requireInputs(producerIndex, producer, outputIndex, 1);
             requireSameFloatingDescriptors(producerIndex, producer, outputIndex, true);
-            if (attrs.value().dataType() != output.descriptor().dataType()) {
+            if (kind == ScalarElementwiseKind.CLAMP) {
+                if (clampAttrs.minValue().dataType() != output.descriptor().dataType()
+                        || clampAttrs.maxValue().dataType() != output.descriptor().dataType()) {
+                    throw unsupported(
+                            producerIndex, producer, outputIndex, -1,
+                            "CLAMP bounds must match input/output floating type");
+                }
+                return;
+            }
+            if (scalarAttrs.value().dataType() != output.descriptor().dataType()) {
                 throw unsupported(
                         producerIndex, producer, outputIndex, 0, "scalar type must match input/output");
             }
@@ -421,15 +453,25 @@ final class AutogradPreflight {
         }
         if (operation.kind() instanceof UnaryElementwiseKind kind) {
             if (operation.attrs() != NoOperationAttrs.INSTANCE
-                    || (kind != UnaryElementwiseKind.NEG
+                    || (kind != UnaryElementwiseKind.ABS
+                            && kind != UnaryElementwiseKind.NEG
+                            && kind != UnaryElementwiseKind.RECIPROCAL
+                            && kind != UnaryElementwiseKind.LOG
+                            && kind != UnaryElementwiseKind.LOG1P
                             && kind != UnaryElementwiseKind.EXP
                             && kind != UnaryElementwiseKind.EXPM1
-                            && kind != UnaryElementwiseKind.SIGMOID
-                            && kind != UnaryElementwiseKind.TANH
                             && kind != UnaryElementwiseKind.ERF
+                            && kind != UnaryElementwiseKind.SQRT
+                            && kind != UnaryElementwiseKind.RSQRT
                             && kind != UnaryElementwiseKind.FLOOR
                             && kind != UnaryElementwiseKind.CEIL
-                            && kind != UnaryElementwiseKind.SIGN)) {
+                            && kind != UnaryElementwiseKind.SIGN
+                            && kind != UnaryElementwiseKind.RELU
+                            && kind != UnaryElementwiseKind.SIGMOID
+                            && kind != UnaryElementwiseKind.TANH
+                            && kind != UnaryElementwiseKind.GELU
+                            && kind != UnaryElementwiseKind.GELU_TANH_APPROXIMATION
+                            && kind != UnaryElementwiseKind.SILU)) {
                 throw unsupported(producerIndex, producer, outputIndex, -1, "unsupported unary variant");
             }
             requireInputs(producerIndex, producer, outputIndex, 1);
@@ -730,9 +772,16 @@ final class AutogradPreflight {
             }
             return;
         }
+        if (operation.kind() instanceof BinaryComparisonKind
+                || operation.kind() instanceof BooleanLogicalKind
+                || operation.kind() instanceof FloatingClassificationKind) {
+            throw unsupported(
+                    producerIndex, producer, outputIndex, firstSelected(selectedInputs),
+                    "operation roles are non-differentiable");
+        }
         throw unsupported(
                 producerIndex, producer, outputIndex, firstSelected(selectedInputs),
-                "operation is outside SUPPORTED_0004 and SUPPORTED_0004A");
+                "operation is outside the supported first-order matrices");
     }
 
     private static void requireInputs(

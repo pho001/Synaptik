@@ -1,11 +1,20 @@
 package io.github.pho001.synaptik.compiler;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import io.github.pho001.synaptik.config.compile.CompileMode;
 import io.github.pho001.synaptik.model.datatype.DataType;
+import io.github.pho001.synaptik.model.operation.elementwise.binary.BinaryArithmeticKind;
+import io.github.pho001.synaptik.model.operation.elementwise.cast.CastKind;
+import io.github.pho001.synaptik.model.operation.elementwise.classification.FloatingClassificationKind;
+import io.github.pho001.synaptik.model.operation.elementwise.comparison.BinaryComparisonKind;
+import io.github.pho001.synaptik.model.operation.elementwise.logical.BooleanLogicalKind;
+import io.github.pho001.synaptik.model.operation.elementwise.scalar.ScalarElementwiseKind;
+import io.github.pho001.synaptik.model.operation.elementwise.selection.WhereSelectionKind;
+import io.github.pho001.synaptik.model.operation.elementwise.unary.UnaryElementwiseKind;
 import io.github.pho001.synaptik.model.shape.DynamicDimension;
 import io.github.pho001.synaptik.model.shape.Shape;
 import io.github.pho001.synaptik.model.shape.StaticDimension;
@@ -17,6 +26,82 @@ import java.util.Optional;
 import org.junit.jupiter.api.Test;
 
 final class AutogradPreflightTest {
+    @Test
+    void locksTheExactSourceBacked0005AInventory() {
+        assertArrayEquals(new BinaryArithmeticKind[] {
+            BinaryArithmeticKind.ADD,
+            BinaryArithmeticKind.SUB,
+            BinaryArithmeticKind.MUL,
+            BinaryArithmeticKind.DIV,
+            BinaryArithmeticKind.MIN,
+            BinaryArithmeticKind.MAX,
+            BinaryArithmeticKind.POW
+        }, BinaryArithmeticKind.values());
+        assertArrayEquals(new ScalarElementwiseKind[] {
+            ScalarElementwiseKind.ADD,
+            ScalarElementwiseKind.SUB,
+            ScalarElementwiseKind.MUL,
+            ScalarElementwiseKind.DIV,
+            ScalarElementwiseKind.MIN,
+            ScalarElementwiseKind.MAX,
+            ScalarElementwiseKind.POW,
+            ScalarElementwiseKind.CLAMP
+        }, ScalarElementwiseKind.values());
+        assertArrayEquals(new UnaryElementwiseKind[] {
+            UnaryElementwiseKind.ABS,
+            UnaryElementwiseKind.NEG,
+            UnaryElementwiseKind.RECIPROCAL,
+            UnaryElementwiseKind.LOG,
+            UnaryElementwiseKind.LOG1P,
+            UnaryElementwiseKind.EXP,
+            UnaryElementwiseKind.EXPM1,
+            UnaryElementwiseKind.ERF,
+            UnaryElementwiseKind.SQRT,
+            UnaryElementwiseKind.RSQRT,
+            UnaryElementwiseKind.FLOOR,
+            UnaryElementwiseKind.CEIL,
+            UnaryElementwiseKind.SIGN,
+            UnaryElementwiseKind.RELU,
+            UnaryElementwiseKind.SIGMOID,
+            UnaryElementwiseKind.TANH,
+            UnaryElementwiseKind.GELU,
+            UnaryElementwiseKind.GELU_TANH_APPROXIMATION,
+            UnaryElementwiseKind.SILU
+        }, UnaryElementwiseKind.values());
+        assertArrayEquals(
+                new WhereSelectionKind[] {WhereSelectionKind.WHERE},
+                WhereSelectionKind.values());
+        assertArrayEquals(new CastKind[] {CastKind.CAST}, CastKind.values());
+        assertArrayEquals(new BinaryComparisonKind[] {
+            BinaryComparisonKind.GREATER_THAN,
+            BinaryComparisonKind.GREATER_OR_EQUAL,
+            BinaryComparisonKind.LESS_THAN,
+            BinaryComparisonKind.LESS_OR_EQUAL,
+            BinaryComparisonKind.EQUAL,
+            BinaryComparisonKind.NOT_EQUAL
+        }, BinaryComparisonKind.values());
+        assertArrayEquals(new BooleanLogicalKind[] {
+            BooleanLogicalKind.AND,
+            BooleanLogicalKind.OR,
+            BooleanLogicalKind.NOT
+        }, BooleanLogicalKind.values());
+        assertArrayEquals(new FloatingClassificationKind[] {
+            FloatingClassificationKind.IS_FINITE,
+            FloatingClassificationKind.IS_NAN,
+            FloatingClassificationKind.IS_INF
+        }, FloatingClassificationKind.values());
+        assertEquals(
+                48,
+                BinaryArithmeticKind.values().length
+                        + ScalarElementwiseKind.values().length
+                        + UnaryElementwiseKind.values().length
+                        + WhereSelectionKind.values().length
+                        + CastKind.values().length
+                        + BinaryComparisonKind.values().length
+                        + BooleanLogicalKind.values().length
+                        + FloatingClassificationKind.values().length);
+    }
+
     @Test
     void selectsOnlyObjectiveToTargetOccurrencesInDeterministicPostorder() {
         Tensor target = tensor(Shape.of(2), true);
@@ -41,7 +126,7 @@ final class AutogradPreflightTest {
     @Test
     void rejectsUnsupportedAndNonDifferentiableSelectedRoutes() {
         Tensor target = tensor(Shape.of(2), true);
-        Tensor unsupportedObjective = target.abs().sum();
+        Tensor unsupportedObjective = target.softmax(0).sum();
         IllegalArgumentException unsupported = assertThrows(
                 IllegalArgumentException.class,
                 () -> AutogradPreflight.preflight(
@@ -50,7 +135,7 @@ final class AutogradPreflightTest {
                         new AutogradPreflight.FirstOrderRequest(
                                 unsupportedObjective, List.of(target)),
                         CompileTimeConstantGraph.Ingress.empty()));
-        assertTrue(unsupported.getMessage().contains("ABS"));
+        assertTrue(unsupported.getMessage().contains("SOFTMAX"));
 
         Tensor branch = tensor(Shape.of(2), true);
         Tensor conditionSource = tensor(Shape.of(2), true);

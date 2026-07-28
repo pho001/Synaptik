@@ -39,6 +39,8 @@ The order above is the default delivery sequence, not a new dependency rule. All
 ## Current frontier
 
 The latest completed implementation task is
+[Compiler 0005A Derivative policy and elementwise/activation gradient completion](modules/compiler/tasks/0005a-derivative-policy-and-elementwise-activation-gradient-completion.md).
+The preceding artifact task is
 [Compiler 0005 Publication, planning orchestration, and compile artifacts](modules/compiler/tasks/0005-publication-planning-orchestration-and-compile-artifacts.md).
 Its completed compiler prerequisites include
 [Compiler 0004 Compiler-owned pre-capture autograd and graph compilation](modules/compiler/tasks/0004-compiler-owned-pre-capture-autograd-and-combined-graph-compilation.md)
@@ -50,7 +52,11 @@ Its latest completed model prerequisite frontier is
 [Model 0025 Canonical TensorProducer outputs](modules/model/tasks/0025-canonical-tensor-producer-outputs.md).
 The latest completed interleaved prerequisite is
 [Model 0025A Portable floating comparison, extrema, and clamp semantics](modules/model/tasks/0025a-portable-floating-comparison-extrema-and-clamp-semantics.md).
-Compiler 0005A remains Draft without a detailed specification.
+Compiler 0005A is Complete with the exact 48-kind source-backed elementwise/activation inventory,
+fixed derivative policies, exact coefficient bits, and request-local typed splats. Compiler 0005B
+is the next unfinished frontier but remains a concise Draft row without a detailed specification.
+The exact fifteen-path 0005A change passed 22 compiler suites/159 tests with no skips, failures,
+or errors plus its independent Javadoc and documentation gates.
 Compiler 0004B's closed matrix covers mixed-floating cotangent Shape/DataType
 normalization through ordinary `sumToShape` and `cast`, binary/scalar DIV formulas, direct-zero
 FLOOR/CEIL/SIGN conventions, and ordinary/masked MEAN formulas with logical-one denominators for
@@ -81,14 +87,15 @@ the complete current model operation inventory before higher-order work:
 
 | Compiler task | Status | Depends on | Milestone responsibility |
 |---|---|---|---|
-| 0005A Derivative policy and elementwise/activation gradient completion | Draft | Model 0025A; Compiler 0005 | Complete binary/scalar arithmetic, selection/cast, unary, and activation roles with explicit derivative-boundary decisions after the shared portable floating comparison/extrema/clamp forward contract is fixed; comparison, BOOL logic, and classification results remain non-differentiable. |
+| [0005A Derivative policy and elementwise/activation gradient completion](modules/compiler/tasks/0005a-derivative-policy-and-elementwise-activation-gradient-completion.md) | Complete | Model 0025A; Compiler 0005 | Completed the exact 48-kind binary/scalar arithmetic, selection/cast, unary, activation, comparison/logical/classification inventory with fixed tie, endpoint, discontinuity, domain, NaN, infinity, normalization, and non-differentiable-role policy. |
 | 0005B Reduction, scan, softmax, statistics, and normalization gradient completion | Draft | 0005A | Complete binding-dependent sum-to-Shape, products, extrema, scans, softmax/log-softmax, statistics, norms, and layer/RMS/batch normalization, including saved batch-statistic outputs and non-differentiable mask/index roles. |
 | 0005C Layout, window, indexing, scatter, ordering, and stochastic gradient completion | Draft | 0005B | Complete dynamic layout/slice/composition/window rules, Gather/scatter variants, sort/top-K, and dropout while preserving non-differentiable coordinates, indices, one-hot/BOOL outputs, RNG state, masks, and configuration roles. |
 | 0005D Attention, convolution, pooling, and loss gradient completion | Draft | 0005B, 0005C | Verify the implemented MATMUL/linear chain and complete attention, grouped convolution, pooling, and every current loss role and reduction mode with required same-occurrence auxiliaries and explicit special-case policies. |
 | 0005E First-order gradient coverage closure checkpoint | Draft | 0005A, 0005B, 0005C, 0005D | Audit every current operation signature, output slot, and input role; prove fail-closed coverage and transitive differentiability of formula operations; run the first-order checkpoint. |
 | 0006 Explicit functional gradient requests and higher-order differentiation | Draft | 0005E and a stable public compile/artifact boundary | Add explicit objectives, targets, seeds, create-graph/order, disconnected-result behavior, and phase/order representation only after first-order closure. |
 
-No compiler row beyond 0005 is Ready, and none has a detailed task specification. Family tasks
+No compiler row beyond completed 0005A is Ready, and 0005B–0005E/0006 have no detailed task
+specification. Family tasks
 must not claim that every operation role has a gradient: BOOL, index, random-number-generator
 (RNG) state, mask, and configuration roles remain intentionally non-differentiable where
 applicable. Each compiler task must explicitly choose its required tie, subgradient,
@@ -119,8 +126,11 @@ relations and numeric equality; pairwise/scalar MIN/MAX must propagate NaN and s
 directional signed zero; and first-class CLAMP must be exactly ordered
 `MIN(MAX(input, minValue), maxValue)`. FLOAT64, FLOAT32, and BFLOAT16 use their represented values
 and existing exact `ScalarValue` bits. The task adds no evaluator, operation, Tensor method, data
-type, backend behavior, or derivative convention. Compiler 0005A remains Draft without a task
-file after Model 0025A is Complete until a separate planning decision promotes it.
+type, backend behavior, or derivative convention. Compiler 0005A remained Draft without a task
+file at the historical completion point of Model 0025A. The later focused planning decision now
+promoted only
+[Compiler 0005A](modules/compiler/tasks/0005a-derivative-policy-and-elementwise-activation-gradient-completion.md)
+with its detailed derivative-policy specification; that compiler task is now Complete.
 
 Compiler 0004 follows completed
 [Compiler 0003B Compile-time constants and constant folding](modules/compiler/tasks/0003b-compile-time-constants-and-constant-folding.md),
@@ -195,9 +205,10 @@ contract. Only direct-zero FLOOR/CEIL/SIGN and all-false masked MEAN require exp
 first-order conventions; mixed floating, DIV, and ordinary MEAN use ordinary Tensor operations
 and their shared semantics.
 Complete Compiler 0005 retains compile artifacts and Compiler-owned publication/planning
-orchestration through its implementation. Complete Model 0025A fixes the remaining shared
-floating comparison/extrema/clamp forward contract before Draft Compiler 0005A–0005E complete the
-current inventory first-order milestone in the dependency order above. Compiler 0006 retains
+orchestration through its implementation. Complete Model 0025A fixes the shared floating
+comparison/extrema/clamp forward contract consumed unchanged by complete Compiler 0005A. Draft
+Compiler 0005B–0005E continue the current-inventory first-order milestone in dependency order.
+Compiler 0006 retains
 an explicit higher-derivative create-graph/order contract, remains Draft without a detailed
 specification, and now depends on the completed 0005E closure checkpoint rather than only on the
 artifact boundary.
@@ -286,9 +297,9 @@ autograd, and that task is now Complete. The subsequent reassessment selected on
 0025 before compiler work resumed, and that task is Complete. Compiler 0004, 0004A, and 0004B are
 now Complete; none advances cost, tuning, or downstream lifecycle work. Compiler 0005 is Complete.
 The current reassessment selected and completed only Model 0025A before compiler gradient planning
-resumes.
-Compiler 0005A–0005E and 0006 remain Draft without detailed specifications, and no later compiler
-task is Ready.
+resumed. Compiler 0005A is now Complete. Compiler 0005B is the next unfinished frontier;
+0005B–0005E and 0006 remain Draft without detailed specifications, and no later compiler task is
+Ready.
 Compiler 0004 owns combined exact cleanup before 0005 partitioning/orchestration; the new
 first-order milestone follows 0005, and 0006 waits for both the stable public compile/artifact
 boundary and the completed 0005E closure checkpoint.
@@ -321,9 +332,11 @@ module tests, independent documentation pass, and capability checkpoint; Compile
 Complete after its module tests, independent documentation pass, and repository/architecture
 checkpoint. Completed
 [Model 0025A](modules/model/tasks/0025a-portable-floating-comparison-extrema-and-clamp-semantics.md)
-is the latest detailed interleave. Compiler 0005A–0005E and 0006 remain Draft without detailed
-specifications, and no later compiler task is Ready. Compiler 0004 owns combined exact cleanup
-before 0005 partitioning/orchestration; 0005A follows completed Model 0025A and Compiler 0005,
+is the latest completed interleave.
+[Compiler 0005A](modules/compiler/tasks/0005a-derivative-policy-and-elementwise-activation-gradient-completion.md)
+is Complete; Compiler 0005B–0005E and 0006 remain Draft without detailed specifications, and no
+later compiler task is Ready. Compiler 0004 owns combined exact
+cleanup before 0005 partitioning/orchestration; 0005A follows completed Model 0025A and Compiler 0005,
 0005B–0005E follow in order, and 0006 follows the 0005E first-order closure checkpoint plus the
 stable public compile/artifact boundary. No compiler task consumes or advances Config 0004.
 

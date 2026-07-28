@@ -1369,7 +1369,10 @@ standard normal cumulative distribution function. Equivalently, exact GELU is
 exact GELU. Both functions use the continuous extension negative infinity to negative zero,
 preserve signed zero, map positive infinity to positive infinity, and propagate NaN. Current
 `Tensor.gelu()` and `geluTanhApproximation()` construct model metadata and provenance only; they do
-not execute either function or define compiler decomposition, gradients, or backend algorithms.
+not execute either function or define backend algorithms. The current package-private compiler
+does define first-order formulas: finite and NaN inputs use the corresponding analytic
+derivative, positive infinity returns the incoming cotangent, and negative infinity returns exact
+positive zero.
 
 ### First-order autograd request
 
@@ -1431,11 +1434,11 @@ is distinct from the later-lifecycle `CompileArtifacts` aggregate.
 
 The current request contains one exact requested scalar floating objective, an ordered non-empty
 identity-unique target list in its selected differentiable ancestry, and one implicit exact typed
-unit seed. Targets may differ from the objective's floating type. Its closed matrix covers
-promoted floating binary ADD/SUB/MUL/DIV, exact-type floating scalar ADD/SUB/MUL/DIV, promoted
-branch-only WHERE, floating-to-floating CAST, NEG/EXP/EXPM1/SIGMOID/TANH/ERF, direct-zero
-FLOOR/CEIL/SIGN, ordinary and masked SUM/MEAN, locally invertible SUM_TO_SHAPE, CUM_SUM, every
-floating MATMUL vector/matrix rank pairing, and the guarded floating
+unit seed. Targets may differ from the objective's floating type. Its closed matrix covers all
+seven promoted floating binary arithmetic kinds, all eight exact-type floating scalar kinds,
+promoted branch-only WHERE, floating-to-floating CAST, all nineteen floating unary kinds,
+ordinary and masked SUM/MEAN, locally invertible SUM_TO_SHAPE, CUM_SUM, every floating MATMUL
+vector/matrix rank pairing, and the guarded floating
 CONTIGUOUS/RESHAPE/EXPAND/EXPAND_DIMS/SQUEEZE/PERMUTE/SLICE/SLICE_UPDATE/SELECT/PAD/TILE/
 CONCAT/STACK families.
 
@@ -1448,15 +1451,23 @@ first-order cotangent without `g * 0` or a floating comparison. These convention
 gradient-only arithmetic, cast, exceptional-value, validation, rewrite, fold, or optimizer
 contract.
 
+Compiler 0005A selects the elementwise boundary policy. Tensor extrema split exact numeric ties
+equally; scalar extrema give the Tensor receiver one half; ordered first-class CLAMP composes the
+same rule and can therefore produce one quarter when both stages tie. Piecewise extrema, CLAMP,
+ABS, and RELU return exact positive zero at unordered NaN positions. Exact GELU, fixed
+tanh-approximation GELU, and SiLU return the incoming cotangent at positive infinity and exact
+positive zero at negative infinity. Other analytic formulas use ordinary Tensor operations
+without gradient-only domain masks. Comparisons, Boolean logic/classification, condition,
+attribute, bound, and non-floating cast roles remain non-differentiable.
+
 SLICE_UPDATE's selected update role requires static selected base extents, and SUM_TO_SHAPE
 accepts only aligned exact Dimension equality or a static target singleton. Everything else fails
 closed on a selected route until its shared formula or derivative policy is selected.
 
 The technique adds no placeholder Tensor for a captured `ValueId`, second gradient algebra,
 public gradient, runtime tape, model derivative rule, or Tensor gradient/backward lifecycle.
-Model task 0025 and Compiler tasks 0004, 0004A, and 0004B are Complete. Public requests/publication,
-`CompileArtifacts`, higher derivatives, optimizer updates, preparation, and execution remain
-planned.
+Model task 0025 and Compiler tasks 0004, 0004A, 0004B, 0005, and 0005A are Complete. Public
+requests, higher derivatives, optimizer updates, preparation, and execution remain planned.
 
 ### Neural-network module, parameter, buffer, and forward context
 
@@ -1625,12 +1636,14 @@ A logical splat has constant payload size even for a dynamic, scalar, or empty S
 no Shape, Tensor, host storage, array, memory segment, dense element payload, physical buffer,
 backend value, or runtime state. The compiler can fold only the explicitly selected BOOL and
 signed-integral operation matrix over these facts. Floating/BFLOAT16 splats are representable but
-are not currently evaluated. Current pre-capture autograd registers its generated typed zero and
-unit derivative leaves as exact logical splats, including raw floating or BFLOAT16 bits, without
-reading or allocating storage. It also uses logical-one expansion to represent ordinary and
-masked MEAN counts for static, dynamic, and expression Shapes. Only generated splat bases
-reachable from returned gradient expressions remain in combined-capture ingress. Physical
-repetition and storage allocation remain future prepare/backend materialization work.
+are not currently evaluated. Current pre-capture autograd caches generated floating scalar bases
+by exact data type and represented bits, including signed zeros and NaN payloads, and registers
+each created base as one logical splat without reading or allocating storage. The cache supplies
+typed zero/unit leaves, extrema or clamp bounds needed as Tensor comparison operands, and
+logical-one expansion for ordinary and masked MEAN counts. Creation and binding order follow
+deterministic first use. Only generated splat bases reachable from returned gradient expressions
+remain in combined-capture ingress. Physical repetition and storage allocation remain future
+prepare/backend materialization work.
 
 ### Logical memory plan
 

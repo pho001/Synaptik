@@ -15,8 +15,10 @@ is Complete with the first policy-free exact-composition rule extension.
 [Compiler task 0004B](../../planning/modules/compiler/tasks/0004b-shared-algebra-cotangent-normalization-and-local-derivative-rules.md)
 is Complete with mixed-floating cotangent normalization, division, direct-zero local conventions,
 and ordinary or masked mean.
-Public gradient requests, publication, compile artifacts, higher derivatives, optimizer updates,
-preparation, and execution remain planned.
+[Compiler task 0005A](../../planning/modules/compiler/tasks/0005a-derivative-policy-and-elementwise-activation-gradient-completion.md)
+is Complete with the exact 48-kind elementwise/activation classification and formulas. Compiler
+0005 already provides current immutable compile artifacts, while public gradient requests,
+higher derivatives, optimizer updates, preparation, and execution remain planned.
 
 ## Mental model
 
@@ -81,11 +83,11 @@ producer occurrence, output role, exact attributes, and required derivative poli
 or ambiguous work fails closed. This prevents a known incomplete rule matrix from creating a
 partial backward expression.
 
-The closed union of `SUPPORTED_0004`, `SUPPORTED_0004A`, and `SUPPORTED_0004B` is:
+The closed implemented matrix through Compiler 0005A is:
 
 | Family | Current exact variants |
 |---|---|
-| Elementwise | Promoted floating binary `ADD`/`SUB`/`MUL`/`DIV`; exact-type floating scalar `ADD`/`SUB`/`MUL`/`DIV`; promoted branch-only `WHERE`; floating-to-floating `CAST`; `NEG`/`EXP`/`EXPM1`/`SIGMOID`/`TANH`/`ERF`; direct-zero `FLOOR`/`CEIL`/`SIGN` |
+| Elementwise | All seven promoted floating binary arithmetic kinds; all eight exact-type floating scalar kinds, including first-class `CLAMP`; promoted branch-only `WHERE`; floating-to-floating `CAST`; and all nineteen floating unary kinds |
 | Reduction/scan | Floating ordinary full, single-axis, and multi-axis `SUM`/`MEAN`; masked floating `SUM`/`MEAN`; locally invertible floating `SUM_TO_SHAPE`; floating `CUM_SUM` |
 | Linear algebra | Every current floating `MATMUL` vector/matrix rank pairing, with role-aware mixed-floating normalization and batch unbroadcasting |
 | Logical layout/selection | Floating `CONTIGUOUS`, `RESHAPE`, `EXPAND`, `EXPAND_DIMS`, `SQUEEZE`, `PERMUTE`, normalized `SLICE`, both normalized `SLICE_UPDATE` data roles, `SELECT`, `PAD`, `TILE`, `CONCAT`, and `STACK` |
@@ -125,6 +127,26 @@ ERF constructs `g * exp(-(x * x)) * (2 / sqrt(pi))`. Its coefficient is exact sc
 metadata with fixed BFLOAT16/FLOAT32/FLOAT64 bits `0x3F90`, `0x3F906EBB`, and
 `0x3FF20DD750429B6D`; the rule does not evaluate host floating arithmetic.
 
+MIN and MAX split an exact represented-numeric tie equally between Tensor inputs; scalar extrema
+give the Tensor receiver one half at a tie. First-class CLAMP applies that rule to the exact
+ordered composition `MIN(MAX(x, min), max)`, producing one half at an ordinary endpoint and one
+quarter when both stages tie. Opposite signed zeros compare equal. Unordered NaN comparisons
+make piecewise extrema, CLAMP, ABS, and RELU return exact positive zero.
+
+Binary POW constructs `g * right * pow(left, right - 1)` and `g * output * log(left)`. Scalar POW
+derives exponent-minus-one with exactly one subtraction in the exponent's represented floating
+type. RECIPROCAL, LOG, LOG1P, SQRT, and RSQRT use their direct analytic formulas. ABS returns
+zero at signed zero and NaN; RELU returns `g` only when its input is strictly greater than
+positive zero.
+
+Exact GELU, fixed tanh-approximation GELU, and SiLU use fixed-coefficient analytic formulas for
+finite and NaN inputs. They return `g` at positive infinity and exact positive zero at negative
+infinity. Other analytic rows add no domain, finite, singularity, or continuous-extension mask;
+ordinary Tensor operations determine their exceptional behavior in formula order. Compiler
+0005A uses fixed BFLOAT16/FLOAT32/FLOAT64 coefficient bits for one half, negative one half, two,
+the inverse-square-root terms, and `0.044715`/`0.134145`; compilation evaluates no host
+transcendental coefficient.
+
 MATMUL handles vector-vector, vector-matrix, matrix-vector, and matrix-matrix rank promotion.
 Each selected result reverses batch broadcasting and then casts once if the operand type differs
 from the promoted type. Integral MATMUL is rejected.
@@ -135,15 +157,12 @@ to interleaved repeat/input axes and sums the repeat axes. CONCAT crops by order
 prefixes. STACK selects the corresponding inserted-axis coordinate. Repeated input positions
 remain repeated contributions and therefore accumulate deterministically.
 
-Everything outside this table fails closed on a selected route. Binary/scalar `POW`,
-`RECIPROCAL`, `LOG`, `SQRT`, and `SOFTMAX`/`LOG_SOFTMAX` remain blocked by incomplete shared
-model numerical semantics. Extrema, clamp, `ABS`, and `RELU` remain blocked by the incomplete
-general floating-comparison contract. `LOG1P`, `RSQRT`, activation, product, statistical/norm,
-normalization, pooling, loss, attention, ordering, indexing/scatter, window, convolution,
-dropout, and batch-normalization rules remain later cohesive work. Binding-dependent
-`SUM_TO_SHAPE`, target-relative crop, and unselected layout variants remain unchanged later
-Shape/layout work. Comparisons, BOOL logic/classification, `ALL`, `ANY`, arg-extrema outputs,
-one-hot and other index roles, masks, and graph RNG state remain non-differentiable.
+Everything outside this table fails closed on a selected route. Compiler 0005B–0005D retain
+products, reduction extrema, softmax/log-softmax, statistics/norms/normalization,
+binding-dependent Shape work, remaining layout/indexing/stochastic families, attention,
+convolution, pooling, and losses. Comparisons, BOOL logic/classification, the `WHERE` condition,
+scalar attributes and bounds, non-floating casts, `ALL`, `ANY`, arg-extrema outputs, one-hot and
+other index roles, masks, and graph RNG state remain non-differentiable.
 
 Preflight is not full graph inference. The compiler performs authoritative inference and
 validation after the one combined capture. A later Tensor construction, capture, inference,
@@ -152,14 +171,15 @@ compatible with the existing opaque, monotonic, non-reusable ID contract.
 
 ## Constants and hidden outputs
 
-The implicit unit seed, WHERE routing zeros, MEAN logical ones, and other derivative constants are storage-free
-Tensor leaves or expressions. The compiler registers each BFLOAT16, FLOAT32, or FLOAT64 zero/one
-base explicitly with one exact logical-splat fact for combined capture. BFLOAT16 zero/one use
-exact bits `0x0000`/`0x3F80`; FLOAT32 and FLOAT64 use exact positive zero/one. The ERF coefficient
-is instead exact scalar-operation metadata and is not registered as a splat leaf. Host storage,
-labels, factory history, Shape, layout, and provenance absence never imply constant status.
-Only generated bases reachable from returned gradient expressions remain in combined-capture
-ingress, so a direct-zero formula does not expose an unreachable seed.
+The implicit unit seed, routing zeros, MEAN logical ones, and scalar values needed as Tensor
+comparison operands are storage-free Tensor leaves or expressions. One request-local cache keys
+each base by exact `ScalarValue` data type and represented bits, registers it explicitly as one
+logical splat, and preserves deterministic first-use order. BFLOAT16 zero/one use exact bits
+`0x0000`/`0x3F80`; FLOAT32 and FLOAT64 use exact positive zero/one. Shape-specific values are
+ordinary `expand` expressions. Arithmetic-only coefficients remain exact scalar-operation
+metadata rather than splat leaves. Host storage, labels, factory history, Shape, layout, and
+provenance absence never imply constant status. Only generated bases reachable from returned
+gradient expressions remain in combined-capture ingress.
 
 Some formulas need producer outputs omitted from a public ergonomic result. Dropout, for example,
 returns the public result and next RNG state while its same-occurrence keep mask is hidden.

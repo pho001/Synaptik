@@ -25,7 +25,7 @@ import io.github.pho001.synaptik.model.tensor.TensorFactory;
 import io.github.pho001.synaptik.model.tensor.TensorProducer;
 import java.util.ArrayList;
 import java.util.ArrayDeque;
-import java.util.EnumMap;
+import java.util.HashMap;
 import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
@@ -39,8 +39,10 @@ import java.util.Set;
  * <p>Incoming contributions and accumulated cotangents are keyed by exact Tensor identity.
  * Contributions are appended in reverse producer-postorder and input-position order, then merged
  * through left-associated public Tensor addition. The only seed is an implicit exact typed
- * positive one for the scalar objective. Request-local BFLOAT16, FLOAT32, or FLOAT64 zero/one
- * leaves are storage-free and are registered explicitly as logical splats.</p>
+ * positive one for the scalar objective. Request-local BFLOAT16, FLOAT32, or FLOAT64 scalar
+ * leaves are cached by exact {@link ScalarValue} type and represented bits, remain storage-free,
+ * and are registered explicitly as logical splats in deterministic first-use order.
+ * Shape-specific values are ordinary public {@code expand} expressions.</p>
  *
  * <p>Formula ownership remains split among {@link ElementwiseGradientRules},
  * {@link ReductionGradientRules}, {@link LinearAlgebraGradientRules}, and
@@ -50,9 +52,10 @@ import java.util.Set;
  * {@code MEAN}; it does not absorb family formulas or infer support.</p>
  *
  * <p>The returned Tensor roles and original-producer identities are an ephemeral handoff to one
- * combined capture. Generated logical-splat bindings are retained only when reachable from a
- * returned gradient role, so a direct local-zero result does not expose an otherwise unreachable
- * seed binding as graph ingress. This owner does not retain global state, mutate an original
+ * combined capture. Generated logical-splat bindings, including extrema or clamp bounds needed
+ * as Tensor comparison operands, are retained only when reachable from a returned gradient role.
+ * A direct local-zero result therefore does not expose an otherwise unreachable seed binding as
+ * graph ingress. This owner does not retain global state, mutate an original
  * Tensor, infer a constant from storage or provenance, capture or validate a graph, materialize
  * values, lower work, or execute computation.</p>
  */
@@ -233,18 +236,17 @@ final class FirstOrderAutograd {
     }
 
     /**
-     * Request-local exact typed zero/one leaf owner used by derivative rules.
+     * Request-local exact typed scalar-splat owner used by derivative rules.
      *
-     * <p>At most one scalar base zero and one scalar base one are created per floating data type,
-     * in deterministic first-use order. BFLOAT16 uses exact bits {@code 0x0000} and
-     * {@code 0x3F80}; FLOAT32 and FLOAT64 use their exact positive zero and one values. Each base
-     * is provenance-free, storage-free, unlabeled, non-gradient Tensor metadata paired with one
-     * explicit logical-splat binding. Shape-specific constants are ordinary public
+     * <p>At most one scalar base is created for each exact floating {@link ScalarValue} data-type
+     * and represented-bit identity, in deterministic first-use order. This distinction preserves
+     * signed zeros and NaN payloads. Each base is provenance-free, storage-free, unlabeled,
+     * non-gradient Tensor metadata paired with one explicit logical-splat binding. Shape-specific
+     * constants are ordinary public
      * {@link Tensor#expand(io.github.pho001.synaptik.model.shape.Shape) expand} expressions.</p>
      */
     static final class DerivativeConstants {
-        private final Map<DataType, Tensor> zeros = new EnumMap<>(DataType.class);
-        private final Map<DataType, Tensor> ones = new EnumMap<>(DataType.class);
+        private final Map<ScalarValue, Tensor> bases = new HashMap<>();
         private final List<CompileTimeConstantGraph.Binding> bindings = new ArrayList<>();
 
         /**
@@ -275,6 +277,18 @@ final class FirstOrderAutograd {
         }
 
         /**
+         * Returns an exact typed scalar-value expression with the supplied Tensor's Shape.
+         *
+         * @param value non-null floating scalar value whose exact typed bits identify the base
+         * @param tensor non-null Tensor whose exact Shape is reused
+         * @return a non-null public expand expression rooted at the request-local exact base
+         * @throws IllegalArgumentException if {@code value} is not floating
+         */
+        Tensor valueLike(ScalarValue value, Tensor tensor) {
+            return base(value).expand(tensor.descriptor().shape());
+        }
+
+        /**
          * Returns the request-local scalar positive-zero leaf for one floating data type.
          *
          * @param dataType non-null BFLOAT16, FLOAT32, or FLOAT64 type
@@ -282,7 +296,7 @@ final class FirstOrderAutograd {
          * @throws IllegalArgumentException if {@code dataType} is not floating
          */
         Tensor zeroBase(DataType dataType) {
-            return zeros.computeIfAbsent(dataType, type -> create(type, false));
+            return base(scalar(dataType, false));
         }
 
         /**
@@ -293,7 +307,23 @@ final class FirstOrderAutograd {
          * @throws IllegalArgumentException if {@code dataType} is not floating
          */
         Tensor oneBase(DataType dataType) {
-            return ones.computeIfAbsent(dataType, type -> create(type, true));
+            return base(scalar(dataType, true));
+        }
+
+        /**
+         * Returns the request-local scalar leaf for one exact floating typed value.
+         *
+         * @param value non-null exact BFLOAT16, FLOAT32, or FLOAT64 scalar
+         * @return the exact cached leaf, created and explicitly bound on first request
+         * @throws IllegalArgumentException if {@code value} is not floating
+         */
+        Tensor base(ScalarValue value) {
+            Objects.requireNonNull(value, "value");
+            if (!value.dataType().isFloating()) {
+                throw new IllegalArgumentException(
+                        "derivative constants require floating data type: " + value.dataType());
+            }
+            return bases.computeIfAbsent(value, this::create);
         }
 
         /**
@@ -305,10 +335,9 @@ final class FirstOrderAutograd {
             return List.copyOf(bindings);
         }
 
-        private Tensor create(DataType dataType, boolean one) {
-            ScalarValue value = scalar(dataType, one);
+        private Tensor create(ScalarValue value) {
             Tensor tensor = TensorFactory.create(new TensorDescriptor(
-                    dataType, Shape.scalar(), Optional.empty(), false));
+                    value.dataType(), Shape.scalar(), Optional.empty(), false));
             bindings.add(new CompileTimeConstantGraph.Binding(
                     tensor, new CompileTimeConstantGraph.Splat(value)));
             return tensor;

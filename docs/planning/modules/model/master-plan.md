@@ -307,7 +307,7 @@ Operation-family subpackages are introduced only when a focused operation task d
   wrapper prerequisite discovered by the pre-capture autograd architecture decision
 - Compiler-gradient numerical-semantics prerequisite: task 0025A, reopened only to make the
   portable floating comparison/extrema/clamp forward contract explicit before Compiler 0005A
-  chooses separate derivative policies
+  chose its separate derivative policies; Compiler 0005A is now Complete
 
 Each listed checkpoint runs the full repository test suite, affected architecture tests, final
 Javadoc and documentation validation, and the cross-task checks deferred by the preceding tasks.
@@ -316,7 +316,8 @@ Individual single-module tasks use the task-level validation defined in the plan
 ## Current status
 
 The historical selected model milestone and focused task 0025 remain Complete. Focused task 0025A
-is also Complete and closes the bounded model interleave before Compiler 0005A.
+is also Complete and supplied the bounded model prerequisite consumed unchanged by completed
+Compiler 0005A.
 Tasks 0014A through 0015H remain complete with the post-0014B vertical-slice reassessment
 recorded. The broad former task 0016 is decomposed into 0016A–0016J. Tasks 0016A through 0016E are
 complete. Tasks 0016F, 0016F1, 0016G, 0016H, 0016I, and 0016J are also complete. The broad former
@@ -1771,6 +1772,9 @@ specifications. Tasks 0023C, 0023D, 0023E, and 0023F are Complete with detailed 
 while task 0024 is Complete with its closure artifact and task 0024A is Complete. The selected
 model capability milestone remains historically closed. Task 0025 is the completed focused
 compiler prerequisite. Task 0025A is the completed later detailed model prerequisite. Compiler
-0005A remains Draft and may be promoted only through a separate planning decision.
+0005A remained Draft at that prerequisite's completion and is now Complete through the separate
+[Compiler 0005A task](../compiler/tasks/0005a-derivative-policy-and-elementwise-activation-gradient-completion.md).
+The compiler selected derivative ties, endpoints, discontinuities, raw-domain behavior, and
+activation infinity handling without changing the model's represented-value forward contracts.
 The legacy branch must be consulted read-only for capability and test evidence when preparing each
 applicable capability task.
