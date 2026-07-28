@@ -4599,18 +4599,20 @@ public final class Tensor {
      * inference meaning and is rejected as a negative static dimension. An empty request denotes
      * the canonical scalar Shape.</p>
      *
-     * <p>The target rank must be at least the input rank. Axes are aligned from the right. Each
-     * aligned input dimension must either equal its target dimension structurally or be a
-     * statically known singleton; any additional leading target axes are valid. Consequently,
-     * equal dynamic symbols and singleton-to-dynamic expansion are locally provable, while other
-     * dynamic combinations are rejected without binding symbols or recording constraints.</p>
+     * <p>The target rank must be at least the input rank. Axes are aligned from the right, and any
+     * additional leading target axes are valid. A structurally equal pair or a static source
+     * singleton is immediately compatible. A fully static unequal pair whose source is not one is
+     * rejected, including zero-to-one. When either aligned dimension is unresolved, construction
+     * retains the expression for later proof that the source extent is one or equals the target
+     * extent; it neither binds dimensions nor creates a deferred constraint.</p>
      *
      * <p>The fresh result retains this tensor's exact DataType and gradient eligibility and uses
-     * the normalized target Shape. For a fully static target and any resolved input layout, it
+     * the normalized target Shape. For a fully static target and resolved input geometry, it
      * receives a new view-marked layout with the exact input element offset, preserved strides on
      * unchanged aligned axes, and zero strides on new leading or expanded singleton axes. A
-     * dynamic target or unresolved input layout leaves result layout unresolved. This logical
-     * view metadata neither attaches nor aliases host storage nor proves zero-copy execution.</p>
+     * dynamic target, unresolved input geometry, or accepted binding-dependent aligned pair
+     * leaves result layout unresolved. This logical view metadata neither attaches nor aliases
+     * host storage nor proves zero-copy execution.</p>
      *
      * <p>Every successful call returns a distinct unlabeled, storage-free tensor whose provenance
      * records {@link ShapeTransformKind#EXPAND}, the normalized target, and this tensor as its sole
@@ -4624,7 +4626,8 @@ public final class Tensor {
      * @throws NullPointerException if {@code requestedShape} is null, with message
      *     {@code requestedShape}
      * @throws IllegalArgumentException if a requested extent is negative, target rank is below
-     *     input rank, or an aligned dimension pair is not locally compatible
+     *     input rank, or an aligned fully static pair has unequal extents and the input extent is
+     *     not one
      * @throws ArithmeticException if resolved layout stride or referenced-span arithmetic
      *     overflows; no tensor identity is consumed
      * @throws IllegalStateException if tensor identifier space is exhausted after all local
@@ -4639,18 +4642,20 @@ public final class Tensor {
      *
      * <p>The exact immutable {@code targetShape} reference is retained in both the result
      * descriptor and target-shape attributes. Scalar, zero-extent, static, mixed dynamic, and
-     * fully dynamic Shapes are accepted when compatibility is locally provable. The target rank
-     * must be at least the input rank; right-aligned dimensions must be structurally equal or the
-     * input dimension must be a static singleton, while new leading target axes are unrestricted.
-     * Unequal symbols and dynamic-versus-non-singleton combinations are rejected rather than
-     * converted into hidden constraints.</p>
+     * fully dynamic Shapes are accepted subject to directional right-aligned expansion. The
+     * target rank must be at least the input rank, and new leading target axes are unrestricted.
+     * A structurally equal pair or a static source singleton is immediately compatible. A fully
+     * static unequal pair whose source is not one is rejected, including zero-to-one. When either
+     * aligned dimension is unresolved, construction retains the expression for later proof that
+     * the source extent is one or equals the target extent; it neither binds dimensions nor
+     * creates a deferred constraint.</p>
      *
      * <p>The result retains this tensor's exact DataType and gradient eligibility. A fully static
-     * target plus any resolved input layout produces a new view-marked layout that preserves the
+     * target plus resolved input geometry produces a new view-marked layout that preserves the
      * input offset and unchanged aligned strides and inserts zero strides for new leading or
-     * expanded singleton axes. Dynamic target or unresolved input geometry stays unresolved.
-     * Layout metadata does not attach host storage, promise an executable alias, or select
-     * materialization.</p>
+     * expanded singleton axes. Dynamic target, unresolved input geometry, or an accepted
+     * binding-dependent aligned pair stays layout-unresolved. Layout metadata does not attach
+     * host storage, promise an executable alias, or select materialization.</p>
      *
      * <p>Every valid call returns a distinct unlabeled, storage-free tensor with exact expand
      * semantics and this tensor as its sole provenance input, including identity-like, repeated,
@@ -4661,8 +4666,8 @@ public final class Tensor {
      *     eligibility with conditional resolved zero-stride view geometry and no label or storage
      * @throws NullPointerException if {@code targetShape} is null, with message
      *     {@code targetShape}
-     * @throws IllegalArgumentException if target rank is below input rank or an aligned dimension
-     *     pair is not locally compatible
+     * @throws IllegalArgumentException if target rank is below input rank or an aligned fully
+     *     static pair has unequal extents and the input extent is not one
      * @throws ArithmeticException if resolved layout stride or referenced-span arithmetic
      *     overflows; no tensor identity is consumed
      * @throws IllegalStateException if tensor identifier space is exhausted after all local

@@ -199,8 +199,11 @@ repeats compatible singleton or leading axes. Public `Tensor.reshape(long...)` a
 `Tensor.reshape(Shape)` now construct fresh storage-free expressions with local count validation,
 conditional same-offset view geometry, and one-input provenance. Public `Tensor.expand(long...)`
 and `Tensor.expand(Shape)` now add directional right-aligned compatibility plus conditional
-same-offset, zero-stride view geometry. Graph-wide dynamic constraints, gradients, compiler
-behavior, materialization, backend behavior, and execution remain planned.
+same-offset, zero-stride view geometry. An aligned pair containing an unresolved dimension is
+retained as a binding-dependent Model expression; the later condition is that the source extent
+is one or equals the target extent, and Model creates no deferred constraint. Current compiler
+inference has not adopted that widened case. Its occurrence-owned proof, matching preflight and
+gradient handling, materialization, backend behavior, and execution remain planned.
 The `AxisTransformKind` vocabulary is implemented with distinct `PERMUTE`, `EXPAND_DIMS`, and
 `SQUEEZE` meanings. `PermutationAttrs` stores an immutable complete normalized output-to-input
 axis mapping, and `AxisTransformAttrs` stores one normalized non-negative insertion or removal
@@ -975,7 +978,10 @@ equal and size `1` expands to the opposing dimension. Named dimensions are equal
 symbol, exact expression dimensions are equal structurally, and constrained unknowns are equal
 only when the same unknown is reused. Other symbolic pairings remain unprovable locally.
 Broadcasting describes logical repetition; a resolved layout may represent that repetition with
-a zero element stride.
+a zero element stride. Directional [`Tensor.expand`](#reshape-and-expand-semantics) is a separate
+one-input operation. It may retain an exact target when an aligned unresolved pair has the later
+source-one-or-source-equal requirement; this does not broaden the conservative local
+multi-input-broadcasting rule above.
 
 ### Bounded replay
 
@@ -1341,6 +1347,14 @@ It also excludes value-dependent obligations such as index contents and bounds, 
 targets, categorical target contents, numerical results, and storage validity, which cannot be
 decided from descriptor-only graph values. See [current package-private verification
 inference](api/compile-api.md#current-package-private-verification-inference).
+
+Accepting a binding-dependent `Tensor.expand` expression in Model does not itself create a
+deferred graph constraint. Model retains only the exact target Shape and the EXPAND occurrence.
+Current compiler inference still rejects a non-equal, non-static-source-singleton aligned pair
+when either dimension is unresolved. Planned Compiler task 0005B owns translation of that
+occurrence to
+`AnyOf(DimensionEqual(source, 1), DimensionEqual(source, target))`, together with proof, preflight,
+and gradient consistency.
 
 ### Element stride
 
@@ -2763,8 +2777,8 @@ dimensions use explicit symbols.
 `RESHAPE` preserves the ordered logical element sequence while interpreting it through the target
 coordinates. `EXPAND` logically repeats compatible singleton dimensions or adds repeated leading
 dimensions. The shared attributes do not inspect an input, compare element counts, validate
-expansion compatibility, bind symbols, derive a [`Layout`](#layout), or decide whether a result is
-a [view](#view) or materialized copy.
+expansion compatibility, bind symbols, create a proof or constraint, derive a
+[`Layout`](#layout), or decide whether a result is a [view](#view) or materialized copy.
 
 These semantic values are current. Public `Tensor.reshape(long...)` normalizes a defensively owned
 raw request containing non-negative extents and at most one inferable `-1`; an empty request means
@@ -2783,15 +2797,22 @@ type and gradient eligibility, and records exact RESHAPE/target-shape semantics 
 Public `Tensor.expand(long...)` treats raw extents as literal non-negative dimensions, with an
 empty request denoting scalar Shape and no `-1` inference. `Tensor.expand(Shape)` retains the exact
 target reference. Both align axes from the right, permit new leading target axes, and accept an
-aligned pair only when its dimensions are equal or the input dimension is a static singleton.
-Unprovable dynamic pairs are rejected without binding symbols. For a static target and any
-resolved input layout, expand preserves the input offset and unchanged aligned strides while
-assigning zero strides to leading and expanded-singleton axes. Dynamic targets or unresolved input
-layouts stay unresolved. Results are fresh, unlabeled, storage-free, retain exact input type and
+aligned pair immediately when its dimensions are structurally equal or the input dimension is a
+static singleton. A fully static unequal pair is rejected if the source is not one; zero is an
+ordinary static extent, so zero-to-one is invalid. A pair containing an unresolved dimension is
+accepted as a binding-dependent Model expression with the later condition
+`source == 1 || source == target`. Model does not bind, unify, or evaluate dimensions and creates
+no deferred constraint. For a static target and resolved input layout, expand preserves the input
+offset and unchanged aligned strides while assigning zero strides to leading and
+expanded-singleton axes. A dynamic target, unresolved input geometry, or binding-dependent pair
+stays layout-unresolved. Results are fresh, unlabeled, storage-free, retain exact input type and
 gradient eligibility, and record exact EXPAND/target-shape semantics with provenance `[input]`.
 
-Dynamic constraint solving, gradients, compiler canonicalization, materialization, backend
-support, and execution remain planned. Generic
+The current compiler supports only locally established equal or static-source-singleton EXPAND
+occurrences; it still rejects a non-equal unresolved pair during inference. Planned Compiler task
+0005B owns the corresponding source-one-or-source-equal deferred predicate, preflight, and
+gradient consistency. Compiler canonicalization, materialization, backend support, and execution
+remain outside Model construction. Generic
 [`Operation`](#operation) composition retains the exact kind and attributes references but does
 not enforce the family pairing or one-input context. See [Reshape
 expressions](api/tensor-api.md#reshape-expressions) and [Expand
@@ -2937,11 +2958,13 @@ unresolved. Each result is fresh, unlabeled, storage-free, and records one-input
 provenance without moving values or choosing materialization.
 A `Tensor.expand` request also accepts every data type and preserves exact type and gradient
 eligibility. It directionally right-aligns the input with a literal or exact target Shape, accepts
-equal aligned dimensions, input-side static singletons, and new leading axes, and rejects
-unprovable dynamic compatibility. Static target plus resolved input geometry produces same-offset
-view metadata with preserved aligned and zero leading/expanded strides; other geometry remains
-unresolved. Each result is fresh, unlabeled, storage-free, and records one-input EXPAND provenance
-without repeating values, attaching an alias, or choosing materialization.
+equal aligned dimensions, input-side static singletons, and new leading axes. A fully static
+unequal pair whose source is not one is rejected; a pair containing an unresolved dimension is
+retained with the later source-one-or-source-equal requirement and no Model-created constraint.
+Static target plus resolved input geometry produces same-offset view metadata with preserved
+aligned and zero leading/expanded strides; binding-dependent or otherwise unresolved geometry
+remains unresolved. Each result is fresh, unlabeled, storage-free, and records one-input EXPAND
+provenance without repeating values, attaching an alias, or choosing materialization.
 A `Tensor.permute` request accepts every data type and preserves exact gradient eligibility. It
 requires a complete output-to-input mapping, normalizes each negative axis once, and reorders exact
 Dimension references. Resolved input geometry produces a new same-offset view descriptor with

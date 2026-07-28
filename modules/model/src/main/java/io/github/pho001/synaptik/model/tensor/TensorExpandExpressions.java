@@ -16,8 +16,10 @@ import java.util.Optional;
  *
  * <p>Expansion aligns input axes with target axes from the right. Equal dimensions are retained,
  * statically known input singletons may repeat to any target dimension, and target-only leading
- * axes behave as expansion from implicit singletons. The helper rejects compatibility that cannot
- * be proved from immutable Shape values; it never binds symbols or creates graph constraints.</p>
+ * axes behave as expansion from implicit singletons. A fully static unequal aligned pair is
+ * rejected unless the source is one. A pair containing an unresolved dimension is retained for
+ * later proof that its source extent is one or equals its target extent. The helper never binds,
+ * unifies, or evaluates dimensions and creates no deferred constraint.</p>
  *
  * <p>When the target is fully static and input layout is resolved, construction derives new
  * logical view geometry by preserving the exact input offset and aligned strides and inserting
@@ -47,7 +49,8 @@ final class TensorExpandExpressions {
      * @throws NullPointerException if {@code input} or {@code requestedShape} is null, with the
      *     corresponding parameter name as the message
      * @throws IllegalArgumentException if a dimension is negative, target rank is below input
-     *     rank, or aligned dimensions are incompatible
+     *     rank, or an aligned fully static pair has unequal extents and the input extent is not
+     *     one
      * @throws ArithmeticException if resolved layout stride or referenced-span arithmetic
      *     overflows
      * @throws IllegalStateException if tensor identifier space is exhausted during final creation
@@ -75,8 +78,8 @@ final class TensorExpandExpressions {
      * @return a non-null fresh unlabeled, storage-free expansion expression
      * @throws NullPointerException if {@code input} or {@code targetShape} is null, with the
      *     corresponding parameter name as the message
-     * @throws IllegalArgumentException if target rank is below input rank or aligned dimensions
-     *     are incompatible
+     * @throws IllegalArgumentException if target rank is below input rank or an aligned fully
+     *     static pair has unequal extents and the input extent is not one
      * @throws ArithmeticException if resolved layout stride or referenced-span arithmetic
      *     overflows
      * @throws IllegalStateException if tensor identifier space is exhausted during final creation
@@ -95,15 +98,17 @@ final class TensorExpandExpressions {
      * Validates directional right-aligned expansion compatibility from current Shape metadata.
      *
      * <p>Target-only leading axes are valid. Aligned axes are inspected in ascending input-axis
-     * order and are accepted only when their immutable dimensions are structurally equal or the
-     * input is a static singleton. Thus equal dynamic symbols and singleton-to-dynamic targets are
-     * valid, while unequal symbols and other unprovable dynamic pairs are rejected without
-     * binding or constraint creation.</p>
+     * order. Structural equality and a static source singleton are immediately valid. A pair of
+     * unequal static extents is rejected when the source is not one; zero is an ordinary static
+     * extent under that rule. Any pair containing an unresolved dimension is accepted as a
+     * binding-dependent expression whose later condition is source-equals-one or
+     * source-equals-target. This method does not bind, unify, or evaluate dimensions and records
+     * no deferred constraint.</p>
      *
      * @param inputShape non-null exact input Shape to align from the right
      * @param targetShape non-null exact requested result Shape
      * @throws IllegalArgumentException if target rank is below input rank or the first aligned
-     *     incompatible pair is encountered
+     *     fully static unequal pair whose input extent is not one is encountered
      */
     private static void validateExpansion(Shape inputShape, Shape targetShape) {
         int inputRank = inputShape.rank();
@@ -120,8 +125,9 @@ final class TensorExpandExpressions {
             Dimension inputDimension = inputShape.dimension(inputAxis);
             Dimension targetDimension = targetShape.dimension(targetAxis);
             if (!inputDimension.equals(targetDimension)
-                    && !(inputDimension instanceof StaticDimension staticDimension
-                            && staticDimension.size() == 1)) {
+                    && inputDimension instanceof StaticDimension inputStatic
+                    && inputStatic.size() != 1
+                    && targetDimension instanceof StaticDimension) {
                 throw new IllegalArgumentException(
                         "cannot expand input shape " + inputShape + " to target shape "
                                 + targetShape + " at target axis " + targetAxis);
@@ -133,10 +139,12 @@ final class TensorExpandExpressions {
      * Resolves logical view geometry only when both required numeric facts are available.
      *
      * <p>The input layout optional is read exactly once. Dynamic target geometry or absent input
-     * layout returns unresolved state. Otherwise one target-rank stride array is derived from
-     * every resolved input layout kind, and a new view-marked descriptor preserves the exact input
-     * element offset. This metadata neither attaches input storage nor proves that execution will
-     * realize an alias.</p>
+     * layout returns unresolved state. A descriptor with resolved layout necessarily has a fully
+     * static input Shape, so every accepted binding-dependent pair also takes the unresolved
+     * branch. Otherwise one target-rank stride array is derived from every resolved input layout
+     * kind, and a new view-marked descriptor preserves the exact input element offset. This
+     * metadata neither attaches input storage nor proves that execution will realize an
+     * alias.</p>
      *
      * @param inputDescriptor non-null exact input descriptor supplying optional layout and Shape
      * @param targetShape non-null validated target Shape

@@ -90,7 +90,7 @@ cross-package/public orchestration boundary from a concrete consumer.
 | 0004B | [Shared-algebra cotangent normalization and local derivative rules](tasks/0004b-shared-algebra-cotangent-normalization-and-local-derivative-rules.md) | Complete | 0004A | Added mixed-floating Shape/DataType normalization, ordinary DIV and MEAN formulas, and direct-zero FLOOR/CEIL/SIGN plus masked-all-false local conventions without a gradient-specific algebra or optimization policy. |
 | 0005 | [Publication, planning orchestration, and compile artifacts](tasks/0005-publication-planning-orchestration-and-compile-artifacts.md) | Complete | 0001–0004B; Planning 0006 closure; stable Config 0001–0003 and Backend Contract 0001–0004 inputs | Added the package-private complete compile entry, ordered publication/constant/diagnostic artifacts, and Compiler-owned graph-wide orchestration through three narrow package-cohesive Planning operations without prepare/runtime/backend state. |
 | 0005A | [Derivative policy and elementwise/activation gradient completion](tasks/0005a-derivative-policy-and-elementwise-activation-gradient-completion.md) | Complete | Model 0025A; Compiler 0005 | Completed the exact 48-kind binary/scalar arithmetic, selection/cast, unary, activation, comparison/logical/classification inventory with fixed tie, endpoint, discontinuity, domain, NaN, infinity, Shape/type-normalization, and non-differentiable-role policy. |
-| 0005B | Reduction, scan, softmax, statistics, and normalization gradient completion | Draft | 0005A | Complete binding-dependent sum-to-Shape, products, extrema, scans, softmax/log-softmax, statistics, norms, and layer/RMS/batch normalization, including explicit boundary policies, non-differentiable mask/index roles, and same-occurrence saved batch-statistic outputs. |
+| 0005B | Reduction, scan, softmax, statistics, and normalization gradient completion | Draft | Model 0025B; 0005A | Adopt binding-aware EXPAND and complete binding-dependent sum-to-Shape, products, extrema, scans, softmax/log-softmax, statistics, norms, and layer/RMS/batch normalization, including explicit boundary policies, non-differentiable mask/index roles, and same-occurrence saved batch-statistic outputs. |
 | 0005C | Layout, window, indexing, scatter, ordering, and stochastic gradient completion | Draft | 0005B | Complete remaining layout/slice/composition and dynamic window rules, Gather/scatter variants, sort/top-K routing, and dropout through canonical auxiliaries; keep coordinates, indices, one-hot/BOOL outputs, RNG state, masks, and configuration roles non-differentiable. |
 | 0005D | Attention, convolution, pooling, and loss gradient completion | Draft | 0005B, 0005C | Verify the implemented MATMUL/linear chain and complete the remaining structured-ML inventory: attention with same-occurrence weights, grouped convolution, pooling, and every current loss role and reduction mode with explicit special-case policies and non-differentiable mask/index/configuration roles. |
 | 0005E | First-order gradient coverage closure checkpoint | Draft | 0005A, 0005B, 0005C, 0005D | Audit every current operation signature, output slot, and input role as implemented differentiable coverage or intentionally non-differentiable; prove fail-closed inventory and transitive differentiability of formula operations, then run the first-order capability checkpoint. |
@@ -145,10 +145,12 @@ with recorded source, tests, documentation, and validation. Focused
 Complete and fixes the shared floating comparison/extrema/clamp forward contract. Compiler
 [0005A](tasks/0005a-derivative-policy-and-elementwise-activation-gradient-completion.md)
 is Complete with the exact elementwise/activation derivative-policy matrix, fixed coefficient
-bits, exact typed-splat cache, source-backed inventory, and one shared Tensor algebra. Compiler
-0005B is now the sole current unfinished frontier but remains a concise Draft row; 0005B–0005E
-and 0006 have no detailed specifications. The final exact fifteen-path change passed the compiler
-module suite with 22 suites/159 tests and no skips, failures, or errors; the independent
+bits, exact typed-splat cache, source-backed inventory, and one shared Tensor algebra. Complete
+[Model 0025B](../model/tasks/0025b-binding-aware-expansion.md) supplies the remaining
+implementation prerequisite. Compiler 0005B is now the sole unfinished frontier but remains a
+concise Draft row; 0005B–0005E and 0006 have no detailed specifications. The final exact
+fifteen-path 0005A change passed the compiler module suite with 22 suites/159 tests and no skips,
+failures, or errors; the independent
 documentation pass finalized all affected Javadocs and explanatory/planning surfaces and passed
 Javadoc, Markdown, exact-scope, and whitespace validation.
 
@@ -224,8 +226,9 @@ Runtime and prepare remain Draft because no prepared or executable state is intr
   remains deferred to task 0006 after the compile/artifact boundary and task 0005E first-order
   closure are stable.
 - Task 0005B must select the corresponding empty-domain, zero-product, extrema, softmax,
-  correction, zero-norm/variance, and normalization policies and close binding-dependent
-  sum-to-Shape plus saved batch-statistic roles.
+  correction, zero-norm/variance, and normalization policies; adopt Model 0025B EXPAND with
+  source-one-or-source-equal deferred predicates; and close binding-dependent sum-to-Shape plus
+  saved batch-statistic roles.
 - Task 0005C must select duplicate-target scatter, ordering/cutoff, window-selection, and dropout
   probability-edge policies while preserving dynamic geometry and non-differentiable index/RNG
   roles.
@@ -264,6 +267,11 @@ Runtime and prepare remain Draft because no prepared or executable state is intr
   ordinary ordered floating comparisons, numeric equality/inequality, NaN-propagating MIN/MAX,
   signed-zero extrema, and ordered `MIN(MAX(input, minValue), maxValue)` CLAMP without choosing any
   derivative tie, endpoint, discontinuity, singularity, or exceptional-value convention.
+- Complete Model task 0025B is the semantic prerequisite for Compiler 0005B. It broadens existing
+  EXPAND construction only when an aligned pair contains an unresolved Dimension, retains the
+  exact target Shape, and leaves layout unresolved. Compiler 0005B later owns
+  `AnyOf(DimensionEqual(source, 1), DimensionEqual(source, target))` inference/proof, preflight,
+  and binding-dependent gradient consistency; Model adds no constraint object or binding.
 - Compiler 0005A fixes those separate first-order elementwise conventions: symmetric extrema
   ties, ordered-composition CLAMP endpoints, direct ABS/RELU discontinuities, raw analytic
   domains, activation infinity extensions, and intentionally non-differentiable comparison,
@@ -348,6 +356,7 @@ independent documentation pass, and compiler transformation/autograd capability 
 passed. Compiler 0005 and Model 0025A are Complete.
 [Compiler 0005A](tasks/0005a-derivative-policy-and-elementwise-activation-gradient-completion.md)
 is Complete. It closed the complete 0005A policy and implementation boundary through the exact
-fifteen authorized paths and independent documentation pass. Keep 0005B–0005E and 0006 as concise
-Draft rows without detailed specifications until the progressive-planning workflow promotes the
-next frontier.
+fifteen authorized paths and independent documentation pass. Complete
+[Model 0025B](../model/tasks/0025b-binding-aware-expansion.md) now supplies the next compiler
+prerequisite. Keep 0005B–0005E and 0006 as concise Draft rows without detailed specifications
+until the progressive-planning workflow promotes Compiler 0005B.

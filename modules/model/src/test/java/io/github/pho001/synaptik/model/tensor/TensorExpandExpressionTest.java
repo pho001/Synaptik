@@ -16,6 +16,8 @@ import io.github.pho001.synaptik.model.layout.LayoutKind;
 import io.github.pho001.synaptik.model.operation.Operation;
 import io.github.pho001.synaptik.model.operation.layout.ShapeTransformKind;
 import io.github.pho001.synaptik.model.operation.layout.TargetShapeAttrs;
+import io.github.pho001.synaptik.model.shape.Dimension;
+import io.github.pho001.synaptik.model.shape.DimensionExpressions;
 import io.github.pho001.synaptik.model.shape.DynamicDimension;
 import io.github.pho001.synaptik.model.shape.Shape;
 import io.github.pho001.synaptik.model.shape.StaticDimension;
@@ -171,41 +173,94 @@ class TensorExpandExpressionTest {
     }
 
     @Test
-    void exactShapeRetainsReferenceAndAcceptsOnlyProvableDynamicCompatibility() {
-        DynamicDimension batch = new DynamicDimension("batch");
-        DynamicDimension other = new DynamicDimension("other");
-        Shape inputShape = Shape.ofDimensions(batch, new StaticDimension(1));
-        Shape targetShape = Shape.ofDimensions(batch, new DynamicDimension("width"));
-        Tensor input = tensor(DataType.FLOAT64, inputShape, Optional.empty(), true);
-        Shape singletonToDynamic = Shape.ofDimensions(new DynamicDimension("items"));
-        Tensor singleton = tensor(DataType.FLOAT64, Shape.of(1), Optional.empty(), true);
+    void acceptsEveryDeferredAlignedCompatibilityCategoryAndRetainsExactTargets() {
+        Dimension named = new DynamicDimension("named");
+        Dimension equalNamed = new DynamicDimension("named");
+        Dimension otherNamed = new DynamicDimension("other");
+        Dimension expression = DimensionExpressions.addConstant(
+                new DynamicDimension("base"), 2);
+        Dimension constrainedUnknown = DimensionExpressions.unknown(
+                1, Optional.of(new StaticDimension(8)));
+        Dimension otherUnknown = DimensionExpressions.unknown(0, Optional.empty());
+
+        Shape equalUnresolvedTarget = Shape.ofDimensions(equalNamed);
+        Shape unresolvedToUnresolvedTarget = Shape.ofDimensions(otherNamed);
+        Shape unresolvedToStaticTarget = Shape.of(4);
+        Shape expressionToUnknownTarget = Shape.ofDimensions(otherUnknown);
+        Shape constrainedUnknownToStaticTarget = Shape.of(6);
+        Shape staticToUnresolvedTarget = Shape.ofDimensions(new DynamicDimension("target"));
+        Shape singletonToExpressionTarget = Shape.ofDimensions(expression);
+
+        Tensor equalUnresolved = tensor(
+                DataType.FLOAT64, Shape.ofDimensions(named), Optional.empty(), true)
+                .expand(equalUnresolvedTarget);
+        Tensor unresolvedToUnresolved = tensor(
+                DataType.FLOAT64, Shape.ofDimensions(named), Optional.empty(), true)
+                .expand(unresolvedToUnresolvedTarget);
+        Tensor unresolvedToStatic = tensor(
+                DataType.FLOAT64, Shape.ofDimensions(named), Optional.empty(), true)
+                .expand(unresolvedToStaticTarget);
+        Tensor expressionToUnknown = tensor(
+                DataType.FLOAT64, Shape.ofDimensions(expression), Optional.empty(), true)
+                .expand(expressionToUnknownTarget);
+        Tensor constrainedUnknownToStatic = tensor(
+                DataType.FLOAT64,
+                Shape.ofDimensions(constrainedUnknown),
+                Optional.empty(),
+                true)
+                .expand(constrainedUnknownToStaticTarget);
+        Tensor staticToUnresolved = tensor(
+                DataType.FLOAT64, Shape.of(4), Optional.empty(), true)
+                .expand(staticToUnresolvedTarget);
+        Tensor singletonToExpression = tensor(
+                DataType.FLOAT64, Shape.of(1), Optional.empty(), true)
+                .expand(singletonToExpressionTarget);
+
+        List<Tensor> results = List.of(
+                equalUnresolved,
+                unresolvedToUnresolved,
+                unresolvedToStatic,
+                expressionToUnknown,
+                constrainedUnknownToStatic,
+                staticToUnresolved,
+                singletonToExpression);
+        List<Shape> targets = List.of(
+                equalUnresolvedTarget,
+                unresolvedToUnresolvedTarget,
+                unresolvedToStaticTarget,
+                expressionToUnknownTarget,
+                constrainedUnknownToStaticTarget,
+                staticToUnresolvedTarget,
+                singletonToExpressionTarget);
+
+        for (int index = 0; index < results.size(); index++) {
+            Tensor result = results.get(index);
+            Shape target = targets.get(index);
+            assertAll(
+                    () -> assertSame(target, result.descriptor().shape()),
+                    () -> assertSame(
+                            target,
+                            ((TargetShapeAttrs) result.provenance().orElseThrow()
+                                    .operation().attrs()).targetShape()),
+                    () -> assertTrue(result.descriptor().layout().isEmpty()));
+        }
+    }
+
+    @Test
+    void acceptsUnresolvedLeadingAxesWithoutAddingAlignedObligations() {
+        Shape targetShape = Shape.ofDimensions(
+                new DynamicDimension("leading"), new StaticDimension(3));
+        Tensor input = tensor(DataType.FLOAT32, Shape.of(3), Optional.empty(), true);
 
         Tensor result = input.expand(targetShape);
-        Tensor singletonResult = singleton.expand(singletonToDynamic);
-        IllegalArgumentException unequalSymbols = assertThrows(
-                IllegalArgumentException.class,
-                () -> tensor(DataType.FLOAT64,
-                                Shape.ofDimensions(batch), Optional.empty(), true)
-                        .expand(Shape.ofDimensions(other)));
-        IllegalArgumentException dynamicToStatic = assertThrows(
-                IllegalArgumentException.class,
-                () -> tensor(DataType.FLOAT64,
-                                Shape.ofDimensions(batch), Optional.empty(), true)
-                        .expand(2));
 
         assertAll(
                 () -> assertSame(targetShape, result.descriptor().shape()),
-                () -> assertSame(targetShape,
+                () -> assertSame(
+                        targetShape,
                         ((TargetShapeAttrs) result.provenance().orElseThrow()
                                 .operation().attrs()).targetShape()),
-                () -> assertSame(singletonToDynamic, singletonResult.descriptor().shape()),
-                () -> assertTrue(result.descriptor().layout().isEmpty()),
-                () -> assertEquals(
-                        "cannot expand input shape Shape[batch] to target shape Shape[other] at target axis 0",
-                        unequalSymbols.getMessage()),
-                () -> assertEquals(
-                        "cannot expand input shape Shape[batch] to target shape Shape[2] at target axis 0",
-                        dynamicToStatic.getMessage()));
+                () -> assertTrue(result.descriptor().layout().isEmpty()));
     }
 
     @Test
@@ -231,6 +286,10 @@ class TensorExpandExpressionTest {
                 IllegalArgumentException.class, () -> input.expand(4, 5));
         IllegalArgumentException noShrink = assertThrows(
                 IllegalArgumentException.class, () -> input.expand(1, 3));
+        IllegalArgumentException zeroMismatch = assertThrows(
+                IllegalArgumentException.class,
+                () -> tensor(DataType.FLOAT32, Shape.of(0, 3), Optional.empty(), true)
+                        .expand(1, 3));
 
         assertAll(
                 () -> assertEquals("input", nullRawInput.getMessage()),
@@ -246,7 +305,10 @@ class TensorExpandExpressionTest {
                         firstMismatch.getMessage()),
                 () -> assertEquals(
                         "cannot expand input shape Shape[2, 3] to target shape Shape[1, 3] at target axis 0",
-                        noShrink.getMessage()));
+                        noShrink.getMessage()),
+                () -> assertEquals(
+                        "cannot expand input shape Shape[0, 3] to target shape Shape[1, 3] at target axis 0",
+                        zeroMismatch.getMessage()));
     }
 
     @Test
@@ -399,7 +461,8 @@ class TensorExpandExpressionTest {
     }
 
     @Test
-    void earlyValidationFailuresConsumeNoTensorIdentity() throws Exception {
+    void earlyValidationFailuresConsumeNoIdentityAndDeferredSuccessConsumesExactlyOne()
+            throws Exception {
         Tensor input = tensor(DataType.FLOAT32, Shape.of(2, 3), Optional.empty(), true);
         AtomicLong next = nextTensorIdState();
         long before = next.get();
@@ -408,6 +471,19 @@ class TensorExpandExpressionTest {
         assertThrows(IllegalArgumentException.class, () -> input.expand(3));
         assertThrows(IllegalArgumentException.class, () -> input.expand(2, 4));
         assertEquals(before, next.get());
+
+        Shape deferredTarget = Shape.ofDimensions(
+                new DynamicDimension("target"), new StaticDimension(3));
+        Tensor deferred = tensor(
+                DataType.FLOAT32,
+                Shape.ofDimensions(new DynamicDimension("source"), new StaticDimension(3)),
+                Optional.empty(),
+                true)
+                .expand(deferredTarget);
+
+        assertAll(
+                () -> assertEquals(before, deferred.id().value()),
+                () -> assertEquals(Math.addExact(before, 1), next.get()));
     }
 
     @Test

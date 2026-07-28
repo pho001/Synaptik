@@ -293,7 +293,7 @@ elementwise/activation completion:
 | Elementwise and activation | All seven promoted floating binary arithmetic kinds: `ADD`, `SUB`, `MUL`, `DIV`, `MIN`, `MAX`, and `POW`; all eight exact-type floating scalar kinds, including first-class `CLAMP`; promoted floating branch-only `WHERE`; floating-to-floating `CAST`; and all nineteen floating unary kinds from `ABS` through `SILU` |
 | Reductions and scan | Ordinary full, single-axis, and ordered multi-axis floating `SUM` and `MEAN`; masked floating `SUM` and `MEAN`; locally invertible floating `SUM_TO_SHAPE`; floating `CUM_SUM` for all current exclusive/reverse combinations |
 | Linear algebra | Every current floating `MATMUL` vector/matrix rank pairing, with role-aware mixed-floating normalization and batch unbroadcasting |
-| Logical layout and selection | Floating `CONTIGUOUS`, `RESHAPE`, `EXPAND`, `EXPAND_DIMS`, `SQUEEZE`, `PERMUTE`, normalized `SLICE`, both normalized `SLICE_UPDATE` data roles, `SELECT`, `PAD`, `TILE`, `CONCAT`, and `STACK` |
+| Logical layout and selection | Floating `CONTIGUOUS`, `RESHAPE`, locally established `EXPAND`, `EXPAND_DIMS`, `SQUEEZE`, `PERMUTE`, normalized `SLICE`, both normalized `SLICE_UPDATE` data roles, `SELECT`, `PAD`, `TILE`, `CONCAT`, and `STACK` |
 
 Forward and generated expressions use one model-owned Tensor algebra. For a selected mixed-
 floating input, the compiler first reverses ordinary broadcasting with `sumToShape` when needed
@@ -442,7 +442,7 @@ is intentionally explicit:
 
 | Classification | Current deferred or rejected families |
 |---|---|
-| Later reduction and normalization work | Binding-dependent `SUM_TO_SHAPE`; `PROD`, `CUM_PROD`, reduction extrema, `LOG_SUM_EXP`, softmax/log-softmax, statistics and norms, and layer/RMS/batch normalization |
+| Later reduction and normalization work | Binding-dependent `SUM_TO_SHAPE`; binding-dependent `EXPAND` adoption; `PROD`, `CUM_PROD`, reduction extrema, `LOG_SUM_EXP`, softmax/log-softmax, statistics and norms, and layer/RMS/batch normalization |
 | Later layout, indexing, and stochastic work | Target-relative crop and unselected layout variants outside current exact guards; Gather/scatter, ordering/top-K, windows, dropout, and RNG-state roles |
 | Later structured differentiation work | Attention, convolution, pooling, losses, and other structured families assigned to Compiler 0005D |
 | Non-differentiable roles and outputs | Comparisons, BOOL logic/classification, `ALL`, `ANY`, arg-extrema results, one-hot and other index roles, masks, padding constants, select coordinates, and graph RNG state |
@@ -947,15 +947,29 @@ constraint solving, reshape-chain canonicalization, materialization planning, ba
 lowering, and execution remain planned.
 `Tensor.expand(long...)` treats every requested extent as a literal non-negative dimension, while
 `Tensor.expand(Shape)` retains the exact target reference. Both overloads require target rank at
-least input rank and accept aligned dimensions only when they are structurally equal or the input
-is a static singleton; new leading target axes are valid. A fully static target and any resolved
-input layout produce new same-offset view geometry with preserved aligned strides and zero strides
-for leading or expanded-singleton axes. Dynamic target or unresolved input geometry stays
-unresolved. Every result retains exact type and gradient eligibility, records exact
+least input rank and allow new leading target axes. Structural equality and a static source
+singleton are immediately compatible. A fully static unequal aligned pair is rejected when the
+source is not one; zero is an ordinary static extent. If either aligned dimension is unresolved,
+Model construction now retains the exact target and the later condition
+`source == 1 || source == target`, leaves layout unresolved, and creates no
+`DeferredGraphConstraint`. A fully static target and resolved input layout otherwise produce new
+same-offset view geometry with preserved aligned strides and zero strides for leading or
+expanded-singleton axes. Every result retains exact type and gradient eligibility, records exact
 EXPAND/target-shape semantics with one-input provenance, and remains fresh, unlabeled, and
-storage-free. Package-private structural capture can preserve this model construction, but it does
-not repeat values or establish storage aliasing, dynamic constraint solving, gradient behavior,
-canonicalization, materialization, lowering, or execution.
+storage-free.
+
+Package-private capture can carry that broadened Model occurrence into graph validation, but
+current compiler inference has not adopted its obligation. The EXPAND branch still admits an
+aligned pair only when the dimensions are structurally equal or the source is a static singleton;
+a non-equal pair containing an unresolved dimension is rejected rather than translated into a
+deferred predicate. The currently supported floating EXPAND gradient therefore covers only those
+locally admitted occurrences and continues to use
+`gradient.sumToShape(input.descriptor().shape())`. Compiler task 0005B remains Draft, has no
+detailed task file, and is planned to add the occurrence-owned
+`AnyOf(DimensionEqual(source, 1), DimensionEqual(source, target))` inference/proof, preflight, and
+gradient consistency. Existing `SUM_TO_SHAPE` reduction semantics are unchanged. Neither the
+current nor planned boundary claims value repetition, storage aliasing, materialization, backend
+lowering, or execution.
 `Tensor.permute(int...)` accepts every current data type, requires a complete output-to-input axis
 mapping, normalizes each negative axis once, and reorders exact Dimension references. Any resolved
 input layout produces a new same-offset view descriptor with exact reordered strides; unresolved

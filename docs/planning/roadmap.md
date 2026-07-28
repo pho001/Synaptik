@@ -14,7 +14,7 @@ Parallel work is not the default. It requires an explicit roadmap or master-plan
 
 | Order | Project area | Status | Entry condition | Exit condition |
 |---|---|---|---|---|
-| 1 | [`modules/model`](modules/model/master-plan.md) | Complete | Repository and planning infrastructure are ready. | The historical selected capability milestone remains closed, focused compiler-foundation task 0025 remains complete, and focused forward-semantics prerequisite 0025A is complete. |
+| 1 | [`modules/model`](modules/model/master-plan.md) | Complete | Repository and planning infrastructure are ready. | The historical selected capability milestone remains closed and focused compiler prerequisites through task 0025B are complete. |
 | 2 | [`modules/trace`](modules/trace/master-plan.md) | In progress (interleaved) | Required model contracts are stable or confirmed unnecessary. | Typed trace DTO contracts and validation are complete. |
 | 3 | [`modules/backend-contract`](modules/backend-contract/master-plan.md) | Complete | Foundational value-model conventions and the stable trace foundation are complete. | Backend identity and declarative requirement contracts are complete. |
 | 4 | [`modules/config`](modules/config/master-plan.md) | In progress (interleaved) | Model and backend identity contracts required by configuration are stable. | Compile, prepare, run, planning-cost, and model-autotuning request contracts are complete where stable consumers justify them. |
@@ -53,8 +53,10 @@ Its latest completed model prerequisite frontier is
 The latest completed interleaved prerequisite is
 [Model 0025A Portable floating comparison, extrema, and clamp semantics](modules/model/tasks/0025a-portable-floating-comparison-extrema-and-clamp-semantics.md).
 Compiler 0005A is Complete with the exact 48-kind source-backed elementwise/activation inventory,
-fixed derivative policies, exact coefficient bits, and request-local typed splats. Compiler 0005B
-is the next unfinished frontier but remains a concise Draft row without a detailed specification.
+fixed derivative policies, exact coefficient bits, and request-local typed splats. Complete
+[Model 0025B Binding-aware expansion](modules/model/tasks/0025b-binding-aware-expansion.md)
+now supplies the binding-aware prerequisite for Compiler 0005B. Compiler 0005B is the sole next
+unfinished frontier but remains a concise Draft row without a detailed specification.
 The exact fifteen-path 0005A change passed 22 compiler suites/159 tests with no skips, failures,
 or errors plus its independent Javadoc and documentation gates.
 Compiler 0004B's closed matrix covers mixed-floating cotangent Shape/DataType
@@ -88,7 +90,7 @@ the complete current model operation inventory before higher-order work:
 | Compiler task | Status | Depends on | Milestone responsibility |
 |---|---|---|---|
 | [0005A Derivative policy and elementwise/activation gradient completion](modules/compiler/tasks/0005a-derivative-policy-and-elementwise-activation-gradient-completion.md) | Complete | Model 0025A; Compiler 0005 | Completed the exact 48-kind binary/scalar arithmetic, selection/cast, unary, activation, comparison/logical/classification inventory with fixed tie, endpoint, discontinuity, domain, NaN, infinity, normalization, and non-differentiable-role policy. |
-| 0005B Reduction, scan, softmax, statistics, and normalization gradient completion | Draft | 0005A | Complete binding-dependent sum-to-Shape, products, extrema, scans, softmax/log-softmax, statistics, norms, and layer/RMS/batch normalization, including saved batch-statistic outputs and non-differentiable mask/index roles. |
+| 0005B Reduction, scan, softmax, statistics, and normalization gradient completion | Draft | Model 0025B; 0005A | Adopt binding-aware EXPAND and complete binding-dependent sum-to-Shape, products, extrema, scans, softmax/log-softmax, statistics, norms, and layer/RMS/batch normalization, including saved batch-statistic outputs and non-differentiable mask/index roles. |
 | 0005C Layout, window, indexing, scatter, ordering, and stochastic gradient completion | Draft | 0005B | Complete dynamic layout/slice/composition/window rules, Gather/scatter variants, sort/top-K, and dropout while preserving non-differentiable coordinates, indices, one-hot/BOOL outputs, RNG state, masks, and configuration roles. |
 | 0005D Attention, convolution, pooling, and loss gradient completion | Draft | 0005B, 0005C | Verify the implemented MATMUL/linear chain and complete attention, grouped convolution, pooling, and every current loss role and reduction mode with required same-occurrence auxiliaries and explicit special-case policies. |
 | 0005E First-order gradient coverage closure checkpoint | Draft | 0005A, 0005B, 0005C, 0005D | Audit every current operation signature, output slot, and input role; prove fail-closed coverage and transitive differentiability of formula operations; run the first-order checkpoint. |
@@ -101,6 +103,10 @@ must not claim that every operation role has a gradient: BOOL, index, random-num
 applicable. Each compiler task must explicitly choose its required tie, subgradient,
 discontinuity, empty-domain, or exceptional-value policy before claiming coverage; completed
 Model 0025A chooses only forward semantics and no derivative policy.
+Complete Model 0025B similarly broadens only existing EXPAND construction: unresolved aligned pairs
+retain exact target Shape and the later source-one-or-source-equal obligation with unresolved
+layout. It adds no compiler predicate or binding behavior. Compiler 0005B owns that adoption and
+remains Draft without a task file.
 Completed Compiler 0004–0004B matrices remain the implemented baseline and must be preserved,
 not replanned as missing work.
 Dynamic and binding-dependent rules remain logical compile work, and canonical same-occurrence
@@ -131,6 +137,13 @@ file at the historical completion point of Model 0025A. The later focused planni
 promoted only
 [Compiler 0005A](modules/compiler/tasks/0005a-derivative-policy-and-elementwise-activation-gradient-completion.md)
 with its detailed derivative-policy specification; that compiler task is now Complete.
+The latest reassessment selected and completed only
+[Model 0025B Binding-aware expansion](modules/model/tasks/0025b-binding-aware-expansion.md)
+as the binding-aware Model prerequisite. It broadens the existing EXPAND expression contract only
+far enough to represent compatibility that depends on later dimension bindings. Compiler-owned
+deferred constraints, preflight proof, gradient construction, lowering, and execution remain
+outside the task. Compiler 0005B therefore remains Draft without a detailed task file until this
+model prerequisite is complete.
 
 Compiler 0004 follows completed
 [Compiler 0003B Compile-time constants and constant folding](modules/compiler/tasks/0003b-compile-time-constants-and-constant-folding.md),
@@ -207,7 +220,8 @@ and their shared semantics.
 Complete Compiler 0005 retains compile artifacts and Compiler-owned publication/planning
 orchestration through its implementation. Complete Model 0025A fixes the shared floating
 comparison/extrema/clamp forward contract consumed unchanged by complete Compiler 0005A. Draft
-Compiler 0005B–0005E continue the current-inventory first-order milestone in dependency order.
+Compiler 0005B–0005E continue the current-inventory first-order milestone in dependency order,
+with Complete Model 0025B supplying the prerequisite before Compiler 0005B may be promoted.
 Compiler 0006 retains
 an explicit higher-derivative create-graph/order contract, remains Draft without a detailed
 specification, and now depends on the completed 0005E closure checkpoint rather than only on the
@@ -296,8 +310,9 @@ The subsequent reassessment selected only Compiler 0003B compile-time constants/
 autograd, and that task is now Complete. The subsequent reassessment selected only focused Model
 0025 before compiler work resumed, and that task is Complete. Compiler 0004, 0004A, and 0004B are
 now Complete; none advances cost, tuning, or downstream lifecycle work. Compiler 0005 is Complete.
-The current reassessment selected and completed only Model 0025A before compiler gradient planning
-resumed. Compiler 0005A is now Complete. Compiler 0005B is the next unfinished frontier;
+The preceding reassessment selected and completed only Model 0025A before compiler gradient
+planning resumed, and Compiler 0005A is now Complete. The latest reassessment selected and
+completed Model 0025B as the prerequisite for the next compiler frontier. Compiler
 0005B–0005E and 0006 remain Draft without detailed specifications, and no later compiler task is
 Ready.
 Compiler 0004 owns combined exact cleanup before 0005 partitioning/orchestration; the new
@@ -334,11 +349,15 @@ checkpoint. Completed
 [Model 0025A](modules/model/tasks/0025a-portable-floating-comparison-extrema-and-clamp-semantics.md)
 is the latest completed interleave.
 [Compiler 0005A](modules/compiler/tasks/0005a-derivative-policy-and-elementwise-activation-gradient-completion.md)
-is Complete; Compiler 0005B–0005E and 0006 remain Draft without detailed specifications, and no
-later compiler task is Ready. Compiler 0004 owns combined exact
+is Complete. Complete
+[Model 0025B](modules/model/tasks/0025b-binding-aware-expansion.md) supplies the model prerequisite
+for Compiler 0005B. Compiler 0005B–0005E and 0006 remain Draft without detailed specifications,
+and no later compiler task is Ready. Compiler
+0004 owns combined exact
 cleanup before 0005 partitioning/orchestration; 0005A follows completed Model 0025A and Compiler 0005,
-0005B–0005E follow in order, and 0006 follows the 0005E first-order closure checkpoint plus the
-stable public compile/artifact boundary. No compiler task consumes or advances Config 0004.
+0005B follows completed Model 0025B and Compiler 0005A, 0005C–0005E follow in order, and 0006
+follows the 0005E first-order closure checkpoint plus the stable public compile/artifact boundary.
+No compiler task consumes or advances Config 0004.
 
 Trace tasks
 [0001 Core trace event envelope](modules/trace/tasks/0001-core-trace-event-envelope.md) and
@@ -503,6 +522,9 @@ Focused task 0025 is a later compiler-foundation interleave and does not reopen 
 capability audit or its verdict. Complete task 0025A is a second bounded interleave that clarifies
 only the already-selected portable comparison/extrema/clamp forward contract before Compiler
 0005A; it does not change the historical capability verdict or choose derivative behavior.
+Complete task 0025B is a third bounded interleave that broadens only existing EXPAND construction
+for binding-dependent compatibility before Compiler 0005B; it does not add compiler constraints,
+gradient behavior, lowering, or execution and does not change the historical capability verdict.
 Task 0023B's focused 15-suite run passed 124 tests, its single final model suite passed 981 tests
 across 125 suites, and the separate documentation pass validated model Javadoc, the executable
 example, Markdown, exact 26-path scope, the 190-method public Tensor surface, and synchronized
@@ -1144,6 +1166,7 @@ authorized Compile API status correction.
 | 122 | [0024A GraphValue Tensor-status Javadoc correction](modules/model/tasks/0024a-graph-value-tensor-status-javadoc-correction.md) | Complete |
 | 123 | [0025 Canonical TensorProducer outputs](modules/model/tasks/0025-canonical-tensor-producer-outputs.md) | Complete |
 | 124 | [0025A Portable floating comparison, extrema, and clamp semantics](modules/model/tasks/0025a-portable-floating-comparison-extrema-and-clamp-semantics.md) | Complete |
+| 125 | [0025B Binding-aware expansion](modules/model/tasks/0025b-binding-aware-expansion.md) | Complete |
 
 Task dependencies in the model master plan remain hard prerequisites. The table order is the default execution order even when a later task has no explicit dependency on an earlier task.
 
@@ -1206,6 +1229,8 @@ Focused task 0025 is the completed producer-output prerequisite for compiler-own
 autograd. Focused task 0025A is also Complete and supplies the remaining portable floating
 comparison/extrema/clamp forward-contract prerequisite for Compiler 0005A without altering the
 historical closure result or selecting derivatives.
+Focused task 0025B is Complete. It supplies the binding-aware EXPAND expression prerequisite for
+Compiler 0005B without adding compiler behavior or altering the historical closure result.
 Completed task 0016E originally added fixed-INT64 one-axis arg-max expression metadata without
 changing the ordinary reduction helper or adding value comparison, empty-axis policy, or
 execution. Completed task 0018U1 now supplies the shared arg-extrema model policy and integral

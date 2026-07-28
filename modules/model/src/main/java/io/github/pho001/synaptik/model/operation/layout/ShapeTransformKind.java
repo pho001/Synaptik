@@ -21,11 +21,13 @@ import java.util.List;
  * input, target shape, result descriptor, layout, materialization requirement, or graph-occurrence
  * state.</p>
  *
- * <p>These kinds define logical meaning only. Public request normalization, element-count and
- * broadcast validation, layout and provenance construction, gradient behavior, compiler and
- * planning decisions, materialization, backend support, and execution belong to later owning
- * contracts. Inherited enum names are diagnostic text, not serialization, parsing, registry,
- * dispatch, reflection, or kernel identifiers.</p>
+ * <p>These kinds define logical meaning only. Input-aware Model construction owns local
+ * compatibility validation, result metadata, and provenance. In particular, an expansion may
+ * retain an exact target while an aligned unresolved source dimension still has to bind either to
+ * one or to the target dimension. This enum stores no such obligation. Compiler proof and
+ * gradient behavior, planning, materialization, backend support, and execution belong to their
+ * owning contracts. Inherited enum names are diagnostic text, not serialization, parsing,
+ * registry, dispatch, reflection, or kernel identifiers.</p>
  */
 public enum ShapeTransformKind implements OperationKind {
     /**
@@ -42,9 +44,12 @@ public enum ShapeTransformKind implements OperationKind {
      * Logically repeats compatible singleton dimensions or introduces repeated leading axes to
      * produce the target shape in {@link TargetShapeAttrs}.
      *
-     * <p>The eventual input and target must satisfy the expansion contract, but this kind neither
-     * stores input dimensions nor validates broadcasting. It also does not choose zero-stride
-     * geometry, aliasing or materialization, define gradients, or execute the transformation.</p>
+     * <p>For each right-aligned pair, the source extent must eventually be one or equal the target
+     * extent; target-only leading axes act as implicit source singletons. A Model expression may
+     * retain this requirement when either aligned dimension is unresolved, but this kind stores
+     * neither the dimensions nor a predicate, performs no binding or validation, and creates no
+     * deferred constraint. It also does not choose zero-stride geometry, aliasing or
+     * materialization, define gradients, or execute the transformation.</p>
      */
     EXPAND;
 

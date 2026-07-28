@@ -5053,44 +5053,53 @@ value, and return an unlabeled, storage-free Tensor. Provenance contains exactly
 `Operation(ShapeTransformKind.EXPAND, new TargetShapeAttrs(targetShape))` and ordered input
 `[input]`. Identity-like, repeated, and nested calls remain explicit fresh expressions.
 
-Current package-private compiler autograd reverses a supported floating expand with
+Current package-private compiler autograd reverses a compiler-admitted floating expand with
 `gradient.sumToShape(input.descriptor().shape())`, using the existing public binding-aware
-reduction. This logical formula does not select storage aliasing or materialization.
+reduction. That compiler path currently admits only the locally established equal-dimension or
+static-source-singleton cases. It does not yet adopt the wider Model acceptance described below:
+an EXPAND occurrence with a non-equal unresolved aligned pair still fails current compiler
+inference. Compiler task 0005B is planned to translate that occurrence into the corresponding
+deferred proof and to make preflight and gradient construction consistent. This logical formula
+does not select storage aliasing or materialization.
 
 Expansion is directional rather than symmetric broadcasting. Input and target axes align from
-the right. Each aligned input dimension must equal its target dimension structurally, or the input
-dimension must be the static singleton `1`. Extra leading target axes are valid because the
-missing input axes behave as logical singletons. The target cannot remove axes or shrink an input
-dimension. Equal dynamic symbols and a static input singleton expanding to a dynamic target are
-locally provable; unequal symbols and a dynamic input paired with another dimension are rejected
-without binding symbols or recording hidden constraints.
+the right, and extra leading target axes are valid because the missing input axes behave as
+logical singletons. Structural equality and a static source singleton are immediately compatible.
+An unequal fully static pair is rejected when the source extent is not `1`; zero is an ordinary
+static extent, so `0` cannot expand to `1`. When either member of an aligned pair is unresolved,
+Model construction accepts the expression and retains the later requirement
+`source extent == 1 || source extent == target extent`. This includes unequal named dimensions,
+expressions, constrained unknowns, static/unresolved, unresolved/static, and
+unresolved/unresolved pairs. Model construction does not bind, unify, or evaluate a dimension and
+does not create a deferred graph constraint.
 
 The raw `long...` overload passes the caller-owned dimensions through `Shape.of(long...)`; the
 array is not retained or mutated. Every value is a literal non-negative extent, including zero,
 and an empty request denotes scalar Shape. Unlike reshape, numeric `-1` has no inference meaning
 and is rejected. The `Shape` overload instead retains the exact immutable target reference,
-including scalar, zero-extent, mixed dynamic, and fully dynamic Shapes when compatibility is
-provable.
+including scalar, zero-extent, mixed dynamic, and fully dynamic Shapes. The exact reference is
+retained even when aligned compatibility depends on later bindings.
 
-For a fully static target and any resolved input layout, expand publishes a new logical view
+For a fully static target and resolved input geometry, expand publishes a new logical view
 layout. It preserves the input element offset and the exact aligned stride for unchanged axes,
 including an existing zero or non-canonical stride. New leading axes and changed input-singleton
-axes receive stride zero. Dynamic targets or unresolved input layouts leave result layout
-unresolved. The derived view metadata does not attach or alias host storage, repeat values, choose
-materialization, or promise zero-copy execution.
+axes receive stride zero. A dynamic target, unresolved input geometry, or accepted
+binding-dependent pair leaves result layout unresolved. The derived view metadata does not attach
+or alias host storage, repeat values, choose materialization, or promise zero-copy execution.
 
 #### Complete expression-construction example
 
 ##### Goal and inputs
 
-Expand an offset-contiguous `[1, 3]` input to `[2, 4, 3]`, then retain an exact dynamic target for
-a separate singleton input. The example observes descriptors and provenance only.
+Expand an offset-contiguous `[1, 3]` input to `[2, 4, 3]`, then retain a binding-dependent exact
+target for a separate dynamic input. The example observes descriptors and provenance only.
 
 ```java
 import io.github.pho001.synaptik.model.datatype.DataType;
 import io.github.pho001.synaptik.model.layout.LayoutDescriptor;
 import io.github.pho001.synaptik.model.shape.DynamicDimension;
 import io.github.pho001.synaptik.model.shape.Shape;
+import io.github.pho001.synaptik.model.shape.StaticDimension;
 import io.github.pho001.synaptik.model.tensor.Tensor;
 import io.github.pho001.synaptik.model.tensor.TensorDescriptor;
 import io.github.pho001.synaptik.model.tensor.TensorFactory;
@@ -5110,10 +5119,13 @@ public final class ExpandExpressionExample {
         request[0] = 99;
         LayoutDescriptor resultLayout = staticResult.descriptor().layout().orElseThrow();
 
-        Tensor singleton = TensorFactory.create(new TensorDescriptor(
-                DataType.INT64, Shape.of(1), Optional.empty(), false));
-        Shape dynamicTarget = Shape.ofDimensions(new DynamicDimension("items"));
-        Tensor dynamicResult = singleton.expand(dynamicTarget);
+        Shape dynamicInputShape = Shape.ofDimensions(
+                new DynamicDimension("sourceItems"), new StaticDimension(3));
+        Tensor dynamicInput = TensorFactory.create(new TensorDescriptor(
+                DataType.INT64, dynamicInputShape, Optional.empty(), false));
+        Shape dynamicTarget = Shape.ofDimensions(
+                new DynamicDimension("targetItems"), new StaticDimension(3));
+        Tensor dynamicResult = dynamicInput.expand(dynamicTarget);
 
         System.out.println(staticResult.descriptor().shape());
         System.out.println(Arrays.toString(resultLayout.strides()));
@@ -5138,8 +5150,10 @@ public final class ExpandExpressionExample {
 - The input offset five is preserved. The greatest referenced element index is seven, so the
   referenced element span is eight even though the result has 24 logical positions.
 - Mutating the raw request cannot change the normalized target Shape.
-- Static singleton `[1]` can expand to dynamic `[items]` locally. The exact target reference is
-  retained, while layout remains unresolved because the target extent is not numeric.
+- `[sourceItems, 3]` to `[targetItems, 3]` is accepted as a binding-dependent Model expression.
+  Its later aligned condition is `sourceItems == 1 || sourceItems == targetItems`; construction
+  creates no binding or deferred compiler constraint. The exact target reference is retained and
+  layout remains unresolved.
 - Both results record one-input `EXPAND` provenance and receive no label or host storage.
 
 ##### Result and interpretation
@@ -5160,17 +5174,19 @@ true
 true
 ```
 
-The result demonstrates directional compatibility, defensive raw-array ownership, exact dynamic-
-Shape retention, preserved and zero strides, same-offset view geometry, and provenance. It does
-not demonstrate value repetition, storage aliasing, gradients, compiler capture or constraints,
-materialization, backend lowering, or execution.
+The result demonstrates directional compatibility, binding-dependent exact-Shape retention,
+defensive raw-array ownership, preserved and zero strides, same-offset view geometry, and
+provenance. It does not prove the retained binding obligation or demonstrate value repetition,
+storage aliasing, gradients, compiler capture or constraints, materialization, backend lowering,
+or execution.
 
 ##### Failures and useful variations
 
 - A null raw array or exact Shape fails with `NullPointerException` naming `requestedShape` or
   `targetShape`, respectively.
-- A negative raw extent, lower-rank target, attempted shrink, unequal aligned dimensions, unequal
-  dynamic symbols, or another unprovable dynamic pair fails with `IllegalArgumentException`.
+- A negative raw extent or lower-rank target fails with `IllegalArgumentException`. An unequal
+  fully static aligned pair also fails when its source extent is not one, including `0` to `1`.
+  A pair containing an unresolved dimension is retained instead of failing locally.
 - Resolved layout arithmetic overflow propagates as `ArithmeticException` before a Tensor identity
   is consumed.
 - Exhausted Tensor identifier space fails with `IllegalStateException` only at final derived
@@ -9945,14 +9961,15 @@ remain planned.
   semantics and `[input]` provenance, and remain fresh, unlabeled, and storage-free.
 - `Tensor.expand(long...)` accepts only literal non-negative extents, treats an empty request as
   scalar Shape, and neither retains nor mutates the caller array. `Tensor.expand(Shape)` retains
-  the exact non-null target reference. Both require target rank at least input rank and accept a
-  right-aligned pair only when dimensions are equal or the input dimension is a static singleton;
-  leading target axes are valid, and unprovable dynamic pairs are rejected without binding.
-- A static expand target and any resolved input layout produce a fresh same-offset view layout
-  that preserves unchanged aligned strides and uses zero strides for leading and expanded-
-  singleton axes. Dynamic targets or unresolved input layouts remain unresolved. Every result
-  retains exact type and gradient eligibility, records exact EXPAND/target-shape semantics and
-  `[input]` provenance, and remains fresh, unlabeled, and storage-free.
+  the exact non-null target reference. Both require target rank at least input rank. Equal pairs,
+  a static source singleton, and leading target axes are immediately valid; a fully static
+  contradiction fails, while a pair containing an unresolved dimension retains the later
+  source-one-or-source-equal requirement without binding or a Model-created constraint.
+- A static expand target and resolved input layout produce a fresh same-offset view layout that
+  preserves unchanged aligned strides and uses zero strides for leading and expanded-singleton
+  axes. Binding-dependent, dynamic, or otherwise unresolved geometry remains unresolved. Every
+  result retains exact type and gradient eligibility, records exact EXPAND/target-shape semantics
+  and `[input]` provenance, and remains fresh, unlabeled, and storage-free.
 - `Tensor.permute(int...)` requires exactly one raw axis per input rank, copies the request after
   count validation, normalizes each negative entry once, and rejects an out-of-range or duplicate
   normalized axis before identity allocation. Empty axes are valid exactly for scalar input.

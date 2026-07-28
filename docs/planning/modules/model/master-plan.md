@@ -284,6 +284,7 @@ Operation-family subpackages are introduced only when a focused operation task d
 | 0024A | [GraphValue Tensor-status Javadoc correction](tasks/0024a-graph-value-tensor-status-javadoc-correction.md) | Complete | 0024 | Corrected the one stale `GraphValue` Javadoc status sentence, preserved every declaration and behavior, recorded historical audit closure, and passed focused Javadoc/documentation validation. |
 | 0025 | [Canonical TensorProducer outputs](tasks/0025-canonical-tensor-producer-outputs.md) | Complete | 0018L, 0019B1, 0021C, 0023F, 0024A; prerequisite for Compiler 0004 | Retains and retrieves the canonical exact Tensor wrapper for every producer output slot through one factory-atomic, safely published occurrence, without changing Tensor methods or ergonomic result carriers. |
 | 0025A | [Portable floating comparison, extrema, and clamp semantics](tasks/0025a-portable-floating-comparison-extrema-and-clamp-semantics.md) | Complete | 0018N, 0018T, 0018U, 0025; prerequisite for Compiler 0005A | Fixed one represented-value contract for floating comparisons, pairwise/scalar MIN/MAX, and ordered first-class CLAMP without executable model evaluation or derivative policy. |
+| 0025B | [Binding-aware expansion](tasks/0025b-binding-aware-expansion.md) | Complete | 0002, 0017C, 0017D1, 0018M, 0023A, 0025A; prerequisite for Compiler 0005B | Broadened existing EXPAND construction to retain unresolved source-one-or-source-equal obligations with exact target Shape and unresolved layout, without another public or semantic spelling. |
 
 ## Milestones
 
@@ -308,6 +309,9 @@ Operation-family subpackages are introduced only when a focused operation task d
 - Compiler-gradient numerical-semantics prerequisite: task 0025A, reopened only to make the
   portable floating comparison/extrema/clamp forward contract explicit before Compiler 0005A
   chose its separate derivative policies; Compiler 0005A is now Complete
+- Compiler-gradient binding prerequisite: task 0025B, now Complete after reopening Model only to
+  let existing EXPAND retain unresolved source-one-or-source-equal compatibility before Draft
+  Compiler 0005B adopts the matching graph constraint and gradient/preflight path
 
 Each listed checkpoint runs the full repository test suite, affected architecture tests, final
 Javadoc and documentation validation, and the cross-task checks deferred by the preceding tasks.
@@ -315,9 +319,11 @@ Individual single-module tasks use the task-level validation defined in the plan
 
 ## Current status
 
-The historical selected model milestone and focused task 0025 remain Complete. Focused task 0025A
-is also Complete and supplied the bounded model prerequisite consumed unchanged by completed
-Compiler 0005A.
+The historical selected model milestone and focused tasks 0025, 0025A, and
+[0025B](tasks/0025b-binding-aware-expansion.md) are Complete. Task 0025B broadened only existing
+EXPAND construction for unresolved source-one-or-source-equal compatibility before Draft Compiler
+0005B adopts that obligation; it added no public method, kind, attributes, Shape/constraint type,
+binding implementation, or compiler behavior. There is no unfinished detailed Model task.
 Tasks 0014A through 0015H remain complete with the post-0014B vertical-slice reassessment
 recorded. The broad former task 0016 is decomposed into 0016A–0016J. Tasks 0016A through 0016E are
 complete. Tasks 0016F, 0016F1, 0016G, 0016H, 0016I, and 0016J are also complete. The broad former
@@ -536,6 +542,14 @@ Tensor expressions from the still-planned compiler capture lifecycle.
   directional signed zero, and first-class CLAMP is ordered
   `MIN(MAX(input, minValue), maxValue)`. It adds no evaluator, policy object, operation, Tensor
   method, data type, backend behavior, or derivative convention.
+- The post-Compiler-0005A reassessment reopened the model queue only for completed focused task
+  0025B before Compiler 0005B. Existing EXPAND keeps its two public methods, kind, and target-Shape
+  attributes.
+  Structural equality and a static source singleton remain locally valid; a fully static
+  incompatible pair remains an immediate no-ID failure; and a pair containing an unresolved
+  Dimension retains the exact target Shape plus the later requirement that the source extent is
+  one or equals the target extent. Leading target axes need no aligned pair, all unresolved
+  geometry stays layout-unresolved, and Compiler 0005B owns later constraint/preflight adoption.
 - The selected capability baseline is defined by semantic coherence and a useful
   inference/training target, not by blanket legacy parity.
 - The former broad loss row is split without renumbering established tasks 0023–0024. Completed
@@ -1446,7 +1460,9 @@ Tensor expressions from the still-planned compiler capture lifecycle.
 - Task 0017D1 completed exactly `Tensor.expand(long...)` and `Tensor.expand(Shape)` plus one
   bounded package-private helper. It requires directional right-aligned equality or input-
   singleton compatibility, accepts new leading target axes, and rejects unprovable dynamic
-  combinations without binding symbols.
+  combinations without binding symbols at that historical completion point. Task 0025B later
+  replaced only that rejection with retention of an unresolved source-one-or-source-equal
+  obligation.
 - With static target geometry and any resolved input layout, task 0017D1 derives a new logical
   view with exact source offset, preserved aligned strides, and zero strides for repeated or new
   leading axes. Dynamic or unresolved geometry remains unresolved; storage aliasing,
@@ -1669,6 +1685,8 @@ Tensor expressions from the still-planned compiler capture lifecycle.
   registry rather than remaining hidden model-only allocation state.
 - Treating completed JVM heap allocation as import/population or native/runtime allocation parity
   before the applicable typed-population and deterministic-resource contracts exist.
+- Rejecting a representable binding-dependent EXPAND pair in Model, or resolving its layout before
+  the source-one-or-source-equal obligation and numeric geometry are known.
 
 ## Notes
 
@@ -1692,7 +1710,8 @@ while task 0024 is Complete with its closure artifact and task 0024A is Complete
 model capability milestone remains historically closed. Accepted ADR 0009 exposed one later
 compiler-enabling foundation gap, and task 0025 is Complete. The post-Compiler-0005 reassessment
 selected task 0025A for the remaining portable floating comparison/extrema/clamp forward-contract
-prerequisite, and that focused task is Complete.
+prerequisite, and that focused task is Complete. The post-Compiler-0005A reassessment selected and
+completed only task 0025B as the binding-aware EXPAND prerequisite for Draft Compiler 0005B.
 Other operation-family rows are not permission for oversized
 implementations; apply the normal limits in the
 [planning guide](../../planning-guide.md).
@@ -1776,5 +1795,8 @@ compiler prerequisite. Task 0025A is the completed later detailed model prerequi
 [Compiler 0005A task](../compiler/tasks/0005a-derivative-policy-and-elementwise-activation-gradient-completion.md).
 The compiler selected derivative ties, endpoints, discontinuities, raw-domain behavior, and
 activation infinity handling without changing the model's represented-value forward contracts.
+Task 0025B is Complete as the latest detailed Model specification. Compiler 0005B is the next
+unfinished frontier but remains Draft without a task file; every later compiler family also
+remains Draft without a detailed specification.
 The legacy branch must be consulted read-only for capability and test evidence when preparing each
 applicable capability task.

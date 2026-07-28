@@ -9,8 +9,10 @@ import java.util.Objects;
  *
  * <p>The immutable record accepts every valid {@link Shape}: rank-zero scalar, zero-extent,
  * ordinary static, mixed static and dynamic, and fully dynamic shapes. The exact immutable Shape
- * reference is retained. Construction does not inspect an input, compare element counts, validate
- * singleton expansion, bind dynamic dimensions, or derive result layout.</p>
+ * reference is retained. Input-aware expansion construction may retain this exact target while a
+ * right-aligned source dimension still has to bind either to one or to its target dimension.
+ * Construction of this record does not inspect an input, compare element counts, validate that
+ * obligation, bind dynamic dimensions, create a proof or constraint, or derive result layout.</p>
  *
  * <p>The stored Shape is normalized model semantics, not raw public reshape-request syntax.
  * Dynamic dimensions use explicit symbols, and static dimensions are non-negative, so a numeric
@@ -32,7 +34,8 @@ public record TargetShapeAttrs(Shape targetShape) implements OperationAttrs {
      * Creates immutable target-shape attributes.
      *
      * <p>The Shape reference is checked for presence and retained without copying, request
-     * inference, compatibility validation, symbolic binding, or layout derivation.</p>
+     * inference, compatibility validation, symbolic binding, deferred-predicate creation, or
+     * layout derivation.</p>
      *
      * @param targetShape the non-null normalized semantic result Shape to retain unchanged
      * @throws NullPointerException if {@code targetShape} is {@code null}, with message
@@ -46,7 +49,8 @@ public record TargetShapeAttrs(Shape targetShape) implements OperationAttrs {
      * Returns the exact normalized semantic target Shape supplied at construction.
      *
      * <p>The returned immutable value is not raw request syntax and carries no input compatibility
-     * proof, inferred-axis marker, layout, provenance, or executable state.</p>
+     * proof, deferred predicate, inferred-axis marker, layout, provenance, or executable
+     * state.</p>
      *
      * @return the exact stored non-null target Shape reference
      */
