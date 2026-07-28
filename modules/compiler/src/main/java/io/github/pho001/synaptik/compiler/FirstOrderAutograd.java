@@ -2,38 +2,6 @@ package io.github.pho001.synaptik.compiler;
 
 import io.github.pho001.synaptik.model.datatype.DataType;
 import io.github.pho001.synaptik.model.datatype.ScalarValue;
-import io.github.pho001.synaptik.model.operation.elementwise.binary.BinaryArithmeticKind;
-import io.github.pho001.synaptik.model.operation.elementwise.cast.CastKind;
-import io.github.pho001.synaptik.model.operation.elementwise.scalar.ScalarElementwiseKind;
-import io.github.pho001.synaptik.model.operation.elementwise.selection.WhereSelectionKind;
-import io.github.pho001.synaptik.model.operation.elementwise.unary.UnaryElementwiseKind;
-import io.github.pho001.synaptik.model.operation.index.AxisGatherKind;
-import io.github.pho001.synaptik.model.operation.index.AxisScatterKind;
-import io.github.pho001.synaptik.model.operation.index.GatherNdKind;
-import io.github.pho001.synaptik.model.operation.index.ScatterNdKind;
-import io.github.pho001.synaptik.model.operation.index.SelectKind;
-import io.github.pho001.synaptik.model.operation.attention.ScaledDotProductAttentionKind;
-import io.github.pho001.synaptik.model.operation.convolution.Conv2dKind;
-import io.github.pho001.synaptik.model.operation.layout.AxisTransformKind;
-import io.github.pho001.synaptik.model.operation.layout.ContiguousKind;
-import io.github.pho001.synaptik.model.operation.layout.PadKind;
-import io.github.pho001.synaptik.model.operation.layout.ShapeTransformKind;
-import io.github.pho001.synaptik.model.operation.layout.SliceKind;
-import io.github.pho001.synaptik.model.operation.layout.TensorCompositionKind;
-import io.github.pho001.synaptik.model.operation.layout.TileKind;
-import io.github.pho001.synaptik.model.operation.layout.WindowTransformKind;
-import io.github.pho001.synaptik.model.operation.linalg.MatmulKind;
-import io.github.pho001.synaptik.model.operation.loss.LossKind;
-import io.github.pho001.synaptik.model.operation.normalization.BatchNormKind;
-import io.github.pho001.synaptik.model.operation.normalization.LayerNormKind;
-import io.github.pho001.synaptik.model.operation.normalization.RmsNormKind;
-import io.github.pho001.synaptik.model.operation.normalization.SoftmaxKind;
-import io.github.pho001.synaptik.model.operation.ordering.OrderingKind;
-import io.github.pho001.synaptik.model.operation.ordering.TopKKind;
-import io.github.pho001.synaptik.model.operation.pooling.Pool2dKind;
-import io.github.pho001.synaptik.model.operation.random.DropoutKind;
-import io.github.pho001.synaptik.model.operation.reduction.AggregateReductionKind;
-import io.github.pho001.synaptik.model.operation.scan.CumulativeScanKind;
 import io.github.pho001.synaptik.model.shape.Shape;
 import io.github.pho001.synaptik.model.tensor.Tensor;
 import io.github.pho001.synaptik.model.tensor.TensorDescriptor;
@@ -68,15 +36,16 @@ import java.util.Set;
  * {@link IndexingGradientRules}, {@link OrderingGradientRules}, and
  * {@link StochasticGradientRules}, with structured-neural formulas owned by
  * {@link AttentionGradientRules}, {@link ConvolutionGradientRules},
- * {@link PoolingGradientRules}, and {@link LossGradientRules}. This class dispatches only
- * preflight-approved occurrences and
- * preserves every selected positional contribution, including repeated MATMUL, slice-update,
- * composition, scatter, and batch-normalization output routes. Canonical TOP_K indices and the
- * canonical dropout mask, attention weights, and maximum-pool output remain attached to their
- * exact original producer; the sole matching ARGSORT and every other generated formula
- * occurrence are handed to the combined capture as generated expressions. The exact typed
- * positive and negative coefficients used by mean-squared error remain scalar-operation
- * metadata. This class does not absorb family formulas or infer support.</p>
+ * {@link PoolingGradientRules}, and {@link LossGradientRules}. This class switches only on the
+ * {@link FirstOrderGradientCoverage.FamilyOwner} retained by each preflight-approved occurrence;
+ * it does not reclassify an operation kind. It preserves every selected positional contribution,
+ * including repeated MATMUL, slice-update, composition, scatter, and batch-normalization output
+ * routes. Canonical TOP_K indices and the canonical dropout mask, attention weights, and
+ * maximum-pool output remain attached to their exact original producer; the sole matching
+ * ARGSORT and every other generated formula occurrence are handed to the combined capture as
+ * generated expressions. The exact typed positive and negative coefficients used by
+ * mean-squared error remain scalar-operation metadata. This class does not absorb family
+ * formulas or infer support.</p>
  *
  * <p>The returned Tensor roles and original-producer identities are an ephemeral handoff to one
  * combined capture. Generated logical-splat bindings, including extrema or clamp bounds needed
@@ -220,88 +189,45 @@ final class FirstOrderAutograd {
             Tensor gradient,
             DerivativeConstants constants) {
         TensorProducer producer = occurrence.producer();
-        var kind = producer.operation().kind();
-        if (kind instanceof BinaryArithmeticKind
-                || kind instanceof ScalarElementwiseKind
-                || kind instanceof UnaryElementwiseKind
-                || kind == WhereSelectionKind.WHERE
-                || kind == CastKind.CAST) {
-            return ElementwiseGradientRules.apply(
+        return switch (occurrence.familyOwner()) {
+            case ELEMENTWISE -> ElementwiseGradientRules.apply(
                     producer,
                     occurrence.outputIndex(),
                     gradient,
                     occurrence.selectedInputs(),
                     constants);
-        }
-        if (kind instanceof AggregateReductionKind
-                || kind instanceof CumulativeScanKind
-                || kind instanceof SoftmaxKind) {
-            return ReductionGradientRules.apply(
+            case REDUCTION -> ReductionGradientRules.apply(
                     producer,
                     occurrence.outputIndex(),
                     gradient,
                     occurrence.selectedInputs(),
                     constants);
-        }
-        if (kind instanceof LayerNormKind
-                || kind instanceof RmsNormKind
-                || kind instanceof BatchNormKind) {
-            return NormalizationGradientRules.apply(
+            case NORMALIZATION -> NormalizationGradientRules.apply(
                     producer,
                     occurrence.outputIndex(),
                     gradient,
                     occurrence.selectedInputs(),
                     constants);
-        }
-        if (kind == MatmulKind.MATMUL) {
-            return LinearAlgebraGradientRules.apply(
+            case LINEAR_ALGEBRA -> LinearAlgebraGradientRules.apply(
                     producer, gradient, occurrence.selectedInputs());
-        }
-        if (kind == ScaledDotProductAttentionKind.SCALED_DOT_PRODUCT_ATTENTION) {
-            return AttentionGradientRules.apply(
+            case ATTENTION -> AttentionGradientRules.apply(
                     producer,
                     occurrence.outputIndex(),
                     gradient,
                     occurrence.selectedInputs(),
                     constants);
-        }
-        if (kind == Conv2dKind.CONV2D) {
-            return ConvolutionGradientRules.apply(
+            case CONVOLUTION -> ConvolutionGradientRules.apply(
                     producer, gradient, occurrence.selectedInputs());
-        }
-        if (kind instanceof Pool2dKind) {
-            return PoolingGradientRules.apply(producer, gradient, constants);
-        }
-        if (kind instanceof LossKind) {
-            return LossGradientRules.apply(
+            case POOLING -> PoolingGradientRules.apply(producer, gradient, constants);
+            case LOSS -> LossGradientRules.apply(
                     producer, gradient, occurrence.selectedInputs(), constants);
-        }
-        if (kind == ContiguousKind.CONTIGUOUS
-                || kind instanceof ShapeTransformKind
-                || kind instanceof AxisTransformKind
-                || kind instanceof SliceKind
-                || kind == SelectKind.SELECT
-                || kind == PadKind.PAD
-                || kind == TileKind.TILE
-                || kind instanceof TensorCompositionKind
-                || kind instanceof WindowTransformKind) {
-            return LayoutGradientRules.apply(
+            case LAYOUT -> LayoutGradientRules.apply(
                     producer, gradient, occurrence.selectedInputs(), constants);
-        }
-        if (kind instanceof AxisGatherKind
-                || kind instanceof GatherNdKind
-                || kind instanceof AxisScatterKind
-                || kind instanceof ScatterNdKind) {
-            return IndexingGradientRules.apply(
+            case INDEXING -> IndexingGradientRules.apply(
                     producer, gradient, occurrence.selectedInputs(), constants);
-        }
-        if (kind == OrderingKind.SORT || kind instanceof TopKKind) {
-            return OrderingGradientRules.apply(producer, gradient, constants);
-        }
-        if (kind instanceof DropoutKind) {
-            return StochasticGradientRules.apply(producer, gradient, constants);
-        }
-        throw new IllegalStateException("operation was not preflight-approved: " + kind);
+            case ORDERING -> OrderingGradientRules.apply(producer, gradient, constants);
+            case STOCHASTIC -> StochasticGradientRules.apply(producer, gradient, constants);
+        };
     }
 
     private static void append(

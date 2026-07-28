@@ -90,8 +90,8 @@ import java.util.Objects;
 import java.util.Set;
 
 /**
- * Preflights the closed first-order rule matrices through Compiler 0005D before constructing any
- * derivative Tensor expression.
+ * Preflights the source-closed first-order rule matrix before constructing any derivative Tensor
+ * expression.
  *
  * <p>The iterative inventory covers every producer and canonical output wrapper reachable from
  * the requested forward boundary. Objective ancestry, target reachability, occurrence selection,
@@ -157,6 +157,14 @@ import java.util.Set;
  * positive static class depth. Attention requires the canonical same-occurrence weights output;
  * the one-output overload therefore fails closed. Attention masks and index targets remain
  * non-differentiable configuration roles.</p>
+ *
+ * <p>{@link FirstOrderGradientCoverage} supplies the current source-backed disposition and one
+ * formula-family owner for each selected output/input role. This class retains the larger typed
+ * occurrence-validation matrix: a conditional differentiable disposition becomes usable only
+ * after the exact Shape, data-type, cardinality, canonical-auxiliary, normalization, and
+ * construction prerequisites pass. Unknown signatures and unsupported roles fail closed. The
+ * recorded family owner is carried in each {@link SelectedOccurrence}, so preflight selection
+ * and formula dispatch cannot choose different families.</p>
  *
  * <p>This owner selects rules and rejects unsupported operation, input/output signature,
  * attribute, role, data-type, Shape, and policy combinations. A known rejection occurs before the
@@ -324,6 +332,7 @@ final class AutogradPreflight {
             List<Integer> selectedOutputs = ancestry.selectedOutputs(producer);
             for (int selectedOutput : selectedOutputs) {
                 boolean[] selectedInputs = new boolean[producer.inputs().size()];
+                FirstOrderGradientCoverage.FamilyOwner familyOwner = null;
                 BitSet outputTargets = copyOf(containsTargets.get(producer.output(selectedOutput)));
                 boolean anySelectedInput = false;
                 for (int input = 0; input < producer.inputs().size(); input++) {
@@ -331,7 +340,16 @@ final class AutogradPreflight {
                     if (inputTargets == null || inputTargets.isEmpty()) {
                         continue;
                     }
-                    if (isDifferentiableRole(producer, selectedOutput, input)) {
+                    FirstOrderGradientCoverage.Decision decision =
+                            FirstOrderGradientCoverage.classify(
+                                    producer, selectedOutput, input);
+                    if (decision.disposition()
+                            == FirstOrderGradientCoverage.Disposition.D) {
+                        if (familyOwner != null && familyOwner != decision.owner()) {
+                            throw new IllegalStateException(
+                                    "one occurrence selected more than one gradient family owner");
+                        }
+                        familyOwner = decision.owner();
                         selectedInputs[input] = true;
                         anySelectedInput = true;
                         outputTargets.or(inputTargets);
@@ -345,7 +363,7 @@ final class AutogradPreflight {
                                                 producer,
                                                 selectedOutput,
                                                 input)
-                                        + "input role is non-differentiable";
+                                        + decision.reason();
                             }
                         }
                     }
@@ -354,7 +372,11 @@ final class AutogradPreflight {
                     validateOccurrence(
                             producerIndex, producer, selectedOutput, selectedInputs);
                     selected.add(new SelectedOccurrence(
-                            producerIndex, producer, selectedOutput, selectedInputs));
+                            producerIndex,
+                            producer,
+                            selectedOutput,
+                            selectedInputs,
+                            familyOwner));
                 }
                 if (!outputTargets.isEmpty()) {
                     containsTargets.put(producer.output(selectedOutput), outputTargets);
@@ -382,82 +404,6 @@ final class AutogradPreflight {
 
     private static BitSet copyOf(BitSet source) {
         return source == null ? new BitSet() : (BitSet) source.clone();
-    }
-
-    private static boolean isDifferentiableRole(
-            TensorProducer producer, int outputIndex, int inputIndex) {
-        var kind = producer.operation().kind();
-        if (kind instanceof BinaryComparisonKind
-                || kind instanceof BooleanLogicalKind
-                || kind instanceof FloatingClassificationKind) {
-            return false;
-        }
-        if (kind == WhereSelectionKind.WHERE) {
-            return inputIndex == 1 || inputIndex == 2;
-        }
-        if (kind instanceof AggregateReductionKind aggregate) {
-            if (aggregate == AggregateReductionKind.ALL
-                    || aggregate == AggregateReductionKind.ANY
-                    || aggregate == AggregateReductionKind.ARG_MIN
-                    || aggregate == AggregateReductionKind.ARG_MAX) {
-                return false;
-            }
-            return inputIndex == 0;
-        }
-        if (kind instanceof CumulativeScanKind) {
-            return producer.inputs().get(inputIndex).descriptor().dataType().isFloating();
-        }
-        if (kind instanceof SoftmaxKind
-                || kind instanceof LayerNormKind
-                || kind instanceof RmsNormKind
-                || kind == BatchNormKind.BATCH_NORM_INFERENCE) {
-            return true;
-        }
-        if (kind == BatchNormKind.BATCH_NORM_TRAINING) {
-            return switch (outputIndex) {
-                case 0 -> inputIndex <= 2;
-                case 1 -> inputIndex == 0 || inputIndex == 3;
-                case 2 -> inputIndex == 0 || inputIndex == 4;
-                case 3, 4 -> false;
-                default -> true;
-            };
-        }
-        if (kind instanceof AxisGatherKind || kind instanceof GatherNdKind) {
-            return inputIndex == 0;
-        }
-        if (kind instanceof AxisScatterKind || kind instanceof ScatterNdKind) {
-            return inputIndex == 0 || inputIndex == 2;
-        }
-        if (kind instanceof OneHotKind
-                || kind == OrderingKind.ARGSORT
-                || kind instanceof GraphRngKind) {
-            return false;
-        }
-        if (kind == OrderingKind.SORT
-                || kind instanceof TopKKind
-                || kind instanceof WindowTransformKind) {
-            return inputIndex == 0;
-        }
-        if (kind instanceof DropoutKind) {
-            return outputIndex == 0 && inputIndex == 0;
-        }
-        if (kind == ScaledDotProductAttentionKind.SCALED_DOT_PRODUCT_ATTENTION) {
-            return switch (outputIndex) {
-                case 0 -> inputIndex < 3;
-                case 1 -> inputIndex < 2;
-                default -> false;
-            };
-        }
-        if (kind == Conv2dKind.CONV2D
-                || kind instanceof Pool2dKind
-                || kind == LossKind.MEAN_SQUARED_ERROR
-                || kind == LossKind.DENSE_CATEGORICAL_CROSS_ENTROPY_WITH_LOGITS) {
-            return true;
-        }
-        if (kind == LossKind.INDEX_CATEGORICAL_CROSS_ENTROPY_WITH_LOGITS) {
-            return inputIndex == 0;
-        }
-        return true;
     }
 
     private static void validateOccurrence(
@@ -1948,12 +1894,14 @@ final class AutogradPreflight {
      * @param outputIndex zero-based selected canonical output position
      * @param selectedInputs input-position-aligned differentiable-route flags; cloned on input
      *     and access
+     * @param familyOwner non-null closed formula-family owner shared by every selected input role
      */
     record SelectedOccurrence(
             int postorderIndex,
             TensorProducer producer,
             int outputIndex,
-            boolean[] selectedInputs) {
+            boolean[] selectedInputs,
+            FirstOrderGradientCoverage.FamilyOwner familyOwner) {
         /**
          * Snapshots one selected occurrence and its input-role flags.
          *
@@ -1961,8 +1909,11 @@ final class AutogradPreflight {
          * @param producer exact original producer occurrence
          * @param outputIndex zero-based selected canonical output position
          * @param selectedInputs non-null input-position-aligned differentiable-route flags
-         * @throws NullPointerException if {@code selectedInputs} is {@code null}
+         * @param familyOwner non-null closed formula-family owner shared by every selected role
+         * @throws NullPointerException if {@code selectedInputs} or {@code familyOwner} is
+         *     {@code null}
          */SelectedOccurrence {
+            Objects.requireNonNull(familyOwner, "familyOwner");
             selectedInputs = selectedInputs.clone();
         }
 

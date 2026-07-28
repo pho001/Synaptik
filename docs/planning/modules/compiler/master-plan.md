@@ -93,7 +93,7 @@ cross-package/public orchestration boundary from a concrete consumer.
 | 0005B | [Reduction, scan, softmax, statistics, and normalization gradient completion](tasks/0005b-reduction-scan-softmax-statistics-and-normalization-gradient-completion.md) | Complete | Model 0025B; 0005A | Adopted binding-aware EXPAND and completed binding-dependent sum-to-Shape, products, extrema, scans, softmax/log-softmax, statistics, norms, and layer/RMS/batch normalization, including explicit boundary policies, non-differentiable mask/index roles, and same-occurrence saved batch-statistic outputs. |
 | 0005C | [Layout, window, indexing, scatter, ordering, and stochastic gradient completion](tasks/0005c-layout-window-indexing-scatter-ordering-and-stochastic-gradient-completion.md) | Complete | Models 0025C–0025D; 0005B | Completed layout/slice/composition and dynamic window rules, including retained dynamic extraction and target-relative placement obligations, Gather/scatter variants with fixed duplicate/zero/tie policies, exact sort/top-K routing, and dropout through canonical auxiliaries; coordinates, indices, one-hot/BOOL outputs, RNG state, masks, and configuration roles remain non-differentiable. |
 | 0005D | [Attention, convolution, pooling, and loss gradient completion](tasks/0005d-attention-convolution-pooling-and-loss-gradient-completion.md) | Complete | 0005B, 0005C | Verified the implemented MATMUL/linear chain and completed the representable structured-ML inventory: two-output attention with canonical weights, grouped convolution, pooling, and every current loss role/reduction mode; one-output attention and dynamic/zero-depth index loss fail closed. |
-| 0005E | First-order gradient coverage closure checkpoint | Draft | 0005A, 0005B, 0005C, 0005D | Audit every current operation signature, output slot, and input role as implemented differentiable coverage or intentionally non-differentiable; prove fail-closed inventory and transitive differentiability of formula operations, then run the first-order capability checkpoint. |
+| 0005E | [First-order gradient coverage closure checkpoint](tasks/0005e-first-order-gradient-coverage-closure-checkpoint.md) | Complete | 0005A, 0005B, 0005C, 0005D | Added one package-private coverage checker; closed all current 37 kind families, 107 constants, 128 signature variants, legal output slots, and ordered input roles as differentiable, intentionally non-differentiable, or explicitly fail-closed; and proved bounded transitive and connected nested-pass formula closure at the first-order capability checkpoint. |
 | 0006 | Explicit functional gradient requests and higher-order differentiation | Draft | 0005E and a stable public compile/artifact boundary | Define explicit objectives, targets, seeds, create-graph or derivative order, disconnected-result behavior, and phase/order representation over the first-order formula-operation closure without Tensor gradient lifecycle state. |
 
 Tasks 0005A–0005D partition the complete current model operation inventory without claiming that
@@ -108,12 +108,12 @@ The milestone extends rather than replaces completed Compiler 0004–0004B. Thei
 remain the implemented baseline; each family task must preserve and revalidate its assigned
 implemented rows while adding only the missing differentiable roles and explicit decisions.
 
-Task 0005E is the first-order closure gate, not another formula-family task. It must verify the
-current inventory against source rather than a stale hand-maintained list, confirm that unknown or
-new operations still fail closed, and check that every operation emitted by a gradient formula is
-itself covered for differentiable roles before task 0006 may request differentiation through that
-formula. This transitive check preserves the higher-order path without implementing higher-order
-requests before 0006.
+Complete task 0005E is the first-order closure gate, not another formula-family task. It verifies
+the current inventory against compiled production Model classes rather than a stale
+hand-maintained family list, confirms that unknown or new operations still fail closed, and
+checks a bounded cross-family set of generated formula edges plus connected nested expansions.
+Existing 0005A–0005D suites remain the per-family formula evidence. This checkpoint preserves the
+higher-order path without implementing higher-order requests before 0006.
 
 ## Milestones
 
@@ -122,9 +122,10 @@ requests before 0006.
 - Pre-capture autograd and graph compilation — Complete through task 0004B and its compiler
   transformation/autograd capability checkpoint.
 - Planning orchestration and compile artifacts — Complete through task 0005.
-- Complete current-inventory first-order gradient coverage — Complete tasks 0005A–0005D and Model
-  prerequisites 0025C–0025D before Draft task 0005E; task 0005E is the
-  closure checkpoint and dependency gate for task 0006.
+- Complete current-inventory first-order gradient coverage — Complete through
+  [task 0005E](tasks/0005e-first-order-gradient-coverage-closure-checkpoint.md), including Model
+  prerequisites 0025C–0025D; task 0005E is the completed closure checkpoint and dependency gate
+  for task 0006.
 
 ## Current status
 
@@ -165,8 +166,14 @@ documentation gates. Detailed
 is Complete with compiler-owned attention, grouped-convolution, pooling, and loss formulas,
 canonical attention/max-pool auxiliary use, exact logical counts and coefficients, and explicit
 fail-closed signatures.
-Compiler 0005E and 0006 remain concise Draft rows without detailed specifications; no later
-compiler task is Ready.
+[Compiler 0005E](tasks/0005e-first-order-gradient-coverage-closure-checkpoint.md) is Complete. Its
+package-private checker closes the compiled-production 37-family, 107-kind, 128-signature role
+inventory with exact `D`/`ND`/`FC`, owner/reason, ranged-cardinality, fail-closed, and Tensor-ID
+evidence. A bounded 22-case cross-family expansion probe classified 64 generated edge
+fingerprints, completed 10 connected nested passes, and identity-proved 12 disconnected skips.
+The replacement focused command passed 43 tests, the full Compiler module passed 29 suites/194
+tests, and the repository/architecture checkpoint passed. Compiler 0006 remains Draft without a
+detailed specification; no later compiler task is Ready.
 The final focused seven-suite 0005D command passed. After the MSE negative-coefficient expression
 order was corrected, the replacement full compiler-module run passed 28 suites and 189 tests with
 no failures, errors, or skips. No executable Java changed after that evidence; the separate clean
@@ -229,8 +236,8 @@ that closes first-order gradient coverage across the complete current model inve
 higher-order work. The sequence first resolves elementwise/activation derivative policies and
 formula foundations, then reductions/scans/softmax/statistics/normalization, then dynamic layout/
 window/indexing/scatter/ordering/stochastic families, then structured attention/convolution/
-pooling/loss families, and finally one source-backed coverage checkpoint. Tasks 0005A and 0005B
-are Complete. No later compiler task is Ready, and no later detailed task specification exists.
+pooling/loss families, and finally one source-backed coverage checkpoint. Tasks 0005A–0005E are
+Complete, and no later compiler task is Ready.
 
 This reordering preserves completed history. Tasks 0003, 0003A, and 0003B were correctly completed
 for a forward-only immutable graph. Compiler 0004 reused their existing exact rules only where
@@ -252,8 +259,8 @@ Runtime and prepare remain Draft because no prepared or executable state is intr
   mask/probability behavior; and preserves dynamic geometry plus non-differentiable index/RNG
   roles.
 - Complete task 0005D selects the remaining attention, convolution, pooling, and loss special-case
-  policies, exact auxiliary-output use, and intentional fail-closed signatures. Task 0005E accepts
-  no unresolved policy for a current differentiable role.
+  policies, exact auxiliary-output use, and intentional fail-closed signatures. Complete task
+  0005E found no unresolved policy for a current differentiable role.
 
 ## Decisions made
 
@@ -362,8 +369,9 @@ Runtime and prepare remain Draft because no prepared or executable state is intr
   assigned task. Compiler 0005B–0005D record implemented policies in Complete specifications.
   Model tasks choose only shared forward meaning and do
   not choose derivatives.
-- Task 0005E must prove transitive formula-operation differentiation coverage before 0006. It
-  adds no create-graph behavior, derivative-order representation, or higher-order request.
+- Complete task 0005E proved the bounded current transitive formula-operation checkpoint before
+  0006. It adds no create-graph behavior, derivative-order representation, or higher-order
+  request.
 
 ## Risks
 
@@ -418,5 +426,6 @@ Detailed
 [Compiler 0005C](tasks/0005c-layout-window-indexing-scatter-ordering-and-stochastic-gradient-completion.md)
 is Complete. It fixes the complete assigned inventory, formulas, retained constraints, numerical
 policies, canonical auxiliary-output use, fail-closed ordering, authorized 23-path ceiling, and
-implementation/documentation handoff. Detailed 0005D is Complete; keep 0005E and 0006 Draft without
-detailed specifications, and no later compiler task is Ready.
+implementation/documentation handoff. Detailed 0005D and
+[0005E](tasks/0005e-first-order-gradient-coverage-closure-checkpoint.md) are Complete. Keep 0006
+Draft without a detailed specification, and no later compiler task is Ready.

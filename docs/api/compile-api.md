@@ -262,6 +262,10 @@ layout, Gather/scatter, ordering/top-K, and explicit-state dropout first-order m
 Compiler task 0005D is Complete and adds the current two-output attention, grouped convolution,
 pooling, and loss first-order matrix without adding a public gradient API or backward-only
 operation vocabulary.
+Compiler task 0005E closes that current matrix against the compiled production Model inventory:
+37 operation-kind enum families, 107 constants, and 128 complete
+kind/attributes/input-range/output-range fingerprints. The checkpoint includes both
+`SLICE_UPDATE` attributes variants. It does not add a formula or change Model semantics.
 
 Package-private `GraphCompiler.compile` takes `CompileMode`, ordered forward outputs, an optional
 package-private first-order request, explicit forward constant ingress, and
@@ -284,10 +288,19 @@ public objective/target API, caller-supplied seed, disconnected-target zero poli
 vector-Jacobian product, or higher-derivative request.
 
 Before constructing the seed or any formula Tensor, `AutogradPreflight` iteratively inventories
-the complete original forward request and validates every selected objective-to-target
-occurrence, exact output and input role, attributes variant, data-type and Shape relationship,
-and derivative policy. Known unsupported work fails before allocating derivative Tensor
-identity. Named `ElementwiseGradientRules`, `ReductionGradientRules`,
+the complete original forward request. The package-private first-order coverage checker assigns
+each exact selected output/input role one current disposition: conditionally differentiable
+(`D`), intentionally non-differentiable (`ND`), or fail-closed (`FC`). Every `ND` or `FC`
+decision has a deterministic reason. Every `D` decision names exactly one existing formula-family
+owner, but remains conditional until preflight validates the occurrence's exact attributes,
+cardinality, data-type and Shape relationships, canonical auxiliaries, normalization path, and
+derivative policy. Unknown kinds, unclassified kind/attributes pairings, malformed
+cardinalities, illegal slots, and unsupported prerequisites fail closed before derivative Tensor
+identity allocation.
+
+The same family-owner decision is retained in the successful preflight plan and drives
+`FirstOrderAutograd` dispatch, so role selection and formula routing do not maintain independent
+kind branches. Named `ElementwiseGradientRules`, `ReductionGradientRules`,
 `NormalizationGradientRules`, `LinearAlgebraGradientRules`, `LayoutGradientRules`,
 `IndexingGradientRules`, `OrderingGradientRules`, and `StochasticGradientRules` then build
 formulas only with existing public Tensor operations. `AttentionGradientRules`,
@@ -546,7 +559,7 @@ is intentionally explicit:
 | Classification | Current deferred or rejected families |
 |---|---|
 | Structured fail-closed boundaries | One-output attention lacks canonical same-occurrence weights and is rejected; index-target categorical cross-entropy rejects a dynamic or zero class depth |
-| First-order closure work | Complete source-backed role/output audit and transitive differentiability proof assigned to Compiler 0005E |
+| Current source-backed closure | The closed inventory matches all 37 compiled production kind families, 107 constants, and 128 signature fingerprints; every legal output/input role has a `D`, `ND`, or `FC` disposition, and generated formula edges remain inside the same classified Tensor algebra |
 | Non-differentiable roles and outputs | Comparisons, BOOL logic/classification, `ALL`, `ANY`, arg-extrema results, batch-training saved auxiliary roots, one-hot and other index roles, ordering indices, dropout masks, padding constants, select coordinates, and graph RNG state |
 
 Unknown/custom kinds, wrong attribute classes or cardinalities, missing canonical outputs, and

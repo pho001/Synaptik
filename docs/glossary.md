@@ -1520,6 +1520,15 @@ floating SORT and TOP_K values, explicit-state dropout values, exact two-output 
 grouped convolution, maximum and average pooling, MSE, dense categorical loss, and positive-
 static-depth index categorical logits.
 
+The current source-backed closure checkpoint matches the compiled production Model inventory:
+37 operation-kind enum families, 107 constants, and 128 exact signature fingerprints, including
+both `SLICE_UPDATE` attributes variants. Each legal output/input role is conditionally
+differentiable, intentionally non-differentiable, or fail-closed. A conditionally differentiable
+role becomes usable only after occurrence-local preflight proves its exact Shape, data type,
+cardinality, canonical-auxiliary, normalization, and formula-construction prerequisites. The
+successful decision also selects one existing compiler formula family, keeping preflight and
+formula dispatch aligned.
+
 Mixed-floating binary, WHERE-branch, and MATMUL contributions use ordinary
 [cotangent normalization](#cotangent-normalization). Ordinary MEAN derives its denominator by
 reducing an input-shaped logical-one expression across the selected axes. Masked MEAN counts true
