@@ -62,9 +62,14 @@ public enum ScalarElementwiseKind implements OperationKind {
      * Selects the minimum of each input value and the scalar candidate in {@link
      * ScalarValueAttrs}.
      *
-     * <p>The portable request propagates NaN, orders infinities normally, and selects negative
-     * zero when comparing opposite signed zeros. It promises no NaN payload or bitwise result and
-     * records no evaluation algorithm, gradient rule, or backend implementation.</p>
+     * <p>The candidate is compared as the exact represented numeric value of its same-typed
+     * {@code ScalarValue}; exact raw bits remain metadata identity and do not make the comparison
+     * bitwise. If either candidate is NaN, the result is NaN. Opposite signed zeros produce
+     * negative zero independent of operand order. Infinities and unequal non-NaN values use
+     * ordinary numeric order; equal nonzero candidates produce that numeric value. The request
+     * promises no NaN payload, source-operand selection, or bitwise result. Integral minimum
+     * retains ordinary signed order. This kind records no evaluation algorithm, gradient rule, or
+     * backend implementation.</p>
      */
     MIN,
 
@@ -72,9 +77,14 @@ public enum ScalarElementwiseKind implements OperationKind {
      * Selects the maximum of each input value and the scalar candidate in {@link
      * ScalarValueAttrs}.
      *
-     * <p>The portable request propagates NaN, orders infinities normally, and selects positive
-     * zero when comparing opposite signed zeros. It promises no NaN payload or bitwise result and
-     * records no evaluation algorithm, gradient rule, or backend implementation.</p>
+     * <p>The candidate is compared as the exact represented numeric value of its same-typed
+     * {@code ScalarValue}; exact raw bits remain metadata identity and do not make the comparison
+     * bitwise. If either candidate is NaN, the result is NaN. Opposite signed zeros produce
+     * positive zero independent of operand order. Infinities and unequal non-NaN values use
+     * ordinary numeric order; equal nonzero candidates produce that numeric value. The request
+     * promises no NaN payload, source-operand selection, or bitwise result. Integral maximum
+     * retains ordinary signed order. This kind records no evaluation algorithm, gradient rule, or
+     * backend implementation.</p>
      */
     MAX,
 
@@ -92,10 +102,14 @@ public enum ScalarElementwiseKind implements OperationKind {
      * ClampRangeAttrs}.
      *
      * <p>The bounds are semantic parameters rather than Tensor inputs. Its value meaning is
-     * {@code minimum(maximum(input, lower), upper)} under this family's NaN, infinity, and
-     * signed-zero extrema policy, while remaining one operation occurrence. Bound validation,
-     * input eligibility, result metadata, gradients, execution, and backend support belong to
-     * their owning contracts.</p>
+     * exactly ordered {@code MIN(MAX(input, minValue), maxValue)} under this family's extrema
+     * rules, while remaining one operation occurrence with no stored intermediate producers. A
+     * NaN input or bound produces NaN without a payload promise. Equal non-NaN bounds with the
+     * same representation produce that bound for every non-NaN input. Bounds {@code [-0, +0]}
+     * produce negative zero for negative inputs and negative zero, and positive zero for positive
+     * inputs and positive zero. Bounds {@code [+0, -0]} produce negative zero for every non-NaN
+     * input. Bound validation, input eligibility, result metadata, gradients, execution, and
+     * backend support belong to their owning contracts.</p>
      */
     CLAMP;
 

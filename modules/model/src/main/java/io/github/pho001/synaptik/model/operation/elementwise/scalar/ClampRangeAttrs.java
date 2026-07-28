@@ -17,8 +17,14 @@ import java.util.Objects;
  *
  * <p>The record is immutable and owns no mutable input. Record-generated equality and hashing use
  * exact typed-bit value semantics, so signed floating zeros and distinct NaN payloads remain
- * distinct. The record does not match the bounds to an input Tensor, convert values, define clamp
- * result behavior, or provide a backend format.</p>
+ * distinct. When these attributes refine {@link ScalarElementwiseKind#CLAMP}, the operation's
+ * value meaning is the ordered composition {@code MIN(MAX(input, minValue), maxValue)}. A NaN
+ * input or bound therefore produces NaN; equal non-NaN same-representation bounds produce that
+ * bound; bounds {@code [-0, +0]} preserve the matching zero sign and select the directional zero
+ * for negative or positive inputs; and bounds {@code [+0, -0]} produce negative zero for every
+ * non-NaN input. The record itself does not match the bounds to an input Tensor, convert or
+ * evaluate values, create intermediate producers, define gradients, or provide a backend
+ * format.</p>
  *
  * @param minValue the non-null exact numeric inclusive lower bound, retained by reference
  * @param maxValue the non-null exact numeric inclusive upper bound of the same data type, retained

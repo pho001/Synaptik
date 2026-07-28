@@ -1983,25 +1983,39 @@ floating or selected signed-integral validation, descriptor derivation, exact at
 composition, and one-input provenance. Signed-integral support is limited to ADD, SUB, MUL, MIN,
 and MAX; DIV, POW, and first-class range CLAMP remain floating-only.
 
-Floating scalar and binary MIN/MAX propagate NaN, order infinities normally, and select negative zero for
-minimum or positive zero for maximum when comparing opposite signed zeros. Range CLAMP means one
-first-class request value-equivalent to `minimum(maximum(input, lower), upper)`. Public
-`clampMin` creates one scalar MAX producer and `clampMax` one scalar MIN producer; no separate
-one-bound kind exists. These semantics promise no NaN payload, algorithm, gradient rule, backend
-route, or execution. Integral ADD, SUB, and MUL use fixed-width two's-complement modular meaning;
-integral MIN and MAX use ordinary signed order.
+Floating scalar and binary MIN/MAX propagate NaN, order infinities normally, and select negative
+zero for minimum or positive zero for maximum when comparing opposite signed zeros, independent
+of operand order. Unequal non-NaN values use ordinary numeric order; equal nonzero candidates
+produce that numeric value without identifying one source operand. Scalar extrema compare the
+input's represented numeric value with the exact same-typed `ScalarValue` represented value; raw
+scalar bits remain metadata equality rather than bitwise elementwise equality. FLOAT64 and
+FLOAT32 use their represented IEEE-754 values, and BFLOAT16 uses the value represented by its
+exact 16-bit storage. Range CLAMP means one first-class request with exactly ordered
+`MIN(MAX(input, minValue), maxValue)` value semantics and no stored intermediate producers. Any
+NaN input or bound produces NaN; equal non-NaN same-representation bounds produce that bound;
+bounds `[-0, +0]` select the corresponding directional zero; and bounds `[+0, -0]` produce
+negative zero for every non-NaN input. Public `clampMin` creates one scalar MAX producer and
+`clampMax` one scalar MIN producer; no separate one-bound kind exists. These semantics promise no
+NaN payload, algorithm, gradient rule, backend route, or execution. Integral ADD, SUB, and MUL use
+fixed-width two's-complement modular meaning; integral MIN and MAX use ordinary signed order.
 
 The fourth production family is `BinaryComparisonKind`, an enum containing exactly
 `GREATER_THAN`, `GREATER_OR_EQUAL`, `LESS_THAN`, `LESS_OR_EQUAL`, `EQUAL`, and `NOT_EQUAL`. These
 values identify ordered, parameterless tensor-to-tensor comparison meanings and compose with
 `NoOperationAttrs.INSTANCE`. The enum stores no operands, broadcast geometry, BOOL result facts,
-numeric edge policy, or execution metadata. The implemented public comparison Tensor methods
-consume these values while separately owning same-category floating or signed-integral input
+or execution metadata. Its floating edge policy is ordinary represented numeric comparison after
+existing promotion. Every ordered relation is false if either operand is NaN. Negative and
+positive zero compare equal, so neither strict relation holds and both inclusive relations hold.
+`EQUAL` is exact numeric rather than raw-bit or tolerance equality: NaN is unequal to every value,
+including itself, and opposite signed zeros are equal. `NOT_EQUAL` is its logical complement.
+Finite values and infinities otherwise use ordinary numeric order. FLOAT64, FLOAT32, and BFLOAT16
+use the represented-value boundaries described above. The implemented public comparison Tensor
+methods consume these values while separately owning same-category floating or signed-integral input
 validation, local broadcasting, fixed BOOL result derivation, and ordered provenance. Integral
 relations use ordinary signed order after promotion; EQUAL and NOT_EQUAL compare exact promoted
-signed values. Floating edge policy, compiler capture, gradients, execution, and backend support remain planned. Its inherited names are diagnostic
-rather than serialization or dispatch keys, and an equally named kind from another family remains
-a different typed value.
+signed values. Compiler capture, derivative policy, execution, and backend support remain planned.
+Its inherited names are diagnostic rather than serialization or dispatch keys, and an equally
+named kind from another family remains a different typed value.
 
 The fifth production family is `BooleanLogicalKind`, an enum containing exactly `AND`, `OR`, and
 `NOT`. These values identify parameterless elementwise boolean conjunction, disjunction, and

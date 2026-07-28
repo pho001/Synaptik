@@ -380,7 +380,8 @@ is intentionally explicit:
 
 | Classification | Current deferred or rejected families |
 |---|---|
-| Blocked by incomplete shared model semantics | Binary/scalar `POW`; `RECIPROCAL`, `LOG`, and `SQRT`; extrema, clamp, `ABS`, and `RELU` rows that require a complete floating-comparison contract; `SOFTMAX` and `LOG_SOFTMAX` numerical-edge behavior |
+| Blocked by incomplete shared model semantics | Binary/scalar `POW`; `RECIPROCAL`, `LOG`, and `SQRT`; `SOFTMAX` and `LOG_SOFTMAX` numerical-edge behavior |
+| Fixed forward semantics but deferred derivative policy | Binary/scalar extrema, first-class clamp, `ABS`, and `RELU`; the model comparison/extrema/clamp prerequisite is complete, while Compiler 0005A must still choose ties, endpoints, discontinuities, and exceptional-value derivative behavior |
 | Later cohesive differentiation work | `LOG1P`, `RSQRT`; GELU variants and SiLU; `PROD`, `CUM_PROD`, `LOG_SUM_EXP`, statistics and norms; layer/RMS/batch normalization; pooling; losses; attention; ordering/top-K; indexing/scatter; windows, convolution, dropout, and other unlisted structured families |
 | Unchanged binding- or role-dependent work | Binding-dependent `SUM_TO_SHAPE`, target-relative crop, and unselected layout variants outside the current exact guards |
 | Non-differentiable roles and outputs | Comparisons, BOOL logic/classification, `ALL`, `ANY`, arg-extrema results, one-hot and other index roles, masks, padding constants, select coordinates, and graph RNG state |
@@ -571,13 +572,18 @@ for all six current data types. Tensor-to-Tensor and scalar arithmetic share the
 kinds, while the accepted integral subset is the five operations above; public pairwise extrema
 are named `minimum`/`maximum`, while aggregate reductions remain `min`/`max`. Floating extrema
 propagate NaN, order infinities normally, and select negative zero for minimum or positive zero
-for maximum. Range
-`CLAMP` remains first-class; `clampMin` creates one scalar `MAX` producer and `clampMax` one scalar
-`MIN` producer. Integral ADD, SUB, and MUL have fixed-width two's-complement modular meaning, and
-integral MIN, MAX, and comparisons use signed order. These are current model semantics and
-metadata-construction facts, not compiler validation, gradient, lowering, backend, or execution
-claims. Package-private structural capture preserves them, and the following package-private
-verification pass independently revalidates them. An `OperationSignature`
+for maximum, independent of operand order. Equal nonzero candidates produce their numeric value
+without a selected-operand promise. Floating ordered comparisons are false if either operand is
+NaN and treat negative and positive zero as equal. Floating `EQUAL` is exact represented numeric
+equality rather than bit or tolerance equality, and `NOT_EQUAL` is its logical complement.
+FLOAT64, FLOAT32, and BFLOAT16 use their represented values under existing promotion. Range
+`CLAMP` remains first-class with exactly ordered `MIN(MAX(input, minValue), maxValue)` meaning;
+`clampMin` creates one scalar `MAX` producer and `clampMax` one scalar `MIN` producer. Integral
+ADD, SUB, and MUL have fixed-width two's-complement modular meaning, and integral MIN, MAX, and
+comparisons use signed order. These are current model semantics and metadata-construction facts,
+not compiler validation, derivative-policy, lowering, backend, or execution claims. Package-
+private structural capture preserves them, and the following package-private verification pass
+independently revalidates them. An `OperationSignature`
 still validates only the exact attribute class and occurrence cardinality because an `Operation`
 has no operand
 descriptor. Current package-private compiler verification revalidates operand domains and exact

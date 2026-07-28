@@ -70,20 +70,30 @@ public enum BinaryArithmeticKind implements OperationKind {
     /**
      * Selects the mathematical minimum of the corresponding left and right element values.
      *
-     * <p>The portable request propagates NaN, orders infinities normally, and selects negative
-     * zero when comparing opposite signed zeros. It promises no NaN payload or bitwise result.
-     * Operand eligibility, broadcasting, result-data-type derivation, gradients, execution, and
-     * backend availability belong to their owning contracts.</p>
+     * <p>For FLOAT64 and FLOAT32 this compares the represented IEEE-754 value; BFLOAT16 compares
+     * the value represented by its exact 16-bit storage after the existing promotion. If either
+     * candidate is NaN, the result is NaN. Opposite signed zeros produce negative zero,
+     * independent of operand order. Infinities and unequal non-NaN values use ordinary numeric
+     * order; equal nonzero candidates produce that numeric value. The request promises no NaN
+     * payload, source-operand selection, or bitwise result. Integral minimum retains ordinary
+     * signed order after promotion. Operand eligibility, broadcasting, result-data-type
+     * derivation, gradients, execution, and backend availability belong to their owning
+     * contracts.</p>
      */
     MIN,
 
     /**
      * Selects the mathematical maximum of the corresponding left and right element values.
      *
-     * <p>The portable request propagates NaN, orders infinities normally, and selects positive
-     * zero when comparing opposite signed zeros. It promises no NaN payload or bitwise result.
-     * Operand eligibility, broadcasting, result-data-type derivation, gradients, execution, and
-     * backend availability belong to their owning contracts.</p>
+     * <p>For FLOAT64 and FLOAT32 this compares the represented IEEE-754 value; BFLOAT16 compares
+     * the value represented by its exact 16-bit storage after the existing promotion. If either
+     * candidate is NaN, the result is NaN. Opposite signed zeros produce positive zero,
+     * independent of operand order. Infinities and unequal non-NaN values use ordinary numeric
+     * order; equal nonzero candidates produce that numeric value. The request promises no NaN
+     * payload, source-operand selection, or bitwise result. Integral maximum retains ordinary
+     * signed order after promotion. Operand eligibility, broadcasting, result-data-type
+     * derivation, gradients, execution, and backend availability belong to their owning
+     * contracts.</p>
      */
     MAX,
 

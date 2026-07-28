@@ -89,7 +89,7 @@ cross-package/public orchestration boundary from a concrete consumer.
 | 0004A | [Exact-composition gradient-rule extensions](tasks/0004a-exact-composition-gradient-rule-extensions.md) | Complete | 0004 | Added the bounded policy-free matrix for typed ERF, masked and locally invertible shape-target SUM, role-aware floating MATMUL, and selected exact data-movement adjoints through the existing one-capture pipeline. |
 | 0004B | [Shared-algebra cotangent normalization and local derivative rules](tasks/0004b-shared-algebra-cotangent-normalization-and-local-derivative-rules.md) | Complete | 0004A | Added mixed-floating Shape/DataType normalization, ordinary DIV and MEAN formulas, and direct-zero FLOOR/CEIL/SIGN plus masked-all-false local conventions without a gradient-specific algebra or optimization policy. |
 | 0005 | [Publication, planning orchestration, and compile artifacts](tasks/0005-publication-planning-orchestration-and-compile-artifacts.md) | Complete | 0001–0004B; Planning 0006 closure; stable Config 0001–0003 and Backend Contract 0001–0004 inputs | Added the package-private complete compile entry, ordered publication/constant/diagnostic artifacts, and Compiler-owned graph-wide orchestration through three narrow package-cohesive Planning operations without prepare/runtime/backend state. |
-| 0005A | Derivative policy and elementwise/activation gradient completion | Draft | 0005 | Complete the binary/scalar arithmetic, selection/cast, unary, and activation inventory; make every required tie, endpoint, discontinuity, domain, and exceptional-value derivative decision explicit while preserving BOOL comparison/logical/classification roles as non-differentiable. |
+| 0005A | Derivative policy and elementwise/activation gradient completion | Draft | Model 0025A; Compiler 0005 | Complete the binary/scalar arithmetic, selection/cast, unary, and activation inventory after the portable floating comparison/extrema/clamp forward contract is fixed; make every required tie, endpoint, discontinuity, domain, and exceptional-value derivative decision explicit while preserving BOOL comparison/logical/classification roles as non-differentiable. |
 | 0005B | Reduction, scan, softmax, statistics, and normalization gradient completion | Draft | 0005A | Complete binding-dependent sum-to-Shape, products, extrema, scans, softmax/log-softmax, statistics, norms, and layer/RMS/batch normalization, including explicit boundary policies, non-differentiable mask/index roles, and same-occurrence saved batch-statistic outputs. |
 | 0005C | Layout, window, indexing, scatter, ordering, and stochastic gradient completion | Draft | 0005B | Complete remaining layout/slice/composition and dynamic window rules, Gather/scatter variants, sort/top-K routing, and dropout through canonical auxiliaries; keep coordinates, indices, one-hot/BOOL outputs, RNG state, masks, and configuration roles non-differentiable. |
 | 0005D | Attention, convolution, pooling, and loss gradient completion | Draft | 0005B, 0005C | Verify the implemented MATMUL/linear chain and complete the remaining structured-ML inventory: attention with same-occurrence weights, grouped convolution, pooling, and every current loss role and reduction mode with explicit special-case policies and non-differentiable mask/index/configuration roles. |
@@ -140,8 +140,11 @@ compiler module passed 18 suites/136 tests; the final transformation/autograd ch
 167 suites/1,275 tests with no skipped tests, failures, or errors; and the independent
 documentation pass finalized Javadocs and current status.
 [Compiler 0005](tasks/0005-publication-planning-orchestration-and-compile-artifacts.md) is Complete
-with recorded source, tests, documentation, and validation. Compiler 0005A–0005E and 0006 remain
-concise Draft rows without detailed specifications, so no later compiler task is Ready.
+with recorded source, tests, documentation, and validation. Focused
+[Model 0025A](../model/tasks/0025a-portable-floating-comparison-extrema-and-clamp-semantics.md) is
+Complete and fixes the shared floating comparison/extrema/clamp forward contract. Compiler
+0005A–0005E and 0006 remain concise Draft rows without detailed specifications, so no later
+compiler task is Ready.
 
 The first clean Compiler 0005 implementation context stopped before edits after confirming that
 the originally planned `planning.compiler` facade could not call package-private top-level
@@ -190,13 +193,14 @@ remain package-private. The task returns immutable `CompileArtifacts` containing
 logical compile state only; they do not retain live providers, availability snapshots, selected
 devices, routes, kernels, physical memory, prepared/runtime state, trace events, or executables.
 
-After Compiler 0005, tasks 0005A–0005E form one explicit dependency-ordered milestone
+After Compiler 0005 and the focused Model 0025A prerequisite, tasks 0005A–0005E form one explicit
+dependency-ordered milestone
 that closes first-order gradient coverage across the complete current model inventory before
 higher-order work. The sequence first resolves elementwise/activation derivative policies and
 formula foundations, then reductions/scans/softmax/statistics/normalization, then dynamic layout/
 window/indexing/scatter/ordering/stochastic families, then structured attention/convolution/
 pooling/loss families, and finally one source-backed coverage checkpoint. No row beyond 0005 is
-Ready and no later detailed task specification exists.
+Ready in this compiler plan, and no later compiler detailed task specification exists.
 
 This reordering preserves completed history. Tasks 0003, 0003A, and 0003B were correctly completed
 for a forward-only immutable graph. Compiler 0004 reused their existing exact rules only where
@@ -213,9 +217,10 @@ Runtime and prepare remain Draft because no prepared or executable state is intr
 - The public functional boundary for explicit objectives, targets, seeds, and derivative order
   remains deferred to task 0006 after the compile/artifact boundary and task 0005E first-order
   closure are stable.
-- Task 0005A must select and document the exact derivative behavior needed for elementwise and
-  activation ties, endpoints, discontinuities, invalid domains, signed zero, infinities, and NaNs;
-  this synchronization selects none of those policies.
+- Model 0025A fixes ordinary floating comparison, pairwise/scalar MIN/MAX, and ordered first-class
+  CLAMP forward meaning without selecting derivatives. Task 0005A must separately select and
+  document the exact derivative behavior needed for elementwise and activation ties, endpoints,
+  discontinuities, invalid domains, signed zero, infinities, and NaNs.
 - Task 0005B must select the corresponding empty-domain, zero-product, extrema, softmax,
   correction, zero-norm/variance, and normalization policies and close binding-dependent
   sum-to-Shape plus saved batch-statistic roles.
@@ -253,6 +258,10 @@ Runtime and prepare remain Draft because no prepared or executable state is intr
   as logical splats. Tensor storage and factory history are never constant evidence.
 - Model task 0025 supplies the exact canonical wrapper for every producer output slot, including
   hidden dropout and batch-normalization auxiliaries. Compiler does not reconstruct wrappers.
+- Model task 0025A is the forward numerical-contract prerequisite for Compiler 0005A. It fixes
+  ordinary ordered floating comparisons, numeric equality/inequality, NaN-propagating MIN/MAX,
+  signed-zero extrema, and ordered `MIN(MAX(input, minValue), maxValue)` CLAMP without choosing any
+  derivative tie, endpoint, discontinuity, singularity, or exceptional-value convention.
 - Phase-aware capture receives forward outputs, gradient roots and target roles, the original
   forward-producer identity set, and explicit constant facts. It assigns `NodeId`/`ValueId` once
   and retains `GraphPhase` per node.
@@ -287,7 +296,7 @@ Runtime and prepare remain Draft because no prepared or executable state is intr
   differentiation or intentionally non-differentiable. It does not mean that BOOL, index,
   RNG-state, mask, or configuration roles receive cotangents.
 - Derivative boundary and subgradient choices are implementation-frontier decisions in their
-  assigned Draft task. This planning synchronization does not choose them.
+  assigned Draft task. Model 0025A chooses only shared forward meaning and does not choose them.
 - Task 0005E must prove transitive formula-operation differentiation coverage before 0006. It
   adds no create-graph behavior, derivative-order representation, or higher-order request.
 
@@ -329,7 +338,7 @@ Follow the planning guide's progressive-planning rule. Model 0025 and Compiler 0
 Complete. Compiler 0004B stayed within its exact 16-path ceiling: five compiler production files,
 four compiler tests, and seven documentation/planning files. Its compiler module validation,
 independent documentation pass, and compiler transformation/autograd capability checkpoint all
-passed. Compiler 0005 is Complete. Compiler 0005A–0005E and 0006 remain Draft without detailed
-specifications, and no later compiler task is Ready. Create only the 0005A detailed specification
-when that task is deliberately promoted. Keep 0005B–0005E and 0006 as concise Draft rows until
-each becomes the next unfinished frontier.
+passed. Compiler 0005 and Model 0025A are Complete. Compiler 0005A–0005E and 0006 remain Draft
+without detailed specifications, and no later compiler task is Ready. Create only the 0005A
+detailed specification when that compiler task is deliberately promoted. Keep 0005B–0005E and
+0006 as concise Draft rows until each becomes the next unfinished frontier.

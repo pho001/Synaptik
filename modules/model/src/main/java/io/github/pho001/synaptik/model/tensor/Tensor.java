@@ -93,7 +93,9 @@ import java.util.Optional;
  * broadcast shapes and combine gradient eligibility by logical OR; integral descriptors
  * necessarily remain non-differentiable. Binary comparison methods accept the same-category
  * floating or integral domains and broadcasting contract but produce non-differentiable
- * {@code BOOL} descriptors; integral relations use signed order. Boolean
+ * {@code BOOL} descriptors. Floating ordered relations are false for NaN and treat signed zeros
+ * as equal; floating equality is exact represented numeric equality and inequality is its
+ * complement. Integral relations use signed exact order and equality. Boolean
  * logical methods accept only {@code BOOL}: conjunction and disjunction broadcast ordered inputs,
  * while negation retains the exact input shape. Their results are also non-differentiable
  * {@code BOOL} descriptors. Conditional selection accepts one {@code BOOL} condition and two
@@ -465,9 +467,11 @@ public final class Tensor {
      * equal to the
      * logical OR of the operand requests, no label or host storage, and provenance containing
      * {@link BinaryArithmeticKind#MIN}, {@code NoOperationAttrs.INSTANCE}, and ordered inputs
-     * {@code [this, right]}. Floating extrema retain their NaN, infinity, and signed-zero policy;
-     * integral minimum uses ordinary signed order. This method constructs metadata only and does
-     * not compare values, define gradients, capture a graph, or execute.</p>
+     * {@code [this, right]}. Floating minimum propagates NaN, produces negative zero for opposite
+     * signed zeros, and otherwise uses ordinary numeric order; equal nonzero candidates produce
+     * their numeric value without a source-operand or bitwise-selection promise. Integral minimum
+     * uses ordinary signed order. This method constructs metadata only and does not compare
+     * values, define gradients, capture a graph, or execute.</p>
      *
      * @param right non-null ordered right minimum operand; it is retained by exact reference in
      *     result provenance and is not mutated
@@ -493,9 +497,11 @@ public final class Tensor {
      * equal to the
      * logical OR of the operand requests, no label or host storage, and provenance containing
      * {@link BinaryArithmeticKind#MAX}, {@code NoOperationAttrs.INSTANCE}, and ordered inputs
-     * {@code [this, right]}. Floating extrema retain their NaN, infinity, and signed-zero policy;
-     * integral maximum uses ordinary signed order. This method constructs metadata only and does
-     * not compare values, define gradients, capture a graph, or execute.</p>
+     * {@code [this, right]}. Floating maximum propagates NaN, produces positive zero for opposite
+     * signed zeros, and otherwise uses ordinary numeric order; equal nonzero candidates produce
+     * their numeric value without a source-operand or bitwise-selection promise. Integral maximum
+     * uses ordinary signed order. This method constructs metadata only and does not compare
+     * values, define gradients, capture a graph, or execute.</p>
      *
      * @param right non-null ordered right maximum operand; it is retained by exact reference in
      *     result provenance and is not mutated
@@ -1374,8 +1380,11 @@ public final class Tensor {
      * result is {@code BOOL}, has unresolved layout and false gradient eligibility, no label or
      * host storage, and provenance containing {@link BinaryComparisonKind#GREATER_THAN},
      * {@code NoOperationAttrs.INSTANCE}, and ordered inputs {@code [this, right]}. This method
-     * constructs semantics only. Integral operands use ordinary signed order after promotion;
-     * floating special-value policy, gradients, graph capture, and execution are deferred.</p>
+     * constructs semantics only. Integral operands use ordinary signed order after promotion.
+     * Floating operands use represented numeric order after promotion: the result is false if
+     * either operand is NaN and false for either ordering of negative and positive zero.
+     * Infinities and finite values otherwise use ordinary numeric order. Gradients, graph capture,
+     * and execution are deferred.</p>
      *
      * @param right non-null ordered right comparison operand; it is retained by exact reference
      *     in result provenance and is not mutated
@@ -1401,8 +1410,11 @@ public final class Tensor {
      * result is {@code BOOL}, has unresolved layout and false gradient eligibility, no label or
      * host storage, and provenance containing {@link BinaryComparisonKind#GREATER_OR_EQUAL},
      * {@code NoOperationAttrs.INSTANCE}, and ordered inputs {@code [this, right]}. This method
-     * constructs semantics only. Integral operands use ordinary signed order after promotion;
-     * floating special-value policy, gradients, graph capture, and execution are deferred.</p>
+     * constructs semantics only. Integral operands use ordinary signed order after promotion.
+     * Floating operands use represented numeric order after promotion: the result is false if
+     * either operand is NaN and true for either ordering of negative and positive zero.
+     * Infinities and finite values otherwise use ordinary inclusive numeric order. Gradients,
+     * graph capture, and execution are deferred.</p>
      *
      * @param right non-null ordered right comparison operand; it is retained by exact reference
      *     in result provenance and is not mutated
@@ -1429,8 +1441,11 @@ public final class Tensor {
      * result is {@code BOOL}, has unresolved layout and false gradient eligibility, no label or
      * host storage, and provenance containing {@link BinaryComparisonKind#LESS_THAN},
      * {@code NoOperationAttrs.INSTANCE}, and ordered inputs {@code [this, right]}. This method
-     * constructs semantics only. Integral operands use ordinary signed order after promotion;
-     * floating special-value policy, gradients, graph capture, and execution are deferred.</p>
+     * constructs semantics only. Integral operands use ordinary signed order after promotion.
+     * Floating operands use represented numeric order after promotion: the result is false if
+     * either operand is NaN and false for either ordering of negative and positive zero.
+     * Infinities and finite values otherwise use ordinary numeric order. Gradients, graph capture,
+     * and execution are deferred.</p>
      *
      * @param right non-null ordered right comparison operand; it is retained by exact reference
      *     in result provenance and is not mutated
@@ -1456,8 +1471,11 @@ public final class Tensor {
      * result is {@code BOOL}, has unresolved layout and false gradient eligibility, no label or
      * host storage, and provenance containing {@link BinaryComparisonKind#LESS_OR_EQUAL},
      * {@code NoOperationAttrs.INSTANCE}, and ordered inputs {@code [this, right]}. This method
-     * constructs semantics only. Integral operands use ordinary signed order after promotion;
-     * floating special-value policy, gradients, graph capture, and execution are deferred.</p>
+     * constructs semantics only. Integral operands use ordinary signed order after promotion.
+     * Floating operands use represented numeric order after promotion: the result is false if
+     * either operand is NaN and true for either ordering of negative and positive zero.
+     * Infinities and finite values otherwise use ordinary inclusive numeric order. Gradients,
+     * graph capture, and execution are deferred.</p>
      *
      * @param right non-null ordered right comparison operand; it is retained by exact reference
      *     in result provenance and is not mutated
@@ -1485,8 +1503,9 @@ public final class Tensor {
      * host storage, and provenance containing {@link BinaryComparisonKind#EQUAL},
      * {@code NoOperationAttrs.INSTANCE}, and ordered inputs {@code [this, right]}. Operand order is
      * retained even though equality is symmetric. Integral equality is exact after signed
-     * promotion; floating tolerance and special-value policy, gradients, graph capture, and
-     * execution are deferred.</p>
+     * promotion. Floating equality is exact represented numeric equality after promotion, not
+     * bit or tolerance equality: NaN is unequal to every value, including itself, and negative
+     * zero equals positive zero. Gradients, graph capture, and execution are deferred.</p>
      *
      * @param right non-null ordered right comparison operand; it is retained by exact reference
      *     in result provenance and is not mutated
@@ -1513,8 +1532,10 @@ public final class Tensor {
      * host storage, and provenance containing {@link BinaryComparisonKind#NOT_EQUAL},
      * {@code NoOperationAttrs.INSTANCE}, and ordered inputs {@code [this, right]}. Operand order is
      * retained even though inequality is symmetric. Integral inequality is exact after signed
-     * promotion; floating tolerance and special-value policy, gradients, graph capture, and
-     * execution are deferred.</p>
+     * promotion. Floating inequality is the logical complement of exact represented numeric
+     * equality, not bit or tolerance inequality: it is true if either operand is NaN and false
+     * for either ordering of negative and positive zero. Gradients, graph capture, and execution
+     * are deferred.</p>
      *
      * @param right non-null ordered right comparison operand; it is retained by exact reference
      *     in result provenance and is not mutated
@@ -1803,9 +1824,11 @@ public final class Tensor {
      * Builds pairwise scalar minimum with an exact value matching this numeric tensor's type.
      *
      * <p>The result records one {@link ScalarElementwiseKind#MIN} operation with the exact value
-     * reference. Floating minimum retains its NaN, infinity, and signed-zero policy; integral
-     * minimum uses ordinary signed order. This pairwise method does not reduce an axis, inspect
-     * values, define gradients, capture a graph, or execute.</p>
+     * reference. The scalar's same-typed represented numeric value participates in the comparison;
+     * its exact raw bits remain metadata identity rather than a bitwise comparison rule. Floating
+     * minimum propagates NaN, produces negative zero for opposite signed zeros, and otherwise uses
+     * ordinary numeric order. Integral minimum uses ordinary signed order. This pairwise method
+     * does not reduce an axis, inspect values, define gradients, capture a graph, or execute.</p>
      *
      * @param value non-null exact typed minimum candidate; its data type must match this tensor
      * @return a non-null fresh storage-free expression preserving this tensor's metadata
@@ -1838,9 +1861,11 @@ public final class Tensor {
      * Builds pairwise scalar maximum with an exact value matching this numeric tensor's type.
      *
      * <p>The result records one {@link ScalarElementwiseKind#MAX} operation with the exact value
-     * reference. Floating maximum retains its NaN, infinity, and signed-zero policy; integral
-     * maximum uses ordinary signed order. This pairwise method does not reduce an axis, inspect
-     * values, define gradients, capture a graph, or execute.</p>
+     * reference. The scalar's same-typed represented numeric value participates in the comparison;
+     * its exact raw bits remain metadata identity rather than a bitwise comparison rule. Floating
+     * maximum propagates NaN, produces positive zero for opposite signed zeros, and otherwise uses
+     * ordinary numeric order. Integral maximum uses ordinary signed order. This pairwise method
+     * does not reduce an axis, inspect values, define gradients, capture a graph, or execute.</p>
      *
      * @param value non-null exact typed maximum candidate; its data type must match this tensor
      * @return a non-null fresh storage-free expression preserving this tensor's metadata
@@ -1901,10 +1926,14 @@ public final class Tensor {
      * The fresh result retains the exact input data type
      * and shape reference, has unresolved layout and unchanged gradient eligibility, no label or
      * storage, and one-input provenance containing a single {@link ScalarElementwiseKind#CLAMP}
-     * operation. Its value meaning is {@code minimum(maximum(input, minValue), maxValue)} under
-     * the selected NaN-propagating, normally ordered infinity and signed-zero extrema policy.
-     * Scalar conversion, range simplification or expansion, gradients, and execution are
-     * deferred.</p>
+     * operation. Its value meaning is exactly ordered
+     * {@code MIN(MAX(input, minValue), maxValue)} under the selected extrema policy, without
+     * stored intermediate producers. A NaN input or bound produces NaN without a payload promise.
+     * Equal non-NaN same-representation bounds produce that bound for every non-NaN input. Bounds
+     * {@code [-0, +0]} produce negative zero for negative inputs and negative zero, and positive
+     * zero for positive inputs and positive zero. Bounds {@code [+0, -0]} produce negative zero
+     * for every non-NaN input. Scalar conversion, range simplification or expansion, gradients,
+     * and execution are deferred.</p>
      *
      * @param minValue inclusive binary64 lower bound retained with its exact primitive bits
      * @param maxValue inclusive binary64 upper bound retained with its exact primitive bits
@@ -1924,9 +1953,13 @@ public final class Tensor {
      * a non-inverted represented range, and exact bound/receiver data-type equality. The bound
      * references are retained in one {@code ClampRangeAttrs}. The fresh result preserves Shape,
      * data type, and gradient eligibility and records one first-class CLAMP operation. Its value
-     * meaning composes maximum with the lower bound and then minimum with the upper bound under
-     * the selected extrema semantics, without stored intermediates. It does not convert or inspect
-     * values, define gradients, or execute.</p>
+     * meaning is exactly ordered {@code MIN(MAX(input, minValue), maxValue)} under the selected
+     * extrema semantics, without stored intermediate producers. A NaN input or bound produces NaN
+     * without a payload promise. Equal non-NaN same-representation bounds produce that bound for
+     * every non-NaN input. Bounds {@code [-0, +0]} retain negative zero for negative inputs and
+     * negative zero, and positive zero for positive inputs and positive zero. Bounds
+     * {@code [+0, -0]} produce negative zero for every non-NaN input. It does not convert or
+     * inspect values, define gradients, or execute.</p>
      *
      * @param minValue non-null exact typed inclusive lower bound
      * @param maxValue non-null exact typed inclusive upper bound of the same type

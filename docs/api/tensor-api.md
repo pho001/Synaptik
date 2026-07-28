@@ -512,7 +512,8 @@ one-input meanings, with exact typed parameters carried by `ScalarValueAttrs` or
 `maximum`, and tensor-valued `pow` methods use the binary kinds to construct storage-free expression
 tensors. The public `Tensor.greaterThan`, `greaterOrEqual`, `lessThan`, `lessOrEqual`, `equalTo`,
 and `notEqualTo` methods use the comparison kinds to construct storage-free `BOOL` expressions
-from ordered floating inputs. The public `Tensor.abs`, `neg`, `reciprocal`, `log`, `log1p`, `exp`,
+from ordered same-category floating or signed-integral inputs. The public `Tensor.abs`, `neg`,
+`reciprocal`, `log`, `log1p`, `exp`,
 `expm1`, `erf`, `sqrt`, `rsqrt`, `floor`, `ceil`, `sign`, `relu`, `sigmoid`, `tanh`, `gelu`,
 `geluTanhApproximation`, and `silu` methods use the unary kinds to create storage-free expressions
 from one floating input. `Tensor.isFinite`,
@@ -588,11 +589,14 @@ storage, or values or performing a copy.
 expression families derive result descriptors, but none assigns graph identity, captures
 a graph, calculates values, defines gradient rules, or executes computation.
 
-Comparison expression construction validates floating compatibility and local broadcasting, then
-derives an unresolved non-differentiable `BOOL` descriptor and exact ordered provenance. It does
-not define numerical comparison behavior for NaN, infinity, signed zero, tolerance, or mixed
-floating precision. Compiler capture, gradients, backend lowering, and execution also remain
-planned for their owning layers.
+Comparison expression construction validates same-category numeric compatibility and local
+broadcasting, then derives an unresolved non-differentiable `BOOL` descriptor and exact ordered
+provenance. It does not inspect values or execute the comparison. Its fixed represented-value
+semantics use ordinary floating numeric order, make every ordered relation false when either
+operand is NaN, and treat negative and positive zero as equal. `EQUAL` is exact numeric equality
+rather than raw-bit or tolerance equality; `NOT_EQUAL` is its logical complement. Integral
+relations retain exact signed comparison after promotion. Compiler capture, gradients, backend
+lowering, and execution remain planned for their owning layers.
 
 An implemented `GraphValue` describes logical data. An implemented `CompiledNode` describes one
 place where operation semantics consume and produce that data. The implemented
@@ -2404,8 +2408,12 @@ This order remains in provenance even for operations whose mathematical result i
 commutative.
 
 Pairwise `minimum` and `maximum` propagate NaN, order infinities normally, and choose negative
-zero for minimum or positive zero for maximum when comparing opposite signed zeros. They promise
-no NaN payload or bitwise result. The reduction names remain `min` and `max`.
+zero for minimum or positive zero for maximum when comparing opposite signed zeros, independent
+of operand order. Unequal non-NaN values use ordinary numeric order; equal nonzero candidates
+produce that numeric value without identifying one source operand. FLOAT64 and FLOAT32 use their
+represented IEEE-754 values; BFLOAT16 uses the value represented by its exact 16-bit storage
+after existing promotion. They promise no NaN payload or bitwise result. The reduction names
+remain `min` and `max`.
 
 ADD, SUB, MUL, MIN, and MAX accept either two floating operands or two signed-integral operands.
 Floating pairs retain `BFLOAT16 < FLOAT32 < FLOAT64`; integral pairs use `INT32 < INT64`, with an
@@ -2553,10 +2561,16 @@ or both inputs request gradients.
 Every valid call returns a fresh Tensor with a new factory identity, no label, and no host storage.
 Its provenance contains one `Operation` with the exact matching `BinaryComparisonKind` and
 `NoOperationAttrs.INSTANCE`, followed by exact ordered input references `[left, right]`. Repeated,
-self, and symmetric calls are not interned, reordered, or canonicalized. Integral extrema and all
-six relations use ordinary signed order; EQUAL and NOT_EQUAL compare exact promoted signed values.
-Floating numerical edge policy, compiler capture, training-graph treatment, gradient rules, and
-backend execution remain later responsibilities.
+self, and symmetric calls are not interned, reordered, or canonicalized. FLOAT64 and FLOAT32 use
+their represented IEEE-754 values in the promoted domain. BFLOAT16 uses the value represented by
+its exact 16-bit storage; widening adds no new conversion or rounding contract. If either operand
+is NaN, all four ordered relations are false. Negative and positive zero compare equal, so neither
+strict relation holds and both inclusive relations hold in either operand order. `EQUAL` is exact
+numeric equality rather than raw-bit or tolerance equality: NaN is unequal to every value,
+including itself, and opposite signed zeros are equal. `NOT_EQUAL` is its logical complement.
+Finite values and infinities otherwise use ordinary numeric order. Integral relations use
+ordinary signed order; EQUAL and NOT_EQUAL compare exact promoted signed values. Compiler capture,
+training-graph treatment, derivative policy, and backend execution remain later responsibilities.
 
 #### Complete comparison-expression example
 
@@ -2633,8 +2647,9 @@ fresh=true
 ```
 
 The output proves floating-domain validation, broadcasting, fixed `BOOL` descriptor facts, fresh
-identity, and ordered provenance. It does not prove any elementwise truth value, NaN or signed-zero
-policy, tolerance behavior, gradient handling by a future compiler, backend support, or execution.
+identity, and ordered provenance. It does not evaluate any elementwise truth value or the fixed
+NaN, signed-zero, and exact numeric-equality semantics, nor does it prove gradient handling by a
+future compiler, backend support, or execution.
 
 ##### Failures and useful variations
 
@@ -3162,10 +3177,16 @@ Integral results necessarily have false gradient eligibility.
 Every valid call returns a fresh Tensor with a new factory identity, no label, and no host storage.
 Its provenance contains the exact matching `ScalarElementwiseKind`, typed attributes, and exactly
 the receiver reference. `clamp(minValue, maxValue)` is one first-class `CLAMP` operation with the
-value meaning `minimum(maximum(input, lower), upper)`, but no stored intermediate producers.
-`clampMin` creates exactly one scalar `MAX` producer, and `clampMax` exactly one scalar `MIN`
-producer. Repeated, nested, identity-like, and special-value calls are not interned, folded, or
-simplified at this public expression-construction boundary.
+exactly ordered value meaning `MIN(MAX(input, minValue), maxValue)`, but no stored intermediate
+producers. Floating scalar extrema compare represented numeric values: NaN propagates, opposite
+signed zeros select negative zero for MIN or positive zero for MAX, and other values use ordinary
+numeric order. Exact `ScalarValue` bits remain metadata identity rather than bitwise comparison.
+Consequently, a NaN input or bound makes CLAMP NaN; equal non-NaN same-representation bounds
+produce that bound; bounds `[-0, +0]` select the corresponding directional zero; and bounds
+`[+0, -0]` produce negative zero for every non-NaN input. `clampMin` creates exactly one scalar
+`MAX` producer, and `clampMax` exactly one scalar `MIN` producer. Repeated, nested, identity-like,
+and special-value calls are not interned, folded, or simplified at this public expression-
+construction boundary.
 
 Current package-private compiler autograd supports exact same-floating-type scalar `ADD`, `SUB`,
 and `MUL`. Scalar `DIV`, `POW`, extrema, and clamp variants remain outside the closed first matrix
@@ -8207,10 +8228,14 @@ Broadcast geometry is derived from operand shapes rather than stored on the enum
 attributes. The current public Tensor methods own local floating eligibility, promotion,
 broadcasting, result-descriptor construction, and ordered provenance. ADD, SUB, MUL, and DIV are
 ordinary ordered IEEE-754 requests in the result type. MIN and MAX propagate NaN, order infinities
-normally, and choose negative or positive zero, respectively, from opposite signed zeros. No NaN
-payload, intermediate precision, exact instruction, bitwise result, gradient rule, compiler
-capture, execution, or backend availability is promised here. The inherited enum names and text
-are stable diagnostics, not serialization
+normally, and choose negative or positive zero, respectively, from opposite signed zeros,
+independent of operand order. Unequal non-NaN values use ordinary numeric order, while equal
+nonzero candidates produce that numeric value without identifying a selected operand. FLOAT64 and
+FLOAT32 use their represented IEEE-754 values; BFLOAT16 uses the value represented by its exact
+16-bit storage after existing promotion. Integral extrema retain ordinary signed order after
+promotion. No NaN payload, intermediate precision, exact instruction, bitwise result, gradient
+rule, compiler capture, execution, or backend availability is promised here. The inherited enum
+names and text are stable diagnostics, not serialization
 tokens, registry keys, or string-dispatch contracts. Equality remains typed: an `ADD` value
 declared by another kind family is not equal to `BinaryArithmeticKind.ADD` even though both
 diagnostics may contain `ADD`.
@@ -8223,12 +8248,12 @@ The public enum
 
 | Kind | Ordered elementwise meaning |
 |---|---|
-| `GREATER_THAN` | The left value is strictly greater than the right value. |
-| `GREATER_OR_EQUAL` | The left value is greater than or equal to the right value. |
-| `LESS_THAN` | The left value is strictly less than the right value. |
-| `LESS_OR_EQUAL` | The left value is less than or equal to the right value. |
-| `EQUAL` | The left and right values compare equal. |
-| `NOT_EQUAL` | The left and right values compare unequal. |
+| `GREATER_THAN` | The left value is strictly greater than the right value; false for NaN or either signed-zero order. |
+| `GREATER_OR_EQUAL` | The left value is greater than or equal to the right value; false for NaN and true for either signed-zero order. |
+| `LESS_THAN` | The left value is strictly less than the right value; false for NaN or either signed-zero order. |
+| `LESS_OR_EQUAL` | The left value is less than or equal to the right value; false for NaN and true for either signed-zero order. |
+| `EQUAL` | Exact represented numeric equality; NaN is unequal to itself and opposite signed zeros are equal. |
+| `NOT_EQUAL` | The logical complement of `EQUAL`; true for NaN and false for opposite signed zeros. |
 
 All six kinds are parameterless semantic identities. They compose explicitly with the generic
 operation descriptor:
@@ -8247,10 +8272,17 @@ output.
 
 The current public comparison methods separately own floating-pair validation, right-aligned local
 broadcasting, fixed `BOOL` result derivation with false `requiresGrad`, and ordered provenance
-construction. NaN, infinity, signed-zero, tolerance, and mixed-precision numerical behavior,
-gradient policy beyond the descriptor flag, compiler capture, execution, and backend availability
-remain planned. Inherited enum names and text are diagnostic rather than serialization or dispatch
-keys. Typed identity keeps an equally named kind from another family unequal to
+construction. FLOAT64 and FLOAT32 compare their represented IEEE-754 values after existing
+promotion. BFLOAT16 compares the value represented by its exact 16-bit storage; widening for the
+existing comparison domain adds no conversion or rounding contract. The four ordered relations
+are false when either operand is NaN. Negative zero and positive zero compare equal, so neither
+strict relation holds and both inclusive relations hold in either order. `EQUAL` is exact numeric
+equality, not bit or tolerance equality; NaN is unequal to every value, including itself.
+`NOT_EQUAL` is its exact logical complement. Finite values and infinities otherwise use ordinary
+numeric order. Integral comparison remains exact signed comparison after promotion. Gradient
+policy beyond the descriptor flag, compiler capture, execution, and backend availability remain
+planned. Inherited enum names and text are diagnostic rather than serialization or dispatch keys.
+Typed identity keeps an equally named kind from another family unequal to
 `BinaryComparisonKind`.
 
 ### Boolean logical semantic kinds
@@ -9474,16 +9506,31 @@ An `Operation` has no operand descriptor, so direct construction does not prove 
 attributes will eventually be attached to a FLOAT32 input.
 
 Scalar MIN/MAX use the same NaN propagation, normal infinity ordering, and opposite-zero choices
-as the binary family. `CLAMP(input, lower, upper)` has the value meaning
-`minimum(maximum(input, lower), upper)` but remains one semantic occurrence. The one-bound public
-methods are conveniences over scalar MAX and MIN rather than separate kinds.
+as the binary family. The input's represented numeric value is compared with the exact represented
+value of the same-typed `ScalarValue`; the scalar's retained raw bits remain metadata equality and
+do not make elementwise comparison bitwise. FLOAT64 and FLOAT32 use their represented IEEE-754
+values, while BFLOAT16 uses the value represented by its exact 16-bit storage. `CLAMP(input,
+minValue, maxValue)` has the exactly ordered value meaning
+`MIN(MAX(input, minValue), maxValue)` but remains one semantic occurrence with no stored
+intermediate producers:
 
-The kinds and attributes alone do not
-infer result descriptors, define scalar conversion, establish numerical or special-value execution
-behavior, create provenance, define gradients, report backend support, select kernels, or execute
-computation. Their enum names and generated record text are diagnostics, not serialization or
-dispatch contracts. The current public scalar Tensor methods separately own floating-input
-validation, descriptor derivation, exact attribute composition, and one-input provenance.
+| Input or bounds | Result |
+|---|---|
+| Input, `minValue`, or `maxValue` is NaN | NaN, with no payload promise |
+| Equal non-NaN, same-representation bounds | That bound for every non-NaN input |
+| Bounds `[-0, +0]` | Negative inputs and negative zero produce `-0`; positive inputs and positive zero produce `+0` |
+| Bounds `[+0, -0]` | Every non-NaN input produces `-0` |
+
+These results add no validation: primitive represented-value `>` remains false for either
+signed-zero order and for NaN endpoints. The one-bound public methods are conveniences over scalar
+MAX and MIN rather than separate kinds.
+
+The kinds and attributes alone do not infer result descriptors, define scalar conversion, evaluate
+the fixed numerical meaning, create provenance, define gradients, report backend support, select
+kernels, or execute computation. Their enum names and generated record text are diagnostics, not
+serialization or dispatch contracts. The current public scalar Tensor methods separately own
+floating-input validation, descriptor derivation, exact attribute composition, and one-input
+provenance.
 
 ### Test-local conceptual example
 
@@ -10111,21 +10158,26 @@ remain planned.
   and has an independent one-output producer over `[input]` with provenance index zero. A zero
   extent consumes no ID. Mid-request ID exhaustion may consume earlier IDs but returns no partial
   List.
-- `Tensor.add`, `sub`, `mul`, `div`, `min`, `max`, and tensor-valued `pow` require a non-null right
-  operand, promote only floating data types, and require locally provable right-aligned
-  broadcasting. Each successful call returns a fresh unlabeled storage-free Tensor with unresolved
-  layout, gradient eligibility equal to input OR, and exact matching parameterless operation plus
-  ordered `[left, right]` provenance. Null, type, and shape failures precede ID allocation;
-  identity exhaustion follows local descriptor and provenance construction. These methods do not
-  calculate values, simplify expressions, capture graphs, or define gradient or backend behavior.
+- `Tensor.add`, `sub`, `mul`, `minimum`, and `maximum` require same-category floating or signed-
+  integral operands; `div` and tensor-valued `pow` remain floating-only. Every form requires a
+  non-null right operand and locally provable right-aligned broadcasting. Floating extrema
+  propagate NaN, select negative or positive zero for minimum or maximum, and otherwise use
+  ordinary numeric order; integral extrema use signed order. Each successful call returns a fresh
+  unlabeled storage-free Tensor with unresolved layout, gradient eligibility equal to input OR,
+  and exact matching parameterless operation plus ordered `[left, right]` provenance. Null, type,
+  and shape failures precede ID allocation; identity exhaustion follows local descriptor and
+  provenance construction. These methods do not calculate values, simplify expressions, capture
+  graphs, or define gradient or backend behavior.
 - `Tensor.greaterThan`, `greaterOrEqual`, `lessThan`, `lessOrEqual`, `equalTo`, and `notEqualTo`
-  require a non-null right operand, accept only floating input pairs, and require locally provable
-  right-aligned broadcasting. Each successful call returns a fresh unlabeled storage-free `BOOL`
-  Tensor with unresolved layout, false gradient eligibility, the exact parameterless comparison
-  operation, and ordered `[left, right]` provenance. Null, type, and shape failures precede ID
-  allocation; identity exhaustion follows local descriptor and provenance construction. These
-  methods do not inspect values, define numerical comparison or tolerance behavior, create
-  gradient rules, capture graphs, or provide backend execution.
+  require a non-null right operand, accept same-category floating or signed-integral input pairs,
+  and require locally provable right-aligned broadcasting. Each successful call returns a fresh
+  unlabeled storage-free `BOOL` Tensor with unresolved layout, false gradient eligibility, the
+  exact parameterless comparison operation, and ordered `[left, right]` provenance. Floating
+  ordered relations are false for NaN and treat signed zeros as equal; equality is exact numeric
+  equality and inequality is its complement. Integral comparison is exact after signed promotion.
+  Null, type, and shape failures precede ID allocation; identity exhaustion follows local
+  descriptor and provenance construction. These methods do not inspect values, create gradient
+  rules, capture graphs, or provide backend execution.
 - `Tensor.logicalAnd` and `logicalOr` require a non-null right operand and exact `BOOL` data type
   on both ordered inputs, then derive one locally provable right-aligned broadcast shape.
   `Tensor.logicalNot` requires an exact `BOOL` receiver and retains its exact input `Shape`
@@ -10158,15 +10210,18 @@ remain planned.
   and exact matching one-input provenance. They record future value classifications without
   inspecting storage, eagerly producing booleans, defining gradients, capturing a graph, or
   executing work.
-- The `ScalarValue` overloads of `Tensor.mul`, `pow`, `clamp`, `clampMin`, and `clampMax` accept
-  only floating receivers and require exact receiver/value data-type equality. Their `double`
-  overloads adapt only to exact FLOAT64. All forms preserve the input type, shape reference, and
-  gradient eligibility. Each
+- The `ScalarValue` overloads of `Tensor.add`, `sub`, `mul`, `minimum`, `maximum`, `clampMin`, and
+  `clampMax` accept matching floating or signed-integral receivers; `div`, `pow`, and first-class
+  `clamp` remain floating-only. Every scalar or bound requires exact receiver/value data-type
+  equality. Their `double` overloads adapt only to exact FLOAT64. All forms preserve the input
+  type, shape reference, and gradient eligibility. Each
   successful call returns a fresh unlabeled storage-free Tensor with unresolved layout and exact
   matching one-input provenance. `clamp` validates the input type before rejecting only a strictly
-  inverted represented range and remains one `CLAMP` operation. Type and range failures precede
-  ID allocation; the methods do not convert parameters, simplify expressions, define numerical behavior, capture
-  graphs, or provide gradient or backend behavior.
+  inverted represented range and remains one `CLAMP` operation with ordered
+  `MIN(MAX(input, minValue), maxValue)` meaning. Scalar extrema use the fixed NaN-propagating and
+  signed-zero-selecting policy; exact scalar bits remain metadata rather than bitwise comparison.
+  Type and range failures precede ID allocation; the methods do not convert parameters, simplify
+  expressions, inspect values, capture graphs, or provide gradient or backend behavior.
 - `TensorFactory` rejects null argument containers before ID allocation, delegates label and
   storage semantics to `Tensor` after allocation, and assigns IDs unique among its allocations in
   one JVM. Delegated semantic failures consume IDs; exhaustion after `Long.MAX_VALUE` is permanent.

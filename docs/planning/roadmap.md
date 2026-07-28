@@ -14,7 +14,7 @@ Parallel work is not the default. It requires an explicit roadmap or master-plan
 
 | Order | Project area | Status | Entry condition | Exit condition |
 |---|---|---|---|---|
-| 1 | [`modules/model`](modules/model/master-plan.md) | Complete | Repository and planning infrastructure are ready. | The historical selected capability milestone remains closed, and focused compiler-foundation task 0025 is complete. |
+| 1 | [`modules/model`](modules/model/master-plan.md) | Complete | Repository and planning infrastructure are ready. | The historical selected capability milestone remains closed, focused compiler-foundation task 0025 remains complete, and focused forward-semantics prerequisite 0025A is complete. |
 | 2 | [`modules/trace`](modules/trace/master-plan.md) | In progress (interleaved) | Required model contracts are stable or confirmed unnecessary. | Typed trace DTO contracts and validation are complete. |
 | 3 | [`modules/backend-contract`](modules/backend-contract/master-plan.md) | Complete | Foundational value-model conventions and the stable trace foundation are complete. | Backend identity and declarative requirement contracts are complete. |
 | 4 | [`modules/config`](modules/config/master-plan.md) | In progress (interleaved) | Model and backend identity contracts required by configuration are stable. | Compile, prepare, run, planning-cost, and model-autotuning request contracts are complete where stable consumers justify them. |
@@ -48,6 +48,9 @@ The immediately preceding compiler task is
 [Compiler 0004B Shared-algebra cotangent normalization and local derivative rules](modules/compiler/tasks/0004b-shared-algebra-cotangent-normalization-and-local-derivative-rules.md).
 Its latest completed model prerequisite frontier is
 [Model 0025 Canonical TensorProducer outputs](modules/model/tasks/0025-canonical-tensor-producer-outputs.md).
+The latest completed interleaved prerequisite is
+[Model 0025A Portable floating comparison, extrema, and clamp semantics](modules/model/tasks/0025a-portable-floating-comparison-extrema-and-clamp-semantics.md).
+Compiler 0005A remains Draft without a detailed specification.
 Compiler 0004B's closed matrix covers mixed-floating cotangent Shape/DataType
 normalization through ordinary `sumToShape` and `cast`, binary/scalar DIV formulas, direct-zero
 FLOOR/CEIL/SIGN conventions, and ordinary/masked MEAN formulas with logical-one denominators for
@@ -73,23 +76,24 @@ completed 37-path change includes the affected package Javadocs and visibility-l
 architecture, completed Planning semantics, Compiler artifact design, and failure ordering remain
 unchanged.
 
-After 0005, one explicit first-order gradient-completion milestone covers the complete current
-model operation inventory before higher-order work:
+After 0005 and focused Model 0025A, one explicit first-order gradient-completion milestone covers
+the complete current model operation inventory before higher-order work:
 
 | Compiler task | Status | Depends on | Milestone responsibility |
 |---|---|---|---|
-| 0005A Derivative policy and elementwise/activation gradient completion | Draft | 0005 | Complete binary/scalar arithmetic, selection/cast, unary, and activation roles with explicit derivative-boundary decisions; comparison, BOOL logic, and classification results remain non-differentiable. |
+| 0005A Derivative policy and elementwise/activation gradient completion | Draft | Model 0025A; Compiler 0005 | Complete binary/scalar arithmetic, selection/cast, unary, and activation roles with explicit derivative-boundary decisions after the shared portable floating comparison/extrema/clamp forward contract is fixed; comparison, BOOL logic, and classification results remain non-differentiable. |
 | 0005B Reduction, scan, softmax, statistics, and normalization gradient completion | Draft | 0005A | Complete binding-dependent sum-to-Shape, products, extrema, scans, softmax/log-softmax, statistics, norms, and layer/RMS/batch normalization, including saved batch-statistic outputs and non-differentiable mask/index roles. |
 | 0005C Layout, window, indexing, scatter, ordering, and stochastic gradient completion | Draft | 0005B | Complete dynamic layout/slice/composition/window rules, Gather/scatter variants, sort/top-K, and dropout while preserving non-differentiable coordinates, indices, one-hot/BOOL outputs, RNG state, masks, and configuration roles. |
 | 0005D Attention, convolution, pooling, and loss gradient completion | Draft | 0005B, 0005C | Verify the implemented MATMUL/linear chain and complete attention, grouped convolution, pooling, and every current loss role and reduction mode with required same-occurrence auxiliaries and explicit special-case policies. |
 | 0005E First-order gradient coverage closure checkpoint | Draft | 0005A, 0005B, 0005C, 0005D | Audit every current operation signature, output slot, and input role; prove fail-closed coverage and transitive differentiability of formula operations; run the first-order checkpoint. |
 | 0006 Explicit functional gradient requests and higher-order differentiation | Draft | 0005E and a stable public compile/artifact boundary | Add explicit objectives, targets, seeds, create-graph/order, disconnected-result behavior, and phase/order representation only after first-order closure. |
 
-No row beyond 0005 is Ready, and none has a detailed task specification. Family tasks must not
-claim that every operation role has a gradient: BOOL, index, random-number-generator (RNG) state,
-mask, and configuration roles remain intentionally non-differentiable where applicable. Each
-task must explicitly choose its required tie, subgradient, discontinuity, empty-domain, or
-exceptional-value policy before claiming coverage; this planning synchronization chooses none.
+No compiler row beyond 0005 is Ready, and none has a detailed task specification. Family tasks
+must not claim that every operation role has a gradient: BOOL, index, random-number-generator
+(RNG) state, mask, and configuration roles remain intentionally non-differentiable where
+applicable. Each compiler task must explicitly choose its required tie, subgradient,
+discontinuity, empty-domain, or exceptional-value policy before claiming coverage; completed
+Model 0025A chooses only forward semantics and no derivative policy.
 Completed Compiler 0004–0004B matrices remain the implemented baseline and must be preserved,
 not replanned as missing work.
 Dynamic and binding-dependent rules remain logical compile work, and canonical same-occurrence
@@ -108,6 +112,15 @@ gradient storage, derivative rules, graph capture changes, or compiler behavior.
 `Tensor -> provenance -> TensorProducer -> outputs -> Tensor` cycle is safely published through
 final state and is ordinarily garbage-collectable when unreachable. This is a model contract and
 Javadoc/test task, not a new dependency direction.
+
+The post-Compiler-0005 reassessment reopens the model plan once more for task 0025A's smaller
+documentation/Javadoc-only prerequisite. Floating comparisons must use ordinary ordered numeric
+relations and numeric equality; pairwise/scalar MIN/MAX must propagate NaN and select the
+directional signed zero; and first-class CLAMP must be exactly ordered
+`MIN(MAX(input, minValue), maxValue)`. FLOAT64, FLOAT32, and BFLOAT16 use their represented values
+and existing exact `ScalarValue` bits. The task adds no evaluator, operation, Tensor method, data
+type, backend behavior, or derivative convention. Compiler 0005A remains Draft without a task
+file after Model 0025A is Complete until a separate planning decision promotes it.
 
 Compiler 0004 follows completed
 [Compiler 0003B Compile-time constants and constant folding](modules/compiler/tasks/0003b-compile-time-constants-and-constant-folding.md),
@@ -182,8 +195,9 @@ contract. Only direct-zero FLOOR/CEIL/SIGN and all-false masked MEAN require exp
 first-order conventions; mixed floating, DIV, and ordinary MEAN use ordinary Tensor operations
 and their shared semantics.
 Complete Compiler 0005 retains compile artifacts and Compiler-owned publication/planning
-orchestration through its implementation. Draft Compiler 0005A–0005E then complete
-the current-inventory first-order milestone in the dependency order above. Compiler 0006 retains
+orchestration through its implementation. Complete Model 0025A fixes the remaining shared
+floating comparison/extrema/clamp forward contract before Draft Compiler 0005A–0005E complete the
+current inventory first-order milestone in the dependency order above. Compiler 0006 retains
 an explicit higher-derivative create-graph/order contract, remains Draft without a detailed
 specification, and now depends on the completed 0005E closure checkpoint rather than only on the
 artifact boundary.
@@ -271,6 +285,8 @@ The subsequent reassessment selected only Compiler 0003B compile-time constants/
 autograd, and that task is now Complete. The subsequent reassessment selected only focused Model
 0025 before compiler work resumed, and that task is Complete. Compiler 0004, 0004A, and 0004B are
 now Complete; none advances cost, tuning, or downstream lifecycle work. Compiler 0005 is Complete.
+The current reassessment selected and completed only Model 0025A before compiler gradient planning
+resumes.
 Compiler 0005A–0005E and 0006 remain Draft without detailed specifications, and no later compiler
 task is Ready.
 Compiler 0004 owns combined exact cleanup before 0005 partitioning/orchestration; the new
@@ -303,11 +319,13 @@ Compiler 0003A, Compiler 0003B, Compiler 0004, and Compiler 0004A are Complete. 
 supplies Compiler 0004's canonical-output prerequisite. Compiler 0004B is also Complete after its
 module tests, independent documentation pass, and capability checkpoint; Compiler 0005 is also
 Complete after its module tests, independent documentation pass, and repository/architecture
-checkpoint. Compiler 0005A–0005E and 0006 remain Draft without detailed specifications, and no
-later compiler task is Ready. Compiler 0004 owns combined exact cleanup before 0005
-partitioning/orchestration;
-0005A–0005E follow 0005, and 0006 follows the 0005E first-order closure checkpoint plus the stable
-public compile/artifact boundary. No compiler task consumes or advances Config 0004.
+checkpoint. Completed
+[Model 0025A](modules/model/tasks/0025a-portable-floating-comparison-extrema-and-clamp-semantics.md)
+is the latest detailed interleave. Compiler 0005A–0005E and 0006 remain Draft without detailed
+specifications, and no later compiler task is Ready. Compiler 0004 owns combined exact cleanup
+before 0005 partitioning/orchestration; 0005A follows completed Model 0025A and Compiler 0005,
+0005B–0005E follow in order, and 0006 follows the 0005E first-order closure checkpoint plus the
+stable public compile/artifact boundary. No compiler task consumes or advances Config 0004.
 
 Trace tasks
 [0001 Core trace event envelope](modules/trace/tasks/0001-core-trace-event-envelope.md) and
@@ -469,7 +487,9 @@ model capability and contract closure audit is Complete with a `BLOCKING_GAP` ve
 bounded `GraphValue` Tensor-status Javadoc correction, is Complete. It resolved the audit's sole
 blocker without changing Java behavior and closed the selected model capability milestone.
 Focused task 0025 is a later compiler-foundation interleave and does not reopen that historical
-capability audit or its verdict.
+capability audit or its verdict. Complete task 0025A is a second bounded interleave that clarifies
+only the already-selected portable comparison/extrema/clamp forward contract before Compiler
+0005A; it does not change the historical capability verdict or choose derivative behavior.
 Task 0023B's focused 15-suite run passed 124 tests, its single final model suite passed 981 tests
 across 125 suites, and the separate documentation pass validated model Javadoc, the executable
 example, Markdown, exact 26-path scope, the 190-method public Tensor surface, and synchronized
@@ -1110,6 +1130,7 @@ authorized Compile API status correction.
 | 121 | [0024 Model capability and contract closure audit](modules/model/tasks/0024-model-capability-and-contract-closure-audit.md) | Complete |
 | 122 | [0024A GraphValue Tensor-status Javadoc correction](modules/model/tasks/0024a-graph-value-tensor-status-javadoc-correction.md) | Complete |
 | 123 | [0025 Canonical TensorProducer outputs](modules/model/tasks/0025-canonical-tensor-producer-outputs.md) | Complete |
+| 124 | [0025A Portable floating comparison, extrema, and clamp semantics](modules/model/tasks/0025a-portable-floating-comparison-extrema-and-clamp-semantics.md) | Complete |
 
 Task dependencies in the model master plan remain hard prerequisites. The table order is the default execution order even when a later task has no explicit dependency on an earlier task.
 
@@ -1168,8 +1189,10 @@ Complete. Task 0022B is Complete. Task 0023 is Complete with its detailed specif
 result artifact. Tasks 0023A–0023F are Complete with their detailed specifications; established
 task 0024 is Complete with its historical `BLOCKING_GAP` result artifact. Task 0024A is Complete,
 its sole Javadoc blocker is resolved, and the selected model capability milestone is closed.
-Focused task 0025 is the only later model task and supplies canonical producer-output identity for
-compiler-owned pre-capture autograd without altering the historical closure result.
+Focused task 0025 is the completed producer-output prerequisite for compiler-owned pre-capture
+autograd. Focused task 0025A is also Complete and supplies the remaining portable floating
+comparison/extrema/clamp forward-contract prerequisite for Compiler 0005A without altering the
+historical closure result or selecting derivatives.
 Completed task 0016E originally added fixed-INT64 one-axis arg-max expression metadata without
 changing the ordinary reduction helper or adding value comparison, empty-axis policy, or
 execution. Completed task 0018U1 now supplies the shared arg-extrema model policy and integral
