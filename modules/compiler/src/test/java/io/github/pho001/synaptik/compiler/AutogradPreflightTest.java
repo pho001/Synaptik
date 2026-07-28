@@ -8,6 +8,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import io.github.pho001.synaptik.config.compile.CompileMode;
 import io.github.pho001.synaptik.model.datatype.DataType;
 import io.github.pho001.synaptik.model.datatype.ScalarValue;
+import io.github.pho001.synaptik.model.operation.attention.ScaledDotProductAttentionKind;
+import io.github.pho001.synaptik.model.operation.convolution.Conv2dKind;
 import io.github.pho001.synaptik.model.operation.elementwise.binary.BinaryArithmeticKind;
 import io.github.pho001.synaptik.model.operation.elementwise.cast.CastKind;
 import io.github.pho001.synaptik.model.operation.elementwise.classification.FloatingClassificationKind;
@@ -20,6 +22,8 @@ import io.github.pho001.synaptik.model.operation.normalization.BatchNormKind;
 import io.github.pho001.synaptik.model.operation.normalization.LayerNormKind;
 import io.github.pho001.synaptik.model.operation.normalization.RmsNormKind;
 import io.github.pho001.synaptik.model.operation.normalization.SoftmaxKind;
+import io.github.pho001.synaptik.model.operation.loss.LossKind;
+import io.github.pho001.synaptik.model.operation.pooling.Pool2dKind;
 import io.github.pho001.synaptik.model.operation.reduction.AggregateReductionKind;
 import io.github.pho001.synaptik.model.operation.scan.CumulativeScanKind;
 import io.github.pho001.synaptik.model.shape.DynamicDimension;
@@ -108,6 +112,28 @@ final class AutogradPreflightTest {
                         + BinaryComparisonKind.values().length
                         + BooleanLogicalKind.values().length
                         + FloatingClassificationKind.values().length);
+    }
+
+    @Test
+    void locksTheExactSourceBacked0005DStructuredKindInventory() {
+        assertArrayEquals(
+                new ScaledDotProductAttentionKind[] {
+                    ScaledDotProductAttentionKind.SCALED_DOT_PRODUCT_ATTENTION
+                },
+                ScaledDotProductAttentionKind.values());
+        assertArrayEquals(new Conv2dKind[] {Conv2dKind.CONV2D}, Conv2dKind.values());
+        assertArrayEquals(
+                new Pool2dKind[] {
+                    Pool2dKind.MAX_POOL2D, Pool2dKind.AVERAGE_POOL2D
+                },
+                Pool2dKind.values());
+        assertArrayEquals(
+                new LossKind[] {
+                    LossKind.MEAN_SQUARED_ERROR,
+                    LossKind.DENSE_CATEGORICAL_CROSS_ENTROPY_WITH_LOGITS,
+                    LossKind.INDEX_CATEGORICAL_CROSS_ENTROPY_WITH_LOGITS
+                },
+                LossKind.values());
     }
 
     @Test

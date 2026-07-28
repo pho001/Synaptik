@@ -259,6 +259,9 @@ Compiler task 0005B is Complete and adds binding-aware expansion plus the curren
 scan, softmax, statistics, norm, and Layer/RMS/batch-normalization first-order matrix.
 Compiler task 0005C is Complete and adds dynamic slice/window constraints plus the current
 layout, Gather/scatter, ordering/top-K, and explicit-state dropout first-order matrix.
+Compiler task 0005D is Complete and adds the current two-output attention, grouped convolution,
+pooling, and loss first-order matrix without adding a public gradient API or backward-only
+operation vocabulary.
 
 Package-private `GraphCompiler.compile` takes `CompileMode`, ordered forward outputs, an optional
 package-private first-order request, explicit forward constant ingress, and
@@ -287,13 +290,15 @@ and derivative policy. Known unsupported work fails before allocating derivative
 identity. Named `ElementwiseGradientRules`, `ReductionGradientRules`,
 `NormalizationGradientRules`, `LinearAlgebraGradientRules`, `LayoutGradientRules`,
 `IndexingGradientRules`, `OrderingGradientRules`, and `StochasticGradientRules` then build
-formulas only with existing public Tensor operations. Exact Tensor identity keys ordered
-contributions during one compile request. Reverse accumulation visits producer postorder in
-reverse, selected output slots in ascending order for that producer, and input positions in
-ascending order; ordinary left-associated `Tensor.add` accumulates contributions. This ephemeral
-state is neither Tensor state nor graph intermediate representation (IR).
+formulas only with existing public Tensor operations. `AttentionGradientRules`,
+`ConvolutionGradientRules`, `PoolingGradientRules`, and `LossGradientRules` own the structured
+Compiler 0005D formulas. Exact Tensor identity keys ordered contributions during one compile
+request. Reverse accumulation visits producer postorder in reverse, selected output slots in
+ascending order for that producer, and input positions in ascending order; ordinary
+left-associated `Tensor.add` accumulates contributions. This ephemeral state is neither Tensor
+state nor graph intermediate representation (IR).
 
-The current matrix is the union of the Compiler 0004–0004B rows and the Compiler 0005A–0005C
+The current matrix is the union of the Compiler 0004–0004B rows and the Compiler 0005A–0005D
 family completions:
 
 | Family | Current exact supported variants |
@@ -307,6 +312,9 @@ family completions:
 | Indexing and scatter | Floating data for `GATHER`, `GATHER_ELEMENTS`, and `GATHER_ND`; floating base and update roles for `SCATTER_ADD`, `SCATTER_ELEMENTS`, and `SCATTER_ND` with `NONE`, `ADD`, `MUL`, `MIN`, or `MAX` as applicable |
 | Ordering | One-output floating `SORT` through one exact matching stable `ARGSORT`; floating `TOP_K` values slot zero through the canonical indices at slot one |
 | Stochastic | Floating `DROPOUT` values slot zero through the exact same-occurrence BOOL keep mask; mask and graph-state roles remain non-differentiable |
+| Attention | Both public outputs of exact two-output floating `SCALED_DOT_PRODUCT_ATTENTION`: query, key, and value from values slot zero; query and key from canonical weights slot one; an optional BOOL mask remains non-differentiable |
+| Convolution and pooling | Every floating input, weight, and optional bias role of grouped NCHW `CONV2D`; the sole floating input of fixed-count `AVERAGE_POOL2D` and exact first-logical-winner `MAX_POOL2D` |
+| Losses | Prediction and target of floating `MEAN_SQUARED_ERROR`; logits and dense floating targets of dense categorical cross-entropy with logits; logits only for index-target categorical cross-entropy with a positive static class depth |
 
 Forward and generated expressions use one model-owned Tensor algebra. For a selected mixed-
 floating input, the compiler first reverses ordinary broadcasting with `sumToShape` when needed
@@ -499,14 +507,15 @@ No storage, factory history, label, descriptor, layout, Shape, or provenance abs
 constant. Only bases reachable from returned gradient expressions remain in combined-capture
 ingress; direct-zero local formulas therefore do not retain an unreachable unit seed.
 
-Arithmetic-only coefficients remain scalar operation metadata. Compiler 0005A fixes these exact
-BFLOAT16/FLOAT32/FLOAT64 bit triples:
+Arithmetic-only coefficients remain scalar operation metadata. Compiler 0005A and the additive
+Compiler 0005D loss rule fix these exact BFLOAT16/FLOAT32/FLOAT64 bit triples:
 
 | Coefficient | BFLOAT16 | FLOAT32 | FLOAT64 |
 |---|---:|---:|---:|
 | `0.5` | `0x3F00` | `0x3F000000` | `0x3FE0000000000000` |
 | `-0.5` | `0xBF00` | `0xBF000000` | `0xBFE0000000000000` |
 | `2` | `0x4000` | `0x40000000` | `0x4000000000000000` |
+| `-2` | `0xC000` | `0xC0000000` | `0xC000000000000000` |
 | `invSqrt2` | `0x3F35` | `0x3F3504F3` | `0x3FE6A09E667F3BCD` |
 | `invSqrt2Pi` | `0x3ECC` | `0x3ECC422A` | `0x3FD9884533D43651` |
 | `sqrt2OverPi` | `0x3F4C` | `0x3F4C422A` | `0x3FE9884533D43651` |
@@ -536,7 +545,7 @@ is intentionally explicit:
 
 | Classification | Current deferred or rejected families |
 |---|---|
-| Later structured differentiation work | Attention, convolution, pooling, losses, and other structured families assigned to Compiler 0005D |
+| Structured fail-closed boundaries | One-output attention lacks canonical same-occurrence weights and is rejected; index-target categorical cross-entropy rejects a dynamic or zero class depth |
 | First-order closure work | Complete source-backed role/output audit and transitive differentiability proof assigned to Compiler 0005E |
 | Non-differentiable roles and outputs | Comparisons, BOOL logic/classification, `ALL`, `ANY`, arg-extrema results, batch-training saved auxiliary roots, one-hot and other index roles, ordering indices, dropout masks, padding constants, select coordinates, and graph RNG state |
 
@@ -794,8 +803,12 @@ positivity/equality, key/value sequence equality, batch singleton-or-equal, and 
 singleton-or-equal facts remain obligations for later compiler validation or concrete binding.
 Package-private structural capture preserves this compiler-visible metadata, and package-private
 verification revalidates it and proves or retains its typed Shape constraints. Legal
-decomposition, attention gradient, saved-value lifetime, backend lowering, and execution remain
-planned.
+decomposition, saved-value lifetime, backend lowering, and execution remain planned. Current
+package-private first-order autograd supports both public outputs only for the explicit
+two-output occurrence: values slot zero may select query, key, and value, while canonical weights
+slot one may select query and key. It reuses the exact same-occurrence weights wrapper, constructs
+selection-safe products through `where`, and applies the configured or logical symbolic default
+scale. The one-output occurrence fails closed because it has no canonical weights output.
 `Tensor.conv2d(weight, attrs)` and `Tensor.conv2d(weight, bias, attrs)` are current first-class
 grouped NCHW cross-correlation model construction. Each call records one `CONV2D` occurrence with
 exact ordered inputs, intrinsic stride/padding/dilation/group attributes, promoted floating
@@ -805,9 +818,11 @@ Unresolved channel divisibility, grouped weight/input equality, bias/output equa
 spatial non-negativity remain obligations for future compiler validation or concrete binding.
 This metadata can be structurally captured and package-private verification now represents and
 proves or retains its descriptor-only constraints, but the repository still cannot compile or run
-convolution. Legal decomposition, convolution gradients/adjoints and saved values, concrete
-binding, backend lowering, algorithm selection, and execution remain planned in their owning
-layers.
+convolution. Current package-private first-order autograd constructs every selected input, weight,
+and optional bias cotangent for grouped convolution through exact-group `unfold2d`, matrix
+contraction, reduction, and overlap-accumulating `fold2d`. Legal decomposition, saved values,
+concrete binding, backend lowering, algorithm selection, and execution remain planned in their
+owning layers.
 `Tensor.maxPool2d(attrs)` is current first-class NCHW maximum-pooling model construction. One
 `MAX_POOL2D` occurrence records exact ordered input `[input]`, `MaxPool2dAttrs`, one output at
 index zero, the unchanged floating type and gradient request, exact batch/channel Dimensions, and
@@ -816,9 +831,12 @@ future compiler-validation or concrete-binding obligation. Literal ceil mode ret
 ceiling-grid window, even when the terminal window is all-padding; padding exclusion, negative-
 infinity empty windows, NaN propagation, signed-zero ordering, and first-logical-sample ties are
 semantic metadata. Package-private structural capture and descriptor verification are current,
-but the repository does not compile pooling. Concrete binding, legal decomposition, gradients and
-adjoints, and saved-index decisions remain planned, as do backend lowering, algorithms, kernels,
-and execution.
+but the repository does not compile pooling. Current package-private first-order autograd
+reconstructs the exact first eligible logical winner from the original input and the
+same-occurrence public output, including padding exclusion and the specified NaN and signed-zero
+equality, then routes through public one-hot and overlap-accumulating fold expressions. It adds no
+saved-index output. Concrete binding, legal decomposition, backend lowering, algorithms, kernels,
+and execution remain planned.
 `Tensor.averagePool2d(attrs)` is current first-class NCHW average-pooling model construction. One
 `AVERAGE_POOL2D` occurrence records exact ordered input `[input]`, `AveragePool2dAttrs`, one output
 at index zero, the unchanged floating type and gradient request, exact batch/channel Dimensions,
@@ -829,9 +847,11 @@ BFLOAT16 and FLOAT32, FLOAT64 accumulation/division for FLOAT64, one final divis
 documented NaN/infinity/signed-zero/all-padding policies. Dynamic spatial non-negativity remains a
 future compiler-validation or concrete-binding obligation. This does not mean the repository
 currently compiles average pooling. Package-private structural capture and descriptor verification
-are current. Concrete binding, any legal decomposition that preserves the fixed divisor and
-special-value meaning, gradient or adjoint construction, backend lowering, algorithms,
-tolerances, kernels, and execution remain planned in their owning layers.
+are current. Current package-private first-order autograd divides by a logical typed
+`kernelHeight * kernelWidth` count and routes every window position through public expansion and
+overlap-accumulating fold expressions. Concrete binding, any legal decomposition that preserves
+the fixed divisor and special-value meaning, backend lowering, algorithms, tolerances, kernels,
+and execution remain planned in their owning layers.
 `Tensor.sort(axis[, descending])` and `Tensor.argsort(axis[, descending])` currently construct
 distinct stable, one-input, one-output ordering expressions. Both normalize the axis, preserve the
 exact input Shape reference, leave layout unresolved, and use fixed NaN-last ordering in both
@@ -1012,9 +1032,12 @@ without broadcasting, and defers unequal pairs involving an unresolved Dimension
 the exact prediction Shape; `SUM` and `MEAN` use the scalar Shape. Mean divides by the complete
 logical element count, so scalar count is one, empty sum is positive zero, and empty mean is NaN.
 This compiler-visible requested meaning is structurally capturable, and package-private
-verification now revalidates it and proves or retains deferred equality. Gradient or adjoint
-construction, legal decomposition, optimization, concrete binding, lowering, backend support,
-runtime execution, and training coordination remain planned in their owning layers.
+verification now revalidates it and proves or retains deferred equality. Current package-private
+first-order autograd supports both prediction and target roles, restores `NONE`, `SUM`, and
+`MEAN` cotangents through logical Tensor counts, and uses exact typed scalar-operation
+coefficients `2` and `-2`. Legal decomposition, optimization, concrete binding, lowering,
+backend support, runtime execution, and training coordination remain planned in their owning
+layers.
 `Tensor.categoricalCrossEntropyWithLogits(target, classAxis, reduction)` is current one-output
 model metadata with ordered inputs `[logits, target]`. Exact floating target type dispatches to the
 unchanged dense target-weighted stable-log-softmax meaning, including floating promotion,
@@ -1031,9 +1054,12 @@ Construction reads no values. Dense target normalization, unresolved mapped Shap
 non-ignored index bounds, and class-extent alternatives therefore remain obligations. Empty or
 all-ignored index means are NaN and sums are positive zero; with ignore, a zero class extent may
 remain valid when every target is ignored. This compiler-visible requested meaning is structurally
-capturable. It does not implement revalidation, constant analysis, proof, bounds checks, gradients or
-adjoints, decomposition, optimization, lowering, preparation, execution, publication, or training
-coordination; those remain planned in their owning lifecycle layers.
+capturable. Current package-private first-order autograd supports both dense floating logits and
+target roles. It supports only the logits role for index targets, requires a positive static class
+depth, clamps ignored targets before one-hot construction, and excludes ignored rows through a
+final `where`; dynamic or zero class depth fails closed. Revalidation, constant analysis, proof,
+bounds checks, decomposition, optimization, lowering, preparation, execution, publication, and
+training coordination remain planned in their owning lifecycle layers.
 `Tensor.contiguous()` accepts every current data type and preserves the exact Shape, data type, and
 gradient eligibility. It creates new canonical dense row-major, zero-offset layout geometry for a
 fully static Shape and leaves a dynamic Shape unresolved. Every call is fresh, unlabeled, and
@@ -1570,14 +1596,13 @@ CompiledGraph graph = CompiledGraph.compile(output, CompileConfig.auto());
   saved-statistic construction and gradient construction outside the closed support table above,
   optional
   softmax, layer-normalization, RMS-normalization, attention, or activation decomposition,
-  activation/attention-gradient construction,
   redundant-cast, redundant-contiguous, reshape/expand/permutation/rank-edit, slice chains, slice
   updates, crops, and selects beyond the current exact inference/preflight/gradient matrix,
   axis-gather/one-hot/Gather-ND/axis-scatter/Scatter-ND/pad/tile/composition/window-transform
   canonicalization or decomposition,
   concrete dynamic binding and value-dependent select/index validation,
   legal
-  convolution/pooling decomposition and gradient construction, maximum-pooling saved-index
+  convolution/pooling decomposition, maximum-pooling saved-index
   policy, average-pooling fixed-divisor preservation, layout materialization
   planning remain planned. Package-private identity-based forward-only and phase-aware combined
   capture, closed first-order autograd, binding-free verification inference, mandatory dense

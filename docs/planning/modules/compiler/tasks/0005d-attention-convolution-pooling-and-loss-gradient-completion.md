@@ -2,7 +2,7 @@
 
 ## Status
 
-Ready.
+Complete.
 
 ## Goal
 
@@ -353,9 +353,10 @@ Preserve request-wide order:
 6. capture combined forward/backward graph once with exact phase provenance.
 
 Failure consumes no Tensor IDs and leaves no partial state. Generated floating constants use the
-request-local exact-bit cache in first-use order: positive zero, positive one, exact two, negative
-one, and negative infinity as reached. Integral zero/`upper` are same-type `ScalarValue` attrs,
-not Tensor leaves. Reuse exact type/bit matches.
+request-local exact-bit cache in first-use order: positive zero, positive one, and other exact
+typed splats as reached. Exact two and negative two remain scalar-operation coefficients; pooling
+padding uses exact positive-zero or negative-infinity scalar attributes where required. Integral
+zero/`upper` are same-type `ScalarValue` attrs, not Tensor leaves. Reuse exact type/bit matches.
 
 Attention weights and max-pool outputs are exact original Tensor identities. Max winner-selection
 expressions are new backward-phase public occurrences, not physical saved state.
@@ -461,23 +462,24 @@ Tests:
 Documentation/planning:
 
 - `docs/api/compile-api.md`
+- `docs/api/tensor-api.md`
 - `docs/glossary.md`
 - `docs/planning/modules/compiler/tasks/0005d-attention-convolution-pooling-and-loss-gradient-completion.md`
 - `docs/planning/modules/compiler/master-plan.md`
 - `docs/planning/roadmap.md`
 
-Review-only unless contradiction requires stopping: architecture/ADR files; Tensor/Training APIs;
+Review-only unless contradiction requires stopping: architecture/ADR files; Training API;
 model capabilities/master/tasks and current structured/window/canonical-output source/tests;
 `LinearAlgebraGradientRules`; completed Compiler 0004A/0004B/0005B/0005C; architecture,
 backend-conformance, integration, Gradle, and other modules.
 
 ## Maximum scope
 
-At most 19 paths: seven production, seven tests, and five documentation/planning paths above.
+At most 20 paths: seven production, seven tests, and six documentation/planning paths above.
 A separate documentation-focused clean context finalizes Javadocs/docs/status in those paths
 without repeating successful Java suites unless it changes Java behavior.
 
-If a model/API operation, twentieth path, another module, architecture/dependency/build change, or
+If a model/API operation, twenty-first path, another module, architecture/dependency/build change, or
 different derivative policy is needed, stop for clarification.
 
 ## Acceptance criteria
@@ -538,7 +540,7 @@ git diff --check
 
 Also record source-signature/role inventory; emitted kind/attrs/provenance and canonical-output
 inspection; ID-delta failures; combined phase/publication/constant/determinism checks; scans proving
-no `LINEAR`, hidden/backward/tape/registry/public API; exact 19-path inventory; Markdown
+no `LINEAR`, hidden/backward/tape/registry/public API; exact 20-path ceiling inventory; Markdown
 links/headings/fences/whitespace/status; and General/API-Javadoc/Planning/Example documentation
 review.
 
@@ -602,8 +604,10 @@ only when every criterion passes; otherwise use the repository's exact incomplet
 - Convolution uses symbolic grouped window composition; average pool uses count-padding.
 - Max pool routes first logical in-bounds winner, distinguishes signed zeros, and routes selected
   NaN.
-- MSE remains unexpanded; dense target is zero only at zero-weight/non-finite-log-probability;
-  index loss sanitizes before one-hot and excludes ignored rows after scale.
+- MSE remains unexpanded and applies exact `2` or `-2` before the restored cotangent so target
+  signed-zero/NaN behavior is not changed by a final negation; dense target is zero only at
+  zero-weight/non-finite-log-probability; index loss sanitizes before one-hot and excludes ignored
+  rows after scale.
 - No Model prerequisite is needed for the representable matrix.
 
 ## Known limitations
@@ -629,14 +633,62 @@ Planning evidence:
   integral masking. Only one-output attention and dynamic/zero class depth remain fail-closed.
 - Confirmed a clean repository and no prior detailed 0005D file before planning.
 
-Implementation validation: empty until implemented.
+Implementation validation:
 
-Documentation validation: empty until the required clean documentation pass.
+- Implementation context: `/root/implement_compiler_0005d`.
+- The required focused seven-suite command passed after the final executable correction.
+- The replacement `./gradlew :modules:compiler:test` run passed after correcting the MSE target
+  coefficient order: 28 XML suites, 189 tests, zero skipped tests, zero failures, and zero errors.
+- The exact BFLOAT16/FLOAT32/FLOAT64 negative-two bit patterns and MSE expression order are covered
+  directly. No executable Java or test changed after the replacement full-module evidence.
+- Final source/test inspection confirmed the exact role/output matrix, canonical attention/max-
+  pool identities, grouped convolution geometry, pooling policies, loss reductions, stable
+  accumulation, preflight-before-allocation failures, combined phase/publication behavior, and
+  emitted ordinary-operation boundary.
+
+Documentation validation:
+
+- Documentation context: `/root/implement_compiler_0005d/compiler_0005d_docs`.
+- Applied the General, API/Javadoc, Planning, and Example profiles; no new standalone example was
+  necessary because the existing Tensor API examples remain accurate and the formula tables are
+  the task-appropriate evidence.
+- Finalized Javadocs for both changed owners and all four new family owners; synchronized Compile
+  API, Tensor API, glossary, task, compiler master plan, and roadmap.
+- Compiler Javadoc generation, Markdown links/headings/anchors/fences/final-newline/trailing-
+  whitespace checks, exact 20-path-ceiling inventory, lifecycle-status checks, forbidden-surface
+  scans, and `git diff --check` passed after the final documentation edits.
 
 ## Implementation notes
 
-Empty until implemented.
+- Added package-private `AttentionGradientRules`, `ConvolutionGradientRules`,
+  `PoolingGradientRules`, and `LossGradientRules`; extended `AutogradPreflight` and
+  `FirstOrderAutograd` without changing public compiler APIs.
+- Added three new suites covering the four family owners and extended
+  `StructuredOperationInferenceTest`, `AutogradPreflightTest`, `FirstOrderAutogradTest`, and
+  `GraphCompilerTest`.
+- `StructuredOperationInference` was reviewed and remained unchanged because its existing typed
+  constraints already prove every required formula prerequisite. `LinearAlgebraGradientRules`
+  was reviewed unchanged; its MATMUL matrix and the public PERMUTE/MATMUL/ADD linear composition
+  remain sufficient.
+- Tensor API required a narrowly authorized sixth documentation path because its attention,
+  convolution, pooling, and loss sections explicitly described the new compiler gradients as
+  future work. The task ceiling therefore increased from 19 to 20 paths; the final change uses
+  19.
+- Training API remained accurate because 0005D adds no public gradient publication, optimizer,
+  prepared execution, or training-session contract. Model capabilities/master/tasks,
+  architecture/ADR/tests, backend conformance, integration, Gradle, and other modules required no
+  change.
 
 ## Completion summary
 
-Empty until implemented.
+- Completed the exact representable structured-neural first-order matrix and preserved MATMUL/
+  linear behavior, one combined capture, compiler ownership, and exact cotangent normalization.
+- Added or changed 19 paths: six production files, seven test files, and six documentation/
+  planning files, within the authorized 20-path ceiling.
+- Focused and full compiler validation passed with 189 final module tests; Javadoc, Markdown,
+  scope, status, surface, and whitespace validation also passed.
+- Unresolved implementation issues: none. Intentional limitations remain one-output attention and
+  index loss with dynamic or zero class depth; Compiler 0005E owns the closure checkpoint.
+- Required follow-up: Compiler 0005E, which remains Draft without a detailed specification.
+
+Status: Complete

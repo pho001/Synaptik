@@ -92,7 +92,7 @@ cross-package/public orchestration boundary from a concrete consumer.
 | 0005A | [Derivative policy and elementwise/activation gradient completion](tasks/0005a-derivative-policy-and-elementwise-activation-gradient-completion.md) | Complete | Model 0025A; Compiler 0005 | Completed the exact 48-kind binary/scalar arithmetic, selection/cast, unary, activation, comparison/logical/classification inventory with fixed tie, endpoint, discontinuity, domain, NaN, infinity, Shape/type-normalization, and non-differentiable-role policy. |
 | 0005B | [Reduction, scan, softmax, statistics, and normalization gradient completion](tasks/0005b-reduction-scan-softmax-statistics-and-normalization-gradient-completion.md) | Complete | Model 0025B; 0005A | Adopted binding-aware EXPAND and completed binding-dependent sum-to-Shape, products, extrema, scans, softmax/log-softmax, statistics, norms, and layer/RMS/batch normalization, including explicit boundary policies, non-differentiable mask/index roles, and same-occurrence saved batch-statistic outputs. |
 | 0005C | [Layout, window, indexing, scatter, ordering, and stochastic gradient completion](tasks/0005c-layout-window-indexing-scatter-ordering-and-stochastic-gradient-completion.md) | Complete | Models 0025C–0025D; 0005B | Completed layout/slice/composition and dynamic window rules, including retained dynamic extraction and target-relative placement obligations, Gather/scatter variants with fixed duplicate/zero/tie policies, exact sort/top-K routing, and dropout through canonical auxiliaries; coordinates, indices, one-hot/BOOL outputs, RNG state, masks, and configuration roles remain non-differentiable. |
-| 0005D | [Attention, convolution, pooling, and loss gradient completion](tasks/0005d-attention-convolution-pooling-and-loss-gradient-completion.md) | Ready | 0005B, 0005C | Verify the implemented MATMUL/linear chain and complete the representable structured-ML inventory: two-output attention with canonical weights, grouped convolution, pooling, and every current loss role/reduction mode; one-output attention and dynamic/zero-depth index loss fail closed. |
+| 0005D | [Attention, convolution, pooling, and loss gradient completion](tasks/0005d-attention-convolution-pooling-and-loss-gradient-completion.md) | Complete | 0005B, 0005C | Verified the implemented MATMUL/linear chain and completed the representable structured-ML inventory: two-output attention with canonical weights, grouped convolution, pooling, and every current loss role/reduction mode; one-output attention and dynamic/zero-depth index loss fail closed. |
 | 0005E | First-order gradient coverage closure checkpoint | Draft | 0005A, 0005B, 0005C, 0005D | Audit every current operation signature, output slot, and input role as implemented differentiable coverage or intentionally non-differentiable; prove fail-closed inventory and transitive differentiability of formula operations, then run the first-order capability checkpoint. |
 | 0006 | Explicit functional gradient requests and higher-order differentiation | Draft | 0005E and a stable public compile/artifact boundary | Define explicit objectives, targets, seeds, create-graph or derivative order, disconnected-result behavior, and phase/order representation over the first-order formula-operation closure without Tensor gradient lifecycle state. |
 
@@ -122,8 +122,8 @@ requests before 0006.
 - Pre-capture autograd and graph compilation — Complete through task 0004B and its compiler
   transformation/autograd capability checkpoint.
 - Planning orchestration and compile artifacts — Complete through task 0005.
-- Complete current-inventory first-order gradient coverage — Complete tasks 0005A–0005C and Model
-  prerequisites 0025C–0025D before Ready task 0005D and Draft task 0005E; task 0005E is the
+- Complete current-inventory first-order gradient coverage — Complete tasks 0005A–0005D and Model
+  prerequisites 0025C–0025D before Draft task 0005E; task 0005E is the
   closure checkpoint and dependency gate for task 0006.
 
 ## Current status
@@ -162,12 +162,16 @@ supplies the remaining dynamic-slice construction prerequisite. Detailed
 is Complete through its exact compiler implementation, tests, API/Javadoc review, and
 documentation gates. Detailed
 [Compiler 0005D](tasks/0005d-attention-convolution-pooling-and-loss-gradient-completion.md)
-is Ready with the structured-ML role/formula matrix and explicit fail-closed signatures.
+is Complete with compiler-owned attention, grouped-convolution, pooling, and loss formulas,
+canonical attention/max-pool auxiliary use, exact logical counts and coefficients, and explicit
+fail-closed signatures.
 Compiler 0005E and 0006 remain concise Draft rows without detailed specifications; no later
 compiler task is Ready.
-Its final compiler module run passed 25 suites and 177 tests with no failures, errors, or skips.
-After test-only combined-pipeline strengthening in the three new rule suites, their focused run
-also passed; no production Java changed after the module run.
+The final focused seven-suite 0005D command passed. After the MSE negative-coefficient expression
+order was corrected, the replacement full compiler-module run passed 28 suites and 189 tests with
+no failures, errors, or skips. No executable Java changed after that evidence; the separate clean
+documentation pass finalized Javadocs and the six affected documentation/planning paths under the
+authorized 20-path ceiling.
 The final exact fifteen-path 0005A change passed the compiler module suite with 22 suites/159
 tests and no skips, failures, or errors; its independent documentation pass finalized all
 affected Javadocs and explanatory/planning surfaces.
@@ -247,7 +251,7 @@ Runtime and prepare remain Draft because no prepared or executable state is intr
   scatter duplicate/zero/tie/NaN/signed-zero routing, stable ordering/cutoff routing, and dropout
   mask/probability behavior; and preserves dynamic geometry plus non-differentiable index/RNG
   roles.
-- Ready task 0005D selects the remaining attention, convolution, pooling, and loss special-case
+- Complete task 0005D selects the remaining attention, convolution, pooling, and loss special-case
   policies, exact auxiliary-output use, and intentional fail-closed signatures. Task 0005E accepts
   no unresolved policy for a current differentiable role.
 
@@ -305,6 +309,12 @@ Runtime and prepare remain Draft because no prepared or executable state is intr
   one-output Model operation, not a hidden SORT output, sibling lookup, producer reconstruction,
   or public sort API change. Preflight must fail closed before partial backward construction if
   the exact SORT/ARGSORT signatures, kinds, or attributes cannot be matched.
+- Complete Compiler 0005D reuses canonical weights for exact two-output attention, preserves
+  group isolation through public unfold/matrix/fold convolution formulas, reconstructs the
+  first eligible maximum-pool winner without saved indices, uses the fixed logical kernel count
+  for average pooling, and restores loss reductions through logical typed counts. One-output
+  attention and index loss with dynamic or zero class depth fail closed; MSE uses exact typed
+  scalar-operation coefficients `2` and `-2`.
 - Complete Compiler 0005B fixes the reduction, scan, softmax, statistics, norm, and normalization
   derivative policies and exact formulas. Product rules are division-free;
   extrema split equal ties; standard deviation and L2 norm select zero at zero result; statistical
@@ -349,8 +359,8 @@ Runtime and prepare remain Draft because no prepared or executable state is intr
   differentiation or intentionally non-differentiable. It does not mean that BOOL, index,
   RNG-state, mask, or configuration roles receive cotangents.
 - Derivative boundary and subgradient choices are implementation-frontier decisions in their
-  assigned task. Compiler 0005B–0005C record implemented policies in Complete specifications;
-  Ready 0005D records its selected choices. Model tasks choose only shared forward meaning and do
+  assigned task. Compiler 0005B–0005D record implemented policies in Complete specifications.
+  Model tasks choose only shared forward meaning and do
   not choose derivatives.
 - Task 0005E must prove transitive formula-operation differentiation coverage before 0006. It
   adds no create-graph behavior, derivative-order representation, or higher-order request.
@@ -408,5 +418,5 @@ Detailed
 [Compiler 0005C](tasks/0005c-layout-window-indexing-scatter-ordering-and-stochastic-gradient-completion.md)
 is Complete. It fixes the complete assigned inventory, formulas, retained constraints, numerical
 policies, canonical auxiliary-output use, fail-closed ordering, authorized 23-path ceiling, and
-implementation/documentation handoff. Detailed 0005D is Ready; keep 0005E and 0006 Draft without
+implementation/documentation handoff. Detailed 0005D is Complete; keep 0005E and 0006 Draft without
 detailed specifications, and no later compiler task is Ready.

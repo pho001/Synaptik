@@ -14,6 +14,7 @@ import io.github.pho001.synaptik.model.shape.DynamicDimension;
 import io.github.pho001.synaptik.model.shape.Shape;
 import io.github.pho001.synaptik.model.tensor.Tensor;
 import io.github.pho001.synaptik.model.tensor.BatchNormTrainingResult;
+import io.github.pho001.synaptik.model.tensor.ScaledDotProductAttentionResult;
 import io.github.pho001.synaptik.model.tensor.TensorDescriptor;
 import io.github.pho001.synaptik.model.tensor.TensorFactory;
 import java.util.List;
@@ -41,6 +42,37 @@ final class FirstOrderAutogradTest {
                 expansion.targetGradients().get(1).gradient(),
                 expansion.ingress().bindings().getFirst().tensor());
         assertEquals(2, expansion.targetGradients().size());
+    }
+
+    @Test
+    void accumulatesAttentionOutputSlotsInStableCanonicalOrder() {
+        Tensor query = tensor(Shape.of(2, 3, 4));
+        Tensor key = tensor(Shape.of(2, 5, 4));
+        Tensor value = tensor(Shape.of(2, 5, 6));
+        ScaledDotProductAttentionResult attention =
+                query.scaledDotProductAttentionWithWeights(key, value);
+        Tensor objective = attention.output().sum().add(attention.weights().sum());
+        AutogradPreflight.Plan plan = AutogradPreflight.preflight(
+                CompileMode.FORWARD_AND_BACKWARD,
+                List.of(objective),
+                new AutogradPreflight.FirstOrderRequest(objective, List.of(query)),
+                CompileTimeConstantGraph.Ingress.empty());
+
+        List<AutogradPreflight.SelectedOccurrence> selected = plan.selectedOccurrences().stream()
+                .filter(occurrence -> occurrence.producer()
+                        == attention.output().provenance().orElseThrow().producer())
+                .toList();
+        assertEquals(
+                List.of(0, 1),
+                selected.stream()
+                        .map(AutogradPreflight.SelectedOccurrence::outputIndex)
+                        .toList());
+        Tensor gradient = FirstOrderAutograd.expand(
+                        plan, CompileTimeConstantGraph.Ingress.empty())
+                .targetGradients().getFirst().gradient();
+        assertEquals(
+                BinaryArithmeticKind.ADD,
+                gradient.provenance().orElseThrow().operation().kind());
     }
 
     @Test
@@ -174,16 +206,23 @@ final class FirstOrderAutogradTest {
     void exposesExactTwoAndNegativeHalfCoefficientsForEveryFloatingType() {
         var constants = new FirstOrderAutograd.DerivativeConstants();
         assertEquals((short) 0x4000, constants.two(DataType.BFLOAT16).bfloat16Bits());
+        assertEquals((short) 0xC000, constants.negativeTwo(DataType.BFLOAT16).bfloat16Bits());
         assertEquals((short) 0xBF00, constants.negativeHalf(DataType.BFLOAT16).bfloat16Bits());
         assertEquals(
                 0x40000000,
                 Float.floatToRawIntBits(constants.two(DataType.FLOAT32).float32Value()));
+        assertEquals(
+                0xC0000000,
+                Float.floatToRawIntBits(constants.negativeTwo(DataType.FLOAT32).float32Value()));
         assertEquals(
                 0xBF000000,
                 Float.floatToRawIntBits(constants.negativeHalf(DataType.FLOAT32).float32Value()));
         assertEquals(
                 0x4000000000000000L,
                 Double.doubleToRawLongBits(constants.two(DataType.FLOAT64).float64Value()));
+        assertEquals(
+                0xC000000000000000L,
+                Double.doubleToRawLongBits(constants.negativeTwo(DataType.FLOAT64).float64Value()));
         assertEquals(
                 0xBFE0000000000000L,
                 Double.doubleToRawLongBits(

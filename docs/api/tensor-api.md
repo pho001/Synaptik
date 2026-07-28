@@ -4677,10 +4677,12 @@ the logical OR of prediction and target eligibility. Repeated equal calls remain
 distinct. No input is mutated, and local null, type, rank, or static-Dimension failures occur
 before factory delegation and consume no result ID.
 
-These are current model metadata facts. They do not define a gradient rule or implement compiler
-capture, deferred equality proof, decomposition, backend support, numerical execution, runtime
-behavior, or training-session coordination. The compiler, backend prepare, runtime, and training
-extension retain those separate planned responsibilities.
+These are current model metadata facts and do not define a Model-owned gradient rule.
+Package-private compiler first-order autograd now supports prediction and target roles for all
+three reductions, restores reduced cotangents through logical Tensor element counts, and uses
+exact typed scalar-operation coefficients `2` and `-2`. Compiler capture and deferred equality
+proof are current. Decomposition, backend support, numerical execution, runtime behavior, and
+training-session coordination remain separate planned responsibilities.
 
 ### Categorical-cross-entropy-with-logits expressions
 
@@ -4792,10 +4794,13 @@ Every successful request creates one fresh unlabeled, storage-free Tensor with u
 one producer, one ID, and output-index-zero provenance over `[logits, target]`. It creates no
 softmax, gather, select, cast, arithmetic, reduction, or one-hot sub-producer and mutates no input.
 These are current model-expression facts only. Package-private compiler capture and
-descriptor-visible deferred proof are current. Constant analysis, value-dependent bounds and
-target-content enforcement, concrete binding, gradients, decomposition, optimization, backend
-lowering, preparation, numerical execution, runtime publication, and training coordination remain
-planned in their owning lifecycle layers.
+descriptor-visible deferred proof are current. Compiler-owned first-order autograd supports
+logits and target roles for dense floating targets. For index targets it supports logits only,
+requires positive static class depth, clamps ignored targets before one-hot construction, and
+excludes ignored rows through a final selection; dynamic or zero class depth fails closed.
+Constant analysis, value-dependent bounds and target-content enforcement, concrete binding,
+decomposition, optimization, backend lowering, preparation, numerical execution, runtime
+publication, and training coordination remain planned in their owning lifecycle layers.
 
 ### Contiguous expressions
 
@@ -7688,9 +7693,12 @@ true
 The batch prefixes broadcast to `[2]`, giving output Shape `[2, 4, 10]` and weights Shape
 `[2, 4, 6]`. The final four lines show one exact producer, slot order zero then one, the exact
 attributes reference, and ordered inputs `[query, key, value]`. This proves current descriptors
-and provenance only. It does not calculate attention values, capture a compiled graph, construct
-gradients, choose an algorithm or backend, allocate result storage, or execute attention. Adding a
-BOOL mask would append exact input position three and would not change the two output slots.
+and provenance only. It does not calculate attention values, capture a compiled graph, choose an
+algorithm or backend, allocate result storage, or execute attention. Package-private compiler
+first-order autograd can now construct query, key, and value cotangents from output slot zero and
+query and key cotangents from canonical weights slot one for this exact two-output occurrence.
+The one-output overload fails closed because it has no canonical same-occurrence weights output;
+a BOOL mask remains non-differentiable.
 
 ### Grouped NCHW Conv2d expressions
 
@@ -7834,10 +7842,12 @@ Every successful call returns one fresh, unlabeled, storage-free Tensor with unr
 the exact derived Shape, and gradient eligibility equal to the logical OR of the actual inputs.
 Its one-output provenance has index zero, retains the exact `Conv2dAttrs` reference, and records
 ordered inputs `[input, weight]` or `[input, weight, bias]`. Current construction reads no values
-and creates no gradient rule. Package-private compiler capture and descriptor-visible proof or
-retention of deferred constraints are current. Legal decomposition, concrete binding, gradients,
-adjoints, and saved values remain future compiler or lifecycle work. Backend prepare owns
-conforming algorithms, lowering, and kernel selection; runtime owns only prepared execution.
+and creates no gradient rule in the Model. Package-private compiler capture, descriptor-visible
+proof or retention of deferred constraints, and compiler-owned first-order input, weight, and
+optional bias cotangent construction are current. The compiler formula preserves group isolation
+through public unfold, matrix, reduction, and overlap-accumulating fold expressions. Legal
+decomposition, concrete binding, saved values, backend lowering, and execution remain future
+lifecycle work.
 
 ### NCHW maximum-pooling expressions
 
@@ -7951,12 +7961,12 @@ infinity in the input type. Otherwise selection follows these rules:
 Every success returns one fresh, unlabeled, storage-free Tensor with unresolved layout. It
 retains the exact input type, `N` and `C` Dimension references, and `requiresGrad` request. Its
 one-output provenance has index zero and ordered inputs `[input]`. The gradient request is
-metadata, not a gradient implementation. Package-private compiler capture and descriptor-visible
-proof or retention of deferred constraints are current. Legal decomposition, concrete binding,
-gradient/adjoint construction, and any decision to retain max indices for backward use remain
-future work. Backend prepare owns conforming algorithms and kernel selection; runtime owns only
-prepared execution. No runnable compiler, backend, or runtime support for `MAX_POOL2D` is claimed
-here.
+Model metadata, not a Model-owned gradient implementation. Package-private compiler capture,
+descriptor-visible proof or retention of deferred constraints, and compiler-owned first-order
+input-cotangent construction are current. The formula reconstructs the exact first eligible
+logical winner from the original input and same-occurrence public output, including padding,
+NaN, and signed-zero policy; it adds no saved-index output. Legal decomposition, concrete binding,
+backend lowering, and execution remain future work.
 
 ### NCHW average-pooling expressions
 
@@ -8059,10 +8069,10 @@ Every success returns one fresh, unlabeled, storage-free Tensor with unresolved 
 the exact input type, `N` and `C` Dimension references, and `requiresGrad` request. Its one-output
 provenance has index zero and ordered inputs `[input]`. The gradient request is metadata only.
 Package-private compiler capture and descriptor-visible proof or retention of deferred constraints
-are current. Concrete binding, any legal decomposition that preserves the fixed divisor and
-special-value policy, and gradient/adjoint construction remain future work. Backend prepare owns
-conforming algorithms and kernel selection; runtime executes only prepared work. No runnable
-compiler, backend, or runtime support for `AVERAGE_POOL2D` is claimed here.
+are current, as is compiler-owned first-order input-cotangent construction through a logical typed
+fixed kernel count and public expansion/fold expressions. Concrete binding, any legal
+decomposition that preserves the fixed divisor and special-value policy, backend lowering, and
+execution remain future work.
 
 ### Matrix-multiplication semantic kind
 

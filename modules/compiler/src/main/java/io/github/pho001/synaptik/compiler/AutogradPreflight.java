@@ -5,6 +5,10 @@ import io.github.pho001.synaptik.model.datatype.DataType;
 import io.github.pho001.synaptik.model.datatype.DataTypePromotion;
 import io.github.pho001.synaptik.model.operation.NoOperationAttrs;
 import io.github.pho001.synaptik.model.operation.Operation;
+import io.github.pho001.synaptik.model.operation.attention.ScaledDotProductAttentionAttrs;
+import io.github.pho001.synaptik.model.operation.attention.ScaledDotProductAttentionKind;
+import io.github.pho001.synaptik.model.operation.convolution.Conv2dAttrs;
+import io.github.pho001.synaptik.model.operation.convolution.Conv2dKind;
 import io.github.pho001.synaptik.model.operation.elementwise.binary.BinaryArithmeticKind;
 import io.github.pho001.synaptik.model.operation.elementwise.cast.CastAttrs;
 import io.github.pho001.synaptik.model.operation.elementwise.cast.CastKind;
@@ -39,6 +43,10 @@ import io.github.pho001.synaptik.model.operation.layout.UnfoldAxisAttrs;
 import io.github.pho001.synaptik.model.operation.layout.Window2dAttrs;
 import io.github.pho001.synaptik.model.operation.layout.WindowTransformKind;
 import io.github.pho001.synaptik.model.operation.linalg.MatmulKind;
+import io.github.pho001.synaptik.model.operation.loss.DenseCategoricalCrossEntropyWithLogitsAttrs;
+import io.github.pho001.synaptik.model.operation.loss.IndexCategoricalCrossEntropyWithLogitsAttrs;
+import io.github.pho001.synaptik.model.operation.loss.LossKind;
+import io.github.pho001.synaptik.model.operation.loss.MeanSquaredErrorAttrs;
 import io.github.pho001.synaptik.model.operation.normalization.BatchNormKind;
 import io.github.pho001.synaptik.model.operation.normalization.AffineLayerNormAttrs;
 import io.github.pho001.synaptik.model.operation.normalization.LayerNormKind;
@@ -51,6 +59,9 @@ import io.github.pho001.synaptik.model.operation.ordering.OrderingKind;
 import io.github.pho001.synaptik.model.operation.ordering.SortAttrs;
 import io.github.pho001.synaptik.model.operation.ordering.TopKAttrs;
 import io.github.pho001.synaptik.model.operation.ordering.TopKKind;
+import io.github.pho001.synaptik.model.operation.pooling.AveragePool2dAttrs;
+import io.github.pho001.synaptik.model.operation.pooling.MaxPool2dAttrs;
+import io.github.pho001.synaptik.model.operation.pooling.Pool2dKind;
 import io.github.pho001.synaptik.model.operation.random.DropoutAttrs;
 import io.github.pho001.synaptik.model.operation.random.DropoutKind;
 import io.github.pho001.synaptik.model.operation.random.GraphRngKind;
@@ -79,7 +90,7 @@ import java.util.Objects;
 import java.util.Set;
 
 /**
- * Preflights the closed first-order rule matrices through Compiler 0005C before constructing any
+ * Preflights the closed first-order rule matrices through Compiler 0005D before constructing any
  * derivative Tensor expression.
  *
  * <p>The iterative inventory covers every producer and canonical output wrapper reachable from
@@ -138,6 +149,14 @@ import java.util.Set;
  * {@code DROPOUT} require the exact canonical indices or mask wrapper from the original producer.
  * Ordering indices, one-hot results, dropout masks, and graph random-number-generator state remain
  * non-differentiable.</p>
+ *
+ * <p>Compiler 0005D adds the remaining representable structured-neural rows: both public outputs
+ * of exact two-output scaled-dot-product attention, grouped NCHW convolution, fixed-count average
+ * pooling, exact first-winner maximum pooling, mean-squared error, and dense-target categorical
+ * cross-entropy. Index-target categorical cross-entropy selects only logits and requires a
+ * positive static class depth. Attention requires the canonical same-occurrence weights output;
+ * the one-output overload therefore fails closed. Attention masks and index targets remain
+ * non-differentiable configuration roles.</p>
  *
  * <p>This owner selects rules and rejects unsupported operation, input/output signature,
  * attribute, role, data-type, Shape, and policy combinations. A known rejection occurs before the
@@ -422,6 +441,22 @@ final class AutogradPreflight {
         if (kind instanceof DropoutKind) {
             return outputIndex == 0 && inputIndex == 0;
         }
+        if (kind == ScaledDotProductAttentionKind.SCALED_DOT_PRODUCT_ATTENTION) {
+            return switch (outputIndex) {
+                case 0 -> inputIndex < 3;
+                case 1 -> inputIndex < 2;
+                default -> false;
+            };
+        }
+        if (kind == Conv2dKind.CONV2D
+                || kind instanceof Pool2dKind
+                || kind == LossKind.MEAN_SQUARED_ERROR
+                || kind == LossKind.DENSE_CATEGORICAL_CROSS_ENTROPY_WITH_LOGITS) {
+            return true;
+        }
+        if (kind == LossKind.INDEX_CATEGORICAL_CROSS_ENTROPY_WITH_LOGITS) {
+            return inputIndex == 0;
+        }
         return true;
     }
 
@@ -458,6 +493,13 @@ final class AutogradPreflight {
                 throw unsupported(
                         producerIndex, producer, outputIndex, -1,
                         "DROPOUT requires values slot zero, mask slot one, and state slot two");
+            }
+        } else if (operation.kind()
+                == ScaledDotProductAttentionKind.SCALED_DOT_PRODUCT_ATTENTION) {
+            if (producer.outputCount() != 2 || outputIndex < 0 || outputIndex > 1) {
+                throw unsupported(
+                        producerIndex, producer, outputIndex, -1,
+                        "attention gradients require output and canonical weights slots");
             }
         } else if (producer.outputCount() != 1 || outputIndex != 0) {
             throw unsupported(producerIndex, producer, outputIndex, -1, "requires one output");
@@ -772,6 +814,109 @@ final class AutogradPreflight {
                 throw unsupported(
                         producerIndex, producer, outputIndex, -1,
                         "MATMUL output Shape is inconsistent");
+            }
+            return;
+        }
+        if (operation.kind()
+                == ScaledDotProductAttentionKind.SCALED_DOT_PRODUCT_ATTENTION) {
+            if (!(operation.attrs() instanceof ScaledDotProductAttentionAttrs)) {
+                throw unsupported(
+                        producerIndex, producer, outputIndex, -1,
+                        "unsupported attention attributes");
+            }
+            if (producer.inputs().size() != 3 && producer.inputs().size() != 4) {
+                throw unsupported(
+                        producerIndex, producer, outputIndex, -1,
+                        "attention requires query, key, value, and optional mask inputs");
+            }
+            if (producer.inputs().size() == 4) {
+                requireNonDifferentiableRole(
+                        producerIndex, producer, outputIndex, selectedInputs, 3, "mask");
+            }
+            validateStructuredOccurrence(producerIndex, producer, outputIndex);
+            return;
+        }
+        if (operation.kind() == Conv2dKind.CONV2D) {
+            if (!(operation.attrs() instanceof Conv2dAttrs attrs)
+                    || (producer.inputs().size() != 2 && producer.inputs().size() != 3)) {
+                throw unsupported(
+                        producerIndex, producer, outputIndex, -1,
+                        "unsupported CONV2D signature or attributes");
+            }
+            validateStructuredOccurrence(producerIndex, producer, outputIndex);
+            try {
+                Shape weight = producer.inputs().get(1).descriptor().shape();
+                long kernelHeight = ((StaticDimension) weight.dimension(2)).size();
+                long kernelWidth = ((StaticDimension) weight.dimension(3)).size();
+                Math.multiplyExact(kernelHeight, kernelWidth);
+                new Window2dAttrs(
+                        kernelHeight, kernelWidth,
+                        attrs.strideHeight(), attrs.strideWidth(),
+                        attrs.paddingHeight(), attrs.paddingWidth(),
+                        attrs.dilationHeight(), attrs.dilationWidth(), false);
+            } catch (RuntimeException exception) {
+                throw unsupported(
+                        producerIndex, producer, outputIndex, -1,
+                        "CONV2D grouped window geometry is not constructible");
+            }
+            return;
+        }
+        if (operation.kind() instanceof Pool2dKind kind) {
+            boolean attrsMatch = kind == Pool2dKind.MAX_POOL2D
+                    ? operation.attrs() instanceof MaxPool2dAttrs
+                    : operation.attrs() instanceof AveragePool2dAttrs;
+            if (!attrsMatch) {
+                throw unsupported(
+                        producerIndex, producer, outputIndex, -1,
+                        "unsupported pooling kind/attributes pairing");
+            }
+            requireInputs(producerIndex, producer, outputIndex, 1);
+            validateStructuredOccurrence(producerIndex, producer, outputIndex);
+            try {
+                long height = kind == Pool2dKind.MAX_POOL2D
+                        ? ((MaxPool2dAttrs) operation.attrs()).kernelHeight()
+                        : ((AveragePool2dAttrs) operation.attrs()).kernelHeight();
+                long width = kind == Pool2dKind.MAX_POOL2D
+                        ? ((MaxPool2dAttrs) operation.attrs()).kernelWidth()
+                        : ((AveragePool2dAttrs) operation.attrs()).kernelWidth();
+                Math.multiplyExact(height, width);
+            } catch (ArithmeticException exception) {
+                throw unsupported(
+                        producerIndex, producer, outputIndex, -1,
+                        "pool kernel element count overflows");
+            }
+            return;
+        }
+        if (operation.kind() instanceof LossKind kind) {
+            boolean attrsMatch = switch (kind) {
+                case MEAN_SQUARED_ERROR ->
+                        operation.attrs() instanceof MeanSquaredErrorAttrs;
+                case DENSE_CATEGORICAL_CROSS_ENTROPY_WITH_LOGITS ->
+                        operation.attrs()
+                                instanceof DenseCategoricalCrossEntropyWithLogitsAttrs;
+                case INDEX_CATEGORICAL_CROSS_ENTROPY_WITH_LOGITS ->
+                        operation.attrs()
+                                instanceof IndexCategoricalCrossEntropyWithLogitsAttrs;
+            };
+            if (!attrsMatch) {
+                throw unsupported(
+                        producerIndex, producer, outputIndex, -1,
+                        "unsupported loss kind/attributes pairing");
+            }
+            requireInputs(producerIndex, producer, outputIndex, 2);
+            validateStructuredOccurrence(producerIndex, producer, outputIndex);
+            if (kind == LossKind.INDEX_CATEGORICAL_CROSS_ENTROPY_WITH_LOGITS) {
+                requireNonDifferentiableRole(
+                        producerIndex, producer, outputIndex, selectedInputs, 1, "index target");
+                int axis = ((IndexCategoricalCrossEntropyWithLogitsAttrs) operation.attrs()).axis();
+                Dimension classes =
+                        producer.inputs().get(0).descriptor().shape().dimension(axis);
+                if (!(classes instanceof StaticDimension staticClasses)
+                        || staticClasses.size() == 0) {
+                    throw unsupported(
+                            producerIndex, producer, outputIndex, 0,
+                            "index loss requires a statically positive class extent");
+                }
             }
             return;
         }

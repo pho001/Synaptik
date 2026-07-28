@@ -408,6 +408,31 @@ final class GraphCompilerTest {
     }
 
     @Test
+    void oneOutputAttentionPreflightFailureConsumesNoTensorIdentity() throws Exception {
+        Tensor query = TensorFactory.create(new TensorDescriptor(
+                DataType.FLOAT32, Shape.of(3, 4), Optional.empty(), true));
+        Tensor key = TensorFactory.create(new TensorDescriptor(
+                DataType.FLOAT32, Shape.of(5, 4), Optional.empty(), true));
+        Tensor value = TensorFactory.create(new TensorDescriptor(
+                DataType.FLOAT32, Shape.of(5, 6), Optional.empty(), true));
+        Tensor objective = query.scaledDotProductAttention(key, value).sum();
+        long before = nextTensorId();
+
+        IllegalArgumentException failure = assertThrows(
+                IllegalArgumentException.class,
+                () -> GraphCompiler.compile(
+                        CompileMode.FORWARD_AND_BACKWARD,
+                        List.of(objective),
+                        Optional.of(new AutogradPreflight.FirstOrderRequest(
+                                objective, List.of(query))),
+                        CompileTimeConstantGraph.Ingress.empty(),
+                        GraphOptimizationConfig.disabled()));
+
+        assertTrue(failure.getMessage().contains("canonical weights slots"));
+        assertEquals(before, nextTensorId());
+    }
+
+    @Test
     void compilesSharedAlgebraDivisionMeanAndDirectZeroInBothOptimizationModes() {
         for (GraphOptimizationConfig optimization :
                 List.of(GraphOptimizationConfig.disabled(), GraphOptimizationConfig.standard())) {

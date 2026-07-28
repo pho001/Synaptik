@@ -39,15 +39,15 @@ The order above is the default delivery sequence, not a new dependency rule. All
 ## Current frontier
 
 The latest completed implementation task is
-[Compiler 0005C Layout, window, indexing, scatter, ordering, and stochastic gradient completion](modules/compiler/tasks/0005c-layout-window-indexing-scatter-ordering-and-stochastic-gradient-completion.md)
-with retained dynamic slice/window constraints, the complete assigned gradient matrix, and
-canonical ordering/dropout auxiliaries. Detailed
 [Compiler 0005D Attention, convolution, pooling, and loss gradient completion](modules/compiler/tasks/0005d-attention-convolution-pooling-and-loss-gradient-completion.md)
-is Ready with the exact representable role/formula matrix and fail-closed signatures. Compiler
+with the exact representable role/formula matrix, canonical attention/max-pool auxiliaries, and
+fail-closed signatures. Compiler
 0005E and 0006 remain Draft without detailed specifications; no later compiler task is Ready.
-Its final compiler module run passed 25 suites and 177 tests with no failures, errors, or skips;
-the three new rule suites also passed after test-only combined-pipeline strengthening. The
-independent documentation pass finalized Javadocs, API/glossary status, and planning evidence.
+The final focused seven-suite 0005D command passed. After the MSE negative-coefficient expression
+order was corrected, the replacement full compiler-module run passed 28 suites and 189 tests with
+no failures, errors, or skips. No executable Java changed afterward. The separate clean
+documentation pass finalized Javadocs and six affected documentation/planning paths under the
+authorized 20-path ceiling.
 The preceding artifact task is
 [Compiler 0005 Publication, planning orchestration, and compile artifacts](modules/compiler/tasks/0005-publication-planning-orchestration-and-compile-artifacts.md).
 Its completed compiler prerequisites include
@@ -68,8 +68,8 @@ supplied the binding-aware prerequisite for
 Compiler 0005B is Complete with binding-aware EXPAND inference/preflight, output-slot-aware
 accumulation, and its exact reduction/scan/softmax/statistics/norm/normalization matrix. The exact
 eighteen-path change passed 22 compiler suites/170 tests with no skips, failures, or errors plus
-its independent Javadoc, Markdown, surface, scope, and status gates. The later Ready row is
-Compiler 0005D; 0005E and 0006 remain Draft.
+its independent Javadoc, Markdown, surface, scope, and status gates. Compiler 0005E and 0006
+remain Draft.
 The exact fifteen-path 0005A change passed 22 compiler suites/159 tests with no skips, failures,
 or errors plus its independent Javadoc and documentation gates.
 Compiler 0004B's closed matrix covers mixed-floating cotangent Shape/DataType
@@ -105,12 +105,12 @@ the complete current model operation inventory before higher-order work:
 | [0005A Derivative policy and elementwise/activation gradient completion](modules/compiler/tasks/0005a-derivative-policy-and-elementwise-activation-gradient-completion.md) | Complete | Model 0025A; Compiler 0005 | Completed the exact 48-kind binary/scalar arithmetic, selection/cast, unary, activation, comparison/logical/classification inventory with fixed tie, endpoint, discontinuity, domain, NaN, infinity, normalization, and non-differentiable-role policy. |
 | [0005B Reduction, scan, softmax, statistics, and normalization gradient completion](modules/compiler/tasks/0005b-reduction-scan-softmax-statistics-and-normalization-gradient-completion.md) | Complete | Model 0025B; 0005A | Adopted binding-aware EXPAND and completed binding-dependent sum-to-Shape, products, extrema, scans, softmax/log-softmax, statistics, norms, and layer/RMS/batch normalization, including saved batch-statistic outputs and non-differentiable mask/index roles. |
 | [0005C Layout, window, indexing, scatter, ordering, and stochastic gradient completion](modules/compiler/tasks/0005c-layout-window-indexing-scatter-ordering-and-stochastic-gradient-completion.md) | Complete | Models 0025C–0025D; 0005B | Completed dynamic layout/slice/composition/window rules, including retained dynamic extraction and target-relative placement obligations, Gather/scatter variants with fixed duplicate/zero/tie policies, exact sort/top-K routing, and dropout through canonical auxiliaries while preserving non-differentiable coordinates, indices, one-hot/BOOL outputs, RNG state, masks, and configuration roles. |
-| [0005D Attention, convolution, pooling, and loss gradient completion](modules/compiler/tasks/0005d-attention-convolution-pooling-and-loss-gradient-completion.md) | Ready | 0005B, 0005C | Verify the implemented MATMUL/linear chain and complete two-output attention, grouped convolution, pooling, and every representable current loss role/reduction mode; fail closed for one-output attention and dynamic/zero-depth index loss. |
+| [0005D Attention, convolution, pooling, and loss gradient completion](modules/compiler/tasks/0005d-attention-convolution-pooling-and-loss-gradient-completion.md) | Complete | 0005B, 0005C | Verified the implemented MATMUL/linear chain and completed two-output attention, grouped convolution, pooling, and every representable current loss role/reduction mode; one-output attention and dynamic/zero-depth index loss fail closed. |
 | 0005E First-order gradient coverage closure checkpoint | Draft | 0005A, 0005B, 0005C, 0005D | Audit every current operation signature, output slot, and input role; prove fail-closed coverage and transitive differentiability of formula operations; run the first-order checkpoint. |
 | 0006 Explicit functional gradient requests and higher-order differentiation | Draft | 0005E and a stable public compile/artifact boundary | Add explicit objectives, targets, seeds, create-graph/order, disconnected-result behavior, and phase/order representation only after first-order closure. |
 
-Compiler 0005A–0005C and Model prerequisites 0025C–0025D are Complete. Detailed Compiler 0005D is
-Ready. Compiler 0005E and 0006 remain Draft without detailed task specifications; no later
+Compiler 0005A–0005D and Model prerequisites 0025C–0025D are Complete. Compiler 0005E and 0006
+remain Draft without detailed task specifications; no later
 compiler task is Ready. Family tasks
 must not claim that every operation role has a gradient: BOOL, index, random-number-generator
 (RNG) state, mask, and configuration roles remain intentionally non-differentiable where
@@ -242,15 +242,15 @@ first-order conventions; mixed floating, DIV, and ordinary MEAN use ordinary Ten
 and their shared semantics.
 Complete Compiler 0005 retains compile artifacts and Compiler-owned publication/planning
 orchestration through its implementation. Complete Model 0025A fixes the shared floating
-comparison/extrema/clamp forward contract consumed unchanged by complete Compiler 0005A. Complete
-Compiler 0005B–0005C, Ready Compiler 0005D, and Draft Compiler 0005E continue the
+comparison/extrema/clamp forward contract consumed unchanged by complete Compiler 0005A.
+Complete Compiler 0005B–0005D and Draft Compiler 0005E continue the
 current-inventory first-order milestone in dependency order, with Complete Model 0025B supplying
 the 0005B prerequisite and Complete Models 0025C–0025D supplying the forward-scatter and
 dynamic-slice prerequisites for 0005C.
 Compiler 0006 retains
 an explicit higher-derivative create-graph/order contract, remains Draft without a detailed
-specification, and now depends on the completed 0005E closure checkpoint rather than only on the
-artifact boundary.
+specification, and now depends on completion of the 0005E closure checkpoint rather than only on
+the artifact boundary.
 Compiler 0004B's module validation, independent documentation pass, and compiler
 transformation/autograd capability checkpoint all passed; the checkpoint covered 167 suites and
 1,275 tests with no skipped tests, failures, or errors.
@@ -339,12 +339,12 @@ The preceding reassessment selected and completed only Model 0025A before compil
 planning resumed, and Compiler 0005A is now Complete. The next reassessment selected and completed
 Model 0025B, and Compiler 0005B is now Complete. The latest reassessment selected and completed
 only Model 0025C as the forward-scatter prerequisite, then selected and completed only Model 0025D
-as the remaining dynamic-slice prerequisite. Compiler 0005C is Complete. Detailed Compiler 0005D
-is Ready; Compiler 0005E and 0006 remain Draft without detailed specifications, and no later
+as the remaining dynamic-slice prerequisite. Compiler 0005C and detailed Compiler 0005D are
+Complete; Compiler 0005E and 0006 remain Draft without detailed specifications, and no later
 compiler task is Ready.
 Compiler 0004 owns combined exact cleanup before 0005 partitioning/orchestration; the new
 first-order milestone follows 0005, and 0006 waits for both the stable public compile/artifact
-boundary and the completed 0005E closure checkpoint.
+boundary and completion of the 0005E closure checkpoint.
 
 The preceding completed planning step is
 [Planning 0002 Per-query backend hard eligibility](modules/planning/tasks/0002-per-query-backend-hard-eligibility.md).
@@ -388,7 +388,7 @@ supplies its remaining dynamic-slice construction prerequisite. Detailed
 [Compiler 0005C](modules/compiler/tasks/0005c-layout-window-indexing-scatter-ordering-and-stochastic-gradient-completion.md)
 is Complete. Detailed
 [Compiler 0005D](modules/compiler/tasks/0005d-attention-convolution-pooling-and-loss-gradient-completion.md)
-is Ready. Compiler 0005E and 0006 remain Draft without detailed specifications; no later compiler
+is Complete. Compiler 0005E and 0006 remain Draft without detailed specifications; no later compiler
 task is Ready. Compiler
 0004 owns combined exact
 cleanup before 0005 partitioning/orchestration; 0005A follows completed Model 0025A and Compiler
@@ -1283,8 +1283,8 @@ Focused task 0025C is Complete. It supplies the configurable functional-scatter 
 prerequisite for Compiler 0005C without adding evaluation, backend behavior, or derivative policy.
 Focused task 0025D is Complete and is the latest detailed Model task. It supplies the remaining
 dynamic-slice construction prerequisite for Compiler 0005C without adding compiler constraints,
-gradients, lowering, execution, or backend behavior. Compiler 0005C is Complete; detailed Compiler
-0005D is Ready; Compiler 0005E and 0006 remain Draft without detailed specifications, and no later
+gradients, lowering, execution, or backend behavior. Compiler 0005C and detailed Compiler 0005D
+are Complete; Compiler 0005E and 0006 remain Draft without detailed specifications, and no later
 compiler task is Ready.
 Completed task 0016E originally added fixed-INT64 one-axis arg-max expression metadata without
 changing the ordinary reduction helper or adding value comparison, empty-axis policy, or

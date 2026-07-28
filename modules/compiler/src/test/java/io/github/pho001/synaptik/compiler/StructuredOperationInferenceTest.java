@@ -49,6 +49,11 @@ final class StructuredOperationInferenceTest {
         }
         ScaledDotProductAttentionResult attention =
                 query.scaledDotProductAttentionWithWeights(key, value);
+        assertEquals(Shape.of(2, 3, 6), attention.output().descriptor().shape());
+        assertEquals(Shape.of(2, 3, 5), attention.weights().descriptor().shape());
+        assertSame(
+                attention.output().provenance().orElseThrow().producer(),
+                attention.weights().provenance().orElseThrow().producer());
         assertDoesNotThrow(() -> CapturedGraphInference.inferAndValidate(GraphCapture.capture(
                 List.of(attention.output(), attention.weights()))));
         DropoutResult dropout = a.dropout(.2, GraphRngState.initial(1, 2));

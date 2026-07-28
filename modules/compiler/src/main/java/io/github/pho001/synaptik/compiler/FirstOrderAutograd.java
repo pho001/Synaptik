@@ -12,6 +12,8 @@ import io.github.pho001.synaptik.model.operation.index.AxisScatterKind;
 import io.github.pho001.synaptik.model.operation.index.GatherNdKind;
 import io.github.pho001.synaptik.model.operation.index.ScatterNdKind;
 import io.github.pho001.synaptik.model.operation.index.SelectKind;
+import io.github.pho001.synaptik.model.operation.attention.ScaledDotProductAttentionKind;
+import io.github.pho001.synaptik.model.operation.convolution.Conv2dKind;
 import io.github.pho001.synaptik.model.operation.layout.AxisTransformKind;
 import io.github.pho001.synaptik.model.operation.layout.ContiguousKind;
 import io.github.pho001.synaptik.model.operation.layout.PadKind;
@@ -21,12 +23,14 @@ import io.github.pho001.synaptik.model.operation.layout.TensorCompositionKind;
 import io.github.pho001.synaptik.model.operation.layout.TileKind;
 import io.github.pho001.synaptik.model.operation.layout.WindowTransformKind;
 import io.github.pho001.synaptik.model.operation.linalg.MatmulKind;
+import io.github.pho001.synaptik.model.operation.loss.LossKind;
 import io.github.pho001.synaptik.model.operation.normalization.BatchNormKind;
 import io.github.pho001.synaptik.model.operation.normalization.LayerNormKind;
 import io.github.pho001.synaptik.model.operation.normalization.RmsNormKind;
 import io.github.pho001.synaptik.model.operation.normalization.SoftmaxKind;
 import io.github.pho001.synaptik.model.operation.ordering.OrderingKind;
 import io.github.pho001.synaptik.model.operation.ordering.TopKKind;
+import io.github.pho001.synaptik.model.operation.pooling.Pool2dKind;
 import io.github.pho001.synaptik.model.operation.random.DropoutKind;
 import io.github.pho001.synaptik.model.operation.reduction.AggregateReductionKind;
 import io.github.pho001.synaptik.model.operation.scan.CumulativeScanKind;
@@ -62,12 +66,17 @@ import java.util.Set;
  * {@link ReductionGradientRules}, {@link NormalizationGradientRules},
  * {@link LinearAlgebraGradientRules}, {@link LayoutGradientRules},
  * {@link IndexingGradientRules}, {@link OrderingGradientRules}, and
- * {@link StochasticGradientRules}. This class dispatches only preflight-approved occurrences and
+ * {@link StochasticGradientRules}, with structured-neural formulas owned by
+ * {@link AttentionGradientRules}, {@link ConvolutionGradientRules},
+ * {@link PoolingGradientRules}, and {@link LossGradientRules}. This class dispatches only
+ * preflight-approved occurrences and
  * preserves every selected positional contribution, including repeated MATMUL, slice-update,
  * composition, scatter, and batch-normalization output routes. Canonical TOP_K indices and the
- * canonical dropout mask remain attached to their exact original producer; the sole matching
- * ARGSORT and every other generated formula occurrence are handed to the combined capture as
- * generated expressions. This class does not absorb family formulas or infer support.</p>
+ * canonical dropout mask, attention weights, and maximum-pool output remain attached to their
+ * exact original producer; the sole matching ARGSORT and every other generated formula
+ * occurrence are handed to the combined capture as generated expressions. The exact typed
+ * positive and negative coefficients used by mean-squared error remain scalar-operation
+ * metadata. This class does not absorb family formulas or infer support.</p>
  *
  * <p>The returned Tensor roles and original-producer identities are an ephemeral handoff to one
  * combined capture. Generated logical-splat bindings, including extrema or clamp bounds needed
@@ -248,6 +257,25 @@ final class FirstOrderAutograd {
             return LinearAlgebraGradientRules.apply(
                     producer, gradient, occurrence.selectedInputs());
         }
+        if (kind == ScaledDotProductAttentionKind.SCALED_DOT_PRODUCT_ATTENTION) {
+            return AttentionGradientRules.apply(
+                    producer,
+                    occurrence.outputIndex(),
+                    gradient,
+                    occurrence.selectedInputs(),
+                    constants);
+        }
+        if (kind == Conv2dKind.CONV2D) {
+            return ConvolutionGradientRules.apply(
+                    producer, gradient, occurrence.selectedInputs());
+        }
+        if (kind instanceof Pool2dKind) {
+            return PoolingGradientRules.apply(producer, gradient, constants);
+        }
+        if (kind instanceof LossKind) {
+            return LossGradientRules.apply(
+                    producer, gradient, occurrence.selectedInputs(), constants);
+        }
         if (kind == ContiguousKind.CONTIGUOUS
                 || kind instanceof ShapeTransformKind
                 || kind instanceof AxisTransformKind
@@ -379,6 +407,24 @@ final class FirstOrderAutograd {
                 case FLOAT32 -> ScalarValue.float32(Float.intBitsToFloat(0x40000000));
                 case FLOAT64 ->
                         ScalarValue.float64(Double.longBitsToDouble(0x4000000000000000L));
+                case INT32, INT64, BOOL -> throw new IllegalArgumentException(
+                        "derivative constants require floating data type: " + dataType);
+            };
+        }
+
+        /**
+         * Returns the exact fixed typed scalar-operation value {@code -2}.
+         *
+         * @param dataType non-null BFLOAT16, FLOAT32, or FLOAT64 type
+         * @return the exact represented negative coefficient selected for loss formulas
+         * @throws IllegalArgumentException if {@code dataType} is not floating
+         */
+        ScalarValue negativeTwo(DataType dataType) {
+            return switch (dataType) {
+                case BFLOAT16 -> ScalarValue.bfloat16Bits((short) 0xC000);
+                case FLOAT32 -> ScalarValue.float32(Float.intBitsToFloat(0xC0000000));
+                case FLOAT64 ->
+                        ScalarValue.float64(Double.longBitsToDouble(0xC000000000000000L));
                 case INT32, INT64, BOOL -> throw new IllegalArgumentException(
                         "derivative constants require floating data type: " + dataType);
             };

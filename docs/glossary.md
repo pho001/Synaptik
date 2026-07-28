@@ -168,7 +168,9 @@ categorical cross entropy directly from logits. The shared loss-only `LossReduct
 `NONE`, `SUM`, and `MEAN`; exact attributes retain each meaning's reduction and, for categorical
 losses, normalized class axis and optional exact typed ignore metadata. Public Tensor loss methods
 construct fresh two-input expressions with ordered provenance and perform no value evaluation,
-gradient construction, compiler work, backend work, runtime execution, or training coordination.
+Model-owned gradient construction, backend work, runtime execution, or training coordination.
+Current package-private compiler autograd supports both roles of MSE and dense categorical loss,
+plus the logits role of index categorical loss when class depth is positive and static.
 The `BatchNormKind` vocabulary is implemented with distinct stateless `BATCH_NORM_INFERENCE` and
 pure `BATCH_NORM_TRAINING` meanings. Both have fixed ordered inputs
 `[input, scale, bias, runningMean, runningVariance]`. `BatchNormInferenceAttrs` retains one
@@ -737,7 +739,9 @@ policy-free exact-composition rule extension; and Compiler task 0004B is Complet
 floating cotangent normalization, ordinary DIV/MEAN formulas, and the selected direct-zero local
 conventions. Compiler task 0005A is Complete with the exact elementwise/activation policy, and
 Compiler task 0005B is Complete with binding-aware expansion plus reduction, scan, softmax,
-statistics, norm, and normalization formulas. See
+statistics, norm, and normalization formulas. Compiler task 0005C is Complete with layout,
+window, indexing/scatter, ordering, and explicit-state dropout formulas. Compiler task 0005D is
+Complete with the representable attention, convolution, pooling, and loss formulas. See
 [Training graph](architecture/training-graph.md).
 
 ### Autotuning / model autotuning
@@ -961,8 +965,11 @@ Current public Tensor construction records ordered inputs `[query, key, value]` 
 `[query, key, value, mask]`. The original method family records output slot zero only and creates
 no hidden weights. The explicit `WithWeights` family returns output slot zero and normalized
 [attention weights](#attention-weight) slot one from one exact shared producer. Neither form
-applies dropout, evaluates numbers, creates gradients, proves deferred constraints, chooses a
-backend, or executes.
+applies dropout, evaluates numbers, creates Model-owned gradients, proves deferred constraints,
+chooses a backend, or executes. Current package-private compiler autograd supports query, key, and
+value from slot zero and query and key from canonical weights slot one only for the exact
+two-output occurrence. The one-output occurrence fails closed, and a BOOL mask remains
+non-differentiable.
 
 ### Attention score
 
@@ -997,8 +1004,10 @@ separate explicit BOOL mask combines with causal eligibility by logical AND.
 A loss meaning that compares a logits slice with either a dense target distribution or one index
 target. Synaptik represents both directly from logits with a stable negative-log-softmax meaning;
 it does not first create a probability Tensor. The current model meaning includes an explicit
-class axis and loss reduction, while gradients, lowering, bounds enforcement, and numerical
-execution remain owned by later lifecycle layers.
+class axis and loss reduction. Current package-private compiler autograd supports logits and dense
+target roles; index targets remain non-differentiable, while their logits role requires a positive
+static class depth. Lowering, bounds enforcement, and numerical execution remain owned by later
+lifecycle layers.
 
 ### Class axis
 
@@ -1279,8 +1288,10 @@ reverse the kernel as mathematical convolution does. Input Shape is `[N, C_in, H
 output channels. Dilation is the positive spacing between stored kernel positions; the effective
 kernel extent is `dilation * (kernel - 1) + 1`. Symmetric conceptual positive-zero padding is
 applied on both sides of each spatial axis. Current model construction derives metadata and
-provenance only; compiler binding/capture/decomposition/gradients, backend algorithms, and
-execution remain planned. See [Tensor API](api/tensor-api.md#grouped-nchw-conv2d-expressions).
+provenance only. Package-private compiler capture and grouped input, weight, and optional bias
+first-order formulas through public unfold/matrix/fold expressions are current; concrete binding,
+decomposition, backend algorithms, and execution remain planned. See
+[Tensor API](api/tensor-api.md#grouped-nchw-conv2d-expressions).
 
 ### Data type / `DataType`
 
@@ -1504,7 +1515,10 @@ LOG_SUM_EXP, VARIANCE, STANDARD_DEVIATION, L1_NORM, L2_NORM, CUM_SUM, CUM_PROD, 
 LOG_SOFTMAX, Layer/RMS/batch normalization, every floating MATMUL vector/matrix rank pairing, and
 the guarded floating
 CONTIGUOUS/RESHAPE/EXPAND/EXPAND_DIMS/SQUEEZE/PERMUTE/SLICE/SLICE_UPDATE/SELECT/PAD/TILE/
-CONCAT/STACK families.
+CONCAT/STACK families. It also covers floating window transforms, Gather/scatter data roles,
+floating SORT and TOP_K values, explicit-state dropout values, exact two-output attention,
+grouped convolution, maximum and average pooling, MSE, dense categorical loss, and positive-
+static-depth index categorical logits.
 
 Mixed-floating binary, WHERE-branch, and MATMUL contributions use ordinary
 [cotangent normalization](#cotangent-normalization). Ordinary MEAN derives its denominator by
@@ -1524,17 +1538,25 @@ positive zero at negative infinity. Other analytic formulas use ordinary Tensor 
 without gradient-only domain masks. Comparisons, Boolean logic/classification, condition,
 attribute, bound, and non-floating cast roles remain non-differentiable.
 
-SLICE_UPDATE's selected update role requires static selected base extents, and SUM_TO_SHAPE
-accepts aligned exact Dimension equality, a static target singleton, or the exact
+SLICE_UPDATE accepts its exact retained static or symbolic target-relative placement constraints,
+and SUM_TO_SHAPE accepts aligned exact Dimension equality, a static target singleton, or the exact
 binding-dependent inverse predicate. Reduction products are division-free, reduction extrema
-share exact ties, and softmax formulas consume exact forward outputs. Batch training selects
-roles by public output slot and consumes canonical saved-statistic slots three and four only as
-formula auxiliaries. Everything else fails closed on a selected route until its shared formula or
-derivative policy is selected.
+share exact ties, and softmax formulas consume exact forward outputs. Batch training selects roles
+by public output slot and consumes canonical saved-statistic slots three and four only as formula
+auxiliaries.
+
+Compiler 0005D reuses exact same-occurrence attention weights and the public maximum-pool output;
+it introduces no hidden outputs or tape. Grouped convolution preserves group isolation through
+unfold/matrix/fold expressions. Average pooling divides by a logical typed fixed kernel count, and
+maximum pooling reconstructs the first eligible logical winner. MSE uses exact typed `2` and `-2`
+scalar-operation coefficients. Dense categorical loss supports logits and target; index
+categorical loss supports logits only and fails closed for dynamic or zero class depth.
+Everything else fails closed on a selected route until its shared formula or derivative policy is
+selected.
 
 The technique adds no placeholder Tensor for a captured `ValueId`, second gradient algebra,
 public gradient, runtime tape, model derivative rule, or Tensor gradient/backward lifecycle.
-Model task 0025 and Compiler tasks 0004, 0004A, 0004B, 0005, 0005A, and 0005B are Complete. Public
+Model task 0025 and Compiler tasks 0004, 0004A, 0004B, 0005, and 0005A–0005D are Complete. Public
 requests, higher derivatives, optimizer updates, preparation, and execution remain planned.
 
 ### Neural-network module, parameter, buffer, and forward context
@@ -1829,7 +1851,10 @@ zero `SUM`, and NaN `MEAN`.
 Current public construction accepts BFLOAT16, FLOAT32, and FLOAT64, promotes the two operands,
 rejects unequal static Dimensions, defers equality involving unresolved Dimensions, and never
 broadcasts the target. It records exact ordered `[prediction, target]` provenance and reads no
-values. See [Mean-squared-error loss expressions](api/tensor-api.md#mean-squared-error-loss-expressions).
+values. Current package-private compiler autograd supports both roles: prediction uses
+`2 * (prediction - target)` and target uses `-2 * (prediction - target)`, with reduced cotangents
+restored through logical Tensor counts before exact descriptor normalization. See
+[Mean-squared-error loss expressions](api/tensor-api.md#mean-squared-error-loss-expressions).
 
 ### Matrix multiplication / `MATMUL`
 
@@ -3528,7 +3553,9 @@ divide only by in-bounds sample count. An all-padding average-pooling window ret
 extrema selection, fixed-divisor averaging, and window extraction have different semantics.
 Average pooling accumulates and divides BFLOAT16/FLOAT32 in FLOAT32 and FLOAT64 in FLOAT64, with
 one final division; **accumulation** here names the intermediate arithmetic domain, not an
-algorithm or traversal order. See [NCHW maximum-pooling
+algorithm or traversal order. Current package-private compiler autograd routes maximum pooling
+through the reconstructed first eligible logical winner without adding saved indices, and routes
+average pooling through the fixed logical kernel count. See [NCHW maximum-pooling
 expressions](api/tensor-api.md#nchw-maximum-pooling-expressions), [NCHW average-pooling
 expressions](api/tensor-api.md#nchw-average-pooling-expressions), and [Window transform](#window-transform).
 
