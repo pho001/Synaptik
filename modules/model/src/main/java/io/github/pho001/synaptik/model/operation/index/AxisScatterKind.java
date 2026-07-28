@@ -13,8 +13,12 @@ import java.util.List;
  * target coordinate on the normalized axis, and {@code updates} supplies values to write or
  * combine at those targets. The operation conceptually starts with {@code data} and produces a
  * new value with exactly the data shape; it never mutates {@code data} in place. A duplicate
- * target occurs when multiple index entries address the same result coordinate. A reduction
- * defines how the base and all updates for one target are combined.</p>
+ * target occurs when multiple index entries address the same result coordinate. For
+ * {@code SCATTER_ELEMENTS}, every update position contributes one scalar to its selected result
+ * coordinate; duplicate targets therefore contribute distinct multiset members even when their
+ * values are equal. A non-replacement reduction combines the base exactly once with every such
+ * contribution exactly once, and an unaddressed coordinate retains the exact base
+ * representation.</p>
  *
  * <p>The shape relationship is:</p>
  *
@@ -42,8 +46,10 @@ import java.util.List;
  * multi-axis coordinate tuples; fold, which reconstructs overlapping windows; and in-place
  * mutation. The public Tensor-expression contract owns caller-axis normalization and input-aware
  * index-type, data-type, and shape validation. This enum stores no
- * operands, shapes, result metadata, provenance, gradient policy, graph or compiler behavior,
- * backend support, numerical policy, or execution state.</p>
+ * operands, shapes, result metadata, provenance, gradient or subgradient policy, graph or compiler
+ * behavior, backend support, numerical algorithm, or execution state. The portable represented-
+ * value rules for configurable reductions are defined by {@link ScatterReduction}; they are
+ * independent of encounter, layout, atomic, tree, and backend order.</p>
  */
 public enum AxisScatterKind implements OperationKind {
     /**
@@ -51,6 +57,8 @@ public enum AxisScatterKind implements OperationKind {
      *
      * <p>The ordered logical inputs are {@code [data, indices, updates]}; indices and updates have
      * equal shapes, match data away from the selected axis, and reduce into the exact data shape.
+     * Each updates coordinate contributes exactly once to the result coordinate obtained by
+     * replacing its selected-axis coordinate with the corresponding index value.
      * {@link ScatterElementsAttrs} supplies the selected reduction.</p>
      */
     SCATTER_ELEMENTS,

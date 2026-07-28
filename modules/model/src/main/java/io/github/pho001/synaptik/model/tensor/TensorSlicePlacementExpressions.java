@@ -15,10 +15,12 @@ import java.util.Optional;
 /**
  * Constructs locally validated functional slice updates and target-relative crop expressions.
  *
- * <p>Slice update maps a same-rank update into normalized signed coordinate sequences of a base
- * and retains the exact base Shape. Target-relative crop selects an exact target Shape after the
- * per-axis extents in a prefix Shape. Static bounds are proved locally; unresolved upper bounds
- * remain obligations for later binding or execution.</p>
+ * <p>Signed slice update maps a same-rank update into normalized coordinate sequences of a base.
+ * Target-relative placement maps the complete update Shape after the per-axis extents in a prefix
+ * Shape. Target-relative crop selects an exact result Shape after the same form of prefix. Every
+ * update result retains the exact base Shape. Static bounds are proved locally; a fit involving
+ * any unresolved extent remains an obligation for later compiler binding proof or execution.
+ * Model stores no deferred constraint object.</p>
  *
  * <p>Both transformations create storage-free metadata and exact producer provenance. This
  * field-free helper reads no values or storage, mutates no input, promises no view or copy, and
@@ -92,6 +94,75 @@ final class TensorSlicePlacementExpressions {
                     "slice update shape must match base Shape with selected axes replaced: "
                             + "expected=" + expected + ", actual=" + updateShape);
         }
+        return createUpdate(base, update, baseDescriptor, updateDescriptor, attrs);
+    }
+
+    /**
+     * Creates one exact target-relative functional update.
+     *
+     * <p>References are null-checked in base, update, prefix order. Exact data-type equality is
+     * checked before update rank and prefix rank. The complete update Shape identifies the
+     * replacement region, and the exact caller prefix Shape identifies the non-negative logical
+     * extent preceding it on each axis. Fully static axes are checked in ascending order with
+     * exact addition; an axis containing any unresolved base, prefix, or update Dimension defers
+     * its whole fit proof without partial arithmetic or a retained constraint object.</p>
+     *
+     * <p>The operation retains the exact update Shape as
+     * {@link CropToShapeAttrs#targetShape()} and the exact prefix reference. The fresh canonical
+     * result retains exact base Shape/type, combines eligibility by logical OR, leaves layout
+     * unresolved, and records ordered inputs {@code [base, update]}. Every local failure precedes
+     * attribute/producer creation and consumes no Tensor identifier.</p>
+     *
+     * @param base the non-null base Tensor retained as provenance input zero and never mutated
+     * @param update the non-null same-type, same-rank replacement Tensor retained as input one
+     * @param prefixShape the non-null exact same-rank per-axis prefix Shape retained in attributes
+     * @return a non-null fresh canonical, unlabeled, storage-free SLICE_UPDATE Tensor with exact
+     *     base Shape/type and output-index-zero provenance
+     * @throws NullPointerException if a reference is null, checked in parameter order
+     * @throws IllegalArgumentException if types or ranks differ or a fully static region is out of
+     *     bounds
+     * @throws ArithmeticException if checked prefix-plus-update arithmetic overflows
+     * @throws IllegalStateException if Tensor identifier space is exhausted at final creation
+     */
+    static Tensor update(Tensor base, Tensor update, Shape prefixShape) {
+        Objects.requireNonNull(base, "base");
+        Objects.requireNonNull(update, "update");
+        Objects.requireNonNull(prefixShape, "prefixShape");
+        TensorDescriptor baseDescriptor = base.descriptor();
+        TensorDescriptor updateDescriptor = update.descriptor();
+        if (baseDescriptor.dataType() != updateDescriptor.dataType()) {
+            throw new IllegalArgumentException(
+                    "slice update data types must match: base=" + baseDescriptor.dataType()
+                            + ", update=" + updateDescriptor.dataType());
+        }
+        Shape baseShape = baseDescriptor.shape();
+        Shape updateShape = updateDescriptor.shape();
+        if (updateShape.rank() != baseShape.rank()) {
+            throw new IllegalArgumentException(
+                    "slice update rank must match base rank: base=" + baseShape.rank()
+                            + ", update=" + updateShape.rank());
+        }
+        if (prefixShape.rank() != baseShape.rank()) {
+            throw new IllegalArgumentException(
+                    "slice update prefix rank must match base rank: base=" + baseShape.rank()
+                            + ", prefix=" + prefixShape.rank());
+        }
+        for (int axis = 0; axis < baseShape.rank(); axis++) {
+            Dimension baseDimension = baseShape.dimension(axis);
+            Dimension prefixDimension = prefixShape.dimension(axis);
+            Dimension updateDimension = updateShape.dimension(axis);
+            if (baseDimension instanceof StaticDimension baseStatic
+                    && prefixDimension instanceof StaticDimension prefixStatic
+                    && updateDimension instanceof StaticDimension updateStatic
+                    && Math.addExact(prefixStatic.size(), updateStatic.size())
+                            > baseStatic.size()) {
+                throw new IllegalArgumentException(
+                        "slice update region exceeds base extent at axis " + axis + ": base="
+                                + baseStatic.size() + ", prefix=" + prefixStatic.size()
+                                + ", update=" + updateStatic.size());
+            }
+        }
+        CropToShapeAttrs attrs = new CropToShapeAttrs(updateShape, prefixShape);
         return createUpdate(base, update, baseDescriptor, updateDescriptor, attrs);
     }
 
@@ -311,6 +382,40 @@ final class TensorSlicePlacementExpressions {
             TensorDescriptor baseDescriptor,
             TensorDescriptor updateDescriptor,
             SliceAttrs attrs) {
+        TensorDescriptor descriptor = new TensorDescriptor(
+                baseDescriptor.dataType(),
+                baseDescriptor.shape(),
+                Optional.empty(),
+                baseDescriptor.requiresGrad() || updateDescriptor.requiresGrad());
+        Operation operation = new Operation(SliceKind.SLICE_UPDATE, attrs);
+        return TensorFactory.createDerived(
+                descriptor, Optional.empty(), operation, List.of(base, update));
+    }
+
+    /**
+     * Constructs exact target-relative functional-update metadata and one fresh derived Tensor.
+     *
+     * <p>The caller has already validated exact base/update type and rank, prefix rank, and every
+     * fully static fit. This method preserves the base Shape/type, combines eligibility, leaves
+     * layout unresolved, and creates one {@link SliceKind#SLICE_UPDATE} producer with exact
+     * ordered inputs {@code [base, update]}. Identifier allocation is the only expected failure.</p>
+     *
+     * @param base non-null validated exact provenance input zero and result-Shape source; not
+     *     mutated
+     * @param update non-null validated exact provenance input one; not mutated
+     * @param baseDescriptor non-null exact base descriptor supplying type, Shape, and eligibility
+     * @param updateDescriptor non-null exact update descriptor supplying eligibility
+     * @param attrs non-null exact update-region and prefix Shapes retained by the operation
+     * @return the non-null fresh canonical, unlabeled, storage-free SLICE_UPDATE Tensor with
+     *     output-index-zero provenance
+     * @throws IllegalStateException if Tensor identifier space is exhausted
+     */
+    private static Tensor createUpdate(
+            Tensor base,
+            Tensor update,
+            TensorDescriptor baseDescriptor,
+            TensorDescriptor updateDescriptor,
+            CropToShapeAttrs attrs) {
         TensorDescriptor descriptor = new TensorDescriptor(
                 baseDescriptor.dataType(),
                 baseDescriptor.shape(),

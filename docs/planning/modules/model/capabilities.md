@@ -828,6 +828,25 @@ selected model capability milestone remains historically Complete. Completed tas
 focused compiler-enabling producer foundation discovered later by ADR 0009; it does not reopen
 operation semantics or the public Tensor method inventory.
 
+Later focused compiler-prerequisite interleaves extend the current surface without rewriting that
+historical 200-method audit verdict. Completed task 0025D brings the current declared public
+Tensor surface to 202 methods by adding exactly two generally useful transformations:
+
+- `sliceByLength(starts, lengths, axes, steps)` constructs a finite normalized signed extraction
+  with static requested lengths even when a selected input extent is unresolved. Model proves
+  non-negative coordinates and every static upper bound, defers only the unresolved selected
+  extent's upper bound, canonicalizes zero-length start to zero, and reuses existing
+  `SLICE`/`SliceAttrs` Shape/layout/provenance semantics.
+- `sliceUpdate(update, prefixShape)` places the complete update region after exact per-axis prefix
+  extents. It retains the exact update Shape as `CropToShapeAttrs.targetShape`, the exact prefix
+  Shape, and the exact base result Shape; a fully static fit is checked locally, while any axis
+  containing an unresolved base, prefix, or update extent defers its whole fit.
+
+Both are current Model metadata construction, not value execution. They add no kind, Shape or
+Dimension form, constraint object, compiler inference/preflight/gradient rule, backend behavior,
+runtime state, or architecture change. Draft Compiler 0005C owns explicit adoption of their
+retained obligations.
+
 Task 0023E's focused run passed 44 tests, and its single final model suite passed 1,008 tests across
 126 suites. Its separate documentation pass validated model Javadoc, Java 26 API shape, generated
 Javadoc, the 196-method public Tensor surface, Markdown, exact 33-path scope, and synchronized

@@ -91,7 +91,7 @@ cross-package/public orchestration boundary from a concrete consumer.
 | 0005 | [Publication, planning orchestration, and compile artifacts](tasks/0005-publication-planning-orchestration-and-compile-artifacts.md) | Complete | 0001–0004B; Planning 0006 closure; stable Config 0001–0003 and Backend Contract 0001–0004 inputs | Added the package-private complete compile entry, ordered publication/constant/diagnostic artifacts, and Compiler-owned graph-wide orchestration through three narrow package-cohesive Planning operations without prepare/runtime/backend state. |
 | 0005A | [Derivative policy and elementwise/activation gradient completion](tasks/0005a-derivative-policy-and-elementwise-activation-gradient-completion.md) | Complete | Model 0025A; Compiler 0005 | Completed the exact 48-kind binary/scalar arithmetic, selection/cast, unary, activation, comparison/logical/classification inventory with fixed tie, endpoint, discontinuity, domain, NaN, infinity, Shape/type-normalization, and non-differentiable-role policy. |
 | 0005B | [Reduction, scan, softmax, statistics, and normalization gradient completion](tasks/0005b-reduction-scan-softmax-statistics-and-normalization-gradient-completion.md) | Complete | Model 0025B; 0005A | Adopted binding-aware EXPAND and completed binding-dependent sum-to-Shape, products, extrema, scans, softmax/log-softmax, statistics, norms, and layer/RMS/batch normalization, including explicit boundary policies, non-differentiable mask/index roles, and same-occurrence saved batch-statistic outputs. |
-| 0005C | Layout, window, indexing, scatter, ordering, and stochastic gradient completion | Draft | 0005B | Complete remaining layout/slice/composition and dynamic window rules, Gather/scatter variants, sort/top-K routing, and dropout through canonical auxiliaries; keep coordinates, indices, one-hot/BOOL outputs, RNG state, masks, and configuration roles non-differentiable. |
+| 0005C | [Layout, window, indexing, scatter, ordering, and stochastic gradient completion](tasks/0005c-layout-window-indexing-scatter-ordering-and-stochastic-gradient-completion.md) | Complete | Models 0025C–0025D; 0005B | Completed layout/slice/composition and dynamic window rules, including retained dynamic extraction and target-relative placement obligations, Gather/scatter variants with fixed duplicate/zero/tie policies, exact sort/top-K routing, and dropout through canonical auxiliaries; coordinates, indices, one-hot/BOOL outputs, RNG state, masks, and configuration roles remain non-differentiable. |
 | 0005D | Attention, convolution, pooling, and loss gradient completion | Draft | 0005B, 0005C | Verify the implemented MATMUL/linear chain and complete the remaining structured-ML inventory: attention with same-occurrence weights, grouped convolution, pooling, and every current loss role and reduction mode with explicit special-case policies and non-differentiable mask/index/configuration roles. |
 | 0005E | First-order gradient coverage closure checkpoint | Draft | 0005A, 0005B, 0005C, 0005D | Audit every current operation signature, output slot, and input role as implemented differentiable coverage or intentionally non-differentiable; prove fail-closed inventory and transitive differentiability of formula operations, then run the first-order capability checkpoint. |
 | 0006 | Explicit functional gradient requests and higher-order differentiation | Draft | 0005E and a stable public compile/artifact boundary | Define explicit objectives, targets, seeds, create-graph or derivative order, disconnected-result behavior, and phase/order representation over the first-order formula-operation closure without Tensor gradient lifecycle state. |
@@ -122,9 +122,9 @@ requests before 0006.
 - Pre-capture autograd and graph compilation — Complete through task 0004B and its compiler
   transformation/autograd capability checkpoint.
 - Planning orchestration and compile artifacts — Complete through task 0005.
-- Complete current-inventory first-order gradient coverage — Complete tasks 0005A–0005B, then
-  Draft tasks 0005C–0005E; task 0005E is the closure checkpoint and dependency gate
-  for task 0006.
+- Complete current-inventory first-order gradient coverage — Complete tasks 0005A–0005C and Model
+  prerequisites 0025C–0025D before Draft tasks 0005D–0005E; task 0005E is the closure checkpoint
+  and dependency gate for task 0006.
 
 ## Current status
 
@@ -153,8 +153,18 @@ implementation prerequisite. Detailed
 is Complete with binding-aware EXPAND inference/preflight, output-slot-aware accumulation, and the
 complete assigned reduction/scan/softmax/statistics/norm/normalization matrix. Its exact
 eighteen-path change passed 22 compiler suites/170 tests with no skips, failures, or errors plus
-independent Javadoc, Markdown, surface, scope, and status validation. Compiler 0005C–0005E and
-0006 remain concise Draft rows without detailed specifications; no later compiler row is Ready.
+independent Javadoc, Markdown, surface, scope, and status validation. Complete
+[Model 0025C](../model/tasks/0025c-portable-functional-scatter-reduction-semantics.md) supplies
+the forward numerical-contract prerequisite. Complete
+[Model 0025D](../model/tasks/0025d-dynamic-extent-slice-extraction-and-symbolic-slice-placement.md)
+supplies the remaining dynamic-slice construction prerequisite. Detailed
+[Compiler 0005C](tasks/0005c-layout-window-indexing-scatter-ordering-and-stochastic-gradient-completion.md)
+is Complete through its exact compiler implementation, tests, API/Javadoc review, and
+documentation gates. Compiler 0005D–0005E and 0006 remain concise Draft rows without detailed
+specifications; no later compiler task is Ready.
+Its final compiler module run passed 25 suites and 177 tests with no failures, errors, or skips.
+After test-only combined-pipeline strengthening in the three new rule suites, their focused run
+also passed; no production Java changed after the module run.
 The final exact fifteen-path 0005A change passed the compiler module suite with 22 suites/159
 tests and no skips, failures, or errors; its independent documentation pass finalized all
 affected Javadocs and explanatory/planning surfaces.
@@ -230,8 +240,9 @@ Runtime and prepare remain Draft because no prepared or executable state is intr
 - The public functional boundary for explicit objectives, targets, seeds, and derivative order
   remains deferred to task 0006 after the compile/artifact boundary and task 0005E first-order
   closure are stable.
-- Task 0005C must select duplicate-target scatter, ordering/cutoff, window-selection, and dropout
-  probability-edge policies while preserving dynamic geometry and non-differentiable index/RNG
+- Complete task 0005C adopts retained slice/window constraints, preflight, and gradients; fixes
+  scatter duplicate/zero/tie/NaN/signed-zero routing, stable ordering/cutoff routing, and dropout
+  mask/probability behavior; and preserves dynamic geometry plus non-differentiable index/RNG
   roles.
 - Task 0005D must select the remaining attention, convolution, pooling, and loss special-case
   policies and exact auxiliary-output use. Task 0005E accepts no unresolved policy for a current
@@ -273,6 +284,24 @@ Runtime and prepare remain Draft because no prepared or executable state is intr
   exact target Shape, and leaves layout unresolved. Complete Compiler 0005B owns
   `AnyOf(DimensionEqual(source, 1), DimensionEqual(source, target))` inference/proof, preflight,
   and binding-dependent gradient consistency; Model adds no constraint object or binding.
+- Complete Model task 0025C is the forward numerical-contract prerequisite for Compiler 0005C. For
+  configurable Scatter Elements and Scatter-ND MUL/MIN/MAX, the base participates once, each
+  addressed update participates once, duplicates remain distinct multiset members, and an empty
+  update group preserves the exact base representation. Floating product/extrema and integral
+  modular/signed behavior reuse existing Model contracts; encounter, layout, atomic, and tree
+  order are not observable. Model 0025C chooses no derivative policy and changes neither NONE,
+  ADD, SCATTER_ADD, bounds, nor duplicate validation.
+- Complete Model task 0025D supplies the remaining construction prerequisite for Compiler 0005C. It adds
+  finite length-defined extraction across unresolved selected extents and target-relative
+  symbolic slice placement through existing slice kinds and attributes. Compiler 0005C owns
+  retained-constraint inference/proof, preflight, and gradients; Model 0025D adds none of those
+  compiler behaviors.
+- Complete Compiler 0005C constructs one ordinary stable `ARGSORT` Tensor occurrence with the
+  exact same input, normalized axis, and direction as a one-output `SORT` occurrence and use its
+  indices in the SORT backward formula. This is recomputation through the existing separate
+  one-output Model operation, not a hidden SORT output, sibling lookup, producer reconstruction,
+  or public sort API change. Preflight must fail closed before partial backward construction if
+  the exact SORT/ARGSORT signatures, kinds, or attributes cannot be matched.
 - Complete Compiler 0005B fixes the reduction, scan, softmax, statistics, norm, and normalization
   derivative policies and exact formulas. Product rules are division-free;
   extrema split equal ties; standard deviation and L2 norm select zero at zero result; statistical
@@ -317,8 +346,8 @@ Runtime and prepare remain Draft because no prepared or executable state is intr
   differentiation or intentionally non-differentiable. It does not mean that BOOL, index,
   RNG-state, mask, or configuration roles receive cotangents.
 - Derivative boundary and subgradient choices are implementation-frontier decisions in their
-  assigned task. Compiler 0005B records its implemented policies in the Complete specification;
-  0005C–0005D retain their choices. Model tasks choose only shared forward meaning and do not
+  assigned task. Compiler 0005B–0005C record their implemented policies in Complete specifications;
+  0005D retains its choices. Model tasks choose only shared forward meaning and do not
   choose derivatives.
 - Task 0005E must prove transitive formula-operation differentiation coverage before 0006. It
   adds no create-graph behavior, derivative-order representation, or higher-order request.
@@ -365,9 +394,16 @@ passed. Compiler 0005 and Model 0025A are Complete.
 [Compiler 0005A](tasks/0005a-derivative-policy-and-elementwise-activation-gradient-completion.md)
 is Complete. It closed the complete 0005A policy and implementation boundary through the exact
 fifteen authorized paths and independent documentation pass. Complete
-[Model 0025B](../model/tasks/0025b-binding-aware-expansion.md) now supplies the next compiler
+[Model 0025B](../model/tasks/0025b-binding-aware-expansion.md) supplied the next compiler
 prerequisite. Detailed
 [Compiler 0005B](tasks/0005b-reduction-scan-softmax-statistics-and-normalization-gradient-completion.md)
-is Complete through the exact eighteen authorized paths and independent documentation pass. Keep
-0005C–0005E and 0006 as concise Draft rows without detailed specifications; no later compiler row
-is Ready.
+is Complete through the exact eighteen authorized paths and independent documentation pass.
+[Model 0025C](../model/tasks/0025c-portable-functional-scatter-reduction-semantics.md) and
+[Model 0025D](../model/tasks/0025d-dynamic-extent-slice-extraction-and-symbolic-slice-placement.md)
+are Complete as the forward numerical-contract and dynamic-slice construction prerequisites.
+Detailed
+[Compiler 0005C](tasks/0005c-layout-window-indexing-scatter-ordering-and-stochastic-gradient-completion.md)
+is Complete. It fixes the complete assigned inventory, formulas, retained constraints, numerical
+policies, canonical auxiliary-output use, fail-closed ordering, authorized 23-path ceiling, and
+implementation/documentation handoff. Keep 0005D–0005E and 0006 Draft without detailed
+specifications; no later compiler task is Ready.

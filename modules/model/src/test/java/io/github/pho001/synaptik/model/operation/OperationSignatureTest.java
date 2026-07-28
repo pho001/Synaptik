@@ -222,7 +222,9 @@ public final class OperationSignatureTest {
                         fixed(CropToShapeAttrs.class, 1)),
                 SliceKind.SLICE);
         assertKinds(
-                List.of(fixed(SliceAttrs.class, 2)),
+                List.of(
+                        fixed(SliceAttrs.class, 2),
+                        fixed(CropToShapeAttrs.class, 2)),
                 SliceKind.SLICE_UPDATE);
         assertKinds(
                 List.of(OperationSignature.inputRange(
@@ -341,9 +343,7 @@ public final class OperationSignatureTest {
                         IllegalArgumentException.class,
                         () -> new Operation(
                                 SliceKind.SLICE_UPDATE,
-                                new CropToShapeAttrs(
-                                        io.github.pho001.synaptik.model.shape.Shape.scalar(),
-                                        io.github.pho001.synaptik.model.shape.Shape.scalar()))),
+                                NoOperationAttrs.INSTANCE)),
                 () -> assertThrows(
                         IllegalArgumentException.class,
                         () -> new Operation(

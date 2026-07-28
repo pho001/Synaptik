@@ -25,6 +25,7 @@ import io.github.pho001.synaptik.model.operation.index.SelectKind;
 import io.github.pho001.synaptik.model.operation.layout.AxisTransformAttrs;
 import io.github.pho001.synaptik.model.operation.layout.AxisTransformKind;
 import io.github.pho001.synaptik.model.operation.layout.ContiguousKind;
+import io.github.pho001.synaptik.model.operation.layout.CropToShapeAttrs;
 import io.github.pho001.synaptik.model.operation.layout.PadKind;
 import io.github.pho001.synaptik.model.operation.layout.ShapeTransformKind;
 import io.github.pho001.synaptik.model.operation.layout.SliceKind;
@@ -143,7 +144,10 @@ import java.util.Optional;
  * layout. Axis scatter methods consume ordered
  * {@code [data, indices, updates]} inputs, require exact INT32 or INT64 indices and matching
  * data/update types, and retain exact data Shape/type with unresolved layout. Scatter-elements
- * permits replacement for every current type and arithmetic reduction for numeric types.
+ * permits replacement for every current type and arithmetic reduction for numeric types. For
+ * configurable multiplication and extrema, each addressed update and the base participate
+ * exactly once in an order-independent represented-value target; duplicate targets remain
+ * distinct contributions and an unaddressed coordinate preserves the exact base representation.
  * Construction reads no index or update values,
  * performs no writes or reductions, and never mutates data. Cumulative sum accepts one axis of a
  * floating or integral input,
@@ -4874,6 +4878,47 @@ public final class Tensor {
     }
 
     /**
+     * Creates a finite signed slice from normalized non-negative starts and explicit lengths.
+     *
+     * <p>Entry {@code i} selects {@code lengths[i]} coordinates
+     * {@code starts[i] + k * steps[i]} on normalized {@code axes[i]}. Axes are normalized once
+     * and must be distinct; lengths are finite and non-negative; steps are signed and non-zero.
+     * A zero length selects no coordinate, performs no input-bound proof, and stores canonical
+     * start zero. The arrays are checked before they are cloned once each; they are never retained
+     * or mutated.</p>
+     *
+     * <p>First and final coordinates must be non-negative. Static selected input extents are
+     * checked completely with exact final-coordinate arithmetic, while only an upper bound
+     * involving an unresolved selected extent remains a later compiler/binding obligation. Model
+     * stores no deferred constraint object. The result replaces selected Dimensions with exact
+     * static lengths and preserves every unaffected Dimension reference. Its layout is resolved
+     * only for a non-empty result with resolved input geometry and all-positive steps.</p>
+     *
+     * <p>The fresh canonical result preserves exact input type and gradient eligibility, has no
+     * label or storage, and records one {@link SliceKind#SLICE} producer with ordered input
+     * {@code [this]} and output index zero. Local validation and checked arithmetic consume no
+     * Tensor identifier.</p>
+     *
+     * @param starts non-null caller-owned normalized non-negative inclusive starts; cloned and
+     *     never retained or mutated
+     * @param lengths non-null caller-owned finite non-negative selected-coordinate counts; cloned
+     *     and never retained or mutated
+     * @param axes non-null caller-owned positive or negative axes; cloned and normalized once
+     * @param steps non-null caller-owned signed non-zero coordinate increments; cloned unchanged
+     * @return a non-null fresh canonical, unlabeled, storage-free SLICE expression with exact
+     *     selected lengths and output-index-zero provenance
+     * @throws NullPointerException if an array is null, checked in parameter order
+     * @throws IllegalArgumentException if lengths differ or an entry violates the local contract
+     * @throws ArithmeticException if checked coordinate, Shape, or layout arithmetic overflows
+     * @throws IllegalStateException if tensor identifier space is exhausted during final creation
+     */
+    public Tensor sliceByLength(
+            long[] starts, long[] lengths, int[] axes, long[] steps) {
+        return TensorSliceExpressions.applyByLength(
+                this, starts, lengths, axes, steps);
+    }
+
+    /**
      * Creates a fresh single-axis step-one slice expression through the general slice path.
      *
      * <p>This convenience is exactly one {@link SliceKind#SLICE} entry with {@code step = 1}; it
@@ -4996,6 +5041,39 @@ public final class Tensor {
             Tensor update, long[] starts, int[] axes, long[] steps) {
         return TensorSlicePlacementExpressions.update(
                 this, update, starts, axes, steps);
+    }
+
+    /**
+     * Functionally replaces the complete update region after a per-axis prefix Shape.
+     *
+     * <p>For each axis, the replacement interval is
+     * {@code [prefixShape[i], prefixShape[i] + update.shape[i])}. Base, update, and prefix ranks
+     * must match and the data types must be identical. Fully static regions are checked locally;
+     * any axis containing an unresolved base, prefix, or update extent defers its whole fit proof
+     * without partial arithmetic or a Model-owned constraint object.</p>
+     *
+     * <p>The fresh result retains this tensor's exact Shape and data type, combines gradient
+     * eligibility by logical OR, leaves layout unresolved, and records one
+     * {@link SliceKind#SLICE_UPDATE} producer with {@link CropToShapeAttrs}, ordered inputs
+     * {@code [this, update]}, and output index zero. The attributes retain the exact update Shape
+     * as their target and the exact caller prefix Shape. Neither input is mutated. Local
+     * validation and checked arithmetic consume no Tensor identifier.</p>
+     *
+     * @param update the non-null same-type, same-rank Tensor defining the exact replacement Shape;
+     *     retained as provenance input one and not mutated
+     * @param prefixShape the non-null exact same-rank per-axis prefix Shape retained by reference
+     *     in attributes
+     * @return a non-null fresh canonical, unlabeled, storage-free SLICE_UPDATE Tensor with exact
+     *     base Shape/type and output-index-zero provenance
+     * @throws NullPointerException if {@code update} or {@code prefixShape} is null, in that order
+     * @throws IllegalArgumentException if types or ranks differ or a fully static region is out of
+     *     bounds
+     * @throws ArithmeticException if checked prefix-plus-update arithmetic overflows
+     * @throws IllegalStateException if tensor identifier space is exhausted during final creation
+     */
+    public Tensor sliceUpdate(Tensor update, Shape prefixShape) {
+        return TensorSlicePlacementExpressions.update(
+                this, update, prefixShape);
     }
 
     /**
@@ -5327,7 +5405,9 @@ public final class Tensor {
      * <p>The result retains exact data Shape/type and data/update gradient-eligibility OR, has
      * unresolved layout, no label or storage, and exact ordered SCATTER_ND provenance. This method
      * reads no index or update value, detects no duplicate target, performs no write or reduction,
-     * and defines no numerical order, gradient, compiler, backend, or execution behavior.</p>
+     * and defines no derivative, subgradient, compiler, backend, or execution behavior.
+     * Configurable reduction represented-value semantics are fixed by
+     * {@link ScatterReduction}.</p>
      *
      * @param indices non-null INT32 or INT64 coordinate-tuple tensor retained by exact reference
      *     without value access
@@ -5364,10 +5444,15 @@ public final class Tensor {
      * <p>The fresh result preserves exact data Shape/type, combines data/update gradient
      * eligibility, leaves layout unresolved, and records exact {@link ScatterNdAttrs} and ordered
      * {@code [this, indices, updates]} provenance. A target is the result coordinate or suffix
-     * slice addressed by one tuple; duplicate targets are multiple tuples addressing the same
-     * target. Construction does not inspect values, validate bounds or duplicates, apply writes or
-     * reductions, mutate data, define numeric order, create gradients, capture a graph, select a
-     * backend, or execute work.</p>
+     * slice addressed by one tuple. Every tuple contributes its complete suffix slice scalar by
+     * scalar. For a non-replacement reduction, each concrete target's base participates exactly
+     * once and every addressed update scalar participates exactly once; duplicate tuples remain
+     * distinct contributions, and an unaddressed coordinate preserves the exact base
+     * representation. The represented-value target fixed by {@link ScatterReduction} is
+     * independent of encounter, layout, stride, atomic, tree, and backend order. Construction
+     * does not inspect values, validate bounds or duplicates, apply writes or reductions, mutate
+     * data, define derivatives or subgradients, capture a graph, select an algorithm or backend,
+     * or execute work.</p>
      *
      * @param indices non-null INT32 or INT64 coordinate-tuple tensor whose leading batch prefix
      *     structurally matches data and whose final static Dimension supplies tuple depth
@@ -5466,9 +5551,15 @@ public final class Tensor {
      * <p>{@link ScatterReduction#NONE} accepts every current type. {@link ScatterReduction#ADD},
      * {@link ScatterReduction#MUL}, {@link ScatterReduction#MAX}, and
      * {@link ScatterReduction#MIN} accept floating and integral values and reject BOOL. The
-     * reduction defines semantic combination at a target; this method does not inspect values,
-     * detect NONE duplicates, apply writes/reductions, define numerical order or gradients,
-     * capture a graph, select a backend, or execute work.</p>
+     * reduction defines semantic combination at a target. Every updates coordinate contributes
+     * exactly once to the result coordinate obtained by replacing its selected-axis coordinate
+     * with the corresponding index. For a non-replacement reduction, the base participates
+     * exactly once, duplicate targets remain distinct contributions, and an unaddressed coordinate
+     * preserves the exact base representation. The represented-value target fixed by
+     * {@link ScatterReduction} is independent of encounter, layout, stride, atomic, tree, and
+     * backend order. This method does not inspect values, detect NONE duplicates, apply writes or
+     * reductions, define derivatives or subgradients, capture a graph, select an algorithm or
+     * backend, or execute work.</p>
      *
      * <p>The fresh result has exact data Shape/type, data/update eligibility OR, unresolved layout,
      * no label or storage, exact {@link AxisScatterKind#SCATTER_ELEMENTS} attributes, and ordered

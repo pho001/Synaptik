@@ -31,7 +31,12 @@ import java.util.Objects;
  * tuples. A target is the result coordinate or suffix slice addressed by one tuple; duplicate
  * target tuples are multiple tuples that address that same target. Such duplicates are invalid
  * for replacement, but detecting them requires index values and is not a constructor check.
- * {@code null} never means {@code NONE}.</p>
+ * For a non-replacement reduction, every tuple position contributes its complete update suffix
+ * slice scalar by scalar. The base at each concrete result coordinate participates exactly once,
+ * and each addressed update scalar participates exactly once; duplicate tuples remain distinct
+ * contributions. An unaddressed coordinate retains the exact base representation. The portable
+ * represented-value rules are defined by {@link ScatterReduction}. {@code null} never means
+ * {@code NONE}.</p>
  *
  * <p>This value stores no operand, rank, Shape, tuple depth, data type, descriptor, result, or
  * provenance. It therefore cannot prove that {@code B} fits particular input ranks, that shared
@@ -49,8 +54,10 @@ import java.util.Objects;
  * hashing use both components, and generated text is diagnostic rather than a serialization,
  * parsing, compiler-dispatch, backend, or execution contract.</p>
  *
- * <p>These attributes define no value access, bounds or duplicate checking, mutation, numeric
- * order, gradients, graph or compiler behavior, backend support, or execution.</p>
+ * <p>These attributes define no value access, bounds or duplicate checking, mutation, derivative
+ * or subgradient policy, numerical algorithm, graph or compiler behavior, backend support, or
+ * execution. The represented-value target is independent of encounter, layout, stride, atomic,
+ * tree, and backend order.</p>
  *
  * @param batchDimensions the already normalized, non-negative number of shared leading batch
  *     Dimensions

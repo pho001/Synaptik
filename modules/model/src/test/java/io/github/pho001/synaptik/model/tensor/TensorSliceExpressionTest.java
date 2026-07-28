@@ -17,6 +17,7 @@ import io.github.pho001.synaptik.model.layout.LayoutKind;
 import io.github.pho001.synaptik.model.operation.Operation;
 import io.github.pho001.synaptik.model.operation.layout.SliceAttrs;
 import io.github.pho001.synaptik.model.operation.layout.SliceKind;
+import io.github.pho001.synaptik.model.shape.DimensionExpressions;
 import io.github.pho001.synaptik.model.shape.DynamicDimension;
 import io.github.pho001.synaptik.model.shape.Shape;
 import io.github.pho001.synaptik.model.shape.StaticDimension;
@@ -40,9 +41,11 @@ class TensorSliceExpressionTest {
     private static final AtomicLong IDS = new AtomicLong(80_000);
 
     @Test
-    void exposesExactlyFourPublicMethodsAndNineMethodStatelessHelper() throws Exception {
+    void exposesExactlyFivePublicMethodsAndElevenMethodStatelessHelper() throws Exception {
         Method slice = Tensor.class.getDeclaredMethod(
                 "slice", long[].class, long[].class, int[].class, long[].class);
+        Method sliceByLength = Tensor.class.getDeclaredMethod(
+                "sliceByLength", long[].class, long[].class, int[].class, long[].class);
         Method sliceAxis = Tensor.class.getDeclaredMethod(
                 "sliceAxis", int.class, long.class, long.class);
         Method steppedSliceAxis = Tensor.class.getDeclaredMethod(
@@ -52,12 +55,18 @@ class TensorSliceExpressionTest {
         List<Method> methods = Arrays.asList(TensorSliceExpressions.class.getDeclaredMethods());
         Method apply = TensorSliceExpressions.class.getDeclaredMethod(
                 "apply", Tensor.class, long[].class, long[].class, int[].class, long[].class);
+        Method applyByLength = TensorSliceExpressions.class.getDeclaredMethod(
+                "applyByLength",
+                Tensor.class, long[].class, long[].class, int[].class, long[].class);
         Method applyAxis = TensorSliceExpressions.class.getDeclaredMethod(
                 "applyAxis", Tensor.class, int.class, long.class, long.class, long.class);
         Method flipHelper = TensorSliceExpressions.class.getDeclaredMethod(
                 "flip", Tensor.class, int[].class);
         Method normalize = TensorSliceExpressions.class.getDeclaredMethod(
                 "normalize", Shape.class, long[].class, long[].class, int[].class, long[].class);
+        Method normalizeByLength = TensorSliceExpressions.class.getDeclaredMethod(
+                "normalizeByLength",
+                Shape.class, long[].class, long[].class, int[].class, long[].class);
         Method normalizeBound = TensorSliceExpressions.class.getDeclaredMethod(
                 "normalizeBound", long.class, long.class, long.class, boolean.class);
         Method sliceLength = TensorSliceExpressions.class.getDeclaredMethod(
@@ -79,6 +88,14 @@ class TensorSliceExpressionTest {
                 () -> assertTrue(Modifier.isPublic(slice.getModifiers())),
                 () -> assertFalse(Modifier.isStatic(slice.getModifiers())),
                 () -> assertFalse(Modifier.isSynchronized(slice.getModifiers())),
+                () -> assertSame(Tensor.class, sliceByLength.getReturnType()),
+                () -> assertEquals(
+                        List.of(long[].class, long[].class, int[].class, long[].class),
+                        Arrays.asList(sliceByLength.getParameterTypes())),
+                () -> assertFalse(sliceByLength.isVarArgs()),
+                () -> assertTrue(Modifier.isPublic(sliceByLength.getModifiers())),
+                () -> assertFalse(Modifier.isStatic(sliceByLength.getModifiers())),
+                () -> assertFalse(Modifier.isSynchronized(sliceByLength.getModifiers())),
                 () -> assertSame(Tensor.class, sliceAxis.getReturnType()),
                 () -> assertEquals(List.of(int.class, long.class, long.class),
                         Arrays.asList(sliceAxis.getParameterTypes())),
@@ -103,30 +120,318 @@ class TensorSliceExpressionTest {
                         TensorSliceExpressions.class.getDeclaredConstructors().length),
                 () -> assertTrue(Modifier.isPrivate(constructor.getModifiers())),
                 () -> assertEquals(0, constructor.getParameterCount()),
-                () -> assertEquals(9, methods.size()),
+                () -> assertEquals(11, methods.size()),
                 () -> assertEquals(
-                        Set.of("apply", "applyAxis", "flip", "normalize", "normalizeBound",
-                                "sliceLength", "deriveShape", "resolveViewLayout", "create"),
+                        Set.of("apply", "applyByLength", "applyAxis", "flip", "normalize",
+                                "normalizeByLength", "normalizeBound", "sliceLength",
+                                "deriveShape", "resolveViewLayout", "create"),
                         methods.stream().map(Method::getName).collect(Collectors.toSet())),
-                () -> assertEquals(3, methods.stream()
+                () -> assertEquals(4, methods.stream()
                         .filter(method -> !Modifier.isPrivate(method.getModifiers())).count()),
                 () -> assertTrue(methods.stream().allMatch(
                         method -> Modifier.isStatic(method.getModifiers()))),
                 () -> assertSame(Tensor.class, apply.getReturnType()),
+                () -> assertSame(Tensor.class, applyByLength.getReturnType()),
                 () -> assertSame(Tensor.class, applyAxis.getReturnType()),
                 () -> assertSame(Tensor.class, flipHelper.getReturnType()),
                 () -> assertSame(SliceAttrs.class, normalize.getReturnType()),
+                () -> assertSame(SliceAttrs.class, normalizeByLength.getReturnType()),
                 () -> assertSame(long.class, normalizeBound.getReturnType()),
                 () -> assertSame(long.class, sliceLength.getReturnType()),
                 () -> assertSame(Shape.class, deriveShape.getReturnType()),
                 () -> assertSame(Optional.class, resolve.getReturnType()),
                 () -> assertSame(Tensor.class, create.getReturnType()),
                 () -> assertTrue(Modifier.isPrivate(normalize.getModifiers())),
+                () -> assertTrue(Modifier.isPrivate(normalizeByLength.getModifiers())),
                 () -> assertTrue(Modifier.isPrivate(normalizeBound.getModifiers())),
                 () -> assertTrue(Modifier.isPrivate(sliceLength.getModifiers())),
                 () -> assertTrue(Modifier.isPrivate(deriveShape.getModifiers())),
                 () -> assertTrue(Modifier.isPrivate(resolve.getModifiers())),
-                () -> assertTrue(Modifier.isPrivate(create.getModifiers())));
+                () -> assertTrue(Modifier.isPrivate(create.getModifiers())),
+                () -> assertEquals(1, publicMethodsNamed("sliceByLength")),
+                () -> assertEquals(1, publicMethodsNamed("slice")),
+                () -> assertEquals(2, publicMethodsNamed("sliceAxis")),
+                () -> assertEquals(1, publicMethodsNamed("flip")),
+                () -> assertEquals(0, publicMethodsNamed("dynamicSlice")),
+                () -> assertEquals(0, publicMethodsNamed("sliceLengths")));
+    }
+
+    @Test
+    void sliceByLengthPreservesEveryDataTypeEligibilityAndExactMetadata() {
+        Shape shape = Shape.of(4, 8);
+        for (DataType dataType : DataType.values()) {
+            for (boolean requiresGrad : validGradientChoices(dataType)) {
+                Tensor input = tensor(dataType, shape, Optional.empty(), requiresGrad);
+
+                Tensor result = input.sliceByLength(
+                        new long[] {1, 6},
+                        new long[] {2, 3},
+                        new int[] {0, -1},
+                        new long[] {2, -2});
+                TensorProvenance provenance = result.provenance().orElseThrow();
+                SliceAttrs attrs = (SliceAttrs) provenance.operation().attrs();
+
+                assertAll(
+                        () -> assertSame(dataType, result.descriptor().dataType()),
+                        () -> assertEquals(Shape.of(2, 3), result.descriptor().shape()),
+                        () -> assertEquals(requiresGrad, result.descriptor().requiresGrad()),
+                        () -> assertTrue(result.descriptor().layout().isEmpty()),
+                        () -> assertSame(SliceKind.SLICE, provenance.operation().kind()),
+                        () -> assertEquals(List.of(1L, 6L), attrs.starts()),
+                        () -> assertEquals(List.of(2L, 3L), attrs.lengths()),
+                        () -> assertEquals(List.of(0, 1), attrs.axes()),
+                        () -> assertEquals(List.of(2L, -2L), attrs.steps()),
+                        () -> assertEquals(List.of(input), provenance.inputs()),
+                        () -> assertSame(input, provenance.inputs().getFirst()),
+                        () -> assertEquals(0, provenance.outputIndex()),
+                        () -> assertEquals(1, provenance.producer().outputCount()),
+                        () -> assertSame(result, provenance.producer().output(0)),
+                        () -> assertSame(result.descriptor(), provenance.outputDescriptor()),
+                        () -> assertTrue(result.label().isEmpty()),
+                        () -> assertTrue(result.hostStorage().isEmpty()),
+                        () -> assertNotSame(input, result),
+                        () -> assertNotEquals(input.id(), result.id()));
+            }
+        }
+    }
+
+    @Test
+    void sliceByLengthSnapshotsArraysAndPreservesOnlyUnaffectedDimensionReferences() {
+        DynamicDimension batch = new DynamicDimension("batch");
+        DynamicDimension selected = new DynamicDimension("selected");
+        StaticDimension width = new StaticDimension(8);
+        Shape shape = Shape.ofDimensions(batch, selected, width);
+        Tensor input = tensor(DataType.FLOAT32, shape, Optional.empty(), true);
+        long[] starts = {2, 6};
+        long[] lengths = {3, 2};
+        int[] axes = {1, -1};
+        long[] steps = {2, -3};
+
+        Tensor result = input.sliceByLength(starts, lengths, axes, steps);
+        starts[0] = -1;
+        lengths[0] = 0;
+        axes[0] = 0;
+        steps[0] = 0;
+        SliceAttrs attrs = (SliceAttrs) result.provenance().orElseThrow().operation().attrs();
+        Shape resultShape = result.descriptor().shape();
+
+        assertAll(
+                () -> assertEquals(List.of(2L, 6L), attrs.starts()),
+                () -> assertEquals(List.of(3L, 2L), attrs.lengths()),
+                () -> assertEquals(List.of(1, 2), attrs.axes()),
+                () -> assertEquals(List.of(2L, -3L), attrs.steps()),
+                () -> assertSame(batch, resultShape.dimension(0)),
+                () -> assertEquals(new StaticDimension(3), resultShape.dimension(1)),
+                () -> assertEquals(new StaticDimension(2), resultShape.dimension(2)),
+                () -> assertNotSame(selected, resultShape.dimension(1)),
+                () -> assertNotSame(width, resultShape.dimension(2)));
+    }
+
+    @Test
+    void sliceByLengthAcceptsEveryUnresolvedSelectedCategoryAndCanonicalEmptyState() {
+        DynamicDimension named = new DynamicDimension("N");
+        var expression = DimensionExpressions.addConstant(new DynamicDimension("M"), 2);
+        var unknown = DimensionExpressions.unknown(0, Optional.empty());
+        Tensor namedInput = tensor(
+                DataType.FLOAT32, Shape.ofDimensions(named), Optional.empty(), true);
+        Tensor expressionInput = tensor(
+                DataType.FLOAT32, Shape.ofDimensions(expression), Optional.empty(), true);
+        Tensor unknownInput = tensor(
+                DataType.FLOAT32, Shape.ofDimensions(unknown), Optional.empty(), true);
+        Tensor zeroInput = tensor(DataType.INT32, Shape.of(0), Optional.empty(), false);
+
+        Tensor namedResult = namedInput.sliceByLength(
+                new long[] {4}, new long[] {3}, new int[] {0}, new long[] {-2});
+        Tensor expressionResult = expressionInput.sliceByLength(
+                new long[] {2}, new long[] {4}, new int[] {0}, new long[] {3});
+        Tensor unknownResult = unknownInput.sliceByLength(
+                new long[] {0}, new long[] {1}, new int[] {0}, new long[] {Long.MIN_VALUE});
+        Tensor emptyResult = zeroInput.sliceByLength(
+                new long[] {Long.MAX_VALUE},
+                new long[] {0},
+                new int[] {0},
+                new long[] {Long.MIN_VALUE});
+        SliceAttrs emptyAttrs =
+                (SliceAttrs) emptyResult.provenance().orElseThrow().operation().attrs();
+
+        assertAll(
+                () -> assertEquals(Shape.of(3), namedResult.descriptor().shape()),
+                () -> assertEquals(Shape.of(4), expressionResult.descriptor().shape()),
+                () -> assertEquals(Shape.of(1), unknownResult.descriptor().shape()),
+                () -> assertEquals(Shape.of(0), emptyResult.descriptor().shape()),
+                () -> assertEquals(List.of(0L), emptyAttrs.starts()),
+                () -> assertEquals(List.of(0L), emptyAttrs.lengths()),
+                () -> assertEquals(List.of(Long.MIN_VALUE), emptyAttrs.steps()),
+                () -> assertTrue(emptyResult.descriptor().layout().isEmpty()));
+    }
+
+    @Test
+    void sliceByLengthValidatesExactPrecedenceMessagesAndConsumesNoIds() throws Exception {
+        Tensor input = tensor(
+                DataType.FLOAT32,
+                Shape.ofDimensions(new StaticDimension(3), new DynamicDimension("N")),
+                Optional.empty(),
+                true);
+        AtomicLong next = nextTensorIdState();
+        long before = next.get();
+
+        assertFailure(NullPointerException.class, "input",
+                () -> TensorSliceExpressions.applyByLength(null, null, null, null, null));
+        assertFailure(NullPointerException.class, "starts",
+                () -> TensorSliceExpressions.applyByLength(input, null, null, null, null));
+        assertFailure(NullPointerException.class, "lengths",
+                () -> TensorSliceExpressions.applyByLength(
+                        input, new long[0], null, null, null));
+        assertFailure(NullPointerException.class, "axes",
+                () -> TensorSliceExpressions.applyByLength(
+                        input, new long[0], new long[0], null, null));
+        assertFailure(NullPointerException.class, "steps",
+                () -> TensorSliceExpressions.applyByLength(
+                        input, new long[0], new long[0], new int[0], null));
+        assertFailure(IllegalArgumentException.class,
+                "starts, lengths, axes, and steps must have matching lengths",
+                () -> input.sliceByLength(
+                        new long[] {0}, new long[0], new int[] {0}, new long[] {1}));
+        assertFailure(IllegalArgumentException.class,
+                "slice by length axis -3 at index 0 is outside rank 2",
+                () -> input.sliceByLength(
+                        new long[] {-1}, new long[] {-1}, new int[] {-3}, new long[] {0}));
+        assertFailure(IllegalArgumentException.class,
+                "slice by length axis -2147483648 at index 0 is outside rank 2",
+                () -> input.sliceByLength(
+                        new long[] {0}, new long[] {1},
+                        new int[] {Integer.MIN_VALUE}, new long[] {1}));
+        assertFailure(IllegalArgumentException.class,
+                "slice by length contains duplicate normalized axis 0 at index 1",
+                () -> input.sliceByLength(
+                        new long[] {0, -1},
+                        new long[] {1, -1},
+                        new int[] {0, -2},
+                        new long[] {1, 0}));
+        assertFailure(IllegalArgumentException.class, "starts[0] must be non-negative: -1",
+                () -> input.sliceByLength(
+                        new long[] {-1}, new long[] {-1}, new int[] {0}, new long[] {0}));
+        assertFailure(IllegalArgumentException.class, "lengths[0] must be non-negative: -1",
+                () -> input.sliceByLength(
+                        new long[] {0}, new long[] {-1}, new int[] {0}, new long[] {0}));
+        assertFailure(IllegalArgumentException.class, "steps[0] must be non-zero: 0",
+                () -> input.sliceByLength(
+                        new long[] {0}, new long[] {1}, new int[] {0}, new long[] {0}));
+        assertFailure(IllegalArgumentException.class,
+                "slice by length coordinates at index 0 do not fit input extent 3: "
+                        + "start=3, length=1, step=1",
+                () -> input.sliceByLength(
+                        new long[] {3}, new long[] {1}, new int[] {0}, new long[] {1}));
+        assertFailure(IllegalArgumentException.class,
+                "slice by length coordinates at index 0 do not fit input extent 3: "
+                        + "start=1, length=2, step=2",
+                () -> input.sliceByLength(
+                        new long[] {1}, new long[] {2}, new int[] {0}, new long[] {2}));
+        assertFailure(IllegalArgumentException.class,
+                "slice by length coordinates at index 0 do not fit input extent "
+                        + "DynamicDimension[symbol=N]: start=1, length=2, step=-2",
+                () -> input.sliceByLength(
+                        new long[] {1}, new long[] {2}, new int[] {1}, new long[] {-2}));
+
+        assertEquals(before, next.get());
+    }
+
+    @Test
+    void sliceByLengthPropagatesCoordinateAndLayoutOverflowBeforeIdentityAllocation()
+            throws Exception {
+        Tensor staticInput = tensor(
+                DataType.INT64, Shape.of(Long.MAX_VALUE), Optional.empty(), false);
+        Shape singleton = Shape.of(1);
+        Tensor resolvedInput = tensor(
+                DataType.FLOAT32,
+                singleton,
+                Optional.of(LayoutDescriptor.of(singleton, new long[] {2}, 0, true)),
+                true);
+        AtomicLong next = nextTensorIdState();
+        long before = next.get();
+
+        assertThrows(
+                ArithmeticException.class,
+                () -> staticInput.sliceByLength(
+                        new long[] {Long.MAX_VALUE - 1},
+                        new long[] {3},
+                        new int[] {0},
+                        new long[] {Long.MAX_VALUE}));
+        assertThrows(
+                ArithmeticException.class,
+                () -> resolvedInput.sliceByLength(
+                        new long[] {0},
+                        new long[] {1},
+                        new int[] {0},
+                        new long[] {Long.MAX_VALUE}));
+
+        assertEquals(before, next.get());
+    }
+
+    @Test
+    void sliceByLengthDerivesOnlyProvenPositiveStepNonemptyResolvedViews() {
+        Shape shape = Shape.of(4, 8);
+        LayoutDescriptor dense = LayoutDescriptor.contiguous(shape);
+        LayoutDescriptor offset = LayoutDescriptor.of(shape, new long[] {8, 1}, 5, true);
+        LayoutDescriptor strided = LayoutDescriptor.of(shape, new long[] {10, 1}, 3, true);
+        LayoutDescriptor broadcast = LayoutDescriptor.of(shape, new long[] {0, 1}, 2, true);
+
+        LayoutDescriptor denseResult = slicedByLengthLayout(shape, dense);
+        LayoutDescriptor offsetResult = slicedByLengthLayout(shape, offset);
+        LayoutDescriptor stridedResult = slicedByLengthLayout(shape, strided);
+        LayoutDescriptor broadcastResult = slicedByLengthLayout(shape, broadcast);
+        Tensor negative = tensor(
+                        DataType.FLOAT32, shape, Optional.of(dense), true)
+                .sliceByLength(
+                        new long[] {3}, new long[] {2}, new int[] {0}, new long[] {-2});
+        Tensor empty = tensor(
+                        DataType.FLOAT32, shape, Optional.of(dense), true)
+                .sliceByLength(
+                        new long[] {7}, new long[] {0}, new int[] {1}, new long[] {2});
+        Tensor unresolved = tensor(DataType.FLOAT32, shape, Optional.empty(), true)
+                .sliceByLength(
+                        new long[] {1}, new long[] {2}, new int[] {1}, new long[] {2});
+
+        assertAll(
+                () -> assertArrayEquals(new long[] {16, 2}, denseResult.strides()),
+                () -> assertEquals(9, denseResult.storageOffset()),
+                () -> assertSame(LayoutKind.STRIDED, denseResult.kind()),
+                () -> assertTrue(denseResult.isView()),
+                () -> assertArrayEquals(new long[] {16, 2}, offsetResult.strides()),
+                () -> assertEquals(14, offsetResult.storageOffset()),
+                () -> assertArrayEquals(new long[] {20, 2}, stridedResult.strides()),
+                () -> assertEquals(14, stridedResult.storageOffset()),
+                () -> assertArrayEquals(new long[] {0, 2}, broadcastResult.strides()),
+                () -> assertEquals(3, broadcastResult.storageOffset()),
+                () -> assertSame(
+                        LayoutKind.BROADCAST_ZERO_STRIDE, broadcastResult.kind()),
+                () -> assertTrue(negative.descriptor().layout().isEmpty()),
+                () -> assertTrue(empty.descriptor().layout().isEmpty()),
+                () -> assertTrue(unresolved.descriptor().layout().isEmpty()));
+    }
+
+    @Test
+    void sliceByLengthScalarAndIdentityCallsAreFreshCanonicalOutputs() {
+        Tensor scalarInput = tensor(DataType.BOOL, Shape.scalar(), Optional.empty(), false);
+        Tensor scalar = scalarInput.sliceByLength(
+                new long[0], new long[0], new int[0], new long[0]);
+        DynamicDimension n = new DynamicDimension("N");
+        Shape dynamicShape = Shape.ofDimensions(n);
+        Tensor input = tensor(DataType.FLOAT32, dynamicShape, Optional.empty(), true);
+        Tensor first = input.sliceByLength(
+                new long[0], new long[0], new int[0], new long[0]);
+        Tensor second = input.sliceByLength(
+                new long[0], new long[0], new int[0], new long[0]);
+
+        assertAll(
+                () -> assertSame(Shape.scalar(), scalar.descriptor().shape()),
+                () -> assertSame(n, first.descriptor().shape().dimension(0)),
+                () -> assertNotSame(input, first),
+                () -> assertNotSame(first, second),
+                () -> assertNotSame(
+                        first.provenance().orElseThrow().producer(),
+                        second.provenance().orElseThrow().producer()),
+                () -> assertSame(first, first.provenance().orElseThrow().producer().output(0)));
     }
 
     @Test
@@ -636,7 +941,9 @@ class TensorSliceExpressionTest {
         long before = next.get();
 
         input.sliceAxis(1, 1, 5);
-        assertEquals(before + 1, next.get());
+        input.sliceByLength(
+                new long[] {1}, new long[] {2}, new int[] {1}, new long[] {2});
+        assertEquals(before + 2, next.get());
 
         AtomicBoolean claimed = maximumClaimedState();
         long originalNext = next.get();
@@ -647,7 +954,11 @@ class TensorSliceExpressionTest {
 
             IllegalStateException failure = assertThrows(
                     IllegalStateException.class,
-                    () -> input.sliceAxis(1, 1, 5));
+                    () -> input.sliceByLength(
+                            new long[] {1},
+                            new long[] {2},
+                            new int[] {1},
+                            new long[] {2}));
 
             assertAll(
                     () -> assertEquals(
@@ -671,6 +982,26 @@ class TensorSliceExpressionTest {
                 .descriptor()
                 .layout()
                 .orElseThrow();
+    }
+
+    private static LayoutDescriptor slicedByLengthLayout(
+            Shape inputShape, LayoutDescriptor inputLayout) {
+        return tensor(DataType.FLOAT32, inputShape, Optional.of(inputLayout), false)
+                .sliceByLength(
+                        new long[] {1, 1},
+                        new long[] {2, 3},
+                        new int[] {0, 1},
+                        new long[] {2, 2})
+                .descriptor()
+                .layout()
+                .orElseThrow();
+    }
+
+    private static long publicMethodsNamed(String name) {
+        return Arrays.stream(Tensor.class.getDeclaredMethods())
+                .filter(method -> Modifier.isPublic(method.getModifiers()))
+                .filter(method -> method.getName().equals(name))
+                .count();
     }
 
     private static List<Boolean> validGradientChoices(DataType dataType) {
@@ -700,5 +1031,12 @@ class TensorSliceExpressionTest {
                 Optional.empty(),
                 Optional.empty(),
                 Optional.empty());
+    }
+
+    private static <T extends Throwable> void assertFailure(
+            Class<T> type,
+            String message,
+            org.junit.jupiter.api.function.Executable executable) {
+        assertEquals(message, assertThrows(type, executable).getMessage());
     }
 }

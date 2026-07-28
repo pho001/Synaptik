@@ -28,6 +28,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 import org.junit.jupiter.api.Test;
@@ -36,21 +37,38 @@ class TensorSlicePlacementExpressionTest {
     private static final AtomicLong INPUT_IDS = new AtomicLong(40_000_000);
 
     @Test
-    void helperAndExactlyTwoPublicMethodsHaveTheRequiredSurface()
+    void helperAndExactlyThreePublicMethodsHaveTheRequiredSurface()
             throws ReflectiveOperationException {
         var constructors = TensorSlicePlacementExpressions.class.getDeclaredConstructors();
         Set<String> methodNames = Arrays.stream(
                         TensorSlicePlacementExpressions.class.getDeclaredMethods())
                 .map(Method::getName)
                 .collect(Collectors.toSet());
+        long helperMethodCount = Arrays.stream(
+                        TensorSlicePlacementExpressions.class.getDeclaredMethods())
+                .filter(method -> !method.isSynthetic())
+                .count();
         Method update = TensorSlicePlacementExpressions.class.getDeclaredMethod(
                 "update", Tensor.class, Tensor.class, long[].class, int[].class, long[].class);
+        Method targetRelativeUpdate = TensorSlicePlacementExpressions.class.getDeclaredMethod(
+                "update", Tensor.class, Tensor.class, Shape.class);
         Method crop = TensorSlicePlacementExpressions.class.getDeclaredMethod(
                 "cropToShape", Tensor.class, Shape.class, Shape.class);
         Method publicUpdate = Tensor.class.getDeclaredMethod(
                 "sliceUpdate", Tensor.class, long[].class, int[].class, long[].class);
+        Method publicTargetRelativeUpdate = Tensor.class.getDeclaredMethod(
+                "sliceUpdate", Tensor.class, Shape.class);
         Method publicCrop = Tensor.class.getDeclaredMethod(
                 "cropToShape", Shape.class, Shape.class);
+        Method createSliceUpdate = TensorSlicePlacementExpressions.class.getDeclaredMethod(
+                "createUpdate",
+                Tensor.class, Tensor.class, TensorDescriptor.class, TensorDescriptor.class,
+                SliceAttrs.class);
+        Method createTargetRelativeUpdate =
+                TensorSlicePlacementExpressions.class.getDeclaredMethod(
+                        "createUpdate",
+                        Tensor.class, Tensor.class, TensorDescriptor.class, TensorDescriptor.class,
+                        CropToShapeAttrs.class);
         long publicTensorMethods = Arrays.stream(Tensor.class.getDeclaredMethods())
                 .filter(method -> Modifier.isPublic(method.getModifiers()))
                 .count();
@@ -65,6 +83,7 @@ class TensorSlicePlacementExpressionTest {
                         TensorSlicePlacementExpressions.class.getDeclaredFields().length),
                 () -> assertEquals(0,
                         TensorSlicePlacementExpressions.class.getDeclaredClasses().length),
+                () -> assertEquals(10, helperMethodCount),
                 () -> assertEquals(1, constructors.length),
                 () -> assertTrue(Modifier.isPrivate(constructors[0].getModifiers())),
                 () -> assertEquals(0, constructors[0].getParameterCount()),
@@ -84,6 +103,9 @@ class TensorSlicePlacementExpressionTest {
                 () -> assertFalse(Modifier.isProtected(update.getModifiers())),
                 () -> assertFalse(Modifier.isPrivate(update.getModifiers())),
                 () -> assertSame(Tensor.class, update.getReturnType()),
+                () -> assertTrue(Modifier.isStatic(targetRelativeUpdate.getModifiers())),
+                () -> assertFalse(Modifier.isPrivate(targetRelativeUpdate.getModifiers())),
+                () -> assertSame(Tensor.class, targetRelativeUpdate.getReturnType()),
                 () -> assertTrue(Modifier.isStatic(crop.getModifiers())),
                 () -> assertFalse(Modifier.isPrivate(crop.getModifiers())),
                 () -> assertSame(Tensor.class, crop.getReturnType()),
@@ -91,13 +113,24 @@ class TensorSlicePlacementExpressionTest {
                 () -> assertFalse(Modifier.isStatic(publicUpdate.getModifiers())),
                 () -> assertFalse(publicUpdate.isVarArgs()),
                 () -> assertSame(Tensor.class, publicUpdate.getReturnType()),
+                () -> assertTrue(Modifier.isPublic(publicTargetRelativeUpdate.getModifiers())),
+                () -> assertFalse(Modifier.isStatic(publicTargetRelativeUpdate.getModifiers())),
+                () -> assertFalse(publicTargetRelativeUpdate.isVarArgs()),
+                () -> assertSame(Tensor.class, publicTargetRelativeUpdate.getReturnType()),
                 () -> assertTrue(Modifier.isPublic(publicCrop.getModifiers())),
                 () -> assertFalse(Modifier.isStatic(publicCrop.getModifiers())),
                 () -> assertFalse(publicCrop.isVarArgs()),
                 () -> assertSame(Tensor.class, publicCrop.getReturnType()),
-                () -> assertEquals(200, publicTensorMethods),
-                () -> assertEquals(1, publicMethodsNamed("sliceUpdate")),
-                () -> assertEquals(1, publicMethodsNamed("cropToShape")));
+                () -> assertTrue(Modifier.isPrivate(createSliceUpdate.getModifiers())),
+                () -> assertTrue(Modifier.isPrivate(createTargetRelativeUpdate.getModifiers())),
+                () -> assertSame(Tensor.class, createSliceUpdate.getReturnType()),
+                () -> assertSame(Tensor.class, createTargetRelativeUpdate.getReturnType()),
+                () -> assertEquals(202, publicTensorMethods),
+                () -> assertEquals(2, publicMethodsNamed("sliceUpdate")),
+                () -> assertEquals(1, publicMethodsNamed("cropToShape")),
+                () -> assertEquals(0, publicMethodsNamed("updateSlice")),
+                () -> assertEquals(0, publicMethodsNamed("place")),
+                () -> assertEquals(0, publicMethodsNamed("sliceScatter")));
     }
 
     @Test
@@ -112,6 +145,8 @@ class TensorSlicePlacementExpressionTest {
 
                     Tensor result = base.sliceUpdate(
                             update, new long[] {1}, new int[] {1}, new long[] {2});
+                    Shape prefixShape = Shape.of(0, 1);
+                    Tensor targetRelative = base.sliceUpdate(update, prefixShape);
 
                     assertAll(
                             () -> assertSame(dataType, result.descriptor().dataType()),
@@ -121,7 +156,15 @@ class TensorSlicePlacementExpressionTest {
                                     result.descriptor().requiresGrad()),
                             () -> assertTrue(result.descriptor().layout().isEmpty()),
                             () -> assertTrue(result.label().isEmpty()),
-                            () -> assertTrue(result.hostStorage().isEmpty()));
+                            () -> assertTrue(result.hostStorage().isEmpty()),
+                            () -> assertSame(dataType, targetRelative.descriptor().dataType()),
+                            () -> assertSame(baseShape, targetRelative.descriptor().shape()),
+                            () -> assertEquals(
+                                    baseGrad || updateGrad,
+                                    targetRelative.descriptor().requiresGrad()),
+                            () -> assertTrue(targetRelative.descriptor().layout().isEmpty()),
+                            () -> assertTrue(targetRelative.label().isEmpty()),
+                            () -> assertTrue(targetRelative.hostStorage().isEmpty()));
                 }
             }
         }
@@ -174,6 +217,137 @@ class TensorSlicePlacementExpressionTest {
                 () -> assertSame(result.descriptor(), producer.outputDescriptors().get(0)),
                 () -> assertEquals(0, provenance.outputIndex()),
                 () -> assertSame(result.descriptor(), provenance.outputDescriptor()));
+    }
+
+    @Test
+    void targetRelativeSliceUpdateRetainsExactShapesOperationProducerAndProvenance() {
+        Shape baseShape = Shape.of(5, 8);
+        Shape updateShape = Shape.of(2, 3);
+        Shape prefixShape = Shape.of(1, 4);
+        Tensor base = tensor(
+                DataType.FLOAT64,
+                baseShape,
+                Optional.of(LayoutDescriptor.contiguous(baseShape)),
+                false);
+        Tensor update = tensor(DataType.FLOAT64, updateShape, Optional.empty(), true);
+
+        Tensor result = base.sliceUpdate(update, prefixShape);
+        TensorProvenance provenance = result.provenance().orElseThrow();
+        TensorProducer producer = provenance.producer();
+        CropToShapeAttrs attrs = (CropToShapeAttrs) provenance.operation().attrs();
+
+        assertAll(
+                () -> assertSame(baseShape, result.descriptor().shape()),
+                () -> assertSame(DataType.FLOAT64, result.descriptor().dataType()),
+                () -> assertTrue(result.descriptor().requiresGrad()),
+                () -> assertTrue(result.descriptor().layout().isEmpty()),
+                () -> assertSame(SliceKind.SLICE_UPDATE, provenance.operation().kind()),
+                () -> assertEquals(
+                        OperationSignature.fixed(CropToShapeAttrs.class, 2, 1),
+                        provenance.operation().signature()),
+                () -> assertSame(updateShape, attrs.targetShape()),
+                () -> assertSame(prefixShape, attrs.prefixShape()),
+                () -> assertEquals(2, producer.inputs().size()),
+                () -> assertSame(base, producer.inputs().get(0)),
+                () -> assertSame(update, producer.inputs().get(1)),
+                () -> assertEquals(1, producer.outputCount()),
+                () -> assertSame(result, producer.output(0)),
+                () -> assertSame(result.descriptor(), producer.outputDescriptors().get(0)),
+                () -> assertEquals(0, provenance.outputIndex()),
+                () -> assertSame(result.descriptor(), provenance.outputDescriptor()),
+                () -> assertTrue(result.label().isEmpty()),
+                () -> assertTrue(result.hostStorage().isEmpty()),
+                () -> assertNotSame(base, result),
+                () -> assertNotSame(update, result));
+    }
+
+    @Test
+    void targetRelativeSliceUpdateAcceptsScalarZeroAndDefersEveryUnresolvedFitCategory() {
+        Tensor scalarBase = tensor(DataType.BOOL, Shape.scalar(), Optional.empty(), false);
+        Tensor scalarUpdate = tensor(DataType.BOOL, Shape.scalar(), Optional.empty(), false);
+        Tensor zeroBase = tensor(DataType.INT32, Shape.of(3), Optional.empty(), false);
+        Tensor zeroUpdate = tensor(DataType.INT32, Shape.of(0), Optional.empty(), false);
+        Dimension baseN = new DynamicDimension("B");
+        Dimension prefixN = new DynamicDimension("P");
+        Dimension updateN = DimensionExpressions.addConstant(new DynamicDimension("U"), 1);
+        Tensor unresolvedBase = tensor(
+                DataType.FLOAT32, Shape.ofDimensions(baseN), Optional.empty(), true);
+        Tensor staticBase = tensor(DataType.FLOAT32, Shape.of(4), Optional.empty(), true);
+        Tensor unresolvedUpdate = tensor(
+                DataType.FLOAT32, Shape.ofDimensions(updateN), Optional.empty(), false);
+        Tensor staticUpdate = tensor(DataType.FLOAT32, Shape.of(9), Optional.empty(), false);
+
+        Tensor scalar = scalarBase.sliceUpdate(scalarUpdate, Shape.scalar());
+        Tensor zero = zeroBase.sliceUpdate(zeroUpdate, Shape.of(3));
+        Tensor dynamicBase = unresolvedBase.sliceUpdate(staticUpdate, Shape.of(8));
+        Shape dynamicPrefixShape = Shape.ofDimensions(prefixN);
+        Tensor dynamicPrefix = staticBase.sliceUpdate(staticUpdate, dynamicPrefixShape);
+        Tensor dynamicUpdate = staticBase.sliceUpdate(unresolvedUpdate, Shape.of(8));
+
+        assertAll(
+                () -> assertSame(Shape.scalar(), scalar.descriptor().shape()),
+                () -> assertSame(zeroBase.descriptor().shape(), zero.descriptor().shape()),
+                () -> assertSame(
+                        unresolvedBase.descriptor().shape(), dynamicBase.descriptor().shape()),
+                () -> assertSame(
+                        staticBase.descriptor().shape(), dynamicPrefix.descriptor().shape()),
+                () -> assertSame(
+                        staticBase.descriptor().shape(), dynamicUpdate.descriptor().shape()),
+                () -> assertSame(
+                        dynamicPrefixShape,
+                        ((CropToShapeAttrs) dynamicPrefix.provenance().orElseThrow()
+                                .operation().attrs()).prefixShape()),
+                () -> assertSame(
+                        unresolvedUpdate.descriptor().shape(),
+                        ((CropToShapeAttrs) dynamicUpdate.provenance().orElseThrow()
+                                .operation().attrs()).targetShape()));
+    }
+
+    @Test
+    void targetRelativeSliceUpdateValidatesExactOrderMessagesAndNoIds() throws Exception {
+        Tensor base = tensor(DataType.FLOAT32, Shape.of(3, 6), Optional.empty(), true);
+        Tensor update = tensor(DataType.FLOAT32, Shape.of(2, 3), Optional.empty(), false);
+        Tensor wrongType = tensor(DataType.FLOAT64, Shape.of(2, 3), Optional.empty(), true);
+        Tensor wrongRank = tensor(DataType.FLOAT32, Shape.of(2), Optional.empty(), true);
+        AtomicLong next = nextTensorIdState();
+        long before = next.get();
+
+        assertFailure(NullPointerException.class, "base",
+                () -> TensorSlicePlacementExpressions.update(null, null, (Shape) null));
+        assertFailure(NullPointerException.class, "update",
+                () -> TensorSlicePlacementExpressions.update(base, null, (Shape) null));
+        assertFailure(NullPointerException.class, "prefixShape",
+                () -> TensorSlicePlacementExpressions.update(base, update, (Shape) null));
+        assertFailure(IllegalArgumentException.class,
+                "slice update data types must match: base=FLOAT32, update=FLOAT64",
+                () -> base.sliceUpdate(wrongType, Shape.of(0, 0)));
+        assertFailure(IllegalArgumentException.class,
+                "slice update rank must match base rank: base=2, update=1",
+                () -> base.sliceUpdate(wrongRank, Shape.of(0)));
+        assertFailure(IllegalArgumentException.class,
+                "slice update prefix rank must match base rank: base=2, prefix=1",
+                () -> base.sliceUpdate(update, Shape.of(0)));
+        assertFailure(IllegalArgumentException.class,
+                "slice update region exceeds base extent at axis 0: base=3, prefix=2, update=2",
+                () -> base.sliceUpdate(update, Shape.of(2, 4)));
+
+        assertEquals(before, next.get());
+    }
+
+    @Test
+    void targetRelativeSliceUpdatePropagatesStaticFitOverflowBeforeIdentityAllocation()
+            throws Exception {
+        Tensor base = tensor(
+                DataType.INT64, Shape.of(Long.MAX_VALUE), Optional.empty(), false);
+        Tensor update = tensor(DataType.INT64, Shape.of(1), Optional.empty(), false);
+        AtomicLong next = nextTensorIdState();
+        long before = next.get();
+
+        assertThrows(
+                ArithmeticException.class,
+                () -> base.sliceUpdate(update, Shape.of(Long.MAX_VALUE)));
+
+        assertEquals(before, next.get());
     }
 
     @Test
@@ -427,12 +601,14 @@ class TensorSlicePlacementExpressionTest {
 
         Tensor updated = base.sliceUpdate(
                 update, new long[] {1}, new int[] {1}, new long[] {2});
+        Tensor targetRelative = base.sliceUpdate(update, Shape.of(0, 1));
         Tensor cropped = base.cropToShape(Shape.of(2, 3), Shape.of(1, 2));
 
         assertAll(
                 () -> assertEquals(before, updated.id().value()),
-                () -> assertEquals(before + 1, cropped.id().value()),
-                () -> assertEquals(before + 2, next.get()),
+                () -> assertEquals(before + 1, targetRelative.id().value()),
+                () -> assertEquals(before + 2, cropped.id().value()),
+                () -> assertEquals(before + 3, next.get()),
                 () -> assertSame(baseDescriptor, base.descriptor()),
                 () -> assertSame(updateDescriptor, update.descriptor()),
                 () -> assertSame(layout, base.descriptor().layout().orElseThrow()),
@@ -441,7 +617,37 @@ class TensorSlicePlacementExpressionTest {
                 () -> assertNotEquals(updated.id(), cropped.id()),
                 () -> assertNotSame(
                         updated.provenance().orElseThrow().producer(),
+                        targetRelative.provenance().orElseThrow().producer()),
+                () -> assertNotSame(
+                        targetRelative.provenance().orElseThrow().producer(),
                         cropped.provenance().orElseThrow().producer()));
+    }
+
+    @Test
+    void targetRelativeSliceUpdateExhaustionRemainsFinal() throws Exception {
+        Tensor base = tensor(DataType.FLOAT32, Shape.of(3), Optional.empty(), true);
+        Tensor update = tensor(DataType.FLOAT32, Shape.of(1), Optional.empty(), false);
+        AtomicLong next = nextTensorIdState();
+        AtomicBoolean claimed = maximumClaimedState();
+        long originalNext = next.get();
+        boolean originalClaimed = claimed.get();
+        try {
+            next.set(Long.MAX_VALUE);
+            claimed.set(true);
+
+            IllegalStateException failure = assertThrows(
+                    IllegalStateException.class,
+                    () -> base.sliceUpdate(update, Shape.of(1)));
+
+            assertAll(
+                    () -> assertEquals(
+                            "tensor identifier space exhausted", failure.getMessage()),
+                    () -> assertEquals(Long.MAX_VALUE, next.get()),
+                    () -> assertTrue(claimed.get()));
+        } finally {
+            next.set(originalNext);
+            claimed.set(originalClaimed);
+        }
     }
 
     private static long publicMethodsNamed(String name) {
@@ -463,6 +669,12 @@ class TensorSlicePlacementExpressionTest {
         Field field = TensorFactory.class.getDeclaredField("NEXT_TENSOR_ID");
         field.setAccessible(true);
         return (AtomicLong) field.get(null);
+    }
+
+    private static AtomicBoolean maximumClaimedState() throws ReflectiveOperationException {
+        Field field = TensorFactory.class.getDeclaredField("MAXIMUM_TENSOR_ID_CLAIMED");
+        field.setAccessible(true);
+        return (AtomicBoolean) field.get(null);
     }
 
     private static Tensor tensor(

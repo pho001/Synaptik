@@ -133,18 +133,6 @@ final class AutogradPreflightTest {
 
     @Test
     void rejectsUnsupportedAndNonDifferentiableSelectedRoutes() {
-        Tensor target = tensor(Shape.of(2), true);
-        Tensor unsupportedObjective = target.cropToShape(Shape.of(1), Shape.of(0)).sum();
-        IllegalArgumentException unsupported = assertThrows(
-                IllegalArgumentException.class,
-                () -> AutogradPreflight.preflight(
-                        CompileMode.FORWARD_AND_BACKWARD,
-                        List.of(unsupportedObjective),
-                        new AutogradPreflight.FirstOrderRequest(
-                                unsupportedObjective, List.of(target)),
-                        CompileTimeConstantGraph.Ingress.empty()));
-        assertTrue(unsupported.getMessage().contains("producerPostorder["));
-
         Tensor branch = tensor(Shape.of(2), true);
         Tensor conditionSource = tensor(Shape.of(2), true);
         Tensor condition = conditionSource.greaterThan(branch);
@@ -204,7 +192,7 @@ final class AutogradPreflightTest {
     }
 
     @Test
-    void sliceUpdateAppliesTheStaticBaseGuardOnlyToTheUpdateRole() {
+    void sliceUpdateSupportsLengthDefinedExtractionFromDynamicBase() {
         DynamicDimension dynamic = new DynamicDimension("N");
         Tensor base = tensor(Shape.ofDimensions(dynamic), true);
         Tensor update = tensor(Shape.ofDimensions(new StaticDimension(2)), true);
@@ -223,14 +211,13 @@ final class AutogradPreflightTest {
         assertTrue(basePlan.selectedOccurrences().stream()
                 .anyMatch(occurrence -> occurrence.selectedInput(0)));
 
-        IllegalArgumentException updateFailure = assertThrows(
-                IllegalArgumentException.class,
-                () -> AutogradPreflight.preflight(
-                        CompileMode.FORWARD_AND_BACKWARD,
-                        List.of(objective),
-                        new AutogradPreflight.FirstOrderRequest(objective, List.of(update)),
-                        CompileTimeConstantGraph.Ingress.empty()));
-        assertTrue(updateFailure.getMessage().contains("static selected base Dimensions"));
+        AutogradPreflight.Plan updatePlan = AutogradPreflight.preflight(
+                CompileMode.FORWARD_AND_BACKWARD,
+                List.of(objective),
+                new AutogradPreflight.FirstOrderRequest(objective, List.of(update)),
+                CompileTimeConstantGraph.Ingress.empty());
+        assertTrue(updatePlan.selectedOccurrences().stream()
+                .anyMatch(occurrence -> occurrence.selectedInput(1)));
     }
 
     @Test
@@ -248,18 +235,15 @@ final class AutogradPreflightTest {
                                 maskedObjective, List.of(maskSource)),
                         CompileTimeConstantGraph.Ingress.empty()));
 
-        for (Tensor objective : List.of(
-                data.cropToShape(Shape.of(2), Shape.of(0)).sum())) {
-            IllegalArgumentException failure = assertThrows(
-                    IllegalArgumentException.class,
-                    () -> AutogradPreflight.preflight(
-                            CompileMode.FORWARD_AND_BACKWARD,
-                            List.of(objective),
-                            new AutogradPreflight.FirstOrderRequest(
-                                    objective, List.of(data)),
-                            CompileTimeConstantGraph.Ingress.empty()));
-            assertTrue(failure.getMessage().contains("producerPostorder["));
-        }
+        Tensor cropObjective = data.cropToShape(Shape.of(2), Shape.of(0)).sum();
+        AutogradPreflight.Plan cropPlan = AutogradPreflight.preflight(
+                CompileMode.FORWARD_AND_BACKWARD,
+                List.of(cropObjective),
+                new AutogradPreflight.FirstOrderRequest(cropObjective, List.of(data)),
+                CompileTimeConstantGraph.Ingress.empty());
+        assertTrue(cropPlan.selectedOccurrences().stream()
+                .anyMatch(occurrence -> occurrence.producer().operation().kind()
+                        == io.github.pho001.synaptik.model.operation.layout.SliceKind.SLICE));
     }
 
     @Test

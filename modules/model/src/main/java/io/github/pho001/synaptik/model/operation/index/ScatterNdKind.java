@@ -39,19 +39,23 @@ import java.util.List;
  *       rank-zero scalar updates {@code []} and produce result {@code [2, 3]}.</li>
  * </ul>
  *
- * <p>{@link ScatterReduction#NONE} replaces a base value and requires unique target tuples;
- * duplicate targets are invalid rather than resolved by update order. The other reduction values
- * combine a base value and all updates for a target by addition, multiplication, maximum, or
- * minimum. These are mathematical meanings, not numerical algorithms or execution-order
- * promises.</p>
+ * <p>Each tuple position contributes its complete update suffix slice scalar by scalar. For one
+ * concrete result coordinate, a non-replacement reduction combines its base scalar exactly once
+ * with every addressed update scalar exactly once. Duplicate tuples contribute a distinct copy
+ * of every suffix-slice scalar even when values are equal. A coordinate receiving no update
+ * retains the exact base representation. {@link ScatterReduction#NONE} replaces a base value and
+ * requires unique target tuples; duplicate targets are invalid rather than resolved by update
+ * order. The other reductions follow the portable represented-value contract in
+ * {@link ScatterReduction}, independently of encounter, layout, stride, atomic, tree, or backend
+ * order.</p>
  *
  * <p>The kind pairs explicitly with {@link ScatterNdAttrs}. Tuple depth remains the final indices
  * Dimension because it is specific to one operation occurrence and is not intrinsic attribute
  * state. The public {@code Tensor.scatterNd} overloads now own input-aware rank, shared-batch-
  * prefix, tuple-depth, Shape, data-type, result, and provenance validation because those facts
  * depend on concrete operands and are not stored here. This enum performs none of those checks
- * and does not read values, check bounds or duplicates, define gradients, capture a graph, select
- * backend support, or execute work.</p>
+ * and does not read values, check bounds or duplicates, define derivatives or subgradients,
+ * capture a graph, select a numerical algorithm or backend support, or execute work.</p>
  *
  * <p>Scatter-ND differs from {@link GatherNdKind#GATHER_ND Gather-ND}, which reads selected data,
  * and from {@link AxisScatterKind axis scatter}, whose indices address one selected axis rather

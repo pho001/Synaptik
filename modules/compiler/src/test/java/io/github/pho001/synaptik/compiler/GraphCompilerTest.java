@@ -391,8 +391,9 @@ final class GraphCompilerTest {
 
     @Test
     void knownUnsupportedPreflightFailureConsumesNoTensorIdentity() throws Exception {
-        Tensor target = tensor();
-        Tensor objective = target.cropToShape(Shape.of(1), Shape.of(0)).sum();
+        Tensor target = TensorFactory.create(new TensorDescriptor(
+                DataType.FLOAT32, Shape.of(2, 2), Optional.empty(), true));
+        Tensor objective = target.scaledDotProductAttention(target, target).sum();
         var request = new AutogradPreflight.FirstOrderRequest(objective, List.of(target));
         long before = nextTensorId();
 
@@ -470,7 +471,7 @@ final class GraphCompilerTest {
     }
 
     @Test
-    void preflightOnly0004AFailuresConsumeNoTensorIdentity() throws Exception {
+    void dynamicSliceUpdateRoleNowCompilesThroughLengthDefinedExtraction() {
         DynamicDimension dynamic = new DynamicDimension("N");
         Tensor base = TensorFactory.create(new TensorDescriptor(
                 DataType.FLOAT32,
@@ -488,15 +489,16 @@ final class GraphCompilerTest {
                         new int[] {0},
                         new long[] {1})
                 .sum();
-        long beforeRoleFailure = nextTensorId();
-        assertThrows(IllegalArgumentException.class, () -> GraphCompiler.compile(
+        GraphCompilation compilation = GraphCompiler.compile(
                 CompileMode.FORWARD_AND_BACKWARD,
                 List.of(replacement),
                 Optional.of(new AutogradPreflight.FirstOrderRequest(
                         replacement, List.of(update))),
                 CompileTimeConstantGraph.Ingress.empty(),
-                GraphOptimizationConfig.disabled()));
-        assertEquals(beforeRoleFailure, nextTensorId());
+                GraphOptimizationConfig.disabled());
+        assertEquals(update.id(), compilation.gradientResults().getFirst().target());
+        assertTrue(compilation.validatedGraph().graph().nodePhases()
+                .containsValue(GraphPhase.BACKWARD));
     }
 
     @Test

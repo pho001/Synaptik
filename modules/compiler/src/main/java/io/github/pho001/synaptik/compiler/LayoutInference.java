@@ -21,6 +21,20 @@ import java.util.Optional;
  * unresolved. Structural equality, a static source singleton, and fully resolved zero-stride
  * view geometry retain their existing behavior. This owner records obligations only; it does not
  * bind dimensions, select materialization, or authorize execution.</p>
+ *
+ * <p>Finite {@code SliceAttrs} regions derive exact static selected lengths. Each non-empty
+ * signed coordinate sequence is proved within its source extent or retained as an occurrence-local
+ * upper-bound constraint; an empty sequence needs no bound. {@code CropToShapeAttrs} extraction
+ * returns the exact target Shape, while placement validates the update against that target and
+ * returns the exact base Shape. Both retain one {@code prefix + target <= base} obligation per
+ * axis when it cannot yet be proved.</p>
+ *
+ * <p>General-axis window transforms retain their existing static transformed-axis contract.
+ * Two-dimensional unfold and fold preserve symbolic batch, channel, and spatial expressions and
+ * retain independent height and width obligations requiring the padded domain to contain the
+ * effective dilated kernel. A disproved relation fails inference; an undecidable relation remains
+ * typed compiler state. This class does not inspect values, choose an algorithm, materialize a
+ * view, lower a backend operation, or execute computation.</p>
  */
 final class LayoutInference {
     private LayoutInference() {}
@@ -93,21 +107,250 @@ final class LayoutInference {
             else {axis(x.shape(),a.axis());if(!(x.shape().dimension(a.axis()) instanceof StaticDimension singleton&&singleton.size()==1))throw new IllegalArgumentException("squeeze axis must be singleton");d.remove(a.axis());shape=Shape.ofDimensions(d.toArray(Dimension[]::new));if(x.layout().isPresent()){long[]resultStrides=new long[shape.rank()];for(int i=0,j=0;i<x.shape().rank();i++)if(i!=a.axis())resultStrides[j++]=x.layout().orElseThrow().stride(i);layout=Optional.of(LayoutDescriptor.of(shape,resultStrides,x.layout().orElseThrow().storageOffset(),true));}}}
         return CapturedGraphInference.InferenceResult.of(new TensorDescriptor(x.dataType(),shape,layout,x.requiresGrad()));
     }
-    private static CapturedGraphInference.InferenceResult slice(SliceKind kind,Object raw,List<TensorDescriptor> in){
-        TensorDescriptor x=in.get(0);if(raw instanceof CropToShapeAttrs c){if(c.targetShape().rank()!=x.shape().rank()||c.prefixShape().rank()!=x.shape().rank())throw new IllegalArgumentException("crop rank mismatch");List<CapturedGraphInference.ConstraintRequest>cs=new ArrayList<>();for(int i=0;i<x.shape().rank();i++){Dimension region=DimensionExpressions.add(c.prefixShape().dimension(i),c.targetShape().dimension(i));cs.add(new CapturedGraphInference.ConstraintRequest("crop axis "+i,FitsWithin.dimension(0,region,x.shape().dimension(i))));}return new CapturedGraphInference.InferenceResult(List.of(ElementwiseInference.descriptor(x.dataType(),c.targetShape(),x.requiresGrad())),cs);}
-        SliceAttrs a=(SliceAttrs)raw;List<Dimension>d=new ArrayList<>(x.shape().dimensions());List<CapturedGraphInference.ConstraintRequest>cs=new ArrayList<>();long offset=x.layout().map(LayoutDescriptor::storageOffset).orElse(0L);long[]strides=x.layout().map(LayoutDescriptor::strides).orElse(null);
-        for(int i=0;i<a.axes().size();i++){int ax=a.axes().get(i);axis(x.shape(),ax);d.set(ax,new StaticDimension(a.lengths().get(i)));long step=a.steps().get(i);long extent=a.lengths().get(i)==0?0:step>0?Math.addExact(Math.multiplyExact(a.lengths().get(i)-1,step),1):1;cs.add(new CapturedGraphInference.ConstraintRequest("slice axis "+ax,FitsWithin.dimension(a.starts().get(i),new StaticDimension(extent),x.shape().dimension(ax))));if(strides!=null&&step>0){offset=Math.addExact(offset,Math.multiplyExact(a.starts().get(i),strides[ax]));strides[ax]=Math.multiplyExact(strides[ax],step);}else if(step<0)strides=null;}
-        Shape result=Shape.ofDimensions(d.toArray(Dimension[]::new));if(kind==SliceKind.SLICE_UPDATE){TensorDescriptor update=in.get(1);if(update.dataType()!=x.dataType()||!update.shape().equals(result))throw new IllegalArgumentException("slice update descriptor mismatch");return new CapturedGraphInference.InferenceResult(List.of(ElementwiseInference.descriptor(x.dataType(),x.shape(),x.requiresGrad()||update.requiresGrad())),cs);}Optional<LayoutDescriptor>l=strides==null||result.knownElementCount().orElseThrow()==0?Optional.empty():Optional.of(LayoutDescriptor.of(result,strides,offset,true));return new CapturedGraphInference.InferenceResult(List.of(new TensorDescriptor(x.dataType(),result,l,x.requiresGrad())),cs);
+    private static CapturedGraphInference.InferenceResult slice(
+            SliceKind kind, Object raw, List<TensorDescriptor> in) {
+        TensorDescriptor base = in.getFirst();
+        if (raw instanceof CropToShapeAttrs attrs) {
+            if (attrs.targetShape().rank() != base.shape().rank()
+                    || attrs.prefixShape().rank() != base.shape().rank()) {
+                throw new IllegalArgumentException("crop rank mismatch");
+            }
+            List<CapturedGraphInference.ConstraintRequest> constraints = new ArrayList<>();
+            for (int axis = 0; axis < base.shape().rank(); axis++) {
+                Dimension region = DimensionExpressions.add(
+                        attrs.prefixShape().dimension(axis),
+                        attrs.targetShape().dimension(axis));
+                constraints.add(new CapturedGraphInference.ConstraintRequest(
+                        "crop axis " + axis,
+                        FitsWithin.dimension(0, region, base.shape().dimension(axis))));
+            }
+            if (kind == SliceKind.SLICE) {
+                return new CapturedGraphInference.InferenceResult(
+                        List.of(ElementwiseInference.descriptor(
+                                base.dataType(), attrs.targetShape(), base.requiresGrad())),
+                        constraints);
+            }
+            TensorDescriptor update = in.get(1);
+            if (update.dataType() != base.dataType()
+                    || !update.shape().equals(attrs.targetShape())) {
+                throw new IllegalArgumentException("slice update descriptor mismatch");
+            }
+            return new CapturedGraphInference.InferenceResult(
+                    List.of(ElementwiseInference.descriptor(
+                            base.dataType(),
+                            base.shape(),
+                            base.requiresGrad() || update.requiresGrad())),
+                    constraints);
+        }
+
+        SliceAttrs attrs = (SliceAttrs) raw;
+        List<Dimension> dimensions = new ArrayList<>(base.shape().dimensions());
+        List<CapturedGraphInference.ConstraintRequest> constraints = new ArrayList<>();
+        long offset = base.layout().map(LayoutDescriptor::storageOffset).orElse(0L);
+        long[] strides = base.layout().map(LayoutDescriptor::strides).orElse(null);
+        for (int index = 0; index < attrs.axes().size(); index++) {
+            int selectedAxis = attrs.axes().get(index);
+            axis(base.shape(), selectedAxis);
+            long length = attrs.lengths().get(index);
+            dimensions.set(selectedAxis, new StaticDimension(length));
+            long step = attrs.steps().get(index);
+            if (length > 0) {
+                long start = attrs.starts().get(index);
+                long last = Math.addExact(start, Math.multiplyExact(length - 1, step));
+                if (start < 0 || last < 0) {
+                    throw new IllegalArgumentException("slice coordinate below zero");
+                }
+                long upperBound = Math.addExact(Math.max(start, last), 1);
+                constraints.add(new CapturedGraphInference.ConstraintRequest(
+                        "slice axis " + selectedAxis,
+                        FitsWithin.dimension(
+                                0, new StaticDimension(upperBound),
+                                base.shape().dimension(selectedAxis))));
+            }
+            if (strides != null && step > 0) {
+                offset = Math.addExact(
+                        offset, Math.multiplyExact(attrs.starts().get(index), strides[selectedAxis]));
+                strides[selectedAxis] = Math.multiplyExact(strides[selectedAxis], step);
+            } else if (step < 0) {
+                strides = null;
+            }
+        }
+        Shape result = Shape.ofDimensions(dimensions.toArray(Dimension[]::new));
+        if (kind == SliceKind.SLICE_UPDATE) {
+            TensorDescriptor update = in.get(1);
+            if (update.dataType() != base.dataType() || !update.shape().equals(result)) {
+                throw new IllegalArgumentException("slice update descriptor mismatch");
+            }
+            return new CapturedGraphInference.InferenceResult(
+                    List.of(ElementwiseInference.descriptor(
+                            base.dataType(),
+                            base.shape(),
+                            base.requiresGrad() || update.requiresGrad())),
+                    constraints);
+        }
+        Optional<LayoutDescriptor> layout = strides == null
+                        || result.knownElementCount().orElseThrow() == 0
+                ? Optional.empty()
+                : Optional.of(LayoutDescriptor.of(result, strides, offset, true));
+        return new CapturedGraphInference.InferenceResult(
+                List.of(new TensorDescriptor(
+                        base.dataType(), result, layout, base.requiresGrad())),
+                constraints);
     }
     private static CapturedGraphInference.InferenceResult pad(PadAttrs a,List<TensorDescriptor>in){TensorDescriptor x=in.get(0);if(a.before().size()!=x.shape().rank()||a.constantValue().dataType()!=x.dataType())throw new IllegalArgumentException("pad attributes mismatch");Dimension[]d=new Dimension[x.shape().rank()];for(int i=0;i<d.length;i++)d[i]=DimensionExpressions.addConstant(x.shape().dimension(i),Math.addExact(a.before().get(i),a.after().get(i)));return CapturedGraphInference.InferenceResult.of(ElementwiseInference.descriptor(x.dataType(),Shape.ofDimensions(d),x.requiresGrad()));}
     private static CapturedGraphInference.InferenceResult tile(TileAttrs a,List<TensorDescriptor>in){TensorDescriptor x=in.get(0);if(a.repeats().size()!=x.shape().rank())throw new IllegalArgumentException("tile repeat rank mismatch");Dimension[]d=new Dimension[x.shape().rank()];for(int i=0;i<d.length;i++)d[i]=DimensionExpressions.multiply(x.shape().dimension(i),a.repeats().get(i));return CapturedGraphInference.InferenceResult.of(ElementwiseInference.descriptor(x.dataType(),Shape.ofDimensions(d),x.requiresGrad()));}
     private static CapturedGraphInference.InferenceResult composition(TensorCompositionKind kind,CompositionAxisAttrs a,List<TensorDescriptor>in){TensorDescriptor first=in.get(0);boolean grad=false;Shape result;if(kind==TensorCompositionKind.STACK){if(a.axis()>first.shape().rank())throw new IllegalArgumentException("stack axis out of range");for(TensorDescriptor x:in){sameType(first,x);if(!x.shape().equals(first.shape()))throw new IllegalArgumentException("stack shape mismatch");grad|=x.requiresGrad();}List<Dimension>d=new ArrayList<>(first.shape().dimensions());d.add(a.axis(),new StaticDimension(in.size()));result=Shape.ofDimensions(d.toArray(Dimension[]::new));}else{axis(first.shape(),a.axis());Dimension sum=new StaticDimension(0);for(TensorDescriptor x:in){sameType(first,x);if(x.shape().rank()!=first.shape().rank())throw new IllegalArgumentException("concat rank mismatch");for(int i=0;i<first.shape().rank();i++)if(i!=a.axis()&&!x.shape().dimension(i).equals(first.shape().dimension(i)))throw new IllegalArgumentException("concat dimension mismatch");sum=DimensionExpressions.add(sum,x.shape().dimension(a.axis()));grad|=x.requiresGrad();}List<Dimension>d=new ArrayList<>(first.shape().dimensions());d.set(a.axis(),sum);result=Shape.ofDimensions(d.toArray(Dimension[]::new));}return CapturedGraphInference.InferenceResult.of(ElementwiseInference.descriptor(first.dataType(),result,grad));}
-    private static CapturedGraphInference.InferenceResult window(WindowTransformKind kind,Object raw,List<TensorDescriptor>in){TensorDescriptor x=in.get(0);Shape result;if(kind==WindowTransformKind.UNFOLD_AXIS){UnfoldAxisAttrs a=(UnfoldAxisAttrs)raw;axis(x.shape(),a.axis());if(!(x.shape().dimension(a.axis())instanceof StaticDimension s))throw new IllegalArgumentException("unfold axis extent must be static");long count=Math.addExact((s.size()-a.size())/a.step(),1);if(s.size()<a.size())throw new IllegalArgumentException("window does not fit");List<Dimension>d=new ArrayList<>(x.shape().dimensions());d.set(a.axis(),new StaticDimension(count));d.add(new StaticDimension(a.size()));result=Shape.ofDimensions(d.toArray(Dimension[]::new));}
-        else if(kind==WindowTransformKind.FOLD_AXIS){FoldAxisAttrs a=(FoldAxisAttrs)raw;if(x.shape().rank()<2)throw new IllegalArgumentException("fold input rank too small");axis(Shape.ofDimensions(x.shape().dimensions().subList(0,x.shape().rank()-1).toArray(Dimension[]::new)),a.axis());List<Dimension>d=new ArrayList<>(x.shape().dimensions());Dimension window=d.removeLast();long expected=((StaticDimension)window).size();long count=((StaticDimension)d.get(a.axis())).size();if(Math.addExact(Math.multiplyExact(Math.max(0,count-1),a.step()),expected)!=a.outputSize())throw new IllegalArgumentException("fold geometry mismatch");d.set(a.axis(),new StaticDimension(a.outputSize()));result=Shape.ofDimensions(d.toArray(Dimension[]::new));}
-        else {Window2dAttrs w=raw instanceof Unfold2dAttrs u?u.window():raw instanceof Fold2dAttrs f?f.window():(Window2dAttrs)raw;if(kind==WindowTransformKind.UNFOLD2D){if(x.shape().rank()!=4)throw new IllegalArgumentException("unfold2d rank must be four");if(raw instanceof Unfold2dAttrs u&&u.paddingValue().dataType()!=x.dataType())throw new IllegalArgumentException("padding value type mismatch");Dimension oh=windowDimension(x.shape().dimension(2),w.kernelHeight(),w.paddingHeight(),w.strideHeight(),w.dilationHeight(),w.ceilMode());Dimension ow=windowDimension(x.shape().dimension(3),w.kernelWidth(),w.paddingWidth(),w.strideWidth(),w.dilationWidth(),w.ceilMode());result=Shape.ofDimensions(x.shape().dimension(0),DimensionExpressions.multiply(DimensionExpressions.multiply(x.shape().dimension(1),w.kernelHeight()),w.kernelWidth()),DimensionExpressions.multiply(oh,ow));}else{Fold2dAttrs f=(Fold2dAttrs)raw;if(x.shape().rank()!=3||f.outputShape().rank()!=4)throw new IllegalArgumentException("fold2d rank mismatch");Shape expected=unfoldShape(f.outputShape(),w);if(!x.shape().equals(expected))throw new IllegalArgumentException("fold2d columns mismatch");result=f.outputShape();}}
-        return CapturedGraphInference.InferenceResult.of(ElementwiseInference.descriptor(x.dataType(),result,x.requiresGrad()));}
-    private static Shape unfoldShape(Shape s,Window2dAttrs w){Dimension oh=windowDimension(s.dimension(2),w.kernelHeight(),w.paddingHeight(),w.strideHeight(),w.dilationHeight(),w.ceilMode());Dimension ow=windowDimension(s.dimension(3),w.kernelWidth(),w.paddingWidth(),w.strideWidth(),w.dilationWidth(),w.ceilMode());return Shape.ofDimensions(s.dimension(0),DimensionExpressions.multiply(DimensionExpressions.multiply(s.dimension(1),w.kernelHeight()),w.kernelWidth()),DimensionExpressions.multiply(oh,ow));}
-    private static Dimension windowDimension(Dimension d,long kernel,long pad,long stride,long dilation,boolean ceil){long effective=Math.addExact(Math.multiplyExact(dilation,kernel-1),1);if(d instanceof StaticDimension s){long n=Math.subtractExact(Math.addExact(s.size(),Math.multiplyExact(2,pad)),effective);if(n<0)throw new IllegalArgumentException("window does not fit");return new StaticDimension(Math.addExact(n/stride+(ceil&&n%stride!=0?1:0),1));}Dimension n=DimensionExpressions.addConstant(d,Math.subtractExact(Math.multiplyExact(2,pad),effective));return DimensionExpressions.addConstant(ceil?DimensionExpressions.ceilingDivide(n,stride):DimensionExpressions.floorDivide(n,stride),1);}
+    private static CapturedGraphInference.InferenceResult window(
+            WindowTransformKind kind, Object raw, List<TensorDescriptor> in) {
+        TensorDescriptor input = in.getFirst();
+        Shape result;
+        List<CapturedGraphInference.ConstraintRequest> constraints = new ArrayList<>();
+        if (kind == WindowTransformKind.UNFOLD_AXIS) {
+            UnfoldAxisAttrs attrs = (UnfoldAxisAttrs) raw;
+            axis(input.shape(), attrs.axis());
+            if (!(input.shape().dimension(attrs.axis()) instanceof StaticDimension selected)) {
+                throw new IllegalArgumentException("unfold axis extent must be static");
+            }
+            if (selected.size() < attrs.size()) {
+                throw new IllegalArgumentException("window does not fit");
+            }
+            long count = Math.addExact(
+                    Math.subtractExact(selected.size(), attrs.size()) / attrs.step(), 1);
+            List<Dimension> dimensions = new ArrayList<>(input.shape().dimensions());
+            dimensions.set(attrs.axis(), new StaticDimension(count));
+            dimensions.add(new StaticDimension(attrs.size()));
+            result = Shape.ofDimensions(dimensions.toArray(Dimension[]::new));
+        } else if (kind == WindowTransformKind.FOLD_AXIS) {
+            FoldAxisAttrs attrs = (FoldAxisAttrs) raw;
+            if (input.shape().rank() < 2) {
+                throw new IllegalArgumentException("fold input rank too small");
+            }
+            Shape target = Shape.ofDimensions(input.shape().dimensions()
+                    .subList(0, input.shape().rank() - 1)
+                    .toArray(Dimension[]::new));
+            axis(target, attrs.axis());
+            List<Dimension> dimensions = new ArrayList<>(input.shape().dimensions());
+            Dimension window = dimensions.removeLast();
+            if (!(window instanceof StaticDimension windowSize)
+                    || !(dimensions.get(attrs.axis()) instanceof StaticDimension count)) {
+                throw new IllegalArgumentException("fold geometry must be static");
+            }
+            long expectedCount;
+            if (attrs.outputSize() == 0) {
+                expectedCount = 0;
+            } else {
+                if (windowSize.size() > attrs.outputSize()) {
+                    throw new IllegalArgumentException("fold window exceeds output");
+                }
+                expectedCount = Math.addExact(
+                        Math.subtractExact(attrs.outputSize(), windowSize.size())
+                                / attrs.step(),
+                        1);
+            }
+            if (count.size() != expectedCount) {
+                throw new IllegalArgumentException("fold geometry mismatch");
+            }
+            dimensions.set(attrs.axis(), new StaticDimension(attrs.outputSize()));
+            result = Shape.ofDimensions(dimensions.toArray(Dimension[]::new));
+        } else {
+            Window2dAttrs window = raw instanceof Unfold2dAttrs attrs
+                    ? attrs.window()
+                    : raw instanceof Fold2dAttrs attrs
+                            ? attrs.window()
+                            : (Window2dAttrs) raw;
+            if (kind == WindowTransformKind.UNFOLD2D) {
+                if (input.shape().rank() != 4) {
+                    throw new IllegalArgumentException("unfold2d rank must be four");
+                }
+                if (raw instanceof Unfold2dAttrs attrs
+                        && attrs.paddingValue().dataType() != input.dataType()) {
+                    throw new IllegalArgumentException("padding value type mismatch");
+                }
+                result = unfoldShape(input.shape(), window, constraints, "unfold2d");
+            } else {
+                Fold2dAttrs attrs = (Fold2dAttrs) raw;
+                if (input.shape().rank() != 3 || attrs.outputShape().rank() != 4) {
+                    throw new IllegalArgumentException("fold2d rank mismatch");
+                }
+                Shape expected = unfoldShape(
+                        attrs.outputShape(), window, constraints, "fold2d output");
+                if (!input.shape().equals(expected)) {
+                    throw new IllegalArgumentException("fold2d columns mismatch");
+                }
+                result = attrs.outputShape();
+            }
+        }
+        return new CapturedGraphInference.InferenceResult(
+                List.of(ElementwiseInference.descriptor(
+                        input.dataType(), result, input.requiresGrad())),
+                constraints);
+    }
+
+    private static Shape unfoldShape(
+            Shape shape,
+            Window2dAttrs window,
+            List<CapturedGraphInference.ConstraintRequest> constraints,
+            String subject) {
+        Dimension outputHeight = windowDimension(
+                shape.dimension(2),
+                window.kernelHeight(),
+                window.paddingHeight(),
+                window.strideHeight(),
+                window.dilationHeight(),
+                window.ceilMode(),
+                constraints,
+                subject + " height");
+        Dimension outputWidth = windowDimension(
+                shape.dimension(3),
+                window.kernelWidth(),
+                window.paddingWidth(),
+                window.strideWidth(),
+                window.dilationWidth(),
+                window.ceilMode(),
+                constraints,
+                subject + " width");
+        return Shape.ofDimensions(
+                shape.dimension(0),
+                DimensionExpressions.multiply(
+                        DimensionExpressions.multiply(
+                                shape.dimension(1), window.kernelHeight()),
+                        window.kernelWidth()),
+                DimensionExpressions.multiply(outputHeight, outputWidth));
+    }
+
+    private static Dimension windowDimension(
+            Dimension dimension,
+            long kernel,
+            long padding,
+            long stride,
+            long dilation,
+            boolean ceil,
+            List<CapturedGraphInference.ConstraintRequest> constraints,
+            String subject) {
+        long effective = Math.addExact(Math.multiplyExact(dilation, kernel - 1), 1);
+        long doubledPadding = Math.multiplyExact(2, padding);
+        Dimension padded = DimensionExpressions.addConstant(dimension, doubledPadding);
+        constraints.add(new CapturedGraphInference.ConstraintRequest(
+                subject + " domain",
+                FitsWithin.dimension(0, new StaticDimension(effective), padded)));
+        if (dimension instanceof StaticDimension staticDimension) {
+            long numerator = Math.subtractExact(
+                    Math.addExact(staticDimension.size(), doubledPadding), effective);
+            if (numerator < 0) {
+                throw new IllegalArgumentException("window does not fit");
+            }
+            return new StaticDimension(Math.addExact(
+                    numerator / stride + (ceil && numerator % stride != 0 ? 1 : 0), 1));
+        }
+        Dimension numerator =
+                DimensionExpressions.addConstant(
+                        dimension, Math.subtractExact(doubledPadding, effective));
+        return DimensionExpressions.addConstant(
+                ceil
+                        ? DimensionExpressions.ceilingDivide(numerator, stride)
+                        : DimensionExpressions.floorDivide(numerator, stride),
+                1);
+    }
     private static void axis(Shape s,int a){if(a<0||a>=s.rank())throw new IllegalArgumentException("axis out of range");}
     private static void sameType(TensorDescriptor a,TensorDescriptor b){if(a.dataType()!=b.dataType())throw new IllegalArgumentException("data type mismatch");}
 }

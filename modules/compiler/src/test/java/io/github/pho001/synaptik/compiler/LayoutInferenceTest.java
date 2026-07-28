@@ -80,6 +80,46 @@ final class LayoutInferenceTest {
     }
 
     @Test
+    void distinguishesTargetRelativeExtractionAndPlacementAndRetainsDynamicWindowDomains() {
+        DynamicDimension n = new DynamicDimension("N");
+        Shape dynamicShape = Shape.ofDimensions(n);
+        CropToShapeAttrs crop = new CropToShapeAttrs(Shape.of(2), Shape.of(1));
+
+        var extraction = LayoutInference.infer(
+                new Operation(SliceKind.SLICE, crop),
+                List.of(descriptor(dynamicShape)));
+        var placement = LayoutInference.infer(
+                new Operation(SliceKind.SLICE_UPDATE, crop),
+                List.of(descriptor(dynamicShape), descriptor(Shape.of(2))));
+
+        assertAll(
+                () -> assertEquals(Shape.of(2), extraction.outputs().getFirst().shape()),
+                () -> assertEquals(dynamicShape, placement.outputs().getFirst().shape()),
+                () -> assertEquals(1, extraction.constraints().size()),
+                () -> assertEquals(1, placement.constraints().size()));
+
+        DynamicDimension height = new DynamicDimension("H");
+        DynamicDimension width = new DynamicDimension("W");
+        Window2dAttrs window = new Window2dAttrs(3, 2, 1, 1, 1, 0, 1, 1, false);
+        var unfolded = LayoutInference.infer(
+                new Operation(WindowTransformKind.UNFOLD2D, window),
+                List.of(descriptor(Shape.ofDimensions(
+                        new StaticDimension(1),
+                        new StaticDimension(2),
+                        height,
+                        width))));
+        assertEquals(
+                List.of("unfold2d height domain", "unfold2d width domain"),
+                unfolded.constraints().stream()
+                        .map(CapturedGraphInference.ConstraintRequest::subject)
+                        .toList());
+        assertTrue(unfolded.constraints().stream()
+                .allMatch(constraint ->
+                        GraphPredicateProof.evaluate(constraint.predicate())
+                                == ProofStatus.DEFERRED));
+    }
+
+    @Test
     void rejectsManuallyConstructedInvalidLayoutRuleCategories() {
         TensorDescriptor vector = descriptor(Shape.of(2));
 

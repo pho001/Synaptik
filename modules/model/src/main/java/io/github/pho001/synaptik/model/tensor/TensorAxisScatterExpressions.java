@@ -21,7 +21,11 @@ import java.util.Optional;
  * target coordinate along one normalized axis, and {@code updates} supplies the value associated
  * with each index position. A reduction defines how the base and updates for one target are
  * combined; a duplicate target occurs when multiple index positions identify that same result
- * coordinate. Gather-compatible scatter-add maps an updates coordinate
+ * coordinate. Scatter-elements contributes every updates scalar exactly once to the target
+ * formed by replacing its selected-axis coordinate with the corresponding index value. A
+ * non-replacement reduction includes the base exactly once, treats duplicate targets as distinct
+ * contributions, and preserves the exact base representation at unaddressed coordinates.
+ * Gather-compatible scatter-add maps an updates coordinate
  * {@code [dBefore..., i..., dAfter...]} to target
  * {@code [dBefore..., indices[i...], dAfter...]}, where the complete indices coordinate replaces
  * the selected data coordinate.</p>
@@ -34,7 +38,10 @@ import java.util.Optional;
  * <p>Results preserve data/update gradient eligibility by logical OR, leave layout unresolved,
  * and record exact ordered provenance without a label or storage. This field-free helper never
  * mutates data, reads index or update values, checks bounds or duplicate targets, applies writes
- * or reductions, defines gradients, captures a graph, selects a backend, or executes work.</p>
+ * or reductions, defines derivatives or subgradients, captures a graph, selects a numerical
+ * algorithm or backend, or executes work. Configurable reduction represented-value semantics are
+ * fixed by {@link ScatterReduction} independently of encounter, layout, stride, atomic, tree, or
+ * backend order.</p>
  */
 final class TensorAxisScatterExpressions {
     /** Prevents instantiation because axis-scatter expression construction owns no state. */
@@ -118,7 +125,11 @@ final class TensorAxisScatterExpressions {
      * Dimensions must equal data. The selected extent may differ from data. For data
      * {@code [2, 3, 4]}, axis {@code 1}, and indices/updates {@code [2, 5, 4]}, the result retains
      * data Shape {@code [2, 3, 4]}. {@code NONE} permits all current types; arithmetic reductions
-     * reject BOOL.</p>
+     * reject BOOL. Every updates coordinate contributes exactly once to its selected result
+     * coordinate. For a non-replacement reduction, the base participates exactly once, duplicate
+     * targets remain distinct contributions, and an unaddressed target preserves the exact base
+     * representation. {@link ScatterReduction} defines the portable floating and integral
+     * represented-value target; construction itself reads no values.</p>
      *
      * @param data non-null base tensor retained as provenance input zero and never mutated
      * @param indices non-null INT32 or INT64 tensor retained as provenance input one

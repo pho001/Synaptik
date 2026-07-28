@@ -285,6 +285,8 @@ Operation-family subpackages are introduced only when a focused operation task d
 | 0025 | [Canonical TensorProducer outputs](tasks/0025-canonical-tensor-producer-outputs.md) | Complete | 0018L, 0019B1, 0021C, 0023F, 0024A; prerequisite for Compiler 0004 | Retains and retrieves the canonical exact Tensor wrapper for every producer output slot through one factory-atomic, safely published occurrence, without changing Tensor methods or ergonomic result carriers. |
 | 0025A | [Portable floating comparison, extrema, and clamp semantics](tasks/0025a-portable-floating-comparison-extrema-and-clamp-semantics.md) | Complete | 0018N, 0018T, 0018U, 0025; prerequisite for Compiler 0005A | Fixed one represented-value contract for floating comparisons, pairwise/scalar MIN/MAX, and ordered first-class CLAMP without executable model evaluation or derivative policy. |
 | 0025B | [Binding-aware expansion](tasks/0025b-binding-aware-expansion.md) | Complete | 0002, 0017C, 0017D1, 0018M, 0023A, 0025A; prerequisite for Compiler 0005B | Broadened existing EXPAND construction to retain unresolved source-one-or-source-equal obligations with exact target Shape and unresolved layout, without another public or semantic spelling. |
+| 0025C | [Portable functional-scatter reduction semantics](tasks/0025c-portable-functional-scatter-reduction-semantics.md) | Complete | 0018G–0018J, 0018U–0018U1, 0025A; prerequisite for Compiler 0005C | Fixed the represented-value grouping, duplicate, empty-update, floating special-value, modular integral, and signed-extrema meaning of configurable scatter MUL/MIN/MAX without execution or derivative policy. |
+| 0025D | [Dynamic-extent slice extraction and symbolic slice placement](tasks/0025d-dynamic-extent-slice-extraction-and-symbolic-slice-placement.md) | Complete | 0002, 0018M, 0018R, 0023C, 0025C; prerequisite for Compiler 0005C | Added exactly `sliceByLength(long[], long[], int[], long[])` for finite extraction across unresolved selected extents and `sliceUpdate(Tensor, Shape)` for target-relative symbolic placement, reusing existing slice kinds and attributes without compiler behavior. |
 
 ## Milestones
 
@@ -313,6 +315,12 @@ Operation-family subpackages are introduced only when a focused operation task d
   let existing EXPAND retain unresolved source-one-or-source-equal compatibility so Complete
   [Compiler 0005B](../compiler/tasks/0005b-reduction-scan-softmax-statistics-and-normalization-gradient-completion.md)
   could adopt the matching graph constraint and gradient/preflight path
+- Compiler-gradient scatter prerequisite: task 0025C, now Complete after reopening Model only to fix
+  the portable represented-value meaning of configurable functional-scatter MUL/MIN/MAX before
+  Complete Compiler 0005C chooses its separate derivative policies
+- Compiler-gradient dynamic-slice prerequisite: task 0025D, Complete after reopening Model only for
+  finite length-defined extraction across unresolved selected extents and exact-Shape
+  target-relative slice placement before Complete Compiler 0005C adopts the retained obligations
 
 Each listed checkpoint runs the full repository test suite, affected architecture tests, final
 Javadoc and documentation validation, and the cross-task checks deferred by the preceding tasks.
@@ -320,12 +328,22 @@ Individual single-module tasks use the task-level validation defined in the plan
 
 ## Current status
 
-The historical selected model milestone and focused tasks 0025, 0025A, and
-[0025B](tasks/0025b-binding-aware-expansion.md) are Complete. Task 0025B broadened only existing
+The historical selected model milestone and focused tasks 0025, 0025A,
+[0025B](tasks/0025b-binding-aware-expansion.md), and
+[0025C](tasks/0025c-portable-functional-scatter-reduction-semantics.md) are Complete.
+[Task 0025D](tasks/0025d-dynamic-extent-slice-extraction-and-symbolic-slice-placement.md) is
+Complete and supplies the remaining Model prerequisite for
+[Complete Compiler 0005C](../compiler/tasks/0005c-layout-window-indexing-scatter-ordering-and-stochastic-gradient-completion.md).
+It adds only
+the two approved public slice transformations and reuses the existing `SLICE`, `SLICE_UPDATE`,
+`SliceAttrs`, and `CropToShapeAttrs` contracts. Task
+0025C is a Javadoc/documentation-only prerequisite that fixed configurable functional-scatter
+MUL/MIN/MAX forward represented values without choosing derivatives, evaluation, or backend
+algorithms. Task 0025B broadened only existing
 EXPAND construction for unresolved source-one-or-source-equal compatibility so Complete
 [Compiler 0005B](../compiler/tasks/0005b-reduction-scan-softmax-statistics-and-normalization-gradient-completion.md)
 could adopt that obligation; it added no public method, kind, attributes, Shape/constraint type,
-binding implementation, or compiler behavior. There is no unfinished detailed Model task.
+binding implementation, or compiler behavior.
 Tasks 0014A through 0015H remain complete with the post-0014B vertical-slice reassessment
 recorded. The broad former task 0016 is decomposed into 0016A–0016J. Tasks 0016A through 0016E are
 complete. Tasks 0016F, 0016F1, 0016G, 0016H, 0016I, and 0016J are also complete. The broad former
@@ -552,6 +570,20 @@ Tensor expressions from the still-planned compiler capture lifecycle.
   Dimension retains the exact target Shape plus the later requirement that the source extent is
   one or equals the target extent. Leading target axes need no aligned pair, all unresolved
   geometry stays layout-unresolved, and Compiler 0005B owns later constraint/preflight adoption.
+- The post-Compiler-0005B reassessment reopens the model queue only for focused task 0025C before
+  Compiler 0005C. For each configurable Scatter Elements or Scatter-ND target, the base
+  participates once and every addressed update participates once; duplicates remain distinct
+  multiset members, while an empty update group preserves the exact base representation.
+  Floating MUL reuses the existing abstract product/result-format policy, integral MUL is modular
+  at exact width, and floating/integral MIN/MAX reuse the completed extrema meanings. The group is
+  independent of encounter, layout, atomic, or tree order. NONE, ADD, SCATTER_ADD, bounds,
+  duplicate detection, execution, and derivative policy do not change.
+- The post-Model-0025C reassessment reopened the model queue only for focused task 0025D
+  before Compiler 0005C. It adds exactly `sliceByLength(long[], long[], int[], long[])` for
+  caller-defined finite output lengths across unresolved selected extents and
+  `sliceUpdate(Tensor, Shape)` for target-relative symbolic placement. Both reuse existing slice
+  kinds and attributes, preserve exact Shape references and unresolved obligations, and add no
+  binding, constraint object, compiler inference, gradient policy, lowering, or execution.
 - The selected capability baseline is defined by semantic coherence and a useful
   inference/training target, not by blanket legacy parity.
 - The former broad loss row is split without renumbering established tasks 0023–0024. Completed
@@ -1715,6 +1747,10 @@ selected task 0025A for the remaining portable floating comparison/extrema/clamp
 prerequisite, and that focused task is Complete. The post-Compiler-0005A reassessment selected and
 completed only task 0025B as the binding-aware EXPAND prerequisite for
 [Compiler 0005B](../compiler/tasks/0005b-reduction-scan-softmax-statistics-and-normalization-gradient-completion.md).
+The post-Compiler-0005B reassessment selected and completed only task 0025C as the portable
+configurable functional-scatter forward-semantics prerequisite for Complete Compiler 0005C. The
+following reassessment selected and completed only task 0025D as the remaining dynamic-slice
+construction prerequisite before that compiler task.
 Other operation-family rows are not permission for oversized
 implementations; apply the normal limits in the
 [planning guide](../../planning-guide.md).
@@ -1798,9 +1834,11 @@ compiler prerequisite. Task 0025A is the completed later detailed model prerequi
 [Compiler 0005A task](../compiler/tasks/0005a-derivative-policy-and-elementwise-activation-gradient-completion.md).
 The compiler selected derivative ties, endpoints, discontinuities, raw-domain behavior, and
 activation infinity handling without changing the model's represented-value forward contracts.
-Task 0025B is Complete as the latest detailed Model specification.
+Task 0025B and
 [Compiler 0005B](../compiler/tasks/0005b-reduction-scan-softmax-statistics-and-normalization-gradient-completion.md)
-is Complete; every later compiler family remains Draft without a detailed specification, and no
-later compiler row is Ready.
+are Complete. Task 0025D is the latest Complete detailed Model specification. Detailed
+[Compiler 0005C](../compiler/tasks/0005c-layout-window-indexing-scatter-ordering-and-stochastic-gradient-completion.md)
+is Complete; Compiler 0005D–0005E and 0006 remain Draft without detailed specifications, and no
+later compiler task is Ready.
 The legacy branch must be consulted read-only for capability and test evidence when preparing each
 applicable capability task.

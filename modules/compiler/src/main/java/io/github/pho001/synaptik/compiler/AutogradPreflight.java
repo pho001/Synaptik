@@ -16,12 +16,14 @@ import io.github.pho001.synaptik.model.operation.elementwise.scalar.ScalarElemen
 import io.github.pho001.synaptik.model.operation.elementwise.scalar.ScalarValueAttrs;
 import io.github.pho001.synaptik.model.operation.elementwise.selection.WhereSelectionKind;
 import io.github.pho001.synaptik.model.operation.elementwise.unary.UnaryElementwiseKind;
-import io.github.pho001.synaptik.model.operation.index.SelectAttrs;
-import io.github.pho001.synaptik.model.operation.index.SelectKind;
+import io.github.pho001.synaptik.model.operation.index.*;
 import io.github.pho001.synaptik.model.operation.layout.AxisTransformAttrs;
 import io.github.pho001.synaptik.model.operation.layout.AxisTransformKind;
 import io.github.pho001.synaptik.model.operation.layout.CompositionAxisAttrs;
 import io.github.pho001.synaptik.model.operation.layout.ContiguousKind;
+import io.github.pho001.synaptik.model.operation.layout.CropToShapeAttrs;
+import io.github.pho001.synaptik.model.operation.layout.Fold2dAttrs;
+import io.github.pho001.synaptik.model.operation.layout.FoldAxisAttrs;
 import io.github.pho001.synaptik.model.operation.layout.PadAttrs;
 import io.github.pho001.synaptik.model.operation.layout.PadKind;
 import io.github.pho001.synaptik.model.operation.layout.PermutationAttrs;
@@ -32,6 +34,10 @@ import io.github.pho001.synaptik.model.operation.layout.TargetShapeAttrs;
 import io.github.pho001.synaptik.model.operation.layout.TensorCompositionKind;
 import io.github.pho001.synaptik.model.operation.layout.TileAttrs;
 import io.github.pho001.synaptik.model.operation.layout.TileKind;
+import io.github.pho001.synaptik.model.operation.layout.Unfold2dAttrs;
+import io.github.pho001.synaptik.model.operation.layout.UnfoldAxisAttrs;
+import io.github.pho001.synaptik.model.operation.layout.Window2dAttrs;
+import io.github.pho001.synaptik.model.operation.layout.WindowTransformKind;
 import io.github.pho001.synaptik.model.operation.linalg.MatmulKind;
 import io.github.pho001.synaptik.model.operation.normalization.BatchNormKind;
 import io.github.pho001.synaptik.model.operation.normalization.AffineLayerNormAttrs;
@@ -41,6 +47,13 @@ import io.github.pho001.synaptik.model.operation.normalization.RmsNormKind;
 import io.github.pho001.synaptik.model.operation.normalization.RmsNormAttrs;
 import io.github.pho001.synaptik.model.operation.normalization.SoftmaxKind;
 import io.github.pho001.synaptik.model.operation.normalization.SoftmaxAttrs;
+import io.github.pho001.synaptik.model.operation.ordering.OrderingKind;
+import io.github.pho001.synaptik.model.operation.ordering.SortAttrs;
+import io.github.pho001.synaptik.model.operation.ordering.TopKAttrs;
+import io.github.pho001.synaptik.model.operation.ordering.TopKKind;
+import io.github.pho001.synaptik.model.operation.random.DropoutAttrs;
+import io.github.pho001.synaptik.model.operation.random.DropoutKind;
+import io.github.pho001.synaptik.model.operation.random.GraphRngKind;
 import io.github.pho001.synaptik.model.operation.reduction.AggregateReductionKind;
 import io.github.pho001.synaptik.model.operation.reduction.AxisReductionAttrs;
 import io.github.pho001.synaptik.model.operation.reduction.MaskedReductionAttrs;
@@ -66,7 +79,7 @@ import java.util.Objects;
 import java.util.Set;
 
 /**
- * Preflights the closed first-order rule matrices through Compiler 0005B before constructing any
+ * Preflights the closed first-order rule matrices through Compiler 0005C before constructing any
  * derivative Tensor expression.
  *
  * <p>The iterative inventory covers every producer and canonical output wrapper reachable from
@@ -81,9 +94,9 @@ import java.util.Set;
  * normalized {@code SLICE} and both {@code SLICE_UPDATE} data roles; {@code SELECT},
  * {@code PAD}, {@code TILE}, {@code CONCAT}, and {@code STACK}. Matrix-multiplication and slice
  * replacement are validated per selected input role: an unselected promoted operand does not
- * require a cotangent conversion, and only a selected slice-update input requires static selected
- * base extents. Binding-dependent shape inversion and every operation or role outside the closed
- * matrices still fail.</p>
+ * require a cotangent conversion. Compiler 0005C removes the former static-selected-base
+ * restriction by validating length-defined extraction and target-relative placement through the
+ * exact occurrence constraints retained by layout inference.</p>
  *
  * <p>The additive {@code SUPPORTED_0004B} rows admit mixed-floating {@code ADD}/{@code SUB}/
  * {@code MUL}/{@code DIV}, branch-only {@code WHERE}, floating {@code CAST}, and role-aware
@@ -115,13 +128,25 @@ import java.util.Set;
  * slots three and four remain same-occurrence auxiliaries and cannot seed an independent
  * cotangent route.</p>
  *
+ * <p>Compiler 0005C completes the assigned floating layout/window, Gather/scatter, ordering, and
+ * explicit-state dropout rows. It distinguishes both {@code SliceAttrs} and
+ * {@code CropToShapeAttrs} slice variants, proves or retains their occurrence-local bounds, and
+ * applies the same rule to unresolved two-dimensional window domains. Gather and functional
+ * scatter validate exact index geometry and the fixed replacement, addition, multiplication, and
+ * extrema policies while leaving index roles non-differentiable. {@code SORT} proves that one
+ * matching stable {@code ARGSORT} occurrence can be constructed; {@code TOP_K} and
+ * {@code DROPOUT} require the exact canonical indices or mask wrapper from the original producer.
+ * Ordering indices, one-hot results, dropout masks, and graph random-number-generator state remain
+ * non-differentiable.</p>
+ *
  * <p>This owner selects rules and rejects unsupported operation, input/output signature,
  * attribute, role, data-type, Shape, and policy combinations. A known rejection occurs before the
- * seed, a derivative constant, or a formula Tensor is constructed, so it consumes no derivative
- * {@code TensorId}. The guarantee ends after a successful plan is returned: later public Tensor
- * construction, capture, inference, validation, or optimization may consume IDs before failing.
- * This owner neither performs captured-graph inference nor reads Tensor payloads, captures a
- * graph, allocates storage, lowers work, or executes computation.</p>
+ * seed, a derivative constant, a matching {@code ARGSORT}, or another formula Tensor is
+ * constructed, so it consumes no derivative {@code TensorId}. The guarantee ends after a
+ * successful plan is returned: later public Tensor construction, capture, inference, validation,
+ * or optimization may consume IDs before failing. This owner neither reads Tensor payloads,
+ * captures a graph, allocates storage, binds a dynamic Dimension, lowers work, nor executes
+ * computation.</p>
  */
 final class AutogradPreflight {
     private AutogradPreflight() {}
@@ -378,6 +403,25 @@ final class AutogradPreflight {
                 default -> true;
             };
         }
+        if (kind instanceof AxisGatherKind || kind instanceof GatherNdKind) {
+            return inputIndex == 0;
+        }
+        if (kind instanceof AxisScatterKind || kind instanceof ScatterNdKind) {
+            return inputIndex == 0 || inputIndex == 2;
+        }
+        if (kind instanceof OneHotKind
+                || kind == OrderingKind.ARGSORT
+                || kind instanceof GraphRngKind) {
+            return false;
+        }
+        if (kind == OrderingKind.SORT
+                || kind instanceof TopKKind
+                || kind instanceof WindowTransformKind) {
+            return inputIndex == 0;
+        }
+        if (kind instanceof DropoutKind) {
+            return outputIndex == 0 && inputIndex == 0;
+        }
         return true;
     }
 
@@ -402,6 +446,18 @@ final class AutogradPreflight {
                 throw unsupported(
                         producerIndex, producer, outputIndex, -1,
                         "saved auxiliary output cannot be an independent cotangent root");
+            }
+        } else if (operation.kind() instanceof TopKKind) {
+            if (producer.outputCount() != 2 || outputIndex != 0) {
+                throw unsupported(
+                        producerIndex, producer, outputIndex, -1,
+                        "TOP_K requires values slot zero and canonical indices slot one");
+            }
+        } else if (operation.kind() instanceof DropoutKind) {
+            if (producer.outputCount() != 3 || outputIndex != 0) {
+                throw unsupported(
+                        producerIndex, producer, outputIndex, -1,
+                        "DROPOUT requires values slot zero, mask slot one, and state slot two");
             }
         } else if (producer.outputCount() != 1 || outputIndex != 0) {
             throw unsupported(producerIndex, producer, outputIndex, -1, "requires one output");
@@ -823,48 +879,16 @@ final class AutogradPreflight {
             return;
         }
         if (operation.kind() instanceof SliceKind kind) {
-            if (!(operation.attrs() instanceof SliceAttrs attrs)) {
+            if (!(operation.attrs() instanceof SliceAttrs)
+                    && !(operation.attrs() instanceof CropToShapeAttrs)) {
                 throw unsupported(
                         producerIndex, producer, outputIndex, -1,
-                        "only normalized SliceAttrs are supported");
+                        "unsupported slice attributes");
             }
             int expectedInputs = kind == SliceKind.SLICE ? 1 : 2;
             requireInputs(producerIndex, producer, outputIndex, expectedInputs);
             requireSameFloatingTypes(producerIndex, producer, outputIndex);
-            Tensor base = producer.inputs().getFirst();
-            Shape selectedShape;
-            try {
-                selectedShape = sliceShape(base.descriptor().shape(), attrs);
-            } catch (IllegalArgumentException | ArithmeticException exception) {
-                throw unsupported(
-                        producerIndex, producer, outputIndex, -1,
-                        "normalized slice geometry is inconsistent");
-            }
-            if (kind == SliceKind.SLICE) {
-                if (!selectedShape.equals(output.descriptor().shape())) {
-                    throw unsupported(
-                            producerIndex, producer, outputIndex, 0,
-                            "SLICE output Shape is inconsistent");
-                }
-                return;
-            }
-            Tensor update = producer.inputs().get(1);
-            if (!update.descriptor().shape().equals(selectedShape)
-                    || !output.descriptor().shape().equals(base.descriptor().shape())) {
-                throw unsupported(
-                        producerIndex, producer, outputIndex, -1,
-                        "SLICE_UPDATE base, update, or output Shape is inconsistent");
-            }
-            if (selectedInputs[1]) {
-                for (int axis : attrs.axes()) {
-                    if (!(base.descriptor().shape().dimension(axis)
-                            instanceof StaticDimension)) {
-                        throw unsupported(
-                                producerIndex, producer, outputIndex, 1,
-                                "SLICE_UPDATE update role requires static selected base Dimensions");
-                    }
-                }
-            }
+            validateLayoutOccurrence(producerIndex, producer, outputIndex);
             return;
         }
         if (operation.kind() == SelectKind.SELECT) {
@@ -943,9 +967,156 @@ final class AutogradPreflight {
             }
             return;
         }
+        if (operation.kind() instanceof WindowTransformKind kind) {
+            boolean supportedAttrs = switch (kind) {
+                case UNFOLD_AXIS -> operation.attrs() instanceof UnfoldAxisAttrs;
+                case FOLD_AXIS -> operation.attrs() instanceof FoldAxisAttrs;
+                case UNFOLD2D -> operation.attrs() instanceof Window2dAttrs
+                        || operation.attrs() instanceof Unfold2dAttrs;
+                case FOLD2D -> operation.attrs() instanceof Fold2dAttrs;
+            };
+            if (!supportedAttrs) {
+                throw unsupported(
+                        producerIndex, producer, outputIndex, -1,
+                        "unsupported window kind/attributes pairing");
+            }
+            requireInputs(producerIndex, producer, outputIndex, 1);
+            requireSameFloatingType(producerIndex, producer, outputIndex, 0);
+            validateLayoutOccurrence(producerIndex, producer, outputIndex);
+            return;
+        }
+        if (operation.kind() instanceof AxisGatherKind kind) {
+            if (!(operation.attrs() instanceof IndexAxisAttrs)
+                    || (kind != AxisGatherKind.GATHER
+                            && kind != AxisGatherKind.GATHER_ELEMENTS)) {
+                throw unsupported(
+                        producerIndex, producer, outputIndex, -1,
+                        "unsupported Gather kind/attributes pairing");
+            }
+            requireInputs(producerIndex, producer, outputIndex, 2);
+            requireNonDifferentiableRole(
+                    producerIndex, producer, outputIndex, selectedInputs, 1, "indices");
+            requireSameFloatingType(producerIndex, producer, outputIndex, 0);
+            validateIndexingOccurrence(producerIndex, producer, outputIndex);
+            return;
+        }
+        if (operation.kind() == GatherNdKind.GATHER_ND) {
+            if (!(operation.attrs() instanceof GatherNdAttrs)) {
+                throw unsupported(
+                        producerIndex, producer, outputIndex, -1,
+                        "unsupported Gather-ND attributes");
+            }
+            requireInputs(producerIndex, producer, outputIndex, 2);
+            requireNonDifferentiableRole(
+                    producerIndex, producer, outputIndex, selectedInputs, 1, "indices");
+            requireSameFloatingType(producerIndex, producer, outputIndex, 0);
+            validateIndexingOccurrence(producerIndex, producer, outputIndex);
+            return;
+        }
+        if (operation.kind() instanceof AxisScatterKind kind) {
+            boolean supportedAttrs = kind == AxisScatterKind.SCATTER_ADD
+                    ? operation.attrs() instanceof IndexAxisAttrs
+                    : kind == AxisScatterKind.SCATTER_ELEMENTS
+                            && operation.attrs() instanceof ScatterElementsAttrs;
+            if (!supportedAttrs) {
+                throw unsupported(
+                        producerIndex, producer, outputIndex, -1,
+                        "unsupported axis-scatter kind/attributes pairing");
+            }
+            requireInputs(producerIndex, producer, outputIndex, 3);
+            requireNonDifferentiableRole(
+                    producerIndex, producer, outputIndex, selectedInputs, 1, "indices");
+            requireSameFloatingType(producerIndex, producer, outputIndex, 0);
+            requireSameFloatingType(producerIndex, producer, outputIndex, 2);
+            validateIndexingOccurrence(producerIndex, producer, outputIndex);
+            return;
+        }
+        if (operation.kind() == ScatterNdKind.SCATTER_ND) {
+            if (!(operation.attrs() instanceof ScatterNdAttrs)) {
+                throw unsupported(
+                        producerIndex, producer, outputIndex, -1,
+                        "unsupported Scatter-ND attributes");
+            }
+            requireInputs(producerIndex, producer, outputIndex, 3);
+            requireNonDifferentiableRole(
+                    producerIndex, producer, outputIndex, selectedInputs, 1, "indices");
+            requireSameFloatingType(producerIndex, producer, outputIndex, 0);
+            requireSameFloatingType(producerIndex, producer, outputIndex, 2);
+            validateIndexingOccurrence(producerIndex, producer, outputIndex);
+            return;
+        }
+        if (operation.kind() == OrderingKind.SORT) {
+            if (!(operation.attrs() instanceof SortAttrs attrs)) {
+                throw unsupported(
+                        producerIndex, producer, outputIndex, -1,
+                        "unsupported SORT attributes");
+            }
+            requireInputs(producerIndex, producer, outputIndex, 1);
+            requireSameFloatingDescriptors(producerIndex, producer, outputIndex, true);
+            validateReductionNormalizationOccurrence(
+                    producerIndex, producer, outputIndex);
+            validateMatchingArgsortConstructibility(
+                    producerIndex, producer, outputIndex, attrs);
+            return;
+        }
+        if (operation.kind() == TopKKind.TOP_K) {
+            if (!(operation.attrs() instanceof TopKAttrs)) {
+                throw unsupported(
+                        producerIndex, producer, outputIndex, -1,
+                        "unsupported TOP_K attributes");
+            }
+            requireInputs(producerIndex, producer, outputIndex, 1);
+            requireSameFloatingType(producerIndex, producer, outputIndex, 0);
+            validateReductionNormalizationOccurrence(
+                    producerIndex, producer, outputIndex);
+            validateCanonicalAuxiliary(
+                    producerIndex,
+                    producer,
+                    outputIndex,
+                    1,
+                    DataType.INT64,
+                    producer.output(0).descriptor().shape(),
+                    "TOP_K indices");
+            return;
+        }
+        if (operation.kind() == DropoutKind.DROPOUT) {
+            if (!(operation.attrs() instanceof DropoutAttrs attrs)
+                    || !Double.isFinite(attrs.probability())
+                    || attrs.probability() < 0.0d
+                    || attrs.probability() >= 1.0d) {
+                throw unsupported(
+                        producerIndex, producer, outputIndex, -1,
+                        "unsupported DROPOUT probability attributes");
+            }
+            requireInputs(producerIndex, producer, outputIndex, 2);
+            requireNonDifferentiableRole(
+                    producerIndex, producer, outputIndex, selectedInputs, 1, "RNG state");
+            requireSameFloatingType(producerIndex, producer, outputIndex, 0);
+            validateStructuredOccurrence(producerIndex, producer, outputIndex);
+            validateCanonicalAuxiliary(
+                    producerIndex,
+                    producer,
+                    outputIndex,
+                    1,
+                    DataType.BOOL,
+                    producer.output(0).descriptor().shape(),
+                    "DROPOUT mask");
+            validateCanonicalAuxiliary(
+                    producerIndex,
+                    producer,
+                    outputIndex,
+                    2,
+                    DataType.INT64,
+                    Shape.of(2),
+                    "DROPOUT next state");
+            return;
+        }
         if (operation.kind() instanceof BinaryComparisonKind
                 || operation.kind() instanceof BooleanLogicalKind
-                || operation.kind() instanceof FloatingClassificationKind) {
+                || operation.kind() instanceof FloatingClassificationKind
+                || operation.kind() instanceof OneHotKind
+                || operation.kind() == OrderingKind.ARGSORT
+                || operation.kind() instanceof GraphRngKind) {
             throw unsupported(
                     producerIndex, producer, outputIndex, firstSelected(selectedInputs),
                     "operation roles are non-differentiable");
@@ -961,6 +1132,145 @@ final class AutogradPreflight {
             throw unsupported(
                     producerIndex, producer, outputIndex, -1,
                     "expected " + count + " inputs, got " + producer.inputs().size());
+        }
+    }
+
+    private static void requireNonDifferentiableRole(
+            int producerIndex,
+            TensorProducer producer,
+            int outputIndex,
+            boolean[] selectedInputs,
+            int inputIndex,
+            String role) {
+        if (selectedInputs[inputIndex]
+                || producer.inputs().get(inputIndex).descriptor().requiresGrad()) {
+            throw unsupported(
+                    producerIndex, producer, outputIndex, inputIndex,
+                    role + " role must be non-differentiable");
+        }
+    }
+
+    private static void validateLayoutOccurrence(
+            int producerIndex, TensorProducer producer, int outputIndex) {
+        CapturedGraphInference.InferenceResult inferred;
+        try {
+            inferred = LayoutInference.infer(
+                    producer.operation(),
+                    producer.inputs().stream().map(Tensor::descriptor).toList());
+        } catch (RuntimeException exception) {
+            throw unsupported(
+                    producerIndex, producer, outputIndex, -1,
+                    "layout inference rejected the occurrence");
+        }
+        validateInferredOccurrence(producerIndex, producer, outputIndex, inferred);
+    }
+
+    private static void validateIndexingOccurrence(
+            int producerIndex, TensorProducer producer, int outputIndex) {
+        CapturedGraphInference.InferenceResult inferred;
+        try {
+            inferred = IndexingInference.infer(
+                    producer.operation(),
+                    producer.inputs().stream().map(Tensor::descriptor).toList());
+        } catch (RuntimeException exception) {
+            throw unsupported(
+                    producerIndex, producer, outputIndex, -1,
+                    "indexing inference rejected the occurrence");
+        }
+        validateInferredOccurrence(producerIndex, producer, outputIndex, inferred);
+    }
+
+    private static void validateStructuredOccurrence(
+            int producerIndex, TensorProducer producer, int outputIndex) {
+        CapturedGraphInference.InferenceResult inferred;
+        try {
+            inferred = StructuredOperationInference.infer(
+                    producer.operation(),
+                    producer.inputs().stream().map(Tensor::descriptor).toList(),
+                    producer.outputCount());
+        } catch (RuntimeException exception) {
+            throw unsupported(
+                    producerIndex, producer, outputIndex, -1,
+                    "structured inference rejected the occurrence");
+        }
+        validateInferredOccurrence(producerIndex, producer, outputIndex, inferred);
+    }
+
+    private static void validateInferredOccurrence(
+            int producerIndex,
+            TensorProducer producer,
+            int outputIndex,
+            CapturedGraphInference.InferenceResult inferred) {
+        if (inferred.outputs().size() != producer.outputCount()) {
+            throw unsupported(
+                    producerIndex, producer, outputIndex, -1,
+                    "derived output count differs from the original occurrence");
+        }
+        for (int output = 0; output < producer.outputCount(); output++) {
+            if (!inferred.outputs().get(output).equals(producer.output(output).descriptor())) {
+                throw unsupported(
+                        producerIndex, producer, outputIndex, -1,
+                        "derived output descriptor differs at output[" + output + "]");
+            }
+        }
+        for (CapturedGraphInference.ConstraintRequest constraint : inferred.constraints()) {
+            if (GraphPredicateProof.evaluate(constraint.predicate()) == ProofStatus.DISPROVEN) {
+                throw unsupported(
+                        producerIndex, producer, outputIndex, -1,
+                        "occurrence-local constraint is contradicted: " + constraint.subject());
+            }
+        }
+    }
+
+    private static void validateMatchingArgsortConstructibility(
+            int producerIndex,
+            TensorProducer producer,
+            int outputIndex,
+            SortAttrs attrs) {
+        CapturedGraphInference.InferenceResult inferred;
+        try {
+            inferred = ReductionNormalizationInference.infer(
+                    new Operation(OrderingKind.ARGSORT, attrs),
+                    List.of(producer.inputs().getFirst().descriptor()));
+        } catch (RuntimeException exception) {
+            throw unsupported(
+                    producerIndex, producer, outputIndex, -1,
+                    "matching stable ARGSORT is not constructible");
+        }
+        if (inferred.outputs().size() != 1) {
+            throw unsupported(
+                    producerIndex, producer, outputIndex, -1,
+                    "matching stable ARGSORT must have one output");
+        }
+        var descriptor = inferred.outputs().getFirst();
+        if (descriptor.dataType() != DataType.INT64
+                || !descriptor.shape().equals(producer.inputs().getFirst().descriptor().shape())
+                || descriptor.requiresGrad()) {
+            throw unsupported(
+                    producerIndex, producer, outputIndex, -1,
+                    "matching stable ARGSORT descriptor is inconsistent");
+        }
+    }
+
+    private static void validateCanonicalAuxiliary(
+            int producerIndex,
+            TensorProducer producer,
+            int outputIndex,
+            int auxiliaryIndex,
+            DataType dataType,
+            Shape shape,
+            String role) {
+        Tensor auxiliary = producer.output(auxiliaryIndex);
+        TensorProvenance provenance = auxiliary.provenance().orElse(null);
+        if (provenance == null
+                || provenance.producer() != producer
+                || provenance.outputIndex() != auxiliaryIndex
+                || auxiliary.descriptor().dataType() != dataType
+                || !auxiliary.descriptor().shape().equals(shape)
+                || auxiliary.descriptor().requiresGrad()) {
+            throw unsupported(
+                    producerIndex, producer, outputIndex, -1,
+                    role + " canonical auxiliary is inconsistent");
         }
     }
 

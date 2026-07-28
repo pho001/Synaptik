@@ -19,7 +19,8 @@ import java.util.List;
  * {@code lengths[i]} coordinates along normalized input axis {@code axes[i]}. Extraction selects
  * those positions from one input. Functional replacement maps a same-rank update into those
  * positions of a base while retaining values outside the region. {@link CropToShapeAttrs}
- * separately represents an exact target-relative extraction whose extents may remain symbolic.</p>
+ * represents an exact target-relative extraction or functional replacement whose extents may
+ * remain symbolic.</p>
  *
  * <p>General slice, both single-axis conveniences, and multi-axis flip use this same kind; flip is
  * represented by negative-step entries rather than another semantic kind. This enum calculates no
@@ -39,11 +40,14 @@ public enum SliceKind implements OperationKind {
     SLICE,
 
     /**
-     * Functionally replaces the finite base-coordinate sequences described by {@link SliceAttrs}
-     * with values from a same-rank update input.
+     * Functionally replaces either the finite base-coordinate sequences described by
+     * {@link SliceAttrs} or the target-relative region described by {@link CropToShapeAttrs} with
+     * values from a same-rank update input.
      *
-     * <p>The ordered inputs are base then update and the sole result has the base Shape. This is
-     * logical replacement, not mutation, addition, storage writing, or a backward-only kind.</p>
+     * <p>With {@link CropToShapeAttrs}, the target Shape is the exact update-region Shape, not the
+     * result Shape. The ordered inputs are base then update and the sole result has the base
+     * Shape. This is logical replacement, not mutation, addition, storage writing, or a
+     * backward-only kind.</p>
      */
     SLICE_UPDATE;
 
@@ -51,7 +55,9 @@ public enum SliceKind implements OperationKind {
             OperationSignature.fixed(SliceAttrs.class, 1, 1),
             OperationSignature.fixed(CropToShapeAttrs.class, 1, 1));
     private static final List<OperationSignature> SLICE_UPDATE_SIGNATURES =
-            List.of(OperationSignature.fixed(SliceAttrs.class, 2, 1));
+            List.of(
+                    OperationSignature.fixed(SliceAttrs.class, 2, 1),
+                    OperationSignature.fixed(CropToShapeAttrs.class, 2, 1));
 
     /**
      * Returns the immutable structural variants accepted by this exact slice-family kind.

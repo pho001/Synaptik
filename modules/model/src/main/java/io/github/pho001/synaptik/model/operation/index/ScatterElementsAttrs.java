@@ -12,7 +12,12 @@ import java.util.Objects;
  * semantics for updates that address a result target. The attributes are used with ordered
  * logical inputs {@code [data, indices, updates]}; they store none of those operands. The
  * conceptual functional result starts from {@code data}, has exactly the data shape, and leaves
- * the data input unchanged.</p>
+ * the data input unchanged. Every updates coordinate contributes one scalar to the result
+ * coordinate obtained by replacing that updates coordinate's selected-axis position with the
+ * corresponding index value. Duplicate targets remain distinct contributions. A
+ * non-replacement reduction combines the base exactly once with every addressed contribution
+ * exactly once; an unaddressed coordinate retains the exact base representation. The portable
+ * represented-value rules are defined by {@link ScatterReduction}.</p>
  *
  * <p>This value stores no input rank or shape, so it cannot prove that the axis exists or validate
  * that indices and updates have equal shapes and match data away from the axis. Zero, positive
@@ -27,8 +32,8 @@ import java.util.Objects;
  * <p>The immutable record retains both components unchanged. Record-generated equality and
  * hashing use both components, and generated text is diagnostic rather than a serialization,
  * parsing, compiler-dispatch, backend, or execution contract. These attributes define no Tensor
- * construction, result descriptor, provenance, gradient, numerical policy, materialization,
- * graph or compiler behavior, backend support, or execution.</p>
+ * construction, result descriptor, provenance, derivative or subgradient policy, numerical
+ * algorithm, materialization, graph or compiler behavior, backend support, or execution.</p>
  *
  * @param axis the already normalized, zero-based, non-negative data-axis index
  * @param reduction the non-null replacement or reduction meaning applied at addressed targets

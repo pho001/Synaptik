@@ -225,14 +225,18 @@ behavior, and execution remain planned.
 The `SliceKind` vocabulary is implemented with `SLICE` extraction and `SLICE_UPDATE` functional
 replacement. `SliceAttrs` carries immutable parallel lists of normalized starts, selected lengths,
 distinct axes, and signed non-zero steps for both meanings. `CropToShapeAttrs` carries exact target
-and prefix Shapes for a target-relative `SLICE` region whose extents may remain symbolic. Public
-`Tensor.slice`, both `sliceAxis` overloads, and `flip` add directional raw-bound normalization
-against selected static dimensions, same-rank Shape derivation, positive-only resolved view
-geometry, and exact one-input provenance. Public `sliceUpdate` retains exact base Shape with
-ordered `[base, update]` provenance; public `cropToShape` retains the exact target/prefix Shape
-references. Both new results leave layout unresolved. Gradients, compiler
-capture/canonicalization, materialization, backend behavior, ONNX mapping, and execution remain
-planned in later owning layers.
+and prefix Shapes for target-relative `SLICE` extraction or `SLICE_UPDATE` placement whose extents
+may remain symbolic. Public `Tensor.slice`, both `sliceAxis` overloads, and `flip` add directional
+raw-bound normalization against selected static dimensions, same-rank Shape derivation,
+positive-only resolved view geometry, and exact one-input provenance. Public `sliceByLength`
+accepts normalized non-negative starts and finite lengths, including when only the selected
+unresolved extent's upper bound must be deferred. Public `sliceUpdate` has signed-array and exact
+target-relative forms, both retaining exact base Shape with ordered `[base, update]` provenance;
+public `cropToShape` retains the exact target/prefix Shape references. Placement and crop leave
+layout unresolved. Model stores no deferred constraint object. Current compiler inference,
+preflight, and first-order autograd have adopted length-defined extraction and target-relative
+placement, including occurrence-owned unresolved fit constraints; materialization, backend
+behavior, ONNX mapping, and execution remain planned in later owning layers.
 The `PadKind` and `TileKind` vocabularies are implemented with the sole `PAD` and `TILE` meanings,
 respectively. `PadAttrs` stores immutable ordered non-negative before/after widths plus one exact
 typed scalar constant; `TileAttrs` stores immutable ordered positive complete-pattern repeat
@@ -570,6 +574,32 @@ no gradient, compiler, backend, runtime, or execution behavior. This differs fro
 data, and [Scatter-ND](#scatter-nd), whose indices contain multi-axis coordinate tuples. See
 [Gather-compatible Scatter Add expressions](api/tensor-api.md#gather-compatible-scatter-add-expressions).
 
+### Functional-scatter target group
+
+For one concrete result coordinate `c` in configurable Scatter Elements or Scatter-ND reduction,
+the logical multiset containing exactly one base value `data[c]` and exactly one scalar from every
+updates position addressed to `c`. Equal values from distinct positions remain distinct members,
+so duplicate indices or tuples contribute more than once. In Scatter-ND, every tuple position
+contributes its complete update suffix slice scalar by scalar. If no update addresses `c`, the
+result is the exact unchanged representation of `data[c]`; no identity arithmetic or
+canonicalization occurs.
+
+For `MUL`, `MIN`, and `MAX`, the target-group result is independent of encounter order, layout,
+strides, atomic scheduling, reduction tree, and backend traversal. When at least one update
+addresses the coordinate, floating `MUL` is one abstract unchanged-format product: NaN propagates;
+zero with infinity produces NaN; otherwise zero or infinity has the parity sign of all negative
+factors; and a finite non-zero exact product rounds once with round-to-nearest, ties-to-even,
+including signed overflow, underflow, subnormal, and zero results. BFLOAT16 begins from its exact
+represented 16-bit values and rounds the final product to BFLOAT16. Floating extrema for such a
+non-empty update group propagate NaN, use ordinary numeric order including infinities, and select
+negative zero for `MIN` or positive zero for `MAX` when both zero signs occur. No NaN
+payload, sign, signaling, source, fixed factor sequence, or bitwise result is promised. Integral
+`MUL` is exact-width two's-complement modular multiplication; integral extrema use signed order.
+Data and updates keep one exact type without promotion, widening, saturation, or conversion.
+`NONE`, configurable `ADD`, and fixed [Scatter Add](#scatter-add) retain their existing meanings,
+and the forward contract chooses no derivative or subgradient policy. See
+[Scatter Elements expressions](api/tensor-api.md#scatter-elements-expressions).
+
 ### Scatter Elements
 
 An implemented functional same-rank scatter meaning represented by
@@ -579,7 +609,8 @@ equal rank and Shape and match data away from the selected axis; the functional 
 data Shape and does not mutate data.
 
 `NONE` means replacement and requires unique targets. `ADD`, `MUL`, `MAX`, and `MIN`
-combine the base and all updates for a target. Public construction validates types, reduction
+combine the [functional-scatter target group](#functional-scatter-target-group). Public
+construction validates types, reduction
 eligibility, axis, rank, and Shape, preserves exact data Shape/type with unresolved layout,
 combines data/update gradient eligibility, and records ordered provenance. It reads no values,
 checks no bounds or duplicate targets, and performs no write or reduction. See
@@ -644,7 +675,8 @@ with indices `[2]`, `B=0`, and `K=2` uses canonical scalar updates `[]`. Their r
 Shapes are `[2, 3, 4]`, `[2, 3, 4]`, and `[2, 3]`.
 
 The shared `ScatterReduction` values mean replacement, addition, multiplication, maximum, or
-minimum. `NONE` replacement requires unique target tuples; duplicate tuples are invalid, but
+minimum over each [functional-scatter target group](#functional-scatter-target-group). `NONE`
+replacement requires unique target tuples; duplicate tuples are invalid, but
 detection requires index values and does not occur during current expression construction. The
 attributes reject a negative batch count before rejecting a null reduction. They store no inputs,
 ranks, Shapes, tuple depth, types, descriptor, or provenance. The three current public overloads
@@ -1846,9 +1878,11 @@ public boundary interprets it according to the operation kind: current `expandDi
 insertion position normalized against rank plus one, while current `squeeze` uses an input removal
 position normalized against the existing Shape and validates the selected static singleton.
 `SliceAttrs` stores an ordered list of distinct normalized non-negative input axes. It has no Shape
-or rank, so it cannot prove that an axis exists for a future input. The current public slice,
-flip, and slice-update boundaries normalize caller-facing negative axes before constructing these
-attributes; duplicates fail after normalization in caller order.
+or rank, so it cannot prove that an axis exists for a future input. The current public raw slice,
+length-defined slice, flip, and array-based slice-update boundaries normalize caller-facing
+negative axes before constructing these attributes; duplicates fail after normalization in caller
+order. The length-defined path differs only in coordinate syntax: starts are already non-negative
+and lengths are explicit rather than derived from raw half-open bounds.
 `CompositionAxisAttrs` stores the normalized existing CONCAT input axis or inserted STACK result
 axis, with the paired kind supplying the interpretation. It contains no rank context.
 `IndexAxisAttrs` stores the normalized data axis for Gather, Gather Elements, and
@@ -1934,7 +1968,8 @@ insertion or removal position. `SliceAttrs` holds immutable ordered parallel lis
 inclusive starts, selected lengths, distinct axes, and signed non-zero steps. Each slice entry is
 an exact finite coordinate sequence rather than a stored raw or normalized exclusive end.
 `CropToShapeAttrs` holds exact target and per-axis prefix Shapes for target-relative `SLICE`
-extraction; the Shapes may contain unresolved Dimensions and are retained without binding.
+extraction or `SLICE_UPDATE` placement; the Shapes may contain unresolved Dimensions and are
+retained without binding.
 `PadAttrs` holds immutable
 ordered before/after widths and one exact typed scalar constant, while `TileAttrs` holds immutable
 ordered positive complete-pattern repeat counts. `CompositionAxisAttrs` holds one normalized axis
@@ -1972,7 +2007,8 @@ behavior, or a kernel route.
 
 Public exposure is separate from semantic representability. For example, `SliceKind.SLICE`
 supports public slice, flip, and target-relative crop expressions, while
-`SliceKind.SLICE_UPDATE` supports public functional replacement. Current
+`SliceKind.SLICE_UPDATE` supports public coordinate-sequence and target-relative functional
+replacement. Current
 `WindowTransformKind.FOLD_AXIS` also has public `Tensor.foldAxis` construction, but future
 gradient use remains compiler-owned. Every kind still supplies its exact family-owned structural
 signatures.
@@ -2158,7 +2194,7 @@ parameterless request for canonical dense row-major, zero-offset result geometry
 thirteenth is `AxisTransformKind`, whose `PERMUTE`, `EXPAND_DIMS`, and `SQUEEZE` values pair with
 `PermutationAttrs` or `AxisTransformAttrs` as described under [axis transform](#axis-transform).
 The fourteenth is `SliceKind`: `SLICE` pairs with `SliceAttrs` or `CropToShapeAttrs`, while
-`SLICE_UPDATE` pairs with `SliceAttrs`, as described under [slice](#slice), [Slice
+`SLICE_UPDATE` pairs with `SliceAttrs` or `CropToShapeAttrs`, as described under [slice](#slice), [Slice
 Update](#slice-update), and [Target-relative crop](#target-relative-crop). The fifteenth and
 sixteenth are `PadKind` and `TileKind`, whose sole `PAD` and
 `TILE` values pair with `PadAttrs` and `TileAttrs` as described under [padding](#padding) and
@@ -2389,17 +2425,19 @@ copied, or materialized.
 respectively, retain one normalized position in `AxisTransformAttrs`, and record exactly the
 receiver as their sole input. Conditional resolved view geometry still does not imply attached or
 aliased storage, a copy-free route, or execution.
-`Tensor.slice`, both `Tensor.sliceAxis` overloads, and `Tensor.flip` use `SliceKind.SLICE`, retain
-normalized finite start/length/signed-step sequences on distinct axes in `SliceAttrs`, and record
-exactly the receiver as their sole input. Each success has one identity-distinct producer, one
-output descriptor, and provenance output index zero, including identity and multi-axis flip.
+`Tensor.slice`, `Tensor.sliceByLength`, both `Tensor.sliceAxis` overloads, and `Tensor.flip` use
+`SliceKind.SLICE`, retain normalized finite start/length/signed-step sequences on distinct axes in
+`SliceAttrs`, and record exactly the receiver as their sole input. Each success has one
+identity-distinct producer, one output descriptor, and provenance output index zero, including
+identity, dynamic selected-extent length-defined extraction, and multi-axis flip.
 Conditional resolved positive-step view geometry and unresolved negative-step geometry imply
 neither attached or physically aliased storage, copying, materialization, nor execution.
-`Tensor.sliceUpdate` instead uses `SliceKind.SLICE_UPDATE` with ordered inputs `[base, update]` and
-retains the exact base Shape in one unresolved descriptor. `Tensor.cropToShape` uses
-`SliceKind.SLICE` with `CropToShapeAttrs` and exact input `[input]`; its descriptor retains the
-exact target Shape. Both create one fresh producer at output index zero without mutating inputs or
-attaching storage.
+Both `Tensor.sliceUpdate` overloads use `SliceKind.SLICE_UPDATE` with ordered inputs
+`[base, update]` and retain the exact base Shape in one unresolved descriptor. The array form uses
+`SliceAttrs`; the target-relative form uses `CropToShapeAttrs`, whose target is the exact update
+Shape and whose prefix is the exact caller Shape. `Tensor.cropToShape` uses `SliceKind.SLICE` with
+`CropToShapeAttrs` and exact input `[input]`; there the target is the exact result Shape. These
+forms create one fresh producer at output index zero without mutating inputs or attaching storage.
 Static `Tensor.concat` and `Tensor.stack` retain immutable ordered snapshots of their exact input
 Tensor references in provenance with matching `TensorCompositionKind` and normalized
 `CompositionAxisAttrs`. Each `Tensor.unstack` output instead carries its own `SELECT` operation,
@@ -2553,7 +2591,7 @@ semantics. The value stores no input Shape, raw bounds, or direction-dependent e
 sentinel, so rank, selected-dimension staticity, and directional normalization belong to the
 public Tensor expression boundary.
 
-For selected extent `D`, the public request is directional and half-open. A negative raw bound
+For selected extent `D`, the original public request is directional and half-open. A negative raw bound
 adds `D` once. Positive-step bounds clamp to `[0, D]`; a negative-step start clamps to
 `[0, D - 1]` and its end to `[-1, D - 1]`. Raw `-1` therefore means relative coordinate
 `D - 1`, not the boundary before zero. On conceptual values `[0, 1, 2, 3, 4]`,
@@ -2561,12 +2599,19 @@ adds `D` once. Positive-step bounds clamp to `[0, D]`; a negative-step start cla
 `[4, 3, 2, 1, 0]`. The former entries normalize to starts `[1]`, lengths `[2]`, steps `[2]`; the
 latter normalize to starts `[4]`, lengths `[5]`, steps `[-1]`.
 
-Every selected Dimension must be static; unselected Dimensions retain exact references. Empty
-arrays and empty flip axes are fresh explicit identity occurrences. Zero-length results store
-canonical start zero, including a selected zero-extent axis. Resolved non-empty all-positive
-requests derive checked start-adjusted, step-multiplied logical view geometry. Unresolved input,
-empty results, and every negative-step request remain layout-unresolved because the current
-descriptor forbids negative strides. This boundary promises neither a physical alias nor a copy.
+The separate `sliceByLength` request consumes already normalized non-negative starts plus explicit
+finite non-negative lengths. It proves non-negative first and final coordinates and every static
+upper bound. If a selected Dimension is unresolved, only the upper-bound comparison is deferred;
+the selected result Dimension is still the requested static length and Model retains no constraint
+object. A zero length selects no coordinate, checks no input bound, and stores canonical start
+zero.
+
+Raw-bound slicing requires every selected Dimension static; length-defined slicing does not.
+Unselected Dimensions retain exact references. Empty arrays and empty flip axes are fresh explicit
+identity occurrences. Resolved non-empty all-positive requests derive checked start-adjusted,
+step-multiplied logical view geometry. Unresolved input, empty results, and every negative-step
+request remain layout-unresolved because the current descriptor forbids negative strides. This
+boundary promises neither a physical alias nor a copy.
 
 Every public slice or flip result preserves exact data type and gradient eligibility, remains
 fresh, unlabeled, and storage-free, and records one `SliceKind.SLICE` producer with exact input
@@ -2575,7 +2620,8 @@ fresh, unlabeled, and storage-free, and records one `SliceKind.SLICE` producer w
 requested axes into one operation. There is no `SLICE_AXIS` or `FLIP` kind. These methods do not
 read values, capture or canonicalize a graph, materialize storage, lower a backend or ONNX
 operation, or execute selection. Current package-private compiler autograd scatters a supported
-normalized floating SLICE cotangent into an input-shaped exact typed zero. See
+floating SLICE cotangent into an input-shaped exact typed zero, including length-defined regions
+whose selected source extent remains unresolved after occurrence-owned constraint retention. See
 [Slice expressions](api/tensor-api.md#slice-expressions)
 and [Slice semantic kind and normalized
 attributes](api/tensor-api.md#slice-semantic-kind-and-normalized-attributes).
@@ -2583,7 +2629,7 @@ attributes](api/tensor-api.md#slice-semantic-kind-and-normalized-attributes).
 ### Slice Update
 
 An implemented backend-independent functional replacement represented by
-`SliceKind.SLICE_UPDATE` with `SliceAttrs` and ordered inputs `[base, update]`. Entry `i` maps
+`SliceKind.SLICE_UPDATE` with ordered inputs `[base, update]`. With `SliceAttrs`, entry `i` maps
 update coordinate `k` to base coordinate `normalizedStart[i] + k * steps[i]` on one distinct
 normalized axis. The selected update Dimension must be static and supplies `lengths[i]`;
 unselected update Dimensions must exactly equal the base Dimensions. The result retains the exact
@@ -2595,21 +2641,28 @@ arrays mean explicit full-Shape replacement, while a selected zero update extent
 coordinates. The mapping is functional replacement, not mutation, addition, reduction, or an
 operation-specific backward kind.
 
-Public `Tensor.sliceUpdate` accepts all current data types with exact base/update type equality,
-combines their gradient eligibility, leaves result layout unresolved, and creates one fresh,
-unlabeled, storage-free result at provenance index zero. It reads no values and defines no
+With `CropToShapeAttrs`, the exact update Shape is the target region and the exact caller prefix
+Shape identifies the non-negative logical extent preceding it on each axis. Every fully static
+axis proves `prefix + update <= base` with checked arithmetic; any axis containing an unresolved
+base, prefix, or update extent defers its whole fit. The result still retains the exact base Shape.
+
+Both public `Tensor.sliceUpdate` forms accept all current data types with exact base/update type
+equality, combine their gradient eligibility, leave result layout unresolved, and create one fresh,
+unlabeled, storage-free result at provenance index zero. They read no values and define no
 lowering, backend, or execution behavior. Current package-private compiler autograd masks the
-supported floating base cotangent and extracts the supported floating update cotangent; only the
-selected update role requires static selected base extents. See [Slice update and
+supported floating base cotangent and extracts the supported floating update cotangent for both
+`SliceAttrs` and target-relative `CropToShapeAttrs` after exact constraint-aware preflight. See
+[Slice update and
 target-relative crop expressions](api/tensor-api.md#slice-update-and-target-relative-crop-expressions).
 
 ### Target-relative crop
 
-An implemented exact-Shape extraction represented by `SliceKind.SLICE` with
-`CropToShapeAttrs(targetShape, prefixShape)`. The target Shape is the exact result Shape. The
-prefix Shape gives the non-negative number of logical positions preceding the region on each
-axis, so axis `i` selects `[prefix[i], prefix[i] + target[i])`. Both exact immutable Shape
-references are retained and may contain [symbolic extent
+An implemented target-relative region represented by `CropToShapeAttrs(targetShape, prefixShape)`.
+For `SliceKind.SLICE`, the target Shape is the exact extraction result Shape. For
+`SliceKind.SLICE_UPDATE`, it is the exact update-region Shape and the result retains the base
+Shape. The prefix Shape gives the non-negative number of logical positions preceding the region
+on each axis, so axis `i` identifies `[prefix[i], prefix[i] + target[i])`. Both exact immutable
+Shape references are retained and may contain [symbolic extent
 expressions](#symbolic-extent-expression).
 
 Public `Tensor.cropToShape` requires input, target, and prefix ranks to match. A fully static
@@ -2617,7 +2670,11 @@ prefix-plus-target bound is checked locally with exact arithmetic; an inequality
 unresolved Dimension remains a later binding/execution obligation. The operation does not infer,
 bind, clamp, shift, truncate, pad, or reverse a region. Its fresh result retains input type and
 gradient eligibility, leaves layout unresolved, and records exact `[input]` provenance without a
-view or copy promise. See [Slice update and target-relative crop
+view or copy promise. The Shape-based `Tensor.sliceUpdate` uses the same exact region language for
+placement and ordered `[base, update]` provenance. Model stores no deferred constraint object;
+current compiler inference, preflight, and first-order autograd retain and adopt the placement
+form. See
+[Slice update and target-relative crop
 expressions](api/tensor-api.md#slice-update-and-target-relative-crop-expressions).
 
 ### Softmax / log-softmax

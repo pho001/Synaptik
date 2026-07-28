@@ -257,6 +257,8 @@ extensions described below. Compiler task 0005A is Complete and closes the exact
 elementwise/activation inventory with explicit derivative and non-differentiable-role policies.
 Compiler task 0005B is Complete and adds binding-aware expansion plus the current reduction,
 scan, softmax, statistics, norm, and Layer/RMS/batch-normalization first-order matrix.
+Compiler task 0005C is Complete and adds dynamic slice/window constraints plus the current
+layout, Gather/scatter, ordering/top-K, and explicit-state dropout first-order matrix.
 
 Package-private `GraphCompiler.compile` takes `CompileMode`, ordered forward outputs, an optional
 package-private first-order request, explicit forward constant ingress, and
@@ -283,14 +285,15 @@ the complete original forward request and validates every selected objective-to-
 occurrence, exact output and input role, attributes variant, data-type and Shape relationship,
 and derivative policy. Known unsupported work fails before allocating derivative Tensor
 identity. Named `ElementwiseGradientRules`, `ReductionGradientRules`,
-`NormalizationGradientRules`, `LinearAlgebraGradientRules`, and `LayoutGradientRules` then build
+`NormalizationGradientRules`, `LinearAlgebraGradientRules`, `LayoutGradientRules`,
+`IndexingGradientRules`, `OrderingGradientRules`, and `StochasticGradientRules` then build
 formulas only with existing public Tensor operations. Exact Tensor identity keys ordered
 contributions during one compile request. Reverse accumulation visits producer postorder in
 reverse, selected output slots in ascending order for that producer, and input positions in
 ascending order; ordinary left-associated `Tensor.add` accumulates contributions. This ephemeral
 state is neither Tensor state nor graph intermediate representation (IR).
 
-The current matrix is the union of the Compiler 0004–0004B rows and the Compiler 0005A–0005B
+The current matrix is the union of the Compiler 0004–0004B rows and the Compiler 0005A–0005C
 family completions:
 
 | Family | Current exact supported variants |
@@ -299,7 +302,11 @@ family completions:
 | Reductions, scans, and softmax | Ordinary full, single-axis, and ordered multi-axis floating `SUM`, `MEAN`, `PROD`, `MIN`, and `MAX`; masked floating `SUM` and `MEAN`; binding-aware floating `SUM_TO_SHAPE`; floating `LOG_SUM_EXP`, `VARIANCE`, `STANDARD_DEVIATION`, `L1_NORM`, and `L2_NORM`; floating `CUM_SUM` and `CUM_PROD` for every exclusive/reverse combination; floating `SOFTMAX` and `LOG_SOFTMAX` |
 | Normalization | No-affine and affine floating `LAYER_NORM`; no-scale and scaled floating `RMS_NORM`; all five floating inputs of batch-normalization inference; and the exact output-slot-specific batch-normalization-training roles for public slots zero through two |
 | Linear algebra | Every current floating `MATMUL` vector/matrix rank pairing, with role-aware mixed-floating normalization and batch unbroadcasting |
-| Logical layout and selection | Floating `CONTIGUOUS`, `RESHAPE`, binding-aware `EXPAND`, `EXPAND_DIMS`, `SQUEEZE`, `PERMUTE`, normalized `SLICE`, both normalized `SLICE_UPDATE` data roles, `SELECT`, `PAD`, `TILE`, `CONCAT`, and `STACK` |
+| Logical layout and selection | Floating `CONTIGUOUS`, `RESHAPE`, binding-aware `EXPAND`, `EXPAND_DIMS`, `SQUEEZE`, `PERMUTE`, both `SLICE`/`SLICE_UPDATE` attribute forms, `SELECT`, `PAD`, `TILE`, `CONCAT`, and `STACK` |
+| Window transforms | Floating `UNFOLD_AXIS`, `FOLD_AXIS`, both `UNFOLD2D` attribute forms, and `FOLD2D` through their exact public inverse or overlap-add operation |
+| Indexing and scatter | Floating data for `GATHER`, `GATHER_ELEMENTS`, and `GATHER_ND`; floating base and update roles for `SCATTER_ADD`, `SCATTER_ELEMENTS`, and `SCATTER_ND` with `NONE`, `ADD`, `MUL`, `MIN`, or `MAX` as applicable |
+| Ordering | One-output floating `SORT` through one exact matching stable `ARGSORT`; floating `TOP_K` values slot zero through the canonical indices at slot one |
+| Stochastic | Floating `DROPOUT` values slot zero through the exact same-occurrence BOOL keep mask; mask and graph-state roles remain non-differentiable |
 
 Forward and generated expressions use one model-owned Tensor algebra. For a selected mixed-
 floating input, the compiler first reverses ordinary broadcasting with `sumToShape` when needed
@@ -430,13 +437,51 @@ each selected operand where batch broadcasting may have occurred and then one or
 the promoted contribution type differs from that operand. Integral MATMUL remains
 non-differentiable.
 
-SLICE writes `g` into an input-shaped typed zero. For SLICE_UPDATE, the base role writes an
-update-shaped zero into `g`, while the update role extracts the exact normalized finite
-coordinate sequence from `g`; only that update role requires static selected base Dimensions.
-SELECT writes an axis-restored `g` at the selected coordinate. PAD crops away its before-width
-prefix. TILE reshapes to interleaved repeat/input axes, sums the repeat axes, then restores the
-input Shape. CONCAT crops `g` by each ordered symbolic input prefix, and STACK selects the
-corresponding inserted-axis coordinate. Repeated input positions remain repeated contributions.
+SLICE writes `g` into an input-shaped typed zero. `SliceAttrs` placement uses the exact stored
+starts, axes, and steps; `CropToShapeAttrs` placement uses the exact prefix Shape. For
+SLICE_UPDATE, the base role replaces the selected region of `g` with an update-shaped zero. The
+update role uses `sliceByLength` with the exact recorded finite lengths for `SliceAttrs`, including
+empty, signed-step, and unresolved selected-base regions, or `cropToShape` with the exact target
+and prefix Shapes for `CropToShapeAttrs`. No raw end is reconstructed. SELECT writes an
+axis-restored `g` at the selected coordinate. PAD crops away its before-width prefix. TILE
+reshapes to interleaved repeat/input axes, sums the repeat axes, then restores the input Shape.
+CONCAT crops `g` by each ordered symbolic input prefix, and STACK selects the corresponding
+inserted-axis coordinate. Repeated input positions remain repeated contributions.
+
+UNFOLD_AXIS uses `foldAxis` with the original selected extent and step; FOLD_AXIS uses `unfold`
+with the original window extent and step. Both UNFOLD2D forms use `fold2d` with the exact original
+input Shape and window, while FOLD2D uses the conceptual-positive-zero `unfold2d` form. Typed
+unfold padding is scalar metadata and receives no cotangent. Dynamic two-dimensional spatial
+domains retain separate height and width constraints requiring the padded input or target extent
+to contain the effective dilated kernel. An undecidable relation remains an occurrence-owned
+deferred graph constraint; a contradicted relation fails inference. This compiler stage neither
+binds Dimensions nor chooses materialization.
+
+GATHER, GATHER_ELEMENTS, and GATHER_ND route floating data cotangents through their matching
+additive scatter, so repeated indices accumulate. SCATTER_ADD and configurable scatter ADD
+preserve the base cotangent and Gather the update cotangent. Scatter NONE replacement zeros the
+addressed base positions and Gathers the update cotangent; its forward uniqueness rule remains a
+value-dependent execution obligation.
+
+Scatter MUL counts represented zeros and constructs safe per-target products without dividing by
+zero. A zero-free update receives the base times every other update; a sole zero receives the base
+times all non-zero updates; every update in a multiple-zero group receives exact positive zero.
+The base contribution multiplies `g` by the canonical Model product of all updates. NaN, infinity,
+signed-zero, overflow, underflow, and rounding therefore follow the ordinary recorded Tensor
+formula and Model forward product, except for the explicit positive-zero multiple-zero branch.
+Scatter MIN/MAX compare the base and every duplicate update with the canonical forward result and
+split `g` equally among numeric-equality winners. Opposite signed zeros tie. A canonical NaN
+result matches no candidate, so every candidate receives exact positive zero.
+
+SORT constructs exactly one stable ARGSORT occurrence with the exact original input, normalized
+axis, and direction, then replacement-scatters `g` through that permutation. This is the sole
+matching recomputation in the current matrix. TOP_K instead uses the exact canonical slot-one
+indices from its original producer; `k == 0` routes an input-shaped zero. Equal keys, NaN-last
+membership, signed-zero order, and equal-cutoff membership freeze the forward route without
+averaging. DROPOUT uses the exact canonical same-occurrence BOOL mask and
+`where(mask, g / (1 - probability), zero)`. It neither infers nor resamples a mask and does not
+advance or differentiate graph RNG state. At either signed probability zero, the denominator is
+positive one and the all-kept mask routes `g`.
 
 The original rules remain unchanged: broadcasted elementwise contributions use `sumToShape`;
 ordinary SUM restores removed axes before expansion; CUM_SUM reverses scan direction while
@@ -491,10 +536,9 @@ is intentionally explicit:
 
 | Classification | Current deferred or rejected families |
 |---|---|
-| Later layout, indexing, and stochastic work | Target-relative crop and unselected layout variants outside current exact guards; Gather/scatter, ordering/top-K, windows, dropout, and RNG-state roles assigned to Compiler 0005C |
 | Later structured differentiation work | Attention, convolution, pooling, losses, and other structured families assigned to Compiler 0005D |
 | First-order closure work | Complete source-backed role/output audit and transitive differentiability proof assigned to Compiler 0005E |
-| Non-differentiable roles and outputs | Comparisons, BOOL logic/classification, `ALL`, `ANY`, arg-extrema results, batch-training saved auxiliary roots, one-hot and other index roles, masks, padding constants, select coordinates, and graph RNG state |
+| Non-differentiable roles and outputs | Comparisons, BOOL logic/classification, `ALL`, `ANY`, arg-extrema results, batch-training saved auxiliary roots, one-hot and other index roles, ordering indices, dropout masks, padding constants, select coordinates, and graph RNG state |
 
 Unknown/custom kinds, wrong attribute classes or cardinalities, missing canonical outputs, and
 descriptor contradictions also fail deterministically. Later formulas must continue using the
@@ -793,8 +837,17 @@ distinct stable, one-input, one-output ordering expressions. Both normalize the 
 exact input Shape reference, leave layout unresolved, and use fixed NaN-last ordering in both
 directions with stable logical-index ties. Sort preserves input type and gradient eligibility;
 argsort uses non-differentiable INT64. These model-expression and provenance facts are structurally
-capturable and package-private operand/descriptor revalidation is current; gradient construction,
-algorithm selection, lowering, backend support, runtime behavior, and execution remain planned.
+capturable and package-private operand/descriptor revalidation is current. Floating SORT gradient
+construction is also current: the compiler constructs one separate stable `ARGSORT` occurrence
+with the exact original input, normalized axis, and direction, then routes the cotangent through
+that permutation. Algorithm selection, lowering, backend support, runtime behavior, and execution
+remain planned.
+
+Preflight requires the exact SORT input/output descriptors, `SortAttrs`, normalized axis,
+direction, and matching one-input/one-output ARGSORT constructibility before any derivative Tensor
+is allocated. SORT still has one output: this is not a hidden index output, public sort result,
+producer reconstruction, or Model API change. The generated ARGSORT is a BACKWARD occurrence in
+the one combined capture.
 `Tensor.topK(k, axis[, largest, sorted])` currently constructs one compiler-neutral
 `TopKKind.TOP_K` model occurrence with ordered outputs `[values, indices]`. The values output
 preserves input type and gradient eligibility; indices are non-differentiable INT64. Both share
@@ -805,7 +858,10 @@ deferred: future compiler or binding validation must reject an insufficient boun
 clamp, pad, wrap, or reduce the output count. Package-private capture preserves the shared TOP_K
 producer and both output positions. The following package-private pass revalidates both descriptors
 and proves or retains the selected-extent obligation. It does not construct gradients, select an
-algorithm, lower the operation, report backend support, bind an extent, or execute it.
+algorithm, lower the operation, report backend support, bind an extent, or execute it. Current
+floating TOP_K values-slot autograd uses the exact canonical indices wrapper at producer slot one
+and never recomputes selection. Indices remain non-differentiable; stable cutoff membership,
+NaN membership, direction, and sorted-output order are routed without selected-set averaging.
 `Tensor.embedding(indices)` currently validates a rank-two floating weight receiver and exact
 INT32/INT64 indices, then constructs the existing ordinary axis-zero GATHER occurrence directly.
 The result Shape is the complete indices Shape plus the exact weight axis-one Dimension; result
@@ -1049,6 +1105,16 @@ slice-chain or flip canonicalization, physical aliasing or copying, materializat
 backend/ONNX lowering, and execution remain planned. Closed first-order autograd currently
 constructs the normalized floating SLICE cotangent described above; unsupported types and
 non-normalized metadata fail during preflight.
+`Tensor.sliceByLength(starts, lengths, axes, steps)` is current Model expression construction. It
+records the same exact `SLICE`/`SliceAttrs` occurrence after proving non-negative first/final
+coordinates and every statically decidable selected-extent upper bound. Selected result
+Dimensions are exact static lengths; unaffected Dimension references remain exact. An unresolved
+selected extent defers only its upper-bound comparison, and Model stores no constraint object.
+Empty or negative-step results remain layout-unresolved; resolved input geometry produces a view
+only for a non-empty all-positive request. Current compiler inference derives the exact selected
+lengths and proves or retains each non-empty signed region's upper-bound obligation. Fail-closed
+preflight validates the exact occurrence before current floating autograd uses that same
+length-defined form to invert SLICE_UPDATE without requiring a static selected base extent.
 `Tensor.sliceUpdate(update, starts, axes, steps)` is now current model construction for functional
 signed multi-axis replacement. It derives normalized finite `SliceAttrs` lengths from selected
 static update Dimensions, requires exact base/update type and same-rank Shape compatibility,
@@ -1063,9 +1129,21 @@ and interprets the prefix Shape as per-axis logical extents preceding the region
 Dimension remain deferred. Both primitives are structurally capturable, but neither mutates
 values, chooses materialization, lowers, or executes work. Closed first-order autograd currently
 constructs guarded floating cotangents for normalized SLICE and for both normalized SLICE_UPDATE
-data roles. The update-role rule requires every selected base extent to be static. Inverting the
-separate `CropToShapeAttrs` form, binding unresolved bounds, saved-value policy, and
-canonicalization remain planned.
+data roles. The update role uses exact recorded lengths, so unresolved selected base extents are
+supported when their bounds can be proved or retained. Compiler inference also distinguishes
+target-relative extraction from placement, preserves exact Shapes, and retains unresolved bounds.
+Concrete binding, saved-value policy, and canonicalization remain planned.
+`Tensor.sliceUpdate(update, prefixShape)` is also current Model expression construction. It
+records exact `SLICE_UPDATE`/`CropToShapeAttrs` with ordered inputs `[base, update]`, retains the
+exact update Shape as the target region and the exact caller prefix Shape, and returns the exact
+base Shape/type with eligibility OR and unresolved layout. A fully static axis proves checked
+`prefix + update <= base`; if any base, prefix, or update extent is unresolved, Model defers that
+whole axis fit without partial arithmetic or a constraint object. Structural capture can preserve
+the occurrence. Current compiler inference distinguishes both slice kinds and both exact
+attributes variants, retains `prefix + target <= base` obligations, and validates update Shape
+against the exact target. Floating autograd uses target-relative placement for the source/base
+cotangent and exact target-relative crop for the update cotangent. This adds no execution,
+binding, or materialization behavior.
 `Tensor.select(int, long)` normalizes one source axis and one scalar coordinate, removes the
 selected Dimension, preserves every unaffected exact Dimension reference, and records normalized
 `SelectAttrs` with exact one-input provenance. A static selected extent supplies immediate
@@ -1083,7 +1161,9 @@ above; dynamic-coordinate binding remains outside this binding-free phase.
 aligned-Shape rules. Every fresh result retains data type and gradient eligibility, leaves layout
 unresolved, and records exact two-input provenance. Package-private structural capture can
 preserve the occurrence. Construction interprets no index values, checks no index-value bounds,
-and adds no gradient rule, canonicalization, materialization, lowering, or execution behavior.
+and adds no Model-owned gradient rule, canonicalization, materialization, lowering, or execution
+behavior. Current compiler autograd routes a floating data cotangent through matching
+`scatterAdd` or additive `scatterElements`; indices remain non-differentiable.
 `Tensor.gatherNd` consumes exact ordered `[data, indices]` inputs with `INT32` or `INT64` indices.
 Its short form uses zero shared batch Dimensions; its complete form retains one normalized
 non-negative batch count. Construction validates both ranks, structurally equal leading batch
@@ -1093,7 +1173,9 @@ suffix, including canonical scalar and exact retained Dimension references. Ever
 unlabeled, storage-free, and unresolved-layout, preserves data type and gradient eligibility, and
 records `GATHER_ND` with exact `[data, indices]` provenance. Package-private structural capture can
 preserve the occurrence. Construction reads no index value, checks no index-value bound, and adds
-no gradient, compiler transformation, materialization, lowering, or execution behavior.
+no Model-owned gradient, materialization, lowering, or execution behavior. Current compiler
+autograd routes a floating data cotangent through matching additive Scatter-ND; coordinate tuples
+remain non-differentiable.
 Both `Tensor.scatterElements` overloads consume exact ordered `[data, indices, updates]` inputs.
 They require `INT32` or `INT64` indices and exact matching data/update types. `NONE` is permitted
 for every current type and arithmetic reductions for floating or integral values. Each method
@@ -1101,21 +1183,26 @@ normalizes one raw data axis, validates the same-rank Shape relationship, and re
 result with the exact data Shape/type, data/update gradient-
 eligibility OR, unresolved layout, and exact three-input provenance. Construction reads no values,
 checks no index bound or duplicate target, mutates no input, and performs no write or reduction.
-Package-private structural capture can preserve the occurrence; gradient rules, compiler
-transformations, materialization, lowering, backend behavior, and execution remain planned.
+Package-private structural capture can preserve the occurrence. Current compiler autograd
+supports both floating data roles for every current reduction: NONE masks addressed base
+positions, ADD preserves the base, MUL uses the zero-count/safe-product policy, and MIN/MAX share
+among exact numeric-equality winners. Canonicalization, materialization, lowering, backend
+behavior, and execution remain planned.
+For `MUL`, `MIN`, and `MAX`, the current Model contract combines the base exactly once with every
+addressed update exactly once, counts duplicate targets as distinct contributions, and preserves
+the exact representation of an unaddressed base coordinate. Its floating and integral result is
+independent of encounter, layout, stride, atomic, tree, and backend order. Compiler work must
+preserve that represented-value contract; it may not infer a fixed accumulation sequence or add a
+derivative or subgradient policy to the Model.
 `Tensor.scatterAdd(indices, updates, axis)` is now the current Gather-compatible fixed-add model
 primitive. It records `SCATTER_ADD` with normalized `IndexAxisAttrs` and ordered
 `[data, indices, updates]` inputs. Updates must have the exact Shape that `data.gather(indices,
 axis)` would produce, while the functional result retains the exact data Shape and accumulates
 duplicate targets. Construction validates metadata only and leaves layout unresolved.
-Package-private structural capture can preserve the occurrence, but no code constructs a
-Gather/embedding adjoint, inspects or bounds-checks indices, lowers the operation, or executes
-addition.
-
-A later compiler/autograd owner may use this general public primitive when constructing Gather or
-embedding data adjoints. That owner must preserve the same occurrence, Shape, numeric, duplicate-
-accumulation, and eventual index-bounds obligations; this documentation does not claim that such
-adjoint construction or compiler support exists today.
+Package-private structural capture can preserve the occurrence. Current compiler autograd uses
+this primitive for floating GATHER data cotangents and preserves its Shape, duplicate
+accumulation, and eventual index-bounds obligations. It does not inspect or bounds-check indices,
+lower the operation, or execute addition.
 The three `Tensor.scatterNd` overloads consume exact ordered `[data, indices, updates]` inputs with
 `INT32` or `INT64` indices and exact matching data/update types. Their defaults select
 `ScatterReduction.NONE` and zero shared batch Dimensions; complete construction retains the exact
@@ -1126,8 +1213,17 @@ Every result is fresh, unlabeled, storage-free, and unresolved-layout, retains t
 Shape/type, combines data/update gradient eligibility, and records `SCATTER_ND` with exact
 three-input provenance. Package-private structural capture can preserve the occurrence. Model
 construction reads no index or update value, checks no index bound or duplicate target, mutates no
-input, performs no write or reduction, and adds no gradient, compiler transformation,
-materialization, lowering, backend behavior, or execution behavior.
+input, performs no write or reduction, and adds no Model-owned gradient, materialization,
+lowering, backend behavior, or execution behavior. Current compiler autograd supports both
+floating data roles for NONE, ADD, MUL, MIN, and MAX through exact matching Gather-ND/Scatter-ND
+geometry; tuple indices remain non-differentiable.
+For arithmetic reduction, every tuple contributes its complete update suffix slice scalar by
+scalar. Current Model `MUL`, `MIN`, and `MAX` semantics include each target's base and every
+addressed scalar exactly once, count duplicate tuples as distinct contributions, preserve the
+exact representation of an unaddressed coordinate, and are independent of encounter, layout,
+stride, atomic, tree, and backend order. `NONE`, configurable `ADD`, and fixed `SCATTER_ADD`
+remain unchanged. Compiler work must preserve this forward contract without assigning a Model
+derivative or subgradient policy.
 Static `Tensor.concat(int, Tensor...)` and `Tensor.stack(int, Tensor...)` snapshot ordered non-empty
 inputs, normalize an existing or inserted axis, enforce exact type and operation-specific Shape
 rules, and create fresh unresolved-layout results with eligibility OR and exact ordered provenance.
@@ -1146,8 +1242,10 @@ retain exact static or symbolic channel/spatial formulas, and distinguish direct
 padding from an exact typed padding scalar. `fold2d` accepts only complete structural formula
 matches rather than recording equality between unrelated unresolved symbols. Every result
 preserves input data type and gradient eligibility, leaves layout unresolved, and records exact
-one-input provenance. Package-private structural capture can preserve these occurrences, while the
-model contracts provide no canonicalization, gradient generation, lowering, or execution.
+one-input provenance. Package-private structural capture can preserve these occurrences. Current
+compiler inference retains unresolved two-dimensional height/width domain constraints, and
+current floating autograd uses each exact public inverse or overlap-add transformation. The Model
+still owns no gradient rule, canonicalization, lowering, or execution.
 That origin metadata is now traversed by the package-private structural capture described above.
 The internal step observes that two result Tensors belong to the same expression occurrence only
 when their provenance carries the same exact `TensorProducer` reference. Different output indices
@@ -1161,7 +1259,10 @@ also describes slot one as a same-Shape BOOL auxiliary keep mask even though `Dr
 no mask Tensor. Current internal capture creates graph values for all three slots by reading the
 reachable producer's ordered descriptors and also preserves the zero-input initial-state producer
 and its edge into dropout. It needs no public sibling-output lookup. Auxiliary-value lifetime
-policy, dropout gradient construction, and backward saved-value selection remain planned.
+policy and physical saved-value lifetime remain planned. Current floating values-slot autograd
+retrieves the exact canonical mask wrapper at producer slot one and constructs
+`where(mask, g / (1 - probability), zero)`. It never resamples, infers a mask from values, or
+advances/differentiates graph RNG state.
 
 Explicit attention output-and-weights construction uses the same foundation without an auxiliary
 or hidden output. `ScaledDotProductAttentionResult.output()` and `weights()` expose the exact
@@ -1450,8 +1551,10 @@ CompiledGraph graph = CompiledGraph.compile(output, CompileConfig.auto());
   dynamic-unresolved contiguous
   request construction plus conditional-view reshape, expand, permutation, and rank-two transpose
   construction, conditional-view expand-dimensions/squeeze construction, and general/single-axis
-  signed-step slice plus one-occurrence flip construction, functional signed slice update, exact
-  target/prefix-Shape crop construction, plus conditional-view scalar-select construction and
+  signed-step slice plus one-occurrence flip construction, finite length-defined extraction across
+  unresolved selected extents, functional signed slice update, exact target-relative symbolic
+  placement, and exact target/prefix-Shape crop construction, plus conditional-view scalar-select
+  construction and
   unresolved-layout Gather/Gather Elements and trailing-axis one-hot construction, plus
   unresolved-layout Gather-ND,
   functional Scatter Elements, Gather-compatible Scatter Add, and functional Scatter-ND
@@ -1469,11 +1572,10 @@ CompiledGraph graph = CompiledGraph.compile(output, CompileConfig.auto());
   softmax, layer-normalization, RMS-normalization, attention, or activation decomposition,
   activation/attention-gradient construction,
   redundant-cast, redundant-contiguous, reshape/expand/permutation/rank-edit, slice chains, slice
-  updates, crops, selects,
+  updates, crops, and selects beyond the current exact inference/preflight/gradient matrix,
   axis-gather/one-hot/Gather-ND/axis-scatter/Scatter-ND/pad/tile/composition/window-transform
   canonicalization or decomposition,
-  compiler-generated use of public `FOLD_AXIS`, inversion of `CropToShapeAttrs`, concrete dynamic
-  binding and value-dependent select/index validation,
+  concrete dynamic binding and value-dependent select/index validation,
   legal
   convolution/pooling decomposition and gradient construction, maximum-pooling saved-index
   policy, average-pooling fixed-divisor preservation, layout materialization

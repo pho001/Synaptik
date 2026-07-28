@@ -6,6 +6,9 @@ import io.github.pho001.synaptik.model.operation.layout.AxisTransformAttrs;
 import io.github.pho001.synaptik.model.operation.layout.AxisTransformKind;
 import io.github.pho001.synaptik.model.operation.layout.CompositionAxisAttrs;
 import io.github.pho001.synaptik.model.operation.layout.ContiguousKind;
+import io.github.pho001.synaptik.model.operation.layout.CropToShapeAttrs;
+import io.github.pho001.synaptik.model.operation.layout.Fold2dAttrs;
+import io.github.pho001.synaptik.model.operation.layout.FoldAxisAttrs;
 import io.github.pho001.synaptik.model.operation.layout.PadAttrs;
 import io.github.pho001.synaptik.model.operation.layout.PadKind;
 import io.github.pho001.synaptik.model.operation.layout.PermutationAttrs;
@@ -15,6 +18,10 @@ import io.github.pho001.synaptik.model.operation.layout.SliceKind;
 import io.github.pho001.synaptik.model.operation.layout.TensorCompositionKind;
 import io.github.pho001.synaptik.model.operation.layout.TileAttrs;
 import io.github.pho001.synaptik.model.operation.layout.TileKind;
+import io.github.pho001.synaptik.model.operation.layout.Unfold2dAttrs;
+import io.github.pho001.synaptik.model.operation.layout.UnfoldAxisAttrs;
+import io.github.pho001.synaptik.model.operation.layout.Window2dAttrs;
+import io.github.pho001.synaptik.model.operation.layout.WindowTransformKind;
 import io.github.pho001.synaptik.model.shape.Dimension;
 import io.github.pho001.synaptik.model.shape.DimensionExpressions;
 import io.github.pho001.synaptik.model.shape.Shape;
@@ -24,29 +31,33 @@ import io.github.pho001.synaptik.model.tensor.TensorProducer;
 import java.util.List;
 
 /**
- * Builds the closed logical layout, indexing, and composition first-order formulas.
+ * Builds the closed logical layout, slice, composition, and window first-order formulas.
  *
  * <p>The selected rows are {@code CONTIGUOUS}, {@code RESHAPE}, {@code EXPAND},
- * {@code EXPAND_DIMS}, {@code SQUEEZE}, {@code PERMUTE}, normalized {@code SLICE}/{@code
- * SLICE_UPDATE}, {@code SELECT}, {@code PAD}, {@code TILE}, {@code CONCAT}, and {@code STACK}.
- * Formulas reverse only logical Shape, axis, coordinate, and composition metadata through public
- * Tensor operations; they neither select physical aliasing or materialization nor read storage,
- * lower work, or execute computation. Preflight owns type, Shape, attributes, role, local
+ * {@code EXPAND_DIMS}, {@code SQUEEZE}, {@code PERMUTE}, both {@code SLICE}/{@code
+ * SLICE_UPDATE} attribute forms, {@code SELECT}, {@code PAD}, {@code TILE}, {@code CONCAT},
+ * {@code STACK}, and the four axis/two-dimensional window transforms. Formulas reverse only
+ * logical Shape, axis, coordinate, composition, and window metadata through public Tensor
+ * operations; they neither select physical aliasing or materialization nor read storage, lower
+ * work, or execute computation. Preflight owns type, Shape, attributes, role, local
  * constructibility, and policy validation.</p>
  *
  * <p>{@code SLICE} writes {@code g} into an exact typed zero shaped like the input.
  * {@code SLICE_UPDATE} writes a zero shaped like the update into {@code g} for the base
- * cotangent, and extracts the normalized finite coordinate sequence from {@code g} for the update
- * cotangent. Empty sequences use raw start/end zero; positive sequences use the representable
- * first coordinate after the sequence capped at the base extent; negative sequences use that
- * coordinate when non-negative or raw {@code -extent - 1} as the public slice end sentinel.
- * Checked arithmetic guards the reconstruction.</p>
+ * cotangent, and extracts the stored finite coordinate sequence from {@code g} with
+ * {@code sliceByLength} for the update cotangent. This uses the exact recorded lengths for empty,
+ * positive-step, negative-step, and unresolved selected-base regions; it does not reconstruct a
+ * raw end. The target-relative form uses the exact target and prefix Shapes for placement or
+ * extraction.</p>
  *
  * <p>{@code SELECT} writes an axis-restored {@code g} into an exact typed zero, {@code PAD}
  * crops by the before-width prefix, and {@code TILE} interleaves repeat/input axes, sums the
  * repeat axes, then restores the input Shape. {@code CONCAT} crops each selected input from its
  * ordered symbolic prefix; {@code STACK} selects the corresponding inserted-axis coordinate.
- * Repeated input positions remain separate contributions for the reverse accumulator.</p>
+ * Repeated input positions remain separate contributions for the reverse accumulator.
+ * {@code UNFOLD_AXIS}/{@code FOLD_AXIS} and {@code UNFOLD2D}/{@code FOLD2D} use their exact public
+ * overlap-add or extraction counterpart; typed unfold padding remains scalar metadata and
+ * receives no cotangent.</p>
  */
 final class LayoutGradientRules {
     private LayoutGradientRules() {}
@@ -95,6 +106,12 @@ final class LayoutGradientRules {
             }
             return new Tensor[] {gradient.permute(inverse)};
         }
+        if (producer.operation().kind() == SliceKind.SLICE
+                && producer.operation().attrs() instanceof CropToShapeAttrs attrs) {
+            return new Tensor[] {
+                constants.zeroLike(input).sliceUpdate(gradient, attrs.prefixShape())
+            };
+        }
         if (producer.operation().kind() == SliceKind.SLICE) {
             SliceAttrs attrs = (SliceAttrs) producer.operation().attrs();
             return new Tensor[] {
@@ -104,6 +121,17 @@ final class LayoutGradientRules {
                         ints(attrs.axes()),
                         longs(attrs.steps()))
             };
+        }
+        if (producer.operation().kind() == SliceKind.SLICE_UPDATE
+                && producer.operation().attrs() instanceof CropToShapeAttrs attrs) {
+            Tensor update = producer.inputs().get(1);
+            Tensor baseGradient = selectedInputs[0]
+                    ? gradient.sliceUpdate(constants.zeroLike(update), attrs.prefixShape())
+                    : null;
+            Tensor updateGradient = selectedInputs[1]
+                    ? gradient.cropToShape(attrs.targetShape(), attrs.prefixShape())
+                    : null;
+            return new Tensor[] {baseGradient, updateGradient};
         }
         if (producer.operation().kind() == SliceKind.SLICE_UPDATE) {
             SliceAttrs attrs = (SliceAttrs) producer.operation().attrs();
@@ -116,9 +144,9 @@ final class LayoutGradientRules {
                             longs(attrs.steps()))
                     : null;
             Tensor updateGradient = selectedInputs[1]
-                    ? gradient.slice(
-                            rawStarts(attrs),
-                            rawEnds(attrs, input.descriptor().shape()),
+                    ? gradient.sliceByLength(
+                            longs(attrs.starts()),
+                            longs(attrs.lengths()),
                             ints(attrs.axes()),
                             longs(attrs.steps()))
                     : null;
@@ -126,12 +154,14 @@ final class LayoutGradientRules {
         }
         if (producer.operation().kind() == SelectKind.SELECT) {
             SelectAttrs attrs = (SelectAttrs) producer.operation().attrs();
+            Dimension[] prefix = new Dimension[input.descriptor().shape().rank()];
+            for (int axis = 0; axis < prefix.length; axis++) {
+                prefix[axis] = new StaticDimension(axis == attrs.axis() ? attrs.index() : 0);
+            }
             return new Tensor[] {
                 constants.zeroLike(input).sliceUpdate(
                         gradient.expandDims(attrs.axis()),
-                        new long[] {attrs.index()},
-                        new int[] {attrs.axis()},
-                        new long[] {1})
+                        Shape.ofDimensions(prefix))
             };
         }
         if (producer.operation().kind() == PadKind.PAD) {
@@ -176,6 +206,31 @@ final class LayoutGradientRules {
             }
             return result;
         }
+        if (producer.operation().kind() == WindowTransformKind.UNFOLD_AXIS) {
+            UnfoldAxisAttrs attrs = (UnfoldAxisAttrs) producer.operation().attrs();
+            long outputSize = ((StaticDimension)
+                            input.descriptor().shape().dimension(attrs.axis()))
+                    .size();
+            return new Tensor[] {gradient.foldAxis(attrs.axis(), outputSize, attrs.step())};
+        }
+        if (producer.operation().kind() == WindowTransformKind.FOLD_AXIS) {
+            FoldAxisAttrs attrs = (FoldAxisAttrs) producer.operation().attrs();
+            long windowSize = ((StaticDimension) input.descriptor()
+                            .shape()
+                            .dimension(input.descriptor().shape().rank() - 1))
+                    .size();
+            return new Tensor[] {gradient.unfold(attrs.axis(), windowSize, attrs.step())};
+        }
+        if (producer.operation().kind() == WindowTransformKind.UNFOLD2D) {
+            Window2dAttrs window = producer.operation().attrs() instanceof Unfold2dAttrs attrs
+                    ? attrs.window()
+                    : (Window2dAttrs) producer.operation().attrs();
+            return new Tensor[] {gradient.fold2d(input.descriptor().shape(), window)};
+        }
+        if (producer.operation().kind() == WindowTransformKind.FOLD2D) {
+            Fold2dAttrs attrs = (Fold2dAttrs) producer.operation().attrs();
+            return new Tensor[] {gradient.unfold2d(attrs.window())};
+        }
         throw new IllegalStateException(
                 "layout operation was not preflight-approved: " + producer.operation());
     }
@@ -204,62 +259,6 @@ final class LayoutGradientRules {
         return gradient.reshape(Shape.ofDimensions(interleaved))
                 .sum(repeatAxes, false)
                 .reshape(input.descriptor().shape());
-    }
-
-    /**
-     * Converts normalized slice starts to public slice-request starts.
-     *
-     * @param attrs non-null normalized immutable slice attributes
-     * @return a new array retaining each non-empty start and using canonical zero for an empty
-     *     coordinate sequence
-     */
-    private static long[] rawStarts(SliceAttrs attrs) {
-        long[] starts = new long[attrs.starts().size()];
-        for (int index = 0; index < starts.length; index++) {
-            starts[index] = attrs.lengths().get(index) == 0
-                    ? 0
-                    : attrs.starts().get(index);
-        }
-        return starts;
-    }
-
-    /**
-     * Reconstructs public exclusive ends for normalized finite slice coordinate sequences.
-     *
-     * @param attrs non-null normalized immutable slice attributes
-     * @param baseShape non-null base Shape whose selected Dimensions are statically resolved
-     * @return a new array of deterministic public slice-request exclusive ends
-     */
-    private static long[] rawEnds(SliceAttrs attrs, Shape baseShape) {
-        long[] ends = new long[attrs.starts().size()];
-        for (int index = 0; index < ends.length; index++) {
-            long length = attrs.lengths().get(index);
-            if (length == 0) {
-                ends[index] = 0;
-                continue;
-            }
-            long start = attrs.starts().get(index);
-            long step = attrs.steps().get(index);
-            long extent = ((StaticDimension) baseShape.dimension(
-                    attrs.axes().get(index))).size();
-            if (step > 0) {
-                try {
-                    long next = Math.addExact(start, Math.multiplyExact(length, step));
-                    ends[index] = Math.min(next, extent);
-                } catch (ArithmeticException exception) {
-                    ends[index] = extent;
-                }
-            } else {
-                long sentinel = Math.subtractExact(Math.negateExact(extent), 1);
-                try {
-                    long next = Math.addExact(start, Math.multiplyExact(length, step));
-                    ends[index] = next >= 0 ? next : sentinel;
-                } catch (ArithmeticException exception) {
-                    ends[index] = sentinel;
-                }
-            }
-        }
-        return ends;
     }
 
     /**

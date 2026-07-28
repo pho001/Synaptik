@@ -15,12 +15,17 @@ import java.util.Optional;
 /**
  * Constructs locally normalized, storage-free signed-step slice expressions for {@link Tensor}.
  *
- * <p>A request supplies four parallel arrays. At each entry, the raw axis and half-open bounds are
- * normalized against one statically known input dimension, the bounds are clamped for the step's
- * direction, and checked arithmetic calculates a selected length. Positive steps select while
- * the coordinate is below the exclusive end; negative steps select while it is above the end.
- * Unselected dimensions retain their exact immutable references, so rank and any unselected
- * dynamic symbols are preserved. Empty arrays describe an explicit identity slice.</p>
+ * <p>The raw-bound path normalizes one directional half-open interval against each selected static
+ * input Dimension and calculates its finite length. The length-defined path instead accepts
+ * already normalized non-negative starts and explicit finite lengths. It therefore accepts an
+ * unresolved selected Dimension after proving the first and final coordinates non-negative and
+ * defers only the upper bound against that unresolved extent. Neither path stores a deferred
+ * constraint object.</p>
+ *
+ * <p>Both paths normalize caller-facing axes once, require distinct axes and signed non-zero
+ * steps, preserve exact unselected Dimension references, and treat empty arrays as a fresh
+ * explicit identity slice. A zero-length entry stores canonical start zero because it selects no
+ * coordinate.</p>
  *
  * <p>For a non-empty result with resolved input geometry, construction advances the element
  * offset by each normalized start times the original input stride and multiplies selected strides
@@ -78,6 +83,65 @@ final class TensorSliceExpressions {
         Shape inputShape = inputDescriptor.shape();
         SliceAttrs attrs = normalize(
                 inputShape, privateStarts, privateEnds, privateAxes, privateSteps);
+        Shape resultShape = deriveShape(inputShape, attrs);
+        Optional<LayoutDescriptor> resultLayout =
+                resolveViewLayout(inputDescriptor, resultShape, attrs);
+        return create(input, inputDescriptor, resultShape, resultLayout, attrs);
+    }
+
+    /**
+     * Validates normalized starts and finite lengths, then creates a fresh slice expression.
+     *
+     * <p>The four caller-owned arrays are null-checked and length-checked before they are cloned
+     * once each in parameter order; no array is retained or mutated. Entries are checked in caller
+     * order: axis range, duplicate normalized axis, non-negative start, non-negative length,
+     * non-zero step, then coordinate fit. A non-empty entry uses checked
+     * {@code start + (length - 1) * step}; its first and final coordinates must be non-negative.
+     * Static selected extents are checked completely, while only the upper bound against an
+     * unresolved selected extent is deferred. A zero-length entry performs no coordinate-bound
+     * proof and stores canonical start zero.</p>
+     *
+     * <p>The result has static selected lengths and exact unaffected Dimension references.
+     * Resolved view layout is derived only for a non-empty result, resolved input geometry, and
+     * all-positive steps. Every failure precedes final derived creation and consumes no Tensor
+     * identifier; a success creates one fresh canonical output wrapper.</p>
+     *
+     * @param input non-null tensor retained as the exact sole provenance input; not mutated
+     * @param starts non-null caller-owned normalized non-negative inclusive starts; cloned and
+     *     never retained or mutated
+     * @param lengths non-null caller-owned finite non-negative coordinate counts; cloned and
+     *     never retained or mutated
+     * @param axes non-null caller-owned positive or negative axes; cloned and normalized once
+     * @param steps non-null caller-owned signed non-zero coordinate increments; cloned unchanged
+     * @return a non-null fresh canonical, unlabeled, storage-free SLICE tensor with static selected
+     *     lengths, exact input type and eligibility, and output-index-zero provenance
+     * @throws NullPointerException if a reference is null, checked in parameter order
+     * @throws IllegalArgumentException if lengths differ or an entry violates the local contract
+     * @throws ArithmeticException if checked coordinate, Shape, or layout arithmetic overflows
+     * @throws IllegalStateException if tensor identifier space is exhausted during final creation
+     */
+    static Tensor applyByLength(
+            Tensor input, long[] starts, long[] lengths, int[] axes, long[] steps) {
+        Objects.requireNonNull(input, "input");
+        Objects.requireNonNull(starts, "starts");
+        Objects.requireNonNull(lengths, "lengths");
+        Objects.requireNonNull(axes, "axes");
+        Objects.requireNonNull(steps, "steps");
+        if (starts.length != lengths.length
+                || starts.length != axes.length
+                || starts.length != steps.length) {
+            throw new IllegalArgumentException(
+                    "starts, lengths, axes, and steps must have matching lengths");
+        }
+
+        long[] privateStarts = starts.clone();
+        long[] privateLengths = lengths.clone();
+        int[] privateAxes = axes.clone();
+        long[] privateSteps = steps.clone();
+        TensorDescriptor inputDescriptor = input.descriptor();
+        Shape inputShape = inputDescriptor.shape();
+        SliceAttrs attrs = normalizeByLength(
+                inputShape, privateStarts, privateLengths, privateAxes, privateSteps);
         Shape resultShape = deriveShape(inputShape, attrs);
         Optional<LayoutDescriptor> resultLayout =
                 resolveViewLayout(inputDescriptor, resultShape, attrs);
@@ -249,6 +313,98 @@ final class TensorSliceExpressions {
             long start = normalizeBound(starts[index], dimensionSize, step, true);
             long end = normalizeBound(ends[index], dimensionSize, step, false);
             long length = sliceLength(start, end, step);
+            normalizedStarts.add(length == 0 ? 0L : start);
+            normalizedLengths.add(length);
+            normalizedAxes.add(axis);
+            normalizedSteps.add(step);
+        }
+        return new SliceAttrs(
+                normalizedStarts, normalizedLengths, normalizedAxes, normalizedSteps);
+    }
+
+    /**
+     * Normalizes axes and validates one private normalized-start, finite-length request.
+     *
+     * <p>Entries are processed in ascending caller index. Axis and duplicate checks precede
+     * start, length, step, and coordinate checks at the same entry. Non-empty coordinate
+     * arithmetic is exact. Zero length stores start zero and does not inspect the selected
+     * extent for bounds. One immutable attributes value is created only after every entry
+     * succeeds.</p>
+     *
+     * @param inputShape non-null exact input Shape used for rank and selected dimensions
+     * @param starts non-null private normalized non-negative starts with matching length
+     * @param lengths non-null private finite non-negative lengths with matching length
+     * @param axes non-null private raw positive or negative axes with matching length
+     * @param steps non-null private signed non-zero steps with matching length
+     * @return one non-null immutable normalized {@link SliceAttrs} value whose empty starts are
+     *     canonical zero
+     * @throws IllegalArgumentException if an entry violates axis, coordinate, or static-fit rules
+     * @throws ArithmeticException if final-coordinate arithmetic overflows
+     */
+    private static SliceAttrs normalizeByLength(
+            Shape inputShape, long[] starts, long[] lengths, int[] axes, long[] steps) {
+        int rank = inputShape.rank();
+        boolean[] seenAxes = new boolean[rank];
+        List<Long> normalizedStarts = new ArrayList<>(starts.length);
+        List<Long> normalizedLengths = new ArrayList<>(lengths.length);
+        List<Integer> normalizedAxes = new ArrayList<>(axes.length);
+        List<Long> normalizedSteps = new ArrayList<>(steps.length);
+        for (int index = 0; index < starts.length; index++) {
+            int rawAxis = axes[index];
+            long normalizedAxis = rawAxis;
+            if (normalizedAxis < 0) {
+                normalizedAxis += rank;
+            }
+            if (normalizedAxis < 0 || normalizedAxis >= rank) {
+                throw new IllegalArgumentException(
+                        "slice by length axis " + rawAxis + " at index " + index
+                                + " is outside rank " + rank);
+            }
+            int axis = (int) normalizedAxis;
+            if (seenAxes[axis]) {
+                throw new IllegalArgumentException(
+                        "slice by length contains duplicate normalized axis " + axis
+                                + " at index " + index);
+            }
+            seenAxes[axis] = true;
+
+            long start = starts[index];
+            if (start < 0) {
+                throw new IllegalArgumentException(
+                        "starts[" + index + "] must be non-negative: " + start);
+            }
+            long length = lengths[index];
+            if (length < 0) {
+                throw new IllegalArgumentException(
+                        "lengths[" + index + "] must be non-negative: " + length);
+            }
+            long step = steps[index];
+            if (step == 0) {
+                throw new IllegalArgumentException(
+                        "steps[" + index + "] must be non-zero: 0");
+            }
+
+            Dimension selectedDimension = inputShape.dimensions().get(axis);
+            if (length > 0) {
+                long last = Math.addExact(
+                        start,
+                        Math.multiplyExact(Math.subtractExact(length, 1L), step));
+                boolean outside = last < 0;
+                Object extent = selectedDimension;
+                if (selectedDimension instanceof StaticDimension staticDimension) {
+                    extent = staticDimension.size();
+                    outside = outside
+                            || start >= staticDimension.size()
+                            || last >= staticDimension.size();
+                }
+                if (outside) {
+                    throw new IllegalArgumentException(
+                            "slice by length coordinates at index " + index
+                                    + " do not fit input extent " + extent + ": start=" + start
+                                    + ", length=" + length + ", step=" + step);
+                }
+            }
+
             normalizedStarts.add(length == 0 ? 0L : start);
             normalizedLengths.add(length);
             normalizedAxes.add(axis);

@@ -19,13 +19,19 @@ import java.util.Optional;
  * coordinate tuples and must use exact {@link DataType#INT32} or {@link DataType#INT64}. A shared
  * batch prefix is the structurally equal leading Dimensions of data and indices. The final
  * indices Dimension is the statically known positive tuple depth, and updates must have the
- * indices prefix without tuple depth followed by the unindexed data suffix.</p>
+ * indices prefix without tuple depth followed by the unindexed data suffix. Each tuple position
+ * contributes that complete suffix slice scalar by scalar. A non-replacement reduction includes
+ * each target's base exactly once and every addressed scalar exactly once, including distinct
+ * contributions from duplicate tuples; an unaddressed coordinate preserves the exact base
+ * representation.</p>
  *
  * <p>Every fresh result retains exact data Shape/type, combines data/update gradient eligibility,
  * leaves layout unresolved, and records exact {@link ScatterNdKind#SCATTER_ND} semantics and
  * ordered provenance without a label or storage. This field-free helper never reads values,
  * checks bounds or duplicate targets, applies writes or reductions, mutates an input, defines
- * gradients or numeric order, captures a graph, selects a backend, or executes work.</p>
+ * derivatives or subgradients, captures a graph, selects a numerical algorithm or backend, or
+ * executes work. {@link ScatterReduction} fixes the portable represented-value target
+ * independently of encounter, layout, stride, atomic, tree, or backend order.</p>
  */
 final class TensorScatterNdExpressions {
     /** Prevents instantiation because Scatter-ND expression construction owns no state. */
@@ -73,7 +79,12 @@ final class TensorScatterNdExpressions {
      * indices rank, attributes, batch fit, batch prefix, tuple depth, and expected updates Shape
      * in that order before result identity allocation. For ranks {@code R}/{@code Q}, batch count
      * {@code B}, and tuple depth {@code K}, updates must equal
-     * {@code indices[0:Q-1] + data[B+K:R]}.</p>
+     * {@code indices[0:Q-1] + data[B+K:R]}. Each tuple contributes its complete suffix slice
+     * scalar by scalar. For a non-replacement reduction, every target includes its base exactly
+     * once and each addressed scalar exactly once; duplicate tuples remain distinct
+     * contributions, while unaddressed coordinates retain the exact base representation.
+     * {@link ScatterReduction} defines the floating and integral represented-value target.
+     * Construction reads no values.</p>
      *
      * @param data non-null base tensor retained as provenance input zero and never mutated
      * @param indices non-null INT32 or INT64 tuple tensor retained as provenance input one

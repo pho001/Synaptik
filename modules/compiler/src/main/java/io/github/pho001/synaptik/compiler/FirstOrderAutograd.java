@@ -7,6 +7,11 @@ import io.github.pho001.synaptik.model.operation.elementwise.cast.CastKind;
 import io.github.pho001.synaptik.model.operation.elementwise.scalar.ScalarElementwiseKind;
 import io.github.pho001.synaptik.model.operation.elementwise.selection.WhereSelectionKind;
 import io.github.pho001.synaptik.model.operation.elementwise.unary.UnaryElementwiseKind;
+import io.github.pho001.synaptik.model.operation.index.AxisGatherKind;
+import io.github.pho001.synaptik.model.operation.index.AxisScatterKind;
+import io.github.pho001.synaptik.model.operation.index.GatherNdKind;
+import io.github.pho001.synaptik.model.operation.index.ScatterNdKind;
+import io.github.pho001.synaptik.model.operation.index.SelectKind;
 import io.github.pho001.synaptik.model.operation.layout.AxisTransformKind;
 import io.github.pho001.synaptik.model.operation.layout.ContiguousKind;
 import io.github.pho001.synaptik.model.operation.layout.PadKind;
@@ -14,14 +19,17 @@ import io.github.pho001.synaptik.model.operation.layout.ShapeTransformKind;
 import io.github.pho001.synaptik.model.operation.layout.SliceKind;
 import io.github.pho001.synaptik.model.operation.layout.TensorCompositionKind;
 import io.github.pho001.synaptik.model.operation.layout.TileKind;
+import io.github.pho001.synaptik.model.operation.layout.WindowTransformKind;
 import io.github.pho001.synaptik.model.operation.linalg.MatmulKind;
 import io.github.pho001.synaptik.model.operation.normalization.BatchNormKind;
 import io.github.pho001.synaptik.model.operation.normalization.LayerNormKind;
 import io.github.pho001.synaptik.model.operation.normalization.RmsNormKind;
 import io.github.pho001.synaptik.model.operation.normalization.SoftmaxKind;
+import io.github.pho001.synaptik.model.operation.ordering.OrderingKind;
+import io.github.pho001.synaptik.model.operation.ordering.TopKKind;
+import io.github.pho001.synaptik.model.operation.random.DropoutKind;
 import io.github.pho001.synaptik.model.operation.reduction.AggregateReductionKind;
 import io.github.pho001.synaptik.model.operation.scan.CumulativeScanKind;
-import io.github.pho001.synaptik.model.operation.index.SelectKind;
 import io.github.pho001.synaptik.model.shape.Shape;
 import io.github.pho001.synaptik.model.tensor.Tensor;
 import io.github.pho001.synaptik.model.tensor.TensorDescriptor;
@@ -52,10 +60,14 @@ import java.util.Set;
  *
  * <p>Formula ownership remains split among {@link ElementwiseGradientRules},
  * {@link ReductionGradientRules}, {@link NormalizationGradientRules},
- * {@link LinearAlgebraGradientRules}, and {@link LayoutGradientRules}. This class dispatches only
- * preflight-approved occurrences and preserves every selected positional contribution,
- * including repeated MATMUL, slice-update, concat, stack, and batch-normalization output routes.
- * It does not absorb family formulas or infer support.</p>
+ * {@link LinearAlgebraGradientRules}, {@link LayoutGradientRules},
+ * {@link IndexingGradientRules}, {@link OrderingGradientRules}, and
+ * {@link StochasticGradientRules}. This class dispatches only preflight-approved occurrences and
+ * preserves every selected positional contribution, including repeated MATMUL, slice-update,
+ * composition, scatter, and batch-normalization output routes. Canonical TOP_K indices and the
+ * canonical dropout mask remain attached to their exact original producer; the sole matching
+ * ARGSORT and every other generated formula occurrence are handed to the combined capture as
+ * generated expressions. This class does not absorb family formulas or infer support.</p>
  *
  * <p>The returned Tensor roles and original-producer identities are an ephemeral handoff to one
  * combined capture. Generated logical-splat bindings, including extrema or clamp bounds needed
@@ -243,9 +255,23 @@ final class FirstOrderAutograd {
                 || kind == SelectKind.SELECT
                 || kind == PadKind.PAD
                 || kind == TileKind.TILE
-                || kind instanceof TensorCompositionKind) {
+                || kind instanceof TensorCompositionKind
+                || kind instanceof WindowTransformKind) {
             return LayoutGradientRules.apply(
                     producer, gradient, occurrence.selectedInputs(), constants);
+        }
+        if (kind instanceof AxisGatherKind
+                || kind instanceof GatherNdKind
+                || kind instanceof AxisScatterKind
+                || kind instanceof ScatterNdKind) {
+            return IndexingGradientRules.apply(
+                    producer, gradient, occurrence.selectedInputs(), constants);
+        }
+        if (kind == OrderingKind.SORT || kind instanceof TopKKind) {
+            return OrderingGradientRules.apply(producer, gradient, constants);
+        }
+        if (kind instanceof DropoutKind) {
+            return StochasticGradientRules.apply(producer, gradient, constants);
         }
         throw new IllegalStateException("operation was not preflight-approved: " + kind);
     }

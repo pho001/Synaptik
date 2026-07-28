@@ -14,7 +14,7 @@ Parallel work is not the default. It requires an explicit roadmap or master-plan
 
 | Order | Project area | Status | Entry condition | Exit condition |
 |---|---|---|---|---|
-| 1 | [`modules/model`](modules/model/master-plan.md) | Complete | Repository and planning infrastructure are ready. | The historical selected capability milestone remains closed and focused compiler prerequisites through task 0025B are complete. |
+| 1 | [`modules/model`](modules/model/master-plan.md) | Complete | Repository and planning infrastructure are ready. | The historical selected capability milestone remains closed and focused compiler prerequisites through task 0025D are complete. |
 | 2 | [`modules/trace`](modules/trace/master-plan.md) | In progress (interleaved) | Required model contracts are stable or confirmed unnecessary. | Typed trace DTO contracts and validation are complete. |
 | 3 | [`modules/backend-contract`](modules/backend-contract/master-plan.md) | Complete | Foundational value-model conventions and the stable trace foundation are complete. | Backend identity and declarative requirement contracts are complete. |
 | 4 | [`modules/config`](modules/config/master-plan.md) | In progress (interleaved) | Model and backend identity contracts required by configuration are stable. | Compile, prepare, run, planning-cost, and model-autotuning request contracts are complete where stable consumers justify them. |
@@ -39,7 +39,13 @@ The order above is the default delivery sequence, not a new dependency rule. All
 ## Current frontier
 
 The latest completed implementation task is
-[Compiler 0005B Reduction, scan, softmax, statistics, and normalization gradient completion](modules/compiler/tasks/0005b-reduction-scan-softmax-statistics-and-normalization-gradient-completion.md).
+[Compiler 0005C Layout, window, indexing, scatter, ordering, and stochastic gradient completion](modules/compiler/tasks/0005c-layout-window-indexing-scatter-ordering-and-stochastic-gradient-completion.md)
+with retained dynamic slice/window constraints, the complete assigned gradient matrix, and
+canonical ordering/dropout auxiliaries. Compiler 0005D–0005E and 0006 remain Draft without
+detailed specifications; no later compiler task is Ready.
+Its final compiler module run passed 25 suites and 177 tests with no failures, errors, or skips;
+the three new rule suites also passed after test-only combined-pipeline strengthening. The
+independent documentation pass finalized Javadocs, API/glossary status, and planning evidence.
 The preceding artifact task is
 [Compiler 0005 Publication, planning orchestration, and compile artifacts](modules/compiler/tasks/0005-publication-planning-orchestration-and-compile-artifacts.md).
 Its completed compiler prerequisites include
@@ -48,14 +54,14 @@ and
 [Compiler 0004A Exact-composition gradient-rule extensions](modules/compiler/tasks/0004a-exact-composition-gradient-rule-extensions.md).
 The immediately preceding compiler task is
 [Compiler 0004B Shared-algebra cotangent normalization and local derivative rules](modules/compiler/tasks/0004b-shared-algebra-cotangent-normalization-and-local-derivative-rules.md).
-Its latest completed model prerequisite frontier is
+The earlier completed Model producer prerequisite is
 [Model 0025 Canonical TensorProducer outputs](modules/model/tasks/0025-canonical-tensor-producer-outputs.md).
-The latest completed interleaved prerequisite is
+The completed floating-semantics prerequisite is
 [Model 0025A Portable floating comparison, extrema, and clamp semantics](modules/model/tasks/0025a-portable-floating-comparison-extrema-and-clamp-semantics.md).
 Compiler 0005A is Complete with the exact 48-kind source-backed elementwise/activation inventory,
 fixed derivative policies, exact coefficient bits, and request-local typed splats. Complete
 [Model 0025B Binding-aware expansion](modules/model/tasks/0025b-binding-aware-expansion.md)
-now supplies the binding-aware prerequisite for
+supplied the binding-aware prerequisite for
 [Compiler 0005B](modules/compiler/tasks/0005b-reduction-scan-softmax-statistics-and-normalization-gradient-completion.md).
 Compiler 0005B is Complete with binding-aware EXPAND inference/preflight, output-slot-aware
 accumulation, and its exact reduction/scan/softmax/statistics/norm/normalization matrix. The exact
@@ -96,13 +102,14 @@ the complete current model operation inventory before higher-order work:
 |---|---|---|---|
 | [0005A Derivative policy and elementwise/activation gradient completion](modules/compiler/tasks/0005a-derivative-policy-and-elementwise-activation-gradient-completion.md) | Complete | Model 0025A; Compiler 0005 | Completed the exact 48-kind binary/scalar arithmetic, selection/cast, unary, activation, comparison/logical/classification inventory with fixed tie, endpoint, discontinuity, domain, NaN, infinity, normalization, and non-differentiable-role policy. |
 | [0005B Reduction, scan, softmax, statistics, and normalization gradient completion](modules/compiler/tasks/0005b-reduction-scan-softmax-statistics-and-normalization-gradient-completion.md) | Complete | Model 0025B; 0005A | Adopted binding-aware EXPAND and completed binding-dependent sum-to-Shape, products, extrema, scans, softmax/log-softmax, statistics, norms, and layer/RMS/batch normalization, including saved batch-statistic outputs and non-differentiable mask/index roles. |
-| 0005C Layout, window, indexing, scatter, ordering, and stochastic gradient completion | Draft | 0005B | Complete dynamic layout/slice/composition/window rules, Gather/scatter variants, sort/top-K, and dropout while preserving non-differentiable coordinates, indices, one-hot/BOOL outputs, RNG state, masks, and configuration roles. |
+| [0005C Layout, window, indexing, scatter, ordering, and stochastic gradient completion](modules/compiler/tasks/0005c-layout-window-indexing-scatter-ordering-and-stochastic-gradient-completion.md) | Complete | Models 0025C–0025D; 0005B | Completed dynamic layout/slice/composition/window rules, including retained dynamic extraction and target-relative placement obligations, Gather/scatter variants with fixed duplicate/zero/tie policies, exact sort/top-K routing, and dropout through canonical auxiliaries while preserving non-differentiable coordinates, indices, one-hot/BOOL outputs, RNG state, masks, and configuration roles. |
 | 0005D Attention, convolution, pooling, and loss gradient completion | Draft | 0005B, 0005C | Verify the implemented MATMUL/linear chain and complete attention, grouped convolution, pooling, and every current loss role and reduction mode with required same-occurrence auxiliaries and explicit special-case policies. |
 | 0005E First-order gradient coverage closure checkpoint | Draft | 0005A, 0005B, 0005C, 0005D | Audit every current operation signature, output slot, and input role; prove fail-closed coverage and transitive differentiability of formula operations; run the first-order checkpoint. |
 | 0006 Explicit functional gradient requests and higher-order differentiation | Draft | 0005E and a stable public compile/artifact boundary | Add explicit objectives, targets, seeds, create-graph/order, disconnected-result behavior, and phase/order representation only after first-order closure. |
 
-Compiler 0005A and 0005B are Complete. Compiler 0005C–0005E and 0006 remain Draft without
-detailed task specifications, and no later compiler row is Ready. Family tasks
+Compiler 0005A–0005C and Model prerequisites 0025C–0025D are Complete. Compiler 0005D–0005E and
+0006 remain Draft without detailed task specifications; no later compiler task is Ready. Family
+tasks
 must not claim that every operation role has a gradient: BOOL, index, random-number-generator
 (RNG) state, mask, and configuration roles remain intentionally non-differentiable where
 applicable. Each compiler task must explicitly choose its required tie, subgradient,
@@ -112,6 +119,16 @@ Complete Model 0025B similarly broadens only existing EXPAND construction: unres
 retain exact target Shape and the later source-one-or-source-equal obligation with unresolved
 layout. It adds no compiler predicate or binding behavior. Complete Compiler 0005B owns that
 adoption through its detailed task file.
+Complete Model 0025C similarly fixes only the forward represented-value grouping and MUL/MIN/MAX
+meaning for configurable Scatter Elements and Scatter-ND. It does not choose a derivative.
+Complete Model 0025D similarly adds only finite length-defined extraction across unresolved selected
+extents and target-relative symbolic slice placement through existing slice kinds and attributes.
+Complete Compiler 0005C owns retained-constraint inference/proof, preflight, and gradients.
+Compiler 0005C constructs one separate stable ARGSORT Tensor occurrence with the exact
+same input, normalized axis, and direction as a one-output SORT occurrence, then use that ordinary
+expression in the backward formula. This is not a hidden SORT output or public API change.
+Preflight must fail closed before partial backward construction if the exact SORT/ARGSORT
+signatures or attributes cannot be matched.
 Completed Compiler 0004–0004B matrices remain the implemented baseline and must be preserved,
 not replanned as missing work.
 Dynamic and binding-dependent rules remain logical compile work, and canonical same-occurrence
@@ -224,8 +241,10 @@ and their shared semantics.
 Complete Compiler 0005 retains compile artifacts and Compiler-owned publication/planning
 orchestration through its implementation. Complete Model 0025A fixes the shared floating
 comparison/extrema/clamp forward contract consumed unchanged by complete Compiler 0005A. Complete
-Compiler 0005B and Draft Compiler 0005C–0005E continue the current-inventory first-order
-milestone in dependency order, with Complete Model 0025B supplying the 0005B prerequisite.
+Compiler 0005B–0005C and Draft Compiler 0005D–0005E continue the current-inventory first-order
+milestone in dependency order, with Complete Model 0025B supplying the 0005B prerequisite and
+Complete Models 0025C–0025D supplying the forward-scatter and dynamic-slice
+prerequisites for 0005C.
 Compiler 0006 retains
 an explicit higher-derivative create-graph/order contract, remains Draft without a detailed
 specification, and now depends on the completed 0005E closure checkpoint rather than only on the
@@ -315,10 +334,11 @@ autograd, and that task is now Complete. The subsequent reassessment selected on
 0025 before compiler work resumed, and that task is Complete. Compiler 0004, 0004A, and 0004B are
 now Complete; none advances cost, tuning, or downstream lifecycle work. Compiler 0005 is Complete.
 The preceding reassessment selected and completed only Model 0025A before compiler gradient
-planning resumed, and Compiler 0005A is now Complete. The latest reassessment selected and
-completed Model 0025B as the prerequisite for the next compiler frontier. Compiler 0005B is now
-Complete; 0005C–0005E and 0006 remain Draft without detailed specifications, and no later compiler
-row is Ready.
+planning resumed, and Compiler 0005A is now Complete. The next reassessment selected and completed
+Model 0025B, and Compiler 0005B is now Complete. The latest reassessment selected and completed
+only Model 0025C as the forward-scatter prerequisite, then selected and completed only Model 0025D
+as the remaining dynamic-slice prerequisite. Compiler 0005C is Complete. Compiler 0005D–0005E
+and 0006 remain Draft without detailed specifications; no later compiler task is Ready.
 Compiler 0004 owns combined exact cleanup before 0005 partitioning/orchestration; the new
 first-order milestone follows 0005, and 0006 waits for both the stable public compile/artifact
 boundary and the completed 0005E closure checkpoint.
@@ -357,12 +377,19 @@ is Complete. Complete
 [Model 0025B](modules/model/tasks/0025b-binding-aware-expansion.md) supplies the model prerequisite
 for
 [Compiler 0005B](modules/compiler/tasks/0005b-reduction-scan-softmax-statistics-and-normalization-gradient-completion.md),
-which is Complete. Compiler 0005C–0005E and 0006 remain Draft without detailed specifications,
-and no later compiler task is Ready. Compiler
+which is Complete. Complete
+[Model 0025C](modules/model/tasks/0025c-portable-functional-scatter-reduction-semantics.md)
+supplies the forward-scatter prerequisite for Complete Compiler 0005C. Complete
+[Model 0025D](modules/model/tasks/0025d-dynamic-extent-slice-extraction-and-symbolic-slice-placement.md)
+supplies its remaining dynamic-slice construction prerequisite. Detailed
+[Compiler 0005C](modules/compiler/tasks/0005c-layout-window-indexing-scatter-ordering-and-stochastic-gradient-completion.md)
+is Complete. Compiler 0005D–0005E and 0006 remain Draft without detailed specifications; no later
+compiler task is Ready. Compiler
 0004 owns combined exact
-cleanup before 0005 partitioning/orchestration; 0005A follows completed Model 0025A and Compiler 0005,
-0005B follows completed Model 0025B and Compiler 0005A, 0005C–0005E follow in order, and 0006
-follows the 0005E first-order closure checkpoint plus the stable public compile/artifact boundary.
+cleanup before 0005 partitioning/orchestration; 0005A follows completed Model 0025A and Compiler
+0005, 0005B follows completed Model 0025B and Compiler 0005A, 0005C follows completed Model 0025C,
+completed Model 0025D, and Compiler 0005B, 0005D–0005E follow in order, and 0006 follows the 0005E
+first-order closure checkpoint plus the stable public compile/artifact boundary.
 No compiler task consumes or advances Config 0004.
 
 Trace tasks
@@ -532,6 +559,13 @@ Complete task 0025B is a third bounded interleave that broadens only existing EX
 for binding-dependent compatibility before Compiler 0005B; it did not itself add compiler
 constraints, gradient behavior, lowering, or execution and does not change the historical
 capability verdict. Compiler 0005B subsequently adopted that prerequisite.
+Complete task 0025C is a fourth bounded interleave that completes only configurable Scatter Elements
+and Scatter-ND MUL/MIN/MAX forward represented-value semantics before Compiler 0005C. It does not
+change the historical capability verdict, execute values, or select a derivative.
+Complete task 0025D is a fifth bounded interleave that adds only finite length-defined slice
+extraction across unresolved selected extents and target-relative symbolic slice placement before
+Compiler 0005C. It does not change the historical capability verdict or add binding, compiler,
+lowering, execution, or derivative behavior.
 Task 0023B's focused 15-suite run passed 124 tests, its single final model suite passed 981 tests
 across 125 suites, and the separate documentation pass validated model Javadoc, the executable
 example, Markdown, exact 26-path scope, the 190-method public Tensor surface, and synchronized
@@ -1174,6 +1208,8 @@ authorized Compile API status correction.
 | 123 | [0025 Canonical TensorProducer outputs](modules/model/tasks/0025-canonical-tensor-producer-outputs.md) | Complete |
 | 124 | [0025A Portable floating comparison, extrema, and clamp semantics](modules/model/tasks/0025a-portable-floating-comparison-extrema-and-clamp-semantics.md) | Complete |
 | 125 | [0025B Binding-aware expansion](modules/model/tasks/0025b-binding-aware-expansion.md) | Complete |
+| 126 | [0025C Portable functional-scatter reduction semantics](modules/model/tasks/0025c-portable-functional-scatter-reduction-semantics.md) | Complete |
+| 127 | [0025D Dynamic-extent slice extraction and symbolic slice placement](modules/model/tasks/0025d-dynamic-extent-slice-extraction-and-symbolic-slice-placement.md) | Complete |
 
 Task dependencies in the model master plan remain hard prerequisites. The table order is the default execution order even when a later task has no explicit dependency on an earlier task.
 
@@ -1238,6 +1274,13 @@ comparison/extrema/clamp forward-contract prerequisite for Compiler 0005A withou
 historical closure result or selecting derivatives.
 Focused task 0025B is Complete. It supplies the binding-aware EXPAND expression prerequisite for
 Compiler 0005B without adding compiler behavior or altering the historical closure result.
+Focused task 0025C is Complete. It supplies the configurable functional-scatter forward-semantics
+prerequisite for Compiler 0005C without adding evaluation, backend behavior, or derivative policy.
+Focused task 0025D is Complete and is the latest detailed Model task. It supplies the remaining
+dynamic-slice construction prerequisite for Compiler 0005C without adding compiler constraints,
+gradients, lowering, execution, or backend behavior. Compiler 0005C is Complete; Compiler
+0005D–0005E and 0006 remain Draft without detailed specifications, and no later compiler task is
+Ready.
 Completed task 0016E originally added fixed-INT64 one-axis arg-max expression metadata without
 changing the ordinary reduction helper or adding value comparison, empty-axis policy, or
 execution. Completed task 0018U1 now supplies the shared arg-extrema model policy and integral

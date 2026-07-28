@@ -54,7 +54,7 @@ class TensorLayerNormExpressionTest {
                 () -> assertTrue(entries.stream().allMatch(method ->
                         method.getName().equals("apply")
                                 && Modifier.isStatic(method.getModifiers()))),
-                () -> assertEquals(200, Arrays.stream(Tensor.class.getDeclaredMethods())
+                () -> assertEquals(202, Arrays.stream(Tensor.class.getDeclaredMethods())
                         .filter(method -> Modifier.isPublic(method.getModifiers())).count()));
     }
 
