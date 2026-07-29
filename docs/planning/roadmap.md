@@ -39,14 +39,16 @@ The order above is the default delivery sequence, not a new dependency rule. All
 ## Current frontier
 
 The latest completed implementation task is
-[Compiler 0005E First-order gradient coverage closure checkpoint](modules/compiler/tasks/0005e-first-order-gradient-coverage-closure-checkpoint.md).
-Its package-private checker closes the compiled-production 37-family, 107-kind, 128-signature
-role inventory with exact `D`/`ND`/`FC`, family-owner, ranged-cardinality, fail-closed, and
-Tensor-ID evidence. A bounded 22-case cross-family expansion probe classified 64 generated edge
-fingerprints, completed 10 connected nested passes, and identity-proved 12 disconnected skips.
-The replacement focused command passed 43 tests, the full Compiler module passed 29 suites/194
-tests, and the repository/architecture checkpoint passed. Compiler 0006 remains Draft without a
-detailed specification; no later compiler task is Ready.
+[Compiler 0006 Explicit functional gradient requests and higher-order differentiation](modules/compiler/tasks/0006-explicit-functional-gradient-requests-and-higher-order-differentiation.md)
+is Complete with a bounded functional one/two-stage request, ordered
+`GradientPublicationBinding` values, derivative-order metadata, and the final
+`ForwardPublicationBinding` terminology correction. Its focused correction command passed 35
+tests, and the single final affected-module command passed Model 127 suites/1,031 tests plus
+Compiler 31 suites/208 tests with no skips, failures, or errors. No later compiler task has a
+detailed specification. The preceding
+[Compiler 0005E First-order gradient coverage closure checkpoint](modules/compiler/tasks/0005e-first-order-gradient-coverage-closure-checkpoint.md)
+closed the compiled-production 37-family, 107-kind, 128-signature role inventory with exact
+`D`/`ND`/`FC`, family-owner, ranged-cardinality, fail-closed, and Tensor-ID evidence.
 The final focused seven-suite 0005D command passed. After the MSE negative-coefficient expression
 order was corrected, the replacement full compiler-module run passed 28 suites and 189 tests with
 no failures, errors, or skips. No executable Java changed afterward. The separate clean
@@ -73,7 +75,8 @@ Compiler 0005B is Complete with binding-aware EXPAND inference/preflight, output
 accumulation, and its exact reduction/scan/softmax/statistics/norm/normalization matrix. The exact
 eighteen-path change passed 22 compiler suites/170 tests with no skips, failures, or errors plus
 its independent Javadoc, Markdown, surface, scope, and status gates. Compiler 0005E is Complete;
-Compiler 0006 remains Draft without a detailed specification.
+detailed Compiler 0006 is Complete with distinct `ForwardPublicationBinding` and
+`GradientPublicationBinding` terminology and unchanged publication semantics.
 The exact fifteen-path 0005A change passed 22 compiler suites/159 tests with no skips, failures,
 or errors plus its independent Javadoc and documentation gates.
 Compiler 0004B's closed matrix covers mixed-floating cotangent Shape/DataType
@@ -111,10 +114,10 @@ the complete current model operation inventory before higher-order work:
 | [0005C Layout, window, indexing, scatter, ordering, and stochastic gradient completion](modules/compiler/tasks/0005c-layout-window-indexing-scatter-ordering-and-stochastic-gradient-completion.md) | Complete | Models 0025C–0025D; 0005B | Completed dynamic layout/slice/composition/window rules, including retained dynamic extraction and target-relative placement obligations, Gather/scatter variants with fixed duplicate/zero/tie policies, exact sort/top-K routing, and dropout through canonical auxiliaries while preserving non-differentiable coordinates, indices, one-hot/BOOL outputs, RNG state, masks, and configuration roles. |
 | [0005D Attention, convolution, pooling, and loss gradient completion](modules/compiler/tasks/0005d-attention-convolution-pooling-and-loss-gradient-completion.md) | Complete | 0005B, 0005C | Verified the implemented MATMUL/linear chain and completed two-output attention, grouped convolution, pooling, and every representable current loss role/reduction mode; one-output attention and dynamic/zero-depth index loss fail closed. |
 | [0005E First-order gradient coverage closure checkpoint](modules/compiler/tasks/0005e-first-order-gradient-coverage-closure-checkpoint.md) | Complete | 0005A, 0005B, 0005C, 0005D | Added one package-private checker; closed all current 37 kind families, 107 constants, 128 signature variants, legal output slots, and ordered input roles; and proved fail-closed/Tensor-ID plus bounded transitive and connected nested-pass formula closure at the first-order checkpoint. |
-| 0006 Explicit functional gradient requests and higher-order differentiation | Draft | 0005E and a stable public compile/artifact boundary | Add explicit objectives, targets, seeds, create-graph/order, disconnected-result behavior, and phase/order representation only after first-order closure. |
+| [0006 Explicit functional gradient requests and higher-order differentiation](modules/compiler/tasks/0006-explicit-functional-gradient-requests-and-higher-order-differentiation.md) | Complete | 0005E and the stable public compile/artifact boundary from 0005 | Added one immutable one/two-stage functional request, explicit/default seeds, ERROR/ZERO disconnected behavior, ordered `GradientPublicationBinding` values, and compiler-owned derivative-order metadata over the closed formula matrix without Tensor gradient state or another compile facade. |
 
-Compiler 0005A–0005E and Model prerequisites 0025C–0025D are Complete. Compiler 0006 remains
-Draft without a detailed task specification; no later compiler task is Ready. Family tasks
+Compiler 0005A–0005E, Model prerequisites 0025C–0025D, and detailed Compiler 0006 are Complete.
+No later compiler task has a detailed specification. Family tasks
 must not claim that every operation role has a gradient: BOOL, index, random-number-generator
 (RNG) state, mask, and configuration roles remain intentionally non-differentiable where
 applicable. Each compiler task must explicitly choose its required tie, subgradient,
@@ -202,11 +205,12 @@ occurrences as `FORWARD` and generated derivative occurrences as `BACKWARD`. Dis
 gradient targets may intentionally share one captured `ValueId`, while the final graph-output
 boundary lists each distinct output value once.
 
-The package-private 0004 frontier accepts one scalar floating objective among the requested
-forward outputs, an ordered non-empty identity-unique target list, and one implicit exact typed
-rank-zero unit seed. `FORWARD_ONLY` requires no gradient request.
-`FORWARD_AND_BACKWARD` and the initial `TRAINING_STEP` require the same first-order request and
-perform identical combined construction; `TRAINING_STEP` adds no optimizer update.
+The completed 0006 frontier accepts one public immutable one/two-stage functional request with
+exact forward/stage-one references, aligned explicit or scalar-default cotangent seeds,
+identity-unique targets from the original forward inventory, and ERROR/ZERO disconnected policy.
+`FORWARD_ONLY` requires no gradient request. `FORWARD_AND_BACKWARD` and the initial
+`TRAINING_STEP` require the same functional request and perform identical combined construction;
+`TRAINING_STEP` adds no optimizer update.
 
 The current general package-private entry owner is `GraphCompiler`; its exact parameter list
 remains direct and has no request aggregate. It returns mode-neutral `GraphCompilation`.
@@ -249,10 +253,13 @@ comparison/extrema/clamp forward contract consumed unchanged by complete Compile
 Complete Compiler 0005B–0005E close the current-inventory first-order milestone in dependency
 order, with Complete Model 0025B supplying the 0005B prerequisite and Complete Models
 0025C–0025D supplying the forward-scatter and dynamic-slice prerequisites for 0005C.
-Compiler 0006 retains
-an explicit higher-derivative create-graph/order contract, remains Draft without a detailed
-specification, and now depends on completion of the 0005E closure checkpoint rather than only on
-the artifact boundary.
+Detailed Compiler 0006 now fixes the explicit one/two-stage functional request,
+create-graph/order, seeds, disconnected policy, results, and derivative-order artifact contract.
+It is Complete after the 0005E closure checkpoint and 0005 artifact boundary. The approved final
+terminology correction renamed the Model forward binding to `ForwardPublicationBinding`, named
+the Compiler result association `GradientPublicationBinding`, and left behavior unchanged. Its
+focused correction command passed 35 tests; the single final affected-module command passed Model
+127 suites/1,031 tests and Compiler 31 suites/208 tests without skips, failures, or errors.
 Compiler 0004B's module validation, independent documentation pass, and compiler
 transformation/autograd capability checkpoint all passed; the checkpoint covered 167 suites and
 1,275 tests with no skipped tests, failures, or errors.
@@ -275,8 +282,9 @@ producing partition, distinct consuming partitions, and graph-output obligation.
 express partition inputs/outputs, same-owner and cross-owner boundaries, graph-output
 preservation, and partition-internal values without physical memory or transfer decisions.
 
-Planning 0005 adds no public orchestration, `PublicationBinding` input, cost quantity, physical
-size, lifetime, slot, allocation, transfer, copy, device, route, schedule, or runtime state.
+Planning 0005 adds no public orchestration, `ForwardPublicationBinding` or
+`GradientPublicationBinding` input, cost quantity, physical size, lifetime, slot, allocation,
+transfer, copy, device, route, schedule, or runtime state.
 [Planning 0006](modules/planning/tasks/0006-planning-contract-closure-audit.md) is now Complete.
 Its clean documentation-focused
 [planning contract closure audit](modules/planning/planning-contract-closure-audit.md) records a
@@ -319,10 +327,10 @@ Planning 0005 uses only the closed graph and ordered partition recipes. It valid
 graph-order coverage and maximal owner runs before deriving values. It keeps dynamic and
 expression Shapes representable by retaining `TensorDescriptor`; it adds no eager element or
 byte count, lifetime, slot, allocation, transfer, copy, device, route, schedule, or residency.
-`PublicationBinding` is not a Planning input. Compiler 0005 places it in the compiler-owned
-`PublicationPlan`; `graph.outputs()` supplied only logical preservation at the earlier Planning
-frontier. Planning 0006 is Complete with the selected planning milestone, and Compiler 0005 now
-supplies the concrete orchestration consumer.
+`ForwardPublicationBinding` and `GradientPublicationBinding` are not Planning inputs. Compiler
+places them in the compiler-owned `PublicationPlan`; `graph.outputs()` supplied only logical
+preservation at the earlier Planning frontier. Planning 0006 is Complete with the selected
+planning milestone, and Compiler 0005 now supplies the concrete orchestration consumer.
 
 The performance follow-up remains Draft-only at its actual future owners. Compiler and planning
 own complete valid graph and ownership candidates; shared prepare owns a future opaque
@@ -342,8 +350,8 @@ planning resumed, and Compiler 0005A is now Complete. The next reassessment sele
 Model 0025B, and Compiler 0005B is now Complete. The latest reassessment selected and completed
 only Model 0025C as the forward-scatter prerequisite, then selected and completed only Model 0025D
 as the remaining dynamic-slice prerequisite. Compiler 0005C and detailed Compiler 0005D are
-Complete; detailed Compiler 0005E is also Complete. Compiler 0006 remains Draft without a
-detailed specification, and no later compiler task is Ready.
+Complete; detailed Compiler 0005E is also Complete. Detailed Compiler 0006 is Complete, and no later
+compiler task has a detailed specification.
 Compiler 0004 owns combined exact cleanup before 0005 partitioning/orchestration; the new
 first-order milestone follows 0005, and 0006 waits for both the stable public compile/artifact
 boundary and completion of the 0005E closure checkpoint.
@@ -392,8 +400,9 @@ is Complete. Detailed
 [Compiler 0005D](modules/compiler/tasks/0005d-attention-convolution-pooling-and-loss-gradient-completion.md)
 is Complete. Detailed
 [Compiler 0005E](modules/compiler/tasks/0005e-first-order-gradient-coverage-closure-checkpoint.md)
-is also Complete. Compiler 0006 remains Draft without a detailed specification; no later compiler
-task is Ready. Compiler
+is also Complete. Detailed
+[Compiler 0006](modules/compiler/tasks/0006-explicit-functional-gradient-requests-and-higher-order-differentiation.md)
+is Complete; no later compiler task has a detailed specification. Compiler
 0004 owns combined exact
 cleanup before 0005 partitioning/orchestration; 0005A follows completed Model 0025A and Compiler
 0005, 0005B follows completed Model 0025B and Compiler 0005A, 0005C follows completed Model 0025C,
@@ -1288,8 +1297,8 @@ prerequisite for Compiler 0005C without adding evaluation, backend behavior, or 
 Focused task 0025D is Complete and is the latest detailed Model task. It supplies the remaining
 dynamic-slice construction prerequisite for Compiler 0005C without adding compiler constraints,
 gradients, lowering, execution, or backend behavior. Compiler 0005C and detailed Compiler 0005D
-are Complete; detailed Compiler 0005E is also Complete. Compiler 0006 remains Draft without a
-detailed specification, and no later compiler task is Ready.
+are Complete; detailed Compiler 0005E is also Complete. Detailed Compiler 0006 is Complete, and no
+later compiler task has a detailed specification.
 Completed task 0016E originally added fixed-INT64 one-axis arg-max expression metadata without
 changing the ordinary reduction helper or adding value comparison, empty-axis policy, or
 execution. Completed task 0018U1 now supplies the shared arg-extrema model policy and integral

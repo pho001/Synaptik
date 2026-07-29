@@ -619,10 +619,10 @@ final class GradientRulesTest {
         Tensor target = tensor(Shape.of(2, 1));
         Tensor right = tensor(Shape.of(2, 3));
         Tensor objective = target.mul(right).sum();
-        AutogradPreflight.Plan plan = AutogradPreflight.preflight(
+        AutogradPreflight.StagePlan plan = AutogradPreflight.preflight(
                 CompileMode.FORWARD_AND_BACKWARD,
                 List.of(objective),
-                new AutogradPreflight.FirstOrderRequest(objective, List.of(target)),
+                FunctionalGradientTestSupport.stage(objective, List.of(target)),
                 CompileTimeConstantGraph.Ingress.empty());
 
         FirstOrderAutograd.Expansion expansion =
@@ -642,10 +642,10 @@ final class GradientRulesTest {
     void selectedReductionAndLayoutRulesRestoreTheExactInputShape() {
         Tensor target = tensor(Shape.of(2, 3));
         Tensor objective = target.permute(1, 0).sum(0).sum();
-        AutogradPreflight.Plan plan = AutogradPreflight.preflight(
+        AutogradPreflight.StagePlan plan = AutogradPreflight.preflight(
                 CompileMode.FORWARD_AND_BACKWARD,
                 List.of(objective),
-                new AutogradPreflight.FirstOrderRequest(objective, List.of(target)),
+                FunctionalGradientTestSupport.stage(objective, List.of(target)),
                 CompileTimeConstantGraph.Ingress.empty());
 
         Tensor gradient = FirstOrderAutograd.expand(
@@ -792,7 +792,7 @@ final class GradientRulesTest {
         GraphCompilation result = GraphCompiler.compile(
                 CompileMode.FORWARD_AND_BACKWARD,
                 List.of(objective),
-                Optional.of(new AutogradPreflight.FirstOrderRequest(
+                Optional.of(FunctionalGradientTestSupport.request(
                         objective, List.of(target))),
                 CompileTimeConstantGraph.Ingress.empty(),
                 GraphOptimizationConfig.disabled());
@@ -804,10 +804,10 @@ final class GradientRulesTest {
     }
 
     private static FirstOrderAutograd.Expansion expansion(Tensor objective, Tensor target) {
-        AutogradPreflight.Plan plan = AutogradPreflight.preflight(
+        AutogradPreflight.StagePlan plan = AutogradPreflight.preflight(
                 CompileMode.FORWARD_AND_BACKWARD,
                 List.of(objective),
-                new AutogradPreflight.FirstOrderRequest(objective, List.of(target)),
+                FunctionalGradientTestSupport.stage(objective, List.of(target)),
                 CompileTimeConstantGraph.Ingress.empty());
         return FirstOrderAutograd.expand(
                 plan, CompileTimeConstantGraph.Ingress.empty());

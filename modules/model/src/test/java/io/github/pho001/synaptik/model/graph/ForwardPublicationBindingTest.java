@@ -13,16 +13,16 @@ import java.util.Arrays;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 
-class PublicationBindingTest {
+class ForwardPublicationBindingTest {
     @Test
     void hasExactlyTheRequiredTwoComponentRecordState() {
-        var components = PublicationBinding.class.getRecordComponents();
-        var instanceFields = Arrays.stream(PublicationBinding.class.getDeclaredFields())
+        var components = ForwardPublicationBinding.class.getRecordComponents();
+        var instanceFields = Arrays.stream(ForwardPublicationBinding.class.getDeclaredFields())
                 .filter(field -> !Modifier.isStatic(field.getModifiers()))
                 .toList();
 
         assertAll(
-                () -> assertTrue(PublicationBinding.class.isRecord()),
+                () -> assertTrue(ForwardPublicationBinding.class.isRecord()),
                 () -> assertEquals(2, components.length),
                 () -> assertEquals("tensorId", components[0].getName()),
                 () -> assertEquals(TensorId.class, components[0].getType()),
@@ -34,7 +34,8 @@ class PublicationBindingTest {
                 () -> assertTrue(instanceFields.stream().allMatch(
                         field -> Modifier.isPrivate(field.getModifiers())
                                 && Modifier.isFinal(field.getModifiers()))),
-                () -> assertEquals(1, PublicationBinding.class.getDeclaredConstructors().length));
+                () -> assertEquals(
+                        1, ForwardPublicationBinding.class.getDeclaredConstructors().length));
     }
 
     @Test
@@ -42,7 +43,7 @@ class PublicationBindingTest {
         TensorId tensorId = new TensorId(7);
         ValueId valueId = new ValueId(11);
 
-        PublicationBinding binding = new PublicationBinding(tensorId, valueId);
+        ForwardPublicationBinding binding = new ForwardPublicationBinding(tensorId, valueId);
 
         assertAll(
                 () -> assertSame(tensorId, binding.tensorId()),
@@ -54,10 +55,10 @@ class PublicationBindingTest {
     void rejectsNullComponentsInDeclarationOrderWithExactMessages() {
         NullPointerException nullTensorId = assertThrows(
                 NullPointerException.class,
-                () -> new PublicationBinding(null, null));
+                () -> new ForwardPublicationBinding(null, null));
         NullPointerException nullValueId = assertThrows(
                 NullPointerException.class,
-                () -> new PublicationBinding(new TensorId(1), null));
+                () -> new ForwardPublicationBinding(new TensorId(1), null));
 
         assertAll(
                 () -> assertEquals("tensorId", nullTensorId.getMessage()),
@@ -66,12 +67,14 @@ class PublicationBindingTest {
 
     @Test
     void usesStructuralRecordEqualityHashingAndDiagnosticText() {
-        PublicationBinding first = new PublicationBinding(new TensorId(1), new ValueId(2));
-        PublicationBinding equal = new PublicationBinding(new TensorId(1), new ValueId(2));
-        PublicationBinding differentTensor =
-                new PublicationBinding(new TensorId(3), new ValueId(2));
-        PublicationBinding differentValue =
-                new PublicationBinding(new TensorId(1), new ValueId(4));
+        ForwardPublicationBinding first =
+                new ForwardPublicationBinding(new TensorId(1), new ValueId(2));
+        ForwardPublicationBinding equal =
+                new ForwardPublicationBinding(new TensorId(1), new ValueId(2));
+        ForwardPublicationBinding differentTensor =
+                new ForwardPublicationBinding(new TensorId(3), new ValueId(2));
+        ForwardPublicationBinding differentValue =
+                new ForwardPublicationBinding(new TensorId(1), new ValueId(4));
         String text = first.toString();
 
         assertAll(
@@ -79,7 +82,7 @@ class PublicationBindingTest {
                 () -> assertEquals(first.hashCode(), equal.hashCode()),
                 () -> assertNotEquals(first, differentTensor),
                 () -> assertNotEquals(first, differentValue),
-                () -> assertTrue(text.contains("PublicationBinding")),
+                () -> assertTrue(text.contains("ForwardPublicationBinding")),
                 () -> assertTrue(text.contains("tensorId=")),
                 () -> assertTrue(text.contains("TensorId[value=1]")),
                 () -> assertTrue(text.contains("valueId=")),

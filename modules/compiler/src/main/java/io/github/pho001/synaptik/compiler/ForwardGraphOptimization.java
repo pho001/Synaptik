@@ -12,7 +12,8 @@ import java.util.Objects;
  * forward/backward. Canonicalization always rebuilds graph-local identifiers densely and is then
  * validated. When optional optimization is enabled, the pipeline performs one guarded
  * seven-rule exact arithmetic scan, one exact logical-splat fold scan, whole-graph sidecar-aware
- * dead-code elimination (DCE), exact phase-local common-subexpression elimination (CSE), and one
+ * dead-code elimination (DCE), exact phase- and derivative-order-local common-subexpression
+ * elimination (CSE), and one
  * whole-graph sidecar-aware cleanup DCE, once each in that order. Compiler verification is
  * repeated only after a helper returns a changed immutable candidate and before the next
  * transform consumes it.</p>
@@ -26,15 +27,15 @@ final class ForwardGraphOptimization {
     /**
      * Canonicalizes and validates a successful graph, then optionally applies one guarded exact
      * arithmetic rewrite scan, constant folding, and one whole-graph
-     * {@code DCE -> phase-local CSE -> DCE} sequence.
+     * {@code DCE -> phase/order-local CSE -> DCE} sequence.
      *
      * @param validatedGraph the non-null successful compiler validation result whose immutable
      *     graph is read; neither the result nor its graph is mutated
      * @param optimizationConfig the non-null permission controlling only the optional pass
      *     sequence; canonicalization and validation remain mandatory
      * @return the non-null successful validation result for the final canonical candidate,
-     *     retaining graph-output order, constant/source roles, constraints, and per-node phases;
-     *     an unchanged helper result is not revalidated
+     *     retaining graph-output order, constant/source roles, constraints, phases, and
+     *     derivative orders; an unchanged helper result is not revalidated
      * @throws NullPointerException if {@code validatedGraph} or {@code optimizationConfig} is
      *     {@code null}, checked in that order
      * @throws IllegalArgumentException if inference or validation rejects a rebuilt candidate
@@ -44,35 +45,52 @@ final class ForwardGraphOptimization {
         Objects.requireNonNull(validatedGraph, "validatedGraph");
         Objects.requireNonNull(optimizationConfig, "optimizationConfig");
 
-        CompiledGraphModel canonical =
-                GraphCanonicalization.canonicalize(validatedGraph.graph());
+        GraphCanonicalization.Result canonical =
+                GraphCanonicalization.canonicalize(validatedGraph.derivatives());
         CompileTimeConstantGraph canonicalConstants =
-                validatedGraph.constantGraph().replaceGraphPreservingInputRoles(canonical);
-        ValidatedGraph current = CapturedGraphInference.inferAndValidate(canonicalConstants);
+                validatedGraph.constantGraph().replaceGraphPreservingInputRoles(canonical.graph());
+        ValidatedGraph current = CapturedGraphInference.inferAndValidate(
+                canonicalConstants, canonical.derivatives());
         if (!optimizationConfig.optionalOptimizationsEnabled()) {
             return current;
         }
 
-        CompiledGraphModel rewritten = ForwardExactArithmeticRewriting.rewrite(current.graph());
+        ForwardExactArithmeticRewriting.Result rewritten =
+                ForwardExactArithmeticRewriting.rewrite(current.derivatives());
         current = validateWhenChanged(
-                current, current.constantGraph().replaceGraphPreservingInputRoles(rewritten));
+                current,
+                current.constantGraph().replaceGraphPreservingInputRoles(rewritten.graph()),
+                rewritten.derivatives());
+        ForwardConstantFolding.Result folded =
+                ForwardConstantFolding.fold(current.constantGraph(), current.derivatives());
         current = validateWhenChanged(
-                current, ForwardConstantFolding.fold(current.constantGraph()));
+                current, folded.constantGraph(), folded.derivatives());
+        ForwardDeadCodeElimination.Result eliminated =
+                ForwardDeadCodeElimination.DerivativeAware.eliminate(
+                        current.constantGraph(), current.derivatives());
         current = validateWhenChanged(
-                current, ForwardDeadCodeElimination.eliminate(current.constantGraph()));
-        CompiledGraphModel common =
-                ForwardCommonSubexpressionElimination.eliminate(current.graph());
+                current, eliminated.constantGraph(), eliminated.derivatives());
+        ForwardCommonSubexpressionElimination.Result common =
+                ForwardCommonSubexpressionElimination.DerivativeAware.eliminate(
+                        current.derivatives());
         current = validateWhenChanged(
-                current, current.constantGraph().replaceGraphPreservingInputRoles(common));
+                current,
+                current.constantGraph().replaceGraphPreservingInputRoles(common.graph()),
+                common.derivatives());
+        ForwardDeadCodeElimination.Result cleanup =
+                ForwardDeadCodeElimination.DerivativeAware.eliminate(
+                        current.constantGraph(), current.derivatives());
         return validateWhenChanged(
-                current, ForwardDeadCodeElimination.eliminate(current.constantGraph()));
+                current, cleanup.constantGraph(), cleanup.derivatives());
     }
 
     private static ValidatedGraph validateWhenChanged(
-            ValidatedGraph current, CompileTimeConstantGraph candidate) {
+            ValidatedGraph current,
+            CompileTimeConstantGraph candidate,
+            DerivativeGraphMetadata derivatives) {
         if (candidate == current.constantGraph()) {
             return current;
         }
-        return CapturedGraphInference.inferAndValidate(candidate);
+        return CapturedGraphInference.inferAndValidate(candidate, derivatives);
     }
 }

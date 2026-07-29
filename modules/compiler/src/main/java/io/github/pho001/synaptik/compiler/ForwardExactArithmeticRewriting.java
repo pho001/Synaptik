@@ -56,6 +56,28 @@ final class ForwardExactArithmeticRewriting {
      * @throws NullPointerException if {@code graph} is {@code null}
      */
     static CompiledGraphModel rewrite(CompiledGraphModel graph) {
+        return rebuild(graph).graph();
+    }
+
+    /**
+     * Rewrites the graph and remaps derivative metadata when IDs change.
+     *
+     * @param derivatives non-null metadata owning the input graph
+     * @return non-null rewritten graph and matching metadata
+     */
+    static Result rewrite(DerivativeGraphMetadata derivatives) {
+        Objects.requireNonNull(derivatives, "derivatives");
+        Rebuild rebuild = rebuild(derivatives.graph());
+        if (rebuild.graph() == derivatives.graph()) {
+            return new Result(rebuild.graph(), derivatives);
+        }
+        return new Result(
+                rebuild.graph(),
+                DerivativeGraphMetadata.remap(
+                        derivatives, rebuild.graph(), rebuild.sourceNodeIds()));
+    }
+
+    private static Rebuild rebuild(CompiledGraphModel graph) {
         Objects.requireNonNull(graph, "graph");
 
         Map<ValueId, GraphValue> originalValues = valuesById(graph);
@@ -72,6 +94,7 @@ final class ForwardExactArithmeticRewriting {
         }
 
         List<CompiledNode> nodes = new ArrayList<>(graph.nodes().size());
+        List<NodeId> sourceNodeIds = new ArrayList<>(graph.nodes().size());
         Map<NodeId, GraphPhase> phases = new LinkedHashMap<>();
         long nextNodeId = 0;
         boolean changed = false;
@@ -96,14 +119,17 @@ final class ForwardExactArithmeticRewriting {
             NodeId rebuiltNode = new NodeId(nextNodeId++);
             nodes.add(new CompiledNode(
                     rebuiltNode, node.operation(), remappedInputs, rebuiltOutputs));
+            sourceNodeIds.add(node.id());
             phases.put(rebuiltNode, graph.nodePhases().get(node.id()));
         }
 
         if (!changed) {
-            return graph;
+            return new Rebuild(graph, List.copyOf(sourceNodeIds));
         }
-        return new CompiledGraphModel(
-                values, nodes, inputs, remap(graph.outputs(), valueRemapping), phases);
+        return new Rebuild(
+                new CompiledGraphModel(
+                        values, nodes, inputs, remap(graph.outputs(), valueRemapping), phases),
+                List.copyOf(sourceNodeIds));
     }
 
     private static ValueId bypassInput(
@@ -207,4 +233,14 @@ final class ForwardExactArithmeticRewriting {
         }
         return result;
     }
+
+    /**
+     * Rewritten graph and its matching derivative metadata.
+     *
+     * @param graph non-null rewritten graph
+     * @param derivatives non-null matching metadata
+     */
+    record Result(CompiledGraphModel graph, DerivativeGraphMetadata derivatives) {}
+
+    private record Rebuild(CompiledGraphModel graph, List<NodeId> sourceNodeIds) {}
 }

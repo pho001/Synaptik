@@ -53,12 +53,22 @@ final class GraphCompilerTest {
         assertFalse(Modifier.isPublic(compile.getModifiers()));
         assertSame(GraphCompilation.class, compile.getReturnType());
         assertEquals(
-                List.of("mode", "validatedGraph", "forwardOutputs", "gradientResults"),
+                List.of(
+                        "mode",
+                        "validatedGraph",
+                        "forwardOutputs",
+                        "gradientResults",
+                        "derivatives"),
                 java.util.Arrays.stream(GraphCompilation.class.getRecordComponents())
                         .map(component -> component.getName())
                         .toList());
         assertTrue(GraphCompilation.class.isRecord());
-        assertTrue(GraphCompilation.GradientResultRole.class.isRecord());
+        assertTrue(GradientPublicationBinding.class.isRecord());
+        assertEquals(
+                List.of("derivativeOrder", "targetIndex", "target", "valueId"),
+                Arrays.stream(GradientPublicationBinding.class.getRecordComponents())
+                        .map(component -> component.getName())
+                        .toList());
         assertFalse(Modifier.isPublic(GraphCompilation.class.getModifiers()));
 
         var completeCompile = GraphCompiler.class.getDeclaredMethod(
@@ -104,8 +114,8 @@ final class GraphCompilerTest {
         assertSame(backendId, artifacts.partitions().getFirst().owner());
         assertSame(artifacts.graph(), artifacts.publication().graph());
         assertEquals(output.id(), artifacts.publication()
-                .forwardOutputs().getFirst().tensorId());
-        assertTrue(artifacts.publication().gradientResults().isEmpty());
+                .forwardBindings().getFirst().tensorId());
+        assertTrue(artifacts.publication().gradientBindings().isEmpty());
         assertEquals(artifacts.graph().values().size(), artifacts.memory().requirements().size());
         assertTrue(artifacts.diagnostics().deferredConstraints().isEmpty());
 
@@ -257,7 +267,7 @@ final class GraphCompilerTest {
         CompileArtifacts backwardArtifacts = GraphCompiler.compile(
                 CompileMode.FORWARD_AND_BACKWARD,
                 List.of(objective),
-                Optional.of(new AutogradPreflight.FirstOrderRequest(
+                Optional.of(FunctionalGradientTestSupport.request(
                         objective, List.of(target))),
                 CompileTimeConstantGraph.Ingress.empty(),
                 GraphOptimizationConfig.standard(),
@@ -266,10 +276,10 @@ final class GraphCompilerTest {
                 List.of(provider(backendId, new ArrayList<>(), true)),
                 List.of(snapshot(backendId)));
 
-        assertEquals(1, backwardArtifacts.publication().gradientResults().size());
+        assertEquals(1, backwardArtifacts.publication().gradientBindings().size());
         assertEquals(
                 target.id(),
-                backwardArtifacts.publication().gradientResults().getFirst().tensorId());
+                backwardArtifacts.publication().gradientBindings().getFirst().target());
         assertTrue(backwardArtifacts.graph().nodePhases().containsValue(GraphPhase.BACKWARD));
     }
 
@@ -336,7 +346,7 @@ final class GraphCompilerTest {
             GraphCompilation result = GraphCompiler.compile(
                     mode,
                     List.of(objective),
-                    Optional.of(new AutogradPreflight.FirstOrderRequest(
+                    Optional.of(FunctionalGradientTestSupport.request(
                             objective, List.of(target))),
                     CompileTimeConstantGraph.Ingress.empty(),
                     GraphOptimizationConfig.standard());
@@ -353,7 +363,7 @@ final class GraphCompilerTest {
     @Test
     void enforcesModeRequestPresenceBeforeExpansion() {
         Tensor output = tensor().sum();
-        var request = new AutogradPreflight.FirstOrderRequest(output, List.of(output));
+        var request = FunctionalGradientTestSupport.request(output, List.of(output));
         assertThrows(IllegalArgumentException.class, () -> GraphCompiler.compile(
                 CompileMode.FORWARD_ONLY,
                 List.of(output),
@@ -377,15 +387,15 @@ final class GraphCompilerTest {
         GraphCompilation result = GraphCompiler.compile(
                 CompileMode.FORWARD_AND_BACKWARD,
                 List.of(objective),
-                Optional.of(new AutogradPreflight.FirstOrderRequest(
+                Optional.of(FunctionalGradientTestSupport.request(
                         objective, List.of(target, objective))),
                 CompileTimeConstantGraph.Ingress.empty(),
                 GraphOptimizationConfig.disabled());
 
         assertEquals(2, result.gradientResults().size());
         assertEquals(
-                result.gradientResults().get(0).gradient(),
-                result.gradientResults().get(1).gradient());
+                result.gradientResults().get(0).valueId(),
+                result.gradientResults().get(1).valueId());
         assertEquals(2, result.validatedGraph().graph().outputs().size());
     }
 
@@ -394,7 +404,7 @@ final class GraphCompilerTest {
         Tensor target = TensorFactory.create(new TensorDescriptor(
                 DataType.FLOAT32, Shape.of(2, 2), Optional.empty(), true));
         Tensor objective = target.scaledDotProductAttention(target, target).sum();
-        var request = new AutogradPreflight.FirstOrderRequest(objective, List.of(target));
+        var request = FunctionalGradientTestSupport.request(objective, List.of(target));
         long before = nextTensorId();
 
         assertThrows(IllegalArgumentException.class, () -> GraphCompiler.compile(
@@ -423,7 +433,7 @@ final class GraphCompilerTest {
                 () -> GraphCompiler.compile(
                         CompileMode.FORWARD_AND_BACKWARD,
                         List.of(objective),
-                        Optional.of(new AutogradPreflight.FirstOrderRequest(
+                        Optional.of(FunctionalGradientTestSupport.request(
                                 objective, List.of(query))),
                         CompileTimeConstantGraph.Ingress.empty(),
                         GraphOptimizationConfig.disabled()));
@@ -445,7 +455,7 @@ final class GraphCompilerTest {
             GraphCompilation result = GraphCompiler.compile(
                     CompileMode.FORWARD_AND_BACKWARD,
                     List.of(objective),
-                    Optional.of(new AutogradPreflight.FirstOrderRequest(
+                    Optional.of(FunctionalGradientTestSupport.request(
                             objective, List.of(narrow))),
                     CompileTimeConstantGraph.Ingress.empty(),
                     optimization);
@@ -477,7 +487,7 @@ final class GraphCompilerTest {
         GraphCompilation compilation = GraphCompiler.compile(
                 CompileMode.FORWARD_AND_BACKWARD,
                 List.of(objective),
-                Optional.of(new AutogradPreflight.FirstOrderRequest(
+                Optional.of(FunctionalGradientTestSupport.request(
                         objective, List.of(input))),
                 CompileTimeConstantGraph.Ingress.empty(),
                 GraphOptimizationConfig.disabled());
@@ -517,7 +527,7 @@ final class GraphCompilerTest {
         GraphCompilation compilation = GraphCompiler.compile(
                 CompileMode.FORWARD_AND_BACKWARD,
                 List.of(replacement),
-                Optional.of(new AutogradPreflight.FirstOrderRequest(
+                Optional.of(FunctionalGradientTestSupport.request(
                         replacement, List.of(update))),
                 CompileTimeConstantGraph.Ingress.empty(),
                 GraphOptimizationConfig.disabled());
@@ -548,7 +558,7 @@ final class GraphCompilerTest {
             GraphCompilation result = GraphCompiler.compile(
                     CompileMode.FORWARD_AND_BACKWARD,
                     List.of(objective),
-                    Optional.of(new AutogradPreflight.FirstOrderRequest(
+                    Optional.of(FunctionalGradientTestSupport.request(
                             objective, List.of(target))),
                     CompileTimeConstantGraph.Ingress.empty(),
                     optimization);
@@ -578,7 +588,7 @@ final class GraphCompilerTest {
             GraphCompilation result = GraphCompiler.compile(
                     CompileMode.FORWARD_AND_BACKWARD,
                     List.of(objective),
-                    Optional.of(new AutogradPreflight.FirstOrderRequest(
+                    Optional.of(FunctionalGradientTestSupport.request(
                             objective, List.of(target))),
                     CompileTimeConstantGraph.Ingress.empty(),
                     optimization);
@@ -592,9 +602,244 @@ final class GraphCompilerTest {
         }
     }
 
+    @Test
+    void compilesTwoReverseStagesWithStableRolesAndExactDerivativeOrders() {
+        for (GraphOptimizationConfig optimization :
+                List.of(GraphOptimizationConfig.disabled(), GraphOptimizationConfig.standard())) {
+            Tensor target = scalarTensor();
+            Tensor objective = target.mul(target);
+            FunctionalGradientRequest.Stage first = new FunctionalGradientRequest.Stage(
+                    List.of(new FunctionalGradientRequest.ForwardTensorReference(objective)),
+                    List.of(Optional.empty()),
+                    List.of(target),
+                    true,
+                    FunctionalGradientRequest.DisconnectedPolicy.ERROR);
+            FunctionalGradientRequest.Stage second = new FunctionalGradientRequest.Stage(
+                    List.of(new FunctionalGradientRequest.FirstStageGradientReference(0)),
+                    List.of(Optional.empty()),
+                    List.of(target),
+                    false,
+                    FunctionalGradientRequest.DisconnectedPolicy.ERROR);
+
+            GraphCompilation result = GraphCompiler.compile(
+                    CompileMode.FORWARD_AND_BACKWARD,
+                    List.of(objective),
+                    Optional.of(new FunctionalGradientRequest(List.of(first, second))),
+                    CompileTimeConstantGraph.Ingress.empty(),
+                    optimization);
+
+            assertEquals(2, result.gradientResults().size());
+            assertEquals(
+                    List.of(1, 2),
+                    result.gradientResults().stream()
+                            .map(GradientPublicationBinding::derivativeOrder)
+                            .toList());
+            assertEquals(
+                    List.of(target.id(), target.id()),
+                    result.gradientResults().stream()
+                            .map(GradientPublicationBinding::target)
+                            .toList());
+            assertSame(result.validatedGraph().derivatives(), result.derivatives());
+            assertTrue(result.derivatives().derivativeOrderByNode().containsValue(0));
+            assertTrue(result.derivatives().derivativeOrderByNode().containsValue(1));
+            assertTrue(result.derivatives().derivativeOrderByNode().containsValue(2));
+            result.derivatives().derivativeOrderByNode().forEach((nodeId, order) ->
+                    assertEquals(
+                            order == 0 ? GraphPhase.FORWARD : GraphPhase.BACKWARD,
+                            result.validatedGraph().graph().nodePhases().get(nodeId)));
+        }
+    }
+
+    @Test
+    void appliesSecondStageZeroPolicyToAConstantFirstDerivative() {
+        Tensor target = scalarTensor();
+        Tensor objective = target.add(target);
+        FunctionalGradientRequest.Stage first = new FunctionalGradientRequest.Stage(
+                List.of(new FunctionalGradientRequest.ForwardTensorReference(objective)),
+                List.of(Optional.empty()),
+                List.of(target),
+                true,
+                FunctionalGradientRequest.DisconnectedPolicy.ERROR);
+        FunctionalGradientRequest.Stage second = new FunctionalGradientRequest.Stage(
+                List.of(new FunctionalGradientRequest.FirstStageGradientReference(0)),
+                List.of(Optional.of(TensorFactory.create(new TensorDescriptor(
+                        DataType.FLOAT32, Shape.scalar(), Optional.empty(), false)))),
+                List.of(target),
+                false,
+                FunctionalGradientRequest.DisconnectedPolicy.ZERO);
+
+        GraphCompilation result = GraphCompiler.compile(
+                CompileMode.FORWARD_AND_BACKWARD,
+                List.of(objective),
+                Optional.of(new FunctionalGradientRequest(List.of(first, second))),
+                CompileTimeConstantGraph.Ingress.empty(),
+                GraphOptimizationConfig.disabled());
+
+        assertEquals(2, result.gradientResults().size());
+        assertEquals(2, result.gradientResults().get(1).derivativeOrder());
+        assertEquals(target.id(), result.gradientResults().get(1).target());
+    }
+
+    @Test
+    void compilesOrderedMultiOutputVectorJacobianProductsWithExactSeeds() {
+        Tensor target = tensor();
+        Tensor firstOutput = target.mul(target);
+        Tensor secondOutput = target.neg();
+        Tensor firstSeed = TensorFactory.create(new TensorDescriptor(
+                DataType.FLOAT32, Shape.of(2), Optional.empty(), false));
+        Tensor secondSeed = TensorFactory.create(new TensorDescriptor(
+                DataType.FLOAT32, Shape.of(2), Optional.empty(), false));
+        FunctionalGradientRequest.Stage stage = new FunctionalGradientRequest.Stage(
+                List.of(
+                        new FunctionalGradientRequest.ForwardTensorReference(firstOutput),
+                        new FunctionalGradientRequest.ForwardTensorReference(secondOutput)),
+                List.of(Optional.of(firstSeed), Optional.of(secondSeed)),
+                List.of(target),
+                false,
+                FunctionalGradientRequest.DisconnectedPolicy.ERROR);
+
+        GraphCompilation result = GraphCompiler.compile(
+                CompileMode.FORWARD_AND_BACKWARD,
+                List.of(firstOutput, secondOutput),
+                Optional.of(new FunctionalGradientRequest(List.of(stage))),
+                CompileTimeConstantGraph.Ingress.empty(),
+                GraphOptimizationConfig.standard());
+
+        assertEquals(1, result.gradientResults().size());
+        assertEquals(target.id(), result.gradientResults().getFirst().target());
+        assertEquals(1, result.gradientResults().getFirst().derivativeOrder());
+        assertEquals(2, result.forwardOutputs().size());
+    }
+
+    @Test
+    void appliesFirstStageDisconnectedPoliciesAndSharesEqualTypedZeroValues()
+            throws Exception {
+        Tensor selectedTarget = tensor();
+        Tensor disconnectedFirst = tensor();
+        Tensor disconnectedSecond = tensor();
+        Tensor selectedOutput = selectedTarget.sum();
+        Tensor inventoryOutput = disconnectedFirst.add(disconnectedSecond).sum();
+        FunctionalGradientRequest.Stage errorStage = new FunctionalGradientRequest.Stage(
+                List.of(new FunctionalGradientRequest.ForwardTensorReference(selectedOutput)),
+                List.of(Optional.empty()),
+                List.of(disconnectedFirst, disconnectedSecond),
+                false,
+                FunctionalGradientRequest.DisconnectedPolicy.ERROR);
+        long before = nextTensorId();
+
+        IllegalArgumentException failure = assertThrows(
+                IllegalArgumentException.class,
+                () -> GraphCompiler.compile(
+                        CompileMode.FORWARD_AND_BACKWARD,
+                        List.of(selectedOutput, inventoryOutput),
+                        Optional.of(new FunctionalGradientRequest(List.of(errorStage))),
+                        CompileTimeConstantGraph.Ingress.empty(),
+                        GraphOptimizationConfig.disabled()));
+        assertEquals(
+                "functionalGradientRequest.stages[0].targets[0]"
+                        + " is disconnected from the selected stage outputs",
+                failure.getMessage());
+        assertEquals(before, nextTensorId());
+
+        FunctionalGradientRequest.Stage zeroStage = new FunctionalGradientRequest.Stage(
+                errorStage.outputs(),
+                errorStage.cotangentSeeds(),
+                errorStage.targets(),
+                false,
+                FunctionalGradientRequest.DisconnectedPolicy.ZERO);
+        GraphCompilation result = GraphCompiler.compile(
+                CompileMode.FORWARD_AND_BACKWARD,
+                List.of(selectedOutput, inventoryOutput),
+                Optional.of(new FunctionalGradientRequest(List.of(zeroStage))),
+                CompileTimeConstantGraph.Ingress.empty(),
+                GraphOptimizationConfig.disabled());
+
+        assertEquals(2, result.gradientResults().size());
+        assertEquals(
+                result.gradientResults().get(0).valueId(),
+                result.gradientResults().get(1).valueId());
+        assertTrue(result.validatedGraph().constants().containsValue(
+                new CompileTimeConstantGraph.Splat(ScalarValue.float32(0.0f))));
+    }
+
+    @Test
+    void compilesASeededHessianVectorProduct() {
+        Tensor target = tensor();
+        Tensor objective = target.mul(target).sum();
+        Tensor vector = TensorFactory.create(new TensorDescriptor(
+                DataType.FLOAT32, Shape.of(2), Optional.empty(), false));
+        FunctionalGradientRequest.Stage first = new FunctionalGradientRequest.Stage(
+                List.of(new FunctionalGradientRequest.ForwardTensorReference(objective)),
+                List.of(Optional.empty()),
+                List.of(target),
+                true,
+                FunctionalGradientRequest.DisconnectedPolicy.ERROR);
+        FunctionalGradientRequest.Stage second = new FunctionalGradientRequest.Stage(
+                List.of(new FunctionalGradientRequest.FirstStageGradientReference(0)),
+                List.of(Optional.of(vector)),
+                List.of(target),
+                false,
+                FunctionalGradientRequest.DisconnectedPolicy.ERROR);
+
+        GraphCompilation result = GraphCompiler.compile(
+                CompileMode.FORWARD_AND_BACKWARD,
+                List.of(objective),
+                Optional.of(new FunctionalGradientRequest(List.of(first, second))),
+                CompileTimeConstantGraph.Ingress.empty(),
+                GraphOptimizationConfig.standard());
+
+        assertEquals(2, result.gradientResults().size());
+        assertEquals(2, result.gradientResults().get(1).derivativeOrder());
+        assertEquals(target.id(), result.gradientResults().get(1).target());
+    }
+
+    @Test
+    void rejectsTheCompleteVectorSeedDescriptorMatrixBeforeDerivativeAllocation()
+            throws Exception {
+        Tensor target = tensor();
+        Tensor output = target.neg();
+        List<Optional<Tensor>> invalidSeeds = List.of(
+                Optional.empty(),
+                Optional.of(TensorFactory.create(new TensorDescriptor(
+                        DataType.INT32, Shape.of(2), Optional.empty(), false))),
+                Optional.of(TensorFactory.create(new TensorDescriptor(
+                        DataType.FLOAT64, Shape.of(2), Optional.empty(), false))),
+                Optional.of(TensorFactory.create(new TensorDescriptor(
+                        DataType.FLOAT32, Shape.scalar(), Optional.empty(), false))),
+                Optional.of(TensorFactory.create(new TensorDescriptor(
+                        DataType.FLOAT32, Shape.of(2), Optional.empty(), true))));
+
+        for (Optional<Tensor> seed : invalidSeeds) {
+            FunctionalGradientRequest.Stage stage = new FunctionalGradientRequest.Stage(
+                    List.of(new FunctionalGradientRequest.ForwardTensorReference(output)),
+                    List.of(seed),
+                    List.of(target),
+                    false,
+                    FunctionalGradientRequest.DisconnectedPolicy.ERROR);
+            FunctionalGradientRequest request =
+                    new FunctionalGradientRequest(List.of(stage));
+            long before = nextTensorId();
+
+            assertThrows(
+                    IllegalArgumentException.class,
+                    () -> GraphCompiler.compile(
+                            CompileMode.FORWARD_AND_BACKWARD,
+                            List.of(output),
+                            Optional.of(request),
+                            CompileTimeConstantGraph.Ingress.empty(),
+                            GraphOptimizationConfig.disabled()));
+            assertEquals(before, nextTensorId());
+        }
+    }
+
     private static Tensor tensor() {
         return TensorFactory.create(new TensorDescriptor(
                 DataType.FLOAT32, Shape.of(2), Optional.empty(), true));
+    }
+
+    private static Tensor scalarTensor() {
+        return TensorFactory.create(new TensorDescriptor(
+                DataType.FLOAT32, Shape.scalar(), Optional.empty(), true));
     }
 
     private static BackendCapabilityProvider provider(

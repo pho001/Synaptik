@@ -33,9 +33,10 @@ import java.util.Set;
  * @param graph non-null exact final immutable graph
  * @param partitions non-null exact maximal graph-order partition recipes; membership snapshotted
  * @param memory non-null logical-memory plan derived from this graph and partition list
- * @param publication non-null ordered publication roles owning this exact graph reference
+ * @param publication non-null ordered publication bindings owning this exact graph reference
  * @param constants non-null complete graph-input source-role classification
  * @param diagnostics non-null successful-compile deferred diagnostics
+ * @param derivatives non-null derivative-order metadata owning this exact graph
  */
 public record CompileArtifacts(
         CompileMode mode,
@@ -44,7 +45,8 @@ public record CompileArtifacts(
         LogicalMemoryPlan memory,
         PublicationPlan publication,
         CompileConstantPlan constants,
-        CompileDiagnostics diagnostics) {
+        CompileDiagnostics diagnostics,
+        DerivativeGraphMetadata derivatives) {
     /**
      * Validates and snapshots one complete immutable compile recipe.
      *
@@ -55,6 +57,7 @@ public record CompileArtifacts(
      * @param publication non-null publication plan retaining the exact graph reference
      * @param constants non-null complete graph-input source-role classification
      * @param diagnostics non-null successful-compile deferred diagnostics
+     * @param derivatives non-null derivative-order metadata for the exact graph
      * @throws NullPointerException if a component or partition element is {@code null}
      * @throws IllegalArgumentException if components disagree about graph identity, mode,
      *     partitioning, logical memory, source roles, descriptor types, gradient eligibility, or
@@ -68,6 +71,7 @@ public record CompileArtifacts(
         Objects.requireNonNull(publication, "publication");
         Objects.requireNonNull(constants, "constants");
         Objects.requireNonNull(diagnostics, "diagnostics");
+        Objects.requireNonNull(derivatives, "derivatives");
 
         for (int index = 0; index < partitions.size(); index++) {
             Objects.requireNonNull(partitions.get(index), "partitions[" + index + "]");
@@ -78,8 +82,12 @@ public record CompileArtifacts(
             throw new IllegalArgumentException(
                     "publication graph must be the exact graph reference");
         }
+        if (derivatives.graph() != graph) {
+            throw new IllegalArgumentException(
+                    "derivatives graph must be the exact graph reference");
+        }
         if (mode == CompileMode.FORWARD_ONLY) {
-            if (!publication.gradientResults().isEmpty()) {
+            if (!publication.gradientBindings().isEmpty()) {
                 throw new IllegalArgumentException(
                         "FORWARD_ONLY must not contain gradient results");
             }
@@ -87,7 +95,12 @@ public record CompileArtifacts(
                 throw new IllegalArgumentException(
                         "FORWARD_ONLY must not contain BACKWARD nodes");
             }
-        } else if (publication.gradientResults().isEmpty()) {
+            if (derivatives.derivativeOrderByNode().containsValue(1)
+                    || derivatives.derivativeOrderByNode().containsValue(2)) {
+                throw new IllegalArgumentException(
+                        "FORWARD_ONLY must contain only derivative order zero");
+            }
+        } else if (publication.gradientBindings().isEmpty()) {
             throw new IllegalArgumentException(
                     mode + " must contain at least one gradient result");
         }

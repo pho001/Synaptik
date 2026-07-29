@@ -85,7 +85,7 @@ final class GraphCapture {
             List<Tensor> outputs, CompileTimeConstantGraph.Ingress ingress) {
         validateForwardOutputs(outputs);
         Objects.requireNonNull(ingress, "ingress");
-        return captureInternal(outputs, List.of(), null, ingress).constantGraph();
+        return captureInternal(outputs, List.of(), null, null, null, ingress).constantGraph();
     }
 
     /**
@@ -105,10 +105,12 @@ final class GraphCapture {
      *     but not mutated
      * @param originalProducers non-null identity set of every producer in the complete original
      *     forward request; membership selects {@link GraphPhase#FORWARD}
+     * @param stageOneProducers non-null identity set of producers first owned by stage one
+     * @param stageTwoProducers non-null identity set of producers first owned by stage two
      * @param ingress non-null ordered merged caller and generated logical-splat bindings; every
      *     bound Tensor must be encountered as a reachable provenance-free leaf
-     * @return a non-null immutable combined graph with a forward-boundary count and one
-     *     graph-output ordinal per target role
+     * @return a non-null immutable combined graph with derivative metadata, a forward-boundary
+     *     count, and one graph-output ordinal per target role
      * @throws NullPointerException if a required argument or target-role element is {@code null}
      * @throws IllegalArgumentException if the forward boundary is empty or duplicated, an ingress
      *     binding is not a reachable leaf, or structural graph construction rejects the result
@@ -117,6 +119,8 @@ final class GraphCapture {
             List<Tensor> forwardOutputs,
             List<FirstOrderAutograd.TargetGradient> targetGradients,
             Set<TensorProducer> originalProducers,
+            Set<TensorProducer> stageOneProducers,
+            Set<TensorProducer> stageTwoProducers,
             CompileTimeConstantGraph.Ingress ingress) {
         validateForwardOutputs(forwardOutputs);
         Objects.requireNonNull(targetGradients, "targetGradients");
@@ -124,8 +128,16 @@ final class GraphCapture {
             Objects.requireNonNull(targetGradients.get(index), "targetGradients[" + index + "]");
         }
         Objects.requireNonNull(originalProducers, "originalProducers");
+        Objects.requireNonNull(stageOneProducers, "stageOneProducers");
+        Objects.requireNonNull(stageTwoProducers, "stageTwoProducers");
         Objects.requireNonNull(ingress, "ingress");
-        return captureInternal(forwardOutputs, targetGradients, originalProducers, ingress);
+        return captureInternal(
+                forwardOutputs,
+                targetGradients,
+                originalProducers,
+                stageOneProducers,
+                stageTwoProducers,
+                ingress);
     }
 
     private static void validateForwardOutputs(List<Tensor> outputs) {
@@ -150,6 +162,8 @@ final class GraphCapture {
             List<Tensor> forwardOutputs,
             List<FirstOrderAutograd.TargetGradient> targetGradients,
             Set<TensorProducer> originalProducers,
+            Set<TensorProducer> stageOneProducers,
+            Set<TensorProducer> stageTwoProducers,
             CompileTimeConstantGraph.Ingress ingress) {
         List<Tensor> traversalRoots =
                 new ArrayList<>(forwardOutputs.size() + targetGradients.size());
@@ -170,6 +184,7 @@ final class GraphCapture {
         var nodes = new ArrayList<CompiledNode>();
         var graphInputs = new ArrayList<ValueId>();
         var nodePhases = new LinkedHashMap<NodeId, GraphPhase>();
+        var derivativeOrders = new LinkedHashMap<NodeId, Integer>();
         var leafValues = new IdentityHashMap<Tensor, ValueId>();
         var producerOutputs = new IdentityHashMap<TensorProducer, List<ValueId>>();
         var visiting = new IdentityHashMap<TensorProducer, Boolean>();
@@ -248,11 +263,21 @@ final class GraphCapture {
                 producerOutputs.put(producer, outputSnapshot);
                 NodeId nodeId = new NodeId(nextNodeId++);
                 nodes.add(new CompiledNode(nodeId, producer.operation(), inputIds, outputSnapshot));
+                int derivativeOrder;
+                if (originalProducers == null || originalProducers.contains(producer)) {
+                    derivativeOrder = 0;
+                } else if (stageOneProducers.contains(producer)) {
+                    derivativeOrder = 1;
+                } else if (stageTwoProducers.contains(producer)) {
+                    derivativeOrder = 2;
+                } else {
+                    throw new IllegalArgumentException(
+                            "captured producer has no derivative-order owner");
+                }
+                derivativeOrders.put(nodeId, derivativeOrder);
                 nodePhases.put(
                         nodeId,
-                        originalProducers == null || originalProducers.contains(producer)
-                                ? GraphPhase.FORWARD
-                                : GraphPhase.BACKWARD);
+                        derivativeOrder == 0 ? GraphPhase.FORWARD : GraphPhase.BACKWARD);
                 visiting.remove(producer);
                 stack.pop();
             }
@@ -294,7 +319,8 @@ final class GraphCapture {
         return new CombinedCapture(
                 new CompileTimeConstantGraph(graph, constants),
                 forwardOutputs.size(),
-                gradientOutputOrdinals);
+                gradientOutputOrdinals,
+                new DerivativeGraphMetadata(graph, derivativeOrders));
     }
 
     private static void addConstant(
@@ -331,22 +357,31 @@ final class GraphCapture {
      * @param forwardOutputCount number of leading forward boundary positions
      * @param gradientOutputOrdinals non-null ordered graph-output ordinal per target role;
      *     snapshotted and permitted to contain repeated ordinals
+     * @param derivatives non-null exact derivative-order sidecar for the captured graph
      */
     record CombinedCapture(
             CompileTimeConstantGraph constantGraph,
             int forwardOutputCount,
-            List<Integer> gradientOutputOrdinals) {
+            List<Integer> gradientOutputOrdinals,
+            DerivativeGraphMetadata derivatives) {
         /**
          * Validates and snapshots one combined-capture result.
          *
          * @param constantGraph non-null captured immutable graph and exact source facts
          * @param forwardOutputCount number of leading forward boundary positions
-         * @param gradientOutputOrdinals non-null ordered graph-output ordinal per target role
-         * @throws NullPointerException if {@code constantGraph},
-         *     {@code gradientOutputOrdinals}, or an ordinal element is {@code null}
+     * @param gradientOutputOrdinals non-null ordered graph-output ordinal per target role
+     * @param derivatives non-null exact derivative-order sidecar for the captured graph
+     * @throws NullPointerException if {@code constantGraph},
+     *     {@code gradientOutputOrdinals}, or an ordinal element is {@code null}
+     * @throws IllegalArgumentException if the derivative metadata owns a different graph
          */CombinedCapture {
             Objects.requireNonNull(constantGraph, "constantGraph");
             gradientOutputOrdinals = List.copyOf(gradientOutputOrdinals);
+            Objects.requireNonNull(derivatives, "derivatives");
+            if (derivatives.graph() != constantGraph.graph()) {
+                throw new IllegalArgumentException(
+                        "derivatives graph must be the exact captured graph");
+            }
         }
     }
 }

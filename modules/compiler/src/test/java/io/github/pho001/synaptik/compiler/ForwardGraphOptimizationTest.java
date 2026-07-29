@@ -34,6 +34,7 @@ import java.lang.reflect.Modifier;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -428,12 +429,66 @@ final class ForwardGraphOptimizationTest {
                 incoming, GraphOptimizationConfig.standard());
 
         assertAll(
-                () -> assertEquals(first, second),
+                () -> assertEquals(first.constantGraph(), second.constantGraph()),
+                () -> assertEquals(first.constraints(), second.constraints()),
+                () -> assertEquals(
+                        first.derivatives().derivativeOrderByNode(),
+                        second.derivatives().derivativeOrderByNode()),
                 () -> assertNotSame(first.graph(), second.graph()),
                 () -> assertEquals(3, graph.nodes().size()),
                 () -> assertEquals(List.of(new ValueId(3)), graph.outputs()),
                 () -> assertThrows(UnsupportedOperationException.class,
                         () -> first.graph().nodes().clear()));
+    }
+
+    @Test
+    void keepsEqualBackwardExpressionsSeparateAcrossDerivativeOrders() {
+        TensorDescriptor descriptor = descriptor(Shape.of(2), true);
+        Operation abs = operation(UnaryElementwiseKind.ABS);
+        Operation neg = operation(UnaryElementwiseKind.NEG);
+        CompiledGraphModel graph = new CompiledGraphModel(
+                List.of(
+                        new GraphValue(new ValueId(0), descriptor),
+                        new GraphValue(new ValueId(1), descriptor),
+                        new GraphValue(new ValueId(2), descriptor),
+                        new GraphValue(new ValueId(3), descriptor),
+                        new GraphValue(new ValueId(4), descriptor)),
+                List.of(
+                        new CompiledNode(
+                                new NodeId(0), abs,
+                                List.of(new ValueId(0)), List.of(new ValueId(1))),
+                        new CompiledNode(
+                                new NodeId(1), abs,
+                                List.of(new ValueId(0)), List.of(new ValueId(2))),
+                        new CompiledNode(
+                                new NodeId(2), neg,
+                                List.of(new ValueId(1)), List.of(new ValueId(3))),
+                        new CompiledNode(
+                                new NodeId(3), neg,
+                                List.of(new ValueId(2)), List.of(new ValueId(4)))),
+                List.of(new ValueId(0)),
+                List.of(new ValueId(3), new ValueId(4)),
+                Map.of(
+                        new NodeId(0), GraphPhase.BACKWARD,
+                        new NodeId(1), GraphPhase.BACKWARD,
+                        new NodeId(2), GraphPhase.BACKWARD,
+                        new NodeId(3), GraphPhase.BACKWARD));
+        LinkedHashMap<NodeId, Integer> orders = new LinkedHashMap<>();
+        orders.put(new NodeId(0), 1);
+        orders.put(new NodeId(1), 2);
+        orders.put(new NodeId(2), 1);
+        orders.put(new NodeId(3), 2);
+        DerivativeGraphMetadata metadata = new DerivativeGraphMetadata(graph, orders);
+        ValidatedGraph incoming = CapturedGraphInference.inferAndValidate(
+                new CompileTimeConstantGraph(graph, Map.of()), metadata);
+
+        ValidatedGraph result = ForwardGraphOptimization.optimize(
+                incoming, GraphOptimizationConfig.standard());
+
+        assertEquals(4, result.graph().nodes().size());
+        assertEquals(
+                List.of(1, 2, 1, 2),
+                result.derivatives().derivativeOrderByNode().values().stream().toList());
     }
 
     @Test
@@ -470,10 +525,13 @@ final class ForwardGraphOptimizationTest {
         int canonicalize = source.indexOf("GraphCanonicalization.canonicalize(");
         int rewrite = source.indexOf("ForwardExactArithmeticRewriting.rewrite(");
         int fold = source.indexOf("ForwardConstantFolding.fold(");
-        int firstDce = source.indexOf("ForwardDeadCodeElimination.eliminate(");
-        int cse = source.indexOf("ForwardCommonSubexpressionElimination.eliminate(");
+        String dceCall = "ForwardDeadCodeElimination.DerivativeAware.eliminate(";
+        String cseCall =
+                "ForwardCommonSubexpressionElimination.DerivativeAware.eliminate(";
+        int firstDce = source.indexOf(dceCall);
+        int cse = source.indexOf(cseCall);
         int secondDce = source.indexOf(
-                "ForwardDeadCodeElimination.eliminate(", firstDce + 1);
+                dceCall, firstDce + 1);
 
         assertAll(
                 () -> assertTrue(canonicalize >= 0),
@@ -483,9 +541,9 @@ final class ForwardGraphOptimizationTest {
                 () -> assertTrue(cse > firstDce),
                 () -> assertTrue(secondDce > cse),
                 () -> assertEquals(-1, source.indexOf(
-                        "ForwardDeadCodeElimination.eliminate(", secondDce + 1)),
+                        dceCall, secondDce + 1)),
                 () -> assertEquals(-1, source.indexOf(
-                        "ForwardCommonSubexpressionElimination.eliminate(", cse + 1)),
+                        cseCall, cse + 1)),
                 () -> assertEquals(-1, source.indexOf(
                         "ForwardExactArithmeticRewriting.rewrite(", rewrite + 1)),
                 () -> assertEquals(-1, source.indexOf(

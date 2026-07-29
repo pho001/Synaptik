@@ -39,7 +39,8 @@ final class ForwardExactArithmeticRewritingTest {
     @Test
     void rejectsNullWithTheSpecifiedMessage() {
         assertEquals("graph", assertThrows(NullPointerException.class,
-                () -> ForwardExactArithmeticRewriting.rewrite(null)).getMessage());
+                () -> ForwardExactArithmeticRewriting.rewrite(
+                        (CompiledGraphModel) null)).getMessage());
     }
 
     @Test

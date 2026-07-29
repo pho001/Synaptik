@@ -26,10 +26,10 @@ final class FirstOrderAutogradTest {
     void accumulatesRepeatedInputPositionsLeftAssociatedAndPreservesTargetOrder() {
         Tensor target = tensor();
         Tensor objective = target.mul(target).sum();
-        AutogradPreflight.Plan plan = AutogradPreflight.preflight(
+        AutogradPreflight.StagePlan plan = AutogradPreflight.preflight(
                 CompileMode.TRAINING_STEP,
                 List.of(objective),
-                new AutogradPreflight.FirstOrderRequest(objective, List.of(target, objective)),
+                FunctionalGradientTestSupport.stage(objective, List.of(target, objective)),
                 CompileTimeConstantGraph.Ingress.empty());
 
         FirstOrderAutograd.Expansion expansion =
@@ -52,10 +52,10 @@ final class FirstOrderAutogradTest {
         ScaledDotProductAttentionResult attention =
                 query.scaledDotProductAttentionWithWeights(key, value);
         Tensor objective = attention.output().sum().add(attention.weights().sum());
-        AutogradPreflight.Plan plan = AutogradPreflight.preflight(
+        AutogradPreflight.StagePlan plan = AutogradPreflight.preflight(
                 CompileMode.FORWARD_AND_BACKWARD,
                 List.of(objective),
-                new AutogradPreflight.FirstOrderRequest(objective, List.of(query)),
+                FunctionalGradientTestSupport.stage(objective, List.of(query)),
                 CompileTimeConstantGraph.Ingress.empty());
 
         List<AutogradPreflight.SelectedOccurrence> selected = plan.selectedOccurrences().stream()
@@ -87,10 +87,10 @@ final class FirstOrderAutogradTest {
                 callerConstant,
                 new CompileTimeConstantGraph.Splat(
                         io.github.pho001.synaptik.model.datatype.ScalarValue.float32(7.0f)));
-        AutogradPreflight.Plan plan = AutogradPreflight.preflight(
+        AutogradPreflight.StagePlan plan = AutogradPreflight.preflight(
                 CompileMode.FORWARD_AND_BACKWARD,
                 List.of(objective),
-                new AutogradPreflight.FirstOrderRequest(objective, List.of(target)),
+                FunctionalGradientTestSupport.stage(objective, List.of(target)),
                 CompileTimeConstantGraph.Ingress.empty());
 
         FirstOrderAutograd.Expansion expansion = FirstOrderAutograd.expand(
@@ -156,10 +156,10 @@ final class FirstOrderAutogradTest {
                 Optional.empty(),
                 true));
         Tensor objective = Tensor.concat(0, target, target).sum();
-        AutogradPreflight.Plan plan = AutogradPreflight.preflight(
+        AutogradPreflight.StagePlan plan = AutogradPreflight.preflight(
                 CompileMode.FORWARD_AND_BACKWARD,
                 List.of(objective),
-                new AutogradPreflight.FirstOrderRequest(objective, List.of(target)),
+                FunctionalGradientTestSupport.stage(objective, List.of(target)),
                 CompileTimeConstantGraph.Ingress.empty());
 
         Tensor gradient = FirstOrderAutograd.expand(
@@ -182,10 +182,10 @@ final class FirstOrderAutogradTest {
     void routesMeanToTheReductionOwnerAndRetainsOrdinaryDivision() {
         Tensor target = tensor();
         Tensor objective = target.mean();
-        AutogradPreflight.Plan plan = AutogradPreflight.preflight(
+        AutogradPreflight.StagePlan plan = AutogradPreflight.preflight(
                 CompileMode.FORWARD_AND_BACKWARD,
                 List.of(objective),
-                new AutogradPreflight.FirstOrderRequest(objective, List.of(target)),
+                FunctionalGradientTestSupport.stage(objective, List.of(target)),
                 CompileTimeConstantGraph.Ingress.empty());
 
         Tensor gradient = FirstOrderAutograd.expand(
@@ -244,10 +244,10 @@ final class FirstOrderAutogradTest {
         Tensor objective = result.output().sum()
                 .add(result.nextRunningMean().sum())
                 .add(result.nextRunningVariance().sum());
-        AutogradPreflight.Plan plan = AutogradPreflight.preflight(
+        AutogradPreflight.StagePlan plan = AutogradPreflight.preflight(
                 CompileMode.FORWARD_AND_BACKWARD,
                 List.of(objective),
-                new AutogradPreflight.FirstOrderRequest(objective, List.of(input)),
+                FunctionalGradientTestSupport.stage(objective, List.of(input)),
                 CompileTimeConstantGraph.Ingress.empty());
 
         Tensor gradient = FirstOrderAutograd.expand(

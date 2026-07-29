@@ -68,6 +68,29 @@ final class CapturedGraphInference {
      */
     static ValidatedGraph inferAndValidate(CompileTimeConstantGraph constantGraph) {
         Objects.requireNonNull(constantGraph, "constantGraph");
+        return inferAndValidate(
+                constantGraph,
+                new ValidatedGraph(constantGraph, List.of()).derivatives());
+    }
+
+    /**
+     * Validates one graph while retaining exact derivative-order metadata.
+     *
+     * @param constantGraph non-null graph and exact source facts
+     * @param derivatives non-null metadata owning the exact graph
+     * @return non-null validated graph and sidecars
+     * @throws NullPointerException if an argument is {@code null}
+     * @throws IllegalArgumentException if graph identity, inference, or descriptors are invalid
+     */
+    static ValidatedGraph inferAndValidate(
+            CompileTimeConstantGraph constantGraph,
+            DerivativeGraphMetadata derivatives) {
+        Objects.requireNonNull(constantGraph, "constantGraph");
+        Objects.requireNonNull(derivatives, "derivatives");
+        if (derivatives.graph() != constantGraph.graph()) {
+            throw new IllegalArgumentException(
+                    "derivatives graph must be the exact graph being validated");
+        }
         CompiledGraphModel graph = constantGraph.graph();
         Map<ValueId, GraphValue> values = new HashMap<>();
         for (GraphValue value : graph.values()) values.put(value.id(), value);
@@ -110,7 +133,7 @@ final class CapturedGraphInference {
                 }
             }
         }
-        return new ValidatedGraph(constantGraph, deferred);
+        return new ValidatedGraph(constantGraph, deferred, derivatives);
     }
 
     private static List<TensorDescriptor> descriptors(List<ValueId> ids, Map<ValueId, GraphValue> values) {

@@ -34,6 +34,25 @@ final class GraphCanonicalization {
      * @throws NullPointerException if {@code graph} is {@code null}
      */
     static CompiledGraphModel canonicalize(CompiledGraphModel graph) {
+        return rebuild(graph).graph();
+    }
+
+    /**
+     * Canonicalizes the graph and remaps its derivative-order sidecar.
+     *
+     * @param derivatives non-null metadata owning the input graph
+     * @return non-null canonical graph and matching metadata
+     */
+    static Result canonicalize(DerivativeGraphMetadata derivatives) {
+        Objects.requireNonNull(derivatives, "derivatives");
+        Rebuild rebuild = rebuild(derivatives.graph());
+        return new Result(
+                rebuild.graph(),
+                DerivativeGraphMetadata.remap(
+                        derivatives, rebuild.graph(), rebuild.sourceNodeIds()));
+    }
+
+    private static Rebuild rebuild(CompiledGraphModel graph) {
         Objects.requireNonNull(graph, "graph");
 
         Map<ValueId, GraphValue> originalValues = valuesById(graph);
@@ -49,6 +68,7 @@ final class GraphCanonicalization {
         }
 
         List<CompiledNode> nodes = new ArrayList<>(graph.nodes().size());
+        List<NodeId> sourceNodeIds = new ArrayList<>(graph.nodes().size());
         Map<NodeId, GraphPhase> phases = new LinkedHashMap<>();
         long nextNodeId = 0;
         for (CompiledNode node : graph.nodes()) {
@@ -64,11 +84,14 @@ final class GraphCanonicalization {
             NodeId canonicalNode = new NodeId(nextNodeId++);
             nodes.add(new CompiledNode(
                     canonicalNode, node.operation(), remappedInputs, remappedOutputs));
+            sourceNodeIds.add(node.id());
             phases.put(canonicalNode, graph.nodePhases().get(node.id()));
         }
 
-        return new CompiledGraphModel(
-                values, nodes, inputs, remap(graph.outputs(), valueRemapping), phases);
+        return new Rebuild(
+                new CompiledGraphModel(
+                        values, nodes, inputs, remap(graph.outputs(), valueRemapping), phases),
+                List.copyOf(sourceNodeIds));
     }
 
     private static Map<ValueId, GraphValue> valuesById(CompiledGraphModel graph) {
@@ -87,4 +110,14 @@ final class GraphCanonicalization {
         }
         return result;
     }
+
+    /**
+     * Canonical graph and its matching derivative metadata.
+     *
+     * @param graph non-null canonical graph
+     * @param derivatives non-null matching metadata
+     */
+    record Result(CompiledGraphModel graph, DerivativeGraphMetadata derivatives) {}
+
+    private record Rebuild(CompiledGraphModel graph, List<NodeId> sourceNodeIds) {}
 }

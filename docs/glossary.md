@@ -48,7 +48,7 @@ symbolic-expression dimension, shape, broadcasting, layout, element stride, refe
 span, view, `TensorDescriptor`, typed
 `TensorId`, `NodeId`, and `ValueId` values, `OperationKind`, `OperationAttrs`, `NoOperationAttrs`,
 `OperationSignature`, the `Operation` descriptor, the `GraphValue` and `CompiledNode` graph-element records,
-`GraphPhase`, `CompiledGraphModel`, `PublicationBinding`, and the raw host-storage contracts
+`GraphPhase`, `CompiledGraphModel`, `ForwardPublicationBinding`, and the raw host-storage contracts
 `HostTensorStorage` and `MemorySegmentStorage`, plus public `Tensor` state and the descriptor-based
 `TensorFactory` construction boundary with JVM-scoped factory-assigned identity and exact-span
 JVM-managed heap allocation for resolved layouts, plus copied flat typed import for resolved
@@ -1094,17 +1094,18 @@ physical buffers, choose concrete kernels, or create backend executables. See
 [Lifecycle](architecture/lifecycle.md).
 
 The current package-private compiler implements the lifecycle through a validated forward-only or
-combined first-order graph stage followed by publication roles, per-node owner selection, maximal
-partitions, logical memory, constants, diagnostics, and immutable `CompileArtifacts`. Public
-compilation, publication delivery, preparation, and execution remain planned.
+combined one/two-stage functional-derivative graph followed by publication roles, per-node owner
+selection, maximal partitions, logical memory, constants, diagnostics, derivative-order metadata,
+and immutable `CompileArtifacts`. Public compilation, publication delivery, preparation, and
+execution remain planned.
 
 ### Compile artifacts
 
-The current public immutable seven-component `CompileArtifacts` record returned by the
+The current public immutable eight-component `CompileArtifacts` record returned by the
 package-private complete compiler entry. It contains the exact compile mode and final
 `CompiledGraphModel`, an immutable membership snapshot of maximal backend-owned partitions, the
 derived `LogicalMemoryPlan`, and exact `PublicationPlan`, `CompileConstantPlan`, and
-`CompileDiagnostics` references.
+`CompileDiagnostics`, and `DerivativeGraphMetadata` references.
 
 The constructor cross-validates graph identity, mode and phase roles, maximal graph-order
 partitioning, logical memory, complete graph-input source roles, constant type and gradient
@@ -1187,12 +1188,12 @@ kind](api/tensor-api.md#contiguous-semantic-kind), [Layout](#layout), and
 
 ### Cotangent
 
-The reverse-mode sensitivity that flows backward from a scalar objective toward an earlier Tensor.
-Current package-private first-order autograd supplies one implicit exact typed scalar unit
-cotangent at the objective, combines multiple incoming contributions with ordinary `Tensor.add`,
-normalizes each selected contribution to its input contract, and returns the accumulated cotangent
-for each requested target. A cotangent here is a temporary compiler Tensor expression, not
-mutable Tensor gradient state, a runtime tape value, or an optimizer slot.
+The reverse-mode sensitivity that flows backward from a selected output toward an earlier Tensor.
+Current package-private autograd accepts exact-Shape explicit cotangents or supplies an exact typed
+scalar unit for an eligible scalar output, combines multiple output and route contributions with
+ordinary `Tensor.add`, normalizes each selected contribution to its input contract, and returns
+the accumulated cotangent for each requested target. A cotangent here is a temporary compiler
+Tensor expression, not mutable Tensor gradient state, a runtime tape value, or an optimizer slot.
 
 ### Cotangent normalization
 
@@ -1447,16 +1448,17 @@ does define first-order formulas: finite and NaN inputs use the corresponding an
 derivative, positive infinity returns the incoming cotangent, and negative infinity returns exact
 positive zero.
 
-### First-order autograd request
+### Functional gradient request
 
-The current package-private compiler request for exactly one reverse-mode derivative order. It
-contains one exact requested scalar floating objective and an ordered, non-empty,
-identity-unique floating target list in that objective's selected differentiable ancestry. A
-target may have a different floating type from the objective when every selected role has a
-complete ordinary [cotangent normalization](#cotangent-normalization) path. The compiler supplies
-one implicit exact typed unit [cotangent](#cotangent); callers cannot yet provide an explicit seed
-or request a higher derivative order. `FORWARD_AND_BACKWARD` and the initial `TRAINING_STEP`
-require this request, while `FORWARD_ONLY` rejects it.
+The current public immutable `FunctionalGradientRequest` for exactly one or two reverse-mode
+stages. Stage one selects exact requested forward outputs; stage two may select generated
+first-stage gradients by target-list index. Every stage aligns optional explicit
+[cotangent](#cotangent) seeds with its outputs and names an ordered, non-empty,
+exact-identity-unique target list from the complete original forward inventory. An absent seed is
+an exact typed positive one only for an eligible scalar output. `DisconnectedPolicy.ERROR`
+rejects an unreachable target; `ZERO` returns an ordinary exact typed zero expression.
+`FORWARD_AND_BACKWARD` and the initial `TRAINING_STEP` require this request, while `FORWARD_ONLY`
+rejects it. The value exposes no public compile call or Tensor gradient lifecycle.
 
 ### Forward graph
 
@@ -1467,7 +1469,8 @@ The graph that computes outputs from user inputs in the original direction of th
 The historical name for the current package-private compiler's optional semantics-preserving
 transformation pipeline. It now operates on the complete graph selected by the compile mode:
 forward-only or combined forward/backward. The bounded order is exact arithmetic rewriting,
-logical-splat constant folding, whole-graph dead-code elimination (DCE), phase-local exact
+logical-splat constant folding, whole-graph dead-code elimination (DCE), phase- and
+derivative-order-local exact
 common-subexpression elimination (CSE), and whole-graph DCE cleanup, once each. A changed
 candidate is revalidated before the following transform.
 
@@ -1608,13 +1611,22 @@ compile-time work. It helps later compiler, publication, planning, and diagnosti
 the two regions. It is not a compile mode, runtime schedule, prepared-execution boundary, ordinal
 serialization, or optimizer-update phase.
 
-### Gradient result role
+### Gradient publication binding
 
-The current package-private `GraphCompilation.GradientResultRole` association from one exact
-requested target Tensor identity to the `ValueId` of its captured first-order gradient. Roles
-retain request order and remain distinct when multiple targets share one captured value. The
-combined graph output boundary instead lists each distinct gradient value once. A role is not a
-public gradient object, mutable Tensor state, storage binding, optimizer slot, or runtime result.
+The current public immutable `GradientPublicationBinding` association from derivative order and
+stage-local target index to the stable target `TensorId` and final gradient `ValueId`, exposed as
+`valueId()`. Bindings are ordered first by derivative order and then target index and remain
+distinct when multiple targets share one captured value. The combined graph output boundary
+instead lists each distinct gradient value once. A binding is not mutable Tensor state, storage
+allocation, optimizer state, or runtime delivery.
+
+### Derivative graph metadata
+
+The current public immutable `DerivativeGraphMetadata` sidecar with one encounter-ordered entry
+per final graph node: zero for an original forward producer, one for a producer first owned by the
+first reverse-mode stage, and two for one first owned by the second stage. It retains the exact
+graph reference and augments unchanged [`GraphPhase`](#graph-phase); it contains no Tensor,
+request, storage, backend, runtime, or execution state.
 
 ### Graph optimization configuration / `GraphOptimizationConfig`
 
@@ -1762,11 +1774,12 @@ partition-internal values without a separate role enum. A standalone public plan
 direct construction validates DTO state but cannot prove graph-relative facts without an owning
 graph.
 
-A logical memory plan is not a physical memory plan. It contains no `PublicationBinding`, public
-Tensor identity, element or byte count, lifetime, transfer, copy, device, address, buffer, slot,
-arena, allocation, route, kernel, schedule, or runtime residency. Retaining `TensorDescriptor`
-keeps static, dynamic, and expression Shapes representable. Prepare and concrete backends later
-turn logical obligations into physical representations and schedules.
+A logical memory plan is not a physical memory plan. It contains no
+`ForwardPublicationBinding`, `GradientPublicationBinding`, public Tensor identity, element or
+byte count, lifetime, transfer, copy, device, address, buffer, slot, arena, allocation, route,
+kernel, schedule, or runtime residency. Retaining `TensorDescriptor` keeps static, dynamic, and
+expression Shapes representable. Prepare and concrete backends later turn logical obligations
+into physical representations and schedules.
 
 ### Lifecycle
 
@@ -2480,22 +2493,24 @@ independent one-output producer with provenance index zero. Those individual
 origins distinguish outputs without establishing one shared producer occurrence, grouped result
 identity, or graph output slot.
 
-### Publication binding
+### Forward publication binding
 
-The implemented immutable `PublicationBinding` record associates one [`TensorId`](#tensorid) with
-one graph-local [`ValueId`](#valueid). It is standalone model data used by the current
-compiler-owned `PublicationPlan`, not a component of `CompiledGraphModel`. A binding cannot by
-itself prove that its value belongs to a particular graph, and it carries no public `Tensor`,
-intrinsic gradient role, publication policy or target, storage, backend, or runtime state.
+The implemented immutable `ForwardPublicationBinding` record associates one
+[`TensorId`](#tensorid) with one graph-local [`ValueId`](#valueid). It is standalone Model data
+used for requested forward results by the current compiler-owned `PublicationPlan`, not a
+component of `CompiledGraphModel`. A binding cannot by itself prove that its value belongs to a
+particular graph, and it carries no public `Tensor`, gradient role, publication policy or target,
+storage, backend, or runtime state.
 
 ### Publication plan
 
-The current compiler-owned output-only graph context for ordered publication roles.
+The current compiler-owned output-only graph context for ordered publication bindings.
 `PublicationPlan` retains the exact final `CompiledGraphModel` and immutable membership snapshots
-of separate forward-output and gradient-result `PublicationBinding` lists. Forward bindings pair
-requested Tensor IDs with the forward graph-output prefix. Gradient bindings pair differentiation
-target IDs with final gradient values. A Tensor ID may occur once in both lists, and gradient
-values may repeat or equal a forward value.
+exposed by `forwardBindings()` and `gradientBindings()`. `ForwardPublicationBinding` values pair
+requested Tensor IDs with the forward graph-output prefix. `GradientPublicationBinding` values
+pair derivative order and stage-local target position with target Tensor ID and final gradient
+`valueId()`. A target ID may occur once in each derivative order, and gradient values may repeat
+or equal a forward value.
 
 The plan validates every binding against the exact graph and requires the complete graph-output
 boundary to be the forward prefix followed by each previously unseen gradient value in first role
@@ -3345,8 +3360,8 @@ The value type itself does not allocate or guarantee uniqueness. The implemented
 [`TensorFactory`](#tensor-factory) provides the narrower guarantee that IDs it allocates are unique
 among its allocations in one JVM; callers may still construct equal numeric values manually. Two
 tensor objects remain unequal even when their IDs compare equal. An implemented
-`PublicationBinding` can associate an ID with a graph value without storing graph-local IDs on the
-tensor. See [Identifiers](api/tensor-api.md#typed-identifiers).
+`ForwardPublicationBinding` can associate an ID with a graph value without storing graph-local
+IDs on the tensor. See [Identifiers](api/tensor-api.md#typed-identifiers).
 
 ### Tiling
 
@@ -3580,9 +3595,10 @@ expressions](api/tensor-api.md#nchw-average-pooling-expressions), and [Window tr
 | Can participate in more than one separately compiled graph | Belongs to one owning graph context |
 | Must not become runtime device residency | Must not be confused with a physical buffer or slot |
 
-The implemented standalone `PublicationBinding` connects the two identity domains. Current
-compiler-owned `PublicationPlan` provides owning-graph and ordered role context but no publication
-delivery policy. Public
+The implemented standalone `ForwardPublicationBinding` connects the public Tensor and graph-value
+identity domains for requested forward results. Current compiler-owned `PublicationPlan` provides
+owning-graph and separate forward/gradient binding context but no publication delivery policy.
+Public
 descriptor-based leaf construction, immutable provenance, and floating plus selected signed-
 integral binary arithmetic, comparison, and scalar Tensor expression construction are
 implemented. Unary construction remains floating-only; BOOL-only logical expression construction,

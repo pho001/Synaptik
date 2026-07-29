@@ -10,7 +10,7 @@ import io.github.pho001.synaptik.model.datatype.DataType;
 import io.github.pho001.synaptik.model.datatype.ScalarValue;
 import io.github.pho001.synaptik.model.graph.CompiledGraphModel;
 import io.github.pho001.synaptik.model.graph.GraphValue;
-import io.github.pho001.synaptik.model.graph.PublicationBinding;
+import io.github.pho001.synaptik.model.graph.ForwardPublicationBinding;
 import io.github.pho001.synaptik.model.graph.ValueId;
 import io.github.pho001.synaptik.model.shape.Shape;
 import io.github.pho001.synaptik.model.tensor.TensorDescriptor;
@@ -25,13 +25,13 @@ import org.junit.jupiter.api.Test;
 
 final class CompileArtifactsTest {
     @Test
-    void exposesTheExactSevenComponentImmutableRecipeAndRetainsExactReferences() {
+    void exposesTheExactEightComponentImmutableRecipeAndRetainsExactReferences() {
         TensorDescriptor descriptor = descriptor(DataType.FLOAT32, false);
         ValueId input = new ValueId(1);
         CompiledGraphModel graph = passThroughGraph(input, descriptor);
         PublicationPlan publication = new PublicationPlan(
                 graph,
-                List.of(new PublicationBinding(new TensorId(7), input)),
+                List.of(new ForwardPublicationBinding(new TensorId(7), input)),
                 List.of());
         CompileConstantPlan constants =
                 new CompileConstantPlan(List.of(input), List.of());
@@ -47,7 +47,8 @@ final class CompileArtifactsTest {
                 memory,
                 publication,
                 constants,
-                diagnostics);
+                diagnostics,
+                DerivativeGraphMetadata.forwardOnly(graph));
         partitions.clear();
 
         assertEquals(
@@ -58,7 +59,8 @@ final class CompileArtifactsTest {
                         "memory",
                         "publication",
                         "constants",
-                        "diagnostics"),
+                        "diagnostics",
+                        "derivatives"),
                 java.util.Arrays.stream(CompileArtifacts.class.getRecordComponents())
                         .map(component -> component.getName())
                         .toList());
@@ -81,7 +83,7 @@ final class CompileArtifactsTest {
         CompiledGraphModel equalButDistinctGraph = passThroughGraph(input, descriptor);
         PublicationPlan wrongPublication = new PublicationPlan(
                 equalButDistinctGraph,
-                List.of(new PublicationBinding(new TensorId(7), input)),
+                List.of(new ForwardPublicationBinding(new TensorId(7), input)),
                 List.of());
         CompileDiagnostics diagnostics = new CompileDiagnostics(List.of());
         LogicalMemoryPlan memory = LogicalMemoryPlanning.plan(graph, List.of());
@@ -97,12 +99,13 @@ final class CompileArtifactsTest {
                                 memory,
                                 wrongPublication,
                                 new CompileConstantPlan(List.of(input), List.of()),
-                                diagnostics))
+                                diagnostics,
+                                DerivativeGraphMetadata.forwardOnly(graph)))
                         .getMessage());
 
         PublicationPlan publication = new PublicationPlan(
                 graph,
-                List.of(new PublicationBinding(new TensorId(7), input)),
+                List.of(new ForwardPublicationBinding(new TensorId(7), input)),
                 List.of());
         assertEquals(
                 "memory does not match graph and partitions",
@@ -115,7 +118,8 @@ final class CompileArtifactsTest {
                                 new LogicalMemoryPlan(List.of()),
                                 publication,
                                 new CompileConstantPlan(List.of(input), List.of()),
-                                diagnostics))
+                                diagnostics,
+                                DerivativeGraphMetadata.forwardOnly(graph)))
                         .getMessage());
 
         assertEquals(
@@ -129,7 +133,8 @@ final class CompileArtifactsTest {
                                 memory,
                                 publication,
                                 new CompileConstantPlan(List.of(), List.of()),
-                                diagnostics))
+                                diagnostics,
+                                DerivativeGraphMetadata.forwardOnly(graph)))
                         .getMessage());
     }
 
@@ -142,7 +147,7 @@ final class CompileArtifactsTest {
                 passThroughGraph(input, descriptor(DataType.FLOAT32, false));
         PublicationPlan floatPublication = new PublicationPlan(
                 floatGraph,
-                List.of(new PublicationBinding(new TensorId(7), input)),
+                List.of(new ForwardPublicationBinding(new TensorId(7), input)),
                 List.of());
         assertEquals(
                 "constantSources[0] data type INT32 does not match graph input descriptor FLOAT32",
@@ -158,14 +163,15 @@ final class CompileArtifactsTest {
                                         List.of(),
                                         List.of(new CompileConstantPlan.ConstantSource(
                                                 input, ScalarValue.int32(1)))),
-                                diagnostics))
+                                diagnostics,
+                                DerivativeGraphMetadata.forwardOnly(floatGraph)))
                         .getMessage());
 
         CompiledGraphModel gradientGraph =
                 passThroughGraph(input, descriptor(DataType.FLOAT32, true));
         PublicationPlan gradientPublication = new PublicationPlan(
                 gradientGraph,
-                List.of(new PublicationBinding(new TensorId(7), input)),
+                List.of(new ForwardPublicationBinding(new TensorId(7), input)),
                 List.of());
         assertEquals(
                 "constantSources[0] fixes a gradient-eligible graph input",
@@ -181,7 +187,8 @@ final class CompileArtifactsTest {
                                         List.of(),
                                         List.of(new CompileConstantPlan.ConstantSource(
                                                 input, ScalarValue.float32(1.0f)))),
-                                diagnostics))
+                                diagnostics,
+                                DerivativeGraphMetadata.forwardOnly(gradientGraph)))
                         .getMessage());
     }
 

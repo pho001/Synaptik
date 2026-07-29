@@ -56,6 +56,48 @@ final class ForwardConstantFolding {
      */
     static CompileTimeConstantGraph fold(CompileTimeConstantGraph constantGraph) {
         Objects.requireNonNull(constantGraph, "constantGraph");
+        Map<NodeId, CompileTimeConstantGraph.Splat> folded = foldedNodes(constantGraph);
+        if (folded.isEmpty()) {
+            return constantGraph;
+        }
+        return rebuild(
+                constantGraph,
+                folded,
+                valuesById(constantGraph.graph())).constantGraph();
+    }
+
+    /**
+     * Folds selected exact occurrences while preserving derivative orders.
+     *
+     * @param constantGraph non-null graph and source facts
+     * @param derivatives non-null metadata owning the exact graph
+     * @return non-null folded graph/source facts and matching metadata
+     */
+    static Result fold(
+            CompileTimeConstantGraph constantGraph,
+            DerivativeGraphMetadata derivatives) {
+        Objects.requireNonNull(constantGraph, "constantGraph");
+        Objects.requireNonNull(derivatives, "derivatives");
+        if (derivatives.graph() != constantGraph.graph()) {
+            throw new IllegalArgumentException(
+                    "derivatives graph must be the exact graph being folded");
+        }
+        Map<NodeId, CompileTimeConstantGraph.Splat> folded = foldedNodes(constantGraph);
+        if (folded.isEmpty()) {
+            return new Result(constantGraph, derivatives);
+        }
+        Rebuild rebuild = rebuild(
+                constantGraph, folded, valuesById(constantGraph.graph()));
+        return new Result(
+                rebuild.constantGraph(),
+                DerivativeGraphMetadata.remap(
+                        derivatives,
+                        rebuild.constantGraph().graph(),
+                        rebuild.sourceNodeIds()));
+    }
+
+    private static Map<NodeId, CompileTimeConstantGraph.Splat> foldedNodes(
+            CompileTimeConstantGraph constantGraph) {
         CompiledGraphModel graph = constantGraph.graph();
         Map<ValueId, GraphValue> originalValues = valuesById(graph);
         Set<ValueId> graphOutputs = new HashSet<>(graph.outputs());
@@ -71,10 +113,7 @@ final class ForwardConstantFolding {
                 propagated.put(node.outputs().getFirst(), result);
             }
         }
-        if (folded.isEmpty()) {
-            return constantGraph;
-        }
-        return rebuild(constantGraph, folded, originalValues);
+        return folded;
     }
 
     private static CompileTimeConstantGraph.Splat evaluate(
@@ -249,7 +288,7 @@ final class ForwardConstantFolding {
         return value.dataType() == DataType.INT32 ? value.int32Value() : value.int64Value();
     }
 
-    private static CompileTimeConstantGraph rebuild(
+    private static Rebuild rebuild(
             CompileTimeConstantGraph source,
             Map<NodeId, CompileTimeConstantGraph.Splat> folded,
             Map<ValueId, GraphValue> originalValues) {
@@ -284,6 +323,8 @@ final class ForwardConstantFolding {
         }
 
         List<CompiledNode> nodes = new ArrayList<>(graph.nodes().size() - folded.size());
+        List<NodeId> sourceNodeIds =
+                new ArrayList<>(graph.nodes().size() - folded.size());
         Map<NodeId, GraphPhase> phases = new LinkedHashMap<>();
         long nextNodeId = 0;
         for (CompiledNode node : graph.nodes()) {
@@ -301,12 +342,15 @@ final class ForwardConstantFolding {
             NodeId rebuiltNode = new NodeId(nextNodeId++);
             nodes.add(new CompiledNode(
                     rebuiltNode, node.operation(), rebuiltInputs, rebuiltOutputs));
+            sourceNodeIds.add(node.id());
             phases.put(rebuiltNode, graph.nodePhases().get(node.id()));
         }
 
         CompiledGraphModel rebuilt = new CompiledGraphModel(
                 values, nodes, inputs, remap(graph.outputs(), remapping), phases);
-        return new CompileTimeConstantGraph(rebuilt, constants);
+        return new Rebuild(
+                new CompileTimeConstantGraph(rebuilt, constants),
+                List.copyOf(sourceNodeIds));
     }
 
     private static Map<ValueId, GraphValue> valuesById(CompiledGraphModel graph) {
@@ -325,4 +369,18 @@ final class ForwardConstantFolding {
         }
         return result;
     }
+
+    /**
+     * Folded graph/source facts and their matching derivative metadata.
+     *
+     * @param constantGraph non-null folded graph and source facts
+     * @param derivatives non-null matching metadata
+     */
+    record Result(
+            CompileTimeConstantGraph constantGraph,
+            DerivativeGraphMetadata derivatives) {}
+
+    private record Rebuild(
+            CompileTimeConstantGraph constantGraph,
+            List<NodeId> sourceNodeIds) {}
 }

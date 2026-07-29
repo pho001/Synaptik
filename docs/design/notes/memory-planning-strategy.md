@@ -52,9 +52,10 @@ If `ValueId(4)` dies before `ValueId(9)` is produced, prepare may map both to sl
 
 ## Open implementation detail
 
-The current logical plan does not accept `PublicationBinding`; graph outputs provide only a
-preservation obligation, while a future compiler-owned `PublicationPlan` will own tensor-to-value
-publication context. Allocation algorithms, alignment, alias analysis, workspace pooling,
+The current logical plan does not accept `ForwardPublicationBinding` or
+`GradientPublicationBinding`; graph outputs provide only a preservation obligation, while the
+compiler-owned `PublicationPlan` owns tensor-to-value publication context. Allocation algorithms,
+alignment, alias analysis, workspace pooling,
 ownership of externally supplied memory, dynamic-shape specialization, concurrency, and
 out-of-memory diagnostics remain for focused tasks. Any solution must keep physical addresses and
 mutable residency out of compile artifacts.

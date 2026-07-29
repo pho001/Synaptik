@@ -143,10 +143,10 @@ final class AutogradPreflightTest {
         Tensor selected = target.mul(unrelated);
         Tensor objective = selected.sum();
 
-        AutogradPreflight.Plan plan = AutogradPreflight.preflight(
+        AutogradPreflight.StagePlan plan = AutogradPreflight.preflight(
                 CompileMode.FORWARD_AND_BACKWARD,
                 List.of(objective),
-                new AutogradPreflight.FirstOrderRequest(objective, List.of(target)),
+                FunctionalGradientTestSupport.stage(objective, List.of(target)),
                 CompileTimeConstantGraph.Ingress.empty());
 
         assertEquals(List.of(
@@ -168,7 +168,7 @@ final class AutogradPreflightTest {
                 () -> AutogradPreflight.preflight(
                         CompileMode.FORWARD_AND_BACKWARD,
                         List.of(objective),
-                        new AutogradPreflight.FirstOrderRequest(
+                        FunctionalGradientTestSupport.stage(
                                 objective, List.of(conditionSource)),
                         CompileTimeConstantGraph.Ingress.empty()));
         assertTrue(conditionFailure.getMessage().contains("non-differentiable")
@@ -184,11 +184,11 @@ final class AutogradPreflightTest {
                 () -> AutogradPreflight.preflight(
                         CompileMode.TRAINING_STEP,
                         List.of(vector),
-                        new AutogradPreflight.FirstOrderRequest(vector, List.of(vector)),
+                        FunctionalGradientTestSupport.stage(vector, List.of(vector)),
                         CompileTimeConstantGraph.Ingress.empty()));
         assertThrows(
                 IllegalArgumentException.class,
-                () -> new AutogradPreflight.FirstOrderRequest(vector, List.of(vector, vector)));
+                () -> FunctionalGradientTestSupport.stage(vector, List.of(vector, vector)));
     }
 
     @Test
@@ -197,10 +197,10 @@ final class AutogradPreflightTest {
         Tensor exactTarget = tensor(Shape.ofDimensions(sourceExtent), true);
         Tensor exactObjective =
                 exactTarget.sumToShape(Shape.ofDimensions(sourceExtent)).sum();
-        AutogradPreflight.Plan plan = AutogradPreflight.preflight(
+        AutogradPreflight.StagePlan plan = AutogradPreflight.preflight(
                 CompileMode.FORWARD_AND_BACKWARD,
                 List.of(exactObjective),
-                new AutogradPreflight.FirstOrderRequest(exactObjective, List.of(exactTarget)),
+                FunctionalGradientTestSupport.stage(exactObjective, List.of(exactTarget)),
                 CompileTimeConstantGraph.Ingress.empty());
         assertEquals(2, plan.selectedOccurrences().size());
 
@@ -208,10 +208,10 @@ final class AutogradPreflightTest {
         Tensor bindingObjective = bindingDependent
                 .sumToShape(Shape.ofDimensions(new DynamicDimension("M")))
                 .sum();
-        AutogradPreflight.Plan bindingPlan = AutogradPreflight.preflight(
+        AutogradPreflight.StagePlan bindingPlan = AutogradPreflight.preflight(
                 CompileMode.FORWARD_AND_BACKWARD,
                 List.of(bindingObjective),
-                new AutogradPreflight.FirstOrderRequest(
+                FunctionalGradientTestSupport.stage(
                         bindingObjective, List.of(bindingDependent)),
                 CompileTimeConstantGraph.Ingress.empty());
         assertEquals(2, bindingPlan.selectedOccurrences().size());
@@ -229,18 +229,18 @@ final class AutogradPreflightTest {
                         new long[] {1})
                 .sum();
 
-        AutogradPreflight.Plan basePlan = AutogradPreflight.preflight(
+        AutogradPreflight.StagePlan basePlan = AutogradPreflight.preflight(
                 CompileMode.FORWARD_AND_BACKWARD,
                 List.of(objective),
-                new AutogradPreflight.FirstOrderRequest(objective, List.of(base)),
+                FunctionalGradientTestSupport.stage(objective, List.of(base)),
                 CompileTimeConstantGraph.Ingress.empty());
         assertTrue(basePlan.selectedOccurrences().stream()
                 .anyMatch(occurrence -> occurrence.selectedInput(0)));
 
-        AutogradPreflight.Plan updatePlan = AutogradPreflight.preflight(
+        AutogradPreflight.StagePlan updatePlan = AutogradPreflight.preflight(
                 CompileMode.FORWARD_AND_BACKWARD,
                 List.of(objective),
-                new AutogradPreflight.FirstOrderRequest(objective, List.of(update)),
+                FunctionalGradientTestSupport.stage(objective, List.of(update)),
                 CompileTimeConstantGraph.Ingress.empty());
         assertTrue(updatePlan.selectedOccurrences().stream()
                 .anyMatch(occurrence -> occurrence.selectedInput(1)));
@@ -257,15 +257,15 @@ final class AutogradPreflightTest {
                 () -> AutogradPreflight.preflight(
                         CompileMode.FORWARD_AND_BACKWARD,
                         List.of(maskedObjective),
-                        new AutogradPreflight.FirstOrderRequest(
+                        FunctionalGradientTestSupport.stage(
                                 maskedObjective, List.of(maskSource)),
                         CompileTimeConstantGraph.Ingress.empty()));
 
         Tensor cropObjective = data.cropToShape(Shape.of(2), Shape.of(0)).sum();
-        AutogradPreflight.Plan cropPlan = AutogradPreflight.preflight(
+        AutogradPreflight.StagePlan cropPlan = AutogradPreflight.preflight(
                 CompileMode.FORWARD_AND_BACKWARD,
                 List.of(cropObjective),
-                new AutogradPreflight.FirstOrderRequest(cropObjective, List.of(data)),
+                FunctionalGradientTestSupport.stage(cropObjective, List.of(data)),
                 CompileTimeConstantGraph.Ingress.empty());
         assertTrue(cropPlan.selectedOccurrences().stream()
                 .anyMatch(occurrence -> occurrence.producer().operation().kind()
@@ -331,10 +331,10 @@ final class AutogradPreflightTest {
                 .add(result.nextRunningMean().sum())
                 .add(result.nextRunningVariance().sum());
 
-        AutogradPreflight.Plan plan = AutogradPreflight.preflight(
+        AutogradPreflight.StagePlan plan = AutogradPreflight.preflight(
                 CompileMode.FORWARD_AND_BACKWARD,
                 List.of(objective),
-                new AutogradPreflight.FirstOrderRequest(
+                FunctionalGradientTestSupport.stage(
                         objective,
                         List.of(input, scale, bias, runningMean, runningVariance)),
                 CompileTimeConstantGraph.Ingress.empty());
@@ -373,7 +373,7 @@ final class AutogradPreflightTest {
                 () -> AutogradPreflight.preflight(
                         CompileMode.FORWARD_AND_BACKWARD,
                         List.of(objective),
-                        new AutogradPreflight.FirstOrderRequest(objective, List.of(savedMean)),
+                        FunctionalGradientTestSupport.stage(objective, List.of(savedMean)),
                         CompileTimeConstantGraph.Ingress.empty()));
         assertTrue(failure.getMessage().contains("saved auxiliary"));
         IllegalArgumentException routeFailure = assertThrows(
@@ -381,7 +381,7 @@ final class AutogradPreflightTest {
                 () -> AutogradPreflight.preflight(
                         CompileMode.FORWARD_AND_BACKWARD,
                         List.of(objective),
-                        new AutogradPreflight.FirstOrderRequest(objective, List.of(input)),
+                        FunctionalGradientTestSupport.stage(objective, List.of(input)),
                         CompileTimeConstantGraph.Ingress.empty()));
         assertTrue(routeFailure.getMessage().contains("non-differentiable"));
     }
@@ -399,10 +399,10 @@ final class AutogradPreflightTest {
                 narrow.floor().mean(),
                 narrow.ceil().mean(),
                 narrow.sign().mean())) {
-            AutogradPreflight.Plan plan = AutogradPreflight.preflight(
+            AutogradPreflight.StagePlan plan = AutogradPreflight.preflight(
                     CompileMode.FORWARD_AND_BACKWARD,
                     List.of(objective),
-                    new AutogradPreflight.FirstOrderRequest(objective, List.of(narrow)),
+                    FunctionalGradientTestSupport.stage(objective, List.of(narrow)),
                     CompileTimeConstantGraph.Ingress.empty());
             assertTrue(!plan.selectedOccurrences().isEmpty());
         }

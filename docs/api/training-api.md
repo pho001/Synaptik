@@ -3,19 +3,19 @@
 ## Purpose and implementation status
 
 This reference records the planned public training concepts without inventing callable APIs.
-`extensions/training`, public gradient requests and publication, optimizer behavior, and prepared
-execution are not implemented. A bounded package-private compiler-owned first-order autograd path
-is current internal graph-stage behavior.
+`extensions/training`, public gradient publication, optimizer behavior, and prepared execution
+are not implemented. The compiler now provides a public immutable functional-gradient request
+value and a bounded package-private one/two-stage reverse-mode integration path.
 
 Training will own backend-independent optimizer algorithms and session concepts. The compiler will own global automatic differentiation (autograd), while concrete backends will own any backend-specific lowering or fused optimizer route.
 
-The accepted compiler design builds first-order gradients with existing public Tensor operations
-before one combined forward/backward capture. Model task 0025 and Compiler task 0004 are Complete.
+The accepted compiler design builds one or two reverse-mode stages with existing public Tensor
+operations before one combined forward/backward capture. Model task 0025 and Compiler tasks 0004
+and 0006 are Complete.
 Public Tensors gain no gradient/backward lifecycle state. The current internal `TRAINING_STEP`
-mode uses the same scalar-objective/implicit-unit-seed first-order construction as
-`FORWARD_AND_BACKWARD`; it adds no optimizer update. Publication, public
-objectives/targets/seeds, higher-order differentiation, optimizer behavior, preparation, and
-execution remain planned.
+mode uses the same `FunctionalGradientRequest` contract as `FORWARD_AND_BACKWARD`; it adds no
+optimizer update. Runtime gradient delivery, optimizer behavior, preparation, and execution
+remain planned.
 
 Package-private `GraphCompiler` currently returns mode-neutral `GraphCompilation`. A
 `TRAINING_STEP` result may carry the same combined forward/backward graph as
@@ -23,14 +23,13 @@ Package-private `GraphCompiler` currently returns mode-neutral `GraphCompilation
 This internal graph-stage result is not the later `CompileArtifacts` aggregate or a training
 session/result type.
 
-The current internal first-order request supports one exact scalar floating objective among the
-forward outputs and a non-empty ordered identity-unique target list in its differentiable
-ancestry. Its only seed is an implicit exact typed positive one. The compiler preflights the
-complete selected slice before creating formulas, uses explicit storage-free typed logical splats
-for derivative zero/one values, captures forward and gradient roots once with per-node phase, and
-optimizes that complete immutable graph once. These facts do not expose a public training
-workflow, publish a gradient, mutate a parameter, choose a backend, prepare a schedule, or execute
-training.
+The current request supports one or two bounded stages, exact forward or first-stage-gradient
+output references, aligned explicit seeds or scalar default seeds, ordered identity-unique
+targets, and ERROR/ZERO disconnected behavior. The compiler preflights each complete selected
+slice before creating formulas, captures forward and all derivative roots once, and retains
+per-node derivative order beside unchanged graph phase. These facts do not expose a public
+training workflow, deliver a gradient at runtime, mutate a parameter, choose a backend, prepare a
+schedule, or execute training.
 
 ## Planned concepts
 

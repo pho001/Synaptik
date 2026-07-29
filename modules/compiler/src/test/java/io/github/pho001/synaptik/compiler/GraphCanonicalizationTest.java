@@ -43,7 +43,7 @@ final class GraphCanonicalizationTest {
                 () -> assertTrue(Modifier.isStatic(method.getModifiers())),
                 () -> assertFalse(Modifier.isPublic(method.getModifiers())),
                 () -> assertSame(CompiledGraphModel.class, method.getReturnType()),
-                () -> assertEquals(1, Arrays.stream(GraphCanonicalization.class.getDeclaredMethods())
+                () -> assertEquals(2, Arrays.stream(GraphCanonicalization.class.getDeclaredMethods())
                         .filter(declared -> !declared.isSynthetic())
                         .filter(declared -> !Modifier.isPrivate(declared.getModifiers()))
                         .count()));
@@ -52,7 +52,8 @@ final class GraphCanonicalizationTest {
     @Test
     void rejectsNullGraphWithSpecifiedMessage() {
         assertEquals("graph", assertThrows(NullPointerException.class,
-                () -> GraphCanonicalization.canonicalize(null)).getMessage());
+                () -> GraphCanonicalization.canonicalize(
+                        (CompiledGraphModel) null)).getMessage());
     }
 
     @Test

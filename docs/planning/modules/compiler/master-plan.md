@@ -67,8 +67,9 @@ io.github.pho001.synaptik.compiler/
   <root>  package-private forward capture and backward-capable combined capture, inference and typed constraints,
           deterministic canonicalization, exact arithmetic rewriting, logical-splat facts and
           folding, DCE/CSE orchestration, named Tensor-expression gradient rules, reverse
-          accumulation, combined-graph gradient result roles, and the current narrow public
-          artifact/cross-package Planning boundary justified by Compiler 0005
+          accumulation, combined-graph gradient result roles, the current narrow public
+          artifact/cross-package Planning boundary justified by Compiler 0005, and the bounded
+          public functional request/result/order contracts selected by Compiler 0006
 ```
 
 The root package remains one cohesive internal compiler-front-end boundary. It must not become a
@@ -94,7 +95,7 @@ cross-package/public orchestration boundary from a concrete consumer.
 | 0005C | [Layout, window, indexing, scatter, ordering, and stochastic gradient completion](tasks/0005c-layout-window-indexing-scatter-ordering-and-stochastic-gradient-completion.md) | Complete | Models 0025C–0025D; 0005B | Completed layout/slice/composition and dynamic window rules, including retained dynamic extraction and target-relative placement obligations, Gather/scatter variants with fixed duplicate/zero/tie policies, exact sort/top-K routing, and dropout through canonical auxiliaries; coordinates, indices, one-hot/BOOL outputs, RNG state, masks, and configuration roles remain non-differentiable. |
 | 0005D | [Attention, convolution, pooling, and loss gradient completion](tasks/0005d-attention-convolution-pooling-and-loss-gradient-completion.md) | Complete | 0005B, 0005C | Verified the implemented MATMUL/linear chain and completed the representable structured-ML inventory: two-output attention with canonical weights, grouped convolution, pooling, and every current loss role/reduction mode; one-output attention and dynamic/zero-depth index loss fail closed. |
 | 0005E | [First-order gradient coverage closure checkpoint](tasks/0005e-first-order-gradient-coverage-closure-checkpoint.md) | Complete | 0005A, 0005B, 0005C, 0005D | Added one package-private coverage checker; closed all current 37 kind families, 107 constants, 128 signature variants, legal output slots, and ordered input roles as differentiable, intentionally non-differentiable, or explicitly fail-closed; and proved bounded transitive and connected nested-pass formula closure at the first-order capability checkpoint. |
-| 0006 | Explicit functional gradient requests and higher-order differentiation | Draft | 0005E and a stable public compile/artifact boundary | Define explicit objectives, targets, seeds, create-graph or derivative order, disconnected-result behavior, and phase/order representation over the first-order formula-operation closure without Tensor gradient lifecycle state. |
+| 0006 | [Explicit functional gradient requests and higher-order differentiation](tasks/0006-explicit-functional-gradient-requests-and-higher-order-differentiation.md) | Complete | 0005E and the stable public compile/artifact boundary from 0005 | Added one public immutable one/two-stage functional request, explicit/default cotangent seeds, ERROR/ZERO disconnected behavior, ordered `GradientPublicationBinding` values, and compiler-owned derivative-order metadata over the closed first-order formula matrix without Tensor gradient lifecycle state or another compile facade. |
 
 Tasks 0005A–0005D partition the complete current model operation inventory without claiming that
 every role has a gradient. A task may claim family coverage only after it has implemented every
@@ -172,8 +173,16 @@ inventory with exact `D`/`ND`/`FC`, owner/reason, ranged-cardinality, fail-close
 evidence. A bounded 22-case cross-family expansion probe classified 64 generated edge
 fingerprints, completed 10 connected nested passes, and identity-proved 12 disconnected skips.
 The replacement focused command passed 43 tests, the full Compiler module passed 29 suites/194
-tests, and the repository/architecture checkpoint passed. Compiler 0006 remains Draft without a
-detailed specification; no later compiler task is Ready.
+tests, and the repository/architecture checkpoint passed.
+[Compiler 0006](tasks/0006-explicit-functional-gradient-requests-and-higher-order-differentiation.md)
+is Complete. Its approved final terminology correction distinguishes Model
+`ForwardPublicationBinding` from Compiler `GradientPublicationBinding`; `PublicationPlan`
+exposes `forwardBindings()` and `gradientBindings()` while the package-private
+`GraphCompilation` component names remain unchanged. The final focused correction command passed
+35 tests, and the single final affected-module command passed Model 127 suites/1,031 tests plus
+Compiler 31 suites/208 tests with no skips, failures, or errors. No semantic, validation-order,
+visibility, ownership, capture, optimization, publication, or ID behavior changed. No later
+compiler task has a detailed specification.
 The final focused seven-suite 0005D command passed. After the MSE negative-coefficient expression
 order was corrected, the replacement full compiler-module run passed 28 suites and 189 tests with
 no failures, errors, or skips. No executable Java changed after that evidence; the separate clean
@@ -237,7 +246,7 @@ higher-order work. The sequence first resolves elementwise/activation derivative
 formula foundations, then reductions/scans/softmax/statistics/normalization, then dynamic layout/
 window/indexing/scatter/ordering/stochastic families, then structured attention/convolution/
 pooling/loss families, and finally one source-backed coverage checkpoint. Tasks 0005A–0005E are
-Complete, and no later compiler task is Ready.
+Complete. Detailed task 0006 is also Complete; no later compiler task is specified.
 
 This reordering preserves completed history. Tasks 0003, 0003A, and 0003B were correctly completed
 for a forward-only immutable graph. Compiler 0004 reused their existing exact rules only where
@@ -251,9 +260,10 @@ Runtime and prepare remain Draft because no prepared or executable state is intr
 
 ## Open questions
 
-- The public functional boundary for explicit objectives, targets, seeds, and derivative order
-  remains deferred to task 0006 after the compile/artifact boundary and task 0005E first-order
-  closure are stable.
+- No blocking question remains for task 0006. Its detailed specification fixes the bounded public
+  one/two-stage functional request, exact forward/stage-one references, aligned seeds, ERROR/ZERO
+  disconnected policy, result ordering, and compiler-owned derivative-order sidecar. A public
+  Engine facade and more than two derivative stages remain future decisions.
 - Complete task 0005C adopts retained slice/window constraints, preflight, and gradients; fixes
   scatter duplicate/zero/tie/NaN/signed-zero routing, stable ordering/cutoff routing, and dropout
   mask/probability behavior; and preserves dynamic geometry plus non-differentiable index/RNG
@@ -340,9 +350,10 @@ Runtime and prepare remain Draft because no prepared or executable state is intr
 - Initial combined optimization applies only the exact 0003A/0003B rules whose current guards are
   proved safe, whole-graph DCE, and phase-local CSE. Every changed graph is revalidated through
   0002. No new algebra follows from autograd.
-- Generated gradients remain ordinary differentiable Tensor expressions. Higher derivatives wait
-  for 0006's explicit create-graph/derivative-order lifecycle, complete rule coverage for formula
-  operations, and phase/order representation.
+- Generated gradients remain ordinary differentiable Tensor expressions. Detailed task 0006
+  selects exactly one optional second reverse-mode stage, compile-local `createGraph`, reuse of
+  the closed formula-operation coverage, and compiler-owned order metadata adjacent to unchanged
+  Model `GraphPhase`.
 - Compiler 0004A extends the closed preflight and named rule owners only. Its ERF coefficient uses
   fixed typed scalar-attribute bits; its MATMUL and SLICE_UPDATE selection is role-aware; and
   repeated operand positions remain repeated deterministic contributions.
@@ -427,5 +438,7 @@ Detailed
 is Complete. It fixes the complete assigned inventory, formulas, retained constraints, numerical
 policies, canonical auxiliary-output use, fail-closed ordering, authorized 23-path ceiling, and
 implementation/documentation handoff. Detailed 0005D and
-[0005E](tasks/0005e-first-order-gradient-coverage-closure-checkpoint.md) are Complete. Keep 0006
-Draft without a detailed specification, and no later compiler task is Ready.
+[0005E](tasks/0005e-first-order-gradient-coverage-closure-checkpoint.md) are Complete. Detailed
+[0006](tasks/0006-explicit-functional-gradient-requests-and-higher-order-differentiation.md) is
+Complete with the approved forward/gradient publication-binding terminology correction;
+reassess the roadmap before creating a later compiler specification.

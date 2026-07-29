@@ -76,7 +76,7 @@ final class OrderingStochasticGradientRulesTest {
         var plan = AutogradPreflight.preflight(
                 CompileMode.FORWARD_AND_BACKWARD,
                 List.of(objective),
-                new AutogradPreflight.FirstOrderRequest(objective, List.of(target)),
+                FunctionalGradientTestSupport.stage(objective, List.of(target)),
                 CompileTimeConstantGraph.Ingress.empty());
         return FirstOrderAutograd.expand(plan, CompileTimeConstantGraph.Ingress.empty())
                 .targetGradients().getFirst().gradient();
@@ -86,7 +86,7 @@ final class OrderingStochasticGradientRulesTest {
         GraphCompilation compilation = GraphCompiler.compile(
                 CompileMode.FORWARD_AND_BACKWARD,
                 List.of(objective),
-                Optional.of(new AutogradPreflight.FirstOrderRequest(
+                Optional.of(FunctionalGradientTestSupport.request(
                         objective, List.of(target))),
                 CompileTimeConstantGraph.Ingress.empty(),
                 GraphOptimizationConfig.disabled());

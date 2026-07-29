@@ -40,6 +40,34 @@ final class ForwardCommonSubexpressionElimination {
      * @throws NullPointerException if {@code graph} is {@code null}
      */
     static CompiledGraphModel eliminate(CompiledGraphModel graph) {
+        return rebuild(graph, null).graph();
+    }
+
+    /** Derivative-order-aware CSE entry used by combined functional graphs. */
+    static final class DerivativeAware {
+        private DerivativeAware() {}
+
+        /**
+         * Merges exact expressions only within equal phase and derivative order.
+         *
+         * @param derivatives non-null metadata owning the input graph
+         * @return non-null eliminated graph and matching metadata
+         */
+        static Result eliminate(DerivativeGraphMetadata derivatives) {
+            Objects.requireNonNull(derivatives, "derivatives");
+            Rebuild rebuild = rebuild(derivatives.graph(), derivatives);
+            if (rebuild.graph() == derivatives.graph()) {
+                return new Result(rebuild.graph(), derivatives);
+            }
+            return new Result(
+                    rebuild.graph(),
+                    DerivativeGraphMetadata.remap(
+                            derivatives, rebuild.graph(), rebuild.sourceNodeIds()));
+        }
+    }
+
+    private static Rebuild rebuild(
+            CompiledGraphModel graph, DerivativeGraphMetadata derivatives) {
         Objects.requireNonNull(graph, "graph");
 
         Map<ValueId, GraphValue> originalValues = new HashMap<>();
@@ -60,17 +88,26 @@ final class ForwardCommonSubexpressionElimination {
 
         Map<ExpressionKey, List<ValueId>> representatives = new HashMap<>();
         List<CompiledNode> nodes = new ArrayList<>(graph.nodes().size());
+        List<NodeId> sourceNodeIds = new ArrayList<>(graph.nodes().size());
         Map<NodeId, GraphPhase> phases = new LinkedHashMap<>();
         long nextNodeId = 0;
         boolean changed = false;
         for (CompiledNode node : graph.nodes()) {
             GraphPhase phase = graph.nodePhases().get(node.id());
+            int derivativeOrder = derivatives == null
+                    ? (phase == GraphPhase.FORWARD ? 0 : 1)
+                    : derivatives.derivativeOrderByNode().get(node.id());
             List<ValueId> remappedInputs = remap(node.inputs(), valueRemapping);
             List<TensorDescriptor> outputDescriptors = descriptors(
                     node.outputs(), originalValues);
             boolean eligible = node.outputs().stream().noneMatch(graphOutputs::contains);
             ExpressionKey key = eligible
-                    ? new ExpressionKey(phase, node.operation(), remappedInputs, outputDescriptors)
+                    ? new ExpressionKey(
+                            phase,
+                            derivativeOrder,
+                            node.operation(),
+                            remappedInputs,
+                            outputDescriptors)
                     : null;
             List<ValueId> representativeOutputs = eligible ? representatives.get(key) : null;
             if (representativeOutputs != null) {
@@ -91,6 +128,7 @@ final class ForwardCommonSubexpressionElimination {
             NodeId rebuiltNode = new NodeId(nextNodeId++);
             nodes.add(new CompiledNode(
                     rebuiltNode, node.operation(), remappedInputs, rebuiltOutputs));
+            sourceNodeIds.add(node.id());
             phases.put(rebuiltNode, phase);
             if (eligible) {
                 representatives.put(key, List.copyOf(rebuiltOutputs));
@@ -98,10 +136,12 @@ final class ForwardCommonSubexpressionElimination {
         }
 
         if (!changed) {
-            return graph;
+            return new Rebuild(graph, List.copyOf(sourceNodeIds));
         }
-        return new CompiledGraphModel(
-                values, nodes, inputs, remap(graph.outputs(), valueRemapping), phases);
+        return new Rebuild(
+                new CompiledGraphModel(
+                        values, nodes, inputs, remap(graph.outputs(), valueRemapping), phases),
+                List.copyOf(sourceNodeIds));
     }
 
     private static List<TensorDescriptor> descriptors(
@@ -124,6 +164,7 @@ final class ForwardCommonSubexpressionElimination {
 
     private record ExpressionKey(
             GraphPhase phase,
+            int derivativeOrder,
             Operation operation,
             List<ValueId> inputs,
             List<TensorDescriptor> outputs) {
@@ -132,4 +173,14 @@ final class ForwardCommonSubexpressionElimination {
             outputs = List.copyOf(outputs);
         }
     }
+
+    /**
+     * Eliminated graph and its matching derivative metadata.
+     *
+     * @param graph non-null eliminated graph
+     * @param derivatives non-null matching metadata
+     */
+    record Result(CompiledGraphModel graph, DerivativeGraphMetadata derivatives) {}
+
+    private record Rebuild(CompiledGraphModel graph, List<NodeId> sourceNodeIds) {}
 }

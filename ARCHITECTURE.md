@@ -254,7 +254,7 @@ Allowed:
 - `NodeId`
 - `ValueId`
 - `GraphPhase`
-- `PublicationBinding`
+- `ForwardPublicationBinding`
 - `TensorDescriptor`
 
 Forbidden:

@@ -7,7 +7,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import io.github.pho001.synaptik.model.datatype.DataType;
 import io.github.pho001.synaptik.model.graph.CompiledGraphModel;
 import io.github.pho001.synaptik.model.graph.GraphValue;
-import io.github.pho001.synaptik.model.graph.PublicationBinding;
+import io.github.pho001.synaptik.model.graph.ForwardPublicationBinding;
 import io.github.pho001.synaptik.model.graph.ValueId;
 import io.github.pho001.synaptik.model.shape.Shape;
 import io.github.pho001.synaptik.model.tensor.TensorDescriptor;
@@ -26,22 +26,22 @@ final class PublicationPlanTest {
         CompiledGraphModel graph = passThroughGraph(
                 List.of(forwardValue, gradientValue),
                 List.of(forwardValue, gradientValue));
-        PublicationBinding forward =
-                new PublicationBinding(new TensorId(10), forwardValue);
-        PublicationBinding gradient =
-                new PublicationBinding(new TensorId(10), gradientValue);
-        List<PublicationBinding> forwardSource = new ArrayList<>(List.of(forward));
+        ForwardPublicationBinding forward =
+                new ForwardPublicationBinding(new TensorId(10), forwardValue);
+        GradientPublicationBinding gradient =
+                new GradientPublicationBinding(1, 0, new TensorId(20), gradientValue);
+        List<ForwardPublicationBinding> forwardSource = new ArrayList<>(List.of(forward));
 
         PublicationPlan plan =
                 new PublicationPlan(graph, forwardSource, List.of(gradient));
         forwardSource.clear();
 
         assertSame(graph, plan.graph());
-        assertSame(forward, plan.forwardOutputs().getFirst());
-        assertSame(gradient, plan.gradientResults().getFirst());
+        assertSame(forward, plan.forwardBindings().getFirst());
+        assertSame(gradient, plan.gradientBindings().getFirst());
         assertThrows(
                 UnsupportedOperationException.class,
-                () -> plan.forwardOutputs().add(forward));
+                () -> plan.forwardBindings().add(forward));
     }
 
     @Test
@@ -51,18 +51,18 @@ final class PublicationPlanTest {
         CompiledGraphModel graph = passThroughGraph(
                 List.of(forwardValue, gradientValue),
                 List.of(forwardValue, gradientValue));
-        PublicationBinding forward =
-                new PublicationBinding(new TensorId(10), forwardValue);
-        PublicationBinding firstGradient =
-                new PublicationBinding(new TensorId(20), gradientValue);
-        PublicationBinding secondGradient =
-                new PublicationBinding(new TensorId(21), gradientValue);
+        ForwardPublicationBinding forward =
+                new ForwardPublicationBinding(new TensorId(10), forwardValue);
+        GradientPublicationBinding firstGradient =
+                new GradientPublicationBinding(1, 0, new TensorId(20), gradientValue);
+        GradientPublicationBinding secondGradient =
+                new GradientPublicationBinding(1, 1, new TensorId(21), gradientValue);
 
         PublicationPlan plan = new PublicationPlan(
                 graph,
                 List.of(forward),
                 List.of(firstGradient, secondGradient));
-        assertEquals(2, plan.gradientResults().size());
+        assertEquals(2, plan.gradientBindings().size());
 
         IllegalArgumentException duplicateTarget = assertThrows(
                 IllegalArgumentException.class,
@@ -71,17 +71,17 @@ final class PublicationPlanTest {
                         List.of(forward),
                         List.of(
                                 firstGradient,
-                                new PublicationBinding(
-                                        firstGradient.tensorId(), forwardValue))));
+                                new GradientPublicationBinding(
+                                        1, 1, firstGradient.target(), forwardValue))));
         assertEquals(
-                "gradientResults[1] duplicates an earlier TensorId",
+                "gradientBindings[1] duplicates an earlier target in this derivative order",
                 duplicateTarget.getMessage());
 
         CompiledGraphModel extraBoundary = passThroughGraph(
                 List.of(forwardValue, gradientValue, new ValueId(3)),
                 List.of(forwardValue, gradientValue, new ValueId(3)));
         assertEquals(
-                "graph output boundary does not match publication roles",
+                "graph output boundary does not match publication bindings",
                 assertThrows(
                         IllegalArgumentException.class,
                         () -> new PublicationPlan(

@@ -47,6 +47,8 @@ final class GraphCaptureTest {
                 List.class,
                 List.class,
                 Set.class,
+                Set.class,
+                Set.class,
                 CompileTimeConstantGraph.Ingress.class);
         assertAll(
                 () -> assertTrue(Modifier.isFinal(GraphCapture.class.getModifiers())),

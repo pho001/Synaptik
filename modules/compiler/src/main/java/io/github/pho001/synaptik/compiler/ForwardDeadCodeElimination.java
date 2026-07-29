@@ -39,6 +39,10 @@ final class ForwardDeadCodeElimination {
      * @throws NullPointerException if {@code graph} is {@code null}
      */
     static CompiledGraphModel eliminate(CompiledGraphModel graph) {
+        return eliminateGraph(graph).graph();
+    }
+
+    private static Rebuild eliminateGraph(CompiledGraphModel graph) {
         Objects.requireNonNull(graph, "graph");
 
         Map<ValueId, Integer> producerIndexes = new HashMap<>();
@@ -70,7 +74,8 @@ final class ForwardDeadCodeElimination {
             }
         }
         if (liveCount == graph.nodes().size()) {
-            return graph;
+            return new Rebuild(
+                    graph, graph.nodes().stream().map(CompiledNode::id).toList());
         }
 
         return rebuild(graph, liveNodes, liveCount);
@@ -111,6 +116,60 @@ final class ForwardDeadCodeElimination {
         return pruneConstantInputs(current, liveConstants, retainedInputs);
     }
 
+    /** Derivative-order-aware DCE entry used by combined functional graphs. */
+    static final class DerivativeAware {
+        private DerivativeAware() {}
+
+        /**
+         * Eliminates dead work and remaps derivative metadata.
+         *
+         * @param constantGraph non-null graph and source facts
+         * @param derivatives non-null metadata owning the exact graph
+         * @return non-null eliminated graph/source facts and matching metadata
+         */
+        static Result eliminate(
+                CompileTimeConstantGraph constantGraph,
+                DerivativeGraphMetadata derivatives) {
+            Objects.requireNonNull(constantGraph, "constantGraph");
+            Objects.requireNonNull(derivatives, "derivatives");
+            if (derivatives.graph() != constantGraph.graph()) {
+                throw new IllegalArgumentException(
+                        "derivatives graph must be the exact graph being eliminated");
+            }
+            Rebuild graphRebuild = eliminateGraph(constantGraph.graph());
+            DerivativeGraphMetadata currentDerivatives =
+                    graphRebuild.graph() == derivatives.graph()
+                            ? derivatives
+                            : DerivativeGraphMetadata.remap(
+                                    derivatives,
+                                    graphRebuild.graph(),
+                                    graphRebuild.sourceNodeIds());
+            CompileTimeConstantGraph current =
+                    constantGraph.replaceGraphPreservingInputRoles(graphRebuild.graph());
+
+            Set<ValueId> liveConstants = new HashSet<>(current.graph().outputs());
+            for (CompiledNode node : current.graph().nodes()) {
+                liveConstants.addAll(node.inputs());
+            }
+            int retainedInputs = 0;
+            for (ValueId input : current.graph().inputs()) {
+                if (!current.constants().containsKey(input) || liveConstants.contains(input)) {
+                    retainedInputs++;
+                }
+            }
+            if (retainedInputs == current.graph().inputs().size()) {
+                return new Result(current, currentDerivatives);
+            }
+            CompileTimeConstantGraph pruned =
+                    pruneConstantInputs(current, liveConstants, retainedInputs);
+            DerivativeGraphMetadata prunedDerivatives = DerivativeGraphMetadata.remap(
+                    currentDerivatives,
+                    pruned.graph(),
+                    current.graph().nodes().stream().map(CompiledNode::id).toList());
+            return new Result(pruned, prunedDerivatives);
+        }
+    }
+
     private static void addNeeded(
             List<ValueId> values, Set<ValueId> neededValues, ArrayDeque<ValueId> work) {
         for (ValueId value : values) {
@@ -120,7 +179,7 @@ final class ForwardDeadCodeElimination {
         }
     }
 
-    private static CompiledGraphModel rebuild(
+    private static Rebuild rebuild(
             CompiledGraphModel graph, boolean[] liveNodes, int liveCount) {
         Map<ValueId, GraphValue> originalValues = new HashMap<>();
         for (GraphValue value : graph.values()) {
@@ -139,6 +198,7 @@ final class ForwardDeadCodeElimination {
         }
 
         List<CompiledNode> nodes = new ArrayList<>(liveCount);
+        List<NodeId> sourceNodeIds = new ArrayList<>(liveCount);
         Map<NodeId, GraphPhase> phases = new LinkedHashMap<>();
         long nextNodeId = 0;
         for (int index = 0; index < graph.nodes().size(); index++) {
@@ -158,11 +218,14 @@ final class ForwardDeadCodeElimination {
             NodeId rebuiltNode = new NodeId(nextNodeId++);
             nodes.add(new CompiledNode(
                     rebuiltNode, node.operation(), rebuiltInputs, rebuiltOutputs));
+            sourceNodeIds.add(node.id());
             phases.put(rebuiltNode, graph.nodePhases().get(node.id()));
         }
 
-        return new CompiledGraphModel(
-                values, nodes, inputs, remap(graph.outputs(), valueRemapping), phases);
+        return new Rebuild(
+                new CompiledGraphModel(
+                        values, nodes, inputs, remap(graph.outputs(), valueRemapping), phases),
+                List.copyOf(sourceNodeIds));
     }
 
     private static CompileTimeConstantGraph pruneConstantInputs(
@@ -226,4 +289,16 @@ final class ForwardDeadCodeElimination {
         }
         return result;
     }
+
+    /**
+     * Eliminated graph/source facts and their matching derivative metadata.
+     *
+     * @param constantGraph non-null eliminated graph and source facts
+     * @param derivatives non-null matching metadata
+     */
+    record Result(
+            CompileTimeConstantGraph constantGraph,
+            DerivativeGraphMetadata derivatives) {}
+
+    private record Rebuild(CompiledGraphModel graph, List<NodeId> sourceNodeIds) {}
 }

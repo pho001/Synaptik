@@ -103,11 +103,11 @@ final class AttentionGradientRulesTest {
                 .targetGradients().getFirst().gradient();
     }
 
-    private static AutogradPreflight.Plan preflight(Tensor objective, Tensor target) {
+    private static AutogradPreflight.StagePlan preflight(Tensor objective, Tensor target) {
         return AutogradPreflight.preflight(
                 CompileMode.FORWARD_AND_BACKWARD,
                 List.of(objective),
-                new AutogradPreflight.FirstOrderRequest(objective, List.of(target)),
+                FunctionalGradientTestSupport.stage(objective, List.of(target)),
                 CompileTimeConstantGraph.Ingress.empty());
     }
 
@@ -115,7 +115,7 @@ final class AttentionGradientRulesTest {
         GraphCompilation compilation = GraphCompiler.compile(
                 CompileMode.FORWARD_AND_BACKWARD,
                 List.of(objective),
-                Optional.of(new AutogradPreflight.FirstOrderRequest(
+                Optional.of(FunctionalGradientTestSupport.request(
                         objective, List.of(target))),
                 CompileTimeConstantGraph.Ingress.empty(),
                 GraphOptimizationConfig.disabled());

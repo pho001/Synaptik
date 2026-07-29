@@ -251,10 +251,10 @@ final class FirstOrderGradientCoverageTest {
         int connected = 0;
         int notApplicable = 0;
         for (ClosureCase closureCase : closureCases()) {
-            AutogradPreflight.Plan firstPlan = AutogradPreflight.preflight(
+            AutogradPreflight.StagePlan firstPlan = AutogradPreflight.preflight(
                     CompileMode.FORWARD_AND_BACKWARD,
                     List.of(closureCase.objective()),
-                    new AutogradPreflight.FirstOrderRequest(
+                    FunctionalGradientTestSupport.stage(
                             closureCase.objective(), List.of(closureCase.target())),
                     CompileTimeConstantGraph.Ingress.empty());
             FirstOrderAutograd.Expansion first = FirstOrderAutograd.expand(
@@ -278,10 +278,10 @@ final class FirstOrderGradientCoverageTest {
                     nestedObjective.descriptor().dataType().isFloating()
                             && nestedObjective.descriptor().requiresGrad(),
                     closureCase.label());
-            AutogradPreflight.Plan secondPlan = AutogradPreflight.preflight(
+            AutogradPreflight.StagePlan secondPlan = AutogradPreflight.preflight(
                     CompileMode.FORWARD_AND_BACKWARD,
                     List.of(nestedObjective),
-                    new AutogradPreflight.FirstOrderRequest(
+                    FunctionalGradientTestSupport.stage(
                             nestedObjective, List.of(closureCase.target())),
                     first.ingress());
             FirstOrderAutograd.Expansion second =

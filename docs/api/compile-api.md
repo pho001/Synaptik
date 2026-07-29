@@ -4,8 +4,8 @@
 
 This reference separates the compile-time contracts implemented today from the public engine
 lifecycle that remains planned. The compiler module contains package-private `GraphCompiler`.
-Its original five-argument entry compiles a forward-only or combined first-order Tensor
-expression into package-private immutable `GraphCompilation`. A second package-private
+Its five-argument entry compiles a forward-only or combined one/two-stage functional derivative
+Tensor expression into package-private immutable `GraphCompilation`. A second package-private
 nine-argument entry completes publication and backend-neutral planning and returns public
 immutable `CompileArtifacts`.
 
@@ -15,9 +15,9 @@ occurrence-local Shape predicates, mandatory dense
 canonicalization, explicit logical-splat facts, one bounded exact whole-graph optimization
 pipeline, publication-role validation, one owner selection per final graph node, maximal
 same-owner partitioning, logical-memory derivation, and immutable artifact assembly. The
-repository still provides no public compiler entry point, public gradient request,
-`CompileConfig` aggregate, engine `CompiledGraph`, prepared execution, or runnable public graph
-compiler.
+repository still provides no public compiler entry point, `CompileConfig` aggregate, engine
+`CompiledGraph`, prepared execution, or runnable public graph compiler. It does provide the public
+immutable `FunctionalGradientRequest` input value used by package-private compiler integration.
 The current config module provides four immutable standalone input values that a later compile
 configuration aggregate can contain: `BackendIntent`, `CompileMode`, and
 `GraphOptimizationConfig`, plus `PartitionScoringConfig`. The current planning module provides the
@@ -49,7 +49,7 @@ compiler work can produce and consume:
 | `CompiledNode` | One operation occurrence with ordered input/output `ValueId` snapshots | Local list and signature-cardinality validation, not graph-wide closure or descriptor compatibility |
 | `CompiledGraphModel` | Immutable ordered graph values, topological nodes, declared input/output boundaries, and exact node phases | Structural graph state, not compiler passes, partitions, storage, or execution |
 | `GraphPhase` | Exactly `FORWARD` or `BACKWARD` compile-time node classification | Not a compile mode, optimizer phase, or runtime schedule |
-| `PublicationBinding` | Standalone `TensorId`-to-`ValueId` association used inside current compiler publication plans | Not an owning publication plan and not a `CompiledGraphModel` component |
+| `ForwardPublicationBinding` | Standalone `TensorId`-to-`ValueId` association used for requested forward outputs inside current compiler publication plans | Not an owning publication plan, a gradient binding, or a `CompiledGraphModel` component |
 
 `CompiledGraphModel` validates structural closure when constructed. It snapshots its lists and
 phase map, requires resolvable references and topological node order, enforces producer and phase
@@ -268,24 +268,49 @@ kind/attributes/input-range/output-range fingerprints. The checkpoint includes b
 `SLICE_UPDATE` attributes variants. It does not add a formula or change Model semantics.
 
 Package-private `GraphCompiler.compile` takes `CompileMode`, ordered forward outputs, an optional
-package-private first-order request, explicit forward constant ingress, and
+public `FunctionalGradientRequest`, explicit forward constant ingress, and
 `GraphOptimizationConfig` directly; there is no request aggregate. It returns package-private
-mode-neutral `GraphCompilation`. `FORWARD_ONLY` requires no first-order request, produces no
+mode-neutral `GraphCompilation`. `FORWARD_ONLY` requires no functional request, produces no
 `BACKWARD` nodes, and has empty gradient results. `FORWARD_AND_BACKWARD` and the current internal
 `TRAINING_STEP` path require the same request and may carry one combined graph.
 `GraphCompilation` retains the final `ValidatedGraph`, ordered forward output values, and ordered
-target-`TensorId`/gradient-`ValueId` roles. It is graph-stage state, not the current public
+public `GradientPublicationBinding` values. Its package-private component names remain
+`forwardOutputs` and `gradientResults`; the public publication plan instead exposes
+`forwardBindings()` and `gradientBindings()`. It is graph-stage state, not the current public
 cross-package `CompileArtifacts`.
 
-The current first-order request has one exact objective Tensor that is also a requested forward
-output. The objective must have scalar Shape, one floating data type, and gradient eligibility.
-Targets are a non-empty ordered snapshot of exact-object-identity-unique Tensors in the objective
-ancestry; each target must have a floating type, gradient eligibility, and a selected
-differentiable route, but may have a different floating type from the objective. A target may be
-a leaf, intermediate, or the objective itself.
-The only seed is an implicit rank-zero positive one of the exact objective type. There is no
-public objective/target API, caller-supplied seed, disconnected-target zero policy,
-vector-Jacobian product, or higher-derivative request.
+The current functional request contains exactly one or two reverse-mode stages. Stage-one outputs
+identify exact requested forward Tensors; stage-two outputs identify generated first-stage
+gradients by target-list index. A one-stage request has `createGraph=false`; a two-stage request
+has `true` for stage one and `false` for stage two. Each stage has a non-empty,
+exact-identity-unique target list drawn from the complete original forward inventory and an
+output-aligned list of optional cotangent seeds. An absent seed is valid only for a scalar,
+floating, gradient-eligible output and creates an exact typed positive one. A present seed must
+have the output's exact Shape and floating data type and must not request gradients. Multiple
+selected outputs contribute a deterministic sum of vector-Jacobian products.
+
+`DisconnectedPolicy.ERROR` rejects a target without a differentiable route.
+`DisconnectedPolicy.ZERO` returns an ordinary exact typed zero expression; several result roles
+may share that value. Results are ordered by derivative order and then stage-local target index.
+`DerivativeGraphMetadata` classifies final nodes as derivative order zero, one, or two while
+unchanged Model `GraphPhase` continues to distinguish only forward and backward nodes.
+
+### Functional-gradient examples
+
+These are compiler-package integration sketches because `GraphCompiler` remains package-private;
+they describe current semantics without claiming a public compile facade.
+
+For scalar `loss = x * x`, request stage one from `loss` to `x` with its default seed and
+`createGraph=true`, then request stage two from
+`FirstStageGradientReference(0)` to `x` with its default seed and `createGraph=false`. One combined
+compile returns an order-one role for `2 * x` and an order-two role for `2`; both are ordinary
+values in the same graph, and no Tensor gradient field is written.
+
+For a vector output, supply an exact-Shape explicit seed to select its vector-Jacobian product.
+A multi-output stage supplies one aligned seed per output and sums those products in output order.
+The second stage may then seed a selected first-stage gradient with an exact-Shape vector to form
+a Hessian-vector product. Omitting a seed for any non-scalar output is rejected before derivative
+formulas are allocated.
 
 Before constructing the seed or any formula Tensor, `AutogradPreflight` iteratively inventories
 the complete original forward request. The package-private first-order coverage checker assigns
@@ -571,8 +596,8 @@ This strategy adds no `Tensor.gradient`, `Tensor.backward`, mutable gradient fie
 scope, model derivative rule, placeholder/`ValueId` conversion map, direct graph-node formula
 language, public gradient registry, runtime tape, physical saved buffer, backend autograd, or
 public compile entry point. It adds no publication, optimizer update, training session, planning,
-backend lowering, preparation, execution, or runtime behavior. Higher derivatives remain future
-work with an explicit create-graph or derivative-order lifecycle contract.
+backend lowering, preparation, execution, or runtime behavior. The functional request supports
+exactly one optional second reverse-mode stage; further orders remain future work.
 
 ### Current package-private artifact compilation
 
@@ -581,7 +606,7 @@ The complete `GraphCompiler.compile(...)` overload has these nine direct inputs:
 ```text
 CompileMode
 ordered forward Tensors
-optional internal first-order request
+optional public FunctionalGradientRequest
 explicit logical-splat ingress
 GraphOptimizationConfig
 BackendIntent
@@ -611,13 +636,13 @@ final GraphCompilation
 ```
 
 `PublicationPlan` is a public final output-only type with package-private construction. It retains
-the exact final `CompiledGraphModel` reference and immutable membership snapshots of separate
-forward-output and gradient-result `PublicationBinding` lists. Forward bindings pair requested
-Tensor IDs with the final forward graph-output prefix in request order. Gradient bindings pair
-requested differentiation-target Tensor IDs with final gradient values in target order. Tensor
-IDs are unique within each list but may occur once in both lists. Gradient values may repeat or
-equal a forward value; the graph boundary contains the forward prefix followed by each previously
-unseen gradient value in first role order.
+the exact final `CompiledGraphModel` reference and immutable membership snapshots exposed by
+`forwardBindings()` and `gradientBindings()`. Forward `ForwardPublicationBinding` values pair
+requested Tensor IDs with the final forward graph-output prefix in request order. Gradient
+`GradientPublicationBinding` values retain derivative order, stage-local target index, requested
+target Tensor ID, and final gradient `valueId()` in target order. Target IDs are unique within
+each derivative order. Gradient values may repeat or equal a forward value; the graph boundary
+contains the forward prefix followed by each previously unseen gradient value in binding order.
 
 `CompileConstantPlan` is a public final output-only source-role classification with
 package-private construction. Its immutable `bindableInputs()` list and immutable
@@ -634,7 +659,7 @@ binding language, trace schema, or serialization format. The exact immutable int
 remain privately retained for later compiler-owned binding validation. A rejected compile returns
 no partial artifact and is not converted into a successful diagnostic.
 
-`CompileArtifacts` is the exact seven-component public immutable record:
+`CompileArtifacts` is the exact eight-component public immutable record:
 
 ```java
 public record CompileArtifacts(
@@ -644,7 +669,8 @@ public record CompileArtifacts(
         LogicalMemoryPlan memory,
         PublicationPlan publication,
         CompileConstantPlan constants,
-        CompileDiagnostics diagnostics) {}
+        CompileDiagnostics diagnostics,
+        DerivativeGraphMetadata derivatives) {}
 ```
 
 Its canonical constructor validates components in declaration order, snapshots partition-list
@@ -665,9 +691,9 @@ enter the artifacts. The first no-hard-eligible node fails immediately with grap
 context and retains Planning's terminal failure as its cause. Provider-thrown runtime exceptions
 and other Planning composition failures propagate unchanged.
 
-This current boundary adds no public compile request, public lifecycle call, cost-bearing scoring,
+This current boundary adds no public lifecycle call, cost-bearing scoring,
 trace event, concrete-dimension binding, prepare/runtime/backend/engine behavior, physical memory,
-or higher-order differentiation.
+or more than two reverse-mode stages.
 
 Before a node enters that container, `Operation` validates its exact kind/attributes pairing and
 derives a family-owned `OperationSignature`. `CompiledNode` preserves its existing local list
@@ -676,10 +702,12 @@ inclusive bounds. This catches a unary operation connected to two inputs, for ex
 claiming that operand Shapes or data types are compatible. Zero-input, bounded, variadic-input,
 and multi-output occurrences remain representable when their kind explicitly declares them.
 
-A `PublicationBinding` carries only two identities. Current compiler-owned `PublicationPlan`
-groups bindings with the exact final graph and assigns forward-output or gradient-result meaning
-through separate ordered lists. The binding itself does not retain a public `Tensor`, intrinsic
-gradient role, publication policy, runtime target, storage, backend, or execution state.
+A `ForwardPublicationBinding` carries only the public Tensor identity and graph-local value
+identity for one requested forward result. A `GradientPublicationBinding` instead carries
+derivative order, stage-local target index, target Tensor identity, and final gradient
+`valueId()`. Current compiler-owned `PublicationPlan` groups both ordered binding lists with the
+exact final graph. Neither binding retains a public `Tensor`, publication policy, runtime target,
+storage, backend, or execution state.
 
 `GraphRngState.initial(key, counter)` is also current model construction. It creates a fresh
 zero-input, one-output `GraphRngKind.INITIAL_STATE` occurrence whose exact
@@ -1353,9 +1381,9 @@ CompileMode trainingStepDirection = CompileMode.TRAINING_STEP;
 
 `FORWARD_ONLY` requests forward graph construction and requested forward publications.
 Package-private `GraphCompiler` currently interprets it as a forward-only graph-stage or complete
-artifact request and requires the first-order request to be absent. `FORWARD_AND_BACKWARD`
-requests current internal
-first-order pre-capture autograd plus combined forward/backward graph-stage work.
+artifact request and requires the functional request to be absent. `FORWARD_AND_BACKWARD`
+requests current package-private one/two-stage pre-capture autograd plus combined
+forward/backward graph-stage work.
 `TRAINING_STEP` currently performs the same internal graph and artifact construction, but the enum value
 does not itself introduce an optimizer, optimizer-update graph, session, publication delivery,
 schedule, or execution behavior. Public compiler consumption of all three values remains planned.
@@ -1550,8 +1578,9 @@ value. The records do not store another role enum. They retain `TensorDescriptor
 dynamic, and expression Shapes remain representable without calculating an element or byte
 count.
 
-This is logical planning only. The derivation accepts no `PublicationBinding` or `TensorId` and
-creates no `PublicationPlan`. It selects no alias, copy, transfer, lifetime, physical slot,
+This is logical planning only. The derivation accepts no `ForwardPublicationBinding`,
+`GradientPublicationBinding`, or `TensorId` and creates no `PublicationPlan`. It selects no alias,
+copy, transfer, lifetime, physical slot,
 allocation, device, route, kernel, schedule, executable, or runtime residency. The current
 package-private compiler invokes it after partition generation and retains the exact plan in
 `CompileArtifacts`.
@@ -1642,8 +1671,8 @@ CompiledGraph graph = CompiledGraph.compile(output, CompileConfig.auto());
   graph constraints without exposing the internal predicate vocabulary.
 - `CompileArtifacts` currently combines mode, the exact final `CompiledGraphModel`, maximal
   backend-owned partitions, the derived logical memory plan, publication roles, constant/input
-  roles, and diagnostics. Its public record and nested output data are implemented, while the only
-  complete construction entry remains package-private.
+  roles, diagnostics, and derivative-order metadata. Its public record and nested output data are
+  implemented, while the only complete construction entry remains package-private.
 - `CompiledGraph` will be an engine facade over immutable `CompileArtifacts`, not the same object
   as the current `CompiledGraphModel`.
 

@@ -87,14 +87,15 @@ import java.util.Collections;
 import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 
 /**
- * Preflights the source-closed first-order rule matrix before constructing any derivative Tensor
- * expression.
+ * Preflights one bounded functional reverse-mode stage before constructing derivative Tensor
+ * expressions.
  *
  * <p>The iterative inventory covers every producer and canonical output wrapper reachable from
- * the requested forward boundary. Objective ancestry, target reachability, occurrence selection,
+ * the requested forward boundary. Output ancestry, target reachability, occurrence selection,
  * and ingress membership use exact Tensor and producer object identity rather than identifiers,
  * record equality, labels, or storage. A successful plan is request-local compiler bookkeeping;
  * it retains deterministic producer postorder and the original-producer identity set needed by
@@ -179,131 +180,226 @@ final class AutogradPreflight {
     private AutogradPreflight() {}
 
     /**
-     * Immutable scalar-objective and ordered-target request for one first-order expansion.
+     * Performs allocation-free validation for the complete forward inventory and first stage.
      *
-     * <p>Construction snapshots the target list and enforces non-null, non-empty, exact-object-
-     * identity-unique targets. {@link #preflight(CompileMode, List, FirstOrderRequest,
-     * CompileTimeConstantGraph.Ingress)} later verifies that the objective is an exact requested
-     * forward output with scalar Shape, floating type, and gradient eligibility, and that every
-     * target belongs to a selected differentiable route in that objective's ancestry.</p>
-     *
-     * @param objective non-null exact Tensor requested as the scalar objective
-     * @param targets non-null, non-empty, exact-object-identity-unique ordered targets; the list
-     *     is snapshotted and target order becomes result-role order
+     * @param mode non-null backward-capable compile mode
+     * @param forwardOutputs non-null validated ordered forward boundary
+     * @param request non-null immutable one- or two-stage request
+     * @param ingress non-null explicit logical-splat ingress
+     * @return non-null initial request plan containing exact ephemeral Tensor identities
+     * @throws NullPointerException if a required argument is {@code null}
+     * @throws IllegalArgumentException if request membership, descriptors, routes, seeds,
+     *     disconnected policy, ingress, or a selected differentiation fact is invalid
      */
-    record FirstOrderRequest(Tensor objective, List<Tensor> targets) {
-        /**
-         * Validates and snapshots one first-order request.
-         *
-         * @param objective non-null exact Tensor requested as the scalar objective
-         * @param targets non-null, non-empty, exact-object-identity-unique ordered targets; the
-         *     list is snapshotted
-         * @throws NullPointerException if {@code objective}, {@code targets}, or the first target
-         *     element encountered is {@code null}
-         * @throws IllegalArgumentException if {@code targets} is empty or repeats an exact Tensor
-         *     reference
-         */FirstOrderRequest {
-            Objects.requireNonNull(objective, "objective");
-            Objects.requireNonNull(targets, "targets");
-            if (targets.isEmpty()) {
-                throw new IllegalArgumentException("targets must not be empty");
-            }
-            IdentityHashMap<Tensor, Integer> positions = new IdentityHashMap<>();
-            for (int index = 0; index < targets.size(); index++) {
-                Tensor target = Objects.requireNonNull(targets.get(index), "targets[" + index + "]");
-                Integer first = positions.putIfAbsent(target, index);
-                if (first != null) {
-                    throw new IllegalArgumentException(
-                            "targets[" + index + "] duplicates targets[" + first + "]");
-                }
-            }
-            targets = List.copyOf(targets);
-        }
-    }
-
-    /**
-     * Validates a backward-capable request and its complete selected slice without constructing a
-     * seed, derivative constant, or formula Tensor.
-     *
-     * <p>The method inventories all requested forward producers, then the objective ancestry. It
-     * validates exact objective and target membership, retains only routes that can reach at
-     * least one requested target through a differentiable input role, and validates every
-     * selected output-slot occurrence, including its exact input/output signature and inferred
-     * descriptors, against the closed matrix. Selected slots of one multi-output producer are
-     * retained in ascending numeric order. Saved batch-normalization slots are rejected both as
-     * independent targets and as selected cotangent roots. The first known failure is reported
-     * before derivative Tensor identity allocation. Full captured-graph inference and validation
-     * remain a later compiler stage. The returned plan retains exact original object references
-     * and is owned by the current compile request; callers must hand it directly to reverse
-     * accumulation and discard it after combined capture.</p>
-     *
-     * @param mode non-null backward-capable compile mode; {@link CompileMode#FORWARD_ONLY} is
-     *     rejected
-     * @param forwardOutputs non-null, non-empty ordered forward boundary already validated by
-     *     {@link GraphCompiler}; the list and Tensors are observed but not mutated
-     * @param request non-null scalar-objective and ordered-target request
-     * @param forwardIngress non-null ordered explicit constant bindings; every bound Tensor must
-     *     be a reachable leaf in the complete forward inventory
-     * @return a non-null request-local plan containing exact Tensor/producer references for
-     *     immediate reverse accumulation and combined capture
-     * @throws NullPointerException if a top-level argument is {@code null}
-     * @throws IllegalArgumentException if the mode, objective, target membership, differentiable
-     *     route, canonical wrapper, ingress membership, saved batch-normalization target, or any
-     *     selected operation, input/output signature, attribute, role, data-type, Shape, or
-     *     derivative-policy fact is unsupported
-     */
-    static Plan preflight(
+    static InitialPlan preflight(
             CompileMode mode,
             List<Tensor> forwardOutputs,
-            FirstOrderRequest request,
-            CompileTimeConstantGraph.Ingress forwardIngress) {
+            FunctionalGradientRequest request,
+            CompileTimeConstantGraph.Ingress ingress) {
         Objects.requireNonNull(mode, "mode");
         Objects.requireNonNull(forwardOutputs, "forwardOutputs");
         Objects.requireNonNull(request, "request");
-        Objects.requireNonNull(forwardIngress, "forwardIngress");
+        Objects.requireNonNull(ingress, "ingress");
         if (mode == CompileMode.FORWARD_ONLY) {
-            throw new IllegalArgumentException("FORWARD_ONLY must not include a first-order request");
+            throw new IllegalArgumentException(
+                    "FORWARD_ONLY must not include a functional gradient request");
         }
 
-        Tensor objective = request.objective();
-        int objectivePosition = identityIndexOf(forwardOutputs, objective);
-        if (objectivePosition < 0) {
-            throw new IllegalArgumentException(
-                    "firstOrderRequest.objective must be an exact forward output");
-        }
-        if (objective.descriptor().shape().rank() != 0) {
-            throw new IllegalArgumentException(
-                    "firstOrderRequest.objective must be scalar");
-        }
-        DataType objectiveType = objective.descriptor().dataType();
-        if (!objectiveType.isFloating() || !objective.descriptor().requiresGrad()) {
-            throw new IllegalArgumentException(
-                    "firstOrderRequest.objective must be floating and require gradients");
+        Inventory original = inventory(forwardOutputs);
+        FunctionalGradientRequest.Stage firstRequest = request.stages().getFirst();
+        List<Tensor> firstOutputs = new ArrayList<>(firstRequest.outputs().size());
+        IdentityHashMap<Tensor, Integer> outputPositions = new IdentityHashMap<>();
+        for (int index = 0; index < firstRequest.outputs().size(); index++) {
+            Tensor output = ((FunctionalGradientRequest.ForwardTensorReference)
+                    firstRequest.outputs().get(index)).tensor();
+            int forwardIndex = identityIndexOf(forwardOutputs, output);
+            if (forwardIndex < 0) {
+                throw new IllegalArgumentException(
+                        "functionalGradientRequest.stages[0].outputs[" + index
+                                + "] must reference an exact forward output");
+            }
+            Integer first = outputPositions.putIfAbsent(output, index);
+            if (first != null) {
+                throw new IllegalArgumentException(
+                        "functionalGradientRequest.stages[0].outputs[" + index
+                                + "] duplicates outputs[" + first + "]");
+            }
+            firstOutputs.add(output);
         }
 
-        Inventory complete = inventory(forwardOutputs);
-        for (int index = 0; index < forwardIngress.bindings().size(); index++) {
-            if (!complete.tensors().containsKey(
-                    forwardIngress.bindings().get(index).tensor())) {
-                throw new IllegalArgumentException(
-                        "forwardIngress.bindings()[" + index + "] is not a reachable leaf");
+        List<Tensor> ingressRoots = new ArrayList<>(forwardOutputs);
+        for (FunctionalGradientRequest.Stage stage : request.stages()) {
+            for (Optional<Tensor> seed : stage.cotangentSeeds()) {
+                seed.ifPresent(ingressRoots::add);
             }
         }
-        Inventory ancestry = inventory(List.of(objective));
-        for (int index = 0; index < request.targets().size(); index++) {
-            Tensor target = request.targets().get(index);
-            if (!complete.tensors().containsKey(target)) {
+        Inventory withSeeds = inventory(ingressRoots);
+        for (int index = 0; index < ingress.bindings().size(); index++) {
+            if (!withSeeds.tensors().containsKey(ingress.bindings().get(index).tensor())) {
                 throw new IllegalArgumentException(
-                        "firstOrderRequest.targets[" + index + "] is not in the forward graph");
+                        "forwardConstants.bindings[" + index
+                                + "] is not reachable from forward outputs or explicit seeds");
             }
-            if (!ancestry.routeTensors().containsKey(target)) {
+        }
+
+        StagePlan first = preflightStage(
+                0,
+                firstOutputs,
+                firstRequest.cotangentSeeds(),
+                firstRequest.targets(),
+                firstRequest.disconnectedPolicy(),
+                original);
+        if (request.stages().size() == 2) {
+            validateSecondStageClosure(request.stages().get(1), first);
+        }
+        return new InitialPlan(first, original.producers(), original.tensors());
+    }
+
+    /**
+     * Preflights one compatibility stage through the bounded functional-request path.
+     *
+     * @param mode non-null backward-capable compile mode
+     * @param forwardOutputs non-null validated ordered forward boundary
+     * @param stage non-null one-stage request description
+     * @param ingress non-null explicit logical-splat ingress
+     * @return non-null allocation-free stage plan
+     */
+    static StagePlan preflight(
+            CompileMode mode,
+            List<Tensor> forwardOutputs,
+            FunctionalGradientRequest.Stage stage,
+            CompileTimeConstantGraph.Ingress ingress) {
+        return preflight(
+                        mode,
+                        forwardOutputs,
+                        new FunctionalGradientRequest(List.of(stage)),
+                        ingress)
+                .stageOne();
+    }
+
+    /**
+     * Resolves and validates the second stage after successful first-stage construction.
+     *
+     * @param request non-null two-stage functional request
+     * @param initial non-null successful first-stage preflight state
+     * @param firstGradients non-null exact generated first-stage target-gradient roles
+     * @return non-null allocation-free second-stage plan
+     * @throws NullPointerException if a required argument is {@code null}
+     * @throws IllegalArgumentException if references, seeds, targets, routes, or policy fail
+     */
+    static StagePlan preflightSecondStage(
+            FunctionalGradientRequest request,
+            InitialPlan initial,
+            List<FirstOrderAutograd.TargetGradient> firstGradients) {
+        Objects.requireNonNull(request, "request");
+        Objects.requireNonNull(initial, "initial");
+        Objects.requireNonNull(firstGradients, "firstGradients");
+        if (request.stages().size() != 2) {
+            throw new IllegalArgumentException("request must contain exactly two stages");
+        }
+        FunctionalGradientRequest.Stage stage = request.stages().get(1);
+        List<Tensor> outputs = new ArrayList<>(stage.outputs().size());
+        Set<Integer> referenced = new java.util.HashSet<>();
+        for (int index = 0; index < stage.outputs().size(); index++) {
+            int targetIndex = ((FunctionalGradientRequest.FirstStageGradientReference)
+                    stage.outputs().get(index)).targetIndex();
+            if (!referenced.add(targetIndex)) {
                 throw new IllegalArgumentException(
-                        "firstOrderRequest.targets[" + index + "] is not in objective ancestry");
+                        "functionalGradientRequest.stages[1].outputs[" + index
+                                + "] repeats first-stage target index " + targetIndex);
+            }
+            Tensor output = firstGradients.get(targetIndex).gradient();
+            Tensor target = initial.stageOne().targets().get(targetIndex);
+            if (!output.descriptor().shape().equals(target.descriptor().shape())
+                    || output.descriptor().dataType() != target.descriptor().dataType()) {
+                throw new IllegalArgumentException(
+                        "functionalGradientRequest.stages[1].outputs[" + index
+                                + "] gradient descriptor does not match the first-stage target");
+            }
+            outputs.add(output);
+        }
+        return preflightStage(
+                1,
+                outputs,
+                stage.cotangentSeeds(),
+                stage.targets(),
+                stage.disconnectedPolicy(),
+                new Inventory(
+                        initial.originalTensors(),
+                        initial.originalTensors(),
+                        List.of(),
+                        initial.originalProducers(),
+                        List.of(),
+                        new IdentityHashMap<>()));
+    }
+
+    private static StagePlan preflightStage(
+            int stageIndex,
+            List<Tensor> outputs,
+            List<Optional<Tensor>> seeds,
+            List<Tensor> targets,
+            FunctionalGradientRequest.DisconnectedPolicy policy,
+            Inventory original) {
+        String prefix = "functionalGradientRequest.stages[" + stageIndex + "]";
+        for (int index = 0; index < outputs.size(); index++) {
+            Tensor output = outputs.get(index);
+            DataType outputType = output.descriptor().dataType();
+            if (!outputType.isFloating()
+                    || (stageIndex == 0 && !output.descriptor().requiresGrad())) {
+                throw new IllegalArgumentException(
+                        prefix + ".outputs[" + index
+                                + (stageIndex == 0
+                                        ? "] must be floating and require gradients"
+                                        : "] must be floating"));
+            }
+            Optional<Tensor> seed = seeds.get(index);
+            if (seed.isEmpty()) {
+                if (!output.descriptor().requiresGrad()) {
+                    throw new IllegalArgumentException(
+                            prefix + ".cotangentSeeds[" + index
+                                    + "] default seed requires a gradient-eligible output");
+                }
+                if (!output.descriptor().shape().equals(Shape.scalar())) {
+                    throw new IllegalArgumentException(
+                            prefix + ".cotangentSeeds[" + index
+                                    + "] requires an explicit seed for a non-scalar output");
+                }
+                continue;
+            }
+            Tensor explicit = seed.orElseThrow();
+            if (!explicit.descriptor().dataType().isFloating()) {
+                throw new IllegalArgumentException(
+                        prefix + ".cotangentSeeds[" + index + "] must be floating");
+            }
+            if (explicit.descriptor().dataType() != outputType) {
+                throw new IllegalArgumentException(
+                        prefix + ".cotangentSeeds[" + index
+                                + "] data type must equal the selected output data type");
+            }
+            if (!explicit.descriptor().shape().equals(output.descriptor().shape())) {
+                throw new IllegalArgumentException(
+                        prefix + ".cotangentSeeds[" + index
+                                + "] Shape must equal the selected output Shape");
+            }
+            if (explicit.descriptor().requiresGrad()) {
+                throw new IllegalArgumentException(
+                        prefix + ".cotangentSeeds[" + index
+                                + "] must not require gradients");
+            }
+            inventory(List.of(explicit));
+        }
+
+        for (int index = 0; index < targets.size(); index++) {
+            Tensor target = targets.get(index);
+            if (!original.tensors().containsKey(target)) {
+                throw new IllegalArgumentException(
+                        prefix + ".targets[" + index
+                                + "] is not in the complete original forward inventory");
             }
             if (!target.descriptor().dataType().isFloating()
                     || !target.descriptor().requiresGrad()) {
                 throw new IllegalArgumentException(
-                        "firstOrderRequest.targets[" + index
+                        prefix + ".targets[" + index
                                 + "] must be floating and require gradients");
             }
             TensorProvenance targetProvenance = target.provenance().orElse(null);
@@ -312,25 +408,25 @@ final class AutogradPreflight {
                             == BatchNormKind.BATCH_NORM_TRAINING
                     && targetProvenance.outputIndex() >= 3) {
                 throw new IllegalArgumentException(
-                        "firstOrderRequest.targets[" + index
+                        prefix + ".targets[" + index
                                 + "] is a batch-normalization saved auxiliary output");
             }
         }
 
+        Inventory ancestry = inventory(outputs);
         IdentityHashMap<Tensor, BitSet> containsTargets = new IdentityHashMap<>();
-        for (int targetIndex = 0; targetIndex < request.targets().size(); targetIndex++) {
+        for (int targetIndex = 0; targetIndex < targets.size(); targetIndex++) {
             containsTargets
-                    .computeIfAbsent(request.targets().get(targetIndex), ignored -> new BitSet())
+                    .computeIfAbsent(targets.get(targetIndex), ignored -> new BitSet())
                     .set(targetIndex);
         }
-        String[] blockedRoutes = new String[request.targets().size()];
+        String[] blockedRoutes = new String[targets.size()];
         List<SelectedOccurrence> selected = new ArrayList<>();
         for (int producerIndex = 0;
                 producerIndex < ancestry.producerPostorder().size();
                 producerIndex++) {
             TensorProducer producer = ancestry.producerPostorder().get(producerIndex);
-            List<Integer> selectedOutputs = ancestry.selectedOutputs(producer);
-            for (int selectedOutput : selectedOutputs) {
+            for (int selectedOutput : ancestry.selectedOutputs(producer)) {
                 boolean[] selectedInputs = new boolean[producer.inputs().size()];
                 FirstOrderGradientCoverage.FamilyOwner familyOwner = null;
                 BitSet outputTargets = copyOf(containsTargets.get(producer.output(selectedOutput)));
@@ -341,8 +437,7 @@ final class AutogradPreflight {
                         continue;
                     }
                     FirstOrderGradientCoverage.Decision decision =
-                            FirstOrderGradientCoverage.classify(
-                                    producer, selectedOutput, input);
+                            FirstOrderGradientCoverage.classify(producer, selectedOutput, input);
                     if (decision.disposition()
                             == FirstOrderGradientCoverage.Disposition.D) {
                         if (familyOwner != null && familyOwner != decision.owner()) {
@@ -369,8 +464,13 @@ final class AutogradPreflight {
                     }
                 }
                 if (anySelectedInput) {
-                    validateOccurrence(
-                            producerIndex, producer, selectedOutput, selectedInputs);
+                    try {
+                        validateOccurrence(
+                                producerIndex, producer, selectedOutput, selectedInputs);
+                    } catch (IllegalArgumentException failure) {
+                        throw new IllegalArgumentException(
+                                prefix + "." + failure.getMessage(), failure);
+                    }
                     selected.add(new SelectedOccurrence(
                             producerIndex,
                             producer,
@@ -383,23 +483,63 @@ final class AutogradPreflight {
                 }
             }
         }
-        BitSet objectiveTargets = containsTargets.get(objective);
-        for (int index = 0; index < request.targets().size(); index++) {
-            if (objectiveTargets == null || !objectiveTargets.get(index)) {
-                String detail = blockedRoutes[index];
-                throw new IllegalArgumentException(detail != null
-                        ? detail
-                        : "firstOrderRequest.targets[" + index
-                                + "] has no differentiable path from objective");
+
+        BitSet connectedTargets = new BitSet(targets.size());
+        for (Tensor output : outputs) {
+            BitSet outputTargets = containsTargets.get(output);
+            if (outputTargets != null) {
+                connectedTargets.or(outputTargets);
             }
         }
-
-        return new Plan(
-                objective,
-                request.targets(),
+        for (int index = 0; index < targets.size(); index++) {
+            if (connectedTargets.get(index)) {
+                continue;
+            }
+            if (ancestry.routeTensors().containsKey(targets.get(index))
+                    && blockedRoutes[index] != null) {
+                throw new IllegalArgumentException(prefix + "." + blockedRoutes[index]);
+            }
+            if (policy == FunctionalGradientRequest.DisconnectedPolicy.ERROR) {
+                throw new IllegalArgumentException(
+                        prefix + ".targets[" + index
+                                + "] is disconnected from the selected stage outputs");
+            }
+        }
+        return new StagePlan(
+                stageIndex,
+                outputs,
+                seeds,
+                targets,
                 ancestry.producerPostorder(),
                 selected,
-                complete.producers());
+                connectedTargets,
+                policy,
+                original.producers());
+    }
+
+    private static void validateSecondStageClosure(
+            FunctionalGradientRequest.Stage second, StagePlan first) {
+        Set<Integer> referenced = new java.util.HashSet<>();
+        for (int index = 0; index < second.outputs().size(); index++) {
+            int targetIndex = ((FunctionalGradientRequest.FirstStageGradientReference)
+                    second.outputs().get(index)).targetIndex();
+            if (!referenced.add(targetIndex)) {
+                throw new IllegalArgumentException(
+                        "functionalGradientRequest.stages[1].outputs[" + index
+                                + "] repeats first-stage target index " + targetIndex);
+            }
+            if (targetIndex >= first.targets().size()) {
+                throw new IllegalArgumentException(
+                        "functionalGradientRequest.stages[1].outputs[" + index
+                                + "] references an unknown first-stage target");
+            }
+        }
+        // Compiler 0005E proves the transitive operation closure for every retained family owner.
+        // Keeping the selected occurrences in the plan makes formula dispatch use those same
+        // owners; no second operation algebra or unchecked family path is introduced here.
+        for (SelectedOccurrence occurrence : first.selectedOccurrences()) {
+            Objects.requireNonNull(occurrence.familyOwner(), "familyOwner");
+        }
     }
 
     private static BitSet copyOf(BitSet source) {
@@ -1939,38 +2079,96 @@ final class AutogradPreflight {
     }
 
     /**
-     * Complete successful preflight plan consumed within the same compile request.
+     * One successful allocation-free reverse-mode stage plan.
      *
-     * <p>List components are immutable snapshots. Tensor and producer references deliberately
-     * preserve exact pre-capture identity and must be discarded after combined capture; they are
-     * not graph IR or persistent compiler output.</p>
-     *
-     * @param objective exact scalar objective Tensor
-     * @param targets ordered immutable target snapshot
-     * @param producerPostorder complete objective-ancestry producer postorder
-     * @param selectedOccurrences closed-matrix occurrences in deterministic postorder
-     * @param originalProducers unmodifiable identity set for the complete forward boundary,
-     *     including producer occurrences outside the objective ancestry
+     * @param stageIndex zero-based public stage index
+     * @param outputs exact ordered reverse roots
+     * @param cotangentSeeds output-aligned optional exact explicit seeds
+     * @param targets exact ordered original-forward targets
+     * @param producerPostorder complete selected-output ancestry postorder
+     * @param selectedOccurrences checked differentiable occurrences
+     * @param connectedTargets stage-local connected target positions
+     * @param disconnectedPolicy selected disconnected target policy
+     * @param originalProducers complete original forward producer identity set
      */
-    record Plan(
-            Tensor objective,
+    record StagePlan(
+            int stageIndex,
+            List<Tensor> outputs,
+            List<Optional<Tensor>> cotangentSeeds,
             List<Tensor> targets,
             List<TensorProducer> producerPostorder,
             List<SelectedOccurrence> selectedOccurrences,
+            BitSet connectedTargets,
+            FunctionalGradientRequest.DisconnectedPolicy disconnectedPolicy,
             Set<TensorProducer> originalProducers) {
         /**
-         * Snapshots the ordered list components of a successful preflight plan.
+         * Snapshots the ordered components of one successful stage plan.
          *
-         * @param objective non-null exact scalar objective Tensor
+         * @param stageIndex zero-based public stage index
+         * @param outputs non-null ordered stage outputs
+         * @param cotangentSeeds non-null output-aligned optional seeds
          * @param targets non-null ordered target list
-         * @param producerPostorder non-null complete objective-ancestry producer postorder
+         * @param producerPostorder non-null complete selected-output producer postorder
          * @param selectedOccurrences non-null selected occurrences in deterministic postorder
-         * @param originalProducers non-null identity set of original forward producers
-         * @throws NullPointerException if a list or one of its elements is {@code null}
-         */Plan {
+         * @param connectedTargets non-null connected-target flags
+         * @param disconnectedPolicy non-null disconnected target policy
+         * @param originalProducers non-null complete original forward producer identity set
+         * @throws NullPointerException if a required component is {@code null}
+         */StagePlan {
+            outputs = List.copyOf(outputs);
+            cotangentSeeds = List.copyOf(cotangentSeeds);
             targets = List.copyOf(targets);
             producerPostorder = List.copyOf(producerPostorder);
             selectedOccurrences = List.copyOf(selectedOccurrences);
+            connectedTargets = (BitSet) Objects.requireNonNull(
+                    connectedTargets, "connectedTargets").clone();
+            Objects.requireNonNull(disconnectedPolicy, "disconnectedPolicy");
+            Objects.requireNonNull(originalProducers, "originalProducers");
+        }
+
+        /**
+         * Returns an independent snapshot of connected target positions.
+         *
+         * @return non-null cloned bit set
+         */
+        @Override
+        public BitSet connectedTargets() {
+            return (BitSet) connectedTargets.clone();
+        }
+
+        /**
+         * Reports whether one target has a differentiable route.
+         *
+         * @param index zero-based target index
+         * @return whether the target is connected
+         */
+        boolean connectedTarget(int index) {
+            return connectedTargets.get(index);
+        }
+    }
+
+    /**
+     * Successful complete-original-inventory and first-stage preflight handoff.
+     *
+     * @param stageOne non-null successful first-stage plan
+     * @param originalProducers non-null identity set of complete original forward producers
+     * @param originalTensors non-null identity inventory of complete original forward Tensors
+     */
+    record InitialPlan(
+            StagePlan stageOne,
+            Set<TensorProducer> originalProducers,
+            IdentityHashMap<Tensor, Boolean> originalTensors) {
+        /**
+         * Validates the successful initial handoff.
+         *
+         * @param stageOne non-null successful first-stage plan
+         * @param originalProducers non-null complete original producer identity set
+         * @param originalTensors non-null complete original Tensor identity inventory
+         */
+        InitialPlan {
+            Objects.requireNonNull(stageOne, "stageOne");
+            Objects.requireNonNull(originalProducers, "originalProducers");
+            Objects.requireNonNull(originalTensors, "originalTensors");
         }
     }
 

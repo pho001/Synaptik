@@ -194,9 +194,10 @@ still has a logical requirement for its declared input/output value.
 
 The records are current public DTOs, but direct construction does not validate graph-relative
 facts. The internal derivation performs complete membership, coverage, graph-order, and
-adjacent-owner checks first. It accepts no `PublicationBinding` and calculates no element or byte
-count, lifetime, slot, allocation, transfer, device, route, or kernel. No public API currently
-connects capability, owner selection, partitioning, and logical-memory derivation end to end.
+adjacent-owner checks first. It accepts no `ForwardPublicationBinding` or
+`GradientPublicationBinding` and calculates no element or byte count, lifetime, slot, allocation,
+transfer, device, route, or kernel. No public API currently connects capability, owner selection,
+partitioning, and logical-memory derivation end to end.
 
 ## Scenario
 

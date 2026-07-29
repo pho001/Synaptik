@@ -7,12 +7,11 @@ import java.util.Objects;
  * Associates one public tensor identity with one graph-local logical value identity.
  *
  * <p>This immutable data-transfer object carries model data used by the current compiler-owned
- * publication plan. It remains separate from {@link CompiledGraphModel}: the binding itself
- * cannot prove that its {@link ValueId} belongs to a particular graph. The compiler plan supplies
- * that owning graph context and assigns separate forward-output or gradient-result role through
- * list membership. The binding retains identities only, not a public tensor object, an intrinsic
- * gradient role, publication policy or target, storage, backend state, or runtime publication
- * behavior.</p>
+ * publication plan's ordered forward boundary. It remains separate from
+ * {@link CompiledGraphModel}: the binding itself cannot prove that its {@link ValueId} belongs to
+ * a particular graph. The compiler plan supplies that owning graph context. The binding retains
+ * identities only, not a public tensor object, a gradient-publication binding, publication policy
+ * or target, storage, backend state, or runtime publication behavior.</p>
  *
  * <p>Record-generated equality and hashing use both typed identities. The generated
  * {@link #toString()} is diagnostic text, not a serialization, parsing, global-identity, or
@@ -23,7 +22,7 @@ import java.util.Objects;
  * @param valueId non-null graph-local logical value identity; the exact immutable reference is
  *     retained without an owning-graph assertion
  */
-public record PublicationBinding(TensorId tensorId, ValueId valueId) {
+public record ForwardPublicationBinding(TensorId tensorId, ValueId valueId) {
     /**
      * Creates a standalone association between the two distinct identity domains.
      *
@@ -34,7 +33,7 @@ public record PublicationBinding(TensorId tensorId, ValueId valueId) {
      * @throws NullPointerException if {@code valueId} is {@code null}; the message is
      *     {@code valueId}
      */
-    public PublicationBinding {
+    public ForwardPublicationBinding {
         Objects.requireNonNull(tensorId, "tensorId");
         Objects.requireNonNull(valueId, "valueId");
     }

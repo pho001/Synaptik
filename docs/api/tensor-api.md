@@ -79,10 +79,12 @@ select expressions. `unfold` adds general-axis window materialization and `foldA
 overlap-summing target transformation. The two `unfold2d` forms add NCHW im2col with conceptual
 positive-zero or exact typed padding, while `fold2d` adds overlap-summing col2im with exact static
 or symbolic compatibility.
-Typed access, public gradient requests and publication delivery, native/runtime/backend
-allocation, the public compiler facade, runtime residency, and backend execution remain planned.
+Typed access, gradient publication delivery, native/runtime/backend allocation, the public
+compiler facade, runtime residency, and backend execution remain planned. Public
+`FunctionalGradientRequest` is current compiler input; it adds no Tensor lifecycle state.
 Current package-private compiler consumers include forward-only and phase-aware combined capture,
-binding-free operand/descriptor verification, closed first-order automatic differentiation
+binding-free operand/descriptor verification, bounded one/two-stage reverse-mode automatic
+differentiation
 (autograd), mandatory dense graph-local canonicalization, explicit logical-splat ingress, bounded
 integral/BOOL constant folding, whole-graph dead-code elimination, phase-local
 common-subexpression elimination, publication-role construction, backend-neutral Planning
@@ -107,12 +109,12 @@ implementation adds no
 `Tensor.gradient`, `Tensor.backward`, mutable gradient state, placeholder Tensor for a captured
 `ValueId`, or model-owned derivative rule.
 
-The current internal first-order boundary accepts one exact scalar floating objective among the
-forward outputs and an ordered non-empty identity-unique target list in its ancestry. Every target
-must use the objective's exact floating type, request gradients, and have a selected
-differentiable route. The compiler preflights the complete selected slice before creating the
-implicit exact typed unit seed or any formula Tensor. Exact target/producer object identity is
-temporary compiler bookkeeping, not public Tensor state or graph membership.
+The current functional boundary accepts one or two stages with exact forward or generated
+first-stage-gradient output references, aligned explicit seeds or exact typed scalar defaults,
+and ordered identity-unique targets from the complete original forward inventory. The compiler
+preflights each selected slice before creating any default seed or formula Tensor. Exact
+target/producer object identity remains temporary compiler bookkeeping, not public Tensor state
+or graph membership.
 
 The closed matrix currently covers same-floating-type binary and exact-scalar
 `ADD`/`SUB`/`MUL`, same-type branch-only `WHERE`, same-type floating `CAST`,
@@ -350,7 +352,7 @@ ScalarValueAttrs / ClampRangeAttrs                            = exact scalar par
 ValueId + TensorDescriptor                                    = GraphValue
 NodeId + Operation + ordered input/output ValueIds            = CompiledNode
 values + nodes + boundaries + node phases                     = CompiledGraphModel
-TensorId + ValueId                                             = PublicationBinding
+TensorId + ValueId                                             = ForwardPublicationBinding
 ```
 
 An implemented `TensorDescriptor` keeps the logical element type, shape, explicit layout state,
@@ -610,8 +612,8 @@ place where operation semantics consume and produce that data. The implemented
 `CompiledGraphModel` contains those elements, declares ordered graph boundaries, classifies every
 node with a `GraphPhase`, and validates structural closure. It is compile-time model state, not a
 compiler, compile artifact, prepared program, or runtime schedule. The standalone implemented
-`PublicationBinding` associates public tensor identity with graph-local value identity for a later
-compiler-owned publication plan.
+`ForwardPublicationBinding` associates public tensor identity with graph-local value identity for
+a compiler-owned forward-publication plan.
 
 ## Data types
 
@@ -8363,9 +8365,10 @@ lifecycles.
 
 Graph-local numeric identifiers may be reused by different graph containers. `NodeId` identifies a computation, whereas `ValueId` identifies data flowing between computations. A value can exist without a producing node, one node can produce multiple values, and one value can have multiple consumers.
 
-An implemented `PublicationBinding` associates a public `TensorId` with a `ValueId`. The binding is
-standalone and cannot prove that the value belongs to a particular graph; current compiler-owned
-`PublicationPlan` provides that context and separates forward-output from gradient-result roles.
+An implemented `ForwardPublicationBinding` associates a public `TensorId` with a `ValueId`. The
+binding is standalone and cannot prove that the value belongs to a particular graph; current
+compiler-owned `PublicationPlan` provides that context and separates its forward bindings from
+Compiler-owned gradient bindings.
 The implemented `Tensor` stores no graph-local IDs
 because the same tensor may participate in multiple separately compiled graphs. `OperationId` is
 not currently defined: operation semantics occur through graph nodes, and no independent
@@ -9872,7 +9875,7 @@ computation, graph boundaries, node phase, and publication association separate:
 | `CompiledNode` | `NodeId id`, `Operation operation`, ordered `inputs`, ordered `outputs` | One occurrence of computation and the value positions it consumes and produces. |
 | `GraphPhase` | Exactly `FORWARD` or `BACKWARD` | A node's compile-time classification, not a compile mode or runtime schedule. |
 | `CompiledGraphModel` | Ordered `values`, topological `nodes`, ordered `inputs` and `outputs`, exact `nodePhases` | One immutable, structurally closed compile-time graph. |
-| `PublicationBinding` | `TensorId tensorId`, `ValueId valueId` | A standalone association used inside current compiler-owned publication plans. |
+| `ForwardPublicationBinding` | `TensorId tensorId`, `ValueId valueId` | A standalone requested-forward association used inside current compiler-owned publication plans. |
 
 Both identity types are local to an owning graph context. Equal numeric IDs in another graph do
 not establish a relationship, and a `NodeId` is never interchangeable with a `ValueId`.
@@ -9901,10 +9904,10 @@ node order, at least one graph output, and exactly one phase for every node. Rep
 zero-input nodes, unused graph inputs, and a zero-node pass-through graph are valid.
 
 `GraphPhase` contains only `FORWARD` and `BACKWARD`, in that declaration order. It does not encode
-an optimizer phase, compile mode, or runtime schedule. `PublicationBinding` remains separate from
-`CompiledGraphModel` and carries no `Tensor`, intrinsic gradient role, publication policy or
+an optimizer phase, compile mode, or runtime schedule. `ForwardPublicationBinding` remains
+separate from `CompiledGraphModel` and carries no `Tensor`, gradient role, publication policy or
 target, storage, backend, or execution state. Current `PublicationPlan` supplies exact graph
-context and role-list membership without changing the model record.
+context and separate forward/gradient binding-list membership without changing the model record.
 
 ### Complete test-local graph-model example
 
@@ -9923,7 +9926,7 @@ import io.github.pho001.synaptik.model.graph.CompiledNode;
 import io.github.pho001.synaptik.model.graph.GraphPhase;
 import io.github.pho001.synaptik.model.graph.GraphValue;
 import io.github.pho001.synaptik.model.graph.NodeId;
-import io.github.pho001.synaptik.model.graph.PublicationBinding;
+import io.github.pho001.synaptik.model.graph.ForwardPublicationBinding;
 import io.github.pho001.synaptik.model.graph.ValueId;
 import io.github.pho001.synaptik.model.operation.NoOperationAttrs;
 import io.github.pho001.synaptik.model.operation.Operation;
@@ -9969,7 +9972,7 @@ public final class GraphElementExample {
                 List.of(input.id()),
                 List.of(output.id()),
                 Map.of(node.id(), GraphPhase.FORWARD));
-        PublicationBinding publication = new PublicationBinding(
+        ForwardPublicationBinding publication = new ForwardPublicationBinding(
                 new TensorId(9), output.id());
 
         System.out.println(node.operation().kind().name());
@@ -9993,8 +9996,8 @@ public final class GraphElementExample {
   it does not store either `GraphValue` object or infer their descriptors.
 - `CompiledGraphModel` snapshots the graph elements and boundaries, verifies that node `0` is in
   topological order, and requires its one `FORWARD` phase entry.
-- `PublicationBinding` associates tensor identity `9` with output value `1`. It remains a separate
-  object because the graph model does not own publication policy or execution.
+- `ForwardPublicationBinding` associates tensor identity `9` with output value `1`. It remains a
+  separate object because the graph model does not own publication policy or execution.
 
 #### Result and interpretation
 
@@ -10067,9 +10070,9 @@ The following contracts appear in the architecture and planning documents but ar
 - public compiler entry points, concrete dimension binding, publication delivery, and the engine
   `CompiledGraph` facade; compiler-owned `PublicationPlan` and `CompileArtifacts` are current
   output contracts whose producing entry remains package-private;
-  package-private forward-only and phase-aware combined capture, closed first-order autograd,
+  package-private forward-only and phase-aware combined capture, bounded one/two-stage autograd,
   binding-free verification inference, canonicalization, exact rewriting, bounded logical-splat
-  folding, whole-graph DCE, and phase-local CSE are current; and
+  folding, whole-graph DCE, and phase- plus derivative-order-local CSE are current; and
 - planning, prepare, runtime, publication execution, and backend execution.
 
 `OperationKind`, `OperationAttrs`, `NoOperationAttrs`, `Operation`, `BinaryArithmeticKind`,
@@ -10094,7 +10097,8 @@ The following contracts appear in the architecture and planning documents but ar
 `WindowTransformKind`, `UnfoldAxisAttrs`, `FoldAxisAttrs`,
 `Window2dAttrs`, `Unfold2dAttrs`, `Fold2dAttrs`, `GraphValue`, `CompiledNode`,
 `GraphPhase`, `CompiledGraphModel`, and
-`PublicationBinding`, plus `TensorProducer` and `TensorProvenance`, are current Java API contracts.
+`ForwardPublicationBinding`, plus `TensorProducer` and `TensorProvenance`, are current Java API
+contracts.
 The producer/provenance pair represents current shared multi-output occurrences including
 dropout, top-K, batch-normalization training, and explicitly requested attention weights. Binary
 arithmetic, binary comparison,
@@ -10617,8 +10621,8 @@ remain planned.
 - `CompiledGraphModel` snapshots all collections and validates graph-wide structural closure,
   topological order, declared boundaries, producer rules, and exact node-phase coverage. It
   accepts zero-input nodes, repeated node inputs, unused inputs, and zero-node pass-through graphs.
-- `PublicationBinding` rejects null identities and remains a standalone association without
-  owning-graph validation, policy, storage, backend, or runtime behavior.
+- `ForwardPublicationBinding` rejects null identities and remains a standalone requested-forward
+  association without owning-graph validation, policy, storage, backend, or runtime behavior.
 - None of the current types owns device storage, runtime residency, or backend selection. The
   current `Tensor` also owns no storage lifetime, graph-local identity, compiler graph capture, or
   execution state; its provenance is model origin metadata only.

@@ -18,17 +18,18 @@ import java.util.Optional;
 import java.util.Set;
 
 /**
- * Constructs one deterministic first-order Tensor expression after successful preflight.
+ * Constructs one deterministic reverse-mode Tensor-expression stage after successful preflight.
  *
  * <p>Incoming contributions and accumulated cotangents are keyed by exact Tensor identity.
  * Contributions are appended in reverse producer-postorder, ascending selected-output-slot, and
  * ascending input-position order, then merged through left-associated public Tensor addition.
  * This keeps existing one-output order stable while allowing several selected public outputs of
- * one batch-normalization occurrence to contribute to the same input. The only seed is an
- * implicit exact typed positive one for the scalar objective. Request-local BFLOAT16, FLOAT32, or
- * FLOAT64 scalar leaves are cached by exact {@link ScalarValue} type and represented bits, remain
- * storage-free, and are registered explicitly as logical splats in deterministic first-use
- * order. Shape-specific values are ordinary public {@code expand} expressions.</p>
+ * one batch-normalization occurrence to contribute to the same input. Each selected output uses
+ * its validated explicit cotangent seed or an implicit exact typed positive one for an eligible
+ * scalar output. Request-local BFLOAT16, FLOAT32, or FLOAT64 scalar leaves are cached by exact
+ * {@link ScalarValue} type and represented bits, remain storage-free, and are registered
+ * explicitly as logical splats in deterministic first-use order. Shape-specific values are
+ * ordinary public {@code expand} expressions.</p>
  *
  * <p>Formula ownership remains split among {@link ElementwiseGradientRules},
  * {@link ReductionGradientRules}, {@link NormalizationGradientRules},
@@ -59,11 +60,25 @@ final class FirstOrderAutograd {
     private FirstOrderAutograd() {}
 
     /**
+     * Expands one stage with original producers as the already-owned producer set.
+     *
+     * @param plan non-null successful stage preflight
+     * @param forwardIngress non-null caller-ordered explicit ingress
+     * @return non-null expansion handoff
+     */
+    static Expansion expand(
+            AutogradPreflight.StagePlan plan,
+            CompileTimeConstantGraph.Ingress forwardIngress) {
+        return expand(plan, forwardIngress, plan.originalProducers());
+    }
+
+    /**
      * Expands one successful plan and merges generated typed constants after caller ingress.
      *
      * @param plan non-null successful Tensor-allocation-free preflight plan
      * @param forwardIngress non-null caller-ordered explicit forward constant bindings; observed
      *     but not mutated
+     * @param previouslyOwnedProducers non-null identity set of producers owned by earlier stages
      * @return a non-null expansion handoff with target roles in request order, the original
      *     producer identity set, and ingress ordered as caller bindings followed by reachable
      *     generated derivative bindings in deterministic first-use order
@@ -74,16 +89,22 @@ final class FirstOrderAutograd {
      *     internally inconsistent
      */
     static Expansion expand(
-            AutogradPreflight.Plan plan,
-            CompileTimeConstantGraph.Ingress forwardIngress) {
+            AutogradPreflight.StagePlan plan,
+            CompileTimeConstantGraph.Ingress forwardIngress,
+            Set<TensorProducer> previouslyOwnedProducers) {
         Objects.requireNonNull(plan, "plan");
         Objects.requireNonNull(forwardIngress, "forwardIngress");
+        Objects.requireNonNull(previouslyOwnedProducers, "previouslyOwnedProducers");
 
         DerivativeConstants constants = new DerivativeConstants();
         IdentityHashMap<Tensor, List<Tensor>> contributions = new IdentityHashMap<>();
         IdentityHashMap<Tensor, Tensor> accumulated = new IdentityHashMap<>();
-        append(contributions, plan.objective(), constants.oneBase(
-                plan.objective().descriptor().dataType()));
+        for (int index = 0; index < plan.outputs().size(); index++) {
+            Tensor output = plan.outputs().get(index);
+            Tensor seed = plan.cotangentSeeds().get(index).orElseGet(
+                    () -> constants.oneBase(output.descriptor().dataType()));
+            append(contributions, output, seed);
+        }
 
         List<AutogradPreflight.SelectedOccurrence> selected = plan.selectedOccurrences();
         for (int end = selected.size(); end > 0; ) {
@@ -120,16 +141,22 @@ final class FirstOrderAutograd {
         }
 
         List<TargetGradient> roles = new ArrayList<>(plan.targets().size());
-        for (Tensor target : plan.targets()) {
-            Tensor gradient = accumulated.get(target);
-            if (gradient == null) {
-                List<Tensor> incoming = contributions.get(target);
-                if (incoming == null || incoming.isEmpty()) {
-                    throw new IllegalStateException(
-                            "successful preflight target has no gradient contribution");
+        for (int index = 0; index < plan.targets().size(); index++) {
+            Tensor target = plan.targets().get(index);
+            Tensor gradient;
+            if (!plan.connectedTarget(index)) {
+                gradient = constants.disconnectedZeroLike(target);
+            } else {
+                gradient = accumulated.get(target);
+                if (gradient == null) {
+                    List<Tensor> incoming = contributions.get(target);
+                    if (incoming == null || incoming.isEmpty()) {
+                        throw new IllegalStateException(
+                                "successful preflight target has no gradient contribution");
+                    }
+                    gradient = accumulate(incoming);
+                    accumulated.put(target, gradient);
                 }
-                gradient = accumulate(incoming);
-                accumulated.put(target, gradient);
             }
             roles.add(new TargetGradient(target, gradient));
         }
@@ -155,8 +182,33 @@ final class FirstOrderAutograd {
         }
         return new Expansion(
                 roles,
-                plan.originalProducers(),
+                ownedProducers(roles, previouslyOwnedProducers),
                 new CompileTimeConstantGraph.Ingress(merged));
+    }
+
+    private static Set<TensorProducer> ownedProducers(
+            List<TargetGradient> roles,
+            Set<TensorProducer> previouslyOwnedProducers) {
+        Set<TensorProducer> result = java.util.Collections.newSetFromMap(new IdentityHashMap<>());
+        IdentityHashMap<Tensor, Boolean> seen = new IdentityHashMap<>();
+        ArrayDeque<Tensor> pending = new ArrayDeque<>();
+        for (TargetGradient role : roles) {
+            pending.addLast(role.gradient());
+        }
+        while (!pending.isEmpty()) {
+            Tensor tensor = pending.removeLast();
+            if (seen.put(tensor, Boolean.TRUE) != null) {
+                continue;
+            }
+            tensor.provenance().ifPresent(provenance -> {
+                TensorProducer producer = provenance.producer();
+                if (!previouslyOwnedProducers.contains(producer)) {
+                    result.add(producer);
+                }
+                producer.inputs().forEach(pending::addLast);
+            });
+        }
+        return java.util.Collections.unmodifiableSet(result);
     }
 
     /**
@@ -257,6 +309,7 @@ final class FirstOrderAutograd {
      */
     static final class DerivativeConstants {
         private final Map<ScalarValue, Tensor> bases = new HashMap<>();
+        private final Map<DisconnectedZeroKey, Tensor> disconnectedZeros = new HashMap<>();
         private final List<CompileTimeConstantGraph.Binding> bindings = new ArrayList<>();
 
         /**
@@ -273,6 +326,22 @@ final class FirstOrderAutograd {
         Tensor zeroLike(Tensor tensor) {
             return zeroBase(tensor.descriptor().dataType())
                     .expand(tensor.descriptor().shape());
+        }
+
+        /**
+         * Returns one shared exact typed zero expression for a disconnected target descriptor.
+         *
+         * @param tensor non-null target whose exact floating type and Shape are reused
+         * @return non-null request-local zero expression
+         */
+        Tensor disconnectedZeroLike(Tensor tensor) {
+            DisconnectedZeroKey key = new DisconnectedZeroKey(
+                    tensor.descriptor().dataType(), tensor.descriptor().shape());
+            return disconnectedZeros.computeIfAbsent(
+                    key,
+                    ignored -> key.shape().equals(Shape.scalar())
+                            ? zeroBase(key.dataType())
+                            : zeroBase(key.dataType()).expand(key.shape()));
         }
 
         /**
@@ -418,6 +487,8 @@ final class FirstOrderAutograd {
                                 "derivative constants require floating data type: " + dataType);
             };
         }
+
+        private record DisconnectedZeroKey(DataType dataType, Shape shape) {}
     }
 
     /**
@@ -443,23 +514,24 @@ final class FirstOrderAutograd {
      * Complete ephemeral expansion result consumed immediately by combined capture.
      *
      * @param targetGradients non-null ordered target-to-gradient roles; snapshotted
-     * @param originalProducers non-null unmodifiable identity set of original forward producers
+     * @param stageProducers non-null unmodifiable identity set of producers first owned by this
+     *     derivative stage
      * @param ingress non-null caller bindings followed by generated derivative bindings
      */
     record Expansion(
             List<TargetGradient> targetGradients,
-            Set<TensorProducer> originalProducers,
+            Set<TensorProducer> stageProducers,
             CompileTimeConstantGraph.Ingress ingress) {
         /**
          * Validates and snapshots one complete expansion result.
          *
          * @param targetGradients non-null ordered target-to-gradient roles
-         * @param originalProducers non-null identity set of original forward producers
+         * @param stageProducers non-null identity set first owned by this derivative stage
          * @param ingress non-null caller and derivative constant ingress
          * @throws NullPointerException if a required component or role element is {@code null}
-         */Expansion {
+        */Expansion {
             targetGradients = List.copyOf(targetGradients);
-            Objects.requireNonNull(originalProducers, "originalProducers");
+            Objects.requireNonNull(stageProducers, "stageProducers");
             Objects.requireNonNull(ingress, "ingress");
         }
     }

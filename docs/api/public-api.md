@@ -13,8 +13,9 @@ eligibility evaluation and cost-free baseline owner comparison. Those two steps 
 public `BackendOwnerPlanning` composes them for one operation occurrence. Public stateless
 `MaximalSameOwnerPartitioning` and `LogicalMemoryPlanning` generate the current immutable
 partition and logical-memory recipes from compiler-owned graph-wide inputs. Package-private
-Compiler orchestration now consumes those three operations and returns public immutable
-`CompileArtifacts`, `PublicationPlan`, `CompileConstantPlan`, and `CompileDiagnostics`.
+Compiler orchestration now consumes those three operations and uses the public immutable
+`FunctionalGradientRequest`, `GradientPublicationBinding`, `DerivativeGraphMetadata`,
+`CompileArtifacts`, `PublicationPlan`, `CompileConstantPlan`, and `CompileDiagnostics` contracts.
 Reusable or public capability matrices, a public graph-wide Planning workflow, public compiler
 entry, physical memory, prepare, runtime, concrete backend integration, and engine APIs remain
 planned. The backend
@@ -42,8 +43,8 @@ The implemented `modules:model` surface contains:
   backend-independent expression metadata;
 - typed operation attributes and occurrence signatures, shared multi-output producer provenance,
   and operation-specific result carriers; and
-- immutable graph values, nodes, compiled graph-model data, publication bindings, and distinct
-  tensor/node/value identifiers.
+- immutable graph values, nodes, compiled graph-model data, forward publication bindings, and
+  distinct tensor/node/value identifiers.
 
 The [Tensor API reference](tensor-api.md) documents these current contracts, inputs, results,
 failures, and examples. The current model surface records meaning and metadata; it does not imply
@@ -359,32 +360,40 @@ has no owning graph against which to prove producer, consumer, or output relatio
 public generator establishes those graph-relative facts.
 
 These records retain `TensorDescriptor` rather than calculating element or byte counts, so
-dynamic and expression dimensions remain representable. They carry no `PublicationBinding`,
-`TensorId`, lifetime, slot, allocation, transfer, selected device, route, kernel, executable,
-prepared schedule, or runtime residency. `graphOutput` is a logical preservation obligation, not
-a publication target or policy.
+dynamic and expression dimensions remain representable. They carry no
+`ForwardPublicationBinding`, `GradientPublicationBinding`, `TensorId`, lifetime, slot,
+allocation, transfer, selected device, route, kernel, executable, prepared schedule, or runtime
+residency. `graphOutput` is a logical preservation obligation, not a publication target or
+policy.
 
 Reusable or public capability matrices, public eligibility evaluation, a public graph-wide
 Planning workflow, numeric or cost scoring, profiles, physical memory, preparation, runtime, and
 execution remain planned. Compiler currently owns owner-map assembly and immutable artifact
 construction.
 
-The public `modules:compiler` output surface now contains:
+The public `modules:compiler` contract surface now contains:
 
-- `CompileArtifacts`, the exact seven-component immutable recipe containing mode, final graph,
-  maximal partitions, logical memory, publication, constants, and diagnostics;
-- `PublicationPlan`, an output-only exact-graph context with separate immutable ordered forward
-  and gradient `PublicationBinding` lists;
+- `FunctionalGradientRequest`, the immutable one/two-stage reverse-mode input with aligned
+  cotangent seeds and an explicit disconnected-target policy;
+- `GradientPublicationBinding`, the derivative-order and stage-local
+  target-to-gradient-publication association;
+- `DerivativeGraphMetadata`, the exact graph-adjacent per-node derivative-order sidecar;
+- `CompileArtifacts`, the exact eight-component immutable recipe containing mode, final graph,
+  maximal partitions, logical memory, publication, constants, diagnostics, and derivative
+  metadata;
+- `PublicationPlan`, an output-only exact-graph context exposing separate immutable ordered
+  `forwardBindings()` of `ForwardPublicationBinding` values and `gradientBindings()` of
+  `GradientPublicationBinding` values;
 - `CompileConstantPlan`, an output-only immutable graph-input classification with nested
   `ConstantSource(ValueId, ScalarValue)` values; and
 - `CompileDiagnostics`, an output-only immutable successful-compile projection with nested
   `DeferredConstraintDiagnostic(NodeId, subject, predicate)` values.
 
-The three output-only classes have package-private constructors. `CompileArtifacts` is a public
+The three output-only plan classes have package-private constructors. `CompileArtifacts` is a public
 record whose canonical constructor cross-validates the supplied components and snapshots
 partition membership. These types are public so later prepare and engine work can consume stable
-compile-time data. They do not make compilation callable: both `GraphCompiler` entries, the
-first-order request, and `GraphCompilation` remain package-private.
+compile-time data. The functional request is public compiler input, but these types do not make
+compilation callable: both `GraphCompiler` entries and `GraphCompilation` remain package-private.
 
 The artifact result retains no provider, availability snapshot, selected device, route, kernel,
 physical buffer, transfer, prepared schedule, executable, residency, or mutable run state.

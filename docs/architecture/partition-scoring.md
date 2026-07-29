@@ -97,9 +97,10 @@ partition, each distinct consuming partition in partition order, and a graph-out
 These facts describe graph inputs, partition inputs and outputs, same-owner and cross-owner
 boundaries, partition-internal values, and graph-output preservation without storing a closed role
 enum. Retaining the descriptor keeps dynamic and expression dimensions representable. The plan
-does not calculate element or byte counts, accept `PublicationBinding`, choose a transfer or copy,
-allocate physical storage, resolve a device or route, or create prepared/runtime state. Public
-visibility of this package-owned operation does not make it an end-to-end Planning workflow.
+does not calculate element or byte counts, accept `ForwardPublicationBinding` or
+`GradientPublicationBinding`, choose a transfer or copy, allocate physical storage, resolve a
+device or route, or create prepared/runtime state. Public visibility of this package-owned
+operation does not make it an end-to-end Planning workflow.
 
 ## Information scoring may use
 
