@@ -32,10 +32,13 @@ exact arithmetic scan, one bounded logical-splat folding scan, and one sidecar-a
 `DCE -> phase-local CSE -> DCE` sequence, revalidating only changed candidates. This is not a
 public compiler, concrete binding service, compile artifact, backend decision, or execution path.
 
-The runtime currently provides only the public immutable
-[`BufferSlot`](#buffer-slot--bufferslot) identity. Prepared-memory plans, workspace identities,
-slot access and binding, physical storage, schedules, prepared executables, per-run state,
-residency, publication, and execution remain planned.
+The runtime currently provides the public immutable
+[`BufferSlot`](#buffer-slot--bufferslot) and
+[`WorkspaceSlot`](#workspace-slot--workspaceslot) identities plus
+[`PreparedMemoryPlan`](#prepared-memory-plan--preparedmemoryplan) final slot geometry. Prepare-owned
+requirement-to-slot assignment and association, Runtime slot access and binding, physical
+storage, schedules, prepared executables, per-run state, residency, publication, and execution
+remain planned.
 
 Prepare currently provides the public immutable analysis-side contracts in
 `io.github.pho001.synaptik.prepare.analysis`: `BackendAnalysisInputs`,
@@ -1915,20 +1918,59 @@ with no reserved sentinel. The record stores no plan reference, so its ordinary 
 hashing compare only the exact number; equal values used by different plans do not establish one
 cross-plan identity.
 
-A `BufferSlot` is deeply immutable and may later be retained by reusable prepared state across
-runs. It is not a logical [`ValueId`](#valueid), physical buffer, storage handle, address,
-allocation, device, resource, residency fact, or per-run binding. Constructing one performs no
-allocation or resource operation. Prepared-memory plans, slot access, physical binding, and
-execution remain planned. See the [Runtime API](api/runtime-api.md#current-buffer-slot-contract).
+A `BufferSlot` is deeply immutable and may be retained by the current
+[`PreparedMemoryPlan`](#prepared-memory-plan--preparedmemoryplan). It is not a logical
+[`ValueId`](#valueid), physical buffer, storage handle, address, allocation, device, resource,
+residency fact, or per-run binding. Constructing one performs no allocation or resource operation.
+Prepare assignment, slot access, physical binding, and execution remain planned. See the
+[Runtime API](api/runtime-api.md#current-slot-identities).
+
+### Workspace slot / `WorkspaceSlot`
+
+The implemented public Runtime record that carries one non-negative `long` identity for a
+workspace position within one owning prepared-memory-plan context. Zero through
+`Long.MAX_VALUE` are valid, with no reserved sentinel. It is nominally distinct from
+[`BufferSlot`](#buffer-slot--bufferslot) and from a Prepare analysis-local workspace requirement
+ID even when their numbers match.
+
+The record stores no plan reference, so ordinary equality and hashing compare only another
+`WorkspaceSlot` with the same number. It is deeply immutable and may be retained by a current
+`PreparedMemoryPlan`, but it is not physical scratch storage, a handle, address, allocation,
+device, resource, residency fact, lifetime, or per-run binding. Construction performs no
+allocation or resource operation.
+
+### Prepared memory plan / `PreparedMemoryPlan`
+
+The implemented public Runtime record that describes final ordered reusable slot geometry for one
+prepared plan. Its immutable `buffers` and `workspaces` list snapshots contain
+`BufferEntry(BufferSlot, byteSize, byteAlignment)` and
+`WorkspaceEntry(WorkspaceSlot, byteSize, byteAlignment)` values. Size is an exact non-negative
+byte count, including zero. Alignment is an exact positive power of two from `1` through
+`1L << 62`.
+
+Supplied entry order is preserved, exact immutable entry and slot references are retained, and
+the caller's list containers are not retained. Buffer slots are unique within buffer entries and
+workspace slots within workspace entries; equal numeric buffer/workspace values are valid because
+the domains are nominally separate. Either list may be empty. Ordinary record equality and
+hashing use the retained immutable values; record text is diagnostic only.
+
+The plan contains geometry, not provenance or resources. It retains no Prepare analysis
+requirement, graph `ValueId`, analysis-local workspace ID, source-to-slot association, physical
+storage, address, allocation, ownership, aliasing or lifetime proof, device, residency, or per-run
+binding. It does not sort, derive, assign, allocate, bind, access, or release anything. A later
+Prepare contract will construct it while retaining source associations; later Runtime/backend
+contracts own physical resources and run access.
 
 ### Memory slot
 
 An architecture-level prepared-plan position through which a schedule can refer to reusable
-storage without embedding a raw address. The current [`BufferSlot`](#buffer-slot--bufferslot)
-implements only the identity for a buffer position. Workspace identity, prepared-memory-plan
-membership, storage binding, access, allocation, and lifetime remain planned. A memory-slot
-identity is not itself a physical execution resource and must not be confused with a logical
-[`ValueId`](#valueid).
+storage without embedding a raw address. Current
+[`BufferSlot`](#buffer-slot--bufferslot) and
+[`WorkspaceSlot`](#workspace-slot--workspaceslot) values provide nominally separate plan-local
+identities, and current [`PreparedMemoryPlan`](#prepared-memory-plan--preparedmemoryplan) records
+their final byte geometry. Source association, storage binding, access, allocation, aliasing, and
+lifetime remain later work. A memory-slot identity is not itself a physical execution resource and
+must not be confused with a logical [`ValueId`](#valueid) or an analysis requirement ID.
 
 ### `NoOperationAttrs`
 
@@ -2492,11 +2534,13 @@ planned-partition reference, one exact backend-owned
 workspace declarations. Duplicate buffer `ValueId` values and duplicate analysis-local workspace
 requirement IDs are rejected independently in encounter order.
 
-Shared Prepare will later interpret the declarations to assign slots but does not inspect private
-plan state. The analysis is not a prepared executable, slot assignment, physical allocation,
-resource handle, schedule, or per-run binding. The constructing record cannot by itself prove
-which context produced it; the implemented `BackendPartitionPreparer` collaboration requires the
-returned analysis to retain the exact `PrepareContext.partition()` reference.
+Shared Prepare will later interpret the declarations to assign current Runtime slot types and
+construct current final geometry, but it does not inspect private plan state. That translator and
+its source-to-slot association are not implemented. The analysis is not a prepared executable,
+slot assignment, physical allocation, resource handle, schedule, or per-run binding. The
+constructing record cannot by itself prove which context produced it; the implemented
+`BackendPartitionPreparer` collaboration requires the returned analysis to retain the exact
+`PrepareContext.partition()` reference.
 
 ### Backend partition preparer / `BackendPartitionPreparer`
 
@@ -3818,9 +3862,11 @@ The compiled graph container is implemented model state.
 
 ### Logical `ValueId` versus physical memory slot
 
-A `ValueId` names logical data in one compiled graph. The current `BufferSlot` instead names one
-plan-local buffer position without naming physical storage. Future preparation may map values to
-slots, and future prepared memory or run state may bind those slots to reusable physical storage.
-Different values may reuse one slot when their lifetimes do not overlap. No such mapping or
-binding is implemented by `BufferSlot`, so the graph identity remains distinct from both the slot
-identity and any later physical resource.
+A `ValueId` names logical data in one compiled graph. Current `BufferSlot` and `WorkspaceSlot`
+instead name nominally separate plan-local positions without naming physical storage. Current
+`PreparedMemoryPlan` associates those slot identities only with final byte size and alignment.
+Future Prepare assignment may map source requirements to slots, and future Runtime/backend state
+may bind those slots to reusable physical storage. The initial planned assignment uses distinct
+slots; any later reuse requires a proved lifetime/interference model. No source mapping or
+physical binding is implemented by the slot or plan records, so graph and analysis identities
+remain distinct from both slot identities and later physical resources.

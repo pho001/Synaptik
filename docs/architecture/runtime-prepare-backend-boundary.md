@@ -2,12 +2,14 @@
 
 This document explains the boundary defined by [`ARCHITECTURE.md`](../../ARCHITECTURE.md). The root contract remains authoritative.
 
-Runtime currently implements only the immutable `BufferSlot` identity described below. Prepare
-currently implements the analysis-side projection, opaque marker roles, exact resource
-declarations, analysis result, and preparer collaboration described below. Slot assignment,
-backend finalization, engine, concrete backends, and every other runtime or Prepare contract named
-here remain planned. The lifecycle flow therefore mixes current foundations with later stages;
-each focused section states its implementation status.
+Runtime currently implements the immutable `BufferSlot` and `WorkspaceSlot` identities plus
+`PreparedMemoryPlan` final slot geometry described below. Prepare currently implements the
+analysis-side projection, opaque marker roles, exact resource declarations, analysis result, and
+preparer collaboration. The Prepare-owned assignment that constructs Runtime geometry from those
+analyses remains planned, as do backend finalization, physical allocation, per-run binding,
+engine, concrete backends, and every execution contract named here. The lifecycle flow therefore
+mixes current foundations with later stages; each focused section states its implementation
+status.
 
 ## Boundary in one flow
 
@@ -30,19 +32,29 @@ compile recipe into runtime-ready state, but executable construction is delibera
 shared slot assignment. Runtime executes the result without rediscovering, lowering, or selecting
 backend work.
 
-## Current identity foundation
+## Current Runtime memory geometry
 
-The current `modules/runtime` production surface contains one public record:
-`io.github.pho001.synaptik.runtime.memory.BufferSlot(long value)`. It is an opaque non-negative
-identity for a buffer position within one owning prepared-memory-plan context. The record stores no
-plan reference, physical buffer, storage handle, address, allocation, device, resource, residency,
-or per-run binding.
+The current `modules/runtime` production surface contains two nominally distinct non-negative
+plan-local identities:
 
-This identity is deliberately separate from compile-time `ValueId`. A later prepare implementation
-may associate graph values with slots, and a later run may bind slots to storage, but the current
-record performs no mapping, allocation, access, transfer, or execution. The distinction lets later
-prepared units refer to buffer positions without moving graph objects or physical storage into the
-runtime hot-path contract.
+- `io.github.pho001.synaptik.runtime.memory.BufferSlot(long value)` for a reusable buffer
+  position; and
+- `io.github.pho001.synaptik.runtime.memory.WorkspaceSlot(long value)` for a reusable workspace
+  position.
+
+Neither record stores a plan reference. Equal numeric values are valid across the two domains,
+and another plan may reuse either number without establishing cross-plan identity.
+
+The current `PreparedMemoryPlan` carries final ordered geometry through immutable buffer-entry and
+workspace-entry snapshots. Each entry retains one exact slot reference plus exact non-negative
+byte size and positive power-of-two byte alignment. Slots are unique within their respective
+lists, the two domains remain separate, and empty plans are valid.
+
+These Runtime contracts deliberately retain no compile-time `ValueId`, analysis-local workspace
+requirement ID, Prepare requirement, or source-to-slot association. They do not derive assignment,
+allocate or own a physical buffer or workspace, define aliasing or lifetime, bind a run, provide
+access, transfer data, or execute work. This distinction lets later prepared units refer to final
+positions without moving graph objects or physical storage into the Runtime hot-path contract.
 
 ## Current analysis foundation
 
@@ -99,13 +111,17 @@ configuration and returns a `BackendPartitionAnalysis`. The result has two parts
 - exact backend-neutral declarations for every buffer and workspace resource that shared
   preparation must assign.
 
-Everything after the analysis result remains planned. Shared Prepare will assign stable
-Runtime-owned `BufferSlot` and future `WorkspaceSlot` identities and construct the prepared memory
-plan. The initial workspace rule is conservative: each declared workspace receives its own slot,
-so no unproved aliasing or lifetime model is required. After assignment, the same backend will
-finalize its opaque plan against those slots and construct the `PreparedExecutable` and
-`PreparedPartition`. Finalization may validate or acquire backend-owned executable resources, but
-it must not change route choice or add an undeclared shared buffer or workspace need.
+The next lifecycle step after the analysis result remains planned even though its Runtime result
+types are current. Shared Prepare will assign stable Runtime-owned `BufferSlot` and
+`WorkspaceSlot` identities, retain the exact requirement-to-slot associations, and construct a
+`PreparedMemoryPlan`. The initial rule is conservative: one distinct buffer slot per distinct
+declared buffer value and one distinct workspace slot per workspace declaration, so no unproved
+aliasing or lifetime model is required.
+
+Backend finalization is also planned. After assignment, the same backend will finalize its opaque
+plan against those slots and construct the `PreparedExecutable` and `PreparedPartition`.
+Finalization may validate or acquire backend-owned executable resources, but it must not change
+route choice or add an undeclared shared buffer or workspace need.
 
 Any dynamic or unresolved Shape currently fails `PrepareContext` construction before backend
 analysis. A future fact may remain run-dynamic only when an explicit prepared contract represents
@@ -114,19 +130,23 @@ repository has no such binding/resource contract.
 
 ## What prepare creates
 
-The prepare lifecycle creates:
+The complete architecture prepare lifecycle creates:
 
 - `PreparedPartition`, which associates a planned partition and backend identity with its prepared units;
 - `PreparedUnit`, which connects a prepared executable to its input and output slots;
 - `PreparedExecutable`, the hot-path executable contract for one prepared region;
-- `PreparedMemoryPlan`, which defines physical buffer and workspace slots for the prepared execution;
+- `PreparedMemoryPlan`, whose current Runtime contract defines final buffer/workspace slot
+  geometry without allocating physical storage;
 - `PreparedSchedule`, which orders executable, transfer, materialization, and publication work; and
 - `PreparedExecution`, the reusable runtime-ready result.
 
-`modules/prepare` owns `PrepareContext`, `BackendPartitionPreparer`,
-`BackendPartitionAnalysis`, shared resource declarations, `PreparedPartition`, orchestration, and
-validation. Engine-level composition supplies explicitly registered backend implementations and
-their input facts. Prepare does not interpret the backend's opaque route plan.
+Today, only `PreparedMemoryPlan` exists among the prepare-result contracts in this list; the
+analysis-side Prepare contracts described above are also current. `modules/prepare` owns
+`PrepareContext`, `BackendPartitionPreparer`,
+`BackendPartitionAnalysis`, shared resource declarations, later assignment and source
+associations, `PreparedPartition`, orchestration, and validation. Engine-level composition
+supplies explicitly registered backend implementations and their input facts. Prepare does not
+interpret the backend's opaque route plan.
 
 Shared prepare code does not implement concrete CPU, Metal, or CUDA lowering and does not own backend-specific executable or storage implementations.
 

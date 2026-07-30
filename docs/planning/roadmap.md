@@ -48,13 +48,14 @@ Compiler 31 suites/208 tests with no skips, failures, or errors. No later compil
 detailed specification.
 
 The completed Runtime implementation frontier is
-[Runtime 0001 Prepared buffer-slot identity](modules/runtime/tasks/0001-prepared-buffer-slot-identity.md).
-It adds the smallest architecture-named prepared-execution prerequisite: one immutable plan-local
-`BufferSlot` identity for later prepared-unit input/output bindings and runtime slot access. Its
-focused and final Runtime test commands passed four tests in one suite with no skips, failures,
-or errors. The separate clean documentation pass finalized the production and package Javadocs,
-Runtime API, focused architecture status, glossary, and planning records; Runtime Javadoc,
-Markdown, source/scope/status, and whitespace gates passed without changing executable Java or
+[Runtime 0002 Prepared memory and workspace contracts](modules/runtime/tasks/0002-prepared-memory-and-workspace-contracts.md).
+It adds the nominally distinct plan-local `WorkspaceSlot` plus immutable ordered
+`PreparedMemoryPlan` buffer/workspace entries with exact non-negative byte size and positive
+power-of-two alignment. Its focused command passed two suites and 21 tests, and the single final
+Runtime command passed three suites and 25 tests with no skips, failures, or errors. The separate
+clean documentation pass finalized production/package Javadocs, Runtime API, focused architecture
+status, glossary, and planning records; Runtime Javadoc, compiled Java 26 API example, Markdown,
+source/import/build/scope/status, and whitespace gates passed without changing executable Java or
 repeating the successful Java tests.
 
 The completed Prepare implementation frontier is
@@ -91,7 +92,8 @@ ADR 0010 resolves the blocker with one staged handoff:
 
 ```text
 Prepare 0001 analysis request/result and exact resource declarations
-  -> Runtime 0002 workspace slots and prepared-memory assignment
+  -> Runtime 0002 workspace slots and final prepared-memory geometry
+  -> later Prepare assignment and source-to-slot association
   -> Runtime 0003–0004 run-state access and executable contracts
   -> Prepare 0002 backend finalization against assigned slots
   -> Runtime schedule/execution work
@@ -106,14 +108,30 @@ requirements. Shared preparation then assigns Runtime-owned slots, initially one
 per workspace declaration. The backend finalizes only afterward and cannot change its route or add
 undeclared shared requirements.
 
-Prepare 0001 is the only detailed Prepare task. Its completion removes Runtime 0002's declaration-
-producer blocker. Runtime 0002 is now Draft and is the next cross-area planning frontier; a later
-planning step must create its detailed specification for workspace slots, requirement
-assignments, and prepared memory. Prepare 0002 and Runtime 0003–0008 remain Draft without detailed
-specifications. Backend Contract remains Complete and closed.
+Prepare 0001 remains the only detailed Prepare task. Its completion removed Runtime 0002's
+declaration-producer blocker. Detailed
+[Runtime 0002 Prepared memory and workspace contracts](modules/runtime/tasks/0002-prepared-memory-and-workspace-contracts.md)
+is Complete.
 
-The completed Runtime identity still adds no physical buffer or allocation, graph-value
-conversion,
+Runtime 0002 keeps Runtime independent of Prepare and Model. It adds the nominally distinct
+plan-local `WorkspaceSlot` plus immutable final per-`BufferSlot` and per-`WorkspaceSlot` byte-size
+and alignment entries in `PreparedMemoryPlan`. The plan preserves supplied deterministic order
+and requires unique slots in separate buffer/workspace domains. It imports or retains no
+`PreparationResourceRequirement`, `BackendPartitionAnalysis`, `ValueId`,
+`LogicalMemoryRequirement`, or `PlannedPartition`.
+
+A later Prepare-owned assignment/finalization contract will traverse the ordered analyses and
+requirements, retain exact source-to-slot associations, and construct this Runtime geometry.
+Its initial policy remains conservative: one distinct buffer slot per distinct declared buffer
+value and one distinct workspace slot per workspace declaration, with no reuse before a
+liveness/interference proof exists. Physical storage, allocation, bytes ownership, pooling,
+aliasing, device/residency, run-state binding/access, executable/unit/schedule/execution,
+publication, transfer, and backend finalization remain outside Runtime 0002. Runtime 0003 is the
+next ordered row but needs a separate frontier-planning step. Prepare 0002 and Runtime 0003–0008
+remain Draft without detailed specifications. Backend Contract remains Complete and closed.
+
+The completed Runtime memory foundation still adds no physical buffer or allocation, graph-value
+conversion or source association,
 `PreparedExecutable`, `PreparedUnit`, schedule, `RunState`, runner, publication, transfer,
 residency, backend behavior, tracing emission, or Engine facade. The preceding
 [Compiler 0005E First-order gradient coverage closure checkpoint](modules/compiler/tasks/0005e-first-order-gradient-coverage-closure-checkpoint.md)
