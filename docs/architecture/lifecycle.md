@@ -62,16 +62,23 @@ Partition scoring chooses backend ownership, not concrete implementation. See [P
 ```text
 CompileArtifacts
   -> validate partition coverage
-  -> call the owning BackendPartitionPreparer for each PlannedPartition
-  -> backend lowering, specialization, fusion, and kernel selection
-  -> build PreparedPartition[]
-  -> build PreparedMemoryPlan
+  -> project partition-scoped facts and resolved prepare inputs
+  -> backend analysis, lowering, specialization, fusion, and kernel selection
+  -> exact shared buffer/workspace declarations
+  -> build BackendPartitionAnalysis[]
+  -> assign stable slots and build PreparedMemoryPlan
+  -> backend finalization against assigned slots
+  -> build PreparedPartition[] and PreparedExecutable[]
   -> build PreparedSchedule
   -> validate prepared memory and schedule
   -> PreparedExecution
 ```
 
-Prepare creates `PreparedPartition`, `PreparedUnit`, `PreparedExecutable`, `PreparedMemoryPlan`, `PreparedSchedule`, and `PreparedExecution`. Shared prepare code owns contracts and validation; concrete backend modules own lowering and executable implementations.
+Prepare creates `BackendPartitionAnalysis`, `PreparedPartition`, `PreparedUnit`,
+`PreparedExecutable`, `PreparedMemoryPlan`, `PreparedSchedule`, and `PreparedExecution`. Shared
+Prepare owns projection, orchestration, exact resource declarations, slot assignment, and
+validation. Concrete backends own deterministic analysis/lowering/route choice, retain the
+selected plan opaquely, and construct executables only during finalization after slot assignment.
 
 See [Runtime, Prepare, and Backend Boundary](runtime-prepare-backend-boundary.md) for the exact ownership split.
 

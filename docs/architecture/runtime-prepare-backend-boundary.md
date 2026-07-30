@@ -2,22 +2,115 @@
 
 This document explains the boundary defined by [`ARCHITECTURE.md`](../../ARCHITECTURE.md). The root contract remains authoritative.
 
-Runtime, prepare, engine, and concrete backend contracts are not implemented. The types below name the intended architecture and must not be read as a current Java API.
+Runtime currently implements only the immutable `BufferSlot` identity described below. Prepare
+currently implements the analysis-side projection, opaque marker roles, exact resource
+declarations, analysis result, and preparer collaboration described below. Slot assignment,
+backend finalization, engine, concrete backends, and every other runtime or Prepare contract named
+here remain planned. The lifecycle flow therefore mixes current foundations with later stages;
+each focused section states its implementation status.
 
 ## Boundary in one flow
 
 ```text
 CompileArtifacts
   -> shared prepare validation and orchestration
-  -> concrete backend preparation for each PlannedPartition
-  -> PreparedPartition[]
-  -> PreparedMemoryPlan
+  -> Prepare-owned partition analysis request
+  -> concrete backend analysis, lowering, route choice, and exact resource declaration
+  -> BackendPartitionAnalysis[]
+  -> shared buffer/workspace slot assignment and PreparedMemoryPlan
+  -> concrete backend finalization against assigned slots
+  -> PreparedPartition[] + PreparedExecutable[]
   -> PreparedSchedule
   -> PreparedExecution
   -> runtime execution with RunState
 ```
 
-Prepare turns an immutable compile recipe into runtime-ready state. Concrete backends supply the executable implementation of their assigned regions. Runtime executes the resulting contracts without rediscovering or lowering backend work.
+Read the arrows from compile-time facts toward reusable runtime state. Prepare turns an immutable
+compile recipe into runtime-ready state, but executable construction is deliberately split around
+shared slot assignment. Runtime executes the result without rediscovering, lowering, or selecting
+backend work.
+
+## Current identity foundation
+
+The current `modules/runtime` production surface contains one public record:
+`io.github.pho001.synaptik.runtime.memory.BufferSlot(long value)`. It is an opaque non-negative
+identity for a buffer position within one owning prepared-memory-plan context. The record stores no
+plan reference, physical buffer, storage handle, address, allocation, device, resource, residency,
+or per-run binding.
+
+This identity is deliberately separate from compile-time `ValueId`. A later prepare implementation
+may associate graph values with slots, and a later run may bind slots to storage, but the current
+record performs no mapping, allocation, access, transfer, or execution. The distinction lets later
+prepared units refer to buffer positions without moving graph objects or physical storage into the
+runtime hot-path contract.
+
+## Current analysis foundation
+
+The current `modules/prepare` production surface is the
+`io.github.pho001.synaptik.prepare.analysis` package. Its exact six top-level declarations are:
+
+- `BackendAnalysisInputs`, the marker role for one concrete backend's immutable target,
+  capability, configuration, and compatible cached-decision inputs;
+- `BackendPreparationPlan`, the marker role for that backend's immutable selected lowering,
+  route, and private configuration;
+- `PrepareContext`, the validated partition projection;
+- `PreparationResourceRequirement`, the sealed buffer/workspace declaration family;
+- `BackendPartitionAnalysis`, the immutable selected-plan and requirement result; and
+- `BackendPartitionPreparer`, the typed backend analysis collaboration.
+
+`PrepareContext` retains the exact planned-partition reference and immutable ordered snapshots of
+its nodes, projected values, and logical-memory requirements. Its node IDs must match the
+partition exactly and in order. Projected values are unique by `ValueId`, every node input and
+output resolves to one projected value, and every projected value has one descriptor-matching
+logical-memory requirement. This is intentionally asymmetric: the current contract does not
+separately require every projected value to occur in a node input or output.
+
+All projected Shapes must be fully static. An immutable logical-splat constant may be projected
+only for a projected graph input, and its exact `ScalarValue` type must match that input's
+descriptor. Neither the context nor either marker role exposes `CompileArtifacts` or another
+Compiler-owned type.
+
+The sealed resource family has two immutable records. `Buffer` associates one projected
+`ValueId` with an exact non-negative byte size and positive power-of-two byte alignment.
+`Workspace` uses a non-negative analysis-local requirement ID with the same size and alignment
+rules. Buffer IDs and workspace IDs are unique within their respective domains in one
+`BackendPartitionAnalysis`; neither identity is a Runtime slot, address, allocation, handle, or
+per-run binding.
+
+`BackendPartitionPreparer.analyze` must be deterministic from the complete context and return the
+exact context partition reference. Analysis performs no measurement, tuning search, cache
+mutation, allocation, executable construction, or slot assignment. No concrete backend currently
+implements this collaboration.
+
+## The staged prepare handoff
+
+The first handoff is now represented by `PrepareContext`. Shared Prepare can build this
+partition-scoped projection from stable semantic and Planning facts plus fully resolved
+prepare-time inputs. It is not `CompileArtifacts` and exposes no Compiler-owned implementation
+state. Concrete backends may consume the projected Model and Planning contracts during analysis;
+Runtime never receives those graph objects.
+
+Through the current `BackendPartitionPreparer` collaboration, the owning backend deterministically
+analyzes and lowers the partition from those explicit inputs. It selects one supported route and
+configuration and returns a `BackendPartitionAnalysis`. The result has two parts:
+
+- an opaque backend plan retaining the selected lowering, fusion, route, and private
+  configuration; and
+- exact backend-neutral declarations for every buffer and workspace resource that shared
+  preparation must assign.
+
+Everything after the analysis result remains planned. Shared Prepare will assign stable
+Runtime-owned `BufferSlot` and future `WorkspaceSlot` identities and construct the prepared memory
+plan. The initial workspace rule is conservative: each declared workspace receives its own slot,
+so no unproved aliasing or lifetime model is required. After assignment, the same backend will
+finalize its opaque plan against those slots and construct the `PreparedExecutable` and
+`PreparedPartition`. Finalization may validate or acquire backend-owned executable resources, but
+it must not change route choice or add an undeclared shared buffer or workspace need.
+
+Any dynamic or unresolved Shape currently fails `PrepareContext` construction before backend
+analysis. A future fact may remain run-dynamic only when an explicit prepared contract represents
+it without changing the selected route, declared resources, or slot assignment. The current
+repository has no such binding/resource contract.
 
 ## What prepare creates
 
@@ -30,7 +123,10 @@ The prepare lifecycle creates:
 - `PreparedSchedule`, which orders executable, transfer, materialization, and publication work; and
 - `PreparedExecution`, the reusable runtime-ready result.
 
-`modules/prepare` owns shared contracts such as `PrepareContext`, `BackendPartitionPreparer`, and `PreparedPartition`, plus partition-coverage, memory-plan, and schedule validation. Engine-level composition coordinates the registered preparers and constructs the complete prepared execution.
+`modules/prepare` owns `PrepareContext`, `BackendPartitionPreparer`,
+`BackendPartitionAnalysis`, shared resource declarations, `PreparedPartition`, orchestration, and
+validation. Engine-level composition supplies explicitly registered backend implementations and
+their input facts. Prepare does not interpret the backend's opaque route plan.
 
 Shared prepare code does not implement concrete CPU, Metal, or CUDA lowering and does not own backend-specific executable or storage implementations.
 
@@ -57,15 +153,20 @@ inspection.
 
 Each concrete backend owns preparation and execution details for the partitions assigned to it. This includes:
 
-- backend-owned lowering of planned graph regions;
+- backend-owned analysis and lowering of planned graph regions;
 - backend-specific fusion and specialization;
 - concrete kernel or executable route selection;
+- exact declaration of shared buffer and workspace requirements;
 - construction of `PreparedExecutable` implementations;
 - backend storage, buffer, and workspace implementations;
 - backend-specific materialization and native bridge integration; and
 - backend trace contributions.
 
 Planning chooses an owner such as CPU, Metal, or CUDA. The owning backend then chooses scalar, Vector API, OpenBLAS, MPSGraph, a custom Metal kernel, a CUDA kernel, or another backend-internal route during prepare.
+
+Route selection occurs during analysis, before shared slot assignment. Executable construction
+occurs during finalization, after slot assignment. Neither step consumes `CompileArtifacts` or
+Compiler internals, and neither is repeated by Runtime.
 
 Each backend also owns typed, version-controlled, tested candidate generators beside the routes
 they configure. A generator uses target capabilities, canonical workload facts, and the tuning

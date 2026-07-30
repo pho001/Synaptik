@@ -2,14 +2,60 @@
 
 ## Purpose and implementation status
 
-This reference explains the planned contracts for reusable prepared execution and one run. Runtime and prepare are not implemented yet; the types and calls below are conceptual.
+This reference explains the current runtime-owned buffer-slot identity and separates it from
+planned preparation and execution contracts. The only implemented runtime production type is
+`io.github.pho001.synaptik.runtime.memory.BufferSlot`; the prepare lifecycle and runnable runtime
+API remain conceptual.
 
-The key distinction is ownership of state:
+## Mental model
 
 ```text
-CompileArtifacts    PreparedExecution       RunState
-immutable recipe -> reusable execution -> mutable invocation
+compile                         prepare                          run
+logical ValueId --planned--> plan-local BufferSlot --planned--> bound storage
+immutable graph identity       reusable slot identity           per-run state
 ```
+
+`ValueId` names logical data in one compiled graph. `BufferSlot` names a position only within one
+owning prepared-memory-plan context. Later preparation may associate the two, and later run state
+may bind a slot to storage, but `BufferSlot` itself performs neither step.
+
+## Current buffer-slot contract
+
+`BufferSlot` is a public, deeply immutable record with one `long value` component. It accepts
+every value from zero through `Long.MAX_VALUE`; no sentinel is reserved. A negative value fails
+with `IllegalArgumentException` and message `value must be non-negative`.
+
+The component is opaque outside its owning plan context. The record stores no owner reference, so
+ordinary record equality and hashing compare only the numeric component. Two plans may reuse the
+same number without referring to the same conceptual slot. Diagnostic record text is not a
+serialization format.
+
+Creating a slot does not allocate, acquire, retain, release, or identify physical storage. A slot
+is not a `ValueId`, address, storage handle, allocation, device, residency fact, workspace, or
+resource.
+
+## Focused example
+
+### Goal and inputs
+
+Create the first slot identity in one future prepared-memory-plan context and inspect its exact
+stored value.
+
+```java
+import io.github.pho001.synaptik.runtime.memory.BufferSlot;
+
+BufferSlot firstSlot = new BufferSlot(0L);
+long identity = firstSlot.value();
+```
+
+### Result and interpretation
+
+`identity` is `0`. The result proves only that `firstSlot` retains a valid plan-local numeric
+identity. It does not allocate slot zero, bind storage, create a prepared memory plan, or make the
+slot globally unique.
+
+As a useful failure boundary, `new BufferSlot(-1L)` throws
+`IllegalArgumentException("value must be non-negative")` before construction completes.
 
 ## Planned prepared contracts
 
@@ -34,10 +80,6 @@ Exact collection types, nullability, concurrency guarantees, ownership of return
 ## Boundary and failure model
 
 Run may fail because an input binding is missing or incompatible, a prepared resource cannot be used, transfer or execution fails, or publication fails. It must not recover by discovering another backend and lowering again. Unsupported work must be resolved during compile ownership or fail during prepare.
-
-## Scenario
-
-Suppose preparation maps logical values `ValueId(4)` and `ValueId(9)` to one physical slot because their lifetimes do not overlap. At run time the schedule may reuse that slot, but the two logical identifiers remain distinct. This demonstrates why a graph value ID is not a memory address or buffer slot.
 
 ## Related contracts
 

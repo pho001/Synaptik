@@ -17,6 +17,7 @@ Decision records are retrospective summaries of rules present in the architectur
 - [ADR 0007: Neural-network module and training boundary](decisions/0007-neural-network-module-and-training-boundary.md)
 - [ADR 0008: Separate performance evidence and model-autotuning concerns](decisions/0008-performance-evidence-and-tuning-boundaries.md)
 - [ADR 0009: Compiler-owned pre-capture Tensor-expression autograd](decisions/0009-compiler-owned-pre-capture-tensor-expression-autograd.md)
+- [ADR 0010: Staged backend preparation](decisions/0010-staged-backend-preparation.md)
 
 ## Design notes
 

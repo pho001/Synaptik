@@ -127,11 +127,14 @@ higher-order path without implementing higher-order requests before 0006.
   [task 0005E](tasks/0005e-first-order-gradient-coverage-closure-checkpoint.md), including Model
   prerequisites 0025C–0025D; task 0005E is the completed closure checkpoint and dependency gate
   for task 0006.
+- Explicit functional and bounded higher-order gradients — Complete through
+  [task 0006](tasks/0006-explicit-functional-gradient-requests-and-higher-order-differentiation.md).
 
 ## Current status
 
-In progress through an explicitly bounded roadmap interleave. Compiler 0004, 0004A, and 0004B are
-Complete with recorded source, tests, documentation, and validation.
+Complete. Tasks 0001–0006 are Complete with recorded source, tests, documentation, and validation,
+and no later Compiler task is specified. Compiler 0004, 0004A, and 0004B are Complete with
+recorded source, tests, documentation, and validation.
 [Compiler 0004B](tasks/0004b-shared-algebra-cotangent-normalization-and-local-derivative-rules.md)
 adds the closed mixed-floating cotangent
 Shape/DataType normalization through ordinary `sumToShape` and `cast`, binary/scalar DIV local
@@ -256,7 +259,8 @@ changed candidate through task 0002. It adds no new algebra.
 
 Config 0004 remains Draft because these compiler transformations require no planning-cost
 classification. Trace 0003 and later remain Draft because no stable emission schema is selected.
-Runtime and prepare remain Draft because no prepared or executable state is introduced.
+Compiler introduces no prepared or executable state. The post-0006 frontier reassessment advances
+only Runtime 0001; Prepare remains Draft.
 
 ## Open questions
 

@@ -32,6 +32,20 @@ exact arithmetic scan, one bounded logical-splat folding scan, and one sidecar-a
 `DCE -> phase-local CSE -> DCE` sequence, revalidating only changed candidates. This is not a
 public compiler, concrete binding service, compile artifact, backend decision, or execution path.
 
+The runtime currently provides only the public immutable
+[`BufferSlot`](#buffer-slot--bufferslot) identity. Prepared-memory plans, workspace identities,
+slot access and binding, physical storage, schedules, prepared executables, per-run state,
+residency, publication, and execution remain planned.
+
+Prepare currently provides the public immutable analysis-side contracts in
+`io.github.pho001.synaptik.prepare.analysis`: `BackendAnalysisInputs`,
+`BackendPreparationPlan`, `PrepareContext`, `PreparationResourceRequirement` with its `Buffer`
+and `Workspace` variants, `BackendPartitionAnalysis`, and `BackendPartitionPreparer`. They
+project and validate one fully static planned partition, carry exact typed logical-splat constants
+for projected graph inputs, retain backend inputs and the selected plan opaquely, and declare
+exact shared buffer/workspace needs. Slot assignment, finalization, prepared executables,
+physical resources, schedules, concrete backends, and execution remain planned.
+
 The exact arithmetic scan contains seven semantic rules: duplicate-input binary `MIN` and `MAX`;
 scalar `MUL` by exact typed positive one for all five numeric types; scalar `DIV` and `POW` by exact
 typed positive one for the three floating types; and scalar `ADD` and `SUB` by exact typed zero for
@@ -1893,9 +1907,28 @@ ordinary cast when a promoted contribution differs from the selected operand typ
 MATMUL remains rejected. See
 [Matrix-multiplication expressions](api/tensor-api.md#matrix-multiplication-expressions).
 
+### Buffer slot / `BufferSlot`
+
+The implemented public runtime record that carries one non-negative `long` identity for a buffer
+position within one owning prepared-memory-plan context. Zero through `Long.MAX_VALUE` are valid,
+with no reserved sentinel. The record stores no plan reference, so its ordinary equality and
+hashing compare only the exact number; equal values used by different plans do not establish one
+cross-plan identity.
+
+A `BufferSlot` is deeply immutable and may later be retained by reusable prepared state across
+runs. It is not a logical [`ValueId`](#valueid), physical buffer, storage handle, address,
+allocation, device, resource, residency fact, or per-run binding. Constructing one performs no
+allocation or resource operation. Prepared-memory plans, slot access, physical binding, and
+execution remain planned. See the [Runtime API](api/runtime-api.md#current-buffer-slot-contract).
+
 ### Memory slot
 
-A position in a prepared memory plan for a physical buffer or workspace used during execution. Slots let a prepared schedule refer to reusable storage without embedding raw addresses. A memory slot is a physical execution resource and must not be confused with a logical [`ValueId`](#valueid).
+An architecture-level prepared-plan position through which a schedule can refer to reusable
+storage without embedding a raw address. The current [`BufferSlot`](#buffer-slot--bufferslot)
+implements only the identity for a buffer position. Workspace identity, prepared-memory-plan
+membership, storage binding, access, allocation, and lifetime remain planned. A memory-slot
+identity is not itself a physical execution resource and must not be confused with a logical
+[`ValueId`](#valueid).
 
 ### `NoOperationAttrs`
 
@@ -2389,7 +2422,95 @@ scoring](architecture/partition-scoring.md).
 
 ### Prepare
 
-The lifecycle stage that turns immutable compile artifacts into reusable runtime-ready state. Shared prepare orchestration validates coverage and schedules, while each concrete backend lowers its partitions and selects executable routes. Prepare creates prepared partitions, memory plans, schedules, and `PreparedExecution`. See [Lifecycle](architecture/lifecycle.md#prepare-lifecycle).
+The lifecycle stage that turns immutable compile artifacts into reusable runtime-ready state.
+Shared Prepare projects partition-scoped facts, coordinates backend analysis, assigns stable
+buffer/workspace slots from exact declarations, invokes backend finalization against those slots,
+and validates the result. Each concrete backend owns lowering, route selection, the opaque
+analysis plan, and executable construction. Prepare creates analysis results, prepared partitions,
+memory plans, schedules, and `PreparedExecution`. See [Runtime, Prepare, and Backend
+Boundary](architecture/runtime-prepare-backend-boundary.md#the-staged-prepare-handoff).
+
+### Prepare context: `PrepareContext`
+
+The implemented public immutable projection that shared Prepare supplies for analysis of one
+`PlannedPartition`. It retains the exact partition and backend-input references plus immutable
+membership snapshots of supplied nodes, projected graph values, matching logical-memory
+requirements, and exact typed logical-splat constants. List order and constant-map encounter
+order preserve the supplying containers' deterministic order.
+
+The projected nodes must match `PlannedPartition.nodeIds()` exactly and in order. Projected
+values are unique by `ValueId`; every node input and output must resolve to one projected value;
+and every projected value has exactly one descriptor-matching `LogicalMemoryRequirement`. The
+last rule does not imply the converse that every otherwise valid projected value must occur in a
+node input or output.
+
+Every projected `TensorDescriptor` Shape is fully static. A constant key must be a projected
+graph input: the value is referenced as a partition-node input and its logical-memory requirement
+has no producing partition. The constant's exact `ScalarValue` data type must equal the projected
+descriptor's data type. The map carries logical splats only; it contains no dense payload or
+physical materialization.
+
+`PrepareContext` has no `CompileArtifacts`, Compiler diagnostic, publication plan, dimension
+binding, route choice, slot, allocation, executable, schedule, or per-run state. Its generic
+backend input is one [opaque backend analysis role](#opaque-backend-analysis-roles), retained
+without shared interpretation.
+
+### Opaque backend analysis roles
+
+The two implemented method-free marker interfaces that keep a concrete backend's analysis
+boundary typed while hiding private fields from shared Prepare.
+`BackendAnalysisInputs` marks one immutable backend-owned input object carrying resolved target
+capabilities, applicable configuration, and any already-compatible cached decision.
+`BackendPreparationPlan` marks the immutable selected lowering, route, and private configuration
+returned by that backend for later finalization.
+
+Shared Prepare retains exact objects implementing these roles but does not inspect, downcast,
+copy, or interpret them. They are not generic string/object parameter maps. Neither role is an
+executable, physical resource, assigned slot, mutable cache, measurement result, or per-run state.
+The interfaces cannot enforce immutability themselves, so concrete implementations must expose
+immutable state.
+
+### Preparation resource requirement
+
+The implemented sealed Prepare-owned declaration family for exact shared resource needs discovered
+during backend analysis. `PreparationResourceRequirement.Buffer` associates one non-null projected
+graph `ValueId` with an exact non-negative byte size and positive power-of-two byte alignment.
+`PreparationResourceRequirement.Workspace` carries the same size and alignment facts under one
+non-negative requirement ID that is local to a single backend partition analysis.
+
+Zero byte size is valid. Buffer IDs must be unique among buffer declarations in one analysis
+result, and workspace IDs must be unique among workspace declarations in that result. The two
+identity domains remain separate. A buffer `ValueId` is a compile/prepare association, while a
+workspace requirement ID is backend scratch identity; neither is a Runtime slot, address,
+allocation, storage object, handle, lifetime interval, executable, or per-run binding.
+
+### Backend partition analysis: `BackendPartitionAnalysis`
+
+The implemented immutable result of the first backend preparation stage. It retains one exact
+planned-partition reference, one exact backend-owned
+`BackendPreparationPlan` reference, and an immutable ordered snapshot of exact shared buffer and
+workspace declarations. Duplicate buffer `ValueId` values and duplicate analysis-local workspace
+requirement IDs are rejected independently in encounter order.
+
+Shared Prepare will later interpret the declarations to assign slots but does not inspect private
+plan state. The analysis is not a prepared executable, slot assignment, physical allocation,
+resource handle, schedule, or per-run binding. The constructing record cannot by itself prove
+which context produced it; the implemented `BackendPartitionPreparer` collaboration requires the
+returned analysis to retain the exact `PrepareContext.partition()` reference.
+
+### Backend partition preparer / `BackendPartitionPreparer`
+
+The implemented Prepare-owned generic collaboration through which one concrete backend analyzes a
+validated `PrepareContext`. Its input type extends `BackendAnalysisInputs`, and its result plan
+type extends `BackendPreparationPlan`, preserving their backend-specific relationship without
+casts, raw `Object`, or a shared parameter map.
+
+`analyze` must be deterministic from the complete context and return an immutable
+`BackendPartitionAnalysis` with the exact context partition, opaque selected plan, and every exact
+shared requirement. It performs no tuning measurement or search, cache mutation, physical
+allocation, executable construction, slot assignment, scheduling, or Runtime execution. No
+production concrete backend implementation exists yet.
+
 
 ### Prepared execution / `PreparedExecution`
 
@@ -2397,7 +2518,10 @@ Reusable runtime-ready state produced by prepare. It contains or refers to prepa
 
 ### Prepared executable / `PreparedExecutable`
 
-The backend-independent runtime call boundary implemented by a concrete backend for one prepared region. It contains the implementation choice made during prepare and computes only that region. Runtime invokes it without passing compile-time `Operation` or `CompiledNode` objects or asking it to select another backend.
+The backend-independent runtime call boundary implemented by a concrete backend for one prepared
+region. Backend analysis selects the implementation; backend finalization constructs this
+executable only after shared slot assignment. Runtime invokes it without passing compile-time
+`Operation` or `CompiledNode` objects or asking it to select another backend.
 
 ### Producer / `TensorProducer`
 
@@ -3694,4 +3818,9 @@ The compiled graph container is implemented model state.
 
 ### Logical `ValueId` versus physical memory slot
 
-A `ValueId` names logical data in one compiled graph. A memory slot names reusable physical storage in one prepared execution. Preparation may map values to slots, and different values may reuse a slot when their lifetimes do not overlap. The identifier therefore remains stable as a logical graph fact even when physical storage decisions change.
+A `ValueId` names logical data in one compiled graph. The current `BufferSlot` instead names one
+plan-local buffer position without naming physical storage. Future preparation may map values to
+slots, and future prepared memory or run state may bind those slots to reusable physical storage.
+Different values may reuse one slot when their lifetimes do not overlap. No such mapping or
+binding is implemented by `BufferSlot`, so the graph identity remains distinct from both the slot
+identity and any later physical resource.

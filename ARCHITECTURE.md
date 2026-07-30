@@ -121,8 +121,9 @@ Tensor expression
      - LogicalMemoryPlan
      - PublicationPlan
   -> prepare
+  -> BackendPartitionAnalysis[]
+  -> PreparedMemoryPlan with assigned buffer/workspace slots
   -> PreparedPartition[]
-  -> PreparedMemoryPlan
   -> PreparedSchedule
   -> PreparedExecution
   -> RunState
@@ -163,6 +164,8 @@ The following invariants must remain true:
 - Planning may consume backend-neutral cost estimates, but it must not interpret backend route,
   vector, thread, tile, kernel, or other implementation parameters.
 - Backend prepare owns backend-specific lowering and kernel selection.
+- Backend preparation is staged: backend analysis and exact shared-resource declaration precede
+  shared slot assignment, and backend finalization follows slot assignment.
 - Model autotuning, when requested, must complete before runtime hot-path execution.
 - Runtime profiling is passive observation and must not select or mutate execution settings.
 - Runtime executes prepared schedules only.
@@ -622,7 +625,10 @@ Allowed:
 
 - `PrepareContext`
 - `BackendPartitionPreparer`
+- `BackendPartitionAnalysis`
+- backend-neutral buffer and workspace requirement declarations
 - `PreparedPartition`
+- shared assignment of stable runtime buffer and workspace slot identities
 - partition coverage validation
 - prepared memory validation
 - prepared schedule validation
@@ -639,7 +645,29 @@ Forbidden:
 - backend-specific storage implementation
 - interpretation of private backend candidate parameters
 
-Prepare is the bridge between compile artifacts and runtime.
+Prepare is the bridge between compile artifacts and runtime. It projects the exact stable
+semantic and planning facts, resolved prepare-time bindings, target capabilities, configuration,
+and compatible cached tuning decisions that backend analysis may consume. That projection must
+not expose `CompileArtifacts` or another compiler-owned aggregate to a concrete backend.
+
+For each planned partition, the concrete backend first analyzes and lowers the projected facts,
+selects a supported route and configuration, and returns a `BackendPartitionAnalysis`. The
+analysis retains the backend's selected lowering and route state opaquely while declaring every
+shared buffer and workspace requirement exactly enough for shared preparation to assign stable
+runtime slot identities. Shared preparation does not interpret the opaque backend plan or private
+route vocabulary.
+
+After shared preparation assigns slots, the same backend finalizes the analysis against those
+assignments and constructs the `PreparedExecutable` and `PreparedPartition`. Backend
+finalization must not change the selected route or introduce undeclared shared requirements.
+Physical allocation and per-run binding remain runtime/backend concerns after preparation.
+
+Backend analysis is deterministic from its explicit facts, configuration, and compatible cache
+inputs. An explicitly enabled later model-autotuning workflow may instead supply a selected
+compatible decision before analysis; this lifecycle does not authorize prepare-time measurement
+or search. Any unresolved fact needed to choose a route or declare an exact resource requirement
+must fail preparation unless an explicit prepared contract represents that fact as run-dynamic
+without changing route or slot assignment.
 
 Concrete backend prepare implementations live in concrete backend modules.
 
@@ -671,6 +699,8 @@ Allowed:
 - compatible workload-cache lookup during preparation
 - safe heuristic selection when model autotuning is disabled or compatible cache entries are
   absent
+- deterministic partition analysis and exact shared buffer/workspace requirement declaration
+- finalization of an analyzed partition against shared assigned slots
 
 Forbidden:
 
@@ -1019,6 +1049,7 @@ docs/
       0007-neural-network-module-and-training-boundary.md
       0008-performance-evidence-and-tuning-boundaries.md
       0009-compiler-owned-pre-capture-tensor-expression-autograd.md
+      0010-staged-backend-preparation.md
     notes/
 
   user-guide/
@@ -1147,10 +1178,14 @@ Prepare lifecycle:
 ```text
 CompileArtifacts
   -> validate partition coverage
-  -> for each PlannedPartition call BackendPartitionPreparer
-  -> backend prepare does lowering/specialization/fusion/kernel selection
-  -> build PreparedPartition[]
-  -> build PreparedMemoryPlan
+  -> project partition-scoped semantic/planning facts and resolved prepare inputs
+  -> for each PlannedPartition call BackendPartitionPreparer analysis
+  -> backend analysis does lowering/specialization/fusion/kernel selection
+     and declares exact shared buffer/workspace requirements
+  -> build BackendPartitionAnalysis[]
+  -> assign stable buffer/workspace slots and build PreparedMemoryPlan
+  -> finalize each backend analysis against its assigned slots
+  -> build PreparedPartition[] and PreparedExecutable[]
   -> build PreparedSchedule
   -> validate prepared memory/schedule
   -> PreparedExecution
@@ -1158,6 +1193,7 @@ CompileArtifacts
 
 Prepare is where these are created:
 
+- `BackendPartitionAnalysis`
 - `PreparedPartition`
 - `PreparedUnit`
 - `PreparedExecutable`
@@ -1166,6 +1202,8 @@ Prepare is where these are created:
 - `PreparedExecution`
 
 Concrete backend lowering occurs in concrete backend modules.
+Route selection and shared-resource discovery occur during backend analysis. Executable
+construction occurs only during backend finalization after shared slot assignment.
 
 ## Run lifecycle
 
@@ -1333,6 +1371,8 @@ The most important invariant is:
 ```text
 CompileArtifacts are an immutable recipe.
 Planning scoring selects backend ownership, not kernel implementation.
+Backend analysis selects a route and declares exact shared requirements before slot assignment.
+Backend finalization constructs executable state only after slot assignment.
 PreparedExecution is prepared runtime state.
 RunState is per-run mutable state.
 PreparedExecutable computes only its prepared region.

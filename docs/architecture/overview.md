@@ -42,8 +42,9 @@ Tensor expression
      - LogicalMemoryPlan
      - PublicationPlan
   -> prepare
+  -> BackendPartitionAnalysis[]
+  -> PreparedMemoryPlan with assigned slots
   -> PreparedPartition[]
-  -> PreparedMemoryPlan
   -> PreparedSchedule
   -> PreparedExecution
   -> RunState

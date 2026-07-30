@@ -21,6 +21,7 @@ Focused architecture documentation:
 - [ADR 0007: Neural-network module and training boundary](../design/decisions/0007-neural-network-module-and-training-boundary.md)
 - [Tracing](tracing.md)
 - [Runtime / Prepare / Backend boundary](runtime-prepare-backend-boundary.md)
+- [ADR 0010: Staged backend preparation](../design/decisions/0010-staged-backend-preparation.md)
 
 ## Status
 

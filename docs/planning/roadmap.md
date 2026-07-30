@@ -19,9 +19,9 @@ Parallel work is not the default. It requires an explicit roadmap or master-plan
 | 3 | [`modules/backend-contract`](modules/backend-contract/master-plan.md) | Complete | Foundational value-model conventions and the stable trace foundation are complete. | Backend identity and declarative requirement contracts are complete. |
 | 4 | [`modules/config`](modules/config/master-plan.md) | In progress (interleaved) | Model and backend identity contracts required by configuration are stable. | Compile, prepare, run, planning-cost, and model-autotuning request contracts are complete where stable consumers justify them. |
 | 5 | [`modules/planning`](modules/planning/master-plan.md) | Complete | Stable model/backend identity contracts permit the explicitly bounded capability-query interleave before config scoring is complete. | Ownership, partitioning, scoring, logical memory planning, and the selected contract-closure audit are complete. |
-| 6 | [`modules/runtime`](modules/runtime/master-plan.md) | Draft | Runtime-facing config, backend identities, and trace contracts are ready. | Prepared runtime contracts and dynamic run-state foundations are complete. |
-| 7 | [`modules/compiler`](modules/compiler/master-plan.md) | In progress (interleaved) | Model, config, planning, backend-contract, and trace contracts are ready for the complete compiler lifecycle; bounded task 0001 may start from the closed model graph/provenance contracts alone. | Compile artifacts, graph transformations, and autograd compilation are complete. |
-| 8 | [`modules/prepare`](modules/prepare/master-plan.md) | Draft | Compiler, planning, runtime, config, backend-contract, and trace contracts are ready. | Shared prepare contracts and validation are complete. |
+| 6 | [`modules/runtime`](modules/runtime/master-plan.md) | In progress | Compiler/planning handoff, backend identities, and the trace foundation are stable; each task also waits for the config and model contracts its exact surface consumes. | Prepared runtime contracts and dynamic run-state foundations are complete. |
+| 7 | [`modules/compiler`](modules/compiler/master-plan.md) | Complete | Model, config, planning, backend-contract, and trace contracts are ready for the complete compiler lifecycle; bounded task 0001 may start from the closed model graph/provenance contracts alone. | Compile artifacts, graph transformations, and autograd compilation are complete. |
+| 8 | [`modules/prepare`](modules/prepare/master-plan.md) | In progress (interleaved) | Compiler/planning artifacts and Runtime 0001 are stable; ADR 0010 authorizes the analysis-first staged handoff. | Shared prepare contracts and validation are complete. |
 | 9 | [`backends/openblas-provider`](backends/openblas-provider/master-plan.md) | Draft | Native interop conventions needed by the provider are decided. | The low-level provider contract and validation are complete. |
 | 10 | [`backends/cpu`](backends/cpu/master-plan.md) | Draft | Model, config, planning, runtime, prepare, backend-contract, trace, and OpenBLAS contracts are ready. | CPU is a conforming reference backend for the selected capability set. |
 | 11 | [`modules/engine`](modules/engine/master-plan.md) | Draft | Compiler, runtime, prepare, and the CPU backend can be composed. | The public compile, prepare, and run lifecycle works end to end on CPU. |
@@ -38,14 +38,84 @@ The order above is the default delivery sequence, not a new dependency rule. All
 
 ## Current frontier
 
-The latest completed implementation task is
+The compiler project area is Complete through
 [Compiler 0006 Explicit functional gradient requests and higher-order differentiation](modules/compiler/tasks/0006-explicit-functional-gradient-requests-and-higher-order-differentiation.md)
-is Complete with a bounded functional one/two-stage request, ordered
+with a bounded functional one/two-stage request, ordered
 `GradientPublicationBinding` values, derivative-order metadata, and the final
 `ForwardPublicationBinding` terminology correction. Its focused correction command passed 35
 tests, and the single final affected-module command passed Model 127 suites/1,031 tests plus
 Compiler 31 suites/208 tests with no skips, failures, or errors. No later compiler task has a
-detailed specification. The preceding
+detailed specification.
+
+The completed Runtime implementation frontier is
+[Runtime 0001 Prepared buffer-slot identity](modules/runtime/tasks/0001-prepared-buffer-slot-identity.md).
+It adds the smallest architecture-named prepared-execution prerequisite: one immutable plan-local
+`BufferSlot` identity for later prepared-unit input/output bindings and runtime slot access. Its
+focused and final Runtime test commands passed four tests in one suite with no skips, failures,
+or errors. The separate clean documentation pass finalized the production and package Javadocs,
+Runtime API, focused architecture status, glossary, and planning records; Runtime Javadoc,
+Markdown, source/scope/status, and whitespace gates passed without changing executable Java or
+repeating the successful Java tests.
+
+The completed Prepare implementation frontier is
+[Prepare 0001 Backend partition analysis and resource declaration](modules/prepare/tasks/0001-backend-partition-analysis-and-resource-declaration.md).
+It replaces the placeholder with the exact six-declaration public
+`io.github.pho001.synaptik.prepare.analysis` surface plus package documentation. The immutable
+`PrepareContext` preserves exact partition-node order, resolves every node input/output through a
+unique projected value, requires one descriptor-matching logical-memory requirement per projected
+value, accepts only fully static Shapes, and limits exact-typed logical splats to projected graph
+inputs. The intentionally asymmetric projection does not add a separate requirement that every
+otherwise valid projected value occur in a node input or output.
+
+The typed backend input/plan marker roles remain opaque to shared Prepare.
+`BackendPartitionPreparer` deterministically returns the exact context partition, one selected
+plan, and exact `Buffer`/`Workspace` declarations. Sizes are non-negative bytes, alignments are
+positive powers of two, buffer IDs and analysis-local workspace IDs are unique in their separate
+domains, and neither declaration is a Runtime slot or physical resource. Analysis performs no
+measurement, cache mutation, allocation, finalization, executable construction, or Runtime work.
+
+The implementation-focused four-suite command and the single final
+`./gradlew :modules:prepare:test` command each passed 11 tests with no failures, errors, or skips.
+The separate clean documentation pass finalized all affected production/package Javadocs, the
+backend guide, focused architecture status, glossary, and planning records without changing
+executable Java or repeating the successful test suite. Prepare Javadoc, Markdown, exact public
+surface, import, static-shape, scope, status, later-specification-absence, and whitespace gates
+passed.
+
+Prepare 0001 does not consume the deferred run/prepare configuration rows and changes no Gradle
+edge or architecture rule. It implements the ADR 0010 analysis producer without exposing
+`CompileArtifacts`, Compiler diagnostics, publication/constant plans, dynamic binding, route
+vocabulary, or another Compiler-owned type to a backend.
+
+ADR 0010 resolves the blocker with one staged handoff:
+
+```text
+Prepare 0001 analysis request/result and exact resource declarations
+  -> Runtime 0002 workspace slots and prepared-memory assignment
+  -> Runtime 0003–0004 run-state access and executable contracts
+  -> Prepare 0002 backend finalization against assigned slots
+  -> Runtime schedule/execution work
+  -> first concrete backend implementation
+```
+
+Prepare owns orchestration and the analysis boundary. A concrete backend deterministically
+selects its lowering/route from an explicit Prepare projection of stable semantic and Planning
+facts, fully resolved bindings, target capabilities, configuration, and compatible cached
+decisions. It returns an opaque selected plan plus exact buffer/workspace byte-size and alignment
+requirements. Shared preparation then assigns Runtime-owned slots, initially one distinct slot
+per workspace declaration. The backend finalizes only afterward and cannot change its route or add
+undeclared shared requirements.
+
+Prepare 0001 is the only detailed Prepare task. Its completion removes Runtime 0002's declaration-
+producer blocker. Runtime 0002 is now Draft and is the next cross-area planning frontier; a later
+planning step must create its detailed specification for workspace slots, requirement
+assignments, and prepared memory. Prepare 0002 and Runtime 0003–0008 remain Draft without detailed
+specifications. Backend Contract remains Complete and closed.
+
+The completed Runtime identity still adds no physical buffer or allocation, graph-value
+conversion,
+`PreparedExecutable`, `PreparedUnit`, schedule, `RunState`, runner, publication, transfer,
+residency, backend behavior, tracing emission, or Engine facade. The preceding
 [Compiler 0005E First-order gradient coverage closure checkpoint](modules/compiler/tasks/0005e-first-order-gradient-coverage-closure-checkpoint.md)
 closed the compiled-production 37-family, 107-kind, 128-signature role inventory with exact
 `D`/`ND`/`FC`, family-owner, ranged-cardinality, fail-closed, and Tensor-ID evidence.

@@ -72,7 +72,10 @@ translated into typed trace data; it cannot change settings. The hot path does n
 
 ### `modules/prepare`
 
-Owns shared preparation contracts and validation: `PrepareContext`, `BackendPartitionPreparer`, `PreparedPartition`, partition coverage validation, prepared memory validation, and prepared schedule validation.
+Owns shared preparation orchestration and validation: `PrepareContext`,
+`BackendPartitionPreparer`, `BackendPartitionAnalysis`, exact backend-neutral buffer/workspace
+declarations, stable slot assignment, `PreparedPartition`, partition coverage validation,
+prepared memory validation, and prepared schedule validation.
 
 Prepare bridges compile artifacts to runtime contracts, but shared prepare code does not contain concrete CPU, Metal, or CUDA lowering, kernel selection, executable implementations, or backend-specific storage. Those belong to concrete backend modules.
 
@@ -84,7 +87,10 @@ Engine does not own kernels, backend internals, graph optimization passes, a run
 
 ## Concrete backend modules
 
-`backends/cpu`, `backends/metal`, and `backends/cuda` are vertical implementations. Each backend owns its capability provider, partition preparer, lowering, fusion, specialization, route selection, executable units, storage and workspace, trace contributions, and native integration.
+`backends/cpu`, `backends/metal`, and `backends/cuda` are vertical implementations. Each backend
+owns its capability provider, deterministic partition analysis, lowering, fusion, specialization,
+route selection, opaque analysis plan, executable finalization against assigned slots, executable
+units, storage and workspace, trace contributions, and native integration.
 
 Concrete backend logic belongs in the backend that implements it:
 
