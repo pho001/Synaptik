@@ -423,10 +423,26 @@ representation compatibility to the concrete backend. The backend then creates a
 execution after state closure is rejected.
 
 These contracts contain no concrete backend implementation and do not provide Prepare assignment
-or finalization, physical allocation/access, validity/residency, transfer, schedule, publication,
-result, runner, or Engine behavior. Binding owns no auxiliary closeable resource and changes no
-resource ownership. See the [Runtime API](runtime-api.md) for selection, lifecycle, failure, and
-thread-safety details.
+or finalization themselves, physical allocation/access, validity/residency, transfer, schedule,
+publication, result, runner, or Engine behavior. Binding owns no auxiliary closeable resource and
+changes no resource ownership. See the [Runtime API](runtime-api.md) for selection, lifecycle,
+failure, and thread-safety details.
+
+The public `modules:prepare` surface now spans the existing `prepare.analysis` package and four
+root-package finalization contracts. Analysis retains one typed opaque selected plan and exact
+buffer/workspace declarations. `PreparationResourceAssignment` associates each exact declaration
+with an assigned Runtime slot and dense plan index. `BackendPartitionFinalization` carries one
+typed analysis, the exact shared `PreparedMemoryPlan`, and assignments in declaration order to a
+`BackendPartitionFinalizer`. `PreparedPartition` retains the exact planned partition and returned
+`PreparedExecutable`.
+
+The complete-set operation that validates coverage and source identity, assigns slots, constructs
+the shared memory plan, and invokes finalizers remains package-private. Its current conservative
+policy shares one buffer slot across declarations of the same `ValueId` using maximum geometry
+and gives every workspace declaration a distinct slot. It performs no physical allocation,
+closeable prepared-resource acquisition, run-state creation, invocation binding/execution,
+schedule construction, transfer, residency, materialization, or publication. No public Prepare
+orchestration facade or production concrete backend implementation exists yet.
 
 ## Planned public lifecycle
 

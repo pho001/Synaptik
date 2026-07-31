@@ -19,9 +19,9 @@ Parallel work is not the default. It requires an explicit roadmap or master-plan
 | 3 | [`modules/backend-contract`](modules/backend-contract/master-plan.md) | Complete | Foundational value-model conventions and the stable trace foundation are complete. | Backend identity and declarative requirement contracts are complete. |
 | 4 | [`modules/config`](modules/config/master-plan.md) | In progress (interleaved) | Model and backend identity contracts required by configuration are stable. | Compile, prepare, run, planning-cost, and model-autotuning request contracts are complete where stable consumers justify them. |
 | 5 | [`modules/planning`](modules/planning/master-plan.md) | Complete | Stable model/backend identity contracts permit the explicitly bounded capability-query interleave before config scoring is complete. | Ownership, partitioning, scoring, logical memory planning, and the selected contract-closure audit are complete. |
-| 6 | [`modules/runtime`](modules/runtime/master-plan.md) | In progress (0004 Complete; next frontier unselected) | Compiler/planning handoff, backend identities, the trace foundation, and ADR 0011's per-run resource ownership/cold-binding decision are stable. | Prepared runtime contracts and dynamic run-state foundations are complete. |
+| 6 | [`modules/runtime`](modules/runtime/master-plan.md) | In progress (0004 Complete; 0005 next Draft frontier) | Compiler/planning handoff, backend identities, the trace foundation, and ADR 0011's per-run resource ownership/cold-binding decision are stable. | Prepared runtime contracts and dynamic run-state foundations are complete. |
 | 7 | [`modules/compiler`](modules/compiler/master-plan.md) | Complete | Model, config, planning, backend-contract, and trace contracts are ready for the complete compiler lifecycle; bounded task 0001 may start from the closed model graph/provenance contracts alone. | Compile artifacts, graph transformations, and autograd compilation are complete. |
-| 8 | [`modules/prepare`](modules/prepare/master-plan.md) | In progress (interleaved) | Compiler/planning artifacts and Runtime 0001 are stable; ADR 0010 authorizes the analysis-first staged handoff. | Shared prepare contracts and validation are complete. |
+| 8 | [`modules/prepare`](modules/prepare/master-plan.md) | In progress (0002 Complete; 0003 Draft) | Compiler/planning artifacts and Runtime 0001 are stable; ADR 0010 authorizes the analysis-first staged handoff. | Shared prepare contracts and validation are complete. |
 | 9 | [`backends/openblas-provider`](backends/openblas-provider/master-plan.md) | Draft | Native interop conventions needed by the provider are decided. | The low-level provider contract and validation are complete. |
 | 10 | [`backends/cpu`](backends/cpu/master-plan.md) | Draft | Model, config, planning, runtime, prepare, backend-contract, trace, and OpenBLAS contracts are ready. | CPU is a conforming reference backend for the selected capability set. |
 | 11 | [`modules/engine`](modules/engine/master-plan.md) | Draft | Compiler, runtime, prepare, and the CPU backend can be composed. | The public compile, prepare, and run lifecycle works end to end on CPU. |
@@ -100,7 +100,7 @@ ADR 0010 resolves the blocker with one staged handoff:
 ```text
 Prepare 0001 analysis request/result and exact resource declarations
   -> Runtime 0002 workspace slots and final prepared-memory geometry
-  -> later Prepare assignment and source-to-slot association
+  -> Prepare 0002 assignment and source-to-slot association
   -> Runtime 0003 run-state/resource foundation (Complete)
   -> Runtime 0004 executable and cold-binding contracts (Complete)
   -> Prepare 0002 backend finalization against assigned slots
@@ -116,10 +116,20 @@ requirements. Shared preparation then assigns Runtime-owned slots, initially one
 per workspace declaration. The backend finalizes only afterward and cannot change its route or add
 undeclared shared requirements.
 
-Prepare 0001 remains the only detailed Prepare task. Its completion removed Runtime 0002's
-declaration-producer blocker. Detailed
+Prepare 0001 and
+[Prepare 0002 Backend partition finalization handoff](modules/prepare/tasks/0002-backend-partition-finalization-handoff.md)
+are Complete. Prepare 0002 adds deterministic complete-set source validation, conservative slot
+assignment, exact declaration-to-slot associations, typed backend finalization, and the minimal
+`PreparedPartition(partition, executable)` result. Detailed
 [Runtime 0002 Prepared memory and workspace contracts](modules/runtime/tasks/0002-prepared-memory-and-workspace-contracts.md)
 is Complete.
+
+Prepare 0002's single final module command passed 7 suites and 22 tests with no skips, failures,
+or errors. Its clean documentation pass finalized all six production/package Javadocs, five
+explanatory documents, and synchronized planning records without changing executable Java or
+repeating the successful tests. Prepare Javadoc, the Java 26 finalizer example, nine-file
+Markdown validation, exact API shape/mechanisms, exact 18-path scope, unchanged boundaries,
+status, and whitespace gates passed.
 
 Runtime 0002 keeps Runtime independent of Prepare and Model. It adds the nominally distinct
 plan-local `WorkspaceSlot` plus immutable final per-`BufferSlot` and per-`WorkspaceSlot` byte-size
@@ -128,13 +138,13 @@ and requires unique slots in separate buffer/workspace domains. It imports or re
 `PreparationResourceRequirement`, `BackendPartitionAnalysis`, `ValueId`,
 `LogicalMemoryRequirement`, or `PlannedPartition`.
 
-A later Prepare-owned assignment/finalization contract will traverse the ordered analyses and
-requirements, retain exact source-to-slot associations, and construct this Runtime geometry.
-Its initial policy remains conservative: one distinct buffer slot per distinct declared buffer
-value and one distinct workspace slot per workspace declaration, with no reuse before a
+Complete Prepare 0002 traverses the ordered analyses and requirements, retains exact
+source-to-slot associations, and constructs this Runtime geometry. Its policy is conservative:
+one distinct buffer slot per distinct declared buffer value, maximum geometry for repeated value
+declarations, and one distinct workspace slot per workspace declaration, with no reuse before a
 liveness/interference proof exists. Physical storage, allocation, bytes ownership, pooling,
-aliasing, device/residency, run-state binding/access, executable/unit/schedule/execution,
-publication, transfer, and backend finalization remain outside Runtime 0002.
+aliasing, device/residency, run-state binding/access, schedule/execution, publication, and transfer
+remain outside Runtime 0002 and Prepare 0002.
 
 ADR 0011 resolves the Runtime 0003 resource blocker. Prepared recipes are immutable/reusable;
 every active complete logical run has exactly one isolated `RunState`; Runtime owns logical state,
@@ -160,10 +170,11 @@ retains the exact `RunState`, rejects execution after that state closes, and sto
 typed references so its hot call performs no slot lookup, compatibility cast, graph work, backend
 discovery, route/configuration search, allocation, transfer, residency decision, or publication.
 
-Runtime 0004 adds no auxiliary binding-resource lifecycle and deliberately omits `PreparedUnit`:
-no current Prepare finalization or Runtime schedule consumer justifies a distinct wrapper or
-input/output-role invariant. Prepare 0002 or Runtime 0005 must establish that role from its actual
-consumer. Runtime 0005–0008 and Prepare 0002 remain Draft without detailed specifications.
+Runtime 0004 adds no auxiliary binding-resource lifecycle and deliberately omits `PreparedUnit`.
+Complete Prepare 0002 selects only `PreparedPartition(partition, executable)` for its current
+consumer, so no distinct unit invariant exists yet. `PreparedUnit` remains deferred to Runtime
+0005's actual schedule consumer. Runtime 0005–0008 and Prepare 0003 remain Draft without detailed
+specifications.
 Backend Contract remains Complete and closed. Module dependency directions are unchanged, so
 architecture tests do not require an update for this planning decision.
 

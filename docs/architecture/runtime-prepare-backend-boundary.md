@@ -7,11 +7,12 @@ Runtime currently implements the immutable `BufferSlot` and `WorkspaceSlot` iden
 borrowed/run-owned buffer bindings, the array-backed one-run `RunState` lifecycle, immutable
 `PreparedExecutable` recipes, and per-run `BoundInvocation` objects described below. Prepare
 currently implements the analysis-side projection, opaque marker roles, exact resource
-declarations, analysis result, and preparer collaboration. The Prepare-owned assignment that
-constructs Runtime geometry from those analyses remains planned, as do backend finalization,
-physical allocation and access, validity/residency, transfers, schedules, publication/results,
-engine, concrete backends, and a runner. The lifecycle flow therefore mixes current foundations
-with later stages; each focused section states its implementation status.
+declarations, analysis result, preparer collaboration, deterministic complete-set slot assignment,
+typed backend finalization input/collaboration, and the minimal prepared-partition association.
+Physical allocation and access, validity/residency, transfers, schedules, publication/results,
+public Prepare orchestration, engine, production concrete backends, and a runner remain planned.
+The lifecycle flow therefore mixes current foundations with later stages; each focused section
+states its implementation status.
 [ADR 0011](../design/decisions/0011-per-run-runtime-resource-ownership.md) defines the
 resource-ownership and cold-binding architecture.
 
@@ -115,18 +116,23 @@ configuration and returns a `BackendPartitionAnalysis`. The result has two parts
 - exact backend-neutral declarations for every buffer and workspace resource that shared
   preparation must assign.
 
-The next lifecycle step after the analysis result remains planned even though its Runtime result
-types are current. Shared Prepare will assign stable Runtime-owned `BufferSlot` and
-`WorkspaceSlot` identities, retain the exact requirement-to-slot associations, and construct a
-`PreparedMemoryPlan`. The initial rule is conservative: one distinct buffer slot per distinct
-declared buffer value and one distinct workspace slot per workspace declaration, so no unproved
-aliasing or lifetime model is required.
+The next lifecycle step is current inside a package-private complete-set handoff. Shared Prepare
+assigns stable Runtime-owned `BufferSlot` and `WorkspaceSlot` identities, retains exact
+requirement-to-slot associations, and constructs one `PreparedMemoryPlan`. The current rule is
+conservative: one buffer slot per distinct declared `ValueId`, with maximum declared size and
+alignment when that value is repeated, and one distinct workspace slot per workspace declaration.
+No aliasing, lifetime, interference, or reuse model is inferred.
 
-Backend finalization is also planned. After assignment, the same backend will finalize its opaque
-plan against those slots by subclassing the current `PreparedExecutable` contract and constructing
-the later `PreparedPartition` association.
-Finalization may validate or acquire backend-owned executable resources, but it must not change
-route choice or add an undeclared shared buffer or workspace need.
+Backend finalization is also current as a shared contract. After assignment, the owning backend's
+`BackendPartitionFinalizer` receives one typed `BackendPartitionFinalization` containing its exact
+analysis, the exact shared plan, and assignments in declaration order. It constructs a current
+`PreparedExecutable`; shared Prepare then creates the minimal current `PreparedPartition`
+association. Finalization may validate backend-private immutable state and construct ordinary
+immutable Java recipe state, but it must not change route choice, add an undeclared need, allocate
+physical resources, or acquire a closeable prepared resource under the current contract.
+
+The batch handoff, entry, and result are package-private. Public orchestration that projects
+compile artifacts and selects the complete explicitly registered backend set remains planned.
 
 Any dynamic or unresolved Shape currently fails `PrepareContext` construction before backend
 analysis. A future fact may remain run-dynamic only when an explicit prepared contract represents
@@ -148,14 +154,14 @@ The complete architecture prepare lifecycle creates:
 - `PreparedExecution`, the immutable reusable runtime-ready result, including any immutable
   persistent prepared resources that are not ordinary per-run workspace.
 
-Today, `PreparedMemoryPlan` and `PreparedExecutable` exist among the prepare-result contracts in
-this list; `BoundInvocation` is the current per-run result of binding an executable. The
-analysis-side Prepare contracts described above are also current. `modules/prepare` owns
-`PrepareContext`, `BackendPartitionPreparer`,
-`BackendPartitionAnalysis`, shared resource declarations, later assignment and source
-associations, `PreparedPartition`, orchestration, and validation. Engine-level composition
-supplies explicitly registered backend implementations and their input facts. Prepare does not
-interpret the backend's opaque route plan.
+Today, `PreparedMemoryPlan`, `PreparedExecutable`, and `PreparedPartition` exist among the
+prepare-result contracts in this list; `BoundInvocation` is the current per-run result of binding
+an executable. The analysis-side and finalization-side Prepare contracts described above are also
+current. `modules/prepare` owns `PrepareContext`, `BackendPartitionPreparer`,
+`BackendPartitionAnalysis`, shared resource declarations, current assignment and source
+associations, `PreparedPartition`, and later public orchestration and validation. Engine-level
+composition supplies explicitly registered backend implementations and their input facts. Prepare
+does not interpret the backend's opaque route plan.
 
 Shared prepare code does not implement concrete CPU, Metal, or CUDA lowering and does not own backend-specific executable or storage implementations.
 
@@ -249,8 +255,8 @@ Each concrete backend owns preparation and execution details for the partitions 
 - backend-specific fusion and specialization;
 - concrete kernel or executable route selection;
 - exact declaration of shared buffer and workspace requirements;
-- construction of immutable `PreparedExecutable` implementations during the later finalization
-  stage;
+- construction of immutable `PreparedExecutable` implementations during the current finalization
+  contract;
 - physical buffer and workspace representation implementations plus their
   allocation/release/transfer/access mechanics;
 - current backend-owned typed `BoundInvocation` subclasses with direct representation references;

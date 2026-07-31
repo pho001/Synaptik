@@ -63,8 +63,8 @@ io.github.pho001.synaptik.runtime/
 The module root is not a catch-all facade. Runtime 0001 opened `memory` with the immutable
 `BufferSlot` identity. Complete Runtime 0002 extends only that package with `WorkspaceSlot` and
 immutable final per-slot byte-size/alignment geometry in `PreparedMemoryPlan`. Runtime remains
-independent of Prepare and Model: a later Prepare-owned contract translates analysis requirements
-and retains source-to-slot associations. Runtime 0003 opens `resource` and `run` with the minimal
+independent of Prepare and Model: Complete Prepare 0002 translates analysis requirements and
+retains source-to-slot associations. Runtime 0003 opens `resource` and `run` with the minimal
 representation/lifecycle foundation. Runtime 0004 opens `execution` with the reusable recipe and
 per-run direct-reference invocation boundary; residency, schedule, configuration, result, and
 runner contracts remain planned until their consumers justify exact surfaces.
@@ -74,7 +74,7 @@ runner contracts remain planned until their consumers justify exact surfaces.
 | ID | Task | Status | Depends on | Summary |
 |---|---|---|---|---|
 | 0001 | [Prepared buffer-slot identity](tasks/0001-prepared-buffer-slot-identity.md) | Complete | Compiler 0006; Planning 0006; Backend Contract 0004; Trace 0002 | Replaced the placeholder with one immutable prepared-plan-local `BufferSlot` identity required to bind later prepared-unit inputs and outputs, without physical storage, allocation, graph values, workspace, execution, or run state. |
-| 0002 | [Prepared memory and workspace contracts](tasks/0002-prepared-memory-and-workspace-contracts.md) | Complete | 0001; Prepare 0001 | Added `WorkspaceSlot` and immutable final per-buffer-slot/per-workspace-slot byte-size/alignment geometry without importing Prepare/Model facts; later Prepare translation retains exact requirement associations and conservatively assigns distinct slots. |
+| 0002 | [Prepared memory and workspace contracts](tasks/0002-prepared-memory-and-workspace-contracts.md) | Complete | 0001; Prepare 0001 | Added `WorkspaceSlot` and immutable final per-buffer-slot/per-workspace-slot byte-size/alignment geometry without importing Prepare/Model facts; Complete Prepare 0002 retains exact requirement associations and conservatively assigns distinct slots. |
 | 0003 | [Run-state and runtime resource foundation](tasks/0003-run-state-and-runtime-resource-foundation.md) | Complete | 0002; ADR 0011 | Added nominal backend-owned buffer/workspace representation roles, borrowed/run-owned buffer bindings, and one array-backed closeable `RunState` per complete logical run without executable binding, residency, scheduling, transfer, publication, or allocation. |
 | 0004 | [Prepared executable and bound invocation](tasks/0004-prepared-executable-and-bound-invocation.md) | Complete | 0001–0003; ADR 0011 | Added immutable dense resource selections, final checked cold binding, and one per-run backend-owned typed bound invocation without a redundant prepared-unit wrapper. |
 | 0005 | Prepared schedule contract | Draft | 0002–0004; Prepare 0002 finalization | Decide whether the actual partition/schedule consumer justifies a distinct `PreparedUnit`, then define ordered executable, transfer, materialization, and publication work without prepare-time selection. |
@@ -113,11 +113,11 @@ allocation, lifetime, or binding behavior.
 
 Runtime 0002 deliberately does not import or retain `PreparationResourceRequirement`,
 `BackendPartitionAnalysis`, `ValueId`, `LogicalMemoryRequirement`, or `PlannedPartition`. Runtime
-keeps its existing dependency boundary and contains only final slot geometry. A later
-Prepare-owned assignment/finalization contract will traverse ordered analyses and requirements,
-retain the exact source-to-slot associations, and construct the Runtime plan. Its initial policy
-must assign one distinct buffer slot per distinct declared buffer value and one distinct workspace
-slot per workspace declaration; no reuse or lifetime interval is invented.
+keeps its existing dependency boundary and contains only final slot geometry. Complete Prepare
+0002 now traverses ordered analyses and requirements, retains exact source-to-slot associations,
+and constructs the Runtime plan. It assigns one distinct buffer slot per distinct declared buffer
+value, combining repeated declarations with maximum geometry, and one distinct workspace slot per
+workspace declaration; no reuse or lifetime interval is invented.
 
 ADR 0011 resolves the Runtime 0003 blocker. Prepared recipes are immutable/reusable; each active
 complete logical run has one isolated `RunState`; Runtime orchestrates logical state and cleanup;
@@ -147,16 +147,15 @@ Java 26 example compilations and one execution, Markdown, exact surface/messages
 direct-hot-path bytecode, imports/mechanisms/build, exact 15-path scope, synchronized status and
 later-specification absence, and whitespace gates passed.
 
-Runtime 0004 deliberately omits `PreparedUnit`: no current finalization or schedule consumer
-establishes a distinct invariant beyond wrapping the executable and its selections. Prepare 0002
-or Runtime 0005 must justify that association when its actual consumer is current. Runtime
-0005–0008 and Prepare 0002 remain Draft without detailed specifications. Backend Contract remains
-closed, and module dependency directions are unchanged.
+Runtime 0004 deliberately omits `PreparedUnit`. Complete Prepare 0002 adds only the exact
+`PreparedPartition(partition, executable)` association, so no current consumer establishes a
+distinct unit invariant beyond the partition association and executable selections. Runtime 0005
+must decide that question from its actual schedule consumer. Runtime 0005–0008 and Prepare 0003
+remain Draft without detailed specifications. Backend Contract remains closed, and module
+dependency directions are unchanged.
 
 ## Open questions
 
-- Prepare 0002 must later finalize the exact requirement-to-slot association consumed by backend
-  finalization while producing Runtime 0002's dependency-neutral final slot geometry.
 - Runtime 0005 must determine whether the concrete prepared-partition/schedule consumer needs a
   distinct `PreparedUnit` and which input/output or step associations it owns.
 
@@ -176,7 +175,7 @@ closed, and module dependency directions are unchanged.
   backend size, alignment, or route facts. Runtime retains only the resulting exact slot geometry;
   Prepare retains declaration associations.
 - `PreparedMemoryPlan` must not import Prepare or Model types. It stores ordered unique
-  `BufferSlot`/`WorkspaceSlot` entries with exact byte size and alignment, while later Prepare
+  `BufferSlot`/`WorkspaceSlot` entries with exact byte size and alignment, while current Prepare
   translation owns declaration coverage and deterministic slot assignment.
 - `BackendPartitionPreparer`, `PrepareContext`, and `PreparedPartition` are Prepare-owned.
   Backend Contract remains closed, and Runtime owns no backend collaboration interface.

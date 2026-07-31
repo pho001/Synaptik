@@ -74,7 +74,7 @@ target/backend capabilities, configuration, and compatible cached decisions. It 
 | ID | Task | Status | Depends on | Summary |
 |---|---|---|---|---|
 | 0001 | [Backend partition analysis and resource declaration](tasks/0001-backend-partition-analysis-and-resource-declaration.md) | Complete | Compiler 0006; Planning 0006; Runtime 0001; ADR 0010 | Defines the analysis-side Prepare projection, typed backend analyzer, opaque selected plan, and exact buffer/workspace declarations without assigning slots or finalizing executables. |
-| 0002 | Backend partition finalization handoff | Draft | 0001; Runtime 0002–0004 | Finalize one analysis against assigned Runtime slots and produce the smallest prepared partition/executable association. |
+| 0002 | [Backend partition finalization handoff](tasks/0002-backend-partition-finalization-handoff.md) | Complete | 0001; Runtime 0002–0004 | Assigns deterministic conservative shared slots across the complete ordered analyses, retains exact source associations, and finalizes each typed backend plan into the minimal prepared partition/executable association. |
 | 0003 | Prepare orchestration and validation | Draft | 0001–0002; Runtime prepared-memory and schedule contracts | Compose coverage, prepared-memory, schedule, and final prepared-execution validation without concrete backend logic. |
 
 ## Milestones
@@ -102,16 +102,34 @@ descriptor-matching logical requirement; and exact-typed logical splats are limi
 graph inputs. The result retains the selected backend plan opaquely and declares exact
 non-negative byte sizes plus positive power-of-two alignments.
 
-Runtime 0002 is now the next cross-area planning frontier because the declaration producer exists.
-Prepare 0002 remains Draft and depends on Runtime 0002–0004 slot, access, and executable
-contracts. No Prepare 0002 detailed specification exists.
+Runtime 0002–0004 and
+[task 0002](tasks/0002-backend-partition-finalization-handoff.md) are Complete. The Prepare root
+now exposes exact declaration-to-slot assignments, typed finalization input and collaboration,
+and the minimal `PreparedPartition(partition, executable)` association. Its package-private
+complete-set handoff validates all ordered sources before assignment, uses first-declaration
+buffer ordering with maximum geometry, gives every workspace declaration a distinct slot,
+constructs every finalization before invoking a backend, and rejects an executable that does not
+retain the exact shared memory plan.
+
+Task 0002 deliberately adds no public orchestration, physical allocation, closeable prepared
+resource, execution, or schedule. The next frontier returns to Draft Runtime 0005, which must
+define the schedule consumer and decide whether it establishes a distinct `PreparedUnit`
+invariant. Prepare 0003 remains Draft until that schedule contract exists.
+
+The implementation context's final Prepare module run passed 7 suites and 22 tests with no
+skips, failures, or errors. The clean documentation pass finalized all six new production/package
+Javadocs, the five explanatory documents, and synchronized planning records without changing
+executable Java or repeating the successful tests. Prepare Javadoc, the Java 26 backend-finalizer
+example, nine-file Markdown validation, exact public/package-private shape, mechanism, exact
+18-path scope, unchanged architecture/build boundaries, status, and whitespace gates passed.
 
 ## Open questions
 
 - The later concrete binding contract for dynamic dimensions remains deferred. Task 0001 fails
   closed rather than inventing it.
-- Runtime 0002 must define the exact `WorkspaceSlot`, assignment aggregate, and prepared-memory
-  consumer before Prepare finalization becomes Ready; its former producer blocker is resolved.
+- Runtime 0005 must define the schedule consumer before Prepare 0003 can compose schedule and
+  final prepared-execution validation. It must decide whether that consumer needs a distinct
+  `PreparedUnit` beyond the executable and prepared-partition association.
 - The smallest opaque candidate and artifact-lifecycle boundary waits for stable compiler,
   planning, backend, engine, and persistence consumers. No Java declaration or file format is
   selected here.
@@ -134,6 +152,11 @@ contracts. No Prepare 0002 detailed specification exists.
   initial declaration receives a distinct slot.
 - Compatible cached tuning decisions are explicit analysis inputs. Analysis performs no search
   or measurement and is deterministic from its complete inputs.
+- Prepare 0002 assigns buffer slots in first-declaration order across the complete ordered
+  analyses, combines repeated value declarations with maximum size/alignment geometry, and
+  assigns every workspace declaration its own slot in declaration order.
+- `PreparedPartition` retains only the exact planned partition and finalized executable.
+  `PreparedUnit` remains deferred until Runtime 0005 establishes an additional schedule invariant.
 
 ## Risks
 

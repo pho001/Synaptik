@@ -3,7 +3,8 @@
 ## Purpose and implementation status
 
 This reference explains the implemented Runtime foundations for prepared-memory geometry, one
-run's physical-representation lifecycle, and checked binding of reusable backend recipes. The
+run's physical-representation lifecycle, checked binding of reusable backend recipes, and the
+current Prepare-owned handoff that constructs that geometry and finalizes backend recipes. The
 current public surface contains:
 
 - `runtime.memory`: `BufferSlot`, `WorkspaceSlot`, and `PreparedMemoryPlan` with its nested
@@ -14,31 +15,31 @@ current public surface contains:
 - `runtime.execution`: `PreparedExecutable`, its nested `BufferSelection` and
   `WorkspaceSelection` records, and `BoundInvocation`.
 
-The geometry, per-run representation carrier, and cold-bound invocation contracts are current.
-Prepare-owned slot assignment and backend finalization, physical allocation and storage access,
-full validity/residency, transfers, schedules, publication/results, and a runnable Runtime facade
-remain planned. No concrete backend currently subclasses the execution contracts.
+The geometry, per-run representation carrier, cold-bound invocation contracts, Prepare-owned
+resource assignments, typed backend finalization, and `PreparedPartition` association are
+current. Physical allocation and storage access, full validity/residency, transfers, schedules,
+publication/results, public Prepare orchestration, and a runnable Runtime facade remain planned.
+No production concrete backend currently implements the finalization or execution contracts.
 
 ## Mental model
 
 ```text
 compile facts             prepare handoff               Runtime state
 ValueId / requirement -> source-to-slot assignment -> PreparedMemoryPlan + RunState
-current                  planned                      current
+current                  current                      current
                                                               |
                                                               v
                                            cold bind -> BoundInvocation -> execute
                                            current       current            current contract
 ```
 
-Read the flow from logical source facts toward invocation state. Prepare currently exposes exact
-buffer and workspace requirements through `BackendPartitionAnalysis`. A later Prepare contract
-will retain source-to-slot associations and construct the Runtime geometry. Current `RunState`
-then accepts already-created representations in that geometry's encounter order. A current
+Read the flow from logical source facts toward invocation state. Prepare exposes exact buffer and
+workspace requirements through `BackendPartitionAnalysis`, then its current package-internal
+handoff retains source-to-slot associations and constructs the Runtime geometry. Current
+`RunState` accepts already-created representations in that geometry's encounter order. A current
 `PreparedExecutable` selects those representations by dense position, checks backend
 compatibility during cold binding, and creates a per-run `BoundInvocation`. None of these
-contracts derives the source mapping, allocates or transfers physical storage, or supplies a
-schedule or runner.
+contracts allocates or transfers physical storage or supplies a schedule or runner.
 
 ## Current slot identities
 
@@ -356,22 +357,46 @@ direct concrete fields. Calling `invocation.execute()` after `state.close()` fai
 counter changes. This proves the current binding and lifecycle guard only; it does not allocate
 storage, finalize a backend analysis, schedule work, transfer values, or publish a result.
 
-## Planned prepared aggregates
+## Current Prepare assignment and backend finalization
 
-Prepare will translate ordered analysis requirements into stable slots, retain exact
-requirement-to-slot associations for backend finalization, and construct `PreparedMemoryPlan`.
-The initial planned assignment is conservative: one distinct buffer slot per distinct declared
-buffer value and one distinct workspace slot per workspace declaration. Reuse requires a later
-proved lifetime/interference model.
+The public root of `io.github.pho001.synaptik.prepare` now contains four contracts that bridge
+analysis declarations to current Runtime recipes:
+
+- `PreparationResourceAssignment.Buffer` and `.Workspace` retain one exact analysis requirement,
+  its exact assigned slot, and the dense index of that slot's entry in `PreparedMemoryPlan`;
+- `BackendPartitionFinalization<P>` retains one exact typed analysis, the exact shared memory
+  plan, and an immutable assignment list in analysis-requirement order;
+- `BackendPartitionFinalizer<P>` is implemented by the owning concrete backend to construct one
+  immutable `PreparedExecutable` recipe after assignment; and
+- `PreparedPartition` retains the exact `PlannedPartition` and finalized executable references.
+
+The package-internal complete-set handoff validates expected partition coverage, exact projected
+source references, and backend ownership before assignment. It traverses partitions and
+requirements in stored order. A first-seen buffer `ValueId` receives the next dense buffer slot;
+later declarations of that value share the exact slot and its plan entry uses the maximum
+declared size and alignment. Every workspace declaration receives a fresh dense workspace slot
+with unchanged geometry. No lifetime, interference, aliasing, or reuse model is inferred.
+
+Every typed finalization is constructed before any backend is invoked. Finalizers then run once
+in partition order, and each returned executable must be non-null and retain the exact shared
+plan object. Finalization may construct immutable Java recipe state only under the current
+contract. It does not allocate physical resources, acquire a closeable prepared resource, create
+a `RunState`, bind or execute an invocation, or create a schedule.
+
+The complete-set operation and its batch result remain package-private. There is no public
+Prepare orchestration facade, production backend finalizer, or end-to-end consumer yet.
+
+## Planned prepared aggregates
 
 `PreparedExecution` will contain or reference prepared partitions, executable units, prepared
 memory, a schedule, and any immutable persistent prepared resources. Preparation creates it once
 for a selected set of explicitly registered backends; multiple runs may reuse it concurrently
 without sharing mutable invocation state.
 
-The current `PreparedExecutable` and `BoundInvocation` contracts will be consumed by those later
-aggregates. A distinct `PreparedUnit` remains deliberately deferred until a prepared-partition or
-schedule consumer establishes an invariant beyond the executable and its selections.
+The current `PreparedPartition`, `PreparedExecutable`, and `BoundInvocation` contracts will be
+consumed by those later aggregates. A distinct `PreparedUnit` remains deliberately deferred until
+a schedule consumer establishes an invariant beyond the partition/executable association and
+the executable's selections.
 
 ## Planned execution and publication contract
 

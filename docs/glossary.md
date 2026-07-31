@@ -39,7 +39,7 @@ The runtime currently provides the public immutable
 provides the nominal `BufferRepresentation` and `WorkspaceRepresentation` lifecycle roles,
 `BufferRepresentationBinding`, `RunResourceOwnership`, and one array-backed
 [`RunState`](#run-state--runstate) for per-run reference retention and cleanup. Prepare-owned
-requirement-to-slot assignment and association, physical allocation and access,
+requirement-to-slot assignment and association are now current. Physical allocation and access,
 full validity/residency, transfers, schedules, publication/results, and a runner remain planned.
 Current [`PreparedExecutable`](#prepared-executable--preparedexecutable) recipes perform checked
 cold binding and create current [`BoundInvocation`](#bound-invocation--boundinvocation) objects;
@@ -52,10 +52,11 @@ and `Workspace` variants, `BackendPartitionAnalysis`, and `BackendPartitionPrepa
 project and validate one fully static planned partition, carry exact typed logical-splat constants
 for projected graph inputs, retain backend inputs and the selected plan opaquely, and declare
 exact shared buffer/workspace needs. Slot assignment, finalization and prepared-executable
-construction, physical resources, schedules, concrete backends, and runner execution remain
-planned. The
-Runtime executable contract itself is current; the later Prepare finalizer will construct a
-backend subclass against assigned slots.
+construction are now current contracts in the Prepare root package, together with the minimal
+`PreparedPartition` association. Physical resources, public Prepare orchestration, schedules,
+production concrete backends, and runner execution remain planned. The Runtime executable
+contract itself is current; a current Prepare finalizer constructs a backend subclass against
+assigned slots.
 
 The exact arithmetic scan contains seven semantic rules: duplicate-input binary `MIN` and `MAX`;
 scalar `MUL` by exact typed positive one for all five numeric types; scalar `DIV` and `POW` by exact
@@ -1934,8 +1935,8 @@ A `BufferSlot` is deeply immutable and may be retained by the current
 [`PreparedMemoryPlan`](#prepared-memory-plan--preparedmemoryplan). It is not a logical
 [`ValueId`](#valueid), physical buffer, storage handle, address, allocation, device, resource,
 residency fact, or per-run binding. Constructing one performs no allocation or resource operation.
-Prepare assignment, physical binding, and execution remain planned. Current `RunState` uses the
-entry-list position rather than this numeric value for direct representation access. See the
+Prepare assignment is current; physical binding and scheduled execution remain planned. Current
+`RunState` uses the entry-list position rather than this numeric value for direct representation access. See the
 [Runtime API](api/runtime-api.md#current-slot-identities).
 
 ### Workspace slot / `WorkspaceSlot`
@@ -2574,9 +2575,9 @@ planned-partition reference, one exact backend-owned
 workspace declarations. Duplicate buffer `ValueId` values and duplicate analysis-local workspace
 requirement IDs are rejected independently in encounter order.
 
-Shared Prepare will later interpret the declarations to assign current Runtime slot types and
-construct current final geometry, but it does not inspect private plan state. That translator and
-its source-to-slot association are not implemented. The analysis is not a prepared executable,
+Shared Prepare currently interprets the declarations in its package-private complete-set handoff
+to assign Runtime slot types and construct final geometry, but it does not inspect private plan
+state. The analysis itself is not a prepared executable,
 slot assignment, physical allocation, resource handle, schedule, or per-run binding. The
 constructing record cannot by itself prove which context produced it; the implemented
 `BackendPartitionPreparer` collaboration requires the returned analysis to retain the exact
@@ -2595,6 +2596,42 @@ shared requirement. It performs no tuning measurement or search, cache mutation,
 allocation, executable construction, slot assignment, scheduling, or Runtime execution. No
 production concrete backend implementation exists yet.
 
+### Preparation resource assignment
+
+The implemented sealed Prepare-owned association between one exact
+[`PreparationResourceRequirement`](#preparation-resource-requirement), one exact Runtime slot,
+and the dense list index of that slot's entry in a `PreparedMemoryPlan`. The `Buffer` variant uses
+a `BufferSlot`; the `Workspace` variant uses a `WorkspaceSlot`. Assignment order matches the
+owning analysis declaration order.
+
+Assignments are immutable preparation results. They allocate, bind, own, access, or release no
+physical resource and contain no per-run state. The current package-private complete-set handoff
+shares one buffer slot across declarations of the same `ValueId`, using maximum declared size and
+alignment, and gives each workspace declaration its own slot. This is conservative assignment,
+not aliasing, lifetime analysis, reuse, residency, or materialization.
+
+### Backend partition finalization
+
+The implemented second backend preparation stage after shared slot assignment.
+`BackendPartitionFinalization<P>` retains one exact typed `BackendPartitionAnalysis<P>`, the exact
+shared `PreparedMemoryPlan`, and an immutable list of
+[`PreparationResourceAssignment`](#preparation-resource-assignment) values in declaration order.
+The owning backend implements `BackendPartitionFinalizer<P>` and returns one non-null immutable
+`PreparedExecutable` retaining that exact plan.
+
+Finalization does not authorize route reselection, undeclared resource requirements, physical
+allocation, native or closeable prepared-resource acquisition, run-state construction, binding,
+execution, scheduling, transfer, publication, measurement, or cache mutation. The current batch
+handoff is package-private; no public Prepare orchestration facade or production backend
+finalizer exists.
+
+### Prepared partition / `PreparedPartition`
+
+The implemented immutable Prepare-owned association between one exact `PlannedPartition` and one
+exact finalized `PreparedExecutable`. Backend ownership remains available from the partition and
+prepared-memory identity remains available from the executable, so the record duplicates neither
+value. It owns no physical or per-run resource and is not a schedule step, `PreparedUnit`,
+`PreparedSchedule`, or `PreparedExecution`.
 
 ### Prepared execution / `PreparedExecution`
 
@@ -2621,8 +2658,8 @@ may allocate temporary JVM arrays and the invocation, but it acquires no auxilia
 resource, changes no ownership, and performs no cleanup on failure.
 
 The recipe and concrete subclass must be immutable and thread-safe so one instance can bind
-concurrently to distinct run states. Backend analysis selects the implementation, while the later
-backend-finalization contract will construct it only after shared slot assignment. The executable
+concurrently to distinct run states. Backend analysis selects the implementation, while the current
+backend-finalization contract constructs it only after shared slot assignment. The executable
 does not own selected representations and supplies no allocation, transfer, residency, schedule,
 publication, result, or cleanup lifecycle.
 

@@ -1,15 +1,17 @@
-# Analyze an owned partition
+# Analyze and finalize an owned partition
 
 ## Outcome and current scope
 
-This guide shows a concrete backend contributor how to implement the current analysis stage of
-Synaptik's staged preparation handoff. The implemented
-`io.github.pho001.synaptik.prepare.analysis` package accepts one validated, fully static planned
+This guide shows a concrete backend contributor how to implement both current backend stages of
+Synaptik's staged preparation handoff. Analysis accepts one validated, fully static planned
 partition and returns an opaque backend plan plus exact shared buffer and workspace declarations.
+After shared Prepare assigns Runtime slots, finalization consumes those exact assignments and
+constructs an immutable executable recipe.
 
-The current API stops there. Runtime slot assignment, backend finalization, prepared executables,
-physical allocation, registration, and execution remain planned. The example therefore
-demonstrates a complete current analysis call, not a runnable backend or end-to-end engine.
+The package-internal batch assignment exists, but public Prepare orchestration does not. Physical
+allocation, registration, schedules, and end-to-end execution remain planned. The example
+therefore demonstrates current analysis and finalization contracts with illustrative backend
+types, not a production backend or runnable engine.
 
 ## Prerequisites
 
@@ -30,6 +32,10 @@ demonstrates a complete current analysis call, not a runnable backend or end-to-
   is the result of route selection and exact resource declaration, before any slot exists.
 - A [preparation resource requirement](../glossary.md#preparation-resource-requirement) declares
   exact bytes and alignment for either a graph-value buffer or analysis-local workspace.
+- A [preparation resource assignment](../glossary.md#preparation-resource-assignment) retains one
+  exact requirement, its assigned Runtime slot, and its dense prepared-plan index.
+- A [backend partition finalization](../glossary.md#backend-partition-finalization) supplies one
+  typed analysis and its complete assignments to the owning backend.
 - An [opaque backend analysis role](../glossary.md#opaque-backend-analysis-roles) keeps
   backend-specific input and selected-plan fields typed without making shared Prepare interpret
   them.
@@ -43,16 +49,18 @@ capability reporting and Planning ownership
   -> PrepareContext for one PlannedPartition                 current
   -> BackendPartitionPreparer.analyze                        current
   -> BackendPartitionAnalysis + exact requirements           current
-  -> shared BufferSlot/WorkspaceSlot assignment              planned
-  -> same backend finalizes the opaque plan                  planned
-  -> PreparedPartition + PreparedExecutable                  planned
+  -> shared BufferSlot/WorkspaceSlot assignment              current, package-internal
+  -> same backend finalizes the opaque plan                  current contract
+  -> PreparedPartition + PreparedExecutable                  current contracts
   -> Runtime executes the prepared schedule                  planned
 ```
 
 Planning chooses an owner such as CPU. Shared Prepare validates and projects that owner's exact
 partition facts. The concrete backend then owns deterministic lowering, fusion, route selection,
 and private configuration. Shared Prepare sees only the typed opaque plan and backend-neutral
-resource declarations. Runtime will later own stable slots and per-run binding.
+resource declarations. Runtime owns the stable slot and memory-plan types; shared Prepare owns the
+source assignment and finalizer handoff. Per-run population and scheduled execution remain later
+work.
 
 This division keeps `CompileArtifacts` and other Compiler-owned types out of the concrete backend
 surface. It also keeps route selection, measurement, cache mutation, allocation, and graph
@@ -155,6 +163,129 @@ workspace requirement ID. A backend that cannot realize the complete context sho
 `IllegalArgumentException` rather than return an incomplete plan or defer route fallback to
 Runtime.
 
+### Current assignment-to-finalization continuation
+
+After every analysis in the complete partition set passes shared validation, the package-internal
+Prepare handoff creates one shared memory plan and one ordered assignment per declaration. A
+concrete backend implements only the public finalizer collaboration; it neither calls nor replaces
+the package-internal assignment operation.
+
+This illustrative executable has no resource selections because the example stops at immutable
+recipe construction. A production executable would derive its dense selections from the supplied
+assignments and implement checked representation binding through Runtime's protected hooks.
+
+```java
+import io.github.pho001.synaptik.backend.contract.BackendId;
+import io.github.pho001.synaptik.prepare.BackendPartitionFinalization;
+import io.github.pho001.synaptik.prepare.BackendPartitionFinalizer;
+import io.github.pho001.synaptik.prepare.PreparationResourceAssignment;
+import io.github.pho001.synaptik.prepare.PreparedPartition;
+import io.github.pho001.synaptik.runtime.execution.BoundInvocation;
+import io.github.pho001.synaptik.runtime.execution.PreparedExecutable;
+import io.github.pho001.synaptik.runtime.memory.BufferSlot;
+import io.github.pho001.synaptik.runtime.memory.PreparedMemoryPlan;
+import io.github.pho001.synaptik.runtime.memory.WorkspaceSlot;
+import io.github.pho001.synaptik.runtime.resource.BufferRepresentation;
+import io.github.pho001.synaptik.runtime.resource.WorkspaceRepresentation;
+import io.github.pho001.synaptik.runtime.run.RunState;
+import java.util.List;
+
+final class CpuExecutable extends PreparedExecutable {
+    CpuExecutable(PreparedMemoryPlan memoryPlan) {
+        super(memoryPlan, List.of(), List.of());
+    }
+
+    @Override
+    protected boolean acceptsBufferRepresentation(
+            int selectionIndex, BufferRepresentation representation) {
+        return false;
+    }
+
+    @Override
+    protected boolean acceptsWorkspaceRepresentation(
+            int selectionIndex, WorkspaceRepresentation representation) {
+        return false;
+    }
+
+    @Override
+    protected BoundInvocation bindCompatible(
+            RunState runState,
+            BufferRepresentation[] buffers,
+            WorkspaceRepresentation[] workspaces) {
+        throw new UnsupportedOperationException("the example does not execute");
+    }
+}
+
+final class CpuFinalizer implements BackendPartitionFinalizer<CpuPlan> {
+    private final BackendId backendId;
+
+    CpuFinalizer(BackendId backendId) {
+        this.backendId = backendId;
+    }
+
+    @Override
+    public BackendId backendId() {
+        return backendId;
+    }
+
+    @Override
+    public PreparedExecutable finalizePartition(
+            BackendPartitionFinalization<CpuPlan> finalization) {
+        if (!finalization.analysis().plan().route().equals("vector")) {
+            throw new IllegalArgumentException("unexpected example route");
+        }
+        return new CpuExecutable(finalization.memoryPlan());
+    }
+}
+```
+
+For the analysis returned above, the shared handoff constructs equivalent current values in this
+order. This direct construction illustrates the public value contracts; production shared Prepare
+performs it only after validating the complete ordered partition set.
+
+```java
+var inputRequirement =
+        (PreparationResourceRequirement.Buffer) analysis.requirements().get(0);
+var outputRequirement =
+        (PreparationResourceRequirement.Buffer) analysis.requirements().get(1);
+var workspaceRequirement =
+        (PreparationResourceRequirement.Workspace) analysis.requirements().get(2);
+
+BufferSlot inputSlot = new BufferSlot(0);
+BufferSlot outputSlot = new BufferSlot(1);
+WorkspaceSlot workspaceSlot = new WorkspaceSlot(0);
+PreparedMemoryPlan memoryPlan =
+        new PreparedMemoryPlan(
+                List.of(
+                        new PreparedMemoryPlan.BufferEntry(inputSlot, 24, 4),
+                        new PreparedMemoryPlan.BufferEntry(outputSlot, 24, 4)),
+                List.of(new PreparedMemoryPlan.WorkspaceEntry(workspaceSlot, 64, 16)));
+
+BackendPartitionFinalization<CpuPlan> finalization =
+        new BackendPartitionFinalization<>(
+                analysis,
+                memoryPlan,
+                List.of(
+                        new PreparationResourceAssignment.Buffer(
+                                inputRequirement, inputSlot, 0),
+                        new PreparationResourceAssignment.Buffer(
+                                outputRequirement, outputSlot, 1),
+                        new PreparationResourceAssignment.Workspace(
+                                workspaceRequirement, workspaceSlot, 0)));
+
+BackendId cpu = context.partition().owner();
+PreparedExecutable executable =
+        new CpuFinalizer(cpu).finalizePartition(finalization);
+PreparedPartition prepared =
+        new PreparedPartition(context.partition(), executable);
+```
+
+`prepared.partition()` is the exact analyzed partition, and
+`prepared.executable().memoryPlan()` is the exact `memoryPlan` object. The assignment list follows
+analysis declaration order and retains the exact requirement and slot references. This proves the
+current typed finalization handoff; it does not prove public orchestration, physical allocation,
+binding, execution, scheduling, or cleanup of a persistent prepared resource.
+
 ## Context and requirement invariants
 
 `PrepareContext` snapshots its lists and map before analysis. Node IDs must match
@@ -169,8 +300,8 @@ descriptor exactly. The constant map is immutable metadata; analysis does not ma
 logical repetitions.
 
 Resource sizes are non-negative byte counts, so zero is valid. Alignments are positive powers of
-two measured in bytes. Buffer and workspace identities occupy separate domains. A future initial
-assignment will give each workspace declaration its own stable Runtime slot; reuse and lifetime
+two measured in bytes. Buffer and workspace identities occupy separate domains. Current initial
+assignment gives each workspace declaration its own stable Runtime slot; reuse and lifetime
 interference are not represented by the current API.
 
 ## Failures, ownership, and concurrency
@@ -183,8 +314,9 @@ interference are not represented by the current API.
   cache, allocate physical resources, compile native executables, or retain per-run bindings.
 - Do not return a `PreparedExecutable`, slot, address, storage handle, or resource lifetime from
   analysis.
-- Native-handle acquisition and cleanup belong to the later finalized prepared-resource
-  lifecycle. The current analysis result owns none.
+- Current finalization constructs immutable Java recipe state only. Native-handle acquisition and
+  cleanup require a later finalized prepared-resource lifecycle; the current analysis and
+  finalization values own none.
 
 The contracts are immutable and can be shared safely when the backend's marker-role
 implementations are themselves immutable. They do not add synchronization or define concurrent
@@ -219,10 +351,11 @@ For the current shared contract, run:
 
 ## Limitations and related documentation
 
-The current API has no dynamic-dimension binding, slot assignment, workspace reuse, physical
-resource, finalization, executable, schedule, Runtime behavior, concrete backend implementation,
-or model-autotuning workflow. Compatible cached decisions may be explicit immutable backend
-inputs, but analysis neither loads nor mutates a cache.
+The current API has no dynamic-dimension binding, workspace reuse, physical resource, public
+Prepare orchestration, schedule, runner, production concrete backend implementation, or
+model-autotuning workflow. Slot assignment, finalization input/collaboration, prepared partition,
+and executable recipe contracts are current. Compatible cached decisions may be explicit
+immutable backend inputs, but analysis neither loads nor mutates a cache.
 
 See the [Runtime/Prepare/Backend boundary](../architecture/runtime-prepare-backend-boundary.md),
 [Planning ownership and partition scoring](../architecture/partition-scoring.md), and
