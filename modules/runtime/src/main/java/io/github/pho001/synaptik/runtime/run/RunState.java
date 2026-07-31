@@ -26,7 +26,10 @@ import java.util.Objects;
  * <p>{@link #close()} marks the logical state closed before physical cleanup, skips borrowed
  * buffers, and attempts every owned representation once in deterministic reverse order. Closing
  * is idempotent. Representation access is unavailable after closure, while immutable plan and
- * count inspection remains available.
+ * count inspection remains available. A prepared executable may cold-bind direct typed
+ * references from this state while it is open. A resulting bound invocation retains this exact
+ * state and rejects execution after closure; neither object acquires ownership of the state or
+ * its representations.
  *
  * <p>This class is not thread-safe. A caller must not race access, closure, or future mutation on
  * one instance. Separate concurrent states may share the immutable plan, but their run-owned

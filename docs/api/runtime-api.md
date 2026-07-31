@@ -2,37 +2,43 @@
 
 ## Purpose and implementation status
 
-This reference explains the implemented Runtime foundations for prepared-memory geometry and one
-run's physical-representation lifecycle. The current public surface contains:
+This reference explains the implemented Runtime foundations for prepared-memory geometry, one
+run's physical-representation lifecycle, and checked binding of reusable backend recipes. The
+current public surface contains:
 
 - `runtime.memory`: `BufferSlot`, `WorkspaceSlot`, and `PreparedMemoryPlan` with its nested
   `BufferEntry` and `WorkspaceEntry` records;
 - `runtime.resource`: the nominal `BufferRepresentation` and `WorkspaceRepresentation` lifecycle
   roles implemented by concrete backends; and
-- `runtime.run`: `RunResourceOwnership`, `BufferRepresentationBinding`, and `RunState`.
+- `runtime.run`: `RunResourceOwnership`, `BufferRepresentationBinding`, and `RunState`; and
+- `runtime.execution`: `PreparedExecutable`, its nested `BufferSelection` and
+  `WorkspaceSelection` records, and `BoundInvocation`.
 
-The geometry carrier and per-run representation carrier are current. Prepare-owned slot
-assignment, physical allocation and storage access, compatibility-aware cold binding, full
-validity/residency, transfers, schedules, prepared executables, publication/results, and a
-runnable Runtime facade remain planned.
+The geometry, per-run representation carrier, and cold-bound invocation contracts are current.
+Prepare-owned slot assignment and backend finalization, physical allocation and storage access,
+full validity/residency, transfers, schedules, publication/results, and a runnable Runtime facade
+remain planned. No concrete backend currently subclasses the execution contracts.
 
 ## Mental model
 
 ```text
-compile facts             prepare handoff               Runtime geometry        current run carrier
-ValueId / requirement -> source-to-slot assignment -> prepared slot order -> RunState arrays
-current                  planned                      current               current
-                                                                                |
-                                                                                v
-                                                     allocation / cold binding / execute
-                                                                  planned
+compile facts             prepare handoff               Runtime state
+ValueId / requirement -> source-to-slot assignment -> PreparedMemoryPlan + RunState
+current                  planned                      current
+                                                              |
+                                                              v
+                                           cold bind -> BoundInvocation -> execute
+                                           current       current            current contract
 ```
 
 Read the flow from logical source facts toward invocation state. Prepare currently exposes exact
 buffer and workspace requirements through `BackendPartitionAnalysis`. A later Prepare contract
 will retain source-to-slot associations and construct the Runtime geometry. Current `RunState`
-then accepts already-created representations in that geometry's encounter order. It neither
-derives the source mapping nor allocates, inspects, transfers, or executes physical storage.
+then accepts already-created representations in that geometry's encounter order. A current
+`PreparedExecutable` selects those representations by dense position, checks backend
+compatibility during cold binding, and creates a per-run `BoundInvocation`. None of these
+contracts derives the source mapping, allocates or transfers physical storage, or supplies a
+schedule or runner.
 
 ## Current slot identities
 
@@ -211,7 +217,146 @@ snapshots buffers before workspaces. A null entry reports its supplied zero-base
 The first later duplicate reports that position and the diagnostic slot text. These failures
 reject ambiguous geometry; they do not perform assignment, deduplication, or recovery.
 
-## Planned prepared contracts
+## Current prepared executable and bound invocation
+
+`PreparedExecutable` is an immutable reusable recipe for one prepared computation region. Its
+constructor retains the exact `PreparedMemoryPlan` reference and snapshots ordered selections
+into private arrays:
+
+- `BufferSelection(bufferIndex, representationIndex)` addresses a dense position in
+  `memoryPlan().buffers()` and then a dense representation position in that buffer's `RunState`
+  bindings; and
+- `WorkspaceSelection(workspaceIndex)` addresses a dense position in
+  `memoryPlan().workspaces()`.
+
+These indices are list positions, not `BufferSlot.value()` or `WorkspaceSlot.value()` values.
+Selections may be empty or repeated. Repetition represents repeated operand roles and does not
+duplicate resource ownership in the state.
+
+`bind(runState)` is the cold boundary. It first requires an open state whose `memoryPlan()` is the
+exact same object as the executable's plan; an equal plan constructed separately is rejected. It
+resolves buffers in selection order, then workspaces, and calls the backend's checked
+compatibility hook exactly once for each resolved selection. Only after all checks pass does it
+call `bindCompatible` with fresh nominal arrays in the same order.
+
+The backend uses explicit checked tests such as `instanceof`, then constructs a
+`BoundInvocation` with direct concrete typed fields. The returned invocation must retain the exact
+supplied `RunState`. Binding may allocate the temporary Java Virtual Machine (JVM) arrays and
+invocation object, but it acquires no auxiliary closeable or native binding resource, changes no
+ownership, and performs no cleanup on failure.
+
+`BoundInvocation.execute()` checks that its retained state is still open, then calls the
+backend's `executeBound()` method. It performs no slot lookup, compatibility cast, graph work,
+backend discovery, route/configuration search, allocation, transfer, residency decision,
+publication, tuning, or tracing. Sequential calls while open are permitted. One invocation is not
+thread-safe and must not race execution with state closure; after closure it fails with
+`IllegalStateException("run state is closed")` before backend work.
+
+One immutable executable may bind concurrently to distinct run states. Each resulting invocation
+belongs to exactly one state and owns neither that state nor its buffer/workspace representations.
+Concrete executable subclasses must therefore be immutable and thread-safe, while invocation
+subclasses keep their per-run direct references isolated.
+
+## Focused cold-binding example
+
+### Goal and inputs
+
+Bind one backend-specific buffer and workspace from a matching open state, execute once through
+direct typed fields, then demonstrate the post-close guard. This local fake backend illustrates
+the extension contract; it is not a production backend or a Prepare finalizer.
+
+```java
+import io.github.pho001.synaptik.runtime.execution.BoundInvocation;
+import io.github.pho001.synaptik.runtime.execution.PreparedExecutable;
+import io.github.pho001.synaptik.runtime.memory.PreparedMemoryPlan;
+import io.github.pho001.synaptik.runtime.resource.BufferRepresentation;
+import io.github.pho001.synaptik.runtime.resource.WorkspaceRepresentation;
+import io.github.pho001.synaptik.runtime.run.BufferRepresentationBinding;
+import io.github.pho001.synaptik.runtime.run.RunResourceOwnership;
+import io.github.pho001.synaptik.runtime.run.RunState;
+import java.util.List;
+
+final class ExampleBuffer implements BufferRepresentation {
+    int calls;
+    @Override public void close() {}
+}
+
+final class ExampleWorkspace implements WorkspaceRepresentation {
+    int calls;
+    @Override public void close() {}
+}
+
+final class ExampleInvocation extends BoundInvocation {
+    private final ExampleBuffer buffer;
+    private final ExampleWorkspace workspace;
+
+    ExampleInvocation(RunState state, ExampleBuffer buffer, ExampleWorkspace workspace) {
+        super(state);
+        this.buffer = buffer;
+        this.workspace = workspace;
+    }
+
+    @Override protected void executeBound() {
+        buffer.calls++;
+        workspace.calls++;
+    }
+}
+
+final class ExampleExecutable extends PreparedExecutable {
+    ExampleExecutable(PreparedMemoryPlan plan) {
+        super(
+                plan,
+                List.of(new BufferSelection(0, 0)),
+                List.of(new WorkspaceSelection(0)));
+    }
+
+    @Override protected boolean acceptsBufferRepresentation(
+            int index, BufferRepresentation representation) {
+        return index == 0 && representation instanceof ExampleBuffer;
+    }
+
+    @Override protected boolean acceptsWorkspaceRepresentation(
+            int index, WorkspaceRepresentation representation) {
+        return index == 0 && representation instanceof ExampleWorkspace;
+    }
+
+    @Override protected BoundInvocation bindCompatible(
+            RunState state,
+            BufferRepresentation[] buffers,
+            WorkspaceRepresentation[] workspaces) {
+        return new ExampleInvocation(
+                state, (ExampleBuffer) buffers[0], (ExampleWorkspace) workspaces[0]);
+    }
+}
+```
+
+Given the one-buffer/one-workspace `plan` from the earlier geometry example:
+
+```java
+ExampleBuffer buffer = new ExampleBuffer();
+ExampleWorkspace workspace = new ExampleWorkspace();
+RunState state =
+        new RunState(
+                plan,
+                List.of(
+                        List.of(
+                                new BufferRepresentationBinding(
+                                        buffer, RunResourceOwnership.RUN_OWNED))),
+                List.of(workspace));
+
+BoundInvocation invocation = new ExampleExecutable(plan).bind(state);
+invocation.execute();
+state.close();
+```
+
+### Result and interpretation
+
+Both `calls` fields are `1`. Compatibility was checked during `bind`, and execution used the two
+direct concrete fields. Calling `invocation.execute()` after `state.close()` fails before either
+counter changes. This proves the current binding and lifecycle guard only; it does not allocate
+storage, finalize a backend analysis, schedule work, transfer values, or publish a result.
+
+## Planned prepared aggregates
 
 Prepare will translate ordered analysis requirements into stable slots, retain exact
 requirement-to-slot associations for backend finalization, and construct `PreparedMemoryPlan`.
@@ -224,7 +369,9 @@ memory, a schedule, and any immutable persistent prepared resources. Preparation
 for a selected set of explicitly registered backends; multiple runs may reuse it concurrently
 without sharing mutable invocation state.
 
-`PreparedExecutable` will compute only its prepared region. Its hot-path contract will not receive `Operation` or `CompiledNode`, and runtime will not ask it to rediscover a backend or select a kernel.
+The current `PreparedExecutable` and `BoundInvocation` contracts will be consumed by those later
+aggregates. A distinct `PreparedUnit` remains deliberately deferred until a prepared-partition or
+schedule consumer establishes an invariant beyond the executable and its selections.
 
 ## Planned execution and publication contract
 
@@ -241,9 +388,9 @@ RunResult result = execution.run(inputs, RunOptions.defaults());
 
 Current ownership distinguishes borrowed inputs from run-owned internal resources. Future
 publication will transfer or lease selected outputs to `RunResult`, while immutable persistent
-prepared resources stay with `PreparedExecution`. A future cold checked binding phase will create
+prepared resources stay with `PreparedExecution`. Current cold checked binding creates
 backend-owned typed invocation objects with direct references before execution. Exact result,
-transfer, residency, and runner behavior remain for focused Runtime tasks.
+transfer, residency, schedule, and runner behavior remain for focused Runtime tasks.
 
 ## Boundary and failure model
 

@@ -4,15 +4,16 @@ This document explains the boundary defined by [`ARCHITECTURE.md`](../../ARCHITE
 
 Runtime currently implements the immutable `BufferSlot` and `WorkspaceSlot` identities,
 `PreparedMemoryPlan` final slot geometry, nominal buffer/workspace representation roles,
-borrowed/run-owned buffer bindings, and the array-backed one-run `RunState` lifecycle described
-below. Prepare currently implements the analysis-side projection, opaque marker roles, exact
-resource declarations, analysis result, and preparer collaboration. The Prepare-owned assignment
-that constructs Runtime geometry from those analyses remains planned, as do backend finalization,
-physical allocation and access, compatibility-aware cold binding, validity/residency, transfers,
-schedules, publication/results, engine, concrete backends, and execution. The lifecycle flow
-therefore mixes current foundations with later stages; each focused section states its
-implementation status. [ADR 0011](../design/decisions/0011-per-run-runtime-resource-ownership.md)
-defines the resource-ownership and cold-binding architecture.
+borrowed/run-owned buffer bindings, the array-backed one-run `RunState` lifecycle, immutable
+`PreparedExecutable` recipes, and per-run `BoundInvocation` objects described below. Prepare
+currently implements the analysis-side projection, opaque marker roles, exact resource
+declarations, analysis result, and preparer collaboration. The Prepare-owned assignment that
+constructs Runtime geometry from those analyses remains planned, as do backend finalization,
+physical allocation and access, validity/residency, transfers, schedules, publication/results,
+engine, concrete backends, and a runner. The lifecycle flow therefore mixes current foundations
+with later stages; each focused section states its implementation status.
+[ADR 0011](../design/decisions/0011-per-run-runtime-resource-ownership.md) defines the
+resource-ownership and cold-binding architecture.
 
 ## Boundary in one flow
 
@@ -122,7 +123,8 @@ declared buffer value and one distinct workspace slot per workspace declaration,
 aliasing or lifetime model is required.
 
 Backend finalization is also planned. After assignment, the same backend will finalize its opaque
-plan against those slots and construct the `PreparedExecutable` and `PreparedPartition`.
+plan against those slots by subclassing the current `PreparedExecutable` contract and constructing
+the later `PreparedPartition` association.
 Finalization may validate or acquire backend-owned executable resources, but it must not change
 route choice or add an undeclared shared buffer or workspace need.
 
@@ -135,16 +137,19 @@ repository has no such run-dynamic fact contract.
 
 The complete architecture prepare lifecycle creates:
 
-- `PreparedPartition`, which associates a planned partition and backend identity with its prepared units;
-- `PreparedUnit`, which connects a prepared executable to its input and output slots;
-- `PreparedExecutable`, the hot-path executable contract for one prepared region;
+- `PreparedPartition`, which associates a planned partition and backend identity with its
+  prepared work;
+- a possible `PreparedUnit`, if the actual finalization or schedule consumer later establishes a
+  distinct invariant beyond the executable and its selections;
+- `PreparedExecutable`, the current reusable cold-binding recipe for one prepared region;
 - `PreparedMemoryPlan`, whose current Runtime contract defines final buffer/workspace slot
   geometry without allocating physical storage;
 - `PreparedSchedule`, which orders executable, transfer, materialization, and publication work; and
 - `PreparedExecution`, the immutable reusable runtime-ready result, including any immutable
   persistent prepared resources that are not ordinary per-run workspace.
 
-Today, only `PreparedMemoryPlan` exists among the prepare-result contracts in this list; the
+Today, `PreparedMemoryPlan` and `PreparedExecutable` exist among the prepare-result contracts in
+this list; `BoundInvocation` is the current per-run result of binding an executable. The
 analysis-side Prepare contracts described above are also current. `modules/prepare` owns
 `PrepareContext`, `BackendPartitionPreparer`,
 `BackendPartitionAnalysis`, shared resource declarations, later assignment and source
@@ -163,7 +168,7 @@ Shared prepare code does not implement concrete CPU, Metal, or CUDA lowering and
   borrowed resources;
 - manages runtime slots, resources, and workspaces through prepared contracts;
 - performs scheduled residency, transfer, and materialization work;
-- invokes `PreparedExecutable.execute(...)`;
+- invokes current cold-bound `BoundInvocation.execute()` objects from later scheduled work;
 - updates residency after execution; and
 - publishes outputs and gradients according to the prepared plan and run policy.
 
@@ -190,7 +195,8 @@ resource. Runtime owns logical slot state, ownership transitions, validity/resid
 orchestration, and failure isolation. Concrete backends own physical representation classes and
 perform allocation, release, transfer, and access.
 
-The current Runtime foundation implements only the carrier and cleanup portion of this flow.
+The current Runtime foundation implements the carrier, cleanup, and cold-binding portions of this
+flow.
 `BufferRepresentation` and `WorkspaceRepresentation` are distinct nominal closeable roles with
 no physical access API. `BufferRepresentationBinding` marks one exact buffer representation as
 borrowed or run-owned. `RunState` retains one exact `PreparedMemoryPlan`, copies supplied list
@@ -202,17 +208,31 @@ Current cleanup marks the state closed first, skips borrowed buffers, and attemp
 representation once in deterministic reverse order. It preserves the first unchecked exception
 or error and suppresses later failures. The state is not thread-safe, but separate states may
 share the immutable plan while keeping run-owned representations isolated. This implemented
-foundation still has no allocation, storage access, compatibility check, validity/residency,
-transfer, executable, schedule, publication/result, or runner behavior.
+foundation still has no allocation, storage access, validity/residency, transfer, schedule,
+publication/result, or runner behavior.
+
+The current `PreparedExecutable` retains one exact plan reference plus private immutable snapshots
+of ordered dense buffer/representation and workspace selections. Empty and repeated selections
+are valid. `bind` requires an open `RunState` associated by exact plan reference identity, resolves
+buffers before workspaces in selection order, and invokes concrete-backend compatibility hooks
+once per selected representation. A normal incompatibility returns `false` so Runtime can issue a
+stable indexed failure.
+
+After all compatibility checks pass, the backend constructs a current `BoundInvocation` retaining
+the exact run state and direct concrete typed buffer/workspace fields. Binding may allocate fresh
+nominal arrays and the invocation object, but it acquires no auxiliary closeable binding resource
+and changes no ownership. `BoundInvocation.execute()` performs one state-open guard, then calls
+the backend implementation. It rejects execution after the state closes and owns or closes
+nothing. One immutable executable may bind concurrently to distinct states; a bound invocation is
+not thread-safe and must not race execution with closure.
 
 Caller inputs are borrowed, internal buffers and workspaces are run-owned, published outputs
 transfer or lease ownership to a later `RunResult`, and immutable persistent prepared resources
 remain `PreparedExecution`-owned. A workspace is backend-local scratch rather than a transferable
 logical value; host staging and device scratch use separate workspace requirements.
 
-In the later complete lifecycle, Java representation compatibility is checked explicitly once at
-the cold binding boundary. The backend creates typed bound objects with direct references, so the
-hot path needs no map lookup,
+Java representation compatibility is now checked explicitly once at the current cold binding
+boundary. The backend creates typed bound objects with direct references, so the hot path needs no map lookup,
 reflection, string dispatch, graph inspection, backend discovery, kernel selection, or repeated
 unsafe cast. The shared contracts use no raw `Object`, unchecked generic API, public backend type
 switch, registry, or service locator.
@@ -229,10 +249,11 @@ Each concrete backend owns preparation and execution details for the partitions 
 - backend-specific fusion and specialization;
 - concrete kernel or executable route selection;
 - exact declaration of shared buffer and workspace requirements;
-- construction of `PreparedExecutable` implementations;
+- construction of immutable `PreparedExecutable` implementations during the later finalization
+  stage;
 - physical buffer and workspace representation implementations plus their
   allocation/release/transfer/access mechanics;
-- backend-owned typed cold-bound invocation objects with direct representation references;
+- current backend-owned typed `BoundInvocation` subclasses with direct representation references;
 - backend-specific materialization and native bridge integration; and
 - backend trace contributions.
 

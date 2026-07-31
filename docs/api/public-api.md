@@ -17,8 +17,10 @@ Compiler orchestration now consumes those three operations and uses the public i
 `FunctionalGradientRequest`, `GradientPublicationBinding`, `DerivativeGraphMetadata`,
 `CompileArtifacts`, `PublicationPlan`, `CompileConstantPlan`, and `CompileDiagnostics` contracts.
 Reusable or public capability matrices, a public graph-wide Planning workflow, public compiler
-entry, physical memory, prepare, runtime, concrete backend integration, and engine APIs remain
-planned. The backend
+entry, physical allocation/access, complete prepare/runtime lifecycles, concrete backend
+integration, and engine APIs remain planned. Prepare analysis contracts and the initial Runtime
+geometry, per-run resource, and cold-binding contracts are current but do not form a runnable
+public lifecycle. The backend
 contract also contains an immutable caller-supplied availability snapshot; it is data, not a
 discovery or liveness API. A sealed requirement family can now name one hard eligibility target.
 The current config module can record that hard-target optionality, requested graph scope,
@@ -401,6 +403,30 @@ physical buffer, transfer, prepared schedule, executable, residency, or mutable 
 `CompileConstantPlan` carries logical splats rather than dense data or storage.
 `CompileDiagnostics` carries deterministic text projections rather than a public predicate
 language, trace schema, or serialization.
+
+The public `modules:runtime` surface now contains four focused packages:
+
+- `runtime.memory` defines `BufferSlot`, `WorkspaceSlot`, and immutable ordered
+  `PreparedMemoryPlan` byte geometry;
+- `runtime.resource` defines the nominal backend-implemented `BufferRepresentation` and
+  `WorkspaceRepresentation` cleanup roles;
+- `runtime.run` defines borrowed/run-owned buffer bindings and the array-backed one-run
+  `RunState`; and
+- `runtime.execution` defines immutable reusable `PreparedExecutable` recipes, their dense
+  buffer/representation and workspace selections, and per-run `BoundInvocation` objects.
+
+`PreparedExecutable.bind` requires the exact same `PreparedMemoryPlan` reference as the open
+`RunState`. It resolves selections in supplied order and delegates explicit checked
+representation compatibility to the concrete backend. The backend then creates a
+`BoundInvocation` with direct concrete typed fields and the exact state association. The hot
+`execute()` call checks only that the retained state is open before delegating to the backend;
+execution after state closure is rejected.
+
+These contracts contain no concrete backend implementation and do not provide Prepare assignment
+or finalization, physical allocation/access, validity/residency, transfer, schedule, publication,
+result, runner, or Engine behavior. Binding owns no auxiliary closeable resource and changes no
+resource ownership. See the [Runtime API](runtime-api.md) for selection, lifecycle, failure, and
+thread-safety details.
 
 ## Planned public lifecycle
 

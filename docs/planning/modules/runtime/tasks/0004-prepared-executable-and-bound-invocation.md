@@ -2,7 +2,7 @@
 
 ## Status
 
-Ready
+Complete
 
 ## Goal
 
@@ -571,12 +571,131 @@ repository completion status format.
 
 ## Validation evidence
 
-Empty until implemented.
+- Implementation context `/root/implement_runtime_0004` ran the focused command:
+
+  ```bash
+  ./gradlew :modules:runtime:test \
+    --tests io.github.pho001.synaptik.runtime.execution.PreparedExecutableTest \
+    --tests io.github.pho001.synaptik.runtime.execution.BoundInvocationTest
+  ```
+
+  It passed two suites and 18 tests (`PreparedExecutableTest` 13 and
+  `BoundInvocationTest` 5) with zero failures, errors, and skips.
+- The same implementation context ran the single final affected-module command after executable
+  Java stabilized:
+
+  ```bash
+  ./gradlew :modules:runtime:test
+  ```
+
+  It passed eight suites and 63 tests with zero failures, errors, and skips. Documentation context
+  `/root` changed Javadocs and documentation but no executable Java, so it reused both successful
+  results and did not repeat either Java test command.
+- Documentation context `/root` applied the General, API/Javadoc, Architecture, Backend Guide,
+  Planning, and Example profiles. It independently reviewed the architecture contract,
+  documentation rules, Planning Guide and roadmap, Runtime/Prepare master plans, ADRs
+  0006/0010/0011, Runtime tasks 0001–0004, Prepare 0001, final Runtime production/tests, affected
+  predecessor Javadocs, Runtime/Public APIs, focused boundary explanation, backend guide,
+  glossary, build/toolchain files, and the exact diff.
+- Final Runtime Javadoc generation passed:
+
+  ```bash
+  ./gradlew :modules:runtime:javadoc
+  ```
+
+  Gradle reported `BUILD SUCCESSFUL`; five tasks were actionable, two executed and three
+  up-to-date. The generated execution, run-state, and package pages expose the exact plan identity,
+  dense indices, repeated-selection, checked compatibility, direct typed-field, run association,
+  post-close guard, ownership, lifecycle, thread-safety, failure, and hot-path contracts.
+- The changed Runtime API example compiled and ran with Java 26:
+
+  ```bash
+  javac --release 26 -cp modules/runtime/build/classes/java/main \
+    -d /tmp/runtime-0004-api-example /tmp/Runtime0004ApiExample.java
+  java -cp modules/runtime/build/classes/java/main:/tmp/runtime-0004-api-example \
+    Runtime0004ApiExample
+  ```
+
+  Both commands passed with no output. The example checks direct typed execution exactly once and
+  the exact post-close failure. The backend-guide skeleton also compiled with
+  `javac --release 26` against the Runtime main classes.
+- Targeted Markdown validation passed for all eight changed documentation/planning files. It
+  checked local targets and heading anchors, unique effective anchors, balanced backtick and tilde
+  fences, final newlines, and trailing whitespace.
+- Final source/API checks confirmed exactly two top-level public abstract classes and two nested
+  public records in `runtime.execution`, the planned constructors/modifiers/hooks, exact messages
+  and validation order, private array snapshots, selection order, exact reference retention,
+  exact plan identity, one compatibility call per selected representation, invocation
+  association, and the post-close lifecycle guard. `javap -p` confirmed the compiled surface;
+  `javap -p -c BoundInvocation` confirmed the hot method performs one `RunState.isClosed()` call
+  followed by `executeBound()`.
+- Production imports are limited to current Runtime contracts plus `java.util.List` and
+  `java.util.Objects`. Source and bytecode checks found no map, reflection, string dispatch, raw
+  or unchecked access, registry/service locator, concrete backend, graph/compiler/planning/
+  Prepare/Model/Engine type, or forbidden hot-path operation.
+- Root/settings/Runtime Gradle files are unchanged. Root configuration alone retains Java 26
+  toolchain and release settings, and Runtime dependencies remain Config, Backend Contract, and
+  Trace only.
+- The final scope audit found exactly the 15 authorized paths: five Runtime production/Javadoc
+  paths, two Runtime test paths, five explanatory documentation paths, and three planning paths.
+  No other Java/test, Gradle, architecture/ADR/test, backend-conformance, integration, module, or
+  later-specification path changed.
+- Status/specification checks confirmed Runtime 0001–0004 and Prepare 0001 are Complete; Runtime
+  0005–0008 and Prepare 0002 remain Draft; exactly Runtime 0001–0004 and Prepare 0001 have detailed
+  specifications; and no later specification exists.
+- `git diff --check` passed after final documentation and status synchronization with no output.
+- No-change conclusions:
+  - `ARCHITECTURE.md` and ADRs 0006/0010/0011 already authorize the exact cold-binding boundary,
+    backend-owned typed invocation, resource ownership, and service-locator prohibition; no
+    architecture decision or dependency rule changed.
+  - Runtime 0001–0003 memory/resource contracts and Javadocs remain accurate except for the
+    required `RunState` and `runtime.run` current-binding wording finalized here.
+  - Prepare 0001 and its partition-preparer guide remain analysis-only and unchanged; Prepare
+    0002 still owns assignment/finalization and has no detailed specification.
+  - Compile, Tensor, Config, Trace, Engine, user-guide, lifecycle, overview, module-boundary, and
+    dependency documents need no change because this task adds none of their public workflows,
+    semantics, configuration, tracing, composition, or architecture rules.
+  - Architecture tests need no update because module edges and tested dependency rules are
+    unchanged. Backend-conformance and integration tests remain inapplicable because there is no
+    production concrete backend or end-to-end runner.
+  - Root and Runtime Gradle files need no change because the existing module and Java 26 contracts
+    compile the new surface without another dependency or override.
 
 ## Implementation notes
 
-Empty until implemented.
+- Added only `PreparedExecutable`, `BoundInvocation`, and execution-package documentation plus
+  the two focused fake-backend suites in the planned package.
+- The executable snapshots ordered dense selections, retains exact plan/selection references,
+  requires exact plan identity during binding, performs buffer-then-workspace checked
+  compatibility, and validates the returned invocation's exact state association.
+- The bound invocation strongly retains but does not own its state, rejects execution after
+  closure, and delegates directly to backend work without resource lookup or rebinding.
+- Finalized Runtime 0004 execution Javadocs, affected `RunState`/package wording, Runtime/Public
+  APIs, focused boundary status, backend integration guidance, glossary terminology, and planning
+  evidence. No executable Java changed during the documentation pass.
 
 ## Completion summary
 
-Empty until implemented.
+- Completed changes: implemented and documented the exact immutable prepared-executable recipe,
+  ordered dense cold-binding selections, checked backend compatibility hooks, and per-run direct-
+  reference bound invocation lifecycle guard.
+- Files changed or created: exactly the 15 authorized paths—five Runtime production/Javadoc
+  paths, two Runtime tests, five explanatory documentation paths, and three planning paths.
+- Tests and validation: reused the implementation context's successful focused 18-test and final
+  63-test Runtime evidence; Runtime Javadoc, two Java 26 example compilations and one execution,
+  generated/API/bytecode/import/mechanism/build/toolchain, eight-file Markdown, exact scope/status/
+  later-specification, final-newline/fence/whitespace, and `git diff --check` gates passed.
+- Documentation-agent review: completed in clean documentation context `/root` without executable
+  Java changes or duplicate Java-test execution.
+- Documentation impact: Runtime/Public APIs, focused architecture status, backend guide, glossary,
+  task, master plan, and roadmap now distinguish current cold binding from later Prepare
+  finalization, allocation, residency, transfer, scheduling, publication, and runner work.
+- Javadoc review: finalized the three new execution production/package paths and the affected
+  `RunState`/`runtime.run` lifecycle wording. Runtime 0001–0003 Javadocs otherwise remain accurate.
+- Glossary impact: made `PreparedExecutable` current, added `BoundInvocation`, and synchronized
+  physical-representation and `RunState` cold-binding boundaries.
+- Unresolved issues: None.
+- Follow-up required: None for this task. Prepare 0002 and Runtime 0005 remain Draft pending a
+  separate frontier-planning step.
+
+Status: Complete

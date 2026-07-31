@@ -40,8 +40,10 @@ provides the nominal `BufferRepresentation` and `WorkspaceRepresentation` lifecy
 `BufferRepresentationBinding`, `RunResourceOwnership`, and one array-backed
 [`RunState`](#run-state--runstate) for per-run reference retention and cleanup. Prepare-owned
 requirement-to-slot assignment and association, physical allocation and access,
-compatibility-aware cold binding, full validity/residency, transfers, schedules, prepared
-executables, publication/results, and execution remain planned.
+full validity/residency, transfers, schedules, publication/results, and a runner remain planned.
+Current [`PreparedExecutable`](#prepared-executable--preparedexecutable) recipes perform checked
+cold binding and create current [`BoundInvocation`](#bound-invocation--boundinvocation) objects;
+no concrete backend implements them yet.
 
 Prepare currently provides the public immutable analysis-side contracts in
 `io.github.pho001.synaptik.prepare.analysis`: `BackendAnalysisInputs`,
@@ -49,8 +51,11 @@ Prepare currently provides the public immutable analysis-side contracts in
 and `Workspace` variants, `BackendPartitionAnalysis`, and `BackendPartitionPreparer`. They
 project and validate one fully static planned partition, carry exact typed logical-splat constants
 for projected graph inputs, retain backend inputs and the selected plan opaquely, and declare
-exact shared buffer/workspace needs. Slot assignment, finalization, prepared executables,
-physical resources, schedules, concrete backends, and execution remain planned.
+exact shared buffer/workspace needs. Slot assignment, finalization and prepared-executable
+construction, physical resources, schedules, concrete backends, and runner execution remain
+planned. The
+Runtime executable contract itself is current; the later Prepare finalizer will construct a
+backend subclass against assigned slots.
 
 The exact arithmetic scan contains seven semantic rules: duplicate-input binary `MIN` and `MAX`;
 scalar `MUL` by exact typed positive one for all five numeric types; scalar `DIV` and `POW` by exact
@@ -2001,10 +2006,11 @@ run-owned cleanup transfers only after `RunState` construction succeeds. Every w
 to a successfully constructed state is run-owned. A repeated exact representation identity is
 rejected across every buffer and workspace position in one state.
 
-Physical representations use heterogeneous Java types. A planned cold binding phase performs
-explicit checked compatibility once and creates backend-owned typed objects with direct
-references before the hot path. No raw `Object`, unchecked generic API, registry, reflection, or
-public concrete-backend switch is part of the shared contract.
+Physical representations use heterogeneous Java types. The current cold binding phase performs
+explicit checked compatibility once and creates backend-owned typed
+[`BoundInvocation`](#bound-invocation--boundinvocation) objects with direct references before the
+hot path. No raw `Object`, unchecked generic API, registry, reflection, or public
+concrete-backend switch is part of the shared contract.
 
 ### `NoOperationAttrs`
 
@@ -2600,10 +2606,40 @@ Boundary](architecture/runtime-prepare-backend-boundary.md#what-prepare-creates)
 
 ### Prepared executable / `PreparedExecutable`
 
-The backend-independent runtime call boundary implemented by a concrete backend for one prepared
-region. Backend analysis selects the implementation; backend finalization constructs this
-executable only after shared slot assignment. Runtime invokes it without passing compile-time
-`Operation` or `CompiledNode` objects or asking it to select another backend.
+The implemented Runtime-owned abstract recipe boundary for one backend-prepared computation
+region. It retains one exact `PreparedMemoryPlan` reference and immutable private snapshots of
+ordered dense `BufferSelection` and `WorkspaceSelection` values. A buffer selection addresses a
+prepared buffer position and then one ordered representation position in a matching `RunState`;
+a workspace selection addresses a prepared workspace position. These are list indices, not slot
+numeric components. Empty and repeated selections are valid.
+
+`bind` is the cold path. It requires an open state associated by exact plan reference identity,
+resolves buffers before workspaces in selection order, and delegates explicit checked
+compatibility to concrete-backend hooks. After all checks pass, the backend constructs a
+[`BoundInvocation`](#bound-invocation--boundinvocation) with direct concrete typed fields. Binding
+may allocate temporary JVM arrays and the invocation, but it acquires no auxiliary closeable
+resource, changes no ownership, and performs no cleanup on failure.
+
+The recipe and concrete subclass must be immutable and thread-safe so one instance can bind
+concurrently to distinct run states. Backend analysis selects the implementation, while the later
+backend-finalization contract will construct it only after shared slot assignment. The executable
+does not own selected representations and supplies no allocation, transfer, residency, schedule,
+publication, result, or cleanup lifecycle.
+
+### Bound invocation / `BoundInvocation`
+
+The implemented Runtime-owned abstract lifecycle guard for one backend invocation bound to one
+exact open [`RunState`](#run-state--runstate). A concrete backend subclass stores the compatible
+buffer and workspace representations directly in concrete typed fields established during cold
+binding. The invocation strongly retains the state but owns or closes neither the state nor any
+representation or immutable prepared resource.
+
+`execute()` first rejects a closed state, then delegates once to the backend's `executeBound()`.
+The hot call performs no resource or slot lookup, compatibility test or cast, graph inspection,
+backend discovery, route/configuration selection, allocation, transfer, residency decision,
+publication, tuning, tracing, retry, fallback, or cleanup. Sequential calls while open are
+permitted, and backend `RuntimeException` or `Error` values propagate unchanged. An invocation is
+not thread-safe and must not be executed concurrently or raced with state closure.
 
 ### Producer / `TensorProducer`
 
@@ -2765,9 +2801,12 @@ Representation access is closed after that transition, but the exact plan and co
 inspectable. Repeated close is inert.
 
 One state is not thread-safe. Concurrent runs have distinct states and distinct run-owned
-representations, though they may share the immutable plan. The current carrier does not implement
-allocation, physical access, validity/residency, compatibility-aware cold binding, transfer,
-schedule execution, publication/result ownership transfer, or a runner.
+representations, though they may share the immutable plan. A current `PreparedExecutable` may
+cold-bind selected representations while the state is open, and the resulting current
+`BoundInvocation` retains this exact state and rejects execution after closure. Neither binding
+object owns the state or its resources. The current carrier does not implement allocation,
+physical access, validity/residency, transfer, schedule execution, publication/result ownership
+transfer, or a runner.
 
 ### Sample domain
 
