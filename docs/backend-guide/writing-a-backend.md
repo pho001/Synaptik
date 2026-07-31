@@ -35,7 +35,17 @@ Each `addBackend` call makes composition visible before compilation and preparat
 
 ## Resources, concurrency, and failures
 
-A backend must define who owns native handles, buffers, and workspaces; when they are released; whether prepared executables are safe to share; and which state is per run. Exact shared concurrency contracts remain to be specified.
+A backend implements physical buffer and workspace representations plus their allocation,
+release, transfer, and access mechanics. Prepared executable recipes and immutable persistent
+prepared resources are reusable. Each active complete logical execution has one isolated
+`RunState`; caller inputs are borrowed, internal buffers and workspaces are run-owned, and
+published outputs transfer or lease ownership to the later result.
+
+Before the hot path, backend code performs explicit checked compatibility validation and creates
+typed bound invocation objects with direct representation references. It must not rely on raw
+`Object`, unchecked generic access, reflection, string dispatch, a registry, or repeated hot-path
+casts. Runtime orchestrates cleanup, while the backend representation performs physical release.
+Failure cleanup must never close borrowed inputs or outputs already transferred from the run.
 
 Capability rejection occurs before ownership. Lowering or resource-creation failure occurs during prepare. Execution failure occurs during run and must not trigger hidden cross-backend fallback.
 

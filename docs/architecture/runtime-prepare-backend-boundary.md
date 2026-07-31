@@ -2,14 +2,17 @@
 
 This document explains the boundary defined by [`ARCHITECTURE.md`](../../ARCHITECTURE.md). The root contract remains authoritative.
 
-Runtime currently implements the immutable `BufferSlot` and `WorkspaceSlot` identities plus
-`PreparedMemoryPlan` final slot geometry described below. Prepare currently implements the
-analysis-side projection, opaque marker roles, exact resource declarations, analysis result, and
-preparer collaboration. The Prepare-owned assignment that constructs Runtime geometry from those
-analyses remains planned, as do backend finalization, physical allocation, per-run binding,
-engine, concrete backends, and every execution contract named here. The lifecycle flow therefore
-mixes current foundations with later stages; each focused section states its implementation
-status.
+Runtime currently implements the immutable `BufferSlot` and `WorkspaceSlot` identities,
+`PreparedMemoryPlan` final slot geometry, nominal buffer/workspace representation roles,
+borrowed/run-owned buffer bindings, and the array-backed one-run `RunState` lifecycle described
+below. Prepare currently implements the analysis-side projection, opaque marker roles, exact
+resource declarations, analysis result, and preparer collaboration. The Prepare-owned assignment
+that constructs Runtime geometry from those analyses remains planned, as do backend finalization,
+physical allocation and access, compatibility-aware cold binding, validity/residency, transfers,
+schedules, publication/results, engine, concrete backends, and execution. The lifecycle flow
+therefore mixes current foundations with later stages; each focused section states its
+implementation status. [ADR 0011](../design/decisions/0011-per-run-runtime-resource-ownership.md)
+defines the resource-ownership and cold-binding architecture.
 
 ## Boundary in one flow
 
@@ -126,7 +129,7 @@ route choice or add an undeclared shared buffer or workspace need.
 Any dynamic or unresolved Shape currently fails `PrepareContext` construction before backend
 analysis. A future fact may remain run-dynamic only when an explicit prepared contract represents
 it without changing the selected route, declared resources, or slot assignment. The current
-repository has no such binding/resource contract.
+repository has no such run-dynamic fact contract.
 
 ## What prepare creates
 
@@ -138,7 +141,8 @@ The complete architecture prepare lifecycle creates:
 - `PreparedMemoryPlan`, whose current Runtime contract defines final buffer/workspace slot
   geometry without allocating physical storage;
 - `PreparedSchedule`, which orders executable, transfer, materialization, and publication work; and
-- `PreparedExecution`, the reusable runtime-ready result.
+- `PreparedExecution`, the immutable reusable runtime-ready result, including any immutable
+  persistent prepared resources that are not ordinary per-run workspace.
 
 Today, only `PreparedMemoryPlan` exists among the prepare-result contracts in this list; the
 analysis-side Prepare contracts described above are also current. `modules/prepare` owns
@@ -155,7 +159,8 @@ Shared prepare code does not implement concrete CPU, Metal, or CUDA lowering and
 `modules/runtime` owns the contracts and state needed after preparation. It:
 
 - executes `PreparedSchedule`;
-- creates or reuses per-run `RunState` and binds inputs;
+- creates exactly one `RunState` for each active complete logical run and binds caller inputs as
+  borrowed resources;
 - manages runtime slots, resources, and workspaces through prepared contracts;
 - performs scheduled residency, transfer, and materialization work;
 - invokes `PreparedExecutable.execute(...)`;
@@ -169,6 +174,53 @@ into typed trace payloads, but neither profiling nor tracing selects or mutates 
 settings. Runtime performs no model-autotuning search, cache lookup or mutation, or hot-path graph
 inspection.
 
+## Per-run resources and cold binding
+
+```text
+immutable PreparedExecution
+  -> one isolated RunState for the complete heterogeneous run
+     -> BufferSlot -> one or more explicitly prepared representations
+     -> WorkspaceSlot -> one backend-local scratch representation
+  -> cold checked binding -> backend-owned typed direct-reference invocation
+  -> hot-path execution -> publication -> cleanup of resources still owned by the run
+```
+
+Concurrent invocations reuse the prepared recipe but never a `RunState` or run-owned mutable
+resource. Runtime owns logical slot state, ownership transitions, validity/residency, cleanup
+orchestration, and failure isolation. Concrete backends own physical representation classes and
+perform allocation, release, transfer, and access.
+
+The current Runtime foundation implements only the carrier and cleanup portion of this flow.
+`BufferRepresentation` and `WorkspaceRepresentation` are distinct nominal closeable roles with
+no physical access API. `BufferRepresentationBinding` marks one exact buffer representation as
+borrowed or run-owned. `RunState` retains one exact `PreparedMemoryPlan`, copies supplied list
+structure into private arrays in plan encounter order, rejects repeated representation identity,
+and exposes direct indexed access. Every supplied workspace is run-owned. Successful construction
+transfers cleanup responsibility; failed construction transfers nothing and closes nothing.
+
+Current cleanup marks the state closed first, skips borrowed buffers, and attempts every owned
+representation once in deterministic reverse order. It preserves the first unchecked exception
+or error and suppresses later failures. The state is not thread-safe, but separate states may
+share the immutable plan while keeping run-owned representations isolated. This implemented
+foundation still has no allocation, storage access, compatibility check, validity/residency,
+transfer, executable, schedule, publication/result, or runner behavior.
+
+Caller inputs are borrowed, internal buffers and workspaces are run-owned, published outputs
+transfer or lease ownership to a later `RunResult`, and immutable persistent prepared resources
+remain `PreparedExecution`-owned. A workspace is backend-local scratch rather than a transferable
+logical value; host staging and device scratch use separate workspace requirements.
+
+In the later complete lifecycle, Java representation compatibility is checked explicitly once at
+the cold binding boundary. The backend creates typed bound objects with direct references, so the
+hot path needs no map lookup,
+reflection, string dispatch, graph inspection, backend discovery, kernel selection, or repeated
+unsafe cast. The shared contracts use no raw `Object`, unchecked generic API, public backend type
+switch, registry, or service locator.
+
+The initial model adds no automatic pooling, reuse, aliasing, hidden coherence/write-back,
+distributed sharding, or multi-device scheduling. Full representation validity/residency,
+transfer, publication, result, and runner behavior remain later focused tasks.
+
 ## What a concrete backend does
 
 Each concrete backend owns preparation and execution details for the partitions assigned to it. This includes:
@@ -178,7 +230,9 @@ Each concrete backend owns preparation and execution details for the partitions 
 - concrete kernel or executable route selection;
 - exact declaration of shared buffer and workspace requirements;
 - construction of `PreparedExecutable` implementations;
-- backend storage, buffer, and workspace implementations;
+- physical buffer and workspace representation implementations plus their
+  allocation/release/transfer/access mechanics;
+- backend-owned typed cold-bound invocation objects with direct representation references;
 - backend-specific materialization and native bridge integration; and
 - backend trace contributions.
 

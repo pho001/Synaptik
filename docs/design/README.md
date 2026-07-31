@@ -18,6 +18,7 @@ Decision records are retrospective summaries of rules present in the architectur
 - [ADR 0008: Separate performance evidence and model-autotuning concerns](decisions/0008-performance-evidence-and-tuning-boundaries.md)
 - [ADR 0009: Compiler-owned pre-capture Tensor-expression autograd](decisions/0009-compiler-owned-pre-capture-tensor-expression-autograd.md)
 - [ADR 0010: Staged backend preparation](decisions/0010-staged-backend-preparation.md)
+- [ADR 0011: Per-run Runtime resource ownership and cold binding](decisions/0011-per-run-runtime-resource-ownership.md)
 
 ## Design notes
 

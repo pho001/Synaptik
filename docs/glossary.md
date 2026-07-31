@@ -35,10 +35,13 @@ public compiler, concrete binding service, compile artifact, backend decision, o
 The runtime currently provides the public immutable
 [`BufferSlot`](#buffer-slot--bufferslot) and
 [`WorkspaceSlot`](#workspace-slot--workspaceslot) identities plus
-[`PreparedMemoryPlan`](#prepared-memory-plan--preparedmemoryplan) final slot geometry. Prepare-owned
-requirement-to-slot assignment and association, Runtime slot access and binding, physical
-storage, schedules, prepared executables, per-run state, residency, publication, and execution
-remain planned.
+[`PreparedMemoryPlan`](#prepared-memory-plan--preparedmemoryplan) final slot geometry. It also
+provides the nominal `BufferRepresentation` and `WorkspaceRepresentation` lifecycle roles,
+`BufferRepresentationBinding`, `RunResourceOwnership`, and one array-backed
+[`RunState`](#run-state--runstate) for per-run reference retention and cleanup. Prepare-owned
+requirement-to-slot assignment and association, physical allocation and access,
+compatibility-aware cold binding, full validity/residency, transfers, schedules, prepared
+executables, publication/results, and execution remain planned.
 
 Prepare currently provides the public immutable analysis-side contracts in
 `io.github.pho001.synaptik.prepare.analysis`: `BackendAnalysisInputs`,
@@ -1800,7 +1803,11 @@ into physical representations and schedules.
 
 ### Lifecycle
 
-The ordered stages through which Synaptik state moves. The core lifecycle is compile, prepare, and run: compile creates immutable artifacts, prepare creates reusable executable state, and each run creates or uses invocation-specific mutable state. “Lifecycle” also includes ownership and validity rules for objects and resources within those stages. See [Lifecycle](architecture/lifecycle.md).
+The ordered stages through which Synaptik state moves. The core lifecycle is compile, prepare, and
+run: compile creates immutable artifacts, prepare creates immutable reusable executable recipes,
+and each active run creates exactly one invocation-specific mutable `RunState`. “Lifecycle” also
+includes ownership and validity rules for objects and resources within those stages. See
+[Lifecycle](architecture/lifecycle.md).
 
 ### Lowering
 
@@ -1922,7 +1929,8 @@ A `BufferSlot` is deeply immutable and may be retained by the current
 [`PreparedMemoryPlan`](#prepared-memory-plan--preparedmemoryplan). It is not a logical
 [`ValueId`](#valueid), physical buffer, storage handle, address, allocation, device, resource,
 residency fact, or per-run binding. Constructing one performs no allocation or resource operation.
-Prepare assignment, slot access, physical binding, and execution remain planned. See the
+Prepare assignment, physical binding, and execution remain planned. Current `RunState` uses the
+entry-list position rather than this numeric value for direct representation access. See the
 [Runtime API](api/runtime-api.md#current-slot-identities).
 
 ### Workspace slot / `WorkspaceSlot`
@@ -1958,8 +1966,9 @@ The plan contains geometry, not provenance or resources. It retains no Prepare a
 requirement, graph `ValueId`, analysis-local workspace ID, source-to-slot association, physical
 storage, address, allocation, ownership, aliasing or lifetime proof, device, residency, or per-run
 binding. It does not sort, derive, assign, allocate, bind, access, or release anything. A later
-Prepare contract will construct it while retaining source associations; later Runtime/backend
-contracts own physical resources and run access.
+Prepare contract will construct it while retaining source associations. Current `RunState`
+consumes the plan's entry order for per-run representation access without changing the geometry;
+later Runtime/backend contracts own physical allocation, access mechanics, and execution.
 
 ### Memory slot
 
@@ -1968,9 +1977,34 @@ storage without embedding a raw address. Current
 [`BufferSlot`](#buffer-slot--bufferslot) and
 [`WorkspaceSlot`](#workspace-slot--workspaceslot) values provide nominally separate plan-local
 identities, and current [`PreparedMemoryPlan`](#prepared-memory-plan--preparedmemoryplan) records
-their final byte geometry. Source association, storage binding, access, allocation, aliasing, and
-lifetime remain later work. A memory-slot identity is not itself a physical execution resource and
-must not be confused with a logical [`ValueId`](#valueid) or an analysis requirement ID.
+their final byte geometry. Current `RunState` accesses representations by dense plan-entry
+position rather than by interpreting either slot's numeric component. Source association,
+physical allocation and access, aliasing, and lifetime analysis remain later work. A memory-slot
+identity is not itself a physical execution resource and must not be confused with a logical
+[`ValueId`](#valueid) or an analysis requirement ID.
+
+### Physical runtime representation
+
+A concrete backend-owned implementation of one buffer or workspace in host, device, or native
+storage. Current Runtime defines the distinct nominal `BufferRepresentation` and
+`WorkspaceRepresentation` lifecycle roles, each exposing only unchecked cleanup through
+`close()`. No concrete representation implementation exists yet. Runtime owns the logical per-run
+association, ownership, and cleanup orchestration; later contracts add validity/residency. The
+backend representation owns physical allocation, release, transfer, and access mechanics. A
+buffer slot may have multiple representations only when prepared work explicitly requires them.
+A workspace representation is backend-local scratch and is not a transferable logical graph
+value.
+
+Current `BufferRepresentationBinding` retains one exact buffer representation plus
+`RunResourceOwnership.BORROWED` or `RUN_OWNED`. Borrowed cleanup remains with the caller;
+run-owned cleanup transfers only after `RunState` construction succeeds. Every workspace supplied
+to a successfully constructed state is run-owned. A repeated exact representation identity is
+rejected across every buffer and workspace position in one state.
+
+Physical representations use heterogeneous Java types. A planned cold binding phase performs
+explicit checked compatibility once and creates backend-owned typed objects with direct
+references before the hot path. No raw `Object`, unchecked generic API, registry, reflection, or
+public concrete-backend switch is part of the shared contract.
 
 ### `NoOperationAttrs`
 
@@ -2558,7 +2592,11 @@ production concrete backend implementation exists yet.
 
 ### Prepared execution / `PreparedExecution`
 
-Reusable runtime-ready state produced by prepare. It contains or refers to prepared partitions and executables, a physical memory plan, and an execution schedule. It can serve multiple runs; per-run mutable inputs and state belong to `RunState`, not to the immutable compile-time graph. See [Runtime, Prepare, and Backend Boundary](architecture/runtime-prepare-backend-boundary.md#what-prepare-creates).
+Immutable reusable runtime-ready state produced by prepare. It contains or refers to prepared
+partitions and executable recipes, memory geometry, an execution schedule, and any immutable
+persistent prepared resources. It can serve concurrent runs; every active complete logical run
+has its own `RunState` and isolated mutable/run-owned resources. See [Runtime, Prepare, and Backend
+Boundary](architecture/runtime-prepare-backend-boundary.md#what-prepare-creates).
 
 ### Prepared executable / `PreparedExecutable`
 
@@ -2688,11 +2726,19 @@ runtime publication.
 
 ### Residency
 
-Runtime knowledge of where a value's current physical representation exists, such as host or device storage, and which representation is valid after transfers or execution. Residency is dynamic per-run/runtime state. It does not belong to the model `Tensor`, compile-time planning, or `LayoutDescriptor`.
+Runtime knowledge of which explicitly prepared physical representation of a logical buffer is
+valid and where it resides after transfers or execution. Residency belongs to one `RunState`; it
+is not shared prepared state and does not belong to the model `Tensor`, compile-time planning, or
+`LayoutDescriptor`. Residency does not imply automatic coherence or hidden write-back.
 
 ### Run / runtime
 
-**Run** is one invocation of a `PreparedExecution`: it binds inputs, creates or reuses `RunState`, follows the prepared schedule, executes prepared units, manages scheduled transfers or materialization, and publishes results. **Runtime** is the module and machinery that performs this work. Run does not optimize graphs, discover backends, lower partitions, or choose kernels. See [Lifecycle](architecture/lifecycle.md#run-lifecycle).
+**Run** is one invocation of a `PreparedExecution`. It creates exactly one `RunState` for the
+complete heterogeneous logical run, borrows caller inputs, follows explicit prepared resource and
+schedule work, executes cold-bound prepared units, manages residency/materialization/transfer,
+publishes results, and cleans resources still owned by the run. **Runtime** is the module and
+machinery that performs this work. Run does not optimize graphs, discover backends, lower
+partitions, or choose kernels. See [Lifecycle](architecture/lifecycle.md#run-lifecycle).
 
 ### Runtime profiling
 
@@ -2703,7 +2749,25 @@ into the current run. Concrete runtime-profile payloads and emitters remain plan
 
 ### Run state / `RunState`
 
-Mutable state for one invocation of prepared execution, including input bindings, runtime slots, resources, and current residency facts as defined by future runtime contracts. It is separate from reusable `PreparedExecution` and immutable compile artifacts.
+The implemented public final lifecycle owner for physical representation bindings in one complete
+logical run. It spans all backend partitions in that run; it is not one state per backend or
+partition. Construction retains the exact immutable `PreparedMemoryPlan`, snapshots supplied list
+structure into private arrays in plan encounter order, and retains every exact binding and
+representation reference. Dense access indices are entry-list positions, not
+`BufferSlot.value()` or `WorkspaceSlot.value()`.
+
+Each buffer position contains one or more ordered bindings, and each workspace position contains
+one run-owned representation. Successful construction transfers cleanup responsibility for
+`RUN_OWNED` buffers and all workspaces; failed construction transfers nothing. Closing marks the
+state closed first, skips borrowed buffers, attempts owned resources once in deterministic reverse
+order, preserves the first `RuntimeException` or `Error`, and suppresses later failures.
+Representation access is closed after that transition, but the exact plan and counts remain
+inspectable. Repeated close is inert.
+
+One state is not thread-safe. Concurrent runs have distinct states and distinct run-owned
+representations, though they may share the immutable plan. The current carrier does not implement
+allocation, physical access, validity/residency, compatibility-aware cold binding, transfer,
+schedule execution, publication/result ownership transfer, or a runner.
 
 ### Sample domain
 

@@ -9,8 +9,12 @@ These lifecycle stages are architecture contracts, not current runnable APIs. Th
 Synaptik deliberately separates three kinds of state:
 
 - The **compile-time graph** is the immutable `CompiledGraphModel` and its associated `CompileArtifacts`. It contains graph semantics, backend ownership, logical memory requirements, and publication bindings.
-- **Prepared execution** is reusable runtime-ready state: prepared partitions, executable units, a physical memory plan, and an execution schedule.
-- **Per-run mutable state** is `RunState`, which tracks the inputs and dynamic execution state for a particular invocation.
+- **Prepared execution** is immutable reusable runtime-ready state: prepared partitions,
+  executable recipes, memory geometry, a schedule, and any immutable persistent prepared
+  resources.
+- **Per-run mutable state** is exactly one `RunState` for each active complete logical invocation.
+  It covers every backend partition in that heterogeneous run and tracks its logical slots,
+  resources, validity, and residency without sharing mutable state with another run.
 
 The compiler does not create physical buffers or executable units. Runtime does not revisit graph transformations or implementation selection.
 
@@ -86,21 +90,37 @@ See [Runtime, Prepare, and Backend Boundary](runtime-prepare-backend-boundary.md
 
 ```text
 PreparedExecution.run(...)
-  -> create or reuse RunState
-  -> bind inputs
+  -> create one RunState for this complete logical run
+  -> bind caller inputs as borrowed representations
+  -> create run-owned internal and workspace representations through prepared backend work
+  -> cold-bind backend-owned typed invocation objects to checked direct references
   -> execute PreparedSchedule
-  -> perform prepared residency/materialization work as needed
+  -> perform explicit prepared residency/materialization/transfer work as needed
   -> PreparedExecutable.execute(...)
   -> update residency
-  -> publish requested results
+  -> publish requested results and transfer or lease their ownership
   -> RunResult
+  -> release resources still owned by RunState
 ```
 
-Run executes prepared work. It must not perform graph optimization, autograd construction, compiler passes, backend discovery, backend-specific lowering, or kernel selection.
+Run executes prepared work. It must not perform graph optimization, autograd construction,
+compiler passes, backend discovery, backend-specific lowering, or kernel selection. Runtime owns
+logical per-run state and cleanup orchestration; concrete backends own physical representation
+classes and their allocation, release, transfer, and access mechanics.
+
+The cold binding step is the only boundary where heterogeneous backend representation types are
+checked dynamically. It creates backend-owned typed objects with direct references before the hot
+path. Execution therefore needs no map lookup, reflection, string dispatch, graph inspection,
+service lookup, or repeated unsafe cast.
 
 ## State scenario
 
-Suppose one compiled graph is prepared once for CPU and then run twice with different input values. The immutable `CompileArtifacts` and reusable `PreparedExecution` are shared. Each invocation has distinct input bindings and `RunState`. Storing the second run's current buffer residency in the compiled graph would mix per-run mutable state into the immutable recipe; selecting a different CPU route during the second run would repeat a prepare-time decision in the hot path.
+Suppose one compiled graph is prepared once for CPU and then run concurrently twice with different
+input values. The immutable `CompileArtifacts` and `PreparedExecution` are shared. Each invocation
+has one distinct `RunState`, borrowed input bindings, and isolated run-owned buffers/workspaces.
+Storing either run's residency in the prepared recipe would mix mutable invocation state into
+shared state; selecting another CPU route during either run would repeat a prepare-time decision
+in the hot path.
 
 ## Training lifecycle
 

@@ -64,6 +64,13 @@ Its output is immutable compile-time state. It does not create physical buffers,
 
 Owns prepared execution contracts and dynamic execution state, including `PreparedExecution`, `PreparedUnit`, `PreparedExecutable`, `PreparedSchedule`, `PreparedMemoryPlan`, slots, `RunState`, resources, transfers, residency, publication, and the prepared execution runner.
 
+Prepared recipes are immutable and reusable. Each active complete logical run has one isolated
+mutable `RunState`, even when its schedule spans multiple backends. Runtime owns logical slot
+state, ownership transitions, validity/residency, cleanup orchestration, and run isolation;
+concrete backends own physical buffer/workspace representation implementations and the actual
+allocation, release, transfer, and access mechanics. Checked heterogeneous binding occurs once
+before the hot path and produces backend-owned typed direct-reference invocation objects.
+
 Runtime executes already-prepared schedules. It does not optimize graphs, construct autograd,
 discover backends, look up backend services, lower partitions, select kernels, autotune, inspect
 the graph for tuning, or access or mutate tuning caches. Runtime profiling is passive observation
@@ -90,7 +97,8 @@ Engine does not own kernels, backend internals, graph optimization passes, a run
 `backends/cpu`, `backends/metal`, and `backends/cuda` are vertical implementations. Each backend
 owns its capability provider, deterministic partition analysis, lowering, fusion, specialization,
 route selection, opaque analysis plan, executable finalization against assigned slots, executable
-units, storage and workspace, trace contributions, and native integration.
+units, physical buffer and workspace representations, their allocation/release/transfer/access
+mechanics, typed cold-bound invocation objects, trace contributions, and native integration.
 
 Concrete backend logic belongs in the backend that implements it:
 

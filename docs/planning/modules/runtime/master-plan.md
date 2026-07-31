@@ -53,17 +53,19 @@ Execute prepared schedules and own dynamic per-run state, residency, transfers, 
 ```text
 io.github.pho001.synaptik.runtime/
   memory/     public prepared-memory identity and later runtime slot-access contracts
+  resource/   nominal physical representation roles implemented by concrete backends
   execution/  later prepared executable, unit, execution, and runner contracts
   schedule/   later prepared schedule and step contracts
-  run/        later per-run state, resource, residency, and result contracts
+  run/        per-run ownership/binding state and later residency/result contracts
 ```
 
 The module root is not a catch-all facade. Runtime 0001 opened `memory` with the immutable
 `BufferSlot` identity. Complete Runtime 0002 extends only that package with `WorkspaceSlot` and
 immutable final per-slot byte-size/alignment geometry in `PreparedMemoryPlan`. Runtime remains
 independent of Prepare and Model: a later Prepare-owned contract translates analysis requirements
-and retains source-to-slot associations. Later Runtime packages remain planned until their
-invocation, storage, schedule, configuration, and lifecycle consumers justify exact contracts.
+and retains source-to-slot associations. Runtime 0003 opens `resource` and `run` with the minimal
+representation/lifecycle foundation; later invocation, residency, schedule, configuration, and
+result contracts remain planned until their consumers justify exact surfaces.
 
 ## Task list
 
@@ -71,7 +73,7 @@ invocation, storage, schedule, configuration, and lifecycle consumers justify ex
 |---|---|---|---|---|
 | 0001 | [Prepared buffer-slot identity](tasks/0001-prepared-buffer-slot-identity.md) | Complete | Compiler 0006; Planning 0006; Backend Contract 0004; Trace 0002 | Replaced the placeholder with one immutable prepared-plan-local `BufferSlot` identity required to bind later prepared-unit inputs and outputs, without physical storage, allocation, graph values, workspace, execution, or run state. |
 | 0002 | [Prepared memory and workspace contracts](tasks/0002-prepared-memory-and-workspace-contracts.md) | Complete | 0001; Prepare 0001 | Added `WorkspaceSlot` and immutable final per-buffer-slot/per-workspace-slot byte-size/alignment geometry without importing Prepare/Model facts; later Prepare translation retains exact requirement associations and conservatively assigns distinct slots. |
-| 0003 | Run-state and runtime slot-access foundation | Draft | 0002; stable input-binding, storage-access, and resource contracts | Define per-run mutable state and typed slot access without graph inspection, backend discovery, or implementation selection. |
+| 0003 | [Run-state and runtime resource foundation](tasks/0003-run-state-and-runtime-resource-foundation.md) | Complete | 0002; ADR 0011 | Added nominal backend-owned buffer/workspace representation roles, borrowed/run-owned buffer bindings, and one array-backed closeable `RunState` per complete logical run without executable binding, residency, scheduling, transfer, publication, or allocation. |
 | 0004 | Prepared executable and unit contracts | Draft | 0001–0003 | Define the backend-neutral invocation boundary and unit-to-slot bindings only after its concrete run-state access contract is stable. |
 | 0005 | Prepared schedule contract | Draft | 0002–0004; Prepare 0002 finalization | Define ordered executable, transfer, materialization, and publication work without performing prepare-time selection. |
 | 0006 | Prepared execution aggregate and lifecycle | Draft | 0002–0005; stable run and publication configuration | Compose reusable prepared state while keeping all invocation mutation in `RunState`. |
@@ -87,19 +89,18 @@ invocation, storage, schedule, configuration, and lifecycle consumers justify ex
 ## Current status
 
 In progress after completion of
-[Runtime 0002](tasks/0002-prepared-memory-and-workspace-contracts.md). The current public
-`runtime.memory` package contains nominally distinct non-negative `BufferSlot` and
-`WorkspaceSlot` identities plus immutable `PreparedMemoryPlan` final geometry. Its ordered
-buffer/workspace snapshots retain exact immutable entries and slots, reject duplicates in
-separate identity domains, and carry exact non-negative byte sizes and positive power-of-two
-alignments.
+[Runtime 0003](tasks/0003-run-state-and-runtime-resource-foundation.md). The current public
+Runtime surface now includes immutable `runtime.memory` geometry, nominal
+`runtime.resource` buffer/workspace cleanup roles, and the `runtime.run` ownership, binding, and
+one-run lifecycle foundation.
 
-Runtime 0002's focused command passed two suites and 21 tests; the single final module command
-passed three suites and 25 tests with no failures, errors, or skips. The separate clean
-documentation pass finalized production/package Javadocs, Runtime API, focused architecture
-status, glossary, and planning records without changing executable Java or repeating the
-successful suites. Runtime Javadoc, a compiled Java 26 API example, Markdown, source/import,
-build/toolchain, exact 11-path scope, status/specification-absence, and whitespace gates passed.
+Runtime 0003's focused command passed three suites and 20 tests; the single final module command
+passed six suites and 45 tests with no failures, errors, or skips. The separate clean
+documentation pass finalized all seven production/package Javadocs, Runtime API, focused
+architecture implementation status, glossary, and planning records without changing executable
+Java or repeating the successful suites. Runtime Javadoc, targeted Markdown, exact public
+surface/import/mechanism/build/scope/status/later-specification, generated-page, and whitespace
+gates passed.
 
 The former task-0002 producer blocker is resolved by Complete
 [Prepare 0001](../prepare/tasks/0001-backend-partition-analysis-and-resource-declaration.md).
@@ -116,22 +117,33 @@ retain the exact source-to-slot associations, and construct the Runtime plan. It
 must assign one distinct buffer slot per distinct declared buffer value and one distinct workspace
 slot per workspace declaration; no reuse or lifetime interval is invented.
 
-Tasks 0003–0008 remain Draft without detailed specifications. Runtime 0003 is the next ordered
-row but requires a separate frontier-planning step. Runtime 0003–0004 still need the
-prepared-memory result before they can define typed per-run slot access and the backend-neutral
-executable invocation contract. Prepare finalization follows those contracts, and physical
-allocation and per-run binding remain later Runtime/backend work.
+ADR 0011 resolves the Runtime 0003 blocker. Prepared recipes are immutable/reusable; each active
+complete logical run has one isolated `RunState`; Runtime orchestrates logical state and cleanup;
+and concrete backends implement physical representations and mechanics. Heterogeneous
+compatibility is checked once during later cold binding, which creates backend-owned typed direct-
+reference invocation objects before the hot path.
+
+Complete Runtime 0003 provides the smallest foundation: two nominal closeable physical-
+representation roles, one borrowed/run-owned buffer-binding value, and array-indexed `RunState`
+access ordered exactly like `PreparedMemoryPlan`. It carries more than one explicitly supplied
+buffer representation without defining validity/coherence semantics. Workspace positions bind one
+run-owned backend-local representation. Construction retains exact references and transfers
+cleanup only after all validation succeeds. Closed-first deterministic reverse cleanup skips
+borrowed buffers, preserves unchecked failures, and is idempotent.
+
+Allocation, typed bound invocation, full residency, transfers, publication/results, scheduling,
+and execution remain later tasks. Runtime 0004 is the next Draft row and has no detailed
+specification.
+
+Runtime 0004–0008 and Prepare 0002 remain Draft without detailed specifications. Backend Contract
+remains closed, and module dependency directions are unchanged.
 
 ## Open questions
 
-- The exact physical buffer, workspace, resource-lifetime, and runtime slot-access contracts remain
-  open until their concrete prepare, backend, and runner consumers are stable.
 - Prepare 0002 must later finalize the exact requirement-to-slot association consumed by backend
   finalization while producing Runtime 0002's dependency-neutral final slot geometry.
-- The exact `PreparedExecutable.execute(...)` parameter and failure contract remain open until
-  `RunState` and runtime slot access are defined.
-- Concurrency and reusable prepared-resource ownership remain open for the later prepared
-  execution lifecycle task.
+- Runtime 0004 must define the typed cold-bound invocation and exact execution failure contract
+  against Runtime 0003's nominal representation carrier.
 
 ## Decisions made
 
@@ -162,6 +174,18 @@ allocation and per-run binding remain later Runtime/backend work.
 - A prepared executable invocation contract is deferred until its per-run access context is
   concrete; runtime must not compensate with a zero-argument executable, untyped object map, or
   compile-time graph parameter.
+- ADR 0011 assigns physical representation implementations/mechanics to concrete backends and
+  per-run logical state/lifecycle orchestration to Runtime. Backend Contract remains closed.
+- `PreparedMemoryPlan` and later prepared recipes are immutable and reusable. Every active
+  complete logical run has exactly one distinct `RunState`; run-owned mutable resources are
+  isolated, while caller inputs may be borrowed under an explicit lifetime obligation.
+- Runtime 0003 uses nominal closeable representation roles and array-indexed state only. Runtime
+  0004 owns checked cold binding to backend-owned typed direct-reference invocation objects; full
+  validity/residency and transfer associations remain later.
+- Buffer/workspace identity domains distinguish shared buffer positions from scratch positions,
+  but they do not distinguish caller input, internal value, or published-output roles. Those
+  roles must come from later Prepare/publication associations rather than a speculative Runtime
+  role enum in task 0003.
 
 ## Risks
 

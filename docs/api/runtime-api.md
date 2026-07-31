@@ -2,27 +2,37 @@
 
 ## Purpose and implementation status
 
-This reference explains the current Runtime-owned slot identities and final prepared-memory
-geometry. The implemented `io.github.pho001.synaptik.runtime.memory` surface contains
-`BufferSlot`, `WorkspaceSlot`, and `PreparedMemoryPlan` with its nested `BufferEntry` and
-`WorkspaceEntry` records.
+This reference explains the implemented Runtime foundations for prepared-memory geometry and one
+run's physical-representation lifecycle. The current public surface contains:
 
-The final geometry carrier is current, but the Prepare-owned assignment that constructs it from
-backend analyses is not. Physical allocation, per-run binding and access, schedules, prepared
-executables, and runnable Runtime APIs also remain planned.
+- `runtime.memory`: `BufferSlot`, `WorkspaceSlot`, and `PreparedMemoryPlan` with its nested
+  `BufferEntry` and `WorkspaceEntry` records;
+- `runtime.resource`: the nominal `BufferRepresentation` and `WorkspaceRepresentation` lifecycle
+  roles implemented by concrete backends; and
+- `runtime.run`: `RunResourceOwnership`, `BufferRepresentationBinding`, and `RunState`.
+
+The geometry carrier and per-run representation carrier are current. Prepare-owned slot
+assignment, physical allocation and storage access, compatibility-aware cold binding, full
+validity/residency, transfers, schedules, prepared executables, publication/results, and a
+runnable Runtime facade remain planned.
 
 ## Mental model
 
 ```text
-compile facts             prepare handoff                  Runtime geometry           run
-ValueId / requirement -> source-to-slot assignment -> BufferSlot / WorkspaceSlot -> bound storage
-current                  planned                         current                    planned
+compile facts             prepare handoff               Runtime geometry        current run carrier
+ValueId / requirement -> source-to-slot assignment -> prepared slot order -> RunState arrays
+current                  planned                      current               current
+                                                                                |
+                                                                                v
+                                                     allocation / cold binding / execute
+                                                                  planned
 ```
 
 Read the flow from logical source facts toward invocation state. Prepare currently exposes exact
 buffer and workspace requirements through `BackendPartitionAnalysis`. A later Prepare contract
-will retain the source-to-slot associations and construct the current Runtime geometry. The
-Runtime records neither derive that mapping nor bind storage.
+will retain source-to-slot associations and construct the Runtime geometry. Current `RunState`
+then accepts already-created representations in that geometry's encounter order. It neither
+derives the source mapping nor allocates, inspects, transfers, or executes physical storage.
 
 ## Current slot identities
 
@@ -90,6 +100,105 @@ This result describes geometry only. It does not say which graph value produced 
 requirement, which backend analysis requested the workspace, whether the two positions alias
 physical storage, or how a run accesses either position.
 
+## Current per-run representation foundation
+
+`BufferRepresentation` and `WorkspaceRepresentation` are deliberately distinct nominal
+`AutoCloseable` roles. Each exposes only `close()` without a checked exception. A concrete backend
+implements the physical storage and cleanup mechanics; the shared Runtime API exposes no storage,
+backend, device, transfer, validity, or residency accessor.
+
+`BufferRepresentationBinding` retains one exact buffer representation and one ownership value:
+
+- `BORROWED` keeps cleanup responsibility with the caller for the complete run; and
+- `RUN_OWNED` transfers cleanup responsibility only after `RunState` construction succeeds.
+
+Every workspace supplied to a successfully constructed state is run-owned. Construction failure
+transfers no ownership and closes nothing.
+
+One `RunState` covers one complete logical run, including all backend partitions. It retains the
+exact `PreparedMemoryPlan`, snapshots only the supplied list structure into private arrays, and
+retains every exact binding and representation reference. Buffer and workspace indices are dense
+zero-based positions in `plan.buffers()` and `plan.workspaces()` encounter order; they are not the
+numeric values inside `BufferSlot` or `WorkspaceSlot`. A buffer position has one or more ordered
+representations, while a workspace position has exactly one representation.
+
+The carrier does not say which buffer representation is valid or resident and provides no
+coherence, transfer, or backend-compatibility behavior. The same representation object cannot
+occur twice anywhere in one state, including across buffer and workspace domains.
+
+## Focused run-state example
+
+### Goal and inputs
+
+Bind one borrowed caller buffer, one run-owned internal buffer, and one run-owned workspace to the
+single buffer and workspace positions from the preceding plan. The counters make cleanup
+observable without claiming a physical storage implementation.
+
+```java
+import io.github.pho001.synaptik.runtime.resource.BufferRepresentation;
+import io.github.pho001.synaptik.runtime.resource.WorkspaceRepresentation;
+import io.github.pho001.synaptik.runtime.run.BufferRepresentationBinding;
+import io.github.pho001.synaptik.runtime.run.RunResourceOwnership;
+import io.github.pho001.synaptik.runtime.run.RunState;
+import java.util.List;
+import java.util.concurrent.atomic.AtomicInteger;
+
+AtomicInteger borrowedCloses = new AtomicInteger();
+AtomicInteger ownedCloses = new AtomicInteger();
+AtomicInteger workspaceCloses = new AtomicInteger();
+
+BufferRepresentation borrowed = borrowedCloses::incrementAndGet;
+BufferRepresentation owned = ownedCloses::incrementAndGet;
+WorkspaceRepresentation workspace = workspaceCloses::incrementAndGet;
+
+RunState state =
+        new RunState(
+                plan,
+                List.of(
+                        List.of(
+                                new BufferRepresentationBinding(
+                                        borrowed, RunResourceOwnership.BORROWED),
+                                new BufferRepresentationBinding(
+                                        owned, RunResourceOwnership.RUN_OWNED))),
+                List.of(workspace));
+
+BufferRepresentationBinding first = state.bufferRepresentation(0, 0);
+state.close();
+state.close();
+```
+
+### Result and interpretation
+
+Before closure, `first` is the exact borrowed binding supplied at construction. The state reports
+one buffer position, two ordered buffer representations, and one workspace position. After both
+`close()` calls, `borrowedCloses.get()` is `0`, while `ownedCloses.get()` and
+`workspaceCloses.get()` are each `1`. This demonstrates ownership-sensitive, idempotent cleanup;
+it does not allocate storage, select a backend, establish representation validity, or run a
+prepared executable.
+
+## Run-state lifecycle and failures
+
+`RunState.close()` marks the state closed before physical cleanup. It closes workspaces from last
+position to first, then run-owned buffer representations from last buffer position to first and
+last representation to first. Borrowed buffers are skipped. Every owned representation is
+attempted once. The first `RuntimeException` or `Error` is rethrown after all attempts, with later
+failures attached in cleanup encounter order as suppressed exceptions. Repeated closure performs
+no cleanup and does not rethrow an earlier failure.
+
+Representation access after closure fails first with
+`IllegalStateException("run state is closed")`. The retained plan, slot counts, per-buffer
+representation counts, and `isClosed()` remain inspectable. `RunState` is not thread-safe;
+callers must not race access and closure on one instance. Concurrent runs may share the immutable
+plan but require distinct run-owned representations. Borrowed representations may be shared only
+when the caller guarantees their lifetime, safe access, and external synchronization.
+
+Construction validates top-level nulls, plan-sized counts, each ordered buffer position, and then
+each ordered workspace position. Null failures identify the argument or indexed position. Count,
+empty-list, and duplicate-identity failures are `IllegalArgumentException`; every duplicate exact
+identity reports `representation is already bound to this run`. Invalid access indices use
+`IndexOutOfBoundsException` and identify `bufferIndex`, `representationIndex`, or
+`workspaceIndex` with the rejected value.
+
 ## Failures
 
 Entry construction checks slot nullness, then byte size, then byte alignment. A null slot fails
@@ -111,12 +220,13 @@ buffer value and one distinct workspace slot per workspace declaration. Reuse re
 proved lifetime/interference model.
 
 `PreparedExecution` will contain or reference prepared partitions, executable units, prepared
-memory, and a schedule. Preparation creates it once for a selected set of explicitly registered
-backends; multiple runs may reuse it.
+memory, a schedule, and any immutable persistent prepared resources. Preparation creates it once
+for a selected set of explicitly registered backends; multiple runs may reuse it concurrently
+without sharing mutable invocation state.
 
 `PreparedExecutable` will compute only its prepared region. Its hot-path contract will not receive `Operation` or `CompiledNode`, and runtime will not ask it to rediscover a backend or select a kernel.
 
-## Planned run contract
+## Planned execution and publication contract
 
 ```java
 // Conceptual API; not currently runnable.
@@ -125,10 +235,15 @@ RunResult result = execution.run(inputs, RunOptions.defaults());
 
 - `inputs` will bind invocation values to prepared input bindings.
 - `RunOptions` will hold declarative run and publication choices, not live services.
-- `RunState` will own per-run mutable slots, resources, and residency facts.
+- Exactly one current `RunState` will be populated and consumed by the future runner for the
+  complete heterogeneous logical run.
 - `RunResult` will expose results published by the prepared publication plan and run policy.
 
-Exact collection types, nullability, concurrency guarantees, ownership of returned values, exception types, and resource-lifetime methods remain open until focused runtime tasks define and test them.
+Current ownership distinguishes borrowed inputs from run-owned internal resources. Future
+publication will transfer or lease selected outputs to `RunResult`, while immutable persistent
+prepared resources stay with `PreparedExecution`. A future cold checked binding phase will create
+backend-owned typed invocation objects with direct references before execution. Exact result,
+transfer, residency, and runner behavior remain for focused Runtime tasks.
 
 ## Boundary and failure model
 

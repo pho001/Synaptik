@@ -154,8 +154,11 @@ The following invariants must remain true:
 - `Operation` must not expose `supportedBackends()`.
 - `CompiledGraphModel` is immutable compile-time graph state.
 - `CompileArtifacts` are immutable compile-time output.
-- `PreparedExecution` is prepared runtime state.
-- `RunState` is per-run mutable state.
+- `PreparedExecution`, its prepared memory/schedule/executable recipes, and immutable persistent
+  prepared resources are immutable and reusable across runs.
+- Each active logical execution of one `PreparedExecution` has exactly one mutable `RunState`
+  covering the complete heterogeneous run. Concurrent runs use distinct `RunState` instances and
+  isolated mutable state and run-owned resources.
 - `PreparedExecutable` computes only its prepared region.
 - Runtime hot path must not see `Operation` or `CompiledNode`.
 - Compiler must not allocate physical buffers.
@@ -617,6 +620,31 @@ Runtime does not select kernels.
 
 Runtime does not discover backend plugins.
 
+Runtime owns each run's logical slot state, resource-lifecycle orchestration, representation
+validity and residency needed by the prepared schedule, failure cleanup, and concurrent-run
+isolation. Concrete backends own physical buffer and workspace representation implementations and
+the allocation, release, transfer, and access mechanics for those representations. Runtime must
+not know concrete host, native, Metal, or CUDA storage classes and must not choose a backend.
+
+A buffer slot may have one or more backend/device representations only when the prepared schedule
+requires them. Representation creation and transfer are explicit prepared work, not on-demand
+kernel or backend discovery. A workspace slot is per-run backend-local implementation scratch and
+normally binds one physical representation for its declared use; host staging and device scratch
+are separate workspace requirements when both are needed.
+
+Caller inputs are borrowed for one run. Internal buffers and workspaces are run-owned. Published
+outputs transfer or lease ownership to `RunResult`, while immutable persistent prepared resources
+remain owned by `PreparedExecution` and are not ordinary workspace. Runtime orchestrates cleanup,
+but concrete representations perform physical release. Failure cleanup releases only resources
+still owned by the run, never borrowed inputs or already transferred outputs.
+
+Before hot-path execution, a cold binding phase validates representation compatibility and creates
+backend-owned typed bound invocation objects with direct references. Any heterogeneous Java type
+check is explicit, checked, and confined to that boundary. The hot path performs no map lookup,
+reflection, string dispatch, graph inspection, backend discovery, kernel selection, or repeated
+unsafe cast. Runtime resource contracts must not use raw `Object`, unchecked generic access, a
+global registry, a service locator, or a public switch over concrete backend types.
+
 ### `modules/prepare`
 
 `modules/prepare` owns shared prepare contracts and validation.
@@ -1050,6 +1078,7 @@ docs/
       0008-performance-evidence-and-tuning-boundaries.md
       0009-compiler-owned-pre-capture-tensor-expression-autograd.md
       0010-staged-backend-preparation.md
+      0011-per-run-runtime-resource-ownership.md
     notes/
 
   user-guide/
@@ -1211,14 +1240,17 @@ Run lifecycle:
 
 ```text
 PreparedExecution.run(...)
-  -> create/reuse RunState
-  -> bind inputs
+  -> create exactly one RunState for the complete logical run
+  -> bind caller inputs as borrowed resources
+  -> create run-owned internal buffer/workspace representations through prepared backend work
+  -> perform cold checked binding to backend-owned typed invocation objects
   -> execute PreparedSchedule
-  -> residency/materialization as needed
+  -> perform explicit prepared residency/materialization/transfer work as needed
   -> PreparedExecutable.execute(...)
   -> update residency
-  -> publication
+  -> publication and output ownership transfer/lease
   -> RunResult
+  -> release resources still owned by RunState
 ```
 
 Run must not perform:
@@ -1229,6 +1261,11 @@ Run must not perform:
 - kernel selection
 - backend-specific lowering
 - compiler passes
+
+The initial runtime resource model introduces no automatic pooling, reuse, aliasing, distributed
+sharding, hidden mutation/coherence protocol, or multi-device scheduling. Multiple physical
+representations exist only when explicitly required by a prepared schedule, and immutable
+functional value semantics do not imply hidden write-back between them.
 
 ## Optimizer/training lifecycle
 
@@ -1373,7 +1410,7 @@ CompileArtifacts are an immutable recipe.
 Planning scoring selects backend ownership, not kernel implementation.
 Backend analysis selects a route and declares exact shared requirements before slot assignment.
 Backend finalization constructs executable state only after slot assignment.
-PreparedExecution is prepared runtime state.
-RunState is per-run mutable state.
+PreparedExecution recipes are immutable and reusable across runs.
+Exactly one RunState owns the mutable state of each active complete logical run.
 PreparedExecutable computes only its prepared region.
 ```
