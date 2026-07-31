@@ -19,7 +19,7 @@ Parallel work is not the default. It requires an explicit roadmap or master-plan
 | 3 | [`modules/backend-contract`](modules/backend-contract/master-plan.md) | Complete | Foundational value-model conventions and the stable trace foundation are complete. | Backend identity and declarative requirement contracts are complete. |
 | 4 | [`modules/config`](modules/config/master-plan.md) | In progress (interleaved) | Model and backend identity contracts required by configuration are stable. | Compile, prepare, run, planning-cost, and model-autotuning request contracts are complete where stable consumers justify them. |
 | 5 | [`modules/planning`](modules/planning/master-plan.md) | Complete | Stable model/backend identity contracts permit the explicitly bounded capability-query interleave before config scoring is complete. | Ownership, partitioning, scoring, logical memory planning, and the selected contract-closure audit are complete. |
-| 6 | [`modules/runtime`](modules/runtime/master-plan.md) | In progress (0003 Complete) | Compiler/planning handoff, backend identities, the trace foundation, and ADR 0011's per-run resource ownership/cold-binding decision are stable. | Prepared runtime contracts and dynamic run-state foundations are complete. |
+| 6 | [`modules/runtime`](modules/runtime/master-plan.md) | In progress (0004 Ready) | Compiler/planning handoff, backend identities, the trace foundation, and ADR 0011's per-run resource ownership/cold-binding decision are stable. | Prepared runtime contracts and dynamic run-state foundations are complete. |
 | 7 | [`modules/compiler`](modules/compiler/master-plan.md) | Complete | Model, config, planning, backend-contract, and trace contracts are ready for the complete compiler lifecycle; bounded task 0001 may start from the closed model graph/provenance contracts alone. | Compile artifacts, graph transformations, and autograd compilation are complete. |
 | 8 | [`modules/prepare`](modules/prepare/master-plan.md) | In progress (interleaved) | Compiler/planning artifacts and Runtime 0001 are stable; ADR 0010 authorizes the analysis-first staged handoff. | Shared prepare contracts and validation are complete. |
 | 9 | [`backends/openblas-provider`](backends/openblas-provider/master-plan.md) | Draft | Native interop conventions needed by the provider are decided. | The low-level provider contract and validation are complete. |
@@ -100,7 +100,7 @@ Prepare 0001 analysis request/result and exact resource declarations
   -> Runtime 0002 workspace slots and final prepared-memory geometry
   -> later Prepare assignment and source-to-slot association
   -> Runtime 0003 run-state/resource foundation (Complete)
-  -> Runtime 0004 executable and cold-binding contracts (Draft)
+  -> Runtime 0004 executable and cold-binding contracts (Ready)
   -> Prepare 0002 backend finalization against assigned slots
   -> Runtime schedule/execution work
   -> first concrete backend implementation
@@ -149,9 +149,21 @@ validity/coherence; workspace remains one run-owned backend-local representation
 Executable/bound invocation, Prepare finalization, allocation, full residency, transfer,
 publication/results, scheduling, and runner work remain later.
 
-Runtime 0004–0008 and Prepare 0002 remain Draft without detailed specifications. Backend Contract
-remains Complete and closed. Module dependency directions are unchanged, so architecture tests do
-not require an update for this decision.
+Detailed
+[Runtime 0004 Prepared executable and bound invocation](modules/runtime/tasks/0004-prepared-executable-and-bound-invocation.md)
+is Ready. It defines one immutable reusable `PreparedExecutable` recipe with ordered dense buffer/
+representation and workspace selections, final common plan/run validation, explicit concrete-
+backend compatibility hooks, and one per-run backend-owned `BoundInvocation`. The invocation
+retains the exact `RunState`, rejects execution after that state closes, and stores direct concrete
+typed references so its hot call performs no slot lookup, compatibility cast, graph work, backend
+discovery, route/configuration search, allocation, transfer, residency decision, or publication.
+
+Runtime 0004 adds no auxiliary binding-resource lifecycle and deliberately omits `PreparedUnit`:
+no current Prepare finalization or Runtime schedule consumer justifies a distinct wrapper or
+input/output-role invariant. Prepare 0002 or Runtime 0005 must establish that role from its actual
+consumer. Runtime 0005–0008 and Prepare 0002 remain Draft without detailed specifications.
+Backend Contract remains Complete and closed. Module dependency directions are unchanged, so
+architecture tests do not require an update for this planning decision.
 
 The completed Runtime foundation still adds no physical allocation/access, graph-value conversion
 or source association, `PreparedExecutable`, `PreparedUnit`, schedule, runner, publication,

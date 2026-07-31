@@ -74,8 +74,8 @@ result contracts remain planned until their consumers justify exact surfaces.
 | 0001 | [Prepared buffer-slot identity](tasks/0001-prepared-buffer-slot-identity.md) | Complete | Compiler 0006; Planning 0006; Backend Contract 0004; Trace 0002 | Replaced the placeholder with one immutable prepared-plan-local `BufferSlot` identity required to bind later prepared-unit inputs and outputs, without physical storage, allocation, graph values, workspace, execution, or run state. |
 | 0002 | [Prepared memory and workspace contracts](tasks/0002-prepared-memory-and-workspace-contracts.md) | Complete | 0001; Prepare 0001 | Added `WorkspaceSlot` and immutable final per-buffer-slot/per-workspace-slot byte-size/alignment geometry without importing Prepare/Model facts; later Prepare translation retains exact requirement associations and conservatively assigns distinct slots. |
 | 0003 | [Run-state and runtime resource foundation](tasks/0003-run-state-and-runtime-resource-foundation.md) | Complete | 0002; ADR 0011 | Added nominal backend-owned buffer/workspace representation roles, borrowed/run-owned buffer bindings, and one array-backed closeable `RunState` per complete logical run without executable binding, residency, scheduling, transfer, publication, or allocation. |
-| 0004 | Prepared executable and unit contracts | Draft | 0001–0003 | Define the backend-neutral invocation boundary and unit-to-slot bindings only after its concrete run-state access contract is stable. |
-| 0005 | Prepared schedule contract | Draft | 0002–0004; Prepare 0002 finalization | Define ordered executable, transfer, materialization, and publication work without performing prepare-time selection. |
+| 0004 | [Prepared executable and bound invocation](tasks/0004-prepared-executable-and-bound-invocation.md) | Ready | 0001–0003; ADR 0011 | Add immutable dense resource selections, final checked cold binding, and one per-run backend-owned typed bound invocation without a redundant prepared-unit wrapper. |
+| 0005 | Prepared schedule contract | Draft | 0002–0004; Prepare 0002 finalization | Decide whether the actual partition/schedule consumer justifies a distinct `PreparedUnit`, then define ordered executable, transfer, materialization, and publication work without prepare-time selection. |
 | 0006 | Prepared execution aggregate and lifecycle | Draft | 0002–0005; stable run and publication configuration | Compose reusable prepared state while keeping all invocation mutation in `RunState`. |
 | 0007 | Prepared runner and dynamic execution | Draft | 0003–0006; stable run trace and result contracts | Execute prepared schedules, residency, transfers, materialization, and publication without graph or backend rediscovery. |
 | 0008 | Runtime contract closure | Draft | 0001–0007 | Audit runtime API cohesion, lifecycle, dependencies, performance boundaries, documentation, and validation. |
@@ -131,19 +131,25 @@ run-owned backend-local representation. Construction retains exact references an
 cleanup only after all validation succeeds. Closed-first deterministic reverse cleanup skips
 borrowed buffers, preserves unchecked failures, and is idempotent.
 
-Allocation, typed bound invocation, full residency, transfers, publication/results, scheduling,
-and execution remain later tasks. Runtime 0004 is the next Draft row and has no detailed
-specification.
+Allocation, full residency, transfers, publication/results, scheduling, and runner behavior remain
+later tasks. Detailed
+[Runtime 0004](tasks/0004-prepared-executable-and-bound-invocation.md) is now Ready. It defines
+only the immutable executable recipe's dense buffer/representation and workspace selections, final
+common cold-binding validation, concrete-backend compatibility hooks, and one per-run
+`BoundInvocation` with a minimal execute-time closed-state guard.
 
-Runtime 0004–0008 and Prepare 0002 remain Draft without detailed specifications. Backend Contract
-remains closed, and module dependency directions are unchanged.
+Runtime 0004 deliberately omits `PreparedUnit`: no current finalization or schedule consumer
+establishes a distinct invariant beyond wrapping the executable and its selections. Prepare 0002
+or Runtime 0005 must justify that association when its actual consumer is current. Runtime
+0005–0008 and Prepare 0002 remain Draft without detailed specifications. Backend Contract remains
+closed, and module dependency directions are unchanged.
 
 ## Open questions
 
 - Prepare 0002 must later finalize the exact requirement-to-slot association consumed by backend
   finalization while producing Runtime 0002's dependency-neutral final slot geometry.
-- Runtime 0004 must define the typed cold-bound invocation and exact execution failure contract
-  against Runtime 0003's nominal representation carrier.
+- Runtime 0005 must determine whether the concrete prepared-partition/schedule consumer needs a
+  distinct `PreparedUnit` and which input/output or step associations it owns.
 
 ## Decisions made
 
@@ -182,6 +188,11 @@ remains closed, and module dependency directions are unchanged.
 - Runtime 0003 uses nominal closeable representation roles and array-indexed state only. Runtime
   0004 owns checked cold binding to backend-owned typed direct-reference invocation objects; full
   validity/residency and transfer associations remain later.
+- Runtime 0004 uses a Runtime-owned abstract template for common plan identity, dense selection,
+  invocation-association, and closed-state validation. Concrete backend subclasses use explicit
+  checked compatibility and retain direct typed references. Binding owns no auxiliary closeable
+  resource, and `PreparedUnit` remains deferred until a real schedule/finalization consumer
+  establishes its distinct role.
 - Buffer/workspace identity domains distinguish shared buffer positions from scratch positions,
   but they do not distinguish caller input, internal value, or published-output roles. Those
   roles must come from later Prepare/publication associations rather than a speculative Runtime
@@ -193,8 +204,8 @@ remains closed, and module dependency directions are unchanged.
 - Letting runtime profiling become hidden online tuning.
 - Giving a slot identity physical storage, graph-value, device, or residency semantics before the
   owning prepared-memory and run-state contracts exist.
-- Freezing a prepared-executable call shape before typed per-run access and resource ownership are
-  known.
+- Letting a later concrete backend bypass the checked binding hooks, retain nominal arrays in the
+  hot path, or acquire auxiliary binding resources without an explicit cleanup lifecycle.
 
 ## Notes
 
