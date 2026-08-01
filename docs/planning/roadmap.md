@@ -19,7 +19,7 @@ Parallel work is not the default. It requires an explicit roadmap or master-plan
 | 3 | [`modules/backend-contract`](modules/backend-contract/master-plan.md) | Complete | Foundational value-model conventions and the stable trace foundation are complete. | Backend identity and declarative requirement contracts are complete. |
 | 4 | [`modules/config`](modules/config/master-plan.md) | In progress (interleaved) | Model and backend identity contracts required by configuration are stable. | Compile, prepare, run, planning-cost, and model-autotuning request contracts are complete where stable consumers justify them. |
 | 5 | [`modules/planning`](modules/planning/master-plan.md) | Complete | Stable model/backend identity contracts permit the explicitly bounded capability-query interleave before config scoring is complete. | Ownership, partitioning, scoring, logical memory planning, and the selected contract-closure audit are complete. |
-| 6 | [`modules/runtime`](modules/runtime/master-plan.md) | In progress (0004 Complete; 0005 next Draft frontier) | Compiler/planning handoff, backend identities, the trace foundation, and ADR 0011's per-run resource ownership/cold-binding decision are stable. | Prepared runtime contracts and dynamic run-state foundations are complete. |
+| 6 | [`modules/runtime`](modules/runtime/master-plan.md) | In progress (0005 Complete; 0006 Draft) | Compiler/planning handoff, backend identities, the trace foundation, and ADR 0011's per-run resource ownership/cold-binding decision are stable. | Prepared runtime contracts and dynamic run-state foundations are complete. |
 | 7 | [`modules/compiler`](modules/compiler/master-plan.md) | Complete | Model, config, planning, backend-contract, and trace contracts are ready for the complete compiler lifecycle; bounded task 0001 may start from the closed model graph/provenance contracts alone. | Compile artifacts, graph transformations, and autograd compilation are complete. |
 | 8 | [`modules/prepare`](modules/prepare/master-plan.md) | In progress (0002 Complete; 0003 Draft) | Compiler/planning artifacts and Runtime 0001 are stable; ADR 0010 authorizes the analysis-first staged handoff. | Shared prepare contracts and validation are complete. |
 | 9 | [`backends/openblas-provider`](backends/openblas-provider/master-plan.md) | Draft | Native interop conventions needed by the provider are decided. | The low-level provider contract and validation are complete. |
@@ -48,22 +48,21 @@ Compiler 31 suites/208 tests with no skips, failures, or errors. No later compil
 detailed specification.
 
 The completed Runtime implementation frontier is
-[Runtime 0004 Prepared executable and bound invocation](modules/runtime/tasks/0004-prepared-executable-and-bound-invocation.md).
-It adds one immutable reusable `PreparedExecutable` recipe with ordered dense buffer/
-representation and workspace selections, exact prepared-plan reference identity, final common
-cold-binding validation, explicit concrete-backend compatibility hooks, and one per-run
-backend-owned `BoundInvocation`. The invocation retains the exact `RunState`, rejects execution
-after that state closes, and stores direct concrete typed references so its hot call performs no
-slot lookup, compatibility cast, graph work, backend discovery, route/configuration search,
-allocation, transfer, residency decision, or publication.
+[Runtime 0005 Prepared schedule contract](modules/runtime/tasks/0005-prepared-schedule-contract.md).
+It adds one immutable `PreparedSchedule` retaining an exact `PreparedMemoryPlan` and an immutable
+ordered step snapshot. The nested sealed family permits only
+`ExecutionStep(PreparedExecutable)`, whose plan is the executable's exact plan reference. Empty
+schedules and repeated step or executable occurrences are valid. Construction performs no
+binding, execution, allocation, resource action, ownership transfer, transfer, materialization,
+or publication, and no `PreparedUnit` is introduced.
 
-Its focused command passed two suites and 18 tests, and the single final Runtime command passed
-eight suites and 63 tests with no skips, failures, or errors. The separate clean documentation
-pass finalized all five permitted production/package Javadocs, Runtime/Public APIs, focused
-architecture status, backend guide, glossary, and planning records. Runtime Javadoc, Java 26
-examples, Markdown, exact surface/messages/order/hooks, direct-hot-path bytecode, imports/
-mechanisms/build, exact 15-path scope, synchronized status/later-specification absence, and
-whitespace gates passed without changing executable Java or repeating successful Java tests.
+Its focused command passed one suite and 11 tests with no skips, failures, or errors. The separate
+clean documentation pass finalized both production/package Javadocs, Runtime/Public APIs,
+focused architecture status, backend guide, glossary, and planning records. Runtime Javadoc, the
+Java 26 schedule example, Markdown, exact record/nested sealed surface, identity/order/snapshot
+contract, imports/mechanisms/build, exact 11-path scope, synchronized status and later-
+specification absence, and whitespace gates passed without changing executable Java or repeating
+the successful Java test.
 
 The completed Prepare implementation frontier is
 [Prepare 0001 Backend partition analysis and resource declaration](modules/prepare/tasks/0001-backend-partition-analysis-and-resource-declaration.md).
@@ -172,9 +171,19 @@ discovery, route/configuration search, allocation, transfer, residency decision,
 
 Runtime 0004 adds no auxiliary binding-resource lifecycle and deliberately omits `PreparedUnit`.
 Complete Prepare 0002 selects only `PreparedPartition(partition, executable)` for its current
-consumer, so no distinct unit invariant exists yet. `PreparedUnit` remains deferred to Runtime
-0005's actual schedule consumer. Runtime 0005–0008 and Prepare 0003 remain Draft without detailed
-specifications.
+consumer, so no distinct Runtime unit invariant exists. Detailed
+[Runtime 0005 Prepared schedule contract](modules/runtime/tasks/0005-prepared-schedule-contract.md)
+is Complete and resolves that question by using the exact `PreparedExecutable` as each ordered
+execution occurrence. Its smallest stable schedule retains one exact `PreparedMemoryPlan`, an
+immutable ordered snapshot, and a sealed plan-associated step contract with only the current
+execution variant.
+
+Transfer, materialization, and publication are not forced into Runtime 0005. Current Runtime lacks
+the stable representation/residency and delivery/result facts those variants require, while
+Compiler publication and Planning logical-memory identities cannot become Runtime payloads.
+Those foundations and variants are split across Draft Runtime 0007–0009 before the Draft runner.
+Runtime 0006 is the current Draft frontier; Runtime 0006–0011 and Prepare 0003 remain Draft
+without detailed specifications.
 Backend Contract remains Complete and closed. Module dependency directions are unchanged, so
 architecture tests do not require an update for this planning decision.
 

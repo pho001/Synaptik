@@ -3,9 +3,11 @@
 ## Outcome and supported scope
 
 This guide maps current backend extension contracts into the complete planned lifecycle. Prepare
-analysis and Runtime cold binding are current, but slot assignment, backend finalization,
-scheduling, Engine composition, and every production concrete backend remain planned. The guide
-therefore separates compilable extension patterns from conceptual integration steps.
+analysis, slot assignment, backend finalization, Runtime cold binding, and executable-only
+scheduling are current. Physical representation creation, transfer/materialization/publication
+steps, schedule consumption, Engine composition, and every production concrete backend remain
+planned. The guide therefore separates compilable extension patterns from conceptual integration
+steps.
 
 ## Prerequisites
 
@@ -20,18 +22,20 @@ capability -> compile ownership -> backend prepare -> executable -> runtime
 1. Implement declarative capability reporting for semantic graph facts.
 2. Implement a partition preparer that accepts only partitions owned by this backend.
 3. Lower, specialize, fuse, and select routes inside the backend.
-4. During later finalization, construct an immutable `PreparedExecutable` subclass against the
+4. During current finalization, construct an immutable `PreparedExecutable` subclass against the
    assigned slots.
 5. At run setup, use current cold binding to validate concrete representation types and construct
    one current `BoundInvocation` with direct typed fields.
-6. Emit typed backend trace contributions when the producer contract exists.
-7. Expose a backend component that later Engine composition can register explicitly.
+6. Place the finalized executable in a current `PreparedSchedule.ExecutionStep`; shared schedule
+   construction validates exact memory-plan identity and preserves occurrence order.
+7. Emit typed backend trace contributions when the producer contract exists.
+8. Expose a backend component that later Engine composition can register explicitly.
 
 ## Current cold-binding pattern
 
 The following focused skeleton uses only current Runtime contracts. It is a local extension
-pattern, not a complete backend: a later Prepare finalizer must supply the exact plan and dense
-selections, and later Runtime work must create representations and schedule the invocation.
+pattern, not a complete backend: a current Prepare finalizer must supply the exact plan and dense
+selections, while later Runtime work must create representations and consume the current schedule.
 
 ```java
 import io.github.pho001.synaptik.runtime.execution.BoundInvocation;
@@ -108,6 +112,38 @@ Cold binding may allocate the invocation and temporary arrays, but the current c
 acquiring any auxiliary closeable or native binding resource. Binding changes no ownership and
 has no partial-failure cleanup protocol. A future contract must add an explicit lifecycle before
 a backend may acquire such a resource while binding.
+
+## Current executable scheduling pattern
+
+### Goal and inputs
+
+Order two occurrences of one finalized `CpuExecutable`. This example assumes `plan` is the exact
+shared plan supplied by current Prepare finalization; it does not construct a runner or physical
+representations.
+
+```java
+import io.github.pho001.synaptik.runtime.schedule.PreparedSchedule;
+import java.util.List;
+
+CpuExecutable executable = new CpuExecutable(plan);
+PreparedSchedule.ExecutionStep occurrence =
+        new PreparedSchedule.ExecutionStep(executable);
+PreparedSchedule schedule =
+        new PreparedSchedule(plan, List.of(occurrence, occurrence));
+```
+
+### Result and interpretation
+
+`schedule.steps()` retains the same occurrence twice in deterministic order, and each occurrence
+reports the exact `plan` reference through its executable. Repetition means execute the prepared
+region twice when a future runner consumes the schedule; it does not duplicate executable,
+representation, or cleanup ownership. Empty schedules are also valid.
+
+Schedule construction only validates and snapshots the recipe. It does not bind or execute the
+`CpuExecutable`, create a `RunState`, allocate or close resources, or imply transfer,
+materialization, publication, or result behavior. A backend must not encode those deferred
+semantics in an `ExecutionStep`; later Runtime-owned step variants require their own stable
+residency or delivery contracts.
 
 ## Conceptual registration
 

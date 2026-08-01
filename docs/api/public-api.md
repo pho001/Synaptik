@@ -19,8 +19,8 @@ Compiler orchestration now consumes those three operations and uses the public i
 Reusable or public capability matrices, a public graph-wide Planning workflow, public compiler
 entry, physical allocation/access, complete prepare/runtime lifecycles, concrete backend
 integration, and engine APIs remain planned. Prepare analysis contracts and the initial Runtime
-geometry, per-run resource, and cold-binding contracts are current but do not form a runnable
-public lifecycle. The backend
+geometry, per-run resource, cold-binding, and executable-only schedule contracts are current but
+do not form a runnable public lifecycle. The backend
 contract also contains an immutable caller-supplied availability snapshot; it is data, not a
 discovery or liveness API. A sealed requirement family can now name one hard eligibility target.
 The current config module can record that hard-target optionality, requested graph scope,
@@ -404,7 +404,7 @@ physical buffer, transfer, prepared schedule, executable, residency, or mutable 
 `CompileDiagnostics` carries deterministic text projections rather than a public predicate
 language, trace schema, or serialization.
 
-The public `modules:runtime` surface now contains four focused packages:
+The public `modules:runtime` surface now contains five focused packages:
 
 - `runtime.memory` defines `BufferSlot`, `WorkspaceSlot`, and immutable ordered
   `PreparedMemoryPlan` byte geometry;
@@ -413,7 +413,9 @@ The public `modules:runtime` surface now contains four focused packages:
 - `runtime.run` defines borrowed/run-owned buffer bindings and the array-backed one-run
   `RunState`; and
 - `runtime.execution` defines immutable reusable `PreparedExecutable` recipes, their dense
-  buffer/representation and workspace selections, and per-run `BoundInvocation` objects.
+  buffer/representation and workspace selections, and per-run `BoundInvocation` objects; and
+- `runtime.schedule` defines immutable `PreparedSchedule` recipes, their sealed plan-associated
+  `Step` family, and the sole current `ExecutionStep` variant.
 
 `PreparedExecutable.bind` requires the exact same `PreparedMemoryPlan` reference as the open
 `RunState`. It resolves selections in supplied order and delegates explicit checked
@@ -422,11 +424,18 @@ representation compatibility to the concrete backend. The backend then creates a
 `execute()` call checks only that the retained state is open before delegating to the backend;
 execution after state closure is rejected.
 
+One schedule retains an exact `PreparedMemoryPlan` and an immutable ordered snapshot of
+executable occurrences. Every step must report that same plan by reference identity. Empty and
+repeated occurrences are valid; construction performs no binding, execution, allocation,
+resource action, or ownership transfer. No `PreparedUnit` is needed because list position is the
+occurrence and the executable already supplies the work recipe and plan association.
+
 These contracts contain no concrete backend implementation and do not provide Prepare assignment
-or finalization themselves, physical allocation/access, validity/residency, transfer, schedule,
-publication, result, runner, or Engine behavior. Binding owns no auxiliary closeable resource and
-changes no resource ownership. See the [Runtime API](runtime-api.md) for selection, lifecycle,
-failure, and thread-safety details.
+or finalization themselves, physical allocation/access, validity/residency,
+transfer/materialization/publication step variants, result, schedule consumption, runner, or
+Engine behavior. Binding owns no auxiliary closeable resource and changes no resource ownership.
+See the [Runtime API](runtime-api.md) for scheduling, selection, lifecycle, failure, and
+thread-safety details.
 
 The public `modules:prepare` surface now spans the existing `prepare.analysis` package and four
 root-package finalization contracts. Analysis retains one typed opaque selected plan and exact

@@ -56,7 +56,7 @@ io.github.pho001.synaptik.runtime/
   resource/   nominal physical representation roles implemented by concrete backends
   execution/  public prepared-executable recipe and per-run bound-invocation contracts, plus
               later execution and runner contracts
-  schedule/   later prepared schedule and step contracts
+  schedule/   public prepared schedule and closed semantic step contracts
   run/        per-run ownership/binding state and later residency/result contracts
 ```
 
@@ -77,10 +77,13 @@ runner contracts remain planned until their consumers justify exact surfaces.
 | 0002 | [Prepared memory and workspace contracts](tasks/0002-prepared-memory-and-workspace-contracts.md) | Complete | 0001; Prepare 0001 | Added `WorkspaceSlot` and immutable final per-buffer-slot/per-workspace-slot byte-size/alignment geometry without importing Prepare/Model facts; Complete Prepare 0002 retains exact requirement associations and conservatively assigns distinct slots. |
 | 0003 | [Run-state and runtime resource foundation](tasks/0003-run-state-and-runtime-resource-foundation.md) | Complete | 0002; ADR 0011 | Added nominal backend-owned buffer/workspace representation roles, borrowed/run-owned buffer bindings, and one array-backed closeable `RunState` per complete logical run without executable binding, residency, scheduling, transfer, publication, or allocation. |
 | 0004 | [Prepared executable and bound invocation](tasks/0004-prepared-executable-and-bound-invocation.md) | Complete | 0001–0003; ADR 0011 | Added immutable dense resource selections, final checked cold binding, and one per-run backend-owned typed bound invocation without a redundant prepared-unit wrapper. |
-| 0005 | Prepared schedule contract | Draft | 0002–0004; Prepare 0002 finalization | Decide whether the actual partition/schedule consumer justifies a distinct `PreparedUnit`, then define ordered executable, transfer, materialization, and publication work without prepare-time selection. |
-| 0006 | Prepared execution aggregate and lifecycle | Draft | 0002–0005; stable run and publication configuration | Compose reusable prepared state while keeping all invocation mutation in `RunState`. |
-| 0007 | Prepared runner and dynamic execution | Draft | 0003–0006; stable run trace and result contracts | Execute prepared schedules, residency, transfers, materialization, and publication without graph or backend rediscovery. |
-| 0008 | Runtime contract closure | Draft | 0001–0007 | Audit runtime API cohesion, lifecycle, dependencies, performance boundaries, documentation, and validation. |
+| 0005 | [Prepared schedule contract](tasks/0005-prepared-schedule-contract.md) | Complete | 0002–0004; Prepare 0002 finalization | Added one immutable exact-plan schedule and its execution-step variant; no `PreparedUnit`, transfer, materialization, or publication payload is invented before its Runtime-owned facts exist. |
+| 0006 | Prepared execution aggregate and lifecycle | Draft | 0002–0005; stable run configuration | Compose reusable prepared state while keeping all invocation mutation in `RunState`. |
+| 0007 | Representation creation and residency foundation | Draft | 0003; 0006; stable run resource/configuration contracts | Define per-run representation creation plus validity/residency facts before transfer or materialization work can be scheduled. |
+| 0008 | Transfer and materialization schedule steps | Draft | 0005; 0007 | Add stable Runtime-owned transfer/materialization recipes only after their representation and residency inputs exist. |
+| 0009 | Publication and result schedule steps | Draft | 0005; 0007–0008; stable publication/result ownership | Translate prepared resources into Runtime-owned delivery/result contracts without importing Compiler publication identities. |
+| 0010 | Prepared runner and dynamic execution | Draft | 0003; 0005–0009; stable run trace contracts | Cold-bind and execute prepared schedules without graph inspection, backend rediscovery, allocation, or lookup in the hot path. |
+| 0011 | Runtime contract closure | Draft | 0001–0010 | Audit Runtime API cohesion, lifecycle, dependencies, performance boundaries, documentation, and validation. |
 
 ## Milestones
 
@@ -91,10 +94,11 @@ runner contracts remain planned until their consumers justify exact surfaces.
 ## Current status
 
 In progress after completion of
-[Runtime 0004](tasks/0004-prepared-executable-and-bound-invocation.md). The current public Runtime
+[Runtime 0005](tasks/0005-prepared-schedule-contract.md). The current public Runtime
 surface now includes immutable `runtime.memory` geometry, nominal `runtime.resource`
-buffer/workspace cleanup roles, the `runtime.run` ownership and one-run lifecycle foundation, and
-the `runtime.execution` prepared-recipe/cold-bound-invocation boundary.
+buffer/workspace cleanup roles, the `runtime.run` ownership and one-run lifecycle foundation, the
+`runtime.execution` prepared-recipe/cold-bound-invocation boundary, and the `runtime.schedule`
+executable-only ordered recipe.
 
 Runtime 0003's focused command passed three suites and 20 tests; the single final module command
 passed six suites and 45 tests with no failures, errors, or skips. The separate clean
@@ -149,15 +153,29 @@ later-specification absence, and whitespace gates passed.
 
 Runtime 0004 deliberately omits `PreparedUnit`. Complete Prepare 0002 adds only the exact
 `PreparedPartition(partition, executable)` association, so no current consumer establishes a
-distinct unit invariant beyond the partition association and executable selections. Runtime 0005
-must decide that question from its actual schedule consumer. Runtime 0005–0008 and Prepare 0003
-remain Draft without detailed specifications. Backend Contract remains closed, and module
-dependency directions are unchanged.
+distinct unit invariant beyond the partition association and executable selections. Complete
+[Runtime 0005](tasks/0005-prepared-schedule-contract.md) resolves that question from
+the actual schedule consumer: Prepare's partition association cannot cross into Runtime, while
+one schedule occurrence needs only the exact `PreparedExecutable`. Runtime 0005 therefore defines
+one exact-plan immutable schedule, a sealed plan-associated step contract, and only its current
+executable variant. Its focused implementation command passed one suite and 11 tests with no
+failures, errors, or skips. The clean documentation pass finalized the two production/package
+Javadocs, five explanatory documents, and synchronized planning records without changing
+executable Java or repeating the successful Java test. Runtime Javadoc, the Java 26 schedule
+example, Markdown, exact surface and sealed family, imports/mechanisms, exact 11-path scope,
+status, and whitespace gates passed.
+
+Transfer, materialization, and publication lack stable Runtime-owned
+representation/residency or delivery/result facts and are split into Draft tasks 0007–0009 before
+the Draft runner. Runtime 0006–0011 and Prepare 0003 remain Draft without detailed specifications.
+Backend Contract remains closed, and module dependency directions are unchanged.
 
 ## Open questions
 
-- Runtime 0005 must determine whether the concrete prepared-partition/schedule consumer needs a
-  distinct `PreparedUnit` and which input/output or step associations it owns.
+- Runtime 0007 must establish the smallest representation-creation and residency/validity facts
+  required before transfer or materialization steps can be specified.
+- Runtime 0009 must establish a Runtime-owned prepared-resource-to-result association and result
+  ownership policy without importing Compiler publication identities.
 
 ## Decisions made
 
@@ -201,6 +219,13 @@ dependency directions are unchanged.
   checked compatibility and retain direct typed references. Binding owns no auxiliary closeable
   resource, and `PreparedUnit` remains deferred until a real schedule/finalization consumer
   establishes its distinct role.
+- Runtime 0005 does not introduce `PreparedUnit`: list position is the execution occurrence, and
+  `PreparedExecutable` supplies the only stable Runtime-owned work and exact-plan invariant.
+- Runtime 0005 uses one immutable exact-plan schedule with a sealed plan-associated step family
+  and only an executable step. Empty schedules and repeated executable occurrences are valid.
+- Transfer, materialization, and publication steps remain Draft until Runtime owns stable
+  representation/residency and delivery/result facts; Compiler/Planning identities do not cross
+  into Runtime to fill that gap.
 - Buffer/workspace identity domains distinguish shared buffer positions from scratch positions,
   but they do not distinguish caller input, internal value, or published-output roles. Those
   roles must come from later Prepare/publication associations rather than a speculative Runtime
@@ -214,6 +239,10 @@ dependency directions are unchanged.
   owning prepared-memory and run-state contracts exist.
 - Letting a later concrete backend bypass the checked binding hooks, retain nominal arrays in the
   hot path, or acquire auxiliary binding resources without an explicit cleanup lifecycle.
+- Treating a prepared schedule as a hot-path interpreter instead of cold-binding its typed steps
+  to direct per-run work.
+- Inventing transfer, materialization, or publication payloads before their Runtime-owned inputs
+  and consumers are stable.
 
 ## Notes
 

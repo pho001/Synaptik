@@ -5,12 +5,14 @@ This document explains the boundary defined by [`ARCHITECTURE.md`](../../ARCHITE
 Runtime currently implements the immutable `BufferSlot` and `WorkspaceSlot` identities,
 `PreparedMemoryPlan` final slot geometry, nominal buffer/workspace representation roles,
 borrowed/run-owned buffer bindings, the array-backed one-run `RunState` lifecycle, immutable
-`PreparedExecutable` recipes, and per-run `BoundInvocation` objects described below. Prepare
+`PreparedExecutable` recipes, per-run `BoundInvocation` objects, and the immutable executable-only
+`PreparedSchedule` contract described below. Prepare
 currently implements the analysis-side projection, opaque marker roles, exact resource
 declarations, analysis result, preparer collaboration, deterministic complete-set slot assignment,
 typed backend finalization input/collaboration, and the minimal prepared-partition association.
-Physical allocation and access, validity/residency, transfers, schedules, publication/results,
-public Prepare orchestration, engine, production concrete backends, and a runner remain planned.
+Physical allocation and access, validity/residency, transfer/materialization/publication schedule
+variants, publication/results, public Prepare orchestration, engine, production concrete
+backends, and a runner remain planned.
 The lifecycle flow therefore mixes current foundations with later stages; each focused section
 states its implementation status.
 [ADR 0011](../design/decisions/0011-per-run-runtime-resource-ownership.md) defines the
@@ -154,13 +156,17 @@ The complete architecture prepare lifecycle creates:
 - `PreparedExecution`, the immutable reusable runtime-ready result, including any immutable
   persistent prepared resources that are not ordinary per-run workspace.
 
-Today, `PreparedMemoryPlan`, `PreparedExecutable`, and `PreparedPartition` exist among the
-prepare-result contracts in this list; `BoundInvocation` is the current per-run result of binding
-an executable. The analysis-side and finalization-side Prepare contracts described above are also
-current. `modules/prepare` owns `PrepareContext`, `BackendPartitionPreparer`,
-`BackendPartitionAnalysis`, shared resource declarations, current assignment and source
-associations, `PreparedPartition`, and later public orchestration and validation. Engine-level
-composition supplies explicitly registered backend implementations and their input facts. Prepare
+Today, `PreparedMemoryPlan`, `PreparedExecutable`, `PreparedSchedule`, and `PreparedPartition`
+exist among the prepared/runtime contracts in this list; `BoundInvocation` is the current per-run
+result of binding an executable. The current schedule retains one exact plan and an immutable
+ordered snapshot of executable occurrences. It permits empty and repeated occurrences, has no
+`PreparedUnit`, and performs no binding or execution. No current public Prepare orchestration
+constructs or consumes it. The analysis-side and finalization-side Prepare contracts described
+above are also current. `modules/prepare` owns `PrepareContext`,
+`BackendPartitionPreparer`, `BackendPartitionAnalysis`, shared resource declarations, current
+assignment and source associations, `PreparedPartition`, and later public orchestration and
+validation. Engine-level composition supplies explicitly registered backend implementations and
+their input facts. Prepare
 does not interpret the backend's opaque route plan.
 
 Shared prepare code does not implement concrete CPU, Metal, or CUDA lowering and does not own backend-specific executable or storage implementations.
@@ -214,8 +220,8 @@ Current cleanup marks the state closed first, skips borrowed buffers, and attemp
 representation once in deterministic reverse order. It preserves the first unchecked exception
 or error and suppresses later failures. The state is not thread-safe, but separate states may
 share the immutable plan while keeping run-owned representations isolated. This implemented
-foundation still has no allocation, storage access, validity/residency, transfer, schedule,
-publication/result, or runner behavior.
+foundation still has no allocation, storage access, validity/residency, transfer, schedule
+execution or non-executable variants, publication/result, or runner behavior.
 
 The current `PreparedExecutable` retains one exact plan reference plus private immutable snapshots
 of ordered dense buffer/representation and workspace selections. Empty and repeated selections

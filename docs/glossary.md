@@ -40,7 +40,9 @@ provides the nominal `BufferRepresentation` and `WorkspaceRepresentation` lifecy
 `BufferRepresentationBinding`, `RunResourceOwnership`, and one array-backed
 [`RunState`](#run-state--runstate) for per-run reference retention and cleanup. Prepare-owned
 requirement-to-slot assignment and association are now current. Physical allocation and access,
-full validity/residency, transfers, schedules, publication/results, and a runner remain planned.
+full validity/residency, transfer/materialization/publication schedule variants,
+publication/results, and a runner remain planned. The immutable executable-only
+[`PreparedSchedule`](#prepared-schedule--preparedschedule) contract is current.
 Current [`PreparedExecutable`](#prepared-executable--preparedexecutable) recipes perform checked
 cold binding and create current [`BoundInvocation`](#bound-invocation--boundinvocation) objects;
 no concrete backend implements them yet.
@@ -51,12 +53,12 @@ Prepare currently provides the public immutable analysis-side contracts in
 and `Workspace` variants, `BackendPartitionAnalysis`, and `BackendPartitionPreparer`. They
 project and validate one fully static planned partition, carry exact typed logical-splat constants
 for projected graph inputs, retain backend inputs and the selected plan opaquely, and declare
-exact shared buffer/workspace needs. Slot assignment, finalization and prepared-executable
-construction are now current contracts in the Prepare root package, together with the minimal
-`PreparedPartition` association. Physical resources, public Prepare orchestration, schedules,
-production concrete backends, and runner execution remain planned. The Runtime executable
-contract itself is current; a current Prepare finalizer constructs a backend subclass against
-assigned slots.
+exact shared buffer/workspace needs. Slot assignment, finalization, prepared-executable
+construction, and the minimal `PreparedPartition` association are current Prepare contracts.
+Executable-only scheduling is a current Runtime contract. Physical resources, public Prepare
+orchestration, transfer/materialization/publication schedule variants, production concrete
+backends, and runner execution remain planned. The Runtime executable contract itself is current;
+a current Prepare finalizer constructs a backend subclass against assigned slots.
 
 The exact arithmetic scan contains seven semantic rules: duplicate-input binary `MIN` and `MAX`;
 scalar `MUL` by exact typed positive one for all five numeric types; scalar `DIV` and `POW` by exact
@@ -1971,8 +1973,8 @@ hashing use the retained immutable values; record text is diagnostic only.
 The plan contains geometry, not provenance or resources. It retains no Prepare analysis
 requirement, graph `ValueId`, analysis-local workspace ID, source-to-slot association, physical
 storage, address, allocation, ownership, aliasing or lifetime proof, device, residency, or per-run
-binding. It does not sort, derive, assign, allocate, bind, access, or release anything. A later
-Prepare contract will construct it while retaining source associations. Current `RunState`
+binding. It does not sort, derive, assign, allocate, bind, access, or release anything. Current
+Prepare assignment constructs it while retaining source associations. Current `RunState`
 consumes the plan's entry order for per-run representation access without changing the geometry;
 later Runtime/backend contracts own physical allocation, access mechanics, and execution.
 
@@ -2662,6 +2664,28 @@ concurrently to distinct run states. Backend analysis selects the implementation
 backend-finalization contract constructs it only after shared slot assignment. The executable
 does not own selected representations and supplies no allocation, transfer, residency, schedule,
 publication, result, or cleanup lifecycle.
+
+### Prepared schedule / `PreparedSchedule`
+
+The implemented Runtime-owned immutable recipe that orders already-prepared work against one
+exact `PreparedMemoryPlan`. The schedule retains the plan by reference identity and an immutable
+ordered snapshot of `Step` occurrences. Every step reports that same exact plan. Empty schedules
+and repeated exact or equal occurrences are valid; each list position is one occurrence rather
+than a new ownership relationship.
+
+The nested `Step` interface is sealed and currently permits only
+`ExecutionStep(PreparedExecutable)`. An execution step retains its executable exactly and derives
+its plan directly from `PreparedExecutable.memoryPlan()`. The family has no ID, kind enum,
+generic payload, visitor, binding method, or execution method. No `PreparedUnit` is present:
+occurrence position supplies order, while the executable supplies the stable work recipe and
+exact-plan invariant.
+
+Construction scans supplied steps in encounter order, compares plan references with identity,
+and snapshots through `List.copyOf` only after every step passes. It owns only that list snapshot
+and closes nothing. A schedule may be traversed concurrently while distinct runs are prepared,
+but this does not make one `RunState` or `BoundInvocation` thread-safe. Current scheduling does
+not bind or execute work, allocate or create representations, transfer ownership, or define
+transfer, materialization, publication, result, or runner behavior.
 
 ### Bound invocation / `BoundInvocation`
 
