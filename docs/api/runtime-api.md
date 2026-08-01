@@ -2,53 +2,62 @@
 
 ## Purpose and implementation status
 
-This reference explains the implemented Runtime foundations for prepared-memory geometry, one
-run's physical-representation lifecycle, checked binding of reusable backend recipes, ordered
-executable scheduling, the immutable prepared-execution root, and the current Prepare-owned
-handoff that constructs that geometry and finalizes backend recipes. The current public surface
-contains:
+This reference explains the implemented Runtime foundations for prepared-memory geometry,
+reusable representation creation descriptions, one run's physical-representation lifecycle and
+validity, checked binding of backend recipes, ordered scheduling, the immutable
+prepared-execution root, and the current Prepare-owned handoff that constructs geometry and
+finalizes backend recipes. The current public surface contains:
 
 - `runtime.memory`: `BufferSlot`, `WorkspaceSlot`, and `PreparedMemoryPlan` with its nested
   `BufferEntry` and `WorkspaceEntry` records;
 - `runtime.resource`: the nominal `BufferRepresentation` and `WorkspaceRepresentation` lifecycle
-  roles implemented by concrete backends; and
+  roles implemented by concrete backends plus `PreparedRepresentationPlan` and its nested
+  preparation and creator contracts;
 - `runtime.run`: `RunResourceOwnership`, `BufferRepresentationBinding`, and `RunState`;
 - `runtime.execution`: `PreparedExecution`, `PreparedExecutable`, its nested `BufferSelection`
   and `WorkspaceSelection` records, and `BoundInvocation`; and
-- `runtime.schedule`: `PreparedSchedule`, its sealed nested `Step` contract, and the sole current
-  `ExecutionStep` variant.
+- `runtime.schedule`: `PreparedSchedule`, its sealed nested `Step` contract,
+  `RepresentationCreationStep`, and `ExecutionStep`.
 
-The geometry, per-run representation carrier, cold-bound invocation contracts, executable-only
-schedule recipe, two-component prepared-execution aggregate, Prepare-owned resource assignments,
-typed backend finalization, and `PreparedPartition` association are current. Physical allocation
-and storage access, full validity/residency, transfer/materialization/publication step variants,
+The geometry, reusable creation description, package-private all-or-cleaned setup, structural
+residency, explicit per-buffer-copy validity, cold-bound invocation contracts, creation and
+execution schedule recipes, two-component prepared-execution aggregate, Prepare-owned resource
+assignments, typed backend finalization, and `PreparedPartition` association are current. Concrete
+physical allocation and storage access, transfer/materialization/publication steps,
 publication/results, public Prepare orchestration, schedule consumption, and a runnable Runtime
-facade remain planned. No production concrete backend currently implements the finalization or
-execution contracts.
+facade remain planned. No production concrete backend currently implements the creation,
+finalization, or execution contracts.
 
 ## Mental model
 
 ```text
 compile facts             prepare handoff               Runtime state
-ValueId / requirement -> source-to-slot assignment -> PreparedMemoryPlan + RunState
+ValueId / requirement -> source-to-slot assignment -> PreparedMemoryPlan
 current                  current                      current
                                                               |
+                         PreparedRepresentationPlan ----------+
+                         current reusable creation description |
                                                               v
+                         cold setup -> RunState + validity
+                         current internal  current per run
      PreparedMemoryPlan + PreparedSchedule -> PreparedExecution
      current              current            current reusable root
 
-                  PreparedSchedule -> cold bind -> BoundInvocation -> execute
-                  current              current       current            current contract
+        PreparedSchedule -> cold bind -> BoundInvocation -> execute
+        current recipe      current       current            current contract
 ```
 
 Read the flow from logical source facts toward invocation state. Prepare exposes exact buffer and
 workspace requirements through `BackendPartitionAnalysis`, then its current package-internal
 handoff retains source-to-slot associations and constructs the Runtime geometry. Current
-`RunState` accepts already-created representations in that geometry's encounter order. A current
-`PreparedExecutable` selects those representations by dense position, checks backend
+`PreparedRepresentationPlan` describes borrowed inputs and concrete-backend creators in that
+geometry's encounter order. Package-private cold setup validates all caller inputs, creates
+run-owned buffers and workspaces, and constructs one `RunState`. A current `PreparedExecutable`
+selects those resident representations by dense position, checks backend
 compatibility during cold binding, and creates a per-run `BoundInvocation`. None of these
-contracts allocates or transfers physical storage or supplies a runner. The current schedule
-orders executable occurrences only; it does not bind or execute them.
+shared contracts implements concrete allocation or transfer mechanics or supplies a runner. The
+current schedule can retain one first-only creation prefix followed by executable occurrences; it
+does not invoke or execute either kind of step.
 
 ## Current prepared execution
 
@@ -149,8 +158,8 @@ physical storage, or how a run accesses either position.
 
 `BufferRepresentation` and `WorkspaceRepresentation` are deliberately distinct nominal
 `AutoCloseable` roles. Each exposes only `close()` without a checked exception. A concrete backend
-implements the physical storage and cleanup mechanics; the shared Runtime API exposes no storage,
-backend, device, transfer, validity, or residency accessor.
+implements physical allocation, storage access, transfer, and cleanup mechanics; the shared
+Runtime API never exposes concrete storage, backend, or device access.
 
 `BufferRepresentationBinding` retains one exact buffer representation and one ownership value:
 
@@ -167,20 +176,33 @@ zero-based positions in `plan.buffers()` and `plan.workspaces()` encounter order
 numeric values inside `BufferSlot` or `WorkspaceSlot`. A buffer position has one or more ordered
 representations, while a workspace position has exactly one representation.
 
-The carrier does not say which buffer representation is valid or resident and provides no
-coherence, transfer, or backend-compatibility behavior. The same representation object cannot
-occur twice anywhere in one state, including across buffer and workspace domains.
+Every bound representation is structurally resident until the state closes: the exact physical
+object exists and remains bound to that run. Each buffer representation also has one independent
+validity bit. A borrowed buffer starts valid because it is a caller input containing the logical
+slot value; a run-owned buffer starts invalid because fresh storage does not yet contain that
+value. Zero, one, or multiple copies may be valid. Workspaces are resident run-owned scratch and
+have no logical validity. The same representation object cannot occur twice anywhere in one
+state, including across buffer and workspace domains.
 
-## Focused run-state example
+`isBufferRepresentationValid(bufferIndex, representationIndex)` reads one bit in constant time.
+`setBufferRepresentationValid(bufferIndex, representationIndex, valid)` writes exactly one bit in
+constant time. The setter performs no storage access, copy, backend call, ownership transition,
+implicit invalidation, or coherence. A later transfer or execution runner must change validity
+explicitly only after its physical action succeeds.
+
+## Focused creation and validity example
 
 ### Goal and inputs
 
-Bind one borrowed caller buffer, one run-owned internal buffer, and one run-owned workspace to the
-single buffer and workspace positions from the preceding plan. The counters make cleanup
-observable without claiming a physical storage implementation.
+Describe one borrowed caller buffer, one backend-created internal buffer, and one backend-created
+workspace for the single buffer and workspace positions from the preceding plan. Then construct
+the public per-run state, observe its initial validity, mark the internal copy valid explicitly,
+and close the state. The local representation classes make cleanup observable without claiming a
+production backend.
 
 ```java
 import io.github.pho001.synaptik.runtime.resource.BufferRepresentation;
+import io.github.pho001.synaptik.runtime.resource.PreparedRepresentationPlan;
 import io.github.pho001.synaptik.runtime.resource.WorkspaceRepresentation;
 import io.github.pho001.synaptik.runtime.run.BufferRepresentationBinding;
 import io.github.pho001.synaptik.runtime.run.RunResourceOwnership;
@@ -188,13 +210,39 @@ import io.github.pho001.synaptik.runtime.run.RunState;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 
+final class CreationBuffer implements BufferRepresentation {
+    private final AtomicInteger closes;
+    CreationBuffer(AtomicInteger closes) { this.closes = closes; }
+    @Override public void close() { closes.incrementAndGet(); }
+}
+
+final class CreationWorkspace implements WorkspaceRepresentation {
+    private final AtomicInteger closes;
+    CreationWorkspace(AtomicInteger closes) { this.closes = closes; }
+    @Override public void close() { closes.incrementAndGet(); }
+}
+
 AtomicInteger borrowedCloses = new AtomicInteger();
 AtomicInteger ownedCloses = new AtomicInteger();
 AtomicInteger workspaceCloses = new AtomicInteger();
 
-BufferRepresentation borrowed = borrowedCloses::incrementAndGet;
-BufferRepresentation owned = ownedCloses::incrementAndGet;
-WorkspaceRepresentation workspace = workspaceCloses::incrementAndGet;
+BufferRepresentation borrowed = new CreationBuffer(borrowedCloses);
+PreparedRepresentationPlan.BufferCreator bufferCreator =
+        () -> new CreationBuffer(ownedCloses);
+PreparedRepresentationPlan.WorkspaceCreator workspaceCreator =
+        () -> new CreationWorkspace(workspaceCloses);
+
+PreparedRepresentationPlan representationPlan =
+        new PreparedRepresentationPlan(
+                plan,
+                List.of(
+                        List.of(
+                                new PreparedRepresentationPlan.CallerInput(),
+                                new PreparedRepresentationPlan.CreatedBuffer(bufferCreator))),
+                List.of(workspaceCreator));
+
+BufferRepresentation owned = bufferCreator.create();
+WorkspaceRepresentation workspace = workspaceCreator.create();
 
 RunState state =
         new RunState(
@@ -207,19 +255,51 @@ RunState state =
                                         owned, RunResourceOwnership.RUN_OWNED))),
                 List.of(workspace));
 
-BufferRepresentationBinding first = state.bufferRepresentation(0, 0);
+boolean borrowedInitiallyValid = state.isBufferRepresentationValid(0, 0);
+boolean ownedInitiallyValid = state.isBufferRepresentationValid(0, 1);
+state.setBufferRepresentationValid(0, 1, true);
+boolean ownedAfterProduction = state.isBufferRepresentationValid(0, 1);
 state.close();
 state.close();
 ```
 
 ### Result and interpretation
 
-Before closure, `first` is the exact borrowed binding supplied at construction. The state reports
-one buffer position, two ordered buffer representations, and one workspace position. After both
-`close()` calls, `borrowedCloses.get()` is `0`, while `ownedCloses.get()` and
-`workspaceCloses.get()` are each `1`. This demonstrates ownership-sensitive, idempotent cleanup;
-it does not allocate storage, select a backend, establish representation validity, or run a
-prepared executable.
+`borrowedInitiallyValid` is `true`, `ownedInitiallyValid` is `false`, and
+`ownedAfterProduction` is `true`. The state reports one buffer position, two structurally
+resident buffer representations, and one resident workspace. Setting the internal bit performs
+no physical work; the example treats a successful production action as already completed before
+that line. After both `close()` calls, `borrowedCloses.get()` is `0`, while
+`ownedCloses.get()` and `workspaceCloses.get()` are each `1`.
+
+The package-private cold setup used by the future runner will invoke the same immutable creator
+references and construct this state with rollback. Because that operation is intentionally not a
+public facade, this current public example stages the successful callback results directly before
+calling the public constructor. It demonstrates prepared origins, initial validity, explicit
+mutation, workspace exclusion, and ownership-sensitive idempotent cleanup. It does not implement
+a runner, physical copy, kernel, or automatic validity transition.
+
+## Current prepared representation creation
+
+`PreparedRepresentationPlan` retains the exact `PreparedMemoryPlan`, immutable snapshots of both
+buffer-list levels, and an immutable workspace-creator list. Each buffer preparation is either a
+zero-component `CallerInput` occurrence or `CreatedBuffer(BufferCreator)`. Dense caller-input
+encounter order is buffer position first and representation position second. Each workspace
+position has one `WorkspaceCreator`. Callback implementations must be immutable and thread-safe,
+and each successful call must return a fresh non-null representation for that run.
+
+The package-private `RunStateCreation` operation validates the complete caller count, non-null
+elements, and caller identity uniqueness before invoking any callback. It then creates buffers in
+dense buffer/representation order and workspaces in workspace order. A successful result becomes
+run-owned only when complete `RunState` construction succeeds. If a creator, result validation,
+or state construction reports a `RuntimeException` or `Error`, setup closes every successfully
+created result once in reverse creation order, preserves the original failure unchanged, and adds
+cleanup failures as suppressed exceptions in cleanup encounter order. It never closes borrowed
+inputs or closes a duplicate callback result as a second owned object.
+
+Plan construction invokes no callback. A null or duplicate callback result is rejected during
+cold setup. No creation callback performs transfer, materialization, execution, publication, or
+validity mutation as part of the shared contract.
 
 ## Run-state lifecycle and failures
 
@@ -230,12 +310,13 @@ attempted once. The first `RuntimeException` or `Error` is rethrown after all at
 failures attached in cleanup encounter order as suppressed exceptions. Repeated closure performs
 no cleanup and does not rethrow an earlier failure.
 
-Representation access after closure fails first with
+Representation and validity access or mutation after closure fails first with
 `IllegalStateException("run state is closed")`. The retained plan, slot counts, per-buffer
 representation counts, and `isClosed()` remain inspectable. `RunState` is not thread-safe;
-callers must not race access and closure on one instance. Concurrent runs may share the immutable
-plan but require distinct run-owned representations. Borrowed representations may be shared only
-when the caller guarantees their lifetime, safe access, and external synchronization.
+callers must not race access, validity mutation, and closure on one instance. Concurrent runs may
+share the immutable plan but have independent validity arrays and require distinct run-owned
+representations. Borrowed representations may be shared only when the caller guarantees their
+lifetime, safe access, and external synchronization.
 
 Construction validates top-level nulls, plan-sized counts, each ordered buffer position, and then
 each ordered workspace position. Null failures identify the argument or indexed position. Count,
@@ -399,24 +480,28 @@ storage, finalize a backend analysis, schedule work, transfer values, or publish
 
 `PreparedSchedule` is an immutable reusable recipe that associates an ordered list of work
 occurrences with one exact `PreparedMemoryPlan`. Its sealed nested `Step` interface exposes only
-that plan association. The sole current variant is
-`ExecutionStep(PreparedExecutable)`, whose `memoryPlan()` result is exactly
-`executable().memoryPlan()`.
+that plan association. `RepresentationCreationStep(PreparedRepresentationPlan)` retains the sole
+optional cold-setup prefix, and `ExecutionStep(PreparedExecutable)` retains one executable
+occurrence. Each derives `memoryPlan()` from its exact component.
 
 Construction validates each occurrence in supplied order and requires reference identity with
 the schedule plan; a structurally equal but separately constructed plan is not the same prepared
 association. Only after the complete scan succeeds does the schedule use `List.copyOf` to retain
 an immutable ordered snapshot. It keeps exact step and executable references. Empty schedules,
-repeated step references, and repeated executable references are valid because each list position
-is one explicit occurrence and does not create another ownership relationship.
+repeated executable step references, and repeated executable references are valid because each
+list position is one explicit occurrence and does not create another ownership relationship. A
+creation step may occur zero or one time and, when present, must be index zero. A later Prepare
+validator may require it for a runnable result; compatibility schedules may still be empty or
+executable-only.
 
 ### Focused schedule example
 
 #### Goal and inputs
 
-Order two occurrences of the current `ExampleExecutable` recipe from the cold-binding example.
-Both occurrences use the same exact plan; no run state or physical representation is needed to
-construct the schedule.
+Retain the representation plan from the creation example as the first occurrence, followed by two
+occurrences of the current `ExampleExecutable` recipe from the cold-binding example. All
+occurrences use the same exact plan; constructing the schedule invokes no callback and needs no
+run state or physical representation.
 
 ```java
 import io.github.pho001.synaptik.runtime.schedule.PreparedSchedule;
@@ -426,8 +511,10 @@ import java.util.List;
 ExampleExecutable executable = new ExampleExecutable(plan);
 PreparedSchedule.ExecutionStep occurrence =
         new PreparedSchedule.ExecutionStep(executable);
+PreparedSchedule.RepresentationCreationStep creation =
+        new PreparedSchedule.RepresentationCreationStep(representationPlan);
 ArrayList<PreparedSchedule.Step> supplied =
-        new ArrayList<>(List.of(occurrence, occurrence));
+        new ArrayList<>(List.of(creation, occurrence, occurrence));
 
 PreparedSchedule schedule = new PreparedSchedule(plan, supplied);
 supplied.clear();
@@ -435,18 +522,21 @@ supplied.clear();
 
 #### Result and interpretation
 
-`schedule.memoryPlan()` is the exact `plan` object, and `schedule.steps()` still contains the
-same `occurrence` reference twice in supplied order after the mutable source list is cleared. The
-returned list is immutable. This proves deterministic executable scheduling and snapshot
-isolation only. Construction does not bind or execute the executable, allocate or close a
-resource, create a `RunState`, or select transfer, materialization, or publication behavior.
+`schedule.memoryPlan()` is the exact `plan` object. `schedule.steps().getFirst()` is the exact
+`creation` reference, and the list still contains the same `occurrence` reference twice afterward
+when the mutable source list is cleared. The returned list is immutable. This proves creation-plan
+reachability, deterministic executable scheduling, and snapshot isolation only. Construction
+does not invoke a creator, bind or execute the executable, allocate or close a resource, create a
+`RunState`, or select transfer, materialization, or publication behavior.
 
 A null executable fails with `NullPointerException("executable")`. A null schedule plan, list,
 or element reports `memoryPlan`, `steps`, or `steps[index]`, respectively. The first step whose
 plan is not the exact schedule plan fails with
 `IllegalArgumentException("steps[index] memory plan does not match schedule memory plan")`.
-Transfer, materialization, and publication variants wait for later Runtime-owned residency and
-result contracts; they are not hidden inside `ExecutionStep`.
+A creation step after index zero fails with
+`IllegalArgumentException("steps[index] representation creation must be the first schedule occurrence")`.
+Transfer, materialization, and publication variants wait for later Runtime-owned route and result
+contracts; they are not hidden inside either current variant.
 
 ## Current Prepare assignment and backend finalization
 
@@ -502,12 +592,12 @@ RunResult result = execution.run(inputs, RunOptions.defaults());
   complete heterogeneous logical run.
 - `RunResult` will expose results published by the prepared publication plan and run policy.
 
-Current ownership distinguishes borrowed inputs from run-owned internal resources. Future
-publication will transfer or lease selected outputs to `RunResult`, while immutable persistent
-prepared resources stay with `PreparedExecution`. Current cold checked binding creates
-backend-owned typed invocation objects with direct references before execution. Exact result,
-transfer, residency, non-executable schedule variants, and runner behavior remain for focused
-Runtime tasks.
+Current ownership distinguishes borrowed inputs from run-owned internal resources, and current
+per-copy validity is explicit within `RunState`. Future publication will transfer or lease
+selected outputs to `RunResult`, while immutable persistent prepared resources stay with
+`PreparedExecution`. Current cold checked binding creates backend-owned typed invocation objects
+with direct references before execution. Exact transfer/materialization routes, execution-driven
+validity transitions, publication/result behavior, and the runner remain focused later work.
 
 ## Boundary and failure model
 

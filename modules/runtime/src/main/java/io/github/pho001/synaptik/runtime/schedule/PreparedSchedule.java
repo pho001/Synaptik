@@ -2,6 +2,7 @@ package io.github.pho001.synaptik.runtime.schedule;
 
 import io.github.pho001.synaptik.runtime.execution.PreparedExecutable;
 import io.github.pho001.synaptik.runtime.memory.PreparedMemoryPlan;
+import io.github.pho001.synaptik.runtime.resource.PreparedRepresentationPlan;
 import java.util.List;
 import java.util.Objects;
 
@@ -9,9 +10,12 @@ import java.util.Objects;
  * Orders immutable prepared work associated with one exact prepared memory plan.
  *
  * <p>A schedule is a reusable prepared recipe. It owns only an immutable snapshot of the supplied
- * step-list structure, retains every exact step reference in encounter order, and permits both an
- * empty list and repeated occurrences. It does not bind or execute work, create or own per-run
- * state, allocate or close resources, or define transfer, materialization, or publication policy.
+ * step-list structure and retains every exact step reference in encounter order. It permits an
+ * empty list and repeated executable occurrences. One optional representation-creation
+ * occurrence may appear only at index zero, keeping cold setup reachable through the unchanged
+ * two-component prepared-execution aggregate. The schedule does not itself create a state, invoke
+ * a creator, bind or execute work, allocate or close resources, or define transfer,
+ * materialization, or publication policy.
  *
  * <p>The schedule and its current step values are immutable and may be traversed concurrently
  * while distinct logical runs are prepared. This does not make mutable per-run objects safe for
@@ -37,8 +41,9 @@ public record PreparedSchedule(
      *     non-null and associated with the exact supplied plan
      * @throws NullPointerException if {@code memoryPlan}, {@code steps}, or a step is {@code null};
      *     an element failure identifies its zero-based supplied position
-     * @throws IllegalArgumentException if a step reports a different plan reference; the failure
-     *     identifies the first mismatched supplied position
+     * @throws IllegalArgumentException if a step reports a different plan reference or a
+     *     representation-creation step occurs anywhere except index zero; the failure identifies
+     *     the first rejected supplied position
      */
     public PreparedSchedule {
         Objects.requireNonNull(memoryPlan, "memoryPlan");
@@ -50,6 +55,12 @@ public record PreparedSchedule(
                         "steps["
                                 + index
                                 + "] memory plan does not match schedule memory plan");
+            }
+            if (step instanceof RepresentationCreationStep && index != 0) {
+                throw new IllegalArgumentException(
+                        "steps["
+                                + index
+                                + "] representation creation must be the first schedule occurrence");
             }
         }
         steps = List.copyOf(steps);
@@ -79,17 +90,52 @@ public record PreparedSchedule(
     /**
      * Identifies one immutable prepared work occurrence associated with a prepared memory plan.
      *
-     * <p>The sealed family currently contains only executable occurrences. The plan association
-     * lets a schedule validate one exact reusable prepared context without a generic payload,
-     * registry, identifier, or execution method.
+     * <p>The sealed family currently contains the optional cold representation-creation prefix
+     * and executable occurrences. The plan association lets a schedule validate one exact
+     * reusable prepared context without a generic payload, registry, identifier, or execution
+     * method.
      */
-    public sealed interface Step permits ExecutionStep {
+    public sealed interface Step permits ExecutionStep, RepresentationCreationStep {
         /**
          * Returns the exact prepared memory plan required by this step.
          *
          * @return a non-null immutable prepared memory plan reference
          */
         PreparedMemoryPlan memoryPlan();
+    }
+
+    /**
+     * Retains the sole optional prepared representation-creation prefix for a schedule.
+     *
+     * <p>When present, schedule validation requires this occurrence at index zero. The step
+     * retains an immutable reusable description only: constructing it or a containing schedule
+     * invokes no creator, creates no {@code RunState}, changes no validity, and owns no resource.
+     * Empty and executable-only schedules remain valid for compatibility; a later Prepare
+     * validator may require the prefix for a runnable result.
+     *
+     * @param representationPlan the exact non-null immutable reusable creation plan
+     */
+    public record RepresentationCreationStep(
+            PreparedRepresentationPlan representationPlan) implements Step {
+        /**
+         * Retains one representation plan.
+         *
+         * @param representationPlan the non-null plan to retain exactly
+         * @throws NullPointerException if {@code representationPlan} is {@code null}
+         */
+        public RepresentationCreationStep {
+            Objects.requireNonNull(representationPlan, "representationPlan");
+        }
+
+        /**
+         * Returns the representation plan's exact prepared memory plan.
+         *
+         * @return exactly {@code representationPlan().memoryPlan()}
+         */
+        @Override
+        public PreparedMemoryPlan memoryPlan() {
+            return representationPlan.memoryPlan();
+        }
     }
 
     /**

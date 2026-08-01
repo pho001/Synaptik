@@ -53,11 +53,11 @@ Execute prepared schedules and own dynamic per-run state, residency, transfers, 
 ```text
 io.github.pho001.synaptik.runtime/
   memory/     public prepared-memory identity and later runtime slot-access contracts
-  resource/   nominal physical representation roles implemented by concrete backends
+  resource/   nominal physical representation roles plus immutable prepared creation descriptions
   execution/  public prepared-execution aggregate, prepared-executable recipe, and per-run
               bound-invocation contracts, plus later execution and runner contracts
   schedule/   public prepared schedule and closed semantic step contracts
-  run/        per-run ownership/binding state and later residency/result contracts
+  run/        per-run ownership, binding, cold creation, validity, and later result contracts
 ```
 
 The module root is not a catch-all facade. Runtime 0001 opened `memory` with the immutable
@@ -65,7 +65,10 @@ The module root is not a catch-all facade. Runtime 0001 opened `memory` with the
 immutable final per-slot byte-size/alignment geometry in `PreparedMemoryPlan`. Runtime remains
 independent of Prepare and Model: Complete Prepare 0002 translates analysis requirements and
 retains source-to-slot associations. Runtime 0003 opens `resource` and `run` with the minimal
-representation/lifecycle foundation. Runtime 0004 opens `execution` with the reusable recipe and
+representation/lifecycle foundation. Complete Runtime 0007 extends those packages with an immutable
+prepared representation plan, package-private cold per-run creation, and explicit buffer-copy
+validity; its creation prefix stays in the existing `schedule` package. Runtime 0004 opens
+`execution` with the reusable recipe and
 per-run direct-reference invocation boundary; residency, configuration, result, and
 runner contracts remain planned until their consumers justify exact surfaces. Runtime 0006 uses
 that existing package for the smallest complete prepared-execution root over the current memory
@@ -81,7 +84,7 @@ plan and schedule.
 | 0004 | [Prepared executable and bound invocation](tasks/0004-prepared-executable-and-bound-invocation.md) | Complete | 0001–0003; ADR 0011 | Added immutable dense resource selections, final checked cold binding, and one per-run backend-owned typed bound invocation without a redundant prepared-unit wrapper. |
 | 0005 | [Prepared schedule contract](tasks/0005-prepared-schedule-contract.md) | Complete | 0002–0004; Prepare 0002 finalization | Added one immutable exact-plan schedule and its execution-step variant; no `PreparedUnit`, transfer, materialization, or publication payload is invented before its Runtime-owned facts exist. |
 | 0006 | [Prepared execution aggregate](tasks/0006-prepared-execution-aggregate.md) | Complete | 0002–0005 | Added the smallest exact-plan/exact-schedule immutable Runtime root while keeping every invocation mutation and resource lifecycle in `RunState`. |
-| 0007 | Representation creation and residency foundation | Draft | 0003; 0006; stable run resource/configuration contracts | Define per-run representation creation plus validity/residency facts before transfer or materialization work can be scheduled. |
+| 0007 | [Representation creation and residency foundation](tasks/0007-representation-creation-and-residency-foundation.md) | Complete | 0003; 0005–0006; Prepare 0002 | Added immutable caller-input/backend-creation descriptions, deterministic per-run creation and rollback, schedule reachability, and explicit per-copy validity without transfer, execution, or Config. |
 | 0008 | Transfer and materialization schedule steps | Draft | 0005; 0007 | Add stable Runtime-owned transfer/materialization recipes only after their representation and residency inputs exist. |
 | 0009 | Publication and result schedule steps | Draft | 0005; 0007–0008; stable publication/result ownership | Translate prepared resources into Runtime-owned delivery/result contracts without importing Compiler publication identities. |
 | 0010 | Prepared runner and dynamic execution | Draft | 0003; 0005–0009; stable run trace contracts | Cold-bind and execute prepared schedules without graph inspection, backend rediscovery, allocation, or lookup in the hot path. |
@@ -96,11 +99,12 @@ plan and schedule.
 ## Current status
 
 In progress after completion of
-[Runtime 0006](tasks/0006-prepared-execution-aggregate.md). The current public Runtime
+[Runtime 0007](tasks/0007-representation-creation-and-residency-foundation.md). No later Runtime
+task has a detailed specification; Draft Runtime 0008 is the next planning frontier. The current public Runtime
 surface now includes immutable `runtime.memory` geometry, nominal `runtime.resource`
 buffer/workspace cleanup roles, the `runtime.run` ownership and one-run lifecycle foundation, the
 `runtime.execution` prepared-recipe/cold-bound-invocation boundary, and the `runtime.schedule`
-executable-only ordered recipe.
+creation-plus-execution ordered recipe.
 
 Runtime 0003's focused command passed three suites and 20 tests; the single final module command
 passed six suites and 45 tests with no failures, errors, or skips. The separate clean
@@ -179,15 +183,22 @@ eight-file Markdown, exact public surface/mechanism/import/build/scope/status, a
 gates passed.
 
 Run configuration is not an aggregate dependency and remains later runner/publication input.
-Transfer, materialization, and publication lack stable Runtime-owned
-representation/residency or delivery/result facts and are split into Draft tasks 0007–0009 before
-the Draft runner. Runtime 0007–0011 and Prepare 0003 remain Draft without detailed specifications.
+Complete Runtime 0007 supplies the stable Runtime-owned representation creation and per-copy
+validity/residency facts required before transfer/materialization can be planned. Its focused
+command passed three suites and 37 tests, and the single final Runtime module command passed 11
+suites and 94 tests, with no skips, failures, or errors. The separate clean documentation pass
+finalized seven production/package Javadocs, Runtime/Public APIs, focused architecture status,
+backend guide, glossary, and planning records without changing executable Java or repeating the
+successful tests. Runtime Javadoc, generated-page inspection, the focused Runtime API example,
+eight-file Markdown validation, exact surface/mechanism/boundary/build/scope/status checks, and
+whitespace validation passed.
+
+Transfer, materialization, and publication remain split into Draft tasks 0008–0009 before the Draft runner.
+Runtime 0008–0011 and Prepare 0003 remain Draft without detailed specifications.
 Backend Contract remains closed, and module dependency directions are unchanged.
 
 ## Open questions
 
-- Runtime 0007 must establish the smallest representation-creation and residency/validity facts
-  required before transfer or materialization steps can be specified.
 - Runtime 0009 must establish a Runtime-owned prepared-resource-to-result association and result
   ownership policy without importing Compiler publication identities.
 
@@ -240,6 +251,15 @@ Backend Contract remains closed, and module dependency directions are unchanged.
 - Runtime 0006 uses only `PreparedMemoryPlan` and `PreparedSchedule` as the complete current
   aggregate components, validates their association by exact plan reference identity, and adds no
   close/run/configuration/persistent-resource contract.
+- Runtime 0007 keeps that aggregate exactly unchanged. One immutable prepared representation plan
+  becomes reachable through a first-only schedule step; a package-private cold operation binds
+  caller inputs and invokes backend-owned creators with reverse partial-failure cleanup.
+- Runtime 0007 treats a bound representation as resident until `RunState` closure and adds one
+  explicit boolean validity fact per buffer representation. Borrowed inputs begin valid, created
+  run-owned buffers begin invalid, multiple or zero valid copies are permitted, and workspaces
+  never carry logical validity.
+- Config 0007 is not a dependency of representation creation or validity. Run/publication options
+  remain inputs to their later consumers.
 - Transfer, materialization, and publication steps remain Draft until Runtime owns stable
   representation/residency and delivery/result facts; Compiler/Planning identities do not cross
   into Runtime to fill that gap.

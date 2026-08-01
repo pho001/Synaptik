@@ -16,10 +16,16 @@ import java.util.Objects;
  * Indexed representation access uses those arrays directly. Position indices are dense
  * zero-based list positions, not numeric {@code BufferSlot} or {@code WorkspaceSlot} components.
  *
- * <p>The carrier permits multiple physical representations for one buffer position without
- * stating which is valid or resident and without providing coherence or transfer behavior. Every
- * exact representation object may occur only once across both domains in one state, preventing
- * ambiguous cleanup ownership. Successful construction transfers responsibility for
+ * <p>Every bound representation is structurally resident until closure: its exact physical
+ * object exists and remains bound to this run. Each buffer representation has one independent
+ * validity bit stating whether that resident copy currently contains the logical slot value.
+ * Borrowed buffers start valid and run-owned buffers start invalid. Any subset, including zero or
+ * multiple copies, may be valid. Workspaces are resident backend-local scratch and have no
+ * logical validity. Validity mutation records a fact only; it performs no storage access, copy,
+ * transfer, kernel call, ownership change, or implicit change to another bit.
+ *
+ * <p>Every exact representation object may occur only once across both domains in one state,
+ * preventing ambiguous cleanup ownership. Successful construction transfers responsibility for
  * {@link RunResourceOwnership#RUN_OWNED} buffers and every workspace; any constructor failure
  * transfers nothing and closes nothing.
  *
@@ -31,7 +37,7 @@ import java.util.Objects;
  * state and rejects execution after closure; neither object acquires ownership of the state or
  * its representations.
  *
- * <p>This class is not thread-safe. A caller must not race access, closure, or future mutation on
+ * <p>This class is not thread-safe. A caller must not race access, validity mutation, or closure on
  * one instance. Separate concurrent states may share the immutable plan, but their run-owned
  * representation objects must be distinct. A borrowed representation may be shared only when its
  * caller guarantees lifetime, safe access, and external synchronization for every run using it.
@@ -39,6 +45,7 @@ import java.util.Objects;
 public final class RunState implements AutoCloseable {
     private final PreparedMemoryPlan memoryPlan;
     private final BufferRepresentationBinding[][] bufferBindings;
+    private final boolean[][] bufferValidity;
     private final WorkspaceRepresentation[] workspaceRepresentations;
     private boolean closed;
 
@@ -47,9 +54,10 @@ public final class RunState implements AutoCloseable {
      *
      * <p>Top-level inputs and plan-sized counts are validated first. Buffer positions are then
      * scanned in increasing order, followed by workspace positions. All list structure is copied
-     * into private arrays while exact binding and representation objects are retained. Ownership
-     * transfers only after the complete input has passed null, count, non-empty, and duplicate-
-     * identity validation.
+     * into private arrays while exact binding and representation objects are retained. One
+     * parallel validity array is initialized from ownership: borrowed buffers are valid and
+     * run-owned buffers are invalid. Ownership transfers only after the complete input has passed
+     * null, count, non-empty, and duplicate-identity validation.
      *
      * @param memoryPlan the immutable prepared plan to retain exactly; must be non-null
      * @param bufferBindings the outer plan-ordered buffer positions to snapshot; must be non-null,
@@ -137,6 +145,19 @@ public final class RunState implements AutoCloseable {
 
         this.memoryPlan = memoryPlan;
         this.bufferBindings = copiedBufferBindings;
+        this.bufferValidity = new boolean[bufferCount][];
+        for (int bufferIndex = 0; bufferIndex < bufferCount; bufferIndex++) {
+            BufferRepresentationBinding[] bindings = copiedBufferBindings[bufferIndex];
+            boolean[] validity = new boolean[bindings.length];
+            for (int representationIndex = 0;
+                    representationIndex < bindings.length;
+                    representationIndex++) {
+                validity[representationIndex] =
+                        bindings[representationIndex].ownership()
+                                == RunResourceOwnership.BORROWED;
+            }
+            bufferValidity[bufferIndex] = validity;
+        }
         this.workspaceRepresentations = copiedWorkspaceRepresentations;
     }
 
@@ -184,8 +205,10 @@ public final class RunState implements AutoCloseable {
      *
      * <p>The buffer position follows prepared-plan encounter order, and the representation
      * position follows the supplied inner-list order. The returned binding and representation
-     * are the exact objects supplied at construction. Access states no validity, residency,
-     * coherence, transfer, or backend compatibility fact.
+     * are the exact objects supplied at construction. The binding's presence establishes
+     * structural residency only; query {@link #isBufferRepresentationValid(int, int)} separately
+     * for logical validity. Access performs no coherence, transfer, or backend compatibility
+     * action.
      *
      * @param bufferIndex the dense zero-based prepared buffer position
      * @param representationIndex the zero-based representation position within that buffer
@@ -208,6 +231,51 @@ public final class RunState implements AutoCloseable {
     }
 
     /**
+     * Reports whether one resident buffer representation contains the logical slot value.
+     *
+     * <p>The query is a constant-time private-array read. It performs no storage inspection,
+     * transfer, backend call, ownership transition, or validity inference.
+     *
+     * @param bufferIndex the dense zero-based prepared buffer position
+     * @param representationIndex the dense zero-based representation position
+     * @return the current validity bit for exactly the selected resident representation
+     * @throws IllegalStateException if this run state is closed; this check occurs before index
+     *     validation
+     * @throws IndexOutOfBoundsException if either index is outside its corresponding range; the
+     *     first rejected index is identified by the existing dense-index diagnostic
+     */
+    public boolean isBufferRepresentationValid(
+            int bufferIndex, int representationIndex) {
+        requireOpen();
+        checkBufferIndex(bufferIndex);
+        checkRepresentationIndex(bufferIndex, representationIndex);
+        return bufferValidity[bufferIndex][representationIndex];
+    }
+
+    /**
+     * Stores one explicit logical-validity fact without performing physical work.
+     *
+     * <p>The update is a constant-time write of exactly {@code valid}. It neither validates bytes
+     * nor copies data, calls a backend or kernel, changes ownership, invalidates another copy, or
+     * establishes a transition policy. Repeating the current value is permitted.
+     *
+     * @param bufferIndex the dense zero-based prepared buffer position
+     * @param representationIndex the dense zero-based representation position
+     * @param valid the exact validity value to store
+     * @throws IllegalStateException if this run state is closed; this check occurs before index
+     *     validation
+     * @throws IndexOutOfBoundsException if either index is outside its corresponding range; the
+     *     first rejected index is identified by the existing dense-index diagnostic
+     */
+    public void setBufferRepresentationValid(
+            int bufferIndex, int representationIndex, boolean valid) {
+        requireOpen();
+        checkBufferIndex(bufferIndex);
+        checkRepresentationIndex(bufferIndex, representationIndex);
+        bufferValidity[bufferIndex][representationIndex] = valid;
+    }
+
+    /**
      * Returns the number of dense workspace positions in prepared-plan encounter order.
      *
      * <p>This immutable count remains available after closure.
@@ -223,8 +291,9 @@ public final class RunState implements AutoCloseable {
      *
      * <p>The position is the zero-based index into {@code memoryPlan().workspaces()}, not the
      * numeric component of its {@code WorkspaceSlot}. The returned object is the exact supplied
-     * run-owned representation. Access states no storage, validity, residency, transfer, or
-     * backend compatibility fact.
+     * run-owned representation. Its binding establishes structural residency until closure, but
+     * workspace scratch has no logical validity. Access performs no storage, transfer, or backend
+     * compatibility action.
      *
      * @param workspaceIndex the dense zero-based prepared workspace position
      * @return the retained non-null workspace representation; never a copy or replacement
@@ -381,6 +450,14 @@ public final class RunState implements AutoCloseable {
     private void checkBufferIndex(int bufferIndex) {
         if (bufferIndex < 0 || bufferIndex >= bufferBindings.length) {
             throw new IndexOutOfBoundsException("bufferIndex out of range: " + bufferIndex);
+        }
+    }
+
+    private void checkRepresentationIndex(int bufferIndex, int representationIndex) {
+        if (representationIndex < 0
+                || representationIndex >= bufferBindings[bufferIndex].length) {
+            throw new IndexOutOfBoundsException(
+                    "representationIndex out of range: " + representationIndex);
         }
     }
 

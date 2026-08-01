@@ -19,8 +19,9 @@ Compiler orchestration now consumes those three operations and uses the public i
 Reusable or public capability matrices, a public graph-wide Planning workflow, public compiler
 entry, physical allocation/access, complete prepare/runtime lifecycles, concrete backend
 integration, and engine APIs remain planned. Prepare analysis contracts and the initial Runtime
-geometry, per-run resource, cold-binding, and executable-only schedule contracts are current but
-do not form a runnable public lifecycle. The backend
+geometry, prepared representation creation, per-run resource/validity, cold-binding, and
+creation-plus-execution schedule contracts are current but do not form a runnable public
+lifecycle. The backend
 contract also contains an immutable caller-supplied availability snapshot; it is data, not a
 discovery or liveness API. A sealed requirement family can now name one hard eligibility target.
 The current config module can record that hard-target optionality, requested graph scope,
@@ -409,14 +410,27 @@ The public `modules:runtime` surface now contains five focused packages:
 - `runtime.memory` defines `BufferSlot`, `WorkspaceSlot`, and immutable ordered
   `PreparedMemoryPlan` byte geometry;
 - `runtime.resource` defines the nominal backend-implemented `BufferRepresentation` and
-  `WorkspaceRepresentation` cleanup roles;
+  `WorkspaceRepresentation` cleanup roles plus immutable `PreparedRepresentationPlan` origins,
+  caller-input occurrences, and typed buffer/workspace creators;
 - `runtime.run` defines borrowed/run-owned buffer bindings and the array-backed one-run
   `RunState`; and
 - `runtime.execution` defines the immutable two-component `PreparedExecution` root, reusable
   `PreparedExecutable` recipes, their dense buffer/representation and workspace selections, and
   per-run `BoundInvocation` objects; and
 - `runtime.schedule` defines immutable `PreparedSchedule` recipes, their sealed plan-associated
-  `Step` family, and the sole current `ExecutionStep` variant.
+  `Step` family, the optional first-only `RepresentationCreationStep`, and `ExecutionStep`.
+
+`PreparedRepresentationPlan` snapshots dense buffer origins and workspace creators against one
+exact memory plan. Concrete backends implement immutable thread-safe creator callbacks that return
+fresh physical results for each run. Package-private cold setup validates every borrowed caller
+input before callbacks, creates buffers then workspaces, and rolls back successful created results
+in reverse order if setup fails. There is intentionally no public setup or run facade yet.
+
+Every representation bound into an open `RunState` is structurally resident until closure. Each
+buffer copy has one independent explicit validity bit: borrowed inputs start valid and newly
+created run-owned buffers start invalid. Workspaces are run-owned scratch without logical
+validity. Query and mutation are constant-time dense-array operations and perform no physical
+copy, backend call, ownership change, or implicit coherence.
 
 `PreparedExecutable.bind` requires the exact same `PreparedMemoryPlan` reference as the open
 `RunState`. It resolves selections in supplied order and delegates explicit checked
@@ -425,11 +439,13 @@ representation compatibility to the concrete backend. The backend then creates a
 `execute()` call checks only that the retained state is open before delegating to the backend;
 execution after state closure is rejected.
 
-One schedule retains an exact `PreparedMemoryPlan` and an immutable ordered snapshot of
-executable occurrences. Every step must report that same plan by reference identity. Empty and
-repeated occurrences are valid; construction performs no binding, execution, allocation,
-resource action, or ownership transfer. No `PreparedUnit` is needed because list position is the
-occurrence and the executable already supplies the work recipe and plan association.
+One schedule retains an exact `PreparedMemoryPlan` and an immutable ordered snapshot of creation
+and executable occurrences. Every step must report that same plan by reference identity. The
+creation occurrence is optional for compatibility but, when present, is sole and first. Empty and
+executable-only schedules and repeated executable occurrences remain valid; construction performs
+no callback, binding, execution, allocation, resource action, or ownership transfer. No
+`PreparedUnit` is needed because list position is the occurrence and each current step supplies
+its recipe and plan association.
 
 One `PreparedExecution(memoryPlan, schedule)` now supplies the current reusable Runtime root. It
 retains both exact references and requires `schedule.memoryPlan() == memoryPlan`. It owns no
@@ -437,12 +453,12 @@ resource, has no close or run method, and creates no per-run state. Its immutabl
 shared by concurrent readers, while each later invocation must use a distinct mutable
 `RunState`.
 
-These contracts contain no concrete backend implementation and do not provide Prepare assignment
-or orchestration themselves, physical allocation/access, validity/residency,
-transfer/materialization/publication step variants, result, schedule consumption, runner, or
-Engine behavior. Binding owns no auxiliary closeable resource and changes no resource ownership.
-See the [Runtime API](runtime-api.md) for scheduling, selection, lifecycle, failure, and
-thread-safety details.
+These contracts contain no concrete backend implementation and do not provide public Prepare or
+run orchestration, physical access, transfer/materialization/publication steps, result, schedule
+consumption, runner, or Engine behavior. Creator callbacks leave physical allocation mechanics to
+the implementing backend, and binding owns no auxiliary closeable resource or ownership change.
+See the [Runtime API](runtime-api.md) for creation, validity, scheduling, selection, lifecycle,
+failure, and thread-safety details.
 
 The public `modules:prepare` surface now spans the existing `prepare.analysis` package and four
 root-package finalization contracts. Analysis retains one typed opaque selected plan and exact

@@ -14,6 +14,7 @@ import io.github.pho001.synaptik.runtime.execution.PreparedExecutable;
 import io.github.pho001.synaptik.runtime.memory.BufferSlot;
 import io.github.pho001.synaptik.runtime.memory.PreparedMemoryPlan;
 import io.github.pho001.synaptik.runtime.resource.BufferRepresentation;
+import io.github.pho001.synaptik.runtime.resource.PreparedRepresentationPlan;
 import io.github.pho001.synaptik.runtime.resource.WorkspaceRepresentation;
 import io.github.pho001.synaptik.runtime.run.RunState;
 import java.io.InputStream;
@@ -49,7 +50,9 @@ class PreparedScheduleTest {
                 () -> assertEquals(0, type.getInterfaces().length),
                 () -> assertArrayEquals(
                         new Class<?>[] {
-                            PreparedSchedule.Step.class, PreparedSchedule.ExecutionStep.class
+                            PreparedSchedule.Step.class,
+                            PreparedSchedule.RepresentationCreationStep.class,
+                            PreparedSchedule.ExecutionStep.class
                         },
                         type.getDeclaredClasses()),
                 () -> assertEquals(2, components.length),
@@ -80,7 +83,7 @@ class PreparedScheduleTest {
     }
 
     @Test
-    void exposesExactClosedStepAndExecutionStepSurface() throws ReflectiveOperationException {
+    void exposesExactClosedStepAndStepVariantSurfaces() throws ReflectiveOperationException {
         Class<PreparedSchedule.Step> step = PreparedSchedule.Step.class;
         Class<PreparedSchedule.ExecutionStep> execution = PreparedSchedule.ExecutionStep.class;
         Method stepMemoryPlan = step.getDeclaredMethod("memoryPlan");
@@ -94,7 +97,10 @@ class PreparedScheduleTest {
                 () -> assertTrue(step.isInterface()),
                 () -> assertTrue(step.isSealed()),
                 () -> assertArrayEquals(
-                        new Class<?>[] {PreparedSchedule.ExecutionStep.class},
+                        new Class<?>[] {
+                            PreparedSchedule.ExecutionStep.class,
+                            PreparedSchedule.RepresentationCreationStep.class
+                        },
                         step.getPermittedSubclasses()),
                 () -> assertEquals(1, step.getDeclaredMethods().length),
                 () -> assertEquals(PreparedMemoryPlan.class, stepMemoryPlan.getReturnType()),
@@ -117,6 +123,63 @@ class PreparedScheduleTest {
                         declaredMethodNames(execution)),
                 () -> assertEquals(
                         PreparedMemoryPlan.class, executionMemoryPlan.getReturnType()));
+
+        Class<PreparedSchedule.RepresentationCreationStep> creation =
+                PreparedSchedule.RepresentationCreationStep.class;
+        Method creationMemoryPlan = creation.getDeclaredMethod("memoryPlan");
+        var creationComponent = creation.getRecordComponents()[0];
+        assertAll(
+                () -> assertTrue(Modifier.isPublic(creation.getModifiers())),
+                () -> assertTrue(Modifier.isStatic(creation.getModifiers())),
+                () -> assertTrue(Modifier.isFinal(creation.getModifiers())),
+                () -> assertTrue(creation.isRecord()),
+                () -> assertArrayEquals(new Class<?>[] {step}, creation.getInterfaces()),
+                () -> assertEquals("representationPlan", creationComponent.getName()),
+                () -> assertEquals(
+                        PreparedRepresentationPlan.class, creationComponent.getType()),
+                () -> assertEquals(
+                        List.of(
+                                "equals",
+                                "hashCode",
+                                "memoryPlan",
+                                "representationPlan",
+                                "toString"),
+                        declaredMethodNames(creation)),
+                () -> assertEquals(
+                        PreparedMemoryPlan.class, creationMemoryPlan.getReturnType()));
+    }
+
+    @Test
+    void creationStepRequiresAndRetainsExactPlanAndIsOptionalFirstOnly() {
+        PreparedMemoryPlan plan = plan(1);
+        PreparedRepresentationPlan representationPlan =
+                new PreparedRepresentationPlan(
+                        plan,
+                        List.of(List.of(new PreparedRepresentationPlan.CallerInput())),
+                        List.of());
+        var creation = new PreparedSchedule.RepresentationCreationStep(representationPlan);
+        var execution = new PreparedSchedule.ExecutionStep(new TestExecutable(plan));
+
+        PreparedSchedule creationOnly = new PreparedSchedule(plan, List.of(creation));
+        PreparedSchedule prefixed = new PreparedSchedule(plan, List.of(creation, execution, execution));
+
+        assertAll(
+                () -> assertFailure(
+                        NullPointerException.class,
+                        "representationPlan",
+                        () -> new PreparedSchedule.RepresentationCreationStep(null)),
+                () -> assertSame(representationPlan, creation.representationPlan()),
+                () -> assertSame(plan, creation.memoryPlan()),
+                () -> assertSame(creation, creationOnly.steps().getFirst()),
+                () -> assertEquals(3, prefixed.steps().size()),
+                () -> assertFailure(
+                        IllegalArgumentException.class,
+                        "steps[1] representation creation must be the first schedule occurrence",
+                        () -> new PreparedSchedule(plan, List.of(execution, creation))),
+                () -> assertFailure(
+                        IllegalArgumentException.class,
+                        "steps[1] representation creation must be the first schedule occurrence",
+                        () -> new PreparedSchedule(plan, List.of(creation, creation))));
     }
 
     @Test
@@ -283,7 +346,8 @@ class PreparedScheduleTest {
         String scheduleClass = classBytes(PreparedSchedule.class);
         String stepClass = classBytes(PreparedSchedule.Step.class);
         String executionClass = classBytes(PreparedSchedule.ExecutionStep.class);
-        String compiled = scheduleClass + stepClass + executionClass;
+        String creationClass = classBytes(PreparedSchedule.RepresentationCreationStep.class);
+        String compiled = scheduleClass + stepClass + executionClass + creationClass;
 
         assertAll(
                 () -> assertFalse(compiled.contains("io/github/pho001/synaptik/prepare")),

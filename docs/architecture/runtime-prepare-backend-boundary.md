@@ -4,14 +4,16 @@ This document explains the boundary defined by [`ARCHITECTURE.md`](../../ARCHITE
 
 Runtime currently implements the immutable `BufferSlot` and `WorkspaceSlot` identities,
 `PreparedMemoryPlan` final slot geometry, nominal buffer/workspace representation roles,
-borrowed/run-owned buffer bindings, the array-backed one-run `RunState` lifecycle, immutable
-`PreparedExecutable` recipes, per-run `BoundInvocation` objects, and the immutable executable-only
-`PreparedSchedule` contract described below, plus the immutable two-component
+borrowed/run-owned buffer bindings, immutable prepared representation origins and backend-owned
+creator callbacks, package-private cold creation with rollback, structural per-run residency and
+explicit buffer-copy validity, the array-backed one-run `RunState` lifecycle, immutable
+`PreparedExecutable` recipes, per-run `BoundInvocation` objects, and the immutable creation-plus-
+execution `PreparedSchedule` contract described below, plus the immutable two-component
 `PreparedExecution` root. Prepare
 currently implements the analysis-side projection, opaque marker roles, exact resource
 declarations, analysis result, preparer collaboration, deterministic complete-set slot assignment,
 typed backend finalization input/collaboration, and the minimal prepared-partition association.
-Physical allocation and access, validity/residency, transfer/materialization/publication schedule
+Physical allocation and access implementations, transfer/materialization/publication schedule
 variants, publication/results, public Prepare orchestration, engine, production concrete
 backends, and a runner remain planned.
 The lifecycle flow therefore mixes current foundations with later stages; each focused section
@@ -157,13 +159,15 @@ The complete architecture prepare lifecycle creates:
 - `PreparedExecution`, the immutable reusable runtime-ready result, including any immutable
   persistent prepared resources that are not ordinary per-run workspace.
 
-Today, `PreparedMemoryPlan`, `PreparedExecutable`, `PreparedSchedule`, `PreparedExecution`, and
-`PreparedPartition` exist among the prepared/runtime contracts in this list; `BoundInvocation` is
+Today, `PreparedMemoryPlan`, `PreparedRepresentationPlan`, `PreparedExecutable`,
+`PreparedSchedule`, `PreparedExecution`, and `PreparedPartition` exist among the prepared/runtime
+contracts in this list; `BoundInvocation` is
 the current per-run result of binding an executable. The current `PreparedExecution` retains one
 exact plan and one schedule that reports that same plan reference. It owns no resource and has no
-run or close lifecycle. The current schedule retains one exact plan and an immutable
-ordered snapshot of executable occurrences. It permits empty and repeated occurrences, has no
-`PreparedUnit`, and performs no binding or execution. No current public Prepare orchestration
+run or close lifecycle. The current schedule retains one exact plan and an immutable ordered
+snapshot. It permits one optional first-only representation-creation prefix plus executable
+occurrences; empty and executable-only schedules and repeated executable occurrences remain
+valid. It has no `PreparedUnit` and invokes no callback, binding, or execution. No current public Prepare orchestration
 constructs or consumes it. The analysis-side and finalization-side Prepare contracts described
 above are also current. `modules/prepare` owns `PrepareContext`,
 `BackendPartitionPreparer`, `BackendPartitionAnalysis`, shared resource declarations, current
@@ -210,8 +214,9 @@ resource. Runtime owns logical slot state, ownership transitions, validity/resid
 orchestration, and failure isolation. Concrete backends own physical representation classes and
 perform allocation, release, transfer, and access.
 
-The current Runtime foundation implements the carrier, cleanup, and cold-binding portions of this
-flow.
+The current Runtime foundation implements the prepared origin description, package-private cold
+creation and rollback, structural residency, explicit per-copy buffer validity, carrier, cleanup,
+and cold-binding portions of this flow.
 `BufferRepresentation` and `WorkspaceRepresentation` are distinct nominal closeable roles with
 no physical access API. `BufferRepresentationBinding` marks one exact buffer representation as
 borrowed or run-owned. `RunState` retains one exact `PreparedMemoryPlan`, copies supplied list
@@ -219,12 +224,24 @@ structure into private arrays in plan encounter order, rejects repeated represen
 and exposes direct indexed access. Every supplied workspace is run-owned. Successful construction
 transfers cleanup responsibility; failed construction transfers nothing and closes nothing.
 
+Each bound representation is structurally resident until closure. One independent boolean per
+buffer copy records logical validity: borrowed caller inputs start valid, created run-owned
+buffers start invalid, zero or multiple copies may be valid, and workspaces remain scratch
+outside logical validity. Query and mutation are explicit constant-time array operations without
+copying, backend work, ownership changes, or implicit coherence.
+
+The package-private cold creation operation validates the complete dense caller-input list before
+callbacks, creates buffers in buffer/representation order and then workspaces, and constructs one
+state. A partial failure closes successfully created results once in reverse creation order,
+preserves the original unchecked failure, suppresses cleanup failures, and never closes borrowed
+inputs.
+
 Current cleanup marks the state closed first, skips borrowed buffers, and attempts every owned
 representation once in deterministic reverse order. It preserves the first unchecked exception
 or error and suppresses later failures. The state is not thread-safe, but separate states may
-share the immutable plan while keeping run-owned representations isolated. This implemented
-foundation still has no allocation, storage access, validity/residency, transfer, schedule
-execution or non-executable variants, publication/result, or runner behavior.
+share the immutable plan while keeping run-owned representations and validity arrays isolated.
+This implemented foundation still has no concrete allocation or storage-access implementation,
+transfer/materialization, schedule execution, publication/result, or runner behavior.
 
 The current `PreparedExecutable` retains one exact plan reference plus private immutable snapshots
 of ordered dense buffer/representation and workspace selections. Empty and repeated selections
@@ -253,8 +270,8 @@ unsafe cast. The shared contracts use no raw `Object`, unchecked generic API, pu
 switch, registry, or service locator.
 
 The initial model adds no automatic pooling, reuse, aliasing, hidden coherence/write-back,
-distributed sharding, or multi-device scheduling. Full representation validity/residency,
-transfer, publication, result, and runner behavior remain later focused tasks.
+distributed sharding, or multi-device scheduling. Explicit transfer/materialization transitions,
+publication, result, and runner behavior remain later focused tasks.
 
 ## What a concrete backend does
 

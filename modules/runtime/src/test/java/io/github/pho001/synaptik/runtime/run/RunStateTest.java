@@ -45,13 +45,14 @@ class RunStateTest {
                         new Class<?>[] {PreparedMemoryPlan.class, List.class, List.class},
                         constructor.getParameterTypes()),
                 () -> assertConstructorGenericSurface(constructor.getGenericParameterTypes()),
-                () -> assertEquals(4, fields.length),
+                () -> assertEquals(5, fields.length),
                 () -> assertField(type, "memoryPlan", PreparedMemoryPlan.class, true),
                 () -> assertField(
                         type,
                         "bufferBindings",
                         BufferRepresentationBinding[][].class,
                         true),
+                () -> assertField(type, "bufferValidity", boolean[][].class, true),
                 () -> assertField(
                         type,
                         "workspaceRepresentations",
@@ -65,6 +66,8 @@ class RunStateTest {
                                 "bufferSlotCount",
                                 "bufferRepresentationCount",
                                 "bufferRepresentation",
+                                "isBufferRepresentationValid",
+                                "setBufferRepresentationValid",
                                 "workspaceSlotCount",
                                 "workspaceRepresentation",
                                 "isClosed",
@@ -230,6 +233,9 @@ class RunStateTest {
                 () -> assertSame(binding01, state.bufferRepresentation(0, 1)),
                 () -> assertSame(binding10, state.bufferRepresentation(1, 0)),
                 () -> assertSame(buffer00, state.bufferRepresentation(0, 0).representation()),
+                () -> assertTrue(state.isBufferRepresentationValid(0, 0)),
+                () -> assertFalse(state.isBufferRepresentationValid(0, 1)),
+                () -> assertFalse(state.isBufferRepresentationValid(1, 0)),
                 () -> assertSame(workspace0, state.workspaceRepresentation(0)),
                 () -> assertSame(workspace1, state.workspaceRepresentation(1)),
                 () -> assertEquals(2, state.workspaceSlotCount()),
@@ -267,12 +273,46 @@ class RunStateTest {
                         () -> state.bufferRepresentation(0, 1)),
                 () -> assertFailure(
                         IndexOutOfBoundsException.class,
+                        "bufferIndex out of range: -1",
+                        () -> state.isBufferRepresentationValid(-1, 0)),
+                () -> assertFailure(
+                        IndexOutOfBoundsException.class,
+                        "representationIndex out of range: 1",
+                        () -> state.setBufferRepresentationValid(0, 1, true)),
+                () -> assertFailure(
+                        IndexOutOfBoundsException.class,
                         "workspaceIndex out of range: -1",
                         () -> state.workspaceRepresentation(-1)),
                 () -> assertFailure(
                         IndexOutOfBoundsException.class,
                         "workspaceIndex out of range: 1",
                         () -> state.workspaceRepresentation(1)));
+    }
+
+    @Test
+    void validityStartsFromOwnershipAndMutatesOnlyTheSelectedBit() {
+        RunState state =
+                new RunState(
+                        memoryPlan(1, 0),
+                        List.of(List.of(
+                                borrowed(new TrackingBuffer("borrowed", null, null)),
+                                owned(new TrackingBuffer("owned0", null, null)),
+                                owned(new TrackingBuffer("owned1", null, null)))),
+                        List.of());
+
+        assertAll(
+                () -> assertTrue(state.isBufferRepresentationValid(0, 0)),
+                () -> assertFalse(state.isBufferRepresentationValid(0, 1)),
+                () -> assertFalse(state.isBufferRepresentationValid(0, 2)));
+
+        state.setBufferRepresentationValid(0, 1, true);
+        state.setBufferRepresentationValid(0, 0, false);
+        state.setBufferRepresentationValid(0, 1, true);
+
+        assertAll(
+                () -> assertFalse(state.isBufferRepresentationValid(0, 0)),
+                () -> assertTrue(state.isBufferRepresentationValid(0, 1)),
+                () -> assertFalse(state.isBufferRepresentationValid(0, 2)));
     }
 
     @Test
@@ -387,6 +427,14 @@ class RunStateTest {
                         IllegalStateException.class,
                         "run state is closed",
                         () -> state.workspaceRepresentation(-1)),
+                () -> assertFailure(
+                        IllegalStateException.class,
+                        "run state is closed",
+                        () -> state.isBufferRepresentationValid(-1, -1)),
+                () -> assertFailure(
+                        IllegalStateException.class,
+                        "run state is closed",
+                        () -> state.setBufferRepresentationValid(-1, -1, true)),
                 () -> assertSame(plan, state.memoryPlan()),
                 () -> assertEquals(1, state.bufferSlotCount()),
                 () -> assertEquals(1, state.bufferRepresentationCount(0)),

@@ -39,9 +39,12 @@ The runtime currently provides the public immutable
 provides the nominal `BufferRepresentation` and `WorkspaceRepresentation` lifecycle roles,
 `BufferRepresentationBinding`, `RunResourceOwnership`, and one array-backed
 [`RunState`](#run-state--runstate) for per-run reference retention and cleanup. Prepare-owned
-requirement-to-slot assignment and association are now current. Physical allocation and access,
-full validity/residency, transfer/materialization/publication schedule variants,
-publication/results, and a runner remain planned. The immutable executable-only
+requirement-to-slot assignment and association are now current. Runtime also has a reusable
+[`PreparedRepresentationPlan`](#prepared-representation-plan--preparedrepresentationplan),
+package-private all-or-cleaned cold setup, structural residency, and explicit
+[`buffer validity`](#buffer-validity) per resident copy. Physical allocation/access
+implementations, transfer/materialization/publication schedule variants, publication/results, and
+a runner remain planned. The immutable creation-plus-execution
 [`PreparedSchedule`](#prepared-schedule--preparedschedule) contract is current.
 Current [`PreparedExecutable`](#prepared-executable--preparedexecutable) recipes perform checked
 cold binding and create current [`BoundInvocation`](#bound-invocation--boundinvocation) objects;
@@ -1941,6 +1944,21 @@ Prepare assignment is current; physical binding and scheduled execution remain p
 `RunState` uses the entry-list position rather than this numeric value for direct representation access. See the
 [Runtime API](api/runtime-api.md#current-slot-identities).
 
+### Buffer validity
+
+The implemented per-run boolean fact stating whether one structurally resident physical buffer
+representation currently contains its logical slot value. Each dense buffer/representation
+position in an open [`RunState`](#run-state--runstate) has one independent bit. Borrowed caller
+inputs start valid; newly created run-owned buffers start invalid. Zero, one, or multiple copies
+of one logical buffer may be valid, and repeating a value is permitted. Workspaces are
+backend-local scratch and have no buffer validity.
+
+Validity query and mutation are constant-time array operations. Mutation records exactly the
+supplied fact and performs no storage inspection, copy, transfer, kernel call, ownership change,
+implicit invalidation, or coherence. Later transfer and execution work must update bits explicitly
+after successful physical actions. Validity is per-run mutable state, not prepared recipe state,
+model Tensor state, or a physical representation capability.
+
 ### Workspace slot / `WorkspaceSlot`
 
 The implemented public Runtime record that carries one non-negative `long` identity for a
@@ -1978,6 +1996,24 @@ Prepare assignment constructs it while retaining source associations. Current `R
 consumes the plan's entry order for per-run representation access without changing the geometry;
 later Runtime/backend contracts own physical allocation, access mechanics, and execution.
 
+### Prepared representation plan / `PreparedRepresentationPlan`
+
+The implemented immutable reusable Runtime description of how every dense buffer representation
+and workspace for one exact `PreparedMemoryPlan` originates. Each non-empty buffer-position list
+contains `CallerInput` occurrences, `CreatedBuffer(BufferCreator)` values, or both; the workspace
+list contains one `WorkspaceCreator` per prepared workspace. The record snapshots both buffer-list
+levels and the workspace list while retaining exact preparation and callback references. It
+invokes no callback and owns no physical object.
+
+Caller-input occurrences consume a later flat caller list in buffer/representation encounter
+order. Concrete backends implement immutable thread-safe creators, and every successful call must
+return a fresh non-null physical result for that position and run. Current package-private cold
+setup validates all callers before invoking callbacks, creates buffers then workspaces, and rolls
+back successfully created results in reverse creation order on failure. A current first-only
+`PreparedSchedule.RepresentationCreationStep` makes the plan reachable through the unchanged
+two-component `PreparedExecution`. Public runner orchestration, transfers, materialization,
+execution-driven validity transitions, and publication remain planned.
+
 ### Memory slot
 
 An architecture-level prepared-plan position through which a schedule can refer to reusable
@@ -1997,8 +2033,8 @@ A concrete backend-owned implementation of one buffer or workspace in host, devi
 storage. Current Runtime defines the distinct nominal `BufferRepresentation` and
 `WorkspaceRepresentation` lifecycle roles, each exposing only unchecked cleanup through
 `close()`. No concrete representation implementation exists yet. Runtime owns the logical per-run
-association, ownership, and cleanup orchestration; later contracts add validity/residency. The
-backend representation owns physical allocation, release, transfer, and access mechanics. A
+association, ownership, structural residency, explicit buffer validity, and cleanup
+orchestration. The backend representation owns physical allocation, release, transfer, and access mechanics. A
 buffer slot may have multiple representations only when prepared work explicitly requires them.
 A workspace representation is backend-local scratch and is not a transferable logical graph
 value.
@@ -2680,18 +2716,20 @@ ordered snapshot of `Step` occurrences. Every step reports that same exact plan.
 and repeated exact or equal occurrences are valid; each list position is one occurrence rather
 than a new ownership relationship.
 
-The nested `Step` interface is sealed and currently permits only
-`ExecutionStep(PreparedExecutable)`. An execution step retains its executable exactly and derives
-its plan directly from `PreparedExecutable.memoryPlan()`. The family has no ID, kind enum,
-generic payload, visitor, binding method, or execution method. No `PreparedUnit` is present:
-occurrence position supplies order, while the executable supplies the stable work recipe and
-exact-plan invariant.
+The nested `Step` interface is sealed and currently permits
+`RepresentationCreationStep(PreparedRepresentationPlan)` and
+`ExecutionStep(PreparedExecutable)`. The creation variant retains the sole optional cold-setup
+prefix and may occur only at index zero. An execution step retains its executable exactly. Both
+derive their plan from the retained recipe. The family has no ID, kind enum, generic payload,
+visitor, binding method, or execution method. No `PreparedUnit` is present: occurrence position
+supplies order, while each variant supplies the stable recipe and exact-plan invariant.
 
 Construction scans supplied steps in encounter order, compares plan references with identity,
 and snapshots through `List.copyOf` only after every step passes. It owns only that list snapshot
-and closes nothing. A schedule may be traversed concurrently while distinct runs are prepared,
-but this does not make one `RunState` or `BoundInvocation` thread-safe. Current scheduling does
-not bind or execute work, allocate or create representations, transfer ownership, or define
+and closes nothing. Empty and executable-only schedules remain valid; executable occurrences may
+repeat. A schedule may be traversed concurrently while distinct runs are prepared, but this does
+not make one `RunState` or `BoundInvocation` thread-safe. Current scheduling invokes no creator,
+binds or executes no work, allocates no representation, transfers no ownership, and defines no
 transfer, materialization, publication, result, or runner behavior.
 
 ### Bound invocation / `BoundInvocation`
@@ -2830,10 +2868,14 @@ runtime publication.
 
 ### Residency
 
-Runtime knowledge of which explicitly prepared physical representation of a logical buffer is
-valid and where it resides after transfers or execution. Residency belongs to one `RunState`; it
-is not shared prepared state and does not belong to the model `Tensor`, compile-time planning, or
-`LayoutDescriptor`. Residency does not imply automatic coherence or hidden write-back.
+Runtime knowledge that an explicitly prepared physical representation exists and is bound to one
+run. The current foundation uses structural residency: every buffer and workspace representation
+bound during complete state construction remains resident until `RunState` closure, with no lazy
+creation, eviction, replacement, or removal. [`Buffer validity`](#buffer-validity) is a separate
+fact about whether a resident buffer copy contains the logical slot value; workspace scratch has
+no such fact. Residency belongs to one `RunState`; it is not shared prepared state and does not
+belong to the model `Tensor`, compile-time planning, or `LayoutDescriptor`. It implies no
+automatic coherence or hidden write-back.
 
 ### Run / runtime
 
@@ -2861,7 +2903,10 @@ representation reference. Dense access indices are entry-list positions, not
 `BufferSlot.value()` or `WorkspaceSlot.value()`.
 
 Each buffer position contains one or more ordered bindings, and each workspace position contains
-one run-owned representation. Successful construction transfers cleanup responsibility for
+one run-owned representation. Binding presence is structural residency until closure. One
+independent validity bit per buffer copy starts true for `BORROWED` and false for `RUN_OWNED`;
+query and mutation are explicit constant-time operations with no physical side effect. Workspaces
+have no logical validity. Successful construction transfers cleanup responsibility for
 `RUN_OWNED` buffers and all workspaces; failed construction transfers nothing. Closing marks the
 state closed first, skips borrowed buffers, attempts owned resources once in deterministic reverse
 order, preserves the first `RuntimeException` or `Error`, and suppresses later failures.
@@ -2869,12 +2914,13 @@ Representation access is closed after that transition, but the exact plan and co
 inspectable. Repeated close is inert.
 
 One state is not thread-safe. Concurrent runs have distinct states and distinct run-owned
-representations, though they may share the immutable plan. A current `PreparedExecutable` may
+representations and validity arrays, though they may share the immutable plan. A current `PreparedExecutable` may
 cold-bind selected representations while the state is open, and the resulting current
 `BoundInvocation` retains this exact state and rejects execution after closure. Neither binding
-object owns the state or its resources. The current carrier does not implement allocation,
-physical access, validity/residency, transfer, schedule execution, publication/result ownership
-transfer, or a runner.
+object owns the state or its resources. Package-private cold creation now constructs states from
+one `PreparedRepresentationPlan`, validates all caller inputs before callbacks, and rolls back
+created results on failure. The current state does not implement physical access,
+transfer/materialization, schedule execution, publication/result ownership transfer, or a runner.
 
 ### Sample domain
 
