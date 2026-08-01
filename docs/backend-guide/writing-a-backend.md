@@ -5,10 +5,10 @@
 This guide maps current backend extension contracts into the complete planned lifecycle. Prepare
 analysis, slot assignment, backend finalization, immutable physical-representation creation
 callbacks, Runtime cold creation and binding, explicit per-copy validity, and creation/executable
-scheduling plus the prepared/bound buffer-transfer contract are current. Production physical
-implementations, publication steps/results, schedule consumption, Engine composition, and every production concrete backend remain
-planned. The guide therefore separates compilable extension patterns from conceptual integration
-steps.
+scheduling plus the prepared/bound buffer-transfer and Runtime-only publication/result contracts
+are current. Production physical implementations, public output-value access, schedule
+consumption, Engine composition, and every production concrete backend remain planned. The guide
+therefore separates compilable extension patterns from conceptual integration steps.
 
 ## Prerequisites
 
@@ -37,8 +37,10 @@ capability -> compile ownership -> backend prepare -> executable -> runtime
 8. Cold-bind each current `PreparedBufferTransfer` into a `BoundBufferTransfer` with direct typed
    source and destination fields. Runtime owns its validity transition; the backend owns physical
    copy mechanics.
-9. Emit typed backend trace contributions when the producer contract exists.
-10. Expose a backend component that later Engine composition can register explicitly.
+9. End the schedule with dense `PublicationStep` occurrences naming already-created result
+   representations. Runtime validates current validity and performs no backend callback.
+10. Emit typed backend trace contributions when the producer contract exists.
+11. Expose a backend component that later Engine composition can register explicitly.
 
 ## Current representation-creation pattern
 
@@ -239,17 +241,18 @@ The future runner will conceptually bind `BufferTransferStep` occurrences before
 current public runner performs that traversal, and the transfer recipe itself does not allocate a
 destination or choose a route.
 
-## Current executable scheduling pattern
+## Current executable and publication scheduling pattern
 
 ### Goal and inputs
 
-Make the representation plan reachable as the first occurrence, then order one prepared transfer
-and two occurrences of one finalized `CpuExecutable`. This example assumes `plan` is the exact
-shared plan supplied by current Prepare finalization; it does not construct a runner or invoke a
-creator.
+Make the representation plan reachable as the first occurrence, then order one prepared transfer,
+two occurrences of one finalized `CpuExecutable`, and one final publication. This example assumes
+`plan` is the exact shared plan supplied by current Prepare finalization; it does not construct a
+runner or invoke a creator.
 
 ```java
 import io.github.pho001.synaptik.runtime.schedule.PreparedSchedule;
+import io.github.pho001.synaptik.runtime.run.PreparedPublication;
 import java.util.List;
 
 CpuExecutable executable = new CpuExecutable(plan);
@@ -259,22 +262,48 @@ PreparedSchedule.RepresentationCreationStep creation =
         new PreparedSchedule.RepresentationCreationStep(representationPlan);
 PreparedSchedule.BufferTransferStep transfer =
         new PreparedSchedule.BufferTransferStep(new CpuPreparedBufferTransfer(plan));
+PreparedSchedule.PublicationStep publication =
+        new PreparedSchedule.PublicationStep(
+                new PreparedPublication(plan, 0, 1, 0));
 PreparedSchedule schedule =
-        new PreparedSchedule(plan, List.of(creation, transfer, occurrence, occurrence));
+        new PreparedSchedule(
+                plan, List.of(creation, occurrence, occurrence, transfer, publication));
 ```
 
 ### Result and interpretation
 
-`schedule.steps()` retains the exact creation prefix and transfer followed by the same executable
-occurrence twice in deterministic order, and every occurrence reports the exact `plan` reference. Repetition
-means execute the prepared region twice when a future runner consumes the schedule; it does not
-duplicate executable, representation, or cleanup ownership. Empty and executable-only schedules
-remain valid for compatibility; a later Prepare validator may require creation for runnable work.
+`schedule.steps()` retains the exact creation prefix, the same executable occurrence twice, the
+transfer, and the publication suffix in deterministic order. Every occurrence reports the exact
+`plan` reference. Repetition means execute the prepared region twice when a future runner consumes
+the schedule; it does not duplicate executable, representation, or cleanup ownership. Result zero
+names buffer zero's representation one, which the explicit transfer made valid before the suffix.
+Empty and executable-only schedules remain valid for compatibility; a later Prepare validator may
+require creation and complete result reachability for runnable work.
 
 Schedule construction only validates and snapshots the recipe. It does not bind or execute the
 `CpuExecutable` or transfer, invoke creator callbacks, create a `RunState`, allocate or close
-resources, perform materialization, publish, or create a result. Publication remains a later
-Runtime-owned delivery contract rather than hidden behavior in a current step.
+resources, perform materialization, publish, or create a result. Publication remains a separate
+runner-invoked Runtime action rather than backend behavior hidden in an executable or transfer.
+
+## Current publication boundary for backend authors
+
+`PreparedPublication` and `BoundPublication` are final Runtime types, not backend extension
+points. A prepared publication uses dense buffer, representation, and result positions. Its cold
+binding resolves the selected representation once, and its `publish()` action requires that exact
+copy to be valid while the state is open. It changes only a one-shot flag and never calls the
+representation or backend.
+
+A backend's responsibility is therefore upstream of publication: its executable and transfer
+actions must perform their prepared physical work correctly, and the later runner must apply the
+explicit Runtime validity transitions. If the desired result exists in another representation,
+the schedule must contain a prepared transfer before its publication suffix. Publication never
+discovers a source, selects a route, converts or copies bytes, retries, or falls back.
+
+After every dense ordered occurrence publishes, current `RunResult` privately retains the direct
+references and leases the complete `RunState`. It exposes no physical representation or output
+value. Closing the result delegates cleanup orchestration to the state, which still skips borrowed
+inputs and calls backend-owned cleanup only for run-owned representations. Intentional result
+aliases do not duplicate cleanup because state binding identity remains unique.
 
 ## Conceptual registration
 
@@ -294,8 +323,8 @@ A backend implements physical buffer and workspace representations plus their al
 release, transfer, and access mechanics. Its retained creator callbacks and prepared executable
 recipes are immutable and reusable. Each active complete logical execution has one isolated
 `RunState`; caller inputs are borrowed and initially valid, created internal buffers are run-owned
-and initially invalid, workspaces are run-owned scratch without logical validity, and published
-outputs later transfer or lease ownership to a result. Each callback must return a fresh result
+and initially invalid, workspaces are run-owned scratch without logical validity, and a completed
+current result leases cleanup of the whole state. Each callback must return a fresh result
 for every position and concurrent run.
 
 Before the hot path, current backend extension code performs explicit checked compatibility and
@@ -303,7 +332,8 @@ creates typed bound invocation objects with direct representation references. It
 raw `Object`, unchecked generic access, reflection, string dispatch, a registry, or repeated
 hot-path casts. Runtime orchestrates cleanup, while the backend representation performs physical
 release. Failure cleanup must never close borrowed inputs or outputs already transferred from the
-run.
+run. Current publication transfers no individual representation ownership; borrowed published
+representations remain caller-owned for the complete result lease.
 
 Capability rejection occurs before ownership. Lowering and finalization failure occur during
 prepare. Representation creation and execution failure occur during run setup or execution and
@@ -314,7 +344,9 @@ must not trigger hidden cross-backend fallback.
 Current backend tests should prove creator immutability and freshness, reverse partial-failure
 cleanup, validity initialization, exact plan identity, selection order, explicit checked
 compatibility, direct typed fields, exact run association, post-close rejection, isolated
-concurrent binding, and unchanged exception propagation. A production backend will additionally
+concurrent binding, unchanged exception propagation, and correct validity before any scheduled
+publication. Runtime tests, rather than backend hooks, own publication one-shot, suffix, alias,
+partial-result, and whole-state lease behavior. A production backend will additionally
 require architecture dependency tests, applicable backend-conformance tests, end-to-end
 integration tests, native cleanup checks, and benchmarks for performance claims. Passing a
 benchmark never substitutes for correctness tests.

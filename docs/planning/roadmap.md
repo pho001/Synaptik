@@ -19,7 +19,7 @@ Parallel work is not the default. It requires an explicit roadmap or master-plan
 | 3 | [`modules/backend-contract`](modules/backend-contract/master-plan.md) | Complete | Foundational value-model conventions and the stable trace foundation are complete. | Backend identity and declarative requirement contracts are complete. |
 | 4 | [`modules/config`](modules/config/master-plan.md) | In progress (interleaved) | Model and backend identity contracts required by configuration are stable. | Compile, prepare, run, planning-cost, and model-autotuning request contracts are complete where stable consumers justify them. |
 | 5 | [`modules/planning`](modules/planning/master-plan.md) | Complete | Stable model/backend identity contracts permit the explicitly bounded capability-query interleave before config scoring is complete. | Ownership, partitioning, scoring, logical memory planning, and the selected contract-closure audit are complete. |
-| 6 | [`modules/runtime`](modules/runtime/master-plan.md) | In progress (0008 Complete) | Compiler/planning handoff, backend identities, the trace foundation, and ADR 0011's per-run resource ownership/cold-binding decision are stable. | Prepared runtime contracts and dynamic run-state foundations are complete. |
+| 6 | [`modules/runtime`](modules/runtime/master-plan.md) | In progress (0009 Complete; 0010 Draft) | Compiler/planning handoff, backend identities, the trace foundation, and ADR 0011's per-run resource ownership/cold-binding decision are stable. | Prepared runtime contracts and dynamic run-state foundations are complete. |
 | 7 | [`modules/compiler`](modules/compiler/master-plan.md) | Complete | Model, config, planning, backend-contract, and trace contracts are ready for the complete compiler lifecycle; bounded task 0001 may start from the closed model graph/provenance contracts alone. | Compile artifacts, graph transformations, and autograd compilation are complete. |
 | 8 | [`modules/prepare`](modules/prepare/master-plan.md) | In progress (0002 Complete; 0003 Draft) | Compiler/planning artifacts and Runtime 0001 are stable; ADR 0010 authorizes the analysis-first staged handoff. | Shared prepare contracts and validation are complete. |
 | 9 | [`backends/openblas-provider`](backends/openblas-provider/master-plan.md) | Draft | Native interop conventions needed by the provider are decided. | The low-level provider contract and validation are complete. |
@@ -48,9 +48,24 @@ Compiler 31 suites/208 tests with no skips, failures, or errors. No later compil
 detailed specification.
 
 The completed Runtime implementation frontier is
-[Runtime 0007 Representation creation and residency foundation](modules/runtime/tasks/0007-representation-creation-and-residency-foundation.md).
-It adds one immutable prepared representation description with dense caller-input occurrences and
-typed backend creators, one optional first-only creation schedule occurrence, package-private
+[Runtime 0009 Publication and result schedule steps](modules/runtime/tasks/0009-publication-and-result-schedule-steps.md).
+It adds exact Runtime-owned buffer/representation/result coordinates, a dense
+publication-only suffix, per-run direct-reference bound publication state, and a `RunResult` that
+leases the complete `RunState`. It requires the selected copy valid at publication time, permits
+distinct ordered result positions to alias one representation, adds no fallback or physical work,
+exposes no output value, and preserves `PreparedExecution` exactly as memory plan plus schedule.
+The next frontier, Runtime 0010, remains Draft without a detailed specification.
+Runtime 0009's focused command passed 4 suites and 32 tests, and its single final Runtime command
+passed 16 suites and 130 tests, with no failures, errors, or skips. Clean documentation context
+`019fbe69-07e8-7a20-b132-c3b70c663d4d` finalized the affected Javadocs, Runtime/Public APIs,
+focused architecture status, backend guide, glossary, and planning records without changing
+executable behavior or repeating the successful tests. Runtime Javadoc, generated-page
+inspection, eight-file Markdown validation, exact 18-path scope/status checks, and whitespace
+validation passed.
+
+The completed Runtime 0007 foundation adds one immutable prepared representation description
+with dense caller-input occurrences and typed backend creators, one optional first-only creation
+schedule occurrence, package-private
 all-or-cleaned cold state creation, structural residency, and explicit independent validity for
 each buffer copy. Caller inputs are borrowed and initially valid; created buffers are run-owned
 and initially invalid; workspaces are run-owned scratch outside logical validity.
@@ -157,8 +172,8 @@ is Complete. Its bounded surface adds only nominal closeable buffer/workspace re
 borrowed/run-owned buffer bindings, and array-indexed `RunState` lifecycle/access ordered like
 `PreparedMemoryPlan`. It may carry multiple explicit buffer representations without promising
 validity/coherence; workspace remains one run-owned backend-local representation per slot.
-Prepare finalization, allocation, full residency, transfer, publication/results, scheduling, and
-runner work remain later.
+At that Runtime 0003 frontier, Prepare finalization, allocation, full residency, transfer,
+publication/results, scheduling, and runner work remained later.
 
 Detailed
 [Runtime 0004 Prepared executable and bound invocation](modules/runtime/tasks/0004-prepared-executable-and-bound-invocation.md)
@@ -185,7 +200,7 @@ payloads. Complete Runtime 0007 fixes only the immutable representation-descript
 schedule-reachability, cold creation/rollback, structural residency, and explicit per-copy
 validity foundation. Detailed
 [Runtime 0008 Prepared buffer transfer and materialization schedule](modules/runtime/tasks/0008-prepared-buffer-transfer-and-materialization-schedule.md)
-is now Complete; publication remains separate Draft Runtime 0009 before the Draft runner.
+is Complete; Runtime 0009 is now Complete before the Draft runner.
 Complete
 [Runtime 0006 Prepared execution aggregate](modules/runtime/tasks/0006-prepared-execution-aggregate.md)
 selects only an exact `PreparedMemoryPlan` and exact
@@ -216,8 +231,8 @@ backend failure leaves all Runtime validity unchanged.
 
 Runtime 0008 keeps `PreparedExecution` unchanged and adds no runner/traversal, executable-output
 invalidation, publication/result, Prepare orchestration, concrete backend, config/tuning/tracing,
-or coherence policy. Runtime 0009–0011 and Prepare 0003 remain Draft without detailed
-specifications.
+or coherence policy. Runtime 0009 is Complete; Runtime 0010–0011 and Prepare 0003 remain Draft
+without detailed specifications.
 Backend Contract remains Complete and closed. Module dependency directions are unchanged, so
 architecture tests do not require an update for this planning decision.
 
@@ -231,8 +246,9 @@ mechanism/build/scope/status checks, and whitespace validation passed.
 
 The completed Runtime foundation still adds no Runtime physical allocation/access implementation,
 graph-value conversion or source association, `PreparedUnit`, schedule consumption, runner,
-publication/result, transfer-route selection, executable-output invalidation, dynamic eviction,
-concrete backend implementation, tracing emission, or Engine facade.
+public output-value access, transfer-route selection, executable-output invalidation, dynamic
+eviction, concrete backend implementation, tracing emission, or Engine facade. Complete Runtime
+0009 adds only Runtime-owned publication/result lifetime contracts.
 The preceding
 [Compiler 0005E First-order gradient coverage closure checkpoint](modules/compiler/tasks/0005e-first-order-gradient-coverage-closure-checkpoint.md)
 closed the compiled-production 37-family, 107-kind, 128-signature role inventory with exact

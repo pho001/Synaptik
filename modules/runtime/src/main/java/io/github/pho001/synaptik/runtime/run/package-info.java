@@ -1,6 +1,7 @@
 /**
  * Defines cold creation, ownership, structural residency, validity, binding, and cleanup for one
- * complete logical run.
+ * complete logical run, binds exact prepared publication coordinates, and owns the completed
+ * result lease.
  *
  * <p>{@link io.github.pho001.synaptik.runtime.run.BufferRepresentationBinding} associates an
  * exact physical buffer representation with
@@ -18,9 +19,17 @@
  * rejects execution after the state closes, but owns neither the state nor its resources. This
  * Package-private cold setup invokes immutable backend-owned creators and performs deterministic
  * reverse rollback before a complete state exists. Concrete backends implement allocation,
- * physical access, transfer, and cleanup mechanics. This package does not inspect storage, choose
- * a backend, copy or transfer data, infer coherence, execute a schedule, publish data, pool
- * resources, or define a result. Later Runtime contracts add explicit transfer, execution,
- * publication, and runner transitions without changing the one-state-per-complete-run boundary.
+ * physical access, transfer, and cleanup mechanics.
+ *
+ * <p>{@link io.github.pho001.synaptik.runtime.run.PreparedPublication} uses exact dense Runtime
+ * coordinates to cold-bind one already-created buffer representation directly into a
+ * {@link io.github.pho001.synaptik.runtime.run.BoundPublication}. Publishing requires that exact
+ * copy to be valid at that moment and changes only one local one-shot flag. It performs no lookup,
+ * fallback, transfer, conversion, or backend work. A completed ordered set creates a
+ * {@link io.github.pho001.synaptik.runtime.run.RunResult}, which privately retains result aliases
+ * and leases the whole state cleanup lifecycle while exposing no output value or representation.
+ * Empty results are valid; partial publication transfers no cleanup responsibility. This package
+ * does not inspect storage, choose a backend, infer coherence, execute a schedule, pool resources,
+ * or define public output access. A later runner performs the ordered lifecycle.
  */
 package io.github.pho001.synaptik.runtime.run;

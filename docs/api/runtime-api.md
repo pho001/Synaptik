@@ -4,7 +4,8 @@
 
 This reference explains the implemented Runtime foundations for prepared-memory geometry,
 reusable representation creation descriptions, one run's physical-representation lifecycle and
-validity, checked binding of backend recipes, ordered scheduling, the immutable
+validity, checked binding of backend recipes, ordered scheduling, prepared publication, the
+completed-result lease, the immutable
 prepared-execution root, and the current Prepare-owned handoff that constructs geometry and
 finalizes backend recipes. The current public surface contains:
 
@@ -13,19 +14,21 @@ finalizes backend recipes. The current public surface contains:
 - `runtime.resource`: the nominal `BufferRepresentation` and `WorkspaceRepresentation` lifecycle
   roles implemented by concrete backends plus `PreparedRepresentationPlan` and its nested
   preparation and creator contracts;
-- `runtime.run`: `RunResourceOwnership`, `BufferRepresentationBinding`, and `RunState`;
+- `runtime.run`: `RunResourceOwnership`, `BufferRepresentationBinding`, `RunState`,
+  `PreparedPublication`, `BoundPublication`, and `RunResult`;
 - `runtime.execution`: `PreparedExecution`, `PreparedExecutable`, its nested `BufferSelection`
   and `WorkspaceSelection` records, `BoundInvocation`, `PreparedBufferTransfer`, and
   `BoundBufferTransfer`; and
 - `runtime.schedule`: `PreparedSchedule`, its sealed nested `Step` contract,
-  `RepresentationCreationStep`, `ExecutionStep`, and `BufferTransferStep`.
+  `RepresentationCreationStep`, `ExecutionStep`, `BufferTransferStep`, and `PublicationStep`.
 
 The geometry, reusable creation description, package-private all-or-cleaned setup, structural
 residency, explicit per-buffer-copy validity, cold-bound invocation and transfer contracts,
-creation, execution, and transfer schedule recipes, two-component prepared-execution aggregate,
+creation, execution, transfer, and dense publication-suffix schedule recipes, the whole-state
+result lease, two-component prepared-execution aggregate,
 Prepare-owned resource assignments, typed backend finalization, and `PreparedPartition`
-association are current. Concrete physical allocation and storage access, publication steps and
-results, public Prepare orchestration, schedule consumption, and a runnable Runtime
+association are current. Concrete physical allocation and storage access, public result-value
+access, public Prepare orchestration, schedule consumption, and a runnable Runtime
 facade remain planned. No production concrete backend currently implements the creation,
 finalization, or execution contracts.
 
@@ -49,6 +52,9 @@ current                  current                      current
 
         BufferTransferStep -> cold bind -> BoundBufferTransfer -> transfer + validity
         current recipe        current       current per run      current contract
+
+        PublicationStep -> cold bind -> BoundPublication -> publish -> RunResult
+        current recipe      current       current per run     current    current lease
 ```
 
 Read the flow from logical source facts toward invocation state. Prepare exposes exact buffer and
@@ -64,7 +70,9 @@ checks their concrete compatibility during cold binding, and creates a per-run
 `BoundBufferTransfer` that orchestrates the explicit validity transition around backend-owned
 physical transfer work. The shared contracts still implement no concrete allocation or storage
 access and supply no runner. The current schedule can retain one first-only creation prefix
-followed by executable or transfer occurrences; it does not invoke or execute any step.
+followed by executable or transfer occurrences and then a dense publication-only suffix. It does
+not invoke or execute any step. Current publication names an already-created valid copy and
+leases the complete state to a result, but deliberately exposes no output value.
 
 ## Current prepared execution
 
@@ -636,7 +644,8 @@ ownership, or a public run lifecycle.
 occurrences with one exact `PreparedMemoryPlan`. Its sealed nested `Step` interface exposes only
 that plan association. `RepresentationCreationStep(PreparedRepresentationPlan)` retains the sole
 optional cold-setup prefix, `ExecutionStep(PreparedExecutable)` retains one executable occurrence,
-and `BufferTransferStep(PreparedBufferTransfer)` retains one explicit transfer/materialization
+`BufferTransferStep(PreparedBufferTransfer)` retains one explicit transfer/materialization
+occurrence, and `PublicationStep(PreparedPublication)` retains one final ordered result
 occurrence. Each derives `memoryPlan()` from its exact component.
 
 Construction validates each occurrence in supplied order and requires reference identity with
@@ -647,7 +656,9 @@ repeated executable or transfer step references, and repeated recipe references 
 each list position is one explicit occurrence and does not create another ownership relationship. A
 creation step may occur zero or one time and, when present, must be index zero. A later Prepare
 validator may require it for a runnable result; compatibility schedules may still be empty or
-executable-only.
+executable-only. Publication steps, when present, form the final suffix. Their result indices must
+be `0..N-1` in encounter order, and `publicationCount()` reports `N`. Distinct result positions
+may intentionally name the same buffer and representation coordinate.
 
 ### Focused schedule example
 
@@ -693,9 +704,104 @@ plan is not the exact schedule plan fails with
 `IllegalArgumentException("steps[index] memory plan does not match schedule memory plan")`.
 A creation step after index zero fails with
 `IllegalArgumentException("steps[index] representation creation must be the first schedule occurrence")`.
-Publication waits for later Runtime-owned delivery and result contracts. Current transfer and
-materialization use `BufferTransferStep`; no second materialization variant is hidden in the
-schedule.
+Current transfer and materialization use `BufferTransferStep`; no second materialization variant
+is hidden in the schedule. A publication step with a reordered or gapped result index fails, as
+does any non-publication occurrence after publication begins. Schedule construction itself does
+not bind, publish, inspect validity, or transfer ownership.
+
+## Current prepared publication and result lease
+
+`PreparedPublication` is an immutable, reusable recipe for one ordered result position. It uses
+only dense Runtime coordinates: a buffer position in one exact `PreparedMemoryPlan`, a
+representation position within that buffer in a matching `RunState`, and a result position. These
+coordinates are not compiler `TensorId` or `ValueId` identities. Prepare will later translate
+compiler logical publication roles into these Runtime coordinates.
+
+`bind(runState)` is the sole representation lookup. It requires an open state associated with the
+same exact plan reference, validates the representation position, and returns a new
+`BoundPublication` retaining the selected physical representation directly. Binding changes no
+validity or ownership and invokes no backend work.
+
+`BoundPublication.publish()` requires the state to remain open and the selected copy to be valid
+at that exact moment. It then changes only the bound occurrence's one-shot flag. A repeated
+publication, a closed state, or an invalid selected copy fails. Publication never searches for a
+different valid copy, performs an implicit transfer or materialization, calls a backend, or
+changes `RunState` validity. When another representation is needed, an explicit prepared buffer
+transfer must occur before the publication suffix.
+
+`RunResult` accepts a complete dense result-ordered list of successfully published occurrences
+for one exact open state. It privately snapshots their direct representation references,
+including intentional aliases, and semantically takes responsibility for closing the complete
+`RunState`. It exposes only `resultCount()`, `isClosed()`, and idempotent `close()`; it exposes no
+representation, storage, Tensor, value, or state accessor. An empty list is valid. Constructor
+failure and partial publication transfer no cleanup responsibility, so the future runner remains
+responsible for closing the state. Borrowed inputs remain caller-owned throughout the result
+lease, while state-owned resources retain the existing deterministic cleanup behavior.
+
+The bound publication and result are not thread-safe. They must not race publication, validity
+mutation, execution, transfer, result construction, or closure. Immutable prepared publication
+recipes may bind concurrently to distinct states, producing isolated flags and leases.
+
+### Focused publication example
+
+#### Goal and inputs
+
+Publish two ordered results that intentionally alias one already-valid borrowed representation,
+then close the complete state through the result. This current example calls the publication
+objects directly because schedule traversal and the public runner remain planned.
+
+```java
+import io.github.pho001.synaptik.runtime.run.BoundPublication;
+import io.github.pho001.synaptik.runtime.run.BufferRepresentationBinding;
+import io.github.pho001.synaptik.runtime.run.PreparedPublication;
+import io.github.pho001.synaptik.runtime.run.RunResult;
+import io.github.pho001.synaptik.runtime.run.RunResourceOwnership;
+import io.github.pho001.synaptik.runtime.run.RunState;
+import io.github.pho001.synaptik.runtime.schedule.PreparedSchedule;
+import java.util.List;
+import java.util.concurrent.atomic.AtomicInteger;
+
+BufferRepresentation published = new CreationBuffer(new AtomicInteger());
+RunState publicationState =
+        new RunState(
+                plan,
+                List.of(
+                        List.of(
+                                new BufferRepresentationBinding(
+                                        published, RunResourceOwnership.BORROWED))),
+                List.of(new CreationWorkspace(new AtomicInteger())));
+
+PreparedPublication first = new PreparedPublication(plan, 0, 0, 0);
+PreparedPublication alias = new PreparedPublication(plan, 0, 0, 1);
+PreparedSchedule schedule =
+        new PreparedSchedule(
+                plan,
+                List.of(
+                        new PreparedSchedule.PublicationStep(first),
+                        new PreparedSchedule.PublicationStep(alias)));
+
+BoundPublication boundFirst = first.bind(publicationState);
+BoundPublication boundAlias = alias.bind(publicationState);
+boundFirst.publish();
+boundAlias.publish();
+
+try (RunResult result = new RunResult(
+        publicationState, List.of(boundFirst, boundAlias))) {
+    assert schedule.publicationCount() == 2;
+    assert result.resultCount() == 2;
+}
+```
+
+#### Result and interpretation
+
+Both result positions retain the same exact representation privately, but the result count is
+two because aliases preserve ordered result multiplicity. Publication reads no storage and
+performs no copy. Closing the result closes the leased state; because this example's selected
+representation is borrowed, its physical cleanup remains the caller's responsibility.
+
+If the selected copy were invalid, `publish()` would fail with
+`IllegalStateException("published buffer representation is invalid")`. It would not choose
+another copy or create a partial result. The owner of the still-open state would then close it.
 
 ## Current Prepare assignment and backend finalization
 
@@ -738,7 +844,7 @@ Public Prepare orchestration will later construct and validate this aggregate. A
 immutable persistent prepared resources must define its own ownership and partial-construction
 failure lifecycle; the current record does not anticipate it with an empty close contract.
 
-## Planned execution and publication contract
+## Current publication foundation and planned runner
 
 ```java
 // Conceptual API; not currently runnable.
@@ -749,15 +855,18 @@ RunResult result = execution.run(inputs, RunOptions.defaults());
 - `RunOptions` will hold declarative run and publication choices, not live services.
 - Exactly one current `RunState` will be populated and consumed by the future runner for the
   complete heterogeneous logical run.
-- `RunResult` will expose results published by the prepared publication plan and run policy.
+- The current `RunResult` leases the whole run state but exposes no values; a later public
+  Engine-facing result API must define value access separately.
 
 Current ownership distinguishes borrowed inputs from run-owned internal resources, and current
-per-copy validity is explicit within `RunState`. Future publication will transfer or lease
-selected outputs to `RunResult`, while immutable persistent prepared resources stay with
-`PreparedExecution`. Current cold checked binding creates backend-owned typed invocation and
+per-copy validity is explicit within `RunState`. Current publication leases the complete state to
+`RunResult`, while immutable persistent prepared resources stay with `PreparedExecution`.
+Current cold checked binding creates backend-owned typed invocation and
 transfer objects with direct references. One exact prepared buffer transfer and its success-only
-destination-valid transition are current. Transfer route selection, executable-output
-invalidation, publication/result behavior, and the runner remain focused later work.
+destination-valid transition are current. Prepared publication, its suffix ordering, one-shot
+validity check, alias preservation, empty result, and whole-state lease are also current. Transfer
+route selection, executable-output invalidation, schedule traversal, public output access, and the
+runner remain focused later work.
 
 ## Boundary and failure model
 

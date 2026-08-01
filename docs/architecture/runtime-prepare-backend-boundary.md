@@ -9,13 +9,14 @@ creator callbacks, package-private cold creation with rollback, structural per-r
 explicit buffer-copy validity, the array-backed one-run `RunState` lifecycle, immutable
 `PreparedExecutable` and `PreparedBufferTransfer` recipes, per-run `BoundInvocation` and
 `BoundBufferTransfer` objects, and the immutable creation-plus-execution-plus-transfer
-`PreparedSchedule` contract described below, plus the immutable two-component
+`PreparedSchedule` contract described below, the dense final publication suffix, direct per-run
+publication binding, the whole-`RunState` `RunResult` lease, plus the immutable two-component
 `PreparedExecution` root. Prepare
 currently implements the analysis-side projection, opaque marker roles, exact resource
 declarations, analysis result, preparer collaboration, deterministic complete-set slot assignment,
 typed backend finalization input/collaboration, and the minimal prepared-partition association.
-Physical allocation and access implementations, publication schedule variants/results, public
-Prepare orchestration, engine, production concrete
+Physical allocation and access implementations, public output-value access, public Prepare
+orchestration, engine, production concrete
 backends, and a runner remain planned.
 The lifecycle flow therefore mixes current foundations with later stages; each focused section
 states its implementation status.
@@ -167,8 +168,10 @@ the current per-run result of binding an executable. The current `PreparedExecut
 exact plan and one schedule that reports that same plan reference. It owns no resource and has no
 run or close lifecycle. The current schedule retains one exact plan and an immutable ordered
 snapshot. It permits one optional first-only representation-creation prefix plus executable and
-buffer-transfer occurrences; empty, executable-only, and transfer-only schedules and repeated
-occurrences remain valid. It has no `PreparedUnit` and invokes no callback, binding, or execution. No current public Prepare orchestration
+buffer-transfer occurrences, followed by an optional dense publication-only suffix. Empty,
+executable-only, transfer-only, and zero-publication schedules and repeated pre-publication
+occurrences remain valid. Distinct publication positions may name the same exact representation.
+It has no `PreparedUnit` and invokes no callback, binding, publication, or execution. No current public Prepare orchestration
 constructs or consumes it. The analysis-side and finalization-side Prepare contracts described
 above are also current. `modules/prepare` owns `PrepareContext`,
 `BackendPartitionPreparer`, `BackendPartitionAnalysis`, shared resource declarations, current
@@ -252,7 +255,8 @@ destination representation. It adds no second operation kind, allocation, route 
 invalidation, or hidden coherence.
 
 This implemented foundation still has no concrete allocation or storage-access implementation,
-schedule execution, executable-output invalidation, publication/result, or runner behavior.
+schedule execution, executable-output invalidation, public output-value access, or runner
+behavior.
 
 The current `PreparedExecutable` retains one exact plan reference plus private immutable snapshots
 of ordered dense buffer/representation and workspace selections. Empty and repeated selections
@@ -269,10 +273,26 @@ the backend implementation. It rejects execution after the state closes and owns
 nothing. One immutable executable may bind concurrently to distinct states; a bound invocation is
 not thread-safe and must not race execution with closure.
 
-Caller inputs are borrowed, internal buffers and workspaces are run-owned, published outputs
-transfer or lease ownership to a later `RunResult`, and immutable persistent prepared resources
+Caller inputs are borrowed, internal buffers and workspaces are run-owned, and current published
+results lease the complete `RunState` to `RunResult`; immutable persistent prepared resources
 remain `PreparedExecution`-owned. A workspace is backend-local scratch rather than a transferable
 logical value; host staging and device scratch use separate workspace requirements.
+
+The current immutable `PreparedPublication` identifies one already-created buffer representation
+with dense Runtime buffer, representation, and result positions against one exact plan. These are
+prepared/run coordinates, not compiler graph or Tensor identities. Its cold binding resolves the
+selected physical representation once into a per-run `BoundPublication`. Publication requires
+the exact selected copy to be valid at that moment, changes only a local one-shot flag, and
+performs no lookup, transfer, fallback, conversion, allocation, backend callback, validity change,
+or ownership mutation. Publication occurrences form the schedule's dense final suffix. Different
+result positions may intentionally alias one exact representation.
+
+After all bound occurrences publish successfully, `RunResult` privately snapshots their direct
+representation references and leases cleanup of the complete open state. Empty results are valid.
+Partial publication or failed result construction transfers no cleanup responsibility. Closing
+the result delegates to the existing state cleanup, so borrowed inputs remain caller-owned and
+run-owned resources retain deterministic reverse cleanup. The result exposes count and lifecycle
+only; output value, representation, Tensor, and state access remain deliberately absent.
 
 Java representation compatibility is now checked explicitly once at the current cold binding
 boundary. The backend creates typed bound objects with direct references, so the hot path needs no map lookup,
@@ -282,8 +302,9 @@ switch, registry, or service locator.
 
 The initial model adds no automatic pooling, reuse, aliasing, hidden coherence/write-back,
 distributed sharding, or multi-device scheduling. Transfer/materialization recipes and their
-success-only validity transition are current; executable-output invalidation, publication,
-result, and runner behavior remain later focused tasks.
+success-only validity transition, prepared publication, and result lease are current;
+executable-output invalidation, schedule traversal, public output access, and runner behavior
+remain later focused tasks.
 
 ## What a concrete backend does
 

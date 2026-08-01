@@ -57,7 +57,7 @@ io.github.pho001.synaptik.runtime/
   execution/  public prepared-execution aggregate, prepared executable/transfer recipes, and
               per-run direct-reference bound actions, plus later runner contracts
   schedule/   public prepared schedule and closed semantic step contracts
-  run/        per-run ownership, binding, cold creation, validity, and later result contracts
+  run/        per-run ownership, binding, cold creation, validity, publication, and result leases
 ```
 
 The module root is not a catch-all facade. Runtime 0001 opened `memory` with the immutable
@@ -68,11 +68,13 @@ retains source-to-slot associations. Runtime 0003 opens `resource` and `run` wit
 representation/lifecycle foundation. Complete Runtime 0007 extends those packages with an immutable
 prepared representation plan, package-private cold per-run creation, and explicit buffer-copy
 validity; its creation prefix stays in the existing `schedule` package. Runtime 0004 opens
-`execution` with the reusable recipe and
-per-run direct-reference invocation boundary; residency, configuration, result, and
-runner contracts remain planned until their consumers justify exact surfaces. Runtime 0006 uses
+`execution` with the reusable recipe and per-run direct-reference invocation boundary; at that
+frontier residency, configuration, result, and runner contracts remained planned until their
+consumers justified exact surfaces. Runtime 0006 uses
 that existing package for the smallest complete prepared-execution root over the current memory
-plan and schedule.
+plan and schedule. Complete Runtime 0009 keeps that root unchanged and adds Runtime-owned prepared
+publication coordinates, per-run bound publication state, and a whole-`RunState` result lease in
+`run`; its ordered occurrence extends the existing `schedule` package.
 
 ## Task list
 
@@ -86,7 +88,7 @@ plan and schedule.
 | 0006 | [Prepared execution aggregate](tasks/0006-prepared-execution-aggregate.md) | Complete | 0002–0005 | Added the smallest exact-plan/exact-schedule immutable Runtime root while keeping every invocation mutation and resource lifecycle in `RunState`. |
 | 0007 | [Representation creation and residency foundation](tasks/0007-representation-creation-and-residency-foundation.md) | Complete | 0003; 0005–0006; Prepare 0002 | Added immutable caller-input/backend-creation descriptions, deterministic per-run creation and rollback, schedule reachability, and explicit per-copy validity without transfer, execution, or Config. |
 | 0008 | [Prepared buffer transfer and materialization schedule](tasks/0008-prepared-buffer-transfer-and-materialization-schedule.md) | Complete | 0004–0005; 0007 | Added one backend-supplied prepared/bound buffer-transfer pair and schedule occurrence; materialization is the same action between distinct already-created representations, with destination-valid no-op and success-only validity transition. |
-| 0009 | Publication and result schedule steps | Draft | 0005; 0007–0008; stable publication/result ownership | Translate prepared resources into Runtime-owned delivery/result contracts without importing Compiler publication identities. |
+| 0009 | [Publication and result schedule steps](tasks/0009-publication-and-result-schedule-steps.md) | Complete | 0005; 0007–0008; stable publication/result ownership | Added exact prepared/run coordinates and a dense publication suffix, cold-bound direct selected representations, and leased the complete `RunState` to an ordered `RunResult` without importing Compiler publication identities or exposing output values. |
 | 0010 | Prepared runner and dynamic execution | Draft | 0003; 0005–0009; stable run trace contracts | Cold-bind and execute prepared schedules without graph inspection, backend rediscovery, allocation, or lookup in the hot path. |
 | 0011 | Runtime contract closure | Draft | 0001–0010 | Audit Runtime API cohesion, lifecycle, dependencies, performance boundaries, documentation, and validation. |
 
@@ -142,8 +144,8 @@ run-owned backend-local representation. Construction retains exact references an
 cleanup only after all validation succeeds. Closed-first deterministic reverse cleanup skips
 borrowed buffers, preserves unchecked failures, and is idempotent.
 
-Allocation, full residency, transfers, publication/results, scheduling, and runner behavior remain
-later tasks. Complete
+At the Runtime 0003 frontier, allocation, full residency, transfers, publication/results,
+scheduling, and runner behavior remained later tasks. Complete
 [Runtime 0004](tasks/0004-prepared-executable-and-bound-invocation.md) defines only the immutable
 executable recipe's dense buffer/representation and workspace selections, final common cold-
 binding validation, concrete-backend compatibility hooks, and one per-run `BoundInvocation` with
@@ -208,14 +210,28 @@ executable Java or repeating the successful tests. Runtime Javadoc/generated-pag
 the current transfer examples, eight-file Markdown validation, exact surface/hot-path/direct-field/
 mechanism/build/scope/status checks, and whitespace validation passed.
 
-Publication remains separate Draft Runtime 0009 before the Draft runner. Runtime 0009–0011 and
-Prepare 0003 remain Draft without detailed specifications.
+Complete [Runtime 0009](tasks/0009-publication-and-result-schedule-steps.md) adds one immutable
+`PreparedPublication`, one per-run `BoundPublication`, a
+dense publication-only schedule suffix, and one `RunResult` that leases the complete `RunState`.
+The contract requires the named already-created representation to be valid at publication time,
+permits distinct ordered result positions to alias it, performs no fallback or physical work, and
+keeps result values private. `PreparedExecution` remains exactly memory plan plus schedule.
+Its focused four-suite command passed 32 tests, and the single final Runtime module command passed
+16 suites and 130 tests, with no failures, errors, or skips. Clean documentation context
+`019fbe69-07e8-7a20-b132-c3b70c663d4d` finalized affected Javadocs, Runtime/Public APIs, focused
+architecture status, backend guidance, glossary, and planning evidence without changing
+executable behavior or repeating the successful Java tests. Runtime Javadoc, generated-page
+inspection, eight-file Markdown validation, exact 18-path scope, status, and whitespace checks
+passed.
+Runtime 0010–0011 and Prepare 0003 remain Draft without detailed specifications.
 Backend Contract remains closed, and module dependency directions are unchanged.
 
 ## Open questions
 
-- Runtime 0009 must establish a Runtime-owned prepared-resource-to-result association and result
-  ownership policy without importing Compiler publication identities.
+- No blocking question remains from Runtime 0009. Its completed contract fixes Runtime-only
+  dense prepared/run coordinates, publication ordering, validity, aliasing, empty/partial
+  results, one-shot behavior, and a whole-state result lease. Output value access remains a later
+  Engine/result decision rather than an unresolved part of this Runtime task.
 
 ## Decisions made
 
@@ -279,8 +295,14 @@ Backend Contract remains closed, and module dependency directions are unchanged.
   explicit prepared/bound transfer. Materialization is the same transfer to an equivalent
   already-created destination; no allocation, second kind, route search, or hidden coherence is
   added.
-- Publication remains Draft until Runtime owns stable delivery/result facts; Compiler/Planning
-  identities do not cross into Runtime to fill that gap.
+- Runtime 0009 uses a dense `resultIndex` plus exact buffer/representation positions as the full
+  Runtime publication identity. Compiler/Planning/Prepare identities do not cross into Runtime.
+- Publication is a dense suffix and requires the named already-created representation valid at
+  that moment. Another representation requires Runtime 0008's explicit transfer beforehand; no
+  fallback, discovery, materialization, allocation, conversion, or copy occurs in publication.
+- `RunResult` leases the complete `RunState` instead of transferring individual representations.
+  This preserves immutable ownership bindings, borrowed-input rules, duplicate-identity
+  protection, and deterministic cleanup while keeping `PreparedExecution` unchanged.
 - Buffer/workspace identity domains distinguish shared buffer positions from scratch positions,
   but they do not distinguish caller input, internal value, or published-output roles. Those
   roles must come from later Prepare/publication associations rather than a speculative Runtime
@@ -298,8 +320,8 @@ Backend Contract remains closed, and module dependency directions are unchanged.
   to direct per-run work.
 - Turning Runtime 0008's exact prepared source/destination action into route search, allocation,
   hidden coherence, or hot representation lookup.
-- Inventing publication payloads before their Runtime-owned delivery/result inputs and consumers
-  are stable.
+- Letting a later implementation replace Runtime 0009's exact coordinates and whole-state lease
+  with graph identities, individual-resource detachment, hidden fallback, or public output access.
 
 ## Notes
 

@@ -18,6 +18,7 @@ import io.github.pho001.synaptik.runtime.memory.PreparedMemoryPlan;
 import io.github.pho001.synaptik.runtime.resource.BufferRepresentation;
 import io.github.pho001.synaptik.runtime.resource.PreparedRepresentationPlan;
 import io.github.pho001.synaptik.runtime.resource.WorkspaceRepresentation;
+import io.github.pho001.synaptik.runtime.run.PreparedPublication;
 import io.github.pho001.synaptik.runtime.run.RunState;
 import java.io.InputStream;
 import java.lang.reflect.Method;
@@ -54,6 +55,7 @@ class PreparedScheduleTest {
                         new Class<?>[] {
                             PreparedSchedule.Step.class,
                             PreparedSchedule.RepresentationCreationStep.class,
+                            PreparedSchedule.PublicationStep.class,
                             PreparedSchedule.ExecutionStep.class,
                             PreparedSchedule.BufferTransferStep.class
                         },
@@ -81,7 +83,13 @@ class PreparedScheduleTest {
                         Modifier.isPrivate(field.getModifiers())
                                 && Modifier.isFinal(field.getModifiers()))),
                 () -> assertEquals(
-                        List.of("equals", "hashCode", "memoryPlan", "steps", "toString"),
+                        List.of(
+                                "equals",
+                                "hashCode",
+                                "memoryPlan",
+                                "publicationCount",
+                                "steps",
+                                "toString"),
                         declaredMethodNames(type)));
     }
 
@@ -103,7 +111,8 @@ class PreparedScheduleTest {
                         new Class<?>[] {
                             PreparedSchedule.ExecutionStep.class,
                             PreparedSchedule.RepresentationCreationStep.class,
-                            PreparedSchedule.BufferTransferStep.class
+                            PreparedSchedule.BufferTransferStep.class,
+                            PreparedSchedule.PublicationStep.class
                         },
                         step.getPermittedSubclasses()),
                 () -> assertEquals(1, step.getDeclaredMethods().length),
@@ -170,6 +179,62 @@ class PreparedScheduleTest {
                         declaredMethodNames(transfer)),
                 () -> assertEquals(
                         PreparedMemoryPlan.class, transferMemoryPlan.getReturnType()));
+
+        Class<PreparedSchedule.PublicationStep> publication =
+                PreparedSchedule.PublicationStep.class;
+        Method publicationMemoryPlan = publication.getDeclaredMethod("memoryPlan");
+        var publicationComponent = publication.getRecordComponents()[0];
+        assertAll(
+                () -> assertTrue(Modifier.isPublic(publication.getModifiers())),
+                () -> assertTrue(Modifier.isStatic(publication.getModifiers())),
+                () -> assertTrue(Modifier.isFinal(publication.getModifiers())),
+                () -> assertTrue(publication.isRecord()),
+                () -> assertArrayEquals(new Class<?>[] {step}, publication.getInterfaces()),
+                () -> assertEquals(1, publication.getRecordComponents().length),
+                () -> assertEquals("publication", publicationComponent.getName()),
+                () -> assertEquals(PreparedPublication.class, publicationComponent.getType()),
+                () -> assertEquals(
+                        List.of("equals", "hashCode", "memoryPlan", "publication", "toString"),
+                        declaredMethodNames(publication)),
+                () -> assertEquals(
+                        PreparedMemoryPlan.class, publicationMemoryPlan.getReturnType()));
+    }
+
+    @Test
+    void publicationStepRequiresExactRecipeAndScheduleRequiresDensePublicationSuffix() {
+        PreparedMemoryPlan plan = plan(1);
+        var execution = new PreparedSchedule.ExecutionStep(new TestExecutable(plan));
+        var first = new PreparedPublication(plan, 0, 0, 0);
+        var second = new PreparedPublication(plan, 0, 0, 1);
+        var firstStep = new PreparedSchedule.PublicationStep(first);
+        var secondStep = new PreparedSchedule.PublicationStep(second);
+        PreparedSchedule empty = new PreparedSchedule(plan, List.of());
+        PreparedSchedule schedule =
+                new PreparedSchedule(plan, List.of(execution, firstStep, secondStep));
+
+        assertAll(
+                () -> assertFailure(
+                        NullPointerException.class,
+                        "publication",
+                        () -> new PreparedSchedule.PublicationStep(null)),
+                () -> assertSame(first, firstStep.publication()),
+                () -> assertSame(plan, firstStep.memoryPlan()),
+                () -> assertEquals(0, empty.publicationCount()),
+                () -> assertEquals(2, schedule.publicationCount()),
+                () -> assertSame(firstStep, schedule.steps().get(1)),
+                () -> assertSame(secondStep, schedule.steps().get(2)),
+                () -> assertFailure(
+                        IllegalArgumentException.class,
+                        "steps[0] publication resultIndex must equal publication encounter index 0",
+                        () -> new PreparedSchedule(plan, List.of(secondStep))),
+                () -> assertFailure(
+                        IllegalArgumentException.class,
+                        "steps[1] publication resultIndex must equal publication encounter index 1",
+                        () -> new PreparedSchedule(plan, List.of(firstStep, firstStep))),
+                () -> assertFailure(
+                        IllegalArgumentException.class,
+                        "steps[1] non-publication occurrence follows publication suffix",
+                        () -> new PreparedSchedule(plan, List.of(firstStep, execution))));
     }
 
     @Test

@@ -20,8 +20,8 @@ Reusable or public capability matrices, a public graph-wide Planning workflow, p
 entry, physical allocation/access, complete prepare/runtime lifecycles, concrete backend
 integration, and engine APIs remain planned. Prepare analysis contracts and the initial Runtime
 geometry, prepared representation creation, per-run resource/validity, executable and transfer
-cold-binding, and creation-plus-execution-plus-transfer schedule contracts are current but do not
-form a runnable public lifecycle. The backend
+cold-binding, prepared publication and result leasing, and the ordered schedule contracts are
+current but do not form a runnable public lifecycle. The backend
 contract also contains an immutable caller-supplied availability snapshot; it is data, not a
 discovery or liveness API. A sealed requirement family can now name one hard eligibility target.
 The current config module can record that hard-target optionality, requested graph scope,
@@ -412,15 +412,16 @@ The public `modules:runtime` surface now contains five focused packages:
 - `runtime.resource` defines the nominal backend-implemented `BufferRepresentation` and
   `WorkspaceRepresentation` cleanup roles plus immutable `PreparedRepresentationPlan` origins,
   caller-input occurrences, and typed buffer/workspace creators;
-- `runtime.run` defines borrowed/run-owned buffer bindings and the array-backed one-run
-  `RunState`; and
+- `runtime.run` defines borrowed/run-owned buffer bindings, the array-backed one-run `RunState`,
+  dense-coordinate `PreparedPublication`, per-run `BoundPublication`, and the whole-state
+  `RunResult` lease; and
 - `runtime.execution` defines the immutable two-component `PreparedExecution` root, reusable
   `PreparedExecutable` recipes, their dense buffer/representation and workspace selections, and
   per-run `BoundInvocation` objects, plus reusable `PreparedBufferTransfer` recipes and per-run
   `BoundBufferTransfer` actions; and
 - `runtime.schedule` defines immutable `PreparedSchedule` recipes, their sealed plan-associated
-  `Step` family, the optional first-only `RepresentationCreationStep`, `ExecutionStep`, and
-  `BufferTransferStep`.
+  `Step` family, the optional first-only `RepresentationCreationStep`, `ExecutionStep`,
+  `BufferTransferStep`, and the dense final `PublicationStep` suffix.
 
 `PreparedRepresentationPlan` snapshots dense buffer origins and workspace creators against one
 exact memory plan. Concrete backends implement immutable thread-safe creator callbacks that return
@@ -450,14 +451,23 @@ unchanged. Materialization is this same explicit transfer to an equivalent alrea
 destination, not another operation, allocation path, or route search.
 
 One schedule retains an exact `PreparedMemoryPlan` and an immutable ordered snapshot of creation,
-executable, and buffer-transfer occurrences. Every step must report that same plan by reference
+executable, buffer-transfer, and publication occurrences. Every step must report that same plan by reference
 identity. The
 creation occurrence is optional for compatibility but, when present, is sole and first. Empty and
 executable-only or transfer-only schedules and repeated executable or transfer occurrences remain
-valid; construction performs
+valid. Publication occurrences, when present, form a dense `0..N-1` final suffix; distinct result
+positions may alias one exact representation. Construction performs
 no callback, binding, execution, allocation, resource action, or ownership transfer. No
 `PreparedUnit` is needed because list position is the occurrence and each current step supplies
 its recipe and plan association.
+
+`PreparedPublication` cold-binds one exact already-created buffer representation by dense buffer
+and representation positions. `BoundPublication.publish()` requires that selected copy to be
+valid at the publication moment and changes only a one-shot local flag. It performs no lookup,
+fallback, transfer, conversion, or backend work. A complete ordered set of published occurrences
+constructs `RunResult`, which privately preserves result aliases and leases cleanup of the entire
+`RunState`. Empty results are valid; partial publication transfers no cleanup responsibility.
+`RunResult` exposes only its count and lifecycle, not a representation, Tensor, value, or state.
 
 One `PreparedExecution(memoryPlan, schedule)` now supplies the current reusable Runtime root. It
 retains both exact references and requires `schedule.memoryPlan() == memoryPlan`. It owns no
@@ -466,8 +476,8 @@ shared by concurrent readers, while each later invocation must use a distinct mu
 `RunState`.
 
 These contracts contain no concrete backend implementation and do not provide public Prepare or
-run orchestration, physical access, publication steps/results, schedule consumption, runner, or
-Engine behavior. Creator callbacks leave physical allocation mechanics to
+run orchestration, physical access, output-value access, schedule consumption, runner, or Engine
+behavior. Creator callbacks leave physical allocation mechanics to
 the implementing backend, and binding owns no auxiliary closeable resource or ownership change.
 See the [Runtime API](runtime-api.md) for creation, validity, scheduling, selection, lifecycle,
 failure, and thread-safety details.

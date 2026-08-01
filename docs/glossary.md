@@ -43,14 +43,17 @@ requirement-to-slot assignment and association are now current. Runtime also has
 [`PreparedRepresentationPlan`](#prepared-representation-plan--preparedrepresentationplan),
 package-private all-or-cleaned cold setup, structural residency, and explicit
 [`buffer validity`](#buffer-validity) per resident copy. Physical allocation/access
-implementations, publication schedule variants/results, and a runner remain planned. The
-immutable creation-plus-execution-plus-transfer
+implementations, public output-value access, and a runner remain planned. The immutable
+creation-plus-execution-plus-transfer-plus-publication
 [`PreparedSchedule`](#prepared-schedule--preparedschedule) contract is current.
 Current [`PreparedExecutable`](#prepared-executable--preparedexecutable) recipes perform checked
 cold binding and create current [`BoundInvocation`](#bound-invocation--boundinvocation) objects;
 current [`PreparedBufferTransfer`](#prepared-buffer-transfer--preparedbuffertransfer) recipes
 similarly create [`BoundBufferTransfer`](#bound-buffer-transfer--boundbuffertransfer) actions;
-no concrete backend implements them yet.
+current [`PreparedPublication`](#prepared-publication--preparedpublication) recipes create
+[`BoundPublication`](#bound-publication--boundpublication) occurrences, and current
+[`RunResult`](#run-result--runresult) leases complete states. No concrete backend implements the
+physical contracts yet.
 
 Prepare currently provides the public immutable analysis-side contracts in
 `io.github.pho001.synaptik.prepare.analysis`: `BackendAnalysisInputs`,
@@ -2020,8 +2023,9 @@ return a fresh non-null physical result for that position and run. Current packa
 setup validates all callers before invoking callbacks, creates buffers then workspaces, and rolls
 back successfully created results in reverse creation order on failure. A current first-only
 `PreparedSchedule.RepresentationCreationStep` makes the plan reachable through the unchanged
-two-component `PreparedExecution`. Public runner orchestration, transfers, materialization,
-execution-driven validity transitions, and publication remain planned.
+two-component `PreparedExecution`. Explicit transfer/materialization, validity, and publication
+contracts are current; public runner orchestration and executable-output validity transitions
+remain planned.
 
 ### Memory slot
 
@@ -2732,6 +2736,22 @@ representation and performs no allocation, transfer, validity change, route sear
 schedule traversal, or publication. Transfer to an equivalent already-created destination is
 materialization; there is no second materialization recipe or schedule kind.
 
+### Prepared publication / `PreparedPublication`
+
+The implemented immutable Runtime recipe that names one already-created buffer representation as
+one ordered result position. It retains one exact `PreparedMemoryPlan` and three dense zero-based
+Runtime coordinates: buffer position, representation position within that buffer for a run, and
+result position. These positions are not `BufferSlot.value()`, `TensorId`, `ValueId`, graph
+membership, or compiler publication roles. Prepare will later translate compiler logical roles
+into these coordinates.
+
+Cold `bind` requires one open `RunState` associated with the same exact plan reference, validates
+the per-run representation position, and resolves that exact physical representation once. The
+returned [`BoundPublication`](#bound-publication--boundpublication) retains it directly.
+Construction and binding perform no validity change, publication, physical access, transfer,
+conversion, allocation, backend call, or ownership transition. The recipe is reusable and may
+bind concurrently to distinct states.
+
 ### Prepared schedule / `PreparedSchedule`
 
 The implemented Runtime-owned immutable recipe that orders already-prepared work against one
@@ -2742,21 +2762,23 @@ than a new ownership relationship.
 
 The nested `Step` interface is sealed and currently permits
 `RepresentationCreationStep(PreparedRepresentationPlan)` and
-`ExecutionStep(PreparedExecutable)` plus `BufferTransferStep(PreparedBufferTransfer)`. The
-creation variant retains the sole optional cold-setup prefix and may occur only at index zero.
-The other variants retain their exact executable or transfer recipe. All derive their plan from
+`ExecutionStep(PreparedExecutable)`, `BufferTransferStep(PreparedBufferTransfer)`, and
+`PublicationStep(PreparedPublication)`. The creation variant retains the sole optional cold-setup
+prefix and may occur only at index zero. Publication variants form a final suffix whose result
+indices are dense `0..N-1` in encounter order. Distinct positions may intentionally name the same
+exact representation. The other variants retain their exact recipes. All derive their plan from
 the retained recipe. The family has no ID, kind enum, generic payload,
 visitor, binding method, or execution method. No `PreparedUnit` is present: occurrence position
 supplies order, while each variant supplies the stable recipe and exact-plan invariant.
 
 Construction scans supplied steps in encounter order, compares plan references with identity,
 and snapshots through `List.copyOf` only after every step passes. It owns only that list snapshot
-and closes nothing. Empty, executable-only, and transfer-only schedules remain valid; executable
-or transfer occurrences may repeat. A schedule may be traversed concurrently while distinct runs are prepared, but this does
-not make one `RunState` or `BoundInvocation` thread-safe. Current scheduling invokes no creator,
-binds or executes no work, allocates no representation, transfers no ownership, and defines no
-publication, result, or runner behavior. A transfer step only makes the current explicit
-transfer/materialization recipe reachable; schedule construction performs no physical work.
+and closes nothing. Empty, executable-only, transfer-only, and zero-publication schedules remain
+valid; executable or transfer occurrences may repeat. `publicationCount()` reports the suffix
+length. A schedule may be traversed concurrently while distinct runs are prepared, but this does
+not make per-run bound actions thread-safe. Current schedule construction does not invoke a
+creator, bind, execute, or publish work, allocate a representation, or transfer ownership.
+Transfer and publication steps only make their current recipes reachable.
 
 ### Bound invocation / `BoundInvocation`
 
@@ -2788,6 +2810,21 @@ propagates unchanged and leaves every Runtime validity bit unchanged. Source and
 validity are never changed. The bound action is not thread-safe and must not race another
 validity transition or state closure. It performs no representation lookup, compatibility cast,
 allocation, backend or route discovery, retry, invalidation, publication, or cleanup.
+
+### Bound publication / `BoundPublication`
+
+The implemented per-run one-shot publication occurrence created only by
+[`PreparedPublication.bind`](#prepared-publication--preparedpublication). It retains one exact
+`RunState`, prepared recipe, and directly resolved physical buffer representation. Distinct
+ordered result positions may use separate bound occurrences that retain the same exact
+representation.
+
+`publish()` first requires the state open, rejects an already-completed occurrence, and requires
+the selected copy valid at that exact moment. Success changes only the occurrence's local flag.
+Failure changes no flag, validity, ownership, or resource. Publication performs no representation
+lookup, backend callback, transfer, conversion, allocation, copy, fallback, or cleanup.
+`isPublished()` remains available after state closure. The bound occurrence is not thread-safe and
+must not race validity changes, execution, transfer, result construction, or closure.
 
 ### Producer / `TensorProducer`
 
@@ -2935,6 +2972,22 @@ later translates selected observations into typed `modules/trace` data-transfer 
 profiling does not compare tuning candidates, select or mutate settings, or feed hidden state back
 into the current run. Concrete runtime-profile payloads and emitters remain planned.
 
+### Run result / `RunResult`
+
+The implemented closeable Runtime lease over one complete open [`RunState`](#run-state--runstate)
+after all dense ordered bound publication occurrences have completed. Construction requires every
+occurrence to belong to that exact state, match its list position by result index, and report
+successful publication. It privately snapshots the direct representation references in result
+order, preserving intentional aliases, but exposes only result count and lifecycle state. An
+empty result is valid.
+
+Successful construction semantically transfers responsibility for closing the whole state to the
+result without changing any individual `RunResourceOwnership`. Constructor failure or partial
+publication transfers nothing and closes nothing. `close()` delegates to the state's idempotent,
+ownership-sensitive reverse cleanup; borrowed representations remain caller-owned for the entire
+lease. The result exposes no representation, storage, Tensor, value, or `RunState` accessor and is
+not thread-safe. Public output access and the runner that assembles this lease remain planned.
+
 ### Run state / `RunState`
 
 The implemented public final lifecycle owner for physical representation bindings in one complete
@@ -2956,13 +3009,16 @@ Representation access is closed after that transition, but the exact plan and co
 inspectable. Repeated close is inert.
 
 One state is not thread-safe. Concurrent runs have distinct states and distinct run-owned
-representations and validity arrays, though they may share the immutable plan. A current `PreparedExecutable` may
-cold-bind selected representations while the state is open, and the resulting current
-`BoundInvocation` retains this exact state and rejects execution after closure. Neither binding
-object owns the state or its resources. Package-private cold creation now constructs states from
-one `PreparedRepresentationPlan`, validates all caller inputs before callbacks, and rolls back
-created results on failure. The current state does not implement physical access,
-transfer/materialization, schedule execution, publication/result ownership transfer, or a runner.
+representations and validity arrays, though they may share the immutable plan. A current
+`PreparedExecutable` may cold-bind selected representations while the state is open, and the
+resulting current `BoundInvocation` retains this exact state and rejects execution after closure.
+A current `PreparedPublication` may likewise cold-bind one selected representation into a
+`BoundPublication`; after publication completes, a `RunResult` leases cleanup of the complete
+state. Bound actions own neither the state nor its resources. Package-private cold creation now
+constructs states from one `PreparedRepresentationPlan`, validates all caller inputs before
+callbacks, and rolls back created results on failure. The state itself does not implement physical
+access, transfer/materialization, schedule execution, publication traversal, output access, or a
+runner.
 
 ### Sample domain
 

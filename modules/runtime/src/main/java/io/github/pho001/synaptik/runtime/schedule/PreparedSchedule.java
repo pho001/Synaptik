@@ -4,6 +4,7 @@ import io.github.pho001.synaptik.runtime.execution.PreparedBufferTransfer;
 import io.github.pho001.synaptik.runtime.execution.PreparedExecutable;
 import io.github.pho001.synaptik.runtime.memory.PreparedMemoryPlan;
 import io.github.pho001.synaptik.runtime.resource.PreparedRepresentationPlan;
+import io.github.pho001.synaptik.runtime.run.PreparedPublication;
 import java.util.List;
 import java.util.Objects;
 
@@ -51,6 +52,8 @@ public record PreparedSchedule(
     public PreparedSchedule {
         Objects.requireNonNull(memoryPlan, "memoryPlan");
         Objects.requireNonNull(steps, "steps");
+        int publicationCount = 0;
+        boolean publicationSuffix = false;
         for (int index = 0; index < steps.size(); index++) {
             Step step = Objects.requireNonNull(steps.get(index), "steps[" + index + "]");
             if (step.memoryPlan() != memoryPlan) {
@@ -64,6 +67,20 @@ public record PreparedSchedule(
                         "steps["
                                 + index
                                 + "] representation creation must be the first schedule occurrence");
+            }
+            if (step instanceof PublicationStep publicationStep) {
+                if (publicationStep.publication().resultIndex() != publicationCount) {
+                    throw new IllegalArgumentException(
+                            "steps["
+                                    + index
+                                    + "] publication resultIndex must equal publication encounter index "
+                                    + publicationCount);
+                }
+                publicationCount++;
+                publicationSuffix = true;
+            } else if (publicationSuffix) {
+                throw new IllegalArgumentException(
+                        "steps[" + index + "] non-publication occurrence follows publication suffix");
             }
         }
         steps = List.copyOf(steps);
@@ -91,6 +108,21 @@ public record PreparedSchedule(
     }
 
     /**
+     * Returns the number of publication occurrences in the dense schedule suffix.
+     *
+     * @return the non-negative publication count; zero when the suffix is empty
+     */
+    public int publicationCount() {
+        int count = 0;
+        for (Step step : steps) {
+            if (step instanceof PublicationStep) {
+                count++;
+            }
+        }
+        return count;
+    }
+
+    /**
      * Identifies one immutable prepared work occurrence associated with a prepared memory plan.
      *
      * <p>The sealed family currently contains the optional cold representation-creation prefix
@@ -99,13 +131,40 @@ public record PreparedSchedule(
      * identifier, or execution method.
      */
     public sealed interface Step
-            permits ExecutionStep, RepresentationCreationStep, BufferTransferStep {
+            permits ExecutionStep, RepresentationCreationStep, BufferTransferStep, PublicationStep {
         /**
          * Returns the exact prepared memory plan required by this step.
          *
          * @return a non-null immutable prepared memory plan reference
          */
         PreparedMemoryPlan memoryPlan();
+    }
+
+    /**
+     * Represents one ordered publication occurrence in the schedule's dense final suffix.
+     *
+     * @param publication the exact non-null immutable publication recipe
+     */
+    public record PublicationStep(PreparedPublication publication) implements Step {
+        /**
+         * Retains one prepared publication occurrence without binding or publishing it.
+         *
+         * @param publication the non-null publication recipe to retain exactly
+         * @throws NullPointerException if {@code publication} is {@code null}
+         */
+        public PublicationStep {
+            Objects.requireNonNull(publication, "publication");
+        }
+
+        /**
+         * Returns the publication recipe's exact prepared memory plan.
+         *
+         * @return exactly {@code publication().memoryPlan()}
+         */
+        @Override
+        public PreparedMemoryPlan memoryPlan() {
+            return publication.memoryPlan();
+        }
     }
 
     /**
