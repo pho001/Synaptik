@@ -412,8 +412,9 @@ The public `modules:runtime` surface now contains five focused packages:
   `WorkspaceRepresentation` cleanup roles;
 - `runtime.run` defines borrowed/run-owned buffer bindings and the array-backed one-run
   `RunState`; and
-- `runtime.execution` defines immutable reusable `PreparedExecutable` recipes, their dense
-  buffer/representation and workspace selections, and per-run `BoundInvocation` objects; and
+- `runtime.execution` defines the immutable two-component `PreparedExecution` root, reusable
+  `PreparedExecutable` recipes, their dense buffer/representation and workspace selections, and
+  per-run `BoundInvocation` objects; and
 - `runtime.schedule` defines immutable `PreparedSchedule` recipes, their sealed plan-associated
   `Step` family, and the sole current `ExecutionStep` variant.
 
@@ -430,8 +431,14 @@ repeated occurrences are valid; construction performs no binding, execution, all
 resource action, or ownership transfer. No `PreparedUnit` is needed because list position is the
 occurrence and the executable already supplies the work recipe and plan association.
 
+One `PreparedExecution(memoryPlan, schedule)` now supplies the current reusable Runtime root. It
+retains both exact references and requires `schedule.memoryPlan() == memoryPlan`. It owns no
+resource, has no close or run method, and creates no per-run state. Its immutable recipe may be
+shared by concurrent readers, while each later invocation must use a distinct mutable
+`RunState`.
+
 These contracts contain no concrete backend implementation and do not provide Prepare assignment
-or finalization themselves, physical allocation/access, validity/residency,
+or orchestration themselves, physical allocation/access, validity/residency,
 transfer/materialization/publication step variants, result, schedule consumption, runner, or
 Engine behavior. Binding owns no auxiliary closeable resource and changes no resource ownership.
 See the [Runtime API](runtime-api.md) for scheduling, selection, lifecycle, failure, and

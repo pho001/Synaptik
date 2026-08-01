@@ -4,25 +4,27 @@
 
 This reference explains the implemented Runtime foundations for prepared-memory geometry, one
 run's physical-representation lifecycle, checked binding of reusable backend recipes, ordered
-executable scheduling, and the current Prepare-owned handoff that constructs that geometry and
-finalizes backend recipes. The current public surface contains:
+executable scheduling, the immutable prepared-execution root, and the current Prepare-owned
+handoff that constructs that geometry and finalizes backend recipes. The current public surface
+contains:
 
 - `runtime.memory`: `BufferSlot`, `WorkspaceSlot`, and `PreparedMemoryPlan` with its nested
   `BufferEntry` and `WorkspaceEntry` records;
 - `runtime.resource`: the nominal `BufferRepresentation` and `WorkspaceRepresentation` lifecycle
   roles implemented by concrete backends; and
 - `runtime.run`: `RunResourceOwnership`, `BufferRepresentationBinding`, and `RunState`;
-- `runtime.execution`: `PreparedExecutable`, its nested `BufferSelection` and
-  `WorkspaceSelection` records, and `BoundInvocation`; and
+- `runtime.execution`: `PreparedExecution`, `PreparedExecutable`, its nested `BufferSelection`
+  and `WorkspaceSelection` records, and `BoundInvocation`; and
 - `runtime.schedule`: `PreparedSchedule`, its sealed nested `Step` contract, and the sole current
   `ExecutionStep` variant.
 
 The geometry, per-run representation carrier, cold-bound invocation contracts, executable-only
-schedule recipe, Prepare-owned resource assignments, typed backend finalization, and
-`PreparedPartition` association are current. Physical allocation and storage access, full
-validity/residency, transfer/materialization/publication step variants, publication/results,
-public Prepare orchestration, schedule consumption, and a runnable Runtime facade remain planned.
-No production concrete backend currently implements the finalization or execution contracts.
+schedule recipe, two-component prepared-execution aggregate, Prepare-owned resource assignments,
+typed backend finalization, and `PreparedPartition` association are current. Physical allocation
+and storage access, full validity/residency, transfer/materialization/publication step variants,
+publication/results, public Prepare orchestration, schedule consumption, and a runnable Runtime
+facade remain planned. No production concrete backend currently implements the finalization or
+execution contracts.
 
 ## Mental model
 
@@ -32,6 +34,9 @@ ValueId / requirement -> source-to-slot assignment -> PreparedMemoryPlan + RunSt
 current                  current                      current
                                                               |
                                                               v
+     PreparedMemoryPlan + PreparedSchedule -> PreparedExecution
+     current              current            current reusable root
+
                   PreparedSchedule -> cold bind -> BoundInvocation -> execute
                   current              current       current            current contract
 ```
@@ -44,6 +49,35 @@ handoff retains source-to-slot associations and constructs the Runtime geometry.
 compatibility during cold binding, and creates a per-run `BoundInvocation`. None of these
 contracts allocates or transfers physical storage or supplies a runner. The current schedule
 orders executable occurrences only; it does not bind or execute them.
+
+## Current prepared execution
+
+`PreparedExecution` is the immutable reusable Runtime root for the prepared state that currently
+exists. Its two components, in order, are one exact `PreparedMemoryPlan` and one exact
+`PreparedSchedule`. Construction requires both references to be non-null and requires
+`schedule.memoryPlan() == memoryPlan`; a structurally equal plan created separately is not the
+same prepared context.
+
+The record retains and returns both supplied references exactly. It is safe for concurrent
+readers because its current components are immutable, but every later active invocation must use
+its own mutable `RunState`. The aggregate does not implement `AutoCloseable`, acquire or own a
+resource, create run state, consume the schedule, bind an invocation, execute work, allocate a
+representation, or publish a result. Construction and component access are constant-time.
+
+```java
+import io.github.pho001.synaptik.runtime.execution.PreparedExecution;
+import io.github.pho001.synaptik.runtime.schedule.PreparedSchedule;
+import java.util.List;
+
+PreparedSchedule schedule = new PreparedSchedule(plan, List.of());
+PreparedExecution execution = new PreparedExecution(plan, schedule);
+```
+
+Here `execution.memoryPlan()` is exactly `plan`, and `execution.schedule()` is exactly
+`schedule`. The example creates reusable recipe state only; no run begins and no resource changes
+ownership. A null component reports `memoryPlan` or `schedule` in component order. A schedule for
+a different plan reference fails with
+`IllegalArgumentException("schedule memory plan does not match prepared execution memory plan")`.
 
 ## Current slot identities
 
@@ -443,17 +477,17 @@ a `RunState`, bind or execute an invocation, or create a schedule.
 The complete-set operation and its batch result remain package-private. There is no public
 Prepare orchestration facade, production backend finalizer, or end-to-end consumer yet.
 
-## Planned prepared aggregates
+## Current aggregate and planned orchestration
 
-`PreparedExecution` will contain or reference prepared partitions, executable recipes, prepared
-memory, the current schedule recipe, and any immutable persistent prepared resources. Preparation
-creates it once for a selected set of explicitly registered backends; multiple runs may reuse it
-concurrently without sharing mutable invocation state.
+The current `PreparedExecution` contains only the exact memory plan and exact same-plan schedule.
+Executable recipes are already reachable through schedule occurrences, while `PreparedPartition`
+remains a Prepare-owned association and does not cross into this Runtime aggregate. There is no
+distinct `PreparedUnit`: list position is the occurrence, and the exact executable supplies the
+work recipe and memory-plan association.
 
-The current `PreparedPartition`, `PreparedExecutable`, `PreparedSchedule`, and `BoundInvocation`
-contracts will be consumed by those later aggregates. The current schedule consumer establishes
-no distinct `PreparedUnit` invariant: list position is the occurrence, and the exact executable
-already supplies the work recipe and memory-plan association.
+Public Prepare orchestration will later construct and validate this aggregate. A future need for
+immutable persistent prepared resources must define its own ownership and partial-construction
+failure lifecycle; the current record does not anticipate it with an empty close contract.
 
 ## Planned execution and publication contract
 

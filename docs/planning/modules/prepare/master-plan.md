@@ -75,7 +75,7 @@ target/backend capabilities, configuration, and compatible cached decisions. It 
 |---|---|---|---|---|
 | 0001 | [Backend partition analysis and resource declaration](tasks/0001-backend-partition-analysis-and-resource-declaration.md) | Complete | Compiler 0006; Planning 0006; Runtime 0001; ADR 0010 | Defines the analysis-side Prepare projection, typed backend analyzer, opaque selected plan, and exact buffer/workspace declarations without assigning slots or finalizing executables. |
 | 0002 | [Backend partition finalization handoff](tasks/0002-backend-partition-finalization-handoff.md) | Complete | 0001; Runtime 0002–0004 | Assigns deterministic conservative shared slots across the complete ordered analyses, retains exact source associations, and finalizes each typed backend plan into the minimal prepared partition/executable association. |
-| 0003 | Prepare orchestration and validation | Draft | 0001–0002; Runtime prepared-memory and schedule contracts | Compose coverage, prepared-memory, schedule, and final prepared-execution validation without concrete backend logic. |
+| 0003 | Prepare orchestration and validation | Draft | 0001–0002; Runtime 0002, 0005–0006 | Compose coverage, prepared-memory, schedule, and final prepared-execution validation without concrete backend logic. |
 
 ## Milestones
 
@@ -112,9 +112,10 @@ constructs every finalization before invoking a backend, and rejects an executab
 retain the exact shared memory plan.
 
 Task 0002 deliberately adds no public orchestration, physical allocation, closeable prepared
-resource, execution, or schedule. The next frontier returns to Draft Runtime 0005, which must
-define the schedule consumer and decide whether it establishes a distinct `PreparedUnit`
-invariant. Prepare 0003 remains Draft until that schedule contract exists.
+resource, execution, or schedule. Complete Runtime 0005 defines the schedule consumer without a
+distinct `PreparedUnit`; Complete Runtime 0006 now supplies the smallest final
+prepared-execution aggregate and exact-plan consistency contract. Prepare 0003 remains Draft and
+has no detailed specification.
 
 The implementation context's final Prepare module run passed 7 suites and 22 tests with no
 skips, failures, or errors. The clean documentation pass finalized all six new production/package
@@ -127,9 +128,9 @@ example, nine-file Markdown validation, exact public/package-private shape, mech
 
 - The later concrete binding contract for dynamic dimensions remains deferred. Task 0001 fails
   closed rather than inventing it.
-- Runtime 0005 must define the schedule consumer before Prepare 0003 can compose schedule and
-  final prepared-execution validation. It must decide whether that consumer needs a distinct
-  `PreparedUnit` beyond the executable and prepared-partition association.
+- Complete Runtime 0006 supplies the exact-plan/exact-schedule `PreparedExecution` root required
+  before a later planning step may make Prepare 0003 ready for public orchestration and final
+  prepared-result validation.
 - The smallest opaque candidate and artifact-lifecycle boundary waits for stable compiler,
   planning, backend, engine, and persistence consumers. No Java declaration or file format is
   selected here.
@@ -156,7 +157,8 @@ example, nine-file Markdown validation, exact public/package-private shape, mech
   analyses, combines repeated value declarations with maximum size/alignment geometry, and
   assigns every workspace declaration its own slot in declaration order.
 - `PreparedPartition` retains only the exact planned partition and finalized executable.
-  `PreparedUnit` remains deferred until Runtime 0005 establishes an additional schedule invariant.
+  Complete Runtime 0005 establishes that list position plus `PreparedExecutable` is sufficient;
+  no distinct `PreparedUnit` is planned for current scheduling.
 
 ## Risks
 

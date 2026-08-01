@@ -6,7 +6,8 @@ Runtime currently implements the immutable `BufferSlot` and `WorkspaceSlot` iden
 `PreparedMemoryPlan` final slot geometry, nominal buffer/workspace representation roles,
 borrowed/run-owned buffer bindings, the array-backed one-run `RunState` lifecycle, immutable
 `PreparedExecutable` recipes, per-run `BoundInvocation` objects, and the immutable executable-only
-`PreparedSchedule` contract described below. Prepare
+`PreparedSchedule` contract described below, plus the immutable two-component
+`PreparedExecution` root. Prepare
 currently implements the analysis-side projection, opaque marker roles, exact resource
 declarations, analysis result, preparer collaboration, deterministic complete-set slot assignment,
 typed backend finalization input/collaboration, and the minimal prepared-partition association.
@@ -156,9 +157,11 @@ The complete architecture prepare lifecycle creates:
 - `PreparedExecution`, the immutable reusable runtime-ready result, including any immutable
   persistent prepared resources that are not ordinary per-run workspace.
 
-Today, `PreparedMemoryPlan`, `PreparedExecutable`, `PreparedSchedule`, and `PreparedPartition`
-exist among the prepared/runtime contracts in this list; `BoundInvocation` is the current per-run
-result of binding an executable. The current schedule retains one exact plan and an immutable
+Today, `PreparedMemoryPlan`, `PreparedExecutable`, `PreparedSchedule`, `PreparedExecution`, and
+`PreparedPartition` exist among the prepared/runtime contracts in this list; `BoundInvocation` is
+the current per-run result of binding an executable. The current `PreparedExecution` retains one
+exact plan and one schedule that reports that same plan reference. It owns no resource and has no
+run or close lifecycle. The current schedule retains one exact plan and an immutable
 ordered snapshot of executable occurrences. It permits empty and repeated occurrences, has no
 `PreparedUnit`, and performs no binding or execution. No current public Prepare orchestration
 constructs or consumes it. The analysis-side and finalization-side Prepare contracts described

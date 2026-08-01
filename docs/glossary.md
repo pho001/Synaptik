@@ -2637,11 +2637,18 @@ value. It owns no physical or per-run resource and is not a schedule step, `Prep
 
 ### Prepared execution / `PreparedExecution`
 
-Immutable reusable runtime-ready state produced by prepare. It contains or refers to prepared
-partitions and executable recipes, memory geometry, an execution schedule, and any immutable
-persistent prepared resources. It can serve concurrent runs; every active complete logical run
-has its own `RunState` and isolated mutable/run-owned resources. See [Runtime, Prepare, and Backend
-Boundary](architecture/runtime-prepare-backend-boundary.md#what-prepare-creates).
+The implemented immutable Runtime record that forms the complete current reusable prepared root.
+It retains exactly one `PreparedMemoryPlan` and one `PreparedSchedule`, requires both to be
+non-null, and requires the schedule to report the exact same plan reference. Structurally equal
+but separately constructed plans do not satisfy that association.
+
+The record owns no closeable, persistent, or per-run resource and transfers no ownership. It has
+no run or close method and does not create a `RunState`, consume a schedule, bind or execute an
+invocation, allocate a representation, or publish a result. It may be read concurrently because
+its current components are immutable; every later active logical run still requires its own
+isolated mutable `RunState`. Future persistent prepared resources require an explicit ownership
+and failure-lifecycle contract rather than an empty lifecycle on this record. See the
+[Runtime API](api/runtime-api.md#current-prepared-execution).
 
 ### Prepared executable / `PreparedExecutable`
 
