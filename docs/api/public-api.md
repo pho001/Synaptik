@@ -413,10 +413,11 @@ The public `modules:runtime` surface now contains five focused packages:
   `WorkspaceRepresentation` cleanup roles plus immutable `PreparedRepresentationPlan` origins,
   caller-input occurrences, and typed buffer/workspace creators;
 - `runtime.run` defines borrowed/run-owned buffer bindings, the array-backed one-run `RunState`,
-  dense-coordinate `PreparedPublication`, per-run `BoundPublication`, and the whole-state
-  `RunResult` lease; and
+  dense-coordinate `PreparedPublication`, per-run `BoundPublication`, the whole-state
+  `RunResult` lease, and stateless `PreparedExecutionRunner`; and
 - `runtime.execution` defines the immutable two-component `PreparedExecution` root, reusable
-  `PreparedExecutable` recipes, their dense buffer/representation and workspace selections, and
+  `PreparedExecutable` recipes, their dense buffer/representation and workspace selections,
+  aligned buffer-access declarations, and
   per-run `BoundInvocation` objects, plus reusable `PreparedBufferTransfer` recipes and per-run
   `BoundBufferTransfer` actions; and
 - `runtime.schedule` defines immutable `PreparedSchedule` recipes, their sealed plan-associated
@@ -427,7 +428,8 @@ The public `modules:runtime` surface now contains five focused packages:
 exact memory plan. Concrete backends implement immutable thread-safe creator callbacks that return
 fresh physical results for each run. Package-private cold setup validates every borrowed caller
 input before callbacks, creates buffers then workspaces, and rolls back successful created results
-in reverse order if setup fails. There is intentionally no public setup or run facade yet.
+in reverse order if setup fails. The public runner is the narrow composition seam for that setup;
+it is not an Engine or value facade.
 
 Every representation bound into an open `RunState` is structurally resident until closure. Each
 buffer copy has one independent explicit validity bit: borrowed inputs start valid and newly
@@ -441,6 +443,11 @@ representation compatibility to the concrete backend. The backend then creates a
 `BoundInvocation` with direct concrete typed fields and the exact state association. The hot
 `execute()` call checks only that the retained state is open before delegating to the backend;
 execution after state closure is rejected.
+
+Each executable buffer selection declares `READ_ONLY`, `WRITE_ONLY`, or `READ_WRITE` access. The
+runner validates reads before invalidating every copy of each output buffer, then validates only
+the exact declared writes after successful backend return. A failed action leaves all copies of
+its output buffers invalid.
 
 `PreparedBufferTransfer.bind` similarly requires an exact matching open state but selects two
 distinct, already-created representations of one logical buffer. Concrete compatibility checks
@@ -475,9 +482,14 @@ resource, has no close or run method, and creates no per-run state. Its immutabl
 shared by concurrent readers, while each later invocation must use a distinct mutable
 `RunState`.
 
-These contracts contain no concrete backend implementation and do not provide public Prepare or
-run orchestration, physical access, output-value access, schedule consumption, runner, or Engine
-behavior. Creator callbacks leave physical allocation mechanics to
+`PreparedExecutionRunner.run(execution, callerInputs)` creates one isolated state, cold-binds
+every non-creation occurrence before the first action, traverses direct bound references in
+schedule order, and either returns the whole-state result lease or closes the state after failure.
+The runner is stateless and may serve concurrent calls; each call remains synchronous and owns
+distinct mutable state.
+
+These contracts contain no concrete backend implementation and do not provide public Prepare
+orchestration, physical access, output-value access, or Engine behavior. Creator callbacks leave physical allocation mechanics to
 the implementing backend, and binding owns no auxiliary closeable resource or ownership change.
 See the [Runtime API](runtime-api.md) for creation, validity, scheduling, selection, lifecycle,
 failure, and thread-safety details.

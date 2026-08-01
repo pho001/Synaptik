@@ -139,7 +139,8 @@ final class CpuExecutable extends PreparedExecutable {
         super(
                 plan,
                 List.of(new BufferSelection(0, 0)),
-                List.of(new WorkspaceSelection(0)));
+                List.of(new WorkspaceSelection(0)),
+                List.of(BufferAccess.READ_ONLY));
     }
 
     @Override protected boolean acceptsBufferRepresentation(
@@ -172,6 +173,13 @@ They may repeat when the same representation fills multiple operand roles. The e
 retain the exact plan reference and be immutable and thread-safe so it can bind concurrently to
 distinct run states. Each invocation retains one exact state, is not thread-safe, and rejects
 execution after that state closes.
+
+Every buffer selection must declare its actual access. `READ_ONLY` requires an existing valid
+copy, `WRITE_ONLY` declares a produced copy without reading its old value, and `READ_WRITE` does
+both. The runner trusts these immutable declarations: it validates reads, invalidates every copy
+of each output buffer before the backend call, and validates only exact declared writes after
+success. Backend authors must not omit or understate writes; Runtime does not inspect storage or
+infer access from graph facts or physical types.
 
 Cold binding may allocate the invocation and temporary arrays, but the current contract forbids
 acquiring any auxiliary closeable or native binding resource. Binding changes no ownership and
@@ -237,8 +245,8 @@ calls `executeTransfer()` once, and marks only the destination valid after succe
 backend must treat partially written destination bytes as invalid. A backend test should cover
 all three cases: no-op, successful one-call copy, and failure with unchanged validity.
 
-The future runner will conceptually bind `BufferTransferStep` occurrences before its hot loop. No
-current public runner performs that traversal, and the transfer recipe itself does not allocate a
+The current runner binds every `BufferTransferStep` occurrence before its hot loop. The transfer
+recipe itself does not allocate a
 destination or choose a route.
 
 ## Current executable and publication scheduling pattern
@@ -248,7 +256,7 @@ destination or choose a route.
 Make the representation plan reachable as the first occurrence, then order one prepared transfer,
 two occurrences of one finalized `CpuExecutable`, and one final publication. This example assumes
 `plan` is the exact shared plan supplied by current Prepare finalization; it does not construct a
-runner or invoke a creator.
+runner action or invoke a creator.
 
 ```java
 import io.github.pho001.synaptik.runtime.schedule.PreparedSchedule;
@@ -274,7 +282,7 @@ PreparedSchedule schedule =
 
 `schedule.steps()` retains the exact creation prefix, the same executable occurrence twice, the
 transfer, and the publication suffix in deterministic order. Every occurrence reports the exact
-`plan` reference. Repetition means execute the prepared region twice when a future runner consumes
+`plan` reference. Repetition means execute the prepared region twice when the runner consumes
 the schedule; it does not duplicate executable, representation, or cleanup ownership. Result zero
 names buffer zero's representation one, which the explicit transfer made valid before the suffix.
 Empty and executable-only schedules remain valid for compatibility; a later Prepare validator may
@@ -294,7 +302,7 @@ copy to be valid while the state is open. It changes only a one-shot flag and ne
 representation or backend.
 
 A backend's responsibility is therefore upstream of publication: its executable and transfer
-actions must perform their prepared physical work correctly, and the later runner must apply the
+actions must perform their prepared physical work correctly, and the runner applies the
 explicit Runtime validity transitions. If the desired result exists in another representation,
 the schedule must contain a prepared transfer before its publication suffix. Publication never
 discovers a source, selects a route, converts or copies bytes, retries, or falls back.

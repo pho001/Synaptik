@@ -15,10 +15,11 @@ finalizes backend recipes. The current public surface contains:
   roles implemented by concrete backends plus `PreparedRepresentationPlan` and its nested
   preparation and creator contracts;
 - `runtime.run`: `RunResourceOwnership`, `BufferRepresentationBinding`, `RunState`,
-  `PreparedPublication`, `BoundPublication`, and `RunResult`;
-- `runtime.execution`: `PreparedExecution`, `PreparedExecutable`, its nested `BufferSelection`
-  and `WorkspaceSelection` records, `BoundInvocation`, `PreparedBufferTransfer`, and
-  `BoundBufferTransfer`; and
+  `PreparedPublication`, `BoundPublication`, `RunResult`, and stateless
+  `PreparedExecutionRunner`;
+- `runtime.execution`: `PreparedExecution`, `PreparedExecutable`, its nested `BufferSelection`,
+  `WorkspaceSelection`, and `BufferAccess` contracts, `BoundInvocation`,
+  `PreparedBufferTransfer`, and `BoundBufferTransfer`; and
 - `runtime.schedule`: `PreparedSchedule`, its sealed nested `Step` contract,
   `RepresentationCreationStep`, `ExecutionStep`, `BufferTransferStep`, and `PublicationStep`.
 
@@ -28,8 +29,8 @@ creation, execution, transfer, and dense publication-suffix schedule recipes, th
 result lease, two-component prepared-execution aggregate,
 Prepare-owned resource assignments, typed backend finalization, and `PreparedPartition`
 association are current. Concrete physical allocation and storage access, public result-value
-access, public Prepare orchestration, schedule consumption, and a runnable Runtime
-facade remain planned. No production concrete backend currently implements the creation,
+access and public Prepare orchestration remain planned. No production concrete backend currently
+implements the creation,
 finalization, or execution contracts.
 
 ## Mental model
@@ -47,8 +48,8 @@ current                  current                      current
      PreparedMemoryPlan + PreparedSchedule -> PreparedExecution
      current              current            current reusable root
 
-        PreparedSchedule -> cold bind -> BoundInvocation -> execute
-        current recipe      current       current            current contract
+        PreparedExecutionRunner -> create/bind all -> ordered direct traversal
+        current public runner     cold setup          current synchronous run
 
         BufferTransferStep -> cold bind -> BoundBufferTransfer -> transfer + validity
         current recipe        current       current per run      current contract
@@ -69,10 +70,11 @@ compatibility during cold binding, and creates a per-run `BoundInvocation`. A cu
 checks their concrete compatibility during cold binding, and creates a per-run
 `BoundBufferTransfer` that orchestrates the explicit validity transition around backend-owned
 physical transfer work. The shared contracts still implement no concrete allocation or storage
-access and supply no runner. The current schedule can retain one first-only creation prefix
+access. The current schedule can retain one first-only creation prefix
 followed by executable or transfer occurrences and then a dense publication-only suffix. It does
 not invoke or execute any step. Current publication names an already-created valid copy and
-leases the complete state to a result, but deliberately exposes no output value.
+leases the complete state to a result, but deliberately exposes no output value. The runner
+composes these contracts without backend discovery or graph interpretation.
 
 ## Current prepared execution
 
@@ -287,7 +289,7 @@ no physical work; the example treats a successful production action as already c
 that line. After both `close()` calls, `borrowedCloses.get()` is `0`, while
 `ownedCloses.get()` and `workspaceCloses.get()` are each `1`.
 
-The package-private cold setup used by the future runner will invoke the same immutable creator
+The package-private cold setup used by `PreparedExecutionRunner` invokes the same immutable creator
 references and construct this state with rollback. Because that operation is intentionally not a
 public facade, this current public example stages the successful callback results directly before
 calling the public constructor. It demonstrates prepared origins, initial validity, explicit
@@ -734,7 +736,7 @@ for one exact open state. It privately snapshots their direct representation ref
 including intentional aliases, and semantically takes responsibility for closing the complete
 `RunState`. It exposes only `resultCount()`, `isClosed()`, and idempotent `close()`; it exposes no
 representation, storage, Tensor, value, or state accessor. An empty list is valid. Constructor
-failure and partial publication transfer no cleanup responsibility, so the future runner remains
+failure and partial publication transfer no cleanup responsibility, so the runner remains
 responsible for closing the state. Borrowed inputs remain caller-owned throughout the result
 lease, while state-owned resources retain the existing deterministic cleanup behavior.
 
@@ -748,7 +750,7 @@ recipes may bind concurrently to distinct states, producing isolated flags and l
 
 Publish two ordered results that intentionally alias one already-valid borrowed representation,
 then close the complete state through the result. This current example calls the publication
-objects directly because schedule traversal and the public runner remain planned.
+objects directly to isolate publication and result leasing from runner traversal.
 
 ```java
 import io.github.pho001.synaptik.runtime.run.BoundPublication;
@@ -832,7 +834,7 @@ a `RunState`, bind or execute an invocation, or create a schedule.
 The complete-set operation and its batch result remain package-private. There is no public
 Prepare orchestration facade, production backend finalizer, or end-to-end consumer yet.
 
-## Current aggregate and planned orchestration
+## Current aggregate and run orchestration
 
 The current `PreparedExecution` contains only the exact memory plan and exact same-plan schedule.
 Executable recipes are already reachable through schedule occurrences, while `PreparedPartition`
@@ -844,17 +846,17 @@ Public Prepare orchestration will later construct and validate this aggregate. A
 immutable persistent prepared resources must define its own ownership and partial-construction
 failure lifecycle; the current record does not anticipate it with an empty close contract.
 
-## Current publication foundation and planned runner
+## Current prepared runner
 
 ```java
-// Conceptual API; not currently runnable.
-RunResult result = execution.run(inputs, RunOptions.defaults());
+PreparedExecutionRunner runner = new PreparedExecutionRunner();
+RunResult result = runner.run(execution, callerInputs);
 ```
 
-- `inputs` will bind invocation values to prepared input bindings.
-- `RunOptions` will hold declarative run and publication choices, not live services.
-- Exactly one current `RunState` will be populated and consumed by the future runner for the
-  complete heterogeneous logical run.
+- `callerInputs` supplies dense borrowed representations in creation-plan encounter order.
+- Exactly one isolated `RunState` is created and consumed for the complete heterogeneous run.
+- Every executable, transfer, and publication occurrence cold-binds before the first action.
+- Traversal uses direct bound references and precomputed primitive executable coordinates.
 - The current `RunResult` leases the whole run state but exposes no values; a later public
   Engine-facing result API must define value access separately.
 
@@ -865,8 +867,10 @@ Current cold checked binding creates backend-owned typed invocation and
 transfer objects with direct references. One exact prepared buffer transfer and its success-only
 destination-valid transition are current. Prepared publication, its suffix ordering, one-shot
 validity check, alias preservation, empty result, and whole-state lease are also current. Transfer
-route selection, executable-output invalidation, schedule traversal, public output access, and the
-runner remain focused later work.
+route selection and public output access remain later work. The runner validates declared reads,
+invalidates every copy of each declared output buffer before backend work, validates exact writes
+only after success, and closes the state after any post-creation failure while preserving the
+original unchecked failure. It performs no Trace emission because no current run payload exists.
 
 ## Boundary and failure model
 

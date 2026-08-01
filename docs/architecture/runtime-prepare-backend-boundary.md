@@ -10,14 +10,14 @@ explicit buffer-copy validity, the array-backed one-run `RunState` lifecycle, im
 `PreparedExecutable` and `PreparedBufferTransfer` recipes, per-run `BoundInvocation` and
 `BoundBufferTransfer` objects, and the immutable creation-plus-execution-plus-transfer
 `PreparedSchedule` contract described below, the dense final publication suffix, direct per-run
-publication binding, the whole-`RunState` `RunResult` lease, plus the immutable two-component
-`PreparedExecution` root. Prepare
+publication binding, the whole-`RunState` `RunResult` lease, the immutable two-component
+`PreparedExecution` root, explicit executable buffer-access declarations, and the stateless
+prepared-execution runner. Prepare
 currently implements the analysis-side projection, opaque marker roles, exact resource
 declarations, analysis result, preparer collaboration, deterministic complete-set slot assignment,
 typed backend finalization input/collaboration, and the minimal prepared-partition association.
 Physical allocation and access implementations, public output-value access, public Prepare
-orchestration, engine, production concrete
-backends, and a runner remain planned.
+orchestration, engine, and production concrete backends remain planned.
 The lifecycle flow therefore mixes current foundations with later stages; each focused section
 states its implementation status.
 [ADR 0011](../design/decisions/0011-per-run-runtime-resource-ownership.md) defines the
@@ -254,13 +254,13 @@ Materialization is this same explicit transfer when it produces an equivalent al
 destination representation. It adds no second operation kind, allocation, route search,
 invalidation, or hidden coherence.
 
-This implemented foundation still has no concrete allocation or storage-access implementation,
-schedule execution, executable-output invalidation, public output-value access, or runner
-behavior.
+This implemented foundation still has no concrete allocation or storage-access implementation or
+public output-value access.
 
 The current `PreparedExecutable` retains one exact plan reference plus private immutable snapshots
-of ordered dense buffer/representation and workspace selections. Empty and repeated selections
-are valid. `bind` requires an open `RunState` associated by exact plan reference identity, resolves
+of ordered dense buffer/representation and workspace selections, with aligned read-only,
+write-only, or read-write declarations. Empty and repeated selections are valid. `bind` requires
+an open `RunState` associated by exact plan reference identity, resolves
 buffers before workspaces in selection order, and invokes concrete-backend compatibility hooks
 once per selected representation. A normal incompatibility returns `false` so Runtime can issue a
 stable indexed failure.
@@ -300,11 +300,17 @@ reflection, string dispatch, graph inspection, backend discovery, kernel selecti
 unsafe cast. The shared contracts use no raw `Object`, unchecked generic API, public backend type
 switch, registry, or service locator.
 
+`PreparedExecutionRunner` creates one isolated state, binds all remaining schedule occurrences
+before the first action, and traverses direct bound references in encounter order. It validates
+executable reads before invalidating every copy of each output buffer and validates only exact
+writes after success. Failure leaves those output copies invalid and closes the state while
+preserving the original unchecked failure. The stateless runner supports concurrent isolated
+calls, but each call is synchronous and uses one orchestrating thread.
+
 The initial model adds no automatic pooling, reuse, aliasing, hidden coherence/write-back,
 distributed sharding, or multi-device scheduling. Transfer/materialization recipes and their
-success-only validity transition, prepared publication, and result lease are current;
-executable-output invalidation, schedule traversal, public output access, and runner behavior
-remain later focused tasks.
+success-only validity transition, prepared publication, result lease, executable-output
+invalidation, and schedule traversal are current; public output access remains later work.
 
 ## What a concrete backend does
 

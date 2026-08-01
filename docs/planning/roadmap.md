@@ -19,7 +19,7 @@ Parallel work is not the default. It requires an explicit roadmap or master-plan
 | 3 | [`modules/backend-contract`](modules/backend-contract/master-plan.md) | Complete | Foundational value-model conventions and the stable trace foundation are complete. | Backend identity and declarative requirement contracts are complete. |
 | 4 | [`modules/config`](modules/config/master-plan.md) | In progress (interleaved) | Model and backend identity contracts required by configuration are stable. | Compile, prepare, run, planning-cost, and model-autotuning request contracts are complete where stable consumers justify them. |
 | 5 | [`modules/planning`](modules/planning/master-plan.md) | Complete | Stable model/backend identity contracts permit the explicitly bounded capability-query interleave before config scoring is complete. | Ownership, partitioning, scoring, logical memory planning, and the selected contract-closure audit are complete. |
-| 6 | [`modules/runtime`](modules/runtime/master-plan.md) | In progress (0009 Complete; 0010 Draft) | Compiler/planning handoff, backend identities, the trace foundation, and ADR 0011's per-run resource ownership/cold-binding decision are stable. | Prepared runtime contracts and dynamic run-state foundations are complete. |
+| 6 | [`modules/runtime`](modules/runtime/master-plan.md) | In progress (0010 Complete; 0011 Draft) | Compiler/planning handoff, backend identities, the trace foundation, and ADR 0011's per-run resource ownership/cold-binding decision are stable. | Prepared runtime contracts and dynamic run-state foundations are complete. |
 | 7 | [`modules/compiler`](modules/compiler/master-plan.md) | Complete | Model, config, planning, backend-contract, and trace contracts are ready for the complete compiler lifecycle; bounded task 0001 may start from the closed model graph/provenance contracts alone. | Compile artifacts, graph transformations, and autograd compilation are complete. |
 | 8 | [`modules/prepare`](modules/prepare/master-plan.md) | In progress (0002 Complete; 0003 Draft) | Compiler/planning artifacts and Runtime 0001 are stable; ADR 0010 authorizes the analysis-first staged handoff. | Shared prepare contracts and validation are complete. |
 | 9 | [`backends/openblas-provider`](backends/openblas-provider/master-plan.md) | Draft | Native interop conventions needed by the provider are decided. | The low-level provider contract and validation are complete. |
@@ -48,13 +48,21 @@ Compiler 31 suites/208 tests with no skips, failures, or errors. No later compil
 detailed specification.
 
 The completed Runtime implementation frontier is
-[Runtime 0009 Publication and result schedule steps](modules/runtime/tasks/0009-publication-and-result-schedule-steps.md).
-It adds exact Runtime-owned buffer/representation/result coordinates, a dense
-publication-only suffix, per-run direct-reference bound publication state, and a `RunResult` that
-leases the complete `RunState`. It requires the selected copy valid at publication time, permits
-distinct ordered result positions to alias one representation, adds no fallback or physical work,
-exposes no output value, and preserves `PreparedExecution` exactly as memory plan plus schedule.
-The next frontier, Runtime 0010, remains Draft without a detailed specification.
+[Runtime 0010 Prepared runner and dynamic execution](modules/runtime/tasks/0010-prepared-runner-and-dynamic-execution.md).
+It preserves `PreparedExecution` exactly as memory plan plus schedule and adds one
+narrow `runtime.run` runner plus explicit executable read/write declarations. One run creates an
+isolated state from dense caller inputs, cold-binds every executable, transfer, and publication
+occurrence before the first action, traverses direct bound references in schedule order, applies
+conservative output-validity transitions, and either constructs the whole-state `RunResult` lease
+or closes the state after failure. Empty-plan/schedule/result runs, read/write overlap, repeated
+runs, and cleanup failure suppression are explicit. Trace 0001–0002 are preserved but not
+consumed because no Trace-owned run-payload family is current; Runtime 0010 adds no trace payload
+or emission. Its focused command passed 26 tests, and the final Runtime command passed 17 suites
+and 143 tests without failures, errors, or skips. Clean documentation context
+`/root/runtime0010_docs` passed Javadoc, generated-page, eight-file Markdown, exact 14-path,
+status, and whitespace gates. Runtime 0011 and Prepare 0003 remain Draft without detailed
+specifications.
+
 Runtime 0009's focused command passed 4 suites and 32 tests, and its single final Runtime command
 passed 16 suites and 130 tests, with no failures, errors, or skips. Clean documentation context
 `019fbe69-07e8-7a20-b132-c3b70c663d4d` finalized the affected Javadocs, Runtime/Public APIs,
@@ -231,7 +239,7 @@ backend failure leaves all Runtime validity unchanged.
 
 Runtime 0008 keeps `PreparedExecution` unchanged and adds no runner/traversal, executable-output
 invalidation, publication/result, Prepare orchestration, concrete backend, config/tuning/tracing,
-or coherence policy. Runtime 0009 is Complete; Runtime 0010–0011 and Prepare 0003 remain Draft
+or coherence policy. Runtime 0009–0010 are Complete; Runtime 0011 and Prepare 0003 remain Draft
 without detailed specifications.
 Backend Contract remains Complete and closed. Module dependency directions are unchanged, so
 architecture tests do not require an update for this planning decision.

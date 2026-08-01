@@ -30,7 +30,12 @@ class PreparedExecutableTest {
     @Test
     void exposesExactAbstractTemplateAndNestedSelectionSurface() throws Exception {
         int modifiers = PreparedExecutable.class.getModifiers();
-        var constructor = PreparedExecutable.class.getDeclaredConstructors()[0];
+        var legacyConstructor =
+                PreparedExecutable.class.getDeclaredConstructor(
+                        PreparedMemoryPlan.class, List.class, List.class);
+        var accessConstructor =
+                PreparedExecutable.class.getDeclaredConstructor(
+                        PreparedMemoryPlan.class, List.class, List.class, List.class);
         var memoryPlan = PreparedExecutable.class.getDeclaredMethod("memoryPlan");
         var bind = PreparedExecutable.class.getDeclaredMethod("bind", RunState.class);
         var acceptsBuffer =
@@ -55,12 +60,16 @@ class PreparedExecutableTest {
                 () -> assertTrue(Modifier.isAbstract(modifiers)),
                 () -> assertFalse(Modifier.isFinal(modifiers)),
                 () -> assertEquals(Object.class, PreparedExecutable.class.getSuperclass()),
-                () -> assertEquals(1, PreparedExecutable.class.getDeclaredConstructors().length),
-                () -> assertTrue(Modifier.isProtected(constructor.getModifiers())),
+                () -> assertEquals(2, PreparedExecutable.class.getDeclaredConstructors().length),
+                () -> assertTrue(Modifier.isProtected(legacyConstructor.getModifiers())),
+                () -> assertTrue(Modifier.isProtected(accessConstructor.getModifiers())),
                 () -> assertArrayEquals(
                         new Class<?>[] {PreparedMemoryPlan.class, List.class, List.class},
-                        constructor.getParameterTypes()),
-                () -> assertConstructorGenericSurface(constructor.getGenericParameterTypes()),
+                        legacyConstructor.getParameterTypes()),
+                () -> assertArrayEquals(
+                        new Class<?>[] {PreparedMemoryPlan.class, List.class, List.class, List.class},
+                        accessConstructor.getParameterTypes()),
+                () -> assertConstructorGenericSurface(legacyConstructor.getGenericParameterTypes()),
                 () -> assertEquals(PreparedMemoryPlan.class, memoryPlan.getReturnType()),
                 () -> assertTrue(Modifier.isPublic(memoryPlan.getModifiers())),
                 () -> assertTrue(Modifier.isFinal(memoryPlan.getModifiers())),
@@ -73,13 +82,15 @@ class PreparedExecutableTest {
                 () -> assertTrue(Modifier.isAbstract(acceptsWorkspace.getModifiers())),
                 () -> assertTrue(Modifier.isProtected(bindCompatible.getModifiers())),
                 () -> assertTrue(Modifier.isAbstract(bindCompatible.getModifiers())),
-                () -> assertEquals(0, constructor.getExceptionTypes().length),
+                () -> assertEquals(0, legacyConstructor.getExceptionTypes().length),
+                () -> assertEquals(0, accessConstructor.getExceptionTypes().length),
                 () -> assertEquals(0, bind.getExceptionTypes().length),
                 () -> assertEquals(0, acceptsBuffer.getExceptionTypes().length),
                 () -> assertEquals(0, acceptsWorkspace.getExceptionTypes().length),
                 () -> assertEquals(0, bindCompatible.getExceptionTypes().length),
                 () -> assertArrayEquals(
                         new Class<?>[] {
+                            PreparedExecutable.BufferAccess.class,
                             PreparedExecutable.BufferSelection.class,
                             PreparedExecutable.WorkspaceSelection.class
                         },
@@ -96,6 +107,10 @@ class PreparedExecutableTest {
                         PreparedExecutable.class,
                         "workspaceSelections",
                         PreparedExecutable.WorkspaceSelection[].class),
+                () -> assertPrivateFinalField(
+                        PreparedExecutable.class,
+                        "bufferAccesses",
+                        PreparedExecutable.BufferAccess[].class),
                 () -> assertSelectionRecord(
                         PreparedExecutable.BufferSelection.class,
                         new String[] {"bufferIndex", "representationIndex"},
@@ -104,6 +119,83 @@ class PreparedExecutableTest {
                         PreparedExecutable.WorkspaceSelection.class,
                         new String[] {"workspaceIndex"},
                         new Class<?>[] {int.class}));
+    }
+
+    @Test
+    void accessConstructorValidatesAfterExistingSelectionsAndSnapshotsAccesses() {
+        PreparedMemoryPlan plan = memoryPlan(1, 1);
+        var selection = new PreparedExecutable.BufferSelection(0, 0);
+        var nullAccess = new ArrayList<PreparedExecutable.BufferAccess>();
+        nullAccess.add(null);
+        var supplied = new ArrayList<>(List.of(PreparedExecutable.BufferAccess.READ_WRITE));
+
+        assertAll(
+                () -> assertFailure(
+                        NullPointerException.class,
+                        "bufferAccesses",
+                        () -> new TestExecutable(plan, List.of(), List.of(), null)),
+                () -> assertFailure(
+                        IllegalArgumentException.class,
+                        "bufferSelections[0].bufferIndex out of prepared-plan range: 1",
+                        () -> new TestExecutable(
+                                plan,
+                                List.of(new PreparedExecutable.BufferSelection(1, 0)),
+                                List.of(),
+                                List.of())),
+                () -> assertFailure(
+                        NullPointerException.class,
+                        "workspaceSelections[0]",
+                        () -> {
+                            var workspaces = new ArrayList<PreparedExecutable.WorkspaceSelection>();
+                            workspaces.add(null);
+                            new TestExecutable(plan, List.of(selection), workspaces, List.of());
+                        }),
+                () -> assertFailure(
+                        IllegalArgumentException.class,
+                        "bufferAccesses size must equal buffer selection count 1",
+                        () -> new TestExecutable(plan, List.of(selection), List.of(), List.of())),
+                () -> assertFailure(
+                        NullPointerException.class,
+                        "bufferAccesses[0]",
+                        () -> new TestExecutable(plan, List.of(selection), List.of(), nullAccess)));
+
+        TestExecutable executable =
+                new TestExecutable(plan, List.of(selection), List.of(), supplied);
+        supplied.clear();
+        assertAll(
+                () -> assertEquals(1, executable.bufferSelectionCount()),
+                () -> assertSame(selection, executable.bufferSelection(0)),
+                () -> assertSame(
+                        PreparedExecutable.BufferAccess.READ_WRITE,
+                        executable.bufferAccess(0)),
+                () -> assertFailure(
+                        IndexOutOfBoundsException.class,
+                        "selectionIndex out of range: -1",
+                        () -> executable.bufferSelection(-1)),
+                () -> assertFailure(
+                        IndexOutOfBoundsException.class,
+                        "selectionIndex out of range: 1",
+                        () -> executable.bufferAccess(1)));
+    }
+
+    @Test
+    void legacyConstructorAssignsReadOnlyToEverySelection() {
+        PreparedMemoryPlan plan = memoryPlan(1, 0);
+        var first = new PreparedExecutable.BufferSelection(0, 0);
+        var second = new PreparedExecutable.BufferSelection(0, 1);
+        TestExecutable executable =
+                new TestExecutable(plan, List.of(first, second), List.of());
+
+        assertAll(
+                () -> assertEquals(2, executable.bufferSelectionCount()),
+                () -> assertSame(first, executable.bufferSelection(0)),
+                () -> assertSame(second, executable.bufferSelection(1)),
+                () -> assertSame(
+                        PreparedExecutable.BufferAccess.READ_ONLY,
+                        executable.bufferAccess(0)),
+                () -> assertSame(
+                        PreparedExecutable.BufferAccess.READ_ONLY,
+                        executable.bufferAccess(1)));
     }
 
     @Test
@@ -587,6 +679,14 @@ class PreparedExecutableTest {
                 List<PreparedExecutable.BufferSelection> bufferSelections,
                 List<PreparedExecutable.WorkspaceSelection> workspaceSelections) {
             super(memoryPlan, bufferSelections, workspaceSelections);
+        }
+
+        private TestExecutable(
+                PreparedMemoryPlan memoryPlan,
+                List<PreparedExecutable.BufferSelection> bufferSelections,
+                List<PreparedExecutable.WorkspaceSelection> workspaceSelections,
+                List<PreparedExecutable.BufferAccess> bufferAccesses) {
+            super(memoryPlan, bufferSelections, workspaceSelections, bufferAccesses);
         }
 
         @Override

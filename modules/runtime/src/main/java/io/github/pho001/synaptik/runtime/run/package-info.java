@@ -28,8 +28,14 @@
  * fallback, transfer, conversion, or backend work. A completed ordered set creates a
  * {@link io.github.pho001.synaptik.runtime.run.RunResult}, which privately retains result aliases
  * and leases the whole state cleanup lifecycle while exposing no output value or representation.
- * Empty results are valid; partial publication transfers no cleanup responsibility. This package
- * does not inspect storage, choose a backend, infer coherence, execute a schedule, pool resources,
- * or define public output access. A later runner performs the ordered lifecycle.
+ * Empty results are valid; partial publication transfers no cleanup responsibility.
+ *
+ * <p>{@link io.github.pho001.synaptik.runtime.run.PreparedExecutionRunner} performs the complete
+ * synchronous lifecycle. It creates one isolated state, cold-binds every remaining occurrence
+ * before the first action, traverses direct bound actions in schedule order, applies declared
+ * executable read/write validity, and either leases the state to a result or closes it after
+ * failure. The stateless runner may serve concurrent calls whose mutable resources remain
+ * isolated. This package does not inspect storage, choose a backend, infer physical aliasing or
+ * coherence, pool resources, emit trace events, or expose public output values.
  */
 package io.github.pho001.synaptik.runtime.run;

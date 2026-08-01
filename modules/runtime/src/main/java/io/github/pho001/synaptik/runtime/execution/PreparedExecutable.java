@@ -15,7 +15,9 @@ import java.util.Objects;
  * prepared plan's lists, not numeric slot components. A buffer representation index addresses
  * the selected run state's ordered bindings for that buffer position. Empty and repeated
  * selections are valid; repetition can represent repeated operand roles without duplicating
- * ownership in the run state.
+ * ownership in the run state. Each selection has an aligned {@link BufferAccess}; the legacy
+ * constructor assigns {@link BufferAccess#READ_ONLY} to every selection, while writers use the
+ * explicit constructor.
  *
  * <p>{@link #bind(RunState)} is the final cold boundary. Runtime validates plan identity and
  * selection ranges, and a concrete backend performs explicit checked representation
@@ -23,12 +25,14 @@ import java.util.Objects;
  * The executable and its subclass state must be immutable and thread-safe so one recipe can bind
  * concurrently to distinct run states. The recipe owns no selected representation or bound
  * invocation and provides no allocation, transfer, residency, schedule, publication, or cleanup
- * lifecycle.
+ * lifecycle. Runtime trusts the immutable access declarations; it does not inspect physical
+ * bytes or infer read/write roles from graph or backend facts.
  */
 public abstract class PreparedExecutable {
     private final PreparedMemoryPlan memoryPlan;
     private final BufferSelection[] bufferSelections;
     private final WorkspaceSelection[] workspaceSelections;
+    private final BufferAccess[] bufferAccesses;
 
     /**
      * Creates an immutable prepared recipe from ordered dense resource selections.
@@ -37,7 +41,9 @@ public abstract class PreparedExecutable {
      * then validated in supplied order and copied to a private array before workspace selections
      * are validated and copied. The exact immutable selection objects and plan reference are
      * retained; caller list containers are not retained. Construction allocates only ordinary JVM
-     * arrays and performs no physical resource or project-identifier operation.
+     * arrays and performs no physical resource or project-identifier operation. Every buffer
+     * selection receives {@link BufferAccess#READ_ONLY}; a recipe that writes must use the
+     * four-argument constructor.
      *
      * @param memoryPlan the immutable prepared memory plan to retain exactly; must be non-null
      * @param bufferSelections ordered dense buffer and representation positions to snapshot; must
@@ -93,6 +99,90 @@ public abstract class PreparedExecutable {
         this.memoryPlan = memoryPlan;
         this.bufferSelections = copiedBufferSelections;
         this.workspaceSelections = copiedWorkspaceSelections;
+        this.bufferAccesses = new BufferAccess[copiedBufferSelections.length];
+        java.util.Arrays.fill(this.bufferAccesses, BufferAccess.READ_ONLY);
+    }
+
+    /**
+     * Creates an immutable prepared recipe with explicit access meaning for every buffer
+     * selection.
+     *
+     * <p>Top-level references are validated in parameter order. Buffer and workspace selections
+     * retain the validation, snapshot, and failure behavior of the legacy constructor. Access
+     * count and entries are validated afterward, in supplied order. The access declaration at
+     * each position applies to the buffer selection at the same position.
+     *
+     * @param memoryPlan the immutable prepared memory plan to retain exactly; must be non-null
+     * @param bufferSelections ordered dense buffer and representation positions to snapshot;
+     *     must be non-null, contain no null entry, and use only prepared buffer positions
+     * @param workspaceSelections ordered dense workspace positions to snapshot; must be
+     *     non-null, contain no null entry, and use only prepared workspace positions
+     * @param bufferAccesses ordered access declarations aligned one-for-one with
+     *     {@code bufferSelections}; must be non-null and contain no null entry
+     * @throws NullPointerException if a top-level argument, selection, or access entry is
+     *     {@code null}; indexed failures identify the first invalid supplied position
+     * @throws IllegalArgumentException if a selection is outside the prepared plan or the access
+     *     count differs from the buffer-selection count
+     */
+    protected PreparedExecutable(
+            PreparedMemoryPlan memoryPlan,
+            List<PreparedExecutable.BufferSelection> bufferSelections,
+            List<PreparedExecutable.WorkspaceSelection> workspaceSelections,
+            List<PreparedExecutable.BufferAccess> bufferAccesses) {
+        Objects.requireNonNull(memoryPlan, "memoryPlan");
+        Objects.requireNonNull(bufferSelections, "bufferSelections");
+        Objects.requireNonNull(workspaceSelections, "workspaceSelections");
+        Objects.requireNonNull(bufferAccesses, "bufferAccesses");
+
+        int bufferCount = memoryPlan.buffers().size();
+        for (int index = 0; index < bufferSelections.size(); index++) {
+            BufferSelection selection =
+                    Objects.requireNonNull(
+                            bufferSelections.get(index), "bufferSelections[" + index + "]");
+            if (selection.bufferIndex() >= bufferCount) {
+                throw new IllegalArgumentException(
+                        "bufferSelections["
+                                + index
+                                + "].bufferIndex out of prepared-plan range: "
+                                + selection.bufferIndex());
+            }
+        }
+        BufferSelection[] copiedBufferSelections =
+                bufferSelections.toArray(BufferSelection[]::new);
+
+        int workspaceCount = memoryPlan.workspaces().size();
+        for (int index = 0; index < workspaceSelections.size(); index++) {
+            WorkspaceSelection selection =
+                    Objects.requireNonNull(
+                            workspaceSelections.get(index),
+                            "workspaceSelections[" + index + "]");
+            if (selection.workspaceIndex() >= workspaceCount) {
+                throw new IllegalArgumentException(
+                        "workspaceSelections["
+                                + index
+                                + "].workspaceIndex out of prepared-plan range: "
+                                + selection.workspaceIndex());
+            }
+        }
+        WorkspaceSelection[] copiedWorkspaceSelections =
+                workspaceSelections.toArray(WorkspaceSelection[]::new);
+
+        if (bufferAccesses.size() != copiedBufferSelections.length) {
+            throw new IllegalArgumentException(
+                    "bufferAccesses size must equal buffer selection count "
+                            + copiedBufferSelections.length);
+        }
+        var copiedBufferAccesses = new BufferAccess[bufferAccesses.size()];
+        for (int index = 0; index < copiedBufferAccesses.length; index++) {
+            copiedBufferAccesses[index] =
+                    Objects.requireNonNull(
+                            bufferAccesses.get(index), "bufferAccesses[" + index + "]");
+        }
+
+        this.memoryPlan = memoryPlan;
+        this.bufferSelections = copiedBufferSelections;
+        this.workspaceSelections = copiedWorkspaceSelections;
+        this.bufferAccesses = copiedBufferAccesses;
     }
 
     /**
@@ -103,6 +193,39 @@ public abstract class PreparedExecutable {
      */
     public final PreparedMemoryPlan memoryPlan() {
         return memoryPlan;
+    }
+
+    /**
+     * Returns the number of ordered buffer selections and aligned access declarations.
+     *
+     * @return the non-negative immutable selection count
+     */
+    public final int bufferSelectionCount() {
+        return bufferSelections.length;
+    }
+
+    /**
+     * Returns one exact immutable buffer selection retained at construction.
+     *
+     * @param selectionIndex the zero-based position in the ordered buffer selections
+     * @return the retained non-null selection reference at {@code selectionIndex}
+     * @throws IndexOutOfBoundsException if {@code selectionIndex} is outside the selection range
+     */
+    public final BufferSelection bufferSelection(int selectionIndex) {
+        checkSelectionIndex(selectionIndex);
+        return bufferSelections[selectionIndex];
+    }
+
+    /**
+     * Returns the immutable access declaration aligned with one buffer selection.
+     *
+     * @param selectionIndex the zero-based position in the ordered buffer selections
+     * @return the non-null access declaration at {@code selectionIndex}
+     * @throws IndexOutOfBoundsException if {@code selectionIndex} is outside the selection range
+     */
+    public final BufferAccess bufferAccess(int selectionIndex) {
+        checkSelectionIndex(selectionIndex);
+        return bufferAccesses[selectionIndex];
     }
 
     /**
@@ -250,6 +373,31 @@ public abstract class PreparedExecutable {
             RunState runState,
             BufferRepresentation[] bufferRepresentations,
             WorkspaceRepresentation[] workspaceRepresentations);
+
+    private void checkSelectionIndex(int selectionIndex) {
+        if (selectionIndex < 0 || selectionIndex >= bufferSelections.length) {
+            throw new IndexOutOfBoundsException(
+                    "selectionIndex out of range: " + selectionIndex);
+        }
+    }
+
+    /**
+     * Declares how one selected buffer representation participates in an invocation.
+     *
+     * <p>{@link #READ_ONLY} requires the old selected copy to be valid and declares no write.
+     * {@link #WRITE_ONLY} requires no old value and declares a successful write. {@link
+     * #READ_WRITE} requires the old selected copy to be valid and declares a successful write.
+     * Runtime validates reads before invalidating every copy of each output buffer, and validates
+     * only exact declared written copies after successful backend return.
+     */
+    public enum BufferAccess {
+        /** Requires the selected copy to be valid and does not declare a write. */
+        READ_ONLY,
+        /** Requires no old value and declares an exact successful write. */
+        WRITE_ONLY,
+        /** Requires the selected copy to be valid and declares an exact successful write. */
+        READ_WRITE
+    }
 
     /**
      * Selects one ordered buffer representation through dense prepared-plan and run-state

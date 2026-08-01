@@ -54,10 +54,11 @@ Execute prepared schedules and own dynamic per-run state, residency, transfers, 
 io.github.pho001.synaptik.runtime/
   memory/     public prepared-memory identity and later runtime slot-access contracts
   resource/   nominal physical representation roles plus immutable prepared creation descriptions
-  execution/  public prepared-execution aggregate, prepared executable/transfer recipes, and
-              per-run direct-reference bound actions, plus later runner contracts
+  execution/  public prepared-execution aggregate, prepared executable/transfer recipes,
+              explicit executable buffer-access declarations, and direct-reference bound actions
   schedule/   public prepared schedule and closed semantic step contracts
-  run/        per-run ownership, binding, cold creation, validity, publication, and result leases
+  run/        per-run ownership, binding, cold creation, validity, publication, result leases,
+              and complete dynamic runner orchestration
 ```
 
 The module root is not a catch-all facade. Runtime 0001 opened `memory` with the immutable
@@ -89,7 +90,7 @@ publication coordinates, per-run bound publication state, and a whole-`RunState`
 | 0007 | [Representation creation and residency foundation](tasks/0007-representation-creation-and-residency-foundation.md) | Complete | 0003; 0005–0006; Prepare 0002 | Added immutable caller-input/backend-creation descriptions, deterministic per-run creation and rollback, schedule reachability, and explicit per-copy validity without transfer, execution, or Config. |
 | 0008 | [Prepared buffer transfer and materialization schedule](tasks/0008-prepared-buffer-transfer-and-materialization-schedule.md) | Complete | 0004–0005; 0007 | Added one backend-supplied prepared/bound buffer-transfer pair and schedule occurrence; materialization is the same action between distinct already-created representations, with destination-valid no-op and success-only validity transition. |
 | 0009 | [Publication and result schedule steps](tasks/0009-publication-and-result-schedule-steps.md) | Complete | 0005; 0007–0008; stable publication/result ownership | Added exact prepared/run coordinates and a dense publication suffix, cold-bound direct selected representations, and leased the complete `RunState` to an ordered `RunResult` without importing Compiler publication identities or exposing output values. |
-| 0010 | Prepared runner and dynamic execution | Draft | 0003; 0005–0009; stable run trace contracts | Cold-bind and execute prepared schedules without graph inspection, backend rediscovery, allocation, or lookup in the hot path. |
+| 0010 | [Prepared runner and dynamic execution](tasks/0010-prepared-runner-and-dynamic-execution.md) | Complete | 0003; 0005–0009; preserve Trace 0001–0002 boundary | Cold-creates one isolated state, binds every direct occurrence before ordered traversal, applies explicit executable read/write validity, and transfers the whole-state result lease without hot graph/backend lookup. |
 | 0011 | Runtime contract closure | Draft | 0001–0010 | Audit Runtime API cohesion, lifecycle, dependencies, performance boundaries, documentation, and validation. |
 
 ## Milestones
@@ -223,7 +224,18 @@ architecture status, backend guidance, glossary, and planning evidence without c
 executable behavior or repeating the successful Java tests. Runtime Javadoc, generated-page
 inspection, eight-file Markdown validation, exact 18-path scope, status, and whitespace checks
 passed.
-Runtime 0010–0011 and Prepare 0003 remain Draft without detailed specifications.
+Complete [Runtime 0010](tasks/0010-prepared-runner-and-dynamic-execution.md) preserves
+`PreparedExecution` exactly as memory plan
+plus schedule, adds explicit executable read/write declarations, and places one narrow runner in
+`runtime.run`. One call creates an isolated state, cold-binds all non-creation occurrences before
+traversal, performs conservative output-validity transitions, and either leases the complete open
+state to `RunResult` or closes it after failure. Trace 0001–0002 are preserved but not consumed
+because the Trace run-payload family remains Draft; the task invents no payload or emission.
+Its focused command passed 26 tests, and the final Runtime command passed 17 suites and 143 tests
+without failures, errors, or skips. Clean documentation context `/root/runtime0010_docs`
+finalized the affected Javadocs and documentation and passed Javadoc, generated-page,
+eight-file Markdown, exact 14-path, status, and whitespace gates. Runtime 0011 is now the sole next
+unfinished Runtime task; it and Prepare 0003 remain Draft without detailed specifications.
 Backend Contract remains closed, and module dependency directions are unchanged.
 
 ## Open questions
@@ -307,6 +319,14 @@ Backend Contract remains closed, and module dependency directions are unchanged.
   but they do not distinguish caller input, internal value, or published-output roles. Those
   roles must come from later Prepare/publication associations rather than a speculative Runtime
   role enum in task 0003.
+- Runtime 0010 places the complete-run orchestrator in `runtime.run`, keeps the two-component
+  prepared root unchanged, and requires aligned `READ_ONLY`, `WRITE_ONLY`, or `READ_WRITE`
+  declarations for executable buffer selections.
+- Reads validate before every copy of each output buffer is invalidated. Backend success validates
+  exact declared writes; backend failure leaves every output copy invalid. All occurrences bind
+  before traversal, which uses direct bound references and primitive coordinates only.
+- Runtime 0010 emits no Trace event because the stable Trace foundation has no current run-payload
+  DTO.
 
 ## Risks
 
@@ -322,6 +342,10 @@ Backend Contract remains closed, and module dependency directions are unchanged.
   hidden coherence, or hot representation lookup.
 - Letting a later implementation replace Runtime 0009's exact coordinates and whole-state lease
   with graph identities, individual-resource detachment, hidden fallback, or public output access.
+- Inferring executable read/write roles from selection order, validity, graph facts, or physical
+  types instead of explicit immutable declarations.
+- Interleaving binding with execution, preserving stale output validity after a possible write, or
+  adding map/registry/backend/graph work to bound traversal.
 
 ## Notes
 

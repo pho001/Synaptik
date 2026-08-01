@@ -2703,10 +2703,14 @@ and failure-lifecycle contract rather than an empty lifecycle on this record. Se
 
 The implemented Runtime-owned abstract recipe boundary for one backend-prepared computation
 region. It retains one exact `PreparedMemoryPlan` reference and immutable private snapshots of
-ordered dense `BufferSelection` and `WorkspaceSelection` values. A buffer selection addresses a
+ordered dense `BufferSelection` and `WorkspaceSelection` values plus one aligned `BufferAccess`
+per buffer selection. A buffer selection addresses a
 prepared buffer position and then one ordered representation position in a matching `RunState`;
 a workspace selection addresses a prepared workspace position. These are list indices, not slot
-numeric components. Empty and repeated selections are valid.
+numeric components. Empty and repeated selections are valid. `READ_ONLY` requires the old copy,
+`WRITE_ONLY` declares only a successful write, and `READ_WRITE` does both. Runtime validates reads
+before invalidating every copy of an output buffer and validates exact declared writes only after
+backend success.
 
 `bind` is the cold path. It requires an open state associated by exact plan reference identity,
 resolves buffers before workspaces in selection order, and delegates explicit checked
@@ -2965,6 +2969,22 @@ publishes results, and cleans resources still owned by the run. **Runtime** is t
 machinery that performs this work. Run does not optimize graphs, discover backends, lower
 partitions, or choose kernels. See [Lifecycle](architecture/lifecycle.md#run-lifecycle).
 
+### Prepared execution runner / `PreparedExecutionRunner`
+
+The implemented public stateless Runtime orchestrator for one synchronous invocation of an
+immutable `PreparedExecution`. One call validates dense borrowed caller inputs, creates one
+isolated `RunState`, cold-binds every executable, transfer, and publication occurrence before the
+first action, and traverses direct bound references in schedule order. Successful completion
+returns the whole-state `RunResult` lease. Any post-creation failure closes the state once,
+preserves the original unchecked failure, and suppresses a distinct cleanup failure.
+
+Executable traversal validates declared reads before invalidating all resident copies of every
+declared output buffer. It validates only exact declared written copies after backend success;
+failure leaves all output copies invalid. The runner performs no graph inspection, backend
+discovery, route selection, physical allocation, retry, Trace emission, or output conversion.
+Separate calls may run concurrently because each has isolated mutable state; a single call is
+synchronous and must not race its state or bound actions.
+
 ### Runtime profiling
 
 Passive observation of actual prepared execution. `modules/runtime` owns the execution facts and
@@ -2986,7 +3006,8 @@ result without changing any individual `RunResourceOwnership`. Constructor failu
 publication transfers nothing and closes nothing. `close()` delegates to the state's idempotent,
 ownership-sensitive reverse cleanup; borrowed representations remain caller-owned for the entire
 lease. The result exposes no representation, storage, Tensor, value, or `RunState` accessor and is
-not thread-safe. Public output access and the runner that assembles this lease remain planned.
+not thread-safe. Public output access remains planned; `PreparedExecutionRunner` currently
+assembles this lease after successful traversal.
 
 ### Run state / `RunState`
 
