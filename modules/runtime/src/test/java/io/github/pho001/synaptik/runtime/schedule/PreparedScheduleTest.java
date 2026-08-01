@@ -9,7 +9,9 @@ import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import io.github.pho001.synaptik.runtime.execution.BoundBufferTransfer;
 import io.github.pho001.synaptik.runtime.execution.BoundInvocation;
+import io.github.pho001.synaptik.runtime.execution.PreparedBufferTransfer;
 import io.github.pho001.synaptik.runtime.execution.PreparedExecutable;
 import io.github.pho001.synaptik.runtime.memory.BufferSlot;
 import io.github.pho001.synaptik.runtime.memory.PreparedMemoryPlan;
@@ -52,7 +54,8 @@ class PreparedScheduleTest {
                         new Class<?>[] {
                             PreparedSchedule.Step.class,
                             PreparedSchedule.RepresentationCreationStep.class,
-                            PreparedSchedule.ExecutionStep.class
+                            PreparedSchedule.ExecutionStep.class,
+                            PreparedSchedule.BufferTransferStep.class
                         },
                         type.getDeclaredClasses()),
                 () -> assertEquals(2, components.length),
@@ -99,7 +102,8 @@ class PreparedScheduleTest {
                 () -> assertArrayEquals(
                         new Class<?>[] {
                             PreparedSchedule.ExecutionStep.class,
-                            PreparedSchedule.RepresentationCreationStep.class
+                            PreparedSchedule.RepresentationCreationStep.class,
+                            PreparedSchedule.BufferTransferStep.class
                         },
                         step.getPermittedSubclasses()),
                 () -> assertEquals(1, step.getDeclaredMethods().length),
@@ -147,6 +151,25 @@ class PreparedScheduleTest {
                         declaredMethodNames(creation)),
                 () -> assertEquals(
                         PreparedMemoryPlan.class, creationMemoryPlan.getReturnType()));
+
+        Class<PreparedSchedule.BufferTransferStep> transfer =
+                PreparedSchedule.BufferTransferStep.class;
+        Method transferMemoryPlan = transfer.getDeclaredMethod("memoryPlan");
+        var transferComponent = transfer.getRecordComponents()[0];
+        assertAll(
+                () -> assertTrue(Modifier.isPublic(transfer.getModifiers())),
+                () -> assertTrue(Modifier.isStatic(transfer.getModifiers())),
+                () -> assertTrue(Modifier.isFinal(transfer.getModifiers())),
+                () -> assertTrue(transfer.isRecord()),
+                () -> assertArrayEquals(new Class<?>[] {step}, transfer.getInterfaces()),
+                () -> assertEquals(1, transfer.getRecordComponents().length),
+                () -> assertEquals("transfer", transferComponent.getName()),
+                () -> assertEquals(PreparedBufferTransfer.class, transferComponent.getType()),
+                () -> assertEquals(
+                        List.of("equals", "hashCode", "memoryPlan", "toString", "transfer"),
+                        declaredMethodNames(transfer)),
+                () -> assertEquals(
+                        PreparedMemoryPlan.class, transferMemoryPlan.getReturnType()));
     }
 
     @Test
@@ -161,7 +184,8 @@ class PreparedScheduleTest {
         var execution = new PreparedSchedule.ExecutionStep(new TestExecutable(plan));
 
         PreparedSchedule creationOnly = new PreparedSchedule(plan, List.of(creation));
-        PreparedSchedule prefixed = new PreparedSchedule(plan, List.of(creation, execution, execution));
+        PreparedSchedule prefixed =
+                new PreparedSchedule(plan, List.of(creation, execution, execution));
 
         assertAll(
                 () -> assertFailure(
@@ -196,6 +220,23 @@ class PreparedScheduleTest {
                 () -> assertSame(executable, step.executable()),
                 () -> assertSame(plan, step.memoryPlan()),
                 () -> assertSame(executable.memoryPlan(), step.memoryPlan()));
+    }
+
+    @Test
+    void transferStepRequiresAndRetainsExactTransferAndPlanReferences() {
+        PreparedMemoryPlan plan = plan(1);
+        TestTransfer transfer = new TestTransfer(plan);
+        PreparedSchedule.BufferTransferStep step =
+                new PreparedSchedule.BufferTransferStep(transfer);
+
+        assertAll(
+                () -> assertFailure(
+                        NullPointerException.class,
+                        "transfer",
+                        () -> new PreparedSchedule.BufferTransferStep(null)),
+                () -> assertSame(transfer, step.transfer()),
+                () -> assertSame(plan, step.memoryPlan()),
+                () -> assertSame(transfer.memoryPlan(), step.memoryPlan()));
     }
 
     @Test
@@ -306,6 +347,62 @@ class PreparedScheduleTest {
     }
 
     @Test
+    void acceptsTransferOnlyMixedAndRepeatedTransferOccurrences() {
+        PreparedMemoryPlan plan = plan(1);
+        TestTransfer transfer = new TestTransfer(plan);
+        var transferStep = new PreparedSchedule.BufferTransferStep(transfer);
+        var equalOccurrence = new PreparedSchedule.BufferTransferStep(transfer);
+        var execution = new PreparedSchedule.ExecutionStep(new TestExecutable(plan));
+        PreparedRepresentationPlan representationPlan =
+                new PreparedRepresentationPlan(
+                        plan,
+                        List.of(List.of(new PreparedRepresentationPlan.CallerInput())),
+                        List.of());
+        var creation = new PreparedSchedule.RepresentationCreationStep(representationPlan);
+
+        PreparedSchedule transferOnly = new PreparedSchedule(plan, List.of(transferStep));
+        PreparedSchedule mixed = new PreparedSchedule(
+                plan,
+                List.of(creation, transferStep, execution, transferStep, equalOccurrence));
+
+        assertAll(
+                () -> assertSame(transferStep, transferOnly.steps().getFirst()),
+                () -> assertEquals(5, mixed.steps().size()),
+                () -> assertSame(creation, mixed.steps().get(0)),
+                () -> assertSame(transferStep, mixed.steps().get(1)),
+                () -> assertSame(execution, mixed.steps().get(2)),
+                () -> assertSame(transferStep, mixed.steps().get(3)),
+                () -> assertSame(equalOccurrence, mixed.steps().get(4)),
+                () -> assertEquals(transferStep, equalOccurrence),
+                () -> assertEquals(0, transfer.bindCalls));
+    }
+
+    @Test
+    void transferOccurrenceUsesExistingSamePlanValidationAndCreationPrefixRule() {
+        PreparedMemoryPlan plan = plan(1);
+        PreparedMemoryPlan foreign = plan(1);
+        var transfer = new PreparedSchedule.BufferTransferStep(new TestTransfer(plan));
+        var foreignTransfer =
+                new PreparedSchedule.BufferTransferStep(new TestTransfer(foreign));
+        PreparedRepresentationPlan representationPlan =
+                new PreparedRepresentationPlan(
+                        plan,
+                        List.of(List.of(new PreparedRepresentationPlan.CallerInput())),
+                        List.of());
+        var creation = new PreparedSchedule.RepresentationCreationStep(representationPlan);
+
+        assertAll(
+                () -> assertFailure(
+                        IllegalArgumentException.class,
+                        "steps[1] memory plan does not match schedule memory plan",
+                        () -> new PreparedSchedule(plan, List.of(transfer, foreignTransfer))),
+                () -> assertFailure(
+                        IllegalArgumentException.class,
+                        "steps[1] representation creation must be the first schedule occurrence",
+                        () -> new PreparedSchedule(plan, List.of(transfer, creation))));
+    }
+
+    @Test
     void constructionPerformsNoBindingExecutionResourceActionOrOwnershipTransfer() {
         PreparedMemoryPlan plan = plan(0);
         TestExecutable executable = new TestExecutable(plan);
@@ -347,7 +444,9 @@ class PreparedScheduleTest {
         String stepClass = classBytes(PreparedSchedule.Step.class);
         String executionClass = classBytes(PreparedSchedule.ExecutionStep.class);
         String creationClass = classBytes(PreparedSchedule.RepresentationCreationStep.class);
-        String compiled = scheduleClass + stepClass + executionClass + creationClass;
+        String transferClass = classBytes(PreparedSchedule.BufferTransferStep.class);
+        String compiled =
+                scheduleClass + stepClass + executionClass + creationClass + transferClass;
 
         assertAll(
                 () -> assertFalse(compiled.contains("io/github/pho001/synaptik/prepare")),
@@ -364,8 +463,12 @@ class PreparedScheduleTest {
                                 || method.getName().equals("close"))),
                 () -> assertFalse(Arrays.stream(PreparedSchedule.Step.class.getDeclaredMethods())
                         .anyMatch(method -> method.getParameterCount() != 0)),
-                () -> assertFalse(Arrays.stream(PreparedSchedule.ExecutionStep.class.getDeclaredFields())
-                        .anyMatch(field -> field.getType() == Object.class)));
+                () -> assertFalse(
+                        Arrays.stream(PreparedSchedule.ExecutionStep.class.getDeclaredFields())
+                                .anyMatch(field -> field.getType() == Object.class)),
+                () -> assertFalse(
+                        Arrays.stream(PreparedSchedule.BufferTransferStep.class.getDeclaredFields())
+                                .anyMatch(field -> field.getType() == Object.class)));
     }
 
     private static int traverse(
@@ -433,6 +536,34 @@ class PreparedScheduleTest {
                 BufferRepresentation[] bufferRepresentations,
                 WorkspaceRepresentation[] workspaceRepresentations) {
             throw new AssertionError("schedule construction must not bind executables");
+        }
+    }
+
+    private static final class TestTransfer extends PreparedBufferTransfer {
+        private int bindCalls;
+
+        private TestTransfer(PreparedMemoryPlan memoryPlan) {
+            super(memoryPlan, 0, 0, 1);
+        }
+
+        @Override
+        protected boolean acceptsSourceBufferRepresentation(BufferRepresentation representation) {
+            throw new AssertionError("schedule construction must not inspect source buffers");
+        }
+
+        @Override
+        protected boolean acceptsDestinationBufferRepresentation(
+                BufferRepresentation representation) {
+            throw new AssertionError("schedule construction must not inspect destination buffers");
+        }
+
+        @Override
+        protected BoundBufferTransfer bindCompatible(
+                RunState runState,
+                BufferRepresentation sourceRepresentation,
+                BufferRepresentation destinationRepresentation) {
+            bindCalls++;
+            throw new AssertionError("schedule construction must not bind transfers");
         }
     }
 }

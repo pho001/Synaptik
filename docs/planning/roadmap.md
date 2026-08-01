@@ -19,7 +19,7 @@ Parallel work is not the default. It requires an explicit roadmap or master-plan
 | 3 | [`modules/backend-contract`](modules/backend-contract/master-plan.md) | Complete | Foundational value-model conventions and the stable trace foundation are complete. | Backend identity and declarative requirement contracts are complete. |
 | 4 | [`modules/config`](modules/config/master-plan.md) | In progress (interleaved) | Model and backend identity contracts required by configuration are stable. | Compile, prepare, run, planning-cost, and model-autotuning request contracts are complete where stable consumers justify them. |
 | 5 | [`modules/planning`](modules/planning/master-plan.md) | Complete | Stable model/backend identity contracts permit the explicitly bounded capability-query interleave before config scoring is complete. | Ownership, partitioning, scoring, logical memory planning, and the selected contract-closure audit are complete. |
-| 6 | [`modules/runtime`](modules/runtime/master-plan.md) | In progress (0007 Complete; 0008 Draft) | Compiler/planning handoff, backend identities, the trace foundation, and ADR 0011's per-run resource ownership/cold-binding decision are stable. | Prepared runtime contracts and dynamic run-state foundations are complete. |
+| 6 | [`modules/runtime`](modules/runtime/master-plan.md) | In progress (0008 Complete) | Compiler/planning handoff, backend identities, the trace foundation, and ADR 0011's per-run resource ownership/cold-binding decision are stable. | Prepared runtime contracts and dynamic run-state foundations are complete. |
 | 7 | [`modules/compiler`](modules/compiler/master-plan.md) | Complete | Model, config, planning, backend-contract, and trace contracts are ready for the complete compiler lifecycle; bounded task 0001 may start from the closed model graph/provenance contracts alone. | Compile artifacts, graph transformations, and autograd compilation are complete. |
 | 8 | [`modules/prepare`](modules/prepare/master-plan.md) | In progress (0002 Complete; 0003 Draft) | Compiler/planning artifacts and Runtime 0001 are stable; ADR 0010 authorizes the analysis-first staged handoff. | Shared prepare contracts and validation are complete. |
 | 9 | [`backends/openblas-provider`](backends/openblas-provider/master-plan.md) | Draft | Native interop conventions needed by the provider are decided. | The low-level provider contract and validation are complete. |
@@ -183,8 +183,9 @@ Runtime lacks the stable representation/residency and delivery/result facts thos
 require, while Compiler publication and Planning logical-memory identities cannot become Runtime
 payloads. Complete Runtime 0007 fixes only the immutable representation-description,
 schedule-reachability, cold creation/rollback, structural residency, and explicit per-copy
-validity foundation. The later variants remain split across Draft Runtime 0008–0009 before the
-Draft runner.
+validity foundation. Detailed
+[Runtime 0008 Prepared buffer transfer and materialization schedule](modules/runtime/tasks/0008-prepared-buffer-transfer-and-materialization-schedule.md)
+is now Complete; publication remains separate Draft Runtime 0009 before the Draft runner.
 Complete
 [Runtime 0006 Prepared execution aggregate](modules/runtime/tasks/0006-prepared-execution-aggregate.md)
 selects only an exact `PreparedMemoryPlan` and exact
@@ -204,14 +205,34 @@ permitted, and workspaces remain scratch rather than coherent logical-value copi
 transfer route, copy, materialization, kernel, runner, publication, Config, Prepare, concrete
 backend, dependency, or architecture behavior.
 
-Runtime 0008–0011 and Prepare 0003 remain Draft without detailed specifications.
+Complete Runtime 0008 selects one public immutable prepared transfer recipe, one per-run bound action,
+and one exact-plan buffer-transfer schedule occurrence. It addresses distinct already-created
+representation positions of one logical buffer. Materialization is the same transfer when it
+produces an equivalent destination representation; no second kind, allocation, or route search is
+introduced. Cold binding uses one exact `RunState` and direct physical references. The bound
+action makes an already-valid destination a no-op; otherwise it requires the source valid,
+invokes backend work exactly once, and marks only the destination valid after success. A thrown
+backend failure leaves all Runtime validity unchanged.
+
+Runtime 0008 keeps `PreparedExecution` unchanged and adds no runner/traversal, executable-output
+invalidation, publication/result, Prepare orchestration, concrete backend, config/tuning/tracing,
+or coherence policy. Runtime 0009–0011 and Prepare 0003 remain Draft without detailed
+specifications.
 Backend Contract remains Complete and closed. Module dependency directions are unchanged, so
 architecture tests do not require an update for this planning decision.
 
+Runtime 0008's focused command passed three suites and 31 tests, and its single final Runtime
+module command passed 13 suites and 113 tests, with no failures, errors, or skips. The separate
+clean documentation pass finalized the five affected production/package Javadocs, Runtime/Public
+APIs, focused architecture status, backend guide, glossary, and planning records without changing
+executable Java or repeating the successful tests. Runtime Javadoc/generated-page inspection,
+current Java extension examples, eight-file Markdown validation, exact surface/direct-hot-path/
+mechanism/build/scope/status checks, and whitespace validation passed.
+
 The completed Runtime foundation still adds no Runtime physical allocation/access implementation,
 graph-value conversion or source association, `PreparedUnit`, schedule consumption, runner,
-publication, transfer/materialization, dynamic eviction, concrete backend behavior, tracing
-emission, or Engine facade.
+publication/result, transfer-route selection, executable-output invalidation, dynamic eviction,
+concrete backend implementation, tracing emission, or Engine facade.
 The preceding
 [Compiler 0005E First-order gradient coverage closure checkpoint](modules/compiler/tasks/0005e-first-order-gradient-coverage-closure-checkpoint.md)
 closed the compiled-production 37-family, 107-kind, 128-signature role inventory with exact

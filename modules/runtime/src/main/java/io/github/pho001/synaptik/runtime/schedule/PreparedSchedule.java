@@ -1,5 +1,6 @@
 package io.github.pho001.synaptik.runtime.schedule;
 
+import io.github.pho001.synaptik.runtime.execution.PreparedBufferTransfer;
 import io.github.pho001.synaptik.runtime.execution.PreparedExecutable;
 import io.github.pho001.synaptik.runtime.memory.PreparedMemoryPlan;
 import io.github.pho001.synaptik.runtime.resource.PreparedRepresentationPlan;
@@ -11,11 +12,13 @@ import java.util.Objects;
  *
  * <p>A schedule is a reusable prepared recipe. It owns only an immutable snapshot of the supplied
  * step-list structure and retains every exact step reference in encounter order. It permits an
- * empty list and repeated executable occurrences. One optional representation-creation
- * occurrence may appear only at index zero, keeping cold setup reachable through the unchanged
- * two-component prepared-execution aggregate. The schedule does not itself create a state, invoke
- * a creator, bind or execute work, allocate or close resources, or define transfer,
- * materialization, or publication policy.
+ * empty list and repeated executable or transfer occurrences. One optional
+ * representation-creation occurrence may appear only at index zero, keeping cold setup reachable
+ * through the unchanged two-component prepared-execution aggregate. The schedule does not itself
+ * create a state, invoke a creator, bind or execute work, allocate or close resources, or define
+ * publication policy. A transfer occurrence names explicit work between already-created
+ * representations; transfer to an equivalent destination is materialization rather than a second
+ * operation kind.
  *
  * <p>The schedule and its current step values are immutable and may be traversed concurrently
  * while distinct logical runs are prepared. This does not make mutable per-run objects safe for
@@ -91,17 +94,50 @@ public record PreparedSchedule(
      * Identifies one immutable prepared work occurrence associated with a prepared memory plan.
      *
      * <p>The sealed family currently contains the optional cold representation-creation prefix
-     * and executable occurrences. The plan association lets a schedule validate one exact
-     * reusable prepared context without a generic payload, registry, identifier, or execution
-     * method.
+     * and executable or buffer-transfer occurrences. The plan association lets a schedule
+     * validate one exact reusable prepared context without a generic payload, registry,
+     * identifier, or execution method.
      */
-    public sealed interface Step permits ExecutionStep, RepresentationCreationStep {
+    public sealed interface Step
+            permits ExecutionStep, RepresentationCreationStep, BufferTransferStep {
         /**
          * Returns the exact prepared memory plan required by this step.
          *
          * @return a non-null immutable prepared memory plan reference
          */
         PreparedMemoryPlan memoryPlan();
+    }
+
+    /**
+     * Represents one ordered occurrence of an already-prepared buffer transfer recipe.
+     *
+     * <p>The step retains the recipe exactly and derives its plan association directly from that
+     * recipe. Construction performs no binding, physical work, or validity transition. Repeated
+     * occurrences are explicit repeated work. Materializing an equivalent already-created
+     * destination uses this same transfer step and no separate schedule kind.
+     *
+     * @param transfer the exact non-null immutable reusable transfer recipe
+     */
+    public record BufferTransferStep(PreparedBufferTransfer transfer) implements Step {
+        /**
+         * Retains one prepared buffer-transfer occurrence.
+         *
+         * @param transfer the non-null transfer recipe to retain exactly
+         * @throws NullPointerException if {@code transfer} is {@code null}
+         */
+        public BufferTransferStep {
+            Objects.requireNonNull(transfer, "transfer");
+        }
+
+        /**
+         * Returns the transfer's exact prepared memory plan.
+         *
+         * @return exactly {@code transfer().memoryPlan()}; never cached or copied
+         */
+        @Override
+        public PreparedMemoryPlan memoryPlan() {
+            return transfer.memoryPlan();
+        }
     }
 
     /**

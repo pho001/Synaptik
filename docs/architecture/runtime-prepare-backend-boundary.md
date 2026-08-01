@@ -7,14 +7,15 @@ Runtime currently implements the immutable `BufferSlot` and `WorkspaceSlot` iden
 borrowed/run-owned buffer bindings, immutable prepared representation origins and backend-owned
 creator callbacks, package-private cold creation with rollback, structural per-run residency and
 explicit buffer-copy validity, the array-backed one-run `RunState` lifecycle, immutable
-`PreparedExecutable` recipes, per-run `BoundInvocation` objects, and the immutable creation-plus-
-execution `PreparedSchedule` contract described below, plus the immutable two-component
+`PreparedExecutable` and `PreparedBufferTransfer` recipes, per-run `BoundInvocation` and
+`BoundBufferTransfer` objects, and the immutable creation-plus-execution-plus-transfer
+`PreparedSchedule` contract described below, plus the immutable two-component
 `PreparedExecution` root. Prepare
 currently implements the analysis-side projection, opaque marker roles, exact resource
 declarations, analysis result, preparer collaboration, deterministic complete-set slot assignment,
 typed backend finalization input/collaboration, and the minimal prepared-partition association.
-Physical allocation and access implementations, transfer/materialization/publication schedule
-variants, publication/results, public Prepare orchestration, engine, production concrete
+Physical allocation and access implementations, publication schedule variants/results, public
+Prepare orchestration, engine, production concrete
 backends, and a runner remain planned.
 The lifecycle flow therefore mixes current foundations with later stages; each focused section
 states its implementation status.
@@ -155,7 +156,7 @@ The complete architecture prepare lifecycle creates:
 - `PreparedExecutable`, the current reusable cold-binding recipe for one prepared region;
 - `PreparedMemoryPlan`, whose current Runtime contract defines final buffer/workspace slot
   geometry without allocating physical storage;
-- `PreparedSchedule`, which orders executable, transfer, materialization, and publication work; and
+- `PreparedSchedule`, which orders executable, transfer/materialization, and publication work; and
 - `PreparedExecution`, the immutable reusable runtime-ready result, including any immutable
   persistent prepared resources that are not ordinary per-run workspace.
 
@@ -165,9 +166,9 @@ contracts in this list; `BoundInvocation` is
 the current per-run result of binding an executable. The current `PreparedExecution` retains one
 exact plan and one schedule that reports that same plan reference. It owns no resource and has no
 run or close lifecycle. The current schedule retains one exact plan and an immutable ordered
-snapshot. It permits one optional first-only representation-creation prefix plus executable
-occurrences; empty and executable-only schedules and repeated executable occurrences remain
-valid. It has no `PreparedUnit` and invokes no callback, binding, or execution. No current public Prepare orchestration
+snapshot. It permits one optional first-only representation-creation prefix plus executable and
+buffer-transfer occurrences; empty, executable-only, and transfer-only schedules and repeated
+occurrences remain valid. It has no `PreparedUnit` and invokes no callback, binding, or execution. No current public Prepare orchestration
 constructs or consumes it. The analysis-side and finalization-side Prepare contracts described
 above are also current. `modules/prepare` owns `PrepareContext`,
 `BackendPartitionPreparer`, `BackendPartitionAnalysis`, shared resource declarations, current
@@ -240,8 +241,18 @@ Current cleanup marks the state closed first, skips borrowed buffers, and attemp
 representation once in deterministic reverse order. It preserves the first unchecked exception
 or error and suppresses later failures. The state is not thread-safe, but separate states may
 share the immutable plan while keeping run-owned representations and validity arrays isolated.
+The current transfer foundation adds an immutable recipe for two distinct already-created
+representation positions of one buffer. Cold binding validates exact plan/state association,
+position bounds, and concrete source/destination compatibility once, then produces a backend-
+owned bound action retaining direct concrete references. Its final action makes a valid
+destination a no-op; otherwise it requires a valid source, invokes backend work once, and marks
+only the destination valid after success. Backend failure leaves Runtime validity unchanged.
+Materialization is this same explicit transfer when it produces an equivalent already-created
+destination representation. It adds no second operation kind, allocation, route search,
+invalidation, or hidden coherence.
+
 This implemented foundation still has no concrete allocation or storage-access implementation,
-transfer/materialization, schedule execution, publication/result, or runner behavior.
+schedule execution, executable-output invalidation, publication/result, or runner behavior.
 
 The current `PreparedExecutable` retains one exact plan reference plus private immutable snapshots
 of ordered dense buffer/representation and workspace selections. Empty and repeated selections
@@ -270,8 +281,9 @@ unsafe cast. The shared contracts use no raw `Object`, unchecked generic API, pu
 switch, registry, or service locator.
 
 The initial model adds no automatic pooling, reuse, aliasing, hidden coherence/write-back,
-distributed sharding, or multi-device scheduling. Explicit transfer/materialization transitions,
-publication, result, and runner behavior remain later focused tasks.
+distributed sharding, or multi-device scheduling. Transfer/materialization recipes and their
+success-only validity transition are current; executable-output invalidation, publication,
+result, and runner behavior remain later focused tasks.
 
 ## What a concrete backend does
 

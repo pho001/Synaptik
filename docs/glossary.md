@@ -43,11 +43,13 @@ requirement-to-slot assignment and association are now current. Runtime also has
 [`PreparedRepresentationPlan`](#prepared-representation-plan--preparedrepresentationplan),
 package-private all-or-cleaned cold setup, structural residency, and explicit
 [`buffer validity`](#buffer-validity) per resident copy. Physical allocation/access
-implementations, transfer/materialization/publication schedule variants, publication/results, and
-a runner remain planned. The immutable creation-plus-execution
+implementations, publication schedule variants/results, and a runner remain planned. The
+immutable creation-plus-execution-plus-transfer
 [`PreparedSchedule`](#prepared-schedule--preparedschedule) contract is current.
 Current [`PreparedExecutable`](#prepared-executable--preparedexecutable) recipes perform checked
 cold binding and create current [`BoundInvocation`](#bound-invocation--boundinvocation) objects;
+current [`PreparedBufferTransfer`](#prepared-buffer-transfer--preparedbuffertransfer) recipes
+similarly create [`BoundBufferTransfer`](#bound-buffer-transfer--boundbuffertransfer) actions;
 no concrete backend implements them yet.
 
 Prepare currently provides the public immutable analysis-side contracts in
@@ -58,8 +60,8 @@ project and validate one fully static planned partition, carry exact typed logic
 for projected graph inputs, retain backend inputs and the selected plan opaquely, and declare
 exact shared buffer/workspace needs. Slot assignment, finalization, prepared-executable
 construction, and the minimal `PreparedPartition` association are current Prepare contracts.
-Executable-only scheduling is a current Runtime contract. Physical resources, public Prepare
-orchestration, transfer/materialization/publication schedule variants, production concrete
+Executable and buffer-transfer scheduling are current Runtime contracts. Physical resources,
+public Prepare orchestration, publication schedule variants, production concrete
 backends, and runner execution remain planned. The Runtime executable contract itself is current;
 a current Prepare finalizer constructs a backend subclass against assigned slots.
 
@@ -1851,7 +1853,14 @@ first materializing probabilities.
 
 ### Materialization
 
-Creating a concrete stored representation when a logical value or view cannot be consumed in its current form. For example, a backend route may require a contiguous copy of a strided view. Planning expresses logical materialization requirements; prepare and backend/runtime mechanisms realize the required storage and copy work. Materialization is not a property decided by `LayoutDescriptor` alone.
+Producing an equivalent concrete stored representation when a logical value cannot be consumed in
+its current representation. For example, a backend route may require the value in an already-
+created contiguous destination rather than its current strided source. Planning expresses logical
+materialization requirements; prepare selects exact work; and the current Runtime transfer
+contract can realize that value by explicitly copying between two already-created representations
+of the same prepared buffer. Materialization is that transfer in this context, not a second
+Runtime operation, allocation, transfer-route search, hidden coherence policy, or property decided
+by `LayoutDescriptor` alone.
 
 ### Linear projection
 
@@ -2708,6 +2717,21 @@ backend-finalization contract constructs it only after shared slot assignment. T
 does not own selected representations and supplies no allocation, transfer, residency, schedule,
 publication, result, or cleanup lifecycle.
 
+### Prepared buffer transfer / `PreparedBufferTransfer`
+
+The implemented immutable Runtime recipe for one explicit transfer between two distinct,
+already-created representation positions of the same prepared buffer. It retains one exact
+`PreparedMemoryPlan`, one dense buffer index, and dense source and destination representation
+indices. Its cold `bind` operation requires a matching open `RunState`, validates both positions,
+checks source then destination compatibility through backend hooks, and returns a matching
+[`BoundBufferTransfer`](#bound-buffer-transfer--boundbuffertransfer) whose concrete subclass has
+direct typed references.
+
+The recipe is reusable and thread-safe when its backend subclass is immutable. It owns no
+representation and performs no allocation, transfer, validity change, route search, fallback,
+schedule traversal, or publication. Transfer to an equivalent already-created destination is
+materialization; there is no second materialization recipe or schedule kind.
+
 ### Prepared schedule / `PreparedSchedule`
 
 The implemented Runtime-owned immutable recipe that orders already-prepared work against one
@@ -2718,19 +2742,21 @@ than a new ownership relationship.
 
 The nested `Step` interface is sealed and currently permits
 `RepresentationCreationStep(PreparedRepresentationPlan)` and
-`ExecutionStep(PreparedExecutable)`. The creation variant retains the sole optional cold-setup
-prefix and may occur only at index zero. An execution step retains its executable exactly. Both
-derive their plan from the retained recipe. The family has no ID, kind enum, generic payload,
+`ExecutionStep(PreparedExecutable)` plus `BufferTransferStep(PreparedBufferTransfer)`. The
+creation variant retains the sole optional cold-setup prefix and may occur only at index zero.
+The other variants retain their exact executable or transfer recipe. All derive their plan from
+the retained recipe. The family has no ID, kind enum, generic payload,
 visitor, binding method, or execution method. No `PreparedUnit` is present: occurrence position
 supplies order, while each variant supplies the stable recipe and exact-plan invariant.
 
 Construction scans supplied steps in encounter order, compares plan references with identity,
 and snapshots through `List.copyOf` only after every step passes. It owns only that list snapshot
-and closes nothing. Empty and executable-only schedules remain valid; executable occurrences may
-repeat. A schedule may be traversed concurrently while distinct runs are prepared, but this does
+and closes nothing. Empty, executable-only, and transfer-only schedules remain valid; executable
+or transfer occurrences may repeat. A schedule may be traversed concurrently while distinct runs are prepared, but this does
 not make one `RunState` or `BoundInvocation` thread-safe. Current scheduling invokes no creator,
 binds or executes no work, allocates no representation, transfers no ownership, and defines no
-transfer, materialization, publication, result, or runner behavior.
+publication, result, or runner behavior. A transfer step only makes the current explicit
+transfer/materialization recipe reachable; schedule construction performs no physical work.
 
 ### Bound invocation / `BoundInvocation`
 
@@ -2746,6 +2772,22 @@ backend discovery, route/configuration selection, allocation, transfer, residenc
 publication, tuning, tracing, retry, fallback, or cleanup. Sequential calls while open are
 permitted, and backend `RuntimeException` or `Error` values propagate unchanged. An invocation is
 not thread-safe and must not be executed concurrently or raced with state closure.
+
+### Bound buffer transfer / `BoundBufferTransfer`
+
+The implemented Runtime-owned abstract validity guard for one backend transfer bound to one exact
+open [`RunState`](#run-state--runstate). Its backend subclass stores direct concrete source and
+destination representation fields established by `PreparedBufferTransfer.bind`. The shared base
+retains only that state and the dense coordinates needed for validity orchestration; it owns and
+closes no state or representation.
+
+`execute()` makes an already-valid destination a no-op without requiring a valid source. For an
+invalid destination, it requires the source valid, delegates once to `executeTransfer()`, and
+marks only the destination valid after successful return. A backend `RuntimeException` or `Error`
+propagates unchanged and leaves every Runtime validity bit unchanged. Source and unrelated-copy
+validity are never changed. The bound action is not thread-safe and must not race another
+validity transition or state closure. It performs no representation lookup, compatibility cast,
+allocation, backend or route discovery, retry, invalidation, publication, or cleanup.
 
 ### Producer / `TensorProducer`
 

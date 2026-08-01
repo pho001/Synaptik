@@ -1,6 +1,6 @@
 /**
  * Defines the immutable prepared-execution root, cold-bound executable boundary, and per-run
- * invocation guard.
+ * invocation guard, and prepared/bound buffer-transfer boundary.
  *
  * <p>A {@link io.github.pho001.synaptik.runtime.execution.PreparedExecution} retains one exact
  * prepared memory plan and one exact same-plan prepared schedule as the complete current
@@ -14,10 +14,18 @@
  * io.github.pho001.synaptik.runtime.execution.BoundInvocation}. That invocation retains the exact
  * state and direct concrete typed resource references for its prepared region.
  *
+ * <p>A {@link io.github.pho001.synaptik.runtime.execution.PreparedBufferTransfer} similarly
+ * resolves one source and destination representation during cold binding and produces a {@link
+ * io.github.pho001.synaptik.runtime.execution.BoundBufferTransfer} whose backend subclass retains
+ * direct concrete references. Its final action owns the destination-no-op, source-valid, and
+ * success-only destination-valid transition. Materialization of an equivalent already-created
+ * representation is this same transfer operation.
+ *
  * <p>Binding is the cold path and may allocate ordinary JVM arrays and the invocation object.
- * Bound execution performs only a run-open guard and the backend call. These contracts add no
+ * Bound invocation execution performs only a run-open guard and the backend call; bound transfer
+ * execution uses only dense validity operations and one backend call. These contracts add no
  * prepared unit, allocation or physical access, auxiliary binding-resource lifecycle, validity
- * or residency, transfer, publication or result, backend discovery, route selection, tuning,
- * tracing, schedule consumption, or runner behavior.
+ * coherence or invalidation policy, publication or result, backend discovery, route selection,
+ * tuning, tracing, schedule consumption, or runner behavior.
  */
 package io.github.pho001.synaptik.runtime.execution;

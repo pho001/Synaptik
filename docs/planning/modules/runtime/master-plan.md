@@ -54,8 +54,8 @@ Execute prepared schedules and own dynamic per-run state, residency, transfers, 
 io.github.pho001.synaptik.runtime/
   memory/     public prepared-memory identity and later runtime slot-access contracts
   resource/   nominal physical representation roles plus immutable prepared creation descriptions
-  execution/  public prepared-execution aggregate, prepared-executable recipe, and per-run
-              bound-invocation contracts, plus later execution and runner contracts
+  execution/  public prepared-execution aggregate, prepared executable/transfer recipes, and
+              per-run direct-reference bound actions, plus later runner contracts
   schedule/   public prepared schedule and closed semantic step contracts
   run/        per-run ownership, binding, cold creation, validity, and later result contracts
 ```
@@ -85,7 +85,7 @@ plan and schedule.
 | 0005 | [Prepared schedule contract](tasks/0005-prepared-schedule-contract.md) | Complete | 0002–0004; Prepare 0002 finalization | Added one immutable exact-plan schedule and its execution-step variant; no `PreparedUnit`, transfer, materialization, or publication payload is invented before its Runtime-owned facts exist. |
 | 0006 | [Prepared execution aggregate](tasks/0006-prepared-execution-aggregate.md) | Complete | 0002–0005 | Added the smallest exact-plan/exact-schedule immutable Runtime root while keeping every invocation mutation and resource lifecycle in `RunState`. |
 | 0007 | [Representation creation and residency foundation](tasks/0007-representation-creation-and-residency-foundation.md) | Complete | 0003; 0005–0006; Prepare 0002 | Added immutable caller-input/backend-creation descriptions, deterministic per-run creation and rollback, schedule reachability, and explicit per-copy validity without transfer, execution, or Config. |
-| 0008 | Transfer and materialization schedule steps | Draft | 0005; 0007 | Add stable Runtime-owned transfer/materialization recipes only after their representation and residency inputs exist. |
+| 0008 | [Prepared buffer transfer and materialization schedule](tasks/0008-prepared-buffer-transfer-and-materialization-schedule.md) | Complete | 0004–0005; 0007 | Added one backend-supplied prepared/bound buffer-transfer pair and schedule occurrence; materialization is the same action between distinct already-created representations, with destination-valid no-op and success-only validity transition. |
 | 0009 | Publication and result schedule steps | Draft | 0005; 0007–0008; stable publication/result ownership | Translate prepared resources into Runtime-owned delivery/result contracts without importing Compiler publication identities. |
 | 0010 | Prepared runner and dynamic execution | Draft | 0003; 0005–0009; stable run trace contracts | Cold-bind and execute prepared schedules without graph inspection, backend rediscovery, allocation, or lookup in the hot path. |
 | 0011 | Runtime contract closure | Draft | 0001–0010 | Audit Runtime API cohesion, lifecycle, dependencies, performance boundaries, documentation, and validation. |
@@ -99,8 +99,7 @@ plan and schedule.
 ## Current status
 
 In progress after completion of
-[Runtime 0007](tasks/0007-representation-creation-and-residency-foundation.md). No later Runtime
-task has a detailed specification; Draft Runtime 0008 is the next planning frontier. The current public Runtime
+[Runtime 0008](tasks/0008-prepared-buffer-transfer-and-materialization-schedule.md). The current public Runtime
 surface now includes immutable `runtime.memory` geometry, nominal `runtime.resource`
 buffer/workspace cleanup roles, the `runtime.run` ownership and one-run lifecycle foundation, the
 `runtime.execution` prepared-recipe/cold-bound-invocation boundary, and the `runtime.schedule`
@@ -193,8 +192,24 @@ successful tests. Runtime Javadoc, generated-page inspection, the focused Runtim
 eight-file Markdown validation, exact surface/mechanism/boundary/build/scope/status checks, and
 whitespace validation passed.
 
-Transfer, materialization, and publication remain split into Draft tasks 0008–0009 before the Draft runner.
-Runtime 0008–0011 and Prepare 0003 remain Draft without detailed specifications.
+Runtime 0008 selects one explicit buffer transfer between distinct already-created representation
+positions of one logical buffer. Materialization is that same operation when it produces an
+equivalent destination representation; no second kind is planned. Cold binding resolves exact
+physical references once, while the bound action makes a valid destination a no-op, otherwise
+requires a valid source, invokes backend work once, and marks only the destination valid after
+success. The task adds no allocation, route search, runner, executable-output invalidation,
+publication, Prepare orchestration, concrete backend, or coherence policy.
+
+Its focused implementation command passed three suites and 31 tests, and the single final Runtime
+module command passed 13 suites and 113 tests, with no failures, errors, or skips. The separate
+clean documentation pass finalized the five affected production/package Javadocs, Runtime/Public
+APIs, focused architecture status, backend guide, glossary, and planning records without changing
+executable Java or repeating the successful tests. Runtime Javadoc/generated-page inspection,
+the current transfer examples, eight-file Markdown validation, exact surface/hot-path/direct-field/
+mechanism/build/scope/status checks, and whitespace validation passed.
+
+Publication remains separate Draft Runtime 0009 before the Draft runner. Runtime 0009–0011 and
+Prepare 0003 remain Draft without detailed specifications.
 Backend Contract remains closed, and module dependency directions are unchanged.
 
 ## Open questions
@@ -260,9 +275,12 @@ Backend Contract remains closed, and module dependency directions are unchanged.
   never carry logical validity.
 - Config 0007 is not a dependency of representation creation or validity. Run/publication options
   remain inputs to their later consumers.
-- Transfer, materialization, and publication steps remain Draft until Runtime owns stable
-  representation/residency and delivery/result facts; Compiler/Planning identities do not cross
-  into Runtime to fill that gap.
+- Runtime 0008 uses Runtime 0007's stable representation positions and validity facts for one
+  explicit prepared/bound transfer. Materialization is the same transfer to an equivalent
+  already-created destination; no allocation, second kind, route search, or hidden coherence is
+  added.
+- Publication remains Draft until Runtime owns stable delivery/result facts; Compiler/Planning
+  identities do not cross into Runtime to fill that gap.
 - Buffer/workspace identity domains distinguish shared buffer positions from scratch positions,
   but they do not distinguish caller input, internal value, or published-output roles. Those
   roles must come from later Prepare/publication associations rather than a speculative Runtime
@@ -278,8 +296,10 @@ Backend Contract remains closed, and module dependency directions are unchanged.
   hot path, or acquire auxiliary binding resources without an explicit cleanup lifecycle.
 - Treating a prepared schedule as a hot-path interpreter instead of cold-binding its typed steps
   to direct per-run work.
-- Inventing transfer, materialization, or publication payloads before their Runtime-owned inputs
-  and consumers are stable.
+- Turning Runtime 0008's exact prepared source/destination action into route search, allocation,
+  hidden coherence, or hot representation lookup.
+- Inventing publication payloads before their Runtime-owned delivery/result inputs and consumers
+  are stable.
 
 ## Notes
 

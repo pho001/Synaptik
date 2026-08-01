@@ -5,8 +5,8 @@
 This guide maps current backend extension contracts into the complete planned lifecycle. Prepare
 analysis, slot assignment, backend finalization, immutable physical-representation creation
 callbacks, Runtime cold creation and binding, explicit per-copy validity, and creation/executable
-scheduling are current. Production physical implementations, transfer/materialization/publication
-steps, schedule consumption, Engine composition, and every production concrete backend remain
+scheduling plus the prepared/bound buffer-transfer contract are current. Production physical
+implementations, publication steps/results, schedule consumption, Engine composition, and every production concrete backend remain
 planned. The guide therefore separates compilable extension patterns from conceptual integration
 steps.
 
@@ -28,13 +28,17 @@ capability -> compile ownership -> backend prepare -> executable -> runtime
 5. Supply immutable thread-safe buffer/workspace creators in one current
    `PreparedRepresentationPlan`; each call returns a fresh physical result for one run.
 6. Place that plan in the optional first-only `PreparedSchedule.RepresentationCreationStep`, then
-   place finalized executables in `ExecutionStep` occurrences. Schedule construction validates
-   exact memory-plan identity and preserves occurrence order without invoking callbacks.
+   place finalized executables and explicit transfers in `ExecutionStep` and
+   `BufferTransferStep` occurrences. Schedule construction validates exact memory-plan identity
+   and preserves occurrence order without invoking callbacks.
 7. At run setup, current package-private Runtime orchestration validates all caller inputs, invokes
    creators before binding, and rolls back partial creation. Cold binding then validates concrete
    representation types and constructs one `BoundInvocation` with direct typed fields.
-8. Emit typed backend trace contributions when the producer contract exists.
-9. Expose a backend component that later Engine composition can register explicitly.
+8. Cold-bind each current `PreparedBufferTransfer` into a `BoundBufferTransfer` with direct typed
+   source and destination fields. Runtime owns its validity transition; the backend owns physical
+   copy mechanics.
+9. Emit typed backend trace contributions when the producer contract exists.
+10. Expose a backend component that later Engine composition can register explicitly.
 
 ## Current representation-creation pattern
 
@@ -51,6 +55,7 @@ import io.github.pho001.synaptik.runtime.resource.WorkspaceRepresentation;
 import java.util.List;
 
 final class CpuBuffer implements BufferRepresentation {
+    void copyFrom(CpuBuffer source) { /* copy concrete storage */ }
     @Override public void close() { /* release concrete storage */ }
 }
 
@@ -171,13 +176,77 @@ acquiring any auxiliary closeable or native binding resource. Binding changes no
 has no partial-failure cleanup protocol. A future contract must add an explicit lifecycle before
 a backend may acquire such a resource while binding.
 
+## Current buffer-transfer pattern
+
+Materialization uses the same explicit buffer-transfer contract when the destination is an
+equivalent already-created representation required by later work. A backend adds no separate
+materialization recipe, allocation path, route search, or coherence layer.
+
+```java
+import io.github.pho001.synaptik.runtime.execution.BoundBufferTransfer;
+import io.github.pho001.synaptik.runtime.execution.PreparedBufferTransfer;
+
+final class CpuBufferTransfer extends BoundBufferTransfer {
+    private final CpuBuffer source;
+    private final CpuBuffer destination;
+
+    CpuBufferTransfer(RunState state, CpuBuffer source, CpuBuffer destination) {
+        super(state, 0, 0, 1);
+        this.source = source;
+        this.destination = destination;
+    }
+
+    @Override protected void executeTransfer() {
+        // Copy through the already-selected route using these direct concrete fields.
+        destination.copyFrom(source);
+    }
+}
+
+final class CpuPreparedBufferTransfer extends PreparedBufferTransfer {
+    CpuPreparedBufferTransfer(PreparedMemoryPlan plan) {
+        super(plan, 0, 0, 1);
+    }
+
+    @Override protected boolean acceptsSourceBufferRepresentation(
+            BufferRepresentation representation) {
+        return representation instanceof CpuBuffer;
+    }
+
+    @Override protected boolean acceptsDestinationBufferRepresentation(
+            BufferRepresentation representation) {
+        return representation instanceof CpuBuffer;
+    }
+
+    @Override protected BoundBufferTransfer bindCompatible(
+            RunState state,
+            BufferRepresentation source,
+            BufferRepresentation destination) {
+        return new CpuBufferTransfer(
+                state, (CpuBuffer) source, (CpuBuffer) destination);
+    }
+}
+```
+
+The two compatibility checks and casts are cold. The bound action retains concrete source and
+destination fields and performs no Runtime lookup. `execute()` makes a valid destination a no-op
+without requiring the source valid. For an invalid destination, Runtime requires the source valid,
+calls `executeTransfer()` once, and marks only the destination valid after success. If
+`copyFrom` throws, the exact failure propagates and Runtime validity remains unchanged; the
+backend must treat partially written destination bytes as invalid. A backend test should cover
+all three cases: no-op, successful one-call copy, and failure with unchanged validity.
+
+The future runner will conceptually bind `BufferTransferStep` occurrences before its hot loop. No
+current public runner performs that traversal, and the transfer recipe itself does not allocate a
+destination or choose a route.
+
 ## Current executable scheduling pattern
 
 ### Goal and inputs
 
-Make the representation plan reachable as the first occurrence, then order two occurrences of
-one finalized `CpuExecutable`. This example assumes `plan` is the exact shared plan supplied by
-current Prepare finalization; it does not construct a runner or invoke a creator.
+Make the representation plan reachable as the first occurrence, then order one prepared transfer
+and two occurrences of one finalized `CpuExecutable`. This example assumes `plan` is the exact
+shared plan supplied by current Prepare finalization; it does not construct a runner or invoke a
+creator.
 
 ```java
 import io.github.pho001.synaptik.runtime.schedule.PreparedSchedule;
@@ -188,24 +257,24 @@ PreparedSchedule.ExecutionStep occurrence =
         new PreparedSchedule.ExecutionStep(executable);
 PreparedSchedule.RepresentationCreationStep creation =
         new PreparedSchedule.RepresentationCreationStep(representationPlan);
+PreparedSchedule.BufferTransferStep transfer =
+        new PreparedSchedule.BufferTransferStep(new CpuPreparedBufferTransfer(plan));
 PreparedSchedule schedule =
-        new PreparedSchedule(plan, List.of(creation, occurrence, occurrence));
+        new PreparedSchedule(plan, List.of(creation, transfer, occurrence, occurrence));
 ```
 
 ### Result and interpretation
 
-`schedule.steps()` retains the exact creation prefix followed by the same executable occurrence
-twice in deterministic order, and every occurrence reports the exact `plan` reference. Repetition
+`schedule.steps()` retains the exact creation prefix and transfer followed by the same executable
+occurrence twice in deterministic order, and every occurrence reports the exact `plan` reference. Repetition
 means execute the prepared region twice when a future runner consumes the schedule; it does not
 duplicate executable, representation, or cleanup ownership. Empty and executable-only schedules
 remain valid for compatibility; a later Prepare validator may require creation for runnable work.
 
 Schedule construction only validates and snapshots the recipe. It does not bind or execute the
-`CpuExecutable`, invoke the creator callbacks, create a `RunState`, allocate or close resources,
-or imply transfer,
-materialization, publication, or result behavior. A backend must not encode those deferred
-semantics in either current step; later Runtime-owned variants require their own stable transfer
-or delivery contracts.
+`CpuExecutable` or transfer, invoke creator callbacks, create a `RunState`, allocate or close
+resources, perform materialization, publish, or create a result. Publication remains a later
+Runtime-owned delivery contract rather than hidden behavior in a current step.
 
 ## Conceptual registration
 

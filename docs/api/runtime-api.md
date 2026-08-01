@@ -15,16 +15,17 @@ finalizes backend recipes. The current public surface contains:
   preparation and creator contracts;
 - `runtime.run`: `RunResourceOwnership`, `BufferRepresentationBinding`, and `RunState`;
 - `runtime.execution`: `PreparedExecution`, `PreparedExecutable`, its nested `BufferSelection`
-  and `WorkspaceSelection` records, and `BoundInvocation`; and
+  and `WorkspaceSelection` records, `BoundInvocation`, `PreparedBufferTransfer`, and
+  `BoundBufferTransfer`; and
 - `runtime.schedule`: `PreparedSchedule`, its sealed nested `Step` contract,
-  `RepresentationCreationStep`, and `ExecutionStep`.
+  `RepresentationCreationStep`, `ExecutionStep`, and `BufferTransferStep`.
 
 The geometry, reusable creation description, package-private all-or-cleaned setup, structural
-residency, explicit per-buffer-copy validity, cold-bound invocation contracts, creation and
-execution schedule recipes, two-component prepared-execution aggregate, Prepare-owned resource
-assignments, typed backend finalization, and `PreparedPartition` association are current. Concrete
-physical allocation and storage access, transfer/materialization/publication steps,
-publication/results, public Prepare orchestration, schedule consumption, and a runnable Runtime
+residency, explicit per-buffer-copy validity, cold-bound invocation and transfer contracts,
+creation, execution, and transfer schedule recipes, two-component prepared-execution aggregate,
+Prepare-owned resource assignments, typed backend finalization, and `PreparedPartition`
+association are current. Concrete physical allocation and storage access, publication steps and
+results, public Prepare orchestration, schedule consumption, and a runnable Runtime
 facade remain planned. No production concrete backend currently implements the creation,
 finalization, or execution contracts.
 
@@ -45,6 +46,9 @@ current                  current                      current
 
         PreparedSchedule -> cold bind -> BoundInvocation -> execute
         current recipe      current       current            current contract
+
+        BufferTransferStep -> cold bind -> BoundBufferTransfer -> transfer + validity
+        current recipe        current       current per run      current contract
 ```
 
 Read the flow from logical source facts toward invocation state. Prepare exposes exact buffer and
@@ -54,10 +58,13 @@ handoff retains source-to-slot associations and constructs the Runtime geometry.
 geometry's encounter order. Package-private cold setup validates all caller inputs, creates
 run-owned buffers and workspaces, and constructs one `RunState`. A current `PreparedExecutable`
 selects those resident representations by dense position, checks backend
-compatibility during cold binding, and creates a per-run `BoundInvocation`. None of these
-shared contracts implements concrete allocation or transfer mechanics or supplies a runner. The
-current schedule can retain one first-only creation prefix followed by executable occurrences; it
-does not invoke or execute either kind of step.
+compatibility during cold binding, and creates a per-run `BoundInvocation`. A current
+`PreparedBufferTransfer` selects two distinct already-created representations of one buffer,
+checks their concrete compatibility during cold binding, and creates a per-run
+`BoundBufferTransfer` that orchestrates the explicit validity transition around backend-owned
+physical transfer work. The shared contracts still implement no concrete allocation or storage
+access and supply no runner. The current schedule can retain one first-only creation prefix
+followed by executable or transfer occurrences; it does not invoke or execute any step.
 
 ## Current prepared execution
 
@@ -476,20 +483,168 @@ direct concrete fields. Calling `invocation.execute()` after `state.close()` fai
 counter changes. This proves the current binding and lifecycle guard only; it does not allocate
 storage, finalize a backend analysis, schedule work, transfer values, or publish a result.
 
+## Current prepared buffer transfer
+
+`PreparedBufferTransfer` is an immutable reusable recipe for copying one logical buffer value
+between two distinct, already-created representation positions of the same prepared buffer.
+Materialization is this same explicit transfer when it produces the equivalent value in an
+already-created representation required by later work. It is not another recipe, allocation
+operation, route search, or coherence policy.
+
+`bind(runState)` is the cold boundary. It requires the exact open state, validates both positions,
+and lets the concrete backend check source compatibility before destination compatibility. The
+backend then constructs a `BoundBufferTransfer` subclass with direct typed source and destination
+fields. Binding performs no transfer and changes no ownership or validity.
+
+`BoundBufferTransfer.execute()` first makes an already-valid destination a no-op, even if the
+selected source is invalid. Otherwise it requires a valid source, calls the backend hook exactly
+once, and marks only the destination valid after successful return. A backend
+`RuntimeException` or `Error` propagates unchanged and leaves every Runtime validity bit
+unchanged. Physical destination contents may be partial after failure, but Runtime still
+classifies that copy as invalid.
+
+### Focused direct-reference transfer example
+
+#### Goal and inputs
+
+This current extension pattern binds two concrete buffers directly. It demonstrates success, the
+resulting destination-valid no-op, and backend failure. A later runner will bind schedule
+occurrences conceptually; this example calls the current recipe and action directly because no
+runner exists yet.
+
+```java
+import io.github.pho001.synaptik.runtime.execution.BoundBufferTransfer;
+import io.github.pho001.synaptik.runtime.execution.PreparedBufferTransfer;
+import io.github.pho001.synaptik.runtime.memory.PreparedMemoryPlan;
+import io.github.pho001.synaptik.runtime.resource.BufferRepresentation;
+import io.github.pho001.synaptik.runtime.run.RunState;
+
+final class TransferBuffer implements BufferRepresentation {
+    int reads;
+    int writes;
+    @Override public void close() {}
+}
+
+final class TransferAction extends BoundBufferTransfer {
+    private final TransferBuffer source;
+    private final TransferBuffer destination;
+    private final boolean fail;
+
+    TransferAction(
+            RunState state,
+            TransferBuffer source,
+            TransferBuffer destination,
+            boolean fail) {
+        super(state, 0, 0, 1);
+        this.source = source;
+        this.destination = destination;
+        this.fail = fail;
+    }
+
+    @Override protected void executeTransfer() {
+        source.reads++;
+        destination.writes++;
+        if (fail) {
+            throw new IllegalStateException("physical copy failed");
+        }
+    }
+}
+
+final class TransferRecipe extends PreparedBufferTransfer {
+    private final boolean fail;
+
+    TransferRecipe(PreparedMemoryPlan plan, boolean fail) {
+        super(plan, 0, 0, 1);
+        this.fail = fail;
+    }
+
+    @Override protected boolean acceptsSourceBufferRepresentation(
+            BufferRepresentation representation) {
+        return representation instanceof TransferBuffer;
+    }
+
+    @Override protected boolean acceptsDestinationBufferRepresentation(
+            BufferRepresentation representation) {
+        return representation instanceof TransferBuffer;
+    }
+
+    @Override protected BoundBufferTransfer bindCompatible(
+            RunState state,
+            BufferRepresentation source,
+            BufferRepresentation destination) {
+        return new TransferAction(
+                state, (TransferBuffer) source, (TransferBuffer) destination, fail);
+    }
+}
+```
+
+Given the earlier one-buffer/one-workspace `plan`, create two isolated states. Each starts with a
+valid borrowed source and invalid run-owned destination and receives its own workspace because
+the plan declares one workspace position.
+
+```java
+TransferBuffer source = new TransferBuffer();
+TransferBuffer destination = new TransferBuffer();
+RunState transferState =
+        new RunState(
+                plan,
+                List.of(
+                        List.of(
+                                new BufferRepresentationBinding(
+                                        source, RunResourceOwnership.BORROWED),
+                                new BufferRepresentationBinding(
+                                        destination, RunResourceOwnership.RUN_OWNED))),
+                List.of(new ExampleWorkspace()));
+
+BoundBufferTransfer transfer = new TransferRecipe(plan, false).bind(transferState);
+transfer.execute();
+transfer.execute();
+
+TransferBuffer failingSource = new TransferBuffer();
+TransferBuffer failingDestination = new TransferBuffer();
+RunState failingState =
+        new RunState(
+                plan,
+                List.of(
+                        List.of(
+                                new BufferRepresentationBinding(
+                                        failingSource, RunResourceOwnership.BORROWED),
+                                new BufferRepresentationBinding(
+                                        failingDestination, RunResourceOwnership.RUN_OWNED))),
+                List.of(new ExampleWorkspace()));
+BoundBufferTransfer failing = new TransferRecipe(plan, true).bind(failingState);
+try {
+    failing.execute();
+} catch (IllegalStateException expected) {
+    // The exact backend failure propagates; Runtime leaves destination validity false.
+}
+```
+
+#### Result and interpretation
+
+After the two successful calls, `source.reads` and `destination.writes` are both `1` and both
+copies in `transferState` are valid. The second call observed the valid destination and skipped
+the backend hook. In `failingState`, the source remains valid and the destination remains invalid;
+both physical counters are `1` because one backend attempt occurred. The action uses only its two
+direct fields for physical work. This proves the current transfer and validity contract, not
+byte-copy correctness, schedule traversal, executable-output invalidation, publication, result
+ownership, or a public run lifecycle.
+
 ## Current prepared schedule
 
 `PreparedSchedule` is an immutable reusable recipe that associates an ordered list of work
 occurrences with one exact `PreparedMemoryPlan`. Its sealed nested `Step` interface exposes only
 that plan association. `RepresentationCreationStep(PreparedRepresentationPlan)` retains the sole
-optional cold-setup prefix, and `ExecutionStep(PreparedExecutable)` retains one executable
+optional cold-setup prefix, `ExecutionStep(PreparedExecutable)` retains one executable occurrence,
+and `BufferTransferStep(PreparedBufferTransfer)` retains one explicit transfer/materialization
 occurrence. Each derives `memoryPlan()` from its exact component.
 
 Construction validates each occurrence in supplied order and requires reference identity with
 the schedule plan; a structurally equal but separately constructed plan is not the same prepared
 association. Only after the complete scan succeeds does the schedule use `List.copyOf` to retain
-an immutable ordered snapshot. It keeps exact step and executable references. Empty schedules,
-repeated executable step references, and repeated executable references are valid because each
-list position is one explicit occurrence and does not create another ownership relationship. A
+an immutable ordered snapshot. It keeps exact step and recipe references. Empty schedules,
+repeated executable or transfer step references, and repeated recipe references are valid because
+each list position is one explicit occurrence and does not create another ownership relationship. A
 creation step may occur zero or one time and, when present, must be index zero. A later Prepare
 validator may require it for a runnable result; compatibility schedules may still be empty or
 executable-only.
@@ -498,10 +653,10 @@ executable-only.
 
 #### Goal and inputs
 
-Retain the representation plan from the creation example as the first occurrence, followed by two
-occurrences of the current `ExampleExecutable` recipe from the cold-binding example. All
-occurrences use the same exact plan; constructing the schedule invokes no callback and needs no
-run state or physical representation.
+Retain the representation plan from the creation example as the first occurrence, followed by one
+transfer occurrence and two occurrences of the current `ExampleExecutable` recipe from the cold-
+binding example. All occurrences use the same exact plan; constructing the schedule invokes no
+callback and needs no run state or physical representation.
 
 ```java
 import io.github.pho001.synaptik.runtime.schedule.PreparedSchedule;
@@ -513,8 +668,10 @@ PreparedSchedule.ExecutionStep occurrence =
         new PreparedSchedule.ExecutionStep(executable);
 PreparedSchedule.RepresentationCreationStep creation =
         new PreparedSchedule.RepresentationCreationStep(representationPlan);
+PreparedSchedule.BufferTransferStep transferOccurrence =
+        new PreparedSchedule.BufferTransferStep(new TransferRecipe(plan, false));
 ArrayList<PreparedSchedule.Step> supplied =
-        new ArrayList<>(List.of(creation, occurrence, occurrence));
+        new ArrayList<>(List.of(creation, transferOccurrence, occurrence, occurrence));
 
 PreparedSchedule schedule = new PreparedSchedule(plan, supplied);
 supplied.clear();
@@ -523,11 +680,12 @@ supplied.clear();
 #### Result and interpretation
 
 `schedule.memoryPlan()` is the exact `plan` object. `schedule.steps().getFirst()` is the exact
-`creation` reference, and the list still contains the same `occurrence` reference twice afterward
-when the mutable source list is cleared. The returned list is immutable. This proves creation-plan
-reachability, deterministic executable scheduling, and snapshot isolation only. Construction
-does not invoke a creator, bind or execute the executable, allocate or close a resource, create a
-`RunState`, or select transfer, materialization, or publication behavior.
+`creation` reference, `schedule.steps().get(1)` is the exact `transferOccurrence`, and the list
+still contains the same `occurrence` reference twice after the mutable source list is cleared. The
+returned list is immutable. This proves creation-plan reachability, deterministic recipe order,
+and snapshot isolation only. Construction does not invoke a creator, bind or execute either
+recipe, allocate or close a resource, create a `RunState`, perform a transfer, or select
+publication behavior.
 
 A null executable fails with `NullPointerException("executable")`. A null schedule plan, list,
 or element reports `memoryPlan`, `steps`, or `steps[index]`, respectively. The first step whose
@@ -535,8 +693,9 @@ plan is not the exact schedule plan fails with
 `IllegalArgumentException("steps[index] memory plan does not match schedule memory plan")`.
 A creation step after index zero fails with
 `IllegalArgumentException("steps[index] representation creation must be the first schedule occurrence")`.
-Transfer, materialization, and publication variants wait for later Runtime-owned route and result
-contracts; they are not hidden inside either current variant.
+Publication waits for later Runtime-owned delivery and result contracts. Current transfer and
+materialization use `BufferTransferStep`; no second materialization variant is hidden in the
+schedule.
 
 ## Current Prepare assignment and backend finalization
 
@@ -595,9 +754,10 @@ RunResult result = execution.run(inputs, RunOptions.defaults());
 Current ownership distinguishes borrowed inputs from run-owned internal resources, and current
 per-copy validity is explicit within `RunState`. Future publication will transfer or lease
 selected outputs to `RunResult`, while immutable persistent prepared resources stay with
-`PreparedExecution`. Current cold checked binding creates backend-owned typed invocation objects
-with direct references before execution. Exact transfer/materialization routes, execution-driven
-validity transitions, publication/result behavior, and the runner remain focused later work.
+`PreparedExecution`. Current cold checked binding creates backend-owned typed invocation and
+transfer objects with direct references. One exact prepared buffer transfer and its success-only
+destination-valid transition are current. Transfer route selection, executable-output
+invalidation, publication/result behavior, and the runner remain focused later work.
 
 ## Boundary and failure model
 

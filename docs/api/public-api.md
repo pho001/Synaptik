@@ -19,9 +19,9 @@ Compiler orchestration now consumes those three operations and uses the public i
 Reusable or public capability matrices, a public graph-wide Planning workflow, public compiler
 entry, physical allocation/access, complete prepare/runtime lifecycles, concrete backend
 integration, and engine APIs remain planned. Prepare analysis contracts and the initial Runtime
-geometry, prepared representation creation, per-run resource/validity, cold-binding, and
-creation-plus-execution schedule contracts are current but do not form a runnable public
-lifecycle. The backend
+geometry, prepared representation creation, per-run resource/validity, executable and transfer
+cold-binding, and creation-plus-execution-plus-transfer schedule contracts are current but do not
+form a runnable public lifecycle. The backend
 contract also contains an immutable caller-supplied availability snapshot; it is data, not a
 discovery or liveness API. A sealed requirement family can now name one hard eligibility target.
 The current config module can record that hard-target optionality, requested graph scope,
@@ -416,9 +416,11 @@ The public `modules:runtime` surface now contains five focused packages:
   `RunState`; and
 - `runtime.execution` defines the immutable two-component `PreparedExecution` root, reusable
   `PreparedExecutable` recipes, their dense buffer/representation and workspace selections, and
-  per-run `BoundInvocation` objects; and
+  per-run `BoundInvocation` objects, plus reusable `PreparedBufferTransfer` recipes and per-run
+  `BoundBufferTransfer` actions; and
 - `runtime.schedule` defines immutable `PreparedSchedule` recipes, their sealed plan-associated
-  `Step` family, the optional first-only `RepresentationCreationStep`, and `ExecutionStep`.
+  `Step` family, the optional first-only `RepresentationCreationStep`, `ExecutionStep`, and
+  `BufferTransferStep`.
 
 `PreparedRepresentationPlan` snapshots dense buffer origins and workspace creators against one
 exact memory plan. Concrete backends implement immutable thread-safe creator callbacks that return
@@ -439,10 +441,20 @@ representation compatibility to the concrete backend. The backend then creates a
 `execute()` call checks only that the retained state is open before delegating to the backend;
 execution after state closure is rejected.
 
-One schedule retains an exact `PreparedMemoryPlan` and an immutable ordered snapshot of creation
-and executable occurrences. Every step must report that same plan by reference identity. The
+`PreparedBufferTransfer.bind` similarly requires an exact matching open state but selects two
+distinct, already-created representations of one logical buffer. Concrete compatibility checks
+remain cold, and the resulting `BoundBufferTransfer` stores direct concrete typed fields. An
+already-valid destination is a no-op. Otherwise a valid source permits one backend action, and
+only successful return marks the destination valid. Backend failure leaves Runtime validity
+unchanged. Materialization is this same explicit transfer to an equivalent already-created
+destination, not another operation, allocation path, or route search.
+
+One schedule retains an exact `PreparedMemoryPlan` and an immutable ordered snapshot of creation,
+executable, and buffer-transfer occurrences. Every step must report that same plan by reference
+identity. The
 creation occurrence is optional for compatibility but, when present, is sole and first. Empty and
-executable-only schedules and repeated executable occurrences remain valid; construction performs
+executable-only or transfer-only schedules and repeated executable or transfer occurrences remain
+valid; construction performs
 no callback, binding, execution, allocation, resource action, or ownership transfer. No
 `PreparedUnit` is needed because list position is the occurrence and each current step supplies
 its recipe and plan association.
@@ -454,8 +466,8 @@ shared by concurrent readers, while each later invocation must use a distinct mu
 `RunState`.
 
 These contracts contain no concrete backend implementation and do not provide public Prepare or
-run orchestration, physical access, transfer/materialization/publication steps, result, schedule
-consumption, runner, or Engine behavior. Creator callbacks leave physical allocation mechanics to
+run orchestration, physical access, publication steps/results, schedule consumption, runner, or
+Engine behavior. Creator callbacks leave physical allocation mechanics to
 the implementing backend, and binding owns no auxiliary closeable resource or ownership change.
 See the [Runtime API](runtime-api.md) for creation, validity, scheduling, selection, lifecycle,
 failure, and thread-safety details.
