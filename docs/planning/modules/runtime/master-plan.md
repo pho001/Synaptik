@@ -91,18 +91,22 @@ publication coordinates, per-run bound publication state, and a whole-`RunState`
 | 0008 | [Prepared buffer transfer and materialization schedule](tasks/0008-prepared-buffer-transfer-and-materialization-schedule.md) | Complete | 0004–0005; 0007 | Added one backend-supplied prepared/bound buffer-transfer pair and schedule occurrence; materialization is the same action between distinct already-created representations, with destination-valid no-op and success-only validity transition. |
 | 0009 | [Publication and result schedule steps](tasks/0009-publication-and-result-schedule-steps.md) | Complete | 0005; 0007–0008; stable publication/result ownership | Added exact prepared/run coordinates and a dense publication suffix, cold-bound direct selected representations, and leased the complete `RunState` to an ordered `RunResult` without importing Compiler publication identities or exposing output values. |
 | 0010 | [Prepared runner and dynamic execution](tasks/0010-prepared-runner-and-dynamic-execution.md) | Complete | 0003; 0005–0009; preserve Trace 0001–0002 boundary | Cold-creates one isolated state, binds every direct occurrence before ordered traversal, applies explicit executable read/write validity, and transfers the whole-state result lease without hot graph/backend lookup. |
-| 0011 | Runtime contract closure | Draft | 0001–0010 | Audit Runtime API cohesion, lifecycle, dependencies, performance boundaries, documentation, and validation. |
+| 0011 | [Runtime contract closure audit](tasks/0011-runtime-contract-closure-audit.md) | Complete | 0001–0010 | Recorded `BLOCKING_GAP`: the audit is complete, but shared-throwable cleanup, stale general architecture status, and absent Runtime architecture enforcement keep the milestone open. |
+| 0012 | [Run-state shared-throwable cleanup](tasks/0012-run-state-shared-throwable-cleanup.md) | Complete | 0003; 0007; 0009–0011 | Repaired `RUNTIME-CLEANUP-001`: closed-first reverse cleanup now skips impossible self-suppression when distinct owned resources throw the same exact primary `Throwable`, preserves that primary, and attempts all remaining owned resources. |
+| 0013 | [General architecture status correction](tasks/0013-general-architecture-status-correction.md) | Complete | 0011; 0012 | Corrected `DOCUMENTATION-STATUS-001` in four implicated explanatory documents, preserving authoritative architecture and leaving enforcement to Draft 0014. |
+| 0014 | Runtime architecture enforcement | Draft | 0011; 0012–0013 | Add focused Runtime dependency and hot-path architecture-test enforcement for `ARCHITECTURE-ENFORCEMENT-001` without changing architecture rules; no detailed specification exists. |
 
 ## Milestones
 
 - Prepared execution contracts
 - Run state and resources
 - Schedule runner and publication
+- Runtime contract closure audit
 
 ## Current status
 
 In progress after completion of
-[Runtime 0008](tasks/0008-prepared-buffer-transfer-and-materialization-schedule.md). The current public Runtime
+[Runtime 0012](tasks/0012-run-state-shared-throwable-cleanup.md). The current public Runtime
 surface now includes immutable `runtime.memory` geometry, nominal `runtime.resource`
 buffer/workspace cleanup roles, the `runtime.run` ownership and one-run lifecycle foundation, the
 `runtime.execution` prepared-recipe/cold-bound-invocation boundary, and the `runtime.schedule`
@@ -234,16 +238,51 @@ because the Trace run-payload family remains Draft; the task invents no payload 
 Its focused command passed 26 tests, and the final Runtime command passed 17 suites and 143 tests
 without failures, errors, or skips. Clean documentation context `/root/runtime0010_docs`
 finalized the affected Javadocs and documentation and passed Javadoc, generated-page,
-eight-file Markdown, exact 14-path, status, and whitespace gates. Runtime 0011 is now the sole next
-unfinished Runtime task; it and Prepare 0003 remain Draft without detailed specifications.
-Backend Contract remains closed, and module dependency directions are unchanged.
+eight-file Markdown, exact 14-path, status, and whitespace gates.
+
+Complete [Runtime 0011](tasks/0011-runtime-contract-closure-audit.md) produced the durable
+[`BLOCKING_GAP` audit](runtime-contract-closure-audit.md). Runtime 0001-0010 otherwise form a
+cohesive immutable-prepared/per-run-state boundary, but the selected Runtime milestone remains in
+progress. `RunState.close()` can abort attempt-all cleanup when distinct resources throw the same
+exception object; three general architecture pages and the architecture-test guide retain stale
+implementation-status prose; and the architecture-test project lacks Runtime dependency/hot-path
+enforcement. These findings need separate bounded planning because 0011 is documentation-only and
+creates no repair task.
+
+The one combined checkpoint passed 205 suites and 1,530 tests with zero failures, errors, or
+skips, including Runtime's 17 suites/143 tests and architecture's 3 suites/3 tests. Runtime
+Javadoc and final documentation/scope/status checks passed. That audit selected bounded
+[Runtime 0012](tasks/0012-run-state-shared-throwable-cleanup.md) as the sole executable repair for
+`RUNTIME-CLEANUP-001`; Runtime 0013 and 0014 retained the other two findings as explicit Draft
+follow-ups without detailed specifications. Prepare 0003 remains Draft without a detailed
+specification. Backend Contract remains closed, and module dependency directions are unchanged.
+
+Complete [Runtime 0012](tasks/0012-run-state-shared-throwable-cleanup.md) adds the constant-space
+primary-identity guard to both `RunState.close()` cleanup loops and one exact same-`Throwable`
+regression. Cleanup now preserves the original primary object, omits only its impossible
+self-suppressed recurrence, continues reverse traversal, and suppresses later distinct failures
+in encounter order. The implementation context's focused `RunStateTest` run passed 16 tests, and
+its one final Runtime run passed 17 suites and 144 tests with zero failures, errors, or skips.
+Clean documentation context `019fbefd-f12e-7450-b554-81a816c3e6b8` finalized the Javadoc review,
+Runtime API, glossary, and planning evidence without executable Java changes or repeated Java
+tests; Runtime Javadoc,
+five-file Markdown, exact seven-owned-plus-two-preserved-path scope, status/history/later-spec,
+and whitespace gates passed. Complete
+[Runtime 0013](tasks/0013-general-architecture-status-correction.md) corrects the five stale
+implementation-status statements in three architecture pages and the architecture-test guide
+without changing architecture, APIs, Java, tests, or build behavior. Clean documentation context
+`019fc161-1298-72e1-a2bb-82ac8cbfb672` passed seven-file Markdown, preserved-history, exact
+replacement, fourteen-path scope, status, later-file-absence, and whitespace gates. Runtime 0014
+remains the sole next Draft row without a specification, so the Runtime milestone remains open.
 
 ## Open questions
 
-- No blocking question remains from Runtime 0009. Its completed contract fixes Runtime-only
-  dense prepared/run coordinates, publication ordering, validity, aliasing, empty/partial
-  results, one-shot behavior, and a whole-state result lease. Output value access remains a later
-  Engine/result decision rather than an unresolved part of this Runtime task.
+- Runtime 0012 has resolved repeated primary throwable identity, and Runtime 0013 has corrected
+  the stale general architecture status. Runtime 0014 remains the sole next Draft follow-up for
+  durable Runtime dependency/hot-path enforcement without a specification.
+- Output value access remains a later Engine/result decision rather than an unresolved Runtime
+  semantic gap. Prepare orchestration, concrete backend execution, Trace run payloads, Config
+  policy, and tuning likewise retain their existing downstream owners.
 
 ## Decisions made
 
@@ -327,6 +366,9 @@ Backend Contract remains closed, and module dependency directions are unchanged.
   before traversal, which uses direct bound references and primitive coordinates only.
 - Runtime 0010 emits no Trace event because the stable Trace foundation has no current run-payload
   DTO.
+- Runtime 0012 preserves the first cleanup failure by identity and attaches only later distinct
+  failure objects. A repeated occurrence of the primary object is skipped solely to avoid Java
+  self-suppression and does not stop attempt-all reverse cleanup.
 
 ## Risks
 

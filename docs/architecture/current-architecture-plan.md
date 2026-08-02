@@ -26,7 +26,7 @@ Focused architecture documentation:
 
 ## Status
 
-This index is current. The architecture describes the intended complete system, while the repository currently implements only the initial model foundations. The [implementation roadmap](../planning/roadmap.md) is the source for delivery status.
+This index is current. The architecture describes the intended complete system. The repository now has substantive Model, Backend Contract, Planning, Compiler, Runtime, and Prepare implementations, plus partial Config and Trace contracts; Engine, concrete backends, and higher-layer extensions and tools are not yet complete. The [implementation roadmap](../planning/roadmap.md) records delivery status.
 
 ## Decisions and strategies
 

@@ -2,7 +2,7 @@
 
 This document explains the module responsibilities established by [`ARCHITECTURE.md`](../../ARCHITECTURE.md). The contract is authoritative when a summary here is incomplete.
 
-The boundaries apply as modules are implemented. Most modules currently contain only build structure and a placeholder module marker; the [roadmap](../planning/roadmap.md) identifies the active implementation frontier.
+The boundaries apply to both implemented and planned modules. Model, Backend Contract, Planning, Compiler, Runtime, and the first Prepare contracts have substantive implementations; Config and Trace are partial. Engine, concrete backends, and most extensions and tools remain planned or placeholder-only. The [roadmap](../planning/roadmap.md) records exact delivery status.
 
 ## Shared modules
 

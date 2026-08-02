@@ -330,16 +330,20 @@ public final class RunState implements AutoCloseable {
      * representations from last to first. Borrowed buffers are skipped. Every owned
      * representation is attempted once even if another cleanup fails. The first encountered
      * {@link RuntimeException} or {@link Error} is rethrown after all attempts, with later
-     * failures suppressed in encounter order. A repeated call performs no cleanup and does not
-     * rethrow a prior failure.
+     * distinct failures suppressed in encounter order. If a later representation throws that
+     * same exact primary object, it is not self-suppressed, does not replace the primary, and
+     * does not interrupt the remaining cleanup. A repeated call performs no cleanup and does
+     * not rethrow a prior failure.
      *
      * <p>Callers must not race this method with access, another close, or future mutation.
      *
      * @throws RuntimeException if an owned representation's cleanup first reports an unchecked
-     *     exception; later cleanup failures are attached to that same exception as suppressed
-     *     failures
+     *     exception; later distinct cleanup failures are attached to that same exception as
+     *     suppressed failures, while a repeated occurrence of the same exact object is not
+     *     attached to itself
      * @throws Error if an owned representation's cleanup first reports an error; later cleanup
-     *     failures are attached to that same error as suppressed failures
+     *     failures are attached to that same error as suppressed failures under the same
+     *     identity rule
      */
     @Override
     public void close() {
@@ -357,7 +361,7 @@ public final class RunState implements AutoCloseable {
             } catch (RuntimeException | Error failure) {
                 if (firstFailure == null) {
                     firstFailure = failure;
-                } else {
+                } else if (firstFailure != failure) {
                     firstFailure.addSuppressed(failure);
                 }
             }
@@ -377,7 +381,7 @@ public final class RunState implements AutoCloseable {
                 } catch (RuntimeException | Error failure) {
                     if (firstFailure == null) {
                         firstFailure = failure;
-                    } else {
+                    } else if (firstFailure != failure) {
                         firstFailure.addSuppressed(failure);
                     }
                 }

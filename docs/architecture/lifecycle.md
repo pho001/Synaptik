@@ -2,7 +2,7 @@
 
 This document explains the compile, prepare, run, and training lifecycles defined by [`ARCHITECTURE.md`](../../ARCHITECTURE.md). The contract remains authoritative.
 
-These lifecycle stages are architecture contracts, not current runnable APIs. The repository currently implements only initial model value types; the [roadmap](../planning/roadmap.md) tracks delivery.
+These lifecycle stages are architecture contracts, not a claim that the complete public lifecycle is runnable today. The repository implements the Model, Planning, and Compiler portions of compile, staged Prepare contracts through backend finalization, and Runtime prepared-execution and per-run orchestration contracts. It does not yet provide concrete backend execution or the Engine composition needed for an end-to-end runnable lifecycle. The [roadmap](../planning/roadmap.md) records delivery status.
 
 ## State across the lifecycle
 

@@ -2,7 +2,7 @@
 
 ## What you will learn
 
-This guide explains which boundaries architecture tests must protect and how to run their Gradle module. The `testing/architecture-tests` project exists, but focused architecture-test implementations are not present yet.
+This guide explains which boundaries architecture tests must protect and how to run their Gradle module. The `testing/architecture-tests` project contains focused dependency checks for Config and Planning plus a conditional NN-to-Training direction check. Coverage remains incomplete: Runtime dependency and hot-path enforcement named by `ARCHITECTURE.md` is not yet present and remains owned by Draft Runtime 0014.
 
 ## Prerequisites and authority
 
@@ -26,7 +26,7 @@ Examples include keeping trace as a dependency leaf, preventing runtime from dep
 ./gradlew :testing:architecture-tests:test
 ```
 
-At the current repository stage, success mainly confirms that the structural Gradle project loads; it is not evidence that every contract rule already has a focused test. When a dependency or hot-path rule is implemented or changed, add a falsifiable test in this module and record what it protects.
+A successful run proves only the current focused Config, Planning, and conditional NN/Training assertions; it is not evidence that every contract rule is enforced. Runtime dependency and hot-path coverage remains absent until Runtime 0014. When a dependency or hot-path rule is implemented or changed, add a falsifiable test in this module and record what it protects.
 
 ## Typical mistakes
 

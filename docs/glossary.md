@@ -3025,9 +3025,12 @@ query and mutation are explicit constant-time operations with no physical side e
 have no logical validity. Successful construction transfers cleanup responsibility for
 `RUN_OWNED` buffers and all workspaces; failed construction transfers nothing. Closing marks the
 state closed first, skips borrowed buffers, attempts owned resources once in deterministic reverse
-order, preserves the first `RuntimeException` or `Error`, and suppresses later failures.
-Representation access is closed after that transition, but the exact plan and counts remain
-inspectable. Repeated close is inert.
+order, and preserves the first `RuntimeException` or `Error`. Later failure objects distinct from
+that primary object are suppressed in encounter order. If another resource throws the same exact
+primary object, that occurrence is not self-suppressed because Java forbids self-suppression; it
+does not replace the primary failure or interrupt the remaining cleanup. Representation access is
+closed after that transition, but the exact plan and counts remain inspectable. Repeated close is
+inert.
 
 One state is not thread-safe. Concurrent runs have distinct states and distinct run-owned
 representations and validity arrays, though they may share the immutable plan. A current

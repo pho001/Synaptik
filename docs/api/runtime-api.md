@@ -323,9 +323,13 @@ validity mutation as part of the shared contract.
 `RunState.close()` marks the state closed before physical cleanup. It closes workspaces from last
 position to first, then run-owned buffer representations from last buffer position to first and
 last representation to first. Borrowed buffers are skipped. Every owned representation is
-attempted once. The first `RuntimeException` or `Error` is rethrown after all attempts, with later
-failures attached in cleanup encounter order as suppressed exceptions. Repeated closure performs
-no cleanup and does not rethrow an earlier failure.
+attempted once. The first `RuntimeException` or `Error` is rethrown after all attempts. Later
+failure objects distinct from that primary object are attached in cleanup encounter order as
+suppressed exceptions. If a distinct resource throws the same exact primary object, Runtime does
+not attach that object to itself because Java forbids self-suppression; the repeated occurrence
+does not replace the primary failure, stop traversal, or prevent a still-later distinct failure
+from being suppressed. Repeated closure performs no cleanup and does not rethrow an earlier
+failure.
 
 Representation and validity access or mutation after closure fails first with
 `IllegalStateException("run state is closed")`. The retained plan, slot counts, per-buffer

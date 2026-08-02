@@ -388,6 +388,74 @@ class RunStateTest {
     }
 
     @Test
+    void closePreservesPrimaryIdentityWhenDistinctResourcesThrowTheSameObject() {
+        List<String> closeOrder = new ArrayList<>();
+        RuntimeException primary = new RuntimeException("shared");
+        AssertionError distinct = new AssertionError("distinct");
+        RunState[] holder = new RunState[1];
+        TrackingBuffer finalBuffer = new TrackingBuffer("finalBuffer", closeOrder, null);
+        TrackingBuffer borrowedBuffer = new TrackingBuffer("borrowedBuffer", closeOrder, null);
+        TrackingBuffer distinctBuffer =
+                new TrackingBuffer("distinctBuffer", closeOrder, distinct);
+        TrackingWorkspace finalWorkspace =
+                new TrackingWorkspace("finalWorkspace", closeOrder, null, null);
+        TrackingWorkspace repeatedWorkspace =
+                new TrackingWorkspace("repeatedWorkspace", closeOrder, null, primary);
+        TrackingWorkspace primaryWorkspace =
+                new TrackingWorkspace(
+                        "primaryWorkspace",
+                        closeOrder,
+                        () -> assertTrue(holder[0].isClosed()),
+                        primary);
+        holder[0] =
+                new RunState(
+                        memoryPlan(2, 3),
+                        List.of(
+                                List.of(owned(finalBuffer), borrowed(borrowedBuffer)),
+                                List.of(owned(distinctBuffer))),
+                        List.of(finalWorkspace, repeatedWorkspace, primaryWorkspace));
+
+        RuntimeException thrown = assertThrows(RuntimeException.class, holder[0]::close);
+
+        assertAll(
+                () -> assertSame(primary, thrown),
+                () -> assertArrayEquals(new Throwable[] {distinct}, thrown.getSuppressed()),
+                () -> assertEquals(
+                        List.of(
+                                "primaryWorkspace",
+                                "repeatedWorkspace",
+                                "finalWorkspace",
+                                "distinctBuffer",
+                                "finalBuffer"),
+                        closeOrder),
+                () -> assertTrue(holder[0].isClosed()),
+                () -> assertEquals(1, primaryWorkspace.closeCount),
+                () -> assertEquals(1, repeatedWorkspace.closeCount),
+                () -> assertEquals(1, finalWorkspace.closeCount),
+                () -> assertEquals(1, distinctBuffer.closeCount),
+                () -> assertEquals(0, borrowedBuffer.closeCount),
+                () -> assertEquals(1, finalBuffer.closeCount));
+
+        assertDoesNotThrow(holder[0]::close);
+
+        assertAll(
+                () -> assertEquals(
+                        List.of(
+                                "primaryWorkspace",
+                                "repeatedWorkspace",
+                                "finalWorkspace",
+                                "distinctBuffer",
+                                "finalBuffer"),
+                        closeOrder),
+                () -> assertEquals(1, primaryWorkspace.closeCount),
+                () -> assertEquals(1, repeatedWorkspace.closeCount),
+                () -> assertEquals(1, finalWorkspace.closeCount),
+                () -> assertEquals(1, distinctBuffer.closeCount),
+                () -> assertEquals(0, borrowedBuffer.closeCount),
+                () -> assertEquals(1, finalBuffer.closeCount));
+    }
+
+    @Test
     void closeRethrowsAnErrorWhenItIsTheFirstFailure() {
         AssertionError first = new AssertionError("workspace");
         RuntimeException second = new RuntimeException("buffer");
