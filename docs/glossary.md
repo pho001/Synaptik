@@ -1768,6 +1768,24 @@ kernels. The owning backend selects one during prepare. In convolution documenta
 kernel** instead means the logical `K_h` by `K_w` coefficient window stored in the weight Tensor;
 that semantic kernel is not an executable implementation route.
 
+### OpenBLAS library handle / `OpenBlasLibrary`
+
+The implemented caller-owned lifetime for one explicitly selected OpenBLAS native library lookup
+and its complete required symbol bindings. A caller supplies either one nonblank operating-system
+library name or one absolute path. The provider does not discover a platform filename, search a
+path, read configuration, or choose fallback.
+
+A successful open binds `cblas_sgemm`, `cblas_dgemm`, `openblas_set_num_threads`, and
+`openblas_get_num_threads` under the ordinary 32-bit-`blasint` C interface. Each open returns a
+fresh Java owner whose shared Foreign Function and Memory arena remains alive until idempotent
+close. Closing ends only that owner's lookup lifetime; it does not promise physical unloading or
+isolate process-global OpenBLAS state from another owner.
+
+The current handle performs no general matrix multiplication or thread-control invocation and
+exposes no native address or JDK native handle. CPU prepare later owns OpenBLAS route selection,
+while CPU or composition policy owns configuration and fallback. See the [CPU backend
+guide](backend-guide/cpu-backend.md#current-openblas-loading-foundation).
+
 ### Layout
 
 The logical mapping from a tensor's multidimensional indices to positions in storage. A layout can describe contiguous, offset-contiguous, strided, or broadcast views using facts such as element strides and storage offset. Layout describes geometry and aliasing; it does not own storage or decide whether a copy must be materialized. See the [Tensor API](api/tensor-api.md#resolved-layouts).

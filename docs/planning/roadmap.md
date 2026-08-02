@@ -22,7 +22,7 @@ Parallel work is not the default. It requires an explicit roadmap or master-plan
 | 6 | [`modules/runtime`](modules/runtime/master-plan.md) | Complete | Compiler/planning handoff, backend identities, the trace foundation, and ADR 0011's per-run resource ownership/cold-binding decision are stable. | Runtime 0012, 0013, and 0014 resolved the selected cleanup, status, and architecture-enforcement findings; the Runtime closure milestone is complete. |
 | 7 | [`modules/compiler`](modules/compiler/master-plan.md) | Complete | Model, config, planning, backend-contract, and trace contracts are ready for the complete compiler lifecycle; bounded task 0001 may start from the closed model graph/provenance contracts alone. | Compile artifacts, graph transformations, and autograd compilation are complete. |
 | 8 | [`modules/prepare`](modules/prepare/master-plan.md) | Complete | Compiler/planning artifacts and Runtime recipe/runner contracts are stable; ADR 0010 authorizes the analysis-first staged handoff. | Shared prepare contracts and validation are complete. |
-| 9 | [`backends/openblas-provider`](backends/openblas-provider/master-plan.md) | Draft | Native interop conventions needed by the provider are decided. | The low-level provider contract and validation are complete. |
+| 9 | [`backends/openblas-provider`](backends/openblas-provider/master-plan.md) | In progress | Native interop conventions needed by the provider are decided. | The low-level provider contract and validation are complete. |
 | 10 | [`backends/cpu`](backends/cpu/master-plan.md) | Draft | Model, config, planning, runtime, prepare, backend-contract, trace, and OpenBLAS contracts are ready. | CPU is a conforming reference backend for the selected capability set. |
 | 11 | [`modules/engine`](modules/engine/master-plan.md) | Draft | Compiler, runtime, prepare, and the CPU backend can be composed. | The public compile, prepare, and run lifecycle works end to end on CPU. |
 | 12 | [`backends/metal`](backends/metal/master-plan.md) | Draft | Shared backend contracts and CPU reference behavior are stable. | Metal passes the applicable backend-conformance suite. |
@@ -97,8 +97,22 @@ initially-valid buffer origin for non-bindable logical splats; Runtime receives 
 fact. It adds no concrete backend, discovery, Engine facade, physical work in Prepare, execution,
 tuning, or dynamic binding.
 
-The Prepare milestone is therefore closed. The next ordered project area is the Draft OpenBLAS
-provider foundation; no detailed OpenBLAS task specification is created by Prepare 0003.
+The Prepare milestone is therefore closed. The active ordered project area is the OpenBLAS
+provider. Its only detailed task,
+[OpenBLAS provider 0001 Library loading and required symbol binding](backends/openblas-provider/tasks/0001-library-loading-and-required-symbol-binding.md),
+is Complete. That atomic foundation loads one caller-specified name or absolute path, binds the
+exact FLOAT32/
+FLOAT64 GEMM and get/set thread-count symbols under the standard 32-bit-`blasint` C ABI, and owns
+their closeable JDK Foreign Function and Memory lookup lifetime. It invokes no native function and
+adds no platform discovery, config interpretation, fallback, CPU route choice, tuning, cache,
+residency, prepared execution, or backend orchestration. Later OpenBLAS tasks remain Draft rows
+without detailed specifications; task 0002 is the next ordered row, and no CPU task becomes Ready
+through this implementation step. The implementation context's single final provider command
+passed 3 suites and 21 tests without skips, failures, or errors. Clean documentation context
+`/root/openblas_0001_docs` reused that executable evidence, finalized production Javadocs, the CPU
+guide, glossary, and planning records, and passed provider Javadoc, five-file Markdown, generated-
+page, exact 15-path, surface/ABI/dependency/status/history/later-specification, and whitespace
+checks without changing executable Java or rerunning Java tests.
 
 Runtime 0009's focused command passed 4 suites and 32 tests, and its single final Runtime command
 passed 16 suites and 130 tests, with no failures, errors, or skips. Clean documentation context
