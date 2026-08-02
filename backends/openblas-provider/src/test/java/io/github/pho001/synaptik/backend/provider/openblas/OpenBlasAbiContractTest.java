@@ -106,7 +106,7 @@ final class OpenBlasAbiContractTest {
                 JAVA_DOUBLE, ADDRESS, JAVA_INT, ADDRESS, JAVA_INT, JAVA_DOUBLE, ADDRESS, JAVA_INT);
     }
 
-    /** Verifies thread control is bound but neither operation is invoked by task 0001. */
+    /** Verifies thread control retains its task-0001 descriptors. */
     @Test
     void threadDescriptorsAreExact() throws ReflectiveOperationException {
         assertDescriptor(descriptor("SET_NUM_THREADS_DESCRIPTOR"), null, JAVA_INT);
@@ -185,11 +185,22 @@ final class OpenBlasAbiContractTest {
         for (String forbidden : List.of(
                 "System.getenv", "System.getProperty", "ServiceLoader", "loaderLookup()",
                 "defaultLookup()", "Map<String, Object>", "Tensor", "PreparedExecution",
-                "BackendId", "CompileArtifacts", "CpuBackend")) {
+                "BackendId", "CompileArtifacts", "CpuBackend", "MemorySegment.copy",
+                ".reinterpret(", "synchronized")) {
             assertFalse(source.contains(forbidden), () -> "provider source must exclude " + forbidden);
         }
-        assertFalse(source.contains("invokeExact("));
+        assertEquals(2, count(source, "invokeExact("));
         assertFalse(source.contains("invokeWithArguments("));
+    }
+
+    private static int count(String text, String fragment) {
+        int count = 0;
+        int offset = 0;
+        while ((offset = text.indexOf(fragment, offset)) >= 0) {
+            count++;
+            offset += fragment.length();
+        }
+        return count;
     }
 
     private static void assertDescriptor(

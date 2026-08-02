@@ -98,21 +98,31 @@ fact. It adds no concrete backend, discovery, Engine facade, physical work in Pr
 tuning, or dynamic binding.
 
 The Prepare milestone is therefore closed. The active ordered project area is the OpenBLAS
-provider. Its only detailed task,
+provider. Its completed foundation,
 [OpenBLAS provider 0001 Library loading and required symbol binding](backends/openblas-provider/tasks/0001-library-loading-and-required-symbol-binding.md),
 is Complete. That atomic foundation loads one caller-specified name or absolute path, binds the
 exact FLOAT32/
 FLOAT64 GEMM and get/set thread-count symbols under the standard 32-bit-`blasint` C ABI, and owns
 their closeable JDK Foreign Function and Memory lookup lifetime. It invokes no native function and
 adds no platform discovery, config interpretation, fallback, CPU route choice, tuning, cache,
-residency, prepared execution, or backend orchestration. Later OpenBLAS tasks remain Draft rows
-without detailed specifications; task 0002 is the next ordered row, and no CPU task becomes Ready
-through this implementation step. The implementation context's single final provider command
-passed 3 suites and 21 tests without skips, failures, or errors. Clean documentation context
-`/root/openblas_0001_docs` reused that executable evidence, finalized production Javadocs, the CPU
-guide, glossary, and planning records, and passed provider Javadoc, five-file Markdown, generated-
-page, exact 15-path, surface/ABI/dependency/status/history/later-specification, and whitespace
-checks without changing executable Java or rerunning Java tests.
+residency, prepared execution, or backend orchestration. Its implementation context's single
+final provider command passed 3 suites and 21 tests without skips, failures, or errors. Clean
+documentation context `/root/openblas_0001_docs` reused that evidence and passed its recorded
+Javadoc, Markdown, generated-page, exact-scope, surface/ABI/dependency/status/history/later-
+specification, and whitespace checks without changing executable Java or rerunning Java tests.
+Detailed
+[OpenBLAS provider 0002 FLOAT32/FLOAT64 row-major GEMM invocation](backends/openblas-provider/tasks/0002-float32-float64-row-major-gemm-invocation.md)
+is Complete. It adds exactly two low-level dense row-major no-transpose calls over caller-owned
+native segments and the task-0001 lifetime, with fixed CBLAS constants, derived leading
+dimensions, checked spans, exact overlap/lifecycle validation, raw scalar forwarding, and
+deterministic fake-handle tests. CPU retains batching, broadcasting, transpose/layout conversion,
+packing, storage, execution, loops, route choice, and fallback. The implementation context's one
+final provider command passed 4 suites and 39 tests without skips, failures, or errors. Clean
+documentation context `/root/openblas_0002_docs` reused that evidence, finalized production and
+package Javadocs, the CPU guide, glossary, and planning records, and passed provider Javadoc,
+five-file Markdown, generated-page, exact 11-path, surface/ABI/dependency/status/history/later-
+specification, and whitespace checks without changing executable Java or rerunning Java tests.
+Task 0003 remains a Draft row without a detailed specification, and no CPU task is Ready.
 
 Runtime 0009's focused command passed 4 suites and 32 tests, and its single final Runtime command
 passed 16 suites and 130 tests, with no failures, errors, or skips. Clean documentation context

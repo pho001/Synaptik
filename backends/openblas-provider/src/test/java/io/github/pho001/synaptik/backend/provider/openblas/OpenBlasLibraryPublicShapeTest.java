@@ -7,6 +7,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
+import java.lang.foreign.MemorySegment;
 import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.Set;
@@ -41,6 +42,8 @@ final class OpenBlasLibraryPublicShapeTest {
                         "static open(java.lang.String):OpenBlasLibrary",
                         "static open(java.nio.file.Path):OpenBlasLibrary",
                         "isOpen():boolean",
+                        "sgemm(int,int,int,float,java.lang.foreign.MemorySegment,java.lang.foreign.MemorySegment,float,java.lang.foreign.MemorySegment):void",
+                        "dgemm(int,int,int,double,java.lang.foreign.MemorySegment,java.lang.foreign.MemorySegment,double,java.lang.foreign.MemorySegment):void",
                         "close():void"),
                 libraryMethods);
 
@@ -49,6 +52,27 @@ final class OpenBlasLibraryPublicShapeTest {
                 Arrays.stream(OpenBlasLoadException.class.getDeclaredMethods())
                         .filter(method -> Modifier.isPublic(method.getModifiers()))
                         .collect(Collectors.toUnmodifiableSet()));
+    }
+
+    /** Locks the exact GEMM carriers and confirms no overload broadens the public call surface. */
+    @Test
+    void gemmMethodsHaveExactPublicShape() throws ReflectiveOperationException {
+        Method sgemm = OpenBlasLibrary.class.getDeclaredMethod(
+                "sgemm", int.class, int.class, int.class, float.class,
+                MemorySegment.class, MemorySegment.class, float.class, MemorySegment.class);
+        Method dgemm = OpenBlasLibrary.class.getDeclaredMethod(
+                "dgemm", int.class, int.class, int.class, double.class,
+                MemorySegment.class, MemorySegment.class, double.class, MemorySegment.class);
+
+        assertTrue(Modifier.isPublic(sgemm.getModifiers()));
+        assertFalse(Modifier.isStatic(sgemm.getModifiers()));
+        assertEquals(void.class, sgemm.getReturnType());
+        assertTrue(Modifier.isPublic(dgemm.getModifiers()));
+        assertFalse(Modifier.isStatic(dgemm.getModifiers()));
+        assertEquals(void.class, dgemm.getReturnType());
+        assertEquals(2, Arrays.stream(OpenBlasLibrary.class.getDeclaredMethods())
+                .filter(method -> method.getName().equals("sgemm") || method.getName().equals("dgemm"))
+                .count());
     }
 
     /** Locks the two package-private overloads used by deterministic native-boundary tests. */

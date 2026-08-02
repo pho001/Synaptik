@@ -46,16 +46,17 @@ io.github.pho001.synaptik.backend.provider.openblas/
           package-private JDK FFM loading, symbol binding, and native handles
 ```
 
-The root package is deliberate: task 0001 opens only one small public lifetime boundary and keeps
-its native implementation package-private. It must not grow into a generic native framework,
-registry, manager, configuration package, or CPU route owner.
+The root package is deliberate: task 0001 opens one small public lifetime boundary, and task 0002
+adds only its inseparable low-level calls plus one package-private field-free invocation helper.
+Native implementation state remains package-private. The package must not grow into a generic
+native framework, registry, manager, configuration package, or CPU route owner.
 
 ## Task list
 
 | ID | Task | Status | Depends on | Summary |
 |---|---|---|---|---|
 | 0001 | [Library loading and required symbol binding](tasks/0001-library-loading-and-required-symbol-binding.md) | Complete | Prepare 0003; JDK 26 FFM and OpenBLAS C ABI evidence | Load one caller-specified library, bind the exact FLOAT32/FLOAT64 GEMM and get/set thread-count symbols, and own their closeable lookup lifetime without invocation or policy. |
-| 0002 | FLOAT32/FLOAT64 row-major GEMM invocation | Draft | 0001 | Add validated low-level `MemorySegment` GEMM calls over the task-0001 lifetime without Tensor, route, allocation, or fallback behavior. |
+| 0002 | [FLOAT32/FLOAT64 row-major GEMM invocation](tasks/0002-float32-float64-row-major-gemm-invocation.md) | Complete | 0001 | Add validated dense row-major no-transpose `MemorySegment` GEMM calls over the task-0001 lifetime without Tensor, route, allocation, or fallback behavior. |
 | 0003 | Thread control and native provider checkpoint | Draft | 0001–0002 | Add low-level thread-count query/control and explicit compatible-library validation, then close the selected provider capability milestone. |
 
 ## Milestones
@@ -67,15 +68,14 @@ registry, manager, configuration package, or CPU route owner.
 ## Current status
 
 In progress after completion of
-[task 0001](tasks/0001-library-loading-and-required-symbol-binding.md), the only detailed OpenBLAS
-provider task. The provider now has explicit caller-directed loading, complete required-symbol
-binding, and caller-owned lookup lifetime. Task 0002 is the next ordered Draft row; tasks
-0002–0003 have no detailed specifications.
+[task 0002](tasks/0002-float32-float64-row-major-gemm-invocation.md). The provider now has explicit
+caller-directed loading, complete required-symbol binding, caller-owned lookup lifetime, and
+validated FLOAT32/FLOAT64 dense row-major no-transpose GEMM invocation. Task 0003 remains a Draft
+row without a detailed specification and owns thread control plus the explicitly supplied native
+provider checkpoint. No CPU task is Ready.
 
 ## Open questions
 
-- The later GEMM task must fix exact row-major validation, `MemorySegment` range/alignment rules,
-  and call failure semantics before becoming Ready.
 - The later thread-control task must account for OpenBLAS thread count as process/library-global
   native state and define its checkpoint environment without moving thread choice into the
   provider.
@@ -95,6 +95,14 @@ binding, and caller-owned lookup lifetime. Task 0002 is the next ordered Draft r
 - One caller-owned public library handle encapsulates the shared FFM arena and package-private
   bound handles. No eager singleton, global cache, exposed native address, registry, manager, or
   service locator is planned.
+- Task 0002 adds exactly `sgemm` and `dgemm` to that public lifetime owner for dense row-major
+  no-transpose matrices. It derives leading dimensions internally and leaves batching,
+  broadcasting, transpose/layout conversion, packing, loops, route choice, and fallback to CPU.
+- One package-private field-free invocation helper owns ordered segment validation and exact typed
+  handle calls. The existing bindings/native-access path remains the sole deterministic test seam.
+- Task 0002 validates completely before output-empty no-op, invokes positive-output `k == 0`
+  GEMM for `beta * C`, forwards all scalar bits unchanged, rejects C/input overlap, and adds no
+  close-race coordination or native numerical guarantee.
 
 ## Risks
 
@@ -103,6 +111,8 @@ binding, and caller-owned lookup lifetime. Task 0002 is the next ordered Draft r
   search in the provider.
 - Exposing native handles or failing to close a partial lookup after required-symbol binding
   fails.
+- Letting a low-level GEMM call grow offsets, transpose/layout normalization, batching, packing,
+  allocation, numerical policy, or CPU-owned route behavior.
 - Treating separate Java library handles as separate OpenBLAS thread-control state.
 
 ## Notes

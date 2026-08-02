@@ -1768,6 +1768,19 @@ kernels. The owning backend selects one during prepare. In convolution documenta
 kernel** instead means the logical `K_h` by `K_w` coefficient window stored in the weight Tensor;
 that semantic kernel is not an executable implementation route.
 
+### General matrix multiplication / GEMM
+
+The low-level operation `C[m,n] = alpha * (A[m,k] x B[k,n]) + beta * C[m,n]`. The current
+OpenBLAS provider implements only FLOAT32 and FLOAT64 dense row-major, non-transposed GEMM over
+caller-owned native memory beginning at byte offset zero. It validates and forwards one already-
+normalized call; it does not own Tensor rank adaptation, batching, broadcasting, transposition,
+layout conversion, packing, storage allocation, CPU route selection, or fallback.
+
+GEMM is therefore a native invocation primitive, not Synaptik's backend-independent
+[`MATMUL`](#matrix-multiplication--matmul) semantic contract. Future CPU lowering may use one or
+more GEMM calls to implement MATMUL, linear projection, attention, or convolution, but this
+provider surface alone does not implement those operations.
+
 ### OpenBLAS library handle / `OpenBlasLibrary`
 
 The implemented caller-owned lifetime for one explicitly selected OpenBLAS native library lookup
@@ -1781,10 +1794,12 @@ fresh Java owner whose shared Foreign Function and Memory arena remains alive un
 close. Closing ends only that owner's lookup lifetime; it does not promise physical unloading or
 isolate process-global OpenBLAS state from another owner.
 
-The current handle performs no general matrix multiplication or thread-control invocation and
-exposes no native address or JDK native handle. CPU prepare later owns OpenBLAS route selection,
+The current handle exposes exact FLOAT32/FLOAT64 dense row-major, non-transposed
+[`GEMM`](#general-matrix-multiplication--gemm) invocation but no thread-control invocation, native
+address, or JDK native handle. Caller segments remain borrowed and the handle promises no
+OpenBLAS numerical policy. CPU prepare later owns OpenBLAS route selection and normalization,
 while CPU or composition policy owns configuration and fallback. See the [CPU backend
-guide](backend-guide/cpu-backend.md#current-openblas-loading-foundation).
+guide](backend-guide/cpu-backend.md#current-low-level-openblas-foundation).
 
 ### Layout
 
