@@ -44,6 +44,8 @@ final class OpenBlasLibraryPublicShapeTest {
                         "isOpen():boolean",
                         "sgemm(int,int,int,float,java.lang.foreign.MemorySegment,java.lang.foreign.MemorySegment,float,java.lang.foreign.MemorySegment):void",
                         "dgemm(int,int,int,double,java.lang.foreign.MemorySegment,java.lang.foreign.MemorySegment,double,java.lang.foreign.MemorySegment):void",
+                        "threadCount():int",
+                        "setThreadCount(int):void",
                         "close():void"),
                 libraryMethods);
 
@@ -52,6 +54,19 @@ final class OpenBlasLibraryPublicShapeTest {
                 Arrays.stream(OpenBlasLoadException.class.getDeclaredMethods())
                         .filter(method -> Modifier.isPublic(method.getModifiers()))
                         .collect(Collectors.toUnmodifiableSet()));
+    }
+
+    /** Locks the exact direct thread-control surface with no overload or result abstraction. */
+    @Test
+    void threadControlMethodsHaveExactPublicShape() throws ReflectiveOperationException {
+        Method getter = OpenBlasLibrary.class.getDeclaredMethod("threadCount");
+        Method setter = OpenBlasLibrary.class.getDeclaredMethod("setThreadCount", int.class);
+        assertTrue(Modifier.isPublic(getter.getModifiers()));
+        assertFalse(Modifier.isStatic(getter.getModifiers()));
+        assertEquals(int.class, getter.getReturnType());
+        assertTrue(Modifier.isPublic(setter.getModifiers()));
+        assertFalse(Modifier.isStatic(setter.getModifiers()));
+        assertEquals(void.class, setter.getReturnType());
     }
 
     /** Locks the exact GEMM carriers and confirms no overload broadens the public call surface. */

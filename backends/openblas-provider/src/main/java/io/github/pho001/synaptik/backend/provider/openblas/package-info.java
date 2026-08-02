@@ -1,5 +1,6 @@
 /**
- * Provides explicit caller-directed OpenBLAS loading and low-level matrix multiplication.
+ * Provides explicit caller-directed OpenBLAS loading, thread control, and low-level matrix
+ * multiplication.
  *
  * <p>The package is a JDK-only leaf below the CPU backend. It owns library lookup lifetime and
  * exact OpenBLAS C symbol binding, while CPU policy owns route selection, fallback, configuration,
@@ -15,9 +16,18 @@
  * zero contraction still invokes GEMM. Scalars are forwarded unchanged, and the package makes no
  * OpenBLAS numerical, determinism, or performance guarantee.
  *
- * <p>Concurrent calls are permitted while the library remains open when callers provide
- * nonconflicting segment access and keep every scope alive and accessible for the complete call.
- * Callers must not race library closure with invocation; the package adds no call synchronization
- * or close-race success guarantee.
+ * <p>Thread query and setter calls expose the already-bound OpenBLAS utility functions directly.
+ * The positive count is conservatively treated as mutable library/process state that owners of
+ * one loaded binary may observe in common. The package does not claim shared coordination across
+ * independently loaded copies, loader namespaces, or arbitrary native consumers. It defines no
+ * deterministic winner for concurrent setters, no atomic query/set sequence, no serialization
+ * with GEMM, and no automatic or close-time restoration. A caller owns coordination and any
+ * restoration through a still-open owner.
+ *
+ * <p>Concurrent calls are permitted while the library remains open, subject to the caller's
+ * coordination of thread state and nonconflicting matrix access. Callers must keep every segment
+ * scope alive and accessible for the complete GEMM and must not race library closure with GEMM or
+ * thread-control invocation. The package adds no native-call synchronization, active-call
+ * tracking, or close-race success guarantee.
  */
 package io.github.pho001.synaptik.backend.provider.openblas;

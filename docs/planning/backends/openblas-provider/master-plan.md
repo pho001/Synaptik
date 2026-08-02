@@ -57,7 +57,7 @@ native framework, registry, manager, configuration package, or CPU route owner.
 |---|---|---|---|---|
 | 0001 | [Library loading and required symbol binding](tasks/0001-library-loading-and-required-symbol-binding.md) | Complete | Prepare 0003; JDK 26 FFM and OpenBLAS C ABI evidence | Load one caller-specified library, bind the exact FLOAT32/FLOAT64 GEMM and get/set thread-count symbols, and own their closeable lookup lifetime without invocation or policy. |
 | 0002 | [FLOAT32/FLOAT64 row-major GEMM invocation](tasks/0002-float32-float64-row-major-gemm-invocation.md) | Complete | 0001 | Add validated dense row-major no-transpose `MemorySegment` GEMM calls over the task-0001 lifetime without Tensor, route, allocation, or fallback behavior. |
-| 0003 | Thread control and native provider checkpoint | Draft | 0001–0002 | Add low-level thread-count query/control and explicit compatible-library validation, then close the selected provider capability milestone. |
+| 0003 | [Thread control and native provider checkpoint](tasks/0003-thread-control-and-native-provider-checkpoint.md) | Complete | 0001–0002 | Add low-level thread-count query/control and explicit compatible-library validation, then close the selected provider capability milestone. |
 
 ## Milestones
 
@@ -67,18 +67,22 @@ native framework, registry, manager, configuration package, or CPU route owner.
 
 ## Current status
 
-In progress after completion of
-[task 0002](tasks/0002-float32-float64-row-major-gemm-invocation.md). The provider now has explicit
-caller-directed loading, complete required-symbol binding, caller-owned lookup lifetime, and
-validated FLOAT32/FLOAT64 dense row-major no-transpose GEMM invocation. Task 0003 remains a Draft
-row without a detailed specification and owns thread control plus the explicitly supplied native
-provider checkpoint. No CPU task is Ready.
+Complete. Tasks 0001–0003 provide explicit caller-directed loading, complete required-symbol
+binding, caller-owned lookup lifetime, validated FLOAT32/FLOAT64 dense row-major no-transpose GEMM
+invocation, and direct positive thread-count query/control over the already-bound handles. The
+ordinary provider suite passed 5 suites and 50 tests. The isolated native checkpoint passed
+against the caller-supplied arm64 OpenBLAS 0.3.33 library, verified shared observation through two
+owners and the fixed SGEMM/DGEMM cases, and restored the original thread count of 16. The ordered
+repository/architecture capability checkpoint then passed with 54 actionable tasks (2 executed,
+52 up-to-date). Documentation, exact twelve-path scope, surface, package, dependency, history,
+status, later-specification, and whitespace gates passed. The selected provider milestone and
+project area are Complete. CPU is the next Draft planning frontier; no CPU task is Ready and no
+CPU task specification exists.
 
 ## Open questions
 
-- The later thread-control task must account for OpenBLAS thread count as process/library-global
-  native state and define its checkpoint environment without moving thread choice into the
-  provider.
+- None for the current provider milestone. Any future symbol, precision, layout, or lifecycle
+  capability requires a separately justified task.
 
 ## Decisions made
 
@@ -103,6 +107,15 @@ provider checkpoint. No CPU task is Ready.
 - Task 0002 validates completely before output-empty no-op, invokes positive-output `k == 0`
   GEMM for `beta * C`, forwards all scalar bits unchanged, rejects C/input overlap, and adds no
   close-race coordination or native numerical guarantee.
+- Task 0003 exposes only `threadCount()` and `setThreadCount(int)` on the existing lifetime owner.
+  As a conservative integration rule it treats owners of the same loaded binary as potentially
+  sharing library/process state, without claiming coordination across independently loaded copies
+  or arbitrary native consumers. It stores no per-owner value, performs no close-time
+  restoration, and leaves thread choice and coordination to CPU.
+- Task 0003's real-native checkpoint is a test-source command accepting one explicit absolute
+  compatible-library path. It runs with explicitly enabled JDK native access, verifies shared
+  observation through two owners and one fixed SGEMM/DGEMM case per precision, and restores the
+  captured count in `finally`; production and ordinary tests perform no discovery or native load.
 
 ## Risks
 

@@ -6,7 +6,9 @@ This guide defines the CPU integration boundary and helps contributors avoid tre
 as separate backends. The CPU backend itself remains a placeholder. The lower-level OpenBLAS
 provider now implements explicit library loading, required-symbol binding, and a caller-owned
 lookup lifetime plus low-level FLOAT32/FLOAT64 dense row-major general matrix multiplication
-(GEMM). This does not make the placeholder CPU backend executable.
+(GEMM) and direct positive thread-count query/control. The explicit real-native checkpoint
+launcher is implemented, but this repository state has not run it because no compatible absolute
+OpenBLAS library path was supplied. This does not make the placeholder CPU backend executable.
 
 ## Prerequisites and terms
 
@@ -20,7 +22,8 @@ deployment JVM permission for restricted native access.
 - The **Foreign Function and Memory (FFM) API** is the JDK native-interoperability API used to
   load the library and bind C symbols.
 - An [OpenBLAS library handle](../glossary.md#openblas-library-handle-openblaslibrary) is the
-  caller-owned Java lifetime for one complete lookup and binding set.
+  caller-owned Java lifetime for one complete lookup and binding set. It exposes mutable native
+  thread state without owning a thread-selection policy.
 
 ## Ownership mental model and planned scope
 
@@ -104,8 +107,39 @@ Concurrent calls require caller-managed nonconflicting segment access, and calle
 This is an invocation boundary, not a CPU route. The future CPU backend must still decide whether
 OpenBLAS is eligible, normalize MATMUL and higher-level operations into this exact geometry,
 materialize transpose or layout conversions, pack when required, allocate and bind storage,
-construct prepared execution, choose threads, and provide scalar or other fallback. The provider
-also exposes no thread-control operation yet.
+construct prepared execution, choose and safely coordinate threads, and provide scalar or other
+fallback. Direct provider thread control does not perform any of those CPU decisions.
+
+### Direct thread control
+
+`threadCount()` returns the exact positive count reported by OpenBLAS. `setThreadCount(int)`
+accepts a positive 32-bit count and returns after the native setter invocation completes; it does
+not confirm an effective later value. Synaptik conservatively treats the setting as mutable
+library/process state. Two owners of one loaded binary may observe one another's mutations, but
+the provider makes no shared-state claim across independently loaded copies, loader namespaces,
+or arbitrary native consumers.
+
+The following pattern shows caller-owned temporary restoration. It assumes the caller has already
+excluded concurrent OpenBLAS work and writers for the complete scope:
+
+```java
+try (OpenBlasLibrary library = OpenBlasLibrary.open("openblas")) {
+    int original = library.threadCount();
+    try {
+        library.setThreadCount(1);
+        // Perform coordinated OpenBLAS work while the requested count is installed.
+    } finally {
+        library.setThreadCount(original);
+    }
+}
+```
+
+The intermediate requested value is `1`; the final requested value is the captured positive
+`original` count. This pattern proves only explicit caller coordination and restoration attempts.
+A competing native writer can still change the value, query/set sequences are not atomic,
+concurrent setters have no provider-defined winner, and thread mutation is not serialized with
+GEMM. The owner must remain open through restoration, and `close()` neither restores the count nor
+safely races a query, setter, or GEMM call.
 
 ### Low-level invocation example
 
@@ -144,7 +178,8 @@ invocation completed without a reported failure. It does not establish particula
 | A caller expects scalar fallback after `OpenBlasLoadException` | Fallback policy was placed mentally in the leaf provider. | Handle policy in later CPU/composition code; the provider only reports loading failure. |
 | A caller passes batched, transposed, strided, offset, or tensor-shaped data directly to `sgemm`/`dgemm` | The low-level call was mistaken for CPU normalization. | Normalize and materialize the exact dense row-major product in future CPU prepare/execution code. |
 | A caller expects the provider to allocate or return `C` | The borrowed in-place ABI boundary was mistaken for a storage API. | Supply a writable, sufficiently large native `C` segment and retain its ownership. |
-| Two Java handles appear to have independent thread counts | Both may refer to the same process library and global OpenBLAS state. | Treat thread mutation as shared native state until the later thread-control contract defines coordination. |
+| Two Java handles appear to have independent thread counts | Both may refer to the same loaded binary and mutable library/process state. | Conservatively coordinate their thread mutations together; do not infer sharing across independent copies or namespaces. |
+| A temporary thread setting remains after the Java owner closes | The provider owns only local lookup lifetime and does not retain or restore a prior value. | Capture a positive count, exclude competing native work, and restore explicitly through a still-open owner. |
 
 ## Toolchain and resources
 
@@ -153,12 +188,24 @@ globally; a focused CPU task must configure and validate it. Real OpenBLAS loadi
 compatible installed library and deployment JVM permission for restricted native access. The
 ordinary provider unit tests do not require an installed OpenBLAS library.
 
-## Limitations and validation
+## Native checkpoint and validation
 
-No CPU capability, normalization, route threshold, storage/execution path, fallback, thread-control
-behavior, backend conformance, or performance result is implemented or promised. Provider unit
-tests prove Java validation and exact ABI forwarding with fake handles, not installed-library
-numerical correctness. Future work must compare optimized routes with a scalar reference through
-backend-conformance tests and keep benchmarks reproducible.
+The test-source `OpenBlasNativeCheckpoint` accepts exactly one caller-supplied absolute compatible-
+library path. In an isolated process with native access explicitly enabled, it opens that path
+twice, requests count `1`, checks observation through both owners, runs one fixed SGEMM and DGEMM
+case, and restores and verifies the captured count in `finally`. It performs no discovery,
+download, packaging, fallback, or environment/property lookup.
+
+The ordinary provider suite passed 5 suites and 50 tests with no skips, failures, or errors using
+deterministic fake handles. No compatible absolute library path was supplied for this change, so
+the real-native checkpoint and the repository/architecture capability checkpoint ordered after
+it were not run. The provider milestone therefore remains in progress.
+
+No CPU capability, normalization, route threshold, storage/execution path, fallback, backend
+conformance, or performance result is implemented or promised. Ordinary provider tests prove
+Java validation and exact ABI forwarding, not installed-library numerical correctness. The
+native checkpoint, once supplied and passed, proves only its selected binary and fixed cases.
+Future CPU work must compare optimized routes with a scalar reference through backend-conformance
+tests and keep benchmarks reproducible.
 
 See the [CPU master plan](../planning/backends/cpu/master-plan.md), [kernel routes](kernel-routes.md), and [CPU kernel strategy](../design/notes/cpu-kernel-strategy.md).

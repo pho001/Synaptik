@@ -189,7 +189,7 @@ final class OpenBlasAbiContractTest {
                 ".reinterpret(", "synchronized")) {
             assertFalse(source.contains(forbidden), () -> "provider source must exclude " + forbidden);
         }
-        assertEquals(2, count(source, "invokeExact("));
+        assertEquals(4, count(source, "invokeExact("));
         assertFalse(source.contains("invokeWithArguments("));
     }
 

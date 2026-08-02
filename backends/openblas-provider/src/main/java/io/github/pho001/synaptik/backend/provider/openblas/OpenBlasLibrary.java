@@ -13,11 +13,14 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * route, or provide fallback behavior. Closing it ends only this owner's Foreign Function and
  * Memory lookup lifetime; the operating system may retain the underlying library.
  *
- * <p>The immutable bindings use a shared arena so they may be consumed concurrently by later
- * package-colocated provider operations while this owner remains open. Callers must not race
- * {@link #close()} with such an operation. Lifecycle observation and closing are thread-safe;
- * concurrent GEMM calls are permitted when callers independently keep their segments alive,
- * accessible, and free of conflicting access.
+ * <p>The immutable bindings use a shared arena so they may be consumed concurrently by
+ * package-colocated provider operations while this owner remains open. OpenBLAS thread count is
+ * conservatively treated as mutable library/process state: owners of the same loaded binary may
+ * observe one another's changes, but this class makes no shared-state claim across independently
+ * loaded copies, loader namespaces, or arbitrary native consumers. Callers must coordinate
+ * thread-count changes with GEMM and must not race {@link #close()} with any native operation.
+ * Lifecycle observation and closing are thread-safe; the provider otherwise supplies no native-
+ * call serialization.
  */
 public final class OpenBlasLibrary implements AutoCloseable {
     private static final OpenBlasNativeAccess NATIVE_ACCESS = new FfmOpenBlasNativeAccess();
@@ -212,10 +215,50 @@ public final class OpenBlasLibrary implements AutoCloseable {
     }
 
     /**
+     * Returns the positive thread count currently reported by OpenBLAS.
+     *
+     * <p>The count is conservatively treated as mutable library/process state rather than a value
+     * owned by this Java handle. An owner of the same loaded binary may change it immediately
+     * after this method returns. This is not a guarantee that independently loaded copies, loader
+     * namespaces, or arbitrary native consumers share one coordinated value. The query is not
+     * atomic with a later setter or GEMM call, and this provider supplies no coordination or
+     * restoration policy. The caller must not race this query with {@link #close()} on this owner.
+     *
+     * @return the exact positive thread count reported by OpenBLAS
+     * @throws IllegalStateException if this library is closed, native invocation fails, or
+     *                               OpenBLAS reports a non-positive count
+     */
+    public int threadCount() {
+        return OpenBlasThreadControl.threadCount(bindings());
+    }
+
+    /**
+     * Requests a positive OpenBLAS thread count without retaining or restoring a prior value.
+     *
+     * <p>The setting is conservatively treated as mutable library/process state and may be visible
+     * through another owner of the same loaded binary. This is not a guarantee across independently
+     * loaded copies, loader namespaces, or arbitrary native consumers. Concurrent setters have no
+     * provider-defined winner, and a setter is not atomic with a query or GEMM call. Callers must
+     * coordinate active native work, perform any required restoration explicitly through a still-
+     * open owner, and avoid racing this method with {@link #close()}. A successful return confirms
+     * only that the setter invocation completed; it does not report the effective later count.
+     *
+     * @param threadCount the positive 32-bit thread count passed unchanged to OpenBLAS
+     * @throws IllegalStateException if this library is closed or native invocation fails
+     * @throws IllegalArgumentException if {@code threadCount} is not positive
+     */
+    public void setThreadCount(int threadCount) {
+        OpenBlasThreadControl.setThreadCount(bindings(), threadCount);
+    }
+
+    /**
      * Ends this owner's native lookup lifetime once.
      *
      * <p>Repeated and concurrent calls are idempotent. If arena closure fails, this owner remains
      * observably closed and the unchecked cleanup failure is propagated to the winning caller.
+     * Closing does not query, reset, or restore the OpenBLAS thread count and does not make native
+     * state private to another owner. Callers must not race closure with GEMM or thread-control
+     * invocation on this owner.
      *
      * @throws IllegalStateException if the underlying shared arena cannot be closed
      */

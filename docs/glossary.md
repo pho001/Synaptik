@@ -1795,11 +1795,17 @@ close. Closing ends only that owner's lookup lifetime; it does not promise physi
 isolate process-global OpenBLAS state from another owner.
 
 The current handle exposes exact FLOAT32/FLOAT64 dense row-major, non-transposed
-[`GEMM`](#general-matrix-multiplication--gemm) invocation but no thread-control invocation, native
-address, or JDK native handle. Caller segments remain borrowed and the handle promises no
-OpenBLAS numerical policy. CPU prepare later owns OpenBLAS route selection and normalization,
-while CPU or composition policy owns configuration and fallback. See the [CPU backend
-guide](backend-guide/cpu-backend.md#current-low-level-openblas-foundation).
+[`GEMM`](#general-matrix-multiplication--gemm) invocation plus direct positive thread-count query
+and control, but no native address or JDK native handle. The thread count is conservatively
+treated as mutable library/process state that owners of one loaded binary may observe in common;
+this is not a coordination guarantee across independently loaded copies, loader namespaces, or
+arbitrary native consumers. Query/set sequences are not atomic, concurrent setters have no
+provider-defined winner, thread changes are not serialized with GEMM, and close does not restore
+the count. Callers own coordination and any restoration through a still-open owner.
+
+Caller matrix segments remain borrowed and the handle promises no OpenBLAS numerical policy. CPU
+prepare later owns OpenBLAS route selection and normalization, while CPU or composition policy
+owns configuration and fallback. See the [CPU backend guide](backend-guide/cpu-backend.md#current-low-level-openblas-foundation).
 
 ### Layout
 

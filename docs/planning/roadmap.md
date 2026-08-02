@@ -22,7 +22,7 @@ Parallel work is not the default. It requires an explicit roadmap or master-plan
 | 6 | [`modules/runtime`](modules/runtime/master-plan.md) | Complete | Compiler/planning handoff, backend identities, the trace foundation, and ADR 0011's per-run resource ownership/cold-binding decision are stable. | Runtime 0012, 0013, and 0014 resolved the selected cleanup, status, and architecture-enforcement findings; the Runtime closure milestone is complete. |
 | 7 | [`modules/compiler`](modules/compiler/master-plan.md) | Complete | Model, config, planning, backend-contract, and trace contracts are ready for the complete compiler lifecycle; bounded task 0001 may start from the closed model graph/provenance contracts alone. | Compile artifacts, graph transformations, and autograd compilation are complete. |
 | 8 | [`modules/prepare`](modules/prepare/master-plan.md) | Complete | Compiler/planning artifacts and Runtime recipe/runner contracts are stable; ADR 0010 authorizes the analysis-first staged handoff. | Shared prepare contracts and validation are complete. |
-| 9 | [`backends/openblas-provider`](backends/openblas-provider/master-plan.md) | In progress | Native interop conventions needed by the provider are decided. | The low-level provider contract and validation are complete. |
+| 9 | [`backends/openblas-provider`](backends/openblas-provider/master-plan.md) | Complete | Native interop conventions needed by the provider are decided. | The low-level provider contract and validation are complete. |
 | 10 | [`backends/cpu`](backends/cpu/master-plan.md) | Draft | Model, config, planning, runtime, prepare, backend-contract, trace, and OpenBLAS contracts are ready. | CPU is a conforming reference backend for the selected capability set. |
 | 11 | [`modules/engine`](modules/engine/master-plan.md) | Draft | Compiler, runtime, prepare, and the CPU backend can be composed. | The public compile, prepare, and run lifecycle works end to end on CPU. |
 | 12 | [`backends/metal`](backends/metal/master-plan.md) | Draft | Shared backend contracts and CPU reference behavior are stable. | Metal passes the applicable backend-conformance suite. |
@@ -97,8 +97,9 @@ initially-valid buffer origin for non-bindable logical splats; Runtime receives 
 fact. It adds no concrete backend, discovery, Engine facade, physical work in Prepare, execution,
 tuning, or dynamic binding.
 
-The Prepare milestone is therefore closed. The active ordered project area is the OpenBLAS
-provider. Its completed foundation,
+The Prepare milestone is therefore closed. The OpenBLAS provider project area is also Complete,
+and the next ordered planning frontier is the Draft CPU backend. No detailed CPU task
+specification exists. The provider's completed foundation,
 [OpenBLAS provider 0001 Library loading and required symbol binding](backends/openblas-provider/tasks/0001-library-loading-and-required-symbol-binding.md),
 is Complete. That atomic foundation loads one caller-specified name or absolute path, binds the
 exact FLOAT32/
@@ -122,7 +123,31 @@ documentation context `/root/openblas_0002_docs` reused that evidence, finalized
 package Javadocs, the CPU guide, glossary, and planning records, and passed provider Javadoc,
 five-file Markdown, generated-page, exact 11-path, surface/ABI/dependency/status/history/later-
 specification, and whitespace checks without changing executable Java or rerunning Java tests.
-Task 0003 remains a Draft row without a detailed specification, and no CPU task is Ready.
+Detailed
+[OpenBLAS provider 0003 Thread control and native provider checkpoint](backends/openblas-provider/tasks/0003-thread-control-and-native-provider-checkpoint.md)
+is Complete. It adds only direct positive thread-count query/control over the already-bound handles,
+conservatively treats owners of one loaded binary as potentially sharing library/process state
+with caller-owned coordination/restoration, and makes no guarantee across independently loaded
+copies or arbitrary native consumers. It closes the provider milestone through an explicit
+isolated checkpoint using one caller-supplied absolute compatible-library path. Production and
+ordinary tests add no discovery or native prerequisite, completed tasks 0001–0002 remain
+unchanged, and no CPU task is Ready. Its final ordinary provider command passed 5 suites and 50
+tests without skips, failures, or errors. Clean documentation context
+`/root/task_0003_impl/openblas_0003_docs` reused that evidence, finalized the affected Javadocs,
+CPU guide, glossary, and planning records, and passed provider Javadoc, five-file Markdown,
+generated-page, exact twelve-path, surface/package/dependency/status/history/later-specification,
+and whitespace checks without changing executable Java or rerunning Java tests. Clean validation
+context `/root/task_0003_native_resume` then supplied the real arm64 OpenBLAS 0.3.33 library to
+the exact native command. It passed with shared observation through two owners, the fixed
+SGEMM/DGEMM cases, and restoration of the original thread count of 16. Only afterward, the exact
+repository/architecture capability checkpoint passed with 54 actionable tasks (2 executed, 52
+up-to-date). Clean completion-documentation context
+`/root/task_0003_native_resume/openblas_0003_completion_docs` reused all successful executable
+and Javadoc evidence, changed only the three planning status/evidence paths, and passed the stale
+Markdown, exact twelve-path/surface/status/history/later-specification, completed-task, and
+whitespace checks without rerunning Java. Task 0003, the provider milestone, and the provider
+project area are Complete; CPU is the next Draft planning frontier without a detailed task
+specification.
 
 Runtime 0009's focused command passed 4 suites and 32 tests, and its single final Runtime command
 passed 16 suites and 130 tests, with no failures, errors, or skips. Clean documentation context
