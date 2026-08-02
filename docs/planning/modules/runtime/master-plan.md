@@ -93,8 +93,8 @@ publication coordinates, per-run bound publication state, and a whole-`RunState`
 | 0010 | [Prepared runner and dynamic execution](tasks/0010-prepared-runner-and-dynamic-execution.md) | Complete | 0003; 0005–0009; preserve Trace 0001–0002 boundary | Cold-creates one isolated state, binds every direct occurrence before ordered traversal, applies explicit executable read/write validity, and transfers the whole-state result lease without hot graph/backend lookup. |
 | 0011 | [Runtime contract closure audit](tasks/0011-runtime-contract-closure-audit.md) | Complete | 0001–0010 | Recorded `BLOCKING_GAP`: the audit is complete, but shared-throwable cleanup, stale general architecture status, and absent Runtime architecture enforcement keep the milestone open. |
 | 0012 | [Run-state shared-throwable cleanup](tasks/0012-run-state-shared-throwable-cleanup.md) | Complete | 0003; 0007; 0009–0011 | Repaired `RUNTIME-CLEANUP-001`: closed-first reverse cleanup now skips impossible self-suppression when distinct owned resources throw the same exact primary `Throwable`, preserves that primary, and attempts all remaining owned resources. |
-| 0013 | [General architecture status correction](tasks/0013-general-architecture-status-correction.md) | Complete | 0011; 0012 | Corrected `DOCUMENTATION-STATUS-001` in four implicated explanatory documents, preserving authoritative architecture and leaving enforcement to Draft 0014. |
-| 0014 | Runtime architecture enforcement | Draft | 0011; 0012–0013 | Add focused Runtime dependency and hot-path architecture-test enforcement for `ARCHITECTURE-ENFORCEMENT-001` without changing architecture rules; no detailed specification exists. |
+| 0013 | [General architecture status correction](tasks/0013-general-architecture-status-correction.md) | Complete | 0011; 0012 | Corrected `DOCUMENTATION-STATUS-001` in four implicated explanatory documents, preserving authoritative architecture and leaving enforcement to task 0014. |
+| 0014 | [Runtime architecture enforcement](tasks/0014-runtime-architecture-enforcement.md) | Complete | 0011; 0012–0013 | Added one dependency-free focused architecture suite that locks Runtime's exact project edges, exhaustively classifies production sources, and rejects `Operation`/`CompiledNode` in the explicit hot path. |
 
 ## Milestones
 
@@ -105,8 +105,8 @@ publication coordinates, per-run bound publication state, and a whole-`RunState`
 
 ## Current status
 
-In progress after completion of
-[Runtime 0012](tasks/0012-run-state-shared-throwable-cleanup.md). The current public Runtime
+Complete after [Runtime 0014](tasks/0014-runtime-architecture-enforcement.md) resolved
+`ARCHITECTURE-ENFORCEMENT-001`. The current public Runtime
 surface now includes immutable `runtime.memory` geometry, nominal `runtime.resource`
 buffer/workspace cleanup roles, the `runtime.run` ownership and one-run lifecycle foundation, the
 `runtime.execution` prepared-recipe/cold-bound-invocation boundary, and the `runtime.schedule`
@@ -272,14 +272,18 @@ and whitespace gates passed. Complete
 implementation-status statements in three architecture pages and the architecture-test guide
 without changing architecture, APIs, Java, tests, or build behavior. Clean documentation context
 `019fc161-1298-72e1-a2bb-82ac8cbfb672` passed seven-file Markdown, preserved-history, exact
-replacement, fourteen-path scope, status, later-file-absence, and whitespace gates. Runtime 0014
-remains the sole next Draft row without a specification, so the Runtime milestone remains open.
+replacement, fourteen-path scope, status, later-file-absence, and whitespace gates. Detailed
+[Runtime 0014](tasks/0014-runtime-architecture-enforcement.md) is Complete. Its dependency-free
+architecture suite locks the exact Runtime Gradle edges, exhaustively classifies the 25 current
+production sources, and rejects exact `Operation`/`CompiledNode` identities in the five-file
+direct hot subset. The focused suite and final combined checkpoint passed; therefore
+`ARCHITECTURE-ENFORCEMENT-001` is resolved and the selected Runtime milestone is Complete.
 
 ## Open questions
 
-- Runtime 0012 has resolved repeated primary throwable identity, and Runtime 0013 has corrected
-  the stale general architecture status. Runtime 0014 remains the sole next Draft follow-up for
-  durable Runtime dependency/hot-path enforcement without a specification.
+- Runtime 0012 resolved repeated primary throwable identity, Runtime 0013 corrected the stale
+  general architecture status, and Runtime 0014 resolved the final audited enforcement finding.
+  Runtime 0011 remains an unchanged historical `BLOCKING_GAP` audit rather than a current blocker.
 - Output value access remains a later Engine/result decision rather than an unresolved Runtime
   semantic gap. Prepare orchestration, concrete backend execution, Trace run payloads, Config
   policy, and tuning likewise retain their existing downstream owners.

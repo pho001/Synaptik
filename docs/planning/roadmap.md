@@ -19,7 +19,7 @@ Parallel work is not the default. It requires an explicit roadmap or master-plan
 | 3 | [`modules/backend-contract`](modules/backend-contract/master-plan.md) | Complete | Foundational value-model conventions and the stable trace foundation are complete. | Backend identity and declarative requirement contracts are complete. |
 | 4 | [`modules/config`](modules/config/master-plan.md) | In progress (interleaved) | Model and backend identity contracts required by configuration are stable. | Compile, prepare, run, planning-cost, and model-autotuning request contracts are complete where stable consumers justify them. |
 | 5 | [`modules/planning`](modules/planning/master-plan.md) | Complete | Stable model/backend identity contracts permit the explicitly bounded capability-query interleave before config scoring is complete. | Ownership, partitioning, scoring, logical memory planning, and the selected contract-closure audit are complete. |
-| 6 | [`modules/runtime`](modules/runtime/master-plan.md) | In progress (0013 Complete; 0014 Draft) | Compiler/planning handoff, backend identities, the trace foundation, and ADR 0011's per-run resource ownership/cold-binding decision are stable. | Cleanup and `DOCUMENTATION-STATUS-001` are resolved; `ARCHITECTURE-ENFORCEMENT-001` remains, so Runtime closure is not re-established. |
+| 6 | [`modules/runtime`](modules/runtime/master-plan.md) | Complete | Compiler/planning handoff, backend identities, the trace foundation, and ADR 0011's per-run resource ownership/cold-binding decision are stable. | Runtime 0012, 0013, and 0014 resolved the selected cleanup, status, and architecture-enforcement findings; the Runtime closure milestone is complete. |
 | 7 | [`modules/compiler`](modules/compiler/master-plan.md) | Complete | Model, config, planning, backend-contract, and trace contracts are ready for the complete compiler lifecycle; bounded task 0001 may start from the closed model graph/provenance contracts alone. | Compile artifacts, graph transformations, and autograd compilation are complete. |
 | 8 | [`modules/prepare`](modules/prepare/master-plan.md) | In progress (0002 Complete; 0003 Draft) | Compiler/planning artifacts and Runtime 0001 are stable; ADR 0010 authorizes the analysis-first staged handoff. | Shared prepare contracts and validation are complete. |
 | 9 | [`backends/openblas-provider`](backends/openblas-provider/master-plan.md) | Draft | Native interop conventions needed by the provider are decided. | The low-level provider contract and validation are complete. |
@@ -82,9 +82,13 @@ resolves only the stale general architecture status finding through five exact r
 three architecture pages and the architecture-test guide. Clean documentation context
 `019fc161-1298-72e1-a2bb-82ac8cbfb672` passed seven-file Markdown, preserved-history, exact
 replacement, fourteen-path scope, status, later-file-absence, and whitespace gates without
-running Java or test tasks. Runtime 0014 retains Runtime architecture enforcement as the next
-Draft master-plan frontier without a detailed specification. The Runtime milestone remains open,
-and Prepare 0003 remains Draft without a detailed specification.
+running Java or test tasks. Detailed
+[Runtime 0014 Runtime architecture enforcement](modules/runtime/tasks/0014-runtime-architecture-enforcement.md)
+is Complete. Its dependency-free architecture suite locks the exact Runtime project edges,
+requires exhaustive hot/non-hot production-source classification, and rejects Model `Operation`
+or `CompiledNode` in the explicit direct-execution subset. The focused suite and final combined
+checkpoint passed, resolving `ARCHITECTURE-ENFORCEMENT-001`; the Runtime milestone is Complete.
+Prepare 0003 remains Draft without a detailed specification.
 
 Runtime 0009's focused command passed 4 suites and 32 tests, and its single final Runtime command
 passed 16 suites and 130 tests, with no failures, errors, or skips. Clean documentation context
@@ -262,11 +266,11 @@ backend failure leaves all Runtime validity unchanged.
 
 Runtime 0008 keeps `PreparedExecution` unchanged and adds no runner/traversal, executable-output
 invalidation, publication/result, Prepare orchestration, concrete backend, config/tuning/tracing,
-or coherence policy. Runtime 0009–0013 are Complete, and the Runtime milestone remains in
-progress under 0011's `BLOCKING_GAP` verdict. Runtime 0014 and Prepare 0003 remain Draft without
-detailed specifications. Backend Contract remains Complete and closed. Module dependency
-directions are unchanged; the missing Runtime architecture tests are an enforcement finding, not
-a rule change.
+or coherence policy. Runtime 0009–0014 are Complete. Runtime 0011 remains its unchanged historical
+`BLOCKING_GAP` verdict, while Runtime 0012–0014 resolved its three selected findings and closed the
+Runtime milestone. Prepare 0003 remains Draft without a detailed specification. Backend Contract
+remains Complete and closed. Module dependency directions are unchanged; the Runtime architecture
+tests enforce existing rules rather than changing them.
 
 Runtime 0008's focused command passed three suites and 31 tests, and its single final Runtime
 module command passed 13 suites and 113 tests, with no failures, errors, or skips. The separate
