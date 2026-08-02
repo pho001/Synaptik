@@ -8,10 +8,11 @@ partition and returns an opaque backend plan plus exact shared buffer and worksp
 After shared Prepare assigns Runtime slots, finalization consumes those exact assignments and
 constructs an immutable executable recipe.
 
-The package-internal batch assignment exists, but public Prepare orchestration does not. Physical
-allocation, registration, schedules, and end-to-end execution remain planned. The example
-therefore demonstrates current analysis and finalization contracts with illustrative backend
-types, not a production backend or runnable engine.
+Public `GraphPreparation.prepare(...)` now coordinates the package-internal batch assignment and
+validates one complete schedule supplied by an explicit assembler. Physical allocation, backend
+registration, production schedule assembly, and end-to-end Engine execution remain planned. The
+example therefore demonstrates current analysis and finalization contracts with illustrative
+backend types, not a production backend or runnable engine.
 
 ## Prerequisites
 
@@ -52,15 +53,16 @@ capability reporting and Planning ownership
   -> shared BufferSlot/WorkspaceSlot assignment              current, package-internal
   -> same backend finalizes the opaque plan                  current contract
   -> PreparedPartition + PreparedExecutable                  current contracts
-  -> Runtime executes the prepared schedule                  planned
+  -> explicit assembler + Prepare schedule validation        current shared contract
+  -> Runtime executes the prepared schedule                  current shared runner contract
 ```
 
 Planning chooses an owner such as CPU. Shared Prepare validates and projects that owner's exact
 partition facts. The concrete backend then owns deterministic lowering, fusion, route selection,
 and private configuration. Shared Prepare sees only the typed opaque plan and backend-neutral
 resource declarations. Runtime owns the stable slot and memory-plan types; shared Prepare owns the
-source assignment and finalizer handoff. Per-run population and scheduled execution remain later
-work.
+source assignment and finalizer handoff. Concrete per-run population and executable work remain
+backend responsibilities.
 
 This division keeps `CompileArtifacts` and other Compiler-owned types out of the concrete backend
 surface. It also keeps route selection, measurement, cache mutation, allocation, and graph
@@ -283,8 +285,45 @@ PreparedPartition prepared =
 `prepared.partition()` is the exact analyzed partition, and
 `prepared.executable().memoryPlan()` is the exact `memoryPlan` object. The assignment list follows
 analysis declaration order and retains the exact requirement and slot references. This proves the
-current typed finalization handoff; it does not prove public orchestration, physical allocation,
-binding, execution, scheduling, or cleanup of a persistent prepared resource.
+current typed finalization handoff. Public orchestration performs equivalent assignment and
+finalization internally, then validates a separately assembled schedule. The snippet does not
+prove physical allocation, binding, execution, or cleanup of a persistent prepared resource.
+
+### Current complete-graph orchestration
+
+The public orchestration input keeps each backend's analysis and finalization generic types
+paired. One preparation value is supplied for each compile partition, in compile-partition order:
+
+```java
+import io.github.pho001.synaptik.prepare.GraphPreparation;
+import io.github.pho001.synaptik.prepare.PartitionPreparation;
+import io.github.pho001.synaptik.prepare.PreparedScheduleAssembler;
+import io.github.pho001.synaptik.runtime.execution.PreparedExecution;
+import java.util.List;
+
+PartitionPreparation<CpuInputs, CpuPlan> cpuPreparation =
+        new PartitionPreparation<>(cpuInputs, new CpuPreparer(), new CpuFinalizer(cpu));
+
+// Application composition code supplies a complete immutable schedule recipe.
+PreparedScheduleAssembler assembler = context -> assembleExampleSchedule(context);
+
+PreparedExecution execution =
+        GraphPreparation.prepare(artifacts, List.of(cpuPreparation), assembler);
+```
+
+`artifacts`, `cpuInputs`, and `assembleExampleSchedule` are deliberately illustrative inputs; no
+public Compiler entry, production CPU backend, or Engine facade currently supplies them. The
+result is nevertheless the current API shape: Prepare first constructs all `PrepareContext`
+values, then analyzes and finalizes every partition in order, calls the assembler once with a
+complete immutable `PreparedScheduleContext`, validates the returned recipe, and returns the
+exact `PreparedExecution`.
+
+The assembler must describe every bindable input with exactly one `CallerInput` in compiler input
+order. A compile-time logical splat instead needs at least one `InitializedBuffer` and no caller
+input. The backend creator materializes that constant into a fresh run-owned representation;
+Runtime records only that the representation starts valid. Prepare also validates executable
+coverage and order, transfer and executable representation coordinates, and ordered forward then
+gradient publications. It invokes no creator and performs no physical work.
 
 ## Context and requirement invariants
 
@@ -326,7 +365,7 @@ access to future native resources.
 
 Engine composition and explicit backend registration are not implemented yet. Do not add runtime
 service lookup, reflection, or `ServiceLoader` as a substitute. A future engine will supply the
-explicitly registered concrete preparer before Runtime execution.
+explicitly registered concrete preparations and schedule assembler before Runtime execution.
 
 Prepare/trace payloads and emitters are also planned. A backend may design typed diagnostic facts
 for its analysis, but it must not leak business logic into trace data-transfer objects or use a
@@ -351,10 +390,10 @@ For the current shared contract, run:
 
 ## Limitations and related documentation
 
-The current API has no dynamic-dimension binding, workspace reuse, physical resource, public
-Prepare orchestration, schedule, runner, production concrete backend implementation, or
-model-autotuning workflow. Slot assignment, finalization input/collaboration, prepared partition,
-and executable recipe contracts are current. Compatible cached decisions may be explicit
+The current API has no dynamic-dimension binding, workspace reuse, physical resource, production
+concrete backend implementation, Engine composition, or model-autotuning workflow. Slot
+assignment, finalization input/collaboration, prepared partition, explicit schedule assembly and
+validation, prepared-execution construction, and shared runner contracts are current. Compatible cached decisions may be explicit
 immutable backend inputs, but analysis neither loads nor mutates a cache.
 
 See the [Runtime/Prepare/Backend boundary](../architecture/runtime-prepare-backend-boundary.md),

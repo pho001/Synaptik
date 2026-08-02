@@ -43,7 +43,7 @@ requirement-to-slot assignment and association are now current. Runtime also has
 [`PreparedRepresentationPlan`](#prepared-representation-plan--preparedrepresentationplan),
 package-private all-or-cleaned cold setup, structural residency, and explicit
 [`buffer validity`](#buffer-validity) per resident copy. Physical allocation/access
-implementations, public output-value access, and a runner remain planned. The immutable
+implementations and public output-value access remain planned. The immutable
 creation-plus-execution-plus-transfer-plus-publication
 [`PreparedSchedule`](#prepared-schedule--preparedschedule) contract is current.
 Current [`PreparedExecutable`](#prepared-executable--preparedexecutable) recipes perform checked
@@ -62,11 +62,12 @@ and `Workspace` variants, `BackendPartitionAnalysis`, and `BackendPartitionPrepa
 project and validate one fully static planned partition, carry exact typed logical-splat constants
 for projected graph inputs, retain backend inputs and the selected plan opaquely, and declare
 exact shared buffer/workspace needs. Slot assignment, finalization, prepared-executable
-construction, and the minimal `PreparedPartition` association are current Prepare contracts.
-Executable and buffer-transfer scheduling are current Runtime contracts. Physical resources,
-public Prepare orchestration, publication schedule variants, production concrete
-backends, and runner execution remain planned. The Runtime executable contract itself is current;
-a current Prepare finalizer constructs a backend subclass against assigned slots.
+construction, the minimal `PreparedPartition` association, complete graph preparation, explicit
+schedule assembly, and schedule validation are current Prepare contracts. Executable,
+buffer-transfer, and publication scheduling plus shared runner execution are current Runtime
+contracts. Physical resources, production concrete backends, Engine composition, and public
+output-value access remain planned. The Runtime executable contract itself is current; a current
+Prepare finalizer constructs a backend subclass against assigned slots.
 
 The exact arithmetic scan contains seven semantic rules: duplicate-input binary `MIN` and `MAX`;
 scalar `MUL` by exact typed positive one for all five numeric types; scalar `DIV` and `POW` by exact
@@ -1790,7 +1791,9 @@ typed zero/unit leaves, extrema or clamp bounds needed as Tensor comparison oper
 logical-one expansion for ordinary and masked MEAN counts. Creation and binding order follow
 deterministic first use. Only generated splat bases reachable from returned gradient expressions
 remain in combined-capture ingress. Physical repetition and storage allocation remain future
-prepare/backend materialization work.
+prepare/backend materialization work. Current Prepare requires a compiler constant source to have
+at least one backend-created initialized representation; Runtime carries only the initial-validity
+fact, not the scalar.
 
 ### Logical memory plan
 
@@ -2012,20 +2015,22 @@ later Runtime/backend contracts own physical allocation, access mechanics, and e
 
 The implemented immutable reusable Runtime description of how every dense buffer representation
 and workspace for one exact `PreparedMemoryPlan` originates. Each non-empty buffer-position list
-contains `CallerInput` occurrences, `CreatedBuffer(BufferCreator)` values, or both; the workspace
+contains `CallerInput` occurrences, `CreatedBuffer(BufferCreator)` values,
+`InitializedBuffer(BufferCreator)` values, or a permitted combination; the workspace
 list contains one `WorkspaceCreator` per prepared workspace. The record snapshots both buffer-list
 levels and the workspace list while retaining exact preparation and callback references. It
 invokes no callback and owns no physical object.
 
 Caller-input occurrences consume a later flat caller list in buffer/representation encounter
-order. Concrete backends implement immutable thread-safe creators, and every successful call must
-return a fresh non-null physical result for that position and run. Current package-private cold
+order. `CreatedBuffer` results start invalid, while `InitializedBuffer` results start valid; both
+are run-owned and otherwise share creator, identity, ordering, rollback, and cleanup rules.
+Concrete backends implement immutable thread-safe creators, and every successful call must return
+a fresh non-null physical result for that position and run. Current package-private cold
 setup validates all callers before invoking callbacks, creates buffers then workspaces, and rolls
 back successfully created results in reverse creation order on failure. A current first-only
 `PreparedSchedule.RepresentationCreationStep` makes the plan reachable through the unchanged
 two-component `PreparedExecution`. Explicit transfer/materialization, validity, and publication
-contracts are current; public runner orchestration and executable-output validity transitions
-remain planned.
+contracts, public runner orchestration, and executable-output validity transitions are current.
 
 ### Memory slot
 
@@ -2035,8 +2040,9 @@ storage without embedding a raw address. Current
 [`WorkspaceSlot`](#workspace-slot--workspaceslot) values provide nominally separate plan-local
 identities, and current [`PreparedMemoryPlan`](#prepared-memory-plan--preparedmemoryplan) records
 their final byte geometry. Current `RunState` accesses representations by dense plan-entry
-position rather than by interpreting either slot's numeric component. Source association,
-physical allocation and access, aliasing, and lifetime analysis remain later work. A memory-slot
+position rather than by interpreting either slot's numeric component. Current Prepare retains
+logical source association separately through `PreparedBufferAssignment`; physical allocation and
+access, aliasing, and lifetime analysis remain later work. A memory-slot
 identity is not itself a physical execution resource and must not be confused with a logical
 [`ValueId`](#valueid) or an analysis requirement ID.
 
@@ -2672,9 +2678,9 @@ The owning backend implements `BackendPartitionFinalizer<P>` and returns one non
 
 Finalization does not authorize route reselection, undeclared resource requirements, physical
 allocation, native or closeable prepared-resource acquisition, run-state construction, binding,
-execution, scheduling, transfer, publication, measurement, or cache mutation. The current batch
-handoff is package-private; no public Prepare orchestration facade or production backend
-finalizer exists.
+execution, scheduling, transfer, publication, measurement, or cache mutation. The batch handoff
+is package-private behind current public graph preparation; no production backend finalizer
+exists.
 
 ### Prepared partition / `PreparedPartition`
 
@@ -2683,6 +2689,29 @@ exact finalized `PreparedExecutable`. Backend ownership remains available from t
 prepared-memory identity remains available from the executable, so the record duplicates neither
 value. It owns no physical or per-run resource and is not a schedule step, `PreparedUnit`,
 `PreparedSchedule`, or `PreparedExecution`.
+
+### Prepared buffer assignment / `PreparedBufferAssignment`
+
+The implemented immutable Prepare-owned translation from one compile graph `ValueId` to the exact
+assigned Runtime `BufferSlot` and its non-negative dense index in
+`PreparedMemoryPlan.buffers()`. Complete-set assignment produces one value in first-declaration
+order for every distinct declared buffer value. It is schedule-construction context, not a
+physical binding, representation, residency fact, or mutable runtime state.
+
+### Graph preparation / `GraphPreparation`
+
+The implemented stateless public Prepare operation that consumes one exact `CompileArtifacts`,
+one typed positional `PartitionPreparation` per planned partition, and one explicit
+`PreparedScheduleAssembler`. It constructs every partition `PrepareContext` before backend work,
+coordinates ordered analysis and finalization, supplies one complete immutable
+`PreparedScheduleContext` to the assembler, validates the returned recipe, and returns the exact
+`PreparedExecution`.
+
+Validation covers exact plan identity, caller-input order, initialized compile constants,
+executable coverage and order, representation coordinates, and forward-then-gradient publication
+occurrences. The operation invokes no creator, allocates no physical resource, executes no work,
+discovers no backend, and retains no collaborator. Concrete backend-facing contexts contain no
+Compiler aggregate; future Engine composition explicitly supplies the collaborators.
 
 ### Prepared execution / `PreparedExecution`
 
@@ -4204,8 +4233,8 @@ The compiled graph container is implemented model state.
 A `ValueId` names logical data in one compiled graph. Current `BufferSlot` and `WorkspaceSlot`
 instead name nominally separate plan-local positions without naming physical storage. Current
 `PreparedMemoryPlan` associates those slot identities only with final byte size and alignment.
-Future Prepare assignment may map source requirements to slots, and future Runtime/backend state
-may bind those slots to reusable physical storage. The initial planned assignment uses distinct
-slots; any later reuse requires a proved lifetime/interference model. No source mapping or
-physical binding is implemented by the slot or plan records, so graph and analysis identities
-remain distinct from both slot identities and later physical resources.
+Current Prepare assignment maps declared source requirements to slots conservatively; later
+Runtime/backend state binds those positions to per-run physical representations. Any future reuse
+requires a proved lifetime/interference model. The slot and plan records themselves still contain
+no source mapping or physical binding, so graph and analysis identities remain distinct from both
+slot identities and physical resources.

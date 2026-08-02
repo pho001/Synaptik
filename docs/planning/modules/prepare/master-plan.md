@@ -61,7 +61,8 @@ Define and validate the shared transition from immutable compile artifacts to pr
 io.github.pho001.synaptik.prepare/
   analysis/  public partition-scoped analysis request, opaque backend plan, exact resource
              declarations, and backend analyzer collaboration
-  <root>     later orchestration, finalized prepared-partition result, and validation contracts
+  <root>     finalized prepared-partition result plus current complete graph-preparation,
+             schedule-assembly, and validation contracts
 ```
 
 Task 0001 opens only `analysis`. The request projects partition-scoped Model and Planning facts
@@ -75,7 +76,7 @@ target/backend capabilities, configuration, and compatible cached decisions. It 
 |---|---|---|---|---|
 | 0001 | [Backend partition analysis and resource declaration](tasks/0001-backend-partition-analysis-and-resource-declaration.md) | Complete | Compiler 0006; Planning 0006; Runtime 0001; ADR 0010 | Defines the analysis-side Prepare projection, typed backend analyzer, opaque selected plan, and exact buffer/workspace declarations without assigning slots or finalizing executables. |
 | 0002 | [Backend partition finalization handoff](tasks/0002-backend-partition-finalization-handoff.md) | Complete | 0001; Runtime 0002–0004 | Assigns deterministic conservative shared slots across the complete ordered analyses, retains exact source associations, and finalizes each typed backend plan into the minimal prepared partition/executable association. |
-| 0003 | Prepare orchestration and validation | Draft | 0001–0002; Runtime 0002, 0005–0006 | Compose coverage, prepared-memory, schedule, and final prepared-execution validation without concrete backend logic. |
+| 0003 | [Prepare orchestration and validation](tasks/0003-prepare-orchestration-and-validation.md) | Complete | 0001–0002; Compiler 0006; Planning 0006; Runtime 0002–0014 | Composes exact compile projection, typed backend analysis/finalization, initialized constant representations, prepared-memory assignment, complete schedule assembly/validation, and final prepared execution without concrete backend logic. |
 
 ## Milestones
 
@@ -85,7 +86,8 @@ target/backend capabilities, configuration, and compatible cached decisions. It 
 
 ## Current status
 
-In progress after completion of
+Complete through
+[task 0003](tasks/0003-prepare-orchestration-and-validation.md) after completion of
 [task 0001](tasks/0001-backend-partition-analysis-and-resource-declaration.md). The current public
 `prepare.analysis` package contains the exact typed projection, backend input/plan marker roles,
 buffer/workspace requirement family, immutable analysis result, and backend preparer
@@ -113,9 +115,16 @@ retain the exact shared memory plan.
 
 Task 0002 deliberately adds no public orchestration, physical allocation, closeable prepared
 resource, execution, or schedule. Complete Runtime 0005 defines the schedule consumer without a
-distinct `PreparedUnit`; Complete Runtime 0006 now supplies the smallest final
-prepared-execution aggregate and exact-plan consistency contract. Prepare 0003 remains Draft and
-has no detailed specification.
+distinct `PreparedUnit`; Complete Runtime 0006 supplies the smallest final prepared-execution
+aggregate and exact-plan consistency contract; Runtime 0007–0010 complete representation
+creation, transfer, publication, and runner recipe boundaries. Complete task 0003 implements the
+smallest explicit complete-graph orchestration: positionally supplied typed backend
+collaborators, exact compile projection, existing finalization handoff, one Prepare-owned schedule
+assembler, one generic Runtime initialized-buffer origin for backend-materialized logical splats,
+structural source/execution/publication validation, and one final `PreparedExecution`. It adds no
+concrete backend, Engine facade, physical work in Prepare, or lookup. Its implementation pass
+passed the combined Runtime/Prepare suites, its independent documentation pass finalized all
+affected Javadocs and explanatory text, and the Prepare milestone checkpoint passed.
 
 The implementation context's final Prepare module run passed 7 suites and 22 tests with no
 skips, failures, or errors. The clean documentation pass finalized all six new production/package
@@ -126,11 +135,12 @@ example, nine-file Markdown validation, exact public/package-private shape, mech
 
 ## Open questions
 
-- The later concrete binding contract for dynamic dimensions remains deferred. Task 0001 fails
-  closed rather than inventing it.
-- Complete Runtime 0006 supplies the exact-plan/exact-schedule `PreparedExecution` root required
-  before a later planning step may make Prepare 0003 ready for public orchestration and final
-  prepared-result validation.
+- Dynamic dimension binding remains deliberately unresolved. Complete task 0003 preserves the
+  current fully-static `PrepareContext` boundary and fails before backend analysis when it cannot
+  project exact geometry.
+- A zero-node pass-through graph cannot currently obtain byte geometry from a backend analysis.
+  Task 0003 fails closed on a requested value with no prepared buffer assignment instead of
+  inventing a shared allocation rule.
 - The smallest opaque candidate and artifact-lifecycle boundary waits for stable compiler,
   planning, backend, engine, and persistence consumers. No Java declaration or file format is
   selected here.
@@ -159,6 +169,15 @@ example, nine-file Markdown validation, exact public/package-private shape, mech
 - `PreparedPartition` retains only the exact planned partition and finalized executable.
   Complete Runtime 0005 establishes that list position plus `PreparedExecutable` is sufficient;
   no distinct `PreparedUnit` is planned for current scheduling.
+- Prepare 0003 uses one explicit `PreparedScheduleAssembler` after complete backend finalization.
+  It is a Prepare-owned recipe-construction seam supplied by future composition wiring, not a
+  backend-facing Compiler leak, global registry, discovery mechanism, or Runtime concern.
+- Prepare 0003 validates bindable-input, execution, representation-coordinate, and publication
+  coverage before returning the exact Runtime `PreparedExecution`; concrete backends still own
+  creators, transfers, executables, and their physical compatibility.
+- Compile-time logical splats use the task-0003 `InitializedBuffer` origin: the backend creator
+  materializes a fresh run-owned representation and Runtime records only that its contents start
+  valid. Runtime receives no `ScalarValue`, graph value, or backend identity.
 
 ## Risks
 
@@ -167,6 +186,8 @@ example, nine-file Markdown validation, exact public/package-private shape, mech
   registry.
 - Hiding a Compiler dependency inside a nominally Prepare-owned backend collaboration.
 - Letting finalization change route choice or add resources after slot assignment.
+- Letting the schedule assembler become a backend registry, tuning extension point, or substitute
+  for Prepare-owned complete-result validation.
 
 ## Notes
 

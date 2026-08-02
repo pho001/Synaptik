@@ -6,8 +6,9 @@ This reference explains the implemented Runtime foundations for prepared-memory 
 reusable representation creation descriptions, one run's physical-representation lifecycle and
 validity, checked binding of backend recipes, ordered scheduling, prepared publication, the
 completed-result lease, the immutable
-prepared-execution root, and the current Prepare-owned handoff that constructs geometry and
-finalizes backend recipes. The current public surface contains:
+prepared-execution root, and the current Prepare-owned orchestration that constructs geometry,
+finalizes backend recipes, validates the complete schedule, and returns that root. The current
+public surface contains:
 
 - `runtime.memory`: `BufferSlot`, `WorkspaceSlot`, and `PreparedMemoryPlan` with its nested
   `BufferEntry` and `WorkspaceEntry` records;
@@ -27,9 +28,10 @@ The geometry, reusable creation description, package-private all-or-cleaned setu
 residency, explicit per-buffer-copy validity, cold-bound invocation and transfer contracts,
 creation, execution, transfer, and dense publication-suffix schedule recipes, the whole-state
 result lease, two-component prepared-execution aggregate,
-Prepare-owned resource assignments, typed backend finalization, and `PreparedPartition`
-association are current. Concrete physical allocation and storage access, public result-value
-access and public Prepare orchestration remain planned. No production concrete backend currently
+Prepare-owned resource assignments, typed backend finalization, `PreparedPartition`, and complete
+graph preparation are current. Concrete physical allocation and storage access, public
+result-value access, Engine lifecycle composition, and production schedule assembly remain
+planned. No production concrete backend currently
 implements the creation,
 finalization, or execution contracts.
 
@@ -60,9 +62,11 @@ current                  current                      current
 
 Read the flow from logical source facts toward invocation state. Prepare exposes exact buffer and
 workspace requirements through `BackendPartitionAnalysis`, then its current package-internal
-handoff retains source-to-slot associations and constructs the Runtime geometry. Current
-`PreparedRepresentationPlan` describes borrowed inputs and concrete-backend creators in that
-geometry's encounter order. Package-private cold setup validates all caller inputs, creates
+handoff retains source-to-slot associations and constructs the Runtime geometry. Public
+`GraphPreparation.prepare(...)` coordinates that handoff and validates one explicitly supplied
+schedule recipe before returning `PreparedExecution`. Current `PreparedRepresentationPlan`
+describes borrowed inputs and concrete-backend creators in that geometry's encounter order.
+Package-private cold setup validates all caller inputs, creates
 run-owned buffers and workspaces, and constructs one `RunState`. A current `PreparedExecutable`
 selects those resident representations by dense position, checks backend
 compatibility during cold binding, and creates a per-run `BoundInvocation`. A current
@@ -196,10 +200,11 @@ representations, while a workspace position has exactly one representation.
 Every bound representation is structurally resident until the state closes: the exact physical
 object exists and remains bound to that run. Each buffer representation also has one independent
 validity bit. A borrowed buffer starts valid because it is a caller input containing the logical
-slot value; a run-owned buffer starts invalid because fresh storage does not yet contain that
-value. Zero, one, or multiple copies may be valid. Workspaces are resident run-owned scratch and
-have no logical validity. The same representation object cannot occur twice anywhere in one
-state, including across buffer and workspace domains.
+slot value. An ordinary created buffer starts invalid; an initialized buffer starts valid because
+its backend creator has already materialized the correct logical value. Zero, one, or multiple
+copies may be valid. Workspaces are resident run-owned scratch and have no logical validity. The
+same representation object cannot occur twice anywhere in one state, including across buffer and
+workspace domains.
 
 `isBufferRepresentationValid(bufferIndex, representationIndex)` reads one bit in constant time.
 `setBufferRepresentationValid(bufferIndex, representationIndex, valid)` writes exactly one bit in
@@ -290,7 +295,7 @@ that line. After both `close()` calls, `borrowedCloses.get()` is `0`, while
 `ownedCloses.get()` and `workspaceCloses.get()` are each `1`.
 
 The package-private cold setup used by `PreparedExecutionRunner` invokes the same immutable creator
-references and construct this state with rollback. Because that operation is intentionally not a
+references and constructs this state with rollback. Because that operation is intentionally not a
 public facade, this current public example stages the successful callback results directly before
 calling the public constructor. It demonstrates prepared origins, initial validity, explicit
 mutation, workspace exclusion, and ownership-sensitive idempotent cleanup. It does not implement
@@ -299,11 +304,15 @@ a runner, physical copy, kernel, or automatic validity transition.
 ## Current prepared representation creation
 
 `PreparedRepresentationPlan` retains the exact `PreparedMemoryPlan`, immutable snapshots of both
-buffer-list levels, and an immutable workspace-creator list. Each buffer preparation is either a
-zero-component `CallerInput` occurrence or `CreatedBuffer(BufferCreator)`. Dense caller-input
-encounter order is buffer position first and representation position second. Each workspace
-position has one `WorkspaceCreator`. Callback implementations must be immutable and thread-safe,
-and each successful call must return a fresh non-null representation for that run.
+buffer-list levels, and an immutable workspace-creator list. Each buffer preparation is a
+zero-component `CallerInput`, a `CreatedBuffer(BufferCreator)` whose new representation starts
+invalid, or an `InitializedBuffer(BufferCreator)` whose new representation starts valid. The two
+created variants use the same creator ownership, encounter order, identity, rollback, and cleanup
+rules. Runtime does not know which graph value or scalar an initialized creator materializes.
+Dense caller-input encounter order is buffer position first and representation position second.
+Each workspace position has one `WorkspaceCreator`. Callback implementations must be immutable
+and thread-safe, and each successful call must return a fresh non-null representation for that
+run.
 
 The package-private `RunStateCreation` operation validates the complete caller count, non-null
 elements, and caller identity uniqueness before invoking any callback. It then creates buffers in
@@ -809,10 +818,11 @@ If the selected copy were invalid, `publish()` would fail with
 `IllegalStateException("published buffer representation is invalid")`. It would not choose
 another copy or create a partial result. The owner of the still-open state would then close it.
 
-## Current Prepare assignment and backend finalization
+## Current Prepare orchestration, assignment, and backend finalization
 
-The public root of `io.github.pho001.synaptik.prepare` now contains four contracts that bridge
-analysis declarations to current Runtime recipes:
+The public root of `io.github.pho001.synaptik.prepare` contains the finalization contracts and the
+complete graph-preparation operation that bridge analysis declarations to current Runtime
+recipes:
 
 - `PreparationResourceAssignment.Buffer` and `.Workspace` retain one exact analysis requirement,
   its exact assigned slot, and the dense index of that slot's entry in `PreparedMemoryPlan`;
@@ -821,6 +831,14 @@ analysis declarations to current Runtime recipes:
 - `BackendPartitionFinalizer<P>` is implemented by the owning concrete backend to construct one
   immutable `PreparedExecutable` recipe after assignment; and
 - `PreparedPartition` retains the exact `PlannedPartition` and finalized executable references.
+
+`PartitionPreparation<I,P>` positionally associates backend inputs, a typed preparer, and its
+matching finalizer. `GraphPreparation.prepare(...)` accepts one complete `CompileArtifacts`, one
+such value per planned partition, and one explicit `PreparedScheduleAssembler`. It constructs all
+partition contexts before analysis, invokes each preparer and finalizer once in partition order,
+then gives the assembler one immutable `PreparedScheduleContext`. That context retains the exact
+artifacts, shared memory plan, prepared partitions, and `PreparedBufferAssignment` values that
+map graph `ValueId` values to dense Runtime buffer positions.
 
 The package-internal complete-set handoff validates expected partition coverage, exact projected
 source references, and backend ownership before assignment. It traverses partitions and
@@ -835,8 +853,19 @@ plan object. Finalization may construct immutable Java recipe state only under t
 contract. It does not allocate physical resources, acquire a closeable prepared resource, create
 a `RunState`, bind or execute an invocation, or create a schedule.
 
-The complete-set operation and its batch result remain package-private. There is no public
-Prepare orchestration facade, production backend finalizer, or end-to-end consumer yet.
+The complete-set operation and its batch result remain package-private behind
+`GraphPreparation`. The assembler returns a reusable recipe only. Prepare validates exact plan
+identity, caller-input order, constant initialization, executable coverage and order,
+representation coordinates, and ordered forward-then-gradient publication before returning
+`PreparedExecution`. A compile-time constant source must use at least one `InitializedBuffer` and
+no caller-input occurrence; an initialized representation is rejected for a nonconstant value.
+Repeated gradient values and forward/gradient aliases remain separate publication occurrences
+over the same assigned buffer.
+
+Graph preparation performs no physical allocation, creator invocation, binding, execution,
+transfer, publication, or cleanup. It contains the Compiler aggregate only in shared Prepare;
+concrete backend-facing `PrepareContext` values remain Compiler-free. Engine still owns future
+composition of production backend implementations and an actual schedule assembler.
 
 ## Current aggregate and run orchestration
 

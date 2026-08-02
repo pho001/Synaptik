@@ -17,6 +17,7 @@ import io.github.pho001.synaptik.runtime.resource.PreparedRepresentationPlan;
 import io.github.pho001.synaptik.runtime.resource.PreparedRepresentationPlan.BufferPreparation;
 import io.github.pho001.synaptik.runtime.resource.PreparedRepresentationPlan.CallerInput;
 import io.github.pho001.synaptik.runtime.resource.PreparedRepresentationPlan.CreatedBuffer;
+import io.github.pho001.synaptik.runtime.resource.PreparedRepresentationPlan.InitializedBuffer;
 import io.github.pho001.synaptik.runtime.resource.WorkspaceRepresentation;
 import java.io.InputStream;
 import java.lang.reflect.Method;
@@ -52,13 +53,16 @@ class RunStateCreationTest {
                                 BufferPreparation.class,
                                 CallerInput.class,
                                 CreatedBuffer.class,
+                                InitializedBuffer.class,
                                 PreparedRepresentationPlan.WorkspaceCreator.class),
                         Arrays.stream(planType.getDeclaredClasses())
                                 .sorted((left, right) -> left.getSimpleName().compareTo(right.getSimpleName()))
                                 .toList()),
                 () -> assertTrue(BufferPreparation.class.isSealed()),
                 () -> assertArrayEquals(
-                        new Class<?>[] {CallerInput.class, CreatedBuffer.class},
+                        new Class<?>[] {
+                            CallerInput.class, CreatedBuffer.class, InitializedBuffer.class
+                        },
                         BufferPreparation.class.getPermittedSubclasses()),
                 () -> assertTrue(
                         PreparedRepresentationPlan.BufferCreator.class.isAnnotationPresent(
@@ -184,6 +188,10 @@ class RunStateCreationTest {
                         NullPointerException.class,
                         "creator",
                         () -> new CreatedBuffer(null)),
+                () -> assertFailure(
+                        NullPointerException.class,
+                        "creator",
+                        () -> new InitializedBuffer(null)),
                 () -> assertSame(plan, representationPlan.memoryPlan()),
                 () -> assertEquals(2, representationPlan.bufferPreparations().getFirst().size()),
                 () -> assertSame(created, representationPlan.bufferPreparations().getFirst().get(1)),
@@ -290,6 +298,88 @@ class RunStateCreationTest {
                 () -> assertTrue(state.isBufferRepresentationValid(1, 0)),
                 () -> assertFalse(state.isBufferRepresentationValid(1, 1)),
                 () -> assertSame(workspace0, state.workspaceRepresentation(0)));
+    }
+
+    @Test
+    void initializedBuffersUseOrdinaryCreationOwnershipAndStartValid() {
+        List<String> creationOrder = new ArrayList<>();
+        TrackingBuffer initialized = new TrackingBuffer("initialized", creationOrder, null);
+        TrackingBuffer ordinary = new TrackingBuffer("ordinary", creationOrder, null);
+        PreparedRepresentationPlan plan =
+                new PreparedRepresentationPlan(
+                        memoryPlan(1, 0),
+                        List.of(List.of(
+                                new InitializedBuffer(() -> {
+                                    creationOrder.add("create-initialized");
+                                    return initialized;
+                                }),
+                                new CreatedBuffer(() -> {
+                                    creationOrder.add("create-ordinary");
+                                    return ordinary;
+                                }))),
+                        List.of());
+
+        RunState state = RunStateCreation.create(plan, List.of());
+
+        assertAll(
+                () -> assertEquals(
+                        List.of("create-initialized", "create-ordinary"), creationOrder),
+                () -> assertSame(initialized, state.bufferRepresentation(0, 0).representation()),
+                () -> assertSame(ordinary, state.bufferRepresentation(0, 1).representation()),
+                () -> assertEquals(
+                        RunResourceOwnership.RUN_OWNED,
+                        state.bufferRepresentation(0, 0).ownership()),
+                () -> assertTrue(state.isBufferRepresentationValid(0, 0)),
+                () -> assertFalse(state.isBufferRepresentationValid(0, 1)));
+
+        state.close();
+        assertAll(
+                () -> assertEquals(1, initialized.closeCount),
+                () -> assertEquals(1, ordinary.closeCount),
+                () -> assertEquals(
+                        List.of(
+                                "create-initialized",
+                                "create-ordinary",
+                                "ordinary",
+                                "initialized"),
+                        creationOrder));
+    }
+
+    @Test
+    void initializedBufferFailuresPreserveOrdinaryAliasAndRollbackRules() {
+        List<String> closeOrder = new ArrayList<>();
+        TrackingBuffer first = new TrackingBuffer("first", closeOrder, null);
+        PreparedRepresentationPlan nullResult =
+                new PreparedRepresentationPlan(
+                        memoryPlan(1, 0),
+                        List.of(List.of(
+                                new InitializedBuffer(() -> first),
+                                new InitializedBuffer(() -> null))),
+                        List.of());
+
+        NullPointerException nullFailure = assertThrows(
+                NullPointerException.class,
+                () -> RunStateCreation.create(nullResult, List.of()));
+
+        TrackingBuffer caller = new TrackingBuffer("caller", closeOrder, null);
+        PreparedRepresentationPlan alias =
+                new PreparedRepresentationPlan(
+                        memoryPlan(1, 0),
+                        List.of(List.of(
+                                new CallerInput(), new InitializedBuffer(() -> caller))),
+                        List.of());
+        IllegalArgumentException aliasFailure = assertThrows(
+                IllegalArgumentException.class,
+                () -> RunStateCreation.create(alias, List.of(caller)));
+
+        assertAll(
+                () -> assertEquals(
+                        "bufferPreparations[0][1] creator result", nullFailure.getMessage()),
+                () -> assertEquals(1, first.closeCount),
+                () -> assertEquals(
+                        "representation is already bound to this run", aliasFailure.getMessage()),
+                () -> assertEquals(0, caller.closeCount),
+                () -> assertEquals(List.of("first"), closeOrder));
     }
 
     @Test

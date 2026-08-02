@@ -17,11 +17,12 @@ Compiler orchestration now consumes those three operations and uses the public i
 `FunctionalGradientRequest`, `GradientPublicationBinding`, `DerivativeGraphMetadata`,
 `CompileArtifacts`, `PublicationPlan`, `CompileConstantPlan`, and `CompileDiagnostics` contracts.
 Reusable or public capability matrices, a public graph-wide Planning workflow, public compiler
-entry, physical allocation/access, complete prepare/runtime lifecycles, concrete backend
-integration, and engine APIs remain planned. Prepare analysis contracts and the initial Runtime
+entry, physical allocation/access, concrete backend integration, and engine APIs remain planned.
+Prepare analysis, finalization, and complete graph-preparation contracts plus the initial Runtime
 geometry, prepared representation creation, per-run resource/validity, executable and transfer
 cold-binding, prepared publication and result leasing, and the ordered schedule contracts are
-current but do not form a runnable public lifecycle. The backend
+current but do not form an end-to-end runnable public lifecycle without a concrete backend and
+Engine composition. The backend
 contract also contains an immutable caller-supplied availability snapshot; it is data, not a
 discovery or liveness API. A sealed requirement family can now name one hard eligibility target.
 The current config module can record that hard-target optionality, requested graph scope,
@@ -411,7 +412,8 @@ The public `modules:runtime` surface now contains five focused packages:
   `PreparedMemoryPlan` byte geometry;
 - `runtime.resource` defines the nominal backend-implemented `BufferRepresentation` and
   `WorkspaceRepresentation` cleanup roles plus immutable `PreparedRepresentationPlan` origins,
-  caller-input occurrences, and typed buffer/workspace creators;
+  caller-input occurrences, ordinary and initialized buffer origins, and typed buffer/workspace
+  creators;
 - `runtime.run` defines borrowed/run-owned buffer bindings, the array-backed one-run `RunState`,
   dense-coordinate `PreparedPublication`, per-run `BoundPublication`, the whole-state
   `RunResult` lease, and stateless `PreparedExecutionRunner`; and
@@ -432,10 +434,11 @@ in reverse order if setup fails. The public runner is the narrow composition sea
 it is not an Engine or value facade.
 
 Every representation bound into an open `RunState` is structurally resident until closure. Each
-buffer copy has one independent explicit validity bit: borrowed inputs start valid and newly
-created run-owned buffers start invalid. Workspaces are run-owned scratch without logical
-validity. Query and mutation are constant-time dense-array operations and perform no physical
-copy, backend call, ownership change, or implicit coherence.
+buffer copy has one independent explicit validity bit: borrowed inputs start valid, ordinary
+newly created run-owned buffers start invalid, and initialized run-owned buffers start valid.
+The initialized creator, not Runtime, materializes the logical value. Workspaces are run-owned
+scratch without logical validity. Query and mutation are constant-time dense-array operations and
+perform no physical copy, backend call, ownership change, or implicit coherence.
 
 `PreparedExecutable.bind` requires the exact same `PreparedMemoryPlan` reference as the open
 `RunState`. It resolves selections in supplied order and delegates explicit checked
@@ -488,27 +491,35 @@ schedule order, and either returns the whole-state result lease or closes the st
 The runner is stateless and may serve concurrent calls; each call remains synchronous and owns
 distinct mutable state.
 
-These contracts contain no concrete backend implementation and do not provide public Prepare
-orchestration, physical access, output-value access, or Engine behavior. Creator callbacks leave physical allocation mechanics to
+These contracts contain no concrete backend implementation and do not provide physical access,
+output-value access, or Engine behavior. Creator callbacks leave physical allocation mechanics to
 the implementing backend, and binding owns no auxiliary closeable resource or ownership change.
 See the [Runtime API](runtime-api.md) for creation, validity, scheduling, selection, lifecycle,
 failure, and thread-safety details.
 
-The public `modules:prepare` surface now spans the existing `prepare.analysis` package and four
-root-package finalization contracts. Analysis retains one typed opaque selected plan and exact
+The public `modules:prepare` surface now spans the existing `prepare.analysis` package, four
+root-package finalization contracts, and five complete-graph orchestration declarations.
+Analysis retains one typed opaque selected plan and exact
 buffer/workspace declarations. `PreparationResourceAssignment` associates each exact declaration
 with an assigned Runtime slot and dense plan index. `BackendPartitionFinalization` carries one
 typed analysis, the exact shared `PreparedMemoryPlan`, and assignments in declaration order to a
 `BackendPartitionFinalizer`. `PreparedPartition` retains the exact planned partition and returned
-`PreparedExecutable`.
+`PreparedExecutable`. `PartitionPreparation` keeps each backend's typed inputs, preparer, and
+finalizer positionally associated. `PreparedBufferAssignment` translates one graph `ValueId` to
+its exact `BufferSlot` and dense plan index. `PreparedScheduleContext` exposes the complete
+immutable finalized facts to one explicit `PreparedScheduleAssembler`, and
+`GraphPreparation.prepare(...)` returns the exact validated `PreparedExecution`.
 
 The complete-set operation that validates coverage and source identity, assigns slots, constructs
-the shared memory plan, and invokes finalizers remains package-private. Its current conservative
+the shared memory plan, and invokes finalizers remains package-private behind the public graph
+operation. Its current conservative
 policy shares one buffer slot across declarations of the same `ValueId` using maximum geometry
 and gives every workspace declaration a distinct slot. It performs no physical allocation,
 closeable prepared-resource acquisition, run-state creation, invocation binding/execution,
-schedule construction, transfer, residency, materialization, or publication. No public Prepare
-orchestration facade or production concrete backend implementation exists yet.
+transfer, residency, materialization, or publication. The supplied assembler constructs an
+immutable schedule recipe once; Prepare validates exact source, execution, coordinate, and
+publication coverage before constructing the prepared root. No production concrete backend or
+Engine composition exists yet.
 
 ## Planned public lifecycle
 

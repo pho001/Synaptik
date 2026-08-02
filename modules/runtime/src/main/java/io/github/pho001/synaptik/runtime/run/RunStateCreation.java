@@ -4,6 +4,7 @@ import io.github.pho001.synaptik.runtime.resource.BufferRepresentation;
 import io.github.pho001.synaptik.runtime.resource.PreparedRepresentationPlan;
 import io.github.pho001.synaptik.runtime.resource.PreparedRepresentationPlan.CallerInput;
 import io.github.pho001.synaptik.runtime.resource.PreparedRepresentationPlan.CreatedBuffer;
+import io.github.pho001.synaptik.runtime.resource.PreparedRepresentationPlan.InitializedBuffer;
 import io.github.pho001.synaptik.runtime.resource.WorkspaceRepresentation;
 import java.util.ArrayList;
 import java.util.List;
@@ -24,8 +25,9 @@ final class RunStateCreation {
      * Creates one run state from a reusable prepared plan and dense caller inputs.
      *
      * <p>Each caller input is retained exactly as borrowed and initially valid. Each creator must
-     * return a fresh non-null identity; created buffers are run-owned and initially invalid, and
-     * created workspaces are run-owned scratch without validity. If callback work, result
+     * return a fresh non-null identity; ordinary created buffers are run-owned and initially
+     * invalid, initialized buffers are run-owned and initially valid, and created workspaces are
+     * run-owned scratch without validity. If callback work, result
      * validation, or final state construction fails, all successfully created results are closed
      * once in reverse creation order. The original unchecked failure is rethrown unchanged and
      * cleanup failures are suppressed on it in cleanup encounter order. Borrowed inputs and a
@@ -108,9 +110,13 @@ final class RunStateCreation {
                                         callerInputs.get(callerInputIndex++),
                                         RunResourceOwnership.BORROWED));
                     } else {
+                        PreparedRepresentationPlan.BufferCreator creator =
+                                preparation instanceof CreatedBuffer created
+                                        ? created.creator()
+                                        : ((InitializedBuffer) preparation).creator();
                         BufferRepresentation representation =
                                 Objects.requireNonNull(
-                                        ((CreatedBuffer) preparation).creator().create(),
+                                        creator.create(),
                                         "bufferPreparations["
                                                 + bufferIndex
                                                 + "]["
@@ -149,8 +155,23 @@ final class RunStateCreation {
                 workspaces.add(representation);
             }
 
-            return new RunState(
+            RunState state = new RunState(
                     representationPlan.memoryPlan(), bufferBindings, workspaces);
+            for (int bufferIndex = 0;
+                    bufferIndex < representationPlan.bufferPreparations().size();
+                    bufferIndex++) {
+                List<PreparedRepresentationPlan.BufferPreparation> preparations =
+                        representationPlan.bufferPreparations().get(bufferIndex);
+                for (int representationIndex = 0;
+                        representationIndex < preparations.size();
+                        representationIndex++) {
+                    if (preparations.get(representationIndex) instanceof InitializedBuffer) {
+                        state.setBufferRepresentationValid(
+                                bufferIndex, representationIndex, true);
+                    }
+                }
+            }
+            return state;
         } catch (RuntimeException | Error failure) {
             rollback(createdRepresentations, createdCount, failure);
             throw failure;

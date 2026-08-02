@@ -15,9 +15,11 @@ publication binding, the whole-`RunState` `RunResult` lease, the immutable two-c
 prepared-execution runner. Prepare
 currently implements the analysis-side projection, opaque marker roles, exact resource
 declarations, analysis result, preparer collaboration, deterministic complete-set slot assignment,
-typed backend finalization input/collaboration, and the minimal prepared-partition association.
+typed backend finalization input/collaboration, the minimal prepared-partition association, exact
+compile projection, explicit schedule assembly, complete schedule validation, and construction of
+the reusable prepared-execution root.
 Physical allocation and access implementations, public output-value access, public Prepare
-orchestration, engine, and production concrete backends remain planned.
+composition through Engine, and production concrete backends remain planned.
 The lifecycle flow therefore mixes current foundations with later stages; each focused section
 states its implementation status.
 [ADR 0011](../design/decisions/0011-per-run-runtime-resource-ownership.md) defines the
@@ -138,8 +140,11 @@ association. Finalization may validate backend-private immutable state and const
 immutable Java recipe state, but it must not change route choice, add an undeclared need, allocate
 physical resources, or acquire a closeable prepared resource under the current contract.
 
-The batch handoff, entry, and result are package-private. Public orchestration that projects
-compile artifacts and selects the complete explicitly registered backend set remains planned.
+The batch handoff, entry, and result remain package-private implementation details. Public
+`GraphPreparation.prepare(...)` now projects compile artifacts, coordinates the complete
+positionally supplied backend collaborations, invokes one explicit schedule assembler, and
+validates the result. It does not select or discover a backend set; future Engine composition
+supplies those collaborators explicitly.
 
 Any dynamic or unresolved Shape currently fails `PrepareContext` construction before backend
 analysis. A future fact may remain run-dynamic only when an explicit prepared contract represents
@@ -171,12 +176,13 @@ snapshot. It permits one optional first-only representation-creation prefix plus
 buffer-transfer occurrences, followed by an optional dense publication-only suffix. Empty,
 executable-only, transfer-only, and zero-publication schedules and repeated pre-publication
 occurrences remain valid. Distinct publication positions may name the same exact representation.
-It has no `PreparedUnit` and invokes no callback, binding, publication, or execution. No current public Prepare orchestration
-constructs or consumes it. The analysis-side and finalization-side Prepare contracts described
-above are also current. `modules/prepare` owns `PrepareContext`,
+It has no `PreparedUnit` and invokes no callback, binding, publication, or execution. Current
+public Prepare orchestration constructs and validates this recipe through one explicitly supplied
+assembler. The analysis-side and finalization-side Prepare contracts described above are also
+current. `modules/prepare` owns `PrepareContext`,
 `BackendPartitionPreparer`, `BackendPartitionAnalysis`, shared resource declarations, current
-assignment and source associations, `PreparedPartition`, and later public orchestration and
-validation. Engine-level composition supplies explicitly registered backend implementations and
+assignment and source associations, `PreparedPartition`, `GraphPreparation`, and complete
+schedule validation. Engine-level composition will supply explicitly registered backend implementations and
 their input facts. Prepare
 does not interpret the backend's opaque route plan.
 
@@ -229,9 +235,11 @@ and exposes direct indexed access. Every supplied workspace is run-owned. Succes
 transfers cleanup responsibility; failed construction transfers nothing and closes nothing.
 
 Each bound representation is structurally resident until closure. One independent boolean per
-buffer copy records logical validity: borrowed caller inputs start valid, created run-owned
-buffers start invalid, zero or multiple copies may be valid, and workspaces remain scratch
-outside logical validity. Query and mutation are explicit constant-time array operations without
+buffer copy records logical validity: borrowed caller inputs start valid, ordinary created
+run-owned buffers start invalid, backend-created initialized buffers start valid, zero or multiple
+copies may be valid, and workspaces remain scratch outside logical validity. The initialized
+origin carries only a backend creator and no graph or scalar fact. Query and mutation are
+explicit constant-time array operations without
 copying, backend work, ownership changes, or implicit coherence.
 
 The package-private cold creation operation validates the complete dense caller-input list before

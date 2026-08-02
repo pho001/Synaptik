@@ -57,7 +57,7 @@ class FinalizationPublicShapeTest {
                         "context", "analysis", "finalizer"),
                 () -> assertRecordComponents(
                         BackendPartitionFinalizationHandoff.Result.class,
-                        "memoryPlan", "partitions"),
+                        "memoryPlan", "partitions", "bufferAssignments"),
                 () -> assertTrue(Arrays.stream(
                                 BackendPartitionFinalizationHandoff.class.getDeclaredMethods())
                         .anyMatch(method -> method.getName().equals("finalizePartitions")

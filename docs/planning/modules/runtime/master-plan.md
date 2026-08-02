@@ -254,8 +254,12 @@ skips, including Runtime's 17 suites/143 tests and architecture's 3 suites/3 tes
 Javadoc and final documentation/scope/status checks passed. That audit selected bounded
 [Runtime 0012](tasks/0012-run-state-shared-throwable-cleanup.md) as the sole executable repair for
 `RUNTIME-CLEANUP-001`; Runtime 0013 and 0014 retained the other two findings as explicit Draft
-follow-ups without detailed specifications. Prepare 0003 remains Draft without a detailed
-specification. Backend Contract remains closed, and module dependency directions are unchanged.
+follow-ups without detailed specifications. Complete
+[Prepare 0003](../prepare/tasks/0003-prepare-orchestration-and-validation.md) is the downstream
+consumer-driven integration task. It narrowly extends the current representation-origin family
+with one backend-created initially-valid buffer for compile-time logical splats while preserving
+all other Runtime contracts and the closed Runtime milestone. Backend Contract remains closed,
+and module dependency directions are unchanged.
 
 Complete [Runtime 0012](tasks/0012-run-state-shared-throwable-cleanup.md) adds the constant-space
 primary-identity guard to both `RunState.close()` cleanup loops and one exact same-`Throwable`
@@ -287,6 +291,9 @@ direct hot subset. The focused suite and final combined checkpoint passed; there
 - Output value access remains a later Engine/result decision rather than an unresolved Runtime
   semantic gap. Prepare orchestration, concrete backend execution, Trace run payloads, Config
   policy, and tuning likewise retain their existing downstream owners.
+- Prepare 0003 owns the only selected post-closure Runtime surface extension: a generic
+  run-owned initialized-buffer origin needed to make non-bindable compiler constant sources
+  runnable. It carries no graph or scalar fact and does not reopen Runtime orchestration.
 
 ## Decisions made
 
@@ -322,6 +329,9 @@ direct hot subset. The focused suite and final combined checkpoint passed; there
 - `PreparedMemoryPlan` and later prepared recipes are immutable and reusable. Every active
   complete logical run has exactly one distinct `RunState`; run-owned mutable resources are
   isolated, while caller inputs may be borrowed under an explicit lifetime obligation.
+- Prepare 0003 adds `InitializedBuffer(BufferCreator)` beside unchanged `CallerInput` and
+  `CreatedBuffer`. Its concrete backend creator materializes the logical value; Runtime records
+  only run ownership and initial validity and remains unaware of `ScalarValue` and `ValueId`.
 - Runtime 0003 uses nominal closeable representation roles and array-indexed state only. Runtime
   0004 owns checked cold binding to backend-owned typed direct-reference invocation objects; full
   validity/residency and transfer associations remain later.

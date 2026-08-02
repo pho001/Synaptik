@@ -109,9 +109,14 @@ final class BackendPartitionFinalizationHandoff {
         }
 
         var bufferEntries = new ArrayList<PreparedMemoryPlan.BufferEntry>(buffers.size());
-        for (BufferAggregate aggregate : buffers.values()) {
+        var bufferAssignments = new ArrayList<PreparedBufferAssignment>(buffers.size());
+        int bufferIndex = 0;
+        for (Map.Entry<ValueId, BufferAggregate> entry : buffers.entrySet()) {
+            BufferAggregate aggregate = entry.getValue();
             bufferEntries.add(new PreparedMemoryPlan.BufferEntry(
                     aggregate.slot, aggregate.byteSize, aggregate.byteAlignment));
+            bufferAssignments.add(new PreparedBufferAssignment(
+                    entry.getKey(), aggregate.slot, bufferIndex++));
         }
         PreparedMemoryPlan memoryPlan = new PreparedMemoryPlan(bufferEntries, workspaceEntries);
 
@@ -132,7 +137,7 @@ final class BackendPartitionFinalizationHandoff {
             }
             preparedPartitions.add(new PreparedPartition(partitions.get(index), executable));
         }
-        return new Result(memoryPlan, preparedPartitions);
+        return new Result(memoryPlan, preparedPartitions, bufferAssignments);
     }
 
     private static void validateEntry(
@@ -243,26 +248,38 @@ final class BackendPartitionFinalizationHandoff {
     }
 
     /**
-     * Returns one shared plan and the immutable ordered prepared-partition associations.
+     * Returns one shared plan, immutable ordered prepared partitions, and logical buffer
+     * associations in first-declaration order.
      *
      * @param memoryPlan exact non-null shared prepared memory plan
      * @param partitions non-null prepared partitions in expected order; elements must be non-null
+     * @param bufferAssignments non-null prepared buffer assignments in memory-plan order
      */
-    record Result(PreparedMemoryPlan memoryPlan, List<PreparedPartition> partitions) {
+    record Result(
+            PreparedMemoryPlan memoryPlan,
+            List<PreparedPartition> partitions,
+            List<PreparedBufferAssignment> bufferAssignments) {
         /**
          * Validates and snapshots a complete handoff result.
          *
          * @param memoryPlan exact non-null plan to retain
          * @param partitions non-null ordered prepared partitions to snapshot
+         * @param bufferAssignments non-null ordered buffer assignments to snapshot
          * @throws NullPointerException if the plan, list, or an element is null
          */
         Result {
             Objects.requireNonNull(memoryPlan, "memoryPlan");
             Objects.requireNonNull(partitions, "partitions");
+            Objects.requireNonNull(bufferAssignments, "bufferAssignments");
             for (int index = 0; index < partitions.size(); index++) {
                 Objects.requireNonNull(partitions.get(index), "partitions[" + index + "]");
             }
+            for (int index = 0; index < bufferAssignments.size(); index++) {
+                Objects.requireNonNull(
+                        bufferAssignments.get(index), "bufferAssignments[" + index + "]");
+            }
             partitions = List.copyOf(partitions);
+            bufferAssignments = List.copyOf(bufferAssignments);
         }
     }
 

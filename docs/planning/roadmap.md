@@ -21,7 +21,7 @@ Parallel work is not the default. It requires an explicit roadmap or master-plan
 | 5 | [`modules/planning`](modules/planning/master-plan.md) | Complete | Stable model/backend identity contracts permit the explicitly bounded capability-query interleave before config scoring is complete. | Ownership, partitioning, scoring, logical memory planning, and the selected contract-closure audit are complete. |
 | 6 | [`modules/runtime`](modules/runtime/master-plan.md) | Complete | Compiler/planning handoff, backend identities, the trace foundation, and ADR 0011's per-run resource ownership/cold-binding decision are stable. | Runtime 0012, 0013, and 0014 resolved the selected cleanup, status, and architecture-enforcement findings; the Runtime closure milestone is complete. |
 | 7 | [`modules/compiler`](modules/compiler/master-plan.md) | Complete | Model, config, planning, backend-contract, and trace contracts are ready for the complete compiler lifecycle; bounded task 0001 may start from the closed model graph/provenance contracts alone. | Compile artifacts, graph transformations, and autograd compilation are complete. |
-| 8 | [`modules/prepare`](modules/prepare/master-plan.md) | In progress (0002 Complete; 0003 Draft) | Compiler/planning artifacts and Runtime 0001 are stable; ADR 0010 authorizes the analysis-first staged handoff. | Shared prepare contracts and validation are complete. |
+| 8 | [`modules/prepare`](modules/prepare/master-plan.md) | Complete | Compiler/planning artifacts and Runtime recipe/runner contracts are stable; ADR 0010 authorizes the analysis-first staged handoff. | Shared prepare contracts and validation are complete. |
 | 9 | [`backends/openblas-provider`](backends/openblas-provider/master-plan.md) | Draft | Native interop conventions needed by the provider are decided. | The low-level provider contract and validation are complete. |
 | 10 | [`backends/cpu`](backends/cpu/master-plan.md) | Draft | Model, config, planning, runtime, prepare, backend-contract, trace, and OpenBLAS contracts are ready. | CPU is a conforming reference backend for the selected capability set. |
 | 11 | [`modules/engine`](modules/engine/master-plan.md) | Draft | Compiler, runtime, prepare, and the CPU backend can be composed. | The public compile, prepare, and run lifecycle works end to end on CPU. |
@@ -88,7 +88,17 @@ is Complete. Its dependency-free architecture suite locks the exact Runtime proj
 requires exhaustive hot/non-hot production-source classification, and rejects Model `Operation`
 or `CompiledNode` in the explicit direct-execution subset. The focused suite and final combined
 checkpoint passed, resolving `ARCHITECTURE-ENFORCEMENT-001`; the Runtime milestone is Complete.
-Prepare 0003 remains Draft without a detailed specification.
+[Prepare 0003 Prepare orchestration and validation](modules/prepare/tasks/0003-prepare-orchestration-and-validation.md)
+is Complete. It closes the shared layer by
+projecting exact partition contexts, coordinating typed backend analysis and finalization,
+assembling one complete Runtime schedule, validating source/execution/publication coverage, and
+returning one exact `PreparedExecution`. Its only Runtime extension is a generic backend-created
+initially-valid buffer origin for non-bindable logical splats; Runtime receives no graph or scalar
+fact. It adds no concrete backend, discovery, Engine facade, physical work in Prepare, execution,
+tuning, or dynamic binding.
+
+The Prepare milestone is therefore closed. The next ordered project area is the Draft OpenBLAS
+provider foundation; no detailed OpenBLAS task specification is created by Prepare 0003.
 
 Runtime 0009's focused command passed 4 suites and 32 tests, and its single final Runtime command
 passed 16 suites and 130 tests, with no failures, errors, or skips. Clean documentation context
@@ -180,6 +190,19 @@ repeating the successful tests. Prepare Javadoc, the Java 26 finalizer example, 
 Markdown validation, exact API shape/mechanisms, exact 18-path scope, unchanged boundaries,
 status, and whitespace gates passed.
 
+Detailed
+[Prepare 0003 Prepare orchestration and validation](modules/prepare/tasks/0003-prepare-orchestration-and-validation.md)
+is Complete. It retains Compiler aggregates only inside shared
+Prepare, keeps concrete backend-facing contexts Compiler-free, reuses task 0002 assignment and
+finalization, and introduces one explicitly supplied Prepare-owned schedule assembler after the
+complete prepared-partition set exists. Prepare then validates bindable-input order, exact
+executable coverage, representation coordinates, and ordered forward/gradient publication before
+constructing `PreparedExecution`. A narrow `InitializedBuffer(BufferCreator)` Runtime variant
+lets a backend materialize a compiler logical splat into fresh run-owned initially-valid storage
+without exposing `ScalarValue` to Runtime. The selected boundary fails closed for dynamic Shapes
+and zero-node requested values without declared buffer geometry rather than inventing binding or
+allocation policy.
+
 Runtime 0002 keeps Runtime independent of Prepare and Model. It adds the nominally distinct
 plan-local `WorkspaceSlot` plus immutable final per-`BufferSlot` and per-`WorkspaceSlot` byte-size
 and alignment entries in `PreparedMemoryPlan`. The plan preserves supplied deterministic order
@@ -268,9 +291,9 @@ Runtime 0008 keeps `PreparedExecution` unchanged and adds no runner/traversal, e
 invalidation, publication/result, Prepare orchestration, concrete backend, config/tuning/tracing,
 or coherence policy. Runtime 0009–0014 are Complete. Runtime 0011 remains its unchanged historical
 `BLOCKING_GAP` verdict, while Runtime 0012–0014 resolved its three selected findings and closed the
-Runtime milestone. Prepare 0003 remains Draft without a detailed specification. Backend Contract
-remains Complete and closed. Module dependency directions are unchanged; the Runtime architecture
-tests enforce existing rules rather than changing them.
+Runtime milestone. Prepare 0003 is Complete and closes the Prepare milestone. Backend
+Contract remains Complete and closed. Module dependency directions are unchanged; the Runtime
+architecture tests enforce existing rules rather than changing them.
 
 Runtime 0008's focused command passed three suites and 31 tests, and its single final Runtime
 module command passed 13 suites and 113 tests, with no failures, errors, or skips. The separate

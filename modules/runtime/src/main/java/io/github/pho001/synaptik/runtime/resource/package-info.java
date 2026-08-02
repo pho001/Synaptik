@@ -9,8 +9,9 @@
  * non-throw-declared cleanup through {@link java.lang.AutoCloseable#close()}.
  * {@link io.github.pho001.synaptik.runtime.resource.PreparedRepresentationPlan} associates dense
  * prepared buffer positions with borrowed caller-input occurrences or backend-owned creation
- * callbacks and associates each workspace position with a backend-owned creator. The immutable
- * plan invokes no callback and owns no physical representation.
+ * callbacks for initially invalid or already-initialized run-owned representations, and
+ * associates each workspace position with a backend-owned creator. The immutable plan invokes no
+ * callback and owns no physical representation, graph value, or compile-time scalar.
  *
  * <p>This package provides no physical storage implementation and no allocation, access,
  * transfer, backend/device key, coherence, publication, pooling, or discovery mechanism.

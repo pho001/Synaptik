@@ -33,7 +33,8 @@ public record PreparedRepresentationPlan(
      * Creates an immutable representation-creation description.
      *
      * <p>Validation completes without invoking any creator. The plan accepts any non-empty mix of
-     * caller-input and created-buffer preparations at each prepared buffer position.
+     * caller-input, created-buffer, and initialized-buffer preparations at each prepared buffer
+     * position.
      *
      * @param memoryPlan the exact non-null prepared memory plan to retain; never copied
      * @param bufferPreparations the non-null plan-ordered buffer preparations to snapshot at both
@@ -103,7 +104,8 @@ public record PreparedRepresentationPlan(
      * run-owned representation. It carries no physical representation, validity bit, transfer
      * route, graph identity, backend lookup, or creation method shared by both variants.
      */
-    public sealed interface BufferPreparation permits CallerInput, CreatedBuffer {}
+    public sealed interface BufferPreparation
+            permits CallerInput, CreatedBuffer, InitializedBuffer {}
 
     /**
      * Identifies one borrowed caller-input occurrence in dense encounter order.
@@ -137,6 +139,28 @@ public record PreparedRepresentationPlan(
          * @throws NullPointerException if {@code creator} is {@code null}
          */
         public CreatedBuffer {
+            Objects.requireNonNull(creator, "creator");
+        }
+    }
+
+    /**
+     * Identifies one run-owned representation created with its logical buffer value initialized.
+     *
+     * <p>The retained backend creator is invoked during cold run setup under the same ordering,
+     * identity, ownership, failure, rollback, and cleanup rules as {@link CreatedBuffer}. A
+     * successful result differs only by starting logically valid. The record carries no graph,
+     * scalar, value, or backend identity and construction never invokes the creator.</p>
+     *
+     * @param creator the non-null immutable thread-safe backend creator retained exactly
+     */
+    public record InitializedBuffer(BufferCreator creator) implements BufferPreparation {
+        /**
+         * Retains one non-null backend creator without invoking it.
+         *
+         * @param creator the creator to retain exactly
+         * @throws NullPointerException if {@code creator} is null
+         */
+        public InitializedBuffer {
             Objects.requireNonNull(creator, "creator");
         }
     }
