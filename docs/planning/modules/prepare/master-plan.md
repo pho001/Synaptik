@@ -38,6 +38,9 @@ Define and validate the shared transition from immutable compile artifacts to pr
   revise the selected route or declarations.
 - Shared prepare exposes complete candidates opaquely and does not interpret private backend
   fields.
+- Concrete backend analysis owns route and representation requirements together. Shared Prepare
+  assigns and reconciles stable slots plus explicit materializations across the complete prepared
+  uses without interpreting concrete storage classes or route vocabulary.
 - Compatible cache hits and safe heuristics can prepare correct work without a tuning search.
 - Model-autotuning results become explicit prepared or cache state before runtime, never hidden
   global state.
@@ -77,6 +80,7 @@ target/backend capabilities, configuration, and compatible cached decisions. It 
 | 0001 | [Backend partition analysis and resource declaration](tasks/0001-backend-partition-analysis-and-resource-declaration.md) | Complete | Compiler 0006; Planning 0006; Runtime 0001; ADR 0010 | Defines the analysis-side Prepare projection, typed backend analyzer, opaque selected plan, and exact buffer/workspace declarations without assigning slots or finalizing executables. |
 | 0002 | [Backend partition finalization handoff](tasks/0002-backend-partition-finalization-handoff.md) | Complete | 0001; Runtime 0002–0004 | Assigns deterministic conservative shared slots across the complete ordered analyses, retains exact source associations, and finalizes each typed backend plan into the minimal prepared partition/executable association. |
 | 0003 | [Prepare orchestration and validation](tasks/0003-prepare-orchestration-and-validation.md) | Complete | 0001–0002; Compiler 0006; Planning 0006; Runtime 0002–0014 | Composes exact compile projection, typed backend analysis/finalization, initialized constant representations, prepared-memory assignment, complete schedule assembly/validation, and final prepared execution without concrete backend logic. |
+| 0004 | Opaque backend-candidate and tuning-artifact handoff | Draft | 0001–0003; at least one concrete backend typed-candidate producer; stable tuning-artifact compatibility | Expose complete backend candidates per occurrence or partition opaquely, pass compatible tuning-cache decisions into deterministic analysis, and preserve backend-owned filtering/selection without interpreting route, generated-artifact, storage, or vendor fields. |
 
 ## Milestones
 
@@ -133,6 +137,11 @@ executable Java or repeating the successful tests. Prepare Javadoc, the Java 26 
 example, nine-file Markdown validation, exact public/package-private shape, mechanism, exact
 18-path scope, unchanged architecture/build boundaries, status, and whitespace gates passed.
 
+Future task 0004 remains Draft without a detailed specification. It does not reopen the completed
+Prepare project area, alter tasks 0001–0003, or replace CPU as the next global frontier. It is a
+deferred bounded interleave only after a concrete CPU typed-candidate producer and tuning-artifact
+consumer stabilize; until then it cannot become Ready.
+
 ## Open questions
 
 - Dynamic dimension binding remains deliberately unresolved. Complete task 0003 preserves the
@@ -144,6 +153,14 @@ example, nine-file Markdown validation, exact public/package-private shape, mech
 - The smallest opaque candidate and artifact-lifecycle boundary waits for stable compiler,
   planning, backend, engine, and persistence consumers. No Java declaration or file format is
   selected here.
+- The future handoff must carry complete typed candidates for the exact operation occurrence or
+  partition and workload. Concrete backend analysis filters platform/provider availability,
+  operation attributes, data type, `Shape`, layout, numerical/determinism compatibility, and
+  resource validity before performance selection. Shared Prepare never imposes one global vendor
+  priority or interprets provider names.
+- The next detailed CPU task must define exact native buffer representation, lifetime, alignment,
+  and materialization declarations before shared Prepare can finalize their concrete handoff. This
+  plan records no Java shape or implemented allocation policy in advance.
 
 ## Decisions made
 
@@ -163,6 +180,27 @@ example, nine-file Markdown validation, exact public/package-private shape, mech
   initial declaration receives a distinct slot.
 - Compatible cached tuning decisions are explicit analysis inputs. Analysis performs no search
   or measurement and is deterministic from its complete inputs.
+- CPU analysis may select one exact portable generated specialization opaquely. Only CPU backend
+  finalization after shared slot assignment may consult its bounded generated-artifact cache and
+  generate or define the selected class on a miss. Shared Prepare and Runtime perform no
+  generated-artifact lookup, generation, class definition, or key interpretation.
+- The backend-owned in-memory generated-artifact cache is not the persistent tuning cache carried
+  through the future task-0004 handoff. Tuning chooses a compatible candidate; the CPU artifact
+  cache reuses already generated executable code for that selected candidate.
+- Exact/default numerical semantics filter candidates before call-overhead, safe-heuristic, or
+  compatible-cache comparison. A cached faster candidate cannot override semantic or determinism
+  incompatibility, and current semantics do not authorize relaxed/fast-math vendor routines.
+- A concrete CPU analysis may require the same native-backed `MemorySegment` representation for
+  scalar Java, Vector API, and FFM native routes; route transition alone is not a materialization.
+  It may keep a profitable compatible borrowed heap input as-is, or declare at most one necessary
+  native materialization for an exact selected downstream native route and reuse that
+  representation across compatible consumers. Shared Prepare reconciles those declarations with
+  complete partition uses, assigned slots, and explicit schedule work; Runtime later executes the
+  prepared work and tracks validity and residency.
+- Specialized opaque or prepacked layouts, CPU-to-device transfer, incompatible layout or
+  alignment, and explicit heap export remain valid reasons for distinct representations or
+  materialization. Shared Prepare does not impose a global all-Java/all-native mode or infer that
+  every external input is native.
 - Prepare 0002 assigns buffer slots in first-declaration order across the complete ordered
   analyses, combines repeated value declarations with maximum size/alignment geometry, and
   assigns every workspace declaration its own slot in declaration order.
@@ -188,6 +226,8 @@ example, nine-file Markdown validation, exact public/package-private shape, mech
 - Letting finalization change route choice or add resources after slot assignment.
 - Letting the schedule assembler become a backend registry, tuning extension point, or substitute
   for Prepare-owned complete-result validation.
+- Reinterpreting a route change as an automatic copy or reconciling representation requirements
+  without the complete declared uses and explicit materialization work.
 
 ## Notes
 

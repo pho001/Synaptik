@@ -30,6 +30,8 @@ measures bounded complete plan candidates, and writes explicit persistent artifa
 - planning ownership policy
 - backend lowering, route logic, candidate vocabulary, or kernel implementation
 - hidden global state, Java object serialization, or a generic backend configuration language
+- backend-owned generated-code caching, hidden-class lifetime, class definition, or persistent
+  generated class-byte storage
 
 ## Module invariants
 
@@ -41,6 +43,8 @@ measures bounded complete plan candidates, and writes explicit persistent artifa
 - Cache load precedes measurement; compatible hits are reused, misses may be tuned and atomically
   persisted, and incompatible or corrupt entries fail safely.
 - Rich evidence remains separate from compact cache state.
+- Persistent tuning caches select compatible candidates; they are distinct from a concrete
+  backend's bounded in-memory generated-artifact cache.
 
 ## Allowed dependencies
 
@@ -58,7 +62,7 @@ measures bounded complete plan candidates, and writes explicit persistent artifa
 
 | ID | Task | Status | Depends on | Summary |
 |---|---|---|---|---|
-| 0001 | Model-guided workload tuning and reusable cache | Draft | Stable model/target identity, prepare orchestration, concrete backend typed candidate generators, and artifact compatibility contracts | Extract actual workloads, form canonical signatures, deduplicate with occurrence context, reuse compatible explicit cache hits, measure only misses, and atomically persist compact results while retaining separate rich evidence. |
+| 0001 | Model-guided workload tuning and reusable cache | Draft | Stable model/target identity, Prepare opaque candidate handoff, current exact/default numerical contract or later applicable explicit policy, concrete backend typed candidate generators, and artifact compatibility contracts | Extract actual workloads, form canonical signatures, reject semantically incompatible candidates before measurement, deduplicate with occurrence context, reuse compatible explicit cache hits, measure only misses, and atomically persist compact results while retaining separate rich evidence. |
 | 0002 | Bounded graph and plan tuning | Draft | 0001, compiler graph candidates, planning ownership/partition candidates, complete prepare candidates, and operational engine paths | Measure a budget-bounded set of complete valid candidates end to end, reuse local results without repeating local search, and select an explicit model plan or prepared artifact. |
 | 0003 | Cache and plan inspection | Draft | 0001–0002, stable artifact schemas | Inspect compatibility, provenance summaries, invalidation reasons, selected plans, and separate measurement evidence without executing payloads or mutating runtime state. |
 
@@ -90,6 +94,15 @@ engine, concrete backend candidate, and artifact-lifecycle contracts.
   cache for a target; there is no separate calibration abstraction or profile.
 - Operation family selects a candidate generator but is not a universal cache key. Canonical
   signatures include exact semantic, data, layout, policy, and target-compatibility facts.
+- Concrete backend prepare supplies the complete typed candidates for each operation occurrence
+  or partition and workload. Candidate compatibility includes platform/provider availability,
+  operation attributes, data type, `Shape`, layout, numerical/determinism requirements, and
+  resource validity. Tuning never substitutes one fixed global vendor priority.
+- Exact/default numerical semantics remove incompatible routes before measurement or cache
+  comparison. A future explicit numerical policy is required before any vendor relaxed- or
+  fast-math routine can enter a candidate set.
+- Native-call overhead remains part of workload evidence: a small workload may retain a scalar or
+  JDK Vector API candidate even when a compatible native provider is installed.
 - Compiler, planning, prepare, and concrete backends generate complete valid candidates for their
   own decisions. Tuning coordinates measurement and selection only.
 - Backend candidate generators are typed, version-controlled, tested, and colocated with routes.
@@ -100,6 +113,12 @@ engine, concrete backend candidate, and artifact-lifecycle contracts.
 - Future workload and model-plan artifacts are explicit files with schema and backend candidate-
   schema versions, fingerprints, objective and constraints, and a measurement summary. Loads
   invalidate incompatible data and reject corruption safely; misses may be atomically persisted.
+- A CPU tuning-cache hit selects a compatible route and specialization candidate; it does not
+  contain or substitute for a loaded generated class. CPU backend finalization separately reuses
+  or creates that candidate's executable through the CPU-owned in-memory artifact cache.
+- Persistent generated class bytes are not part of the initial tuning workflow. They remain
+  deferred until strict Synaptik-build, generator-schema, classfile/JDK, Vector API, target,
+  validation, and corruption-handling compatibility is designed by the owning lifecycle.
 
 ## Risks
 

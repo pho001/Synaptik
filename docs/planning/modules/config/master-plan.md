@@ -71,9 +71,10 @@ inventing a public surface now.
 | 0003 | [Partition scoring configuration](tasks/0003-partition-scoring-configuration.md) | Complete | 0001–0002, planning 0001 | Added one optional coarse `DeviceClass` preference as soft input for later comparison of already eligible ownership candidates, without evaluating candidates or choosing ownership. |
 | 0004 | Planning cost-profile contract | Draft | 0001–0003, planning 0001–0003, stable backend-neutral cost classification | Define only immutable backend-neutral estimates required by the concrete ownership-scoring consumer; do not encode backend route or model-autotuning values. |
 | 0005 | Compile configuration aggregate | Draft | 0001–0004 | Compose compile mode, backend intent, optimization, scoring, and any justified planning-cost inputs without compiler orchestration. |
-| 0006 | Prepare and model-autotuning request configuration | Draft | 0005, stable prepare/tuning consumers | Define only the immutable objective, budget, constraints, representative profiles, fallback policy, and explicit-cache inputs required by stable consumers; do not expose backend candidate fields or own search/persistence. |
+| 0006 | Prepare numerical and determinism configuration | Draft | 0005, stable concrete-backend prepare consumer | Define only immutable backend-neutral numerical/determinism requirements needed to filter backend candidates; defaults preserve exact semantics and grant no relaxed/fast-math permission. |
+| 0006A | Model-autotuning request configuration | Draft | 0006, stable prepare/tuning consumers | Define only the immutable objective, budget, constraints, representative profiles, fallback policy, and explicit-cache inputs required by stable consumers; do not expose backend candidate fields or own search/persistence. |
 | 0007 | Run and publication configuration | Draft | 0005 | Define immutable invocation and publication options without runtime state or execution. |
-| 0008 | Configuration contract closure | Draft | 0001–0007 | Audit validation, package/API cohesion, documentation, and dependency boundaries before planning begins. |
+| 0008 | Configuration contract closure | Draft | 0001–0007, including 0006A | Audit validation, package/API cohesion, documentation, and dependency boundaries before planning begins. |
 
 
 ## Milestones
@@ -90,7 +91,7 @@ retired because it conflated planning cost with backend tuning and averaged unre
 Config 0004 is again a Draft row without a detailed specification. It follows a stable planning
 cost consumer and backend-neutral cost classification. Planning task 0003 is Complete, and its
 exact baseline intentionally consumes no cost value or classification. Tasks 0005–0008 remain
-Draft. Planning task 0004 is Complete with maximal consecutive same-owner grouping over completed
+Draft, including inserted task 0006A. Planning task 0004 is Complete with maximal consecutive same-owner grouping over completed
 per-occurrence `BackendId` ownership and the current immutable model graph. It creates no cost-
 bearing consumer. Planning task 0005 is Complete with logical materialization and memory
 requirements derived without numeric cost, element/byte estimates, or profile input. Config 0004
@@ -109,6 +110,9 @@ compile entry, so Config 0004 remains Draft and no config status advances.
   and units before Config 0004 can become Ready.
 - Model-autotuning request inputs wait for stable prepare and tuning consumers. Workload and plan
   cache schemas, measurement evidence, and persistence remain with their lifecycle/tooling owners.
+- Exact/default numerical semantics are the current candidate-eligibility boundary. A future
+  explicit policy must define any relaxed or fast-math permission; Config must not infer that
+  permission from platform, provider availability, workload size, or a performance objective.
 - Exact composition and defaults for compile, prepare, run, and publication aggregates remain for
   their owning tasks.
 
@@ -120,6 +124,9 @@ compile entry, so Config 0004 remains Draft and no config status advances.
   for Compiler-supplied operation occurrences.
 - Hard eligibility, ranking preference, planning cost, model autotuning, benchmarking, and runtime
   profiling are separate concepts.
+- Numerical/determinism compatibility is a hard backend-candidate filter applied before
+  performance selection. Configuration may eventually carry explicit backend-neutral permission,
+  but it never names oneDNN, oneMKL, Accelerate, AOCL, ZenDNN, OpenBLAS, or a backend route.
 - `tools/benchmarks` later produces observational reports from fixed workloads and never selects
   production settings. `tools/tuning` later coordinates one explicit model-autotuning workflow.
   Config stores only immutable request inputs after their consumers exist; it owns no cache or

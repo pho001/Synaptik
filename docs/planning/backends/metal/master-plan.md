@@ -29,6 +29,9 @@ Implement Metal capability, MPSGraph and custom-kernel preparation, storage, nat
 ## Module invariants
 
 - Metal prepare owns lowering and route selection.
+- Planning must select Metal ownership before MPSGraph or a custom Metal kernel can be considered.
+- MPSGraph and custom Metal kernels are exclusive to this backend. CPU never calls them as an
+  internal Apple optimization route.
 - Metal-specific optimizer execution remains in backend prepare or kernels.
 - Metal backend never depends on engine.
 - Metal candidate generators return complete valid route-specific configurations and remain
@@ -54,9 +57,10 @@ Implement Metal capability, MPSGraph and custom-kernel preparation, storage, nat
 
 | ID | Task | Status | Depends on | Summary |
 |---|---|---|---|---|
-| 0001 | Metal capability and native foundation | Draft | Stable shared planning, runtime, prepare, backend-contract, and trace contracts | Establish truthful capability and native lifecycle contracts. |
-| 0002 | Metal prepared execution and routes | Draft | 0001 | Add validated MPSGraph/custom-route lowering, storage, materialization, and execution. |
-| 0003 | Typed Metal route candidate generators and cache compatibility | Draft | 0002, opaque prepare/tuning boundary and artifact versioning | Add colocated typed complete-candidate generation and canonical workload compatibility without exposing Metal knobs to planning or shared parameter bags. |
+| 0001 | Metal capability, storage, and native foundation | Draft | Stable shared planning, runtime, prepare, backend-contract, and trace contracts | Establish truthful Metal capability plus native and resource lifecycle contracts without CPU-owned offload. |
+| 0002 | MPSGraph prepared execution route | Draft | 0001 | Add backend-owned MPSGraph lowering, executable creation, storage/materialization integration, and execution only for Metal-owned partitions. |
+| 0003 | Custom Metal kernel routes | Draft | 0001–0002 | Add validated custom-kernel lowering and execution for eligible Metal-owned work without making custom kernels a CPU route. |
+| 0004 | Typed Metal route candidate generators and cache compatibility | Draft | 0002–0003, opaque prepare/tuning boundary and artifact versioning | Add colocated typed complete-candidate generation and canonical workload compatibility without exposing Metal knobs to planning or shared parameter bags. |
 
 
 ## Milestones
@@ -82,6 +86,9 @@ This backend is not yet planned in detail. Detailed task specifications will be 
 - Legacy code is capability evidence only; new implementation is written from scratch.
 - Operation family selects the appropriate Metal candidate generator but is not a universal cache
   key. Model tuning may compare complete plans while Metal retains route and lowering ownership.
+- Apple CPU acceleration through Accelerate belongs to the CPU backend. MPSGraph and custom Metal
+  kernels remain here and are available only after Planning selects `owner = Metal`; CPU does not
+  fall through or offload to this backend internally.
 
 ## Risks
 

@@ -149,6 +149,100 @@ whitespace checks without rerunning Java. Task 0003, the provider milestone, and
 project area are Complete; CPU is the next Draft planning frontier without a detailed task
 specification.
 
+The selected CPU target strategy remains Draft planning only. Subject to the architecture
+prerequisite below, Java 26 `java.lang.classfile.CodeBuilder` is the primary generator for all
+portable CPU computation kernels. Portable execution has exactly scalar single-thread, scalar
+parallel, Vector API single-thread, and Vector API parallel modes. Every currently selected
+executable Model semantic must gain truthful portable generated coverage before the portable CPU
+milestone closes; metadata-only or zero-work view occurrences need no generated computation, and
+unsupported executable work fails closed and is not advertised. OpenBLAS is an optional portable
+native route only for supported BLAS-compatible linear algebra, never a universal fallback.
+Intel work keeps oneMKL BLAS/VML standalone routes distinct from oneDNN DNN/ML partition and
+fusion routes. Apple CPU work uses Accelerate BLAS, vDSP, and vForce; MPSGraph and custom Metal
+kernels remain exclusive to the separate Metal backend after Planning selects Metal ownership,
+and BNNS waits for a concrete integration spike or use case. AMD work keeps AOCL-BLAS and
+AOCL-LibM distinct from a later optional ZenDNN DNN-partition route, which also waits for a
+concrete use case. Portable scalar and Vector API routes remain available alongside AOCL-BLAS;
+AOCL-LibM is considered only for eligible sufficiently large vector-math workloads.
+
+Concrete backend analysis, not Planning, generates complete typed candidates for each operation
+occurrence or partition and workload. It filters platform and provider availability, operation
+attributes, data type, `Shape`, layout, exact numerical/determinism compatibility, and resource
+validity before comparing native-call overhead, safe heuristics, or compatible tuning-cache
+evidence. There is no global vendor-priority list, and small workloads may remain on Vector API
+or scalar. Low-level provider layers own ABI and lifetime mechanics only; CPU owns capability
+truth, coordination, route choice, fallback, and tuning. Current exact/default semantics exclude
+vendor relaxed/fast-math candidates until a future explicit numerical policy permits them.
+
+Portable generation uses family-specific typed lowerers plus shared scalar, vector, heap,
+segment, range, tile, partial-reduction, and combine emitters rather than one god generator.
+Operation semantics are lowered once across heap/native and scalar/vector modes. Each generated
+class is specialized for one exact operation or fused-partition fingerprint and all
+bytecode-relevant type, storage, layout, selected shape, execution-mode, Vector API species,
+unroll/tile/tail, numerical/determinism, and target facts. Runtime identities and addresses are
+excluded, and dimensions remain typed invocation parameters unless baking exact values has a
+selected specialization benefit. Generated hot code performs no heap-base discovery, generic
+type check, route choice, cache lookup, or storage/type/layout/vector/parallel/broadcast/operation
+switch. Shared CPU parallel infrastructure, not generated classes, owns workers and coordination.
+
+CPU storage and execution routes are orthogonal. Run-owned internal CPU buffers will use aligned
+native off-heap `MemorySegment` storage as the canonical interoperable representation, so scalar
+Java, Vector API, and FFM native-provider calls can use the same native segment without a route-
+transition copy. Exact representation, lifetime, alignment, allocation, and cleanup declarations
+remain required work for the next detailed CPU task and are not implemented by this planning
+update. The Model `HostTensorStorage` contract remains unchanged and continues to admit borrowed
+heap-backed and native-backed segments.
+
+Borrowed caller heap inputs may remain heap-backed when profitable and compatible. When an exact
+selected downstream native route requires native memory, CPU preparation plans at most one
+necessary materialization for that representation and reuses it across compatible consumers; a
+preceding Java kernel may instead write directly into the native output. Specialized opaque or
+prepacked layouts, CPU-to-device transfer, incompatible layout or alignment, and explicit heap
+export may still require distinct representations or materialization. This is per-value and use-
+aware planning, not an all-Java versus all-native model mode or a claim that all external data is
+native.
+
+Concrete CPU preparation selects routes and representations jointly over relevant CPU dataflow
+and partition uses. Exact semantics, determinism, data type, `Shape`, layout, alignment, lifetime,
+and provider eligibility are hard filters. Complete valid plan cost then includes kernel time,
+Java/native call overhead, allocation, copies or materialization, packing/reorder work, and
+resource requirements, preventing a locally fastest kernel from forcing a worse transition plan.
+Compile and Planning remain logical and backend-neutral; shared Prepare assigns and reconciles
+slots and explicit materializations, while Runtime executes the prepared schedule and tracks
+validity and residency.
+
+CPU analysis selects a complete valid route, representation, specialization, and prepared
+parallel configuration. CPU finalization, only after shared slot assignment, uses a bounded
+concurrent single-flight in-memory generated-artifact cache and generates/defines the selected
+hidden class on a miss. Cache keys include the generator schema/version and every bytecode or
+compatibility fact, but include thread count or chunk size only when emitted code changes. Cache
+values retain the hidden-class lifetime, typed entry point, and accumulated JVM/JIT profile while
+cached or reachable from prepared execution; eviction plus loss of all references permits
+unloading. Runtime invokes only the cold-bound typed entry point and performs no cache lookup.
+
+The generated-artifact cache is separate from the persistent tuning cache: tuning selects a
+candidate, while the artifact cache reuses executable code. Initial generated artifacts are
+memory-only. Persistent class bytes remain deferred until strict build, generator-schema,
+classfile/JDK, Vector API, target, validation, and corruption-handling compatibility is designed.
+
+Planning still chooses backend ownership, including CPU versus Metal; concrete backend prepare
+still owns implementation routes; and OpenBLAS remains a leaf. However, the authoritative
+contract currently names `CPU ASM`, `docs/architecture/module-boundaries.md` repeats that wording,
+and `ARCHITECTURE.md` gates bytecode-generated CPU kernels on an architecture update. This
+planning-only change does not edit or reinterpret those authorities and does not call
+`CodeBuilder` ASM. Before CPU task 0002 or any generated-kernel implementation task can become
+Ready, a separate authorized architecture synchronization must replace the ASM-specific wording
+with an implementation-neutral generated JVM bytecode route and assess whether an architecture
+decision record or architecture-test update is required.
+
+The refined CPU, Config, Prepare, Metal, and tuning rows remain Draft, no detailed task
+specification is created, and no task becomes Ready. Completed OpenBLAS history and every
+completed project area remain unchanged.
+
+CPU remains the next global implementation frontier. Prepare 0004 is only a deferred bounded
+interleave after a concrete CPU typed-candidate producer and tuning-artifact consumer exist; it
+does not reopen or reorder the completed Prepare project area.
+
 Runtime 0009's focused command passed 4 suites and 32 tests, and its single final Runtime command
 passed 16 suites and 130 tests, with no failures, errors, or skips. Clean documentation context
 `019fbe69-07e8-7a20-b132-c3b70c663d4d` finalized the affected Javadocs, Runtime/Public APIs,
