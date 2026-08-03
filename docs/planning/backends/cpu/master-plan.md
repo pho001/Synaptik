@@ -102,7 +102,7 @@ SIMD routes, optional native routes, storage, workspace, and execution.
 
 | ID | Task | Status | Depends on | Summary |
 |---|---|---|---|---|
-| 0001 | CPU capability, representation, binding, and parallel foundation | Draft | Stable planning, runtime, prepare, backend-contract, and trace contracts | Establish truthful fail-closed capability; canonical aligned native internal buffers; heap, native, and mixed representation binding; direct typed invocation; and shared worker/chunk/cancellation/failure infrastructure without executable semantic coverage claims. |
+| 0001 | [CPU capability, representation, binding, and parallel foundation](tasks/0001-cpu-capability-representation-binding-and-parallel-foundation.md) | Complete | Stable planning, runtime, prepare, backend-contract, and trace contracts | Established truthful fail-closed capability; canonical aligned native internal buffers; typed-array, exact-segment, and mixed binding; direct typed invocation; and shared worker/chunk/cancellation/failure infrastructure without executable semantic coverage claims. |
 | 0002 | Portable Class-File API generator foundation | Draft | 0001; separate authorized architecture synchronization; Java 26 Class-File and Vector API toolchain | Establish generator schema/versioning, exact typed specialization descriptors, family-specific lowerer contracts, shared scalar/vector/heap/segment/range/tile/reduction emitters, hidden-class definition, and the exact four-mode execution matrix without a god generator. |
 | 0003 | Bounded generated-artifact cache and cold finalization | Draft | 0002; stable CPU finalization and artifact compatibility | Add the CPU-owned bounded concurrent single-flight in-memory cache, deterministic complete key equality, hidden-class and typed-entry lifetime retention, and miss-only generation/definition during backend finalization after slot assignment. |
 | 0004 | Typed portable analysis, specialization, and finalization | Draft | 0001–0003 | Generate complete typed portable candidates per operation occurrence or fused partition; select one valid route, representation, specialization, execution mode, and parallel configuration after exact compatibility and full transition-cost filtering; and cold-bind the finalized typed entry point. |
@@ -129,9 +129,14 @@ SIMD routes, optional native routes, storage, workspace, and execution.
 
 ## Current status
 
-Draft at the selected target-strategy level. No task is Ready and no detailed task specification
-exists. A separate planning step must refine only task 0001 when implementation begins; later rows
-remain Draft.
+Task 0001 is Complete through its sole detailed CPU
+[capability, representation, binding, and parallel foundation](tasks/0001-cpu-capability-representation-binding-and-parallel-foundation.md)
+specification. It introduces one truthful provider with stable `cpu` identity and no advertised
+operation semantics, package-private aligned native representation and typed cold-binding
+infrastructure, and a package-private bounded worker/range foundation. It does not add a CPU
+preparer, executable semantic coverage, a route, generated code, OpenBLAS integration, or another
+module change. Task 0002 is the next Draft frontier; tasks 0002–0016 remain Draft without detailed
+specifications.
 
 Before task 0002 or any generated-kernel implementation task can become Ready, a separate
 authorized architecture synchronization must replace the current ASM-specific wording in
@@ -152,9 +157,10 @@ the Class-File API direction remains selected non-authoritative planning only.
   concrete integration spike or use case establishes scope and advantage.
 - A future explicit numerical-policy contract must define any relaxed/fast-math permission before
   such a vendor candidate can become eligible. Current exact/default semantics admit none.
-- Task 0001 must declare the exact native `MemorySegment` representation, allocation alignment,
-  lifetime owner, cleanup, and binding contracts before it can become Ready. This master plan
-  records the strategy only and does not select those details early.
+- Task 0001 implements the exact native `MemorySegment` representation, shared-arena ownership,
+  zero-size/alignment/allocation/cleanup rules, borrowed heap/native cold binding, direct typed
+  invocation seam, and worker lifecycle needed for implementation. Later route-specific
+  representation requirements and materializations still wait for the route-selection tasks.
 - The first generated-kernel task cannot become Ready under the current authoritative `CPU ASM`
   and architecture-update-gated bytecode-generation wording. The prerequisite above must resolve
   that conflict; this planning task does not edit or reinterpret the contract.
@@ -163,6 +169,23 @@ the Class-File API direction remains selected non-authoritative planning only.
 
 - The implementation must follow the current architecture contract.
 - Legacy code is capability evidence only; new implementation is written from scratch.
+- CPU task 0001 exposes only `CpuCapabilityProvider`. Its stable `BackendId("cpu")` is identity,
+  not availability or readiness, and `supports` remains unconditionally false until later tasks
+  deliver and test exact executable semantic coverage.
+- Task 0001 keeps physical representations, typed cold arguments, executable specialization, and
+  worker/range coordination package-private in one CPU execution package. Run-owned internal
+  buffers/workspaces use one shared `Arena` and exact aligned native allocation per
+  representation, including zero-byte geometry; borrowed Model storage remains non-owning.
+- Task 0001 binds each selected representation independently. The six Model data types map to
+  their exact observable primitive-array carriers with retained carrier-relative byte offsets.
+  When the matching carrier is unavailable, `CpuBufferArgument.Segment` retains the exact segment
+  or slice without asserting native provenance; this covers genuine native segments and JDK 26
+  read-only heap segments whose `heapBase()` is empty. Route-specific bound invocations must copy
+  direct typed fields out of cold arrays and perform no storage discovery in the hot call.
+- Task 0001's fixed CPU worker group owns bounded platform workers, deterministic contiguous range
+  geometry, synchronous completion, cooperative range-boundary cancellation, first/suppressed
+  failure propagation, interruption restoration, and idempotent shutdown. It selects no thread
+  count from Config, tuning, or operation semantics.
 - Subject to the recorded architecture prerequisite, Java 26
   `java.lang.classfile.CodeBuilder` is the primary generation mechanism for all portable CPU
   computation kernels. Native vendor providers remain separate optional routes; the generator
@@ -178,8 +201,8 @@ the Class-File API direction remains selected non-authoritative planning only.
   `TensorId`, `NodeId`, `ValueId`, model ID, and run ID are excluded. Exact dimensions are baked
   only when the selected specialization benefit justifies them; otherwise dimensions are typed
   invocation parameters.
-- Cold binding resolves heap primitive carriers or heap-backed segments, native off-heap
-  `MemorySegment` values, and mixed signatures into direct typed entry-point arguments. Generated
+- Cold binding resolves observable heap primitive carriers, exact `MemorySegment` values whose
+  matching carrier is unavailable, and mixed signatures into direct typed entry-point arguments. Generated
   hot code performs no heap-base discovery, generic type check, route choice, cache lookup, or
   storage-kind, data-type, layout, vector, parallel, broadcast, or operation switch.
 - The portable execution matrix is exactly scalar single-thread, scalar parallel, Vector API

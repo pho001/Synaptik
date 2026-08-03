@@ -3,12 +3,16 @@
 ## Outcome and status
 
 This guide defines the CPU integration boundary and helps contributors avoid treating CPU routes
-as separate backends. The CPU backend itself remains a placeholder. The lower-level OpenBLAS
-provider now implements explicit library loading, required-symbol binding, and a caller-owned
-lookup lifetime plus low-level FLOAT32/FLOAT64 dense row-major general matrix multiplication
-(GEMM) and direct positive thread-count query/control. The explicit real-native checkpoint
-launcher is implemented, but this repository state has not run it because no compatible absolute
-OpenBLAS library path was supplied. This does not make the placeholder CPU backend executable.
+as separate backends. The current CPU module implements a truthful fail-closed capability
+provider, run-owned aligned native buffer/workspace representations, exact borrowed-segment cold
+binding, a direct prepared-invocation seam, and bounded worker infrastructure. It advertises and
+executes no Model operation yet.
+
+The lower-level OpenBLAS provider separately implements explicit library loading, required-symbol
+binding, a caller-owned lookup lifetime, low-level FLOAT32/FLOAT64 dense row-major general matrix
+multiplication (GEMM), and direct positive thread-count query/control. Those leaf capabilities do
+not make OpenBLAS a CPU route until a later CPU prepare task supplies truthful eligibility,
+normalization, fallback, and executable integration.
 
 ## Prerequisites and terms
 
@@ -25,9 +29,12 @@ deployment JVM permission for restricted native access.
   caller-owned Java lifetime for one complete lookup and binding set. It exposes mutable native
   thread state without owning a thread-selection policy.
 
-## Ownership mental model and planned scope
+## Ownership mental model and scope
 
-The CPU backend will own capability reporting, partition lowering, specialization, fusion, scalar and optimized routes, executable units, host-side backend storage/workspaces, and typed tracing. Scalar, Vector API, ASM, specialized, fused, and OpenBLAS implementations are routes within one CPU owner.
+The CPU backend owns capability reporting and physical CPU representations. It will later own
+partition lowering, specialization, fusion, scalar and optimized routes, executable units, and
+typed tracing. Scalar, Vector API, ASM, specialized, fused, and OpenBLAS implementations remain
+routes within one CPU owner.
 
 ```text
 planning: owner = CPU
@@ -35,7 +42,45 @@ CPU prepare: choose scalar / Vector API / OpenBLAS / specialized / fused
 runtime: invoke prepared CPU executable
 ```
 
-The low-level OpenBLAS provider owns library loading, symbol binding, GEMM calls, and thread control only. Dependency direction is `backends/cpu -> backends/openblas-provider`.
+The low-level OpenBLAS provider owns library loading, symbol binding, GEMM calls, and thread
+control only. Dependency direction is `backends/cpu -> backends/openblas-provider`.
+
+## Current CPU foundation
+
+`CpuCapabilityProvider` is the only public CPU type. It returns the exact stable
+`BackendId("cpu")` constant and returns `false` for every non-null operation capability query.
+That identity lets Planning refer to CPU consistently; it does not assert availability,
+registration, route readiness, or executable semantic coverage.
+
+The backend-private execution package supplies two physical ownership forms:
+
+- `CpuBorrowedBuffer` retains one exact caller-owned `HostTensorStorage` and segment. Its close is
+  a no-op and it never copies, slices, reinterprets, or closes caller memory.
+- `CpuNativeBuffer` and `CpuNativeWorkspace` each own one exact aligned native segment in a
+  distinct shared arena. They are run-owned, accessible across permitted CPU worker/Foreign
+  Function and Memory (FFM) threads while open, and close their arena at most once.
+
+Cold binding classifies each selected buffer independently and does not materialize bytes. If an
+exact primitive heap carrier is observable and matches the logical data type, the bound argument
+retains that array plus the carrier-relative byte offset and exact byte size. Otherwise the
+`CpuBufferArgument.Segment` form retains the exact selected `MemorySegment` or slice, reports
+`byteOffset() == 0`, and preserves its byte size and read-only state. `Segment` is an access form,
+not a native-provenance claim: genuine native segments use it, and so do heap-backed segments
+whose exact primitive carrier is unavailable. In JDK 26, a read-only heap segment has an empty
+`heapBase()`, so CPU binding keeps that exact read-only segment without copying.
+
+Every binding checks representation kind, liveness, current-thread access, exact byte size,
+writability, logical data type, carrier compatibility when observable, and required alignment.
+Mixed array and exact-segment selections are ordinary ordered inputs and outputs. The later
+route-specific binder receives fresh cold arrays once and must retain the needed direct typed
+fields in its bound invocation. The hot call performs no representation lookup, heap-base
+discovery, type switch, route selection, materialization, or allocation.
+
+The fixed worker group owns daemon platform workers and splits a non-empty half-open range into
+bounded deterministic contiguous ranges. It provides synchronous completion, isolated concurrent
+submissions, cooperative cancellation between ranges, first/suppressed failure propagation,
+interrupt restoration, and idempotent shutdown. It does not select an operation, kernel, route,
+thread count from configuration, or reduction combine policy.
 
 ## Current low-level OpenBLAS foundation
 
@@ -104,9 +149,9 @@ borrowed for the call: the provider does not allocate, copy, retain, reinterpret
 Concurrent calls require caller-managed nonconflicting segment access, and callers must not race
 `close()` with invocation.
 
-This is an invocation boundary, not a CPU route. The future CPU backend must still decide whether
-OpenBLAS is eligible, normalize MATMUL and higher-level operations into this exact geometry,
-materialize transpose or layout conversions, pack when required, allocate and bind storage,
+This is an invocation boundary, not a CPU route. A later CPU prepare implementation must still
+decide whether OpenBLAS is eligible, normalize MATMUL and higher-level operations into this exact
+geometry, materialize transpose or layout conversions, pack when required, allocate and bind storage,
 construct prepared execution, choose and safely coordinate threads, and provide scalar or other
 fallback. Direct provider thread control does not perform any of those CPU decisions.
 
@@ -197,14 +242,16 @@ case, and restores and verifies the captured count in `finally`. It performs no 
 download, packaging, fallback, or environment/property lookup.
 
 The ordinary provider suite passed 5 suites and 50 tests with no skips, failures, or errors using
-deterministic fake handles. No compatible absolute library path was supplied for this change, so
-the real-native checkpoint and the repository/architecture capability checkpoint ordered after
-it were not run. The provider milestone therefore remains in progress.
+deterministic fake handles. The isolated real-native checkpoint subsequently passed against the
+supplied compatible arm64 OpenBLAS 0.3.33 library, including shared thread-count observation,
+fixed SGEMM/DGEMM cases, and restoration of the original thread count. The ordered repository and
+architecture capability checkpoint then passed, and the provider milestone is complete.
 
-No CPU capability, normalization, route threshold, storage/execution path, fallback, backend
-conformance, or performance result is implemented or promised. Ordinary provider tests prove
-Java validation and exact ABI forwarding, not installed-library numerical correctness. The
-native checkpoint, once supplied and passed, proves only its selected binary and fixed cases.
+The current CPU task adds fail-closed capability and storage/binding/worker foundations only. No
+CPU operation capability, normalization, route threshold, operation execution path, fallback,
+backend conformance, or performance result is implemented or promised. Ordinary provider tests
+prove Java validation and exact ABI forwarding, not installed-library numerical correctness. The
+native checkpoint proves only its selected binary and fixed cases.
 Future CPU work must compare optimized routes with a scalar reference through backend-conformance
 tests and keep benchmarks reproducible.
 

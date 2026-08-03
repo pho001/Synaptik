@@ -52,8 +52,10 @@ current [`PreparedBufferTransfer`](#prepared-buffer-transfer--preparedbuffertran
 similarly create [`BoundBufferTransfer`](#bound-buffer-transfer--boundbuffertransfer) actions;
 current [`PreparedPublication`](#prepared-publication--preparedpublication) recipes create
 [`BoundPublication`](#bound-publication--boundpublication) occurrences, and current
-[`RunResult`](#run-result--runresult) leases complete states. No concrete backend implements the
-physical contracts yet.
+[`RunResult`](#run-result--runresult) leases complete states. The CPU backend now supplies its
+first package-private physical buffer/workspace implementations, exact borrowed-segment cold
+binding, direct prepared-invocation seam, and bounded worker foundation, but no CPU operation
+route or executable semantic coverage.
 
 Prepare currently provides the public immutable analysis-side contracts in
 `io.github.pho001.synaptik.prepare.analysis`: `BackendAnalysisInputs`,
@@ -65,7 +67,7 @@ exact shared buffer/workspace needs. Slot assignment, finalization, prepared-exe
 construction, the minimal `PreparedPartition` association, complete graph preparation, explicit
 schedule assembly, and schedule validation are current Prepare contracts. Executable,
 buffer-transfer, and publication scheduling plus shared runner execution are current Runtime
-contracts. Physical resources, production concrete backends, Engine composition, and public
+contracts. Other physical resources, production operation routes, Engine composition, and public
 output-value access remain planned. The Runtime executable contract itself is current; a current
 Prepare finalizer constructs a backend subclass against assigned slots.
 
@@ -2090,9 +2092,11 @@ identity is not itself a physical execution resource and must not be confused wi
 A concrete backend-owned implementation of one buffer or workspace in host, device, or native
 storage. Current Runtime defines the distinct nominal `BufferRepresentation` and
 `WorkspaceRepresentation` lifecycle roles, each exposing only unchecked cleanup through
-`close()`. No concrete representation implementation exists yet. Runtime owns the logical per-run
-association, ownership, structural residency, explicit buffer validity, and cleanup
-orchestration. The backend representation owns physical allocation, release, transfer, and access mechanics. A
+`close()`. CPU now provides package-private borrowed and run-owned native implementations;
+operation routes, transfers, and other backend representations remain planned. Runtime owns the
+logical per-run association, ownership, structural residency, explicit buffer validity, and
+cleanup orchestration. The backend representation owns physical allocation, release, transfer,
+and access mechanics. A
 buffer slot may have multiple representations only when prepared work explicitly requires them.
 A workspace representation is backend-local scratch and is not a transferable logical graph
 value.
@@ -2108,6 +2112,22 @@ explicit checked compatibility once and creates backend-owned typed
 [`BoundInvocation`](#bound-invocation--boundinvocation) objects with direct references before the
 hot path. No raw `Object`, unchecked generic API, registry, reflection, or public
 concrete-backend switch is part of the shared contract.
+
+### CPU buffer argument
+
+The implemented backend-private, non-owning direct access form created once when a CPU
+`PreparedExecutable` cold-binds a selected physical buffer representation. When the exact
+primitive heap carrier is observable and matches the logical data type, an array form retains the
+carrier, its carrier-relative byte offset, exact byte size, and read-only state. Otherwise
+`CpuBufferArgument.Segment` retains the exact selected `MemorySegment` or slice with byte offset
+zero relative to that retained region.
+
+`Segment` describes exact-segment access, not native provenance. Genuine native segments use it,
+but a heap-backed segment also uses it when the JDK does not expose its primitive carrier. In JDK
+26, `heapBase()` is empty for a read-only heap segment, so cold binding preserves that exact
+read-only segment without copying. Every form preserves the underlying ownership, lifetime,
+current-thread access, byte geometry, and writability restrictions; the argument owns and closes
+no memory. Mixed array and exact-segment arguments are valid in one ordered invocation.
 
 ### `NoOperationAttrs`
 
