@@ -54,8 +54,9 @@ current [`PreparedPublication`](#prepared-publication--preparedpublication) reci
 [`BoundPublication`](#bound-publication--boundpublication) occurrences, and current
 [`RunResult`](#run-result--runresult) leases complete states. The CPU backend now supplies its
 first package-private physical buffer/workspace implementations, exact borrowed-segment cold
-binding, direct prepared-invocation seam, and bounded worker foundation, but no CPU operation
-route or executable semantic coverage.
+binding, direct prepared-invocation seam, bounded worker foundation, and a package-private
+generated-kernel foundation for synthetic probes. It still advertises and executes no Model
+operation and has no production CPU route or executable semantic coverage.
 
 Prepare currently provides the public immutable analysis-side contracts in
 `io.github.pho001.synaptik.prepare.analysis`: `BackendAnalysisInputs`,
@@ -977,6 +978,42 @@ requirements; CPU finalization generates and defines the kernel or reuses a comp
 generated artifact after shared slot assignment. Runtime invokes only the resulting prepared
 executable. The term describes the generated artifact and its lifecycle, not the bytecode-
 generation library or builder API used by the current implementation.
+
+The current package-private foundation uses the Java 26 Class-File API to emit and verify one
+static typed entry method, defines each result as a hidden nestmate class, and retains its exact
+method handle. The Class-File API and Java Vector API are CPU-internal implementation choices,
+not architecture invariants. Current generated code supports synthetic probes only; it does not
+make this planned route available for a Model operation.
+
+### CPU kernel specialization
+
+The implemented backend-private immutable description of every fact allowed to change one
+generated CPU class. It includes the generator schema and class-file target, family-lowering
+fingerprint, ordered primitive-array or exact-`MemorySegment` carriers and read/write access,
+baked offsets, strides and extents, dynamic-extent count, exact portable mode, selected Vector API
+species when applicable, byte order, unroll/tile/tail structure, exact/default numerical mode,
+and partial-combine order. Its derived content fingerprint and structural equality are
+order-sensitive.
+
+The exact portable modes are scalar single-thread, scalar parallel, Vector API single-thread,
+and Vector API parallel. Parallel entries accept an already-assigned half-open range; they do not
+own workers or scheduling. Runtime identities, physical addresses, slots, run objects, worker
+configuration, cache state, and mutable observations are excluded because they do not change the
+generated code. A CPU kernel specialization is not a capability claim, route choice, prepared
+executable, or persistent-cache record.
+
+### CPU generated-kernel artifact
+
+The implemented backend-private immutable identity object that retains one verified generated
+class's bytes, specialization, full-privilege hidden-class lookup, hidden class, exact static
+`MethodHandle`, and method type. Primitive arrays, exact `MemorySegment` values, and mixed ordered
+signatures are direct entry carriers; the artifact does not copy, retain ownership of, or close
+invocation memory.
+
+Keeping the artifact reachable keeps its hidden-class state reachable, without promising when an
+unreferenced class unloads. No artifact cache exists yet: equal generation requests produce equal
+class bytes but distinct hidden classes and artifact identities. CPU task 0003 owns future bounded
+reuse; the current artifact is not a prepared route and executes only synthetic test probes.
 
 ### Benchmark report / benchmarking
 

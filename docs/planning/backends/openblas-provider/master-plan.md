@@ -28,6 +28,8 @@ Provide a low-level OpenBLAS leaf for library loading, symbol binding, GEMM call
 
 - The provider remains a low-level leaf.
 - Dependency direction is CPU backend to OpenBLAS provider, never the reverse.
+- The completed baseline remains FLOAT32/FLOAT64 only. No 16-bit capability is inferred from
+  library presence, storage width, or logical `DataType` availability.
 
 ## Allowed dependencies
 
@@ -96,6 +98,10 @@ CPU task specification exists.
 - Task 0001 requires `cblas_sgemm`, `cblas_dgemm`, `openblas_set_num_threads`, and
   `openblas_get_num_threads` under the standard 32-bit-`blasint` C ABI. It selects no minimum
   OpenBLAS version, ILP64 support, or optional BFLOAT16 symbols.
+- OpenBLAS remains primarily a FLOAT32/FLOAT64 CPU fallback. A future BFLOAT16 provider addition
+  requires separate OpenBLAS-version, ISA, ABI, and operation verification plus CPU-owned exact
+  filtering and route/workload evidence. Broad or baseline FLOAT16 support must not be assumed;
+  any such future route also waits for Model task 0026.
 - One caller-owned public library handle encapsulates the shared FFM arena and package-private
   bound handles. No eager singleton, global cache, exposed native address, registry, manager, or
   service locator is planned.
@@ -127,6 +133,8 @@ CPU task specification exists.
 - Letting a low-level GEMM call grow offsets, transpose/layout normalization, batching, packing,
   allocation, numerical policy, or CPU-owned route behavior.
 - Treating separate Java library handles as separate OpenBLAS thread-control state.
+- Treating optional or version-specific 16-bit symbols as broad baseline support, or letting the
+  provider advertise/select a route from `DataType` availability alone.
 
 ## Notes
 

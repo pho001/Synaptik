@@ -5,8 +5,8 @@
 This guide defines the CPU integration boundary and helps contributors avoid treating CPU routes
 as separate backends. The current CPU module implements a truthful fail-closed capability
 provider, run-owned aligned native buffer/workspace representations, exact borrowed-segment cold
-binding, a direct prepared-invocation seam, and bounded worker infrastructure. It advertises and
-executes no Model operation yet.
+binding, a direct prepared-invocation seam, bounded worker infrastructure, and a backend-private
+Java 26 generated-kernel foundation. It advertises and executes no Model operation yet.
 
 The lower-level OpenBLAS provider separately implements explicit library loading, required-symbol
 binding, a caller-owned lookup lifetime, low-level FLOAT32/FLOAT64 dense row-major general matrix
@@ -25,7 +25,7 @@ deployment JVM permission for restricted native access.
   [backend route](../glossary.md#backend-route) explains why OpenBLAS is not a separate backend.
 - The **Foreign Function and Memory (FFM) API** is the JDK native-interoperability API used to
   load the library and bind C symbols.
-- An [OpenBLAS library handle](../glossary.md#openblas-library-handle-openblaslibrary) is the
+- An [OpenBLAS library handle](../glossary.md#openblas-library-handle--openblaslibrary) is the
   caller-owned Java lifetime for one complete lookup and binding set. It exposes mutable native
   thread state without owning a thread-selection policy.
 
@@ -83,9 +83,71 @@ submissions, cooperative cancellation between ranges, first/suppressed failure p
 interrupt restoration, and idempotent shutdown. It does not select an operation, kernel, route,
 thread count from configuration, or reduction combine policy.
 
+## Current generated-kernel foundation
+
+The generated-kernel foundation turns one already-selected typed specialization and one
+family-owned emitter into verified Java class bytes and a directly invocable hidden-class
+artifact. It is deliberately narrower than a CPU route:
+
+```text
+typed specialization + matching family emitter
+  -> deterministic Java 26 class bytes
+  -> Class-File API verification
+  -> fresh hidden nestmate class
+  -> exact static MethodHandle entry point
+```
+
+The Java Class-File API is the current CPU-internal bytecode builder, and the Java Vector API is
+the current CPU-internal vector mechanism. Both are implementation choices, not architecture
+invariants. The Vector API remains an incubator module in Java 26 and is enabled only for CPU
+compile, test, and Javadoc tasks.
+
+`CpuKernelSpecialization` is an immutable, structurally comparable description of every fact that
+may change emitted bytes. It contains the generator schema and Java class-file target, a
+family-owned lowering fingerprint, ordered argument carrier and access facts, baked byte offsets,
+element strides and extents, dynamic-extent count, execution mode, exact Vector species when
+applicable, byte order, unroll/tile/tail structure, the current exact/default numerical mode, and
+partial-combine ordering. A second SHA-256 content fingerprint covers that complete ordered
+specialization. These fingerprints are deterministic compatibility identities, not security
+authentication, Model-operation capability, or a persistent cache format.
+
+The portable mode vocabulary has exactly four values:
+
+| Mode | Emission form | Invocation range |
+|---|---|---|
+| Scalar single-thread | Scalar instructions | One complete element count |
+| Scalar parallel | Scalar instructions | Caller-assigned half-open start/end plus range index |
+| Vector API single-thread | Exact-species Vector API instructions | One complete element count |
+| Vector API parallel | Exact-species Vector API instructions | Caller-assigned half-open start/end plus range index |
+
+The mode owns only the structural choice between the scalar and Vector family callback. A family
+emitter owns semantic instruction construction, while distinct carrier, scalar, Vector, range/
+tile/tail, and partial/combine emitters provide low-level bytecode seams. No production family
+emitter exists yet. The range controls do not create parallel work: `CpuWorkerGroup` still owns
+worker dispatch, synchronization, cancellation, and failure propagation outside generated code.
+
+Generated entry signatures use the selected primitive array carrier (`double[]`, `float[]`,
+`short[]`, `int[]`, `long[]`, or `byte[]`), an exact `MemorySegment`, or an ordered mixture. A
+primitive-array byte offset is either baked into the specialization or passed as a primitive
+`long`; exact segments use a segment-relative zero base. Dynamic extents and the single-thread
+count or parallel range controls are also primitive entry arguments. Generation performs no copy
+and owns none of the supplied arrays or segments. Read-only, write-only, and read-write access
+facts constrain emitted loads and stores; exact-segment liveness, thread access, size, and
+writability remain cold-binding obligations.
+
+`CpuGeneratedKernel` retains the specialization, verified bytes, full-privilege hidden lookup,
+hidden class, exact static method handle, and method type. Retaining the artifact retains that
+hidden-class lifetime, but the foundation promises no unloading time. Equal generation requests
+produce identical bytes and distinct hidden classes and artifacts because no generated-artifact
+cache exists yet; bounded reuse belongs to CPU task 0003.
+
+Current tests invoke only bounded synthetic copy and structural probes across heap, exact-segment,
+and mixed signatures in all four modes. They prove the generator and direct-carrier seams, not a
+Tensor result, a prepared CPU route, numerical correctness, or Model-operation coverage.
+
 ## Current low-level OpenBLAS foundation
 
-[`OpenBlasLibrary`](../glossary.md#openblas-library-handle-openblaslibrary) is the current public
+[`OpenBlasLibrary`](../glossary.md#openblas-library-handle--openblaslibrary) is the current public
 lifetime boundary. A caller opens exactly one supplied operating-system library name or one
 absolute path:
 
@@ -248,9 +310,10 @@ supplied compatible arm64 OpenBLAS 0.3.33 library, including shared thread-count
 fixed SGEMM/DGEMM cases, and restoration of the original thread count. The ordered repository and
 architecture capability checkpoint then passed, and the provider milestone is complete.
 
-The current CPU task adds fail-closed capability and storage/binding/worker foundations only. No
-CPU operation capability, normalization, route threshold, operation execution path, fallback,
-backend conformance, or performance result is implemented or promised. Ordinary provider tests
+The current CPU foundation adds fail-closed capability, storage/binding/worker infrastructure,
+and synthetic generated-kernel machinery only. No CPU operation capability, normalization, route
+threshold, Model-operation execution path, fallback, backend conformance, or performance result
+is implemented or promised. Ordinary provider tests
 prove Java validation and exact ABI forwarding, not installed-library numerical correctness. The
 native checkpoint proves only its selected binary and fixed cases.
 Future CPU work must compare optimized routes with a scalar reference through backend-conformance

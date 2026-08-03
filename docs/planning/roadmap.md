@@ -100,8 +100,26 @@ tuning, or dynamic binding.
 The Prepare milestone is therefore closed. The OpenBLAS provider project area is also Complete,
 and the completed first CPU implementation frontier is
 [CPU 0001 Capability, representation, binding, and parallel foundation](backends/cpu/tasks/0001-cpu-capability-representation-binding-and-parallel-foundation.md).
-It is Complete; task 0002 is the next Draft CPU frontier, and tasks 0002–0016 remain Draft without
-detailed specifications. The
+It is Complete; detailed
+[CPU 0002 Portable Class-File API generator foundation](backends/cpu/tasks/0002-portable-class-file-api-generator-foundation.md)
+is Complete with deterministic typed specializations and fingerprints, the exact four structural
+scalar/Vector and single/parallel modes, heap-array/`MemorySegment`/mixed direct signatures,
+family-owned and low-level emitter seams, verified fresh hidden-class artifacts, and no generated-
+artifact cache. Implementation context `019fc815-42aa-7de2-8970-a2fcab3a390e` recorded a focused
+3-suite/18-test pass and the sole final CPU 9-suite/34-test pass, both with zero failures, errors,
+or skips; the clean documentation pass reused that evidence because it changed no executable Java
+behavior. CPU still advertises and executes no Model operation. Tasks 0003–0016 remain Draft
+without detailed specifications.
+
+Future Model task 0026 records the prerequisite for true IEEE-754 binary16 `FLOAT16` and explicit
+mixed-precision operation contracts. No backend may advertise FLOAT16 before that Model task is
+complete. This does not change the active CPU frontier: CPU generated-artifact caching,
+current-type analysis/finalization, and current-type family coverage may proceed independently
+while remaining fail-closed for FLOAT16. Metal later prioritizes FLOAT16 and gates BFLOAT16 by
+exact device and operation capability; Intel and AMD native CPU routes prioritize BFLOAT16 and
+admit FLOAT16 only with exact ABI, ISA/hardware, operation, and measured-benefit evidence.
+
+The
 provider's completed foundation,
 [OpenBLAS provider 0001 Library loading and required symbol binding](backends/openblas-provider/tasks/0001-library-loading-and-required-symbol-binding.md),
 is Complete. That atomic foundation loads one caller-specified name or absolute path, binds the
@@ -241,18 +259,24 @@ artifact reuse after slot assignment; and Runtime's prepared-execution-only role
 backend-owned-lowering decision record now states this mechanism-neutral result. No dependency or
 module-boundary rule changed, so architecture tests required no update.
 
-CPU task 0002 is therefore no longer architecture-blocked. It remains the next Draft frontier
-without a detailed specification. The Class-File API and `CodeBuilder` remain current
-non-authoritative implementation selections rather than permanent architecture dependencies.
+CPU task 0002 assigns the exact package-private
+`CpuPortableExecutionMode.emit(CodeBuilder, CpuKernelSpecialization,
+CpuFamilyKernelEmitter)` method sole ownership of structural scalar-versus-Vector emitter
+construction and dispatch. `CpuClassFileKernelGenerator` delegates to it without that switch.
+The Class-File API and `CodeBuilder` remain current non-authoritative implementation selections
+rather than permanent architecture dependencies.
 
-CPU task 0001 is Complete and remains the only detailed CPU specification. CPU tasks 0002–0016
-and the refined Config, Prepare, Metal, and tuning rows remain Draft without new detailed
-specifications.
+CPU task 0001 remains Complete. CPU task 0002 is the only detailed CPU specification and is
+Ready; CPU tasks 0003–0016 and the refined Config, Prepare, Metal, and tuning rows remain Draft
+without new detailed specifications.
 Completed OpenBLAS history and every completed project area remain unchanged.
 
-CPU remains the active global project area, with task 0002 as its next Draft frontier. Prepare
-0004 is only a deferred bounded interleave after a concrete CPU typed-candidate producer and
-tuning-artifact consumer exist; it does not reopen or reorder the completed Prepare project area.
+CPU remains the active global project area, and task 0002 is its actionable frontier. The partial
+uncommitted implementation and its earlier passing tests cannot support completion after the
+executable corrections; exactly one new final CPU suite and the mandatory documentation pass are
+required. Prepare 0004 is only a deferred bounded interleave after a concrete CPU typed-
+candidate producer and tuning-artifact consumer exist; it does not reopen or reorder the
+completed Prepare project area.
 
 Runtime 0009's focused command passed 4 suites and 32 tests, and its single final Runtime command
 passed 16 suites and 130 tests, with no failures, errors, or skips. Clean documentation context
@@ -1645,6 +1669,7 @@ authorized Compile API status correction.
 | 125 | [0025B Binding-aware expansion](modules/model/tasks/0025b-binding-aware-expansion.md) | Complete |
 | 126 | [0025C Portable functional-scatter reduction semantics](modules/model/tasks/0025c-portable-functional-scatter-reduction-semantics.md) | Complete |
 | 127 | [0025D Dynamic-extent slice extraction and symbolic slice placement](modules/model/tasks/0025d-dynamic-extent-slice-extraction-and-symbolic-slice-placement.md) | Complete |
+| 128 | 0026 IEEE FLOAT16 and mixed-precision semantic contracts | Draft (future interleave; no detailed specification) |
 
 Task dependencies in the model master plan remain hard prerequisites. The table order is the default execution order even when a later task has no explicit dependency on an earlier task.
 

@@ -50,8 +50,10 @@ SIMD routes, optional native routes, storage, workspace, and execution.
   generated coverage before the portable capability milestone closes. Metadata-only or zero-work
   view occurrences need no generated computation. Unsupported executable semantics fail closed
   and are not advertised until their generated coverage exists.
-- OpenBLAS is an optional portable native fallback for supported BLAS-compatible linear algebra;
-  it is never a universal CPU fallback.
+- OpenBLAS is primarily an optional FLOAT32/FLOAT64 native fallback for supported BLAS-compatible
+  linear algebra; it is never a universal CPU fallback. BFLOAT16 requires a separately verified
+  version, instruction-set architecture (ISA), and operation route. FLOAT16 support is neither
+  broad nor baseline by assumption.
 - CPU never offloads internally to MPSGraph or a custom Metal kernel. Planning must first select
   Metal ownership, after which the separate Metal backend owns those routes.
 - CPU owns capability truth, provider coordination, route selection, fallback, thread/lifetime
@@ -63,13 +65,19 @@ SIMD routes, optional native routes, storage, workspace, and execution.
 - Candidate eligibility is filtered for exact operation semantics and required determinism before
   any performance comparison. Current exact/default semantics do not permit vendor fast- or
   relaxed-math routines.
+- Each eligible operation family fixes its logical input, accumulation or other intermediate, and
+  output types before CPU route selection. FLOAT32 accumulation is the expected default for
+  numerically sensitive 16-bit work; exceptions require an explicit Model semantic contract.
+- `DataType` availability and a matching storage carrier never advertise or select a CPU route.
+  Every 16-bit candidate requires exact ABI, ISA/hardware, operation, layout, numerical,
+  determinism, and resource filtering before route/workload benchmarking, safe heuristics, or
+  compatible tuning evidence can compare it.
 - Memory-segment storage and execution route are orthogonal. Scalar Java, JDK Vector API, and
   Foreign Function and Memory (FFM) native-provider calls may use the same native-backed
   `MemorySegment` without copying merely because the route changes.
 - Run-owned internal CPU buffers use aligned native off-heap `MemorySegment` storage as the
-  canonical interoperable CPU representation. Exact alignment, arena/lifetime ownership, access,
-  cleanup, zero-size, and allocation declarations remain work for the next detailed CPU task;
-  this Draft plan does not claim that representation is implemented.
+  canonical interoperable CPU representation. Complete task 0001 implements its exact alignment,
+  arena/lifetime ownership, access, cleanup, zero-size, and allocation contracts.
 - Borrowed caller inputs are handled per value and use. Compatible heap-backed inputs may remain
   heap-backed. CPU preparation introduces at most one necessary native materialization for an
   exact selected downstream FFM route and reuses it across compatible consumers.
@@ -77,6 +85,10 @@ SIMD routes, optional native routes, storage, workspace, and execution.
   primitive carriers or heap-backed segments, native off-heap `MemorySegment` representations,
   and mixed per-input/per-output signatures without discovering storage or selecting a route in
   generated hot code.
+- Portable `MemorySegment` storage is representation-only and accepts the logical data type. A
+  two-byte representation does not imply executable arithmetic or Vector support. The current
+  generated specialization admits Java Vector lanes only for FLOAT64, FLOAT32, INT32, and INT64;
+  BFLOAT16 and future FLOAT16 need separately established routes.
 - Portable execution has exactly four modes: scalar single-thread, scalar parallel, Vector API
   single-thread, and Vector API parallel. Shared CPU parallel infrastructure owns workers, chunk
   dispatch, cancellation, synchronization, and failure propagation; generated classes do not own
@@ -97,12 +109,28 @@ SIMD routes, optional native routes, storage, workspace, and execution.
 
 - modules/engine
 
+## Package structure
+
+```text
+io.github.pho001.synaptik.backend.cpu/
+  CpuCapabilityProvider       public fail-closed CPU capability identity
+  package-info.java           public package boundary and current status
+  execution/                  package-private representations, cold binding, workers,
+                              generated-kernel specialization/emission/artifact machinery,
+                              and later CPU executable implementations
+```
+
+Task 0002 extends only the existing package-private `execution` package so it can reuse task
+0001's arguments and workers without widening them or creating a cross-package facade. Later
+family-specific placement must be planned by its owning detailed task before that family becomes
+Ready.
+
 ## Task list
 
 | ID | Task | Status | Depends on | Summary |
 |---|---|---|---|---|
 | 0001 | [CPU capability, representation, binding, and parallel foundation](tasks/0001-cpu-capability-representation-binding-and-parallel-foundation.md) | Complete | Stable planning, runtime, prepare, backend-contract, and trace contracts | Established truthful fail-closed capability; canonical aligned native internal buffers; typed-array, exact-segment, and mixed binding; direct typed invocation; and shared worker/chunk/cancellation/failure infrastructure without executable semantic coverage claims. |
-| 0002 | Portable Class-File API generator foundation | Draft | 0001; generated JVM-bytecode CPU-kernel architecture contract; Java 26 Class-File and Vector API toolchain | Establish generator schema/versioning, exact typed specialization descriptors, family-specific lowerer contracts, shared scalar/vector/heap/segment/range/tile/reduction emitters, hidden-class definition, and the exact four-mode execution matrix without a god generator. |
+| 0002 | [Portable Class-File API generator foundation](tasks/0002-portable-class-file-api-generator-foundation.md) | Complete | 0001; generated JVM-bytecode CPU-kernel architecture contract; Java 26 Class-File and Vector API toolchain | Established generator schema/versioning, exact typed specialization descriptors, mode-owned structural scalar/vector emission dispatch, family-specific emitter contracts, shared scalar/vector/heap/segment/range/tile/reduction emitters, hidden-class definition, and the exact four-mode execution matrix without a god generator or operation coverage. |
 | 0003 | Bounded generated-artifact cache and cold finalization | Draft | 0002; stable CPU finalization and artifact compatibility | Add the CPU-owned bounded concurrent single-flight in-memory cache, deterministic complete key equality, hidden-class and typed-entry lifetime retention, and miss-only generation/definition during backend finalization after slot assignment. |
 | 0004 | Typed portable analysis, specialization, and finalization | Draft | 0001–0003 | Generate complete typed portable candidates per operation occurrence or fused partition; select one valid route, representation, specialization, execution mode, and parallel configuration after exact compatibility and full transition-cost filtering; and cold-bind the finalized typed entry point. |
 | 0005 | Portable elementwise and pointwise family coverage | Draft | 0002–0004 | Generate truthful scalar/Vector and single-thread/parallel coverage for arithmetic, comparison, logical, selection, cast, classification, and activation semantics across supported data, storage, layout, shape, broadcast, and tail specializations. |
@@ -134,14 +162,33 @@ specification. It introduces one truthful provider with stable `cpu` identity an
 operation semantics, package-private aligned native representation and typed cold-binding
 infrastructure, and a package-private bounded worker/range foundation. It does not add a CPU
 preparer, executable semantic coverage, a route, generated code, OpenBLAS integration, or another
-module change. Task 0002 is the next Draft frontier; tasks 0002–0016 remain Draft without detailed
-specifications.
+module change. Complete
+[task 0002 Portable Class-File API generator foundation](tasks/0002-portable-class-file-api-generator-foundation.md)
+now adds the backend-private deterministic generator foundation and synthetic probes.
+`CpuPortableExecutionMode.emit(CodeBuilder, CpuKernelSpecialization,
+CpuFamilyKernelEmitter)` owns only structural scalar-versus-Vector emitter construction and
+dispatch, while `CpuClassFileKernelGenerator` delegates without that switch. The trusted
+`CpuLoweringFingerprint.fromDigest(byte[])` factory retains only an exact defensively copied
+32-byte derived digest without rehashing. Scalar modes require `Tail.NONE`; Vector modes permit
+`NONE`, `SCALAR`, and `MASKED`. Baked primitive-array byte offsets require data-type-width
+alignment, exact segments retain baked zero offset, and dynamic array offsets remain cold typed
+invocation values. Equal requests produce identical bytes and distinct hidden artifacts because
+no cache exists yet. CPU still advertises and executes no Model operation. Tasks 0003–0016 remain
+Draft without detailed specifications.
 
-The separately authorized architecture synchronization is complete: the authoritative contract
-and focused explanations now permit implementation-neutral generated JVM-bytecode CPU computation
-kernels while preserving CPU backend and Prepare ownership. Task 0002 is no longer architecture-
-blocked. It remains the next Draft frontier without a detailed specification, and the Class-File
-API direction remains a selected non-authoritative implementation choice.
+Future Model task 0026 is required before any CPU route advertises FLOAT16. That dependency does
+not block tasks 0003–0004 or later current-type work: generated-artifact caching, portable
+analysis/finalization, and current-type family coverage may proceed while remaining fail-closed for
+FLOAT16.
+
+The separately authorized architecture synchronization remains complete: the authoritative
+contract and focused explanations permit implementation-neutral generated JVM-bytecode CPU
+computation kernels while preserving CPU backend and Prepare ownership. Implementation context
+`019fc815-42aa-7de2-8970-a2fcab3a390e` recorded the final focused 3-suite/18-test pass and the
+sole final CPU 9-suite/34-test pass, both with zero failures, errors, or skips. The clean
+documentation pass reused that executable evidence and finalized CPU Javadoc, guide, glossary,
+and planning validation. The Class-File API and Vector API remain selected CPU-internal
+implementation choices rather than architecture invariants.
 
 ## Open questions
 
@@ -273,6 +320,10 @@ API direction remains a selected non-authoritative implementation choice.
 - On AMD CPU, portable scalar and Vector API routes remain available alongside AOCL-BLAS rather
   than becoming a lower-priority emergency path. AOCL-LibM enters only eligible sufficiently
   large vector-math candidate sets; ZenDNN remains a separate later DNN-partition option.
+- Intel oneMKL/oneDNN and AMD AOCL/ZenDNN native candidates prioritize BFLOAT16 where the exact
+  ABI, ISA/hardware, operation, and measured workload benefit are established. FLOAT16 enters only
+  after Model task 0026 and the same exact evidence; it is not inferred from a 16-bit carrier or
+  vendor availability.
 - Vendor fast- or relaxed-math entry points require a future explicit numerical policy. They are
   not candidates under current exact/default semantics.
 

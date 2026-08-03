@@ -37,6 +37,14 @@ Implement Metal capability, MPSGraph and custom-kernel preparation, storage, nat
 - Metal candidate generators return complete valid route-specific configurations and remain
   opaque to shared tuning orchestration.
 - Safe Metal heuristics remain correct without a compatible tuning result.
+- Metal mixed-precision routes prioritize FLOAT16. BFLOAT16 remains a distinct logical type and is
+  eligible only through an exact capability-, device-, and operation-gated route.
+- Model task 0026 must define FLOAT16 and every affected input, accumulation/intermediate, and
+  output contract before Metal advertises FLOAT16. FLOAT32 accumulation is the expected default
+  for numerically sensitive 16-bit work unless Model explicitly specifies an exception.
+- A logical data type or 16-bit storage representation alone never advertises or selects a Metal
+  route. Exact target/operation/numerical filtering precedes route/workload benchmarking, safe
+  heuristics, or compatible tuning evidence.
 
 ## Allowed dependencies
 
@@ -57,7 +65,7 @@ Implement Metal capability, MPSGraph and custom-kernel preparation, storage, nat
 
 | ID | Task | Status | Depends on | Summary |
 |---|---|---|---|---|
-| 0001 | Metal capability, storage, and native foundation | Draft | Stable shared planning, runtime, prepare, backend-contract, and trace contracts | Establish truthful Metal capability plus native and resource lifecycle contracts without CPU-owned offload. |
+| 0001 | Metal capability, storage, and native foundation | Draft | Stable shared planning, runtime, prepare, backend-contract, and trace contracts; Model 0026 before any FLOAT16 claim | Establish truthful Metal capability plus native and resource lifecycle contracts without CPU-owned offload. |
 | 0002 | MPSGraph prepared execution route | Draft | 0001 | Add backend-owned MPSGraph lowering, executable creation, storage/materialization integration, and execution only for Metal-owned partitions. |
 | 0003 | Custom Metal kernel routes | Draft | 0001–0002 | Add validated custom-kernel lowering and execution for eligible Metal-owned work without making custom kernels a CPU route. |
 | 0004 | Typed Metal route candidate generators and cache compatibility | Draft | 0002–0003, opaque prepare/tuning boundary and artifact versioning | Add colocated typed complete-candidate generation and canonical workload compatibility without exposing Metal knobs to planning or shared parameter bags. |
@@ -89,6 +97,9 @@ This backend is not yet planned in detail. Detailed task specifications will be 
 - Apple CPU acceleration through Accelerate belongs to the CPU backend. MPSGraph and custom Metal
   kernels remain here and are available only after Planning selects `owner = Metal`; CPU does not
   fall through or offload to this backend internally.
+- FLOAT16 is the prioritized Metal mixed-precision type, but only after Model owns its true
+  IEEE-754 binary16 semantics. BFLOAT16 remains supported only when exact device and operation
+  capabilities admit it; neither route follows from storage width alone.
 
 ## Risks
 

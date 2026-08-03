@@ -287,6 +287,7 @@ Operation-family subpackages are introduced only when a focused operation task d
 | 0025B | [Binding-aware expansion](tasks/0025b-binding-aware-expansion.md) | Complete | 0002, 0017C, 0017D1, 0018M, 0023A, 0025A; prerequisite for Compiler 0005B | Broadened existing EXPAND construction to retain unresolved source-one-or-source-equal obligations with exact target Shape and unresolved layout, without another public or semantic spelling. |
 | 0025C | [Portable functional-scatter reduction semantics](tasks/0025c-portable-functional-scatter-reduction-semantics.md) | Complete | 0018G–0018J, 0018U–0018U1, 0025A; prerequisite for Compiler 0005C | Fixed the represented-value grouping, duplicate, empty-update, floating special-value, modular integral, and signed-extrema meaning of configurable scatter MUL/MIN/MAX without execution or derivative policy. |
 | 0025D | [Dynamic-extent slice extraction and symbolic slice placement](tasks/0025d-dynamic-extent-slice-extraction-and-symbolic-slice-placement.md) | Complete | 0002, 0018M, 0018R, 0023C, 0025C; prerequisite for Compiler 0005C | Added exactly `sliceByLength(long[], long[], int[], long[])` for finite extraction across unresolved selected extents and `sliceUpdate(Tensor, Shape)` for target-relative symbolic placement, reusing existing slice kinds and attributes without compiler behavior. |
+| 0026 | IEEE FLOAT16 and mixed-precision semantic contracts | Draft | 0001, 0018N, completed operation-family semantics; required before any backend advertises FLOAT16 | Preserve BFLOAT16, add distinct true IEEE-754 binary16 `FLOAT16`, and audit affected families for explicit input, accumulation/intermediate, and output types without adding backend support. |
 
 ## Milestones
 
@@ -321,6 +322,10 @@ Operation-family subpackages are introduced only when a focused operation task d
 - Compiler-gradient dynamic-slice prerequisite: task 0025D, Complete after reopening Model only for
   finite length-defined extraction across unresolved selected extents and exact-Shape
   target-relative slice placement before Complete Compiler 0005C adopts the retained obligations
+- Future mixed-precision semantic foundation: task 0026 remains Draft without a detailed
+  specification. It must complete before any backend advertises FLOAT16, but it does not block
+  current CPU generated-artifact caching, current-type portable analysis/finalization, or
+  current-type coverage work.
 
 Each listed checkpoint runs the full repository test suite, affected architecture tests, final
 Javadoc and documentation validation, and the cross-task checks deferred by the preceding tasks.
@@ -344,6 +349,10 @@ EXPAND construction for unresolved source-one-or-source-equal compatibility so C
 [Compiler 0005B](../compiler/tasks/0005b-reduction-scan-softmax-statistics-and-normalization-gradient-completion.md)
 could adopt that obligation; it added no public method, kind, attributes, Shape/constraint type,
 binding implementation, or compiler behavior.
+Future task 0026 remains Draft without a detailed specification and does not reopen the completed
+historical capability milestone. It is an explicit prerequisite only for backend FLOAT16 claims;
+CPU tasks that preserve the current six-type contract and fail closed for FLOAT16 may proceed in
+their existing order.
 Tasks 0014A through 0015H remain complete with the post-0014B vertical-slice reassessment
 recorded. The broad former task 0016 is decomposed into 0016A–0016J. Tasks 0016A through 0016E are
 complete. Tasks 0016F, 0016F1, 0016G, 0016H, 0016I, and 0016J are also complete. The broad former
@@ -895,9 +904,20 @@ Tensor expressions from the still-planned compiler capture lifecycle.
   documentation review finalized seven Javadocs, Tensor/Compile APIs, glossary, capability/task/
   master/roadmap synchronization, the runnable Java 26 example, generated Javadoc, Markdown,
   official-link, exact eighteen-path, public-surface, status, terminology, and whitespace checks.
-- FLOAT16 is important before accelerator mixed-precision support is claimed, but it is not a
-  prerequisite for the linear-algebra model task.
-- The initial data type baseline is `FLOAT64`, `FLOAT32`, `BFLOAT16`, `INT32`, `INT64`, and `BOOL`.
+- BFLOAT16 remains current. Future task 0026 is the sole planned owner of true IEEE-754 binary16
+  `FLOAT16`; no backend may introduce it independently. The two logical types remain distinct even
+  if both use a two-byte or Java `short` representation.
+- Task 0026 must state the input, accumulation or other intermediate, and output types for every
+  affected operation or cohesive family. FLOAT32 accumulation is the expected default for
+  numerically sensitive 16-bit work, while any exception requires an explicit semantic contract
+  rather than a blanket backend rule.
+- Portable `MemorySegment` storage uses the logical type only for representation geometry. It does
+  not imply executable arithmetic or Java Vector API support, and current CPU generated-kernel
+  contracts claim neither BFLOAT16 nor FLOAT16 Vector lanes.
+- A logical type alone never advertises or selects a backend route. Exact capability filtering
+  precedes route/workload benchmarking, heuristic comparison, or compatible tuning evidence.
+- The current implemented data type baseline remains `FLOAT64`, `FLOAT32`, `BFLOAT16`, `INT32`,
+  `INT64`, and `BOOL`; task 0026 remains future Draft work without a detailed specification.
 - Static dimensions use non-negative `long` sizes; dynamic dimensions use explicit canonical symbols rather than negative sentinels.
 - Scalar shape is rank zero, and zero-sized static dimensions are supported.
 - Local broadcasting is right-aligned and conservative for symbolic dimensions; graph-wide symbolic constraints remain a compiler responsibility.
@@ -1721,6 +1741,8 @@ Tensor expressions from the still-planned compiler capture lifecycle.
   before the applicable typed-population and deterministic-resource contracts exist.
 - Rejecting a representable binding-dependent EXPAND pair in Model, or resolving its layout before
   the source-one-or-source-equal obligation and numeric geometry are known.
+- Letting a backend infer FLOAT16 semantics, 16-bit accumulation, executable arithmetic, or Vector
+  support from a shared storage width instead of waiting for task 0026 and exact capability proof.
 
 ## Notes
 

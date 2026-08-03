@@ -734,14 +734,35 @@ the dense baseline before a concrete import or execution requirement exists.
 
 ## Data type baseline
 
-The current selected types remain FLOAT64, FLOAT32, BFLOAT16, INT32, INT64, and BOOL. FLOAT16 is
-an important planned addition for accelerator mixed precision, but it is not required to begin
-linear algebra and must not be implied by the current `short` BFLOAT16 carrier. Only floating
-types are differentiable.
+The current selected types remain FLOAT64, FLOAT32, BFLOAT16, INT32, INT64, and BOOL. BFLOAT16
+remains part of that baseline. Future task 0026 is the separate Model-owned addition of true
+IEEE-754 binary16 as `FLOAT16`; Metal, Intel, AMD, OpenBLAS, and other backends must not introduce
+that logical type ad hoc. `FLOAT16` and `BFLOAT16` remain distinct logical `DataType` values even
+when both use a two-byte or Java `short` storage carrier. Only floating types are differentiable.
 
 The initial arithmetic expansion is deliberately limited to signed INT32/INT64 operations with a
 clear use in shape, index, or model computation. BOOL remains logical rather than numeric.
 Additional integer widths and unsigned types remain deferred.
+
+### Mixed-precision contract
+
+Mixed precision means that one operation may use different logical input, accumulation or other
+intermediate, and output data types. Task 0026 must audit each affected operation or cohesive
+family and state all three roles explicitly. FLOAT32 accumulation is the expected default for
+numerically sensitive FLOAT16 and BFLOAT16 work, but an exception requires an explicit Model
+semantic contract; a backend-wide rule cannot silently replace operation semantics.
+
+Portable `MemorySegment` storage remains representation-only. It accepts the logical data type to
+derive byte geometry, but neither a two-byte carrier nor `DataType` availability implies executable
+arithmetic, a Java Vector API lane, or backend support. The current CPU generated-kernel contract
+claims Vector lanes only for FLOAT64, FLOAT32, INT32, and INT64; no BFLOAT16 or FLOAT16 Vector lane
+support is planned by inference.
+
+Every backend 16-bit route must pass exact filtering for logical data type, operation and
+attributes, accumulation/intermediate/output contract, target and provider capability, layout,
+numerical and determinism requirements, and resource validity. Route and workload benchmarking or
+compatible tuning evidence then informs selection among the remaining valid candidates.
+`DataType` availability alone never advertises or selects an execution route.
 
 ## Numerical policy gates
 
