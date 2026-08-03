@@ -152,10 +152,11 @@ Markdown, exact twelve-path/surface/status/history/later-specification, complete
 whitespace checks without rerunning Java. Task 0003, the provider milestone, and the provider
 project area are Complete. The later CPU planning pass selected only task 0001 as Ready.
 
-The selected CPU target strategy remains Draft planning only. Subject to the architecture
-prerequisite below, Java 26 `java.lang.classfile.CodeBuilder` is the primary generator for all
-portable CPU computation kernels. Portable execution has exactly scalar single-thread, scalar
-parallel, Vector API single-thread, and Vector API parallel modes. Every currently selected
+The selected CPU target strategy remains Draft planning only. Java 26
+`java.lang.classfile.CodeBuilder` is the selected current primary generator for all portable CPU
+computation kernels; it is an implementation direction, not an architecture invariant. Portable
+execution has exactly scalar single-thread, scalar parallel, Vector API single-thread, and Vector
+API parallel modes. Every currently selected
 executable Model semantic must gain truthful portable generated coverage before the portable CPU
 milestone closes; metadata-only or zero-work view occurrences need no generated computation, and
 unsupported executable work fails closed and is not advertised. OpenBLAS is an optional portable
@@ -232,14 +233,17 @@ memory-only. Persistent class bytes remain deferred until strict build, generato
 classfile/JDK, Vector API, target, validation, and corruption-handling compatibility is designed.
 
 Planning still chooses backend ownership, including CPU versus Metal; concrete backend prepare
-still owns implementation routes; and OpenBLAS remains a leaf. However, the authoritative
-contract currently names `CPU ASM`, `docs/architecture/module-boundaries.md` repeats that wording,
-and `ARCHITECTURE.md` gates bytecode-generated CPU kernels on an architecture update. This
-planning-only change does not edit or reinterpret those authorities and does not call
-`CodeBuilder` ASM. Before CPU task 0002 or any generated-kernel implementation task can become
-Ready, a separate authorized architecture synchronization must replace the ASM-specific wording
-with an implementation-neutral generated JVM bytecode route and assess whether an architecture
-decision record or architecture-test update is required.
+still owns implementation routes; and OpenBLAS remains a leaf. The separately authorized
+architecture synchronization now permits implementation-neutral generated JVM-bytecode CPU
+computation kernels. It preserves CPU analysis ownership of lowering, specialization, route
+choice, and resource declarations; CPU finalization ownership of generation and compatible
+artifact reuse after slot assignment; and Runtime's prepared-execution-only role. The existing
+backend-owned-lowering decision record now states this mechanism-neutral result. No dependency or
+module-boundary rule changed, so architecture tests required no update.
+
+CPU task 0002 is therefore no longer architecture-blocked. It remains the next Draft frontier
+without a detailed specification. The Class-File API and `CodeBuilder` remain current
+non-authoritative implementation selections rather than permanent architecture dependencies.
 
 CPU task 0001 is Complete and remains the only detailed CPU specification. CPU tasks 0002–0016
 and the refined Config, Prepare, Metal, and tuning rows remain Draft without new detailed

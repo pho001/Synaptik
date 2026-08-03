@@ -118,7 +118,8 @@ Source-level dependency tests should also protect the boundaries that type depen
 - Runtime hot-path code must not use `Operation` or `CompiledNode`.
 - Planning scoring must not reference concrete kernel classes or prepared executables.
 - Compile-time plans hold `BackendId`, not live backend services.
-- CPU routes such as scalar, Vector API, and OpenBLAS remain implementation routes inside the CPU backend.
+- CPU routes such as scalar, Vector API, generated JVM-bytecode CPU computation kernels, and
+  OpenBLAS remain implementation routes inside the CPU backend.
 - `extensions/nn` owns `Parameter`, `Buffer`, and train/eval behavior; `extensions/training` owns optimizer algorithms and training orchestration.
 
 ## Architecture-test enforcement

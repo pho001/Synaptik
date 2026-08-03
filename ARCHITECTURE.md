@@ -812,9 +812,21 @@ selects settings.
 
 ## CPU backend routes
 
-CPU scalar, CPU Vector API, CPU ASM, and OpenBLAS are routes inside the CPU backend.
+CPU scalar, CPU Vector API, generated JVM-bytecode CPU computation kernels, and OpenBLAS are
+routes inside the CPU backend.
 
 They are not separate backends.
+
+A generated CPU computation kernel is backend-internal executable code whose JVM bytecode is
+produced for a selected CPU lowering and specialization. CPU backend analysis owns the lowering,
+specialization, fusion, route choice, and exact shared-resource declarations. CPU backend
+finalization may generate and define the selected kernel, or reuse it from a CPU-owned compatible
+generated-artifact cache, only after shared Prepare assigns slots. Runtime receives the resulting
+prepared executable and neither generates, caches, selects, nor specializes kernels.
+
+This contract does not prescribe a bytecode-generation library or a particular JDK builder API.
+Changing that implementation mechanism within the CPU backend does not change module ownership,
+dependency direction, or lifecycle placement.
 
 Planning chooses:
 
@@ -827,6 +839,7 @@ CPU prepare chooses:
 ```text
 scalar route
 Vector API route
+generated JVM-bytecode CPU computation-kernel route
 OpenBLAS route
 specialized kernel
 fused kernel
@@ -1344,7 +1357,6 @@ The following may be added later, but only with an explicit update to this docum
 - `modules/program`
 - `LogicalSchedulePlan`
 - source-generated CPU fused kernels
-- bytecode-generated CPU fused kernels
 - external plugin ecosystem
 - `ServiceLoader` as an optional engine-level convenience layer
 - more advanced segment-level partition scoring

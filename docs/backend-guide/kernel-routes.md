@@ -8,11 +8,15 @@ Planning chooses backend ownership. During prepare, the owning backend chooses a
 
 ```text
 planning: owner = CPU
-prepare:  scalar | Vector API | OpenBLAS | specialized | fused
+prepare:  scalar | Vector API | generated JVM bytecode | OpenBLAS | specialized | fused
 run:      invoke the selected PreparedExecutable
 ```
 
 CPU routes are not separate backends. The same rule applies to MPSGraph versus custom Metal kernels and to multiple CUDA kernels.
+
+For generated CPU computation kernels, CPU preparation owns generation and compatible artifact
+caching as part of its private lowering and finalization work. The architecture permits generated
+JVM bytecode without prescribing the API used to build it.
 
 ## Decision inputs
 

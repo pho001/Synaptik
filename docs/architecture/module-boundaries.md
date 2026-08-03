@@ -102,7 +102,10 @@ mechanics, typed cold-bound invocation objects, trace contributions, and native 
 
 Concrete backend logic belongs in the backend that implements it:
 
-- CPU scalar, Vector API, ASM, and OpenBLAS are routes inside `backends/cpu`, not separate backends.
+- CPU scalar, Vector API, generated JVM-bytecode CPU computation kernels, and OpenBLAS are routes
+  inside `backends/cpu`, not separate backends. CPU owns generation and compatible generated-
+  artifact caching during preparation; shared Prepare and Runtime do not interpret or select
+  those kernels.
 - MPSGraph and custom Metal kernels, Metal storage, and native bridges belong to `backends/metal`.
 - CUDA lowering, kernels, storage, and native integration belong to `backends/cuda`.
 

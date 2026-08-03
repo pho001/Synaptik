@@ -16,8 +16,7 @@ SIMD routes, optional native routes, storage, workspace, and execution.
 - CPU capability provider
 - partition lowering, specialization, and fusion
 - scalar correctness routes and JDK Vector API elementwise/reduction routes
-- standard JDK Class-File API generation for portable scalar and Vector API computation kernels,
-  subject to the architecture-synchronization prerequisite recorded below
+- standard JDK Class-File API generation for portable scalar and Vector API computation kernels
 - optional OpenBLAS routes for supported BLAS-compatible linear algebra
 - distinct Intel oneMKL BLAS/VML and oneDNN integrations
 - Apple Accelerate BLAS, vDSP, and vForce integrations
@@ -43,10 +42,10 @@ SIMD routes, optional native routes, storage, workspace, and execution.
 - CPU backend never depends on engine.
 - Portable scalar code is the correctness baseline. JDK Vector API kernels are the portable
   optimized baseline for eligible elementwise and reduction work.
-- Subject to the required architecture synchronization, Java 26
-  `java.lang.classfile.CodeBuilder` is the selected primary mechanism for every portable CPU
-  computation kernel. This is a future planning decision, not a claim that the authoritative
-  contract's current `CPU ASM` wording has already changed.
+- Java 26 `java.lang.classfile.CodeBuilder` is the selected current implementation direction for
+  every portable CPU computation kernel. This is non-authoritative planning: the architecture
+  permits generated JVM-bytecode CPU computation kernels without making that builder or another
+  generation library an invariant.
 - Every currently selected executable Model operation semantic must gain truthful portable
   generated coverage before the portable capability milestone closes. Metadata-only or zero-work
   view occurrences need no generated computation. Unsupported executable semantics fail closed
@@ -103,7 +102,7 @@ SIMD routes, optional native routes, storage, workspace, and execution.
 | ID | Task | Status | Depends on | Summary |
 |---|---|---|---|---|
 | 0001 | [CPU capability, representation, binding, and parallel foundation](tasks/0001-cpu-capability-representation-binding-and-parallel-foundation.md) | Complete | Stable planning, runtime, prepare, backend-contract, and trace contracts | Established truthful fail-closed capability; canonical aligned native internal buffers; typed-array, exact-segment, and mixed binding; direct typed invocation; and shared worker/chunk/cancellation/failure infrastructure without executable semantic coverage claims. |
-| 0002 | Portable Class-File API generator foundation | Draft | 0001; separate authorized architecture synchronization; Java 26 Class-File and Vector API toolchain | Establish generator schema/versioning, exact typed specialization descriptors, family-specific lowerer contracts, shared scalar/vector/heap/segment/range/tile/reduction emitters, hidden-class definition, and the exact four-mode execution matrix without a god generator. |
+| 0002 | Portable Class-File API generator foundation | Draft | 0001; generated JVM-bytecode CPU-kernel architecture contract; Java 26 Class-File and Vector API toolchain | Establish generator schema/versioning, exact typed specialization descriptors, family-specific lowerer contracts, shared scalar/vector/heap/segment/range/tile/reduction emitters, hidden-class definition, and the exact four-mode execution matrix without a god generator. |
 | 0003 | Bounded generated-artifact cache and cold finalization | Draft | 0002; stable CPU finalization and artifact compatibility | Add the CPU-owned bounded concurrent single-flight in-memory cache, deterministic complete key equality, hidden-class and typed-entry lifetime retention, and miss-only generation/definition during backend finalization after slot assignment. |
 | 0004 | Typed portable analysis, specialization, and finalization | Draft | 0001–0003 | Generate complete typed portable candidates per operation occurrence or fused partition; select one valid route, representation, specialization, execution mode, and parallel configuration after exact compatibility and full transition-cost filtering; and cold-bind the finalized typed entry point. |
 | 0005 | Portable elementwise and pointwise family coverage | Draft | 0002–0004 | Generate truthful scalar/Vector and single-thread/parallel coverage for arithmetic, comparison, logical, selection, cast, classification, and activation semantics across supported data, storage, layout, shape, broadcast, and tail specializations. |
@@ -138,12 +137,11 @@ preparer, executable semantic coverage, a route, generated code, OpenBLAS integr
 module change. Task 0002 is the next Draft frontier; tasks 0002–0016 remain Draft without detailed
 specifications.
 
-Before task 0002 or any generated-kernel implementation task can become Ready, a separate
-authorized architecture synchronization must replace the current ASM-specific wording in
-`ARCHITECTURE.md` and `docs/architecture/module-boundaries.md` with an implementation-neutral
-generated JVM bytecode route and assess whether an architecture decision record (ADR) or
-architecture-test update is required. Until that coordinated change is authorized and complete,
-the Class-File API direction remains selected non-authoritative planning only.
+The separately authorized architecture synchronization is complete: the authoritative contract
+and focused explanations now permit implementation-neutral generated JVM-bytecode CPU computation
+kernels while preserving CPU backend and Prepare ownership. Task 0002 is no longer architecture-
+blocked. It remains the next Draft frontier without a detailed specification, and the Class-File
+API direction remains a selected non-authoritative implementation choice.
 
 ## Open questions
 
@@ -161,9 +159,6 @@ the Class-File API direction remains selected non-authoritative planning only.
   zero-size/alignment/allocation/cleanup rules, borrowed heap/native cold binding, direct typed
   invocation seam, and worker lifecycle needed for implementation. Later route-specific
   representation requirements and materializations still wait for the route-selection tasks.
-- The first generated-kernel task cannot become Ready under the current authoritative `CPU ASM`
-  and architecture-update-gated bytecode-generation wording. The prerequisite above must resolve
-  that conflict; this planning task does not edit or reinterpret the contract.
 
 ## Decisions made
 
@@ -186,9 +181,9 @@ the Class-File API direction remains selected non-authoritative planning only.
   geometry, synchronous completion, cooperative range-boundary cancellation, first/suppressed
   failure propagation, interruption restoration, and idempotent shutdown. It selects no thread
   count from Config, tuning, or operation semantics.
-- Subject to the recorded architecture prerequisite, Java 26
-  `java.lang.classfile.CodeBuilder` is the primary generation mechanism for all portable CPU
-  computation kernels. Native vendor providers remain separate optional routes; the generator
+- Java 26 `java.lang.classfile.CodeBuilder` is the selected primary generation mechanism for all
+  portable CPU computation kernels. This remains a current planning choice rather than an
+  architecture invariant. Native vendor providers remain separate optional routes; the generator
   does not replace OpenBLAS, oneMKL, oneDNN, Accelerate, AOCL, or ZenDNN.
 - Portable capability is truthful and fail-closed. Every selected executable Model semantic must
   have generated coverage before the portable milestone closes; metadata-only or zero-work view

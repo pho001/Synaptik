@@ -336,7 +336,14 @@ Each concrete backend owns preparation and execution details for the partitions 
 - backend-specific materialization and native bridge integration; and
 - backend trace contributions.
 
-Planning chooses an owner such as CPU, Metal, or CUDA. The owning backend then chooses scalar, Vector API, OpenBLAS, MPSGraph, a custom Metal kernel, a CUDA kernel, or another backend-internal route during prepare.
+Planning chooses an owner such as CPU, Metal, or CUDA. The owning backend then chooses a scalar
+route, Vector API route, generated JVM-bytecode CPU computation kernel, OpenBLAS route, MPSGraph
+executable, custom Metal kernel, CUDA kernel, or another backend-internal route during prepare.
+
+For a generated CPU computation kernel, CPU analysis owns lowering, specialization, route choice,
+and exact resource declarations. CPU finalization may generate and define the selected kernel or
+reuse a compatible CPU-owned generated artifact after shared slot assignment. Runtime receives
+only the prepared executable and does not generate, cache, or select the kernel.
 
 Route selection occurs during analysis, before shared slot assignment. Executable construction
 occurs during finalization, after slot assignment. Neither step consumes `CompileArtifacts` or

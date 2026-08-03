@@ -6,7 +6,14 @@ This pre-implementation note explains how CPU execution routes fit behind one ba
 
 ## Strategy
 
-Planning selects only `owner = CPU`. CPU prepare examines the owned partition and chooses among scalar, Vector API, ASM, OpenBLAS, specialized, or fused routes. Runtime invokes the resulting `PreparedExecutable` without repeating that choice.
+Planning selects only `owner = CPU`. CPU prepare examines the owned partition and chooses among
+scalar, Vector API, generated JVM-bytecode CPU computation-kernel, OpenBLAS, specialized, or
+fused routes. CPU finalization generates or reuses a compatible selected artifact after shared
+slot assignment. Runtime invokes the resulting `PreparedExecutable` without repeating that
+choice.
+
+The architecture fixes this ownership and lifecycle, not a particular bytecode-generation API.
+The CPU master plan records the selected current Java 26 implementation direction.
 
 Scalar code should provide a readable reference path for selected capabilities. Optimized routes must preserve its specified semantics and failure behavior. OpenBLAS stays behind the CPU backend through the low-level provider; Vector API configuration stays local to the CPU module.
 

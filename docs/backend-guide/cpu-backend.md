@@ -33,12 +33,13 @@ deployment JVM permission for restricted native access.
 
 The CPU backend owns capability reporting and physical CPU representations. It will later own
 partition lowering, specialization, fusion, scalar and optimized routes, executable units, and
-typed tracing. Scalar, Vector API, ASM, specialized, fused, and OpenBLAS implementations remain
-routes within one CPU owner.
+typed tracing. Scalar, Vector API, generated Java Virtual Machine (JVM) bytecode computation
+kernels, specialized or fused kernels, and OpenBLAS implementations remain routes within one CPU
+owner. The architecture does not require a particular bytecode-generation API.
 
 ```text
 planning: owner = CPU
-CPU prepare: choose scalar / Vector API / OpenBLAS / specialized / fused
+CPU prepare: choose scalar / Vector API / generated JVM bytecode / OpenBLAS / specialized / fused
 runtime: invoke prepared CPU executable
 ```
 

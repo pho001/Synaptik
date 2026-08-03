@@ -964,7 +964,19 @@ The rule that each concrete backend translates its assigned planned partitions i
 
 ### Backend route
 
-A concrete implementation choice inside one backend, such as a CPU scalar loop, Vector API routine, OpenBLAS call, MPSGraph executable, custom Metal kernel, or CUDA kernel. A route is selected during backend prepare after planning has chosen the backend owner. Routes are not separate backend identities.
+A concrete implementation choice inside one backend, such as a CPU scalar loop, Vector API
+routine, generated CPU computation kernel, OpenBLAS call, MPSGraph executable, custom Metal
+kernel, or CUDA kernel. A route is selected during backend prepare after planning has chosen the
+backend owner. Routes are not separate backend identities.
+
+### Generated CPU computation kernel
+
+A CPU-backend-internal executable route whose Java Virtual Machine (JVM) bytecode is produced for
+one selected lowering and specialization. CPU analysis owns the selection and exact resource
+requirements; CPU finalization generates and defines the kernel or reuses a compatible CPU-owned
+generated artifact after shared slot assignment. Runtime invokes only the resulting prepared
+executable. The term describes the generated artifact and its lifecycle, not the bytecode-
+generation library or builder API used by the current implementation.
 
 ### Benchmark report / benchmarking
 
