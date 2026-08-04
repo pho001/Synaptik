@@ -6,7 +6,8 @@ This guide defines the CPU integration boundary and helps contributors avoid tre
 as separate backends. The current CPU module implements a truthful fail-closed capability
 provider, run-owned aligned native buffer/workspace representations, exact borrowed-segment cold
 binding, a direct prepared-invocation seam, bounded worker infrastructure, and a backend-private
-Java 26 generated-kernel foundation. It advertises and executes no Model operation yet.
+Java 26 generated-kernel foundation with a durable generated-class artifact store. It advertises
+and executes no Model operation yet, and no production CPU finalizer uses the store yet.
 
 The lower-level OpenBLAS provider separately implements explicit library loading, required-symbol
 binding, a caller-owned lookup lifetime, low-level FLOAT32/FLOAT64 dense row-major general matrix
@@ -137,13 +138,67 @@ writability remain cold-binding obligations.
 
 `CpuGeneratedKernel` retains the specialization, verified bytes, full-privilege hidden lookup,
 hidden class, exact static method handle, and method type. Retaining the artifact retains that
-hidden-class lifetime, but the foundation promises no unloading time. Equal generation requests
-produce identical bytes and distinct hidden classes and artifacts because no generated-artifact
-cache exists yet; bounded reuse belongs to CPU task 0003.
+hidden-class lifetime, but the foundation promises no unloading time. Calling the generator's
+convenience generation path directly still defines a fresh hidden class. The durable store
+described below instead reuses compatible class bytes and weakly interns a loaded artifact while
+it remains live.
 
 Current tests invoke only bounded synthetic copy and structural probes across heap, exact-segment,
 and mixed signatures in all four modes. They prove the generator and direct-carrier seams, not a
 Tensor result, a prepared CPU route, numerical correctness, or Model-operation coverage.
+
+## Current durable generated-artifact store
+
+`CpuGeneratedKernelArtifactStore` is the package-private cold-loading boundary for deterministic
+generated class bytes. A caller constructs it with one explicit trusted local root; construction
+normalizes that path but does not touch the filesystem. A later CPU finalizer can ask the store
+for one already-selected `CpuKernelSpecialization` and matching family emitter after shared
+Prepare assigns slots. CPU task 0004 still owns that production finalizer, root supply through
+composition, and strong retention by a prepared executable.
+
+```text
+explicit root + complete specialization + matching emitter
+  -> deterministic .cpuclass path
+  -> validate a complete compatible envelope, or emit verified bytes
+  -> force a temporary file and atomically replace the final entry
+  -> re-read, revalidate, define a hidden class, and resolve the exact handle
+  -> return a loaded CpuGeneratedKernel
+```
+
+The final relative path has the fixed form
+`generated-kernels/v1/sha256/<two hex digits>/<62 hex digits>.cpuclass`. Its SHA-256 address covers
+a domain separator and complete canonical compatibility metadata. The self-contained binary
+envelope records a format version, bounded metadata and class lengths, a class-byte checksum, the
+full metadata, and the class bytes. A path digest, specialization fingerprint, Java hash code, or
+checksum alone is never accepted as compatibility proof. The store compares the complete
+metadata, rejects trailing or truncated data, verifies the checksum, and delegates Java class-file
+verification and exact class-shape validation to `CpuClassFileKernelGenerator` before definition.
+
+A missing, incompatible, or corrupt final entry is a cache miss. The store emits deterministic
+verified bytes, writes one uniquely named temporary regular file in the final directory, forces
+its contents, and performs an atomic replacement. It never falls back to a non-atomic move. A
+mandatory final re-read means only the bytes visible at the deterministic final path are defined.
+Separate Java Virtual Machine (JVM) processes may emit redundantly, but atomic replacement and
+complete validation ensure that readers do not accept a partial publication. Ordinary directory,
+permission, read, write, force, or atomic-move failures fail cold loading instead of silently
+bypassing the explicit store. Compatible age and access history never invalidate an entry; the
+store performs no expiry, eviction, quota enforcement, directory sweep, or background cleanup.
+
+Equal requests in one process share one in-flight attempt even when they use different store
+instances normalized to the same root. Waiters observe the same loaded artifact or the same
+unchecked failure, and an interrupted waiter restores its interrupt status without cancelling the
+attempt. A failed attempt is removed and may be retried. Loaded artifacts are interned only through
+weak references with reference-queue cleanup during later calls. The store has no strong completed
+map or hidden-class unloading promise. A caller-held artifact remains invocable; task 0004 must
+make a prepared executable the strong lifetime owner while that prepared execution is usable.
+
+The root is an executable-code trust boundary. SHA-256 checksums and structural verification
+detect accidental corruption and incompatible data; they do not authenticate bytecode. The
+caller must choose a local root whose permissions and ancestor paths prevent untrusted writers
+from replacing its contents. An attacker who can modify both stored class bytes and their checksum
+is outside this mechanism's security claim. The store is also distinct from a workload tuning
+cache: it reuses exact executable bytes after route and specialization selection, while tuning
+evidence would help select a route or configuration before finalization.
 
 ## Current low-level OpenBLAS foundation
 

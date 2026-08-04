@@ -1011,9 +1011,34 @@ signatures are direct entry carriers; the artifact does not copy, retain ownersh
 invocation memory.
 
 Keeping the artifact reachable keeps its hidden-class state reachable, without promising when an
-unreferenced class unloads. No artifact cache exists yet: equal generation requests produce equal
-class bytes but distinct hidden classes and artifact identities. CPU task 0003 owns future bounded
-reuse; the current artifact is not a prepared route and executes only synthetic test probes.
+unreferenced class unloads. Direct generator calls produce equal class bytes but distinct hidden
+classes and artifact identities. The current durable generated-kernel artifact store may instead
+reuse compatible class bytes and weakly intern one loaded artifact while it remains live. The
+artifact is not a prepared route and currently executes only synthetic test probes.
+
+### CPU generated-kernel artifact store
+
+The implemented package-private CPU filesystem mechanism that durably reuses deterministic
+generated class bytes across store instances and Java Virtual Machine (JVM) processes. Its caller
+supplies an explicit trusted local root. Complete canonical compatibility metadata determines a
+content-addressed `.cpuclass` path, while one bounded self-contained envelope stores that metadata,
+the class bytes, and their SHA-256 checksum. A hit requires exact metadata equality, checksum
+validation, Java class-file verification, and exact generated-class shape; a digest or checksum
+alone never establishes compatibility.
+
+Missing, corrupt, or incompatible entries are safe misses. Publication forces a unique temporary
+file and atomically replaces the deterministic final entry, with no non-atomic fallback, then
+re-reads and validates the final bytes before hidden-class definition. Compatible age never
+invalidates an entry, and the mechanism has no automatic eviction, expiry, quota, directory sweep,
+or background maintenance. Equal in-process requests share one attempt across store instances;
+loaded artifacts are interned only weakly and remain usable through their strong callers.
+
+Checksums and structural validation detect accidental damage but do not authenticate executable
+content. The caller must isolate the root from untrusted writers. The store is neither a workload
+tuning cache nor a model-plan cache: it reuses already-selected executable class bytes during cold
+CPU finalization and performs no route selection, measurement, or Runtime hot-path work. No
+production CPU finalizer calls it yet; CPU task 0004 owns integration and prepared-executable
+strong retention.
 
 ### Benchmark report / benchmarking
 

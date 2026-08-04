@@ -7,7 +7,10 @@ import io.github.pho001.synaptik.runtime.execution.PreparedExecutable.BufferAcce
 import java.lang.classfile.ClassFile;
 import java.lang.foreign.Arena;
 import java.lang.foreign.ValueLayout;
+import java.lang.constant.ClassDesc;
+import java.lang.constant.MethodTypeDesc;
 import java.lang.invoke.MethodHandle;
+import java.lang.reflect.AccessFlag;
 import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -175,6 +178,106 @@ class CpuClassFileKernelGeneratorTest {
         assertEquals("familyEmitter lowering fingerprint does not match specialization",
                 assertThrows(IllegalArgumentException.class, () ->
                         new CpuClassFileKernelGenerator().generate(specialization, mismatch)).getMessage());
+    }
+
+    @Test void separatesDeterministicEmissionFromStoredByteDefinitionAndRejectsCorruption() {
+        var specialization = heapSpecialization(
+                CpuPortableExecutionMode.SCALAR_SINGLE_THREAD, true);
+        var generator = new CpuClassFileKernelGenerator();
+        byte[] bytes = generator.generateClassBytes(specialization, new CopyEmitter());
+        CpuGeneratedKernel loaded = generator.defineClassBytes(specialization, bytes);
+        assertArrayEquals(bytes, loaded.classBytes());
+        assertEquals(specialization.entryType(), loaded.entryPoint().type());
+        assertNotSame(loaded, generator.defineClassBytes(specialization, bytes));
+
+        byte[] corrupt = bytes.clone();
+        corrupt[0] ^= 1;
+        assertTrue(assertThrows(IllegalArgumentException.class,
+                () -> generator.defineClassBytes(specialization, corrupt)).getMessage()
+                .startsWith("generated class verification failed"));
+        assertAll(
+                () -> assertEquals("specialization", assertThrows(NullPointerException.class,
+                        () -> generator.defineClassBytes(null, bytes)).getMessage()),
+                () -> assertEquals("classBytes", assertThrows(NullPointerException.class,
+                        () -> generator.defineClassBytes(specialization, null)).getMessage()));
+    }
+
+    @Test void storedDefinitionRejectsEveryExactClassShapeDifference() {
+        var specialization = heapSpecialization(
+                CpuPortableExecutionMode.SCALAR_SINGLE_THREAD, true);
+        var generator = new CpuClassFileKernelGenerator();
+        String expectedName = CpuGeneratorSchema.generatedBinaryName(specialization);
+        MethodTypeDesc expectedType = MethodTypeDesc.ofDescriptor(
+                specialization.entryType().descriptorString());
+
+        List<byte[]> wrongShapes = List.of(
+                classBytes(expectedName, ClassFile.JAVA_25_VERSION, 0, AccessFlag.FINAL,
+                        ClassDesc.of("java.lang.Object"), List.of(), false,
+                        "invoke", expectedType, AccessFlag.STATIC),
+                classBytes(expectedName, ClassFile.JAVA_26_VERSION, 1, AccessFlag.FINAL,
+                        ClassDesc.of("java.lang.Object"), List.of(), false,
+                        "invoke", expectedType, AccessFlag.STATIC),
+                classBytes(expectedName + "Wrong", ClassFile.JAVA_26_VERSION, 0,
+                        AccessFlag.FINAL, ClassDesc.of("java.lang.Object"), List.of(), false,
+                        "invoke", expectedType, AccessFlag.STATIC),
+                classBytes(expectedName, ClassFile.JAVA_26_VERSION, 0, AccessFlag.FINAL,
+                        ClassDesc.of("java.lang.Number"), List.of(), false,
+                        "invoke", expectedType, AccessFlag.STATIC),
+                classBytes(expectedName, ClassFile.JAVA_26_VERSION, 0, AccessFlag.PUBLIC,
+                        ClassDesc.of("java.lang.Object"), List.of(), false,
+                        "invoke", expectedType, AccessFlag.STATIC),
+                classBytes(expectedName, ClassFile.JAVA_26_VERSION, 0, AccessFlag.FINAL,
+                        ClassDesc.of("java.lang.Object"), List.of(ClassDesc.of("java.lang.Runnable")),
+                        false, "invoke", expectedType, AccessFlag.STATIC),
+                classBytes(expectedName, ClassFile.JAVA_26_VERSION, 0, AccessFlag.FINAL,
+                        ClassDesc.of("java.lang.Object"), List.of(), true,
+                        "invoke", expectedType, AccessFlag.STATIC),
+                classBytes(expectedName, ClassFile.JAVA_26_VERSION, 0, AccessFlag.FINAL,
+                        ClassDesc.of("java.lang.Object"), List.of(), false,
+                        "wrong", expectedType, AccessFlag.STATIC),
+                classBytes(expectedName, ClassFile.JAVA_26_VERSION, 0, AccessFlag.FINAL,
+                        ClassDesc.of("java.lang.Object"), List.of(), false,
+                        "invoke", MethodTypeDesc.ofDescriptor("()V"), AccessFlag.STATIC),
+                classBytes(expectedName, ClassFile.JAVA_26_VERSION, 0, AccessFlag.FINAL,
+                        ClassDesc.of("java.lang.Object"), List.of(), false,
+                        "invoke", expectedType),
+                classWithTwoMethods(expectedName, expectedType),
+                classWithoutCode(expectedName, expectedType));
+
+        for (byte[] wrongShape : wrongShapes) {
+            assertThrows(IllegalArgumentException.class,
+                    () -> generator.defineClassBytes(specialization, wrongShape));
+        }
+    }
+
+    private static byte[] classBytes(String name, int major, int minor, AccessFlag classFlag,
+            ClassDesc superclass, List<ClassDesc> interfaces, boolean field, String methodName,
+            MethodTypeDesc methodType, AccessFlag... methodFlags) {
+        return ClassFile.of().build(ClassDesc.of(name), classBuilder -> {
+            classBuilder.withVersion(major, minor).withFlags(classFlag)
+                    .withSuperclass(superclass).withInterfaceSymbols(interfaces);
+            if (field) classBuilder.withField("state", ClassDesc.ofDescriptor("I"),
+                    AccessFlag.STATIC.mask());
+            classBuilder.withMethodBody(methodName, methodType,
+                    java.util.Arrays.stream(methodFlags).mapToInt(AccessFlag::mask)
+                            .reduce(0, (left, right) -> left | right),
+                    code -> code.return_());
+        });
+    }
+
+    private static byte[] classWithTwoMethods(String name, MethodTypeDesc type) {
+        return ClassFile.of().build(ClassDesc.of(name), classBuilder -> classBuilder
+                .withVersion(ClassFile.JAVA_26_VERSION, 0).withFlags(AccessFlag.FINAL)
+                .withMethodBody("invoke", type, AccessFlag.STATIC.mask(), code -> code.return_())
+                .withMethodBody("second", MethodTypeDesc.ofDescriptor("()V"),
+                        AccessFlag.STATIC.mask(), code -> code.return_()));
+    }
+
+    private static byte[] classWithoutCode(String name, MethodTypeDesc type) {
+        return ClassFile.of().build(ClassDesc.of(name), classBuilder -> classBuilder
+                .withVersion(ClassFile.JAVA_26_VERSION, 0).withFlags(AccessFlag.FINAL)
+                .withMethod("invoke", type,
+                        AccessFlag.STATIC.mask() | AccessFlag.NATIVE.mask(), method -> {}));
     }
 
     @Test void validatesGeneratorInputsAndPreservesUncheckedEmitterFailure() {

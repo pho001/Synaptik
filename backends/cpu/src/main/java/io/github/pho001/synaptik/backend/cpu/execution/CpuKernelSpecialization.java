@@ -290,6 +290,12 @@ final class CpuKernelSpecialization {
      *     {@code null}
      */
     CpuLoweringFingerprint specializationFingerprint() { return specializationFingerprint; }
+    /** Returns the complete canonical structural encoding used for durable compatibility.
+     *
+     * @return a new defensive copy encoding every component used by structural equality in fixed
+     *     schema order; never {@code null}
+     */
+    byte[] artifactCompatibilityBytes() { return canonicalBytes(); }
 
     @Override public boolean equals(Object other) {
         if (this == other) return true;

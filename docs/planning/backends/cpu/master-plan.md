@@ -23,7 +23,8 @@ SIMD routes, optional native routes, storage, workspace, and execution.
 - distinct AMD AOCL-BLAS/AOCL-LibM and later optional ZenDNN integrations
 - other specialized and fused routes only when a concrete capability justifies them
 - CPU executables, storage, workspace, scheduling, and tracing
-- a bounded concurrent CPU-owned in-memory cache of generated executable artifacts
+- a CPU-owned durable filesystem store of compatible generated class bytes plus process-local
+  single-flight and weak loaded-artifact interning
 - joint route and physical-representation selection across relevant CPU dataflow and partition uses
 - typed, version-controlled, tested route candidate generators and compatible workload-cache
   lookup during prepare
@@ -117,7 +118,8 @@ io.github.pho001.synaptik.backend.cpu/
   package-info.java           public package boundary and current status
   execution/                  package-private representations, cold binding, workers,
                               generated-kernel specialization/emission/artifact machinery,
-                              and later CPU executable implementations
+                              durable artifact storage, weak loaded reuse, and later CPU
+                              executable implementations
 ```
 
 Task 0002 extends only the existing package-private `execution` package so it can reuse task
@@ -131,7 +133,7 @@ Ready.
 |---|---|---|---|---|
 | 0001 | [CPU capability, representation, binding, and parallel foundation](tasks/0001-cpu-capability-representation-binding-and-parallel-foundation.md) | Complete | Stable planning, runtime, prepare, backend-contract, and trace contracts | Established truthful fail-closed capability; canonical aligned native internal buffers; typed-array, exact-segment, and mixed binding; direct typed invocation; and shared worker/chunk/cancellation/failure infrastructure without executable semantic coverage claims. |
 | 0002 | [Portable Class-File API generator foundation](tasks/0002-portable-class-file-api-generator-foundation.md) | Complete | 0001; generated JVM-bytecode CPU-kernel architecture contract; Java 26 Class-File and Vector API toolchain | Established generator schema/versioning, exact typed specialization descriptors, mode-owned structural scalar/vector emission dispatch, family-specific emitter contracts, shared scalar/vector/heap/segment/range/tile/reduction emitters, hidden-class definition, and the exact four-mode execution matrix without a god generator or operation coverage. |
-| 0003 | Bounded generated-artifact cache and cold finalization | Draft | 0002; stable CPU finalization and artifact compatibility | Add the CPU-owned bounded concurrent single-flight in-memory cache, deterministic complete key equality, hidden-class and typed-entry lifetime retention, and miss-only generation/definition during backend finalization after slot assignment. |
+| 0003 | [Durable generated-kernel artifact store and cold loading](tasks/0003-bounded-generated-artifact-cache-and-cold-finalization.md) | Complete | 0002; stable CPU finalization and artifact compatibility; explicit trusted local root | Added a model-independent filesystem store for exact compatible generated class bytes, atomic cross-process-safe publication, full validation, process-local single-flight, weak loaded-artifact interning, and cold definition/handle resolution for later post-slot finalization. |
 | 0004 | Typed portable analysis, specialization, and finalization | Draft | 0001–0003 | Generate complete typed portable candidates per operation occurrence or fused partition; select one valid route, representation, specialization, execution mode, and parallel configuration after exact compatibility and full transition-cost filtering; and cold-bind the finalized typed entry point. |
 | 0005 | Portable elementwise and pointwise family coverage | Draft | 0002–0004 | Generate truthful scalar/Vector and single-thread/parallel coverage for arithmetic, comparison, logical, selection, cast, classification, and activation semantics across supported data, storage, layout, shape, broadcast, and tail specializations. |
 | 0006 | Portable layout, indexing, ordering, and random family coverage | Draft | 0002–0005 | Generate truthful coverage for executable layout transforms, slicing, padding, tiling, composition, windows, gather/scatter, ordering, one-hot, and explicit-state random/dropout work; metadata-only or zero-work views remain computation-free. |
@@ -144,12 +146,12 @@ Ready.
 | 0013 | Apple Accelerate routes | Draft | 0001–0004; 0009; concrete Apple CPU use case and supported Accelerate ABI evidence | Add low-level Accelerate BLAS, vDSP, and vForce leaves plus eligible CPU routes; generate no replacements and do not call MPSGraph or Metal kernels from CPU. |
 | 0014 | AMD AOCL-BLAS and AOCL-LibM routes | Draft | 0001–0004; 0009; concrete AMD CPU use case and supported AOCL ABI evidence | Add distinct AOCL-BLAS and AOCL-LibM leaves and eligible CPU routes without generating vendor replacements. |
 | 0015 | Optional AMD ZenDNN partition routes | Draft | 0014; 0004; 0009; stable CPU partition lowering; concrete ZenDNN use case and integration evidence | Add a distinct later ZenDNN provider and eligible DNN-partition route without collapsing it into AOCL or generated portable code. |
-| 0016 | Compatible CPU workload-tuning-cache selection | Draft | 0004; 0010–0015 as implemented; deferred Prepare opaque-candidate handoff; stable tuning-artifact compatibility | Reuse only compatible persistent selected-route evidence while retaining exact filtering and safe heuristic fallback; keep it distinct from the in-memory generated-artifact cache and add no measurement or cache mutation to CPU prepare. |
+| 0016 | Compatible CPU workload-tuning-cache selection | Draft | 0004; 0010–0015 as implemented; deferred Prepare opaque-candidate handoff; stable tuning-artifact compatibility | Reuse only compatible persistent selected-route evidence while retaining exact filtering and safe heuristic fallback; keep selected-route evidence distinct from the generated-class artifact store and add no measurement or tuning-cache mutation to CPU prepare. |
 
 
 ## Milestones
 
-- CPU representation, binding, generator, and artifact-cache foundation
+- CPU representation, binding, generator, and durable artifact-store foundation
 - Portable generated family coverage and closure
 - Optional native routes and complete candidate selection
 - Tuning-cache integration and conformance
@@ -173,11 +175,24 @@ dispatch, while `CpuClassFileKernelGenerator` delegates without that switch. The
 `NONE`, `SCALAR`, and `MASKED`. Baked primitive-array byte offsets require data-type-width
 alignment, exact segments retain baked zero offset, and dynamic array offsets remain cold typed
 invocation values. Equal requests produce identical bytes and distinct hidden artifacts because
-no cache exists yet. CPU still advertises and executes no Model operation. Tasks 0003–0016 remain
-Draft without detailed specifications.
+the direct generator path remains fresh. CPU still advertises and executes no Model operation.
+Complete
+[task 0003 Durable generated-kernel artifact store and cold loading](tasks/0003-bounded-generated-artifact-cache-and-cold-finalization.md)
+adds one CPU-private durable reuse source: a
+model-independent filesystem store under an explicit caller/composition-supplied trusted local
+root. Deterministic content-addressed paths retain exact compatibility metadata and verified
+class bytes in a self-contained envelope published by forced temporary-file write and atomic
+move. Stored hits are accepted only after full structural metadata, checksum, class-file, and
+entry-shape validation. Process-local equal requests single-flight, while loaded artifacts are
+interned only weakly with stale-key cleanup; no strong completed LRU, expiry, or age-based
+invalidation exists. The generator now separates deterministic byte emission from revalidated
+stored-byte definition, and exact class-shape validation remains generator-owned. No production
+finalizer calls the store yet; CPU 0004 owns integration, explicit root supply through composition,
+and prepared-executable strong retention. Tasks 0004–0016 remain Draft without detailed
+specifications.
 
 Future Model task 0026 is required before any CPU route advertises FLOAT16. That dependency does
-not block tasks 0003–0004 or later current-type work: generated-artifact caching, portable
+not block tasks 0003–0004 or later current-type work: generated-artifact storage, portable
 analysis/finalization, and current-type family coverage may proceed while remaining fail-closed for
 FLOAT16.
 
@@ -189,6 +204,11 @@ sole final CPU 9-suite/34-test pass, both with zero failures, errors, or skips. 
 documentation pass reused that executable evidence and finalized CPU Javadoc, guide, glossary,
 and planning validation. The Class-File API and Vector API remain selected CPU-internal
 implementation choices rather than architecture invariants.
+
+Implementation context `019fc96e-494b-74f2-b6e9-5b55d649cd6c` recorded CPU 0003's focused
+3-suite/30-test pass and sole final CPU 10-suite/48-test pass, both with zero failures, errors, or
+skips. The mandatory clean documentation pass reused that evidence, finalized the authorized
+Javadocs, guide, glossary, and planning records, and changed no executable Java.
 
 ## Open questions
 
@@ -258,23 +278,38 @@ implementation choices rather than architecture invariants.
   scalar/vector modes nor concentrates all families in one generator.
 - CPU backend analysis selects one complete valid route, representation, specialization candidate,
   and prepared parallel configuration. Only CPU backend finalization after shared slot assignment
-  consults the generated-artifact cache and emits/defines the selected class on a miss. Runtime
-  invokes only the cold-bound typed entry point.
-- The CPU backend owns one bounded concurrent in-memory generated-artifact cache with single-flight
-  generation. A hit reuses the loaded artifact and its accumulated JVM/JIT profile. A cache value
-  retains the hidden-class lifetime and typed entry point while cached or while a prepared
-  executable reachable from `PreparedExecution` references it; eviction plus loss of every
-  reference permits unloading. No unbounded static map, service locator, Runtime lookup, or Tensor
-  ownership is permitted.
+  consults the generated-artifact store and emits verified bytes only on a compatible stored miss.
+  It validates stored bytes, defines the hidden class, and resolves the exact typed entry point;
+  Runtime invokes only that cold-resolved handle.
+- The durable source of reusable generated kernels is one CPU-owned model-independent filesystem
+  artifact store under an explicit caller/composition-supplied trusted local root. Separate store
+  instances and later JVM processes sharing that root reuse exact compatible class bytes. Entries
+  use deterministic content-addressed paths, exact compatibility metadata, bounded envelopes,
+  checksums, full class-file verification, and atomic complete-file publication.
 - The generated-artifact key includes a generator schema/version and exactly every fact that
   changes bytecode or compatibility. Thread count or chunk size is keyed only when emitted code
   changes; otherwise it remains prepared parallel-execution configuration. Key construction and
   equality are deterministic and must be validated directly.
-- The generated-artifact cache is distinct from the persistent tuning cache: tuning selects a
-  compatible candidate, while the artifact cache reuses generated executable code. The first
-  artifact cache is memory-only. Persistent class-byte storage is deferred until strict Synaptik
-  build, generator-schema, classfile/JDK, Vector API, and target compatibility, validation, and
-  corruption-handling contracts are designed.
+- Task 0003 stores and compares the complete immutable `CpuKernelSpecialization` canonical
+  structure plus generator, Java/Class-File, generated-class, entry-name, and entry-descriptor
+  compatibility facts. A path digest, specialization fingerprint, Java hash, or checksum alone
+  cannot establish a hit. Model, Tensor, graph, value, slot, storage, address, run, emitter,
+  handle, class-loader, and store-instance identities are excluded.
+- Compatible age never invalidates an artifact. The store has no time-to-live, hit-rate policy,
+  automatic disk eviction, quota, background service, or valid-entry maintenance. Corrupt or
+  incompatible bytes are never defined and may be replaced only through verified generation and
+  forced temporary-file plus atomic-move publication.
+- Equal requests share one process-local single-flight attempt across store instances. Loaded
+  artifacts are interned only through weak values with reference-queue stale-key cleanup; there is
+  no strong global completed LRU. A later prepared executable reachable from
+  `PreparedExecution`, not the store, strongly retains the hidden class, lookup, and exact method
+  handle for active use.
+- Checksums and structural verification detect accidental corruption but do not authenticate
+  executable bytes. The artifact root is an explicit trusted-local-cache security boundary whose
+  write isolation and administration belong to the caller/composition owner.
+- The generated-class artifact store is distinct from the persistent tuning cache: the former
+  reuses exact verified executable class bytes after route selection, while the latter records
+  compatible route/configuration-selection evidence. Neither performs Runtime hot-path work.
 - Matrix-multiplication candidates may include supported JDK Vector API species and strategy,
   unroll, tile, parallelism, and OpenBLAS thread configurations derived and pruned from target
   capabilities, workload facts, and budget.

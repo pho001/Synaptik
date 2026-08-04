@@ -69,6 +69,10 @@ class CpuKernelSpecializationTest {
                 first.entryType());
         assertEquals(first, second); assertEquals(first.hashCode(), second.hashCode());
         assertEquals(first.specializationFingerprint(), second.specializationFingerprint());
+        assertArrayEquals(first.artifactCompatibilityBytes(), second.artifactCompatibilityBytes());
+        byte[] compatibility = first.artifactCompatibilityBytes();
+        compatibility[0] ^= 1;
+        assertNotEquals(compatibility[0], first.artifactCompatibilityBytes()[0]);
         assertEquals("3552566101c3eae39b74886121546a52f626a298390e99b0b7127f4959b61a8f",
                 first.specializationFingerprint().toString());
         assertNotEquals(first, specialization(CpuPortableExecutionMode.SCALAR_PARALLEL,
