@@ -6,8 +6,10 @@ This guide defines the CPU integration boundary and helps contributors avoid tre
 as separate backends. The current CPU module implements a truthful fail-closed capability
 provider, run-owned aligned native buffer/workspace representations, exact borrowed-segment cold
 binding, a direct prepared-invocation seam, bounded worker infrastructure, and a backend-private
-Java 26 generated-kernel foundation with a durable generated-class artifact store. It advertises
-and executes no Model operation yet, and no production CPU finalizer uses the store yet.
+Java 26 generated-kernel foundation with a durable generated-class artifact store. CPU-private
+typed analysis and finalization now connect those foundations to the shared Prepare and Runtime
+contracts. The connection is proved only by bounded synthetic candidates and invocations: CPU
+still advertises and executes no Model operation.
 
 The lower-level OpenBLAS provider separately implements explicit library loading, required-symbol
 binding, a caller-owned lookup lifetime, low-level FLOAT32/FLOAT64 dense row-major general matrix
@@ -153,8 +155,9 @@ Tensor result, a prepared CPU route, numerical correctness, or Model-operation c
 generated class bytes. A caller constructs it with one explicit trusted local root; construction
 normalizes that path but does not touch the filesystem. A later CPU finalizer can ask the store
 for one already-selected `CpuKernelSpecialization` and matching family emitter after shared
-Prepare assigns slots. CPU task 0004 still owns that production finalizer, root supply through
-composition, and strong retention by a prepared executable.
+Prepare assigns slots. The current CPU-private finalizer performs that integration and makes the
+prepared executable a strong owner. Public composition still has no owner for the explicit root
+or worker-group lifetime.
 
 ```text
 explicit root + complete specialization + matching emitter
@@ -189,8 +192,8 @@ instances normalized to the same root. Waiters observe the same loaded artifact 
 unchecked failure, and an interrupted waiter restores its interrupt status without cancelling the
 attempt. A failed attempt is removed and may be retried. Loaded artifacts are interned only through
 weak references with reference-queue cleanup during later calls. The store has no strong completed
-map or hidden-class unloading promise. A caller-held artifact remains invocable; task 0004 must
-make a prepared executable the strong lifetime owner while that prepared execution is usable.
+map or hidden-class unloading promise. A caller-held artifact remains invocable; task 0004 makes
+the prepared executable its strong lifetime owner while that prepared recipe is usable.
 
 The root is an executable-code trust boundary. SHA-256 checksums and structural verification
 detect accidental corruption and incompatible data; they do not authenticate bytecode. The
@@ -199,6 +202,63 @@ from replacing its contents. An attacker who can modify both stored class bytes 
 is outside this mechanism's security claim. The store is also distinct from a workload tuning
 cache: it reuses exact executable bytes after route and specialization selection, while tuning
 evidence would help select a route or configuration before finalization.
+
+## Current typed portable preparation
+
+The current CPU-private preparation path connects one already CPU-owned partition to one reusable
+Runtime recipe. It deliberately has no production operation-family source yet:
+
+```text
+PrepareContext<CpuPortableAnalysisInputs>
+  -> injected family-owned candidate source
+  -> exact validation and first eligible candidate in source order
+  -> CpuPortablePreparationPlan + exact shared resource declarations
+  -> shared Prepare assigns slots and validates declaration geometry
+  -> CpuPortablePartitionFinalizer
+  -> compatible artifact load or verified generation
+  -> CpuPortablePreparedExecutable
+  -> Runtime cold binding through CpuBorrowedBuffer or CpuNativeBuffer
+  -> family-owned typed BoundInvocation
+```
+
+`CpuPortableAnalysisInputs` snapshots the exact supported Vector species and retains one immutable
+prepared parallel configuration. The configuration records positive worker count, positive
+minimum range size, and deterministic-range intent; it does not own a worker group or discover a
+target. A directly injected `CpuPortableCandidateSource` supplies complete candidates in
+deterministic preference order. There is no registry, reflective discovery, generic parameter
+map, tuning lookup, or universal route priority.
+
+Each `CpuPortableKernelCandidate` binds one specialization and matching family emitter to ordered
+buffer/workspace declarations, identity-bound uses, and a signature-specific cold binder. CPU
+analysis rejects non-CPU ownership, an unprojected buffer value, a specialization data type that
+disagrees with that projected value, unsupported Vector species, and malformed declarations or
+uses. It selects the first valid eligible candidate. The declared byte size and alignment remain
+backend-owned opaque facts at this point: task 0004 does not derive dense byte size from a tensor
+descriptor or introduce a layout/materialization policy. The existing shared finalization handoff
+checks that each assigned Runtime slot satisfies the exact declaration geometry.
+
+The finalizer receives an explicit trusted artifact root and an already-owned open
+`CpuWorkerGroup`. It resolves every selected buffer and workspace use to an assigned dense plan
+position and checks the worker configuration before its one artifact-store request. It neither
+changes the selected specialization nor adds a resource. The resulting immutable executable
+strongly retains the `CpuGeneratedKernel` and its exact direct `MethodHandle`; it borrows rather
+than closes the worker group and owns no per-run representation.
+
+Runtime remains the lifetime boundary. Caller storage enters the run only through the non-owning
+`CpuBorrowedBuffer` implementation of `BufferRepresentation`; no executable or binder accepts
+`HostTensorStorage` directly. Cold binding first applies Runtime and the task-0001 representation
+checks, then validates the exact specialization carrier, baked or dynamic array offset form, and
+parallel worker accessibility. A family binder copies the direct handle and required carrier,
+segment, workspace, worker, and primitive range fields into its own `BoundInvocation`. The hot
+call has no slot lookup, storage discovery, argument classification, artifact access, reflection,
+handle adaptation, route selection, or allocation.
+
+The current tests use fixed synthetic emitters and signature-specific invocations to exercise all
+four portable modes, heap and exact-segment carriers, mixed signatures, repeated resources,
+artifact miss and reuse, shared assignment, parallel worker access, and concurrent binding. Normal
+return proves only that the staged lifecycle and direct-call boundary work for those synthetic
+inputs. It does not prove a Tensor result, numerical algorithm, operation-family capability,
+backend conformance, integration, or performance.
 
 ## Current low-level OpenBLAS foundation
 

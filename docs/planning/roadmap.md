@@ -110,19 +110,34 @@ artifact cache. Implementation context `019fc815-42aa-7de2-8970-a2fcab3a390e` re
 or skips; the clean documentation pass reused that evidence because it changed no executable Java
 behavior. CPU still advertises and executes no Model operation. Detailed
 [CPU 0003 Durable generated-kernel artifact store and cold loading](backends/cpu/tasks/0003-bounded-generated-artifact-cache-and-cold-finalization.md)
-is Complete; CPU 0004–0016 remain Draft without detailed specifications. CPU 0003 implements a
+is Complete. Detailed
+[CPU 0004 Typed portable analysis, specialization, and finalization](backends/cpu/tasks/0004-typed-portable-analysis-specialization-and-finalization.md)
+is Complete; CPU 0005 is the next Draft frontier, and CPU 0005–0016 remain without detailed
+specifications. CPU 0003 implements a
 model-independent filesystem store beneath an explicit
 caller/composition-supplied trusted local root. It uses deterministic content-addressed paths,
 exact structural compatibility metadata, checksummed and fully verified class bytes, and forced
 temporary-file plus atomic-move publication so separate store instances and later JVM processes
 can reuse the same bytes safely. Equal process-local requests single-flight; loaded artifacts are
-interned only weakly with stale-key cleanup, and active later prepared ownership supplies strong
+interned only weakly with stale-key cleanup, and current prepared ownership supplies strong
 lifetime. There is no strong completed LRU, age/expiry correctness, automatic disk eviction,
-operation coverage, production finalizer, Config surface, tuning policy, or Runtime hot-path
-work. Implementation context `019fc96e-494b-74f2-b6e9-5b55d649cd6c` recorded the focused
+operation coverage, public composition, Config surface, tuning policy, or Runtime hot-path work.
+Implementation context `019fc96e-494b-74f2-b6e9-5b55d649cd6c` recorded the focused
 3-suite/30-test pass and the sole final CPU 10-suite/48-test pass, both with zero failures, errors,
 or skips. The clean documentation pass reused that executable evidence because it changed no
 executable Java behavior.
+
+CPU 0004 connects the existing foundations through one package-private typed candidate source,
+deterministic exact validation and selection, pre-assignment declarations, post-assignment
+artifact finalization, immutable generated-kernel/direct-handle retention, and direct cold
+binding through `CpuBorrowedBuffer`/`CpuNativeBuffer`. Backend-declared byte geometry remains
+opaque during CPU analysis; shared Prepare validates it against assigned plan geometry, and no
+dense-layout or materialization policy changed. Its final focused command passed three suites/24
+tests, and the sole stabilized CPU module command passed 13 suites/72 tests with no failures,
+errors, or skips. Clean documentation context `/root/cpu_0004_docs` reused that evidence and
+passed CPU Javadoc, generated-page, five-file Markdown, exact 18-path, surface/status/excluded-
+path, and whitespace validation without changing executable Java. CPU remains fail-closed and
+the proof remains synthetic.
 
 Future Model task 0026 records the prerequisite for true IEEE-754 binary16 `FLOAT16` and explicit
 mixed-precision operation contracts. No backend may advertise FLOAT16 before that Model task is
@@ -249,9 +264,10 @@ Compile and Planning remain logical and backend-neutral; shared Prepare assigns 
 slots and explicit materializations, while Runtime executes the prepared schedule and tracks
 validity and residency.
 
-Future CPU analysis selects a complete valid route, representation, specialization, and prepared
-parallel configuration. The production CPU finalizer added by CPU 0004, only after shared slot
-assignment, will consult the
+Current CPU analysis selects the first complete valid synthetic candidate, representation,
+specialization, and prepared parallel configuration supplied by its direct candidate source.
+Later operation families own real candidate generation. The CPU-private finalizer added by CPU
+0004, only after shared slot assignment, consults the
 explicit-root generated-kernel artifact store. A valid hit supplies exact verified class bytes; a
 miss emits deterministic verified bytes, publishes a complete immutable envelope atomically, then
 re-reads, verifies, defines, and resolves the exact static `MethodHandle`. Runtime invokes only
@@ -272,8 +288,8 @@ bytecode, so the caller owns root write isolation and administration.
 
 Process-local equal requests use single-flight across store instances. Loaded artifacts are held
 only by weak interning with stale-key cleanup; there is no strong global completed LRU, expiry,
-background service, or automatic disk eviction. A later CPU prepared executable reachable from
-`PreparedExecution` strongly retains the loaded class, lookup, and handle during active use.
+background service, or automatic disk eviction. The current CPU portable prepared executable
+strongly retains the loaded class, lookup, and handle while the recipe remains reachable.
 
 The generated-class artifact store remains separate from the persistent tuning cache: tuning
 selects compatible route/configuration evidence, while the artifact store reuses exact executable
@@ -295,12 +311,24 @@ construction and dispatch. `CpuClassFileKernelGenerator` delegates to it without
 The Class-File API and `CodeBuilder` remain current non-authoritative implementation selections
 rather than permanent architecture dependencies.
 
-CPU tasks 0001–0003 are Complete. CPU tasks 0004–0016 and the refined Config, Prepare, Metal, and
-tuning rows remain Draft without new detailed specifications.
+CPU tasks 0001–0004 are Complete. CPU 0004 connects one already CPU-owned partition to the
+existing typed Prepare analysis/finalization and
+Runtime cold-binding boundaries while keeping every real Model operation fail-closed. Its direct
+typed candidate source selects the existing carrier/access specialization, one of the exact four
+portable modes, and a prepared parallel recipe; exact shared requirements precede assignment;
+only the post-assignment CPU finalizer consults CPU 0003's explicit-root store; and the immutable executable
+strongly retains the generated artifact and direct handle. `CpuBorrowedBuffer` remains the
+non-owning `HostTensorStorage` representation/lifetime boundary for caller inputs and cold
+argument classification, not an artifact cache. Bounded synthetic tests prove the lifecycle but
+justify no computation or capability claim. CPU 0005–0016 and the refined Config, Prepare, Metal,
+and tuning rows remain Draft without new detailed specifications.
 Completed OpenBLAS history and every completed project area remain unchanged.
 
-CPU remains the active global project area. CPU 0004 is the next Draft frontier, but it has no
-detailed specification yet. Prepare 0004 is only a deferred bounded interleave after a concrete CPU typed-
+CPU remains the active global project area. CPU 0005 is the next Draft frontier and has no
+detailed specification. Complete CPU 0004 adds no public facade, registry, service locator,
+default artifact-root Config API, operation family, vendor route, tuning/benchmark work, broad
+cost model, shared-module/build/architecture change, or later specification. Prepare 0004 is only
+a deferred bounded interleave after a concrete CPU typed-
 candidate producer and tuning-artifact consumer exist; it does not reopen or reorder the
 completed Prepare project area.
 

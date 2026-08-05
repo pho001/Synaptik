@@ -17,8 +17,14 @@
  * artifacts are interned only weakly and remain live through their callers. Checksums detect
  * accidental corruption but do not authenticate a root writable by an attacker. This executable-
  * artifact store is distinct from persistent workload tuning evidence and is never consulted by
- * Runtime binding or execution. The package still implements only synthetic test probes today
- * and performs no Model-operation lowering, production route selection, or scheduling. Runtime
- * continues to own logical per-run state and cleanup orchestration.</p>
+ * Runtime binding or execution. Typed portable analysis now selects only injected complete
+ * candidates and declares exact resources before shared assignment. Backend-declared byte
+ * geometry remains opaque to this analysis; shared Prepare validates it against assigned plan
+ * geometry. CPU finalization then loads the artifact and constructs an immutable recipe with a
+ * family-owned direct binder. The recipe consumes {@code CpuBorrowedBuffer} only through
+ * Runtime's {@code BufferRepresentation} boundary and borrows its worker group. The package still
+ * implements only synthetic test probes today and performs no Model-operation lowering, truthful
+ * capability coverage, public composition, or scheduling. Runtime continues to own logical
+ * per-run state, representation lifetime, and cleanup orchestration.</p>
  */
 package io.github.pho001.synaptik.backend.cpu.execution;

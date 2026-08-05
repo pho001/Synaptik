@@ -55,8 +55,10 @@ current [`PreparedPublication`](#prepared-publication--preparedpublication) reci
 [`RunResult`](#run-result--runresult) leases complete states. The CPU backend now supplies its
 first package-private physical buffer/workspace implementations, exact borrowed-segment cold
 binding, direct prepared-invocation seam, bounded worker foundation, and a package-private
-generated-kernel foundation for synthetic probes. It still advertises and executes no Model
-operation and has no production CPU route or executable semantic coverage.
+generated-kernel foundation with typed analysis, shared-resource declaration, post-assignment
+artifact finalization, and prepared direct binding for synthetic probes. It still advertises and
+executes no Model operation and has no production operation-family route or executable semantic
+coverage.
 
 Prepare currently provides the public immutable analysis-side contracts in
 `io.github.pho001.synaptik.prepare.analysis`: `BackendAnalysisInputs`,
@@ -1037,8 +1039,48 @@ Checksums and structural validation detect accidental damage but do not authenti
 content. The caller must isolate the root from untrusted writers. The store is neither a workload
 tuning cache nor a model-plan cache: it reuses already-selected executable class bytes during cold
 CPU finalization and performs no route selection, measurement, or Runtime hot-path work. No
-production CPU finalizer calls it yet; CPU task 0004 owns integration and prepared-executable
-strong retention.
+public composition owner supplies it. The current CPU-private finalizer calls it only after shared
+assignment and worker validation, and the resulting prepared executable strongly retains the
+loaded artifact.
+
+### CPU portable preparation plan
+
+The implemented backend-private immutable result of CPU portable analysis before shared slot
+assignment. It retains one exact complete `CpuPortableKernelCandidate` and one exact prepared
+parallel configuration. The candidate connects a generated specialization and matching family
+emitter to ordered exact shared declarations, identity-bound buffer/workspace uses, and one
+family-owned typed cold binder.
+
+CPU analysis validates that Planning already selected CPU ownership, that each declared buffer
+names a projected value, that projected and specialized data types agree, and that the selected
+Vector species and execution mode are eligible. It chooses the first valid eligible candidate in
+the injected source's deterministic order. Backend-declared byte size and alignment remain opaque
+analysis facts: the current CPU implementation does not derive dense byte geometry from a tensor
+descriptor or choose a layout/materialization policy. Shared Prepare later validates those exact
+declarations against assigned `PreparedMemoryPlan` geometry.
+
+The plan is not a generated artifact, assigned slot, executable, physical resource, per-run
+binding, capability claim, tuning result, registry, or public route API. The current production
+package supplies no operation-family candidate source; bounded synthetic tests prove only the
+staged lifecycle.
+
+### CPU portable prepared executable
+
+The implemented backend-private immutable Runtime recipe constructed by CPU finalization after
+shared slot assignment. It strongly retains the exact `CpuGeneratedKernel`, its direct static
+`MethodHandle`, the selected specialization, prepared parallel configuration, selected resource
+recipes, and family-owned typed binder. It borrows an already-owned `CpuWorkerGroup`, owns no
+physical representation or close lifecycle, and may bind concurrently to distinct open
+`RunState` instances.
+
+Cold binding consumes `CpuBorrowedBuffer` and `CpuNativeBuffer` through Runtime's
+`BufferRepresentation` boundary. It validates selected carrier and offset form plus parallel
+segment/workspace accessibility once, then asks the family binder to construct a
+signature-specific `BoundInvocation` with direct typed fields. No executable or binder accepts
+`HostTensorStorage` directly. The Runtime hot call performs no storage discovery, slot lookup,
+argument classification, artifact access, reflection, handle adaptation, route selection, or
+allocation. Current invocations remain synthetic and establish no Model operation, Tensor result,
+capability, conformance, integration, or performance claim.
 
 ### Benchmark report / benchmarking
 
@@ -2784,7 +2826,9 @@ casts, raw `Object`, or a shared parameter map.
 `BackendPartitionAnalysis` with the exact context partition, opaque selected plan, and every exact
 shared requirement. It performs no tuning measurement or search, cache mutation, physical
 allocation, executable construction, slot assignment, scheduling, or Runtime execution. No
-production concrete backend implementation exists yet.
+public concrete-backend implementation exists yet. The current CPU module has a package-private
+implementation for bounded synthetic portable candidates, but it advertises no Model-operation
+capability.
 
 ### Preparation resource assignment
 
@@ -2811,9 +2855,12 @@ The owning backend implements `BackendPartitionFinalizer<P>` and returns one non
 
 Finalization does not authorize route reselection, undeclared resource requirements, physical
 allocation, native or closeable prepared-resource acquisition, run-state construction, binding,
-execution, scheduling, transfer, publication, measurement, or cache mutation. The batch handoff
-is package-private behind current public graph preparation; no production backend finalizer
-exists.
+execution, scheduling, transfer, publication, measurement, or workload tuning-cache mutation.
+An owning backend may perform an already-selected compatible executable-artifact load or
+publication where its established cold-finalization contract permits it. The batch handoff is
+package-private behind current public graph preparation. The current CPU module has one
+package-private portable finalizer that resolves assigned resources and loads or generates an
+already-selected artifact; it is not publicly composed and supplies no Model operation family.
 
 ### Prepared partition / `PreparedPartition`
 

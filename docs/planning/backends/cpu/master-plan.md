@@ -118,14 +118,14 @@ io.github.pho001.synaptik.backend.cpu/
   package-info.java           public package boundary and current status
   execution/                  package-private representations, cold binding, workers,
                               generated-kernel specialization/emission/artifact machinery,
-                              durable artifact storage, weak loaded reuse, and later CPU
-                              executable implementations
+                              durable artifact storage, weak loaded reuse, typed portable
+                              analysis/finalization, and CPU executable recipes
 ```
 
-Task 0002 extends only the existing package-private `execution` package so it can reuse task
-0001's arguments and workers without widening them or creating a cross-package facade. Later
-family-specific placement must be planned by its owning detailed task before that family becomes
-Ready.
+Tasks 0002–0004 extend only the existing package-private `execution` package so generated-kernel,
+artifact-store, typed analysis/finalization, and cold-binding code can reuse task 0001's arguments
+and workers without widening them or creating a cross-package facade. Later family-specific
+placement must be planned by its owning detailed task before that family becomes Ready.
 
 ## Task list
 
@@ -134,7 +134,7 @@ Ready.
 | 0001 | [CPU capability, representation, binding, and parallel foundation](tasks/0001-cpu-capability-representation-binding-and-parallel-foundation.md) | Complete | Stable planning, runtime, prepare, backend-contract, and trace contracts | Established truthful fail-closed capability; canonical aligned native internal buffers; typed-array, exact-segment, and mixed binding; direct typed invocation; and shared worker/chunk/cancellation/failure infrastructure without executable semantic coverage claims. |
 | 0002 | [Portable Class-File API generator foundation](tasks/0002-portable-class-file-api-generator-foundation.md) | Complete | 0001; generated JVM-bytecode CPU-kernel architecture contract; Java 26 Class-File and Vector API toolchain | Established generator schema/versioning, exact typed specialization descriptors, mode-owned structural scalar/vector emission dispatch, family-specific emitter contracts, shared scalar/vector/heap/segment/range/tile/reduction emitters, hidden-class definition, and the exact four-mode execution matrix without a god generator or operation coverage. |
 | 0003 | [Durable generated-kernel artifact store and cold loading](tasks/0003-bounded-generated-artifact-cache-and-cold-finalization.md) | Complete | 0002; stable CPU finalization and artifact compatibility; explicit trusted local root | Added a model-independent filesystem store for exact compatible generated class bytes, atomic cross-process-safe publication, full validation, process-local single-flight, weak loaded-artifact interning, and cold definition/handle resolution for later post-slot finalization. |
-| 0004 | Typed portable analysis, specialization, and finalization | Draft | 0001–0003 | Generate complete typed portable candidates per operation occurrence or fused partition; select one valid route, representation, specialization, execution mode, and parallel configuration after exact compatibility and full transition-cost filtering; and cold-bind the finalized typed entry point. |
+| 0004 | [Typed portable analysis, specialization, and finalization](tasks/0004-typed-portable-analysis-specialization-and-finalization.md) | Complete | 0001–0003 | Connected staged Prepare to CPU-private typed portable selection, exact pre-assignment declarations, post-assignment artifact finalization, immutable generated-executable retention, and direct per-run cold binding using bounded synthetic/fail-closed coverage only. |
 | 0005 | Portable elementwise and pointwise family coverage | Draft | 0002–0004 | Generate truthful scalar/Vector and single-thread/parallel coverage for arithmetic, comparison, logical, selection, cast, classification, and activation semantics across supported data, storage, layout, shape, broadcast, and tail specializations. |
 | 0006 | Portable layout, indexing, ordering, and random family coverage | Draft | 0002–0005 | Generate truthful coverage for executable layout transforms, slicing, padding, tiling, composition, windows, gather/scatter, ordering, one-hot, and explicit-state random/dropout work; metadata-only or zero-work views remain computation-free. |
 | 0007 | Portable reduction, scan, statistics, and normalization family coverage | Draft | 0002–0006 | Generate family-specific range, tile, partial-reduction, and combine bodies for aggregates, arg extrema, scans, softmax/log-softmax, statistics, and normalization with exact semantics and determinism. |
@@ -187,8 +187,17 @@ entry-shape validation. Process-local equal requests single-flight, while loaded
 interned only weakly with stale-key cleanup; no strong completed LRU, expiry, or age-based
 invalidation exists. The generator now separates deterministic byte emission from revalidated
 stored-byte definition, and exact class-shape validation remains generator-owned. No production
-finalizer calls the store yet; CPU 0004 owns integration, explicit root supply through composition,
-and prepared-executable strong retention. Tasks 0004–0016 remain Draft without detailed
+operation-family source uses the store yet. Complete CPU 0004 now owns the CPU-private
+integration, explicit root seam, and prepared-executable strong retention. Detailed
+[task 0004 Typed portable analysis, specialization, and finalization](tasks/0004-typed-portable-analysis-specialization-and-finalization.md)
+is Complete. It adds only the CPU-private staged lifecycle foundation: deterministic selection
+from a direct typed candidate source, exact declarations before assignment, artifact-store use
+only during finalization afterward, immutable generated-kernel/direct-handle retention, and
+family-owned direct typed cold binding. CPU analysis preserves backend-declared byte geometry;
+shared Prepare validates that geometry against assigned slots, and no dense-layout or
+materialization policy was introduced. Its tests remain bounded and synthetic,
+`CpuCapabilityProvider` remains fail-closed, and no real Model operation family is implemented or
+advertised. CPU task 0005 is the next Draft frontier; CPU tasks 0005–0016 have no detailed
 specifications.
 
 Future Model task 0026 is required before any CPU route advertises FLOAT16. That dependency does
@@ -209,6 +218,13 @@ Implementation context `019fc96e-494b-74f2-b6e9-5b55d649cd6c` recorded CPU 0003'
 3-suite/30-test pass and sole final CPU 10-suite/48-test pass, both with zero failures, errors, or
 skips. The mandatory clean documentation pass reused that evidence, finalized the authorized
 Javadocs, guide, glossary, and planning records, and changed no executable Java.
+
+The CPU 0004 implementation pass recorded a final focused three-suite/24-test pass and the sole
+stabilized CPU module 13-suite/72-test pass, both with zero failures, errors, or skips. Mandatory
+clean documentation context `/root/cpu_0004_docs` reused that evidence, finalized all affected
+production/package Javadocs, the CPU guide, glossary, task/master/roadmap records, and passed CPU
+Javadoc plus exact-scope, Markdown, surface, status, excluded-path, and whitespace checks without
+changing executable Java.
 
 ## Open questions
 
@@ -281,6 +297,23 @@ Javadocs, guide, glossary, and planning records, and changed no executable Java.
   consults the generated-artifact store and emits verified bytes only on a compatible stored miss.
   It validates stored bytes, defines the hidden class, and resolves the exact typed entry point;
   Runtime invokes only that cold-resolved handle.
+- Task 0004 represents each selected portable buffer form through the existing
+  `CpuKernelSpecialization.Argument` carrier/access vocabulary rather than a duplicate storage
+  enum. One direct typed candidate source supplies deterministic preference order; CPU 0004 adds
+  no registry, service locator, universal priority, tuning evidence, benchmark, or broad cost
+  model.
+- `CpuBorrowedBuffer` remains CPU 0001's non-owning `HostTensorStorage` representation/lifetime
+  boundary and begins production portable cold-binding use in task 0004. Direct
+  `HostTensorStorage`-to-argument binding is rejected because it would bypass Runtime's
+  `BufferRepresentation` lifecycle boundary. The borrowed wrapper is not an artifact cache.
+- Because generated method signatures vary, task 0004 keeps signature-specific invocation
+  construction family-owned through a typed cold binder. The immutable portable executable
+  strongly retains both `CpuGeneratedKernel` and its exact direct handle; a bound invocation
+  retains direct typed carrier/workspace/worker fields and performs no hot argument
+  classification.
+- Task 0004 receives an explicit trusted artifact root and an already-owned worker group through
+  a CPU-private finalizer constructor. It adds no public composition owner or default Config API,
+  and finalization borrows rather than allocates or closes the worker group.
 - The durable source of reusable generated kernels is one CPU-owned model-independent filesystem
   artifact store under an explicit caller/composition-supplied trusted local root. Separate store
   instances and later JVM processes sharing that root reuse exact compatible class bytes. Entries
