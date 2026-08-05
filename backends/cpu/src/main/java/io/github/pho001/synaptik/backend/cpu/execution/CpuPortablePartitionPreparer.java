@@ -51,12 +51,12 @@ final class CpuPortablePartitionPreparer implements BackendPartitionPreparer<
         if (!context.partition().owner().equals(CpuCapabilityProvider.CPU_BACKEND_ID)) {
             throw new IllegalArgumentException("partition owner must be CPU");
         }
-        List<CpuPortableKernelCandidate> candidates =
+        List<CpuPortablePartitionCandidate> candidates =
                 Objects.requireNonNull(candidateSource.candidates(context), "candidates");
         var values = new HashMap<ValueId, GraphValue>();
         for (var value : context.values()) values.put(value.id(), value);
         for (int index = 0; index < candidates.size(); index++) {
-            CpuPortableKernelCandidate candidate =
+            CpuPortablePartitionCandidate candidate =
                     Objects.requireNonNull(candidates.get(index), "candidates[" + index + "]");
             validateCandidate(index, candidate, values);
             if (!eligible(candidate, context.backendInputs())) continue;
@@ -70,7 +70,7 @@ final class CpuPortablePartitionPreparer implements BackendPartitionPreparer<
 
     private static void validateCandidate(
             int candidateIndex,
-            CpuPortableKernelCandidate candidate,
+            CpuPortablePartitionCandidate candidate,
             Map<ValueId, GraphValue> values) {
         for (int index = 0; index < candidate.requirements().size(); index++) {
             PreparationResourceRequirement requirement = candidate.requirements().get(index);
@@ -81,30 +81,40 @@ final class CpuPortablePartitionPreparer implements BackendPartitionPreparer<
                                 + "] value is not projected: " + buffer.valueId());
             }
         }
-        for (int index = 0; index < candidate.bufferUses().size(); index++) {
-            var use = candidate.bufferUses().get(index);
-            var value = values.get(use.requirement().valueId());
-            var argument = candidate.specialization().arguments().get(index);
-            if (value == null) {
-                throw new IllegalArgumentException(
-                        "candidates[" + candidateIndex + "].bufferUses[" + index
-                                + "] value is not projected: " + use.requirement().valueId());
-            }
-            if (value.descriptor().dataType() != argument.dataType()) {
-                throw new IllegalArgumentException(
-                        "candidates[" + candidateIndex + "].bufferUses[" + index
-                                + "] data type does not match specialization argument");
+        for (int kernelIndex = 0; kernelIndex < candidate.kernels().size(); kernelIndex++) {
+            var kernel = candidate.kernels().get(kernelIndex);
+            for (int index = 0; index < kernel.bufferUses().size(); index++) {
+                var use = kernel.bufferUses().get(index);
+                var value = values.get(use.requirement().valueId());
+                var argument = kernel.specialization().arguments().get(index);
+                if (value == null) {
+                    throw new IllegalArgumentException(
+                            "candidates[" + candidateIndex + "].kernels[" + kernelIndex
+                                    + "].bufferUses[" + index + "] value is not projected: "
+                                    + use.requirement().valueId());
+                }
+                if (value.descriptor().dataType() != argument.dataType()) {
+                    String location = candidate.kernels().size() == 1
+                            ? "candidates[" + candidateIndex + "].bufferUses[" + index + "]"
+                            : "candidates[" + candidateIndex + "].kernels[" + kernelIndex
+                                    + "].bufferUses[" + index + "]";
+                    throw new IllegalArgumentException(
+                            location + " data type does not match specialization argument");
+                }
             }
         }
     }
 
     private static boolean eligible(
-            CpuPortableKernelCandidate candidate, CpuPortableAnalysisInputs inputs) {
-        var specialization = candidate.specialization();
-        if (specialization.executionMode().vectorized()
-                && !inputs.supportedVectorShapes().contains(
-                        specialization.vectorShape().orElseThrow())) return false;
-        return !specialization.executionMode().parallel()
-                || inputs.parallelConfiguration().workerCount() > 0;
+            CpuPortablePartitionCandidate candidate, CpuPortableAnalysisInputs inputs) {
+        for (var kernel : candidate.kernels()) {
+            var specialization = kernel.specialization();
+            if (specialization.executionMode().vectorized()
+                    && !inputs.supportedVectorShapes().contains(
+                            specialization.vectorShape().orElseThrow())) return false;
+            if (specialization.executionMode().parallel()
+                    && inputs.parallelConfiguration().workerCount() <= 0) return false;
+        }
+        return true;
     }
 }

@@ -108,12 +108,17 @@ family-owned and low-level emitter seams, verified fresh hidden-class artifacts,
 artifact cache. Implementation context `019fc815-42aa-7de2-8970-a2fcab3a390e` recorded a focused
 3-suite/18-test pass and the sole final CPU 9-suite/34-test pass, both with zero failures, errors,
 or skips; the clean documentation pass reused that evidence because it changed no executable Java
-behavior. CPU still advertises and executes no Model operation. Detailed
+behavior. At the CPU-0002 checkpoint, CPU advertised and executed no Model operation. Detailed
 [CPU 0003 Durable generated-kernel artifact store and cold loading](backends/cpu/tasks/0003-bounded-generated-artifact-cache-and-cold-finalization.md)
 is Complete. Detailed
 [CPU 0004 Typed portable analysis, specialization, and finalization](backends/cpu/tasks/0004-typed-portable-analysis-specialization-and-finalization.md)
-is Complete; CPU 0005 is the next Draft frontier, and CPU 0005–0016 remain without detailed
-specifications. CPU 0003 implements a
+is Complete. Detailed
+[CPU 0005 Dense ADD and partition-sequence execution](backends/cpu/tasks/0005-dense-add-and-partition-sequence-execution.md)
+is Complete: it adds the first narrow truthful operation route and solves maximal same-owner
+partition execution as an ordered CPU-private node-kernel sequence. Implementation context
+`019fd19a-4262-7580-9674-226595356fbc` recorded the sole final CPU 31-test pass, which the clean
+documentation pass reused because it changed no executable Java behavior. CPU 0005A is the next
+Draft frontier, and CPU 0006–0016 remain Draft without detailed specifications. CPU 0003 implements a
 model-independent filesystem store beneath an explicit
 caller/composition-supplied trusted local root. It uses deterministic content-addressed paths,
 exact structural compatibility metadata, checksummed and fully verified class bytes, and forced
@@ -311,7 +316,7 @@ construction and dispatch. `CpuClassFileKernelGenerator` delegates to it without
 The Class-File API and `CodeBuilder` remain current non-authoritative implementation selections
 rather than permanent architecture dependencies.
 
-CPU tasks 0001–0004 are Complete. CPU 0004 connects one already CPU-owned partition to the
+CPU tasks 0001–0005 are Complete. CPU 0004 connects one already CPU-owned partition to the
 existing typed Prepare analysis/finalization and
 Runtime cold-binding boundaries while keeping every real Model operation fail-closed. Its direct
 typed candidate source selects the existing carrier/access specialization, one of the exact four
@@ -320,12 +325,15 @@ only the post-assignment CPU finalizer consults CPU 0003's explicit-root store; 
 strongly retains the generated artifact and direct handle. `CpuBorrowedBuffer` remains the
 non-owning `HostTensorStorage` representation/lifetime boundary for caller inputs and cold
 argument classification, not an artifact cache. Bounded synthetic tests prove the lifecycle but
-justify no computation or capability claim. CPU 0005–0016 and the refined Config, Prepare, Metal,
-and tuning rows remain Draft without new detailed specifications.
+justify no computation or capability claim. CPU 0005 adds the exact static canonical dense
+FLOAT64/FLOAT32/INT32/INT64 ADD route and ordered maximal-partition execution. CPU 0005A, CPU
+0006–0016, and the refined Config, Prepare, Metal, and tuning rows remain Draft without new
+detailed specifications.
 Completed OpenBLAS history and every completed project area remain unchanged.
 
-CPU remains the active global project area. CPU 0005 is the next Draft frontier and has no
-detailed specification. Complete CPU 0004 adds no public facade, registry, service locator,
+CPU remains the active global project area. CPU 0005 is Complete through its sole detailed static
+dense ADD and partition-sequence specification. CPU 0005A is the next Draft frontier, and later
+CPU work remains Draft without detailed specifications. Complete CPU 0004 adds no public facade, registry, service locator,
 default artifact-root Config API, operation family, vendor route, tuning/benchmark work, broad
 cost model, shared-module/build/architecture change, or later specification. Prepare 0004 is only
 a deferred bounded interleave after a concrete CPU typed-

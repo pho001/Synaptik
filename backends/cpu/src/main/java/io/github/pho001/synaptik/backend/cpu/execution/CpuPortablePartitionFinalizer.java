@@ -15,12 +15,13 @@ import java.util.List;
 import java.util.Objects;
 
 /**
- * Finalizes an assigned portable CPU plan and performs its sole cold artifact-store request.
+ * Finalizes an assigned portable CPU partition into one ordered generated-kernel recipe.
  *
- * <p>Every selected use is resolved against shared assigned slots and the borrowed worker group
- * is validated before artifact access. The result is an immutable executable recipe; this object
- * neither owns nor closes the worker group and finalization allocates no per-run representation
- * or other closeable prepared resource.</p>
+ * <p>The finalizer resolves every shared buffer and workspace declaration, computes the unioned
+ * partition-level selections and access modes, and validates the borrowed worker configuration
+ * before consulting the generated-artifact store. It then loads or generates one artifact per
+ * node in partition order. The result owns no physical representation or close lifecycle and
+ * borrows, but never closes, the worker group.</p>
  */
 final class CpuPortablePartitionFinalizer
         implements BackendPartitionFinalizer<CpuPortablePreparationPlan> {
@@ -28,12 +29,10 @@ final class CpuPortablePartitionFinalizer
     private final CpuWorkerGroup workerGroup;
 
     /**
-     * Creates a finalizer for an explicitly supplied trust root and worker lifetime.
-     *
      * @param artifactRoot non-null explicit trusted local artifact root
-     * @param workerGroup non-null open already-owned worker group; never closed by this object
-     * @throws NullPointerException if an argument is null, in declaration order
-     * @throws IllegalStateException if {@code workerGroup} is closed
+     * @param workerGroup non-null open borrowed worker group
+     * @throws NullPointerException if an argument is null
+     * @throws IllegalStateException if the worker group is closed
      */
     CpuPortablePartitionFinalizer(Path artifactRoot, CpuWorkerGroup workerGroup) {
         this.artifactStore = new CpuGeneratedKernelArtifactStore(
@@ -42,17 +41,26 @@ final class CpuPortablePartitionFinalizer
         if (workerGroup.isClosed()) throw new IllegalStateException("CPU worker group is closed");
     }
 
-    /** @return {@link CpuCapabilityProvider#CPU_BACKEND_ID} by exact reference; never null */
+    /**
+     * Returns the stable CPU ownership identity.
+     *
+     * @return {@link CpuCapabilityProvider#CPU_BACKEND_ID} by exact reference; never
+     *     {@code null}
+     */
     @Override public BackendId backendId() { return CpuCapabilityProvider.CPU_BACKEND_ID; }
 
     /**
-     * Resolves every assigned resource before loading or generating the selected artifact.
+     * Resolves the complete partition recipe before consulting the artifact store in node order.
      *
      * @param finalization non-null validated shared finalization handoff
-     * @return immutable portable executable retaining the exact plan, artifact, and worker group
-     * @throws NullPointerException if {@code finalization} is null
-     * @throws IllegalArgumentException if CPU ownership or selected assignment mapping is invalid
-     * @throws IllegalStateException if the worker group is closed
+     * @return immutable ordered portable executable retaining all generated artifacts; never
+     *     {@code null}
+     * @throws NullPointerException if {@code finalization} is {@code null}
+     * @throws IllegalArgumentException if the partition is not CPU-owned, an assigned shared
+     *     requirement cannot be resolved, shared kernel facts disagree, or the worker count does
+     *     not match the prepared configuration
+     * @throws IllegalStateException if the borrowed worker group is closed or artifact loading,
+     *     validation, publication, definition, or exact entry resolution fails
      */
     @Override
     public PreparedExecutable finalizePartition(
@@ -63,9 +71,9 @@ final class CpuPortablePartitionFinalizer
             throw new IllegalArgumentException("partition owner must be CPU");
         }
         CpuPortablePreparationPlan plan = finalization.analysis().plan();
-        CpuPortableKernelCandidate candidate = plan.candidate();
-        var assignments = new IdentityHashMap<
-                PreparationResourceRequirement, PreparationResourceAssignment>();
+        CpuPortablePartitionCandidate candidate = plan.candidate();
+        var assignments = new IdentityHashMap<PreparationResourceRequirement,
+                PreparationResourceAssignment>();
         for (var assignment : finalization.assignments()) {
             switch (assignment) {
                 case PreparationResourceAssignment.Buffer buffer ->
@@ -74,32 +82,83 @@ final class CpuPortablePartitionFinalizer
                         assignments.put(workspace.requirement(), workspace);
             }
         }
+
+        var bufferPositions = new IdentityHashMap<PreparationResourceRequirement.Buffer,
+                java.util.Map<Integer, Integer>>();
+        var workspacePositions =
+                new IdentityHashMap<PreparationResourceRequirement.Workspace, Integer>();
         var bufferSelections = new ArrayList<PreparedExecutable.BufferSelection>();
-        var bufferAccesses = new ArrayList<PreparedExecutable.BufferAccess>();
-        var bufferDataTypes = new ArrayList<DataType>();
-        for (int index = 0; index < candidate.bufferUses().size(); index++) {
-            var use = candidate.bufferUses().get(index);
-            if (!(assignments.get(use.requirement())
-                    instanceof PreparationResourceAssignment.Buffer assignment)) {
-                throw new IllegalArgumentException(
-                        "bufferUses[" + index + "] has no assigned buffer requirement");
-            }
-            var argument = candidate.specialization().arguments().get(index);
-            bufferSelections.add(new PreparedExecutable.BufferSelection(
-                    assignment.planIndex(), use.representationIndex()));
-            bufferAccesses.add(argument.access());
-            bufferDataTypes.add(argument.dataType());
-        }
         var workspaceSelections = new ArrayList<PreparedExecutable.WorkspaceSelection>();
-        for (int index = 0; index < candidate.workspaceUses().size(); index++) {
-            var use = candidate.workspaceUses().get(index);
-            if (!(assignments.get(use.requirement())
-                    instanceof PreparationResourceAssignment.Workspace assignment)) {
-                throw new IllegalArgumentException(
-                        "workspaceUses[" + index + "] has no assigned workspace requirement");
+        for (int index = 0; index < candidate.requirements().size(); index++) {
+            switch (candidate.requirements().get(index)) {
+                case PreparationResourceRequirement.Buffer requirement -> {
+                    if (!(assignments.get(requirement)
+                            instanceof PreparationResourceAssignment.Buffer assignment)) {
+                        throw new IllegalArgumentException(candidate.kernels().size() == 1
+                                ? "bufferUses[0] has no assigned buffer requirement"
+                                : "requirements[" + index + "] has no assigned buffer requirement");
+                    }
+                    bufferPositions.put(requirement, new java.util.LinkedHashMap<>());
+                }
+                case PreparationResourceRequirement.Workspace requirement -> {
+                    if (!(assignments.get(requirement)
+                            instanceof PreparationResourceAssignment.Workspace assignment)) {
+                        throw new IllegalArgumentException(candidate.kernels().size() == 1
+                                ? "workspaceUses[0] has no assigned workspace requirement"
+                                : "requirements[" + index + "] has no assigned workspace requirement");
+                    }
+                    workspacePositions.put(requirement, workspaceSelections.size());
+                    workspaceSelections.add(new PreparedExecutable.WorkspaceSelection(
+                            assignment.planIndex()));
+                }
             }
-            workspaceSelections.add(
-                    new PreparedExecutable.WorkspaceSelection(assignment.planIndex()));
+        }
+
+        var accesses = new ArrayList<PreparedExecutable.BufferAccess>();
+        var dataTypes = new ArrayList<DataType>();
+        var resolved = new ArrayList<ResolvedKernel>(candidate.kernels().size());
+        for (int kernelIndex = 0; kernelIndex < candidate.kernels().size(); kernelIndex++) {
+            var kernel = candidate.kernels().get(kernelIndex);
+            var bufferIndices = new int[kernel.bufferUses().size()];
+            for (int index = 0; index < kernel.bufferUses().size(); index++) {
+                var use = kernel.bufferUses().get(index);
+                var representations = bufferPositions.get(use.requirement());
+                if (representations == null) throw new IllegalArgumentException(
+                        "kernels[" + kernelIndex + "].bufferUses[" + index
+                                + "] has no shared assignment");
+                Integer position = representations.get(use.representationIndex());
+                if (position == null) {
+                    var assignment = (PreparationResourceAssignment.Buffer)
+                            assignments.get(use.requirement());
+                    position = bufferSelections.size();
+                    representations.put(use.representationIndex(), position);
+                    bufferSelections.add(new PreparedExecutable.BufferSelection(
+                            assignment.planIndex(), use.representationIndex()));
+                    accesses.add(null);
+                    dataTypes.add(null);
+                }
+                var argument = kernel.specialization().arguments().get(index);
+                DataType priorType = dataTypes.get(position);
+                if (priorType != null && priorType != argument.dataType()) throw new IllegalArgumentException(
+                        "shared buffer data type differs between kernel uses");
+                dataTypes.set(position, argument.dataType());
+                accesses.set(position, union(accesses.get(position), argument.access()));
+                bufferIndices[index] = position;
+            }
+            var workspaceIndices = new int[kernel.workspaceUses().size()];
+            for (int index = 0; index < kernel.workspaceUses().size(); index++) {
+                Integer position = workspacePositions.get(
+                        kernel.workspaceUses().get(index).requirement());
+                if (position == null) throw new IllegalArgumentException(
+                        "kernels[" + kernelIndex + "].workspaceUses[" + index
+                                + "] has no shared assignment");
+                workspaceIndices[index] = position;
+            }
+            resolved.add(new ResolvedKernel(kernel, bufferIndices, workspaceIndices));
+        }
+        for (int index = 0; index < accesses.size(); index++) {
+            if (accesses.get(index) == null || dataTypes.get(index) == null) throw new IllegalArgumentException(
+                    "shared buffer requirement is unused at position " + index);
         }
         if (workerGroup.workerCount() != plan.parallelConfiguration().workerCount()) {
             throw new IllegalArgumentException(
@@ -107,12 +166,29 @@ final class CpuPortablePartitionFinalizer
         }
         if (workerGroup.isClosed()) throw new IllegalStateException("CPU worker group is closed");
 
-        CpuGeneratedKernel generatedKernel = artifactStore.loadOrGenerate(
-                candidate.specialization(), candidate.familyEmitter());
-        return new CpuPortablePreparedExecutable(
-                finalization.memoryPlan(), List.copyOf(bufferSelections),
-                List.copyOf(workspaceSelections), List.copyOf(bufferAccesses),
-                List.copyOf(bufferDataTypes), generatedKernel, plan.parallelConfiguration(),
-                workerGroup, candidate.invocationBinder());
+        var recipes = new ArrayList<CpuPortablePreparedExecutable.KernelRecipe>(resolved.size());
+        for (ResolvedKernel item : resolved) {
+            CpuGeneratedKernel generated = artifactStore.loadOrGenerate(
+                    item.kernel.specialization(), item.kernel.familyEmitter());
+            recipes.add(new CpuPortablePreparedExecutable.KernelRecipe(
+                    generated, item.bufferIndices, item.workspaceIndices,
+                    item.kernel.invocationBinder()));
+        }
+        return new CpuPortablePreparedExecutable(finalization.memoryPlan(), bufferSelections,
+                workspaceSelections, accesses, dataTypes, recipes,
+                plan.parallelConfiguration(), workerGroup);
     }
+
+    private static PreparedExecutable.BufferAccess union(
+            PreparedExecutable.BufferAccess left, PreparedExecutable.BufferAccess right) {
+        if (left == null || left == right) return right;
+        if (left == PreparedExecutable.BufferAccess.READ_WRITE
+                || right == PreparedExecutable.BufferAccess.READ_WRITE) {
+            return PreparedExecutable.BufferAccess.READ_WRITE;
+        }
+        return PreparedExecutable.BufferAccess.READ_WRITE;
+    }
+
+    private record ResolvedKernel(CpuPortableKernelCandidate kernel, int[] bufferIndices,
+            int[] workspaceIndices) {}
 }

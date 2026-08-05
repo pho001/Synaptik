@@ -56,9 +56,10 @@ current [`PreparedPublication`](#prepared-publication--preparedpublication) reci
 first package-private physical buffer/workspace implementations, exact borrowed-segment cold
 binding, direct prepared-invocation seam, bounded worker foundation, and a package-private
 generated-kernel foundation with typed analysis, shared-resource declaration, post-assignment
-artifact finalization, and prepared direct binding for synthetic probes. It still advertises and
-executes no Model operation and has no production operation-family route or executable semantic
-coverage.
+artifact finalization, and prepared direct binding. Its first production operation-family route
+advertises and executes exact dense-contiguous pointwise `ADD` for equal fully static input/output
+shapes in `FLOAT64`, `FLOAT32`, `INT32`, and `INT64`; all other CPU capability queries and route
+shapes fail closed.
 
 Prepare currently provides the public immutable analysis-side contracts in
 `io.github.pho001.synaptik.prepare.analysis`: `BackendAnalysisInputs`,
@@ -859,11 +860,12 @@ null with `NullPointerException("query")`, and returns no rejection reason.
 
 The provider is an explicitly supplied compile-time collaboration, not a registry, discovery
 mechanism, `ServiceLoader` lookup, service locator, availability source, requirement evaluator,
-scoring policy, route selector, preparer, or execution service. A concrete backend may later
-implement it through the architecture-approved inward dependency on planning, but the repository
-currently supplies no production implementation or public consumer. The package-private
-hard-eligibility step is the first internal consumer. Compile-time plans retain `BackendId`, not a
-provider object.
+scoring policy, route selector, preparer, or execution service. The CPU backend implements it
+through the architecture-approved inward dependency on planning and supports only exact
+`BinaryArithmeticKind.ADD` with `NoOperationAttrs`, two inputs, one output, equal fully static
+shapes, one of `FLOAT64`, `FLOAT32`, `INT32`, or `INT64`, and either unresolved or
+`DENSE_CONTIGUOUS` non-view zero-offset layout. The package-private hard-eligibility step is the
+first internal planning consumer. Compile-time plans retain `BackendId`, not a provider object.
 
 ### Backend hard eligibility
 
@@ -984,8 +986,9 @@ generation library or builder API used by the current implementation.
 The current package-private foundation uses the Java 26 Class-File API to emit and verify one
 static typed entry method, defines each result as a hidden nestmate class, and retains its exact
 method handle. The Class-File API and Java Vector API are CPU-internal implementation choices,
-not architecture invariants. Current generated code supports synthetic probes only; it does not
-make this planned route available for a Model operation.
+not architecture invariants. The first production family emits scalar, single-thread native
+`MemorySegment` kernels for exact dense pointwise `ADD`; synthetic probes continue to cover the
+more general generated-kernel foundation without widening that production route.
 
 ### CPU kernel specialization
 
@@ -1016,7 +1019,8 @@ Keeping the artifact reachable keeps its hidden-class state reachable, without p
 unreferenced class unloads. Direct generator calls produce equal class bytes but distinct hidden
 classes and artifact identities. The current durable generated-kernel artifact store may instead
 reuse compatible class bytes and weakly intern one loaded artifact while it remains live. The
-artifact is not a prepared route and currently executes only synthetic test probes.
+artifact is not by itself a prepared route. Current artifacts execute both synthetic test probes
+and the exact production dense pointwise `ADD` family selected by CPU preparation.
 
 ### CPU generated-kernel artifact store
 
@@ -1046,10 +1050,10 @@ loaded artifact.
 ### CPU portable preparation plan
 
 The implemented backend-private immutable result of CPU portable analysis before shared slot
-assignment. It retains one exact complete `CpuPortableKernelCandidate` and one exact prepared
-parallel configuration. The candidate connects a generated specialization and matching family
-emitter to ordered exact shared declarations, identity-bound buffer/workspace uses, and one
-family-owned typed cold binder.
+assignment. It retains one or more exact complete `CpuPortablePartitionCandidate` values in
+planned node order and one exact prepared parallel configuration. Each partition candidate
+connects an ordered sequence of generated specializations and matching family emitters to exact
+shared declarations, identity-bound buffer/workspace uses, and family-owned typed cold binders.
 
 CPU analysis validates that Planning already selected CPU ownership, that each declared buffer
 names a projected value, that projected and specialized data types agree, and that the selected
@@ -1061,17 +1065,18 @@ declarations against assigned `PreparedMemoryPlan` geometry.
 
 The plan is not a generated artifact, assigned slot, executable, physical resource, per-run
 binding, capability claim, tuning result, registry, or public route API. The current production
-package supplies no operation-family candidate source; bounded synthetic tests prove only the
-staged lifecycle.
+candidate source accepts only singleton or multi-node partitions whose nodes are exact supported
+dense pointwise `ADD`; it rejects unsupported nodes, mixed partitions, empty partitions, and
+in-partition input/output aliasing before shared assignment.
 
 ### CPU portable prepared executable
 
 The implemented backend-private immutable Runtime recipe constructed by CPU finalization after
-shared slot assignment. It strongly retains the exact `CpuGeneratedKernel`, its direct static
-`MethodHandle`, the selected specialization, prepared parallel configuration, selected resource
-recipes, and family-owned typed binder. It borrows an already-owned `CpuWorkerGroup`, owns no
-physical representation or close lifecycle, and may bind concurrently to distinct open
-`RunState` instances.
+shared slot assignment. It strongly retains the partition's generated kernels and direct static
+`MethodHandle` values in planned node order, their specializations, prepared parallel
+configuration, selected resource recipes, and family-owned typed binders. It borrows an
+already-owned `CpuWorkerGroup`, owns no physical representation or close lifecycle, and may bind
+concurrently to distinct open `RunState` instances.
 
 Cold binding consumes `CpuBorrowedBuffer` and `CpuNativeBuffer` through Runtime's
 `BufferRepresentation` boundary. It validates selected carrier and offset form plus parallel
@@ -1079,8 +1084,10 @@ segment/workspace accessibility once, then asks the family binder to construct a
 signature-specific `BoundInvocation` with direct typed fields. No executable or binder accepts
 `HostTensorStorage` directly. The Runtime hot call performs no storage discovery, slot lookup,
 argument classification, artifact access, reflection, handle adaptation, route selection, or
-allocation. Current invocations remain synthetic and establish no Model operation, Tensor result,
-capability, conformance, integration, or performance claim.
+allocation. A bound partition invocation performs one parent partition guard, then calls its
+guard-free bound node invocations in planned node order. The current production family establishes
+only exact scalar dense pointwise `ADD`; it makes no Tensor-result, gradient, compiler,
+conformance, integration, or performance claim.
 
 ### Benchmark report / benchmarking
 
@@ -1379,8 +1386,9 @@ model. See the [Compile API](api/compile-api.md#current-model-contracts).
 A module that implements a backend, such as `backends/cpu`, `backends/metal`, or `backends/cuda`.
 It owns backend-specific capability reporting, prepare-time lowering, fusion, specialization,
 kernel selection, executable units, storage, workspaces, and native integration. Concrete
-backends do not own public tensor semantics or global graph compilation. None is implemented yet;
-the current backend identity records contain no concrete backend behavior. See [Module
+backends do not own public tensor semantics or global graph compilation. The CPU module is the
+first concrete implementation and currently exposes only its exact dense pointwise `ADD` route;
+other backend identities still contain no concrete backend behavior. See [Module
 boundaries](architecture/module-boundaries.md).
 
 ### Cumulative scan
@@ -2860,7 +2868,8 @@ An owning backend may perform an already-selected compatible executable-artifact
 publication where its established cold-finalization contract permits it. The batch handoff is
 package-private behind current public graph preparation. The current CPU module has one
 package-private portable finalizer that resolves assigned resources and loads or generates an
-already-selected artifact; it is not publicly composed and supplies no Model operation family.
+already-selected artifact; it is not publicly composed and does not select or widen the current
+exact dense pointwise `ADD` operation family.
 
 ### Prepared partition / `PreparedPartition`
 

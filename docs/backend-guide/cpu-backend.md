@@ -3,13 +3,15 @@
 ## Outcome and status
 
 This guide defines the CPU integration boundary and helps contributors avoid treating CPU routes
-as separate backends. The current CPU module implements a truthful fail-closed capability
-provider, run-owned aligned native buffer/workspace representations, exact borrowed-segment cold
-binding, a direct prepared-invocation seam, bounded worker infrastructure, and a backend-private
-Java 26 generated-kernel foundation with a durable generated-class artifact store. CPU-private
-typed analysis and finalization now connect those foundations to the shared Prepare and Runtime
-contracts. The connection is proved only by bounded synthetic candidates and invocations: CPU
-still advertises and executes no Model operation.
+as separate backends. The current CPU module implements a truthful narrow capability provider,
+run-owned aligned native buffer/workspace representations, exact borrowed-segment cold binding,
+bounded worker infrastructure, and a backend-private Java 26 generated-kernel foundation with a
+durable generated-class artifact store. CPU-private typed analysis and finalization connect those
+foundations to the shared Prepare and Runtime contracts. The first production route now executes
+parameterless dense `ADD` for exact fully static equal shapes and equal `FLOAT64`, `FLOAT32`,
+`INT32`, or `INT64` types. It uses scalar single-thread generated kernels over native
+`MemorySegment` buffers and executes any supported CPU-owned partition as an ordered node-kernel
+sequence. Every other operation, type, layout, carrier, and mode remains fail-closed.
 
 The lower-level OpenBLAS provider separately implements explicit library loading, required-symbol
 binding, a caller-owned lookup lifetime, low-level FLOAT32/FLOAT64 dense row-major general matrix
@@ -52,9 +54,13 @@ control only. Dependency direction is `backends/cpu -> backends/openblas-provide
 ## Current CPU foundation
 
 `CpuCapabilityProvider` is the only public CPU type. It returns the exact stable
-`BackendId("cpu")` constant and returns `false` for every non-null operation capability query.
-That identity lets Planning refer to CPU consistently; it does not assert availability,
-registration, route readiness, or executable semantic coverage.
+`BackendId("cpu")` constant. Its `supports` method returns `true` only for a parameterless binary
+`ADD` occurrence with exactly two inputs and one output, exact equal fully static shapes, and one
+exact common `FLOAT64`, `FLOAT32`, `INT32`, or `INT64` type. Every layout must be unresolved or
+resolved as canonical dense contiguous, zero-offset, non-view geometry. An unresolved layout is
+accepted because CPU preparation selects a canonical materialized representation; a resolved
+view, offset, or non-canonical stride is rejected. The identity itself still does not assert
+availability or registration, and infrastructure or a related type never broadens capability.
 
 The backend-private execution package supplies two physical ownership forms:
 
@@ -125,8 +131,9 @@ The portable mode vocabulary has exactly four values:
 
 The mode owns only the structural choice between the scalar and Vector family callback. A family
 emitter owns semantic instruction construction, while distinct carrier, scalar, Vector, range/
-tile/tail, and partial/combine emitters provide low-level bytecode seams. No production family
-emitter exists yet. The range controls do not create parallel work: `CpuWorkerGroup` still owns
+tile/tail, and partial/combine emitters provide low-level bytecode seams. The first production
+family emitter implements only scalar pointwise `ADD`; all other semantic families and its Vector
+callback remain unsupported. The range controls do not create parallel work: `CpuWorkerGroup` owns
 worker dispatch, synchronization, cancellation, and failure propagation outside generated code.
 
 Generated entry signatures use the selected primitive array carrier (`double[]`, `float[]`,
@@ -145,9 +152,10 @@ convenience generation path directly still defines a fresh hidden class. The dur
 described below instead reuses compatible class bytes and weakly interns a loaded artifact while
 it remains live.
 
-Current tests invoke only bounded synthetic copy and structural probes across heap, exact-segment,
-and mixed signatures in all four modes. They prove the generator and direct-carrier seams, not a
-Tensor result, a prepared CPU route, numerical correctness, or Model-operation coverage.
+Foundation tests still invoke bounded synthetic copy and structural probes across heap,
+exact-segment, and mixed signatures in all four modes. Those tests prove the generic generator
+and direct-carrier seams only. Separate CPU `ADD` tests prove the narrow production route described
+below; they do not broaden the generic foundation to other operations or modes.
 
 ## Current durable generated-artifact store
 
@@ -206,7 +214,8 @@ evidence would help select a route or configuration before finalization.
 ## Current typed portable preparation
 
 The current CPU-private preparation path connects one already CPU-owned partition to one reusable
-Runtime recipe. It deliberately has no production operation-family source yet:
+Runtime recipe. Candidate sources return complete partition candidates, each with a non-empty
+ordered kernel sequence:
 
 ```text
 PrepareContext<CpuPortableAnalysisInputs>
@@ -228,8 +237,10 @@ target. A directly injected `CpuPortableCandidateSource` supplies complete candi
 deterministic preference order. There is no registry, reflective discovery, generic parameter
 map, tuning lookup, or universal route priority.
 
-Each `CpuPortableKernelCandidate` binds one specialization and matching family emitter to ordered
-buffer/workspace declarations, identity-bound uses, and a signature-specific cold binder. CPU
+Each node-level `CpuPortableKernelCandidate` binds one specialization and matching family emitter
+to ordered buffer/workspace declarations, identity-bound uses, and a signature-specific cold
+binder. `CpuPortablePartitionCandidate` groups those node recipes and their exact shared
+declarations for the complete partition. CPU
 analysis rejects non-CPU ownership, an unprojected buffer value, a specialization data type that
 disagrees with that projected value, unsupported Vector species, and malformed declarations or
 uses. It selects the first valid eligible candidate. The declared byte size and alignment remain
@@ -238,27 +249,74 @@ descriptor or introduce a layout/materialization policy. The existing shared fin
 checks that each assigned Runtime slot satisfies the exact declaration geometry.
 
 The finalizer receives an explicit trusted artifact root and an already-owned open
-`CpuWorkerGroup`. It resolves every selected buffer and workspace use to an assigned dense plan
-position and checks the worker configuration before its one artifact-store request. It neither
-changes the selected specialization nor adds a resource. The resulting immutable executable
-strongly retains the `CpuGeneratedKernel` and its exact direct `MethodHandle`; it borrows rather
-than closes the worker group and owns no per-run representation.
+`CpuWorkerGroup`. It resolves every shared declaration and every node use to assigned dense plan
+positions before the first artifact-store request, then loads or generates artifacts in node
+order. It neither changes a selected specialization nor adds a resource. The resulting immutable
+executable strongly retains every `CpuGeneratedKernel` and exact direct `MethodHandle`; it borrows
+rather than closes the worker group and owns no per-run representation.
 
 Runtime remains the lifetime boundary. Caller storage enters the run only through the non-owning
 `CpuBorrowedBuffer` implementation of `BufferRepresentation`; no executable or binder accepts
 `HostTensorStorage` directly. Cold binding first applies Runtime and the task-0001 representation
 checks, then validates the exact specialization carrier, baked or dynamic array offset form, and
 parallel worker accessibility. A family binder copies the direct handle and required carrier,
-segment, workspace, worker, and primitive range fields into its own `BoundInvocation`. The hot
-call has no slot lookup, storage discovery, argument classification, artifact access, reflection,
-handle adaptation, route selection, or allocation.
+segment, workspace, worker, and primitive range fields into a guard-free node call. One
+partition-level `BoundInvocation` performs the sole run-state-open guard, then invokes those
+direct child calls in node order. The hot path has no slot lookup, storage discovery, argument
+classification, artifact access, reflection, handle adaptation, route selection, operation
+dispatch, or allocation.
 
-The current tests use fixed synthetic emitters and signature-specific invocations to exercise all
+The foundation tests use fixed synthetic emitters and signature-specific invocations to exercise all
 four portable modes, heap and exact-segment carriers, mixed signatures, repeated resources,
 artifact miss and reuse, shared assignment, parallel worker access, and concurrent binding. Normal
 return proves only that the staged lifecycle and direct-call boundary work for those synthetic
-inputs. It does not prove a Tensor result, numerical algorithm, operation-family capability,
-backend conformance, integration, or performance.
+inputs. Production pointwise tests separately exercise the exact route below; neither test family
+claims backend conformance, public Engine integration, or performance.
+
+## Current dense ADD route
+
+The only production operation route is parameterless `BinaryArithmeticKind.ADD`. CPU analysis
+visits a non-empty CPU-owned partition in stored node order and rejects the complete partition if
+any node falls outside the exact capability matrix. It does not split the partition, skip a node,
+or fall back after Planning has selected CPU ownership.
+
+For each accepted node, `CpuPointwiseAddCandidateSource` derives one identity-free lowering and
+one scalar single-thread specialization whose signature is:
+
+```text
+(readable left MemorySegment,
+ readable right MemorySegment,
+ writable output MemorySegment,
+ element count) -> void
+```
+
+Shared buffer requirements are interned once per graph `ValueId` in first encounter order while
+visiting each node's inputs and output. Exact byte size is the checked static element count times
+the data-type width, alignment is that width, and a zero-element value requests zero bytes. A
+value read by one node and written by another receives partition-level read-write access. Every
+node recipe still keeps `[left, right, output]` argument order and uses the exact shared
+declaration objects.
+
+The generated loop follows logical flat order. `FLOAT64` and `FLOAT32` use ordinary Java Virtual
+Machine IEEE binary addition; `INT32` and `INT64` use Java fixed-width two's-complement modular
+addition. For example, a two-node INT32 partition with inputs `[1, 2]` and `[10, 20]` can compute:
+
+```text
+node 0: intermediate = [1, 2] + [10, 20] = [11, 22]
+node 1: output       = intermediate + [1, 2] = [12, 24]
+```
+
+The intermediate uses one shared assigned buffer. Finalization resolves the complete assignment
+mapping before artifact access, loads the two generated artifacts in node order, and cold binding
+creates two direct guard-free child calls. Normal execution produces `[12, 24]` and proves the
+ordered native-segment ADD route for this example; it does not prove heap, Vector, parallel,
+fused, dynamic-shape, or non-canonical-layout support.
+
+The route supports scalars and zero extents because their shapes are fully static. It deliberately
+excludes broadcasting, mixed types, BFLOAT16, BOOL, FLOAT16, resolved views or non-canonical
+strides, input/output aliasing, heap or mixed carriers, Vector API and parallel execution,
+fusion, workspace, tuning, and vendor libraries. CPU 0005A is Draft planning for later arithmetic,
+carrier, and mode expansion; it has no detailed specification.
 
 ## Current low-level OpenBLAS foundation
 
@@ -425,10 +483,11 @@ supplied compatible arm64 OpenBLAS 0.3.33 library, including shared thread-count
 fixed SGEMM/DGEMM cases, and restoration of the original thread count. The ordered repository and
 architecture capability checkpoint then passed, and the provider milestone is complete.
 
-The current CPU foundation adds fail-closed capability, storage/binding/worker infrastructure,
-and synthetic generated-kernel machinery only. No CPU operation capability, normalization, route
-threshold, Model-operation execution path, fallback, backend conformance, or performance result
-is implemented or promised. Ordinary provider tests
+The current CPU foundation adds the exact dense `ADD` capability and scalar native-segment route
+on top of its storage, binding, worker, generated-kernel, artifact, analysis, and finalization
+infrastructure. No other CPU operation capability, route threshold, fallback, backend
+conformance, public Engine integration, or performance result is implemented or promised.
+Ordinary provider tests
 prove Java validation and exact ABI forwarding, not installed-library numerical correctness. The
 native checkpoint proves only its selected binary and fixed cases.
 Future CPU work must compare optimized routes with a scalar reference through backend-conformance

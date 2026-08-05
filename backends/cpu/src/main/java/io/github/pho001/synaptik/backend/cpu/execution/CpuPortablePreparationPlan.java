@@ -11,7 +11,7 @@ import java.util.Objects;
  * resource, per-run state, or close lifecycle.</p>
  */
 final class CpuPortablePreparationPlan implements BackendPreparationPlan {
-    private final CpuPortableKernelCandidate candidate;
+    private final CpuPortablePartitionCandidate candidate;
     private final CpuPreparedParallelConfiguration parallelConfiguration;
 
     /**
@@ -22,7 +22,7 @@ final class CpuPortablePreparationPlan implements BackendPreparationPlan {
      * @throws NullPointerException if either argument is {@code null}, in declaration order
      */
     CpuPortablePreparationPlan(
-            CpuPortableKernelCandidate candidate,
+            CpuPortablePartitionCandidate candidate,
             CpuPreparedParallelConfiguration parallelConfiguration) {
         this.candidate = Objects.requireNonNull(candidate, "candidate");
         this.parallelConfiguration =
@@ -34,7 +34,7 @@ final class CpuPortablePreparationPlan implements BackendPreparationPlan {
      *
      * @return exact non-null selected candidate retained at construction
      */
-    CpuPortableKernelCandidate candidate() { return candidate; }
+    CpuPortablePartitionCandidate candidate() { return candidate; }
     /**
      * Returns the immutable range-dispatch recipe selected during analysis.
      *

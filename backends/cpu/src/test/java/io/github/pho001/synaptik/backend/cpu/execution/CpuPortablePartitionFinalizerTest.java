@@ -29,7 +29,8 @@ class CpuPortablePartitionFinalizerTest {
                 CpuCapabilityProvider.CPU_BACKEND_ID, List.of());
         var candidate = CpuPortablePartitionPreparerTest.candidate(
                 CpuPortableExecutionMode.SCALAR_SINGLE_THREAD);
-        var analysis = new CpuPortablePartitionPreparer(ignored -> List.of(candidate)).analyze(context);
+        var analysis = new CpuPortablePartitionPreparer(ignored -> List.of(
+                CpuPortablePartitionPreparerTest.partition(candidate))).analyze(context);
         var requirement = assertInstanceOf(
                 io.github.pho001.synaptik.prepare.analysis.PreparationResourceRequirement.Buffer.class,
                 analysis.requirements().getFirst());
@@ -72,7 +73,8 @@ class CpuPortablePartitionFinalizerTest {
                 CpuPortablePartitionPreparerTest.emitter(),
                 (state, handle, spec, parallel, workers, buffers, workspaces) -> null);
         var analysis = new BackendPartitionAnalysis<>(context.partition(),
-                new CpuPortablePreparationPlan(selectedCandidate,
+                new CpuPortablePreparationPlan(CpuPortablePartitionPreparerTest.partition(
+                        selectedCandidate),
                         context.backendInputs().parallelConfiguration()), List.of(assigned));
         var slot = new BufferSlot(1);
         var memoryPlan = new PreparedMemoryPlan(
@@ -96,7 +98,8 @@ class CpuPortablePartitionFinalizerTest {
                 CpuPortablePartitionPreparerTest.emitter(),
                 (state, handle, spec, parallel, workers, buffers, workspaces) -> null);
         var workspaceAnalysis = new BackendPartitionAnalysis<>(context.partition(),
-                new CpuPortablePreparationPlan(workspaceCandidate,
+                new CpuPortablePreparationPlan(CpuPortablePartitionPreparerTest.partition(
+                        workspaceCandidate),
                         context.backendInputs().parallelConfiguration()), List.of(assigned));
         var workspaceFinalization = new BackendPartitionFinalization<>(workspaceAnalysis,
                 memoryPlan, List.of(new PreparationResourceAssignment.Buffer(assigned, slot, 0)));
@@ -124,7 +127,8 @@ class CpuPortablePartitionFinalizerTest {
                     CpuCapabilityProvider.CPU_BACKEND_ID, List.of());
             var candidate = CpuPortablePartitionPreparerTest.candidate(
                     CpuPortableExecutionMode.SCALAR_SINGLE_THREAD);
-            var analysis = new CpuPortablePartitionPreparer(ignored -> List.of(candidate)).analyze(context);
+            var analysis = new CpuPortablePartitionPreparer(ignored -> List.of(
+                    CpuPortablePartitionPreparerTest.partition(candidate))).analyze(context);
             var requirement = (io.github.pho001.synaptik.prepare.analysis.PreparationResourceRequirement.Buffer)
                     analysis.requirements().getFirst();
             var slot = new BufferSlot(1);
@@ -147,7 +151,8 @@ class CpuPortablePartitionFinalizerTest {
                 CpuCapabilityProvider.CPU_BACKEND_ID, List.of());
         var candidate = CpuPortablePartitionPreparerTest.candidate(
                 CpuPortableExecutionMode.SCALAR_SINGLE_THREAD);
-        var analysis = new CpuPortablePartitionPreparer(ignored -> List.of(candidate)).analyze(context);
+        var analysis = new CpuPortablePartitionPreparer(ignored -> List.of(
+                CpuPortablePartitionPreparerTest.partition(candidate))).analyze(context);
         var requirement = (PreparationResourceRequirement.Buffer) analysis.requirements().getFirst();
         var slot = new BufferSlot(2);
         var plan = new PreparedMemoryPlan(
@@ -170,7 +175,7 @@ class CpuPortablePartitionFinalizerTest {
                 CpuPortableExecutionMode.SCALAR_SINGLE_THREAD);
         var requirement = candidate.requirements().getFirst();
         var analysis = new BackendPartitionAnalysis<>(context.partition(),
-                new CpuPortablePreparationPlan(candidate,
+                new CpuPortablePreparationPlan(CpuPortablePartitionPreparerTest.partition(candidate),
                         context.backendInputs().parallelConfiguration()), List.of(requirement));
         var slot = new BufferSlot(1);
         var memoryPlan = new PreparedMemoryPlan(
@@ -214,7 +219,8 @@ class CpuPortablePartitionFinalizerTest {
                 (state, handle, spec, parallel, workers, buffers, workspaces) -> null);
         var context = CpuPortablePartitionPreparerTest.context(
                 CpuCapabilityProvider.CPU_BACKEND_ID, List.of());
-        var analysis = new CpuPortablePartitionPreparer(ignored -> List.of(candidate)).analyze(context);
+        var analysis = new CpuPortablePartitionPreparer(ignored -> List.of(
+                CpuPortablePartitionPreparerTest.partition(candidate))).analyze(context);
         var slot = new BufferSlot(1);
         var memoryPlan = new PreparedMemoryPlan(
                 List.of(new PreparedMemoryPlan.BufferEntry(slot, 16, 4)), List.of());
@@ -256,7 +262,8 @@ class CpuPortablePartitionFinalizerTest {
                 (state, handle, spec, parallel, workers, buffers, workspaces) -> null);
         var context = CpuPortablePartitionPreparerTest.context(
                 CpuCapabilityProvider.CPU_BACKEND_ID, List.of());
-        var analysis = new CpuPortablePartitionPreparer(ignored -> List.of(candidate)).analyze(context);
+        var analysis = new CpuPortablePartitionPreparer(ignored -> List.of(
+                CpuPortablePartitionPreparerTest.partition(candidate))).analyze(context);
         var slot = new BufferSlot(1);
         var memoryPlan = new PreparedMemoryPlan(
                 List.of(new PreparedMemoryPlan.BufferEntry(slot, 16, 4)), List.of());
@@ -293,7 +300,8 @@ class CpuPortablePartitionFinalizerTest {
                         new WorkspaceInvocation(state, workspaces[0], workspaces[1]));
         var context = CpuPortablePartitionPreparerTest.context(
                 CpuCapabilityProvider.CPU_BACKEND_ID, List.of());
-        var analysis = new CpuPortablePartitionPreparer(ignored -> List.of(candidate)).analyze(context);
+        var analysis = new CpuPortablePartitionPreparer(ignored -> List.of(
+                CpuPortablePartitionPreparerTest.partition(candidate))).analyze(context);
         var bufferSlot = new BufferSlot(1);
         var workspaceSlot = new WorkspaceSlot(1);
         var memoryPlan = new PreparedMemoryPlan(
@@ -321,7 +329,8 @@ class CpuPortablePartitionFinalizerTest {
         }
     }
 
-    private static final class WorkspaceInvocation extends BoundInvocation {
+    private static final class WorkspaceInvocation extends BoundInvocation
+            implements CpuPortableKernelInvocation {
         final CpuNativeWorkspace first;
         final CpuNativeWorkspace second;
         int calls;

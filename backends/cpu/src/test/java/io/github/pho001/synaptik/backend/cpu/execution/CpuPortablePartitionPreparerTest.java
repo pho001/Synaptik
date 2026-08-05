@@ -54,6 +54,7 @@ class CpuPortablePartitionPreparerTest {
                 () -> assertTrue(ModifierAssertions.packagePrivate(CpuPortableAnalysisInputs.class)),
                 () -> assertTrue(ModifierAssertions.packagePrivate(CpuPortableCandidateSource.class)),
                 () -> assertTrue(ModifierAssertions.packagePrivateFinal(CpuPortableKernelCandidate.class)),
+                () -> assertTrue(ModifierAssertions.packagePrivateFinal(CpuPortablePartitionCandidate.class)),
                 () -> assertTrue(ModifierAssertions.packagePrivate(CpuPortableInvocationBinder.class)),
                 () -> assertTrue(ModifierAssertions.packagePrivateFinal(CpuPortablePreparationPlan.class)),
                 () -> assertTrue(ModifierAssertions.packagePrivateFinal(CpuPortablePartitionPreparer.class)),
@@ -151,9 +152,10 @@ class CpuPortablePartitionPreparerTest {
 
         var configuration = new CpuPreparedParallelConfiguration(1, 1, true);
         assertEquals("candidate", assertThrows(NullPointerException.class,
-                () -> new CpuPortablePreparationPlan(null, configuration)).getMessage());
+                () -> new CpuPortablePreparationPlan(
+                        (CpuPortablePartitionCandidate) null, configuration)).getMessage());
         assertEquals("parallelConfiguration", assertThrows(NullPointerException.class,
-                () -> new CpuPortablePreparationPlan(candidate, null)).getMessage());
+                () -> new CpuPortablePreparationPlan(partition(candidate), null)).getMessage());
     }
 
     @Test
@@ -161,8 +163,8 @@ class CpuPortablePartitionPreparerTest {
         var calls = new int[1];
         var preparer = new CpuPortablePartitionPreparer(context -> {
             calls[0]++;
-            return List.of(candidate(CpuPortableExecutionMode.VECTOR_API_SINGLE_THREAD),
-                    candidate(CpuPortableExecutionMode.SCALAR_SINGLE_THREAD));
+            return List.of(partition(candidate(CpuPortableExecutionMode.VECTOR_API_SINGLE_THREAD)),
+                    partition(candidate(CpuPortableExecutionMode.SCALAR_SINGLE_THREAD)));
         });
         var wrong = context(new BackendId("other"), List.of());
         assertEquals("partition owner must be CPU",
@@ -190,7 +192,7 @@ class CpuPortablePartitionPreparerTest {
         assertEquals("candidates", assertThrows(NullPointerException.class,
                 () -> new CpuPortablePartitionPreparer(ignored -> null).analyze(context)).getMessage());
         assertEquals("candidates[0]", assertThrows(NullPointerException.class,
-                () -> new CpuPortablePartitionPreparer(ignored -> Arrays.asList((CpuPortableKernelCandidate) null))
+                () -> new CpuPortablePartitionPreparer(ignored -> Arrays.asList((CpuPortablePartitionCandidate) null))
                         .analyze(context)).getMessage());
         var foreignRequirement = new PreparationResourceRequirement.Buffer(new ValueId(99), 16, 4);
         var specialization = specialization(CpuPortableExecutionMode.SCALAR_SINGLE_THREAD,
@@ -200,7 +202,7 @@ class CpuPortablePartitionPreparerTest {
                 List.of(new CpuPortableKernelCandidate.BufferUse(foreignRequirement, 0)),
                 List.of(), (state, handle, spec, parallel, workers, buffers, workspaces) -> null);
         assertTrue(assertThrows(IllegalArgumentException.class,
-                () -> new CpuPortablePartitionPreparer(ignored -> List.of(malformed)).analyze(context))
+                () -> new CpuPortablePartitionPreparer(ignored -> List.of(partition(malformed))).analyze(context))
                 .getMessage().contains("value is not projected"));
     }
 
@@ -217,7 +219,7 @@ class CpuPortablePartitionPreparerTest {
                 emitter(), (state, handle, spec, parallel, workers, buffers, workspaces) -> null);
         assertEquals("candidates[0].bufferUses[0] data type does not match specialization argument",
                 assertThrows(IllegalArgumentException.class,
-                        () -> new CpuPortablePartitionPreparer(ignored -> List.of(wrongType))
+                        () -> new CpuPortablePartitionPreparer(ignored -> List.of(partition(wrongType)))
                                 .analyze(context)).getMessage());
 
         var emissions = new AtomicInteger();
@@ -231,7 +233,7 @@ class CpuPortablePartitionPreparerTest {
                 countingEmitter, (state, handle, spec, parallel, workers, buffers, workspaces) -> {
                     binds.incrementAndGet(); return null;
                 });
-        var analysis = new CpuPortablePartitionPreparer(ignored -> List.of(opaque)).analyze(context);
+        var analysis = new CpuPortablePartitionPreparer(ignored -> List.of(partition(opaque))).analyze(context);
         assertAll(() -> assertSame(opaqueRequirement, analysis.requirements().getFirst()),
                 () -> assertEquals(12, ((PreparationResourceRequirement.Buffer)
                         analysis.requirements().getFirst()).byteSize()),
@@ -244,14 +246,14 @@ class CpuPortablePartitionPreparerTest {
         for (var mode : CpuPortableExecutionMode.values()) {
             var shapes = mode.vectorized() ? List.of(VECTOR_SHAPE)
                     : List.<CpuKernelSpecialization.VectorShape>of();
-            var analysis = new CpuPortablePartitionPreparer(ignored -> List.of(candidate(mode)))
+            var analysis = new CpuPortablePartitionPreparer(ignored -> List.of(partition(candidate(mode))))
                     .analyze(context(CpuCapabilityProvider.CPU_BACKEND_ID, shapes));
             assertSame(mode, analysis.plan().candidate().specialization().executionMode());
             assertEquals(2, analysis.plan().parallelConfiguration().workerCount());
         }
         assertEquals("no supported CPU portable candidate", assertThrows(IllegalArgumentException.class,
                 () -> new CpuPortablePartitionPreparer(ignored ->
-                        List.of(candidate(CpuPortableExecutionMode.VECTOR_API_PARALLEL)))
+                        List.of(partition(candidate(CpuPortableExecutionMode.VECTOR_API_PARALLEL))))
                         .analyze(context(CpuCapabilityProvider.CPU_BACKEND_ID, List.of())))
                 .getMessage());
         var requirement = new PreparationResourceRequirement.Buffer(new ValueId(0), 16, 4);
@@ -262,7 +264,7 @@ class CpuPortablePartitionPreparerTest {
                         new CpuPortableKernelCandidate.BufferUse(requirement, 0),
                         new CpuPortableKernelCandidate.BufferUse(requirement, 2)), List.of(),
                 emitter(), (state, handle, spec, parallel, workers, buffers, workspaces) -> null);
-        var repeatedAnalysis = new CpuPortablePartitionPreparer(ignored -> List.of(repeated))
+        var repeatedAnalysis = new CpuPortablePartitionPreparer(ignored -> List.of(partition(repeated)))
                 .analyze(context(CpuCapabilityProvider.CPU_BACKEND_ID, List.of()));
         assertAll(() -> assertSame(requirement, repeatedAnalysis.requirements().getFirst()),
                 () -> assertEquals(0, repeated.bufferUses().get(0).representationIndex()),
@@ -275,7 +277,8 @@ class CpuPortablePartitionPreparerTest {
                         repeated.specialization().arguments().get(1).carrier()));
         var calls = new AtomicInteger();
         var preparer = new CpuPortablePartitionPreparer(ignored -> {
-            calls.incrementAndGet(); return List.of(candidate(CpuPortableExecutionMode.SCALAR_SINGLE_THREAD));
+            calls.incrementAndGet(); return List.of(partition(
+                    candidate(CpuPortableExecutionMode.SCALAR_SINGLE_THREAD)));
         });
         var shared = context(CpuCapabilityProvider.CPU_BACKEND_ID, List.of());
         try (var executor = Executors.newFixedThreadPool(4)) {
@@ -314,6 +317,10 @@ class CpuPortablePartitionPreparerTest {
                 List.of(requirement),
                 List.of(new CpuPortableKernelCandidate.BufferUse(requirement, 0)), List.of(),
                 emitter(), (state, handle, spec, parallel, workers, buffers, workspaces) -> null);
+    }
+
+    static CpuPortablePartitionCandidate partition(CpuPortableKernelCandidate candidate) {
+        return new CpuPortablePartitionCandidate(candidate.requirements(), List.of(candidate));
     }
 
     static CpuPortableKernelCandidate candidate(CpuKernelSpecialization specialization,
@@ -387,7 +394,7 @@ class CpuPortablePartitionPreparerTest {
         assertConstructor(CpuPortablePartitionPreparer.class, CpuPortableCandidateSource.class);
         assertConstructor(CpuPortablePartitionFinalizer.class, java.nio.file.Path.class,
                 CpuWorkerGroup.class);
-        assertConstructor(CpuPortablePreparationPlan.class, CpuPortableKernelCandidate.class,
+        assertConstructor(CpuPortablePreparationPlan.class, CpuPortablePartitionCandidate.class,
                 CpuPreparedParallelConfiguration.class);
         assertConstructor(CpuPortableKernelCandidate.class, CpuKernelSpecialization.class,
                 CpuFamilyKernelEmitter.class, List.class, List.class, List.class,

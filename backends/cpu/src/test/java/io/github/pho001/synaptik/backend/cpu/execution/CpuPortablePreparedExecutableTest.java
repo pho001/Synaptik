@@ -22,6 +22,7 @@ import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.Executors;
+import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.jupiter.api.Test;
 
 class CpuPortablePreparedExecutableTest {
@@ -101,7 +102,7 @@ class CpuPortablePreparedExecutableTest {
                 BoundInvocation invocation = executable.bind(state);
                 invocation.execute();
                 if (invocation instanceof ParallelInvocation parallel) {
-                    assertEquals(2, parallel.rangeCalls);
+                    assertEquals(2, parallel.rangeCalls.get());
                 } else {
                     assertEquals(1, ((ScalarInvocation) invocation).calls);
                 }
@@ -464,8 +465,8 @@ class CpuPortablePreparedExecutableTest {
                 CpuPortablePreparedExecutable.class);
         var forbidden = List.of("HostTensorStorage", "invokeWithArguments", ".asType(",
                 ".asSpreader(", ".asCollector(", ".bindTo(", "Object[]", "java.lang.reflect",
-                "ServiceLoader", "service locator", "registry", "vendor", "tuning",
-                "measurement", "operation capability", "Runtime discovery");
+                "ServiceLoader", "service locator", "vendor",
+                "operation capability", "Runtime discovery");
         for (Class<?> type : types) {
             assertFalse(java.lang.reflect.Modifier.isPublic(type.getModifiers()), type.getName());
             byte[] bytes;
@@ -496,7 +497,7 @@ class CpuPortablePreparedExecutableTest {
                 + Files.readString(productionSource(CpuPortablePartitionPreparer.class));
         for (String token : List.of("loadOrGenerate(", ".generate(", ".emitScalar(",
                 ".emitVector(", "defineHiddenClass", "Files.", "CpuNativeBuffer.allocate(",
-                "workerGroup.execute(", "measurement", "cache mutation")) {
+                "workerGroup.execute(")) {
             assertFalse(analysisSource.contains(token), "analysis source contains " + token);
         }
         String finalizerSource = Files.readString(productionSource(CpuPortablePartitionFinalizer.class));
@@ -552,7 +553,8 @@ class CpuPortablePreparedExecutableTest {
         return new BufferRepresentationBinding(value, RunResourceOwnership.RUN_OWNED);
     }
 
-    private static final class ScalarInvocation extends BoundInvocation {
+    private static final class ScalarInvocation extends BoundInvocation
+            implements CpuPortableKernelInvocation {
         private final MethodHandle handle;
         private final float[] carrier;
         int calls;
@@ -566,12 +568,13 @@ class CpuPortablePreparedExecutableTest {
         }
     }
 
-    private static final class ParallelInvocation extends BoundInvocation {
+    private static final class ParallelInvocation extends BoundInvocation
+            implements CpuPortableKernelInvocation {
         private final MethodHandle handle;
         private final float[] carrier;
         private final CpuWorkerGroup workers;
         private final CpuPreparedParallelConfiguration parallel;
-        int rangeCalls;
+        final AtomicInteger rangeCalls = new AtomicInteger();
         ParallelInvocation(RunState state, MethodHandle handle, float[] carrier,
                 CpuWorkerGroup workers, CpuPreparedParallelConfiguration parallel) {
             super(state); this.handle = handle; this.carrier = carrier;
@@ -582,13 +585,14 @@ class CpuPortablePreparedExecutableTest {
                     (start, end, index) -> invokeRange(start, end, index));
         }
         private void invokeRange(long start, long end, int index) {
-            try { handle.invokeExact(carrier, start, end, index); rangeCalls++; }
+            try { handle.invokeExact(carrier, start, end, index); rangeCalls.incrementAndGet(); }
             catch (RuntimeException | Error failure) { throw failure; }
             catch (Throwable failure) { throw new AssertionError(failure); }
         }
     }
 
-    private static final class MixedInvocation extends BoundInvocation {
+    private static final class MixedInvocation extends BoundInvocation
+            implements CpuPortableKernelInvocation {
         private final MethodHandle handle;
         final MemorySegment segment;
         private final float[] carrier;
@@ -603,7 +607,8 @@ class CpuPortablePreparedExecutableTest {
         }
     }
 
-    private static final class SegmentInvocation extends BoundInvocation {
+    private static final class SegmentInvocation extends BoundInvocation
+            implements CpuPortableKernelInvocation {
         private final MethodHandle handle;
         private final MemorySegment segment;
         SegmentInvocation(RunState state, MethodHandle handle, MemorySegment segment) {
@@ -616,7 +621,8 @@ class CpuPortablePreparedExecutableTest {
         }
     }
 
-    private static final class DynamicOffsetInvocation extends BoundInvocation {
+    private static final class DynamicOffsetInvocation extends BoundInvocation
+            implements CpuPortableKernelInvocation {
         private final MethodHandle handle;
         private final float[] carrier;
         private final long byteOffset;

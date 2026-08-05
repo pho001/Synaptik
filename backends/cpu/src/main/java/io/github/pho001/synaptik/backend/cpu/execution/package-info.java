@@ -1,9 +1,9 @@
 /**
  * Backend-private CPU memory, cold-binding, generated-kernel, direct invocation, and bounded
- * worker foundation.
+ * worker implementation.
  *
- * <p>These declarations expose no public storage or executor API and implement no Model operation
- * or production route. Cold binding resolves each exact selected segment independently to either
+ * <p>These declarations expose no public storage or executor API. Cold binding resolves each
+ * exact selected segment independently to either
  * an observable primitive-array carrier plus carrier-relative offset or an exact-segment argument.
  * The latter does not imply native provenance: it also preserves heap segments whose matching
  * carrier is not observable. The generated-kernel foundation consumes an already-complete typed
@@ -22,9 +22,13 @@
  * geometry remains opaque to this analysis; shared Prepare validates it against assigned plan
  * geometry. CPU finalization then loads the artifact and constructs an immutable recipe with a
  * family-owned direct binder. The recipe consumes {@code CpuBorrowedBuffer} only through
- * Runtime's {@code BufferRepresentation} boundary and borrows its worker group. The package still
- * implements only synthetic test probes today and performs no Model-operation lowering, truthful
- * capability coverage, public composition, or scheduling. Runtime continues to own logical
- * per-run state, representation lifetime, and cleanup orchestration.</p>
+ * Runtime's {@code BufferRepresentation} boundary and borrows its worker group. The first
+ * operation route now lowers only fully static canonical dense parameterless {@code ADD} over
+ * equal FLOAT64, FLOAT32, INT32, or INT64 values into scalar single-thread native-segment
+ * kernels. A maximal supported partition retains one generated kernel per node, shares each
+ * graph-value declaration once, cold-binds direct node calls, and executes them in node order
+ * behind one Runtime state guard. No other operation, carrier, execution mode, fusion, public
+ * composition, or scheduling is implemented. Runtime continues to own logical per-run state,
+ * representation lifetime, and cleanup orchestration.</p>
  */
 package io.github.pho001.synaptik.backend.cpu.execution;

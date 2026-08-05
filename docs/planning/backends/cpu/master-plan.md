@@ -135,7 +135,8 @@ placement must be planned by its owning detailed task before that family becomes
 | 0002 | [Portable Class-File API generator foundation](tasks/0002-portable-class-file-api-generator-foundation.md) | Complete | 0001; generated JVM-bytecode CPU-kernel architecture contract; Java 26 Class-File and Vector API toolchain | Established generator schema/versioning, exact typed specialization descriptors, mode-owned structural scalar/vector emission dispatch, family-specific emitter contracts, shared scalar/vector/heap/segment/range/tile/reduction emitters, hidden-class definition, and the exact four-mode execution matrix without a god generator or operation coverage. |
 | 0003 | [Durable generated-kernel artifact store and cold loading](tasks/0003-bounded-generated-artifact-cache-and-cold-finalization.md) | Complete | 0002; stable CPU finalization and artifact compatibility; explicit trusted local root | Added a model-independent filesystem store for exact compatible generated class bytes, atomic cross-process-safe publication, full validation, process-local single-flight, weak loaded-artifact interning, and cold definition/handle resolution for later post-slot finalization. |
 | 0004 | [Typed portable analysis, specialization, and finalization](tasks/0004-typed-portable-analysis-specialization-and-finalization.md) | Complete | 0001–0003 | Connected staged Prepare to CPU-private typed portable selection, exact pre-assignment declarations, post-assignment artifact finalization, immutable generated-executable retention, and direct per-run cold binding using bounded synthetic/fail-closed coverage only. |
-| 0005 | Portable elementwise and pointwise family coverage | Draft | 0002–0004 | Generate truthful scalar/Vector and single-thread/parallel coverage for arithmetic, comparison, logical, selection, cast, classification, and activation semantics across supported data, storage, layout, shape, broadcast, and tail specializations. |
+| 0005 | [Dense ADD and partition-sequence execution](tasks/0005-dense-add-and-partition-sequence-execution.md) | Complete | 0002–0004 | Delivered the first truthful static canonical dense FLOAT64/FLOAT32/INT32/INT64 ADD route and generalized CPU-private recipes so any maximal partition made only of advertised occurrences executes as an ordered scalar single-thread native-segment kernel sequence. |
+| 0005A | Remaining portable pointwise arithmetic, carriers, and modes | Draft | 0005 | Extend the proven sequence contract with the remaining exact arithmetic matrix plus heap/mixed carriers and Vector/parallel candidates; keep later pointwise semantic families separately bounded. |
 | 0006 | Portable layout, indexing, ordering, and random family coverage | Draft | 0002–0005 | Generate truthful coverage for executable layout transforms, slicing, padding, tiling, composition, windows, gather/scatter, ordering, one-hot, and explicit-state random/dropout work; metadata-only or zero-work views remain computation-free. |
 | 0007 | Portable reduction, scan, statistics, and normalization family coverage | Draft | 0002–0006 | Generate family-specific range, tile, partial-reduction, and combine bodies for aggregates, arg extrema, scans, softmax/log-softmax, statistics, and normalization with exact semantics and determinism. |
 | 0008 | Portable linear algebra, convolution, pooling, attention, and loss coverage | Draft | 0002–0007 | Generate the remaining portable executable families, including exact fused-partition forms only where the same lowering contracts preserve semantics across storage and execution modes. |
@@ -175,7 +176,8 @@ dispatch, while `CpuClassFileKernelGenerator` delegates without that switch. The
 `NONE`, `SCALAR`, and `MASKED`. Baked primitive-array byte offsets require data-type-width
 alignment, exact segments retain baked zero offset, and dynamic array offsets remain cold typed
 invocation values. Equal requests produce identical bytes and distinct hidden artifacts because
-the direct generator path remains fresh. CPU still advertises and executes no Model operation.
+the direct generator path remains fresh. At the CPU-0002 checkpoint, CPU advertised and executed
+no Model operation.
 Complete
 [task 0003 Durable generated-kernel artifact store and cold loading](tasks/0003-bounded-generated-artifact-cache-and-cold-finalization.md)
 adds one CPU-private durable reuse source: a
@@ -197,7 +199,14 @@ family-owned direct typed cold binding. CPU analysis preserves backend-declared 
 shared Prepare validates that geometry against assigned slots, and no dense-layout or
 materialization policy was introduced. Its tests remain bounded and synthetic,
 `CpuCapabilityProvider` remains fail-closed, and no real Model operation family is implemented or
-advertised. CPU task 0005 is the next Draft frontier; CPU tasks 0005–0016 have no detailed
+advertised. CPU task 0005 is Complete through its sole detailed
+[Dense ADD and partition-sequence execution](tasks/0005-dense-add-and-partition-sequence-execution.md)
+specification. It solves maximal-partition truth with an ordered node-kernel sequence while
+limiting first executable coverage to static canonical dense FLOAT64/FLOAT32/INT32/INT64 ADD
+through scalar single-thread native segments. Implementation context
+`019fd19a-4262-7580-9674-226595356fbc` recorded the sole final CPU 31-test pass; the clean
+documentation pass reused that evidence because it changed no executable Java behavior. CPU
+0005A is the next Draft frontier, and tasks 0006–0016 remain Draft without detailed
 specifications.
 
 Future Model task 0026 is required before any CPU route advertises FLOAT16. That dependency does
