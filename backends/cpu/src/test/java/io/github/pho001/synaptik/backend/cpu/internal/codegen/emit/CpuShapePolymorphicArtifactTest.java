@@ -6,6 +6,11 @@ import io.github.pho001.synaptik.backend.cpu.internal.cache.CpuGeneratedKernelAr
 import io.github.pho001.synaptik.backend.cpu.internal.prepare.CpuPartitionPreparerTest;
 import io.github.pho001.synaptik.model.shape.Shape;
 import org.junit.jupiter.api.Test;
+import io.github.pho001.synaptik.backend.cpu.internal.prepare.CpuPartitionAnalysisInputs;
+import io.github.pho001.synaptik.model.datatype.DataType;
+import io.github.pho001.synaptik.model.layout.LayoutDescriptor;
+import io.github.pho001.synaptik.model.tensor.TensorDescriptor;
+import java.util.Optional;
 
 class CpuShapePolymorphicArtifactTest {
     @Test void twoCompatibleExtentsShareBytesAndLoadedCompatibilityIdentity() {
@@ -22,4 +27,41 @@ class CpuShapePolymorphicArtifactTest {
                 () -> assertSame(a.hiddenClass(), b.hiddenClass()),
                 () -> assertSame(a, b));
     }
+
+    @Test void materializedClassesRemainShapePolymorphicButDifferFromDirectClasses() {
+        var first = materialized(Shape.of(2, 3), new long[] {1, 2});
+        var second = materialized(Shape.of(4, 5), new long[] {1, 4});
+        var direct = CpuPartitionPreparerTest.analyze(first.descriptor, first.dense, first.dense,
+                first.dense, CpuPartitionAnalysisInputs.DEFAULT).plan().units().getFirst()
+                .portablePlan();
+        var firstRoute = first.route;
+        var secondRoute = second.route;
+        var store = new CpuGeneratedKernelArtifactStore();
+        var firstArtifact = store.loadOrGenerate(firstRoute.specialization(), firstRoute.kernelIr());
+        var secondArtifact = store.loadOrGenerate(secondRoute.specialization(), secondRoute.kernelIr());
+        assertAll(
+                () -> assertEquals(firstRoute.specialization(), secondRoute.specialization()),
+                () -> assertArrayEquals(firstArtifact.classBytes(), secondArtifact.classBytes()),
+                () -> assertNotEquals(direct.specialization().structuralKey(),
+                        firstRoute.specialization().structuralKey()),
+                () -> assertEquals(0, firstRoute.specialization().materializedSourcePosition()));
+    }
+
+    private static Materialized materialized(Shape shape, long[] strides) {
+        var source = new TensorDescriptor(DataType.FLOAT64, shape,
+                Optional.of(LayoutDescriptor.of(shape, strides, 0, true)), false);
+        var dense = new TensorDescriptor(DataType.FLOAT64, shape,
+                Optional.of(LayoutDescriptor.contiguous(shape)), false);
+        var policy = new CpuPartitionAnalysisInputs.MaterializationPolicy(
+                true, 0, 1, 20, 1, 2, Long.MAX_VALUE, 1, 1);
+        var route = CpuPartitionPreparerTest.analyze(source, dense, dense, dense,
+                new CpuPartitionAnalysisInputs(false,
+                        CpuPartitionAnalysisInputs.DEFAULT.carrierPattern(),
+                        CpuPartitionAnalysisInputs.PortableExecutionConfig.DEFAULT, policy))
+                .plan().units().getFirst().portablePlan();
+        return new Materialized(source, dense, route);
+    }
+
+    private record Materialized(TensorDescriptor descriptor, TensorDescriptor dense,
+            io.github.pho001.synaptik.backend.cpu.internal.route.portable.CpuPortableRoutePlan route) { }
 }

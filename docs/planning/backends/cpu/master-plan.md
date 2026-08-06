@@ -189,7 +189,7 @@ created by 0005A. All consume the common analysis above; none creates another ba
 | 0005A | [Atomic partition-kernel architecture reset](tasks/0005a-atomic-partition-kernel-architecture-reset.md) | Complete | 0001–0005; current shared Prepare contracts | Adopted structured internals and only the portable route leaf; replaced the per-node path with whole-partition lowering, route-independent IR, universal start/end Class-File generation, exact declarations, and one partition executable; proved shape-polymorphic FLOAT64 ADD-to-GELU-to-MUL fusion. |
 | 0005B | [Universal access plans and right-aligned broadcasting](tasks/0005b-universal-access-plans-and-right-aligned-broadcasting.md) | Complete | 0005A | Delivered one normalized per-value access system over current ShapeBroadcast/LayoutDescriptor semantics, complete static scalar/rank-expanded/multi-axis/zero/strided/heap/segment/mixed-carrier support, one direct entry per ordered carrier-pattern specialization, and five distinct dense-to-general-odometer scalar state machines. |
 | 0005C | [Vector and parallel portable strategies](tasks/0005c-vector-and-parallel-portable-strategies.md) | Complete | 0005B | Added preferred-species FLOAT64 vector, parallel-scalar, and parallel-vector realization over universal start/end kernels; direct contiguous runs vectorize without gather, and explicit caller-owned CPU-private workers execute deterministic disjoint chunks. |
-| 0005D | Materialization, specialization, and persistence evidence gate | Draft | 0005C | Compare direct access with CPU-internal contiguous materialization before assignment, enforce specialization budgets, and benchmark whether optional trusted-root class-byte persistence should remain disabled by default. |
+| 0005D | [Materialization, specialization, and persistence evidence gate](tasks/0005d-materialization-specialization-and-persistence-evidence-gate.md) | Complete | 0005C | Added at most one CPU-internal contiguous materialization before assignment, enforced four-candidate/one-artifact/zero-shape/zero-unroll budgets, and recorded a `KEEP_DISABLED` opt-in persistence-evidence verdict. |
 | 0005E | Portable pointwise types, carriers, and semantic-family expansion | Draft | 0005D | Expand exact pointwise, comparison, selection, and cast coverage through the completed unit/IR/access architecture without duplicating planners or storage matrices. |
 | 0005F | Exact scalar-power strength reduction | Draft | 0005E | Classify exact typed scalar exponents once in common route-independent CPU analysis and retain semantic `POW` in the compiled graph while selecting multiply, reciprocal, or exponentiation-by-squaring realizations only under an exact/default conformance proof; this task does not depend on relaxed Config 0006. |
 | 0006 | Portable layout, indexing, ordering, and random family coverage | Draft | 0005E | Generate truthful coverage for executable layout transforms, slicing, padding, tiling, composition, windows, gather/scatter, ordering, one-hot, and explicit-state random/dropout work; metadata-only or zero-work views remain computation-free. |
@@ -220,7 +220,10 @@ task records are now Superseded but remain preserved as historical evidence. The
 has exactly one detailed implemented partition-kernel slice and one route leaf,
 `internal.route.portable`. Detailed CPU 0005B and detailed
 [CPU 0005C Vector and parallel portable strategies](tasks/0005c-vector-and-parallel-portable-strategies.md)
-are Complete; every later CPU task remains Draft without a detailed specification.
+are Complete. Detailed
+[CPU 0005D Materialization, specialization, and persistence evidence gate](tasks/0005d-materialization-specialization-and-persistence-evidence-gate.md)
+is Complete; CPU 0005E is the next Draft frontier and every later CPU task remains Draft without a
+detailed specification.
 
 Superseded task 0001 remains preserved through its sole detailed CPU
 [capability, representation, binding, and parallel foundation](tasks/0001-cpu-capability-representation-binding-and-parallel-foundation.md)
@@ -284,7 +287,8 @@ two compatible extents. Detailed
 is Complete. It adds right-aligned static broadcast/layout normalization, exact per-boundary
 declaration and accessed-range spans, complete write-injectivity proof, five generated scalar
 state machines, and all sixteen ordered heap/segment carrier specializations. Detailed CPU 0005C
-is Complete; CPU 0005D–0005E and tasks 0006–0017 remain `Draft` without detailed specifications.
+is Complete. CPU 0005D is also Complete; CPU 0005E and tasks 0006–0017 remain `Draft` without
+detailed specifications.
 CPU 0005C preserves that exact slice and implements cold selection among all four portable
 strategies. It uses the preferred Java 26 FLOAT64 species only for direct contiguous runs and
 scalar broadcasts, scalar tails and general-odometer fallback, configured/available parallelism
@@ -299,6 +303,24 @@ The CPU 0005C implementation context's final corrected `./gradlew :backends:cpu:
 finalized affected Javadocs, package summaries, the CPU guide, glossary, and planning records, and
 passed CPU Javadoc plus the recorded Markdown, exact-scope, status, forbidden-vocabulary, and
 whitespace gates.
+
+Detailed CPU 0005D is Complete. CPU analysis can now compare direct access with at most one
+eligible contiguous input copy, append exact workspace ID `0` before assignment, and retain the
+original source separately from the adjusted generated consumer pattern. Finalization resolves
+every assignment before one artifact lookup; execution copies once before consumer work. The
+specialization budget is four complete candidates, one realized artifact, zero fixed-shape
+variants, and zero unrolled variants. Optional explicit-root persistence uses one bounded verified
+current-schema envelope. The recorded six-fixture Oracle JDK 26.0.1 evidence verdict is
+`KEEP_DISABLED`, so default persistence remains off. Class bytes, JVM JIT machine code/profile,
+and the future workload tuning cache remain distinct.
+
+Implementation evidence includes the final 11-suite/40-test focused matrix, focused 8-, 13-, and
+7-test runs, the sole final ordinary 21-suite/62-test CPU pass with one skipped evidence method,
+and the sole successful explicit 1-test evidence run. Clean documentation context
+`/root/cpu_0005d_docs` reused those stabilized results, finalized the exact 21 production/package
+paths and five Markdown records, and passed CPU Javadoc plus Markdown, exact 38-path scope,
+status, terminology, structure/order, persistence, and whitespace gates. CPU 0005E is now the
+next Draft frontier without a detailed specification.
 
 The reset was a working-tree replacement, not deletion of history. CPU 0001–0005 are Superseded
 with all recorded evidence preserved; the repository contains no old/new dual pipeline.
@@ -378,8 +400,8 @@ changing executable Java.
   block/outer with a contiguous inner loop, and the complete general positive/zero-strided
   odometer. Each emits its own primitive state machine without hot cursor objects, virtual calls,
   or per-element division/modulo. Completed 0005C vectorizes only direct contiguous runs and scalar
-  broadcasts, uses scalar fallback for general odometers, and promises no gather. Draft 0005D owns
-  optional materialization; full semantics do not promise universal vectorization.
+  broadcasts, uses scalar fallback for general odometers, and promises no gather. Complete 0005D
+  owns optional materialization; full semantics do not promise universal vectorization.
 - Before shared assignment, CPU analysis may compare direct access with internal contiguous
   materialization using copy cost, kernel benefit, reuse/fan-out, vendor eligibility, memory, and
   repeated-run expectation. A selected copy resource is declared exactly before assignment and
@@ -460,8 +482,8 @@ changing executable Java.
   root optional and removes the unused parallel object; neither becomes a public Config API.
 - Deterministic generated bytes, structural identity, verification, and safe in-memory definition
   are mandatory. Filesystem persistence under an explicit trusted root is optional cold-path
-  policy and disabled by default until task 0005D supplies benchmark evidence. A hit can avoid
-  emission but cannot preserve JIT machine code or profile.
+  policy. Task 0005D recorded `KEEP_DISABLED`, so the default remains persistence-free. A hit can
+  avoid emission but cannot preserve JIT machine code or profile.
 - The generated-artifact key includes a generator schema/version and exactly every fact that
   changes bytecode or compatibility. Thread count or chunk size is keyed only when emitted code
   changes; otherwise it remains prepared parallel-execution configuration. Key construction and

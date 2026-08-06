@@ -13,6 +13,9 @@ import java.util.Objects;
  * Immutable route-independent canonical CPU kernel intermediate representation (IR).
  * Values use topology-local ordinals, so graph identities, extents, slots, routes, generator
  * versions, segment instances, and invocation bindings cannot enter canonical identity.
+ * When analysis selects one contiguous input copy, it derives a second canonical consumer form
+ * whose copied input has dense access; that structural change belongs to the lowering fingerprint,
+ * while the source binding, workspace, costs, and concrete geometry remain outside this IR.
  *
  * @param values non-null dense ordered typed values; copied defensively
  * @param instructions non-null ordered exact computations; copied defensively

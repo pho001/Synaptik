@@ -8,6 +8,8 @@ import java.util.Objects;
  * Route-independent normalized access geometry for one value in a whole-partition CPU unit.
  * Structural axis roles and regime belong to generated identity; concrete geometry is held by
  * {@link Binding} and supplied only during cold invocation binding.
+ * A selected materialization retains the original source binding for its copy and supplies a
+ * separate canonical dense, zero-offset read binding to the generated consumer.
  *
  * @param accessKind whether the value is read or written
  * @param regime ordered scalar realization regime

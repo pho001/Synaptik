@@ -124,6 +124,53 @@ public class CpuPartitionPreparerTest {
                                         List.of(CarrierAccess.MEMORY_SEGMENT))))));
     }
 
+    @Test void materializationPolicyAppliesCostBenefitMemoryAndEligibilityGates() {
+        Shape shape = Shape.of(2, 3);
+        var general = descriptor(shape,
+                LayoutDescriptor.of(shape, new long[] {1, 2}, 0, true));
+        var dense = descriptor(shape, LayoutDescriptor.contiguous(shape));
+        var eligible = new CpuPartitionAnalysisInputs.MaterializationPolicy(
+                true, 3, 2, 20, 1, 3, 48, 1, 1);
+        var selected = analyze(general, general, general, dense,
+                new CpuPartitionAnalysisInputs(false,
+                        CpuPartitionAnalysisInputs.DEFAULT.carrierPattern(),
+                        PortableExecutionConfig.DEFAULT, eligible));
+        var copy = selected.plan().materialization().orElseThrow();
+        assertAll(
+                () -> assertEquals(0, copy.sourceBoundaryIndex()),
+                () -> assertEquals(1, copy.useCount()),
+                () -> assertEquals(3, copy.expectedRunCount()),
+                () -> assertEquals(360, copy.directCost()),
+                () -> assertEquals(63, copy.copiedTotalCost()),
+                () -> assertEquals(8_250, copy.benefitBasisPoints()),
+                () -> assertEquals(List.of(new ValueId(0), new ValueId(1), new ValueId(2),
+                        new ValueId(5)), selected.plan().boundaryValues()),
+                () -> assertEquals(5, selected.requirements().size()));
+
+        for (var rejected : List.of(
+                new CpuPartitionAnalysisInputs.MaterializationPolicy(
+                        false, 0, 0, 100, 0, 1, 48, 0, 0),
+                new CpuPartitionAnalysisInputs.MaterializationPolicy(
+                        true, 0, 0, 1, 0, 1, 47, 0, 0),
+                new CpuPartitionAnalysisInputs.MaterializationPolicy(
+                        true, 0, 0, 1, 0, 1, 48, 7, 0),
+                new CpuPartitionAnalysisInputs.MaterializationPolicy(
+                        true, 1, 0, 1, 0, 1, 48, 0, 9_000))) {
+            var direct = analyze(general, dense, dense, dense,
+                    new CpuPartitionAnalysisInputs(false,
+                            CpuPartitionAnalysisInputs.DEFAULT.carrierPattern(),
+                            PortableExecutionConfig.DEFAULT, rejected));
+            assertAll(
+                    () -> assertTrue(direct.plan().materialization().isEmpty()),
+                    () -> assertEquals(4, direct.requirements().size()));
+        }
+        var denseOnly = analyze(dense, dense, dense, dense,
+                new CpuPartitionAnalysisInputs(false,
+                        CpuPartitionAnalysisInputs.DEFAULT.carrierPattern(),
+                        PortableExecutionConfig.DEFAULT, eligible));
+        assertTrue(denseOnly.plan().materialization().isEmpty());
+    }
+
     public static BackendPartitionAnalysis<CpuPartitionPreparationPlan> analyze(Shape shape) {
         return new CpuPartitionPreparer().analyze(context(shape));
     }

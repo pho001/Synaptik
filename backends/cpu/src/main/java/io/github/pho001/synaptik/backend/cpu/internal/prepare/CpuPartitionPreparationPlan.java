@@ -8,6 +8,9 @@ import io.github.pho001.synaptik.prepare.analysis.BackendPreparationPlan;
 import io.github.pho001.synaptik.prepare.analysis.PreparationResourceRequirement;
 import java.util.List;
 import java.util.Objects;
+import java.util.Optional;
+import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuMaterializationPlan;
+import io.github.pho001.synaptik.backend.cpu.internal.cache.CpuSpecializationBudget;
 
 /**
  * Route-neutral immutable selected CPU partition plan.
@@ -20,6 +23,9 @@ import java.util.Objects;
  *     defensively
  * @param accessBindings non-null normalized cold geometry in boundary order; copied defensively
  * @param carrierPattern non-null direct carrier forms in boundary order; copied defensively
+ * @param generatedCarrierPattern non-null generated consumer carrier forms in boundary order;
+ *     differs from {@code carrierPattern} only when the selected copy replaces one input with the
+ *     contiguous workspace segment
  * @param extents non-null cold-bound compatible extents; copied defensively
  * @param elementCount checked logical element count represented by {@code extents}
  * @param selectedRangeCount positive maximum range count selected during cold analysis; one for
@@ -28,14 +34,21 @@ import java.util.Objects;
  * @param vectorSpeciesBitSize exact positive preferred FLOAT64 species size in bits for vector
  *     strategies, or zero for scalar strategies
  * @param loweringManifest non-null optional cold diagnostic text, empty when disabled
+ * @param materialization non-null optional selected one-input copy fact
+ * @param workspaceDeclaration non-null optional exact workspace declaration; present exactly when
+ *     {@code materialization} is present
+ * @param specializationBudget non-null enforced candidate/artifact/shape/unroll ceiling
  */
 public record CpuPartitionPreparationPlan(List<ExecutionUnitPlan> units, Route route,
         ExecutionStrategy executionStrategy,
         List<PreparationResourceRequirement.Buffer> bufferDeclarations,
         List<ValueId> boundaryValues, List<CpuAccessPlan.Binding> accessBindings,
-        List<CarrierAccess> carrierPattern, long[] extents, long elementCount,
+        List<CarrierAccess> carrierPattern, List<CarrierAccess> generatedCarrierPattern,
+        long[] extents, long elementCount,
         int selectedRangeCount, long minimumElementsPerWorker, int vectorSpeciesBitSize,
-        String loweringManifest)
+        String loweringManifest, Optional<CpuMaterializationPlan> materialization,
+        Optional<PreparationResourceRequirement.Workspace> workspaceDeclaration,
+        CpuSpecializationBudget specializationBudget)
         implements BackendPreparationPlan {
     /**
      * One computation-oriented execution unit.
@@ -114,6 +127,7 @@ public record CpuPartitionPreparationPlan(List<ExecutionUnitPlan> units, Route r
      * @param boundaryValues non-null four materialized values in declaration order; copied
      * @param accessBindings non-null four normalized cold bindings in boundary order; copied
      * @param carrierPattern non-null four direct carrier forms in boundary order; copied
+     * @param generatedCarrierPattern non-null four generated-consumer carrier forms; copied
      * @param extents non-null compatible iteration extents; copied defensively
      * @param elementCount checked logical element count represented by {@code extents}
      * @param selectedRangeCount positive maximum selected range count
@@ -121,9 +135,13 @@ public record CpuPartitionPreparationPlan(List<ExecutionUnitPlan> units, Route r
      * @param vectorSpeciesBitSize positive preferred FLOAT64 species bit size for vector compute,
      *     or zero for scalar compute
      * @param loweringManifest non-null optional cold diagnostic text
+     * @param materialization non-null optional selected copy
+     * @param workspaceDeclaration non-null optional exact selected-copy workspace declaration
+     * @param specializationBudget non-null current hard specialization ceiling
      * @throws NullPointerException if a required component is {@code null}
      * @throws IllegalArgumentException if the plan is outside the current one-unit portable,
-     *     four-buffer proving slice or its strategy/range/species facts disagree
+     *     four-buffer proving slice or its strategy, range, materialization, workspace, species,
+     *     or budget facts disagree
      */
     public CpuPartitionPreparationPlan {
         units = List.copyOf(units);
@@ -133,11 +151,16 @@ public record CpuPartitionPreparationPlan(List<ExecutionUnitPlan> units, Route r
         boundaryValues = List.copyOf(boundaryValues);
         accessBindings = List.copyOf(accessBindings);
         carrierPattern = List.copyOf(carrierPattern);
+        generatedCarrierPattern = List.copyOf(generatedCarrierPattern);
         extents = extents.clone();
         Objects.requireNonNull(loweringManifest, "loweringManifest");
+        materialization = Objects.requireNonNull(materialization, "materialization");
+        workspaceDeclaration = Objects.requireNonNull(workspaceDeclaration, "workspaceDeclaration");
+        Objects.requireNonNull(specializationBudget, "specializationBudget");
         if (units.size() != 1 || route != Route.PORTABLE
                 || bufferDeclarations.size() != 4 || boundaryValues.size() != 4
-                || accessBindings.size() != 4 || carrierPattern.size() != 4) {
+                || accessBindings.size() != 4 || carrierPattern.size() != 4
+                || generatedCarrierPattern.size() != 4) {
             throw new IllegalArgumentException("current CPU plan must contain one portable unit and four buffers");
         }
         boolean vector = executionStrategy.compute() == ExecutionStrategy.Compute.VECTOR;
@@ -146,6 +169,20 @@ public record CpuPartitionPreparationPlan(List<ExecutionUnitPlan> units, Route r
                 || parallel != (selectedRangeCount >= 2)
                 || vector != (vectorSpeciesBitSize > 0)) {
             throw new IllegalArgumentException("portable strategy facts are inconsistent");
+        }
+        if (materialization.isPresent() != workspaceDeclaration.isPresent()) {
+            throw new IllegalArgumentException("materialization and workspace must agree");
+        }
+        if (materialization.isPresent()) {
+            var copy = materialization.orElseThrow();
+            var workspace = workspaceDeclaration.orElseThrow();
+            if (workspace.requirementId() != copy.workspaceRequirementId()
+                    || workspace.byteSize() != copy.byteCount()
+                    || workspace.byteAlignment() != copy.byteAlignment()
+                    || generatedCarrierPattern.get(copy.sourceBoundaryIndex())
+                            != CarrierAccess.MEMORY_SEGMENT) {
+                throw new IllegalArgumentException("materialization workspace facts disagree");
+            }
         }
     }
     /** Returns instance geometry.

@@ -17,9 +17,12 @@ process-local loaded compatibility identity. The current access family covers
 scalar/rank/singleton/multi-axis broadcasting, zero extents, offsets, positive and broadcast-zero
 strides, and every ordered heap/segment carrier pattern for the four boundaries. Cold analysis
 selects scalar, vector, parallel-scalar, or parallel-vector execution; vector-ineligible admitted
-geometry falls back to scalar compute. Capability and lowering fail closed for every other
+geometry falls back to scalar compute. Analysis can also compare direct access with at most one
+CPU-private contiguous input copy from explicit dimensionless cold cost evidence. A selected copy
+uses one declared run-owned workspace and completes before consumer execution. Capability and
+lowering fail closed for every other
 operation, type, shape, layout, parameter, alias, fan-out, publication, carrier, or route. Native,
-materialization, tuning, and broader semantic-family work remains Draft.
+tuning, and broader semantic-family work remains Draft.
 
 The lower-level OpenBLAS provider separately implements explicit library loading, required-symbol
 binding, a caller-owned lookup lifetime, low-level FLOAT32/FLOAT64 dense row-major general matrix
@@ -379,7 +382,9 @@ Portable generated loops use universal primitive `start`/`end` loops. Compatible
 concrete extents and element count bind on the cold path and do not normally change class/cache
 identity. Focused tests prove that one exact byte sequence and loaded compatibility identity serve
 two compatible extents of the same fused topology. Fixed-shape or unrolled variants remain later,
-budgeted, evidence-selected specializations.
+budgeted, evidence-selected specializations. The current hard ceiling admits four complete
+analysis candidates and realizes one artifact; fixed-shape and unrolled variant budgets are both
+zero.
 
 The canonical IR records typed boundary/virtual values, ordered semantics, structural access-plan
 form, loop model, and stores. It excludes selected route, thread count, vector species, artifact
@@ -443,8 +448,8 @@ coordinates/address and exact accessed half-open span for its requested range. C
 vectorizes dense linear, scalar-broadcast, last-axis, and block/outer access only when every
 non-scalar boundary has a complete preferred-species contiguous run. General odometer access and
 too-short runs select scalar compute rather than rejecting the partition. There is no vector
-gather. Cost-gated contiguous materialization belongs to Draft CPU 0005D, so complete access
-semantics do not promise universal vectorization.
+gather. Cost-gated contiguous materialization may replace one eligible non-dense input access, but
+complete access semantics do not promise universal vectorization.
 
 Vector classes use the Java 26 preferred FLOAT64 species captured during cold analysis. The exact
 species bit size participates in generated specialization and cache identity. Each generated class
@@ -455,10 +460,39 @@ unmasked complete vectors, then the existing scalar body for every remainder. Th
 rule covers arbitrary starts, worker chunk ends, and runs shorter than one vector; CPU 0005C adds
 no masked tail, gather, per-lane scalar GELU, or hot scalar/vector switch.
 
-Before shared assignment, later CPU analysis may compare direct access with CPU-internal contiguous
-materialization using copy cost, kernel benefit, reuse/fan-out, vendor eligibility, memory cost,
-and expected repeated runs. If selected, it declares the exact internal resource and lowers copy
-plus consumer units without changing the Model graph.
+### Current contiguous materialization decision
+
+Before shared assignment, CPU analysis enumerates candidates in stable order: direct access,
+copy input `a`, copy input `b`, then copy input `c`. It admits only one-input copies whose source
+is non-scalar, non-dense, consumed by the unit, within the additional-memory limit, and usable as
+canonical contiguous FLOAT64 segment access. Direct wins every tie. For each admitted input,
+analysis derives use count from the lowered unit and compares these dimensionless cold estimates:
+
+```text
+direct = expected runs * uses * direct kernel cost
+copied = expected runs * (copy cost + uses * contiguous kernel cost)
+net benefit = direct - copied
+```
+
+Selection also requires positive benefit and the configured absolute and basis-point thresholds.
+Checked `long` arithmetic fails analysis on overflow. These inputs are supplied evidence, not
+nanoseconds, and CPU analysis never measures a model or searches a tuning cache.
+
+A selected `CpuMaterializationPlan` retains the original source boundary and access binding plus a
+canonical dense consumer binding. The four graph-value buffer declarations remain first and
+unchanged. CPU analysis appends exactly one workspace declaration with analysis-local ID `0`,
+`elementCount * Double.BYTES` bytes, and `Double.BYTES` alignment. The workspace has no `ValueId`;
+the Model graph, `LogicalMemoryPlan`, boundary identities, and two virtual intermediates remain
+unchanged. Shared Prepare assigns the workspace without interpreting CPU copy or cost facts.
+
+Finalization resolves all four buffer assignments and the optional workspace assignment before
+the one artifact lookup. Cold binding validates the original source and the run-owned aligned
+`CpuContiguousWorkspace`. The original carrier pattern still describes the four Runtime buffers;
+the adjusted generated pattern replaces only the copied input with `MemorySegment`. The generated
+entry therefore still has exactly four boundary arguments—there is no fifth workspace argument.
+The invoking thread copies logical elements in canonical order once per bound invocation, then an
+inline consumer or every selected worker reads the completed workspace. A copy failure prevents
+consumer execution, and an empty execution range touches neither source nor workspace.
 
 Shared Prepare remains blind to CPU units and fusion. Its narrow declaration hardening checks only
 cross-planned-partition values: the producer partition, when present, and every distinct external
@@ -489,7 +523,7 @@ ascending range order. Interruption cancels unclaimed work, joins started work, 
 status, and reports a CPU-private coordination exception. A racing close rejects new work,
 cancels unclaimed chunks, joins started chunks, and terminates every owned worker. No write
 rollback is promised; Runtime retains its existing failed-executable output-validity behavior.
-CPU 0005D remains Draft for materialization and persistence/specialization evidence.
+CPU 0005D completes this materialization and persistence/specialization evidence gate.
 
 For example, iteration Shape `[2, 4, 3]` can combine a dense `[2, 4, 3]` input, a right-aligned
 `[3]` bias, and a contiguous `[2, 1, 3]` input. Their access regimes are respectively
@@ -506,11 +540,39 @@ supported public CPU API. CPU 0005A creates no native placeholder package. Later
 `route.nativeblas` leaves for OpenBLAS/Accelerate/oneMKL/AOCL and `route.nativeops` leaves for
 vDSP/vForce/VML/oneDNN/AOCL-LibM/ZenDNN.
 
+### Generated class-byte persistence and evidence
+
 Generated-class persistence is optional cold-path policy. Without a trusted root, CPU emits,
-verifies, and defines deterministically in memory. With a root, a compatible hit may avoid emission
-but is still verified and defined; it does not preserve JIT code or profiles. Persistence remains
-disabled and unclaimed by default until benchmark evidence. Structural identity and prepared-
-execution strong ownership remain mandatory, and there is no migration reader.
+verifies, and defines deterministically in memory. With an explicit normalized trusted root, one
+realization performs one weak-intern lookup and at most one bounded current-schema envelope lookup.
+The envelope is limited to 2 MiB, with at most 64 KiB of compatibility metadata and 1 MiB of class
+bytes. Schema, structural key, metadata, lengths, checksum, trailing data, class shape, and entry
+descriptor must all verify. Any absence, incompatibility, corruption, malformed class, or file or
+security failure is a safe miss; verified generation remains correct, and optional publication
+uses a forced temporary file plus atomic move. There is one current schema, no migration reader,
+expiry, eviction, background service, or hostile-byte authentication claim.
+
+A hit reuses verified Java Virtual Machine (JVM) class bytes only. It still defines a fresh hidden
+class that the JVM may independently interpret or just-in-time (JIT) compile and profile. Neither
+class bytes nor JIT machine code/profile are the future workload tuning cache: that separate cache
+will record compatible route/configuration decisions before finalization.
+
+The opt-in CPU 0005D development evidence suite compared complete no-root generation against
+verified trusted-root hits on Oracle JDK 26.0.1, macOS 26.5.2, aarch64, with 16 available
+processors. Six scalar/vector and segment/heap/mixed fixtures each used seven fresh JVM forks per
+mode, 20 warmups and 50 samples per fork, for 350 samples per mode. All 2,100 hit samples were
+verified persistence hits with no fallback. Median hit ratios ranged from `0.747375` to `0.863274`;
+median absolute savings ranged from 83,625 ns to 150,500 ns. Every fixture missed the required
+200,000 ns absolute median saving, and several also missed the 0.80 median-ratio threshold. The
+recorded verdict is therefore `KEEP_DISABLED` (report hash
+`0977061bba616421a23f69a7819ba0a85de9af072956d98c21a934af13ba6453`). The default finalizer and
+`CpuPartitionAnalysisInputs.DEFAULT` remain persistence-free.
+
+Ordinary prepare and Runtime never run this evidence suite, benchmark, or compare timing. Ordinary
+explicit-root use only performs bounded lookup/verification and generate/optional-store on a miss.
+Rerun the evidence only after a material generator, generator schema, JDK, persistence-policy
+change, or deliberate performance evaluation—not per model and not as part of the ordinary CPU
+suite.
 
 The replacement removed the old portable candidate, preparer, finalizer, executable, pointwise-ADD,
 unused worker/vector, and flat-package types without aliases or adapters. Historical CPU 0001–0005

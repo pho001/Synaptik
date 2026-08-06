@@ -3,32 +3,62 @@ package io.github.pho001.synaptik.backend.cpu.internal.cache;
 import io.github.pho001.synaptik.backend.cpu.internal.codegen.emit.CpuClassFileKernelGenerator;
 import io.github.pho001.synaptik.backend.cpu.internal.codegen.emit.CpuGeneratedKernel;
 import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuKernelIr;
-import java.io.IOException;
+import java.io.*;
 import java.lang.ref.WeakReference;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.StandardCopyOption;
-import java.util.Objects;
-import java.util.Optional;
+import java.nio.channels.FileChannel;
+import java.nio.file.*;
+import java.security.*;
+import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * Optional trusted-root class-byte persistence and process-local compatibility interning.
- * Persistence is cold policy only; absence or corruption deterministically falls back to memory.
+ * Optional bounded trusted-root persistence of verified generated class bytes.
+ *
+ * <p>One realization performs at most one process-local weak-intern lookup and, when a root is
+ * present, one current-schema envelope lookup. Missing, incompatible, corrupt, oversized, or
+ * inaccessible entries are safe misses: verified in-memory generation remains the correctness
+ * path, and optional publication failure is non-critical. A persisted hit reuses class bytes only;
+ * it defines a fresh hidden class and preserves no Java Virtual Machine just-in-time (JIT)
+ * machine code or profiling state. This store is also distinct from the future workload tuning
+ * cache, which records route/configuration decisions.
+ *
+ * <p>The supplied root is trusted local storage. Checksums and class-shape validation detect
+ * corruption and incompatibility but do not authenticate hostile bytes.
  */
 public final class CpuGeneratedKernelArtifactStore {
+    /** Maximum accepted or published complete envelope size in bytes. */
+    static final int MAX_ENVELOPE_BYTES = 2 * 1024 * 1024;
+    /** Maximum accepted or published compatibility-metadata size in bytes. */
+    static final int MAX_METADATA_BYTES = 64 * 1024;
+    /** Maximum accepted or published generated-class size in bytes. */
+    static final int MAX_CLASS_BYTES = 1024 * 1024;
+    private static final int MAGIC = 0x53435055;
     private static final ConcurrentHashMap<String, WeakReference<CpuGeneratedKernel>> LOADED =
             new ConcurrentHashMap<>();
     private final Optional<Path> trustedRoot;
     private final CpuClassFileKernelGenerator generator = new CpuClassFileKernelGenerator();
 
-    /** Creates the default in-memory-only policy. */
-    public CpuGeneratedKernelArtifactStore() { trustedRoot = Optional.empty(); }
+    /** Development-evidence classification of one realization path. */
+    enum RealizationSource {
+        /** Process-local compatible weak-intern hit. */ WEAK_INTERN_HIT,
+        /** Verified trusted-root envelope hit. */ PERSISTED_HIT,
+        /** Verified fresh generation, with optional non-critical publication. */ GENERATED
+    }
     /**
-     * Creates an optional trusted-root policy.
+     * Development-evidence result pairing the artifact with its observed source.
      *
-     * @param trustedRoot non-null optional trusted local root; empty selects in-memory-only
-     *     realization, and a present path is normalized without creating it
+     * @param artifact non-null verified realized artifact
+     * @param source non-null observed realization classification
+     */
+    record ObservedRealization(CpuGeneratedKernel artifact, RealizationSource source) { }
+
+    /** Creates the default persistence-free, in-memory-only store. */
+    public CpuGeneratedKernelArtifactStore() { this(Optional.empty()); }
+    /**
+     * Creates a store with optional trusted-root persistence.
+     *
+     * @param trustedRoot non-null optional trusted local root; a present path is made absolute and
+     *     normalized without creating or reading it
      * @throws NullPointerException if {@code trustedRoot} is {@code null}
      */
     public CpuGeneratedKernelArtifactStore(Optional<Path> trustedRoot) {
@@ -37,19 +67,31 @@ public final class CpuGeneratedKernelArtifactStore {
     }
 
     /**
-     * Reuses or realizes one exact compatible artifact.
-     * Filesystem absence, corruption, or publication failure is treated as a cache miss and cannot
-     * change correctness.
+     * Reuses or realizes one artifact matching the selected specialization and canonical IR.
      *
-     * @param specialization non-null structural specialization used for compatibility identity
+     * @param specialization non-null structural specialization and compatibility identity
      * @param kernelIr non-null canonical IR whose structural key must match the specialization
-     * @return a verified, defined artifact retained strongly by the caller; never {@code null}
+     * @return a verified artifact strongly retained by the caller; never {@code null}
      * @throws NullPointerException if either argument is {@code null}
-     * @throws IllegalArgumentException if the IR and specialization disagree or verified class
-     *     realization fails
+     * @throws IllegalArgumentException if IR and specialization disagree or verified generation
+     *     or definition fails
      */
-    public CpuGeneratedKernel loadOrGenerate(
-            CpuKernelSpecialization specialization, CpuKernelIr kernelIr) {
+    public CpuGeneratedKernel loadOrGenerate(CpuKernelSpecialization specialization,
+            CpuKernelIr kernelIr) {
+        return loadOrGenerateObserved(specialization, kernelIr).artifact();
+    }
+
+    /**
+     * Realizes one artifact while exposing the path classification to focused evidence code.
+     *
+     * @param specialization non-null structural specialization
+     * @param kernelIr non-null matching canonical IR
+     * @return the verified artifact and its non-null observed source
+     * @throws NullPointerException if either argument is {@code null}
+     * @throws IllegalArgumentException if compatibility or verified realization fails
+     */
+    ObservedRealization loadOrGenerateObserved(CpuKernelSpecialization specialization,
+            CpuKernelIr kernelIr) {
         Objects.requireNonNull(specialization, "specialization");
         Objects.requireNonNull(kernelIr, "kernelIr");
         if (!specialization.loweringFingerprint().hex().equals(kernelIr.structuralKey())) {
@@ -58,61 +100,100 @@ public final class CpuGeneratedKernelArtifactStore {
         String key = specialization.structuralKey();
         synchronized (LOADED) {
             WeakReference<CpuGeneratedKernel> reference = LOADED.get(key);
-            CpuGeneratedKernel loaded = reference == null ? null : reference.get();
-            if (loaded != null) {
-                trustedRoot.ifPresent(root -> writeIfAbsent(root, key, loaded.classBytes(),
-                        specialization.compatibilityBytes()));
-                return loaded;
+            CpuGeneratedKernel interned = reference == null ? null : reference.get();
+            if (interned != null) {
+                return new ObservedRealization(interned, RealizationSource.WEAK_INTERN_HIT);
             }
-            byte[] bytes = trustedRoot.flatMap(root -> read(root, key,
-                    specialization.compatibilityBytes())).orElse(null);
+            byte[] metadata = specialization.compatibilityBytes();
+            byte[] bytes = trustedRoot.flatMap(root -> readEnvelope(root, key, metadata)).orElse(null);
             CpuGeneratedKernel artifact = null;
-            if (bytes != null) {
-                try { artifact = generator.defineClassBytes(specialization, bytes); }
-                catch (IllegalArgumentException corrupt) { artifact = null; }
-            }
+            if (bytes != null) try { artifact = generator.defineClassBytes(specialization, bytes); }
+            catch (IllegalArgumentException malformed) { artifact = null; }
+            RealizationSource source = RealizationSource.PERSISTED_HIT;
             if (artifact == null) {
                 bytes = generator.generateClassBytes(specialization, kernelIr);
                 artifact = generator.defineClassBytes(specialization, bytes);
-                byte[] publish = bytes;
-                byte[] metadata = specialization.compatibilityBytes();
-                trustedRoot.ifPresent(root -> write(root, key, publish, metadata));
+                byte[] generated = bytes;
+                trustedRoot.ifPresent(root -> writeEnvelope(root, key, metadata, generated));
+                source = RealizationSource.GENERATED;
             }
             LOADED.put(key, new WeakReference<>(artifact));
-            return artifact;
+            return new ObservedRealization(artifact, source);
         }
     }
 
-    private static Optional<byte[]> read(Path root, String key, byte[] expectedMetadata) {
+    private static Optional<byte[]> readEnvelope(Path root, String key, byte[] expectedMetadata) {
+        Path file = root.resolve(key + ".artifact");
         try {
-            byte[] metadata = Files.readAllBytes(root.resolve(key + ".meta"));
-            if (!java.util.Arrays.equals(metadata, expectedMetadata)) return Optional.empty();
-            return Optional.of(Files.readAllBytes(root.resolve(key + ".class")));
+            long size = Files.size(file);
+            if (size < 0 || size > MAX_ENVELOPE_BYTES) return Optional.empty();
+            byte[] envelope = Files.readAllBytes(file);
+            if (envelope.length > MAX_ENVELOPE_BYTES) return Optional.empty();
+            try (var input = new DataInputStream(new ByteArrayInputStream(envelope))) {
+                if (input.readInt() != MAGIC || input.readInt() != CpuGeneratorSchema.CURRENT_VERSION
+                        || !input.readUTF().equals(key)) return Optional.empty();
+                int metadataLength = input.readInt();
+                if (metadataLength < 0 || metadataLength > MAX_METADATA_BYTES) return Optional.empty();
+                byte[] metadata = input.readNBytes(metadataLength);
+                if (metadata.length != metadataLength || !Arrays.equals(metadata, expectedMetadata))
+                    return Optional.empty();
+                int classLength = input.readInt();
+                if (classLength < 0 || classLength > MAX_CLASS_BYTES) return Optional.empty();
+                byte[] classBytes = input.readNBytes(classLength);
+                byte[] checksum = input.readNBytes(32);
+                if (classBytes.length != classLength || checksum.length != 32 || input.read() != -1
+                        || !MessageDigest.isEqual(checksum, checksum(key, metadata, classBytes)))
+                    return Optional.empty();
+                return Optional.of(classBytes);
+            }
+        } catch (IOException | RuntimeException invalid) {
+            return Optional.empty();
         }
-        catch (IOException | SecurityException missing) { return Optional.empty(); }
     }
-    private static void write(Path root, String key, byte[] bytes, byte[] metadata) {
+
+    private static void writeEnvelope(Path root, String key, byte[] metadata, byte[] classBytes) {
+        if (metadata.length > MAX_METADATA_BYTES || classBytes.length > MAX_CLASS_BYTES) return;
+        Path temporary = null;
         try {
+            byte[] envelope = envelope(key, metadata, classBytes);
+            if (envelope.length > MAX_ENVELOPE_BYTES) return;
             Files.createDirectories(root);
-            Path temporary = Files.createTempFile(root, key, ".tmp");
-            Files.write(temporary, bytes);
-            try { Files.move(temporary, root.resolve(key + ".class"),
-                    StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING); }
-            catch (IOException noAtomicMove) { Files.move(temporary, root.resolve(key + ".class"),
-                    StandardCopyOption.REPLACE_EXISTING); }
-            Files.write(root.resolve(key + ".meta"), metadata);
+            temporary = Files.createTempFile(root, key, ".tmp");
+            try (FileChannel channel = FileChannel.open(temporary, StandardOpenOption.WRITE,
+                    StandardOpenOption.TRUNCATE_EXISTING)) {
+                channel.write(java.nio.ByteBuffer.wrap(envelope));
+                channel.force(true);
+            }
+            Files.move(temporary, root.resolve(key + ".artifact"),
+                    StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
+            temporary = null;
         } catch (IOException | SecurityException ignored) {
-            // Persistence is optional and never correctness-critical.
+            // Optional persistence never changes correctness.
+        } finally {
+            if (temporary != null) try { Files.deleteIfExists(temporary); }
+            catch (IOException | SecurityException ignored) { }
         }
     }
 
-    private static void writeIfAbsent(Path root, String key, byte[] bytes, byte[] metadata) {
-        if (!Files.isRegularFile(root.resolve(key + ".class"))
-                || !Files.isRegularFile(root.resolve(key + ".meta"))) {
-            write(root, key, bytes, metadata);
+    private static byte[] envelope(String key, byte[] metadata, byte[] classBytes) throws IOException {
+        var bytes = new ByteArrayOutputStream();
+        try (var output = new DataOutputStream(bytes)) {
+            output.writeInt(MAGIC); output.writeInt(CpuGeneratorSchema.CURRENT_VERSION);
+            output.writeUTF(key); output.writeInt(metadata.length); output.write(metadata);
+            output.writeInt(classBytes.length); output.write(classBytes);
+            output.write(checksum(key, metadata, classBytes));
         }
+        return bytes.toByteArray();
     }
 
-    /** Clears only process-local weak interning state for isolated focused tests. */
+    private static byte[] checksum(String key, byte[] metadata, byte[] classBytes) {
+        try {
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            digest.update(key.getBytes(java.nio.charset.StandardCharsets.US_ASCII));
+            digest.update(metadata); return digest.digest(classBytes);
+        } catch (NoSuchAlgorithmException impossible) { throw new AssertionError(impossible); }
+    }
+
+    /** Clears process-local weak interning for isolated tests and evidence forks. */
     static void clearLoadedForTests() { synchronized (LOADED) { LOADED.clear(); } }
 }

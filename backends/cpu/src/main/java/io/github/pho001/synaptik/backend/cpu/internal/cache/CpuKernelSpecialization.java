@@ -22,11 +22,15 @@ import java.util.List;
  * @param carrierPattern non-null immutable ordered carrier form for the current four boundaries
  * @param vectorSpeciesBitSize exact positive preferred FLOAT64 species size in bits for vector
  *     compute, or zero for scalar compute
+ * @param materializedSourcePosition copied input position {@code 0} through {@code 2}, or
+ *     {@code -1} for direct access; a copied position must use a segment carrier in the generated
+ *     pattern
  */
 public record CpuKernelSpecialization(CpuLoweringFingerprint loweringFingerprint,
         NumericalMode numericalMode,
         CpuPartitionPreparationPlan.ExecutionStrategy executionStrategy,
-        List<CarrierAccess> carrierPattern, int vectorSpeciesBitSize) {
+        List<CarrierAccess> carrierPattern, int vectorSpeciesBitSize,
+        int materializedSourcePosition) {
     /** Direct carrier form at one ordered materialized boundary. */
     public enum CarrierAccess {
         /** Observable direct {@code double[]} access. */ DOUBLE_ARRAY,
@@ -37,6 +41,25 @@ public record CpuKernelSpecialization(CpuLoweringFingerprint loweringFingerprint
         /** Ordinary exact/default operation contract with no relaxed permission. */ EXACT_DEFAULT
     }
     /**
+     * Creates a direct, non-materialized compatibility specialization.
+     *
+     * @param loweringFingerprint non-null canonical lowering fingerprint
+     * @param numericalMode non-null selected exact/default numerical mode
+     * @param executionStrategy non-null generated scalar or vector compute strategy
+     * @param carrierPattern non-null ordered four-boundary generated carrier pattern
+     * @param vectorSpeciesBitSize positive preferred FLOAT64 species size for vector compute, or
+     *     zero for scalar compute
+     * @throws NullPointerException if a reference component is {@code null}
+     * @throws IllegalArgumentException if the components are outside the current proving slice
+     */
+    public CpuKernelSpecialization(CpuLoweringFingerprint loweringFingerprint,
+            NumericalMode numericalMode,
+            CpuPartitionPreparationPlan.ExecutionStrategy executionStrategy,
+            List<CarrierAccess> carrierPattern, int vectorSpeciesBitSize) {
+        this(loweringFingerprint, numericalMode, executionStrategy, carrierPattern,
+                vectorSpeciesBitSize, -1);
+    }
+    /**
      * Validates the exact/default scalar-or-vector generated specialization.
      *
      * @param loweringFingerprint non-null canonical lowering fingerprint
@@ -45,6 +68,7 @@ public record CpuKernelSpecialization(CpuLoweringFingerprint loweringFingerprint
      * @param carrierPattern non-null ordered four-boundary carrier pattern; copied defensively
      * @param vectorSpeciesBitSize positive preferred FLOAT64 species bit size for vector compute,
      *     or zero for scalar compute
+     * @param materializedSourcePosition copied input position, or {@code -1} for direct access
      * @throws NullPointerException if a component is {@code null}
      * @throws IllegalArgumentException if the mode, compute/species relationship, or boundary
      *     count is outside the current CPU proving slice
@@ -59,7 +83,10 @@ public record CpuKernelSpecialization(CpuLoweringFingerprint loweringFingerprint
         boolean vector = executionStrategy.compute()
                 == CpuPartitionPreparationPlan.ExecutionStrategy.Compute.VECTOR;
         if (numericalMode != NumericalMode.EXACT_DEFAULT
-                || vector != (vectorSpeciesBitSize > 0)) {
+                || vector != (vectorSpeciesBitSize > 0)
+                || materializedSourcePosition < -1 || materializedSourcePosition > 2
+                || (materializedSourcePosition >= 0
+                    && carrierPattern.get(materializedSourcePosition) != CarrierAccess.MEMORY_SEGMENT)) {
             throw new IllegalArgumentException("current CPU route requires exact strategy/species facts");
         }
     }
@@ -79,7 +106,7 @@ public record CpuKernelSpecialization(CpuLoweringFingerprint loweringFingerprint
     public byte[] compatibilityBytes() {
         return (CpuGeneratorSchema.CURRENT_VERSION + "|" + loweringFingerprint.hex() + "|"
                 + numericalMode + "|" + executionStrategy.compute() + "|" + carrierPattern
-                + "|" + vectorSpeciesBitSize)
+                + "|" + vectorSpeciesBitSize + "|materialized=" + materializedSourcePosition)
                 .getBytes(StandardCharsets.US_ASCII);
     }
     /** Returns artifact identity.

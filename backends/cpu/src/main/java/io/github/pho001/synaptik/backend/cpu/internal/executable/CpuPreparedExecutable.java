@@ -3,8 +3,10 @@ package io.github.pho001.synaptik.backend.cpu.internal.executable;
 import io.github.pho001.synaptik.backend.cpu.internal.cache.CpuKernelSpecialization.CarrierAccess;
 import io.github.pho001.synaptik.backend.cpu.internal.codegen.emit.CpuGeneratedKernel;
 import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuAccessPlan;
+import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuMaterializationPlan;
 import io.github.pho001.synaptik.backend.cpu.internal.memory.CpuBufferArgument;
 import io.github.pho001.synaptik.backend.cpu.internal.memory.CpuBufferRepresentation;
+import io.github.pho001.synaptik.backend.cpu.internal.memory.CpuContiguousWorkspace;
 import io.github.pho001.synaptik.runtime.execution.BoundInvocation;
 import io.github.pho001.synaptik.runtime.execution.PreparedExecutable;
 import io.github.pho001.synaptik.runtime.memory.PreparedMemoryPlan;
@@ -12,29 +14,37 @@ import io.github.pho001.synaptik.runtime.resource.BufferRepresentation;
 import io.github.pho001.synaptik.runtime.resource.WorkspaceRepresentation;
 import io.github.pho001.synaptik.runtime.run.RunState;
 import java.lang.foreign.MemorySegment;
+import java.lang.foreign.ValueLayout;
 import java.lang.invoke.MethodHandle;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+import java.util.Optional;
 
 /**
  * Immutable whole-partition recipe with exact cold geometry and one direct generated artifact.
  * A parallel recipe borrows, but never closes, its explicitly supplied {@link CpuWorkerGroup};
  * cold binding creates deterministic disjoint chunk calls, while a scalar or one-chunk range
- * executes directly on the invoking thread.
+ * executes directly on the invoking thread. When analysis selected materialization, cold binding
+ * retains the original read-only source for one canonical copy and substitutes the workspace
+ * segment only in the generated consumer arguments. Execution completes that copy on the invoking
+ * thread before any inline or worker consumer call begins.
  */
 public final class CpuPreparedExecutable extends PreparedExecutable {
     private final CpuGeneratedKernel artifact;
     private final List<CpuAccessPlan.Binding> bindings;
     private final List<CarrierAccess> carrierPattern;
+    private final List<CarrierAccess> generatedCarrierPattern;
     private final long start;
     private final long end;
     private final int selectedRangeCount;
     private final long minimumElementsPerWorker;
     private final CpuWorkerGroup workerGroup;
+    private final Optional<CpuMaterializationPlan> materialization;
+    private final Optional<WorkspaceSelection> workspaceSelection;
 
     /**
-     * Creates a four-boundary recipe for one exact half-open logical range.
+     * Creates a direct four-boundary recipe for one exact half-open logical range.
      *
      * @param memoryPlan non-null exact plan against which selections are resolved
      * @param selections non-null ordered selections for inputs {@code a}, {@code b}, {@code c},
@@ -54,7 +64,7 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
     }
 
     /**
-     * Creates a recipe with cold-selected range geometry and an optional borrowed worker group.
+     * Creates a direct recipe with cold-selected range geometry and an optional borrowed worker group.
      * The worker group must be present exactly when two or more ranges were selected. This object
      * retains the group without taking ownership of its lifecycle.
      *
@@ -79,14 +89,83 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
             CpuGeneratedKernel artifact, List<CpuAccessPlan.Binding> bindings,
             List<CarrierAccess> carrierPattern, long start, long end, int selectedRangeCount,
             long minimumElementsPerWorker, CpuWorkerGroup workerGroup) {
-        super(memoryPlan, selections, List.of(), List.of(BufferAccess.READ_ONLY,
+        this(memoryPlan, selections, artifact, bindings, carrierPattern, start, end,
+                selectedRangeCount, minimumElementsPerWorker, workerGroup,
+                Optional.empty(), Optional.empty());
+    }
+
+    /**
+     * Creates a materialization-aware recipe whose original and generated carrier patterns are
+     * the same.
+     *
+     * @param memoryPlan non-null exact plan against which selections are resolved
+     * @param selections non-null four ordered boundary selections
+     * @param artifact non-null verified generated artifact
+     * @param bindings non-null generated-consumer access bindings; copied defensively
+     * @param carrierPattern non-null direct and generated carrier pattern; copied defensively
+     * @param start non-negative inclusive logical bound
+     * @param end exclusive logical bound no greater than the element count
+     * @param selectedRangeCount positive maximum selected chunk count
+     * @param minimumElementsPerWorker positive minimum elements per submitted chunk
+     * @param workerGroup borrowed worker group for a parallel recipe, otherwise {@code null}
+     * @param materialization non-null optional selected one-input copy
+     * @param workspaceSelection non-null optional assigned workspace position, present exactly
+     *     when materialization is present
+     * @throws NullPointerException if a required reference is {@code null}
+     * @throws IllegalArgumentException if range, carrier, worker, materialization, workspace, or
+     *     specialization facts disagree
+     */
+    public CpuPreparedExecutable(PreparedMemoryPlan memoryPlan, List<BufferSelection> selections,
+            CpuGeneratedKernel artifact, List<CpuAccessPlan.Binding> bindings,
+            List<CarrierAccess> carrierPattern, long start, long end, int selectedRangeCount,
+            long minimumElementsPerWorker, CpuWorkerGroup workerGroup,
+            Optional<CpuMaterializationPlan> materialization,
+            Optional<WorkspaceSelection> workspaceSelection) {
+        this(memoryPlan, selections, artifact, bindings, carrierPattern, carrierPattern, start, end,
+                selectedRangeCount, minimumElementsPerWorker, workerGroup, materialization,
+                workspaceSelection);
+    }
+
+    /**
+     * Creates the complete recipe with separate original and adjusted generated carrier patterns.
+     *
+     * @param memoryPlan non-null exact plan against which selections are resolved
+     * @param selections non-null four ordered boundary selections
+     * @param artifact non-null verified generated artifact matching
+     *     {@code generatedCarrierPattern}
+     * @param bindings non-null generated-consumer access bindings; copied defensively
+     * @param carrierPattern non-null original source/output carrier pattern; copied defensively
+     * @param generatedCarrierPattern non-null adjusted generated entry pattern; copied defensively
+     * @param start non-negative inclusive logical bound
+     * @param end exclusive logical bound no greater than the element count
+     * @param selectedRangeCount positive maximum selected chunk count
+     * @param minimumElementsPerWorker positive minimum elements per submitted chunk
+     * @param workerGroup borrowed worker group for a parallel recipe, otherwise {@code null}
+     * @param materialization non-null optional selected copy whose consumer binding appears in
+     *     {@code bindings}
+     * @param workspaceSelection non-null optional assigned workspace position, present exactly
+     *     when materialization is present
+     * @throws NullPointerException if a required reference is {@code null}
+     * @throws IllegalArgumentException if selection counts, range, carrier patterns, worker,
+     *     materialization, workspace, or specialization facts disagree
+     */
+    public CpuPreparedExecutable(PreparedMemoryPlan memoryPlan, List<BufferSelection> selections,
+            CpuGeneratedKernel artifact, List<CpuAccessPlan.Binding> bindings,
+            List<CarrierAccess> carrierPattern, List<CarrierAccess> generatedCarrierPattern,
+            long start, long end, int selectedRangeCount,
+            long minimumElementsPerWorker, CpuWorkerGroup workerGroup,
+            Optional<CpuMaterializationPlan> materialization,
+            Optional<WorkspaceSelection> workspaceSelection) {
+        super(memoryPlan, selections, workspaceSelection.map(List::of).orElseGet(List::of), List.of(BufferAccess.READ_ONLY,
                 BufferAccess.READ_ONLY, BufferAccess.READ_ONLY, BufferAccess.WRITE_ONLY));
         if (selections.size() != 4) throw new IllegalArgumentException("four buffers required");
         this.artifact = Objects.requireNonNull(artifact, "artifact");
         this.bindings = List.copyOf(bindings);
         this.carrierPattern = List.copyOf(carrierPattern);
+        this.generatedCarrierPattern = List.copyOf(generatedCarrierPattern);
         if (this.bindings.size() != 4 || this.carrierPattern.size() != 4
-                || !artifact.specialization().carrierPattern().equals(this.carrierPattern)) {
+                || this.generatedCarrierPattern.size() != 4
+                || !artifact.specialization().carrierPattern().equals(this.generatedCarrierPattern)) {
             throw new IllegalArgumentException("binding and specialization patterns must agree");
         }
         long count = this.bindings.getFirst().elementCount();
@@ -100,6 +179,19 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
         this.selectedRangeCount = selectedRangeCount;
         this.minimumElementsPerWorker = minimumElementsPerWorker;
         this.workerGroup = workerGroup;
+        this.materialization = Objects.requireNonNull(materialization, "materialization");
+        this.workspaceSelection = Objects.requireNonNull(workspaceSelection, "workspaceSelection");
+        if (materialization.isPresent() != workspaceSelection.isPresent()) {
+            throw new IllegalArgumentException("materialization and workspace selection must agree");
+        }
+        int materializedPosition = materialization
+                .map(CpuMaterializationPlan::sourceBoundaryIndex).orElse(-1);
+        if (artifact.specialization().materializedSourcePosition() != materializedPosition
+                || materialization.isPresent() && !bindings.get(materializedPosition)
+                        .equals(materialization.orElseThrow().consumerBinding())) {
+            throw new IllegalArgumentException(
+                    "materialization and generated specialization must agree");
+        }
     }
 
     /**
@@ -136,8 +228,9 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
         var selections = new ArrayList<BufferSelection>(4);
         for (int i = 0; i < 4; i++) selections.add(bufferSelection(i));
         return new CpuPreparedExecutable(memoryPlan(), selections, artifact, bindings,
-                carrierPattern, rangeStart, rangeEnd, selectedRangeCount,
-                minimumElementsPerWorker, workerGroup);
+                carrierPattern, generatedCarrierPattern, rangeStart, rangeEnd, selectedRangeCount,
+                minimumElementsPerWorker, workerGroup, materialization,
+                workspaceSelection);
     }
 
     private CpuAccessPlan.Binding ranged(CpuAccessPlan.Binding source) {
@@ -169,14 +262,44 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
     }
 
     @Override protected boolean acceptsWorkspaceRepresentation(int index,
-            WorkspaceRepresentation representation) { return false; }
+            WorkspaceRepresentation representation) {
+        if (index != 0 || materialization.isEmpty()
+                || !(representation instanceof CpuContiguousWorkspace workspace)
+                || !workspace.isAccessible()) return false;
+        var copy = materialization.orElseThrow();
+        return workspace.byteSize() == copy.byteCount()
+                && workspace.byteAlignment() == copy.byteAlignment()
+                && workspace.writableSegment().address() % copy.byteAlignment() == 0;
+    }
 
     @Override protected BoundInvocation bindCompatible(RunState state,
             BufferRepresentation[] buffers, WorkspaceRepresentation[] workspaces) {
-        if (workspaces.length != 0) throw new IllegalArgumentException("no workspace expected");
+        if (workspaces.length != (materialization.isPresent() ? 1 : 0)) {
+            throw new IllegalArgumentException("workspace count disagrees with materialization");
+        }
         var arguments = new ArrayList<CpuBufferArgument>(4);
         for (BufferRepresentation buffer : buffers) {
             arguments.add(((CpuBufferRepresentation) buffer).argument());
+        }
+        for (int input = 0; input < 3; input++) {
+            CpuAccessPlan.Binding inputBinding = materialization.isPresent()
+                    && materialization.orElseThrow().sourceBoundaryIndex() == input
+                    ? materialization.orElseThrow().sourceBinding() : bindings.get(input);
+            if (overlaps(arguments.get(input), ranged(inputBinding),
+                    arguments.get(3), ranged(bindings.get(3)))) {
+                throw new IllegalArgumentException("output accessed span must not overlap an input");
+            }
+        }
+        CopyCall copyCall = null;
+        if (materialization.isPresent()) {
+            var copy = materialization.orElseThrow();
+            CpuBufferArgument source = arguments.get(copy.sourceBoundaryIndex());
+            MemorySegment workspace = ((CpuContiguousWorkspace) workspaces[0]).writableSegment();
+            if (end > start) copyCall = copyCall(
+                    source, copy.sourceBinding(), workspace, copy.elementCount());
+            arguments.set(copy.sourceBoundaryIndex(), new CpuBufferArgument.Segment(
+                    io.github.pho001.synaptik.model.datatype.DataType.FLOAT64,
+                    workspace.asReadOnly(), workspace.byteSize(), true));
         }
         if (workerGroup != null) for (CpuBufferArgument argument : arguments) {
             if (argument instanceof CpuBufferArgument.Segment segment
@@ -184,17 +307,13 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
                 throw new IllegalArgumentException("segment is not accessible to every CPU worker");
             }
         }
-        for (int input = 0; input < 3; input++) if (overlaps(arguments.get(input), ranged(bindings.get(input)),
-                arguments.get(3), ranged(bindings.get(3)))) {
-            throw new IllegalArgumentException("output accessed span must not overlap an input");
-        }
         long length = end - start;
         int chunkCount = length == 0 ? 0 : Math.min(selectedRangeCount,
                 Math.toIntExact(1 + (length - 1) / minimumElementsPerWorker));
         if (chunkCount <= 1) {
             KernelCall call = callFor(artifact.entryPoint(), arguments,
                     geometry(arguments, start, end), start, end);
-            return new Invocation(state, call, null);
+            return new Invocation(state, copyCall, call, null);
         }
         CpuWorkerGroup.RangeCall[] calls = new CpuWorkerGroup.RangeCall[chunkCount];
         long quotient = length / chunkCount;
@@ -207,7 +326,65 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
             calls[index] = call::invoke;
             chunkStart = chunkEnd;
         }
-        return new Invocation(state, null, calls);
+        return new Invocation(state, copyCall, null, calls);
+    }
+
+    @FunctionalInterface private interface CopyCall { void invoke(); }
+
+    private static CopyCall copyCall(CpuBufferArgument source, CpuAccessPlan.Binding binding,
+            MemorySegment target, long count) {
+        int rank = binding.extents().size();
+        long[] extents = binding.extents().stream().mapToLong(Long::longValue).toArray();
+        long[] strides = binding.effectiveStrides().stream().mapToLong(Long::longValue).toArray();
+        long[] coordinates = new long[rank];
+        if (source instanceof CpuBufferArgument.Doubles doubles) {
+            long arrayBase = doubles.byteOffset() / Double.BYTES;
+            return () -> copyArray(doubles.carrier(), arrayBase, binding.baseElementOffset(),
+                    target, count, extents, strides, coordinates);
+        }
+        MemorySegment segment = ((CpuBufferArgument.Segment) source).segment();
+        return () -> copySegment(segment, binding.baseElementOffset(), target, count,
+                extents, strides, coordinates);
+    }
+
+    private static void copyArray(double[] source, long arrayBase, long initialAddress,
+            MemorySegment target, long count, long[] extents, long[] strides,
+            long[] coordinates) {
+        java.util.Arrays.fill(coordinates, 0);
+        long address = initialAddress;
+        for (long logical = 0; logical < count; logical++) {
+            double value = source[Math.toIntExact(arrayBase + address)];
+            target.set(ValueLayout.JAVA_DOUBLE,
+                    Math.multiplyExact(logical, Double.BYTES), value);
+            address = advanceAddress(address, extents, strides, coordinates);
+        }
+    }
+
+    private static void copySegment(MemorySegment source, long initialAddress,
+            MemorySegment target, long count, long[] extents, long[] strides,
+            long[] coordinates) {
+            java.util.Arrays.fill(coordinates, 0);
+            long address = initialAddress;
+            for (long logical = 0; logical < count; logical++) {
+                double value = source.get(ValueLayout.JAVA_DOUBLE,
+                        Math.multiplyExact(address, Double.BYTES));
+                target.set(ValueLayout.JAVA_DOUBLE,
+                        Math.multiplyExact(logical, Double.BYTES), value);
+                address = advanceAddress(address, extents, strides, coordinates);
+            }
+    }
+
+    private static long advanceAddress(long address, long[] extents, long[] strides,
+            long[] coordinates) {
+        for (int axis = coordinates.length - 1; axis >= 0; axis--) {
+            coordinates[axis]++;
+            address = Math.addExact(address, strides[axis]);
+            if (coordinates[axis] < extents[axis]) break;
+            coordinates[axis] = 0;
+            address = Math.subtractExact(address,
+                    Math.multiplyExact(extents[axis], strides[axis]));
+        }
+        return address;
     }
 
     private long[] geometry(List<CpuBufferArgument> arguments, long rangeStart, long rangeEnd) {
@@ -298,13 +475,15 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
     }
 
     private final class Invocation extends BoundInvocation {
+        private final CopyCall copy;
         private final KernelCall call;
         private final CpuWorkerGroup.RangeCall[] calls;
-        Invocation(RunState state, KernelCall call, CpuWorkerGroup.RangeCall[] calls) {
-            super(state); this.call = call; this.calls = calls;
+        Invocation(RunState state, CopyCall copy, KernelCall call, CpuWorkerGroup.RangeCall[] calls) {
+            super(state); this.copy = copy; this.call = call; this.calls = calls;
         }
         @Override protected void executeBound() {
             try {
+                if (copy != null) copy.invoke();
                 if (calls == null) call.invoke();
                 else workerGroup.execute(calls);
             }

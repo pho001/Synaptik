@@ -11,15 +11,58 @@ import java.util.List;
  * @param carrierPattern non-null ordered direct carrier forms for the current four boundaries;
  *     membership is snapshotted and contains no physical carrier object
  * @param portableExecution non-null immutable cold compute-preference and parallelism inputs
+ * @param materializationPolicy non-null dimensionless cold comparison policy; disabled means
+ *     direct access only
  */
 public record CpuPartitionAnalysisInputs(boolean loweringManifestEnabled,
-        List<CarrierAccess> carrierPattern, PortableExecutionConfig portableExecution)
+        List<CarrierAccess> carrierPattern, PortableExecutionConfig portableExecution,
+        MaterializationPolicy materializationPolicy)
         implements BackendAnalysisInputs {
     /** Default current-topology input: manifest disabled and four direct segment boundaries. */
     public static final CpuPartitionAnalysisInputs DEFAULT = new CpuPartitionAnalysisInputs(false,
             List.of(CarrierAccess.MEMORY_SEGMENT, CarrierAccess.MEMORY_SEGMENT,
                     CarrierAccess.MEMORY_SEGMENT, CarrierAccess.MEMORY_SEGMENT),
-            PortableExecutionConfig.DEFAULT);
+            PortableExecutionConfig.DEFAULT, MaterializationPolicy.DISABLED);
+
+    /**
+     * Cold, dimensionless materialization evidence. No value is measured during preparation.
+     *
+     * @param enabled whether analysis may compare one-input contiguous-copy candidates
+     * @param copyFixedCostUnits non-negative fixed copy estimate per run
+     * @param copyCostUnitsPerElement non-negative copy estimate per logical element
+     * @param directKernelCostUnitsPerElement non-negative direct-consumer estimate per element/use
+     * @param contiguousKernelCostUnitsPerElement non-negative contiguous-consumer estimate per
+     *     element/use
+     * @param expectedRunCount positive repeated-run estimate
+     * @param maximumAdditionalBytes non-negative workspace byte ceiling
+     * @param minimumNetBenefitCostUnits non-negative absolute selection threshold
+     * @param minimumBenefitBasisPoints relative selection threshold from {@code 0} through
+     *     {@code 10_000}
+     */
+    public record MaterializationPolicy(boolean enabled, long copyFixedCostUnits,
+            long copyCostUnitsPerElement, long directKernelCostUnitsPerElement,
+            long contiguousKernelCostUnitsPerElement, long expectedRunCount,
+            long maximumAdditionalBytes, long minimumNetBenefitCostUnits,
+            int minimumBenefitBasisPoints) {
+        /** Direct-only compatibility policy. */
+        public static final MaterializationPolicy DISABLED = new MaterializationPolicy(false,
+                0, 0, 0, 0, 1, 0, 0, 0);
+        /**
+         * Validates one cold comparison policy.
+         *
+         * @throws IllegalArgumentException if a cost or byte limit is negative, expected runs are
+         *     not positive, or the basis-point threshold is outside {@code [0, 10_000]}
+         */
+        public MaterializationPolicy {
+            if (copyFixedCostUnits < 0 || copyCostUnitsPerElement < 0
+                    || directKernelCostUnitsPerElement < 0
+                    || contiguousKernelCostUnitsPerElement < 0 || expectedRunCount <= 0
+                    || maximumAdditionalBytes < 0 || minimumNetBenefitCostUnits < 0
+                    || minimumBenefitBasisPoints < 0 || minimumBenefitBasisPoints > 10_000) {
+                throw new IllegalArgumentException("invalid materialization policy");
+            }
+        }
+    }
 
     /**
      * Cold CPU-private strategy-selection inputs. CPU analysis bounds usable parallelism by the
@@ -72,7 +115,22 @@ public record CpuPartitionAnalysisInputs(boolean loweringManifestEnabled,
      */
     public CpuPartitionAnalysisInputs(boolean loweringManifestEnabled,
             List<CarrierAccess> carrierPattern) {
-        this(loweringManifestEnabled, carrierPattern, PortableExecutionConfig.DEFAULT);
+        this(loweringManifestEnabled, carrierPattern, PortableExecutionConfig.DEFAULT,
+                MaterializationPolicy.DISABLED);
+    }
+
+    /**
+     * Creates direct-only inputs with explicit portable execution selection.
+     *
+     * @param loweringManifestEnabled whether to retain cold lowering diagnostics
+     * @param carrierPattern non-null ordered current-topology carrier pattern; snapshotted
+     * @param portableExecution non-null immutable cold execution inputs
+     * @throws NullPointerException if a reference or carrier entry is {@code null}
+     */
+    public CpuPartitionAnalysisInputs(boolean loweringManifestEnabled,
+            List<CarrierAccess> carrierPattern, PortableExecutionConfig portableExecution) {
+        this(loweringManifestEnabled, carrierPattern, portableExecution,
+                MaterializationPolicy.DISABLED);
     }
 
     /**
@@ -81,11 +139,13 @@ public record CpuPartitionAnalysisInputs(boolean loweringManifestEnabled,
      * @param loweringManifestEnabled whether to retain cold lowering diagnostics
      * @param carrierPattern non-null ordered current-topology carrier pattern; copied defensively
      * @param portableExecution non-null immutable cold execution inputs
+     * @param materializationPolicy non-null dimensionless cold materialization policy
      * @throws NullPointerException if {@code carrierPattern}, an entry, or
-     *     {@code portableExecution} is {@code null}
+     *     either policy/configuration component is {@code null}
      */
     public CpuPartitionAnalysisInputs {
         carrierPattern = List.copyOf(carrierPattern);
         java.util.Objects.requireNonNull(portableExecution, "portableExecution");
+        java.util.Objects.requireNonNull(materializationPolicy, "materializationPolicy");
     }
 }

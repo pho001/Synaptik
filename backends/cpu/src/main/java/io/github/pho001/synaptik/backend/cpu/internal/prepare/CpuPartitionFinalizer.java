@@ -16,7 +16,13 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 
-/** Post-assignment verification, artifact realization, and partition executable finalization. */
+/**
+ * Post-assignment verification, artifact realization, and partition executable finalization.
+ *
+ * <p>Every four-buffer assignment and optional exact workspace assignment is resolved and checked
+ * before the single permitted artifact-store call. Finalization cannot change the selected copy,
+ * generated carrier pattern, route, strategy, specialization, or declaration geometry.
+ */
 public final class CpuPartitionFinalizer implements BackendPartitionFinalizer<CpuPartitionPreparationPlan> {
     private final CpuGeneratedKernelArtifactStore artifactStore;
     private final Optional<CpuWorkerGroup> workerGroup;
@@ -77,6 +83,26 @@ public final class CpuPartitionFinalizer implements BackendPartitionFinalizer<Cp
                     "buffer declaration has no exact shared assignment: " + declaration.valueId());
             selections.add(new PreparedExecutable.BufferSelection(match.planIndex(), 0));
         }
+        PreparedExecutable.WorkspaceSelection workspaceSelection = null;
+        if (plan.workspaceDeclaration().isPresent()) {
+            var declaration = plan.workspaceDeclaration().orElseThrow();
+            PreparationResourceAssignment.Workspace match = null;
+            for (var assignment : finalization.assignments()) {
+                if (assignment instanceof PreparationResourceAssignment.Workspace workspace
+                        && workspace.requirement() == declaration) { match = workspace; break; }
+            }
+            if (match == null) throw new IllegalArgumentException(
+                    "workspace declaration has no exact shared assignment");
+            var entry = finalization.memoryPlan().workspaces().get(match.planIndex());
+            if (entry.slot() != match.slot() || entry.byteSize() != declaration.byteSize()
+                    || entry.byteAlignment() != declaration.byteAlignment()) {
+                throw new IllegalArgumentException("workspace assignment geometry disagrees");
+            }
+            workspaceSelection = new PreparedExecutable.WorkspaceSelection(match.planIndex());
+        } else if (finalization.assignments().stream()
+                .anyMatch(PreparationResourceAssignment.Workspace.class::isInstance)) {
+            throw new IllegalArgumentException("direct CPU plan rejects workspace assignments");
+        }
         var unit = plan.units().getFirst();
         CpuWorkerGroup selectedWorkers = null;
         if (plan.selectedRangeCount() >= 2) {
@@ -89,7 +115,9 @@ public final class CpuPartitionFinalizer implements BackendPartitionFinalizer<Cp
         var artifact = artifactStore.loadOrGenerate(unit.portablePlan().specialization(),
                 unit.portablePlan().kernelIr());
         return new CpuPreparedExecutable(finalization.memoryPlan(), selections, artifact,
-                plan.accessBindings(), plan.carrierPattern(), 0, plan.elementCount(),
-                plan.selectedRangeCount(), plan.minimumElementsPerWorker(), selectedWorkers);
+                plan.accessBindings(), plan.carrierPattern(), plan.generatedCarrierPattern(),
+                0, plan.elementCount(),
+                plan.selectedRangeCount(), plan.minimumElementsPerWorker(), selectedWorkers,
+                plan.materialization(), Optional.ofNullable(workspaceSelection));
     }
 }

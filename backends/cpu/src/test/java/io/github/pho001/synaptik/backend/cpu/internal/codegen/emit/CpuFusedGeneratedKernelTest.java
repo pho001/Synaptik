@@ -25,6 +25,9 @@ import io.github.pho001.synaptik.runtime.run.RunState;
 import io.github.pho001.synaptik.backend.cpu.internal.prepare.CpuPartitionAnalysisInputs.PortableExecutionConfig;
 import io.github.pho001.synaptik.backend.cpu.internal.prepare.CpuPartitionAnalysisInputs.PortableExecutionConfig.ComputePreference;
 import jdk.incubator.vector.DoubleVector;
+import io.github.pho001.synaptik.backend.cpu.internal.memory.CpuContiguousWorkspace;
+import io.github.pho001.synaptik.backend.cpu.internal.executable.CpuWorkerGroup;
+import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuAccessPlan;
 
 class CpuFusedGeneratedKernelTest {
     private static final ValueLayout.OfDouble DOUBLE =
@@ -139,6 +142,43 @@ class CpuFusedGeneratedKernelTest {
         }
     }
 
+    @Test void selectedCopiesMatchReferenceForEverySourceRegimeAndStrategy() {
+        var configs = List.of(
+                new PortableExecutionConfig(ComputePreference.SCALAR, 1, 1, 1),
+                new PortableExecutionConfig(ComputePreference.VECTOR_IF_ELIGIBLE, 1, 1, 1),
+                new PortableExecutionConfig(ComputePreference.SCALAR, 2, 2, 1),
+                new PortableExecutionConfig(ComputePreference.VECTOR_IF_ELIGIBLE, 2, 2, 1));
+        Shape generalShape = Shape.of(2, 3);
+        var general = descriptor(generalShape,
+                LayoutDescriptor.of(generalShape, new long[] {1, 2}, 0, true));
+        var denseGeneral = descriptor(generalShape, LayoutDescriptor.contiguous(generalShape));
+        Shape blockTarget = Shape.of(2, 4, 3);
+        var block = descriptor(Shape.of(2, 1, 3),
+                LayoutDescriptor.contiguous(Shape.of(2, 1, 3)));
+        var denseBlock = descriptor(blockTarget, LayoutDescriptor.contiguous(blockTarget));
+        for (var config : configs) {
+            executeMaterialized(general, denseGeneral, denseGeneral, denseGeneral, config, 0);
+            executeMaterialized(denseGeneral,
+                    descriptor(Shape.of(3), LayoutDescriptor.contiguous(Shape.of(3))),
+                    denseGeneral, denseGeneral, config, 1);
+            executeMaterialized(denseBlock, denseBlock, block, denseBlock, config, 2);
+        }
+    }
+
+    private static void executeMaterialized(TensorDescriptor a, TensorDescriptor b,
+            TensorDescriptor c, TensorDescriptor output, PortableExecutionConfig config,
+            int expectedSource) {
+        long bytes = Math.multiplyExact(output.shape().knownElementCount().orElseThrow(), 8);
+        var policy = new CpuPartitionAnalysisInputs.MaterializationPolicy(
+                true, 0, 1, 20, 1, 2, bytes, 1, 1);
+        var analysis = CpuPartitionPreparerTest.analyze(a, b, c, output,
+                new CpuPartitionAnalysisInputs(false,
+                        CpuPartitionAnalysisInputs.DEFAULT.carrierPattern(), config, policy));
+        assertEquals(expectedSource,
+                analysis.plan().materialization().orElseThrow().sourceBoundaryIndex());
+        executeAnalysis(analysis);
+    }
+
     private static void executeVectorCase(TensorDescriptor first, Shape target) {
         var dense = descriptor(target, LayoutDescriptor.contiguous(target));
         var scalar = descriptor(Shape.scalar(), LayoutDescriptor.contiguous(Shape.scalar()));
@@ -162,7 +202,10 @@ class CpuFusedGeneratedKernelTest {
             io.github.pho001.synaptik.prepare.analysis.BackendPartitionAnalysis<
                     io.github.pho001.synaptik.backend.cpu.internal.prepare.CpuPartitionPreparationPlan>
                     analysis) {
-        var fullExecutable = CpuPartitionFinalizerTest.finalizeExecutable(analysis, Optional.empty());
+        CpuWorkerGroup workers = analysis.plan().selectedRangeCount() >= 2
+                ? new CpuWorkerGroup(analysis.plan().selectedRangeCount()) : null;
+        var fullExecutable = CpuPartitionFinalizerTest.finalizeExecutable(analysis, Optional.empty(),
+                Optional.ofNullable(workers));
         var executable = fullExecutable.forRange(1, fullExecutable.binding().elementCount() - 1);
         var buffers = new ArrayList<CpuNativeBuffer>();
         var runtimeBindings = new ArrayList<List<BufferRepresentationBinding>>();
@@ -176,7 +219,12 @@ class CpuFusedGeneratedKernelTest {
                 offset < buffers.get(value).byteSize(); offset += 8) {
             buffers.get(value).segment().set(DOUBLE, offset, value + offset / 8.0 + 0.25);
         }
-        var state = new RunState(executable.memoryPlan(), runtimeBindings, List.of());
+        List<io.github.pho001.synaptik.runtime.resource.WorkspaceRepresentation> workspaces =
+                executable.memoryPlan().workspaces().isEmpty() ? List.of()
+                : List.of(CpuContiguousWorkspace.allocate(
+                        executable.memoryPlan().workspaces().getFirst().byteSize(),
+                        executable.memoryPlan().workspaces().getFirst().byteAlignment()));
+        var state = new RunState(executable.memoryPlan(), runtimeBindings, workspaces);
         try {
             executable.bind(state).execute();
             int outputLength = Math.toIntExact(buffers.get(3).byteSize() / 8);
@@ -185,13 +233,28 @@ class CpuFusedGeneratedKernelTest {
                 generated[i] = buffers.get(3).segment().get(DOUBLE, i * 8L);
                 buffers.get(3).segment().set(DOUBLE, i * 8L, 0);
             }
+            var referenceBindings = new ArrayList<>(executable.accessBindings());
+            analysis.plan().materialization().ifPresent(copy -> referenceBindings.set(
+                    copy.sourceBoundaryIndex(), ranged(copy.sourceBinding(),
+                            executable.binding().start(), executable.binding().end())));
             CpuScalarReferenceKernel.execute(buffers.stream().map(buffer -> buffer.argument()).toList(),
-                    executable.accessBindings(), executable.binding().start(),
+                    referenceBindings, executable.binding().start(),
                     executable.binding().end());
             for (int i = 0; i < outputLength; i++) assertEquals(
                     buffers.get(3).segment().get(DOUBLE, i * 8L), generated[i],
                     2e-7 * Math.max(1.0, Math.abs(generated[i])));
-        } finally { state.close(); }
+        } finally {
+            state.close();
+            if (workers != null) workers.close();
+        }
+    }
+
+    private static CpuAccessPlan.Binding ranged(CpuAccessPlan.Binding source,
+            long start, long end) {
+        return CpuAccessPlan.Binding.create(source.plan(), source.extents().stream()
+                        .mapToLong(Long::longValue).toArray(), source.baseElementOffset(),
+                source.effectiveStrides().stream().mapToLong(Long::longValue).toArray(),
+                source.elementCount(), start, end, source.referencedElementSpan());
     }
 
     private static TensorDescriptor descriptor(Shape shape, LayoutDescriptor layout) {

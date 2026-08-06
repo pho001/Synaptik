@@ -8,6 +8,7 @@ import io.github.pho001.synaptik.prepare.BackendPartitionFinalization;
 import io.github.pho001.synaptik.prepare.PreparationResourceAssignment;
 import io.github.pho001.synaptik.prepare.analysis.PreparationResourceRequirement;
 import io.github.pho001.synaptik.runtime.memory.BufferSlot;
+import io.github.pho001.synaptik.runtime.memory.WorkspaceSlot;
 import io.github.pho001.synaptik.runtime.memory.PreparedMemoryPlan;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -18,6 +19,10 @@ import org.junit.jupiter.api.io.TempDir;
 import io.github.pho001.synaptik.backend.cpu.internal.executable.CpuWorkerGroup;
 import io.github.pho001.synaptik.backend.cpu.internal.prepare.CpuPartitionAnalysisInputs.PortableExecutionConfig;
 import io.github.pho001.synaptik.backend.cpu.internal.prepare.CpuPartitionAnalysisInputs.PortableExecutionConfig.ComputePreference;
+import io.github.pho001.synaptik.model.datatype.DataType;
+import io.github.pho001.synaptik.model.layout.LayoutDescriptor;
+import io.github.pho001.synaptik.model.tensor.TensorDescriptor;
+import java.nio.file.Files;
 
 public class CpuPartitionFinalizerTest {
     @TempDir Path root;
@@ -52,6 +57,27 @@ public class CpuPartitionFinalizerTest {
                 Optional.empty(), Optional.of(closed)));
     }
 
+    @Test void resolvesMaterializationWorkspaceAndWorkersBeforeArtifactPersistence() {
+        var shape = Shape.of(2, 3);
+        var general = new TensorDescriptor(DataType.FLOAT64, shape,
+                Optional.of(LayoutDescriptor.of(shape, new long[] {1, 2}, 0, true)), false);
+        var dense = new TensorDescriptor(DataType.FLOAT64, shape,
+                Optional.of(LayoutDescriptor.contiguous(shape)), false);
+        var policy = new CpuPartitionAnalysisInputs.MaterializationPolicy(
+                true, 0, 1, 20, 1, 2, 48, 1, 1);
+        var parallel = new PortableExecutionConfig(ComputePreference.SCALAR, 2, 2, 1);
+        var analysis = CpuPartitionPreparerTest.analyze(general, dense, dense, dense,
+                new CpuPartitionAnalysisInputs(false,
+                        CpuPartitionAnalysisInputs.DEFAULT.carrierPattern(), parallel, policy));
+        Path artifactRoot = root.resolve("must-remain-absent");
+        assertAll(
+                () -> assertEquals(5, analysis.requirements().size()),
+                () -> assertTrue(analysis.plan().workspaceDeclaration().isPresent()),
+                () -> assertThrows(IllegalArgumentException.class,
+                        () -> finalizeExecutable(analysis, Optional.of(artifactRoot))),
+                () -> assertFalse(Files.exists(artifactRoot)));
+    }
+
     public static CpuPreparedExecutable finalizeExecutable(Shape shape, Optional<Path> root) {
         return finalizeExecutable(CpuPartitionPreparerTest.analyze(shape), root);
     }
@@ -68,14 +94,24 @@ public class CpuPartitionFinalizerTest {
             Optional<CpuWorkerGroup> workerGroup) {
         var entries = new ArrayList<PreparedMemoryPlan.BufferEntry>();
         var assignments = new ArrayList<PreparationResourceAssignment>();
+        var workspaceEntries = new ArrayList<PreparedMemoryPlan.WorkspaceEntry>();
         for (int i = 0; i < analysis.requirements().size(); i++) {
-            var requirement = (PreparationResourceRequirement.Buffer) analysis.requirements().get(i);
+            var any = analysis.requirements().get(i);
+            if (any instanceof PreparationResourceRequirement.Workspace requirement) {
+                var slot = new WorkspaceSlot(workspaceEntries.size());
+                workspaceEntries.add(new PreparedMemoryPlan.WorkspaceEntry(slot,
+                        requirement.byteSize(), requirement.byteAlignment()));
+                assignments.add(new PreparationResourceAssignment.Workspace(requirement, slot,
+                        workspaceEntries.size() - 1));
+                continue;
+            }
+            var requirement = (PreparationResourceRequirement.Buffer) any;
             var slot = new BufferSlot(i);
             entries.add(new PreparedMemoryPlan.BufferEntry(slot, requirement.byteSize(),
                     requirement.byteAlignment()));
             assignments.add(new PreparationResourceAssignment.Buffer(requirement, slot, i));
         }
-        var memoryPlan = new PreparedMemoryPlan(entries, List.of());
+        var memoryPlan = new PreparedMemoryPlan(entries, workspaceEntries);
         return (CpuPreparedExecutable) new CpuPartitionFinalizer(root, workerGroup).finalizePartition(
                 new BackendPartitionFinalization<>(analysis, memoryPlan, assignments));
     }

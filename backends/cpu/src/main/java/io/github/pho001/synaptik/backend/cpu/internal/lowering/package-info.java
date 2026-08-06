@@ -9,6 +9,11 @@
  * preparation, but never allocates Runtime resources, selects a physical slot, or delegates graph
  * interpretation to a route implementation.
  *
+ * <p>The selected {@code CpuMaterializationPlan} is a separate route-independent copy fact. It
+ * retains original source geometry and canonical dense consumer geometry without changing the
+ * Model graph, backend-neutral logical memory, or boundary {@code ValueId}. At most one selected
+ * input receives CPU-private workspace ID {@code 0}.
+ *
  * <p>Lowering runs on the preparation cold path; no lowering object or Model operation reaches the
  * generated execution loop.
  */

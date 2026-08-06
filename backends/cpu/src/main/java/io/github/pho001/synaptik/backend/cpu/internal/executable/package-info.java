@@ -5,6 +5,9 @@
  * buffer selections. During cold binding it validates CPU representations, exact carrier pattern,
  * geometry, mutability, liveness, size, alignment, and input/output accessed-span overlap, then
  * captures direct array or segment references and primitive range/address state in one invocation.
+ * For a selected materialization it validates the original source and exact contiguous workspace,
+ * retains the original carrier for the copy, substitutes the workspace segment only in the
+ * generated consumer pattern, and completes one canonical-order copy before any consumer chunk.
  * A parallel plan additionally borrows one caller-owned fixed platform-worker group. Cold binding
  * partitions a requested non-empty range into deterministic contiguous non-overlapping chunks;
  * zero chunks submit nothing, one chunk runs inline, and two or more chunks join synchronously.

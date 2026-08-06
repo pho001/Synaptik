@@ -7,6 +7,8 @@ import java.util.Objects;
 /**
  * Immutable portable Class-File realization facts for one already-lowered CPU execution unit.
  * This unsupported internal plan performs no graph interpretation or native-route selection.
+ * A selected contiguous copy is already reflected in the supplied canonical consumer IR and
+ * specialization; the plan does not retain source/workspace objects or execute the copy.
  *
  * @param kernelIr non-null route-independent canonical IR
  * @param specialization non-null selected exact/default scalar or preferred-species vector

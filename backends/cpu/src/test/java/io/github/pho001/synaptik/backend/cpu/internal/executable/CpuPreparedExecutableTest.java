@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.*;
 
 import io.github.pho001.synaptik.backend.cpu.internal.memory.CpuNativeBuffer;
 import io.github.pho001.synaptik.backend.cpu.internal.memory.CpuBorrowedBuffer;
+import io.github.pho001.synaptik.backend.cpu.internal.memory.CpuContiguousWorkspace;
 import io.github.pho001.synaptik.backend.cpu.internal.cache.CpuKernelSpecialization.CarrierAccess;
 import io.github.pho001.synaptik.backend.cpu.internal.prepare.CpuPartitionAnalysisInputs;
 import io.github.pho001.synaptik.backend.cpu.internal.prepare.CpuPartitionPreparerTest;
@@ -93,11 +94,137 @@ class CpuPreparedExecutableTest {
         } finally { if (!state.isClosed()) state.close(); }
     }
 
+    @Test void copiesSelectedGeneralInputOnceIntoRunWorkspaceBeforeConsumer() {
+        Shape shape = Shape.of(2, 3);
+        var dense = new TensorDescriptor(DataType.FLOAT64, shape,
+                Optional.of(LayoutDescriptor.contiguous(shape)), false);
+        var general = new TensorDescriptor(DataType.FLOAT64, shape,
+                Optional.of(LayoutDescriptor.of(shape, new long[] {1, 2}, 0, true)), false);
+        var policy = new CpuPartitionAnalysisInputs.MaterializationPolicy(true,
+                0, 1, 10, 1, 2, 48, 1, 1);
+        var originalPattern = List.of(CarrierAccess.MEMORY_SEGMENT,
+                CarrierAccess.MEMORY_SEGMENT, CarrierAccess.DOUBLE_ARRAY,
+                CarrierAccess.MEMORY_SEGMENT);
+        var analysis = CpuPartitionPreparerTest.analyze(dense, dense, general, dense,
+                new CpuPartitionAnalysisInputs(false,
+                        originalPattern,
+                        CpuPartitionAnalysisInputs.PortableExecutionConfig.DEFAULT, policy));
+        assertEquals(2, analysis.plan().materialization().orElseThrow().sourceBoundaryIndex());
+        assertAll(
+                () -> assertEquals(CarrierAccess.DOUBLE_ARRAY,
+                        analysis.plan().carrierPattern().get(2)),
+                () -> assertEquals(CarrierAccess.MEMORY_SEGMENT,
+                        analysis.plan().generatedCarrierPattern().get(2)));
+        var executable = CpuPartitionFinalizerTest.finalizeExecutable(analysis, Optional.empty());
+        var buffers = new ArrayList<io.github.pho001.synaptik.runtime.resource.BufferRepresentation>();
+        var bindings = new ArrayList<List<BufferRepresentationBinding>>();
+        for (int index = 0; index < executable.memoryPlan().buffers().size(); index++) {
+            var entry = executable.memoryPlan().buffers().get(index);
+            var buffer = index == 2 ? borrow(new double[6], 0, 6)
+                    : CpuNativeBuffer.allocate(DataType.FLOAT64, entry.byteSize(), entry.byteAlignment());
+            buffers.add(buffer);
+            bindings.add(List.of(new BufferRepresentationBinding(buffer, index == 2
+                    ? RunResourceOwnership.BORROWED : RunResourceOwnership.RUN_OWNED)));
+        }
+        var workspaceEntry = executable.memoryPlan().workspaces().getFirst();
+        var workspace = CpuContiguousWorkspace.allocate(workspaceEntry.byteSize(),
+                workspaceEntry.byteAlignment());
+        var state = new RunState(executable.memoryPlan(), bindings, List.of(workspace));
+        try {
+            for (int logical = 0; logical < 6; logical++) {
+                segment(buffers.get(0)).set(DOUBLE, logical * 8L, logical - 2.0);
+                segment(buffers.get(1)).set(DOUBLE, logical * 8L, 0.5);
+            }
+            for (int row = 0; row < 2; row++) for (int column = 0; column < 3; column++) {
+                long address = row + column * 2L;
+                segment(buffers.get(2)).set(DOUBLE, address * 8L, 2.0 + row + column);
+            }
+            executable.bind(state).execute();
+            for (int row = 0; row < 2; row++) for (int column = 0; column < 3; column++) {
+                int logical = row * 3 + column;
+                double c = 2.0 + row + column;
+                assertEquals(CpuScalarReferenceKernel.gelu(logical - 1.5) * c,
+                        segment(buffers.get(3)).get(DOUBLE, logical * 8L), 0.0);
+            }
+        } finally { state.close(); }
+        assertFalse(workspace.isAccessible());
+    }
+
     @Test void handlesScalarAndZeroElementBindings() {
         assertEquals(1, CpuPartitionFinalizerTest.finalizeExecutable(
                 Shape.scalar(), Optional.empty()).binding().elementCount());
         assertEquals(0, CpuPartitionFinalizerTest.finalizeExecutable(
                 Shape.of(2, 0, 3), Optional.empty()).binding().elementCount());
+    }
+
+    @Test void zeroRangeSkipsCopyAndCopyFailurePreventsConsumerExecution() {
+        Shape shape = Shape.of(2, 3);
+        var dense = new TensorDescriptor(DataType.FLOAT64, shape,
+                Optional.of(LayoutDescriptor.contiguous(shape)), false);
+        var general = new TensorDescriptor(DataType.FLOAT64, shape,
+                Optional.of(LayoutDescriptor.of(shape, new long[] {1, 2}, 0, true)), false);
+        var policy = new CpuPartitionAnalysisInputs.MaterializationPolicy(
+                true, 0, 1, 20, 1, 2, 48, 1, 1);
+        var analysis = CpuPartitionPreparerTest.analyze(general, dense, dense, dense,
+                new CpuPartitionAnalysisInputs(false,
+                        CpuPartitionAnalysisInputs.DEFAULT.carrierPattern(),
+                        CpuPartitionAnalysisInputs.PortableExecutionConfig.DEFAULT, policy));
+
+        var zero = CpuPartitionFinalizerTest.finalizeExecutable(analysis, Optional.empty())
+                .forRange(3, 3);
+        var zeroResources = nativeResources(zero);
+        var zeroWorkspace = CpuContiguousWorkspace.allocate(48, 8);
+        zeroWorkspace.writableSegment().set(DOUBLE, 0, 456.0);
+        segment(zeroResources.get(3)).set(DOUBLE, 24, 789.0);
+        var zeroState = state(zero, zeroResources, List.of(zeroWorkspace));
+        try {
+            zero.bind(zeroState).execute();
+            assertAll(
+                    () -> assertEquals(456.0,
+                            zeroWorkspace.writableSegment().get(DOUBLE, 0)),
+                    () -> assertEquals(789.0,
+                            segment(zeroResources.get(3)).get(DOUBLE, 24)));
+        } finally { zeroState.close(); }
+
+        var failing = CpuPartitionFinalizerTest.finalizeExecutable(analysis, Optional.empty());
+        var failureResources = nativeResources(failing);
+        var failureWorkspace = CpuContiguousWorkspace.allocate(48, 8);
+        segment(failureResources.get(3)).set(DOUBLE, 0, 321.0);
+        var failureState = state(failing, failureResources, List.of(failureWorkspace));
+        try {
+            var invocation = failing.bind(failureState);
+            failureResources.getFirst().close();
+            assertAll(
+                    () -> assertThrows(IllegalStateException.class, invocation::execute),
+                    () -> assertEquals(321.0,
+                            segment(failureResources.get(3)).get(DOUBLE, 0)));
+        } finally { failureState.close(); }
+    }
+
+    @Test void materializationDoesNotHideOriginalSourceOutputOverlap() {
+        Shape shape = Shape.of(2, 3);
+        var dense = new TensorDescriptor(DataType.FLOAT64, shape,
+                Optional.of(LayoutDescriptor.contiguous(shape)), false);
+        var general = new TensorDescriptor(DataType.FLOAT64, shape,
+                Optional.of(LayoutDescriptor.of(shape, new long[] {1, 2}, 0, true)), false);
+        var policy = new CpuPartitionAnalysisInputs.MaterializationPolicy(
+                true, 0, 1, 20, 1, 2, 48, 1, 1);
+        var pattern = List.of(CarrierAccess.DOUBLE_ARRAY, CarrierAccess.MEMORY_SEGMENT,
+                CarrierAccess.MEMORY_SEGMENT, CarrierAccess.DOUBLE_ARRAY);
+        var analysis = CpuPartitionPreparerTest.analyze(general, dense, dense, dense,
+                new CpuPartitionAnalysisInputs(false, pattern,
+                        CpuPartitionAnalysisInputs.PortableExecutionConfig.DEFAULT, policy));
+        var executable = CpuPartitionFinalizerTest.finalizeExecutable(analysis, Optional.empty());
+        double[] sharedCarrier = new double[6];
+        var sharedInput = borrow(sharedCarrier, 0, 6);
+        var sharedOutput = borrow(sharedCarrier, 0, 6);
+        var b = CpuNativeBuffer.allocate(DataType.FLOAT64, 48, 8);
+        var c = CpuNativeBuffer.allocate(DataType.FLOAT64, 48, 8);
+        var workspace = CpuContiguousWorkspace.allocate(48, 8);
+        var state = state(executable, List.of(sharedInput, b, c, sharedOutput), List.of(workspace));
+        try {
+            assertThrows(IllegalArgumentException.class, () -> executable.bind(state));
+        } finally { state.close(); }
     }
 
     @Test void executesAllSixteenDirectCarrierPatternsForEveryEligibleStrategy() {
@@ -234,9 +361,26 @@ class CpuPreparedExecutableTest {
 
     private static RunState state(CpuPreparedExecutable executable,
             List<? extends io.github.pho001.synaptik.runtime.resource.BufferRepresentation> resources) {
+        return state(executable, resources, List.of());
+    }
+
+    private static RunState state(CpuPreparedExecutable executable,
+            List<? extends io.github.pho001.synaptik.runtime.resource.BufferRepresentation> resources,
+            List<? extends io.github.pho001.synaptik.runtime.resource.WorkspaceRepresentation>
+                    workspaces) {
         var bindings = resources.stream().map(resource -> List.of(
-                new BufferRepresentationBinding(resource, RunResourceOwnership.BORROWED))).toList();
-        return new RunState(executable.memoryPlan(), bindings, List.of());
+                new BufferRepresentationBinding(resource, resource instanceof CpuNativeBuffer
+                        ? RunResourceOwnership.RUN_OWNED
+                        : RunResourceOwnership.BORROWED))).toList();
+        var workspaceSnapshot = new ArrayList<
+                io.github.pho001.synaptik.runtime.resource.WorkspaceRepresentation>();
+        workspaceSnapshot.addAll(workspaces);
+        return new RunState(executable.memoryPlan(), bindings, workspaceSnapshot);
+    }
+
+    private static List<CpuNativeBuffer> nativeResources(CpuPreparedExecutable executable) {
+        return executable.memoryPlan().buffers().stream().map(entry -> CpuNativeBuffer.allocate(
+                DataType.FLOAT64, entry.byteSize(), entry.byteAlignment())).toList();
     }
 
     private static MemorySegment segment(

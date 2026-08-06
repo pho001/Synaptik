@@ -25,6 +25,9 @@ import java.util.Objects;
  * Lowers one complete CPU-owned partition into the current single fused execution unit with
  * fully static right-aligned access normalization.
  * Fusion legality is decided before the four exact boundary buffers are declared.
+ * This owner returns the original direct access structure; CPU analysis may subsequently derive
+ * one route-independent contiguous-copy plan and an adjusted consumer IR without changing graph
+ * values or backend-neutral logical memory.
  */
 public final class CpuPartitionLowering {
     private final CpuCapabilityProvider capabilities = new CpuCapabilityProvider();

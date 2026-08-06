@@ -12,6 +12,13 @@ class CpuReferenceDifferentialTest {
                 () -> assertEquals(-1.0, CpuScalarReferenceKernel.erf(Double.NEGATIVE_INFINITY)),
                 () -> assertEquals(Double.doubleToRawLongBits(-0.0),
                         Double.doubleToRawLongBits(CpuScalarReferenceKernel.erf(-0.0))),
+                () -> assertTrue(Double.isNaN(CpuScalarReferenceKernel.gelu(Double.NaN))),
+                () -> assertEquals(Double.POSITIVE_INFINITY,
+                        CpuScalarReferenceKernel.gelu(Double.POSITIVE_INFINITY)),
+                () -> assertTrue(Double.isNaN(
+                        CpuScalarReferenceKernel.gelu(Double.NEGATIVE_INFINITY))),
+                () -> assertEquals(Double.doubleToRawLongBits(-0.0),
+                        Double.doubleToRawLongBits(CpuScalarReferenceKernel.gelu(-0.0))),
                 () -> assertEquals(0.8427007929497149, CpuScalarReferenceKernel.erf(1.0), 2e-7));
         double[][] oracle = {
                 {-3.0, -0.00404969409489031}, {-1.0, -0.15865525393145707},

@@ -7,6 +7,9 @@
  * offset, effective strides, start coordinates/address, and exact half-open accessed span. It deliberately
  * excludes routes, slots, graph identities, concrete extents, segment instances, generator
  * versions, and invocation bindings so structurally compatible shapes can share one artifact.
+ * A selected contiguous copy produces an adjusted canonical consumer access structure for the
+ * generated artifact, while its concrete extent, source binding, workspace, and cost evidence
+ * remain instance facts outside canonical identity.
  *
  * <p>Lowering creates this cold immutable model. Portable code generation and the scalar reference
  * realization may consume its established semantics, but Runtime never interprets it.

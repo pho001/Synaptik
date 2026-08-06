@@ -13,6 +13,10 @@ import io.github.pho001.synaptik.backend.cpu.internal.prepare.CpuPartitionPrepar
 import io.github.pho001.synaptik.backend.cpu.internal.prepare.CpuPartitionAnalysisInputs.PortableExecutionConfig;
 import io.github.pho001.synaptik.backend.cpu.internal.prepare.CpuPartitionAnalysisInputs.PortableExecutionConfig.ComputePreference;
 import jdk.incubator.vector.DoubleVector;
+import io.github.pho001.synaptik.model.datatype.DataType;
+import io.github.pho001.synaptik.model.layout.LayoutDescriptor;
+import io.github.pho001.synaptik.model.tensor.TensorDescriptor;
+import java.util.Optional;
 
 class CpuKernelSpecializationTest {
     @Test void excludesCompatibleExtentsButIncludesNumericalAndStrategyFacts() {
@@ -56,6 +60,39 @@ class CpuKernelSpecializationTest {
                 () -> assertEquals(DoubleVector.SPECIES_PREFERRED.vectorBitSize(),
                         vector.vectorSpeciesBitSize()),
                 () -> assertNotEquals(scalarSingle.structuralKey(), vector.structuralKey()));
+    }
+
+    @Test void materializationStructureChangesIdentityWhileInstanceFactsAndVariantsStayBounded() {
+        var shape = Shape.of(2, 3);
+        var general = new TensorDescriptor(DataType.FLOAT64, shape,
+                Optional.of(LayoutDescriptor.of(shape, new long[] {1, 2}, 0, true)), false);
+        var dense = new TensorDescriptor(DataType.FLOAT64, shape,
+                Optional.of(LayoutDescriptor.contiguous(shape)), false);
+        var policy = new CpuPartitionAnalysisInputs.MaterializationPolicy(
+                true, 0, 1, 20, 1, 2, 48, 1, 1);
+        var materialized = CpuPartitionPreparerTest.analyze(general, dense, dense, dense,
+                new CpuPartitionAnalysisInputs(false,
+                        CpuPartitionAnalysisInputs.DEFAULT.carrierPattern(),
+                        PortableExecutionConfig.DEFAULT, policy)).plan();
+        var direct = CpuPartitionPreparerTest.analyze(general, dense, dense, dense,
+                CpuPartitionAnalysisInputs.DEFAULT).plan();
+        assertAll(
+                () -> assertEquals(0, materialized.units().getFirst().portablePlan()
+                        .specialization().materializedSourcePosition()),
+                () -> assertNotEquals(direct.units().getFirst().portablePlan().specialization()
+                                .structuralKey(),
+                        materialized.units().getFirst().portablePlan().specialization()
+                                .structuralKey()),
+                () -> assertEquals(new CpuSpecializationBudget(4, 1, 0, 0),
+                        materialized.specializationBudget()),
+                () -> assertThrows(IllegalArgumentException.class,
+                        () -> new CpuSpecializationBudget(5, 1, 0, 0)),
+                () -> assertThrows(IllegalArgumentException.class,
+                        () -> new CpuSpecializationBudget(4, 2, 0, 0)),
+                () -> assertThrows(IllegalArgumentException.class,
+                        () -> new CpuSpecializationBudget(4, 1, 1, 0)),
+                () -> assertThrows(IllegalArgumentException.class,
+                        () -> new CpuSpecializationBudget(4, 1, 0, 1)));
     }
 
     private static CpuKernelSpecialization specialization(

@@ -1020,7 +1020,9 @@ invariants. The production kernel executes the whole-partition FLOAT64
 `ADD -> exact GELU -> MUL` slice with one generated scalar or preferred-species vector body. It
 emits generation-time-selected primitive access state machines, direct array or native-order
 `MemorySegment` vector access, unmasked complete vectors, and scalar remainders. Parallel
-orchestration remains outside generated code.
+orchestration remains outside generated code. When analysis selects one contiguous input copy,
+the generated body consumes the adjusted dense segment at that original boundary position; its
+static entry still has exactly four boundary arguments.
 
 ### CPU kernel specialization
 
@@ -1028,16 +1030,20 @@ The implemented backend-private immutable description of every fact allowed to c
 generated CPU class. The current form includes the canonical lowering fingerprint, exact/default
 numerical mode, generated scalar/vector compute form, exact preferred FLOAT64 species bit size for
 vector compute, and complete ordered four-boundary `double[]`/`MemorySegment` carrier pattern.
+The direct-versus-materialized input position and adjusted canonical consumer access form are also
+structural when present.
 Canonical IR separately supplies value kind, data type, ordered semantics/stores, iteration rank,
 axis roles, contiguous-suffix form, and access regime. Their derived compatibility bytes and
 structural identity are order-sensitive.
 
 Concrete compatible extents, element count, layout offsets, effective stride values, starting
 coordinates and addresses, carrier objects, slots, physical addresses, selected range count,
-minimum chunk size, worker identity, run identity, cache state, and mutable observations are
-excluded. Parallel-scalar reuses the scalar artifact and parallel-vector reuses the vector
-artifact. A CPU kernel specialization is not a capability claim, prepared executable, worker
-lifecycle, or persistent-cache record.
+minimum chunk size, source/workspace objects, graph `ValueId`, declaration/slot identities,
+materialization costs and expected runs, worker identity, run identity, cache state, and mutable
+observations are excluded. Parallel-scalar reuses the scalar artifact and parallel-vector reuses
+the vector artifact. The current hard budget permits four complete candidates, one realized
+artifact, zero fixed-shape variants, and zero unrolled variants. A CPU kernel specialization is not
+a capability claim, prepared executable, worker lifecycle, or persistent-cache record.
 
 ### CPU generated-kernel artifact
 
@@ -1057,14 +1063,15 @@ proving topology across the implemented normalized access regimes and carrier pa
 ### CPU generated-kernel artifact store
 
 The implemented package-private optional trusted-root mechanism for reusing deterministic
-generated class bytes. With no root, realization is entirely in memory. With a root, separate
-store instances or Java Virtual Machine (JVM) processes may reuse `.class` bytes only when the
-separate complete compatibility metadata—including the ordered carrier pattern—matches exactly
-and Java class-file plus entry-shape verification passes. A structural key alone never establishes
-compatibility.
+generated class bytes. With no root, realization is entirely in memory. With a root, one
+current-schema envelope per key can supply bytes only when schema, structural key, complete
+compatibility metadata—including carrier/materialization structure—lengths, checksum, class shape,
+and entry descriptor verify. The envelope is bounded to 2 MiB, with metadata bounded to 64 KiB and
+class bytes bounded to 1 MiB. A structural key alone never establishes compatibility.
 
-Missing, corrupt, incompatible, or unusable entries are safe misses and return to verified
-generation. Publication uses a temporary file and replacement; failure never changes correctness.
+Missing, corrupt, incompatible, oversized, malformed, or unusable entries are safe misses and
+return to verified generation. Publication uses a forced temporary file and atomic move; failure
+never changes correctness.
 Compatible age does not invalidate an entry, and the mechanism has no automatic eviction, expiry,
 quota, directory sweep, or background maintenance. Loaded artifacts are interned weakly by exact
 structural key and remain usable through their strong callers.
@@ -1072,10 +1079,13 @@ structural key and remain usable through their strong callers.
 Checksums and structural validation detect accidental damage but do not authenticate executable
 content. The caller must isolate the root from untrusted writers. The store is neither a workload
 tuning cache nor a model-plan cache: it reuses already-selected executable class bytes during cold
-CPU finalization and performs no route selection, measurement, or Runtime hot-path work. No
-public composition owner supplies it. The current CPU-private finalizer calls it only after shared
-assignment, and the resulting prepared executable strongly retains the
-loaded artifact.
+CPU finalization and performs no route selection, measurement, or Runtime hot-path work. A hit
+still defines a fresh hidden class and preserves no Java Virtual Machine just-in-time machine code
+or profile. The future workload tuning cache instead records compatible route/configuration
+decisions. No public composition owner supplies a default root: the default remains off after the
+CPU 0005D `KEEP_DISABLED` evidence verdict. The current CPU-private finalizer calls the store only
+after shared assignment, and the resulting prepared executable strongly retains the loaded
+artifact.
 
 ### CPU portable preparation plan
 
@@ -1084,12 +1094,16 @@ assignment. `CpuPartitionPreparationPlan` retains one fused execution unit, its 
 IR and portable specialization, exact/default compute and orchestration strategy, four ordered
 boundary values, normalized access bindings, structural carrier pattern, exact per-boundary
 declarations, compatible extents/count, selected range count, positive minimum range size, exact
-vector species when applicable, and an optional cold lowering manifest.
+vector species when applicable, optional selected materialization, original and adjusted generated
+carrier patterns, optional exact workspace declaration, specialization budget, and an optional
+cold lowering manifest.
 
 CPU analysis validates that Planning selected CPU ownership, derives ADD/MUL shapes through Model
 right-aligned broadcasting, requires exact GELU shape, normalizes resolved layouts, proves output
-write injectivity, and declares each boundary's referenced byte span. Shared Prepare sees the plan
-opaquely and later validates declarations against assigned `PreparedMemoryPlan` geometry.
+write injectivity, derives reuse/fan-out, and compares direct plus at most three one-input copy
+candidates. It declares each boundary's referenced byte span and, when selected, appends workspace
+ID `0` with exact dense byte geometry. Shared Prepare sees the plan opaquely and later validates
+declarations against assigned `PreparedMemoryPlan` geometry.
 
 The plan is not a generated artifact, assigned slot, executable, physical resource, per-run
 binding, capability claim, tuning result, registry, or public route API. It accepts only the exact
@@ -1100,8 +1114,9 @@ three-node FLOAT64 proving topology and fails closed before artifact work for un
 The implemented backend-private immutable Runtime recipe constructed by CPU finalization after
 shared slot assignment. `CpuPreparedExecutable` strongly retains the partition's one generated
 artifact and exact static `MethodHandle`, four selected buffers, full normalized geometry, ordered
-carrier pattern, one half-open logical range, selected range bounds, and an optional borrowed CPU
-worker group. It owns no physical representation or worker close lifecycle and may bind
+original/generated carrier patterns, optional materialization/workspace selection, one half-open
+logical range, selected range bounds, and an optional borrowed CPU worker group. It owns no
+physical representation or worker close lifecycle and may bind
 concurrently to distinct open `RunState` instances.
 
 Cold binding consumes `CpuBorrowedBuffer` and `CpuNativeBuffer` through Runtime's
@@ -1110,9 +1125,11 @@ writability, exact size/alignment, and actual input/output accessed spans once, 
 signature-specific `BoundInvocation` with direct typed fields and primitive address state. No executable accepts
 `HostTensorStorage` directly. The Runtime hot call performs no storage discovery, slot lookup,
 argument classification, artifact access, reflection, handle adaptation, route selection, or
-allocation. A bound partition invocation performs the Runtime state guard. It invokes one range
-inline or synchronously joins deterministic disjoint chunks through the borrowed group; generated
-code performs no scheduling. The current production family establishes only the exact fused
+allocation. A selected copy reads the original source into the contiguous workspace once on the
+invoking thread before any consumer chunk; copy failure prevents consumer execution. A bound
+partition invocation performs the Runtime state guard. It invokes one range inline or
+synchronously joins deterministic disjoint chunks through the borrowed group; generated code
+performs no scheduling. The current production family establishes only the exact fused
 FLOAT64 proving topology; it makes no Tensor-result, gradient, compiler, conformance, integration,
 or performance claim.
 
@@ -1190,8 +1207,8 @@ arithmetic without per-element cursor allocation, semantic dispatch, division, o
 Completed CPU 0005C vectorizes direct contiguous runs and scalar broadcasts when every non-scalar
 boundary admits a complete preferred-species vector, uses the scalar body for tails, and selects
 scalar fallback for the general odometer or a too-short run. It implements no gather or masked
-tail. Contiguous materialization remains Draft CPU 0005D work; complete access semantics do not
-promise universal vectorization.
+tail. Completed CPU 0005D can replace one eligible input with canonical dense workspace access;
+complete access semantics do not promise universal vectorization.
 
 Cold bindings retain output extents, base offset, effective strides, start coordinates/address,
 and the exact half-open accessed span for their selected logical range. Output normalization uses
@@ -1203,6 +1220,23 @@ Current Prepare has no exact dynamic binding and rejects non-static projected sh
 therefore fails closed for dynamic or symbolic dimensions. Supporting them requires a future
 explicit exact-binding contract rather than a CPU assumption. Broadcast gradients remain
 Compiler/Model `SUM_TO_SHAPE` semantics plus later CPU reduction coverage.
+
+### CPU contiguous materialization plan
+
+The implemented CPU-private immutable decision to copy at most one eligible input of the current
+FLOAT64 proving unit into run-owned contiguous workspace. `CpuMaterializationPlan` retains the
+original source boundary identity and normalized binding, a canonical dense consumer binding,
+checked element/byte geometry, analysis-local workspace ID `0`, derived lowered-unit use count,
+expected runs, dimensionless direct/copy/contiguous estimates, positive net benefit, basis-point
+benefit, and a diagnostic selection reason.
+
+Analysis enumerates direct, input `a`, input `b`, then input `c`; direct wins ties. It rejects
+scalar/all-zero and already-dense sources, unused values, excess additional memory, non-beneficial
+costs, and ineligible consumer forms. A selected plan appends one workspace declaration after the
+four graph-value buffers. Shared Prepare assigns that workspace opaquely, and CPU finalization
+verifies it before artifact access. The copy completes once per bound invocation before consumer
+work. This plan does not add a graph value, mutate `LogicalMemoryPlan`, measure during prepare,
+select a future tuning-cache entry, or authorize more than one copy.
 
 ### CPU portable execution strategy
 
@@ -1241,12 +1275,15 @@ nor close their group. No write rollback or performance guarantee is implied.
 An optional cold-path policy for compatible deterministic class bytes. With no configured trusted
 artifact root, CPU emits, verifies, and defines in memory. With a root, a verified compatible hit
 may avoid emission, but it is still defined in the current JVM and cannot preserve JIT machine
-code or profiling. Missing, corrupt, or incompatible storage safely returns to in-memory emission.
+code or profiling. Missing, corrupt, incompatible, oversized, or inaccessible storage safely
+returns to in-memory emission.
 
-Persistence is neither correctness-critical nor Runtime state. It remains disabled and carries no
-default performance claim until benchmark evidence. Deterministic structural identity and
-prepared-execution strong artifact ownership remain mandatory, and the reset adds no reader for
-earlier schemas.
+Persistence is neither correctness-critical nor Runtime state. CPU 0005D's fixed opt-in evidence
+suite recorded `KEEP_DISABLED`, so the default remains persistence-free; an explicit trusted root
+enables only bounded verified lookup/store behavior. Class-byte reuse is distinct from JVM JIT
+machine code/profile and from the future workload tuning cache of route/configuration decisions.
+Deterministic structural identity and prepared-execution strong artifact ownership remain
+mandatory, and there is no reader for earlier schemas.
 
 ### CPU virtual intermediate
 
@@ -2235,6 +2272,11 @@ contract can realize that value by explicitly copying between two already-create
 of the same prepared buffer. Materialization is that transfer in this context, not a second
 Runtime operation, allocation, transfer-route search, hidden coherence policy, or property decided
 by `LayoutDescriptor` alone.
+
+The current CPU proving slice also implements one backend-private workspace materialization. It
+copies one selected input into a CPU-owned run workspace before the generated consumer, without
+creating another graph value or Runtime transfer recipe. See [CPU contiguous materialization
+plan](#cpu-contiguous-materialization-plan).
 
 ### Linear projection
 
