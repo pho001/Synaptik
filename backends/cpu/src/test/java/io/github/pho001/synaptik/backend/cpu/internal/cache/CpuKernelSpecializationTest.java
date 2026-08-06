@@ -10,6 +10,9 @@ import io.github.pho001.synaptik.backend.cpu.internal.cache.CpuKernelSpecializat
 import java.util.List;
 import io.github.pho001.synaptik.prepare.analysis.PrepareContext;
 import io.github.pho001.synaptik.backend.cpu.internal.prepare.CpuPartitionPreparer;
+import io.github.pho001.synaptik.backend.cpu.internal.prepare.CpuPartitionAnalysisInputs.PortableExecutionConfig;
+import io.github.pho001.synaptik.backend.cpu.internal.prepare.CpuPartitionAnalysisInputs.PortableExecutionConfig.ComputePreference;
+import jdk.incubator.vector.DoubleVector;
 
 class CpuKernelSpecializationTest {
     @Test void excludesCompatibleExtentsButIncludesNumericalAndStrategyFacts() {
@@ -37,6 +40,31 @@ class CpuKernelSpecializationTest {
                 () -> assertNotEquals(allSegment.entryType(), mixed.entryType()),
                 () -> assertFalse(java.util.Arrays.equals(allSegment.compatibilityBytes(),
                         mixed.compatibilityBytes())));
+    }
+
+    @Test void vectorSpeciesChangesCompatibilityWhileParallelChunkFactsDoNot() {
+        int lanes = DoubleVector.SPECIES_PREFERRED.length();
+        var old = CpuPartitionPreparerTest.context(Shape.of(lanes * 2));
+        var scalarParallel = specialization(old, new PortableExecutionConfig(
+                ComputePreference.SCALAR, 4, 2, 1));
+        var scalarSingle = specialization(old, PortableExecutionConfig.DEFAULT);
+        var vector = specialization(old, new PortableExecutionConfig(
+                ComputePreference.VECTOR_IF_ELIGIBLE, 4, 2, 1));
+        assertAll(
+                () -> assertEquals(scalarSingle, scalarParallel),
+                () -> assertEquals(0, scalarSingle.vectorSpeciesBitSize()),
+                () -> assertEquals(DoubleVector.SPECIES_PREFERRED.vectorBitSize(),
+                        vector.vectorSpeciesBitSize()),
+                () -> assertNotEquals(scalarSingle.structuralKey(), vector.structuralKey()));
+    }
+
+    private static CpuKernelSpecialization specialization(
+            PrepareContext<CpuPartitionAnalysisInputs> old, PortableExecutionConfig config) {
+        var context = new PrepareContext<>(old.partition(), old.nodes(), old.values(),
+                old.memoryRequirements(), old.constants(), new CpuPartitionAnalysisInputs(false,
+                        CpuPartitionAnalysisInputs.DEFAULT.carrierPattern(), config));
+        return new CpuPartitionPreparer().analyze(context).plan().units().getFirst()
+                .portablePlan().specialization();
     }
 
     private static CpuKernelSpecialization specialization(List<CarrierAccess> pattern) {

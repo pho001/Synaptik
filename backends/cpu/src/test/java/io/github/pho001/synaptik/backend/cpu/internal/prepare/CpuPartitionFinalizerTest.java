@@ -15,6 +15,9 @@ import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import io.github.pho001.synaptik.backend.cpu.internal.executable.CpuWorkerGroup;
+import io.github.pho001.synaptik.backend.cpu.internal.prepare.CpuPartitionAnalysisInputs.PortableExecutionConfig;
+import io.github.pho001.synaptik.backend.cpu.internal.prepare.CpuPartitionAnalysisInputs.PortableExecutionConfig.ComputePreference;
 
 public class CpuPartitionFinalizerTest {
     @TempDir Path root;
@@ -28,6 +31,27 @@ public class CpuPartitionFinalizerTest {
                 () -> assertNotNull(executable.artifact().hiddenClass()));
     }
 
+    @Test void parallelFinalizationRequiresAnOpenSufficientWorkerGroup() {
+        var context = CpuPartitionPreparerTest.context(Shape.of(16));
+        var inputs = new CpuPartitionAnalysisInputs(false,
+                CpuPartitionAnalysisInputs.DEFAULT.carrierPattern(),
+                new PortableExecutionConfig(ComputePreference.SCALAR, 4, 2, 1));
+        var analysis = new CpuPartitionPreparer().analyze(new io.github.pho001.synaptik.prepare.analysis.PrepareContext<>(
+                context.partition(), context.nodes(), context.values(), context.memoryRequirements(),
+                context.constants(), inputs));
+        assertThrows(IllegalArgumentException.class,
+                () -> finalizeExecutable(analysis, Optional.empty()));
+        var undersized = new CpuWorkerGroup(1);
+        try {
+            assertThrows(IllegalArgumentException.class, () -> finalizeExecutable(analysis,
+                    Optional.empty(), Optional.of(undersized)));
+        } finally { undersized.close(); }
+        var closed = new CpuWorkerGroup(2);
+        closed.close();
+        assertThrows(IllegalArgumentException.class, () -> finalizeExecutable(analysis,
+                Optional.empty(), Optional.of(closed)));
+    }
+
     public static CpuPreparedExecutable finalizeExecutable(Shape shape, Optional<Path> root) {
         return finalizeExecutable(CpuPartitionPreparerTest.analyze(shape), root);
     }
@@ -35,6 +59,13 @@ public class CpuPartitionFinalizerTest {
     public static CpuPreparedExecutable finalizeExecutable(
             io.github.pho001.synaptik.prepare.analysis.BackendPartitionAnalysis<
                     CpuPartitionPreparationPlan> analysis, Optional<Path> root) {
+        return finalizeExecutable(analysis, root, Optional.empty());
+    }
+
+    public static CpuPreparedExecutable finalizeExecutable(
+            io.github.pho001.synaptik.prepare.analysis.BackendPartitionAnalysis<
+                    CpuPartitionPreparationPlan> analysis, Optional<Path> root,
+            Optional<CpuWorkerGroup> workerGroup) {
         var entries = new ArrayList<PreparedMemoryPlan.BufferEntry>();
         var assignments = new ArrayList<PreparationResourceAssignment>();
         for (int i = 0; i < analysis.requirements().size(); i++) {
@@ -45,7 +76,7 @@ public class CpuPartitionFinalizerTest {
             assignments.add(new PreparationResourceAssignment.Buffer(requirement, slot, i));
         }
         var memoryPlan = new PreparedMemoryPlan(entries, List.of());
-        return (CpuPreparedExecutable) new CpuPartitionFinalizer(root).finalizePartition(
+        return (CpuPreparedExecutable) new CpuPartitionFinalizer(root, workerGroup).finalizePartition(
                 new BackendPartitionFinalization<>(analysis, memoryPlan, assignments));
     }
 }

@@ -5,10 +5,16 @@
  * buffer selections. During cold binding it validates CPU representations, exact carrier pattern,
  * geometry, mutability, liveness, size, alignment, and input/output accessed-span overlap, then
  * captures direct array or segment references and primitive range/address state in one invocation.
- * Runtime invokes that object without graph semantics, route selection, reflection, allocation,
- * storage classification, or resource lookup in the generated hot loop.
+ * A parallel plan additionally borrows one caller-owned fixed platform-worker group. Cold binding
+ * partitions a requested non-empty range into deterministic contiguous non-overlapping chunks;
+ * zero chunks submit nothing, one chunk runs inline, and two or more chunks join synchronously.
+ * Worker failure, interruption, racing close, nested submission, and group shutdown have explicit
+ * deterministic contracts. Runtime invokes the bound object without graph semantics, route
+ * selection, reflection, allocation, storage classification, or resource lookup in the generated
+ * hot loop.
  *
  * <p>Runtime retains run-level lifecycle ownership; CPU memory representations retain physical
- * allocation and release ownership.
+ * allocation and release ownership. Composition owns and closes the worker group; finalizers,
+ * prepared executables, and bound invocations only borrow it.
  */
 package io.github.pho001.synaptik.backend.cpu.internal.executable;

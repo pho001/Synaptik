@@ -11,13 +11,15 @@ generated Java 26 class, and one partition-level prepared executable. The two in
 remain graph and logical-memory values but are virtual in the fused unit, so only the three inputs
 and final output receive buffer declarations and Runtime slots.
 
-The generated scalar loop accepts primitive `start` and `end` bounds. Compatible concrete extents
-bind on the cold path and share identical class bytes and one process-local loaded compatibility
-identity. The current access family covers scalar/rank/singleton/multi-axis broadcasting, zero
-extents, offsets, positive and broadcast-zero strides, and every ordered heap/segment carrier
-pattern for the four boundaries. Capability and lowering fail closed for every other operation,
-type, shape, layout, parameter, alias, fan-out, publication, carrier, route, or strategy. Vector,
-parallel, native, materialization, tuning, and broader semantic-family work remains Draft.
+Generated scalar and Java 26 Vector API loops accept primitive `start` and `end` bounds.
+Compatible concrete extents bind on the cold path and share identical class bytes and one
+process-local loaded compatibility identity. The current access family covers
+scalar/rank/singleton/multi-axis broadcasting, zero extents, offsets, positive and broadcast-zero
+strides, and every ordered heap/segment carrier pattern for the four boundaries. Cold analysis
+selects scalar, vector, parallel-scalar, or parallel-vector execution; vector-ineligible admitted
+geometry falls back to scalar compute. Capability and lowering fail closed for every other
+operation, type, shape, layout, parameter, alias, fan-out, publication, carrier, or route. Native,
+materialization, tuning, and broader semantic-family work remains Draft.
 
 The lower-level OpenBLAS provider separately implements explicit library loading, required-symbol
 binding, a caller-owned lookup lifetime, low-level FLOAT32/FLOAT64 dense row-major general matrix
@@ -361,8 +363,8 @@ different decisions. A scalar reference realization checks conformance and provi
 fallback; it is not an `Operation` or IR interpreter inside Runtime.
 
 The portable route is bytecode-first Java 26 Class-File generation plus the Vector API and remains
-the always-available semantic fallback for every occurrence it supports. CPU 0005A implements only
-its scalar proving strategy. OpenBLAS is a narrow cross-platform native fallback for eligible
+the always-available semantic fallback for every occurrence it supports. CPU 0005C completes all
+four execution strategies for the proving slice. OpenBLAS is a narrow cross-platform native fallback for eligible
 BLAS-compatible linear algebra, not the universal or preferred CPU route. Vendor/platform peers
 include Accelerate BLAS/vDSP/vForce on Apple CPU, distinct oneMKL BLAS/VML and oneDNN families on
 Intel, and distinct AOCL-BLAS/AOCL-LibM and optional ZenDNN families on AMD.
@@ -433,13 +435,25 @@ and realization-changing power plan belong in specialization/cache compatibility
 lowering manifest, never a hot-path lookup. Forward and compiler-generated gradient operations use
 this same policy.
 
-The implemented scalar access regimes are dense linear, scalar/all-zero broadcast,
+The implemented access regimes are dense linear, scalar/all-zero broadcast,
 last-axis bias, block/outer broadcast with a contiguous inner loop, and the complete general
 positive-strided odometer fallback. Bytecode emits offset/carry arithmetic directly with no hot
 cursor, virtual call, or per-element division/modulo. A cold binding computes the starting
-coordinates/address and exact accessed half-open span for its requested range. Vector gather belongs to 0005C, while
-cost-gated contiguous materialization belongs to 0005D. Semantic coverage does not promise that
-every layout is vectorized.
+coordinates/address and exact accessed half-open span for its requested range. CPU 0005C
+vectorizes dense linear, scalar-broadcast, last-axis, and block/outer access only when every
+non-scalar boundary has a complete preferred-species contiguous run. General odometer access and
+too-short runs select scalar compute rather than rejecting the partition. There is no vector
+gather. Cost-gated contiguous materialization belongs to Draft CPU 0005D, so complete access
+semantics do not promise universal vectorization.
+
+Vector classes use the Java 26 preferred FLOAT64 species captured during cold analysis. The exact
+species bit size participates in generated specialization and cache identity. Each generated class
+contains only its selected scalar or vector body and one direct entry signature for the prepared
+four-boundary carrier pattern. Vector loads and stores call the direct array or `MemorySegment`
+forms selected during generation; segment access uses native byte order. Each contiguous run uses
+unmasked complete vectors, then the existing scalar body for every remainder. This scalar-tail
+rule covers arbitrary starts, worker chunk ends, and runs shorter than one vector; CPU 0005C adds
+no masked tail, gather, per-lane scalar GELU, or hot scalar/vector switch.
 
 Before shared assignment, later CPU analysis may compare direct access with CPU-internal contiguous
 materialization using copy cost, kernel benefit, reuse/fan-out, vendor eligibility, memory cost,
@@ -455,14 +469,34 @@ remain unchanged.
 The final portable strategy vocabulary is exactly scalar, vector, parallel-scalar, and
 parallel-vector: scalar/vector is the compute axis and single-thread/parallel is orchestration.
 Generated kernels always take `start` and `end`; workers dispatch chunks outside the inner loop.
-The current implementation is scalar/single-thread. Ordered Draft tasks deliver vector and
-parallel strategies, then materialization and persistence/specialization evidence.
+CPU analysis bounds usable parallelism by the configured maximum and an available-parallelism
+snapshot, then limits the selected range count by the positive minimum elements per worker. These
+are explicit CPU-private cold inputs, not process properties, Runtime decisions, or tuning values.
+Zero elements always select scalar/single-thread. Cold binding divides a requested non-empty range
+into deterministic ascending contiguous chunks that cover it exactly once; a one-chunk invocation
+runs inline, while two or more chunks run synchronously through one borrowed worker group.
+
+Composition or test code creates and closes `CpuWorkerGroup`. It owns a fixed positive number of
+named daemon platform workers. Finalization requires an open group large enough for a selected
+parallel plan, and the finalizer, prepared executable, and bound invocation borrow it without ever
+closing it. Every selected segment must be accessible to every worker before binding succeeds.
+Nested multi-chunk submission and close from an owned worker fail before nested work starts.
+Concurrent external submissions remain isolated and share only the fixed worker capacity.
+
+On worker failure, unclaimed chunks are cancelled, started chunks quiesce, and the lowest failing
+range index supplies the primary unchecked failure; later distinct failures are suppressed in
+ascending range order. Interruption cancels unclaimed work, joins started work, restores interrupt
+status, and reports a CPU-private coordination exception. A racing close rejects new work,
+cancels unclaimed chunks, joins started chunks, and terminates every owned worker. No write
+rollback is promised; Runtime retains its existing failed-executable output-validity behavior.
+CPU 0005D remains Draft for materialization and persistence/specialization evidence.
 
 For example, iteration Shape `[2, 4, 3]` can combine a dense `[2, 4, 3]` input, a right-aligned
 `[3]` bias, and a contiguous `[2, 1, 3]` input. Their access regimes are respectively
 `DENSE_LINEAR`, `LAST_AXIS_BIAS`, and `BLOCK_OUTER`; the output may use another injective resolved
-layout. This explains address traversal only: it does not add another operation topology, Vector
-execution, or materialization policy.
+layout. With a final contiguous run of only three elements, this exact example selects scalar
+compute whenever the preferred FLOAT64 species has more than three lanes. It explains access and
+fallback only: it does not add another operation topology or a materialization policy.
 
 The reset replaces the flat execution package with unsupported `.internal` packages for memory,
 prepare, lowering, IR, portable code generation/emission, `route.portable`, cache, executable, and

@@ -11,18 +11,22 @@ import java.util.Objects;
 import java.util.List;
 
 /**
- * Structural portable-kernel specialization. Compatible extents, element count, graph values,
- * slots, segments, addresses, run identity, and artifact-root identity are deliberately absent.
+ * Structural portable-kernel specialization for one generated scalar or vector body.
+ * Compatible extents, element count, parallel orchestration, graph values, slots, carriers,
+ * addresses, run identity, worker identity, and artifact-root identity are deliberately absent.
  *
  * @param loweringFingerprint non-null canonical lowering fingerprint
  * @param numericalMode non-null selected numerical mode; currently exact/default only
- * @param executionStrategy non-null selected strategy; currently scalar/single-thread only
+ * @param executionStrategy non-null generated compute strategy; orchestration is single-thread
+ *     because parallel plans reuse the corresponding scalar or vector artifact
  * @param carrierPattern non-null immutable ordered carrier form for the current four boundaries
+ * @param vectorSpeciesBitSize exact positive preferred FLOAT64 species size in bits for vector
+ *     compute, or zero for scalar compute
  */
 public record CpuKernelSpecialization(CpuLoweringFingerprint loweringFingerprint,
         NumericalMode numericalMode,
         CpuPartitionPreparationPlan.ExecutionStrategy executionStrategy,
-        List<CarrierAccess> carrierPattern) {
+        List<CarrierAccess> carrierPattern, int vectorSpeciesBitSize) {
     /** Direct carrier form at one ordered materialized boundary. */
     public enum CarrierAccess {
         /** Observable direct {@code double[]} access. */ DOUBLE_ARRAY,
@@ -33,11 +37,17 @@ public record CpuKernelSpecialization(CpuLoweringFingerprint loweringFingerprint
         /** Ordinary exact/default operation contract with no relaxed permission. */ EXACT_DEFAULT
     }
     /**
-     * Validates the exact scalar/default slice.
+     * Validates the exact/default scalar-or-vector generated specialization.
      *
+     * @param loweringFingerprint non-null canonical lowering fingerprint
+     * @param numericalMode non-null selected exact/default numerical mode
+     * @param executionStrategy non-null single-thread generated compute strategy
+     * @param carrierPattern non-null ordered four-boundary carrier pattern; copied defensively
+     * @param vectorSpeciesBitSize positive preferred FLOAT64 species bit size for vector compute,
+     *     or zero for scalar compute
      * @throws NullPointerException if a component is {@code null}
-     * @throws IllegalArgumentException if the mode, strategy, or boundary count is outside the
-     *     current CPU proving slice
+     * @throws IllegalArgumentException if the mode, compute/species relationship, or boundary
+     *     count is outside the current CPU proving slice
      */
     public CpuKernelSpecialization {
         Objects.requireNonNull(loweringFingerprint, "loweringFingerprint");
@@ -46,9 +56,11 @@ public record CpuKernelSpecialization(CpuLoweringFingerprint loweringFingerprint
         carrierPattern = List.copyOf(carrierPattern);
         if (carrierPattern.size() != 4) throw new IllegalArgumentException(
                 "current fused specialization requires four carrier entries");
+        boolean vector = executionStrategy.compute()
+                == CpuPartitionPreparationPlan.ExecutionStrategy.Compute.VECTOR;
         if (numericalMode != NumericalMode.EXACT_DEFAULT
-                || !executionStrategy.equals(CpuPartitionPreparationPlan.ExecutionStrategy.SCALAR)) {
-            throw new IllegalArgumentException("current CPU route supports only exact/default scalar strategy");
+                || vector != (vectorSpeciesBitSize > 0)) {
+            throw new IllegalArgumentException("current CPU route requires exact strategy/species facts");
         }
     }
     /** Returns the generated entry signature.
@@ -66,7 +78,8 @@ public record CpuKernelSpecialization(CpuLoweringFingerprint loweringFingerprint
      * @return a new deterministic schema byte array */
     public byte[] compatibilityBytes() {
         return (CpuGeneratorSchema.CURRENT_VERSION + "|" + loweringFingerprint.hex() + "|"
-                + numericalMode + "|" + executionStrategy + "|" + carrierPattern)
+                + numericalMode + "|" + executionStrategy.compute() + "|" + carrierPattern
+                + "|" + vectorSpeciesBitSize)
                 .getBytes(StandardCharsets.US_ASCII);
     }
     /** Returns artifact identity.

@@ -17,7 +17,7 @@ import java.util.Objects;
 public final class CpuClassFileKernelGenerator {
     /**
      * Emits deterministic bytes for the route-independent canonical IR.
-     * @param specialization non-null exact scalar/default structural specialization
+     * @param specialization non-null exact/default scalar-or-vector structural specialization
      * @param kernelIr non-null matching canonical IR with the exact ordered fused semantics
      * @return a new deterministic verified class-byte array; never {@code null}
      * @throws NullPointerException if either argument is {@code null}
@@ -37,16 +37,16 @@ public final class CpuClassFileKernelGenerator {
                             var carriers = new CpuCarrierEmitter(code);
                             var scalar = new CpuScalarEmitter(code);
                             var loops = new CpuLoopEmitter(code);
-                            loops.emit(java.util.List.of(kernelIr.values().get(0).accessPlan(),
+                            var plans = java.util.List.of(kernelIr.values().get(0).accessPlan(),
                                     kernelIr.values().get(1).accessPlan(),
                                     kernelIr.values().get(2).accessPlan(),
-                                    kernelIr.values().get(5).accessPlan()), state -> {
+                                    kernelIr.values().get(5).accessPlan());
+                            java.util.function.Consumer<CpuLoopEmitter.State> scalarBody = state -> {
                                 carriers.load(specialization.carrierPattern().get(0), 0,
                                         state.addresses()[0]);
                                 carriers.load(specialization.carrierPattern().get(1), 1,
                                         state.addresses()[1]);
-                                code.dadd();
-                                scalar.gelu();
+                                code.dadd(); scalar.gelu();
                                 carriers.load(specialization.carrierPattern().get(2), 2,
                                         state.addresses()[2]);
                                 code.dmul();
@@ -54,7 +54,38 @@ public final class CpuClassFileKernelGenerator {
                                 code.dstore(result);
                                 carriers.store(specialization.carrierPattern().get(3), 3,
                                         state.addresses()[3], result);
-                            });
+                            };
+                            if (specialization.executionStrategy().compute()
+                                    == io.github.pho001.synaptik.backend.cpu.internal.prepare.CpuPartitionPreparationPlan.ExecutionStrategy.Compute.VECTOR) {
+                                ClassDesc vector = ClassDesc.of("jdk.incubator.vector.DoubleVector");
+                                ClassDesc vectorBase = ClassDesc.of("jdk.incubator.vector.Vector");
+                                loops.emitVector(plans,
+                                        specialization.vectorSpeciesBitSize() / Double.SIZE,
+                                        state -> {
+                                            carriers.vectorLoad(specialization.carrierPattern().get(0),
+                                                    0, state.addresses()[0], plans.get(0).regime()
+                                                            == io.github.pho001.synaptik.backend.cpu.internal.ir.CpuAccessPlan.Regime.SCALAR_ALL_ZERO);
+                                            carriers.vectorLoad(specialization.carrierPattern().get(1),
+                                                    1, state.addresses()[1], plans.get(1).regime()
+                                                            == io.github.pho001.synaptik.backend.cpu.internal.ir.CpuAccessPlan.Regime.SCALAR_ALL_ZERO);
+                                            code.invokevirtual(vector, "add", MethodTypeDesc.of(
+                                                    vector, vectorBase));
+                                            code.invokestatic(ClassDesc.of(CpuVectorEmitter.class.getName()),
+                                                    "gelu", MethodTypeDesc.of(vector, vector));
+                                            carriers.vectorLoad(specialization.carrierPattern().get(2),
+                                                    2, state.addresses()[2], plans.get(2).regime()
+                                                            == io.github.pho001.synaptik.backend.cpu.internal.ir.CpuAccessPlan.Regime.SCALAR_ALL_ZERO);
+                                            code.invokevirtual(vector, "mul", MethodTypeDesc.of(
+                                                    vector, vectorBase));
+                                            int result = code.allocateLocal(TypeKind.REFERENCE);
+                                            code.astore(result);
+                                            carriers.vectorStore(specialization.carrierPattern().get(3),
+                                                    3, state.addresses()[3], result);
+                                        }, scalarBody);
+                                code.return_();
+                                return;
+                            }
+                            loops.emit(plans, scalarBody);
                             code.return_();
                         })));
         verify(specialization, bytes);

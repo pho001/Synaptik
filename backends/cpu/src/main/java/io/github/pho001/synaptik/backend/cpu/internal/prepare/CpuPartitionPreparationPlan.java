@@ -22,13 +22,20 @@ import java.util.Objects;
  * @param carrierPattern non-null direct carrier forms in boundary order; copied defensively
  * @param extents non-null cold-bound compatible extents; copied defensively
  * @param elementCount checked logical element count represented by {@code extents}
+ * @param selectedRangeCount positive maximum range count selected during cold analysis; one for
+ *     single-thread strategies and at least two for parallel strategies
+ * @param minimumElementsPerWorker positive minimum logical elements per submitted worker chunk
+ * @param vectorSpeciesBitSize exact positive preferred FLOAT64 species size in bits for vector
+ *     strategies, or zero for scalar strategies
  * @param loweringManifest non-null optional cold diagnostic text, empty when disabled
  */
 public record CpuPartitionPreparationPlan(List<ExecutionUnitPlan> units, Route route,
         ExecutionStrategy executionStrategy,
         List<PreparationResourceRequirement.Buffer> bufferDeclarations,
         List<ValueId> boundaryValues, List<CpuAccessPlan.Binding> accessBindings,
-        List<CarrierAccess> carrierPattern, long[] extents, long elementCount, String loweringManifest)
+        List<CarrierAccess> carrierPattern, long[] extents, long elementCount,
+        int selectedRangeCount, long minimumElementsPerWorker, int vectorSpeciesBitSize,
+        String loweringManifest)
         implements BackendPreparationPlan {
     /**
      * One computation-oriented execution unit.
@@ -40,6 +47,8 @@ public record CpuPartitionPreparationPlan(List<ExecutionUnitPlan> units, Route r
         /**
          * Validates one selected unit and its diagnostic explanation.
          *
+         * @param portablePlan non-null already-lowered portable realization plan
+         * @param fusionReason non-null cold diagnostic explanation
          * @throws NullPointerException if either component is {@code null}
          */
         public ExecutionUnitPlan {
@@ -61,19 +70,27 @@ public record CpuPartitionPreparationPlan(List<ExecutionUnitPlan> units, Route r
         /** Compute axis. */
         public enum Compute {
             /** Scalar element computation. */ SCALAR,
-            /** Vector API element computation, reserved for a later task. */ VECTOR
+            /** Preferred-species Java 26 Vector API element computation. */ VECTOR
         }
         /** Orchestration axis. */
         public enum Orchestration {
             /** Invocation on one orchestrating thread. */ SINGLE_THREAD,
-            /** External chunk dispatch, reserved for a later task. */ PARALLEL
+            /** CPU-private external deterministic chunk dispatch. */ PARALLEL
         }
-        /** The sole strategy implemented by CPU 0005A. */
+        /** Scalar compute on the invoking thread. */
         public static final ExecutionStrategy SCALAR =
                 new ExecutionStrategy(Compute.SCALAR, Orchestration.SINGLE_THREAD);
+        public static final ExecutionStrategy VECTOR =
+                new ExecutionStrategy(Compute.VECTOR, Orchestration.SINGLE_THREAD);
+        public static final ExecutionStrategy PARALLEL_SCALAR =
+                new ExecutionStrategy(Compute.SCALAR, Orchestration.PARALLEL);
+        public static final ExecutionStrategy PARALLEL_VECTOR =
+                new ExecutionStrategy(Compute.VECTOR, Orchestration.PARALLEL);
         /**
          * Validates both execution-strategy axes.
          *
+         * @param compute non-null selected scalar or vector compute axis
+         * @param orchestration non-null selected single-thread or parallel orchestration axis
          * @throws NullPointerException if either axis is {@code null}
          */
         public ExecutionStrategy {
@@ -90,9 +107,23 @@ public record CpuPartitionPreparationPlan(List<ExecutionUnitPlan> units, Route r
     /**
      * Validates and snapshots one complete selected plan.
      *
+     * @param units non-null one-entry computation-unit list; copied defensively
+     * @param route non-null selected portable route
+     * @param executionStrategy non-null selected compute/orchestration strategy
+     * @param bufferDeclarations non-null four-boundary declarations; copied defensively
+     * @param boundaryValues non-null four materialized values in declaration order; copied
+     * @param accessBindings non-null four normalized cold bindings in boundary order; copied
+     * @param carrierPattern non-null four direct carrier forms in boundary order; copied
+     * @param extents non-null compatible iteration extents; copied defensively
+     * @param elementCount checked logical element count represented by {@code extents}
+     * @param selectedRangeCount positive maximum selected range count
+     * @param minimumElementsPerWorker positive minimum elements per submitted worker chunk
+     * @param vectorSpeciesBitSize positive preferred FLOAT64 species bit size for vector compute,
+     *     or zero for scalar compute
+     * @param loweringManifest non-null optional cold diagnostic text
      * @throws NullPointerException if a required component is {@code null}
-     * @throws IllegalArgumentException if the plan is outside the one-unit, scalar, portable,
-     *     four-buffer current CPU proving slice
+     * @throws IllegalArgumentException if the plan is outside the current one-unit portable,
+     *     four-buffer proving slice or its strategy/range/species facts disagree
      */
     public CpuPartitionPreparationPlan {
         units = List.copyOf(units);
@@ -105,10 +136,16 @@ public record CpuPartitionPreparationPlan(List<ExecutionUnitPlan> units, Route r
         extents = extents.clone();
         Objects.requireNonNull(loweringManifest, "loweringManifest");
         if (units.size() != 1 || route != Route.PORTABLE
-                || !executionStrategy.equals(ExecutionStrategy.SCALAR)
                 || bufferDeclarations.size() != 4 || boundaryValues.size() != 4
                 || accessBindings.size() != 4 || carrierPattern.size() != 4) {
-            throw new IllegalArgumentException("current CPU plan must contain one scalar portable unit and four buffers");
+            throw new IllegalArgumentException("current CPU plan must contain one portable unit and four buffers");
+        }
+        boolean vector = executionStrategy.compute() == ExecutionStrategy.Compute.VECTOR;
+        boolean parallel = executionStrategy.orchestration() == ExecutionStrategy.Orchestration.PARALLEL;
+        if (selectedRangeCount <= 0 || minimumElementsPerWorker <= 0
+                || parallel != (selectedRangeCount >= 2)
+                || vector != (vectorSpeciesBitSize > 0)) {
+            throw new IllegalArgumentException("portable strategy facts are inconsistent");
         }
     }
     /** Returns instance geometry.

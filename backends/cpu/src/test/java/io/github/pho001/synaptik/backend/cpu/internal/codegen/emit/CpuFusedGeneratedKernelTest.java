@@ -22,6 +22,9 @@ import io.github.pho001.synaptik.backend.cpu.internal.prepare.CpuPartitionFinali
 import io.github.pho001.synaptik.runtime.run.BufferRepresentationBinding;
 import io.github.pho001.synaptik.runtime.run.RunResourceOwnership;
 import io.github.pho001.synaptik.runtime.run.RunState;
+import io.github.pho001.synaptik.backend.cpu.internal.prepare.CpuPartitionAnalysisInputs.PortableExecutionConfig;
+import io.github.pho001.synaptik.backend.cpu.internal.prepare.CpuPartitionAnalysisInputs.PortableExecutionConfig.ComputePreference;
+import jdk.incubator.vector.DoubleVector;
 
 class CpuFusedGeneratedKernelTest {
     private static final ValueLayout.OfDouble DOUBLE =
@@ -99,11 +102,66 @@ class CpuFusedGeneratedKernelTest {
                 LayoutDescriptor.of(denseShape, new long[]{1, 2}, 0, true)), denseShape);
     }
 
+    @Test void vectorExecutionAgreesAcrossEveryAdmittedAccessRegime() {
+        int lanes = DoubleVector.SPECIES_PREFERRED.length();
+        Shape denseShape = Shape.of(2, lanes + 1);
+        executeVectorCase(descriptor(denseShape, LayoutDescriptor.contiguous(denseShape)), denseShape);
+        executeVectorCase(descriptor(Shape.scalar(), LayoutDescriptor.contiguous(Shape.scalar())),
+                denseShape);
+        executeVectorCase(descriptor(Shape.of(lanes + 1),
+                LayoutDescriptor.contiguous(Shape.of(lanes + 1))), denseShape);
+        Shape source = Shape.of(2, 1, lanes + 1), target = Shape.of(2, 3, lanes + 1);
+        executeVectorCase(descriptor(source, LayoutDescriptor.contiguous(source)), target);
+    }
+
+    @Test void vectorGeluPreservesSpecialClassificationsAndThresholdNeighborhoods() {
+        double[] values = {Double.NaN, Double.POSITIVE_INFINITY, Double.NEGATIVE_INFINITY,
+                -0.0, 0.0, Math.nextDown(Math.sqrt(2.0)), Math.sqrt(2.0),
+                Math.nextUp(Math.sqrt(2.0)), Math.nextDown(8.0 * Math.sqrt(2.0)),
+                8.0 * Math.sqrt(2.0), Math.nextUp(8.0 * Math.sqrt(2.0)),
+                Double.MIN_VALUE, -Double.MIN_VALUE, -12.0, 12.0};
+        int lanes = DoubleVector.SPECIES_PREFERRED.length();
+        for (int offset = 0; offset < values.length; offset += lanes) {
+            double[] input = new double[lanes];
+            for (int lane = 0; lane < lanes; lane++) input[lane] = values[
+                    Math.min(values.length - 1, offset + lane)];
+            double[] output = new double[lanes];
+            CpuVectorEmitter.gelu(DoubleVector.fromArray(DoubleVector.SPECIES_PREFERRED, input, 0))
+                    .intoArray(output, 0);
+            for (int lane = 0; lane < lanes && offset + lane < values.length; lane++) {
+                double expected = CpuScalarReferenceKernel.gelu(input[lane]);
+                if (Double.isNaN(expected)) assertTrue(Double.isNaN(output[lane]));
+                else if (expected == 0.0) assertEquals(Double.doubleToRawLongBits(expected),
+                        Double.doubleToRawLongBits(output[lane]));
+                else assertEquals(expected, output[lane],
+                        2e-7 * Math.max(1.0, Math.abs(expected)));
+            }
+        }
+    }
+
+    private static void executeVectorCase(TensorDescriptor first, Shape target) {
+        var dense = descriptor(target, LayoutDescriptor.contiguous(target));
+        var scalar = descriptor(Shape.scalar(), LayoutDescriptor.contiguous(Shape.scalar()));
+        var inputs = new CpuPartitionAnalysisInputs(false,
+                CpuPartitionAnalysisInputs.DEFAULT.carrierPattern(),
+                new PortableExecutionConfig(ComputePreference.VECTOR_IF_ELIGIBLE, 1, 1, 1));
+        var analysis = CpuPartitionPreparerTest.analyze(first, dense, scalar, dense, inputs);
+        assertEquals("vector", analysis.plan().executionStrategy().toString());
+        executeAnalysis(analysis);
+    }
+
     private static void executeCase(TensorDescriptor first, Shape target) {
         var dense = descriptor(target, LayoutDescriptor.contiguous(target));
         var scalar = descriptor(Shape.scalar(), LayoutDescriptor.contiguous(Shape.scalar()));
         var analysis = CpuPartitionPreparerTest.analyze(first, dense, scalar, dense,
                 CpuPartitionAnalysisInputs.DEFAULT);
+        executeAnalysis(analysis);
+    }
+
+    private static void executeAnalysis(
+            io.github.pho001.synaptik.prepare.analysis.BackendPartitionAnalysis<
+                    io.github.pho001.synaptik.backend.cpu.internal.prepare.CpuPartitionPreparationPlan>
+                    analysis) {
         var fullExecutable = CpuPartitionFinalizerTest.finalizeExecutable(analysis, Optional.empty());
         var executable = fullExecutable.forRange(1, fullExecutable.binding().elementCount() - 1);
         var buffers = new ArrayList<CpuNativeBuffer>();
@@ -130,8 +188,9 @@ class CpuFusedGeneratedKernelTest {
             CpuScalarReferenceKernel.execute(buffers.stream().map(buffer -> buffer.argument()).toList(),
                     executable.accessBindings(), executable.binding().start(),
                     executable.binding().end());
-            for (int i = 0; i < outputLength; i++) assertEquals(generated[i],
-                    buffers.get(3).segment().get(DOUBLE, i * 8L), 0);
+            for (int i = 0; i < outputLength; i++) assertEquals(
+                    buffers.get(3).segment().get(DOUBLE, i * 8L), generated[i],
+                    2e-7 * Math.max(1.0, Math.abs(generated[i])));
         } finally { state.close(); }
     }
 

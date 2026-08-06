@@ -162,7 +162,7 @@ io.github.pho001.synaptik.backend.cpu/
     codegen/emit/             portable Class-File generation and direct loop emission
     route/portable/           portable route selection/realization plan
     cache/                    structural identity and optional persistence
-    executable/               prepared partition execution
+    executable/               prepared partition execution and CPU-private worker orchestration
     reference/                conformance/fail-closed scalar reference
 ```
 
@@ -188,7 +188,7 @@ created by 0005A. All consume the common analysis above; none creates another ba
 | 0005 | [Dense ADD and partition-sequence execution](tasks/0005-dense-add-and-partition-sequence-execution.md) | Superseded | 0002–0004 | Historical per-node dense ADD route replaced atomically by 0005A's fused partition kernel. |
 | 0005A | [Atomic partition-kernel architecture reset](tasks/0005a-atomic-partition-kernel-architecture-reset.md) | Complete | 0001–0005; current shared Prepare contracts | Adopted structured internals and only the portable route leaf; replaced the per-node path with whole-partition lowering, route-independent IR, universal start/end Class-File generation, exact declarations, and one partition executable; proved shape-polymorphic FLOAT64 ADD-to-GELU-to-MUL fusion. |
 | 0005B | [Universal access plans and right-aligned broadcasting](tasks/0005b-universal-access-plans-and-right-aligned-broadcasting.md) | Complete | 0005A | Delivered one normalized per-value access system over current ShapeBroadcast/LayoutDescriptor semantics, complete static scalar/rank-expanded/multi-axis/zero/strided/heap/segment/mixed-carrier support, one direct entry per ordered carrier-pattern specialization, and five distinct dense-to-general-odometer scalar state machines. |
-| 0005C | Vector and parallel portable strategies | Draft | 0005B | Deliver vector, parallel-scalar, and parallel-vector over universal start/end kernels, external chunk dispatch, correct vector chunks/tails, and no hot dispatch or cursor allocation. |
+| 0005C | [Vector and parallel portable strategies](tasks/0005c-vector-and-parallel-portable-strategies.md) | Complete | 0005B | Added preferred-species FLOAT64 vector, parallel-scalar, and parallel-vector realization over universal start/end kernels; direct contiguous runs vectorize without gather, and explicit caller-owned CPU-private workers execute deterministic disjoint chunks. |
 | 0005D | Materialization, specialization, and persistence evidence gate | Draft | 0005C | Compare direct access with CPU-internal contiguous materialization before assignment, enforce specialization budgets, and benchmark whether optional trusted-root class-byte persistence should remain disabled by default. |
 | 0005E | Portable pointwise types, carriers, and semantic-family expansion | Draft | 0005D | Expand exact pointwise, comparison, selection, and cast coverage through the completed unit/IR/access architecture without duplicating planners or storage matrices. |
 | 0005F | Exact scalar-power strength reduction | Draft | 0005E | Classify exact typed scalar exponents once in common route-independent CPU analysis and retain semantic `POW` in the compiled graph while selecting multiply, reciprocal, or exponentiation-by-squaring realizations only under an exact/default conformance proof; this task does not depend on relaxed Config 0006. |
@@ -218,8 +218,9 @@ created by 0005A. All consume the common analysis above; none creates another ba
 CPU 0005A is Complete. It atomically replaced the provisional work from CPU 0001–0005, whose
 task records are now Superseded but remain preserved as historical evidence. The current module
 has exactly one detailed implemented partition-kernel slice and one route leaf,
-`internal.route.portable`. Detailed CPU 0005B is Complete; CPU 0005C is the next Draft frontier,
-and every later CPU task remains Draft without a detailed specification.
+`internal.route.portable`. Detailed CPU 0005B and detailed
+[CPU 0005C Vector and parallel portable strategies](tasks/0005c-vector-and-parallel-portable-strategies.md)
+are Complete; every later CPU task remains Draft without a detailed specification.
 
 Superseded task 0001 remains preserved through its sole detailed CPU
 [capability, representation, binding, and parallel foundation](tasks/0001-cpu-capability-representation-binding-and-parallel-foundation.md)
@@ -282,8 +283,22 @@ two compatible extents. Detailed
 [task 0005B Universal access plans and right-aligned broadcasting](tasks/0005b-universal-access-plans-and-right-aligned-broadcasting.md)
 is Complete. It adds right-aligned static broadcast/layout normalization, exact per-boundary
 declaration and accessed-range spans, complete write-injectivity proof, five generated scalar
-state machines, and all sixteen ordered heap/segment carrier specializations. CPU 0005C–0005E and
-tasks 0006–0017 remain `Draft` without detailed specifications.
+state machines, and all sixteen ordered heap/segment carrier specializations. Detailed CPU 0005C
+is Complete; CPU 0005D–0005E and tasks 0006–0017 remain `Draft` without detailed specifications.
+CPU 0005C preserves that exact slice and implements cold selection among all four portable
+strategies. It uses the preferred Java 26 FLOAT64 species only for direct contiguous runs and
+scalar broadcasts, scalar tails and general-odometer fallback, configured/available parallelism
+bounds, deterministic disjoint chunks, and one explicit caller-owned CPU-private worker group
+borrowed by finalization/execution. Strategy/species alter generated identity; extents, chunk
+configuration, and worker identity remain cold facts. It adds no gather, masked tail,
+materialization, shared lifecycle, Config surface, or performance claim.
+
+The CPU 0005C implementation context's final corrected `./gradlew :backends:cpu:test` run passed
+18 suites and 49 tests with zero failures, errors, or skips. Clean documentation context
+`/root/cpu_0005c_docs` reused that evidence because no executable Java or test changed afterward,
+finalized affected Javadocs, package summaries, the CPU guide, glossary, and planning records, and
+passed CPU Javadoc plus the recorded Markdown, exact-scope, status, forbidden-vocabulary, and
+whitespace gates.
 
 The reset was a working-tree replacement, not deletion of history. CPU 0001–0005 are Superseded
 with all recorded evidence preserved; the repository contains no old/new dual pipeline.
@@ -332,9 +347,9 @@ changing executable Java.
 - Historical task 0001 implements the exact native `MemorySegment` representation, shared-arena
   ownership, zero-size/alignment/allocation/cleanup rules, borrowed heap/native cold binding,
   direct typed invocation seam, and worker evidence. Task 0005A retains the representation and
-  binding contracts but removes unused worker types; task 0005C introduces the workers required by
-  implemented parallel strategies. Route-specific representations and materializations still wait
-  for their ordered tasks.
+  binding contracts but removes unused worker types; completed task 0005C implements the minimum
+  caller-owned worker group required by its parallel strategies. Route-specific
+  representations and materializations still wait for their ordered tasks.
 
 ## Decisions made
 
@@ -362,8 +377,9 @@ changing executable Java.
 - CPU 0005B implements five ordered scalar regimes: dense linear, all-zero/scalar, last-axis bias,
   block/outer with a contiguous inner loop, and the complete general positive/zero-strided
   odometer. Each emits its own primitive state machine without hot cursor objects, virtual calls,
-  or per-element division/modulo. Draft 0005C owns vector gather and Draft 0005D owns optional
-  materialization; full semantics do not promise universal vectorization.
+  or per-element division/modulo. Completed 0005C vectorizes only direct contiguous runs and scalar
+  broadcasts, uses scalar fallback for general odometers, and promises no gather. Draft 0005D owns
+  optional materialization; full semantics do not promise universal vectorization.
 - Before shared assignment, CPU analysis may compare direct access with internal contiguous
   materialization using copy cost, kernel benefit, reuse/fan-out, vendor eligibility, memory, and
   repeated-run expectation. A selected copy resource is declared exactly before assignment and
@@ -393,8 +409,9 @@ changing executable Java.
   read-only heap segments whose `heapBase()` is empty. Route-specific bound invocations must copy
   direct typed fields out of cold arrays and perform no storage discovery in the hot call.
 - Historical task 0001 proved bounded worker and range behavior. Task 0005A removes those unused
-  production types while retaining their evidence; task 0005C reintroduces only the orchestration
-  required by implemented parallel-scalar and parallel-vector strategies.
+  production types while retaining their evidence. Completed 0005C implements one explicit
+  caller-owned CPU-private worker group, borrowed by finalized executables, and reintroduces no
+  public executor facade, shared lifecycle, or general task system.
 - Java 26 `java.lang.classfile.CodeBuilder` is the selected primary generation mechanism for all
   portable CPU computation kernels. This remains a current planning choice rather than an
   architecture invariant. Native vendor providers remain separate optional routes; the generator

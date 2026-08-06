@@ -101,8 +101,9 @@ The Prepare milestone is therefore closed. The OpenBLAS provider project area is
 CPU 0005A is now Complete and atomically supersedes the provisional CPU 0001–0005 implementation;
 those five task records remain preserved as Superseded historical evidence. The current completed
 CPU implementation frontier is
-[CPU 0005B Universal access plans and right-aligned broadcasting](backends/cpu/tasks/0005b-universal-access-plans-and-right-aligned-broadcasting.md),
-while CPU 0005C and later tasks remain `Draft`. Historical
+[CPU 0005B Universal access plans and right-aligned broadcasting](backends/cpu/tasks/0005b-universal-access-plans-and-right-aligned-broadcasting.md).
+[CPU 0005C Vector and parallel portable strategies](backends/cpu/tasks/0005c-vector-and-parallel-portable-strategies.md)
+is Complete, while CPU 0005D and later tasks remain `Draft` without detailed specifications. Historical
 [CPU 0001 Capability, representation, binding, and parallel foundation](backends/cpu/tasks/0001-cpu-capability-representation-binding-and-parallel-foundation.md)
 is `Superseded`; historical
 [CPU 0002 Portable Class-File API generator foundation](backends/cpu/tasks/0002-portable-class-file-api-generator-foundation.md)
@@ -123,7 +124,7 @@ partition execution as an ordered CPU-private node-kernel sequence. Implementati
 `019fd19a-4262-7580-9674-226595356fbc` recorded the sole final CPU 31-test pass, which the clean
 documentation pass reused because it changed no executable Java behavior. Detailed
 [CPU 0005A Atomic partition-kernel architecture reset](backends/cpu/tasks/0005a-atomic-partition-kernel-architecture-reset.md)
-is Complete. CPU 0005C vector and parallel strategies, 0005D
+is Complete. Detailed CPU 0005C vector and parallel strategies are Complete; 0005D
 materialization/specialization/persistence evidence, 0005E broader pointwise coverage, 0005F exact
 scalar-power strength reduction, and CPU 0006–0017 remain `Draft` without detailed specifications.
 CPU 0003
@@ -386,14 +387,12 @@ pattern, and four is not a permanent fused-unit boundary limit. Its five generat
 cover dense linear, all-zero/scalar, last-axis bias, block/outer, and general odometer access.
 Exact cold range spans support constant-time alias checks, and a complete bounded static
 injectivity decision accepts valid interleaved positive strides while rejecting repeated writes.
-CPU 0005C–0005F, CPU 0006–0017,
-and the refined Config, Prepare, Metal, and tuning rows remain `Draft` without new detailed
-specifications.
+Detailed CPU 0005C is Complete. CPU 0005D–0005F, CPU 0006–0017, and the refined Config, Prepare,
+Metal, and tuning rows remain `Draft` without new detailed specifications.
 Completed OpenBLAS history and every completed project area remain unchanged.
 
-CPU remains the active global project area. CPU 0005A and detailed CPU 0005B are `Complete`;
-CPU 0005C is the next `Draft` frontier and later CPU work remains `Draft` without detailed
-specifications. CPU 0001–0005 are
+CPU remains the active global project area. CPU 0005A, CPU 0005B, and CPU 0005C are `Complete`;
+later CPU work remains `Draft` without detailed specifications. CPU 0001–0005 are
 historical Superseded records whose Git history
 and validation evidence remain intact. Complete CPU 0004 added no public facade, registry, service locator,
 default artifact-root Config API, operation family, vendor route, tuning/benchmark work, broad
@@ -431,12 +430,17 @@ API. CPU 0005A creates no native placeholder package. Later concrete Draft tasks
 `route.nativeblas` provider leaves for OpenBLAS/Accelerate/oneMKL/AOCL and `route.nativeops` leaves
 for vDSP/vForce/VML/oneDNN/AOCL-LibM/ZenDNN over the shared analysis.
 
-Ordered Draft follow-ups deliver one right-aligned access system over current Model
-`ShapeBroadcast`/`LayoutDescriptor` contracts, then vector/parallel strategies, then direct-versus-
-materialized analysis and persistence/specialization evidence, then broader pointwise families.
-They preserve dense, scalar, bias, block, odometer, fallback, cost-gated gather, and optional
-materialization tiers without hot cursor objects or universal-vectorization claims. Broadcast
-gradients remain Compiler/Model `SUM_TO_SHAPE` plus later CPU reduction coverage.
+Completed CPU 0005B supplies one right-aligned access system over current Model
+`ShapeBroadcast`/`LayoutDescriptor` contracts. Completed CPU 0005C selects all four portable
+strategies cold, uses the Java 26 preferred FLOAT64 species for direct contiguous runs and scalar
+broadcasts, preserves scalar tails and general-odometer fallback, and borrows an explicit
+caller-owned worker group for deterministic disjoint chunks. Its final corrected CPU module run
+passed 18 suites and 49 tests with zero failures, errors, or skips; clean documentation context
+`/root/cpu_0005c_docs` reused that evidence because no executable Java or tests changed afterward.
+Draft follow-ups begin with direct-versus-materialized analysis and persistence/specialization
+evidence, then broader pointwise families. They retain no hot cursor, universal-vectorization,
+gather, masked-tail, tuning, or performance claim. Broadcast gradients remain Compiler/Model
+`SUM_TO_SHAPE` plus later CPU reduction coverage.
 
 The same task includes only the narrow shared Prepare hardening proved necessary by the audit.
 For a value crossing planned partitions, the producer partition, when present, and every distinct

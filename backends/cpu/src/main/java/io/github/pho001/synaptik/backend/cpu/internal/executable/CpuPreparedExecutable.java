@@ -17,13 +17,21 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 
-/** Immutable whole-partition recipe with exact cold geometry and direct carrier specialization. */
+/**
+ * Immutable whole-partition recipe with exact cold geometry and one direct generated artifact.
+ * A parallel recipe borrows, but never closes, its explicitly supplied {@link CpuWorkerGroup};
+ * cold binding creates deterministic disjoint chunk calls, while a scalar or one-chunk range
+ * executes directly on the invoking thread.
+ */
 public final class CpuPreparedExecutable extends PreparedExecutable {
     private final CpuGeneratedKernel artifact;
     private final List<CpuAccessPlan.Binding> bindings;
     private final List<CarrierAccess> carrierPattern;
     private final long start;
     private final long end;
+    private final int selectedRangeCount;
+    private final long minimumElementsPerWorker;
+    private final CpuWorkerGroup workerGroup;
 
     /**
      * Creates a four-boundary recipe for one exact half-open logical range.
@@ -42,6 +50,35 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
     public CpuPreparedExecutable(PreparedMemoryPlan memoryPlan, List<BufferSelection> selections,
             CpuGeneratedKernel artifact, List<CpuAccessPlan.Binding> bindings,
             List<CarrierAccess> carrierPattern, long start, long end) {
+        this(memoryPlan, selections, artifact, bindings, carrierPattern, start, end, 1, 1, null);
+    }
+
+    /**
+     * Creates a recipe with cold-selected range geometry and an optional borrowed worker group.
+     * The worker group must be present exactly when two or more ranges were selected. This object
+     * retains the group without taking ownership of its lifecycle.
+     *
+     * @param memoryPlan non-null exact plan against which selections are resolved
+     * @param selections non-null ordered selections for inputs {@code a}, {@code b}, {@code c},
+     *     and output; copied by the superclass
+     * @param artifact non-null generated scalar or vector artifact matching
+     *     {@code carrierPattern}
+     * @param bindings non-null full-range normalized boundary bindings; copied defensively
+     * @param carrierPattern non-null ordered direct carrier pattern; copied defensively
+     * @param start non-negative inclusive logical element bound
+     * @param end exclusive logical element bound no greater than the iteration element count
+     * @param selectedRangeCount positive maximum chunk count selected during analysis
+     * @param minimumElementsPerWorker positive minimum logical elements per submitted chunk
+     * @param workerGroup borrowed open group for a parallel recipe, or {@code null} for a
+     *     single-thread recipe; never closed by this executable
+     * @throws NullPointerException if a required reference is {@code null}
+     * @throws IllegalArgumentException if counts, specialization, range, or worker presence are
+     *     inconsistent
+     */
+    public CpuPreparedExecutable(PreparedMemoryPlan memoryPlan, List<BufferSelection> selections,
+            CpuGeneratedKernel artifact, List<CpuAccessPlan.Binding> bindings,
+            List<CarrierAccess> carrierPattern, long start, long end, int selectedRangeCount,
+            long minimumElementsPerWorker, CpuWorkerGroup workerGroup) {
         super(memoryPlan, selections, List.of(), List.of(BufferAccess.READ_ONLY,
                 BufferAccess.READ_ONLY, BufferAccess.READ_ONLY, BufferAccess.WRITE_ONLY));
         if (selections.size() != 4) throw new IllegalArgumentException("four buffers required");
@@ -56,6 +93,13 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
         if (start < 0 || end < start || end > count) throw new IllegalArgumentException("invalid range");
         this.start = start;
         this.end = end;
+        if (selectedRangeCount <= 0 || minimumElementsPerWorker <= 0
+                || (selectedRangeCount >= 2) != (workerGroup != null)) {
+            throw new IllegalArgumentException("parallel execution facts are inconsistent");
+        }
+        this.selectedRangeCount = selectedRangeCount;
+        this.minimumElementsPerWorker = minimumElementsPerWorker;
+        this.workerGroup = workerGroup;
     }
 
     /**
@@ -92,14 +136,20 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
         var selections = new ArrayList<BufferSelection>(4);
         for (int i = 0; i < 4; i++) selections.add(bufferSelection(i));
         return new CpuPreparedExecutable(memoryPlan(), selections, artifact, bindings,
-                carrierPattern, rangeStart, rangeEnd);
+                carrierPattern, rangeStart, rangeEnd, selectedRangeCount,
+                minimumElementsPerWorker, workerGroup);
     }
 
     private CpuAccessPlan.Binding ranged(CpuAccessPlan.Binding source) {
+        return ranged(source, start, end);
+    }
+
+    private static CpuAccessPlan.Binding ranged(CpuAccessPlan.Binding source,
+            long rangeStart, long rangeEnd) {
         return CpuAccessPlan.Binding.create(source.plan(), source.extents().stream()
                         .mapToLong(Long::longValue).toArray(), source.baseElementOffset(),
                 source.effectiveStrides().stream().mapToLong(Long::longValue).toArray(),
-                source.elementCount(), start, end, source.referencedElementSpan());
+                source.elementCount(), rangeStart, rangeEnd, source.referencedElementSpan());
     }
 
     @Override protected boolean acceptsBufferRepresentation(int index, BufferRepresentation value) {
@@ -128,25 +178,48 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
         for (BufferRepresentation buffer : buffers) {
             arguments.add(((CpuBufferRepresentation) buffer).argument());
         }
+        if (workerGroup != null) for (CpuBufferArgument argument : arguments) {
+            if (argument instanceof CpuBufferArgument.Segment segment
+                    && !workerGroup.workersCanAccess(segment.segment())) {
+                throw new IllegalArgumentException("segment is not accessible to every CPU worker");
+            }
+        }
         for (int input = 0; input < 3; input++) if (overlaps(arguments.get(input), ranged(bindings.get(input)),
                 arguments.get(3), ranged(bindings.get(3)))) {
             throw new IllegalArgumentException("output accessed span must not overlap an input");
         }
-        long[] geometry = geometry(arguments);
-        KernelCall call = callFor(artifact.entryPoint(), arguments, geometry, start, end);
-        return new Invocation(state, call);
+        long length = end - start;
+        int chunkCount = length == 0 ? 0 : Math.min(selectedRangeCount,
+                Math.toIntExact(1 + (length - 1) / minimumElementsPerWorker));
+        if (chunkCount <= 1) {
+            KernelCall call = callFor(artifact.entryPoint(), arguments,
+                    geometry(arguments, start, end), start, end);
+            return new Invocation(state, call, null);
+        }
+        CpuWorkerGroup.RangeCall[] calls = new CpuWorkerGroup.RangeCall[chunkCount];
+        long quotient = length / chunkCount;
+        long remainder = length % chunkCount;
+        long chunkStart = start;
+        for (int index = 0; index < chunkCount; index++) {
+            long chunkEnd = chunkStart + quotient + (index < remainder ? 1 : 0);
+            KernelCall call = callFor(artifact.entryPoint(), arguments,
+                    geometry(arguments, chunkStart, chunkEnd), chunkStart, chunkEnd);
+            calls[index] = call::invoke;
+            chunkStart = chunkEnd;
+        }
+        return new Invocation(state, null, calls);
     }
 
-    private long[] geometry(List<CpuBufferArgument> arguments) {
+    private long[] geometry(List<CpuBufferArgument> arguments, long rangeStart, long rangeEnd) {
         int rank = bindings.getFirst().plan().iterationRank();
         long[] geometry = new long[2 * rank + 4 + 4 * rank + 8];
-        CpuAccessPlan.Binding first = ranged(bindings.getFirst());
+        CpuAccessPlan.Binding first = ranged(bindings.getFirst(), rangeStart, rangeEnd);
         for (int axis = 0; axis < rank; axis++) {
             geometry[axis] = first.extents().get(axis);
             geometry[rank + axis] = first.startCoordinates().get(axis);
         }
         for (int value = 0; value < 4; value++) {
-            CpuAccessPlan.Binding binding = ranged(bindings.get(value));
+            CpuAccessPlan.Binding binding = ranged(bindings.get(value), rangeStart, rangeEnd);
             long carrierBase = arguments.get(value).byteOffset() / Double.BYTES;
             geometry[2 * rank + value] = Math.addExact(carrierBase, binding.startAddress());
             for (int axis = 0; axis < rank; axis++) geometry[2 * rank + 4 + value * rank + axis]
@@ -224,11 +297,17 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
                 : ((CpuBufferArgument.Segment) argument).segment();
     }
 
-    private static final class Invocation extends BoundInvocation {
+    private final class Invocation extends BoundInvocation {
         private final KernelCall call;
-        Invocation(RunState state, KernelCall call) { super(state); this.call = call; }
+        private final CpuWorkerGroup.RangeCall[] calls;
+        Invocation(RunState state, KernelCall call, CpuWorkerGroup.RangeCall[] calls) {
+            super(state); this.call = call; this.calls = calls;
+        }
         @Override protected void executeBound() {
-            try { call.invoke(); }
+            try {
+                if (calls == null) call.invoke();
+                else workerGroup.execute(calls);
+            }
             catch (RuntimeException | Error failure) { throw failure; }
             catch (Throwable failure) { throw new IllegalStateException("generated CPU invocation failed", failure); }
         }

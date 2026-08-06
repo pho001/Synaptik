@@ -1,8 +1,14 @@
 package io.github.pho001.synaptik.backend.cpu.internal.cache;
 
-/** Current-only generated-kernel schema; no legacy reader or migration exists. */
+/**
+ * Defines the current generated-kernel compatibility schema and entry-point name.
+ *
+ * <p>The schema is current-only: changing a code-shaping fact, including scalar versus vector
+ * compute or the exact vector species, requires a new compatible artifact under the current
+ * version. No legacy reader or migration path exists.
+ */
 public final class CpuGeneratorSchema {
-    /** Current schema version. */ public static final int CURRENT_VERSION = 3;
+    /** Current schema version. */ public static final int CURRENT_VERSION = 4;
     /** Generated entry name. */ public static final String ENTRY_NAME = "invoke";
     private CpuGeneratorSchema() { }
 

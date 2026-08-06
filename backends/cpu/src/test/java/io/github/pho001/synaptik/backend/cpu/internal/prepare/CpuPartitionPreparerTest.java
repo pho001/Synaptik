@@ -26,8 +26,54 @@ import java.util.Map;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
 import io.github.pho001.synaptik.backend.cpu.internal.cache.CpuKernelSpecialization.CarrierAccess;
+import io.github.pho001.synaptik.backend.cpu.internal.prepare.CpuPartitionAnalysisInputs.PortableExecutionConfig;
+import io.github.pho001.synaptik.backend.cpu.internal.prepare.CpuPartitionAnalysisInputs.PortableExecutionConfig.ComputePreference;
+import jdk.incubator.vector.DoubleVector;
 
 public class CpuPartitionPreparerTest {
+    @Test void selectsAllFourStrategiesAndFallsBackFromIneligibleVectorGeometry() {
+        int lanes = DoubleVector.SPECIES_PREFERRED.length();
+        var pattern = CpuPartitionAnalysisInputs.DEFAULT.carrierPattern();
+        var vector = new PortableExecutionConfig(ComputePreference.VECTOR_IF_ELIGIBLE, 1, 1, 1);
+        var parallelScalar = new PortableExecutionConfig(ComputePreference.SCALAR, 4, 2, 1);
+        var parallelVector = new PortableExecutionConfig(
+                ComputePreference.VECTOR_IF_ELIGIBLE, 4, 2, 1);
+        var descriptor = descriptor(Shape.of(lanes * 2),
+                LayoutDescriptor.contiguous(Shape.of(lanes * 2)));
+        Shape generalShape = Shape.of(2, lanes);
+        var general = descriptor(generalShape,
+                LayoutDescriptor.of(generalShape, new long[] {1, 2}, 0, true));
+        var denseGeneral = descriptor(generalShape, LayoutDescriptor.contiguous(generalShape));
+        assertAll(
+                () -> assertEquals("scalar", analyze(Shape.of(lanes * 2)).plan()
+                        .executionStrategy().toString()),
+                () -> assertEquals("vector", analyze(descriptor, descriptor, descriptor, descriptor,
+                        new CpuPartitionAnalysisInputs(false, pattern, vector)).plan()
+                        .executionStrategy().toString()),
+                () -> assertEquals("parallel-scalar", analyze(descriptor, descriptor, descriptor,
+                        descriptor, new CpuPartitionAnalysisInputs(false, pattern, parallelScalar))
+                        .plan().executionStrategy().toString()),
+                () -> assertEquals("parallel-vector", analyze(descriptor, descriptor, descriptor,
+                        descriptor, new CpuPartitionAnalysisInputs(false, pattern, parallelVector))
+                        .plan().executionStrategy().toString()),
+                () -> assertEquals("parallel-scalar", analyze(general, denseGeneral, denseGeneral,
+                        denseGeneral, new CpuPartitionAnalysisInputs(false, pattern, parallelVector))
+                        .plan().executionStrategy().toString()));
+    }
+
+    @Test void boundsRangeCountAndRecordsExactPreferredSpecies() {
+        int lanes = DoubleVector.SPECIES_PREFERRED.length();
+        var config = new PortableExecutionConfig(ComputePreference.VECTOR_IF_ELIGIBLE, 8, 3,
+                lanes);
+        var analysis = analyze(Shape.of(lanes * 5), config);
+        assertAll(
+                () -> assertEquals(3, analysis.plan().selectedRangeCount()),
+                () -> assertEquals(lanes, analysis.plan().minimumElementsPerWorker()),
+                () -> assertEquals(DoubleVector.SPECIES_PREFERRED.vectorBitSize(),
+                        analysis.plan().vectorSpeciesBitSize()),
+                () -> assertThrows(IllegalArgumentException.class,
+                        () -> new PortableExecutionConfig(ComputePreference.SCALAR, 0, 1, 1)));
+    }
     @Test void formsOneFusedUnitAndDeclaresOnlyFourBoundaries() {
         var analysis = analyze(Shape.of(2, 3));
         assertAll(
@@ -80,6 +126,18 @@ public class CpuPartitionPreparerTest {
 
     public static BackendPartitionAnalysis<CpuPartitionPreparationPlan> analyze(Shape shape) {
         return new CpuPartitionPreparer().analyze(context(shape));
+    }
+
+    private static BackendPartitionAnalysis<CpuPartitionPreparationPlan> analyze(
+            Shape shape, PortableExecutionConfig config) {
+        var descriptor = descriptor(shape, LayoutDescriptor.contiguous(shape));
+        return analyze(descriptor, descriptor, descriptor, descriptor,
+                new CpuPartitionAnalysisInputs(false,
+                        CpuPartitionAnalysisInputs.DEFAULT.carrierPattern(), config));
+    }
+
+    private static TensorDescriptor descriptor(Shape shape, LayoutDescriptor layout) {
+        return new TensorDescriptor(DataType.FLOAT64, shape, Optional.of(layout), false);
     }
 
     public static BackendPartitionAnalysis<CpuPartitionPreparationPlan> analyze(

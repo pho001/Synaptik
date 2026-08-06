@@ -12,6 +12,8 @@ final class CpuCarrierEmitter {
     private static final ClassDesc VALUE_LAYOUT = ClassDesc.of("java.lang.foreign.ValueLayout");
     private static final ClassDesc DOUBLE_LAYOUT = ClassDesc.of("java.lang.foreign.ValueLayout$OfDouble");
     private static final ClassDesc BYTE_ORDER = ClassDesc.of("java.nio.ByteOrder");
+    private static final ClassDesc DOUBLE_VECTOR = ClassDesc.of("jdk.incubator.vector.DoubleVector");
+    private static final ClassDesc VECTOR_SPECIES = ClassDesc.of("jdk.incubator.vector.VectorSpecies");
     private final CodeBuilder code;
     /**
      * Creates an emitter bound to one non-null generated method body.
@@ -57,6 +59,59 @@ final class CpuCarrierEmitter {
             code.invokeinterface(SEGMENT, "set", MethodTypeDesc.of(TypeKind.VOID.upperBound(),
                     DOUBLE_LAYOUT, TypeKind.LONG.upperBound(),
                     java.lang.constant.ConstantDescs.CD_double));
+        }
+    }
+
+    /**
+     * Emits one unmasked preferred-species FLOAT64 vector load or scalar broadcast.
+     *
+     * @param access non-null generation-time-selected direct carrier form
+     * @param parameterSlot local-variable slot holding the exact carrier
+     * @param addressLocal local-variable slot holding the element address
+     * @param broadcast whether to load one scalar and broadcast it to every lane
+     */
+    void vectorLoad(CarrierAccess access, int parameterSlot, int addressLocal, boolean broadcast) {
+        code.getstatic(DOUBLE_VECTOR, "SPECIES_PREFERRED", VECTOR_SPECIES);
+        if (broadcast) {
+            load(access, parameterSlot, addressLocal);
+            code.invokestatic(DOUBLE_VECTOR, "broadcast", MethodTypeDesc.of(DOUBLE_VECTOR,
+                    VECTOR_SPECIES, TypeKind.DOUBLE.upperBound()));
+            return;
+        }
+        code.aload(parameterSlot);
+        if (access == CarrierAccess.DOUBLE_ARRAY) {
+            code.lload(addressLocal).l2i();
+            code.invokestatic(DOUBLE_VECTOR, "fromArray", MethodTypeDesc.of(DOUBLE_VECTOR,
+                    VECTOR_SPECIES, java.lang.constant.ConstantDescs.CD_double.arrayType(),
+                    TypeKind.INT.upperBound()));
+        } else {
+            code.lload(addressLocal).loadConstant((long) Double.BYTES).lmul();
+            code.invokestatic(BYTE_ORDER, "nativeOrder", MethodTypeDesc.of(BYTE_ORDER));
+            code.invokestatic(DOUBLE_VECTOR, "fromMemorySegment", MethodTypeDesc.of(DOUBLE_VECTOR,
+                    VECTOR_SPECIES, SEGMENT, TypeKind.LONG.upperBound(), BYTE_ORDER));
+        }
+    }
+
+    /**
+     * Emits one unmasked preferred-species FLOAT64 vector store.
+     *
+     * @param access non-null generation-time-selected direct carrier form
+     * @param parameterSlot local-variable slot holding the writable exact carrier
+     * @param addressLocal local-variable slot holding the element address
+     * @param valueLocal local-variable slot holding the non-null {@code DoubleVector}
+     */
+    void vectorStore(CarrierAccess access, int parameterSlot, int addressLocal, int valueLocal) {
+        code.aload(valueLocal).aload(parameterSlot);
+        if (access == CarrierAccess.DOUBLE_ARRAY) {
+            code.lload(addressLocal).l2i();
+            code.invokevirtual(DOUBLE_VECTOR, "intoArray", MethodTypeDesc.of(
+                    TypeKind.VOID.upperBound(), java.lang.constant.ConstantDescs.CD_double.arrayType(),
+                    TypeKind.INT.upperBound()));
+        } else {
+            code.lload(addressLocal).loadConstant((long) Double.BYTES).lmul();
+            code.invokestatic(BYTE_ORDER, "nativeOrder", MethodTypeDesc.of(BYTE_ORDER));
+            code.invokevirtual(DOUBLE_VECTOR, "intoMemorySegment", MethodTypeDesc.of(
+                    TypeKind.VOID.upperBound(), SEGMENT, TypeKind.LONG.upperBound(), BYTE_ORDER));
         }
     }
 

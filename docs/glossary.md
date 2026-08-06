@@ -981,8 +981,8 @@ The bytecode-first Java Class-File API plus Vector API production baseline insid
 backend. It is the always-available semantic fallback for every operation occurrence it truthfully
 supports, although a scalar reference remains available separately for conformance and fail-closed
 checking. Metadata-only work may require no generated class. Task 0005A implemented the portable
-scalar proving slice and `internal.route.portable`; later portable tasks add the vector and
-parallel strategies.
+scalar proving slice and `internal.route.portable`; completed CPU 0005C adds preferred-species
+FLOAT64 vector compute and explicit CPU-private parallel orchestration for that same slice.
 
 OpenBLAS is not another meaning of portable route. It is a narrow cross-platform native fallback
 for eligible BLAS-compatible linear algebra. It is neither a universal fallback nor preferred over
@@ -1016,23 +1016,28 @@ The current package-private implementation uses the Java 26 Class-File API to em
 static typed entry method for the specialization's exact ordered `double[]` or `MemorySegment`
 pattern, defines the result as a hidden nestmate class, and retains its exact method handle. The
 Class-File API and Java Vector API are CPU-internal implementation choices, not architecture
-invariants. The production kernel is the scalar, single-thread whole-partition FLOAT64
-`ADD -> exact GELU -> MUL` route; it emits a generation-time-selected primitive state machine for
-each boundary access regime.
+invariants. The production kernel executes the whole-partition FLOAT64
+`ADD -> exact GELU -> MUL` slice with one generated scalar or preferred-species vector body. It
+emits generation-time-selected primitive access state machines, direct array or native-order
+`MemorySegment` vector access, unmasked complete vectors, and scalar remainders. Parallel
+orchestration remains outside generated code.
 
 ### CPU kernel specialization
 
 The implemented backend-private immutable description of every fact allowed to change one
 generated CPU class. The current form includes the canonical lowering fingerprint, exact/default
-numerical mode, scalar/single-thread strategy, and complete ordered four-boundary
-`double[]`/`MemorySegment` carrier pattern. Canonical IR separately supplies value kind, data type,
-ordered semantics/stores, iteration rank, axis roles, contiguous-suffix form, and access regime.
-Their derived compatibility bytes and structural identity are order-sensitive.
+numerical mode, generated scalar/vector compute form, exact preferred FLOAT64 species bit size for
+vector compute, and complete ordered four-boundary `double[]`/`MemorySegment` carrier pattern.
+Canonical IR separately supplies value kind, data type, ordered semantics/stores, iteration rank,
+axis roles, contiguous-suffix form, and access regime. Their derived compatibility bytes and
+structural identity are order-sensitive.
 
 Concrete compatible extents, element count, layout offsets, effective stride values, starting
-coordinates and addresses, carrier objects, slots, physical addresses, run identity, cache state,
-and mutable observations are excluded. A CPU kernel specialization is not a capability claim,
-prepared executable, or persistent-cache record. Vector and parallel strategies remain Draft.
+coordinates and addresses, carrier objects, slots, physical addresses, selected range count,
+minimum chunk size, worker identity, run identity, cache state, and mutable observations are
+excluded. Parallel-scalar reuses the scalar artifact and parallel-vector reuses the vector
+artifact. A CPU kernel specialization is not a capability claim, prepared executable, worker
+lifecycle, or persistent-cache record.
 
 ### CPU generated-kernel artifact
 
@@ -1076,9 +1081,10 @@ loaded artifact.
 
 The implemented backend-private immutable result of route-neutral CPU analysis before shared slot
 assignment. `CpuPartitionPreparationPlan` retains one fused execution unit, its canonical kernel
-IR and portable specialization, exact scalar/default strategy, four ordered boundary values,
-normalized access bindings, structural carrier pattern, exact per-boundary declarations, compatible
-extents/count, and an optional cold lowering manifest.
+IR and portable specialization, exact/default compute and orchestration strategy, four ordered
+boundary values, normalized access bindings, structural carrier pattern, exact per-boundary
+declarations, compatible extents/count, selected range count, positive minimum range size, exact
+vector species when applicable, and an optional cold lowering manifest.
 
 CPU analysis validates that Planning selected CPU ownership, derives ADD/MUL shapes through Model
 right-aligned broadcasting, requires exact GELU shape, normalizes resolved layouts, proves output
@@ -1094,8 +1100,9 @@ three-node FLOAT64 proving topology and fails closed before artifact work for un
 The implemented backend-private immutable Runtime recipe constructed by CPU finalization after
 shared slot assignment. `CpuPreparedExecutable` strongly retains the partition's one generated
 artifact and exact static `MethodHandle`, four selected buffers, full normalized geometry, ordered
-carrier pattern, and one half-open logical range. It owns no physical representation or close
-lifecycle and may bind concurrently to distinct open `RunState` instances.
+carrier pattern, one half-open logical range, selected range bounds, and an optional borrowed CPU
+worker group. It owns no physical representation or worker close lifecycle and may bind
+concurrently to distinct open `RunState` instances.
 
 Cold binding consumes `CpuBorrowedBuffer` and `CpuNativeBuffer` through Runtime's
 `BufferRepresentation` boundary. It validates selected carrier form, liveness/accessibility,
@@ -1103,10 +1110,11 @@ writability, exact size/alignment, and actual input/output accessed spans once, 
 signature-specific `BoundInvocation` with direct typed fields and primitive address state. No executable accepts
 `HostTensorStorage` directly. The Runtime hot call performs no storage discovery, slot lookup,
 argument classification, artifact access, reflection, handle adaptation, route selection, or
-allocation. A bound partition invocation performs the Runtime state guard and calls the generated
-partition handle once. The current production family establishes only the exact fused FLOAT64
-proving topology; it makes no Tensor-result, gradient, compiler,
-conformance, integration, or performance claim.
+allocation. A bound partition invocation performs the Runtime state guard. It invokes one range
+inline or synchronously joins deterministic disjoint chunks through the borrowed group; generated
+code performs no scheduling. The current production family establishes only the exact fused
+FLOAT64 proving topology; it makes no Tensor-result, gradient, compiler, conformance, integration,
+or performance claim.
 
 ### CPU execution unit
 
@@ -1165,7 +1173,7 @@ generation and avoids placing every possible carrier combination in each class a
 grows.
 
 The current `CpuPartitionAnalysisInputs.DEFAULT` is a compatibility value for the fixed proving
-proving topology: it disables lowering-manifest retention and supplies four ordered
+topology: it disables lowering-manifest retention and supplies four ordered
 `MEMORY_SEGMENT` access forms. Explicit analysis inputs may immutably select any non-null
 four-entry heap/segment pattern. CPU analysis validates the snapshot against boundary count and
 order; it carries no physical carrier object or general Config policy. The default's length is not
@@ -1179,8 +1187,11 @@ general positive-strided odometer fallback. The five regimes emit distinct state
 linear increment, a constant address, a final-axis counter/reset, a contiguous-inner plus outer
 carry/reset, or a full-axis odometer. Generated hot code uses primitive address/carry
 arithmetic without per-element cursor allocation, semantic dispatch, division, or modulo.
-Vector gather is deferred to CPU 0005C and contiguous materialization to CPU 0005D; complete
-access semantics do not promise universal vectorization.
+Completed CPU 0005C vectorizes direct contiguous runs and scalar broadcasts when every non-scalar
+boundary admits a complete preferred-species vector, uses the scalar body for tails, and selects
+scalar fallback for the general odometer or a too-short run. It implements no gather or masked
+tail. Contiguous materialization remains Draft CPU 0005D work; complete access semantics do not
+promise universal vectorization.
 
 Cold bindings retain output extents, base offset, effective strides, start coordinates/address,
 and the exact half-open accessed span for their selected logical range. Output normalization uses
@@ -1196,10 +1207,34 @@ Compiler/Model `SUM_TO_SHAPE` semantics plus later CPU reduction coverage.
 ### CPU portable execution strategy
 
 One of exactly `scalar`, `vector`, `parallel-scalar`, or `parallel-vector`. Scalar/vector is the
-compute axis and single-thread/parallel is the orchestration axis. Generated kernels accept
-primitive `start` and `end`; workers dispatch chunks outside the generated inner loop, including
-correct vector chunks and tails. Task 0005A implements only scalar/single-thread, while ordered
-Draft tasks deliver the other three strategies.
+compute axis and single-thread/parallel is the orchestration axis. CPU analysis selects among all
+four before shared assignment. It uses the Java 26 preferred FLOAT64 species for eligible direct
+contiguous runs and scalar broadcasts, unmasked complete vectors plus scalar tails, and scalar
+fallback for general odometers or short runs. Generated kernels accept primitive `start` and
+`end`; worker orchestration remains outside generated code.
+
+Configured and available parallelism are positive immutable CPU-private snapshots. Analysis also
+uses a positive minimum elements per worker, while cold binding forms deterministic contiguous,
+non-empty, ascending chunks for the requested range. Zero work submits nothing and one chunk runs
+inline. Two or more chunks borrow an explicit caller-owned [CPU worker
+group](#cpu-worker-group--cpuworkergroup). These facts are prepared/cold state rather than
+generated-class identity, Config policy, Runtime selection, tuning evidence, or a performance
+claim.
+
+### CPU worker group / `CpuWorkerGroup`
+
+The implemented CPU-private caller-owned lifetime for a fixed positive number of named daemon
+platform workers. Composition or tests create and close the group. A CPU finalizer verifies and
+borrows it for a parallel plan; the prepared executable and bound invocation never close it. The
+group is not a public executor facade, common pool, virtual-thread scheduler, Runtime service,
+global singleton, or shared `PreparedExecution` lifecycle.
+
+Multi-chunk submissions complete synchronously. Detected failure or close cancels unclaimed work,
+started work quiesces, and failure selection is deterministic by ascending range index. Joining
+interruption restores the submitter's interrupt status and reports a CPU-private coordination
+failure. Close is thread-safe and idempotent, rejects new work, joins started work, and returns
+only after every owned worker terminates. Owned workers may neither submit nested multi-chunk work
+nor close their group. No write rollback or performance guarantee is implied.
 
 ### CPU generated-class persistence policy
 

@@ -9,12 +9,15 @@ import java.util.Objects;
  * This unsupported internal plan performs no graph interpretation or native-route selection.
  *
  * @param kernelIr non-null route-independent canonical IR
- * @param specialization non-null selected exact scalar Class-File specialization
+ * @param specialization non-null selected exact/default scalar or preferred-species vector
+ *     Class-File specialization; parallel orchestration, if selected, remains outside the artifact
  */
 public record CpuPortableRoutePlan(CpuKernelIr kernelIr, CpuKernelSpecialization specialization) {
     /**
      * Validates one portable realization plan.
      *
+     * @param kernelIr non-null route-independent canonical IR
+     * @param specialization non-null matching scalar or vector generated specialization
      * @throws NullPointerException if either component is {@code null}
      * @throws IllegalArgumentException if the specialization does not match the canonical IR
      */
