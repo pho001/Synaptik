@@ -96,6 +96,7 @@ public final class GraphPreparation {
         for (AnalysisInvocation invocation : invocations) {
             entries.add(invocation.analyze());
         }
+        validateCrossPartitionDeclarations(artifacts.memory().requirements(), entries);
 
         BackendPartitionFinalizationHandoff.Result handoff =
                 BackendPartitionFinalizationHandoff.finalizePartitions(
@@ -109,6 +110,40 @@ public final class GraphPreparation {
                 scheduleAssembler.assemble(context), "scheduleAssembler returned null");
         validateSchedule(context, schedule);
         return new PreparedExecution(handoff.memoryPlan(), schedule);
+    }
+
+    /**
+     * Requires every partition at a logical cross-partition boundary to declare that value.
+     * Values confined to one partition remain optional so backend-private fusion can keep them
+     * virtual. This check interprets only Planning producer/consumer facts and shared declarations.
+     */
+    private static void validateCrossPartitionDeclarations(
+            List<LogicalMemoryRequirement> requirements,
+            List<? extends BackendPartitionFinalizationHandoff.Entry<?, ?>> entries) {
+        var declarations = new HashMap<PlannedPartition, Set<ValueId>>();
+        for (var entry : entries) {
+            var values = declarations.computeIfAbsent(entry.analysis().partition(),
+                    ignored -> new HashSet<>());
+            entry.analysis().requirements().forEach(requirement -> {
+                if (requirement instanceof io.github.pho001.synaptik.prepare.analysis
+                        .PreparationResourceRequirement.Buffer buffer) {
+                    values.add(buffer.valueId());
+                }
+            });
+        }
+        for (LogicalMemoryRequirement requirement : requirements) {
+            var boundaryPartitions = new java.util.LinkedHashSet<PlannedPartition>();
+            requirement.producerPartition().ifPresent(boundaryPartitions::add);
+            boundaryPartitions.addAll(requirement.consumerPartitions());
+            if (boundaryPartitions.size() < 2) continue;
+            for (PlannedPartition partition : boundaryPartitions) {
+                if (!declarations.getOrDefault(partition, Set.of()).contains(requirement.valueId())) {
+                    throw new IllegalArgumentException(
+                            "cross-partition value " + requirement.valueId()
+                                    + " must be declared by partition " + partition);
+                }
+            }
+        }
     }
 
     private static <I extends BackendAnalysisInputs, P extends BackendPreparationPlan>

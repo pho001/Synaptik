@@ -3,15 +3,18 @@
 ## Outcome and status
 
 This guide defines the CPU integration boundary and helps contributors avoid treating CPU routes
-as separate backends. The current CPU module implements a truthful narrow capability provider,
-run-owned aligned native buffer/workspace representations, exact borrowed-segment cold binding,
-bounded worker infrastructure, and a backend-private Java 26 generated-kernel foundation with a
-durable generated-class artifact store. CPU-private typed analysis and finalization connect those
-foundations to the shared Prepare and Runtime contracts. The first production route now executes
-parameterless dense `ADD` for exact fully static equal shapes and equal `FLOAT64`, `FLOAT32`,
-`INT32`, or `INT64` types. It uses scalar single-thread generated kernels over native
-`MemorySegment` buffers and executes any supported CPU-owned partition as an ordered node-kernel
-sequence. Every other operation, type, layout, carrier, and mode remains fail-closed.
+as separate backends. The current CPU module implements one narrow, complete-partition proving
+slice: a fully static, canonical-dense FLOAT64 `ADD -> exact GELU -> MUL` chain lowers to one
+computation unit, one route-independent canonical kernel intermediate representation (IR), one
+generated Java 26 class, and one partition-level prepared executable. The two internal results
+remain graph and logical-memory values but are virtual in the fused unit, so only the three inputs
+and final output receive buffer declarations and Runtime slots.
+
+The generated scalar loop accepts primitive `start` and `end` bounds. Compatible concrete extents
+bind on the cold path and share identical class bytes and one process-local loaded compatibility
+identity. Capability and lowering fail closed for every other operation, type, shape, layout,
+parameter, alias, fan-out, publication, carrier, route, or strategy. Vector, parallel, native,
+broadcast, materialization, tuning, and broader semantic-family work remains Draft.
 
 The lower-level OpenBLAS provider separately implements explicit library loading, required-symbol
 binding, a caller-owned lookup lifetime, low-level FLOAT32/FLOAT64 dense row-major general matrix
@@ -36,22 +39,31 @@ deployment JVM permission for restricted native access.
 
 ## Ownership mental model and scope
 
-The CPU backend owns capability reporting and physical CPU representations. It will later own
-partition lowering, specialization, fusion, scalar and optimized routes, executable units, and
-typed tracing. Scalar, Vector API, generated Java Virtual Machine (JVM) bytecode computation
-kernels, specialized or fused kernels, and OpenBLAS implementations remain routes within one CPU
-owner. The architecture does not require a particular bytecode-generation API.
+The CPU backend owns capability reporting, physical CPU representations, whole-partition lowering,
+specialization, fusion, route selection, executable units, and typed tracing.
+The Class-File/Vector portable baseline, narrow OpenBLAS fallback, and exact-capability vendor peers
+remain routes within one CPU owner. Fusion and specialization describe common lowering or a route
+configuration; they are not additional backend identities or provider-owned graph pipelines. The
+architecture does not require a particular bytecode-generation API.
 
 ```text
 planning: owner = CPU
-CPU prepare: choose scalar / Vector API / generated JVM bytecode / OpenBLAS / specialized / fused
+CPU prepare: common lowering -> eligible portable / OpenBLAS / vendor peer plans -> whole-plan choice
 runtime: invoke prepared CPU executable
 ```
 
 The low-level OpenBLAS provider owns library loading, symbol binding, GEMM calls, and thread
-control only. Dependency direction is `backends/cpu -> backends/openblas-provider`.
+control only. It does not interpret graphs or choose fusion, broadcasting, representations,
+materialization, or Runtime lifetime. Dependency direction is
+`backends/cpu -> backends/openblas-provider`.
 
-## Current CPU foundation
+## Historical provisional foundation
+
+The following foundation description records the implementation delivered by superseded CPU
+tasks 0001 through 0005. CPU 0005A removed its flat `backend.cpu.execution` package, per-node
+candidate pipeline, worker/vector placeholders, and mandatory durable-store behavior. It remains
+useful as historical evidence only; the current implementation is described under
+[Atomic partition-kernel reset](#atomic-partition-kernel-reset).
 
 `CpuCapabilityProvider` is the only public CPU type. It returns the exact stable
 `BackendId("cpu")` constant. Its `supports` method returns `true` only for a parameterless binary
@@ -92,7 +104,7 @@ submissions, cooperative cancellation between ranges, first/suppressed failure p
 interrupt restoration, and idempotent shutdown. It does not select an operation, kernel, route,
 thread count from configuration, or reduction combine policy.
 
-## Current generated-kernel foundation
+## Historical generated-kernel foundation
 
 The generated-kernel foundation turns one already-selected typed specialization and one
 family-owned emitter into verified Java class bytes and a directly invocable hidden-class
@@ -157,7 +169,7 @@ exact-segment, and mixed signatures in all four modes. Those tests prove the gen
 and direct-carrier seams only. Separate CPU `ADD` tests prove the narrow production route described
 below; they do not broaden the generic foundation to other operations or modes.
 
-## Current durable generated-artifact store
+## Historical durable generated-artifact store
 
 `CpuGeneratedKernelArtifactStore` is the package-private cold-loading boundary for deterministic
 generated class bytes. A caller constructs it with one explicit trusted local root; construction
@@ -211,7 +223,7 @@ is outside this mechanism's security claim. The store is also distinct from a wo
 cache: it reuses exact executable bytes after route and specialization selection, while tuning
 evidence would help select a route or configuration before finalization.
 
-## Current typed portable preparation
+## Historical typed portable preparation
 
 The current CPU-private preparation path connects one already CPU-owned partition to one reusable
 Runtime recipe. Candidate sources return complete partition candidates, each with a non-empty
@@ -273,7 +285,7 @@ return proves only that the staged lifecycle and direct-call boundary work for t
 inputs. Production pointwise tests separately exercise the exact route below; neither test family
 claims backend conformance, public Engine integration, or performance.
 
-## Current dense ADD route
+## Historical dense ADD route
 
 The only production operation route is parameterless `BinaryArithmeticKind.ADD`. CPU analysis
 visits a non-empty CPU-owned partition in stored node order and rejects the complete partition if
@@ -312,11 +324,129 @@ creates two direct guard-free child calls. Normal execution produces `[12, 24]` 
 ordered native-segment ADD route for this example; it does not prove heap, Vector, parallel,
 fused, dynamic-shape, or non-canonical-layout support.
 
-The route supports scalars and zero extents because their shapes are fully static. It deliberately
+The historical route supported scalars and zero extents because their shapes were fully static. It deliberately
 excludes broadcasting, mixed types, BFLOAT16, BOOL, FLOAT16, resolved views or non-canonical
 strides, input/output aliasing, heap or mixed carriers, Vector API and parallel execution,
-fusion, workspace, tuning, and vendor libraries. CPU 0005A is Draft planning for later arithmetic,
-carrier, and mode expansion; it has no detailed specification.
+fusion, workspace, tuning, and vendor libraries. CPU 0005A replaced this route atomically; later
+family expansion remains Draft.
+
+## Atomic partition-kernel reset
+
+Completed [CPU task 0005A](../planning/backends/cpu/tasks/0005a-atomic-partition-kernel-architecture-reset.md)
+atomically replaced the historical per-node ADD sequence before operation-family expansion.
+
+The current CPU-private flow is:
+
+```text
+complete CPU-owned partition
+  -> computation-oriented execution units
+  -> legal then profitable fusion
+  -> route-independent canonical kernel IR and normalized access-plan form
+  -> exact post-fusion buffer declarations
+  -> portable Class-File/Vector baseline or eligible peer native route
+  -> one partition-level PreparedExecutable
+  -> direct cold-bound execution
+```
+
+The proving slice is one static canonical-dense FLOAT64 ADD -> exact GELU -> MUL chain. Its ADD and
+GELU results remain graph values and kernel-IR values, but they are virtual within the one fused
+unit and receive no buffer declaration or Runtime slot. This does not remove them from
+`LogicalMemoryPlan`: logical graph-value planning and backend physical materialization are
+different decisions. A scalar reference realization checks conformance and provides a fail-closed
+fallback; it is not an `Operation` or IR interpreter inside Runtime.
+
+The portable route is bytecode-first Java 26 Class-File generation plus the Vector API and remains
+the always-available semantic fallback for every occurrence it supports. CPU 0005A implements only
+its scalar proving strategy. OpenBLAS is a narrow cross-platform native fallback for eligible
+BLAS-compatible linear algebra, not the universal or preferred CPU route. Vendor/platform peers
+include Accelerate BLAS/vDSP/vForce on Apple CPU, distinct oneMKL BLAS/VML and oneDNN families on
+Intel, and distinct AOCL-BLAS/AOCL-LibM and optional ZenDNN families on AMD.
+
+There is no fixed vendor priority and no route-specific `BackendId`. Planning selects the single
+CPU owner; CPU Prepare filters exact capability, platform, semantics, numerical/determinism,
+layout, representation, and resources, then compares whole-plan cost. Apple Silicon may admit
+Accelerate. Other ARM targets use portable code generation unless a later task adds an explicitly
+verified provider; ARM does not imply one hard-coded native library.
+
+Portable generated loops use universal primitive `start`/`end` loops. Compatible
+concrete extents and element count bind on the cold path and do not normally change class/cache
+identity. Focused tests prove that one exact byte sequence and loaded compatibility identity serve
+two compatible extents of the same fused topology. Fixed-shape or unrolled variants remain later,
+budgeted, evidence-selected specializations.
+
+The canonical IR records typed boundary/virtual values, ordered semantics, structural access-plan
+form, loop model, and stores. It excludes selected route, thread count, vector species, artifact
+root, graph/Runtime identity, generator version, and invocation bindings. The planned single
+right-aligned access system consumes current Model `ShapeBroadcast` and `LayoutDescriptor`
+semantics, including scalar, expanded-rank, singleton/multi-axis/zero broadcast, offsets, positive
+and zero strides, and eventually heap, segment, mixed, and exactly Prepare-bound dynamic/symbolic
+dimensions. It does not duplicate `WHERE`, elementwise, or fused planners. Broadcast gradients
+remain `SUM_TO_SHAPE` and later reduction work.
+
+Partition lowering, fusion legality/profitability, canonical IR, access plans, materialization
+accounting, numerical/determinism checks, and representation planning are common across routes.
+Native provider adapters consume selected route facts and own only provider ABI/compatibility
+mechanics. They do not reinterpret graphs, duplicate broadcasting or fusion, or own shared Runtime
+resource lifetimes.
+
+Numerical permission follows the same common path. An internal portable or vendor implementation
+may use a fast exponential, hyperbolic tangent, or similar algorithm under the hood, but it is an
+exact/default candidate only when it satisfies the ordinary operation's conformance contract. A
+genuinely relaxed approximation requires explicit caller permission from the future backend-neutral
+prepare configuration; hardware, an installed provider, workload size, a tuning objective, or a
+benchmark result cannot grant it. Tuning and benchmarking compare only candidates already eligible
+under that permission and contract.
+
+Future scalar-power strength reduction likewise belongs to common CPU analysis, not an emitter or
+provider adapter. The compiled graph retains semantic `POW`; exact typed exponents such as `2`,
+`-1`, and other small integers may select multiply, reciprocal, or exponentiation by squaring only
+after an exact/default conformance proof. `POW(0.5)` is not silently replaced by `SQRT`. Tensor
+exponents require compiler-owned immutable facts proving one exact typed uniform exponent; CPU
+does not read Tensor storage or infer a constant from factory history. The selected numerical mode
+and realization-changing power plan belong in specialization/cache compatibility and the cold
+lowering manifest, never a hot-path lookup. Forward and compiler-generated gradient operations use
+this same policy.
+
+The ordered access tiers are dense linear, scalar/all-zero broadcast, last-axis bias, block/outer
+broadcast with a contiguous inner loop, general positive-strided odometer, scalar fallback,
+cost-gated gather, and optional contiguous materialization. Bytecode emits offset/carry arithmetic
+directly with no hot cursor, virtual call, or per-element division/modulo. Semantic coverage does
+not promise that every layout is vectorized.
+
+Before shared assignment, later CPU analysis may compare direct access with CPU-internal contiguous
+materialization using copy cost, kernel benefit, reuse/fan-out, vendor eligibility, memory cost,
+and expected repeated runs. If selected, it declares the exact internal resource and lowers copy
+plus consumer units without changing the Model graph.
+
+Shared Prepare remains blind to CPU units and fusion. Its narrow declaration hardening checks only
+cross-planned-partition values: the producer partition, when present, and every distinct external
+consumer partition must each declare the value. A value whose producer and consumers are confined
+to one partition may remain undeclared. Existing bindable-input, constant, and publication checks
+remain unchanged.
+
+The final portable strategy vocabulary is exactly scalar, vector, parallel-scalar, and
+parallel-vector: scalar/vector is the compute axis and single-thread/parallel is orchestration.
+Generated kernels always take `start` and `end`; workers dispatch chunks outside the inner loop.
+CPU 0005A implements only scalar/single-thread. Ordered Draft tasks deliver full broadcasting,
+then vector and parallel strategies, then materialization and persistence/specialization evidence.
+
+The reset replaces the flat execution package with unsupported `.internal` packages for memory,
+prepare, lowering, IR, portable code generation/emission, `route.portable`, cache, executable, and
+reference responsibilities. Java subpackages are not friends, so only the minimum collaboration
+contracts are technically public below `.internal`; `CpuCapabilityProvider` remains the sole
+supported public CPU API. CPU 0005A creates no native placeholder package. Later concrete tasks own
+`route.nativeblas` leaves for OpenBLAS/Accelerate/oneMKL/AOCL and `route.nativeops` leaves for
+vDSP/vForce/VML/oneDNN/AOCL-LibM/ZenDNN.
+
+Generated-class persistence is optional cold-path policy. Without a trusted root, CPU emits,
+verifies, and defines deterministically in memory. With a root, a compatible hit may avoid emission
+but is still verified and defined; it does not preserve JIT code or profiles. Persistence remains
+disabled and unclaimed by default until benchmark evidence. Structural identity and prepared-
+execution strong ownership remain mandatory, and there is no migration reader.
+
+The replacement removed the old portable candidate, preparer, finalizer, executable, pointwise-ADD,
+unused worker/vector, and flat-package types without aliases or adapters. Historical CPU 0001–0005
+specifications remain preserved as Superseded evidence.
 
 ## Current low-level OpenBLAS foundation
 
@@ -483,10 +613,10 @@ supplied compatible arm64 OpenBLAS 0.3.33 library, including shared thread-count
 fixed SGEMM/DGEMM cases, and restoration of the original thread count. The ordered repository and
 architecture capability checkpoint then passed, and the provider milestone is complete.
 
-The current CPU foundation adds the exact dense `ADD` capability and scalar native-segment route
-on top of its storage, binding, worker, generated-kernel, artifact, analysis, and finalization
-infrastructure. No other CPU operation capability, route threshold, fallback, backend
-conformance, public Engine integration, or performance result is implemented or promised.
+The current CPU foundation provides only the fused canonical-dense FLOAT64
+`ADD -> exact GELU -> MUL` portable scalar route described above. No other CPU operation
+capability, route threshold, native fallback, backend conformance, public Engine integration, or
+performance result is implemented or promised.
 Ordinary provider tests
 prove Java validation and exact ABI forwarding, not installed-library numerical correctness. The
 native checkpoint proves only its selected binary and fixed cases.

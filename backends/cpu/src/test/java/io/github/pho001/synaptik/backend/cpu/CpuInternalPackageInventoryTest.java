@@ -1,0 +1,64 @@
+package io.github.pho001.synaptik.backend.cpu;
+
+import static org.junit.jupiter.api.Assertions.*;
+
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.Set;
+import java.util.stream.Collectors;
+import org.junit.jupiter.api.Test;
+
+class CpuInternalPackageInventoryTest {
+    @Test void exposesOnlyTheAuthorizedSupportedAndInternalTypeInventory() throws Exception {
+        Path root = Path.of("src/main/java/io/github/pho001/synaptik/backend/cpu");
+        Set<String> packages;
+        Set<String> javaFiles;
+        try (var paths = Files.walk(root)) {
+            packages = paths.filter(path -> path.getFileName().toString().equals("package-info.java"))
+                    .map(path -> root.relativize(path.getParent()).toString().replace('\\', '/'))
+                    .collect(Collectors.toSet());
+        }
+        try (var paths = Files.walk(root)) {
+            javaFiles = paths.filter(path -> path.getFileName().toString().endsWith(".java"))
+                    .map(path -> root.relativize(path).toString().replace('\\', '/'))
+                    .collect(Collectors.toSet());
+        }
+        assertAll(
+                () -> assertEquals(Set.of("", "internal", "internal/memory", "internal/prepare",
+                        "internal/lowering", "internal/ir", "internal/codegen/emit",
+                        "internal/route/portable", "internal/cache", "internal/executable",
+                        "internal/reference"), packages),
+                () -> assertEquals(Set.of(
+                        "CpuCapabilityProvider.java", "package-info.java", "internal/package-info.java",
+                        "internal/memory/CpuBorrowedBuffer.java", "internal/memory/CpuBufferArgument.java",
+                        "internal/memory/CpuBufferRepresentation.java", "internal/memory/CpuNativeBuffer.java",
+                        "internal/memory/package-info.java", "internal/prepare/CpuPartitionAnalysisInputs.java",
+                        "internal/prepare/CpuPartitionPreparationPlan.java",
+                        "internal/prepare/CpuPartitionPreparer.java", "internal/prepare/CpuPartitionFinalizer.java",
+                        "internal/prepare/package-info.java", "internal/lowering/CpuPartitionLowering.java",
+                        "internal/lowering/package-info.java", "internal/ir/CpuKernelIr.java",
+                        "internal/ir/CpuAccessPlan.java", "internal/ir/package-info.java",
+                        "internal/codegen/emit/CpuCarrierEmitter.java",
+                        "internal/codegen/emit/CpuClassFileKernelGenerator.java",
+                        "internal/codegen/emit/CpuGeneratedKernel.java",
+                        "internal/codegen/emit/CpuLoopEmitter.java",
+                        "internal/codegen/emit/CpuScalarEmitter.java",
+                        "internal/codegen/emit/package-info.java",
+                        "internal/route/portable/CpuPortableRoutePlan.java",
+                        "internal/route/portable/package-info.java",
+                        "internal/cache/CpuGeneratedKernelArtifactStore.java",
+                        "internal/cache/CpuGeneratorSchema.java", "internal/cache/CpuKernelSpecialization.java",
+                        "internal/cache/CpuLoweringFingerprint.java", "internal/cache/package-info.java",
+                        "internal/executable/CpuPreparedExecutable.java", "internal/executable/package-info.java",
+                        "internal/reference/CpuScalarReferenceKernel.java", "internal/reference/package-info.java"),
+                        javaFiles),
+                () -> {
+                    try (var old = Files.exists(root.resolve("execution"))
+                            ? Files.walk(root.resolve("execution")) : java.util.stream.Stream.<Path>empty()) {
+                        assertEquals(0, old.filter(Files::isRegularFile).count());
+                    }
+                },
+                () -> assertFalse(Files.exists(root.resolve("internal/route/nativeblas"))),
+                () -> assertFalse(Files.exists(root.resolve("internal/route/nativeops"))));
+    }
+}

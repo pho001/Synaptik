@@ -972,7 +972,36 @@ The rule that each concrete backend translates its assigned planned partitions i
 A concrete implementation choice inside one backend, such as a CPU scalar loop, Vector API
 routine, generated CPU computation kernel, OpenBLAS call, MPSGraph executable, custom Metal
 kernel, or CUDA kernel. A route is selected during backend prepare after planning has chosen the
-backend owner. Routes are not separate backend identities.
+backend owner. Routes and provider libraries are not separate backend identities. CPU route
+selection therefore retains one `BackendId("cpu")` and has no fixed vendor-priority list.
+
+### CPU portable route
+
+The bytecode-first Java Class-File API plus Vector API production baseline inside the single CPU
+backend. It is the always-available semantic fallback for every operation occurrence it truthfully
+supports, although a scalar reference remains available separately for conformance and fail-closed
+checking. Metadata-only work may require no generated class. Task 0005A implemented the portable
+scalar proving slice and `internal.route.portable`; later portable tasks add the vector and
+parallel strategies.
+
+OpenBLAS is not another meaning of portable route. It is a narrow cross-platform native fallback
+for eligible BLAS-compatible linear algebra. It is neither a universal fallback nor preferred over
+generated code by library identity.
+
+### CPU native peer route (planned)
+
+An exact-capability native realization compared with the portable route by CPU Prepare using
+whole-plan cost. Families include OpenBLAS for narrow BLAS-compatible work; Accelerate
+BLAS/vDSP/vForce on Apple CPU; distinct oneMKL BLAS/VML and oneDNN routes on Intel; and distinct
+AOCL-BLAS/AOCL-LibM and optional ZenDNN routes on AMD. Apple Silicon may use Accelerate, while
+other ARM targets retain portable code generation unless a later task supplies an explicitly
+verified provider. ARM itself does not name one native library.
+
+Planning still selects one CPU backend owner. Common partition lowering, fusion legality and
+profitability, canonical CPU IR, access plans, materialization accounting, numerical/determinism
+checks, and representation planning remain route-independent. A provider adapter owns ABI and
+provider-specific compatibility mechanics only; it does not reinterpret graphs, duplicate
+broadcast/fusion planning, or own shared resource lifetimes.
 
 ### Generated CPU computation kernel
 
@@ -1088,6 +1117,91 @@ allocation. A bound partition invocation performs one parent partition guard, th
 guard-free bound node invocations in planned node order. The current production family establishes
 only exact scalar dense pointwise `ADD`; it makes no Tensor-result, gradient, compiler,
 conformance, integration, or performance claim.
+
+### CPU execution unit
+
+A backend-private computation-oriented group inside one CPU-owned planned
+partition. CPU analysis forms units and applies legal fusion before declaring physical resources.
+One unit has one canonical loop-oriented kernel intermediate representation and one selected
+generated-Class-File, metadata-only, or peer native realization. A scalar reference realization
+is reserved for conformance and fail-closed fallback, not Runtime IR interpretation. A partition
+may contain multiple units, but Runtime receives one partition-level prepared executable rather
+than one executable per graph node or unit.
+
+The term is CPU-private lowering vocabulary. It is not a Planning `PlannedPartition`,
+Runtime `PreparedUnit`, public backend SPI, operation family, registry entry, or shared Prepare
+type. Shared Prepare sees only the resulting opaque backend plan and exact resource declarations.
+Task 0005A creates only the portable route package; later native packages appear only with their
+concrete Draft tasks.
+
+### CPU kernel intermediate representation
+
+The immutable CPU-private loop-oriented representation of one CPU execution
+unit. Its route-independent canonical form records typed boundary and virtual values, ordered
+computation semantics, normalized access-plan form, a universal primitive `start`/`end` loop
+model, fusion form, output stores, and the numerical semantic version. It contains no compatible
+concrete extents or element count by default, selected route/configuration, thread count, vector
+species, cache root, generator/artifact compatibility setting, `Operation`, `CompiledNode`, graph
+identity, Runtime slot, physical segment, method handle, or run state.
+
+Generated and scalar-reference realizations consume the same canonical representation. Canonical
+topology and semantics participate in generated-artifact identity; specialization separately adds
+structural access regime, fusion form, data type, route/strategy/configuration, and compatibility
+facts. Instance extents, offsets, carriers, slots, and segments participate in neither. A later
+fixed-shape or unrolled variant may add extents only as an explicit evidence-selected specialization
+under a class-count budget.
+
+This is backend-internal state, not another Model, Compiler, Planning, Prepare, or Runtime
+IR.
+
+### CPU access plan
+
+The normalized per-input address description intended to be shared by pointwise, `WHERE`, and fused
+CPU units. CPU 0005A implements only canonical-dense structural access plus cold-bound compatible
+extents and primitive bounds. The ordered Draft expansion right-aligns rank and retains concrete extents, a base element offset,
+effective `long` strides, and zero strides on broadcast axes. Different operands of one fused unit
+may have different plans. The plan consumes current Model `ShapeBroadcast` and `LayoutDescriptor`
+contracts rather than duplicating shape or layout semantics.
+
+Its eventual domain includes scalars, rank expansion, singleton and multi-axis broadcast, zero
+extents, masks and parameter inputs, offset-contiguous and positive-strided layouts, zero-stride
+views, heap arrays, `MemorySegment`, mixed carriers, and dynamic or symbolic dimensions once
+Prepare has bound them exactly. Planned execution tiers are dense, scalar/all-zero, last-axis bias,
+block/outer with contiguous inner loop, positive-strided odometer, scalar fallback, cost-gated
+gather, and optional contiguous materialization. Complete access semantics do not promise that
+every layout is vectorized. Broadcast gradients remain Compiler/Model `SUM_TO_SHAPE` semantics
+plus later CPU reduction coverage.
+
+### CPU portable execution strategy
+
+One of exactly `scalar`, `vector`, `parallel-scalar`, or `parallel-vector`. Scalar/vector is the
+compute axis and single-thread/parallel is the orchestration axis. Generated kernels accept
+primitive `start` and `end`; workers dispatch chunks outside the generated inner loop, including
+correct vector chunks and tails. Task 0005A implements only scalar/single-thread, while ordered
+Draft tasks deliver the other three strategies.
+
+### CPU generated-class persistence policy
+
+An optional cold-path policy for compatible deterministic class bytes. With no configured trusted
+artifact root, CPU emits, verifies, and defines in memory. With a root, a verified compatible hit
+may avoid emission, but it is still defined in the current JVM and cannot preserve JIT machine
+code or profiling. Missing, corrupt, or incompatible storage safely returns to in-memory emission.
+
+Persistence is neither correctness-critical nor Runtime state. It remains disabled and carries no
+default performance claim until benchmark evidence. Deterministic structural identity and
+prepared-execution strong artifact ownership remain mandatory, and the reset adds no reader for
+earlier schemas.
+
+### CPU virtual intermediate
+
+A graph value whose producer and every consumer are inside one fused CPU execution unit and which
+has no publication or other unit/partition boundary obligation. It remains present in the
+compiled graph, `LogicalMemoryPlan`, and CPU kernel IR, but CPU analysis emits no buffer
+declaration for it, so shared Prepare assigns no physical slot.
+
+Virtuality is decided only by CPU analysis after legal fusion. Shared Prepare does not infer it or
+require one buffer per projected value. A fan-out, publication, cross-partition consumer, or
+execution-unit split makes the value a materialized boundary instead.
 
 ### Benchmark report / benchmarking
 
@@ -1473,6 +1587,36 @@ explicit [`cast`](#cast-expression) when cross-category conversion is intended.
 Promotion selects expression metadata only. It does not insert a cast producer, convert or read
 values, capture a graph, choose a backend, or execute. See
 [numeric promotion](api/tensor-api.md#numeric-promotion).
+
+### Numerical permission (planned)
+
+The future small backend-neutral Prepare configuration that tells candidate selection whether the
+caller permits behavior outside an operation's ordinary exact/default conformance contract and
+states the required determinism. Its default grants no relaxed or fast-math behavior. It names no
+backend, provider, route, kernel, approximation algorithm, compiler pass, or operation-specific
+rewrite.
+
+Permission is an input, not a fact inferred from hardware, provider availability, workload size,
+a performance objective, tuning, or a benchmark. Those mechanisms may compare only candidates
+already eligible under the caller's permission and the semantic operation contract. Forward and
+compiler-generated gradient operations share this policy; there is no gradient-specific numerical
+permission.
+
+### Power strength reduction (planned)
+
+A backend-prepare realization choice that retains semantic `POW` in the compiled graph while
+implementing an exact typed small integral exponent with multiplication, reciprocal, or
+exponentiation by squaring. Common route-independent backend analysis owns exponent classification,
+numerical eligibility, and the selected plan; emitters and provider adapters only consume it.
+
+The current Compiler already bypasses typed scalar `POW(+1)` under task 0003A's exact guards. A
+future graph-level `POW(0)` identity needs a typed shape-correct logical one-splat and a complete
+exceptional-value, constant-sidecar, output/publication, phase/autograd, and descriptor proof.
+`POW(0.5)` is not silently `SQRT`, because domain, signed-zero, exceptional-value, and rounding
+behavior can differ. Tensor exponents qualify only through compiler-owned immutable facts proving
+one exact typed uniform exponent, never through Tensor storage or factory history. Any selected
+realization-changing plan and numerical mode participate in specialization/cache compatibility and
+the cold lowering manifest, with no Runtime hot-path lookup.
 
 ### Typed scalar value / `ScalarValue`
 
@@ -1978,7 +2122,9 @@ partition-internal values without a separate role enum. A standalone public plan
 direct construction validates DTO state but cannot prove graph-relative facts without an owning
 graph.
 
-A logical memory plan is not a physical memory plan. It contains no
+A logical memory plan is not a physical memory plan. A requirement does not itself create a
+Runtime buffer slot; shared Prepare creates slots only for exact backend buffer declarations made
+after backend-private lowering, fusion, and materialization decisions. It contains no
 `ForwardPublicationBinding`, `GradientPublicationBinding`, public Tensor identity, element or
 byte count, lifetime, transfer, copy, device, address, buffer, slot, arena, allocation, route,
 kernel, schedule, or runtime residency. Retaining `TensorDescriptor` keeps static, dynamic, and

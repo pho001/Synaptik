@@ -1,8 +1,8 @@
 /**
- * Supplies the explicitly constructed CPU capability provider and its stable {@code cpu} identity.
+ * Supplies the sole supported CPU capability provider and its stable {@code cpu} identity.
  *
- * <p>The current backend is an execution foundation only and truthfully advertises no Model
- * operation semantics. Physical representations, binding, and worker coordination remain private
- * implementation details in the {@code execution} package.</p>
+ * <p>The {@code internal} namespace contains unsupported implementation contracts for complete-
+ * partition lowering, code generation, storage, and execution. No type in that namespace is a
+ * supported public API.</p>
  */
 package io.github.pho001.synaptik.backend.cpu;

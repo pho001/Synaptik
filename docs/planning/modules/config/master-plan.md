@@ -71,7 +71,7 @@ inventing a public surface now.
 | 0003 | [Partition scoring configuration](tasks/0003-partition-scoring-configuration.md) | Complete | 0001–0002, planning 0001 | Added one optional coarse `DeviceClass` preference as soft input for later comparison of already eligible ownership candidates, without evaluating candidates or choosing ownership. |
 | 0004 | Planning cost-profile contract | Draft | 0001–0003, planning 0001–0003, stable backend-neutral cost classification | Define only immutable backend-neutral estimates required by the concrete ownership-scoring consumer; do not encode backend route or model-autotuning values. |
 | 0005 | Compile configuration aggregate | Draft | 0001–0004 | Compose compile mode, backend intent, optimization, scoring, and any justified planning-cost inputs without compiler orchestration. |
-| 0006 | Prepare numerical and determinism configuration | Draft | 0005, stable concrete-backend prepare consumer | Define only immutable backend-neutral numerical/determinism requirements needed to filter backend candidates; defaults preserve exact semantics and grant no relaxed/fast-math permission. |
+| 0006 | Prepare numerical and determinism permission | Draft | 0005, stable exact concrete-backend prepare eligibility boundary | Define the smallest immutable backend-neutral prepare permission needed to filter numerical/determinism candidates; the default grants no relaxed/fast-math behavior, and the contract names no backend, provider, kernel, approximation, compiler pass, or operation-specific rewrite. |
 | 0006A | Model-autotuning request configuration | Draft | 0006, stable prepare/tuning consumers | Define only the immutable objective, budget, constraints, representative profiles, fallback policy, and explicit-cache inputs required by stable consumers; do not expose backend candidate fields or own search/persistence. |
 | 0007 | Run and publication configuration | Draft | 0005 | Define immutable invocation and publication options without runtime state or execution. |
 | 0008 | Configuration contract closure | Draft | 0001–0007, including 0006A | Audit validation, package/API cohesion, documentation, and dependency boundaries before planning begins. |
@@ -113,6 +113,14 @@ compile entry, so Config 0004 remains Draft and no config status advances.
 - Exact/default numerical semantics are the current candidate-eligibility boundary. A future
   explicit policy must define any relaxed or fast-math permission; Config must not infer that
   permission from platform, provider availability, workload size, or a performance objective.
+- Config 0006 is the sole future owner of a small backend-neutral prepare permission. Its default
+  denies relaxed behavior. It describes caller permission and determinism requirements only; it
+  must not name a backend, provider, route, kernel, approximation algorithm, compiler pass, or
+  operation-specific rule such as a `POW` strength reduction.
+- The stable-boundary dependency means an exact/default prepare analysis contract exists before
+  Config fixes its vocabulary. It does not depend on a later relaxed-route consumer: that work is
+  downstream of Config 0006, while exact/default backend work remains independent of relaxed
+  permission.
 - Exact composition and defaults for compile, prepare, run, and publication aggregates remain for
   their owning tasks.
 
@@ -127,6 +135,10 @@ compile entry, so Config 0004 remains Draft and no config status advances.
 - Numerical/determinism compatibility is a hard backend-candidate filter applied before
   performance selection. Configuration may eventually carry explicit backend-neutral permission,
   but it never names oneDNN, oneMKL, Accelerate, AOCL, ZenDNN, OpenBLAS, or a backend route.
+- Hardware features, provider availability, workload size, a tuning objective, and benchmark or
+  model-autotuning results never grant relaxed numerical permission. They may compare only
+  candidates already eligible under the caller's explicit Config 0006 permission and the
+  operation's ordinary conformance contract.
 - `tools/benchmarks` later produces observational reports from fixed workloads and never selects
   production settings. `tools/tuning` later coordinates one explicit model-autotuning workflow.
   Config stores only immutable request inputs after their consumers exist; it owns no cache or

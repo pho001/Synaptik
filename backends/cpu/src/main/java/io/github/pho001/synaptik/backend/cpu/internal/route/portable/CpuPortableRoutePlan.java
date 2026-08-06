@@ -1,0 +1,28 @@
+package io.github.pho001.synaptik.backend.cpu.internal.route.portable;
+
+import io.github.pho001.synaptik.backend.cpu.internal.cache.CpuKernelSpecialization;
+import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuKernelIr;
+import java.util.Objects;
+
+/**
+ * Immutable portable Class-File realization facts for one already-lowered CPU execution unit.
+ * This unsupported internal plan performs no graph interpretation or native-route selection.
+ *
+ * @param kernelIr non-null route-independent canonical IR
+ * @param specialization non-null selected exact scalar Class-File specialization
+ */
+public record CpuPortableRoutePlan(CpuKernelIr kernelIr, CpuKernelSpecialization specialization) {
+    /**
+     * Validates one portable realization plan.
+     *
+     * @throws NullPointerException if either component is {@code null}
+     * @throws IllegalArgumentException if the specialization does not match the canonical IR
+     */
+    public CpuPortableRoutePlan {
+        Objects.requireNonNull(kernelIr, "kernelIr");
+        Objects.requireNonNull(specialization, "specialization");
+        if (!kernelIr.structuralKey().equals(specialization.loweringFingerprint().hex())) {
+            throw new IllegalArgumentException("specialization must match canonical IR");
+        }
+    }
+}

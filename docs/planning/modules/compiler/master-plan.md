@@ -96,6 +96,7 @@ cross-package/public orchestration boundary from a concrete consumer.
 | 0005D | [Attention, convolution, pooling, and loss gradient completion](tasks/0005d-attention-convolution-pooling-and-loss-gradient-completion.md) | Complete | 0005B, 0005C | Verified the implemented MATMUL/linear chain and completed the representable structured-ML inventory: two-output attention with canonical weights, grouped convolution, pooling, and every current loss role/reduction mode; one-output attention and dynamic/zero-depth index loss fail closed. |
 | 0005E | [First-order gradient coverage closure checkpoint](tasks/0005e-first-order-gradient-coverage-closure-checkpoint.md) | Complete | 0005A, 0005B, 0005C, 0005D | Added one package-private coverage checker; closed all current 37 kind families, 107 constants, 128 signature variants, legal output slots, and ordered input roles as differentiable, intentionally non-differentiable, or explicitly fail-closed; and proved bounded transitive and connected nested-pass formula closure at the first-order capability checkpoint. |
 | 0006 | [Explicit functional gradient requests and higher-order differentiation](tasks/0006-explicit-functional-gradient-requests-and-higher-order-differentiation.md) | Complete | 0005E and the stable public compile/artifact boundary from 0005 | Added one public immutable one/two-stage functional request, explicit/default cotangent seeds, ERROR/ZERO disconnected behavior, ordered `GradientPublicationBinding` values, and compiler-owned derivative-order metadata over the closed first-order formula matrix without Tensor gradient lifecycle state or another compile facade. |
+| 0007 | Exact constant identities and permission-aware algebra | Draft | 0006; Config 0006 before any relaxed rule | Reassess remaining graph-level exact constant/algebra identities and any explicitly permitted relaxed rewrites without changing completed 0001–0006 history: preserve current guarded scalar `POW(+1) -> input`, require complete exceptional-value/constant-sidecar/output/publication/phase/autograd/descriptor proof before an exact `POW(0)` typed shape-correct one-splat, and never infer Tensor constants from storage or factory history. |
 
 Tasks 0005A–0005D partition the complete current model operation inventory without claiming that
 every role has a gradient. A task may claim family coverage only after it has implemented every
@@ -132,8 +133,9 @@ higher-order path without implementing higher-order requests before 0006.
 
 ## Current status
 
-Complete. Tasks 0001–0006 are Complete with recorded source, tests, documentation, and validation,
-and no later Compiler task is specified. Compiler 0004, 0004A, and 0004B are Complete with
+Complete through task 0006. Tasks 0001–0006 are Complete with recorded source, tests,
+documentation, and validation. Draft task 0007 records later work without a detailed
+specification. Compiler 0004, 0004A, and 0004B are Complete with
 recorded source, tests, documentation, and validation.
 [Compiler 0004B](tasks/0004b-shared-algebra-cotangent-normalization-and-local-derivative-rules.md)
 adds the closed mixed-floating cotangent
@@ -295,6 +297,23 @@ only Runtime 0001; Prepare remains Draft.
   numerical semantics, and existing guarded optimization rules as forward expressions. Autograd
   adds local differentiation formulas, genuinely necessary local conventions, and cotangent
   Shape/DataType normalization; it adds no gradient-only numerical or optimization policy.
+- Compiler 0003A's exact typed scalar `POW(+1) -> input` bypass remains implemented under its
+  current internal-one-output `FORWARD`, descriptor-equality, false-gradient, and non-public-output
+  guards. Later planning must not rewrite that completed history or imply broader current power
+  algebra.
+- Draft 0007 owns only future graph-level identities. An exact `POW(0)` replacement requires a
+  typed shape-correct logical one-splat and a complete proof covering exceptional values, explicit
+  constant sidecars, output/publication identity, graph phase, autograd, and descriptors. Tensor
+  exponent forms are eligible only when compiler-owned immutable constant facts prove one exact
+  typed uniform exponent; Tensor storage and factory history are never evidence.
+- `POW(0.5)` must not be silently replaced by `SQRT`, nor may analogous fractional identities be
+  assumed, because signed-zero, domain, exceptional-value, and rounding behavior can differ.
+  `POW(2)`, `POW(-1)`, and other small integral exponents remain semantic `POW` in the compiled
+  graph and are primarily backend-prepare realization choices.
+- Forward and compiler-generated gradient operations use the same exact/default numerical policy.
+  No gradient-specific numerical permission or rewrite policy is planned. Any later relaxed
+  compiler rewrite requires the caller permission owned by Config 0006; hardware, providers,
+  workload size, objectives, tuning, and benchmarks cannot supply it.
 - One compile request may use `IdentityHashMap`-style Tensor-to-contribution and
   Tensor-to-accumulated-gradient bookkeeping. It is ephemeral compiler state, not Tensor state,
   graph IR, or a second graph.
@@ -419,6 +438,9 @@ only Runtime 0001; Prepare remains Draft.
 - Turning logical saved Tensor edges into physical buffers, recomputation policy, runtime
   scheduling, or a compiler-owned tape.
 - Creating a public facade before the engine/config/artifact consumers are stable.
+- Treating Tensor storage or construction history as an exponent constant, replacing fractional
+  powers with superficially similar unary operations, or letting a benchmark grant numerical
+  permission.
 
 ## Notes
 
@@ -445,4 +467,5 @@ implementation/documentation handoff. Detailed 0005D and
 [0005E](tasks/0005e-first-order-gradient-coverage-closure-checkpoint.md) are Complete. Detailed
 [0006](tasks/0006-explicit-functional-gradient-requests-and-higher-order-differentiation.md) is
 Complete with the approved forward/gradient publication-binding terminology correction;
-reassess the roadmap before creating a later compiler specification.
+Draft 0007 is the concise later row for remaining exact identities and permission-aware algebra.
+It has no detailed task specification.

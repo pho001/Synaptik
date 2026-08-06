@@ -5,6 +5,8 @@ import static org.junit.jupiter.api.Assertions.*;
 import io.github.pho001.synaptik.backend.contract.BackendId;
 import io.github.pho001.synaptik.planning.capability.BackendCapabilityProvider;
 import java.lang.reflect.Modifier;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -27,6 +29,16 @@ class CpuCapabilityProviderPublicShapeTest {
                 () -> assertEquals(BackendId.class, type.getDeclaredField("CPU_BACKEND_ID").getType()),
                 () -> assertTrue(Modifier.isPublic(type.getDeclaredField("CPU_BACKEND_ID").getModifiers())),
                 () -> assertTrue(Modifier.isStatic(type.getDeclaredField("CPU_BACKEND_ID").getModifiers())),
-                () -> assertTrue(Modifier.isFinal(type.getDeclaredField("CPU_BACKEND_ID").getModifiers())));
+                () -> assertTrue(Modifier.isFinal(type.getDeclaredField("CPU_BACKEND_ID").getModifiers())),
+                () -> {
+                    Path root = Path.of("src/main/java/io/github/pho001/synaptik/backend/cpu");
+                    try (var paths = Files.list(root)) {
+                        assertEquals(Set.of("CpuCapabilityProvider.java", "internal", "package-info.java"),
+                                paths.filter(path -> Files.isRegularFile(path)
+                                                || path.getFileName().toString().equals("internal"))
+                                        .map(path -> path.getFileName().toString())
+                                        .collect(Collectors.toSet()));
+                    }
+                });
     }
 }

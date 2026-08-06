@@ -67,6 +67,30 @@ import org.junit.jupiter.api.Test;
 
 class GraphPreparationTest {
     @Test
+    void requiresEveryProducerAndExternalConsumerToDeclareCrossPartitionValues() {
+        Fixture fixture = fixture();
+        ValueId crossing = new ValueId(2);
+        var missingProducer = List.<PartitionPreparation<?, ?>>of(
+                selectivePreparation(0, fixture, java.util.Set.of(new ValueId(0))),
+                selectivePreparation(1, fixture,
+                        java.util.Set.of(new ValueId(1), crossing, new ValueId(3))));
+        var missingConsumer = List.<PartitionPreparation<?, ?>>of(
+                selectivePreparation(0, fixture, java.util.Set.of(new ValueId(0), crossing)),
+                selectivePreparation(1, fixture,
+                        java.util.Set.of(new ValueId(1), new ValueId(3))));
+
+        assertAll(
+                () -> assertTrue(assertThrows(IllegalArgumentException.class,
+                        () -> GraphPreparation.prepare(fixture.artifacts, missingProducer,
+                                GraphPreparationTest::validSchedule)).getMessage()
+                        .contains("cross-partition value ValueId[value=2] must be declared")),
+                () -> assertTrue(assertThrows(IllegalArgumentException.class,
+                        () -> GraphPreparation.prepare(fixture.artifacts, missingConsumer,
+                                GraphPreparationTest::validSchedule)).getMessage()
+                        .contains("cross-partition value ValueId[value=2] must be declared")));
+    }
+
+    @Test
     void preparesAllContextsBeforeOrderedAnalysisAndFinalizationThenAssemblesOnce() {
         Fixture fixture = fixture();
         List<String> events = new ArrayList<>();
@@ -491,6 +515,24 @@ class GraphPreparationTest {
 
                     @Override
                     public PreparedExecutable finalizePartition(
+                            BackendPartitionFinalization<FakePlan> finalization) {
+                        return new TestExecutable(finalization.memoryPlan());
+                    }
+                });
+    }
+
+    private static PartitionPreparation<FakeInputs, FakePlan> selectivePreparation(
+            int index, Fixture fixture, java.util.Set<ValueId> declaredValues) {
+        BackendId owner = fixture.partitions.get(index).owner();
+        return new PartitionPreparation<>(new FakeInputs("selective-" + index), context ->
+                new BackendPartitionAnalysis<>(context.partition(), new FakePlan("route"),
+                        context.values().stream().filter(value -> declaredValues.contains(value.id()))
+                                .map(value -> (PreparationResourceRequirement)
+                                        new PreparationResourceRequirement.Buffer(value.id(), 24, 8))
+                                .toList()),
+                new BackendPartitionFinalizer<>() {
+                    @Override public BackendId backendId() { return owner; }
+                    @Override public PreparedExecutable finalizePartition(
                             BackendPartitionFinalization<FakePlan> finalization) {
                         return new TestExecutable(finalization.memoryPlan());
                     }

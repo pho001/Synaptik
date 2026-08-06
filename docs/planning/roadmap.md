@@ -97,8 +97,10 @@ initially-valid buffer origin for non-bindable logical splats; Runtime receives 
 fact. It adds no concrete backend, discovery, Engine facade, physical work in Prepare, execution,
 tuning, or dynamic binding.
 
-The Prepare milestone is therefore closed. The OpenBLAS provider project area is also Complete,
-and the completed first CPU implementation frontier is
+The Prepare milestone is therefore closed. The OpenBLAS provider project area is also Complete.
+CPU 0005A is now Complete and atomically supersedes the provisional CPU 0001–0005 implementation;
+those five task records remain preserved as Superseded historical evidence. The current CPU
+implementation frontier is
 [CPU 0001 Capability, representation, binding, and parallel foundation](backends/cpu/tasks/0001-cpu-capability-representation-binding-and-parallel-foundation.md).
 It is Complete; detailed
 [CPU 0002 Portable Class-File API generator foundation](backends/cpu/tasks/0002-portable-class-file-api-generator-foundation.md)
@@ -117,8 +119,13 @@ is Complete. Detailed
 is Complete: it adds the first narrow truthful operation route and solves maximal same-owner
 partition execution as an ordered CPU-private node-kernel sequence. Implementation context
 `019fd19a-4262-7580-9674-226595356fbc` recorded the sole final CPU 31-test pass, which the clean
-documentation pass reused because it changed no executable Java behavior. CPU 0005A is the next
-Draft frontier, and CPU 0006–0016 remain Draft without detailed specifications. CPU 0003 implements a
+documentation pass reused because it changed no executable Java behavior. Detailed
+[CPU 0005A Atomic partition-kernel architecture reset](backends/cpu/tasks/0005a-atomic-partition-kernel-architecture-reset.md)
+is Complete. Ordered CPU 0005B universal access/broadcast, 0005C vector and
+parallel strategies, 0005D materialization/specialization/persistence evidence, 0005E broader
+pointwise coverage, 0005F exact scalar-power strength reduction, and CPU 0006–0017 remain Draft
+without detailed specifications. CPU 0003
+implements a
 model-independent filesystem store beneath an explicit
 caller/composition-supplied trusted local root. It uses deterministic content-addressed paths,
 exact structural compatibility metadata, checksummed and fully verified class bytes, and forced
@@ -205,13 +212,16 @@ project area are Complete. The later CPU planning pass selected only task 0001 a
 
 The selected CPU target strategy remains Draft planning only. Java 26
 `java.lang.classfile.CodeBuilder` is the selected current primary generator for all portable CPU
-computation kernels; it is an implementation direction, not an architecture invariant. Portable
-execution has exactly scalar single-thread, scalar parallel, Vector API single-thread, and Vector
-API parallel modes. Every currently selected
+computation kernels; it is an implementation direction, not an architecture invariant. The
+Class-File API plus Vector API portable route is the production baseline and always-available
+semantic fallback wherever it truthfully supports the occurrence. Portable execution has exactly
+scalar single-thread, scalar parallel, Vector API single-thread, and Vector API parallel modes.
+Every currently selected
 executable Model semantic must gain truthful portable generated coverage before the portable CPU
 milestone closes; metadata-only or zero-work view occurrences need no generated computation, and
 unsupported executable work fails closed and is not advertised. OpenBLAS is an optional portable
-native route only for supported BLAS-compatible linear algebra, never a universal fallback.
+native route only for supported BLAS-compatible linear algebra, never a universal or identity-
+preferred fallback.
 Intel work keeps oneMKL BLAS/VML standalone routes distinct from oneDNN DNN/ML partition and
 fusion routes. Apple CPU work uses Accelerate BLAS, vDSP, and vForce; MPSGraph and custom Metal
 kernels remain exclusive to the separate Metal backend after Planning selects Metal ownership,
@@ -219,6 +229,12 @@ and BNNS waits for a concrete integration spike or use case. AMD work keeps AOCL
 AOCL-LibM distinct from a later optional ZenDNN DNN-partition route, which also waits for a
 concrete use case. Portable scalar and Vector API routes remain available alongside AOCL-BLAS;
 AOCL-LibM is considered only for eligible sufficiently large vector-math workloads.
+
+ARM is capability-first rather than assigned one provider. Apple Silicon may admit the Accelerate
+routes above; another ARM target uses portable code generation unless a later task supplies an
+explicitly verified provider. No library or route receives another `BackendId`: Planning chooses
+the single CPU owner and CPU Prepare compares eligible peer routes by exact capability and whole-
+plan cost.
 
 Concrete backend analysis, not Planning, generates complete typed candidates for each operation
 occurrence or partition and workload. It filters platform and provider availability, operation
@@ -228,6 +244,36 @@ evidence. There is no global vendor-priority list, and small workloads may remai
 or scalar. Low-level provider layers own ABI and lifetime mechanics only; CPU owns capability
 truth, coordination, route choice, fallback, and tuning. Current exact/default semantics exclude
 vendor relaxed/fast-math candidates until a future explicit numerical policy permits them.
+
+The selected numerical direction preserves completed Model 0018P: public `EXP` and `TANH` remain
+stable mathematical requests, and no public fast variants return. The separately named
+`GELU_TANH_APPROXIMATION` remains one fixed function rather than permission to choose an arbitrary
+faster algorithm. Internal portable or vendor implementations may use fast algorithms only when
+they meet the ordinary operation contract; genuinely relaxed behavior requires explicit caller
+permission from Draft Config 0006. Hardware, providers, workload size, objectives, tuning, and
+benchmarks never grant that permission and may compare only already eligible candidates.
+
+Completed Compiler 0003A continues to provide only its currently guarded exact typed scalar
+`POW(+1) -> input` bypass. Draft Compiler 0007 records future graph-level exact identities and
+permission-aware algebra without rewriting completed 0001–0006 history. Exact `POW(0)` requires
+the complete exceptional-value, constant-sidecar, typed shape-correct one-splat, output/publication,
+phase/autograd, and descriptor proof. Tensor exponents require compiler-owned immutable uniform-
+constant facts, never storage reads or factory-history inference; fractional identities such as
+`POW(0.5) -> SQRT` are not assumed.
+
+Draft CPU 0005F separately owns exact/default scalar-power realization after the reset and
+pointwise foundation. It retains semantic `POW` while common route-independent CPU analysis may
+select multiplication, reciprocal, or exponentiation by squaring for proved exact typed integral
+exponents. It does not depend on relaxed Config. Draft CPU 0017 later consumes Config 0006 for
+genuinely relaxed route candidates. Common analysis owns eligibility and the plan; emitters and
+vendor adapters consume it. Numerical mode and realization-changing power plans participate in
+specialization/cache compatibility and cold manifests, never hot-path policy lookup. Forward and
+compiler-generated gradient operations share the same policy.
+
+Whole-partition lowering, fusion legality/profitability, canonical CPU IR, access planning,
+materialization accounting, numerical/determinism filtering, and representation planning remain
+common across routes. Provider adapters do not reinterpret graphs, duplicate broadcast/fusion
+planners, or take shared resource-lifetime ownership.
 
 Portable generation uses family-specific typed lowerers plus shared scalar, vector, heap,
 segment, range, tile, partial-reduction, and combine emitters rather than one god generator.
@@ -316,7 +362,7 @@ construction and dispatch. `CpuClassFileKernelGenerator` delegates to it without
 The Class-File API and `CodeBuilder` remain current non-authoritative implementation selections
 rather than permanent architecture dependencies.
 
-CPU tasks 0001–0005 are Complete. CPU 0004 connects one already CPU-owned partition to the
+CPU tasks 0001–0005 are Superseded by Complete CPU 0005A. Historically, CPU 0004 connected one already CPU-owned partition to the
 existing typed Prepare analysis/finalization and
 Runtime cold-binding boundaries while keeping every real Model operation fail-closed. Its direct
 typed candidate source selects the existing carrier/access specialization, one of the exact four
@@ -326,19 +372,64 @@ strongly retains the generated artifact and direct handle. `CpuBorrowedBuffer` r
 non-owning `HostTensorStorage` representation/lifetime boundary for caller inputs and cold
 argument classification, not an artifact cache. Bounded synthetic tests prove the lifecycle but
 justify no computation or capability claim. CPU 0005 adds the exact static canonical dense
-FLOAT64/FLOAT32/INT32/INT64 ADD route and ordered maximal-partition execution. CPU 0005A, CPU
-0006–0016, and the refined Config, Prepare, Metal, and tuning rows remain Draft without new
-detailed specifications.
+FLOAT64/FLOAT32/INT32/INT64 ADD route and ordered maximal-partition execution. CPU 0005A
+replaced that provisional per-node path atomically with structured internal packages, complete-
+partition units, legal/profitable fusion before exact declarations, route-independent IR,
+universal start/end Class-File generation, optional persistence, and one partition executable.
+CPU 0005B–0005F, CPU 0006–0017, and the refined Config, Prepare, Metal, and tuning rows remain
+Draft without new detailed specifications.
 Completed OpenBLAS history and every completed project area remain unchanged.
 
-CPU remains the active global project area. CPU 0005 is Complete through its sole detailed static
-dense ADD and partition-sequence specification. CPU 0005A is the next Draft frontier, and later
-CPU work remains Draft without detailed specifications. Complete CPU 0004 adds no public facade, registry, service locator,
+CPU remains the active global project area. CPU 0005A is Complete; later CPU work remains Draft
+without detailed specifications. CPU 0001–0005 are historical Superseded records whose Git history
+and validation evidence remain intact. Complete CPU 0004 added no public facade, registry, service locator,
 default artifact-root Config API, operation family, vendor route, tuning/benchmark work, broad
 cost model, shared-module/build/architecture change, or later specification. Prepare 0004 is only
 a deferred bounded interleave after a concrete CPU typed-
 candidate producer and tuning-artifact consumer exist; it does not reopen or reorder the
 completed Prepare project area.
+
+CPU 0005A completed the intentional architecture/capability reset before family expansion. Its exact
+vertical slice is one fully static canonical-dense FLOAT64 ADD -> exact GELU -> MUL chain lowered
+to one CPU-private computation-oriented execution unit, one canonical loop IR, one generated
+artifact/class, one partition-level `BoundInvocation`, and one partition-level
+`PreparedExecutable`. The ADD and GELU results remain graph and IR values but have no physical
+slots. `LogicalMemoryPlan` continues to describe them logically; only backend buffer declarations
+create assigned slots. Focused tests prove that the same class bytes and loaded compatibility identity serve two
+compatible extents through primitive start/end binding; compatible extents are not default class
+identity.
+
+The permanent CPU model makes bytecode-first Class-File/Vector generation the portable
+production baseline and supported semantic fallback. Metadata-only work may emit no class, native
+libraries are exact-capability peer routes, and scalar reference is conformance/fail-closed
+checking rather than Runtime interpretation. One route-independent IR records typed
+boundary/virtual values, ordered semantics, structural access form, loop model, and stores while
+excluding selected route/configuration, graph/Runtime identity, generator versions, and instance
+bindings. Disk class-byte persistence is optional, disabled and unclaimed by default, and never
+correctness-critical; no-root realization emits, verifies, and defines in memory and no migration
+reader is planned.
+
+The reset replaced the flat execution package with unsupported internal `memory`,
+`prepare`, `lowering`, `ir`, portable `codegen.emit`, `route.portable`, `cache`, `executable`, and
+`reference` packages. Java subpackages are not friends, so only minimal internal collaboration
+contracts may be technically public; `CpuCapabilityProvider` remains the sole supported public CPU
+API. CPU 0005A creates no native placeholder package. Later concrete Draft tasks own
+`route.nativeblas` provider leaves for OpenBLAS/Accelerate/oneMKL/AOCL and `route.nativeops` leaves
+for vDSP/vForce/VML/oneDNN/AOCL-LibM/ZenDNN over the shared analysis.
+
+Ordered Draft follow-ups deliver one right-aligned access system over current Model
+`ShapeBroadcast`/`LayoutDescriptor` contracts, then vector/parallel strategies, then direct-versus-
+materialized analysis and persistence/specialization evidence, then broader pointwise families.
+They preserve dense, scalar, bias, block, odometer, fallback, cost-gated gather, and optional
+materialization tiers without hot cursor objects or universal-vectorization claims. Broadcast
+gradients remain Compiler/Model `SUM_TO_SHAPE` plus later CPU reduction coverage.
+
+The same task includes only the narrow shared Prepare hardening proved necessary by the audit.
+For a value crossing planned partitions, the producer partition, when present, and every distinct
+external consumer partition must each declare the value. Values confined to one planned
+partition remain optional declarations so CPU-private same-unit virtual intermediates are legal.
+Existing bindable-input, constant, and publication completeness checks are unchanged, and shared
+Prepare gains no CPU fusion or materialization policy.
 
 Runtime 0009's focused command passed 4 suites and 32 tests, and its single final Runtime command
 passed 16 suites and 130 tests, with no failures, errors, or skips. Clean documentation context
