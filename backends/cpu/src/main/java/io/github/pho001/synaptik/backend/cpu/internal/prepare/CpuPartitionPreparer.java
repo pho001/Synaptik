@@ -20,7 +20,7 @@ import java.util.Optional;
 import jdk.incubator.vector.DoubleVector;
 
 /**
- * Whole-partition CPU analysis entry for the current static broadcast/access proving slice.
+ * Whole-partition CPU analysis entry for the current bounded static pointwise family.
  * Analysis deterministically compares direct access with at most three one-input contiguous-copy
  * candidates, then selects scalar or preferred-species vector compute and single-thread or
  * bounded parallel orchestration before shared resource assignment. It measures nothing and
@@ -45,8 +45,9 @@ public final class CpuPartitionPreparer implements BackendPartitionPreparer<
     /**
      * Lowers, fuses, selects one bounded complete plan, and declares exact post-fusion resources.
      * @param context non-null complete CPU analysis context
-     * @return one immutable analysis with one unit, a cold-selected portable strategy, four exact
-     *     buffer declarations, and at most one appended workspace declaration; never {@code null}
+     * @return one immutable analysis with one unit, a cold-selected portable strategy, one exact
+     *     declaration per derived boundary, and at most one appended workspace declaration;
+     *     never {@code null}
      * @throws NullPointerException if {@code context} is {@code null}
      * @throws IllegalArgumentException if complete-partition lowering rejects the occurrence or
      *     declared resource geometry is invalid
@@ -56,19 +57,24 @@ public final class CpuPartitionPreparer implements BackendPartitionPreparer<
             PrepareContext<CpuPartitionAnalysisInputs> context) {
         Objects.requireNonNull(context, "context");
         var lowered = lowering.lower(context);
-        if (context.backendInputs().carrierPattern().size() != lowered.boundaryValues().size()) {
+        var requestedCarriers = context.backendInputs().carrierPattern().isEmpty()
+                ? java.util.Collections.nCopies(lowered.boundaryValues().size(),
+                        CpuKernelSpecialization.CarrierAccess.MEMORY_SEGMENT)
+                : context.backendInputs().carrierPattern();
+        if (requestedCarriers.size() != lowered.boundaryValues().size()) {
             throw new IllegalArgumentException("carrier pattern count must match boundary count");
         }
         var budget = new CpuSpecializationBudget(4, 1, 0, 0);
         Optional<CpuMaterializationPlan> materialization = selectMaterialization(lowered,
                 context.backendInputs().materializationPolicy());
-        var declarations = new ArrayList<PreparationResourceRequirement.Buffer>(4);
+        var declarations = new ArrayList<PreparationResourceRequirement.Buffer>(lowered.boundaryValues().size());
         for (int i = 0; i < lowered.boundaryValues().size(); i++) declarations.add(
                 new PreparationResourceRequirement.Buffer(lowered.boundaryValues().get(i),
                         Math.multiplyExact(lowered.referencedElementSpans().get(i),
-                                DataType.FLOAT64.byteWidth()), Double.BYTES));
+                                lowered.boundaryDataTypes().get(i).byteWidth()),
+                        lowered.boundaryDataTypes().get(i).byteWidth()));
         var bindings = new ArrayList<>(lowered.accessBindings());
-        var carriers = new ArrayList<>(context.backendInputs().carrierPattern());
+        var carriers = new ArrayList<>(requestedCarriers);
         CpuKernelIr kernelIr = lowered.kernelIr();
         if (materialization.isPresent()) {
             var selected = materialization.orElseThrow();
@@ -83,6 +89,9 @@ public final class CpuPartitionPreparer implements BackendPartitionPreparer<
         boolean vectorEligible = config.computePreference()
                         == CpuPartitionAnalysisInputs.PortableExecutionConfig.ComputePreference.VECTOR_IF_ELIGIBLE
                 && lanes > 1 && lowered.elementCount() >= lanes
+                && lowered.kernelIr().values().stream().allMatch(value -> value.dataType() == DataType.FLOAT64)
+                && lowered.kernelIr().instructions().stream().allMatch(instruction ->
+                        instruction.opcode().vectorEligible())
                 && bindings.stream().allMatch(binding -> vectorEligible(binding, lanes));
         int usableParallelism = Math.min(config.configuredMaximumParallelism(),
                 config.availableParallelism());
@@ -101,7 +110,8 @@ public final class CpuPartitionPreparer implements BackendPartitionPreparer<
         var specialization = new CpuKernelSpecialization(
                 CpuLoweringFingerprint.fromHex(kernelIr.structuralKey()),
                 CpuKernelSpecialization.NumericalMode.EXACT_DEFAULT,
-                artifactStrategy, carriers, vectorEligible ? speciesBits : 0,
+                artifactStrategy, lowered.boundaryDataTypes(), carriers,
+                vectorEligible ? speciesBits : 0,
                 materialization.map(CpuMaterializationPlan::sourceBoundaryIndex).orElse(-1));
         var routePlan = new CpuPortableRoutePlan(kernelIr, specialization);
         String manifest = "unit=0;fusion=" + lowered.fusionReason()
@@ -117,7 +127,7 @@ public final class CpuPartitionPreparer implements BackendPartitionPreparer<
                 CpuPartitionPreparationPlan.Route.PORTABLE,
                 strategy,
                 declarations, lowered.boundaryValues(), bindings,
-                context.backendInputs().carrierPattern(), carriers,
+                requestedCarriers, carriers,
                 lowered.extents(), lowered.elementCount(),
                 selectedRangeCount, config.minimumElementsPerWorker(),
                 vectorEligible ? speciesBits : 0,
@@ -138,11 +148,14 @@ public final class CpuPartitionPreparer implements BackendPartitionPreparer<
         long bytes = Math.multiplyExact(elements, Double.BYTES);
         if (bytes > policy.maximumAdditionalBytes()) return Optional.empty();
         CpuMaterializationPlan best = null;
-        for (int index = 0; index < 3; index++) {
+        int considered = 0;
+        for (int index = 0; index < lowered.boundaryValues().size() - 1 && considered < 3; index++) {
             int sourceOrdinal = index;
             CpuAccessPlan.Binding source = lowered.accessBindings().get(index);
+            if (lowered.boundaryDataTypes().get(index) != DataType.FLOAT64) continue;
             if (source.plan().regime() == CpuAccessPlan.Regime.SCALAR_ALL_ZERO
                     || source.plan().regime() == CpuAccessPlan.Regime.DENSE_LINEAR) continue;
+            considered++;
             long useCount = lowered.kernelIr().instructions().stream()
                     .flatMap(instruction -> instruction.inputs().stream())
                     .filter(ordinal -> ordinal == sourceOrdinal)

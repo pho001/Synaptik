@@ -5,12 +5,17 @@ import java.lang.classfile.CodeBuilder;
 import java.lang.classfile.TypeKind;
 import java.lang.constant.ClassDesc;
 import java.lang.constant.MethodTypeDesc;
+import io.github.pho001.synaptik.model.datatype.DataType;
 
-/** Package-private direct FLOAT64 heap-array or segment access emitter. */
+/** Package-private direct typed primitive-array or native-order segment access emitter. */
 final class CpuCarrierEmitter {
     private static final ClassDesc SEGMENT = ClassDesc.of("java.lang.foreign.MemorySegment");
     private static final ClassDesc VALUE_LAYOUT = ClassDesc.of("java.lang.foreign.ValueLayout");
     private static final ClassDesc DOUBLE_LAYOUT = ClassDesc.of("java.lang.foreign.ValueLayout$OfDouble");
+    private static final ClassDesc FLOAT_LAYOUT = ClassDesc.of("java.lang.foreign.ValueLayout$OfFloat");
+    private static final ClassDesc INT_LAYOUT = ClassDesc.of("java.lang.foreign.ValueLayout$OfInt");
+    private static final ClassDesc LONG_LAYOUT = ClassDesc.of("java.lang.foreign.ValueLayout$OfLong");
+    private static final ClassDesc BYTE_LAYOUT = ClassDesc.of("java.lang.foreign.ValueLayout$OfByte");
     private static final ClassDesc BYTE_ORDER = ClassDesc.of("java.nio.ByteOrder");
     private static final ClassDesc DOUBLE_VECTOR = ClassDesc.of("jdk.incubator.vector.DoubleVector");
     private static final ClassDesc VECTOR_SPECIES = ClassDesc.of("jdk.incubator.vector.VectorSpecies");
@@ -23,43 +28,53 @@ final class CpuCarrierEmitter {
     CpuCarrierEmitter(CodeBuilder code) { this.code = code; }
 
     /**
-     * Emits one FLOAT64 load from a generation-time-selected carrier form.
+     * Emits one scalar load of the supplied type from a generation-time-selected carrier form.
      *
+     * @param type non-null exact logical data type to load
      * @param access non-null selected direct carrier form
      * @param parameterSlot local-variable slot holding the exact carrier
      * @param addressLocal local-variable slot holding an element address
      */
-    void load(CarrierAccess access, int parameterSlot, int addressLocal) {
-        if (access == CarrierAccess.DOUBLE_ARRAY) {
-            code.aload(parameterSlot).lload(addressLocal).l2i().daload();
-        } else {
-            code.aload(parameterSlot); layout();
-            code.lload(addressLocal).loadConstant((long) Double.BYTES).lmul();
-            code.invokeinterface(SEGMENT, "get", MethodTypeDesc.of(
-                    java.lang.constant.ConstantDescs.CD_double, DOUBLE_LAYOUT,
-                    TypeKind.LONG.upperBound()));
+    void load(DataType type, CarrierAccess access, int parameterSlot, int addressLocal) {
+        if (access != CarrierAccess.MEMORY_SEGMENT) {
+            code.aload(parameterSlot).lload(addressLocal).l2i();
+            switch (type) {
+                case FLOAT64 -> code.daload(); case FLOAT32 -> code.faload();
+                case INT32 -> code.iaload(); case INT64 -> code.laload(); case BOOL -> code.baload();
+                default -> throw new IllegalArgumentException("unsupported carrier data type");
+            }
+            return;
         }
+        code.aload(parameterSlot); layout(type);
+        code.lload(addressLocal).loadConstant((long) type.byteWidth()).lmul();
+        code.invokeinterface(SEGMENT, "get", MethodTypeDesc.of(primitive(type), layoutClass(type),
+                TypeKind.LONG.upperBound()));
     }
 
     /**
-     * Emits one FLOAT64 store to a generation-time-selected carrier form.
+     * Emits one scalar store of the supplied type to a generation-time-selected carrier form.
      *
+     * @param type non-null exact logical data type to store
      * @param access non-null selected direct carrier form
      * @param parameterSlot local-variable slot holding the exact carrier
      * @param addressLocal local-variable slot holding an element address
      * @param valueLocal local-variable slot holding the value to store
      */
-    void store(CarrierAccess access, int parameterSlot, int addressLocal, int valueLocal) {
-        if (access == CarrierAccess.DOUBLE_ARRAY) {
-            code.aload(parameterSlot).lload(addressLocal).l2i().dload(valueLocal).dastore();
-        } else {
-            code.aload(parameterSlot); layout();
-            code.lload(addressLocal).loadConstant((long) Double.BYTES).lmul();
-            code.dload(valueLocal);
-            code.invokeinterface(SEGMENT, "set", MethodTypeDesc.of(TypeKind.VOID.upperBound(),
-                    DOUBLE_LAYOUT, TypeKind.LONG.upperBound(),
-                    java.lang.constant.ConstantDescs.CD_double));
+    void store(DataType type, CarrierAccess access, int parameterSlot, int addressLocal, int valueLocal) {
+        if (access != CarrierAccess.MEMORY_SEGMENT) {
+            code.aload(parameterSlot).lload(addressLocal).l2i(); loadLocal(type, valueLocal);
+            switch (type) {
+                case FLOAT64 -> code.dastore(); case FLOAT32 -> code.fastore();
+                case INT32 -> code.iastore(); case INT64 -> code.lastore(); case BOOL -> code.bastore();
+                default -> throw new IllegalArgumentException("unsupported carrier data type");
+            }
+            return;
         }
+        code.aload(parameterSlot); layout(type);
+        code.lload(addressLocal).loadConstant((long) type.byteWidth()).lmul();
+        loadLocal(type, valueLocal);
+        code.invokeinterface(SEGMENT, "set", MethodTypeDesc.of(TypeKind.VOID.upperBound(),
+                layoutClass(type), TypeKind.LONG.upperBound(), primitive(type)));
     }
 
     /**
@@ -73,7 +88,7 @@ final class CpuCarrierEmitter {
     void vectorLoad(CarrierAccess access, int parameterSlot, int addressLocal, boolean broadcast) {
         code.getstatic(DOUBLE_VECTOR, "SPECIES_PREFERRED", VECTOR_SPECIES);
         if (broadcast) {
-            load(access, parameterSlot, addressLocal);
+            load(DataType.FLOAT64, access, parameterSlot, addressLocal);
             code.invokestatic(DOUBLE_VECTOR, "broadcast", MethodTypeDesc.of(DOUBLE_VECTOR,
                     VECTOR_SPECIES, TypeKind.DOUBLE.upperBound()));
             return;
@@ -115,10 +130,44 @@ final class CpuCarrierEmitter {
         }
     }
 
-    private void layout() {
-        code.getstatic(VALUE_LAYOUT, "JAVA_DOUBLE_UNALIGNED", DOUBLE_LAYOUT);
+    private void layout(DataType type) {
+        String field = switch (type) {
+            case FLOAT64 -> "JAVA_DOUBLE_UNALIGNED"; case FLOAT32 -> "JAVA_FLOAT_UNALIGNED";
+            case INT32 -> "JAVA_INT_UNALIGNED"; case INT64 -> "JAVA_LONG_UNALIGNED";
+            case BOOL -> "JAVA_BYTE"; default -> throw new IllegalArgumentException("unsupported type");
+        };
+        ClassDesc layout = layoutClass(type);
+        code.getstatic(VALUE_LAYOUT, field, layout);
+        if (type == DataType.BOOL) return;
         code.invokestatic(BYTE_ORDER, "nativeOrder", MethodTypeDesc.of(BYTE_ORDER));
         code.invokeinterface(VALUE_LAYOUT, "withOrder", MethodTypeDesc.of(VALUE_LAYOUT, BYTE_ORDER));
-        code.checkcast(DOUBLE_LAYOUT);
+        code.checkcast(layout);
+    }
+
+    private void loadLocal(DataType type, int local) {
+        switch (type) {
+            case FLOAT64 -> code.dload(local); case FLOAT32 -> code.fload(local);
+            case INT32, BOOL -> code.iload(local); case INT64 -> code.lload(local);
+            default -> throw new IllegalArgumentException("unsupported type");
+        }
+    }
+
+    private static ClassDesc layoutClass(DataType type) {
+        return switch (type) {
+            case FLOAT64 -> DOUBLE_LAYOUT; case FLOAT32 -> FLOAT_LAYOUT; case INT32 -> INT_LAYOUT;
+            case INT64 -> LONG_LAYOUT; case BOOL -> BYTE_LAYOUT;
+            default -> throw new IllegalArgumentException("unsupported type");
+        };
+    }
+
+    private static java.lang.constant.ClassDesc primitive(DataType type) {
+        return switch (type) {
+            case FLOAT64 -> java.lang.constant.ConstantDescs.CD_double;
+            case FLOAT32 -> java.lang.constant.ConstantDescs.CD_float;
+            case INT32 -> java.lang.constant.ConstantDescs.CD_int;
+            case INT64 -> java.lang.constant.ConstantDescs.CD_long;
+            case BOOL -> java.lang.constant.ConstantDescs.CD_byte;
+            default -> throw new IllegalArgumentException("unsupported type");
+        };
     }
 }

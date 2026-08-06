@@ -9,6 +9,7 @@ import java.security.NoSuchAlgorithmException;
 import java.util.HexFormat;
 import java.util.Objects;
 import java.util.List;
+import io.github.pho001.synaptik.model.datatype.DataType;
 
 /**
  * Structural portable-kernel specialization for one generated scalar or vector body.
@@ -19,21 +20,26 @@ import java.util.List;
  * @param numericalMode non-null selected numerical mode; currently exact/default only
  * @param executionStrategy non-null generated compute strategy; orchestration is single-thread
  *     because parallel plans reuse the corresponding scalar or vector artifact
- * @param carrierPattern non-null immutable ordered carrier form for the current four boundaries
+ * @param boundaryDataTypes non-null immutable ordered data type for every derived boundary
+ * @param carrierPattern non-null immutable ordered carrier form for every derived boundary
  * @param vectorSpeciesBitSize exact positive preferred FLOAT64 species size in bits for vector
  *     compute, or zero for scalar compute
- * @param materializedSourcePosition copied input position {@code 0} through {@code 2}, or
+ * @param materializedSourcePosition copied input position before the final output, or
  *     {@code -1} for direct access; a copied position must use a segment carrier in the generated
  *     pattern
  */
 public record CpuKernelSpecialization(CpuLoweringFingerprint loweringFingerprint,
         NumericalMode numericalMode,
         CpuPartitionPreparationPlan.ExecutionStrategy executionStrategy,
-        List<CarrierAccess> carrierPattern, int vectorSpeciesBitSize,
+        List<DataType> boundaryDataTypes, List<CarrierAccess> carrierPattern, int vectorSpeciesBitSize,
         int materializedSourcePosition) {
     /** Direct carrier form at one ordered materialized boundary. */
     public enum CarrierAccess {
         /** Observable direct {@code double[]} access. */ DOUBLE_ARRAY,
+        /** Observable direct {@code float[]} access. */ FLOAT_ARRAY,
+        /** Observable direct {@code int[]} access. */ INT_ARRAY,
+        /** Observable direct {@code long[]} access. */ LONG_ARRAY,
+        /** Observable direct canonical {@code byte[]} access. */ BYTE_ARRAY,
         /** Exact selected {@link MemorySegment} access. */ MEMORY_SEGMENT
     }
     /** Numerical modes currently admissible. */
@@ -46,18 +52,44 @@ public record CpuKernelSpecialization(CpuLoweringFingerprint loweringFingerprint
      * @param loweringFingerprint non-null canonical lowering fingerprint
      * @param numericalMode non-null selected exact/default numerical mode
      * @param executionStrategy non-null generated scalar or vector compute strategy
-     * @param carrierPattern non-null ordered four-boundary generated carrier pattern
+     * @param carrierPattern non-null ordered FLOAT64 compatibility carrier pattern
      * @param vectorSpeciesBitSize positive preferred FLOAT64 species size for vector compute, or
      *     zero for scalar compute
      * @throws NullPointerException if a reference component is {@code null}
-     * @throws IllegalArgumentException if the components are outside the current proving slice
+     * @throws IllegalArgumentException if the components are outside the compatibility
+     *     constructor's FLOAT64 boundary contract
      */
     public CpuKernelSpecialization(CpuLoweringFingerprint loweringFingerprint,
             NumericalMode numericalMode,
             CpuPartitionPreparationPlan.ExecutionStrategy executionStrategy,
             List<CarrierAccess> carrierPattern, int vectorSpeciesBitSize) {
-        this(loweringFingerprint, numericalMode, executionStrategy, carrierPattern,
+        this(loweringFingerprint, numericalMode, executionStrategy,
+                java.util.Collections.nCopies(carrierPattern.size(), DataType.FLOAT64), carrierPattern,
                 vectorSpeciesBitSize, -1);
+    }
+
+    /**
+     * Creates a FLOAT64 compatibility specialization with optional one-input materialization.
+     *
+     * @param loweringFingerprint non-null canonical lowering fingerprint
+     * @param numericalMode non-null selected exact/default numerical mode
+     * @param executionStrategy non-null generated scalar or vector compute strategy
+     * @param carrierPattern non-null ordered FLOAT64 compatibility carrier pattern
+     * @param vectorSpeciesBitSize positive preferred FLOAT64 species size for vector compute, or
+     *     zero for scalar compute
+     * @param materializedSourcePosition copied input position, or {@code -1} for direct access
+     * @throws NullPointerException if a reference component is {@code null}
+     * @throws IllegalArgumentException if strategy, species, carrier, or materialization facts
+     *     disagree
+     */
+    public CpuKernelSpecialization(CpuLoweringFingerprint loweringFingerprint,
+            NumericalMode numericalMode,
+            CpuPartitionPreparationPlan.ExecutionStrategy executionStrategy,
+            List<CarrierAccess> carrierPattern, int vectorSpeciesBitSize,
+            int materializedSourcePosition) {
+        this(loweringFingerprint, numericalMode, executionStrategy,
+                java.util.Collections.nCopies(carrierPattern.size(), DataType.FLOAT64),
+                carrierPattern, vectorSpeciesBitSize, materializedSourcePosition);
     }
     /**
      * Validates the exact/default scalar-or-vector generated specialization.
@@ -65,26 +97,36 @@ public record CpuKernelSpecialization(CpuLoweringFingerprint loweringFingerprint
      * @param loweringFingerprint non-null canonical lowering fingerprint
      * @param numericalMode non-null selected exact/default numerical mode
      * @param executionStrategy non-null single-thread generated compute strategy
-     * @param carrierPattern non-null ordered four-boundary carrier pattern; copied defensively
+     * @param boundaryDataTypes non-null ordered boundary types; copied defensively
+     * @param carrierPattern non-null ordered boundary carrier pattern; copied defensively
      * @param vectorSpeciesBitSize positive preferred FLOAT64 species bit size for vector compute,
      *     or zero for scalar compute
      * @param materializedSourcePosition copied input position, or {@code -1} for direct access
      * @throws NullPointerException if a component is {@code null}
-     * @throws IllegalArgumentException if the mode, compute/species relationship, or boundary
-     *     count is outside the current CPU proving slice
+     * @throws IllegalArgumentException if the mode, compute/species relationship, boundary/type
+     *     mapping, or materialized position is inconsistent
      */
     public CpuKernelSpecialization {
         Objects.requireNonNull(loweringFingerprint, "loweringFingerprint");
         Objects.requireNonNull(numericalMode, "numericalMode");
         Objects.requireNonNull(executionStrategy, "executionStrategy");
+        boundaryDataTypes = List.copyOf(boundaryDataTypes);
         carrierPattern = List.copyOf(carrierPattern);
-        if (carrierPattern.size() != 4) throw new IllegalArgumentException(
-                "current fused specialization requires four carrier entries");
+        if (carrierPattern.size() < 2 || carrierPattern.size() != boundaryDataTypes.size()) {
+            throw new IllegalArgumentException("boundary type and carrier entries must agree");
+        }
+        for (int i = 0; i < carrierPattern.size(); i++) {
+            if (carrierPattern.get(i) != expectedCarrier(boundaryDataTypes.get(i))
+                    && carrierPattern.get(i) != CarrierAccess.MEMORY_SEGMENT) {
+                throw new IllegalArgumentException("heap carrier does not match boundary data type");
+            }
+        }
         boolean vector = executionStrategy.compute()
                 == CpuPartitionPreparationPlan.ExecutionStrategy.Compute.VECTOR;
         if (numericalMode != NumericalMode.EXACT_DEFAULT
                 || vector != (vectorSpeciesBitSize > 0)
-                || materializedSourcePosition < -1 || materializedSourcePosition > 2
+                || materializedSourcePosition < -1
+                || materializedSourcePosition >= carrierPattern.size() - 1
                 || (materializedSourcePosition >= 0
                     && carrierPattern.get(materializedSourcePosition) != CarrierAccess.MEMORY_SEGMENT)) {
             throw new IllegalArgumentException("current CPU route requires exact strategy/species facts");
@@ -93,19 +135,19 @@ public record CpuKernelSpecialization(CpuLoweringFingerprint loweringFingerprint
     /** Returns the generated entry signature.
      * @return the immutable universal method type */
     public MethodType entryType() {
-        Class<?>[] parameters = new Class<?>[7];
-        for (int i = 0; i < 4; i++) parameters[i] = carrierPattern.get(i)
-                == CarrierAccess.DOUBLE_ARRAY ? double[].class : MemorySegment.class;
-        parameters[4] = long[].class;
-        parameters[5] = long.class;
-        parameters[6] = long.class;
+        Class<?>[] parameters = new Class<?>[carrierPattern.size() + 3];
+        for (int i = 0; i < carrierPattern.size(); i++) parameters[i] = carrierClass(carrierPattern.get(i));
+        parameters[carrierPattern.size()] = long[].class;
+        parameters[carrierPattern.size() + 1] = long.class;
+        parameters[carrierPattern.size() + 2] = long.class;
         return MethodType.methodType(void.class, parameters);
     }
     /** Returns compatibility metadata.
      * @return a new deterministic schema byte array */
     public byte[] compatibilityBytes() {
         return (CpuGeneratorSchema.CURRENT_VERSION + "|" + loweringFingerprint.hex() + "|"
-                + numericalMode + "|" + executionStrategy.compute() + "|" + carrierPattern
+                + numericalMode + "|" + executionStrategy.compute() + "|" + boundaryDataTypes
+                + "|" + carrierPattern
                 + "|" + vectorSpeciesBitSize + "|materialized=" + materializedSourcePosition)
                 .getBytes(StandardCharsets.US_ASCII);
     }
@@ -115,5 +157,27 @@ public record CpuKernelSpecialization(CpuLoweringFingerprint loweringFingerprint
         try { return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256")
                 .digest(compatibilityBytes())); }
         catch (NoSuchAlgorithmException impossible) { throw new AssertionError(impossible); }
+    }
+
+    private static CarrierAccess expectedCarrier(DataType type) {
+        return switch (type) {
+            case FLOAT64 -> CarrierAccess.DOUBLE_ARRAY;
+            case FLOAT32 -> CarrierAccess.FLOAT_ARRAY;
+            case INT32 -> CarrierAccess.INT_ARRAY;
+            case INT64 -> CarrierAccess.LONG_ARRAY;
+            case BOOL -> CarrierAccess.BYTE_ARRAY;
+            case BFLOAT16 -> throw new IllegalArgumentException("BFLOAT16 is not executable");
+        };
+    }
+
+    private static Class<?> carrierClass(CarrierAccess carrier) {
+        return switch (carrier) {
+            case DOUBLE_ARRAY -> double[].class;
+            case FLOAT_ARRAY -> float[].class;
+            case INT_ARRAY -> int[].class;
+            case LONG_ARRAY -> long[].class;
+            case BYTE_ARRAY -> byte[].class;
+            case MEMORY_SEGMENT -> MemorySegment.class;
+        };
     }
 }

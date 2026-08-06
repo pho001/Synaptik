@@ -120,11 +120,11 @@ SIMD routes, optional native routes, storage, workspace, and execution.
   only accepts matching concrete carriers. This avoids emitting every possible carrier combination
   in each class while preserving direct hot code without Runtime generation, storage discovery, or
   dispatch.
-- `CpuPartitionAnalysisInputs.DEFAULT` remains the compatibility input for the current fixed
-  proving topology: lowering-manifest retention is disabled and its four ordered boundary forms are
-  all `MEMORY_SEGMENT`. Explicit CPU analysis inputs may immutably select any four-entry pattern in
-  0005B. The default's length follows today's three inputs plus one output and is not a permanent
-  fused-unit boundary-count contract.
+- `CpuPartitionAnalysisInputs.DEFAULT` disables lowering-manifest retention and uses an empty
+  explicit carrier list as the policy "one exact `MEMORY_SEGMENT` form per lowering-derived
+  boundary." Explicit CPU analysis inputs may immutably select an ordered typed heap/segment
+  pattern whose count and order must equal the derived boundary list. Boundary cardinality is not
+  fixed by the analysis-input contract.
 - Portable `MemorySegment` storage is representation-only and accepts the logical data type. A
   two-byte representation does not imply executable arithmetic or Vector support. The current
   generated specialization admits Java Vector lanes only for FLOAT64, FLOAT32, INT32, and INT64;
@@ -190,7 +190,7 @@ created by 0005A. All consume the common analysis above; none creates another ba
 | 0005B | [Universal access plans and right-aligned broadcasting](tasks/0005b-universal-access-plans-and-right-aligned-broadcasting.md) | Complete | 0005A | Delivered one normalized per-value access system over current ShapeBroadcast/LayoutDescriptor semantics, complete static scalar/rank-expanded/multi-axis/zero/strided/heap/segment/mixed-carrier support, one direct entry per ordered carrier-pattern specialization, and five distinct dense-to-general-odometer scalar state machines. |
 | 0005C | [Vector and parallel portable strategies](tasks/0005c-vector-and-parallel-portable-strategies.md) | Complete | 0005B | Added preferred-species FLOAT64 vector, parallel-scalar, and parallel-vector realization over universal start/end kernels; direct contiguous runs vectorize without gather, and explicit caller-owned CPU-private workers execute deterministic disjoint chunks. |
 | 0005D | [Materialization, specialization, and persistence evidence gate](tasks/0005d-materialization-specialization-and-persistence-evidence-gate.md) | Complete | 0005C | Added at most one CPU-internal contiguous materialization before assignment, enforced four-candidate/one-artifact/zero-shape/zero-unroll budgets, and recorded a `KEEP_DISABLED` opt-in persistence-evidence verdict. |
-| 0005E | Portable pointwise types, carriers, and semantic-family expansion | Draft | 0005D | Expand exact pointwise, comparison, selection, and cast coverage through the completed unit/IR/access architecture without duplicating planners or storage matrices. |
+| 0005E | [Portable pointwise types, carriers, and semantic-family expansion](tasks/0005e-portable-pointwise-types-carriers-and-semantic-family-expansion.md) | Complete | 0005D | Delivered the first bounded five-type core pointwise increment through one nineteen-opcode family pipeline, derived-boundary typed carriers, and the completed unit/IR/access/materialization/route/artifact/executable architecture; unsupported rows remain fail-closed. |
 | 0005F | Exact scalar-power strength reduction | Draft | 0005E | Classify exact typed scalar exponents once in common route-independent CPU analysis and retain semantic `POW` in the compiled graph while selecting multiply, reciprocal, or exponentiation-by-squaring realizations only under an exact/default conformance proof; this task does not depend on relaxed Config 0006. |
 | 0006 | Portable layout, indexing, ordering, and random family coverage | Draft | 0005E | Generate truthful coverage for executable layout transforms, slicing, padding, tiling, composition, windows, gather/scatter, ordering, one-hot, and explicit-state random/dropout work; metadata-only or zero-work views remain computation-free. |
 | 0007 | Portable reduction, scan, statistics, and normalization family coverage | Draft | 0002–0006 | Generate family-specific range, tile, partial-reduction, and combine bodies for aggregates, arg extrema, scans, softmax/log-softmax, statistics, and normalization with exact semantics and determinism. |
@@ -222,7 +222,9 @@ has exactly one detailed implemented partition-kernel slice and one route leaf,
 [CPU 0005C Vector and parallel portable strategies](tasks/0005c-vector-and-parallel-portable-strategies.md)
 are Complete. Detailed
 [CPU 0005D Materialization, specialization, and persistence evidence gate](tasks/0005d-materialization-specialization-and-persistence-evidence-gate.md)
-is Complete; CPU 0005E is the next Draft frontier and every later CPU task remains Draft without a
+is Complete; detailed
+[CPU 0005E Portable pointwise types, carriers, and semantic-family expansion](tasks/0005e-portable-pointwise-types-carriers-and-semantic-family-expansion.md)
+is Complete. CPU 0005F is the next Draft frontier, and every later CPU task remains Draft without a
 detailed specification.
 
 Superseded task 0001 remains preserved through its sole detailed CPU
@@ -287,8 +289,8 @@ two compatible extents. Detailed
 is Complete. It adds right-aligned static broadcast/layout normalization, exact per-boundary
 declaration and accessed-range spans, complete write-injectivity proof, five generated scalar
 state machines, and all sixteen ordered heap/segment carrier specializations. Detailed CPU 0005C
-is Complete. CPU 0005D is also Complete; CPU 0005E and tasks 0006–0017 remain `Draft` without
-detailed specifications.
+is Complete. CPU 0005D and detailed CPU 0005E are also Complete; CPU 0005F and tasks 0006–0017
+remain `Draft` without detailed specifications.
 CPU 0005C preserves that exact slice and implements cold selection among all four portable
 strategies. It uses the preferred Java 26 FLOAT64 species only for direct contiguous runs and
 scalar broadcasts, scalar tails and general-odometer fallback, configured/available parallelism
@@ -319,8 +321,23 @@ Implementation evidence includes the final 11-suite/40-test focused matrix, focu
 and the sole successful explicit 1-test evidence run. Clean documentation context
 `/root/cpu_0005d_docs` reused those stabilized results, finalized the exact 21 production/package
 paths and five Markdown records, and passed CPU Javadoc plus Markdown, exact 38-path scope,
-status, terminology, structure/order, persistence, and whitespace gates. CPU 0005E is now the
-next Draft frontier without a detailed specification.
+status, terminology, structure/order, persistence, and whitespace gates.
+
+Detailed CPU 0005E is Complete. One through eight fully static connected straight-line pointwise
+occurrences lower into one nineteen-opcode CPU-private sequence, one canonical IR, one artifact,
+and one partition executable. The admitted matrix uses FLOAT64, FLOAT32, INT32, INT64, and BOOL
+with exact typed array or segment carriers; boundaries are derived deterministically, internal
+single-use results stay virtual, and exactly one final store is materialized. Scalar and
+parallel-scalar generated execution cover every admitted row, while vector compute remains
+FLOAT64 numeric-only. Same-type CAST preserves represented values; cross-type CAST and excluded
+pointwise or later semantic families remain fail-closed. The generator schema is 5, default
+persistence remains disabled, and no public API, common lowering, shared module, architecture,
+dependency, build, conformance, or integration contract changed. Implementation evidence includes
+the required focused matrix, a broader focused regression batch, and the sole final 24-suite/
+73-test CPU pass with zero failures/errors and one opt-in evidence skip. Clean documentation
+context `/root/cpu_0005e_docs` reused that evidence, finalized affected Javadocs/package summaries
+and five Markdown records, and passed CPU Javadoc plus Markdown, exact 38-path scope, semantic,
+status, and whitespace gates.
 
 The reset was a working-tree replacement, not deletion of history. CPU 0001–0005 are Superseded
 with all recorded evidence preserved; the repository contains no old/new dual pipeline.

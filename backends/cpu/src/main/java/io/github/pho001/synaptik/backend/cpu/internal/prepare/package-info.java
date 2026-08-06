@@ -1,11 +1,12 @@
 /**
  * Owns the unsupported CPU analysis and post-assignment finalization lifecycle.
  *
- * <p>Analysis consumes one complete CPU-owned planned partition, forms computation units, retains
- * normalized access bindings and the original ordered carrier pattern, compares direct access
+ * <p>Analysis consumes one complete CPU-owned planned partition, validates one connected
+ * one-to-eight-occurrence pointwise chain, forms one computation unit, retains normalized access
+ * bindings and the derived ordered type/carrier pattern, compares direct access
  * with at most three one-input contiguous-copy candidates from explicit dimensionless cold
- * evidence, selects scalar or
- * preferred-species vector compute plus single-thread or bounded parallel orchestration, and
+ * evidence, selects scalar or FLOAT64-numeric-only preferred-species vector compute plus
+ * single-thread or bounded parallel orchestration, and
  * declares each boundary's exact referenced storage span plus at most one workspace before shared
  * assignment. Finalization verifies all assignments and any required borrowed worker group before
  * one artifact-store call, realizes the already-selected

@@ -12,7 +12,7 @@ final class CpuLoopEmitter {
     /**
      * Generation-local element-address slots supplied to the fused body emitter.
      *
-     * @param addresses non-null ordered local-variable slots for the four boundary addresses
+     * @param addresses non-null ordered local-variable slots for all derived boundary addresses
      */
     record State(int[] addresses) { }
     private record PlanState(CpuAccessPlan plan, int address, int[] outerCoordinates,
@@ -26,21 +26,25 @@ final class CpuLoopEmitter {
     CpuLoopEmitter(CodeBuilder code) { this.code = code; }
 
     /**
-     * Emits one universal half-open loop and regime-specific address state for four boundaries.
+     * Emits one universal half-open loop and regime-specific address state for all boundaries.
      *
      * @param plans non-null ordered structural plans sharing one iteration rank
-     * @param body non-null generation callback receiving the four address-local slots
+     * @param body non-null generation callback receiving all ordered address-local slots
      */
     void emit(List<CpuAccessPlan> plans, Consumer<State> body) {
         int rank = plans.getFirst().iterationRank();
+        int boundaryCount = plans.size();
+        int geometrySlot = boundaryCount;
+        int startSlot = boundaryCount + 1;
+        int endSlot = boundaryCount + 3;
         var done = code.newLabel();
-        code.lload(5).lload(7).lcmp().branch(Opcode.IFGE, done);
-        int[] addresses = new int[4];
-        PlanState[] states = new PlanState[4];
-        for (int value = 0; value < 4; value++) {
+        code.lload(startSlot).lload(endSlot).lcmp().branch(Opcode.IFGE, done);
+        int[] addresses = new int[boundaryCount];
+        PlanState[] states = new PlanState[boundaryCount];
+        for (int value = 0; value < boundaryCount; value++) {
             CpuAccessPlan plan = plans.get(value);
             addresses[value] = code.allocateLocal(TypeKind.LONG);
-            loadGeometry(2 * rank + value).lstore(addresses[value]);
+            loadGeometry(geometrySlot, 2 * rank + value).lstore(addresses[value]);
             int coordinateCount = switch (plan.regime()) {
                 case GENERAL_ODOMETER -> rank;
                 case BLOCK_OUTER -> rank - plan.contiguousSuffix();
@@ -49,24 +53,26 @@ final class CpuLoopEmitter {
             int[] coordinates = new int[coordinateCount];
             for (int axis = 0; axis < coordinateCount; axis++) {
                 coordinates[axis] = code.allocateLocal(TypeKind.LONG);
-                loadGeometry(rank + axis).lstore(coordinates[axis]);
+                loadGeometry(geometrySlot, rank + axis).lstore(coordinates[axis]);
             }
             int inner = -1;
             if (plan.regime() == CpuAccessPlan.Regime.LAST_AXIS_BIAS
                     || plan.regime() == CpuAccessPlan.Regime.BLOCK_OUTER) {
                 inner = code.allocateLocal(TypeKind.LONG);
-                loadGeometry(2 * rank + 4 + 4 * rank + value).lstore(inner);
+                loadGeometry(geometrySlot, 2 * rank + boundaryCount
+                        + boundaryCount * rank + value).lstore(inner);
             }
             states[value] = new PlanState(plan, addresses[value], coordinates, inner);
         }
         int index = code.allocateLocal(TypeKind.LONG);
-        code.lload(5).lstore(index);
+        code.lload(startSlot).lstore(index);
         var loop = code.newLabel();
         code.labelBinding(loop);
         body.accept(new State(addresses));
         code.lload(index).loadConstant(1L).ladd().lstore(index);
-        code.lload(index).lload(7).lcmp().branch(Opcode.IFGE, done);
-        for (int value = 0; value < 4; value++) emitAdvance(states[value], value, rank);
+        code.lload(index).lload(endSlot).lcmp().branch(Opcode.IFGE, done);
+        for (int value = 0; value < boundaryCount; value++) emitAdvance(
+                states[value], value, rank, boundaryCount, geometrySlot);
         code.branch(Opcode.GOTO, loop);
         code.labelBinding(done);
     }
@@ -85,14 +91,18 @@ final class CpuLoopEmitter {
     void emitVector(List<CpuAccessPlan> plans, int lanes, Consumer<State> vectorBody,
             Consumer<State> scalarBody) {
         int rank = plans.getFirst().iterationRank();
+        int boundaryCount = plans.size();
+        int geometrySlot = boundaryCount;
+        int startSlot = boundaryCount + 1;
+        int endSlot = boundaryCount + 3;
         var done = code.newLabel();
-        code.lload(5).lload(7).lcmp().branch(Opcode.IFGE, done);
-        int[] addresses = new int[4];
-        PlanState[] states = new PlanState[4];
-        for (int value = 0; value < 4; value++) {
+        code.lload(startSlot).lload(endSlot).lcmp().branch(Opcode.IFGE, done);
+        int[] addresses = new int[boundaryCount];
+        PlanState[] states = new PlanState[boundaryCount];
+        for (int value = 0; value < boundaryCount; value++) {
             CpuAccessPlan plan = plans.get(value);
             addresses[value] = code.allocateLocal(TypeKind.LONG);
-            loadGeometry(2 * rank + value).lstore(addresses[value]);
+            loadGeometry(geometrySlot, 2 * rank + value).lstore(addresses[value]);
             int coordinateCount = switch (plan.regime()) {
                 case GENERAL_ODOMETER -> rank;
                 case BLOCK_OUTER -> rank - plan.contiguousSuffix();
@@ -101,32 +111,34 @@ final class CpuLoopEmitter {
             int[] coordinates = new int[coordinateCount];
             for (int axis = 0; axis < coordinateCount; axis++) {
                 coordinates[axis] = code.allocateLocal(TypeKind.LONG);
-                loadGeometry(rank + axis).lstore(coordinates[axis]);
+                loadGeometry(geometrySlot, rank + axis).lstore(coordinates[axis]);
             }
             int inner = -1;
             if (plan.regime() == CpuAccessPlan.Regime.LAST_AXIS_BIAS
                     || plan.regime() == CpuAccessPlan.Regime.BLOCK_OUTER) {
                 inner = code.allocateLocal(TypeKind.LONG);
-                loadGeometry(2 * rank + 4 + 4 * rank + value).lstore(inner);
+                loadGeometry(geometrySlot, 2 * rank + boundaryCount
+                        + boundaryCount * rank + value).lstore(inner);
             }
             states[value] = new PlanState(plan, addresses[value], coordinates, inner);
         }
         int index = code.allocateLocal(TypeKind.LONG);
         int available = code.allocateLocal(TypeKind.LONG);
-        code.lload(5).lstore(index);
+        code.lload(startSlot).lstore(index);
         var loop = code.newLabel();
         var scalar = code.newLabel();
         code.labelBinding(loop);
-        code.lload(index).lload(7).lcmp().branch(Opcode.IFGE, done);
-        code.lload(7).lload(index).lsub().lstore(available);
-        for (int value = 0; value < 4; value++) {
+        code.lload(index).lload(endSlot).lcmp().branch(Opcode.IFGE, done);
+        code.lload(endSlot).lload(index).lsub().lstore(available);
+        for (int value = 0; value < boundaryCount; value++) {
             PlanState state = states[value];
             if (state.plan().regime() != CpuAccessPlan.Regime.LAST_AXIS_BIAS
                     && state.plan().regime() != CpuAccessPlan.Regime.BLOCK_OUTER) continue;
             int sizeIndex = state.plan().regime() == CpuAccessPlan.Regime.LAST_AXIS_BIAS
-                    ? rank - 1 : 2 * rank + 4 + 4 * rank + 4 + value;
+                    ? rank - 1 : 2 * rank + boundaryCount + boundaryCount * rank
+                            + boundaryCount + value;
             int candidate = code.allocateLocal(TypeKind.LONG);
-            loadGeometry(sizeIndex).lload(state.innerPosition()).lsub().lstore(candidate);
+            loadGeometry(geometrySlot, sizeIndex).lload(state.innerPosition()).lsub().lstore(candidate);
             var keep = code.newLabel();
             code.lload(candidate).lload(available).lcmp().branch(Opcode.IFGE, keep);
             code.lload(candidate).lstore(available);
@@ -135,42 +147,45 @@ final class CpuLoopEmitter {
         code.lload(available).loadConstant((long) lanes).lcmp().branch(Opcode.IFLT, scalar);
         vectorBody.accept(new State(addresses));
         code.lload(index).loadConstant((long) lanes).ladd().lstore(index);
-        for (int value = 0; value < 4; value++) emitVectorAdvance(
-                states[value], value, rank, lanes);
+        for (int value = 0; value < boundaryCount; value++) emitVectorAdvance(
+                states[value], value, rank, lanes, boundaryCount, geometrySlot);
         code.branch(Opcode.GOTO, loop);
         code.labelBinding(scalar);
         scalarBody.accept(new State(addresses));
         code.lload(index).loadConstant(1L).ladd().lstore(index);
-        code.lload(index).lload(7).lcmp().branch(Opcode.IFGE, done);
-        for (int value = 0; value < 4; value++) emitAdvance(states[value], value, rank);
+        code.lload(index).lload(endSlot).lcmp().branch(Opcode.IFGE, done);
+        for (int value = 0; value < boundaryCount; value++) emitAdvance(
+                states[value], value, rank, boundaryCount, geometrySlot);
         code.branch(Opcode.GOTO, loop);
         code.labelBinding(done);
     }
 
-    private void emitVectorAdvance(PlanState state, int value, int rank, int lanes) {
+    private void emitVectorAdvance(PlanState state, int value, int rank, int lanes,
+            int boundaryCount, int geometrySlot) {
         switch (state.plan().regime()) {
             case DENSE_LINEAR -> increment(state.address(), lanes);
             case SCALAR_ALL_ZERO -> { }
             case LAST_AXIS_BIAS -> {
                 increment(state.address(), lanes); increment(state.innerPosition(), lanes);
                 var finished = code.newLabel();
-                code.lload(state.innerPosition()); loadGeometry(rank - 1).lcmp()
+                code.lload(state.innerPosition()); loadGeometry(geometrySlot, rank - 1).lcmp()
                         .branch(Opcode.IFLT, finished);
                 code.loadConstant(0L).lstore(state.innerPosition());
-                code.lload(state.address()); loadGeometry(rank - 1).lsub()
+                code.lload(state.address()); loadGeometry(geometrySlot, rank - 1).lsub()
                         .lstore(state.address());
                 code.labelBinding(finished);
             }
             case BLOCK_OUTER -> {
-                int innerSizeIndex = 2 * rank + 4 + 4 * rank + 4 + value;
+                int innerSizeIndex = 2 * rank + boundaryCount + boundaryCount * rank
+                        + boundaryCount + value;
                 increment(state.address(), lanes); increment(state.innerPosition(), lanes);
                 var finished = code.newLabel();
-                code.lload(state.innerPosition()); loadGeometry(innerSizeIndex).lcmp()
+                code.lload(state.innerPosition()); loadGeometry(geometrySlot, innerSizeIndex).lcmp()
                         .branch(Opcode.IFLT, finished);
                 code.loadConstant(0L).lstore(state.innerPosition());
-                code.lload(state.address()); loadGeometry(innerSizeIndex).lsub()
+                code.lload(state.address()); loadGeometry(geometrySlot, innerSizeIndex).lsub()
                         .lstore(state.address());
-                emitOuterCarry(state, value, rank, finished);
+                emitOuterCarry(state, value, rank, boundaryCount, geometrySlot, finished);
                 code.labelBinding(finished);
             }
             case GENERAL_ODOMETER -> throw new IllegalArgumentException(
@@ -178,56 +193,62 @@ final class CpuLoopEmitter {
         }
     }
 
-    private void emitAdvance(PlanState state, int value, int rank) {
+    private void emitAdvance(PlanState state, int value, int rank, int boundaryCount,
+            int geometrySlot) {
         switch (state.plan().regime()) {
             case DENSE_LINEAR -> increment(state.address(), 1);
             case SCALAR_ALL_ZERO -> { }
-            case LAST_AXIS_BIAS -> emitLastAxis(state, rank);
-            case BLOCK_OUTER -> emitBlockOuter(state, value, rank);
-            case GENERAL_ODOMETER -> emitGeneral(state, value, rank);
+            case LAST_AXIS_BIAS -> emitLastAxis(state, rank, geometrySlot);
+            case BLOCK_OUTER -> emitBlockOuter(state, value, rank, boundaryCount, geometrySlot);
+            case GENERAL_ODOMETER -> emitGeneral(state, value, rank, boundaryCount, geometrySlot);
         }
     }
 
-    private void emitLastAxis(PlanState state, int rank) {
+    private void emitLastAxis(PlanState state, int rank, int geometrySlot) {
         increment(state.address(), 1);
         increment(state.innerPosition(), 1);
         var finished = code.newLabel();
-        code.lload(state.innerPosition()); loadGeometry(rank - 1).lcmp()
+        code.lload(state.innerPosition()); loadGeometry(geometrySlot, rank - 1).lcmp()
                 .branch(Opcode.IFLT, finished);
         code.loadConstant(0L).lstore(state.innerPosition());
-        code.lload(state.address()); loadGeometry(rank - 1).lsub().lstore(state.address());
+        code.lload(state.address()); loadGeometry(geometrySlot, rank - 1).lsub().lstore(state.address());
         code.labelBinding(finished);
     }
 
-    private void emitBlockOuter(PlanState state, int value, int rank) {
+    private void emitBlockOuter(PlanState state, int value, int rank, int boundaryCount,
+            int geometrySlot) {
         increment(state.address(), 1);
         increment(state.innerPosition(), 1);
-        int innerSizeIndex = 2 * rank + 4 + 4 * rank + 4 + value;
+        int innerSizeIndex = 2 * rank + boundaryCount + boundaryCount * rank
+                + boundaryCount + value;
         var finished = code.newLabel();
-        code.lload(state.innerPosition()); loadGeometry(innerSizeIndex).lcmp()
+        code.lload(state.innerPosition()); loadGeometry(geometrySlot, innerSizeIndex).lcmp()
                 .branch(Opcode.IFLT, finished);
         code.loadConstant(0L).lstore(state.innerPosition());
-        code.lload(state.address()); loadGeometry(innerSizeIndex).lsub().lstore(state.address());
-        emitOuterCarry(state, value, rank, finished);
+        code.lload(state.address()); loadGeometry(geometrySlot, innerSizeIndex).lsub().lstore(state.address());
+        emitOuterCarry(state, value, rank, boundaryCount, geometrySlot, finished);
         code.labelBinding(finished);
     }
 
-    private void emitGeneral(PlanState state, int value, int rank) {
+    private void emitGeneral(PlanState state, int value, int rank, int boundaryCount,
+            int geometrySlot) {
         var finished = code.newLabel();
-        emitOuterCarry(state, value, rank, finished);
+        emitOuterCarry(state, value, rank, boundaryCount, geometrySlot, finished);
         code.labelBinding(finished);
     }
 
-    private void emitOuterCarry(PlanState state, int value, int rank,
+    private void emitOuterCarry(PlanState state, int value, int rank, int boundaryCount,
+            int geometrySlot,
             java.lang.classfile.Label finished) {
         for (int axis = state.outerCoordinates().length - 1; axis >= 0; axis--) {
             increment(state.outerCoordinates()[axis], 1);
-            code.lload(state.address()); stride(value, rank, axis).ladd().lstore(state.address());
-            code.lload(state.outerCoordinates()[axis]); loadGeometry(axis).lcmp()
+            code.lload(state.address()); stride(geometrySlot, value, rank, boundaryCount, axis)
+                    .ladd().lstore(state.address());
+            code.lload(state.outerCoordinates()[axis]); loadGeometry(geometrySlot, axis).lcmp()
                     .branch(Opcode.IFLT, finished);
             code.loadConstant(0L).lstore(state.outerCoordinates()[axis]);
-            code.lload(state.address()); stride(value, rank, axis);
-            loadGeometry(axis).lmul().lsub().lstore(state.address());
+            code.lload(state.address()); stride(geometrySlot, value, rank, boundaryCount, axis);
+            loadGeometry(geometrySlot, axis).lmul().lsub().lstore(state.address());
         }
     }
 
@@ -235,11 +256,11 @@ final class CpuLoopEmitter {
         code.lload(local).loadConstant(amount).ladd().lstore(local);
     }
 
-    private CodeBuilder stride(int value, int rank, int axis) {
-        return loadGeometry(2 * rank + 4 + value * rank + axis);
+    private CodeBuilder stride(int geometrySlot, int value, int rank, int boundaryCount, int axis) {
+        return loadGeometry(geometrySlot, 2 * rank + boundaryCount + value * rank + axis);
     }
 
-    private CodeBuilder loadGeometry(int index) {
-        return code.aload(4).loadConstant(index).laload();
+    private CodeBuilder loadGeometry(int geometrySlot, int index) {
+        return code.aload(geometrySlot).loadConstant(index).laload();
     }
 }

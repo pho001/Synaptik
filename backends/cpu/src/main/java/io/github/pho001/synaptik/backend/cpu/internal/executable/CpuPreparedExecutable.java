@@ -16,6 +16,7 @@ import io.github.pho001.synaptik.runtime.run.RunState;
 import java.lang.foreign.MemorySegment;
 import java.lang.foreign.ValueLayout;
 import java.lang.invoke.MethodHandle;
+import java.lang.invoke.MethodHandles;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
@@ -44,11 +45,10 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
     private final Optional<WorkspaceSelection> workspaceSelection;
 
     /**
-     * Creates a direct four-boundary recipe for one exact half-open logical range.
+     * Creates a direct derived-boundary recipe for one exact half-open logical range.
      *
      * @param memoryPlan non-null exact plan against which selections are resolved
-     * @param selections non-null ordered selections for inputs {@code a}, {@code b}, {@code c},
-     *     and the output; copied by the superclass
+     * @param selections non-null ordered derived-boundary selections; copied by the superclass
      * @param artifact non-null verified artifact matching {@code carrierPattern}
      * @param bindings non-null full-range normalized boundary bindings; copied defensively
      * @param carrierPattern non-null ordered direct carrier pattern; copied defensively
@@ -69,8 +69,7 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
      * retains the group without taking ownership of its lifecycle.
      *
      * @param memoryPlan non-null exact plan against which selections are resolved
-     * @param selections non-null ordered selections for inputs {@code a}, {@code b}, {@code c},
-     *     and output; copied by the superclass
+     * @param selections non-null ordered derived-boundary selections; copied by the superclass
      * @param artifact non-null generated scalar or vector artifact matching
      *     {@code carrierPattern}
      * @param bindings non-null full-range normalized boundary bindings; copied defensively
@@ -99,7 +98,7 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
      * the same.
      *
      * @param memoryPlan non-null exact plan against which selections are resolved
-     * @param selections non-null four ordered boundary selections
+     * @param selections non-null ordered derived-boundary selections
      * @param artifact non-null verified generated artifact
      * @param bindings non-null generated-consumer access bindings; copied defensively
      * @param carrierPattern non-null direct and generated carrier pattern; copied defensively
@@ -130,7 +129,7 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
      * Creates the complete recipe with separate original and adjusted generated carrier patterns.
      *
      * @param memoryPlan non-null exact plan against which selections are resolved
-     * @param selections non-null four ordered boundary selections
+     * @param selections non-null ordered derived-boundary selections
      * @param artifact non-null verified generated artifact matching
      *     {@code generatedCarrierPattern}
      * @param bindings non-null generated-consumer access bindings; copied defensively
@@ -156,15 +155,16 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
             long minimumElementsPerWorker, CpuWorkerGroup workerGroup,
             Optional<CpuMaterializationPlan> materialization,
             Optional<WorkspaceSelection> workspaceSelection) {
-        super(memoryPlan, selections, workspaceSelection.map(List::of).orElseGet(List::of), List.of(BufferAccess.READ_ONLY,
-                BufferAccess.READ_ONLY, BufferAccess.READ_ONLY, BufferAccess.WRITE_ONLY));
-        if (selections.size() != 4) throw new IllegalArgumentException("four buffers required");
+        super(memoryPlan, selections, workspaceSelection.map(List::of).orElseGet(List::of),
+                accesses(selections.size()));
+        if (selections.size() < 2) throw new IllegalArgumentException("at least two buffers required");
         this.artifact = Objects.requireNonNull(artifact, "artifact");
         this.bindings = List.copyOf(bindings);
         this.carrierPattern = List.copyOf(carrierPattern);
         this.generatedCarrierPattern = List.copyOf(generatedCarrierPattern);
-        if (this.bindings.size() != 4 || this.carrierPattern.size() != 4
-                || this.generatedCarrierPattern.size() != 4
+        if (this.bindings.size() != selections.size()
+                || this.carrierPattern.size() != selections.size()
+                || this.generatedCarrierPattern.size() != selections.size()
                 || !artifact.specialization().carrierPattern().equals(this.generatedCarrierPattern)) {
             throw new IllegalArgumentException("binding and specialization patterns must agree");
         }
@@ -209,7 +209,8 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
     /**
      * Returns the exact ranged geometry for every ordered boundary.
      *
-     * @return a new immutable four-entry list whose bindings share this recipe's range
+     * @return a new immutable list whose entries share this recipe's range and remain in boundary
+     *     order
      */
     public List<CpuAccessPlan.Binding> accessBindings() {
         return bindings.stream().map(this::ranged).toList();
@@ -225,8 +226,8 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
      * @throws IllegalArgumentException if the range is negative, reversed, or out of bounds
      */
     public CpuPreparedExecutable forRange(long rangeStart, long rangeEnd) {
-        var selections = new ArrayList<BufferSelection>(4);
-        for (int i = 0; i < 4; i++) selections.add(bufferSelection(i));
+        var selections = new ArrayList<BufferSelection>(bindings.size());
+        for (int i = 0; i < bindings.size(); i++) selections.add(bufferSelection(i));
         return new CpuPreparedExecutable(memoryPlan(), selections, artifact, bindings,
                 carrierPattern, generatedCarrierPattern, rangeStart, rangeEnd, selectedRangeCount,
                 minimumElementsPerWorker, workerGroup, materialization,
@@ -247,17 +248,16 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
 
     @Override protected boolean acceptsBufferRepresentation(int index, BufferRepresentation value) {
         if (!(value instanceof CpuBufferRepresentation cpu) || !cpu.isAccessible()
-                || cpu.dataType() != io.github.pho001.synaptik.model.datatype.DataType.FLOAT64) return false;
+                || cpu.dataType() != artifact.specialization().boundaryDataTypes().get(index)) return false;
         var entry = memoryPlan().buffers().get(bufferSelection(index).bufferIndex());
         if (cpu.byteSize() != entry.byteSize()) return false;
         try {
             CpuBufferArgument argument = cpu.argument();
-            CarrierAccess actual = argument instanceof CpuBufferArgument.Doubles
-                    ? CarrierAccess.DOUBLE_ARRAY : CarrierAccess.MEMORY_SEGMENT;
+            CarrierAccess actual = carrierAccess(argument);
             boolean aligned = !(argument instanceof CpuBufferArgument.Segment segment)
                     || segment.segment().address() % entry.byteAlignment() == 0;
             return actual == carrierPattern.get(index) && aligned
-                    && (index < 3 || !argument.readOnly());
+                    && (index < bindings.size() - 1 || !argument.readOnly());
         } catch (IllegalArgumentException | IllegalStateException incompatible) { return false; }
     }
 
@@ -277,19 +277,21 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
         if (workspaces.length != (materialization.isPresent() ? 1 : 0)) {
             throw new IllegalArgumentException("workspace count disagrees with materialization");
         }
-        var arguments = new ArrayList<CpuBufferArgument>(4);
+        var arguments = new ArrayList<CpuBufferArgument>(bindings.size());
         for (BufferRepresentation buffer : buffers) {
             arguments.add(((CpuBufferRepresentation) buffer).argument());
         }
-        for (int input = 0; input < 3; input++) {
+        int outputIndex = bindings.size() - 1;
+        for (int input = 0; input < outputIndex; input++) {
             CpuAccessPlan.Binding inputBinding = materialization.isPresent()
                     && materialization.orElseThrow().sourceBoundaryIndex() == input
                     ? materialization.orElseThrow().sourceBinding() : bindings.get(input);
             if (overlaps(arguments.get(input), ranged(inputBinding),
-                    arguments.get(3), ranged(bindings.get(3)))) {
+                    arguments.get(outputIndex), ranged(bindings.get(outputIndex)))) {
                 throw new IllegalArgumentException("output accessed span must not overlap an input");
             }
         }
+        validateCanonicalBooleanInputs(arguments);
         CopyCall copyCall = null;
         if (materialization.isPresent()) {
             var copy = materialization.orElseThrow();
@@ -389,17 +391,20 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
 
     private long[] geometry(List<CpuBufferArgument> arguments, long rangeStart, long rangeEnd) {
         int rank = bindings.getFirst().plan().iterationRank();
-        long[] geometry = new long[2 * rank + 4 + 4 * rank + 8];
+        int boundaryCount = bindings.size();
+        long[] geometry = new long[2 * rank + boundaryCount + boundaryCount * rank
+                + 2 * boundaryCount];
         CpuAccessPlan.Binding first = ranged(bindings.getFirst(), rangeStart, rangeEnd);
         for (int axis = 0; axis < rank; axis++) {
             geometry[axis] = first.extents().get(axis);
             geometry[rank + axis] = first.startCoordinates().get(axis);
         }
-        for (int value = 0; value < 4; value++) {
+        for (int value = 0; value < boundaryCount; value++) {
             CpuAccessPlan.Binding binding = ranged(bindings.get(value), rangeStart, rangeEnd);
-            long carrierBase = arguments.get(value).byteOffset() / Double.BYTES;
+            int width = artifact.specialization().boundaryDataTypes().get(value).byteWidth();
+            long carrierBase = arguments.get(value).byteOffset() / width;
             geometry[2 * rank + value] = Math.addExact(carrierBase, binding.startAddress());
-            for (int axis = 0; axis < rank; axis++) geometry[2 * rank + 4 + value * rank + axis]
+            for (int axis = 0; axis < rank; axis++) geometry[2 * rank + boundaryCount + value * rank + axis]
                     = binding.effectiveStrides().get(axis);
             long innerPosition = 0;
             long innerSize = 1;
@@ -408,8 +413,8 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
                         binding.extents().get(axis)), binding.startCoordinates().get(axis));
                 innerSize = Math.multiplyExact(innerSize, binding.extents().get(axis));
             }
-            geometry[2 * rank + 4 + 4 * rank + value] = innerPosition;
-            geometry[2 * rank + 4 + 4 * rank + 4 + value] = innerSize;
+            geometry[2 * rank + boundaryCount + boundaryCount * rank + value] = innerPosition;
+            geometry[2 * rank + boundaryCount + boundaryCount * rank + boundaryCount + value] = innerSize;
         }
         return geometry;
     }
@@ -417,61 +422,106 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
     private static boolean overlaps(CpuBufferArgument left, CpuAccessPlan.Binding leftBinding,
             CpuBufferArgument right, CpuAccessPlan.Binding rightBinding) {
         if (leftBinding.elementCount() == 0 || rightBinding.elementCount() == 0) return false;
-        Object leftCarrier = left instanceof CpuBufferArgument.Doubles d ? d.carrier()
-                : ((CpuBufferArgument.Segment) left).segment();
-        Object rightCarrier = right instanceof CpuBufferArgument.Doubles d ? d.carrier()
-                : ((CpuBufferArgument.Segment) right).segment();
+        Object leftCarrier = carrier(left);
+        Object rightCarrier = carrier(right);
         if (leftCarrier instanceof MemorySegment a && rightCarrier instanceof MemorySegment b
                 && a.asOverlappingSlice(b).isEmpty()) return false;
         if (leftCarrier != rightCarrier && !(leftCarrier instanceof MemorySegment
                 && rightCarrier instanceof MemorySegment)) return false;
+        int leftWidth = dataType(left).byteWidth();
+        int rightWidth = dataType(right).byteWidth();
         long leftStart = Math.addExact(carrierBase(left),
-                Math.multiplyExact(leftBinding.accessedElementStart(), Double.BYTES));
+                Math.multiplyExact(leftBinding.accessedElementStart(), leftWidth));
         long leftEnd = Math.addExact(carrierBase(left),
-                Math.multiplyExact(leftBinding.accessedElementEnd(), Double.BYTES));
+                Math.multiplyExact(leftBinding.accessedElementEnd(), leftWidth));
         long rightStart = Math.addExact(carrierBase(right),
-                Math.multiplyExact(rightBinding.accessedElementStart(), Double.BYTES));
+                Math.multiplyExact(rightBinding.accessedElementStart(), rightWidth));
         long rightEnd = Math.addExact(carrierBase(right),
-                Math.multiplyExact(rightBinding.accessedElementEnd(), Double.BYTES));
+                Math.multiplyExact(rightBinding.accessedElementEnd(), rightWidth));
         return leftStart < rightEnd && rightStart < leftEnd;
     }
 
     private static long carrierBase(CpuBufferArgument argument) {
-        return argument instanceof CpuBufferArgument.Doubles
-                ? argument.byteOffset() : ((CpuBufferArgument.Segment) argument).segment().address();
+        return argument instanceof CpuBufferArgument.Segment segment
+                ? segment.segment().address() : argument.byteOffset();
     }
 
     @FunctionalInterface private interface KernelCall { void invoke() throws Throwable; }
 
     private static KernelCall callFor(MethodHandle h, List<CpuBufferArgument> a, long[] g,
             long start, long end) {
-        int mask = 0;
-        for (int i = 0; i < 4; i++) if (a.get(i) instanceof CpuBufferArgument.Doubles) mask |= 1 << i;
-        Object x0 = carrier(a.get(0)), x1 = carrier(a.get(1)), x2 = carrier(a.get(2)), x3 = carrier(a.get(3));
-        return switch (mask) {
-            case 0 -> { var p0=(MemorySegment)x0; var p1=(MemorySegment)x1; var p2=(MemorySegment)x2; var p3=(MemorySegment)x3; yield () -> { h.invokeExact(p0,p1,p2,p3,g,start,end); }; }
-            case 1 -> { var p0=(double[])x0; var p1=(MemorySegment)x1; var p2=(MemorySegment)x2; var p3=(MemorySegment)x3; yield () -> { h.invokeExact(p0,p1,p2,p3,g,start,end); }; }
-            case 2 -> { var p0=(MemorySegment)x0; var p1=(double[])x1; var p2=(MemorySegment)x2; var p3=(MemorySegment)x3; yield () -> { h.invokeExact(p0,p1,p2,p3,g,start,end); }; }
-            case 3 -> { var p0=(double[])x0; var p1=(double[])x1; var p2=(MemorySegment)x2; var p3=(MemorySegment)x3; yield () -> { h.invokeExact(p0,p1,p2,p3,g,start,end); }; }
-            case 4 -> { var p0=(MemorySegment)x0; var p1=(MemorySegment)x1; var p2=(double[])x2; var p3=(MemorySegment)x3; yield () -> { h.invokeExact(p0,p1,p2,p3,g,start,end); }; }
-            case 5 -> { var p0=(double[])x0; var p1=(MemorySegment)x1; var p2=(double[])x2; var p3=(MemorySegment)x3; yield () -> { h.invokeExact(p0,p1,p2,p3,g,start,end); }; }
-            case 6 -> { var p0=(MemorySegment)x0; var p1=(double[])x1; var p2=(double[])x2; var p3=(MemorySegment)x3; yield () -> { h.invokeExact(p0,p1,p2,p3,g,start,end); }; }
-            case 7 -> { var p0=(double[])x0; var p1=(double[])x1; var p2=(double[])x2; var p3=(MemorySegment)x3; yield () -> { h.invokeExact(p0,p1,p2,p3,g,start,end); }; }
-            case 8 -> { var p0=(MemorySegment)x0; var p1=(MemorySegment)x1; var p2=(MemorySegment)x2; var p3=(double[])x3; yield () -> { h.invokeExact(p0,p1,p2,p3,g,start,end); }; }
-            case 9 -> { var p0=(double[])x0; var p1=(MemorySegment)x1; var p2=(MemorySegment)x2; var p3=(double[])x3; yield () -> { h.invokeExact(p0,p1,p2,p3,g,start,end); }; }
-            case 10 -> { var p0=(MemorySegment)x0; var p1=(double[])x1; var p2=(MemorySegment)x2; var p3=(double[])x3; yield () -> { h.invokeExact(p0,p1,p2,p3,g,start,end); }; }
-            case 11 -> { var p0=(double[])x0; var p1=(double[])x1; var p2=(MemorySegment)x2; var p3=(double[])x3; yield () -> { h.invokeExact(p0,p1,p2,p3,g,start,end); }; }
-            case 12 -> { var p0=(MemorySegment)x0; var p1=(MemorySegment)x1; var p2=(double[])x2; var p3=(double[])x3; yield () -> { h.invokeExact(p0,p1,p2,p3,g,start,end); }; }
-            case 13 -> { var p0=(double[])x0; var p1=(MemorySegment)x1; var p2=(double[])x2; var p3=(double[])x3; yield () -> { h.invokeExact(p0,p1,p2,p3,g,start,end); }; }
-            case 14 -> { var p0=(MemorySegment)x0; var p1=(double[])x1; var p2=(double[])x2; var p3=(double[])x3; yield () -> { h.invokeExact(p0,p1,p2,p3,g,start,end); }; }
-            case 15 -> { var p0=(double[])x0; var p1=(double[])x1; var p2=(double[])x2; var p3=(double[])x3; yield () -> { h.invokeExact(p0,p1,p2,p3,g,start,end); }; }
-            default -> throw new AssertionError(mask);
-        };
+        Object[] carriers = a.stream().map(CpuPreparedExecutable::carrier).toArray();
+        MethodHandle bound = MethodHandles.insertArguments(h, 0, carriers);
+        bound = MethodHandles.insertArguments(bound, 0, (Object) g);
+        MethodHandle target = bound;
+        return () -> invokeVoid(target, start, end);
+    }
+
+    private static void invokeVoid(MethodHandle target, long start, long end) throws Throwable {
+        target.invokeExact(start, end);
     }
 
     private static Object carrier(CpuBufferArgument argument) {
-        return argument instanceof CpuBufferArgument.Doubles d ? d.carrier()
-                : ((CpuBufferArgument.Segment) argument).segment();
+        if (argument instanceof CpuBufferArgument.Doubles value) return value.carrier();
+        if (argument instanceof CpuBufferArgument.Floats value) return value.carrier();
+        if (argument instanceof CpuBufferArgument.Ints value) return value.carrier();
+        if (argument instanceof CpuBufferArgument.Longs value) return value.carrier();
+        if (argument instanceof CpuBufferArgument.Bytes value) return value.carrier();
+        return ((CpuBufferArgument.Segment) argument).segment();
+    }
+
+    private static List<BufferAccess> accesses(int count) {
+        if (count < 2) throw new IllegalArgumentException("at least two buffers required");
+        var result = new ArrayList<BufferAccess>(count);
+        for (int i = 0; i < count - 1; i++) result.add(BufferAccess.READ_ONLY);
+        result.add(BufferAccess.WRITE_ONLY);
+        return List.copyOf(result);
+    }
+
+    private static CarrierAccess carrierAccess(CpuBufferArgument argument) {
+        if (argument instanceof CpuBufferArgument.Doubles) return CarrierAccess.DOUBLE_ARRAY;
+        if (argument instanceof CpuBufferArgument.Floats) return CarrierAccess.FLOAT_ARRAY;
+        if (argument instanceof CpuBufferArgument.Ints) return CarrierAccess.INT_ARRAY;
+        if (argument instanceof CpuBufferArgument.Longs) return CarrierAccess.LONG_ARRAY;
+        if (argument instanceof CpuBufferArgument.Bytes) return CarrierAccess.BYTE_ARRAY;
+        return CarrierAccess.MEMORY_SEGMENT;
+    }
+
+    private static io.github.pho001.synaptik.model.datatype.DataType dataType(
+            CpuBufferArgument argument) {
+        if (argument instanceof CpuBufferArgument.Doubles) return io.github.pho001.synaptik.model.datatype.DataType.FLOAT64;
+        if (argument instanceof CpuBufferArgument.Floats) return io.github.pho001.synaptik.model.datatype.DataType.FLOAT32;
+        if (argument instanceof CpuBufferArgument.Ints) return io.github.pho001.synaptik.model.datatype.DataType.INT32;
+        if (argument instanceof CpuBufferArgument.Longs) return io.github.pho001.synaptik.model.datatype.DataType.INT64;
+        if (argument instanceof CpuBufferArgument.Bytes) return io.github.pho001.synaptik.model.datatype.DataType.BOOL;
+        return ((CpuBufferArgument.Segment) argument).dataType();
+    }
+
+    private void validateCanonicalBooleanInputs(List<CpuBufferArgument> arguments) {
+        int output = arguments.size() - 1;
+        for (int index = 0; index < output; index++) {
+            if (artifact.specialization().boundaryDataTypes().get(index)
+                    != io.github.pho001.synaptik.model.datatype.DataType.BOOL) continue;
+            CpuAccessPlan.Binding binding = ranged(bindings.get(index));
+            long[] extents = binding.extents().stream().mapToLong(Long::longValue).toArray();
+            long[] strides = binding.effectiveStrides().stream().mapToLong(Long::longValue).toArray();
+            long[] coordinates = binding.startCoordinates().stream().mapToLong(Long::longValue).toArray();
+            long address = binding.startAddress();
+            for (long logical = binding.start(); logical < binding.end(); logical++) {
+                byte value = readByte(arguments.get(index), address);
+                if (value != 0 && value != 1) {
+                    throw new IllegalArgumentException("BOOL condition must use canonical bytes");
+                }
+                address = advanceAddress(address, extents, strides, coordinates);
+            }
+        }
+    }
+
+    private static byte readByte(CpuBufferArgument argument, long address) {
+        if (argument instanceof CpuBufferArgument.Bytes bytes) {
+            return bytes.carrier()[Math.toIntExact(bytes.byteOffset() + address)];
+        }
+        return ((CpuBufferArgument.Segment) argument).segment().get(ValueLayout.JAVA_BYTE, address);
     }
 
     private final class Invocation extends BoundInvocation {

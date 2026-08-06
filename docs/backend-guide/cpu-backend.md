@@ -3,26 +3,28 @@
 ## Outcome and status
 
 This guide defines the CPU integration boundary and helps contributors avoid treating CPU routes
-as separate backends. The current CPU module implements one narrow, complete-partition proving
-slice: a fully static FLOAT64 `ADD -> exact GELU -> MUL` chain with resolved right-broadcastable
-input layouts and an injective resolved output layout lowers to one
-computation unit, one route-independent canonical kernel intermediate representation (IR), one
-generated Java 26 class, and one partition-level prepared executable. The two internal results
-remain graph and logical-memory values but are virtual in the fused unit, so only the three inputs
-and final output receive buffer declarations and Runtime slots.
+as separate backends. The current CPU module accepts a bounded, fully static pointwise partition:
+one supported occurrence or one connected straight-line chain of at most eight occurrences lowers
+to one computation unit, one route-independent canonical kernel intermediate representation (IR),
+one generated Java 26 class, and one partition-level prepared executable. Internal single-use
+results remain graph and logical-memory values but are virtual in the fused unit. CPU analysis
+therefore declares only external inputs and the sole final output, in deterministic order.
 
 Generated scalar and Java 26 Vector API loops accept primitive `start` and `end` bounds.
 Compatible concrete extents bind on the cold path and share identical class bytes and one
-process-local loaded compatibility identity. The current access family covers
-scalar/rank/singleton/multi-axis broadcasting, zero extents, offsets, positive and broadcast-zero
-strides, and every ordered heap/segment carrier pattern for the four boundaries. Cold analysis
-selects scalar, vector, parallel-scalar, or parallel-vector execution; vector-ineligible admitted
-geometry falls back to scalar compute. Analysis can also compare direct access with at most one
-CPU-private contiguous input copy from explicit dimensionless cold cost evidence. A selected copy
-uses one declared run-owned workspace and completes before consumer execution. Capability and
-lowering fail closed for every other
-operation, type, shape, layout, parameter, alias, fan-out, publication, carrier, or route. Native,
-tuning, and broader semantic-family work remains Draft.
+process-local loaded compatibility identity. The current semantic matrix uses exactly five
+executable carrier types—FLOAT64, FLOAT32, INT32, INT64, and BOOL—and one nineteen-opcode
+CPU-private pointwise vocabulary. The access family covers scalar/rank/singleton/multi-axis
+broadcasting, zero extents, offsets, positive and broadcast-zero strides, and ordered
+heap/segment/mixed carrier patterns for the derived boundaries. Cold analysis selects scalar,
+vector, parallel-scalar, or parallel-vector execution; vector-ineligible admitted geometry falls
+back to scalar compute. Analysis can also compare direct access with at most one CPU-private
+contiguous input copy from explicit dimensionless cold cost evidence. A selected copy uses one
+declared run-owned workspace and completes before consumer execution. Capability and lowering fail
+closed for every other operation, type, shape, layout, parameter, alias, fan-out, publication,
+carrier, or route. In particular, CAST is same-type only; CPU does not invent cross-type
+conversion semantics. Native, tuning, excluded pointwise rows, and later operation families
+remain Draft.
 
 The lower-level OpenBLAS provider separately implements explicit library loading, required-symbol
 binding, a caller-owned lookup lifetime, low-level FLOAT32/FLOAT64 dense row-major general matrix
@@ -398,8 +400,10 @@ exact-binding contract. The access family does not duplicate `WHERE`, elementwis
 planners. Broadcast gradients remain `SUM_TO_SHAPE` and later reduction work.
 
 Carrier access form is structural when it changes generated code. Each generated class contains
-exactly one direct static entry whose ordered `double[]`/`MemorySegment` signature matches the
-prepared unit. That ordered pattern participates in specialization and class/cache compatibility;
+exactly one direct static entry whose ordered typed primitive-array/`MemorySegment` signature
+matches the prepared unit. FLOAT64, FLOAT32, INT32, INT64, and BOOL use `double[]`, `float[]`,
+`int[]`, `long[]`, and canonical `byte[]` respectively, or an exact native-order segment. The
+ordered type/carrier pattern participates in specialization and class/cache compatibility;
 exact carrier objects, byte offsets, extents, strides, slots, addresses, and run identity remain
 cold bindings. Equal topology/access structure/carrier patterns may reuse class bytes and loaded
 identity across compatible extents, while a different carrier pattern intentionally selects a
@@ -408,13 +412,68 @@ each class. CPU analysis receives the backend-owned prepared pattern, finalizati
 one matching artifact, and Runtime binding only validates matching concrete carriers; it neither
 generates nor specializes code.
 
-For compatibility with the current proving topology and its 0005A tests,
-`CpuPartitionAnalysisInputs.DEFAULT` disables the lowering manifest and supplies four ordered
-`MEMORY_SEGMENT` entries for inputs `a`, `b`, `c`, and the output. An explicit composition-created
-input may instead supply any non-null four-entry heap/segment pattern; CPU analysis
-snapshots it and validates its count and order against the four declarations. No physical carrier
-object or general Config value enters the analysis input. Four is the boundary count of this
-proving topology, not a permanent generated-kernel or fusion architecture limit.
+`CpuPartitionAnalysisInputs.DEFAULT` disables the lowering manifest, persistence,
+materialization, vector preference, and parallel execution. Its empty explicit carrier list means
+"select one exact `MemorySegment` form per boundary derived by lowering"; it is no longer a
+four-boundary topology contract. An explicit composition-created input may instead supply a
+non-null ordered heap/segment pattern. CPU analysis snapshots it and validates its count, type,
+and order against the derived declarations. No physical carrier object or general Config value
+enters the analysis input.
+
+### Current bounded pointwise family
+
+The portable route maps admitted Model occurrences once into a single CPU-private
+`CpuPointwiseOpcode` vocabulary. The nineteen opcodes are grouped by family rather than by
+operation-specific lowerer, emitter, executable, or registry class:
+
+| Family | Current admitted semantics and exact types |
+|---|---|
+| Binary arithmetic | Same-type `ADD`, `SUB`, and `MUL` for FLOAT64, FLOAT32, INT32, and INT64 |
+| Scalar arithmetic | Exact typed scalar `ADD`, `SUB`, and `MUL` for the same four numeric types |
+| Unary | `NEG` for FLOAT64/FLOAT32 and existing exact `GELU` for FLOAT64 |
+| Classification | `IS_FINITE`, `IS_NAN`, and `IS_INF` for FLOAT64/FLOAT32 to BOOL |
+| Comparison | All six ordered/equality comparisons for the four numeric types to BOOL |
+| Selection | BOOL-conditioned `WHERE` with same-type FLOAT64 or FLOAT32 branches |
+| Cast | Represented-value-preserving same-type `CAST` for all five executable types |
+
+Scalar and parallel-scalar generated execution cover every row. Vector and parallel-vector are
+eligible only when every IR value is FLOAT64, every opcode is numeric and vector-safe (`ADD`,
+`SUB`, `MUL`, their exact scalar forms, `NEG`, or exact `GELU`), and the completed contiguous-run
+access checks pass. FLOAT32, integral, BOOL-producing, WHERE, and CAST chains remain supported but
+select scalar compute. This fallback is a cold strategy decision, not an execution failure or a
+claim of vector coverage.
+
+For example, a three-occurrence chain can add two FLOAT32 inputs, negate the virtual result, and
+compare it with a third FLOAT32 input. Lowering derives the three external reads in first-use
+order and appends the BOOL comparison result as the only materialized output:
+
+```text
+left -----\
+           FLOAT32 ADD -> virtual sum -> FLOAT32 NEG -> virtual negated --\
+right ----/                                                               > GREATER_THAN -> BOOL output
+threshold ---------------------------------------------------------------/
+```
+
+The two intermediate values receive no CPU buffer declaration or Runtime slot. The generated
+entry has four boundary arguments only because this example has three external reads and one
+output; another legal chain derives a different count. The BOOL store is canonical byte `0` or
+`1`, and cold binding validates every BOOL input boundary before hot invocation. This example
+demonstrates family lowering, virtuality, and derived boundary cardinality; it does not add
+cross-type conversion, general DAG fusion, or another operation family.
+
+Complete-partition lowering admits one through eight stored occurrences only when the internal
+dataflow is connected, acyclic in stored order, and straight-line. Each non-final result must have
+one later internal consumer and no publication, fan-out, or cross-partition obligation. Side
+inputs become external boundaries, later occurrences may right-broadcast a virtual result, and
+exactly one final store is materialized. Disconnected subchains, multiple outputs, internal
+fan-out, more than eight occurrences, or a partially supported partition fail before declaration
+or artifact access.
+
+Same-type CAST is intentionally narrow. Current Model construction represents all source/target
+pairs but leaves cross-type numerical conversion—rounding, overflow, saturation, NaN, and BOOL
+conversion—separately owned. CPU therefore executes only represented-value identity when input,
+target attribute, and output type are identical. It does not remove the cast from the compiled
+graph or imply a compiler canonicalization rule.
 
 Partition lowering, fusion legality/profitability, canonical IR, access plans, materialization
 accounting, numerical/determinism checks, and representation planning are common across routes.
@@ -454,7 +513,7 @@ complete access semantics do not promise universal vectorization.
 Vector classes use the Java 26 preferred FLOAT64 species captured during cold analysis. The exact
 species bit size participates in generated specialization and cache identity. Each generated class
 contains only its selected scalar or vector body and one direct entry signature for the prepared
-four-boundary carrier pattern. Vector loads and stores call the direct array or `MemorySegment`
+derived-boundary carrier pattern. Vector loads and stores call the direct array or `MemorySegment`
 forms selected during generation; segment access uses native byte order. Each contiguous run uses
 unmasked complete vectors, then the existing scalar body for every remainder. This scalar-tail
 rule covers arbitrary starts, worker chunk ends, and runs shorter than one vector; CPU 0005C adds
@@ -463,7 +522,7 @@ no masked tail, gather, per-lane scalar GELU, or hot scalar/vector switch.
 ### Current contiguous materialization decision
 
 Before shared assignment, CPU analysis enumerates candidates in stable order: direct access,
-copy input `a`, copy input `b`, then copy input `c`. It admits only one-input copies whose source
+then at most the first three eligible FLOAT64 read boundaries. It admits only one-input copies whose source
 is non-scalar, non-dense, consumed by the unit, within the additional-memory limit, and usable as
 canonical contiguous FLOAT64 segment access. Direct wins every tie. For each admitted input,
 analysis derives use count from the lowered unit and compares these dimensionless cold estimates:
@@ -479,17 +538,17 @@ Checked `long` arithmetic fails analysis on overflow. These inputs are supplied 
 nanoseconds, and CPU analysis never measures a model or searches a tuning cache.
 
 A selected `CpuMaterializationPlan` retains the original source boundary and access binding plus a
-canonical dense consumer binding. The four graph-value buffer declarations remain first and
+canonical dense consumer binding. All derived graph-value buffer declarations remain first and
 unchanged. CPU analysis appends exactly one workspace declaration with analysis-local ID `0`,
 `elementCount * Double.BYTES` bytes, and `Double.BYTES` alignment. The workspace has no `ValueId`;
 the Model graph, `LogicalMemoryPlan`, boundary identities, and two virtual intermediates remain
 unchanged. Shared Prepare assigns the workspace without interpreting CPU copy or cost facts.
 
-Finalization resolves all four buffer assignments and the optional workspace assignment before
+Finalization resolves all boundary buffer assignments and the optional workspace assignment before
 the one artifact lookup. Cold binding validates the original source and the run-owned aligned
-`CpuContiguousWorkspace`. The original carrier pattern still describes the four Runtime buffers;
+`CpuContiguousWorkspace`. The original carrier pattern still describes the Runtime buffers;
 the adjusted generated pattern replaces only the copied input with `MemorySegment`. The generated
-entry therefore still has exactly four boundary arguments—there is no fifth workspace argument.
+entry therefore retains the derived boundary count—materialization adds no workspace argument.
 The invoking thread copies logical elements in canonical order once per bound invocation, then an
 inline consumer or every selected worker reads the completed workspace. A copy failure prevents
 consumer execution, and an empty execution range touches neither source nor workspace.
@@ -743,10 +802,11 @@ supplied compatible arm64 OpenBLAS 0.3.33 library, including shared thread-count
 fixed SGEMM/DGEMM cases, and restoration of the original thread count. The ordered repository and
 architecture capability checkpoint then passed, and the provider milestone is complete.
 
-The current CPU foundation provides only the fused fully static FLOAT64
-`ADD -> exact GELU -> MUL` portable scalar route and access forms described above. No other CPU operation
-capability, route threshold, native fallback, backend conformance, public Engine integration, or
-performance result is implemented or promised.
+The current CPU foundation provides the bounded fully static pointwise matrix and carrier forms
+described above, including scalar execution for all admitted rows and vector execution only for
+eligible FLOAT64 numeric chains. No excluded pointwise or later semantic family, cross-type CAST,
+native fallback, backend-conformance result, public Engine integration, or performance result is
+implemented or promised.
 Ordinary provider tests
 prove Java validation and exact ABI forwarding, not installed-library numerical correctness. The
 native checkpoint proves only its selected binary and fixed cases.

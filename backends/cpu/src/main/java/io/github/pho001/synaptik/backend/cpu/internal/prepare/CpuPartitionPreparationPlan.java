@@ -123,11 +123,11 @@ public record CpuPartitionPreparationPlan(List<ExecutionUnitPlan> units, Route r
      * @param units non-null one-entry computation-unit list; copied defensively
      * @param route non-null selected portable route
      * @param executionStrategy non-null selected compute/orchestration strategy
-     * @param bufferDeclarations non-null four-boundary declarations; copied defensively
-     * @param boundaryValues non-null four materialized values in declaration order; copied
-     * @param accessBindings non-null four normalized cold bindings in boundary order; copied
-     * @param carrierPattern non-null four direct carrier forms in boundary order; copied
-     * @param generatedCarrierPattern non-null four generated-consumer carrier forms; copied
+     * @param bufferDeclarations non-null derived-boundary declarations; copied defensively
+     * @param boundaryValues non-null materialized values in declaration order; copied
+     * @param accessBindings non-null normalized cold bindings in boundary order; copied
+     * @param carrierPattern non-null direct carrier forms in boundary order; copied
+     * @param generatedCarrierPattern non-null generated-consumer carrier forms; copied
      * @param extents non-null compatible iteration extents; copied defensively
      * @param elementCount checked logical element count represented by {@code extents}
      * @param selectedRangeCount positive maximum selected range count
@@ -139,9 +139,9 @@ public record CpuPartitionPreparationPlan(List<ExecutionUnitPlan> units, Route r
      * @param workspaceDeclaration non-null optional exact selected-copy workspace declaration
      * @param specializationBudget non-null current hard specialization ceiling
      * @throws NullPointerException if a required component is {@code null}
-     * @throws IllegalArgumentException if the plan is outside the current one-unit portable,
-     *     four-buffer proving slice or its strategy, range, materialization, workspace, species,
-     *     or budget facts disagree
+     * @throws IllegalArgumentException if the plan is not one portable unit with matching derived
+     *     boundary facts, or if strategy, range, materialization, workspace, species, or budget
+     *     facts disagree
      */
     public CpuPartitionPreparationPlan {
         units = List.copyOf(units);
@@ -158,10 +158,12 @@ public record CpuPartitionPreparationPlan(List<ExecutionUnitPlan> units, Route r
         workspaceDeclaration = Objects.requireNonNull(workspaceDeclaration, "workspaceDeclaration");
         Objects.requireNonNull(specializationBudget, "specializationBudget");
         if (units.size() != 1 || route != Route.PORTABLE
-                || bufferDeclarations.size() != 4 || boundaryValues.size() != 4
-                || accessBindings.size() != 4 || carrierPattern.size() != 4
-                || generatedCarrierPattern.size() != 4) {
-            throw new IllegalArgumentException("current CPU plan must contain one portable unit and four buffers");
+                || bufferDeclarations.size() < 2
+                || boundaryValues.size() != bufferDeclarations.size()
+                || accessBindings.size() != bufferDeclarations.size()
+                || carrierPattern.size() != bufferDeclarations.size()
+                || generatedCarrierPattern.size() != bufferDeclarations.size()) {
+            throw new IllegalArgumentException("CPU plan must contain one portable unit and matching boundaries");
         }
         boolean vector = executionStrategy.compute() == ExecutionStrategy.Compute.VECTOR;
         boolean parallel = executionStrategy.orchestration() == ExecutionStrategy.Orchestration.PARALLEL;

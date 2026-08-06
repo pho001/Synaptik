@@ -100,11 +100,13 @@ tuning, or dynamic binding.
 The Prepare milestone is therefore closed. The OpenBLAS provider project area is also Complete.
 CPU 0005A is now Complete and atomically supersedes the provisional CPU 0001–0005 implementation;
 those five task records remain preserved as Superseded historical evidence. The current completed
-CPU implementation frontier is
-[CPU 0005D Materialization, specialization, and persistence evidence gate](backends/cpu/tasks/0005d-materialization-specialization-and-persistence-evidence-gate.md)
-with one-copy materialization, explicit specialization budgets, bounded optional class-byte
-persistence, and a recorded `KEEP_DISABLED` evidence verdict. CPU 0005E is the next `Draft`
-frontier; it and later tasks remain without detailed specifications. Historical
+CPU implementation frontier is detailed
+[CPU 0005E Portable pointwise types, carriers, and semantic-family expansion](backends/cpu/tasks/0005e-portable-pointwise-types-carriers-and-semantic-family-expansion.md)
+with a bounded five-type, nineteen-opcode pointwise matrix, derived typed carrier boundaries, and
+scalar coverage plus FLOAT64 numeric-only vector eligibility. CPU 0005D's one-copy materialization,
+explicit specialization budgets, bounded optional class-byte persistence, and recorded
+`KEEP_DISABLED` verdict remain preserved. CPU 0005F is the next Draft frontier, and later tasks
+remain Draft without detailed specifications. Historical
 [CPU 0001 Capability, representation, binding, and parallel foundation](backends/cpu/tasks/0001-cpu-capability-representation-binding-and-parallel-foundation.md)
 is `Superseded`; historical
 [CPU 0002 Portable Class-File API generator foundation](backends/cpu/tasks/0002-portable-class-file-api-generator-foundation.md)
@@ -126,9 +128,9 @@ partition execution as an ordered CPU-private node-kernel sequence. Implementati
 documentation pass reused because it changed no executable Java behavior. Detailed
 [CPU 0005A Atomic partition-kernel architecture reset](backends/cpu/tasks/0005a-atomic-partition-kernel-architecture-reset.md)
 is Complete. Detailed CPU 0005C vector and parallel strategies are Complete. Detailed CPU 0005D
-materialization/specialization/persistence evidence is also `Complete`; 0005E broader pointwise coverage,
-0005F exact scalar-power strength reduction, and CPU 0006–0017 remain `Draft` without detailed
-specifications.
+materialization/specialization/persistence evidence is also `Complete`; detailed 0005E is
+`Complete` for its bounded first five-type core pointwise increment. CPU 0005F exact scalar-power strength
+reduction and CPU 0006–0017 remain `Draft` without detailed specifications.
 CPU 0003
 implements a
 model-independent filesystem store beneath an explicit
@@ -383,18 +385,18 @@ partition units, legal/profitable fusion before exact declarations, route-indepe
 universal start/end Class-File generation, optional persistence, and one partition executable.
 CPU 0005B is Complete. It makes each ordered heap/segment carrier pattern a
 code-shaping specialization with one direct entry per generated class, rather than emitting every
-possible carrier combination into each artifact. Its compatibility `DEFAULT` remains the current
-manifest-disabled four-segment proving pattern; explicit 0005B inputs may select another four-entry
-pattern, and four is not a permanent fused-unit boundary limit. Its five generated state machines
+possible carrier combination into each artifact. After CPU 0005E, `DEFAULT` leaves its explicit
+carrier list empty to select one exact segment form for each lowering-derived boundary; explicit
+inputs may select another type-compatible ordered pattern. Its five generated state machines
 cover dense linear, all-zero/scalar, last-axis bias, block/outer, and general odometer access.
 Exact cold range spans support constant-time alias checks, and a complete bounded static
 injectivity decision accepts valid interleaved positive strides while rejecting repeated writes.
-Detailed CPU 0005C and CPU 0005D are Complete. CPU 0005E–0005F,
+Detailed CPU 0005C through CPU 0005E are Complete. CPU 0005F,
 CPU 0006–0017, and the refined Config, Prepare, Metal, and tuning rows remain `Draft` without new
 detailed specifications.
 Completed OpenBLAS history and every completed project area remain unchanged.
 
-CPU remains the active global project area. CPU 0005A through CPU 0005D are `Complete`; CPU 0005E
+CPU remains the active global project area. CPU 0005A through CPU 0005E are `Complete`; CPU 0005F
 is the next `Draft` frontier, and later CPU work remains `Draft` without detailed specifications.
 CPU 0001–0005 are
 historical Superseded records whose Git history

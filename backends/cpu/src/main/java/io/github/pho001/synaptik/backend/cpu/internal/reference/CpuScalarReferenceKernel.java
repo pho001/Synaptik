@@ -5,9 +5,11 @@ import io.github.pho001.synaptik.backend.cpu.internal.memory.CpuBufferArgument;
 import java.lang.foreign.ValueLayout;
 import java.nio.ByteOrder;
 import java.util.List;
+import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuKernelIr;
+import io.github.pho001.synaptik.model.datatype.DataType;
 
 /**
- * Scalar conformance realization for the exact CPU-0005A fused semantics.
+ * Scalar conformance realization for the bounded typed CPU pointwise semantics.
  * It is an unsupported cold-test/reference contract and is never a Runtime IR interpreter.
  */
 public final class CpuScalarReferenceKernel {
@@ -103,7 +105,8 @@ public final class CpuScalarReferenceKernel {
     }
 
     /**
-     * Executes the same normalized bindings and direct carrier forms as generated scalar code.
+     * Executes the completed four-boundary FLOAT64 proving topology over the same normalized
+     * bindings and direct carrier forms as generated scalar code.
      * This reference path may allocate coordinate arrays and use division/modulo because it is
      * conformance support, not the generated Runtime hot path.
      *
@@ -134,6 +137,135 @@ public final class CpuScalarReferenceKernel {
         }
     }
 
+    /**
+     * Executes one already-lowered typed pointwise IR for differential conformance.
+     *
+     * @param ir non-null typed CPU pointwise IR
+     * @param arguments non-null materialized boundary arguments in IR boundary order
+     * @param bindings non-null normalized boundary bindings in the same order
+     * @param start non-negative inclusive logical bound
+     * @param end exclusive logical bound
+     * @throws NullPointerException if {@code ir}, a list, argument, or binding is {@code null}
+     * @throws IllegalArgumentException if boundary counts or the half-open range are invalid
+     * @throws ArithmeticException if exact coordinate or address arithmetic overflows
+     */
+    public static void execute(CpuKernelIr ir, List<CpuBufferArgument> arguments,
+            List<CpuAccessPlan.Binding> bindings, long start, long end) {
+        List<CpuKernelIr.Value> boundaries = ir.values().stream()
+                .filter(value -> value.kind() != CpuKernelIr.Value.Kind.VIRTUAL).toList();
+        if (arguments.size() != boundaries.size() || bindings.size() != boundaries.size()
+                || start < 0 || end < start || end > bindings.getFirst().elementCount()) {
+            throw new IllegalArgumentException("invalid typed reference boundaries or range");
+        }
+        long[] extents = bindings.getFirst().extents().stream().mapToLong(Long::longValue).toArray();
+        Object[] values = new Object[ir.values().size()];
+        for (long index = start; index < end; index++) {
+            long[] coordinate = coordinates(index, extents);
+            for (int boundary = 0; boundary < boundaries.size(); boundary++) {
+                CpuKernelIr.Value value = boundaries.get(boundary);
+                if (value.kind() == CpuKernelIr.Value.Kind.INPUT) values[value.ordinal()] =
+                        load(arguments.get(boundary), value.dataType(),
+                                address(bindings.get(boundary), coordinate));
+            }
+            for (CpuKernelIr.Instruction instruction : ir.instructions()) {
+                values[instruction.output()] = evaluate(ir, instruction, values);
+            }
+            for (CpuKernelIr.Store store : ir.stores()) {
+                CpuKernelIr.Value value = ir.values().get(store.value());
+                int boundary = 0;
+                while (boundaries.get(boundary).ordinal() != value.ordinal()) boundary++;
+                store(arguments.get(boundary), value.dataType(),
+                        address(bindings.get(boundary), coordinate), values[value.ordinal()]);
+            }
+        }
+    }
+
+    private static Object evaluate(CpuKernelIr ir, CpuKernelIr.Instruction instruction,
+            Object[] values) {
+        DataType type = ir.values().get(instruction.inputs().getFirst()).dataType();
+        Object left = values[instruction.inputs().getFirst()];
+        Object right = instruction.inputs().size() > 1 ? values[instruction.inputs().get(1)] : null;
+        Object scalar = instruction.scalarImmediate() == null ? null
+                : immediate(instruction.scalarImmediate());
+        return switch (instruction.opcode()) {
+            case ADD -> arithmetic(type, left, right, 0);
+            case SUB -> arithmetic(type, left, right, 1);
+            case MUL -> arithmetic(type, left, right, 2);
+            case SCALAR_ADD -> arithmetic(type, left, scalar, 0);
+            case SCALAR_SUB -> arithmetic(type, left, scalar, 1);
+            case SCALAR_MUL -> arithmetic(type, left, scalar, 2);
+            case NEG -> { if (type == DataType.FLOAT64) yield Double.valueOf(-(double) left);
+                yield Float.valueOf(-(float) left); }
+            case GELU_EXACT -> gelu((double) left);
+            case IS_FINITE -> (byte) ((type == DataType.FLOAT64
+                    ? Double.isFinite((double) left) : Float.isFinite((float) left)) ? 1 : 0);
+            case IS_NAN -> (byte) ((type == DataType.FLOAT64
+                    ? Double.isNaN((double) left) : Float.isNaN((float) left)) ? 1 : 0);
+            case IS_INF -> (byte) ((type == DataType.FLOAT64
+                    ? Double.isInfinite((double) left) : Float.isInfinite((float) left)) ? 1 : 0);
+            case GREATER_THAN, GREATER_OR_EQUAL, LESS_THAN, LESS_OR_EQUAL ->
+                    bool(relation(instruction.opcode(), type, left, right));
+            case EQUAL -> bool(equal(type, left, right));
+            case NOT_EQUAL -> bool(!equal(type, left, right));
+            case WHERE -> ((byte) left) == 1 ? values[instruction.inputs().get(1)]
+                    : values[instruction.inputs().get(2)];
+            case CAST -> left;
+        };
+    }
+
+    private static Object arithmetic(DataType type, Object left, Object right, int operation) {
+        return switch (type) {
+            case FLOAT64 -> { double a = (double) left, b = (double) right;
+                yield operation == 0 ? a + b : operation == 1 ? a - b : a * b; }
+            case FLOAT32 -> { float a = (float) left, b = (float) right;
+                yield operation == 0 ? a + b : operation == 1 ? a - b : a * b; }
+            case INT32 -> { int a = (int) left, b = (int) right;
+                yield operation == 0 ? a + b : operation == 1 ? a - b : a * b; }
+            case INT64 -> { long a = (long) left, b = (long) right;
+                yield operation == 0 ? a + b : operation == 1 ? a - b : a * b; }
+            default -> throw new IllegalArgumentException("unsupported arithmetic type");
+        };
+    }
+
+    private static boolean relation(io.github.pho001.synaptik.backend.cpu.internal.ir.CpuPointwiseOpcode opcode,
+            DataType type, Object left, Object right) {
+        int relation = switch (type) {
+            case FLOAT64 -> (double) left > (double) right ? 1 : (double) left < (double) right ? -1
+                    : (double) left == (double) right ? 0 : 2;
+            case FLOAT32 -> (float) left > (float) right ? 1 : (float) left < (float) right ? -1
+                    : (float) left == (float) right ? 0 : 2;
+            case INT32 -> Integer.compare((int) left, (int) right);
+            case INT64 -> Long.compare((long) left, (long) right);
+            default -> throw new IllegalArgumentException("unsupported comparison type");
+        };
+        return switch (opcode) {
+            case GREATER_THAN -> relation == 1; case GREATER_OR_EQUAL -> relation == 1 || relation == 0;
+            case LESS_THAN -> relation == -1; case LESS_OR_EQUAL -> relation == -1 || relation == 0;
+            default -> throw new AssertionError(opcode);
+        };
+    }
+
+    private static boolean equal(DataType type, Object left, Object right) {
+        return switch (type) {
+            case FLOAT64 -> (double) left == (double) right;
+            case FLOAT32 -> (float) left == (float) right;
+            case INT32 -> (int) left == (int) right;
+            case INT64 -> (long) left == (long) right;
+            default -> throw new IllegalArgumentException("unsupported comparison type");
+        };
+    }
+
+    private static byte bool(boolean value) { return (byte) (value ? 1 : 0); }
+
+    private static Object immediate(CpuKernelIr.ScalarImmediate value) {
+        return switch (value.dataType()) {
+            case FLOAT64 -> Double.longBitsToDouble(value.bits());
+            case FLOAT32 -> Float.intBitsToFloat((int) value.bits());
+            case INT32 -> (int) value.bits(); case INT64 -> value.bits();
+            default -> throw new IllegalArgumentException("unsupported immediate type");
+        };
+    }
+
     private static long[] coordinates(long index, long[] extents) {
         long[] result = new long[extents.length];
         for (int axis = extents.length - 1; axis >= 0; axis--) if (extents[axis] != 0) {
@@ -156,11 +288,51 @@ public final class CpuScalarReferenceKernel {
                 Math.multiplyExact(address, Double.BYTES));
     }
 
+    private static Object load(CpuBufferArgument argument, DataType type, long address) {
+        long base = argument.byteOffset() / type.byteWidth() + address;
+        if (argument instanceof CpuBufferArgument.Doubles value) return value.carrier()[Math.toIntExact(base)];
+        if (argument instanceof CpuBufferArgument.Floats value) return value.carrier()[Math.toIntExact(base)];
+        if (argument instanceof CpuBufferArgument.Ints value) return value.carrier()[Math.toIntExact(base)];
+        if (argument instanceof CpuBufferArgument.Longs value) return value.carrier()[Math.toIntExact(base)];
+        if (argument instanceof CpuBufferArgument.Bytes value) return value.carrier()[Math.toIntExact(base)];
+        var segment = ((CpuBufferArgument.Segment) argument).segment();
+        long offset = Math.multiplyExact(address, type.byteWidth());
+        return switch (type) {
+            case FLOAT64 -> segment.get(ValueLayout.JAVA_DOUBLE_UNALIGNED.withOrder(ByteOrder.nativeOrder()), offset);
+            case FLOAT32 -> segment.get(ValueLayout.JAVA_FLOAT_UNALIGNED.withOrder(ByteOrder.nativeOrder()), offset);
+            case INT32 -> segment.get(ValueLayout.JAVA_INT_UNALIGNED.withOrder(ByteOrder.nativeOrder()), offset);
+            case INT64 -> segment.get(ValueLayout.JAVA_LONG_UNALIGNED.withOrder(ByteOrder.nativeOrder()), offset);
+            case BOOL -> segment.get(ValueLayout.JAVA_BYTE, offset);
+            default -> throw new IllegalArgumentException("unsupported reference type");
+        };
+    }
+
     private static void store(CpuBufferArgument argument, long address, double value) {
         if (argument instanceof CpuBufferArgument.Doubles doubles) doubles.carrier()[
                 Math.toIntExact(doubles.byteOffset() / Double.BYTES + address)] = value;
         else ((CpuBufferArgument.Segment) argument).segment().set(DOUBLE,
                 Math.multiplyExact(address, Double.BYTES), value);
+    }
+
+    private static void store(CpuBufferArgument argument, DataType type, long address, Object stored) {
+        long base = argument.byteOffset() / type.byteWidth() + address;
+        if (argument instanceof CpuBufferArgument.Doubles value) value.carrier()[Math.toIntExact(base)] = (double) stored;
+        else if (argument instanceof CpuBufferArgument.Floats value) value.carrier()[Math.toIntExact(base)] = (float) stored;
+        else if (argument instanceof CpuBufferArgument.Ints value) value.carrier()[Math.toIntExact(base)] = (int) stored;
+        else if (argument instanceof CpuBufferArgument.Longs value) value.carrier()[Math.toIntExact(base)] = (long) stored;
+        else if (argument instanceof CpuBufferArgument.Bytes value) value.carrier()[Math.toIntExact(base)] = (byte) stored;
+        else {
+            var segment = ((CpuBufferArgument.Segment) argument).segment();
+            long offset = Math.multiplyExact(address, type.byteWidth());
+            switch (type) {
+                case FLOAT64 -> segment.set(ValueLayout.JAVA_DOUBLE_UNALIGNED.withOrder(ByteOrder.nativeOrder()), offset, (double) stored);
+                case FLOAT32 -> segment.set(ValueLayout.JAVA_FLOAT_UNALIGNED.withOrder(ByteOrder.nativeOrder()), offset, (float) stored);
+                case INT32 -> segment.set(ValueLayout.JAVA_INT_UNALIGNED.withOrder(ByteOrder.nativeOrder()), offset, (int) stored);
+                case INT64 -> segment.set(ValueLayout.JAVA_LONG_UNALIGNED.withOrder(ByteOrder.nativeOrder()), offset, (long) stored);
+                case BOOL -> segment.set(ValueLayout.JAVA_BYTE, offset, (byte) stored);
+                default -> throw new IllegalArgumentException("unsupported reference type");
+            }
+        }
     }
 
     private static double polevl(double x, double[] coefficients) {

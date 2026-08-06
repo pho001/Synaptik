@@ -9,7 +9,7 @@ package io.github.pho001.synaptik.backend.cpu.internal.cache;
  * version and has no legacy reader, migration path, or converter.
  */
 public final class CpuGeneratorSchema {
-    /** Current schema version. */ public static final int CURRENT_VERSION = 4;
+    /** Current schema version. */ public static final int CURRENT_VERSION = 5;
     /** Generated entry name. */ public static final String ENTRY_NAME = "invoke";
     private CpuGeneratorSchema() { }
 

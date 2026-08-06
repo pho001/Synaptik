@@ -5,6 +5,13 @@ import io.github.pho001.synaptik.model.datatype.DataType;
 import io.github.pho001.synaptik.model.layout.LayoutKind;
 import io.github.pho001.synaptik.model.operation.NoOperationAttrs;
 import io.github.pho001.synaptik.model.operation.elementwise.binary.BinaryArithmeticKind;
+import io.github.pho001.synaptik.model.operation.elementwise.cast.CastAttrs;
+import io.github.pho001.synaptik.model.operation.elementwise.cast.CastKind;
+import io.github.pho001.synaptik.model.operation.elementwise.classification.FloatingClassificationKind;
+import io.github.pho001.synaptik.model.operation.elementwise.comparison.BinaryComparisonKind;
+import io.github.pho001.synaptik.model.operation.elementwise.scalar.ScalarElementwiseKind;
+import io.github.pho001.synaptik.model.operation.elementwise.scalar.ScalarValueAttrs;
+import io.github.pho001.synaptik.model.operation.elementwise.selection.WhereSelectionKind;
 import io.github.pho001.synaptik.model.operation.elementwise.unary.UnaryElementwiseKind;
 import io.github.pho001.synaptik.model.tensor.TensorDescriptor;
 import io.github.pho001.synaptik.model.shape.ShapeBroadcast;
@@ -15,11 +22,13 @@ import java.util.Objects;
 /**
  * Reports the executable semantic coverage currently delivered by the CPU backend.
  *
- * <p>The provider has a stable CPU ownership identity and advertises only parameterless
- * {@code FLOAT64} {@code ADD}, exact {@code GELU}, and {@code MUL} occurrences with fully static,
- * right-broadcastable or shape-preserving inputs and resolved layouts. Complete-partition lowering
- * normalizes the exact layout geometry and applies the additional
- * alias, fan-out, publication, and partition-boundary checks before declaring support.</p>
+ * <p>The provider has a stable CPU ownership identity and advertises the bounded, fully static
+ * pointwise matrix implemented by the portable route: selected same-type arithmetic, floating
+ * negation and classification, comparisons, floating {@code WHERE}, same-type {@code CAST}, and
+ * exact {@code FLOAT64} {@code GELU}. Every descriptor has a resolved layout, and results obey the
+ * Model family's shape rule. Complete-partition lowering remains stricter: it validates a connected
+ * one-to-eight-occurrence chain, normalizes exact layout geometry, and applies alias, fan-out,
+ * publication, and partition-boundary checks before resource declaration.</p>
  */
 public final class CpuCapabilityProvider implements BackendCapabilityProvider {
     /** Stable Planning ownership identity for the CPU backend. */
@@ -41,8 +50,11 @@ public final class CpuCapabilityProvider implements BackendCapabilityProvider {
 
     /**
      * Reports whether an occurrence belongs to the exact implemented semantic set.
-     * Binary results must equal the current right-aligned broadcast result, unary results must
-     * preserve shape, and every descriptor must be fully static with a resolved layout.
+     * Binary and comparison results must equal the current right-aligned broadcast result;
+     * unary, classification, scalar-arithmetic, and same-type-cast results preserve shape;
+     * {@code WHERE} applies branch-first then condition broadcasting. Every descriptor must be
+     * fully static with a resolved layout. Cross-type casts and all rows outside the implemented
+     * matrix return {@code false} without defining conversion or fallback behavior.
      *
      * @param query non-null immutable operation occurrence to validate structurally
      * @return {@code true} only for the exact implemented occurrence-local matrix; otherwise
@@ -52,35 +64,103 @@ public final class CpuCapabilityProvider implements BackendCapabilityProvider {
     @Override
     public boolean supports(OperationCapabilityQuery query) {
         Objects.requireNonNull(query, "query");
-        if (query.operation().attrs() != NoOperationAttrs.INSTANCE
-                || query.outputs().size() != 1) {
+        if (query.outputs().size() != 1 || !query.inputs().stream().allMatch(CpuCapabilityProvider::staticResolved)
+                || !query.outputs().stream().allMatch(CpuCapabilityProvider::staticResolved)) {
             return false;
         }
-        boolean unary = query.operation().kind() == UnaryElementwiseKind.GELU;
-        boolean binary = query.operation().kind() == BinaryArithmeticKind.ADD
-                || query.operation().kind() == BinaryArithmeticKind.MUL;
-        if ((!unary && !binary) || query.inputs().size() != (unary ? 1 : 2)) return false;
-        TensorDescriptor left = query.inputs().getFirst();
-        TensorDescriptor output = query.outputs().get(0);
-        DataType dataType = left.dataType();
-        if (dataType != DataType.FLOAT64 || output.dataType() != dataType
-                || !left.shape().isFullyStatic() || !output.shape().isFullyStatic()) {
-            return false;
-        }
-        if (binary) {
-            TensorDescriptor right = query.inputs().get(1);
-            if (right.dataType() != dataType || !right.shape().isFullyStatic()) return false;
-            try {
-                if (!ShapeBroadcast.broadcast(left.shape(), right.shape()).equals(output.shape())) {
-                    return false;
-                }
-            } catch (IllegalArgumentException incompatible) { return false; }
-        } else if (!left.shape().equals(output.shape())) return false;
-        return query.inputs().stream().allMatch(CpuCapabilityProvider::resolved)
-                && resolved(output);
+        var kind = query.operation().kind();
+        var attrs = query.operation().attrs();
+        TensorDescriptor output = query.outputs().getFirst();
+        try {
+            if (kind instanceof BinaryArithmeticKind arithmetic) {
+                return attrs == NoOperationAttrs.INSTANCE
+                        && (arithmetic == BinaryArithmeticKind.ADD || arithmetic == BinaryArithmeticKind.SUB
+                            || arithmetic == BinaryArithmeticKind.MUL)
+                        && sameNumeric(query.inputs(), output)
+                        && broadcast(query.inputs().get(0), query.inputs().get(1), output);
+            }
+            if (kind instanceof ScalarElementwiseKind scalar) {
+                return attrs instanceof ScalarValueAttrs value
+                        && (scalar == ScalarElementwiseKind.ADD || scalar == ScalarElementwiseKind.SUB
+                            || scalar == ScalarElementwiseKind.MUL)
+                        && query.inputs().size() == 1 && supportedNumeric(query.inputs().getFirst().dataType())
+                        && sameTypeAndShape(query.inputs().getFirst(), output)
+                        && value.value().dataType() == output.dataType();
+            }
+            if (kind instanceof UnaryElementwiseKind unary) {
+                return attrs == NoOperationAttrs.INSTANCE && query.inputs().size() == 1
+                        && ((unary == UnaryElementwiseKind.NEG
+                                && floating(query.inputs().getFirst().dataType()))
+                            || (unary == UnaryElementwiseKind.GELU
+                                && query.inputs().getFirst().dataType() == DataType.FLOAT64))
+                        && sameTypeAndShape(query.inputs().getFirst(), output);
+            }
+            if (kind instanceof FloatingClassificationKind) {
+                return attrs == NoOperationAttrs.INSTANCE && query.inputs().size() == 1
+                        && floating(query.inputs().getFirst().dataType())
+                        && output.dataType() == DataType.BOOL
+                        && output.shape().equals(query.inputs().getFirst().shape());
+            }
+            if (kind instanceof BinaryComparisonKind) {
+                return attrs == NoOperationAttrs.INSTANCE && query.inputs().size() == 2
+                        && sameNumericInputs(query.inputs()) && output.dataType() == DataType.BOOL
+                        && ShapeBroadcast.broadcast(query.inputs().get(0).shape(),
+                                query.inputs().get(1).shape()).equals(output.shape());
+            }
+            if (kind == WhereSelectionKind.WHERE) {
+                if (attrs != NoOperationAttrs.INSTANCE || query.inputs().size() != 3
+                        || query.inputs().get(0).dataType() != DataType.BOOL) return false;
+                TensorDescriptor whenTrue = query.inputs().get(1);
+                TensorDescriptor whenFalse = query.inputs().get(2);
+                if (!floating(whenTrue.dataType()) || whenTrue.dataType() != whenFalse.dataType()
+                        || output.dataType() != whenTrue.dataType()) return false;
+                var branches = ShapeBroadcast.broadcast(whenTrue.shape(), whenFalse.shape());
+                return ShapeBroadcast.broadcast(query.inputs().get(0).shape(), branches)
+                        .equals(output.shape());
+            }
+            if (kind == CastKind.CAST) {
+                return attrs instanceof CastAttrs cast && query.inputs().size() == 1
+                        && supportedCast(query.inputs().getFirst().dataType())
+                        && cast.targetDataType() == query.inputs().getFirst().dataType()
+                        && sameTypeAndShape(query.inputs().getFirst(), output);
+            }
+        } catch (IllegalArgumentException incompatible) { return false; }
+        return false;
     }
 
-    private static boolean resolved(TensorDescriptor descriptor) {
-        return descriptor.layout().isPresent();
+    private static boolean staticResolved(TensorDescriptor descriptor) {
+        return descriptor.shape().isFullyStatic() && descriptor.layout().isPresent();
+    }
+
+    private static boolean floating(DataType type) {
+        return type == DataType.FLOAT64 || type == DataType.FLOAT32;
+    }
+
+    private static boolean supportedNumeric(DataType type) {
+        return floating(type) || type == DataType.INT32 || type == DataType.INT64;
+    }
+
+    private static boolean supportedCast(DataType type) {
+        return supportedNumeric(type) || type == DataType.BOOL;
+    }
+
+    private static boolean sameNumeric(java.util.List<TensorDescriptor> inputs,
+            TensorDescriptor output) {
+        return inputs.size() == 2 && sameNumericInputs(inputs)
+                && output.dataType() == inputs.getFirst().dataType();
+    }
+
+    private static boolean sameNumericInputs(java.util.List<TensorDescriptor> inputs) {
+        return inputs.size() == 2 && supportedNumeric(inputs.getFirst().dataType())
+                && inputs.get(1).dataType() == inputs.getFirst().dataType();
+    }
+
+    private static boolean sameTypeAndShape(TensorDescriptor input, TensorDescriptor output) {
+        return input.dataType() == output.dataType() && input.shape().equals(output.shape());
+    }
+
+    private static boolean broadcast(TensorDescriptor left, TensorDescriptor right,
+            TensorDescriptor output) {
+        return ShapeBroadcast.broadcast(left.shape(), right.shape()).equals(output.shape());
     }
 }

@@ -107,9 +107,7 @@ public class CpuPartitionPreparerTest {
         mutable.set(0, CarrierAccess.MEMORY_SEGMENT);
         assertAll(
                 () -> assertFalse(CpuPartitionAnalysisInputs.DEFAULT.loweringManifestEnabled()),
-                () -> assertEquals(List.of(CarrierAccess.MEMORY_SEGMENT,
-                        CarrierAccess.MEMORY_SEGMENT, CarrierAccess.MEMORY_SEGMENT,
-                        CarrierAccess.MEMORY_SEGMENT), CpuPartitionAnalysisInputs.DEFAULT.carrierPattern()),
+                () -> assertTrue(CpuPartitionAnalysisInputs.DEFAULT.carrierPattern().isEmpty()),
                 () -> assertEquals(CarrierAccess.DOUBLE_ARRAY, inputs.carrierPattern().getFirst()),
                 () -> assertThrows(NullPointerException.class,
                         () -> new CpuPartitionAnalysisInputs(false, null)),

@@ -3,7 +3,8 @@
  *
  * <p>The partition executable strongly owns its verified generated artifact and exact prepared
  * buffer selections. During cold binding it validates CPU representations, exact carrier pattern,
- * geometry, mutability, liveness, size, alignment, and input/output accessed-span overlap, then
+ * geometry, mutability, liveness, size, alignment, canonical BOOL bytes, and input/output
+ * accessed-span overlap, then
  * captures direct array or segment references and primitive range/address state in one invocation.
  * For a selected materialization it validates the original source and exact contiguous workspace,
  * retains the original carrier for the copy, substitutes the workspace segment only in the

@@ -981,8 +981,10 @@ The bytecode-first Java Class-File API plus Vector API production baseline insid
 backend. It is the always-available semantic fallback for every operation occurrence it truthfully
 supports, although a scalar reference remains available separately for conformance and fail-closed
 checking. Metadata-only work may require no generated class. Task 0005A implemented the portable
-scalar proving slice and `internal.route.portable`; completed CPU 0005C adds preferred-species
-FLOAT64 vector compute and explicit CPU-private parallel orchestration for that same slice.
+scalar proving slice and `internal.route.portable`; completed CPU 0005C added preferred-species
+FLOAT64 vector compute and explicit CPU-private parallel orchestration. Completed CPU 0005E now
+uses that route for a bounded five-type pointwise matrix and connected one-to-eight-occurrence
+chains; vector compute remains limited to eligible FLOAT64 numeric-only chains.
 
 OpenBLAS is not another meaning of portable route. It is a narrow cross-platform native fallback
 for eligible BLAS-compatible linear algebra. It is neither a universal fallback nor preferred over
@@ -1013,23 +1015,26 @@ executable. The term describes the generated artifact and its lifecycle, not the
 generation library or builder API used by the current implementation.
 
 The current package-private implementation uses the Java 26 Class-File API to emit and verify one
-static typed entry method for the specialization's exact ordered `double[]` or `MemorySegment`
-pattern, defines the result as a hidden nestmate class, and retains its exact method handle. The
+static typed entry method for the specialization's exact ordered primitive-array or
+`MemorySegment` pattern, defines the result as a hidden nestmate class, and retains its exact
+method handle. FLOAT64, FLOAT32, INT32, INT64, and BOOL heap boundaries use `double[]`, `float[]`,
+`int[]`, `long[]`, and canonical `byte[]`. The
 Class-File API and Java Vector API are CPU-internal implementation choices, not architecture
-invariants. The production kernel executes the whole-partition FLOAT64
-`ADD -> exact GELU -> MUL` slice with one generated scalar or preferred-species vector body. It
+invariants. The production kernel executes one admitted bounded pointwise chain with one generated
+scalar or, for eligible FLOAT64 numeric-only IR, preferred-species vector body. It
 emits generation-time-selected primitive access state machines, direct array or native-order
 `MemorySegment` vector access, unmasked complete vectors, and scalar remainders. Parallel
-orchestration remains outside generated code. When analysis selects one contiguous input copy,
+orchestration remains outside generated code. When analysis selects one FLOAT64 contiguous input copy,
 the generated body consumes the adjusted dense segment at that original boundary position; its
-static entry still has exactly four boundary arguments.
+static entry retains the lowering-derived boundary count.
 
 ### CPU kernel specialization
 
 The implemented backend-private immutable description of every fact allowed to change one
-generated CPU class. The current form includes the canonical lowering fingerprint, exact/default
-numerical mode, generated scalar/vector compute form, exact preferred FLOAT64 species bit size for
-vector compute, and complete ordered four-boundary `double[]`/`MemorySegment` carrier pattern.
+generated CPU class. The current form includes schema 5, the canonical lowering fingerprint with
+typed opcode sequence and exact scalar-immediate bits, exact/default numerical mode, generated
+scalar/vector compute form, exact preferred FLOAT64 species bit size for vector compute, and the
+complete ordered boundary data-type/carrier pattern.
 The direct-versus-materialized input position and adjusted canonical consumer access form are also
 structural when present.
 Canonical IR separately supplies value kind, data type, ordered semantics/stores, iteration rank,
@@ -1057,8 +1062,8 @@ Keeping the artifact reachable keeps its hidden-class state reachable, without p
 unreferenced class unloads. Direct generator calls produce equal class bytes but distinct hidden
 classes and artifact identities. The current durable generated-kernel artifact store may instead
 reuse compatible class bytes and weakly intern one loaded artifact while it remains live. The
-artifact is not by itself a prepared route. Current artifacts execute the exact fused FLOAT64
-proving topology across the implemented normalized access regimes and carrier patterns.
+artifact is not by itself a prepared route. Current artifacts execute the admitted bounded
+pointwise chains across the implemented normalized access regimes and carrier patterns.
 
 ### CPU generated-kernel artifact store
 
@@ -1091,29 +1096,31 @@ artifact.
 
 The implemented backend-private immutable result of route-neutral CPU analysis before shared slot
 assignment. `CpuPartitionPreparationPlan` retains one fused execution unit, its canonical kernel
-IR and portable specialization, exact/default compute and orchestration strategy, four ordered
-boundary values, normalized access bindings, structural carrier pattern, exact per-boundary
+IR and portable specialization, exact/default compute and orchestration strategy, the derived
+ordered boundary values and data-type/carrier pattern, normalized access bindings, exact per-boundary
 declarations, compatible extents/count, selected range count, positive minimum range size, exact
 vector species when applicable, optional selected materialization, original and adjusted generated
 carrier patterns, optional exact workspace declaration, specialization budget, and an optional
 cold lowering manifest.
 
-CPU analysis validates that Planning selected CPU ownership, derives ADD/MUL shapes through Model
-right-aligned broadcasting, requires exact GELU shape, normalizes resolved layouts, proves output
-write injectivity, derives reuse/fan-out, and compares direct plus at most three one-input copy
+CPU analysis validates that Planning selected CPU ownership, admits one connected straight-line
+chain of one through eight supported pointwise occurrences, derives every family-specific Model
+shape, normalizes resolved layouts, proves output write injectivity, derives external boundaries
+and virtual single-use results, and compares direct plus at most three eligible one-input copy
 candidates. It declares each boundary's referenced byte span and, when selected, appends workspace
 ID `0` with exact dense byte geometry. Shared Prepare sees the plan opaquely and later validates
 declarations against assigned `PreparedMemoryPlan` geometry.
 
 The plan is not a generated artifact, assigned slot, executable, physical resource, per-run
-binding, capability claim, tuning result, registry, or public route API. It accepts only the exact
-three-node FLOAT64 proving topology and fails closed before artifact work for unsupported facts.
+binding, capability claim, tuning result, registry, or public route API. It fails closed before
+artifact work for unsupported rows, disconnected or fan-out topology, multiple final outputs, or
+more than eight occurrences.
 
 ### CPU portable prepared executable
 
 The implemented backend-private immutable Runtime recipe constructed by CPU finalization after
 shared slot assignment. `CpuPreparedExecutable` strongly retains the partition's one generated
-artifact and exact static `MethodHandle`, four selected buffers, full normalized geometry, ordered
+artifact and exact static `MethodHandle`, the lowering-derived selected buffers, full normalized geometry, ordered
 original/generated carrier patterns, optional materialization/workspace selection, one half-open
 logical range, selected range bounds, and an optional borrowed CPU worker group. It owns no
 physical representation or worker close lifecycle and may bind
@@ -1121,7 +1128,8 @@ concurrently to distinct open `RunState` instances.
 
 Cold binding consumes `CpuBorrowedBuffer` and `CpuNativeBuffer` through Runtime's
 `BufferRepresentation` boundary. It validates selected carrier form, liveness/accessibility,
-writability, exact size/alignment, and actual input/output accessed spans once, then constructs a
+writability, exact size/alignment, canonical BOOL input bytes, and actual input/output accessed
+spans once, then constructs a
 signature-specific `BoundInvocation` with direct typed fields and primitive address state. No executable accepts
 `HostTensorStorage` directly. The Runtime hot call performs no storage discovery, slot lookup,
 argument classification, artifact access, reflection, handle adaptation, route selection, or
@@ -1129,9 +1137,9 @@ allocation. A selected copy reads the original source into the contiguous worksp
 invoking thread before any consumer chunk; copy failure prevents consumer execution. A bound
 partition invocation performs the Runtime state guard. It invokes one range inline or
 synchronously joins deterministic disjoint chunks through the borrowed group; generated code
-performs no scheduling. The current production family establishes only the exact fused
-FLOAT64 proving topology; it makes no Tensor-result, gradient, compiler, conformance, integration,
-or performance claim.
+performs no scheduling. The current production family establishes only the admitted bounded
+pointwise matrix; it makes no Tensor-result, gradient, compiler, conformance, integration, or
+performance claim.
 
 ### CPU execution unit
 
@@ -1152,7 +1160,8 @@ concrete Draft tasks.
 ### CPU kernel intermediate representation
 
 The immutable CPU-private loop-oriented representation of one CPU execution
-unit. Its route-independent canonical form records typed boundary and virtual values, ordered
+unit. Its route-independent canonical form records typed boundary and virtual values, one
+nineteen-opcode family-oriented pointwise vocabulary, exact typed scalar-immediate bits, ordered
 computation semantics, normalized access-plan form, a universal primitive `start`/`end` loop
 model, fusion form, output stores, and the numerical semantic version. It contains no compatible
 concrete extents or element count by default, selected route/configuration, thread count, vector
@@ -1171,8 +1180,8 @@ IR.
 
 ### CPU access plan
 
-The implemented normalized per-value address description shared by the current fused CPU unit and
-intended for later pointwise and `WHERE` units. CPU 0005B right-aligns rank and separates the
+The implemented normalized per-value address description shared by the current bounded fused CPU
+pointwise unit. CPU 0005B right-aligns rank and separates the
 structural regime/axis pattern used by generated-class identity from cold concrete extents, base
 element offset, effective `long` strides, exact carrier objects, slots, and addresses. Different
 inputs and the output of one fused unit may have different plans. The plan consumes current Model
@@ -1189,12 +1198,12 @@ artifact, and Runtime binding only validates matching concrete carriers. This av
 generation and avoids placing every possible carrier combination in each class as boundary count
 grows.
 
-The current `CpuPartitionAnalysisInputs.DEFAULT` is a compatibility value for the fixed proving
-topology: it disables lowering-manifest retention and supplies four ordered
-`MEMORY_SEGMENT` access forms. Explicit analysis inputs may immutably select any non-null
-four-entry heap/segment pattern. CPU analysis validates the snapshot against boundary count and
-order; it carries no physical carrier object or general Config policy. The default's length is not
-a permanent boundary-count architecture for later fused units.
+The current `CpuPartitionAnalysisInputs.DEFAULT` disables lowering-manifest retention and leaves
+the explicit carrier list empty. Analysis interprets that empty list as one exact
+`MEMORY_SEGMENT` access form per lowering-derived boundary. Explicit analysis inputs may instead
+immutably select a non-null ordered typed heap/segment pattern. CPU analysis validates the snapshot
+against boundary count, data type, and order; it carries no physical carrier object or general
+Config policy.
 
 The fully static scope includes scalars, rank expansion, singleton and multi-axis
 broadcast, zero extents, offset-contiguous and positive-strided layouts, zero-stride views, heap
@@ -1223,17 +1232,18 @@ Compiler/Model `SUM_TO_SHAPE` semantics plus later CPU reduction coverage.
 
 ### CPU contiguous materialization plan
 
-The implemented CPU-private immutable decision to copy at most one eligible input of the current
-FLOAT64 proving unit into run-owned contiguous workspace. `CpuMaterializationPlan` retains the
+The implemented CPU-private immutable decision to copy at most one eligible FLOAT64 read boundary
+of the current pointwise unit into run-owned contiguous workspace. `CpuMaterializationPlan` retains the
 original source boundary identity and normalized binding, a canonical dense consumer binding,
 checked element/byte geometry, analysis-local workspace ID `0`, derived lowered-unit use count,
 expected runs, dimensionless direct/copy/contiguous estimates, positive net benefit, basis-point
 benefit, and a diagnostic selection reason.
 
-Analysis enumerates direct, input `a`, input `b`, then input `c`; direct wins ties. It rejects
+Analysis enumerates direct plus at most the first three eligible reads in derived boundary order;
+direct wins ties. It rejects
 scalar/all-zero and already-dense sources, unused values, excess additional memory, non-beneficial
-costs, and ineligible consumer forms. A selected plan appends one workspace declaration after the
-four graph-value buffers. Shared Prepare assigns that workspace opaquely, and CPU finalization
+costs, and ineligible consumer forms. A selected plan appends one workspace declaration after all
+derived graph-value buffers. Shared Prepare assigns that workspace opaquely, and CPU finalization
 verifies it before artifact access. The copy completes once per bound invocation before consumer
 work. This plan does not add a graph value, mutate `LogicalMemoryPlan`, measure during prepare,
 select a future tuning-cache entry, or authorize more than one copy.

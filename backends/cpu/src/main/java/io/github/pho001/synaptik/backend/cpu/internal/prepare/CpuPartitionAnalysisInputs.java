@@ -8,8 +8,9 @@ import java.util.List;
  * Checked immutable CPU inputs that do not contain graph semantics or instance resources.
  *
  * @param loweringManifestEnabled whether cold diagnostics should retain a lowering manifest
- * @param carrierPattern non-null ordered direct carrier forms for the current four boundaries;
- *     membership is snapshotted and contains no physical carrier object
+ * @param carrierPattern non-null ordered direct carrier forms for the derived boundaries;
+ *     membership is snapshotted and contains no physical carrier object; an empty list selects
+ *     one exact {@code MEMORY_SEGMENT} form per derived boundary
  * @param portableExecution non-null immutable cold compute-preference and parallelism inputs
  * @param materializationPolicy non-null dimensionless cold comparison policy; disabled means
  *     direct access only
@@ -18,10 +19,12 @@ public record CpuPartitionAnalysisInputs(boolean loweringManifestEnabled,
         List<CarrierAccess> carrierPattern, PortableExecutionConfig portableExecution,
         MaterializationPolicy materializationPolicy)
         implements BackendAnalysisInputs {
-    /** Default current-topology input: manifest disabled and four direct segment boundaries. */
+    /**
+     * Default input: manifest and materialization disabled, scalar single-thread execution, and
+     * one exact-segment carrier selected for every boundary derived by lowering.
+     */
     public static final CpuPartitionAnalysisInputs DEFAULT = new CpuPartitionAnalysisInputs(false,
-            List.of(CarrierAccess.MEMORY_SEGMENT, CarrierAccess.MEMORY_SEGMENT,
-                    CarrierAccess.MEMORY_SEGMENT, CarrierAccess.MEMORY_SEGMENT),
+            List.of(),
             PortableExecutionConfig.DEFAULT, MaterializationPolicy.DISABLED);
 
     /**
@@ -110,7 +113,8 @@ public record CpuPartitionAnalysisInputs(boolean loweringManifestEnabled,
      * Creates compatibility inputs selecting scalar, single-thread execution.
      *
      * @param loweringManifestEnabled whether to retain cold lowering diagnostics
-     * @param carrierPattern non-null ordered current-topology carrier pattern; snapshotted
+     * @param carrierPattern non-null ordered derived-boundary carrier pattern, or empty for the
+     *     exact-segment-per-boundary policy; snapshotted
      * @throws NullPointerException if {@code carrierPattern} or an entry is {@code null}
      */
     public CpuPartitionAnalysisInputs(boolean loweringManifestEnabled,
@@ -123,7 +127,8 @@ public record CpuPartitionAnalysisInputs(boolean loweringManifestEnabled,
      * Creates direct-only inputs with explicit portable execution selection.
      *
      * @param loweringManifestEnabled whether to retain cold lowering diagnostics
-     * @param carrierPattern non-null ordered current-topology carrier pattern; snapshotted
+     * @param carrierPattern non-null ordered derived-boundary carrier pattern, or empty for the
+     *     exact-segment-per-boundary policy; snapshotted
      * @param portableExecution non-null immutable cold execution inputs
      * @throws NullPointerException if a reference or carrier entry is {@code null}
      */
@@ -137,7 +142,8 @@ public record CpuPartitionAnalysisInputs(boolean loweringManifestEnabled,
      * Snapshots the non-null ordered pattern, rejecting null entries in encounter order.
      *
      * @param loweringManifestEnabled whether to retain cold lowering diagnostics
-     * @param carrierPattern non-null ordered current-topology carrier pattern; copied defensively
+     * @param carrierPattern non-null ordered derived-boundary carrier pattern, or empty for the
+     *     exact-segment-per-boundary policy; copied defensively
      * @param portableExecution non-null immutable cold execution inputs
      * @param materializationPolicy non-null dimensionless cold materialization policy
      * @throws NullPointerException if {@code carrierPattern}, an entry, or

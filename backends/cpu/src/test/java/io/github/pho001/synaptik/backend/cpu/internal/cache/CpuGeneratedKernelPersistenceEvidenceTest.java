@@ -156,9 +156,9 @@ class CpuGeneratedKernelPersistenceEvidenceTest {
                 new CpuKernelIr.Value(3, DataType.FLOAT64, CpuKernelIr.Value.Kind.VIRTUAL, access),
                 new CpuKernelIr.Value(4, DataType.FLOAT64, CpuKernelIr.Value.Kind.VIRTUAL, access),
                 new CpuKernelIr.Value(5, DataType.FLOAT64, CpuKernelIr.Value.Kind.OUTPUT, output)),
-                List.of(new CpuKernelIr.Instruction(CpuKernelIr.Instruction.Semantic.ADD, List.of(0,1),3),
-                        new CpuKernelIr.Instruction(CpuKernelIr.Instruction.Semantic.GELU_EXACT,List.of(3),4),
-                        new CpuKernelIr.Instruction(CpuKernelIr.Instruction.Semantic.MUL,List.of(4,2),5)),
+                List.of(new CpuKernelIr.Instruction(io.github.pho001.synaptik.backend.cpu.internal.ir.CpuPointwiseOpcode.ADD, List.of(0,1),3),
+                        new CpuKernelIr.Instruction(io.github.pho001.synaptik.backend.cpu.internal.ir.CpuPointwiseOpcode.GELU_EXACT,List.of(3),4),
+                        new CpuKernelIr.Instruction(io.github.pho001.synaptik.backend.cpu.internal.ir.CpuPointwiseOpcode.MUL,List.of(4,2),5)),
                 new CpuKernelIr.Loop("start", "end"), List.of(new CpuKernelIr.Store(5, 0)));
         var segment = CpuKernelSpecialization.CarrierAccess.MEMORY_SEGMENT;
         var heap = CpuKernelSpecialization.CarrierAccess.DOUBLE_ARRAY;

@@ -19,7 +19,7 @@ import java.util.Optional;
 /**
  * Post-assignment verification, artifact realization, and partition executable finalization.
  *
- * <p>Every four-buffer assignment and optional exact workspace assignment is resolved and checked
+ * <p>Every derived-boundary buffer assignment and optional exact workspace assignment is resolved and checked
  * before the single permitted artifact-store call. Finalization cannot change the selected copy,
  * generated carrier pattern, route, strategy, specialization, or declaration geometry.
  */

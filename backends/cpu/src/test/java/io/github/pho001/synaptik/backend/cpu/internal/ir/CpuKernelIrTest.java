@@ -20,10 +20,10 @@ class CpuKernelIrTest {
                                 CpuKernelIr.Value.Kind.VIRTUAL, CpuKernelIr.Value.Kind.VIRTUAL,
                                 CpuKernelIr.Value.Kind.OUTPUT),
                         small.values().stream().map(CpuKernelIr.Value::kind).toList()),
-                () -> assertEquals(List.of(CpuKernelIr.Instruction.Semantic.ADD,
-                                CpuKernelIr.Instruction.Semantic.GELU_EXACT,
-                                CpuKernelIr.Instruction.Semantic.MUL),
-                        small.instructions().stream().map(CpuKernelIr.Instruction::semantic).toList()),
+                () -> assertEquals(List.of(CpuPointwiseOpcode.ADD,
+                                CpuPointwiseOpcode.GELU_EXACT,
+                                CpuPointwiseOpcode.MUL),
+                        small.instructions().stream().map(CpuKernelIr.Instruction::opcode).toList()),
                 () -> assertEquals(new CpuKernelIr.Loop("start", "end"), small.loop()));
     }
 }

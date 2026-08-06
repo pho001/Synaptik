@@ -46,7 +46,7 @@ public record CpuMaterializationPlan(int sourceBoundaryIndex, ValueId sourceValu
      * @throws ArithmeticException if checked byte geometry overflows {@code long}
      */
     public CpuMaterializationPlan {
-        if (sourceBoundaryIndex < 0 || sourceBoundaryIndex > 2 || elementCount < 0
+        if (sourceBoundaryIndex < 0 || elementCount < 0
                 || byteCount != Math.multiplyExact(elementCount, Double.BYTES)
                 || workspaceRequirementId != 0 || byteAlignment != Double.BYTES
                 || useCount <= 0 || expectedRunCount <= 0 || directCost < 0 || copyCost < 0
