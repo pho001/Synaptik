@@ -29,7 +29,12 @@ public class CpuPartitionFinalizerTest {
     }
 
     public static CpuPreparedExecutable finalizeExecutable(Shape shape, Optional<Path> root) {
-        var analysis = CpuPartitionPreparerTest.analyze(shape);
+        return finalizeExecutable(CpuPartitionPreparerTest.analyze(shape), root);
+    }
+
+    public static CpuPreparedExecutable finalizeExecutable(
+            io.github.pho001.synaptik.prepare.analysis.BackendPartitionAnalysis<
+                    CpuPartitionPreparationPlan> analysis, Optional<Path> root) {
         var entries = new ArrayList<PreparedMemoryPlan.BufferEntry>();
         var assignments = new ArrayList<PreparationResourceAssignment>();
         for (int i = 0; i < analysis.requirements().size(); i++) {

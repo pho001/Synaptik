@@ -4,7 +4,8 @@
 
 This guide defines the CPU integration boundary and helps contributors avoid treating CPU routes
 as separate backends. The current CPU module implements one narrow, complete-partition proving
-slice: a fully static, canonical-dense FLOAT64 `ADD -> exact GELU -> MUL` chain lowers to one
+slice: a fully static FLOAT64 `ADD -> exact GELU -> MUL` chain with resolved right-broadcastable
+input layouts and an injective resolved output layout lowers to one
 computation unit, one route-independent canonical kernel intermediate representation (IR), one
 generated Java 26 class, and one partition-level prepared executable. The two internal results
 remain graph and logical-memory values but are virtual in the fused unit, so only the three inputs
@@ -12,9 +13,11 @@ and final output receive buffer declarations and Runtime slots.
 
 The generated scalar loop accepts primitive `start` and `end` bounds. Compatible concrete extents
 bind on the cold path and share identical class bytes and one process-local loaded compatibility
-identity. Capability and lowering fail closed for every other operation, type, shape, layout,
-parameter, alias, fan-out, publication, carrier, route, or strategy. Vector, parallel, native,
-broadcast, materialization, tuning, and broader semantic-family work remains Draft.
+identity. The current access family covers scalar/rank/singleton/multi-axis broadcasting, zero
+extents, offsets, positive and broadcast-zero strides, and every ordered heap/segment carrier
+pattern for the four boundaries. Capability and lowering fail closed for every other operation,
+type, shape, layout, parameter, alias, fan-out, publication, carrier, route, or strategy. Vector,
+parallel, native, materialization, tuning, and broader semantic-family work remains Draft.
 
 The lower-level OpenBLAS provider separately implements explicit library loading, required-symbol
 binding, a caller-owned lookup lifetime, low-level FLOAT32/FLOAT64 dense row-major general matrix
@@ -348,7 +351,9 @@ complete CPU-owned partition
   -> direct cold-bound execution
 ```
 
-The proving slice is one static canonical-dense FLOAT64 ADD -> exact GELU -> MUL chain. Its ADD and
+The proving slice is one fully static FLOAT64 ADD -> exact GELU -> MUL chain. ADD and MUL use the
+current Model right-aligned broadcast result, GELU preserves the ADD result Shape exactly, and all
+boundary layouts are resolved. Its ADD and
 GELU results remain graph values and kernel-IR values, but they are virtual within the one fused
 unit and receive no buffer declaration or Runtime slot. This does not remove them from
 `LogicalMemoryPlan`: logical graph-value planning and backend physical materialization are
@@ -376,12 +381,33 @@ budgeted, evidence-selected specializations.
 
 The canonical IR records typed boundary/virtual values, ordered semantics, structural access-plan
 form, loop model, and stores. It excludes selected route, thread count, vector species, artifact
-root, graph/Runtime identity, generator version, and invocation bindings. The planned single
-right-aligned access system consumes current Model `ShapeBroadcast` and `LayoutDescriptor`
-semantics, including scalar, expanded-rank, singleton/multi-axis/zero broadcast, offsets, positive
-and zero strides, and eventually heap, segment, mixed, and exactly Prepare-bound dynamic/symbolic
-dimensions. It does not duplicate `WHERE`, elementwise, or fused planners. Broadcast gradients
-remain `SUM_TO_SHAPE` and later reduction work.
+root, graph/Runtime identity, generator version, and invocation bindings. The current single
+right-aligned access system consumes Model `ShapeBroadcast` and `LayoutDescriptor` semantics. It
+supports fully static scalar, expanded-rank, singleton/multi-axis/zero broadcast, offsets,
+positive and zero strides, and heap, segment, or mixed carriers. Current Prepare has no exact
+dynamic binding and rejects non-static projected shapes, so CPU fails closed for dynamic/symbolic
+dimensions; a future task requires an explicit
+exact-binding contract. The access family does not duplicate `WHERE`, elementwise, or fused
+planners. Broadcast gradients remain `SUM_TO_SHAPE` and later reduction work.
+
+Carrier access form is structural when it changes generated code. Each generated class contains
+exactly one direct static entry whose ordered `double[]`/`MemorySegment` signature matches the
+prepared unit. That ordered pattern participates in specialization and class/cache compatibility;
+exact carrier objects, byte offsets, extents, strides, slots, addresses, and run identity remain
+cold bindings. Equal topology/access structure/carrier patterns may reuse class bytes and loaded
+identity across compatible extents, while a different carrier pattern intentionally selects a
+different specialization. The generator does not emit every possible carrier combination into
+each class. CPU analysis receives the backend-owned prepared pattern, finalization realizes the
+one matching artifact, and Runtime binding only validates matching concrete carriers; it neither
+generates nor specializes code.
+
+For compatibility with the current proving topology and its 0005A tests,
+`CpuPartitionAnalysisInputs.DEFAULT` disables the lowering manifest and supplies four ordered
+`MEMORY_SEGMENT` entries for inputs `a`, `b`, `c`, and the output. An explicit composition-created
+input may instead supply any non-null four-entry heap/segment pattern; CPU analysis
+snapshots it and validates its count and order against the four declarations. No physical carrier
+object or general Config value enters the analysis input. Four is the boundary count of this
+proving topology, not a permanent generated-kernel or fusion architecture limit.
 
 Partition lowering, fusion legality/profitability, canonical IR, access plans, materialization
 accounting, numerical/determinism checks, and representation planning are common across routes.
@@ -407,11 +433,13 @@ and realization-changing power plan belong in specialization/cache compatibility
 lowering manifest, never a hot-path lookup. Forward and compiler-generated gradient operations use
 this same policy.
 
-The ordered access tiers are dense linear, scalar/all-zero broadcast, last-axis bias, block/outer
-broadcast with a contiguous inner loop, general positive-strided odometer, scalar fallback,
-cost-gated gather, and optional contiguous materialization. Bytecode emits offset/carry arithmetic
-directly with no hot cursor, virtual call, or per-element division/modulo. Semantic coverage does
-not promise that every layout is vectorized.
+The implemented scalar access regimes are dense linear, scalar/all-zero broadcast,
+last-axis bias, block/outer broadcast with a contiguous inner loop, and the complete general
+positive-strided odometer fallback. Bytecode emits offset/carry arithmetic directly with no hot
+cursor, virtual call, or per-element division/modulo. A cold binding computes the starting
+coordinates/address and exact accessed half-open span for its requested range. Vector gather belongs to 0005C, while
+cost-gated contiguous materialization belongs to 0005D. Semantic coverage does not promise that
+every layout is vectorized.
 
 Before shared assignment, later CPU analysis may compare direct access with CPU-internal contiguous
 materialization using copy cost, kernel benefit, reuse/fan-out, vendor eligibility, memory cost,
@@ -427,8 +455,14 @@ remain unchanged.
 The final portable strategy vocabulary is exactly scalar, vector, parallel-scalar, and
 parallel-vector: scalar/vector is the compute axis and single-thread/parallel is orchestration.
 Generated kernels always take `start` and `end`; workers dispatch chunks outside the inner loop.
-CPU 0005A implements only scalar/single-thread. Ordered Draft tasks deliver full broadcasting,
-then vector and parallel strategies, then materialization and persistence/specialization evidence.
+The current implementation is scalar/single-thread. Ordered Draft tasks deliver vector and
+parallel strategies, then materialization and persistence/specialization evidence.
+
+For example, iteration Shape `[2, 4, 3]` can combine a dense `[2, 4, 3]` input, a right-aligned
+`[3]` bias, and a contiguous `[2, 1, 3]` input. Their access regimes are respectively
+`DENSE_LINEAR`, `LAST_AXIS_BIAS`, and `BLOCK_OUTER`; the output may use another injective resolved
+layout. This explains address traversal only: it does not add another operation topology, Vector
+execution, or materialization policy.
 
 The reset replaces the flat execution package with unsupported `.internal` packages for memory,
 prepare, lowering, IR, portable code generation/emission, `route.portable`, cache, executable, and
@@ -613,8 +647,8 @@ supplied compatible arm64 OpenBLAS 0.3.33 library, including shared thread-count
 fixed SGEMM/DGEMM cases, and restoration of the original thread count. The ordered repository and
 architecture capability checkpoint then passed, and the provider milestone is complete.
 
-The current CPU foundation provides only the fused canonical-dense FLOAT64
-`ADD -> exact GELU -> MUL` portable scalar route described above. No other CPU operation
+The current CPU foundation provides only the fused fully static FLOAT64
+`ADD -> exact GELU -> MUL` portable scalar route and access forms described above. No other CPU operation
 capability, route threshold, native fallback, backend conformance, public Engine integration, or
 performance result is implemented or promised.
 Ordinary provider tests

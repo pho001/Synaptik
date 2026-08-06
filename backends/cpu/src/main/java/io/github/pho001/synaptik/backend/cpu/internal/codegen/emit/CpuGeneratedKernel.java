@@ -15,7 +15,16 @@ public final class CpuGeneratedKernel {
     private final MethodHandle entryPoint;
     private final byte[] classBytes;
 
-    /** Creates one artifact after the generator has verified and defined its exact class shape. */
+    /**
+     * Creates one artifact after the generator has verified and defined its exact class shape.
+     *
+     * @param specialization non-null exact structural specialization
+     * @param lookup non-null defining lookup that strongly retains the hidden class
+     * @param entryPoint non-null exact static entry handle matching the specialization
+     * @param classBytes non-null verified deterministic bytes; copied defensively
+     * @throws NullPointerException if an argument is {@code null}
+     * @throws IllegalArgumentException if the handle type differs from the specialization
+     */
     CpuGeneratedKernel(CpuKernelSpecialization specialization, MethodHandles.Lookup lookup,
             MethodHandle entryPoint, byte[] classBytes) {
         this.specialization = Objects.requireNonNull(specialization, "specialization");

@@ -63,8 +63,7 @@ public final class CpuPartitionFinalizer implements BackendPartitionFinalizer<Cp
         var unit = plan.units().getFirst();
         var artifact = artifactStore.loadOrGenerate(unit.portablePlan().specialization(),
                 unit.portablePlan().kernelIr());
-        var extents = java.util.Arrays.stream(plan.extents()).boxed().toList();
-        var binding = new CpuAccessPlan.Binding(extents, plan.elementCount(), 0, plan.elementCount());
-        return new CpuPreparedExecutable(finalization.memoryPlan(), selections, artifact, binding);
+        return new CpuPreparedExecutable(finalization.memoryPlan(), selections, artifact,
+                plan.accessBindings(), plan.carrierPattern(), 0, plan.elementCount());
     }
 }

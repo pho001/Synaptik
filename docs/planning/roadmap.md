@@ -99,32 +99,34 @@ tuning, or dynamic binding.
 
 The Prepare milestone is therefore closed. The OpenBLAS provider project area is also Complete.
 CPU 0005A is now Complete and atomically supersedes the provisional CPU 0001–0005 implementation;
-those five task records remain preserved as Superseded historical evidence. The current CPU
-implementation frontier is
-[CPU 0001 Capability, representation, binding, and parallel foundation](backends/cpu/tasks/0001-cpu-capability-representation-binding-and-parallel-foundation.md).
-It is Complete; detailed
+those five task records remain preserved as Superseded historical evidence. The current completed
+CPU implementation frontier is
+[CPU 0005B Universal access plans and right-aligned broadcasting](backends/cpu/tasks/0005b-universal-access-plans-and-right-aligned-broadcasting.md),
+while CPU 0005C and later tasks remain `Draft`. Historical
+[CPU 0001 Capability, representation, binding, and parallel foundation](backends/cpu/tasks/0001-cpu-capability-representation-binding-and-parallel-foundation.md)
+is `Superseded`; historical
 [CPU 0002 Portable Class-File API generator foundation](backends/cpu/tasks/0002-portable-class-file-api-generator-foundation.md)
-is Complete with deterministic typed specializations and fingerprints, the exact four structural
-scalar/Vector and single/parallel modes, heap-array/`MemorySegment`/mixed direct signatures,
+is `Superseded` after delivering deterministic typed specializations and fingerprints, the exact
+four structural scalar/Vector and single/parallel modes, heap-array/`MemorySegment`/mixed direct signatures,
 family-owned and low-level emitter seams, verified fresh hidden-class artifacts, and no generated-
 artifact cache. Implementation context `019fc815-42aa-7de2-8970-a2fcab3a390e` recorded a focused
 3-suite/18-test pass and the sole final CPU 9-suite/34-test pass, both with zero failures, errors,
 or skips; the clean documentation pass reused that evidence because it changed no executable Java
-behavior. At the CPU-0002 checkpoint, CPU advertised and executed no Model operation. Detailed
+behavior. At the CPU-0002 checkpoint, CPU advertised and executed no Model operation. Historical
 [CPU 0003 Durable generated-kernel artifact store and cold loading](backends/cpu/tasks/0003-bounded-generated-artifact-cache-and-cold-finalization.md)
-is Complete. Detailed
+is `Superseded`. Historical
 [CPU 0004 Typed portable analysis, specialization, and finalization](backends/cpu/tasks/0004-typed-portable-analysis-specialization-and-finalization.md)
-is Complete. Detailed
+is `Superseded`. Historical
 [CPU 0005 Dense ADD and partition-sequence execution](backends/cpu/tasks/0005-dense-add-and-partition-sequence-execution.md)
-is Complete: it adds the first narrow truthful operation route and solves maximal same-owner
+is `Superseded`; it added the first narrow truthful operation route and solved maximal same-owner
 partition execution as an ordered CPU-private node-kernel sequence. Implementation context
 `019fd19a-4262-7580-9674-226595356fbc` recorded the sole final CPU 31-test pass, which the clean
 documentation pass reused because it changed no executable Java behavior. Detailed
 [CPU 0005A Atomic partition-kernel architecture reset](backends/cpu/tasks/0005a-atomic-partition-kernel-architecture-reset.md)
-is Complete. Ordered CPU 0005B universal access/broadcast, 0005C vector and
-parallel strategies, 0005D materialization/specialization/persistence evidence, 0005E broader
-pointwise coverage, 0005F exact scalar-power strength reduction, and CPU 0006–0017 remain Draft
-without detailed specifications. CPU 0003
+is Complete. CPU 0005C vector and parallel strategies, 0005D
+materialization/specialization/persistence evidence, 0005E broader pointwise coverage, 0005F exact
+scalar-power strength reduction, and CPU 0006–0017 remain `Draft` without detailed specifications.
+CPU 0003
 implements a
 model-independent filesystem store beneath an explicit
 caller/composition-supplied trusted local root. It uses deterministic content-addressed paths,
@@ -376,12 +378,23 @@ FLOAT64/FLOAT32/INT32/INT64 ADD route and ordered maximal-partition execution. C
 replaced that provisional per-node path atomically with structured internal packages, complete-
 partition units, legal/profitable fusion before exact declarations, route-independent IR,
 universal start/end Class-File generation, optional persistence, and one partition executable.
-CPU 0005B–0005F, CPU 0006–0017, and the refined Config, Prepare, Metal, and tuning rows remain
-Draft without new detailed specifications.
+CPU 0005B is Complete. It makes each ordered heap/segment carrier pattern a
+code-shaping specialization with one direct entry per generated class, rather than emitting every
+possible carrier combination into each artifact. Its compatibility `DEFAULT` remains the current
+manifest-disabled four-segment proving pattern; explicit 0005B inputs may select another four-entry
+pattern, and four is not a permanent fused-unit boundary limit. Its five generated state machines
+cover dense linear, all-zero/scalar, last-axis bias, block/outer, and general odometer access.
+Exact cold range spans support constant-time alias checks, and a complete bounded static
+injectivity decision accepts valid interleaved positive strides while rejecting repeated writes.
+CPU 0005C–0005F, CPU 0006–0017,
+and the refined Config, Prepare, Metal, and tuning rows remain `Draft` without new detailed
+specifications.
 Completed OpenBLAS history and every completed project area remain unchanged.
 
-CPU remains the active global project area. CPU 0005A is Complete; later CPU work remains Draft
-without detailed specifications. CPU 0001–0005 are historical Superseded records whose Git history
+CPU remains the active global project area. CPU 0005A and detailed CPU 0005B are `Complete`;
+CPU 0005C is the next `Draft` frontier and later CPU work remains `Draft` without detailed
+specifications. CPU 0001–0005 are
+historical Superseded records whose Git history
 and validation evidence remain intact. Complete CPU 0004 added no public facade, registry, service locator,
 default artifact-root Config API, operation family, vendor route, tuning/benchmark work, broad
 cost model, shared-module/build/architecture change, or later specification. Prepare 0004 is only
@@ -389,8 +402,9 @@ a deferred bounded interleave after a concrete CPU typed-
 candidate producer and tuning-artifact consumer exist; it does not reopen or reorder the
 completed Prepare project area.
 
-CPU 0005A completed the intentional architecture/capability reset before family expansion. Its exact
-vertical slice is one fully static canonical-dense FLOAT64 ADD -> exact GELU -> MUL chain lowered
+CPU 0005A completed the intentional architecture/capability reset before family expansion. CPU
+0005B extends its exact vertical slice to fully static resolved right-broadcastable FLOAT64
+ADD -> exact GELU -> MUL access while preserving one chain lowered
 to one CPU-private computation-oriented execution unit, one canonical loop IR, one generated
 artifact/class, one partition-level `BoundInvocation`, and one partition-level
 `PreparedExecutable`. The ADD and GELU results remain graph and IR values but have no physical

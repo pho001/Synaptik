@@ -1,10 +1,18 @@
 package io.github.pho001.synaptik.backend.cpu.internal.reference;
 
+import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuAccessPlan;
+import io.github.pho001.synaptik.backend.cpu.internal.memory.CpuBufferArgument;
+import java.lang.foreign.ValueLayout;
+import java.nio.ByteOrder;
+import java.util.List;
+
 /**
  * Scalar conformance realization for the exact CPU-0005A fused semantics.
  * It is an unsupported cold-test/reference contract and is never a Runtime IR interpreter.
  */
 public final class CpuScalarReferenceKernel {
+    private static final ValueLayout.OfDouble DOUBLE = ValueLayout.JAVA_DOUBLE_UNALIGNED
+            .withOrder(ByteOrder.nativeOrder());
     private static final double[] ERF_T = {9.60497373987051638749E0,
             9.00260197203842689217E1, 2.23200534594684319226E3,
             7.00332514112805075473E3, 5.55923013010394962768E4};
@@ -92,6 +100,67 @@ public final class CpuScalarReferenceKernel {
             double activated = gelu(sum);
             output[(int) index] = activated * c[(int) index];
         }
+    }
+
+    /**
+     * Executes the same normalized bindings and direct carrier forms as generated scalar code.
+     * This reference path may allocate coordinate arrays and use division/modulo because it is
+     * conformance support, not the generated Runtime hot path.
+     *
+     * @param arguments non-null ordered direct inputs {@code a}, {@code b}, {@code c}, and output
+     * @param bindings non-null matching normalized access bindings in the same order
+     * @param start non-negative inclusive logical element bound
+     * @param end exclusive logical element bound no greater than the first binding's count
+     * @throws NullPointerException if an argument, binding, or list is {@code null}
+     * @throws IllegalArgumentException if boundary counts or range are invalid
+     * @throws ArithmeticException if exact address arithmetic overflows
+     */
+    public static void execute(List<CpuBufferArgument> arguments,
+            List<CpuAccessPlan.Binding> bindings, long start, long end) {
+        if (arguments.size() != 4 || bindings.size() != 4) throw new IllegalArgumentException(
+                "reference execution requires four ordered boundaries");
+        CpuAccessPlan.Binding first = bindings.getFirst();
+        if (start < 0 || end < start || end > first.elementCount()) {
+            throw new IllegalArgumentException("invalid reference bounds");
+        }
+        long[] extents = first.extents().stream().mapToLong(Long::longValue).toArray();
+        for (long index = start; index < end; index++) {
+            long[] coordinate = coordinates(index, extents);
+            double sum = load(arguments.get(0), address(bindings.get(0), coordinate))
+                    + load(arguments.get(1), address(bindings.get(1), coordinate));
+            double result = gelu(sum)
+                    * load(arguments.get(2), address(bindings.get(2), coordinate));
+            store(arguments.get(3), address(bindings.get(3), coordinate), result);
+        }
+    }
+
+    private static long[] coordinates(long index, long[] extents) {
+        long[] result = new long[extents.length];
+        for (int axis = extents.length - 1; axis >= 0; axis--) if (extents[axis] != 0) {
+            result[axis] = index % extents[axis]; index /= extents[axis];
+        }
+        return result;
+    }
+
+    private static long address(CpuAccessPlan.Binding binding, long[] coordinates) {
+        long address = binding.baseElementOffset();
+        for (int axis = 0; axis < coordinates.length; axis++) address = Math.addExact(address,
+                Math.multiplyExact(coordinates[axis], binding.effectiveStrides().get(axis)));
+        return address;
+    }
+
+    private static double load(CpuBufferArgument argument, long address) {
+        if (argument instanceof CpuBufferArgument.Doubles doubles) return doubles.carrier()[
+                Math.toIntExact(doubles.byteOffset() / Double.BYTES + address)];
+        return ((CpuBufferArgument.Segment) argument).segment().get(DOUBLE,
+                Math.multiplyExact(address, Double.BYTES));
+    }
+
+    private static void store(CpuBufferArgument argument, long address, double value) {
+        if (argument instanceof CpuBufferArgument.Doubles doubles) doubles.carrier()[
+                Math.toIntExact(doubles.byteOffset() / Double.BYTES + address)] = value;
+        else ((CpuBufferArgument.Segment) argument).segment().set(DOUBLE,
+                Math.multiplyExact(address, Double.BYTES), value);
     }
 
     private static double polevl(double x, double[] coefficients) {

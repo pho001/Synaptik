@@ -2,8 +2,10 @@
  * Owns unsupported complete-partition unit formation, fusion, and canonical lowering.
  *
  * <p>Lowering consumes the semantic and logical-memory facts projected by shared Prepare. It
- * decides fusion legality before resource declaration and represents private intermediates as
- * virtual canonical-IR values. It collaborates with {@code internal.ir} and route-neutral CPU
+ * derives ADD and MUL results with Model {@code ShapeBroadcast}, requires exact GELU shape,
+ * normalizes resolved layouts into five access regimes, proves output-write injectivity, and
+ * decides fusion legality before resource declaration. Private intermediates remain virtual
+ * canonical-IR values. It collaborates with {@code internal.ir} and route-neutral CPU
  * preparation, but never allocates Runtime resources, selects a physical slot, or delegates graph
  * interpretation to a route implementation.
  *

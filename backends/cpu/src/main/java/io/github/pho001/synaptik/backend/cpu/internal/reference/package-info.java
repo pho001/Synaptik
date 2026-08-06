@@ -2,7 +2,8 @@
  * Owns the unsupported scalar conformance and fail-closed reference realization.
  *
  * <p>The reference code expresses the exact fused arithmetic and shared scalar error-function
- * behavior used to verify generated results. It is test and conformance support: it is not a Model
+ * behavior and normalized heap/segment access bindings used to verify generated results across
+ * all five access regimes. It is test and conformance support: it is not a Model
  * operation interpreter, canonical-IR interpreter, Runtime fallback dispatcher, or independently
  * selectable numerical route.
  *

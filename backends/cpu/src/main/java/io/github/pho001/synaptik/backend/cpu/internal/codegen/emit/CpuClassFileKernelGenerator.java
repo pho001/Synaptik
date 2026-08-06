@@ -37,16 +37,23 @@ public final class CpuClassFileKernelGenerator {
                             var carriers = new CpuCarrierEmitter(code);
                             var scalar = new CpuScalarEmitter(code);
                             var loops = new CpuLoopEmitter(code);
-                            loops.emit(index -> {
-                                carriers.load(0, index);
-                                carriers.load(1, index);
+                            loops.emit(java.util.List.of(kernelIr.values().get(0).accessPlan(),
+                                    kernelIr.values().get(1).accessPlan(),
+                                    kernelIr.values().get(2).accessPlan(),
+                                    kernelIr.values().get(5).accessPlan()), state -> {
+                                carriers.load(specialization.carrierPattern().get(0), 0,
+                                        state.addresses()[0]);
+                                carriers.load(specialization.carrierPattern().get(1), 1,
+                                        state.addresses()[1]);
                                 code.dadd();
                                 scalar.gelu();
-                                carriers.load(2, index);
+                                carriers.load(specialization.carrierPattern().get(2), 2,
+                                        state.addresses()[2]);
                                 code.dmul();
                                 int result = code.allocateLocal(TypeKind.DOUBLE);
                                 code.dstore(result);
-                                carriers.store(3, index, result);
+                                carriers.store(specialization.carrierPattern().get(3), 3,
+                                        state.addresses()[3], result);
                             });
                             code.return_();
                         })));

@@ -5,6 +5,11 @@ import static org.junit.jupiter.api.Assertions.*;
 import io.github.pho001.synaptik.backend.cpu.internal.prepare.CpuPartitionPreparerTest;
 import io.github.pho001.synaptik.model.shape.Shape;
 import org.junit.jupiter.api.Test;
+import io.github.pho001.synaptik.backend.cpu.internal.prepare.CpuPartitionAnalysisInputs;
+import io.github.pho001.synaptik.backend.cpu.internal.cache.CpuKernelSpecialization.CarrierAccess;
+import java.util.List;
+import io.github.pho001.synaptik.prepare.analysis.PrepareContext;
+import io.github.pho001.synaptik.backend.cpu.internal.prepare.CpuPartitionPreparer;
 
 class CpuKernelSpecializationTest {
     @Test void excludesCompatibleExtentsButIncludesNumericalAndStrategyFacts() {
@@ -18,5 +23,28 @@ class CpuKernelSpecializationTest {
                 () -> assertSame(CpuKernelSpecialization.NumericalMode.EXACT_DEFAULT,
                         one.numericalMode()),
                 () -> assertArrayEquals(one.compatibilityBytes(), many.compatibilityBytes()));
+    }
+
+    @Test void orderedCarrierPatternChangesKeyDescriptorAndGeneratedBytes() {
+        var allSegment = specialization(List.of(CarrierAccess.MEMORY_SEGMENT,
+                CarrierAccess.MEMORY_SEGMENT, CarrierAccess.MEMORY_SEGMENT,
+                CarrierAccess.MEMORY_SEGMENT));
+        var mixed = specialization(List.of(CarrierAccess.DOUBLE_ARRAY,
+                CarrierAccess.MEMORY_SEGMENT, CarrierAccess.MEMORY_SEGMENT,
+                CarrierAccess.MEMORY_SEGMENT));
+        assertAll(
+                () -> assertNotEquals(allSegment.structuralKey(), mixed.structuralKey()),
+                () -> assertNotEquals(allSegment.entryType(), mixed.entryType()),
+                () -> assertFalse(java.util.Arrays.equals(allSegment.compatibilityBytes(),
+                        mixed.compatibilityBytes())));
+    }
+
+    private static CpuKernelSpecialization specialization(List<CarrierAccess> pattern) {
+        var old = CpuPartitionPreparerTest.context(Shape.of(3));
+        var context = new PrepareContext<>(old.partition(), old.nodes(), old.values(),
+                old.memoryRequirements(), old.constants(),
+                new CpuPartitionAnalysisInputs(false, pattern));
+        return new CpuPartitionPreparer().analyze(context).plan().units().getFirst()
+                .portablePlan().specialization();
     }
 }

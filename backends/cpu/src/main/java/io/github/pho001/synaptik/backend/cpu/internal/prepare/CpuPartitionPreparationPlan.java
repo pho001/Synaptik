@@ -1,6 +1,8 @@
 package io.github.pho001.synaptik.backend.cpu.internal.prepare;
 
 import io.github.pho001.synaptik.backend.cpu.internal.route.portable.CpuPortableRoutePlan;
+import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuAccessPlan;
+import io.github.pho001.synaptik.backend.cpu.internal.cache.CpuKernelSpecialization.CarrierAccess;
 import io.github.pho001.synaptik.model.graph.ValueId;
 import io.github.pho001.synaptik.prepare.analysis.BackendPreparationPlan;
 import io.github.pho001.synaptik.prepare.analysis.PreparationResourceRequirement;
@@ -16,6 +18,8 @@ import java.util.Objects;
  * @param bufferDeclarations non-null exact post-fusion declarations; copied defensively
  * @param boundaryValues non-null materialized value identities in declaration order; copied
  *     defensively
+ * @param accessBindings non-null normalized cold geometry in boundary order; copied defensively
+ * @param carrierPattern non-null direct carrier forms in boundary order; copied defensively
  * @param extents non-null cold-bound compatible extents; copied defensively
  * @param elementCount checked logical element count represented by {@code extents}
  * @param loweringManifest non-null optional cold diagnostic text, empty when disabled
@@ -23,7 +27,8 @@ import java.util.Objects;
 public record CpuPartitionPreparationPlan(List<ExecutionUnitPlan> units, Route route,
         ExecutionStrategy executionStrategy,
         List<PreparationResourceRequirement.Buffer> bufferDeclarations,
-        List<ValueId> boundaryValues, long[] extents, long elementCount, String loweringManifest)
+        List<ValueId> boundaryValues, List<CpuAccessPlan.Binding> accessBindings,
+        List<CarrierAccess> carrierPattern, long[] extents, long elementCount, String loweringManifest)
         implements BackendPreparationPlan {
     /**
      * One computation-oriented execution unit.
@@ -32,7 +37,11 @@ public record CpuPartitionPreparationPlan(List<ExecutionUnitPlan> units, Route r
      * @param fusionReason non-null cold diagnostic explanation of the selected fusion
      */
     public record ExecutionUnitPlan(CpuPortableRoutePlan portablePlan, String fusionReason) {
-        /** @throws NullPointerException if either component is {@code null} */
+        /**
+         * Validates one selected unit and its diagnostic explanation.
+         *
+         * @throws NullPointerException if either component is {@code null}
+         */
         public ExecutionUnitPlan {
             Objects.requireNonNull(portablePlan, "portablePlan");
             Objects.requireNonNull(fusionReason, "fusionReason");
@@ -62,7 +71,11 @@ public record CpuPartitionPreparationPlan(List<ExecutionUnitPlan> units, Route r
         /** The sole strategy implemented by CPU 0005A. */
         public static final ExecutionStrategy SCALAR =
                 new ExecutionStrategy(Compute.SCALAR, Orchestration.SINGLE_THREAD);
-        /** Validates both axes. @throws NullPointerException if either axis is {@code null} */
+        /**
+         * Validates both execution-strategy axes.
+         *
+         * @throws NullPointerException if either axis is {@code null}
+         */
         public ExecutionStrategy {
             Objects.requireNonNull(compute, "compute");
             Objects.requireNonNull(orchestration, "orchestration");
@@ -79,7 +92,7 @@ public record CpuPartitionPreparationPlan(List<ExecutionUnitPlan> units, Route r
      *
      * @throws NullPointerException if a required component is {@code null}
      * @throws IllegalArgumentException if the plan is outside the one-unit, scalar, portable,
-     *     four-buffer CPU 0005A slice
+     *     four-buffer current CPU proving slice
      */
     public CpuPartitionPreparationPlan {
         units = List.copyOf(units);
@@ -87,12 +100,15 @@ public record CpuPartitionPreparationPlan(List<ExecutionUnitPlan> units, Route r
         Objects.requireNonNull(executionStrategy, "executionStrategy");
         bufferDeclarations = List.copyOf(bufferDeclarations);
         boundaryValues = List.copyOf(boundaryValues);
+        accessBindings = List.copyOf(accessBindings);
+        carrierPattern = List.copyOf(carrierPattern);
         extents = extents.clone();
         Objects.requireNonNull(loweringManifest, "loweringManifest");
         if (units.size() != 1 || route != Route.PORTABLE
                 || !executionStrategy.equals(ExecutionStrategy.SCALAR)
-                || bufferDeclarations.size() != 4 || boundaryValues.size() != 4) {
-            throw new IllegalArgumentException("CPU 0005A plan must contain one scalar portable unit and four buffers");
+                || bufferDeclarations.size() != 4 || boundaryValues.size() != 4
+                || accessBindings.size() != 4 || carrierPattern.size() != 4) {
+            throw new IllegalArgumentException("current CPU plan must contain one scalar portable unit and four buffers");
         }
     }
     /** Returns instance geometry.

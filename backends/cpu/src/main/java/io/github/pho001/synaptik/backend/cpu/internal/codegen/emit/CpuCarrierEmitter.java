@@ -1,45 +1,65 @@
 package io.github.pho001.synaptik.backend.cpu.internal.codegen.emit;
 
+import io.github.pho001.synaptik.backend.cpu.internal.cache.CpuKernelSpecialization.CarrierAccess;
 import java.lang.classfile.CodeBuilder;
 import java.lang.classfile.TypeKind;
 import java.lang.constant.ClassDesc;
 import java.lang.constant.MethodTypeDesc;
 
-/** Package-private direct canonical-dense FLOAT64 segment access emitter. */
+/** Package-private direct FLOAT64 heap-array or segment access emitter. */
 final class CpuCarrierEmitter {
     private static final ClassDesc SEGMENT = ClassDesc.of("java.lang.foreign.MemorySegment");
     private static final ClassDesc VALUE_LAYOUT = ClassDesc.of("java.lang.foreign.ValueLayout");
-    private static final ClassDesc DOUBLE_LAYOUT =
-            ClassDesc.of("java.lang.foreign.ValueLayout$OfDouble");
+    private static final ClassDesc DOUBLE_LAYOUT = ClassDesc.of("java.lang.foreign.ValueLayout$OfDouble");
     private static final ClassDesc BYTE_ORDER = ClassDesc.of("java.nio.ByteOrder");
     private final CodeBuilder code;
-    /** Creates an emitter over one non-null method-code builder. */
+    /**
+     * Creates an emitter bound to one non-null generated method body.
+     *
+     * @param code non-null Class-File API code builder retained for generation only
+     */
     CpuCarrierEmitter(CodeBuilder code) { this.code = code; }
 
-    /** Emits a native-order FLOAT64 load from a segment parameter and long index local. */
-    void load(int parameterSlot, int indexLocal) {
-        code.aload(parameterSlot);
-        layout();
-        offset(indexLocal);
-        code.invokeinterface(SEGMENT, "get", MethodTypeDesc.of(
-                java.lang.constant.ConstantDescs.CD_double, DOUBLE_LAYOUT,
-                TypeKind.LONG.upperBound()));
+    /**
+     * Emits one FLOAT64 load from a generation-time-selected carrier form.
+     *
+     * @param access non-null selected direct carrier form
+     * @param parameterSlot local-variable slot holding the exact carrier
+     * @param addressLocal local-variable slot holding an element address
+     */
+    void load(CarrierAccess access, int parameterSlot, int addressLocal) {
+        if (access == CarrierAccess.DOUBLE_ARRAY) {
+            code.aload(parameterSlot).lload(addressLocal).l2i().daload();
+        } else {
+            code.aload(parameterSlot); layout();
+            code.lload(addressLocal).loadConstant((long) Double.BYTES).lmul();
+            code.invokeinterface(SEGMENT, "get", MethodTypeDesc.of(
+                    java.lang.constant.ConstantDescs.CD_double, DOUBLE_LAYOUT,
+                    TypeKind.LONG.upperBound()));
+        }
     }
 
-    /** Emits a native-order FLOAT64 store to a segment parameter and long index local. */
-    void store(int parameterSlot, int indexLocal, int valueLocal) {
-        code.aload(parameterSlot);
-        layout();
-        offset(indexLocal);
-        code.dload(valueLocal);
-        code.invokeinterface(SEGMENT, "set", MethodTypeDesc.of(
-                TypeKind.VOID.upperBound(), DOUBLE_LAYOUT, TypeKind.LONG.upperBound(),
-                java.lang.constant.ConstantDescs.CD_double));
+    /**
+     * Emits one FLOAT64 store to a generation-time-selected carrier form.
+     *
+     * @param access non-null selected direct carrier form
+     * @param parameterSlot local-variable slot holding the exact carrier
+     * @param addressLocal local-variable slot holding an element address
+     * @param valueLocal local-variable slot holding the value to store
+     */
+    void store(CarrierAccess access, int parameterSlot, int addressLocal, int valueLocal) {
+        if (access == CarrierAccess.DOUBLE_ARRAY) {
+            code.aload(parameterSlot).lload(addressLocal).l2i().dload(valueLocal).dastore();
+        } else {
+            code.aload(parameterSlot); layout();
+            code.lload(addressLocal).loadConstant((long) Double.BYTES).lmul();
+            code.dload(valueLocal);
+            code.invokeinterface(SEGMENT, "set", MethodTypeDesc.of(TypeKind.VOID.upperBound(),
+                    DOUBLE_LAYOUT, TypeKind.LONG.upperBound(),
+                    java.lang.constant.ConstantDescs.CD_double));
+        }
     }
 
-    private void offset(int indexLocal) {
-        code.lload(indexLocal).loadConstant((long) Double.BYTES).lmul();
-    }
     private void layout() {
         code.getstatic(VALUE_LAYOUT, "JAVA_DOUBLE_UNALIGNED", DOUBLE_LAYOUT);
         code.invokestatic(BYTE_ORDER, "nativeOrder", MethodTypeDesc.of(BYTE_ORDER));

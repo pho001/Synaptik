@@ -42,8 +42,8 @@ provides the nominal `BufferRepresentation` and `WorkspaceRepresentation` lifecy
 requirement-to-slot assignment and association are now current. Runtime also has a reusable
 [`PreparedRepresentationPlan`](#prepared-representation-plan--preparedrepresentationplan),
 package-private all-or-cleaned cold setup, structural residency, and explicit
-[`buffer validity`](#buffer-validity) per resident copy. Physical allocation/access
-implementations and public output-value access remain planned. The immutable
+[`buffer validity`](#buffer-validity) per resident copy. Concrete physical representations remain
+backend-owned, and public output-value access remains planned. The immutable
 creation-plus-execution-plus-transfer-plus-publication
 [`PreparedSchedule`](#prepared-schedule--preparedschedule) contract is current.
 Current [`PreparedExecutable`](#prepared-executable--preparedexecutable) recipes perform checked
@@ -52,14 +52,14 @@ current [`PreparedBufferTransfer`](#prepared-buffer-transfer--preparedbuffertran
 similarly create [`BoundBufferTransfer`](#bound-buffer-transfer--boundbuffertransfer) actions;
 current [`PreparedPublication`](#prepared-publication--preparedpublication) recipes create
 [`BoundPublication`](#bound-publication--boundpublication) occurrences, and current
-[`RunResult`](#run-result--runresult) leases complete states. The CPU backend now supplies its
-first package-private physical buffer/workspace implementations, exact borrowed-segment cold
-binding, direct prepared-invocation seam, bounded worker foundation, and a package-private
-generated-kernel foundation with typed analysis, shared-resource declaration, post-assignment
-artifact finalization, and prepared direct binding. Its first production operation-family route
-advertises and executes exact dense-contiguous pointwise `ADD` for equal fully static input/output
-shapes in `FLOAT64`, `FLOAT32`, `INT32`, and `INT64`; all other CPU capability queries and route
-shapes fail closed.
+[`RunResult`](#run-result--runresult) leases complete states. The CPU backend supplies concrete
+borrowed and run-owned native buffer representations plus one fully static FLOAT64
+`ADD -> exact GELU -> MUL` partition route. Its normalized access plans cover resolved
+right-broadcastable scalar/rank/singleton/multi-axis inputs, zero extents, offsets, positive and
+broadcast-zero strides, injective output layouts, and every ordered heap/segment pattern for the
+four boundaries. Other operation topologies, types, strategies, and routes fail closed. The
+earlier per-node ADD/worker pipeline is Superseded historical evidence rather than the current
+implementation baseline.
 
 Prepare currently provides the public immutable analysis-side contracts in
 `io.github.pho001.synaptik.prepare.analysis`: `BackendAnalysisInputs`,
@@ -1012,29 +1012,27 @@ generated artifact after shared slot assignment. Runtime invokes only the result
 executable. The term describes the generated artifact and its lifecycle, not the bytecode-
 generation library or builder API used by the current implementation.
 
-The current package-private foundation uses the Java 26 Class-File API to emit and verify one
-static typed entry method, defines each result as a hidden nestmate class, and retains its exact
-method handle. The Class-File API and Java Vector API are CPU-internal implementation choices,
-not architecture invariants. The first production family emits scalar, single-thread native
-`MemorySegment` kernels for exact dense pointwise `ADD`; synthetic probes continue to cover the
-more general generated-kernel foundation without widening that production route.
+The current package-private implementation uses the Java 26 Class-File API to emit and verify one
+static typed entry method for the specialization's exact ordered `double[]` or `MemorySegment`
+pattern, defines the result as a hidden nestmate class, and retains its exact method handle. The
+Class-File API and Java Vector API are CPU-internal implementation choices, not architecture
+invariants. The production kernel is the scalar, single-thread whole-partition FLOAT64
+`ADD -> exact GELU -> MUL` route; it emits a generation-time-selected primitive state machine for
+each boundary access regime.
 
 ### CPU kernel specialization
 
 The implemented backend-private immutable description of every fact allowed to change one
-generated CPU class. It includes the generator schema and class-file target, family-lowering
-fingerprint, ordered primitive-array or exact-`MemorySegment` carriers and read/write access,
-baked offsets, strides and extents, dynamic-extent count, exact portable mode, selected Vector API
-species when applicable, byte order, unroll/tile/tail structure, exact/default numerical mode,
-and partial-combine order. Its derived content fingerprint and structural equality are
-order-sensitive.
+generated CPU class. The current form includes the canonical lowering fingerprint, exact/default
+numerical mode, scalar/single-thread strategy, and complete ordered four-boundary
+`double[]`/`MemorySegment` carrier pattern. Canonical IR separately supplies value kind, data type,
+ordered semantics/stores, iteration rank, axis roles, contiguous-suffix form, and access regime.
+Their derived compatibility bytes and structural identity are order-sensitive.
 
-The exact portable modes are scalar single-thread, scalar parallel, Vector API single-thread,
-and Vector API parallel. Parallel entries accept an already-assigned half-open range; they do not
-own workers or scheduling. Runtime identities, physical addresses, slots, run objects, worker
-configuration, cache state, and mutable observations are excluded because they do not change the
-generated code. A CPU kernel specialization is not a capability claim, route choice, prepared
-executable, or persistent-cache record.
+Concrete compatible extents, element count, layout offsets, effective stride values, starting
+coordinates and addresses, carrier objects, slots, physical addresses, run identity, cache state,
+and mutable observations are excluded. A CPU kernel specialization is not a capability claim,
+prepared executable, or persistent-cache record. Vector and parallel strategies remain Draft.
 
 ### CPU generated-kernel artifact
 
@@ -1048,74 +1046,66 @@ Keeping the artifact reachable keeps its hidden-class state reachable, without p
 unreferenced class unloads. Direct generator calls produce equal class bytes but distinct hidden
 classes and artifact identities. The current durable generated-kernel artifact store may instead
 reuse compatible class bytes and weakly intern one loaded artifact while it remains live. The
-artifact is not by itself a prepared route. Current artifacts execute both synthetic test probes
-and the exact production dense pointwise `ADD` family selected by CPU preparation.
+artifact is not by itself a prepared route. Current artifacts execute the exact fused FLOAT64
+proving topology across the implemented normalized access regimes and carrier patterns.
 
 ### CPU generated-kernel artifact store
 
-The implemented package-private CPU filesystem mechanism that durably reuses deterministic
-generated class bytes across store instances and Java Virtual Machine (JVM) processes. Its caller
-supplies an explicit trusted local root. Complete canonical compatibility metadata determines a
-content-addressed `.cpuclass` path, while one bounded self-contained envelope stores that metadata,
-the class bytes, and their SHA-256 checksum. A hit requires exact metadata equality, checksum
-validation, Java class-file verification, and exact generated-class shape; a digest or checksum
-alone never establishes compatibility.
+The implemented package-private optional trusted-root mechanism for reusing deterministic
+generated class bytes. With no root, realization is entirely in memory. With a root, separate
+store instances or Java Virtual Machine (JVM) processes may reuse `.class` bytes only when the
+separate complete compatibility metadata—including the ordered carrier pattern—matches exactly
+and Java class-file plus entry-shape verification passes. A structural key alone never establishes
+compatibility.
 
-Missing, corrupt, or incompatible entries are safe misses. Publication forces a unique temporary
-file and atomically replaces the deterministic final entry, with no non-atomic fallback, then
-re-reads and validates the final bytes before hidden-class definition. Compatible age never
-invalidates an entry, and the mechanism has no automatic eviction, expiry, quota, directory sweep,
-or background maintenance. Equal in-process requests share one attempt across store instances;
-loaded artifacts are interned only weakly and remain usable through their strong callers.
+Missing, corrupt, incompatible, or unusable entries are safe misses and return to verified
+generation. Publication uses a temporary file and replacement; failure never changes correctness.
+Compatible age does not invalidate an entry, and the mechanism has no automatic eviction, expiry,
+quota, directory sweep, or background maintenance. Loaded artifacts are interned weakly by exact
+structural key and remain usable through their strong callers.
 
 Checksums and structural validation detect accidental damage but do not authenticate executable
 content. The caller must isolate the root from untrusted writers. The store is neither a workload
 tuning cache nor a model-plan cache: it reuses already-selected executable class bytes during cold
 CPU finalization and performs no route selection, measurement, or Runtime hot-path work. No
 public composition owner supplies it. The current CPU-private finalizer calls it only after shared
-assignment and worker validation, and the resulting prepared executable strongly retains the
+assignment, and the resulting prepared executable strongly retains the
 loaded artifact.
 
 ### CPU portable preparation plan
 
-The implemented backend-private immutable result of CPU portable analysis before shared slot
-assignment. It retains one or more exact complete `CpuPortablePartitionCandidate` values in
-planned node order and one exact prepared parallel configuration. Each partition candidate
-connects an ordered sequence of generated specializations and matching family emitters to exact
-shared declarations, identity-bound buffer/workspace uses, and family-owned typed cold binders.
+The implemented backend-private immutable result of route-neutral CPU analysis before shared slot
+assignment. `CpuPartitionPreparationPlan` retains one fused execution unit, its canonical kernel
+IR and portable specialization, exact scalar/default strategy, four ordered boundary values,
+normalized access bindings, structural carrier pattern, exact per-boundary declarations, compatible
+extents/count, and an optional cold lowering manifest.
 
-CPU analysis validates that Planning already selected CPU ownership, that each declared buffer
-names a projected value, that projected and specialized data types agree, and that the selected
-Vector species and execution mode are eligible. It chooses the first valid eligible candidate in
-the injected source's deterministic order. Backend-declared byte size and alignment remain opaque
-analysis facts: the current CPU implementation does not derive dense byte geometry from a tensor
-descriptor or choose a layout/materialization policy. Shared Prepare later validates those exact
-declarations against assigned `PreparedMemoryPlan` geometry.
+CPU analysis validates that Planning selected CPU ownership, derives ADD/MUL shapes through Model
+right-aligned broadcasting, requires exact GELU shape, normalizes resolved layouts, proves output
+write injectivity, and declares each boundary's referenced byte span. Shared Prepare sees the plan
+opaquely and later validates declarations against assigned `PreparedMemoryPlan` geometry.
 
 The plan is not a generated artifact, assigned slot, executable, physical resource, per-run
-binding, capability claim, tuning result, registry, or public route API. The current production
-candidate source accepts only singleton or multi-node partitions whose nodes are exact supported
-dense pointwise `ADD`; it rejects unsupported nodes, mixed partitions, empty partitions, and
-in-partition input/output aliasing before shared assignment.
+binding, capability claim, tuning result, registry, or public route API. It accepts only the exact
+three-node FLOAT64 proving topology and fails closed before artifact work for unsupported facts.
 
 ### CPU portable prepared executable
 
 The implemented backend-private immutable Runtime recipe constructed by CPU finalization after
-shared slot assignment. It strongly retains the partition's generated kernels and direct static
-`MethodHandle` values in planned node order, their specializations, prepared parallel
-configuration, selected resource recipes, and family-owned typed binders. It borrows an
-already-owned `CpuWorkerGroup`, owns no physical representation or close lifecycle, and may bind
-concurrently to distinct open `RunState` instances.
+shared slot assignment. `CpuPreparedExecutable` strongly retains the partition's one generated
+artifact and exact static `MethodHandle`, four selected buffers, full normalized geometry, ordered
+carrier pattern, and one half-open logical range. It owns no physical representation or close
+lifecycle and may bind concurrently to distinct open `RunState` instances.
 
 Cold binding consumes `CpuBorrowedBuffer` and `CpuNativeBuffer` through Runtime's
-`BufferRepresentation` boundary. It validates selected carrier and offset form plus parallel
-segment/workspace accessibility once, then asks the family binder to construct a
-signature-specific `BoundInvocation` with direct typed fields. No executable or binder accepts
+`BufferRepresentation` boundary. It validates selected carrier form, liveness/accessibility,
+writability, exact size/alignment, and actual input/output accessed spans once, then constructs a
+signature-specific `BoundInvocation` with direct typed fields and primitive address state. No executable accepts
 `HostTensorStorage` directly. The Runtime hot call performs no storage discovery, slot lookup,
 argument classification, artifact access, reflection, handle adaptation, route selection, or
-allocation. A bound partition invocation performs one parent partition guard, then calls its
-guard-free bound node invocations in planned node order. The current production family establishes
-only exact scalar dense pointwise `ADD`; it makes no Tensor-result, gradient, compiler,
+allocation. A bound partition invocation performs the Runtime state guard and calls the generated
+partition handle once. The current production family establishes only the exact fused FLOAT64
+proving topology; it makes no Tensor-result, gradient, compiler,
 conformance, integration, or performance claim.
 
 ### CPU execution unit
@@ -1156,21 +1146,52 @@ IR.
 
 ### CPU access plan
 
-The normalized per-input address description intended to be shared by pointwise, `WHERE`, and fused
-CPU units. CPU 0005A implements only canonical-dense structural access plus cold-bound compatible
-extents and primitive bounds. The ordered Draft expansion right-aligns rank and retains concrete extents, a base element offset,
-effective `long` strides, and zero strides on broadcast axes. Different operands of one fused unit
-may have different plans. The plan consumes current Model `ShapeBroadcast` and `LayoutDescriptor`
-contracts rather than duplicating shape or layout semantics.
+The implemented normalized per-value address description shared by the current fused CPU unit and
+intended for later pointwise and `WHERE` units. CPU 0005B right-aligns rank and separates the
+structural regime/axis pattern used by generated-class identity from cold concrete extents, base
+element offset, effective `long` strides, exact carrier objects, slots, and addresses. Different
+inputs and the output of one fused unit may have different plans. The plan consumes current Model
+`ShapeBroadcast` and `LayoutDescriptor` contracts rather than duplicating shape or layout
+semantics.
 
-Its eventual domain includes scalars, rank expansion, singleton and multi-axis broadcast, zero
-extents, masks and parameter inputs, offset-contiguous and positive-strided layouts, zero-stride
-views, heap arrays, `MemorySegment`, mixed carriers, and dynamic or symbolic dimensions once
-Prepare has bound them exactly. Planned execution tiers are dense, scalar/all-zero, last-axis bias,
-block/outer with contiguous inner loop, positive-strided odometer, scalar fallback, cost-gated
-gather, and optional contiguous materialization. Complete access semantics do not promise that
-every layout is vectorized. Broadcast gradients remain Compiler/Model `SUM_TO_SHAPE` semantics
-plus later CPU reduction coverage.
+The ordered heap-array/`MemorySegment` carrier access pattern is a separate code-shaping
+structural specialization fact. Each generated class has exactly one direct static entry for its
+actual ordered pattern, and that pattern participates in compatibility/class identity. Exact
+carrier objects and byte offsets remain cold bindings. Equal patterns can reuse class bytes and
+loaded identity across compatible extents; a different pattern may use a distinct specialization.
+CPU analysis receives the backend-owned prepared pattern, finalization realizes the matching
+artifact, and Runtime binding only validates matching concrete carriers. This avoids Runtime
+generation and avoids placing every possible carrier combination in each class as boundary count
+grows.
+
+The current `CpuPartitionAnalysisInputs.DEFAULT` is a compatibility value for the fixed proving
+proving topology: it disables lowering-manifest retention and supplies four ordered
+`MEMORY_SEGMENT` access forms. Explicit analysis inputs may immutably select any non-null
+four-entry heap/segment pattern. CPU analysis validates the snapshot against boundary count and
+order; it carries no physical carrier object or general Config policy. The default's length is not
+a permanent boundary-count architecture for later fused units.
+
+The fully static scope includes scalars, rank expansion, singleton and multi-axis
+broadcast, zero extents, offset-contiguous and positive-strided layouts, zero-stride views, heap
+arrays, `MemorySegment`, and mixed carriers. Its ordered scalar regimes are dense linear,
+scalar/all-zero stride, last-axis bias, block/outer with a contiguous inner loop, and a complete
+general positive-strided odometer fallback. The five regimes emit distinct state machines: one
+linear increment, a constant address, a final-axis counter/reset, a contiguous-inner plus outer
+carry/reset, or a full-axis odometer. Generated hot code uses primitive address/carry
+arithmetic without per-element cursor allocation, semantic dispatch, division, or modulo.
+Vector gather is deferred to CPU 0005C and contiguous materialization to CPU 0005D; complete
+access semantics do not promise universal vectorization.
+
+Cold bindings retain output extents, base offset, effective strides, start coordinates/address,
+and the exact half-open accessed span for their selected logical range. Output normalization uses
+a complete bounded static injectivity decision: interleaved positive strides are accepted when
+distinct coordinates remain distinct, while actual repeated writes are rejected. Declaration
+geometry remains each layout's referenced span, not the iteration element count.
+
+Current Prepare has no exact dynamic binding and rejects non-static projected shapes. CPU
+therefore fails closed for dynamic or symbolic dimensions. Supporting them requires a future
+explicit exact-binding contract rather than a CPU assumption. Broadcast gradients remain
+Compiler/Model `SUM_TO_SHAPE` semantics plus later CPU reduction coverage.
 
 ### CPU portable execution strategy
 
@@ -1501,7 +1522,8 @@ A module that implements a backend, such as `backends/cpu`, `backends/metal`, or
 It owns backend-specific capability reporting, prepare-time lowering, fusion, specialization,
 kernel selection, executable units, storage, workspaces, and native integration. Concrete
 backends do not own public tensor semantics or global graph compilation. The CPU module is the
-first concrete implementation and currently exposes only its exact dense pointwise `ADD` route;
+first concrete implementation and currently exposes only its exact fully static FLOAT64
+`ADD -> exact GELU -> MUL` partition route over resolved right-broadcastable access plans;
 other backend identities still contain no concrete backend behavior. See [Module
 boundaries](architecture/module-boundaries.md).
 
@@ -2980,9 +3002,9 @@ casts, raw `Object`, or a shared parameter map.
 `BackendPartitionAnalysis` with the exact context partition, opaque selected plan, and every exact
 shared requirement. It performs no tuning measurement or search, cache mutation, physical
 allocation, executable construction, slot assignment, scheduling, or Runtime execution. No
-public concrete-backend implementation exists yet. The current CPU module has a package-private
-implementation for bounded synthetic portable candidates, but it advertises no Model-operation
-capability.
+public concrete-backend implementation is composed yet. The current CPU module has a
+package-private implementation for the exact fused FLOAT64 proving topology and advertises only
+its occurrence-local ADD, exact GELU, and MUL matrix.
 
 ### Preparation resource assignment
 
@@ -3015,7 +3037,7 @@ publication where its established cold-finalization contract permits it. The bat
 package-private behind current public graph preparation. The current CPU module has one
 package-private portable finalizer that resolves assigned resources and loads or generates an
 already-selected artifact; it is not publicly composed and does not select or widen the current
-exact dense pointwise `ADD` operation family.
+exact fused FLOAT64 operation topology.
 
 ### Prepared partition / `PreparedPartition`
 

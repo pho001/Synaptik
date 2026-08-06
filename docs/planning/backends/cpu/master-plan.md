@@ -112,10 +112,19 @@ SIMD routes, optional native routes, storage, workspace, and execution.
 - Borrowed caller inputs are handled per value and use. Compatible heap-backed inputs may remain
   heap-backed. CPU preparation introduces at most one necessary native materialization for an
   exact selected downstream FFM route and reuses it across compatible consumers.
-- Storage kind is a cold-binding specialization fact. Portable generated kernels support heap
-  primitive carriers or heap-backed segments, native off-heap `MemorySegment` representations,
-  and mixed per-input/per-output signatures without discovering storage or selecting a route in
-  generated hot code.
+- Ordered carrier access form is an explicit code-shaping structural specialization. Each portable
+  generated class has one direct static entry signature for its actual ordered primitive-array or
+  `MemorySegment` pattern; that pattern participates in compatibility/class identity. Exact
+  carrier objects and byte offsets remain cold bindings. CPU analysis receives and validates the
+  backend-owned prepared pattern, finalization emits or loads its one artifact, and Runtime binding
+  only accepts matching concrete carriers. This avoids emitting every possible carrier combination
+  in each class while preserving direct hot code without Runtime generation, storage discovery, or
+  dispatch.
+- `CpuPartitionAnalysisInputs.DEFAULT` remains the compatibility input for the current fixed
+  proving topology: lowering-manifest retention is disabled and its four ordered boundary forms are
+  all `MEMORY_SEGMENT`. Explicit CPU analysis inputs may immutably select any four-entry pattern in
+  0005B. The default's length follows today's three inputs plus one output and is not a permanent
+  fused-unit boundary-count contract.
 - Portable `MemorySegment` storage is representation-only and accepts the logical data type. A
   two-byte representation does not imply executable arithmetic or Vector support. The current
   generated specialization admits Java Vector lanes only for FLOAT64, FLOAT32, INT32, and INT64;
@@ -178,7 +187,7 @@ created by 0005A. All consume the common analysis above; none creates another ba
 | 0004 | [Typed portable analysis, specialization, and finalization](tasks/0004-typed-portable-analysis-specialization-and-finalization.md) | Superseded | 0001–0003 | Historical per-node candidate/finalization architecture replaced atomically by 0005A. |
 | 0005 | [Dense ADD and partition-sequence execution](tasks/0005-dense-add-and-partition-sequence-execution.md) | Superseded | 0002–0004 | Historical per-node dense ADD route replaced atomically by 0005A's fused partition kernel. |
 | 0005A | [Atomic partition-kernel architecture reset](tasks/0005a-atomic-partition-kernel-architecture-reset.md) | Complete | 0001–0005; current shared Prepare contracts | Adopted structured internals and only the portable route leaf; replaced the per-node path with whole-partition lowering, route-independent IR, universal start/end Class-File generation, exact declarations, and one partition executable; proved shape-polymorphic FLOAT64 ADD-to-GELU-to-MUL fusion. |
-| 0005B | Universal access plans and right-aligned broadcasting | Draft | 0005A | Deliver one normalized per-input access system over current ShapeBroadcast/LayoutDescriptor semantics, complete scalar/rank-expanded/multi-axis/zero/strided/mixed-carrier support, and the dense-to-odometer/gather tiers without promising universal vectorization. |
+| 0005B | [Universal access plans and right-aligned broadcasting](tasks/0005b-universal-access-plans-and-right-aligned-broadcasting.md) | Complete | 0005A | Delivered one normalized per-value access system over current ShapeBroadcast/LayoutDescriptor semantics, complete static scalar/rank-expanded/multi-axis/zero/strided/heap/segment/mixed-carrier support, one direct entry per ordered carrier-pattern specialization, and five distinct dense-to-general-odometer scalar state machines. |
 | 0005C | Vector and parallel portable strategies | Draft | 0005B | Deliver vector, parallel-scalar, and parallel-vector over universal start/end kernels, external chunk dispatch, correct vector chunks/tails, and no hot dispatch or cursor allocation. |
 | 0005D | Materialization, specialization, and persistence evidence gate | Draft | 0005C | Compare direct access with CPU-internal contiguous materialization before assignment, enforce specialization budgets, and benchmark whether optional trusted-root class-byte persistence should remain disabled by default. |
 | 0005E | Portable pointwise types, carriers, and semantic-family expansion | Draft | 0005D | Expand exact pointwise, comparison, selection, and cast coverage through the completed unit/IR/access architecture without duplicating planners or storage matrices. |
@@ -209,8 +218,8 @@ created by 0005A. All consume the common analysis above; none creates another ba
 CPU 0005A is Complete. It atomically replaced the provisional work from CPU 0001–0005, whose
 task records are now Superseded but remain preserved as historical evidence. The current module
 has exactly one detailed implemented partition-kernel slice and one route leaf,
-`internal.route.portable`. CPU 0005B is the next Draft frontier; every later CPU task remains Draft
-without a detailed specification.
+`internal.route.portable`. Detailed CPU 0005B is Complete; CPU 0005C is the next Draft frontier,
+and every later CPU task remains Draft without a detailed specification.
 
 Superseded task 0001 remains preserved through its sole detailed CPU
 [capability, representation, binding, and parallel foundation](tasks/0001-cpu-capability-representation-binding-and-parallel-foundation.md)
@@ -269,8 +278,12 @@ start/end loops, normal in-memory Class-File generation, optional cold persisten
 partition executable. Its exact proving chain is canonical-dense
 FLOAT64 ADD -> exact GELU -> MUL in one unit, with two logical graph/IR intermediates and no
 physical slots for either. The same generated bytes and loaded compatibility identity must serve
-two compatible extents. CPU 0005B–0005E and tasks 0006–0017 remain Draft without detailed
-specifications.
+two compatible extents. Detailed
+[task 0005B Universal access plans and right-aligned broadcasting](tasks/0005b-universal-access-plans-and-right-aligned-broadcasting.md)
+is Complete. It adds right-aligned static broadcast/layout normalization, exact per-boundary
+declaration and accessed-range spans, complete write-injectivity proof, five generated scalar
+state machines, and all sixteen ordered heap/segment carrier specializations. CPU 0005C–0005E and
+tasks 0006–0017 remain `Draft` without detailed specifications.
 
 The reset was a working-tree replacement, not deletion of history. CPU 0001–0005 are Superseded
 with all recorded evidence preserved; the repository contains no old/new dual pipeline.
@@ -339,17 +352,18 @@ changing executable Java.
   structural access-plan form, universal start/end loop model, and stores. Selected route, thread
   count, vector species, cache root, slots/segments, graph identities, generator versions, and
   instance bindings remain outside it.
-- One normalized per-input CPU access plan eventually covers current right-aligned
+- One normalized per-value CPU access plan eventually covers current right-aligned
   `ShapeBroadcast` and `LayoutDescriptor` semantics: scalars, rank/singleton/multi-axis/zero
   broadcast, multi-input masks and parameters, differing fused patterns, offsets, positive and
-  zero strides, heap/segment/mixed carriers, and dimensions exactly bound at Prepare. It does not
-  duplicate elementwise, `WHERE`, or fusion planners, and broadcast gradients remain
-  `SUM_TO_SHAPE` plus later reduction coverage.
-- Direct access tiers are dense, all-zero/scalar, last-axis bias, block/outer with contiguous inner
-  loop, general positive-strided odometer, scalar fallback, cost-gated gather, and optional
-  materialization. Generated bytecode emits offset/carry arithmetic directly without hot cursor
-  objects, virtual calls, or per-element division/modulo; full semantics do not promise universal
-  vectorization.
+  zero strides, and heap/segment/mixed carriers. CPU 0005B covers only fully static shapes because
+  current Prepare has no exact dynamic binding; a future explicit binding contract is required for
+  dynamic or symbolic dimensions. It does not duplicate elementwise, `WHERE`, or fusion planners,
+  and broadcast gradients remain `SUM_TO_SHAPE` plus later reduction coverage.
+- CPU 0005B implements five ordered scalar regimes: dense linear, all-zero/scalar, last-axis bias,
+  block/outer with a contiguous inner loop, and the complete general positive/zero-strided
+  odometer. Each emits its own primitive state machine without hot cursor objects, virtual calls,
+  or per-element division/modulo. Draft 0005C owns vector gather and Draft 0005D owns optional
+  materialization; full semantics do not promise universal vectorization.
 - Before shared assignment, CPU analysis may compare direct access with internal contiguous
   materialization using copy cost, kernel benefit, reuse/fan-out, vendor eligibility, memory, and
   repeated-run expectation. A selected copy resource is declared exactly before assignment and

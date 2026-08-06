@@ -20,6 +20,7 @@ class CpuGeneratedKernelArtifactStoreTest {
                 route.specialization(), route.kernelIr());
         Files.write(root.resolve("legacy-v1.class"), new byte[]{1, 2, 3});
         Path current = root.resolve(route.specialization().structuralKey() + ".class");
+        Path metadata = root.resolve(route.specialization().structuralKey() + ".meta");
         Files.write(current, new byte[]{1, 2, 3});
         CpuGeneratedKernelArtifactStore.clearLoadedForTests();
         var persisted = new CpuGeneratedKernelArtifactStore(Optional.of(root)).loadOrGenerate(
@@ -31,6 +32,8 @@ class CpuGeneratedKernelArtifactStoreTest {
                 () -> assertTrue(Files.exists(root.resolve("legacy-v1.class"))),
                 () -> assertArrayEquals(memoryOnly.classBytes(), persisted.classBytes()),
                 () -> assertArrayEquals(persisted.classBytes(), Files.readAllBytes(current)),
+                () -> assertArrayEquals(route.specialization().compatibilityBytes(),
+                        Files.readAllBytes(metadata)),
                 () -> assertArrayEquals(persisted.classBytes(), hit.classBytes()),
                 () -> assertNotSame(persisted.hiddenClass(), hit.hiddenClass()));
     }

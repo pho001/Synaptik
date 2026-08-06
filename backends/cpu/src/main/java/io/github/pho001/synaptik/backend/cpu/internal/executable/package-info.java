@@ -2,8 +2,9 @@
  * Owns unsupported immutable prepared-partition execution and direct cold binding.
  *
  * <p>The partition executable strongly owns its verified generated artifact and exact prepared
- * buffer selections. During cold binding it validates CPU representations, geometry, mutability,
- * and overlap, then captures direct segment references and primitive bounds in one invocation.
+ * buffer selections. During cold binding it validates CPU representations, exact carrier pattern,
+ * geometry, mutability, liveness, size, alignment, and input/output accessed-span overlap, then
+ * captures direct array or segment references and primitive range/address state in one invocation.
  * Runtime invokes that object without graph semantics, route selection, reflection, allocation,
  * storage classification, or resource lookup in the generated hot loop.
  *

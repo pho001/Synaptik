@@ -144,9 +144,13 @@ public record CpuKernelIr(
      * @return a lowercase hexadecimal SHA-256 structural key; never {@code null}
      */
     public String structuralKey() {
-        StringBuilder text = new StringBuilder("cpu-ir-v1|");
+        StringBuilder text = new StringBuilder("cpu-ir-v2|");
         values.forEach(v -> text.append(v.ordinal()).append(':').append(v.dataType())
-                .append(':').append(v.kind()).append(':').append(v.accessPlan().regime()).append('|'));
+                .append(':').append(v.kind()).append(':').append(v.accessPlan().accessKind())
+                .append(':').append(v.accessPlan().regime()).append(':')
+                .append(v.accessPlan().iterationRank()).append(':')
+                .append(v.accessPlan().axisRoles()).append(':')
+                .append(v.accessPlan().contiguousSuffix()).append('|'));
         instructions.forEach(i -> text.append(i.semantic()).append(':').append(i.inputs())
                 .append('>').append(i.output()).append('|'));
         stores.forEach(s -> text.append("store:").append(s.value()).append('>')

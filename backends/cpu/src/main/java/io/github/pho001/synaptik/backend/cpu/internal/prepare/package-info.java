@@ -1,8 +1,9 @@
 /**
  * Owns the unsupported CPU analysis and post-assignment finalization lifecycle.
  *
- * <p>Analysis consumes one complete CPU-owned planned partition, forms computation units, selects
- * the portable scalar strategy, and declares exact boundary resources before shared assignment.
+ * <p>Analysis consumes one complete CPU-owned planned partition, forms computation units, retains
+ * normalized access bindings and the selected ordered carrier pattern, selects the portable
+ * scalar strategy, and declares each boundary's exact referenced storage span before shared assignment.
  * Finalization verifies those assignments, realizes the already-selected artifact, and constructs
  * one partition executable. It must not reinterpret graph semantics, change fusion or route
  * selection, or introduce an undeclared resource after shared Prepare has assigned slots.

@@ -43,6 +43,28 @@ class CpuCapabilityProviderTest {
                         () -> provider.supports(null)).getMessage()));
     }
 
+    @Test void reportsStaticRightBroadcastAndResolvedStridedOccurrencesTruthfully() {
+        var provider = new CpuCapabilityProvider();
+        Shape leftShape = Shape.of(2, 1, 3), rightShape = Shape.of(4, 3);
+        Shape outputShape = Shape.of(2, 4, 3);
+        var left = descriptor(leftShape, LayoutDescriptor.of(leftShape,
+                new long[]{7, 0, 2}, 3, true));
+        var right = descriptor(rightShape, LayoutDescriptor.contiguous(rightShape));
+        var output = descriptor(outputShape, LayoutDescriptor.contiguous(outputShape));
+        var wrong = descriptor(Shape.of(2, 3), LayoutDescriptor.contiguous(Shape.of(2, 3)));
+        assertAll(
+                () -> assertTrue(provider.supports(query(BinaryArithmeticKind.ADD,
+                        List.of(left, right), output))),
+                () -> assertFalse(provider.supports(query(BinaryArithmeticKind.ADD,
+                        List.of(left, right), wrong))),
+                () -> assertFalse(provider.supports(query(UnaryElementwiseKind.GELU,
+                        List.of(left), output))));
+    }
+
+    private static TensorDescriptor descriptor(Shape shape, LayoutDescriptor layout) {
+        return new TensorDescriptor(DataType.FLOAT64, shape, Optional.of(layout), false);
+    }
+
     private static OperationCapabilityQuery query(Object kind, List<TensorDescriptor> inputs,
             TensorDescriptor output) {
         return new OperationCapabilityQuery(new Operation(

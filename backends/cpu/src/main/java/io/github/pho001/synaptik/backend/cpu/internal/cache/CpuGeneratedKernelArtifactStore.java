@@ -60,10 +60,12 @@ public final class CpuGeneratedKernelArtifactStore {
             WeakReference<CpuGeneratedKernel> reference = LOADED.get(key);
             CpuGeneratedKernel loaded = reference == null ? null : reference.get();
             if (loaded != null) {
-                trustedRoot.ifPresent(root -> writeIfAbsent(root, key, loaded.classBytes()));
+                trustedRoot.ifPresent(root -> writeIfAbsent(root, key, loaded.classBytes(),
+                        specialization.compatibilityBytes()));
                 return loaded;
             }
-            byte[] bytes = trustedRoot.flatMap(root -> read(root, key)).orElse(null);
+            byte[] bytes = trustedRoot.flatMap(root -> read(root, key,
+                    specialization.compatibilityBytes())).orElse(null);
             CpuGeneratedKernel artifact = null;
             if (bytes != null) {
                 try { artifact = generator.defineClassBytes(specialization, bytes); }
@@ -73,18 +75,23 @@ public final class CpuGeneratedKernelArtifactStore {
                 bytes = generator.generateClassBytes(specialization, kernelIr);
                 artifact = generator.defineClassBytes(specialization, bytes);
                 byte[] publish = bytes;
-                trustedRoot.ifPresent(root -> write(root, key, publish));
+                byte[] metadata = specialization.compatibilityBytes();
+                trustedRoot.ifPresent(root -> write(root, key, publish, metadata));
             }
             LOADED.put(key, new WeakReference<>(artifact));
             return artifact;
         }
     }
 
-    private static Optional<byte[]> read(Path root, String key) {
-        try { return Optional.of(Files.readAllBytes(root.resolve(key + ".class"))); }
+    private static Optional<byte[]> read(Path root, String key, byte[] expectedMetadata) {
+        try {
+            byte[] metadata = Files.readAllBytes(root.resolve(key + ".meta"));
+            if (!java.util.Arrays.equals(metadata, expectedMetadata)) return Optional.empty();
+            return Optional.of(Files.readAllBytes(root.resolve(key + ".class")));
+        }
         catch (IOException | SecurityException missing) { return Optional.empty(); }
     }
-    private static void write(Path root, String key, byte[] bytes) {
+    private static void write(Path root, String key, byte[] bytes, byte[] metadata) {
         try {
             Files.createDirectories(root);
             Path temporary = Files.createTempFile(root, key, ".tmp");
@@ -93,13 +100,17 @@ public final class CpuGeneratedKernelArtifactStore {
                     StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING); }
             catch (IOException noAtomicMove) { Files.move(temporary, root.resolve(key + ".class"),
                     StandardCopyOption.REPLACE_EXISTING); }
+            Files.write(root.resolve(key + ".meta"), metadata);
         } catch (IOException | SecurityException ignored) {
             // Persistence is optional and never correctness-critical.
         }
     }
 
-    private static void writeIfAbsent(Path root, String key, byte[] bytes) {
-        if (!Files.isRegularFile(root.resolve(key + ".class"))) write(root, key, bytes);
+    private static void writeIfAbsent(Path root, String key, byte[] bytes, byte[] metadata) {
+        if (!Files.isRegularFile(root.resolve(key + ".class"))
+                || !Files.isRegularFile(root.resolve(key + ".meta"))) {
+            write(root, key, bytes, metadata);
+        }
     }
 
     /** Clears only process-local weak interning state for isolated focused tests. */

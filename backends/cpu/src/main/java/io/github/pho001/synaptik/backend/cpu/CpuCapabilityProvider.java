@@ -7,6 +7,7 @@ import io.github.pho001.synaptik.model.operation.NoOperationAttrs;
 import io.github.pho001.synaptik.model.operation.elementwise.binary.BinaryArithmeticKind;
 import io.github.pho001.synaptik.model.operation.elementwise.unary.UnaryElementwiseKind;
 import io.github.pho001.synaptik.model.tensor.TensorDescriptor;
+import io.github.pho001.synaptik.model.shape.ShapeBroadcast;
 import io.github.pho001.synaptik.planning.capability.BackendCapabilityProvider;
 import io.github.pho001.synaptik.planning.capability.OperationCapabilityQuery;
 import java.util.Objects;
@@ -16,7 +17,8 @@ import java.util.Objects;
  *
  * <p>The provider has a stable CPU ownership identity and advertises only parameterless
  * {@code FLOAT64} {@code ADD}, exact {@code GELU}, and {@code MUL} occurrences with fully static,
- * equal, resolved canonical-dense geometry. Complete-partition lowering applies the additional
+ * right-broadcastable or shape-preserving inputs and resolved layouts. Complete-partition lowering
+ * normalizes the exact layout geometry and applies the additional
  * alias, fan-out, publication, and partition-boundary checks before declaring support.</p>
  */
 public final class CpuCapabilityProvider implements BackendCapabilityProvider {
@@ -38,13 +40,13 @@ public final class CpuCapabilityProvider implements BackendCapabilityProvider {
     }
 
     /**
-     * Reports whether an occurrence belongs to the exact implemented dense semantic set.
-     * Every input and output must already have a resolved canonical-dense, zero-offset, non-view
-     * layout; unresolved, offset, strided, and view layouts fail closed.
+     * Reports whether an occurrence belongs to the exact implemented semantic set.
+     * Binary results must equal the current right-aligned broadcast result, unary results must
+     * preserve shape, and every descriptor must be fully static with a resolved layout.
      *
      * @param query non-null immutable operation occurrence to validate structurally
-     * @return {@code true} only for the exact implemented occurrence matrix; otherwise
-     *     {@code false}
+     * @return {@code true} only for the exact implemented occurrence-local matrix; otherwise
+     *     {@code false}; complete-partition eligibility may still be stricter
      * @throws NullPointerException if {@code query} is {@code null}, with message {@code query}
      */
     @Override
@@ -61,22 +63,24 @@ public final class CpuCapabilityProvider implements BackendCapabilityProvider {
         TensorDescriptor left = query.inputs().getFirst();
         TensorDescriptor output = query.outputs().get(0);
         DataType dataType = left.dataType();
-        if (dataType != DataType.FLOAT64
-                || output.dataType() != dataType
-                || !left.shape().isFullyStatic()
-                || !left.shape().equals(output.shape())) {
+        if (dataType != DataType.FLOAT64 || output.dataType() != dataType
+                || !left.shape().isFullyStatic() || !output.shape().isFullyStatic()) {
             return false;
         }
-        if (binary && (query.inputs().get(1).dataType() != dataType
-                || !query.inputs().get(1).shape().equals(left.shape()))) return false;
-        return query.inputs().stream().allMatch(CpuCapabilityProvider::canonicalResolved)
-                && canonicalResolved(output);
+        if (binary) {
+            TensorDescriptor right = query.inputs().get(1);
+            if (right.dataType() != dataType || !right.shape().isFullyStatic()) return false;
+            try {
+                if (!ShapeBroadcast.broadcast(left.shape(), right.shape()).equals(output.shape())) {
+                    return false;
+                }
+            } catch (IllegalArgumentException incompatible) { return false; }
+        } else if (!left.shape().equals(output.shape())) return false;
+        return query.inputs().stream().allMatch(CpuCapabilityProvider::resolved)
+                && resolved(output);
     }
 
-    private static boolean canonicalResolved(TensorDescriptor descriptor) {
-        return descriptor.layout().filter(layout ->
-                layout.kind() == LayoutKind.DENSE_CONTIGUOUS
-                        && layout.storageOffset() == 0
-                        && !layout.isView()).isPresent();
+    private static boolean resolved(TensorDescriptor descriptor) {
+        return descriptor.layout().isPresent();
     }
 }
