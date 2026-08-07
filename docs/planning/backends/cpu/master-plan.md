@@ -191,11 +191,12 @@ created by 0005A. All consume the common analysis above; none creates another ba
 | 0005C | [Vector and parallel portable strategies](tasks/0005c-vector-and-parallel-portable-strategies.md) | Complete | 0005B | Added preferred-species FLOAT64 vector, parallel-scalar, and parallel-vector realization over universal start/end kernels; direct contiguous runs vectorize without gather, and explicit caller-owned CPU-private workers execute deterministic disjoint chunks. |
 | 0005D | [Materialization, specialization, and persistence evidence gate](tasks/0005d-materialization-specialization-and-persistence-evidence-gate.md) | Complete | 0005C | Added at most one CPU-internal contiguous materialization before assignment, enforced four-candidate/one-artifact/zero-shape/zero-unroll budgets, and recorded a `KEEP_DISABLED` opt-in persistence-evidence verdict. |
 | 0005E | [Portable pointwise types, carriers, and semantic-family expansion](tasks/0005e-portable-pointwise-types-carriers-and-semantic-family-expansion.md) | Complete | 0005D | Delivered the first bounded five-type core pointwise increment through one nineteen-opcode family pipeline, derived-boundary typed carriers, and the completed unit/IR/access/materialization/route/artifact/executable architecture; unsupported rows remain fail-closed. |
-| 0005F | Exact scalar-power strength reduction | Draft | 0005E | Classify exact typed scalar exponents once in common route-independent CPU analysis and retain semantic `POW` in the compiled graph while selecting multiply, reciprocal, or exponentiation-by-squaring realizations only under an exact/default conformance proof; this task does not depend on relaxed Config 0006. |
-| 0006 | Portable layout, indexing, ordering, and random family coverage | Draft | 0005E | Generate truthful coverage for executable layout transforms, slicing, padding, tiling, composition, windows, gather/scatter, ordering, one-hot, and explicit-state random/dropout work; metadata-only or zero-work views remain computation-free. |
-| 0007 | Portable reduction, scan, statistics, and normalization family coverage | Draft | 0002–0006 | Generate family-specific range, tile, partial-reduction, and combine bodies for aggregates, arg extrema, scans, softmax/log-softmax, statistics, and normalization with exact semantics and determinism. |
+| 0005F | [Floating division and exact scalar-power realization](tasks/0005f-floating-division-and-exact-scalar-power-realization.md) | Complete | 0005E | Added exact/default same-typed FLOAT32/FLOAT64 binary and scalar DIV plus direct scalar `POW`; retained semantic `POW` while selecting only the proved positive-one, identity, one-multiply square, or one-division reciprocal realizations. All three family opcodes preserve the completed pointwise boundaries, and reciprocal power remains semantically distinct from DIV. |
+| 0005G | Remaining portable pointwise-family coverage | Draft | 0005F; sufficient Model semantics for each selected row | Close all remaining selected portable pointwise rows before layout/indexing: pairwise and scalar MIN/MAX, range CLAMP, Tensor/Tensor POW if still selected, remaining unary/transcendental/activation and boolean-logical families, and only the exact cross-type CAST work whose Model numerical conversion policy is sufficient. Keep every unselected, underspecified, or unsupported row fail-closed; do not invent semantics. |
+| 0006 | Portable layout, indexing, ordering, and random family coverage | Draft | 0005G | Generate truthful coverage for executable layout transforms, slicing, padding, tiling, composition, windows, gather/scatter, ordering, one-hot, and explicit-state random/dropout work; metadata-only or zero-work views remain computation-free. |
+| 0007 | Portable reduction, scan, statistics, and normalization family coverage | Draft | 0002–0006, including 0005A–0005G | Generate family-specific range, tile, partial-reduction, and combine bodies for aggregates, arg extrema, scans, softmax/log-softmax, statistics, and normalization with exact semantics and determinism. |
 | 0008 | Portable linear algebra, convolution, pooling, attention, and loss coverage | Draft | 0002–0007 | Generate the remaining portable executable families, including exact fused-partition forms only where the same lowering contracts preserve semantics across storage and execution modes. |
-| 0009 | Portable generated-coverage closure checkpoint | Draft | 0001–0008; complete current selected Model semantic inventory | Prove the bytecode/Vector portable route is the truthful supported semantic baseline and fallback, classify metadata-only work, prove unsupported work fails closed, and close capability/conformance before native peer-route expansion. |
+| 0009 | Portable generated-coverage closure checkpoint | Draft | 0001–0008, explicitly including 0005A–0005G; complete current selected Model semantic inventory | Prove the bytecode/Vector portable route is the truthful supported semantic baseline and fallback, classify metadata-only work, prove unsupported work fails closed, and close capability/conformance before native peer-route expansion. |
 | 0010 | Narrow OpenBLAS BLAS-compatible native route | Draft | 0005A; 0009; completed OpenBLAS provider | Add only `route.nativeblas.openblas` for eligible BLAS-compatible linear algebra, preserving portable alternatives and using shared lowering, representations, exact filtering, materialization accounting, and whole-plan transition cost; never treat OpenBLAS as universal or preferred. |
 | 0011 | Intel oneMKL BLAS and VML peer routes | Draft | 0005A; 0009; concrete Intel CPU use case and supported oneMKL ABI evidence | Add distinct `route.nativeblas.mkl` BLAS and `route.nativeops.mkl` VML leaves over shared analysis, without duplicating graph interpretation, fusion, access planning, or lifecycle ownership. |
 | 0012 | Intel oneDNN partition peer routes | Draft | 0005A; 0009; stable common CPU lowering; concrete DNN/ML use case and supported oneDNN ABI evidence | Add `route.nativeops.onednn` as a distinct eligible partition route over common lowering/IR and whole-plan cost, without collapsing it into oneMKL or portable code generation. |
@@ -224,8 +225,10 @@ are Complete. Detailed
 [CPU 0005D Materialization, specialization, and persistence evidence gate](tasks/0005d-materialization-specialization-and-persistence-evidence-gate.md)
 is Complete; detailed
 [CPU 0005E Portable pointwise types, carriers, and semantic-family expansion](tasks/0005e-portable-pointwise-types-carriers-and-semantic-family-expansion.md)
-is Complete. CPU 0005F is the next Draft frontier, and every later CPU task remains Draft without a
-detailed specification.
+is Complete. Detailed
+[CPU 0005F Floating division and exact scalar-power realization](tasks/0005f-floating-division-and-exact-scalar-power-realization.md)
+is Complete. CPU 0005G is the next Draft frontier, and every later CPU task remains Draft without
+a detailed specification.
 
 Superseded task 0001 remains preserved through its sole detailed CPU
 [capability, representation, binding, and parallel foundation](tasks/0001-cpu-capability-representation-binding-and-parallel-foundation.md)
@@ -289,8 +292,8 @@ two compatible extents. Detailed
 is Complete. It adds right-aligned static broadcast/layout normalization, exact per-boundary
 declaration and accessed-range spans, complete write-injectivity proof, five generated scalar
 state machines, and all sixteen ordered heap/segment carrier specializations. Detailed CPU 0005C
-is Complete. CPU 0005D and detailed CPU 0005E are also Complete; CPU 0005F and tasks 0006–0017
-remain `Draft` without detailed specifications.
+is Complete. CPU 0005D, detailed CPU 0005E, and detailed CPU 0005F are also Complete; CPU 0005G
+and tasks 0006–0017 remain `Draft` without detailed specifications.
 CPU 0005C preserves that exact slice and implements cold selection among all four portable
 strategies. It uses the preferred Java 26 FLOAT64 species only for direct contiguous runs and
 scalar broadcasts, scalar tails and general-odometer fallback, configured/available parallelism
@@ -339,6 +342,17 @@ context `/root/cpu_0005e_docs` reused that evidence, finalized affected Javadocs
 and five Markdown records, and passed CPU Javadoc plus Markdown, exact 38-path scope, semantic,
 status, and whitespace gates.
 
+Detailed CPU 0005F is Complete. It extends the family pipeline to twenty-two opcodes with exact
+same-typed FLOAT32/FLOAT64 binary DIV, scalar DIV, and scalar POW. Common lowering classifies exact
+exponent bits once as direct, positive one, identity, square, or reciprocal; reciprocal remains
+semantic scalar POW. FLOAT64 DIV and special power retain existing conditional vector eligibility,
+while direct power and FLOAT32 use scalar compute with optional parallel orchestration. Schema 6,
+canonical IR, specialization, and the cold manifest retain realization compatibility. The
+implementation context passed compile-test, focused generated-kernel validation, a final 16-test
+IR/lowering/generated run, and the sole final 25-suite/102-test CPU run with one opt-in timing
+skip and no failures or errors. Clean documentation context `/root` reused that Java evidence and
+passed CPU Javadoc, Markdown, exact 31-path scope, semantic/status, and whitespace gates.
+
 The reset was a working-tree replacement, not deletion of history. CPU 0001–0005 are Superseded
 with all recorded evidence preserved; the repository contains no old/new dual pipeline.
 
@@ -380,9 +394,12 @@ changing executable Java.
   concrete integration spike or use case establishes scope and advantage.
 - A future explicit numerical-policy contract must define any relaxed/fast-math permission before
   such a vendor candidate can become eligible. Current exact/default semantics admit none.
-- Exact/default scalar-power strength reduction is independent of that future permission. Draft
-  0005F may select only realizations proved conforming to semantic `POW`; Draft 0017 later consumes
-  Config 0006 permission for genuinely relaxed candidates and therefore does not block exact work.
+- Exact/default floating division and scalar-power realization are independent of that future
+  permission. Complete 0005F adds primitive same-typed FLOAT32/FLOAT64 binary and scalar DIV and
+  selects only its proved positive-one, identity, one-multiply square, and one-division reciprocal
+  power realizations; every other admitted exponent retains direct power. Reciprocal power remains
+  semantic `SCALAR_POW`, not DIV. Draft 0017 later consumes Config 0006 permission for genuinely
+  relaxed candidates and therefore does not block exact work.
 - Historical task 0001 implements the exact native `MemorySegment` representation, shared-arena
   ownership, zero-size/alignment/allocation/cleanup rules, borrowed heap/native cold binding,
   direct typed invocation seam, and worker evidence. Task 0005A retains the representation and
@@ -532,12 +549,17 @@ changing executable Java.
   partition. It filters by platform and provider availability, operation and attributes, data
   type, `Shape`, layout, exact numerical and determinism compatibility, and resource validity
   before comparing call overhead, safe workload heuristics, or a compatible tuning-cache entry.
-- Common CPU analysis also owns exponent classification, numerical eligibility, and any selected
-  `POW` realization plan. Emitters and vendor adapters consume that decision and never invent
-  independent fast-math behavior. Scalar `POW(2)`, `POW(-1)`, and other exact typed small integral
-  exponents may select multiply, reciprocal, or exponentiation by squaring after proof; `POW(0.5)`
-  is not silently replaced by `SQRT`. Tensor exponents require compiler-owned immutable uniform-
-  constant facts and are never inferred from Tensor storage or factory history.
+- Common CPU analysis also owns exact division eligibility, exponent classification, numerical
+  eligibility, and any selected `POW` realization plan. Emitters and vendor adapters consume those
+  decisions and never invent independent fast-math behavior. Complete CPU 0005F admits same-typed
+  FLOAT32/FLOAT64 binary/scalar DIV and scalar power with a direct fallback for every exponent.
+  Exact typed positive or negative zero may produce positive one, positive one may select
+  identity, positive two may select one typed multiply, and negative one may select one typed
+  division while remaining semantic scalar power. Other integral exponents retain direct power:
+  multiply chains and exponentiation by squaring have unproved intermediate rounding, overflow,
+  and underflow behavior. `POW(0.5)` is not silently replaced by `SQRT`. Tensor exponents require
+  compiler-owned immutable uniform-constant facts and are never inferred from Tensor storage or
+  factory history.
 - The selected numerical mode and every realization-changing `POW` plan participate in
   specialization/cache compatibility and the cold lowering manifest. The hot path performs no
   policy lookup. These rules apply equally to forward and compiler-generated gradient operations;

@@ -3,7 +3,8 @@
  *
  * <p>Keys combine canonical lowering with the selected numerical mode, generated scalar/vector
  * compute form, exact preferred FLOAT64 species when applicable, ordered boundary data-type and
- * carrier pattern, typed opcode/scalar-immediate structure, and selected direct-versus-
+ * carrier pattern, typed opcode/scalar-immediate structure, explicit scalar-power realization,
+ * and selected direct-versus-
  * materialized source position under the current generator schema.
  * Instance extents, offsets, strides, costs, chunk configuration, worker identity, and Runtime
  * resources remain outside artifact identity. Four complete candidate plans, one realized

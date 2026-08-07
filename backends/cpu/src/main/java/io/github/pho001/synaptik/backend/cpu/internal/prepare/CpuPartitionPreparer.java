@@ -23,7 +23,9 @@ import jdk.incubator.vector.DoubleVector;
  * Whole-partition CPU analysis entry for the current bounded static pointwise family.
  * Analysis deterministically compares direct access with at most three one-input contiguous-copy
  * candidates, then selects scalar or preferred-species vector compute and single-thread or
- * bounded parallel orchestration before shared resource assignment. It measures nothing and
+ * bounded parallel orchestration before shared resource assignment. FLOAT64 floating division
+ * and proved scalar-power plans may remain vector eligible; direct power and all FLOAT32 work use
+ * scalar compute with the same optional parallel orchestration. Analysis measures nothing and
  * performs no artifact or persistence access.
  */
 public final class CpuPartitionPreparer implements BackendPartitionPreparer<
@@ -91,7 +93,11 @@ public final class CpuPartitionPreparer implements BackendPartitionPreparer<
                 && lanes > 1 && lowered.elementCount() >= lanes
                 && lowered.kernelIr().values().stream().allMatch(value -> value.dataType() == DataType.FLOAT64)
                 && lowered.kernelIr().instructions().stream().allMatch(instruction ->
-                        instruction.opcode().vectorEligible())
+                        instruction.opcode().vectorEligible()
+                        && (instruction.opcode()
+                                != io.github.pho001.synaptik.backend.cpu.internal.ir.CpuPointwiseOpcode.SCALAR_POW
+                            || instruction.powerRealization()
+                                != CpuKernelIr.PowerRealization.DIRECT))
                 && bindings.stream().allMatch(binding -> vectorEligible(binding, lanes));
         int usableParallelism = Math.min(config.configuredMaximumParallelism(),
                 config.availableParallelism());
@@ -112,14 +118,16 @@ public final class CpuPartitionPreparer implements BackendPartitionPreparer<
                 CpuKernelSpecialization.NumericalMode.EXACT_DEFAULT,
                 artifactStrategy, lowered.boundaryDataTypes(), carriers,
                 vectorEligible ? speciesBits : 0,
-                materialization.map(CpuMaterializationPlan::sourceBoundaryIndex).orElse(-1));
+                materialization.map(CpuMaterializationPlan::sourceBoundaryIndex).orElse(-1),
+                powerRealizations(kernelIr));
         var routePlan = new CpuPortableRoutePlan(kernelIr, specialization);
         String manifest = "unit=0;fusion=" + lowered.fusionReason()
                 + ";access=" + bindings.stream()
                         .map(binding -> binding.plan().regime().name()).toList()
                 + ";carriers=" + carriers
                 + ";route=PORTABLE;strategy=" + strategy + ";speciesBits="
-                + (vectorEligible ? speciesBits : 0) + ";key="
+                + (vectorEligible ? speciesBits : 0) + ";power="
+                + powerRealizations(kernelIr) + ";key="
                 + specialization.structuralKey() + ";buffers=" + lowered.boundaryValues();
         var plan = new CpuPartitionPreparationPlan(
                 List.of(new CpuPartitionPreparationPlan.ExecutionUnitPlan(
@@ -185,6 +193,13 @@ public final class CpuPartitionPreparer implements BackendPartitionPreparer<
             if (best == null || copied < best.copiedTotalCost()) best = candidate;
         }
         return Optional.ofNullable(best);
+    }
+
+    private static List<CpuKernelIr.PowerRealization> powerRealizations(CpuKernelIr kernelIr) {
+        return kernelIr.instructions().stream()
+                .filter(instruction -> instruction.opcode()
+                        == io.github.pho001.synaptik.backend.cpu.internal.ir.CpuPointwiseOpcode.SCALAR_POW)
+                .map(CpuKernelIr.Instruction::powerRealization).toList();
     }
 
     private static CpuAccessPlan.Binding denseBinding(long[] extents, long elementCount) {

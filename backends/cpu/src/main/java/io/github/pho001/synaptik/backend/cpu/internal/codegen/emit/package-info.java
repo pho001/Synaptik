@@ -5,7 +5,10 @@
  * specialization and generate one universal primitive {@code start}/{@code end} loop over its
  * exact ordered typed primitive-array or {@code MemorySegment} carrier pattern. Scalar generation
  * covers the admitted FLOAT64, FLOAT32, INT32, INT64, and BOOL rows; vector generation remains
- * limited to eligible FLOAT64 numeric opcodes. Segment access uses native byte order. Dense,
+ * limited to eligible FLOAT64 numeric opcodes, including primitive division and the four proved
+ * scalar-power plans; direct power is scalar-only. Direct FLOAT32 power widens the represented
+ * base and exponent exactly, invokes {@code StrictMath.pow}, and narrows once. Segment access uses
+ * native byte order. Dense,
  * scalar-broadcast, last-axis, and block/outer regimes admit
  * unmasked complete vectors followed by the existing scalar body for every remainder; the general
  * odometer remains scalar. Emitters consume the already-typed CPU opcode sequence and do not

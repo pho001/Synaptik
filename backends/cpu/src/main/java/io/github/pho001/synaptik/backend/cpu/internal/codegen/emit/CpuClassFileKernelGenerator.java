@@ -46,7 +46,8 @@ public final class CpuClassFileKernelGenerator {
                             java.util.function.Consumer<CpuLoopEmitter.State> scalarBody = state -> {
                                 for (int boundary = 0; boundary < boundaries.size(); boundary++) {
                                     CpuKernelIr.Value value = boundaries.get(boundary);
-                                    if (value.kind() != CpuKernelIr.Value.Kind.INPUT) continue;
+                                    if (value.kind() != CpuKernelIr.Value.Kind.INPUT
+                                            || !requiresInputLoad(kernelIr, value.ordinal())) continue;
                                     carriers.load(value.dataType(), specialization.carrierPattern().get(boundary),
                                             boundary, state.addresses()[boundary]);
                                     store(code, value.dataType(), scalarLocals[value.ordinal()]);
@@ -124,27 +125,50 @@ public final class CpuClassFileKernelGenerator {
         ClassDesc vectorBase = ClassDesc.of("jdk.incubator.vector.Vector");
         for (int boundary = 0; boundary < boundaries.size(); boundary++) {
             CpuKernelIr.Value value = boundaries.get(boundary);
-            if (value.kind() != CpuKernelIr.Value.Kind.INPUT) continue;
+            if (value.kind() != CpuKernelIr.Value.Kind.INPUT
+                    || !requiresInputLoad(ir, value.ordinal())) continue;
             carriers.vectorLoad(specialization.carrierPattern().get(boundary), boundary,
                     state.addresses()[boundary], value.accessPlan().regime()
                             == io.github.pho001.synaptik.backend.cpu.internal.ir.CpuAccessPlan.Regime.SCALAR_ALL_ZERO);
             code.astore(locals[value.ordinal()]);
         }
         for (CpuKernelIr.Instruction instruction : ir.instructions()) {
-            code.aload(locals[instruction.inputs().getFirst()]);
+            if (instruction.opcode() != CpuPointwiseOpcode.SCALAR_POW
+                    || instruction.powerRealization() != CpuKernelIr.PowerRealization.POSITIVE_ONE) {
+                code.aload(locals[instruction.inputs().getFirst()]);
+            }
             switch (instruction.opcode()) {
-                case ADD, SUB, MUL -> {
+                case ADD, SUB, MUL, DIV -> {
                     code.aload(locals[instruction.inputs().get(1)]);
                     String method = instruction.opcode() == CpuPointwiseOpcode.ADD ? "add"
-                            : instruction.opcode() == CpuPointwiseOpcode.SUB ? "sub" : "mul";
+                            : instruction.opcode() == CpuPointwiseOpcode.SUB ? "sub"
+                            : instruction.opcode() == CpuPointwiseOpcode.DIV ? "div" : "mul";
                     code.invokevirtual(vector, method, MethodTypeDesc.of(vector, vectorBase));
                 }
-                case SCALAR_ADD, SCALAR_SUB, SCALAR_MUL -> {
+                case SCALAR_ADD, SCALAR_SUB, SCALAR_MUL, SCALAR_DIV -> {
                     code.loadConstant(Double.longBitsToDouble(instruction.scalarImmediate().bits()));
                     String method = instruction.opcode() == CpuPointwiseOpcode.SCALAR_ADD ? "add"
-                            : instruction.opcode() == CpuPointwiseOpcode.SCALAR_SUB ? "sub" : "mul";
+                            : instruction.opcode() == CpuPointwiseOpcode.SCALAR_SUB ? "sub"
+                            : instruction.opcode() == CpuPointwiseOpcode.SCALAR_DIV ? "div" : "mul";
                     code.invokevirtual(vector, method, MethodTypeDesc.of(vector,
                             java.lang.constant.ConstantDescs.CD_double));
+                }
+                case SCALAR_POW -> {
+                    switch (instruction.powerRealization()) {
+                        case POSITIVE_ONE -> code.invokestatic(
+                                ClassDesc.of(CpuVectorEmitter.class.getName()), "positiveOne",
+                                MethodTypeDesc.of(vector));
+                        case IDENTITY -> { }
+                        case SQUARE -> {
+                            code.dup();
+                            code.invokevirtual(vector, "mul", MethodTypeDesc.of(vector, vectorBase));
+                        }
+                        case RECIPROCAL -> code.invokestatic(
+                                ClassDesc.of(CpuVectorEmitter.class.getName()), "reciprocal",
+                                MethodTypeDesc.of(vector, vector));
+                        case DIRECT -> throw new IllegalArgumentException(
+                                "direct scalar power is not vector eligible");
+                    }
                 }
                 case NEG -> code.invokevirtual(vector, "neg", MethodTypeDesc.of(vector));
                 case GELU_EXACT -> code.invokestatic(ClassDesc.of(CpuVectorEmitter.class.getName()),
@@ -164,6 +188,19 @@ public final class CpuClassFileKernelGenerator {
     private static int boundaryIndex(List<CpuKernelIr.Value> boundaries, int ordinal) {
         for (int i = 0; i < boundaries.size(); i++) if (boundaries.get(i).ordinal() == ordinal) return i;
         throw new IllegalArgumentException("stored value is not a materialized boundary");
+    }
+
+    private static boolean requiresInputLoad(CpuKernelIr ir, int ordinal) {
+        return ir.instructions().stream().anyMatch(instruction -> {
+            for (int input = 0; input < instruction.inputs().size(); input++) {
+                if (instruction.inputs().get(input) != ordinal) continue;
+                if (input == 0 && instruction.opcode() == CpuPointwiseOpcode.SCALAR_POW
+                        && instruction.powerRealization()
+                            == CpuKernelIr.PowerRealization.POSITIVE_ONE) continue;
+                return true;
+            }
+            return false;
+        });
     }
 
     private static void store(java.lang.classfile.CodeBuilder code, DataType type, int local) {
@@ -188,11 +225,20 @@ public final class CpuClassFileKernelGenerator {
                 || kernelIr.stores().size() != 1) {
             throw new IllegalArgumentException("unsupported canonical pointwise IR");
         }
+        List<CpuKernelIr.PowerRealization> realizations = kernelIr.instructions().stream()
+                .filter(instruction -> instruction.opcode() == CpuPointwiseOpcode.SCALAR_POW)
+                .map(CpuKernelIr.Instruction::powerRealization).toList();
+        if (!realizations.equals(specialization.scalarPowerRealizations())) {
+            throw new IllegalArgumentException("specialization power realizations do not match IR");
+        }
         if (specialization.executionStrategy().compute()
                 == io.github.pho001.synaptik.backend.cpu.internal.prepare.CpuPartitionPreparationPlan.ExecutionStrategy.Compute.VECTOR
                 && (kernelIr.values().stream().anyMatch(value -> value.dataType() != DataType.FLOAT64)
                     || kernelIr.instructions().stream().anyMatch(instruction ->
-                            !instruction.opcode().vectorEligible()))) {
+                            !instruction.opcode().vectorEligible()
+                            || instruction.opcode() == CpuPointwiseOpcode.SCALAR_POW
+                                && instruction.powerRealization()
+                                    == CpuKernelIr.PowerRealization.DIRECT))) {
             throw new IllegalArgumentException("vector specialization requires FLOAT64 numeric-only IR");
         }
     }

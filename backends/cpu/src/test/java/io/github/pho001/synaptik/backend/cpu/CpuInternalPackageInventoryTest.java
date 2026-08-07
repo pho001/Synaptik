@@ -37,6 +37,7 @@ class CpuInternalPackageInventoryTest {
                         "internal/prepare/CpuPartitionPreparationPlan.java",
                         "internal/prepare/CpuPartitionPreparer.java", "internal/prepare/CpuPartitionFinalizer.java",
                         "internal/prepare/package-info.java", "internal/lowering/CpuPartitionLowering.java",
+                        "internal/lowering/CpuScalarPowerAnalysis.java",
                         "internal/lowering/CpuMaterializationPlan.java",
                         "internal/lowering/package-info.java", "internal/ir/CpuKernelIr.java",
                         "internal/ir/CpuPointwiseOpcode.java",

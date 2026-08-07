@@ -39,6 +39,7 @@ import java.util.Objects;
  */
 public final class CpuPartitionLowering {
     private final CpuCapabilityProvider capabilities = new CpuCapabilityProvider();
+    private final CpuScalarPowerAnalysis scalarPowerAnalysis = new CpuScalarPowerAnalysis();
 
     /**
      * Lowers one through eight supported occurrences and rejects every non-linear partition.
@@ -153,9 +154,12 @@ public final class CpuPartitionLowering {
                 Integer value = producedOrdinals.get(id);
                 return value != null && value >= 0 ? value : external.get(id);
             }).toList();
+            CpuPointwiseOpcode opcode = opcode(pending.node());
             CpuKernelIr.ScalarImmediate immediate = scalarImmediate(pending.node());
-            irInstructions.add(new CpuKernelIr.Instruction(opcode(pending.node()), inputs,
-                    producedOrdinals.get(pending.output()), immediate));
+            CpuKernelIr.PowerRealization realization = opcode == CpuPointwiseOpcode.SCALAR_POW
+                    ? scalarPowerAnalysis.analyze(immediate) : null;
+            irInstructions.add(new CpuKernelIr.Instruction(opcode, inputs,
+                    producedOrdinals.get(pending.output()), immediate, realization));
         }
         var ir = new CpuKernelIr(irValues, irInstructions,
                 new CpuKernelIr.Loop("start", "end"),
@@ -178,11 +182,15 @@ public final class CpuPartitionLowering {
         Object kind = node.operation().kind();
         if (kind instanceof BinaryArithmeticKind value) return switch (value) {
             case ADD -> CpuPointwiseOpcode.ADD; case SUB -> CpuPointwiseOpcode.SUB;
-            case MUL -> CpuPointwiseOpcode.MUL; default -> throw unsupported();
+            case MUL -> CpuPointwiseOpcode.MUL; case DIV -> CpuPointwiseOpcode.DIV;
+            default -> throw unsupported();
         };
         if (kind instanceof ScalarElementwiseKind value) return switch (value) {
             case ADD -> CpuPointwiseOpcode.SCALAR_ADD; case SUB -> CpuPointwiseOpcode.SCALAR_SUB;
-            case MUL -> CpuPointwiseOpcode.SCALAR_MUL; default -> throw unsupported();
+            case MUL -> CpuPointwiseOpcode.SCALAR_MUL;
+            case DIV -> CpuPointwiseOpcode.SCALAR_DIV;
+            case POW -> CpuPointwiseOpcode.SCALAR_POW;
+            default -> throw unsupported();
         };
         if (kind instanceof UnaryElementwiseKind value) return switch (value) {
             case NEG -> CpuPointwiseOpcode.NEG; case GELU -> CpuPointwiseOpcode.GELU_EXACT;

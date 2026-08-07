@@ -4,12 +4,13 @@ package io.github.pho001.synaptik.backend.cpu.internal.cache;
  * Defines the current generated-kernel compatibility schema and entry-point name.
  *
  * <p>The schema is current-only: changing a code-shaping fact, including scalar versus vector
- * compute, exact vector species, adjusted carrier/access pattern, or selected materialized source,
- * requires compatible current-version metadata. The optional persistent envelope stores this
- * version and has no legacy reader, migration path, or converter.
+ * compute, exact vector species, adjusted carrier/access pattern, selected materialized source,
+ * opcode vocabulary, or scalar-power realization, requires compatible current-version metadata.
+ * Schema 6 introduces floating division and scalar-power compatibility facts. The optional
+ * persistent envelope stores this version and has no legacy reader, migration path, or converter.
  */
 public final class CpuGeneratorSchema {
-    /** Current schema version. */ public static final int CURRENT_VERSION = 5;
+    /** Current schema version. */ public static final int CURRENT_VERSION = 6;
     /** Generated entry name. */ public static final String ENTRY_NAME = "invoke";
     private CpuGeneratorSchema() { }
 

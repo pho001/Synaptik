@@ -1,7 +1,7 @@
 package io.github.pho001.synaptik.backend.cpu.internal.ir;
 
 /**
- * CPU-private, family-oriented pointwise opcode vocabulary with exactly nineteen opcodes.
+ * CPU-private, family-oriented pointwise opcode vocabulary with exactly twenty-two opcodes.
  *
  * <p>Each opcode is selected once while lowering a Model operation occurrence. Generated and
  * reference execution consume this typed value and never inspect Model operations or strings.</p>
@@ -13,12 +13,18 @@ public enum CpuPointwiseOpcode {
     SUB(Family.BINARY_ARITHMETIC, 2, ResultCategory.INPUT_TYPE, false, true),
     /** Same-type binary multiplication. */
     MUL(Family.BINARY_ARITHMETIC, 2, ResultCategory.INPUT_TYPE, false, true),
+    /** Same-type floating binary division in left-divided-by-right order. */
+    DIV(Family.BINARY_ARITHMETIC, 2, ResultCategory.INPUT_TYPE, false, true),
     /** Addition of one exact typed scalar immediate. */
     SCALAR_ADD(Family.SCALAR_ARITHMETIC, 1, ResultCategory.INPUT_TYPE, true, true),
     /** Subtraction of one exact typed scalar immediate. */
     SCALAR_SUB(Family.SCALAR_ARITHMETIC, 1, ResultCategory.INPUT_TYPE, true, true),
     /** Multiplication by one exact typed scalar immediate. */
     SCALAR_MUL(Family.SCALAR_ARITHMETIC, 1, ResultCategory.INPUT_TYPE, true, true),
+    /** Division by one exact same-typed floating scalar immediate. */
+    SCALAR_DIV(Family.SCALAR_ARITHMETIC, 1, ResultCategory.INPUT_TYPE, true, true),
+    /** Scalar power with one exact exponent and one selected realization fact. */
+    SCALAR_POW(Family.SCALAR_ARITHMETIC, 1, ResultCategory.INPUT_TYPE, true, true),
     /** Floating primitive negation. */
     NEG(Family.UNARY, 1, ResultCategory.INPUT_TYPE, false, true),
     /** Exact/default FLOAT64 Gaussian error linear unit. */

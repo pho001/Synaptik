@@ -1,6 +1,7 @@
 package io.github.pho001.synaptik.backend.cpu.internal.cache;
 
 import io.github.pho001.synaptik.backend.cpu.internal.prepare.CpuPartitionPreparationPlan;
+import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuKernelIr;
 import java.lang.foreign.MemorySegment;
 import java.lang.invoke.MethodType;
 import java.nio.charset.StandardCharsets;
@@ -27,12 +28,14 @@ import io.github.pho001.synaptik.model.datatype.DataType;
  * @param materializedSourcePosition copied input position before the final output, or
  *     {@code -1} for direct access; a copied position must use a segment carrier in the generated
  *     pattern
+ * @param scalarPowerRealizations non-null ordered realization facts for every scalar-power
+ *     instruction in canonical instruction order; copied defensively
  */
 public record CpuKernelSpecialization(CpuLoweringFingerprint loweringFingerprint,
         NumericalMode numericalMode,
         CpuPartitionPreparationPlan.ExecutionStrategy executionStrategy,
         List<DataType> boundaryDataTypes, List<CarrierAccess> carrierPattern, int vectorSpeciesBitSize,
-        int materializedSourcePosition) {
+        int materializedSourcePosition, List<CpuKernelIr.PowerRealization> scalarPowerRealizations) {
     /** Direct carrier form at one ordered materialized boundary. */
     public enum CarrierAccess {
         /** Observable direct {@code double[]} access. */ DOUBLE_ARRAY,
@@ -65,7 +68,7 @@ public record CpuKernelSpecialization(CpuLoweringFingerprint loweringFingerprint
             List<CarrierAccess> carrierPattern, int vectorSpeciesBitSize) {
         this(loweringFingerprint, numericalMode, executionStrategy,
                 java.util.Collections.nCopies(carrierPattern.size(), DataType.FLOAT64), carrierPattern,
-                vectorSpeciesBitSize, -1);
+                vectorSpeciesBitSize, -1, List.of());
     }
 
     /**
@@ -89,7 +92,29 @@ public record CpuKernelSpecialization(CpuLoweringFingerprint loweringFingerprint
             int materializedSourcePosition) {
         this(loweringFingerprint, numericalMode, executionStrategy,
                 java.util.Collections.nCopies(carrierPattern.size(), DataType.FLOAT64),
-                carrierPattern, vectorSpeciesBitSize, materializedSourcePosition);
+                carrierPattern, vectorSpeciesBitSize, materializedSourcePosition, List.of());
+    }
+
+    /**
+     * Creates a specialization without scalar-power realization facts.
+     *
+     * @param loweringFingerprint non-null canonical lowering fingerprint
+     * @param numericalMode non-null selected exact/default numerical mode
+     * @param executionStrategy non-null generated scalar or vector compute strategy
+     * @param boundaryDataTypes non-null ordered boundary data types
+     * @param carrierPattern non-null ordered boundary carrier forms
+     * @param vectorSpeciesBitSize positive preferred species size for vector compute, or zero
+     * @param materializedSourcePosition copied input position, or {@code -1}
+     * @throws NullPointerException if a reference component is {@code null}
+     * @throws IllegalArgumentException if specialization facts disagree
+     */
+    public CpuKernelSpecialization(CpuLoweringFingerprint loweringFingerprint,
+            NumericalMode numericalMode,
+            CpuPartitionPreparationPlan.ExecutionStrategy executionStrategy,
+            List<DataType> boundaryDataTypes, List<CarrierAccess> carrierPattern,
+            int vectorSpeciesBitSize, int materializedSourcePosition) {
+        this(loweringFingerprint, numericalMode, executionStrategy, boundaryDataTypes,
+                carrierPattern, vectorSpeciesBitSize, materializedSourcePosition, List.of());
     }
     /**
      * Validates the exact/default scalar-or-vector generated specialization.
@@ -102,6 +127,7 @@ public record CpuKernelSpecialization(CpuLoweringFingerprint loweringFingerprint
      * @param vectorSpeciesBitSize positive preferred FLOAT64 species bit size for vector compute,
      *     or zero for scalar compute
      * @param materializedSourcePosition copied input position, or {@code -1} for direct access
+     * @param scalarPowerRealizations non-null ordered scalar-power realization facts; copied
      * @throws NullPointerException if a component is {@code null}
      * @throws IllegalArgumentException if the mode, compute/species relationship, boundary/type
      *     mapping, or materialized position is inconsistent
@@ -112,6 +138,7 @@ public record CpuKernelSpecialization(CpuLoweringFingerprint loweringFingerprint
         Objects.requireNonNull(executionStrategy, "executionStrategy");
         boundaryDataTypes = List.copyOf(boundaryDataTypes);
         carrierPattern = List.copyOf(carrierPattern);
+        scalarPowerRealizations = List.copyOf(scalarPowerRealizations);
         if (carrierPattern.size() < 2 || carrierPattern.size() != boundaryDataTypes.size()) {
             throw new IllegalArgumentException("boundary type and carrier entries must agree");
         }
@@ -148,7 +175,8 @@ public record CpuKernelSpecialization(CpuLoweringFingerprint loweringFingerprint
         return (CpuGeneratorSchema.CURRENT_VERSION + "|" + loweringFingerprint.hex() + "|"
                 + numericalMode + "|" + executionStrategy.compute() + "|" + boundaryDataTypes
                 + "|" + carrierPattern
-                + "|" + vectorSpeciesBitSize + "|materialized=" + materializedSourcePosition)
+                + "|" + vectorSpeciesBitSize + "|materialized=" + materializedSourcePosition
+                + "|power=" + scalarPowerRealizations)
                 .getBytes(StandardCharsets.US_ASCII);
     }
     /** Returns artifact identity.

@@ -29,5 +29,12 @@ public record CpuPortableRoutePlan(CpuKernelIr kernelIr, CpuKernelSpecialization
         if (!kernelIr.structuralKey().equals(specialization.loweringFingerprint().hex())) {
             throw new IllegalArgumentException("specialization must match canonical IR");
         }
+        var realizations = kernelIr.instructions().stream()
+                .filter(instruction -> instruction.opcode()
+                        == io.github.pho001.synaptik.backend.cpu.internal.ir.CpuPointwiseOpcode.SCALAR_POW)
+                .map(CpuKernelIr.Instruction::powerRealization).toList();
+        if (!realizations.equals(specialization.scalarPowerRealizations())) {
+            throw new IllegalArgumentException("specialization power realizations must match canonical IR");
+        }
     }
 }

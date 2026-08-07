@@ -5,9 +5,11 @@ import jdk.incubator.vector.VectorOperators;
 import jdk.incubator.vector.VectorSpecies;
 
 /**
- * Evaluates the current exact/default FLOAT64 GELU formula for vector-specialized generated
- * entries. The helper preserves the scalar polynomial branches and coefficient order and uses
- * only the Java 26 preferred FLOAT64 species selected during CPU analysis.
+ * Supplies exact/default FLOAT64 helpers for vector-specialized generated entries.
+ * GELU preserves the scalar polynomial branches and coefficient order; scalar power uses only
+ * exact positive-one construction or primitive reciprocal division. Every helper uses the Java
+ * 26 preferred FLOAT64 species selected during CPU analysis and performs no route or exponent
+ * selection.
  */
 final class CpuVectorEmitter {
     private static final VectorSpecies<Double> SPECIES = DoubleVector.SPECIES_PREFERRED;
@@ -51,6 +53,25 @@ final class CpuVectorEmitter {
         erf = erf.blend(1.0d, x.eq(Double.POSITIVE_INFINITY));
         erf = erf.blend(erf.neg(), erfInput.lt(0.0d));
         return value.mul(0.5d).mul(erf.add(1.0d));
+    }
+
+    /**
+     * Produces exact positive one in every preferred-species lane without reading a base vector.
+     *
+     * @return a non-null preferred-species vector filled with exact positive one
+     */
+    static DoubleVector positiveOne() {
+        return DoubleVector.broadcast(SPECIES, 1.0d);
+    }
+
+    /**
+     * Divides exact positive one by each represented base lane using ordinary vector division.
+     *
+     * @param value non-null preferred-species vector of base values
+     * @return a non-null preferred-species vector containing the typed reciprocal results
+     */
+    static DoubleVector reciprocal(DoubleVector value) {
+        return DoubleVector.broadcast(SPECIES, 1.0d).div(value);
     }
 
     private static DoubleVector polevl(DoubleVector x, double[] coefficients) {

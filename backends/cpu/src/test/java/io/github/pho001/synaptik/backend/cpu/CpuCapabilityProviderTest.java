@@ -102,8 +102,24 @@ class CpuCapabilityProviderTest {
                         new CastAttrs(DataType.BFLOAT16), List.of(bf16), bf16))),
                 () -> assertFalse(provider.supports(query(BinaryArithmeticKind.ADD,
                         NoOperationAttrs.INSTANCE, List.of(f32, f64), f64))),
+                () -> assertTrue(provider.supports(query(BinaryArithmeticKind.DIV,
+                        NoOperationAttrs.INSTANCE, List.of(f64, f64), f64))),
+                () -> assertTrue(provider.supports(query(BinaryArithmeticKind.DIV,
+                        NoOperationAttrs.INSTANCE, List.of(f32, f32), f32))),
                 () -> assertFalse(provider.supports(query(BinaryArithmeticKind.DIV,
-                        NoOperationAttrs.INSTANCE, List.of(f64, f64), f64))));
+                        NoOperationAttrs.INSTANCE, List.of(i32, i32), i32))),
+                () -> assertFalse(provider.supports(query(BinaryArithmeticKind.DIV,
+                        NoOperationAttrs.INSTANCE, List.of(bf16, bf16), bf16))),
+                () -> assertTrue(provider.supports(query(ScalarElementwiseKind.DIV,
+                        new ScalarValueAttrs(ScalarValue.float32(-0.0f)), List.of(f32), f32))),
+                () -> assertTrue(provider.supports(query(ScalarElementwiseKind.POW,
+                        new ScalarValueAttrs(ScalarValue.float64(0.5d)), List.of(f64), f64))),
+                () -> assertFalse(provider.supports(query(ScalarElementwiseKind.DIV,
+                        new ScalarValueAttrs(ScalarValue.float64(2.0d)), List.of(f32), f32))),
+                () -> assertFalse(provider.supports(query(ScalarElementwiseKind.POW,
+                        new ScalarValueAttrs(ScalarValue.int32(2)), List.of(i32), i32))),
+                () -> assertFalse(provider.supports(query(ScalarElementwiseKind.POW,
+                        new ScalarValueAttrs(ScalarValue.bfloat16(2.0f)), List.of(bf16), bf16))));
     }
 
     private static TensorDescriptor descriptor(Shape shape, LayoutDescriptor layout) {

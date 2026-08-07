@@ -101,12 +101,15 @@ The Prepare milestone is therefore closed. The OpenBLAS provider project area is
 CPU 0005A is now Complete and atomically supersedes the provisional CPU 0001–0005 implementation;
 those five task records remain preserved as Superseded historical evidence. The current completed
 CPU implementation frontier is detailed
-[CPU 0005E Portable pointwise types, carriers, and semantic-family expansion](backends/cpu/tasks/0005e-portable-pointwise-types-carriers-and-semantic-family-expansion.md)
-with a bounded five-type, nineteen-opcode pointwise matrix, derived typed carrier boundaries, and
-scalar coverage plus FLOAT64 numeric-only vector eligibility. CPU 0005D's one-copy materialization,
-explicit specialization budgets, bounded optional class-byte persistence, and recorded
-`KEEP_DISABLED` verdict remain preserved. CPU 0005F is the next Draft frontier, and later tasks
-remain Draft without detailed specifications. Historical
+[CPU 0005F Floating division and exact scalar-power realization](backends/cpu/tasks/0005f-floating-division-and-exact-scalar-power-realization.md)
+with a twenty-two-opcode pointwise matrix, exact FLOAT32/FLOAT64 binary/scalar division, direct
+scalar power plus four proved exact-bit special realizations, and schema-6 compatibility. CPU
+0005E's five types, derived typed carrier boundaries, scalar coverage, and FLOAT64 numeric-only
+vector boundary remain preserved, as do CPU 0005D's one-copy materialization, explicit
+specialization budgets, bounded optional class-byte persistence, and `KEEP_DISABLED` verdict. CPU
+0005G remaining portable pointwise-family coverage is the next Draft frontier, and every later task
+remains Draft without detailed specifications.
+Historical
 [CPU 0001 Capability, representation, binding, and parallel foundation](backends/cpu/tasks/0001-cpu-capability-representation-binding-and-parallel-foundation.md)
 is `Superseded`; historical
 [CPU 0002 Portable Class-File API generator foundation](backends/cpu/tasks/0002-portable-class-file-api-generator-foundation.md)
@@ -129,8 +132,9 @@ documentation pass reused because it changed no executable Java behavior. Detail
 [CPU 0005A Atomic partition-kernel architecture reset](backends/cpu/tasks/0005a-atomic-partition-kernel-architecture-reset.md)
 is Complete. Detailed CPU 0005C vector and parallel strategies are Complete. Detailed CPU 0005D
 materialization/specialization/persistence evidence is also `Complete`; detailed 0005E is
-`Complete` for its bounded first five-type core pointwise increment. CPU 0005F exact scalar-power strength
-reduction and CPU 0006–0017 remain `Draft` without detailed specifications.
+`Complete` for its bounded first five-type core pointwise increment. Detailed CPU 0005F floating
+division and exact scalar-power realization is `Complete`; CPU 0005G and CPU 0006–0017 remain
+`Draft` without detailed specifications.
 CPU 0003
 implements a
 model-independent filesystem store beneath an explicit
@@ -268,14 +272,27 @@ phase/autograd, and descriptor proof. Tensor exponents require compiler-owned im
 constant facts, never storage reads or factory-history inference; fractional identities such as
 `POW(0.5) -> SQRT` are not assumed.
 
-Draft CPU 0005F separately owns exact/default scalar-power realization after the reset and
-pointwise foundation. It retains semantic `POW` while common route-independent CPU analysis may
-select multiplication, reciprocal, or exponentiation by squaring for proved exact typed integral
-exponents. It does not depend on relaxed Config. Draft CPU 0017 later consumes Config 0006 for
-genuinely relaxed route candidates. Common analysis owns eligibility and the plan; emitters and
-vendor adapters consume it. Numerical mode and realization-changing power plans participate in
-specialization/cache compatibility and cold manifests, never hot-path policy lookup. Forward and
-compiler-generated gradient operations share the same policy.
+Complete CPU 0005F separately owns exact/default floating division and scalar-power realization after
+the reset and pointwise foundation. It adds same-typed FLOAT32/FLOAT64 binary DIV with ordinary
+right-aligned broadcast and exact-result type, same-typed scalar DIV with exact
+`ScalarValueAttrs`, and direct same-typed scalar power for every exponent. Common route-independent
+CPU analysis may select positive one for either zero exponent, identity for positive one, one typed
+multiply for positive two, or one typed division for negative one. Reciprocal power remains
+semantic `SCALAR_POW`, not public or scalar DIV. Other integral exponents remain direct because
+multiply chains and exponentiation by squaring lack a universal intermediate-rounding, overflow,
+and underflow proof. It does not depend on relaxed Config. Draft CPU 0017 later consumes Config
+0006 for genuinely relaxed route candidates. Common analysis owns eligibility and the plan;
+emitters and vendor adapters consume it. Numerical mode and realization-changing power plans
+participate in specialization/cache compatibility and cold manifests, never hot-path policy
+lookup. Forward and compiler-generated gradient operations share the same policy.
+
+Draft CPU 0005G follows 0005F and precedes broader layout/indexing work. It owns all remaining
+selected portable pointwise-family coverage from the live Model inventory: pairwise and scalar
+MIN/MAX, range CLAMP, Tensor/Tensor POW if still selected, remaining unary/transcendental/
+activation and boolean-logical families, and exact cross-type CAST only if the Model numerical
+conversion policy is sufficient. It remains fail-closed and bounded and has no detailed task
+specification. CPU 0006 depends on 0005G, and CPU 0009 closure explicitly includes 0005G so the
+pointwise inventory cannot be omitted silently.
 
 Whole-partition lowering, fusion legality/profitability, canonical CPU IR, access planning,
 materialization accounting, numerical/determinism filtering, and representation planning remain
@@ -391,12 +408,12 @@ inputs may select another type-compatible ordered pattern. Its five generated st
 cover dense linear, all-zero/scalar, last-axis bias, block/outer, and general odometer access.
 Exact cold range spans support constant-time alias checks, and a complete bounded static
 injectivity decision accepts valid interleaved positive strides while rejecting repeated writes.
-Detailed CPU 0005C through CPU 0005E are Complete. CPU 0005F,
-CPU 0006–0017, and the refined Config, Prepare, Metal, and tuning rows remain `Draft` without new
-detailed specifications.
+Detailed CPU 0005C through CPU 0005F are Complete. CPU 0005G is the next `Draft` task;
+CPU 0005G, CPU 0006–0017, and the refined Config, Prepare, Metal, and tuning rows remain `Draft`
+without new detailed specifications.
 Completed OpenBLAS history and every completed project area remain unchanged.
 
-CPU remains the active global project area. CPU 0005A through CPU 0005E are `Complete`; CPU 0005F
+CPU remains the active global project area. CPU 0005A through CPU 0005F are `Complete`; CPU 0005G
 is the next `Draft` frontier, and later CPU work remains `Draft` without detailed specifications.
 CPU 0001–0005 are
 historical Superseded records whose Git history

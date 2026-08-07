@@ -17,6 +17,7 @@ import io.github.pho001.synaptik.model.datatype.DataType;
 import io.github.pho001.synaptik.model.layout.LayoutDescriptor;
 import io.github.pho001.synaptik.model.tensor.TensorDescriptor;
 import java.util.Optional;
+import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuKernelIr;
 
 class CpuKernelSpecializationTest {
     @Test void excludesCompatibleExtentsButIncludesNumericalAndStrategyFacts() {
@@ -93,6 +94,28 @@ class CpuKernelSpecializationTest {
                         () -> new CpuSpecializationBudget(4, 1, 1, 0)),
                 () -> assertThrows(IllegalArgumentException.class,
                         () -> new CpuSpecializationBudget(4, 1, 0, 1)));
+    }
+
+    @Test void scalarPowerRealizationIsExplicitCompatibilityMetadata() {
+        var base = CpuPartitionPreparerTest.analyze(Shape.of(3)).plan().units().getFirst()
+                .portablePlan().specialization();
+        var direct = new CpuKernelSpecialization(base.loweringFingerprint(), base.numericalMode(),
+                base.executionStrategy(), base.boundaryDataTypes(), base.carrierPattern(),
+                base.vectorSpeciesBitSize(), base.materializedSourcePosition(),
+                List.of(CpuKernelIr.PowerRealization.DIRECT));
+        var square = new CpuKernelSpecialization(base.loweringFingerprint(), base.numericalMode(),
+                base.executionStrategy(), base.boundaryDataTypes(), base.carrierPattern(),
+                base.vectorSpeciesBitSize(), base.materializedSourcePosition(),
+                List.of(CpuKernelIr.PowerRealization.SQUARE));
+        assertAll(
+                () -> assertNotEquals(direct.structuralKey(), square.structuralKey()),
+                () -> assertFalse(java.util.Arrays.equals(direct.compatibilityBytes(),
+                        square.compatibilityBytes())),
+                () -> assertThrows(NullPointerException.class,
+                        () -> new CpuKernelSpecialization(base.loweringFingerprint(),
+                                base.numericalMode(), base.executionStrategy(),
+                                base.boundaryDataTypes(), base.carrierPattern(),
+                                base.vectorSpeciesBitSize(), base.materializedSourcePosition(), null)));
     }
 
     private static CpuKernelSpecialization specialization(

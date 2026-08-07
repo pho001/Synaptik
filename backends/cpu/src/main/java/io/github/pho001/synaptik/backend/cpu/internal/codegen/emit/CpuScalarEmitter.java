@@ -13,6 +13,7 @@ import java.lang.constant.MethodTypeDesc;
 /** Package-private family-grouped exact scalar semantic emitter. */
 final class CpuScalarEmitter {
     private static final ClassDesc REFERENCE = ClassDesc.of(CpuScalarReferenceKernel.class.getName());
+    private static final ClassDesc STRICT_MATH = ClassDesc.of(StrictMath.class.getName());
     private static final ClassDesc DOUBLE = ClassDesc.of(Double.class.getName());
     private static final ClassDesc FLOAT = ClassDesc.of(Float.class.getName());
     private final CodeBuilder code;
@@ -39,6 +40,11 @@ final class CpuScalarEmitter {
             emitWhere(ir, instruction, locals, outputType);
             return;
         }
+        if (opcode == CpuPointwiseOpcode.SCALAR_POW) {
+            emitPower(instruction, locals, inputType);
+            store(outputType, locals[instruction.output()]);
+            return;
+        }
         load(inputType, locals[instruction.inputs().getFirst()]);
         if (instruction.inputs().size() == 2) {
             load(inputType, locals[instruction.inputs().get(1)]);
@@ -58,13 +64,51 @@ final class CpuScalarEmitter {
     private void arithmetic(CpuPointwiseOpcode opcode, DataType type) {
         boolean add = opcode == CpuPointwiseOpcode.ADD || opcode == CpuPointwiseOpcode.SCALAR_ADD;
         boolean sub = opcode == CpuPointwiseOpcode.SUB || opcode == CpuPointwiseOpcode.SCALAR_SUB;
+        boolean div = opcode == CpuPointwiseOpcode.DIV || opcode == CpuPointwiseOpcode.SCALAR_DIV;
         switch (type) {
-            case FLOAT64 -> { if (add) code.dadd(); else if (sub) code.dsub(); else code.dmul(); }
-            case FLOAT32 -> { if (add) code.fadd(); else if (sub) code.fsub(); else code.fmul(); }
-            case INT32 -> { if (add) code.iadd(); else if (sub) code.isub(); else code.imul(); }
-            case INT64 -> { if (add) code.ladd(); else if (sub) code.lsub(); else code.lmul(); }
+            case FLOAT64 -> { if (add) code.dadd(); else if (sub) code.dsub();
+                else if (div) code.ddiv(); else code.dmul(); }
+            case FLOAT32 -> { if (add) code.fadd(); else if (sub) code.fsub();
+                else if (div) code.fdiv(); else code.fmul(); }
+            case INT32 -> { if (div) throw new IllegalArgumentException("integral division unsupported");
+                if (add) code.iadd(); else if (sub) code.isub(); else code.imul(); }
+            case INT64 -> { if (div) throw new IllegalArgumentException("integral division unsupported");
+                if (add) code.ladd(); else if (sub) code.lsub(); else code.lmul(); }
             default -> throw new IllegalArgumentException("unsupported arithmetic type");
         }
+    }
+
+    private void emitPower(CpuKernelIr.Instruction instruction, int[] locals, DataType type) {
+        int base = locals[instruction.inputs().getFirst()];
+        switch (instruction.powerRealization()) {
+            case POSITIVE_ONE -> loadPositiveOne(type);
+            case IDENTITY -> load(type, base);
+            case SQUARE -> {
+                load(type, base);
+                load(type, base);
+                if (type == DataType.FLOAT64) code.dmul(); else code.fmul();
+            }
+            case RECIPROCAL -> {
+                loadPositiveOne(type);
+                load(type, base);
+                if (type == DataType.FLOAT64) code.ddiv(); else code.fdiv();
+            }
+            case DIRECT -> {
+                load(type, base);
+                if (type == DataType.FLOAT32) code.f2d();
+                loadImmediate(instruction.scalarImmediate());
+                if (type == DataType.FLOAT32) code.f2d();
+                code.invokestatic(STRICT_MATH, "pow", MethodTypeDesc.of(ConstantDescs.CD_double,
+                        ConstantDescs.CD_double, ConstantDescs.CD_double));
+                if (type == DataType.FLOAT32) code.d2f();
+            }
+        }
+    }
+
+    private void loadPositiveOne(DataType type) {
+        if (type == DataType.FLOAT64) code.loadConstant(1.0d);
+        else if (type == DataType.FLOAT32) code.loadConstant(1.0f);
+        else throw new IllegalArgumentException("scalar power requires floating type");
     }
 
     private void unary(CpuPointwiseOpcode opcode, DataType type) {

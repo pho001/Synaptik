@@ -15,6 +15,9 @@ import io.github.pho001.synaptik.model.operation.elementwise.scalar.ScalarElemen
 import io.github.pho001.synaptik.model.operation.elementwise.scalar.ScalarValueAttrs;
 import io.github.pho001.synaptik.model.operation.NoOperationAttrs;
 import io.github.pho001.synaptik.model.operation.elementwise.selection.WhereSelectionKind;
+import io.github.pho001.synaptik.model.operation.elementwise.binary.BinaryArithmeticKind;
+import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuKernelIr;
+import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuPointwiseOpcode;
 import io.github.pho001.synaptik.model.shape.Shape;
 import io.github.pho001.synaptik.model.tensor.TensorDescriptor;
 import io.github.pho001.synaptik.planning.memory.LogicalMemoryRequirement;
@@ -106,6 +109,51 @@ class CpuPointwisePartitionLoweringTest {
         } finally { state.close(); }
     }
 
+    @Test void lowersBroadcastDivisionAndEveryScalarPowerPlanAsOrdinaryInstructions() {
+        Shape output = Shape.of(2, 3);
+        var f32Left = descriptor(DataType.FLOAT32, Shape.of(2, 1));
+        var f32Right = descriptor(DataType.FLOAT32, Shape.of(3));
+        var f32Output = descriptor(DataType.FLOAT32, output);
+        var division = new CpuPartitionLowering().lower(single(
+                new Operation(BinaryArithmeticKind.DIV, NoOperationAttrs.INSTANCE),
+                List.of(f32Left, f32Right), f32Output, CpuPartitionAnalysisInputs.DEFAULT));
+        assertAll(
+                () -> assertEquals(CpuPointwiseOpcode.DIV,
+                        division.kernelIr().instructions().getFirst().opcode()),
+                () -> assertEquals(3, division.boundaryValues().size()),
+                () -> assertEquals(CpuKernelIr.PowerRealization.POSITIVE_ONE,
+                        power(ScalarValue.float64(-0.0d)).powerRealization()),
+                () -> assertEquals(CpuKernelIr.PowerRealization.IDENTITY,
+                        power(ScalarValue.float64(1.0d)).powerRealization()),
+                () -> assertEquals(CpuKernelIr.PowerRealization.SQUARE,
+                        power(ScalarValue.float32(2.0f)).powerRealization()),
+                () -> assertEquals(CpuKernelIr.PowerRealization.RECIPROCAL,
+                        power(ScalarValue.float32(-1.0f)).powerRealization()),
+                () -> assertEquals(CpuKernelIr.PowerRealization.DIRECT,
+                        power(ScalarValue.float64(0.5d)).powerRealization()));
+    }
+
+    @Test void directPowerForcesScalarComputeWhileSpecialPowerRetainsVectorEligibility() {
+        int count = jdk.incubator.vector.DoubleVector.SPECIES_PREFERRED.length() * 2;
+        var config = new CpuPartitionAnalysisInputs.PortableExecutionConfig(
+                CpuPartitionAnalysisInputs.PortableExecutionConfig.ComputePreference.VECTOR_IF_ELIGIBLE,
+                4, 2, 1);
+        var inputs = new CpuPartitionAnalysisInputs(true, List.of(), config);
+        var direct = new CpuPartitionPreparer().analyze(singlePower(ScalarValue.float64(0.5d),
+                Shape.of(count), inputs)).plan();
+        var square = new CpuPartitionPreparer().analyze(singlePower(ScalarValue.float64(2.0d),
+                Shape.of(count), inputs)).plan();
+        assertAll(
+                () -> assertEquals("parallel-scalar", direct.executionStrategy().toString()),
+                () -> assertEquals(0, direct.vectorSpeciesBitSize()),
+                () -> assertEquals("parallel-vector", square.executionStrategy().toString()),
+                () -> assertEquals(List.of(CpuKernelIr.PowerRealization.DIRECT),
+                        direct.units().getFirst().portablePlan().specialization()
+                                .scalarPowerRealizations()),
+                () -> assertTrue(direct.loweringManifest().contains("power=[DIRECT]")),
+                () -> assertTrue(square.loweringManifest().contains("power=[SQUARE]")));
+    }
+
     static PrepareContext<CpuPartitionAnalysisInputs> chain(int count) {
         Shape shape = Shape.of(5);
         var descriptor = new TensorDescriptor(DataType.INT32, shape,
@@ -132,6 +180,45 @@ class CpuPointwisePartitionLoweringTest {
         }
         return new PrepareContext<>(partition, nodes, values, memory, Map.of(),
                 CpuPartitionAnalysisInputs.DEFAULT);
+    }
+
+    private static CpuKernelIr.Instruction power(ScalarValue exponent) {
+        return new CpuPartitionLowering().lower(singlePower(exponent, Shape.of(3),
+                CpuPartitionAnalysisInputs.DEFAULT)).kernelIr().instructions().getFirst();
+    }
+
+    private static PrepareContext<CpuPartitionAnalysisInputs> singlePower(ScalarValue exponent,
+            Shape shape, CpuPartitionAnalysisInputs inputs) {
+        var descriptor = descriptor(exponent.dataType(), shape);
+        return single(new Operation(ScalarElementwiseKind.POW, new ScalarValueAttrs(exponent)),
+                List.of(descriptor), descriptor, inputs);
+    }
+
+    private static TensorDescriptor descriptor(DataType type, Shape shape) {
+        return new TensorDescriptor(type, shape,
+                Optional.of(LayoutDescriptor.contiguous(shape)), false);
+    }
+
+    private static PrepareContext<CpuPartitionAnalysisInputs> single(Operation operation,
+            List<TensorDescriptor> inputs, TensorDescriptor output,
+            CpuPartitionAnalysisInputs analysisInputs) {
+        var inputIds = java.util.stream.IntStream.range(0, inputs.size())
+                .mapToObj(index -> new ValueId(index)).toList();
+        ValueId outputId = new ValueId(inputs.size());
+        var node = new CompiledNode(new NodeId(0), operation, inputIds, List.of(outputId));
+        var partition = new PlannedPartition(CpuCapabilityProvider.CPU_BACKEND_ID, List.of(node.id()));
+        var values = new ArrayList<GraphValue>();
+        var memory = new ArrayList<LogicalMemoryRequirement>();
+        for (int index = 0; index < inputs.size(); index++) {
+            values.add(new GraphValue(inputIds.get(index), inputs.get(index)));
+            memory.add(new LogicalMemoryRequirement(inputIds.get(index), inputs.get(index),
+                    Optional.empty(), List.of(partition), false));
+        }
+        values.add(new GraphValue(outputId, output));
+        memory.add(new LogicalMemoryRequirement(outputId, output, Optional.of(partition),
+                List.of(), true));
+        return new PrepareContext<>(partition, List.of(node), values, memory, Map.of(),
+                analysisInputs);
     }
 
     private static PrepareContext<CpuPartitionAnalysisInputs> where() {

@@ -13,10 +13,12 @@ therefore declares only external inputs and the sole final output, in determinis
 Generated scalar and Java 26 Vector API loops accept primitive `start` and `end` bounds.
 Compatible concrete extents bind on the cold path and share identical class bytes and one
 process-local loaded compatibility identity. The current semantic matrix uses exactly five
-executable carrier types—FLOAT64, FLOAT32, INT32, INT64, and BOOL—and one nineteen-opcode
+executable carrier types—FLOAT64, FLOAT32, INT32, INT64, and BOOL—and one twenty-two-opcode
 CPU-private pointwise vocabulary. The access family covers scalar/rank/singleton/multi-axis
 broadcasting, zero extents, offsets, positive and broadcast-zero strides, and ordered
-heap/segment/mixed carrier patterns for the derived boundaries. Cold analysis selects scalar,
+heap/segment/mixed carrier patterns for the derived boundaries. CPU 0005F adds same-typed
+FLOAT32/FLOAT64 Tensor/Tensor division, Tensor/scalar division, and Tensor/scalar power without
+adding Tensor/Tensor power. Cold analysis selects scalar,
 vector, parallel-scalar, or parallel-vector execution; vector-ineligible admitted geometry falls
 back to scalar compute. Analysis can also compare direct access with at most one CPU-private
 contiguous input copy from explicit dimensionless cold cost evidence. A selected copy uses one
@@ -423,13 +425,13 @@ enters the analysis input.
 ### Current bounded pointwise family
 
 The portable route maps admitted Model occurrences once into a single CPU-private
-`CpuPointwiseOpcode` vocabulary. The nineteen opcodes are grouped by family rather than by
+`CpuPointwiseOpcode` vocabulary. The twenty-two opcodes are grouped by family rather than by
 operation-specific lowerer, emitter, executable, or registry class:
 
 | Family | Current admitted semantics and exact types |
 |---|---|
-| Binary arithmetic | Same-type `ADD`, `SUB`, and `MUL` for FLOAT64, FLOAT32, INT32, and INT64 |
-| Scalar arithmetic | Exact typed scalar `ADD`, `SUB`, and `MUL` for the same four numeric types |
+| Binary arithmetic | Same-type `ADD`, `SUB`, and `MUL` for FLOAT64, FLOAT32, INT32, and INT64; same-type `DIV` for FLOAT64 and FLOAT32 |
+| Scalar arithmetic | Exact typed scalar `ADD`, `SUB`, and `MUL` for the same four numeric types; exact typed scalar `DIV` and `POW` for FLOAT64 and FLOAT32 |
 | Unary | `NEG` for FLOAT64/FLOAT32 and existing exact `GELU` for FLOAT64 |
 | Classification | `IS_FINITE`, `IS_NAN`, and `IS_INF` for FLOAT64/FLOAT32 to BOOL |
 | Comparison | All six ordered/equality comparisons for the four numeric types to BOOL |
@@ -438,10 +440,12 @@ operation-specific lowerer, emitter, executable, or registry class:
 
 Scalar and parallel-scalar generated execution cover every row. Vector and parallel-vector are
 eligible only when every IR value is FLOAT64, every opcode is numeric and vector-safe (`ADD`,
-`SUB`, `MUL`, their exact scalar forms, `NEG`, or exact `GELU`), and the completed contiguous-run
+`SUB`, `MUL`, `DIV`, their exact scalar forms, the four special scalar-power plans, `NEG`, or exact
+`GELU`), and the completed contiguous-run
 access checks pass. FLOAT32, integral, BOOL-producing, WHERE, and CAST chains remain supported but
-select scalar compute. This fallback is a cold strategy decision, not an execution failure or a
-claim of vector coverage.
+select scalar compute. Direct scalar power also selects scalar compute. Parallel-scalar remains
+available when cold orchestration selects more than one range. This fallback is a cold strategy
+decision, not an execution failure or a claim of vector coverage.
 
 For example, a three-occurrence chain can add two FLOAT32 inputs, negate the virtual result, and
 compare it with a third FLOAT32 input. Lowering derives the three external reads in first-use
@@ -489,15 +493,54 @@ prepare configuration; hardware, an installed provider, workload size, a tuning 
 benchmark result cannot grant it. Tuning and benchmarking compare only candidates already eligible
 under that permission and contract.
 
-Future scalar-power strength reduction likewise belongs to common CPU analysis, not an emitter or
-provider adapter. The compiled graph retains semantic `POW`; exact typed exponents such as `2`,
-`-1`, and other small integers may select multiply, reciprocal, or exponentiation by squaring only
-after an exact/default conformance proof. `POW(0.5)` is not silently replaced by `SQRT`. Tensor
-exponents require compiler-owned immutable facts proving one exact typed uniform exponent; CPU
-does not read Tensor storage or infer a constant from factory history. The selected numerical mode
-and realization-changing power plan belong in specialization/cache compatibility and the cold
-lowering manifest, never a hot-path lookup. Forward and compiler-generated gradient operations use
-this same policy.
+### Floating division and scalar-power realization
+
+CPU 0005F adds three distinct semantic opcodes. Binary `DIV` reads two tensor boundaries and uses
+ordinary right-aligned broadcasting. Scalar `DIV` reads one tensor boundary and divides each
+element by the exact same-typed `ScalarValueAttrs` denominator. Scalar `POW` also reads one tensor
+boundary, but retains its exponent bits and semantic power opcode even when its selected
+realization uses division. Tensor/Tensor `POW` remains unsupported.
+
+| Semantic operation | FLOAT32 | FLOAT64 | Vector eligibility |
+|---|---|---|---|
+| Tensor/Tensor `DIV` | Primitive `left / right` | Primitive `left / right` | FLOAT64 only, under the existing topology, access, and carrier gates |
+| Tensor/scalar `DIV` | Primitive `input / denominator` | Primitive `input / denominator` | FLOAT64 only, under the same gates |
+| Tensor/scalar `POW` | Direct or one selected exact plan | Direct or one selected exact plan | FLOAT64 special plans only; direct power is scalar-compute only |
+
+Division uses Java/IEEE-754 behavior in operand order. It preserves NaN classification,
+infinities, signed zero, division by zero, overflow, underflow, and subnormal transitions without
+throwing an integer-style divide-by-zero exception. CPU does not replace either DIV form with
+multiplication by a reciprocal. FLOAT32 direct power widens the represented binary32 base and
+exponent exactly, calls `StrictMath.pow`, and narrows once; FLOAT64 calls `StrictMath.pow`
+directly.
+
+Common lowering classifies each exact scalar-power exponent once:
+
+| Exact exponent | Plan | Realization |
+|---|---|---|
+| positive or negative zero | `POSITIVE_ONE` | Store exact positive typed one without reading the base |
+| positive one | `IDENTITY` | Forward the represented base |
+| positive two | `SQUARE` | One typed multiply, `base * base` |
+| negative one | `RECIPROCAL` | One typed division, `+1.0 / base` |
+| every other finite value, infinity, or NaN | `DIRECT` | Direct power realization |
+
+The reciprocal row is still `SCALAR_POW(-1)`, not binary or scalar DIV. Its opcode, exact
+immediate bits, realization, canonical IR identity, specialization metadata, and cold manifest
+remain power facts. Exponents such as `0.5`, `3`, and `-2` stay direct: square-root substitution,
+multiply chains, reciprocal chains, and exponentiation by squaring do not have the required
+universal rounding and exceptional-value proof.
+
+All three opcodes are ordinary members of the existing one-to-eight connected pointwise fusion.
+For example, a binary broadcast DIV may feed a scalar DIV and then scalar POW inside one
+three-instruction unit. The two intermediate graph values remain virtual, instruction order is
+preserved, and only the last result is stored. This example explains lowering structure; it does
+not add a public execution facade or broaden Tensor/Tensor power support.
+
+The selected realization is a preparation-time code-shaping fact. It participates, with the
+semantic opcode and exact scalar bits, in canonical IR, specialization and artifact compatibility,
+and the optional lowering manifest. Generator schema 6 rejects older stored artifacts as
+incompatible. Generated code performs no exponent comparison or policy lookup, and Runtime only
+invokes the already-prepared executable.
 
 The implemented access regimes are dense linear, scalar/all-zero broadcast,
 last-axis bias, block/outer broadcast with a contiguous inner loop, and the complete general

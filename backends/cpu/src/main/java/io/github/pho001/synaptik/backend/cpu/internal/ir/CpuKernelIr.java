@@ -61,9 +61,11 @@ public record CpuKernelIr(
      * @param output non-negative output ordinal
      * @param scalarImmediate exact typed primitive bits when required by {@code opcode}, otherwise
      *     {@code null}
+     * @param powerRealization selected scalar-power realization for {@code SCALAR_POW}, otherwise
+     *     {@code null}
      */
     public record Instruction(CpuPointwiseOpcode opcode, List<Integer> inputs, int output,
-            ScalarImmediate scalarImmediate) {
+            ScalarImmediate scalarImmediate, PowerRealization powerRealization) {
         /**
          * Validates topology-local operands.
          *
@@ -84,6 +86,25 @@ public record CpuKernelIr(
             if (opcode.carriesScalarImmediate() != (scalarImmediate != null)) {
                 throw new IllegalArgumentException("instruction scalar immediate does not match opcode");
             }
+            if ((opcode == CpuPointwiseOpcode.SCALAR_POW) != (powerRealization != null)) {
+                throw new IllegalArgumentException("instruction power realization does not match opcode");
+            }
+        }
+
+        /**
+         * Creates an instruction without a scalar-power realization.
+         *
+         * @param opcode non-null opcode other than {@code SCALAR_POW}
+         * @param inputs non-null ordered topology-local input ordinals; copied defensively
+         * @param output non-negative topology-local output ordinal
+         * @param scalarImmediate exact typed immediate when required, otherwise {@code null}
+         * @throws NullPointerException if {@code opcode}, {@code inputs}, or an input is null
+         * @throws IllegalArgumentException if ordinals, arity, immediate, or realization rules
+         *     disagree
+         */
+        public Instruction(CpuPointwiseOpcode opcode, List<Integer> inputs, int output,
+                ScalarImmediate scalarImmediate) {
+            this(opcode, inputs, output, scalarImmediate, null);
         }
 
         /**
@@ -96,8 +117,17 @@ public record CpuKernelIr(
          * @throws IllegalArgumentException if ordinals, arity, or immediate requirements disagree
          */
         public Instruction(CpuPointwiseOpcode opcode, List<Integer> inputs, int output) {
-            this(opcode, inputs, output, null);
+            this(opcode, inputs, output, null, null);
         }
+    }
+
+    /** Closed exact/default realization selected for one semantic scalar-power instruction. */
+    public enum PowerRealization {
+        /** Invoke the direct typed power realization. */ DIRECT,
+        /** Produce exact positive typed one without reading the base. */ POSITIVE_ONE,
+        /** Forward the represented base for exact positive-one exponent. */ IDENTITY,
+        /** Multiply the represented base by itself once in the result type. */ SQUARE,
+        /** Divide exact positive typed one by the represented base once. */ RECIPROCAL
     }
 
     /**
@@ -204,7 +234,8 @@ public record CpuKernelIr(
                 .append(v.accessPlan().axisRoles()).append(':')
                 .append(v.accessPlan().contiguousSuffix()).append('|'));
         instructions.forEach(i -> text.append(i.opcode()).append(':').append(i.inputs())
-                .append('>').append(i.output()).append(':').append(i.scalarImmediate()).append('|'));
+                .append('>').append(i.output()).append(':').append(i.scalarImmediate()).append(':')
+                .append(i.powerRealization()).append('|'));
         stores.forEach(s -> text.append("store:").append(s.value()).append('>')
                 .append(s.outputOrdinal()).append('|'));
         try {
@@ -228,9 +259,16 @@ public record CpuKernelIr(
         boolean numeric = inputs.stream().allMatch(type -> type == DataType.FLOAT64
                 || type == DataType.FLOAT32 || type == DataType.INT32 || type == DataType.INT64);
         boolean valid = switch (opcode.family()) {
-            case BINARY_ARITHMETIC -> same && numeric && output == inputs.getFirst();
+            case BINARY_ARITHMETIC -> same && numeric && output == inputs.getFirst()
+                    && (opcode != CpuPointwiseOpcode.DIV
+                        || output == DataType.FLOAT64 || output == DataType.FLOAT32);
             case SCALAR_ARITHMETIC -> numeric && output == inputs.getFirst()
-                    && instruction.scalarImmediate().dataType() == output;
+                    && instruction.scalarImmediate().dataType() == output
+                    && ((opcode != CpuPointwiseOpcode.SCALAR_DIV
+                            && opcode != CpuPointwiseOpcode.SCALAR_POW)
+                        || output == DataType.FLOAT64 || output == DataType.FLOAT32)
+                    && (opcode != CpuPointwiseOpcode.SCALAR_POW
+                        || powerRealizationMatches(instruction));
             case UNARY -> output == inputs.getFirst()
                     && (opcode == CpuPointwiseOpcode.GELU_EXACT
                         ? output == DataType.FLOAT64
@@ -246,5 +284,27 @@ public record CpuKernelIr(
                     || output == DataType.INT64 || output == DataType.BOOL);
         };
         if (!valid) throw new IllegalArgumentException("instruction data types do not match opcode");
+    }
+
+    private static boolean powerRealizationMatches(Instruction instruction) {
+        ScalarImmediate immediate = instruction.scalarImmediate();
+        long bits = immediate.bits();
+        PowerRealization expected;
+        if (immediate.dataType() == DataType.FLOAT32) {
+            bits &= 0xffff_ffffL;
+            expected = bits == 0L || bits == 0x8000_0000L ? PowerRealization.POSITIVE_ONE
+                    : bits == 0x3f80_0000L ? PowerRealization.IDENTITY
+                    : bits == 0x4000_0000L ? PowerRealization.SQUARE
+                    : bits == 0xbf80_0000L ? PowerRealization.RECIPROCAL
+                    : PowerRealization.DIRECT;
+        } else if (immediate.dataType() == DataType.FLOAT64) {
+            expected = bits == 0L || bits == 0x8000_0000_0000_0000L
+                    ? PowerRealization.POSITIVE_ONE
+                    : bits == 0x3ff0_0000_0000_0000L ? PowerRealization.IDENTITY
+                    : bits == 0x4000_0000_0000_0000L ? PowerRealization.SQUARE
+                    : bits == 0xbff0_0000_0000_0000L ? PowerRealization.RECIPROCAL
+                    : PowerRealization.DIRECT;
+        } else return false;
+        return expected == instruction.powerRealization();
     }
 }

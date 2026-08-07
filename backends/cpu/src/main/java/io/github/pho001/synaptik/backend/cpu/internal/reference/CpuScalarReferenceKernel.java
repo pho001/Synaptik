@@ -10,7 +10,10 @@ import io.github.pho001.synaptik.model.datatype.DataType;
 
 /**
  * Scalar conformance realization for the bounded typed CPU pointwise semantics.
- * It is an unsupported cold-test/reference contract and is never a Runtime IR interpreter.
+ * It evaluates already-lowered primitive floating division and the selected scalar-power plan,
+ * including direct {@link StrictMath#pow(double, double)} evaluation, without reclassifying the
+ * exponent. It is an unsupported cold-test/reference contract and is never a Runtime IR
+ * interpreter.
  */
 public final class CpuScalarReferenceKernel {
     private static final ValueLayout.OfDouble DOUBLE = ValueLayout.JAVA_DOUBLE_UNALIGNED
@@ -163,7 +166,8 @@ public final class CpuScalarReferenceKernel {
             long[] coordinate = coordinates(index, extents);
             for (int boundary = 0; boundary < boundaries.size(); boundary++) {
                 CpuKernelIr.Value value = boundaries.get(boundary);
-                if (value.kind() == CpuKernelIr.Value.Kind.INPUT) values[value.ordinal()] =
+                if (value.kind() == CpuKernelIr.Value.Kind.INPUT
+                        && requiresInputLoad(ir, value.ordinal())) values[value.ordinal()] =
                         load(arguments.get(boundary), value.dataType(),
                                 address(bindings.get(boundary), coordinate));
             }
@@ -191,9 +195,13 @@ public final class CpuScalarReferenceKernel {
             case ADD -> arithmetic(type, left, right, 0);
             case SUB -> arithmetic(type, left, right, 1);
             case MUL -> arithmetic(type, left, right, 2);
+            case DIV -> arithmetic(type, left, right, 3);
             case SCALAR_ADD -> arithmetic(type, left, scalar, 0);
             case SCALAR_SUB -> arithmetic(type, left, scalar, 1);
             case SCALAR_MUL -> arithmetic(type, left, scalar, 2);
+            case SCALAR_DIV -> arithmetic(type, left, scalar, 3);
+            case SCALAR_POW -> power(type, left, instruction.scalarImmediate(),
+                    instruction.powerRealization());
             case NEG -> { if (type == DataType.FLOAT64) yield Double.valueOf(-(double) left);
                 yield Float.valueOf(-(float) left); }
             case GELU_EXACT -> gelu((double) left);
@@ -216,15 +224,56 @@ public final class CpuScalarReferenceKernel {
     private static Object arithmetic(DataType type, Object left, Object right, int operation) {
         return switch (type) {
             case FLOAT64 -> { double a = (double) left, b = (double) right;
-                yield operation == 0 ? a + b : operation == 1 ? a - b : a * b; }
+                yield operation == 0 ? a + b : operation == 1 ? a - b
+                        : operation == 2 ? a * b : a / b; }
             case FLOAT32 -> { float a = (float) left, b = (float) right;
-                yield operation == 0 ? a + b : operation == 1 ? a - b : a * b; }
+                yield operation == 0 ? a + b : operation == 1 ? a - b
+                        : operation == 2 ? a * b : a / b; }
             case INT32 -> { int a = (int) left, b = (int) right;
+                if (operation == 3) throw new IllegalArgumentException("integral division unsupported");
                 yield operation == 0 ? a + b : operation == 1 ? a - b : a * b; }
             case INT64 -> { long a = (long) left, b = (long) right;
+                if (operation == 3) throw new IllegalArgumentException("integral division unsupported");
                 yield operation == 0 ? a + b : operation == 1 ? a - b : a * b; }
             default -> throw new IllegalArgumentException("unsupported arithmetic type");
         };
+    }
+
+    private static Object power(DataType type, Object base, CpuKernelIr.ScalarImmediate exponent,
+            CpuKernelIr.PowerRealization realization) {
+        if (type == DataType.FLOAT64) {
+            double value = base == null ? Double.NaN : (double) base;
+            return switch (realization) {
+                case DIRECT -> StrictMath.pow(value, Double.longBitsToDouble(exponent.bits()));
+                case POSITIVE_ONE -> 1.0d;
+                case IDENTITY -> value;
+                case SQUARE -> value * value;
+                case RECIPROCAL -> 1.0d / value;
+            };
+        }
+        float value = base == null ? Float.NaN : (float) base;
+        return switch (realization) {
+            case DIRECT -> (float) StrictMath.pow((double) value,
+                    (double) Float.intBitsToFloat((int) exponent.bits()));
+            case POSITIVE_ONE -> 1.0f;
+            case IDENTITY -> value;
+            case SQUARE -> value * value;
+            case RECIPROCAL -> 1.0f / value;
+        };
+    }
+
+    private static boolean requiresInputLoad(CpuKernelIr ir, int ordinal) {
+        return ir.instructions().stream().anyMatch(instruction -> {
+            for (int input = 0; input < instruction.inputs().size(); input++) {
+                if (instruction.inputs().get(input) != ordinal) continue;
+                if (input == 0 && instruction.opcode()
+                        == io.github.pho001.synaptik.backend.cpu.internal.ir.CpuPointwiseOpcode.SCALAR_POW
+                        && instruction.powerRealization()
+                            == CpuKernelIr.PowerRealization.POSITIVE_ONE) continue;
+                return true;
+            }
+            return false;
+        });
     }
 
     private static boolean relation(io.github.pho001.synaptik.backend.cpu.internal.ir.CpuPointwiseOpcode opcode,

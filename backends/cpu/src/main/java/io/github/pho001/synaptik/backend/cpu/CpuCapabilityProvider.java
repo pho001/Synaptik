@@ -24,7 +24,8 @@ import java.util.Objects;
  *
  * <p>The provider has a stable CPU ownership identity and advertises the bounded, fully static
  * pointwise matrix implemented by the portable route: selected same-type arithmetic, floating
- * negation and classification, comparisons, floating {@code WHERE}, same-type {@code CAST}, and
+ * division and scalar power, negation and classification, comparisons, floating {@code WHERE},
+ * same-type {@code CAST}, and
  * exact {@code FLOAT64} {@code GELU}. Every descriptor has a resolved layout, and results obey the
  * Model family's shape rule. Complete-partition lowering remains stricter: it validates a connected
  * one-to-eight-occurrence chain, normalizes exact layout geometry, and applies alias, fan-out,
@@ -75,14 +76,19 @@ public final class CpuCapabilityProvider implements BackendCapabilityProvider {
             if (kind instanceof BinaryArithmeticKind arithmetic) {
                 return attrs == NoOperationAttrs.INSTANCE
                         && (arithmetic == BinaryArithmeticKind.ADD || arithmetic == BinaryArithmeticKind.SUB
-                            || arithmetic == BinaryArithmeticKind.MUL)
+                            || arithmetic == BinaryArithmeticKind.MUL
+                            || arithmetic == BinaryArithmeticKind.DIV
+                                && floating(output.dataType()))
                         && sameNumeric(query.inputs(), output)
                         && broadcast(query.inputs().get(0), query.inputs().get(1), output);
             }
             if (kind instanceof ScalarElementwiseKind scalar) {
                 return attrs instanceof ScalarValueAttrs value
                         && (scalar == ScalarElementwiseKind.ADD || scalar == ScalarElementwiseKind.SUB
-                            || scalar == ScalarElementwiseKind.MUL)
+                            || scalar == ScalarElementwiseKind.MUL
+                            || (scalar == ScalarElementwiseKind.DIV
+                                || scalar == ScalarElementwiseKind.POW)
+                                && floating(output.dataType()))
                         && query.inputs().size() == 1 && supportedNumeric(query.inputs().getFirst().dataType())
                         && sameTypeAndShape(query.inputs().getFirst(), output)
                         && value.value().dataType() == output.dataType();

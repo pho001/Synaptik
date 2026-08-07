@@ -20,9 +20,13 @@ class CpuPointwiseGeneratedKernelTest {
         var cases = new ArrayList<Case>();
         for (CpuPointwiseOpcode opcode : List.of(CpuPointwiseOpcode.ADD, CpuPointwiseOpcode.SUB,
                 CpuPointwiseOpcode.MUL)) for (DataType type : numericTypes()) cases.add(new Case(opcode, type));
+        for (DataType type : List.of(DataType.FLOAT64, DataType.FLOAT32))
+            cases.add(new Case(CpuPointwiseOpcode.DIV, type));
         for (CpuPointwiseOpcode opcode : List.of(CpuPointwiseOpcode.SCALAR_ADD,
                 CpuPointwiseOpcode.SCALAR_SUB, CpuPointwiseOpcode.SCALAR_MUL))
             for (DataType type : numericTypes()) cases.add(new Case(opcode, type));
+        for (DataType type : List.of(DataType.FLOAT64, DataType.FLOAT32))
+            cases.add(new Case(CpuPointwiseOpcode.SCALAR_DIV, type));
         for (DataType type : List.of(DataType.FLOAT64, DataType.FLOAT32)) {
             cases.add(new Case(CpuPointwiseOpcode.NEG, type));
             for (CpuPointwiseOpcode opcode : List.of(CpuPointwiseOpcode.IS_FINITE,
@@ -40,13 +44,14 @@ class CpuPointwiseGeneratedKernelTest {
                 DataType.INT64, DataType.BOOL)) cases.add(new Case(CpuPointwiseOpcode.CAST, type));
 
         for (Case one : cases) assertCase(one);
-        assertEquals(64, cases.size());
+        assertEquals(68, cases.size());
     }
 
     @Test void float64NumericSubsetUsesVectorBodiesWithScalarTails() throws Throwable {
         for (CpuPointwiseOpcode opcode : List.of(CpuPointwiseOpcode.SUB,
                 CpuPointwiseOpcode.SCALAR_ADD, CpuPointwiseOpcode.SCALAR_SUB,
-                CpuPointwiseOpcode.SCALAR_MUL, CpuPointwiseOpcode.NEG)) {
+                CpuPointwiseOpcode.SCALAR_MUL, CpuPointwiseOpcode.DIV,
+                CpuPointwiseOpcode.SCALAR_DIV, CpuPointwiseOpcode.NEG)) {
             Case one = new Case(opcode, DataType.FLOAT64);
             CpuKernelIr ir = ir(one);
             List<DataType> types = ir.values().stream().map(CpuKernelIr.Value::dataType).toList();
@@ -73,6 +78,119 @@ class CpuPointwiseGeneratedKernelTest {
             CpuScalarReferenceKernel.execute(ir, reference.stream().map(value -> argument(value,
                     DataType.FLOAT64)).toList(), bindings(generated.size(), count), 0, count);
             assertArrayEquals(expected, output, opcode.name());
+        }
+    }
+
+    @Test void generatedScalarPowerMatchesDirectOracleAndEveryProvedPlan() throws Throwable {
+        double[] exponents = {+0.0d, -0.0d, 1.0d, 2.0d, -1.0d, 3.0d, -2.0d, 0.5d,
+                Double.MIN_VALUE, Double.MAX_VALUE, Double.POSITIVE_INFINITY,
+                Double.NEGATIVE_INFINITY, Double.longBitsToDouble(0x7ff8_0000_0000_0001L)};
+        double[] bases = {+0.0d, -0.0d, Double.MIN_VALUE, 0x0.ffff_ffff_ffff_fp-1022,
+                Double.MIN_NORMAL, -Double.MIN_NORMAL, 0.5d, -0.5d, 1.0d, -1.0d,
+                Double.MAX_VALUE, -Double.MAX_VALUE, Double.POSITIVE_INFINITY,
+                Double.NEGATIVE_INFINITY, Double.NaN,
+                Double.longBitsToDouble(0x7ff8_0000_0000_0042L)};
+        for (double exponent : exponents) {
+            CpuKernelIr ir = powerIr(DataType.FLOAT64, Double.doubleToRawLongBits(exponent));
+            var artifact = powerArtifact(ir, DataType.FLOAT64,
+                    CpuPartitionPreparationPlan.ExecutionStrategy.SCALAR);
+            double[] output = new double[bases.length];
+            artifact.entryPoint().invokeWithArguments(bases, output, geometry(2, bases.length),
+                    0L, (long) bases.length);
+            for (int index = 0; index < bases.length; index++) {
+                double expected = StrictMath.pow(bases[index], exponent);
+                if (Double.isNaN(expected)) assertTrue(Double.isNaN(output[index]));
+                else assertEquals(Double.doubleToRawLongBits(expected),
+                        Double.doubleToRawLongBits(output[index]),
+                        "base=" + bases[index] + " exponent=" + exponent);
+            }
+        }
+
+        float[] floatExponents = {+0.0f, -0.0f, 1.0f, 2.0f, -1.0f, 3.0f, -2.0f, 0.5f,
+                Float.MIN_VALUE, Float.MAX_VALUE, Float.POSITIVE_INFINITY,
+                Float.NEGATIVE_INFINITY, Float.intBitsToFloat(0x7fc0_0001)};
+        float[] floatBases = {+0.0f, -0.0f, Float.MIN_VALUE, 0x0.fffffep-126f,
+                Float.MIN_NORMAL, -Float.MIN_NORMAL, 0.5f, -0.5f, 1.0f, -1.0f,
+                Float.MAX_VALUE, -Float.MAX_VALUE, Float.POSITIVE_INFINITY,
+                Float.NEGATIVE_INFINITY, Float.NaN, Float.intBitsToFloat(0x7fc0_0042)};
+        for (float exponent : floatExponents) {
+            CpuKernelIr ir = powerIr(DataType.FLOAT32,
+                    Float.floatToRawIntBits(exponent) & 0xffff_ffffL);
+            var artifact = powerArtifact(ir, DataType.FLOAT32,
+                    CpuPartitionPreparationPlan.ExecutionStrategy.SCALAR);
+            float[] output = new float[floatBases.length];
+            artifact.entryPoint().invokeWithArguments(floatBases, output,
+                    geometry(2, floatBases.length), 0L, (long) floatBases.length);
+            for (int index = 0; index < floatBases.length; index++) {
+                float expected = (float) StrictMath.pow((double) floatBases[index],
+                        (double) exponent);
+                if (Float.isNaN(expected)) assertTrue(Float.isNaN(output[index]));
+                else assertEquals(Float.floatToRawIntBits(expected),
+                        Float.floatToRawIntBits(output[index]),
+                        "base=" + floatBases[index] + " exponent=" + exponent);
+            }
+        }
+    }
+
+    @Test void generatedBinaryAndScalarDivisionMatchPrimitiveOracleEdges() throws Throwable {
+        double[] left = {Double.NaN, Double.POSITIVE_INFINITY, Double.NEGATIVE_INFINITY,
+                +0.0d, -0.0d, Double.MIN_VALUE, Double.MIN_NORMAL, Double.MAX_VALUE,
+                -Double.MAX_VALUE, 1.0d, -1.0d};
+        double[] right = {1.0d, Double.POSITIVE_INFINITY, Double.NEGATIVE_INFINITY,
+                +0.0d, -0.0d, 2.0d, Double.MAX_VALUE, Double.MIN_VALUE,
+                -Double.MIN_VALUE, 3.0d, -3.0d};
+        CpuKernelIr binary = divisionIr(DataType.FLOAT64, false,
+                Double.doubleToRawLongBits(0.0d));
+        var binaryArtifact = artifact(binary, List.of(DataType.FLOAT64, DataType.FLOAT64,
+                DataType.FLOAT64), List.of(CpuKernelSpecialization.CarrierAccess.DOUBLE_ARRAY,
+                CpuKernelSpecialization.CarrierAccess.DOUBLE_ARRAY,
+                CpuKernelSpecialization.CarrierAccess.DOUBLE_ARRAY));
+        double[] binaryOutput = new double[left.length];
+        binaryArtifact.entryPoint().invokeWithArguments(left, right, binaryOutput,
+                geometry(3, left.length), 0L, (long) left.length);
+        for (int index = 0; index < left.length; index++) assertFloatingResult(
+                left[index] / right[index], binaryOutput[index]);
+
+        float[] input = {Float.NaN, Float.POSITIVE_INFINITY, Float.NEGATIVE_INFINITY,
+                +0.0f, -0.0f, Float.MIN_VALUE, Float.MIN_NORMAL, Float.MAX_VALUE,
+                -Float.MAX_VALUE, 1.0f, -1.0f};
+        float denominator = -0.0f;
+        CpuKernelIr scalar = divisionIr(DataType.FLOAT32, true,
+                Float.floatToRawIntBits(denominator) & 0xffff_ffffL);
+        var scalarArtifact = artifact(scalar, List.of(DataType.FLOAT32, DataType.FLOAT32),
+                List.of(CpuKernelSpecialization.CarrierAccess.FLOAT_ARRAY,
+                        CpuKernelSpecialization.CarrierAccess.FLOAT_ARRAY));
+        float[] scalarOutput = new float[input.length];
+        scalarArtifact.entryPoint().invokeWithArguments(input, scalarOutput,
+                geometry(2, input.length), 0L, (long) input.length);
+        for (int index = 0; index < input.length; index++) assertFloatingResult(
+                input[index] / denominator, scalarOutput[index]);
+    }
+
+    @Test void zeroPowerDoesNotReadTheBaseAndSpecialPowerVectorizes() throws Throwable {
+        int lanes = DoubleVector.SPECIES_PREFERRED.length();
+        CpuKernelIr zero = powerIr(DataType.FLOAT64, Double.doubleToRawLongBits(-0.0d));
+        var scalar = powerArtifact(zero, DataType.FLOAT64,
+                CpuPartitionPreparationPlan.ExecutionStrategy.SCALAR);
+        double[] output = new double[3];
+        scalar.entryPoint().invokeWithArguments(new double[0], output, geometry(2, 3), 0L, 3L);
+        assertArrayEquals(new double[] {1.0d, 1.0d, 1.0d}, output);
+
+        for (double exponent : List.of(+0.0d, 1.0d, 2.0d, -1.0d)) {
+            CpuKernelIr ir = powerIr(DataType.FLOAT64, Double.doubleToRawLongBits(exponent));
+            var vector = powerArtifact(ir, DataType.FLOAT64,
+                    CpuPartitionPreparationPlan.ExecutionStrategy.VECTOR);
+            double[] input = new double[lanes + 1];
+            for (int i = 0; i < input.length; i++) input[i] = i - 2.0d;
+            double[] generated = new double[input.length];
+            vector.entryPoint().invokeWithArguments(input, generated,
+                    geometry(2, input.length), 0L, (long) input.length);
+            for (int i = 0; i < input.length; i++) {
+                double expected = StrictMath.pow(input[i], exponent);
+                if (Double.isNaN(expected)) assertTrue(Double.isNaN(generated[i]));
+                else assertEquals(Double.doubleToRawLongBits(expected),
+                        Double.doubleToRawLongBits(generated[i]));
+            }
         }
     }
 
@@ -126,6 +244,61 @@ class CpuPointwiseGeneratedKernelTest {
         var generator = new CpuClassFileKernelGenerator();
         return generator.defineClassBytes(specialization,
                 generator.generateClassBytes(specialization, ir));
+    }
+
+    private static CpuGeneratedKernel powerArtifact(CpuKernelIr ir, DataType type,
+            CpuPartitionPreparationPlan.ExecutionStrategy strategy) {
+        int species = strategy.compute()
+                == CpuPartitionPreparationPlan.ExecutionStrategy.Compute.VECTOR
+                ? DoubleVector.SPECIES_PREFERRED.vectorBitSize() : 0;
+        var specialization = new CpuKernelSpecialization(
+                CpuLoweringFingerprint.fromHex(ir.structuralKey()),
+                CpuKernelSpecialization.NumericalMode.EXACT_DEFAULT, strategy,
+                List.of(type, type), List.of(heapCarrier(type), heapCarrier(type)), species, -1,
+                List.of(ir.instructions().getFirst().powerRealization()));
+        var generator = new CpuClassFileKernelGenerator();
+        return generator.defineClassBytes(specialization,
+                generator.generateClassBytes(specialization, ir));
+    }
+
+    private static CpuKernelIr powerIr(DataType type, long exponentBits) {
+        CpuKernelIr.ScalarImmediate exponent = new CpuKernelIr.ScalarImmediate(type, exponentBits);
+        CpuKernelIr.PowerRealization realization = new io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuScalarPowerAnalysis()
+                .analyze(exponent);
+        return new CpuKernelIr(List.of(
+                new CpuKernelIr.Value(0, type, CpuKernelIr.Value.Kind.INPUT,
+                        dense(CpuAccessPlan.AccessKind.READ)),
+                new CpuKernelIr.Value(1, type, CpuKernelIr.Value.Kind.OUTPUT,
+                        dense(CpuAccessPlan.AccessKind.WRITE))),
+                List.of(new CpuKernelIr.Instruction(CpuPointwiseOpcode.SCALAR_POW,
+                        List.of(0), 1, exponent, realization)), new CpuKernelIr.Loop("start", "end"),
+                List.of(new CpuKernelIr.Store(1, 0)));
+    }
+
+    private static CpuKernelIr divisionIr(DataType type, boolean scalar, long scalarBits) {
+        int inputCount = scalar ? 1 : 2;
+        var values = new ArrayList<CpuKernelIr.Value>();
+        for (int index = 0; index < inputCount; index++) values.add(new CpuKernelIr.Value(index,
+                type, CpuKernelIr.Value.Kind.INPUT, dense(CpuAccessPlan.AccessKind.READ)));
+        values.add(new CpuKernelIr.Value(inputCount, type, CpuKernelIr.Value.Kind.OUTPUT,
+                dense(CpuAccessPlan.AccessKind.WRITE)));
+        return new CpuKernelIr(values, List.of(new CpuKernelIr.Instruction(
+                scalar ? CpuPointwiseOpcode.SCALAR_DIV : CpuPointwiseOpcode.DIV,
+                java.util.stream.IntStream.range(0, inputCount).boxed().toList(), inputCount,
+                scalar ? new CpuKernelIr.ScalarImmediate(type, scalarBits) : null)),
+                new CpuKernelIr.Loop("start", "end"),
+                List.of(new CpuKernelIr.Store(inputCount, 0)));
+    }
+
+    private static void assertFloatingResult(double expected, double actual) {
+        if (Double.isNaN(expected)) assertTrue(Double.isNaN(actual));
+        else assertEquals(Double.doubleToRawLongBits(expected),
+                Double.doubleToRawLongBits(actual));
+    }
+
+    private static void assertFloatingResult(float expected, float actual) {
+        if (Float.isNaN(expected)) assertTrue(Float.isNaN(actual));
+        else assertEquals(Float.floatToRawIntBits(expected), Float.floatToRawIntBits(actual));
     }
 
     private static java.lang.foreign.MemorySegment segmentOf(Object array) {

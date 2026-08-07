@@ -53,13 +53,15 @@ similarly create [`BoundBufferTransfer`](#bound-buffer-transfer--boundbuffertran
 current [`PreparedPublication`](#prepared-publication--preparedpublication) recipes create
 [`BoundPublication`](#bound-publication--boundpublication) occurrences, and current
 [`RunResult`](#run-result--runresult) leases complete states. The CPU backend supplies concrete
-borrowed and run-owned native buffer representations plus one fully static FLOAT64
-`ADD -> exact GELU -> MUL` partition route. Its normalized access plans cover resolved
+borrowed and run-owned native buffer representations plus one bounded fully static pointwise
+route. Its twenty-two-opcode vocabulary includes same-typed FLOAT32/FLOAT64 Tensor/Tensor DIV,
+Tensor/scalar DIV, and Tensor/scalar POW, while its normalized access plans cover resolved
 right-broadcastable scalar/rank/singleton/multi-axis inputs, zero extents, offsets, positive and
-broadcast-zero strides, injective output layouts, and every ordered heap/segment pattern for the
-four boundaries. Other operation topologies, types, strategies, and routes fail closed. The
-earlier per-node ADD/worker pipeline is Superseded historical evidence rather than the current
-implementation baseline.
+broadcast-zero strides, injective output layouts, and derived heap/segment carrier patterns.
+Connected chains contain one through eight occurrences, keep single-use intermediates virtual,
+and produce one final store. Other operation topologies, types, strategies, and routes fail
+closed. The earlier per-node ADD/worker pipeline is Superseded historical evidence rather than
+the current implementation baseline.
 
 Prepare currently provides the public immutable analysis-side contracts in
 `io.github.pho001.synaptik.prepare.analysis`: `BackendAnalysisInputs`,
@@ -1161,8 +1163,9 @@ concrete Draft tasks.
 
 The immutable CPU-private loop-oriented representation of one CPU execution
 unit. Its route-independent canonical form records typed boundary and virtual values, one
-nineteen-opcode family-oriented pointwise vocabulary, exact typed scalar-immediate bits, ordered
-computation semantics, normalized access-plan form, a universal primitive `start`/`end` loop
+twenty-two-opcode family-oriented pointwise vocabulary, exact typed scalar-immediate bits,
+selected scalar-power realizations, ordered computation semantics, normalized access-plan form,
+a universal primitive `start`/`end` loop
 model, fusion form, output stores, and the numerical semantic version. It contains no compatible
 concrete extents or element count by default, selected route/configuration, thread count, vector
 species, cache root, generator/artifact compatibility setting, `Operation`, `CompiledNode`, graph
@@ -1706,21 +1709,29 @@ already eligible under the caller's permission and the semantic operation contra
 compiler-generated gradient operations share this policy; there is no gradient-specific numerical
 permission.
 
-### Power strength reduction (planned)
+### Scalar-power realization
 
-A backend-prepare realization choice that retains semantic `POW` in the compiled graph while
-implementing an exact typed small integral exponent with multiplication, reciprocal, or
-exponentiation by squaring. Common route-independent backend analysis owns exponent classification,
-numerical eligibility, and the selected plan; emitters and provider adapters only consume it.
+The implemented CPU-prepare choice that retains semantic scalar `POW` in the compiled graph while
+selecting one exact/default realization from the exponent's exact FLOAT32 or FLOAT64 bits. Common
+route-independent CPU analysis owns exponent classification and the selected plan; emitters only
+consume it.
+
+Positive and negative zero select exact positive one, positive one selects identity, positive two
+selects one typed multiply, and negative one selects one typed division of positive one by the
+base. Every other finite value, infinity, and NaN uses direct power. In particular, reciprocal
+power remains semantic `SCALAR_POW(-1)` rather than Tensor/Tensor or Tensor/scalar DIV, even though
+the low-level realization performs division. Multiply chains and exponentiation by squaring are
+not current plans because intermediate rounding, overflow, underflow, and subnormal transitions
+lack a universal exact/default proof.
 
 The current Compiler already bypasses typed scalar `POW(+1)` under task 0003A's exact guards. A
 future graph-level `POW(0)` identity needs a typed shape-correct logical one-splat and a complete
 exceptional-value, constant-sidecar, output/publication, phase/autograd, and descriptor proof.
 `POW(0.5)` is not silently `SQRT`, because domain, signed-zero, exceptional-value, and rounding
-behavior can differ. Tensor exponents qualify only through compiler-owned immutable facts proving
-one exact typed uniform exponent, never through Tensor storage or factory history. Any selected
-realization-changing plan and numerical mode participate in specialization/cache compatibility and
-the cold lowering manifest, with no Runtime hot-path lookup.
+behavior can differ. Tensor/Tensor power remains outside the current CPU route and is never
+inferred from Tensor storage or factory history. The semantic opcode, exact exponent bits,
+selected realization, and numerical mode participate in generated-artifact compatibility and the
+cold lowering manifest under generator schema 6, with no Runtime hot-path lookup.
 
 ### Typed scalar value / `ScalarValue`
 
