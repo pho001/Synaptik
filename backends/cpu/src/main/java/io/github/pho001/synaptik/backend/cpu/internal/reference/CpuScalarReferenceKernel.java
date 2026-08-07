@@ -10,10 +10,10 @@ import io.github.pho001.synaptik.model.datatype.DataType;
 
 /**
  * Scalar conformance realization for the bounded typed CPU pointwise semantics.
- * It evaluates already-lowered primitive floating division and the selected scalar-power plan,
- * including direct {@link StrictMath#pow(double, double)} evaluation, without reclassifying the
- * exponent. It is an unsupported cold-test/reference contract and is never a Runtime IR
- * interpreter.
+ * It evaluates already-lowered primitive arithmetic, exact extrema and clamp, direct Tensor
+ * power, canonical-BOOL logic, and the selected scalar-power plan. Direct power uses {@link
+ * StrictMath#pow(double, double)} without reclassifying an exponent. It is an unsupported
+ * cold-test/reference contract and is never a Runtime IR interpreter.
  */
 public final class CpuScalarReferenceKernel {
     private static final ValueLayout.OfDouble DOUBLE = ValueLayout.JAVA_DOUBLE_UNALIGNED
@@ -196,12 +196,20 @@ public final class CpuScalarReferenceKernel {
             case SUB -> arithmetic(type, left, right, 1);
             case MUL -> arithmetic(type, left, right, 2);
             case DIV -> arithmetic(type, left, right, 3);
+            case MIN -> extrema(type, left, right, true);
+            case MAX -> extrema(type, left, right, false);
+            case POW -> tensorPower(type, left, right);
             case SCALAR_ADD -> arithmetic(type, left, scalar, 0);
             case SCALAR_SUB -> arithmetic(type, left, scalar, 1);
             case SCALAR_MUL -> arithmetic(type, left, scalar, 2);
             case SCALAR_DIV -> arithmetic(type, left, scalar, 3);
             case SCALAR_POW -> power(type, left, instruction.scalarImmediate(),
                     instruction.powerRealization());
+            case SCALAR_MIN -> extrema(type, left, scalar, true);
+            case SCALAR_MAX -> extrema(type, left, scalar, false);
+            case SCALAR_CLAMP -> extrema(type,
+                    extrema(type, left, immediate(instruction.clampImmediate().lower()), false),
+                    immediate(instruction.clampImmediate().upper()), true);
             case NEG -> { if (type == DataType.FLOAT64) yield Double.valueOf(-(double) left);
                 yield Float.valueOf(-(float) left); }
             case GELU_EXACT -> gelu((double) left);
@@ -215,9 +223,33 @@ public final class CpuScalarReferenceKernel {
                     bool(relation(instruction.opcode(), type, left, right));
             case EQUAL -> bool(equal(type, left, right));
             case NOT_EQUAL -> bool(!equal(type, left, right));
+            case LOGICAL_AND -> bool((byte) left == 1 && (byte) right == 1);
+            case LOGICAL_OR -> bool((byte) left == 1 || (byte) right == 1);
+            case LOGICAL_NOT -> bool((byte) left == 0);
             case WHERE -> ((byte) left) == 1 ? values[instruction.inputs().get(1)]
                     : values[instruction.inputs().get(2)];
             case CAST -> left;
+        };
+    }
+
+    private static Object tensorPower(DataType type, Object base, Object exponent) {
+        if (type == DataType.FLOAT64) return Double.valueOf(
+                StrictMath.pow((double) base, (double) exponent));
+        return Float.valueOf((float) StrictMath.pow((double) (float) base,
+                (double) (float) exponent));
+    }
+
+    private static Object extrema(DataType type, Object left, Object right, boolean minimum) {
+        return switch (type) {
+            case FLOAT64 -> minimum ? Math.min((double) left, (double) right)
+                    : Math.max((double) left, (double) right);
+            case FLOAT32 -> minimum ? Math.min((float) left, (float) right)
+                    : Math.max((float) left, (float) right);
+            case INT32 -> minimum ? Math.min((int) left, (int) right)
+                    : Math.max((int) left, (int) right);
+            case INT64 -> minimum ? Math.min((long) left, (long) right)
+                    : Math.max((long) left, (long) right);
+            default -> throw new IllegalArgumentException("unsupported extrema type");
         };
     }
 

@@ -5,12 +5,14 @@ package io.github.pho001.synaptik.backend.cpu.internal.cache;
  *
  * <p>The schema is current-only: changing a code-shaping fact, including scalar versus vector
  * compute, exact vector species, adjusted carrier/access pattern, selected materialized source,
- * opcode vocabulary, or scalar-power realization, requires compatible current-version metadata.
- * Schema 6 introduces floating division and scalar-power compatibility facts. The optional
- * persistent envelope stores this version and has no legacy reader, migration path, or converter.
+ * opcode vocabulary, scalar-power realization, or exact two-bound clamp immediate, requires
+ * compatible current-version metadata. Schema 7 introduces the thirty-one-opcode vocabulary,
+ * first-class clamp instruction shape, Tensor-power emission, extrema, and canonical-BOOL logic.
+ * The optional persistent envelope stores this version and has no legacy reader, migration path,
+ * or converter.
  */
 public final class CpuGeneratorSchema {
-    /** Current schema version. */ public static final int CURRENT_VERSION = 6;
+    /** Current schema version. */ public static final int CURRENT_VERSION = 7;
     /** Generated entry name. */ public static final String ENTRY_NAME = "invoke";
     private CpuGeneratorSchema() { }
 

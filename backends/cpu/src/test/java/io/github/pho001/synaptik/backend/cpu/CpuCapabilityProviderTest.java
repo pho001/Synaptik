@@ -13,6 +13,7 @@ import io.github.pho001.synaptik.model.operation.elementwise.scalar.*;
 import io.github.pho001.synaptik.model.operation.elementwise.cast.*;
 import io.github.pho001.synaptik.model.operation.elementwise.classification.FloatingClassificationKind;
 import io.github.pho001.synaptik.model.operation.elementwise.comparison.BinaryComparisonKind;
+import io.github.pho001.synaptik.model.operation.elementwise.logical.BooleanLogicalKind;
 import io.github.pho001.synaptik.model.operation.elementwise.selection.WhereSelectionKind;
 import io.github.pho001.synaptik.model.shape.Shape;
 import io.github.pho001.synaptik.model.tensor.TensorDescriptor;
@@ -119,7 +120,29 @@ class CpuCapabilityProviderTest {
                 () -> assertFalse(provider.supports(query(ScalarElementwiseKind.POW,
                         new ScalarValueAttrs(ScalarValue.int32(2)), List.of(i32), i32))),
                 () -> assertFalse(provider.supports(query(ScalarElementwiseKind.POW,
-                        new ScalarValueAttrs(ScalarValue.bfloat16(2.0f)), List.of(bf16), bf16))));
+                        new ScalarValueAttrs(ScalarValue.bfloat16(2.0f)), List.of(bf16), bf16))),
+                () -> assertTrue(provider.supports(query(BinaryArithmeticKind.MIN,
+                        NoOperationAttrs.INSTANCE, List.of(i64, i64), i64))),
+                () -> assertTrue(provider.supports(query(BinaryArithmeticKind.MAX,
+                        NoOperationAttrs.INSTANCE, List.of(f32, f32), f32))),
+                () -> assertTrue(provider.supports(query(BinaryArithmeticKind.POW,
+                        NoOperationAttrs.INSTANCE, List.of(f64, f64), f64))),
+                () -> assertFalse(provider.supports(query(BinaryArithmeticKind.POW,
+                        NoOperationAttrs.INSTANCE, List.of(i32, i32), i32))),
+                () -> assertTrue(provider.supports(query(ScalarElementwiseKind.MIN,
+                        new ScalarValueAttrs(ScalarValue.int32(-1)), List.of(i32), i32))),
+                () -> assertTrue(provider.supports(query(ScalarElementwiseKind.CLAMP,
+                        new ClampRangeAttrs(ScalarValue.float32(-0.0f), ScalarValue.float32(+0.0f)),
+                        List.of(f32), f32))),
+                () -> assertFalse(provider.supports(query(ScalarElementwiseKind.CLAMP,
+                        new ClampRangeAttrs(ScalarValue.int32(-1), ScalarValue.int32(1)),
+                        List.of(i32), i32))),
+                () -> assertTrue(provider.supports(query(BooleanLogicalKind.AND,
+                        NoOperationAttrs.INSTANCE, List.of(bool, bool), bool))),
+                () -> assertTrue(provider.supports(query(BooleanLogicalKind.NOT,
+                        NoOperationAttrs.INSTANCE, List.of(bool), bool))),
+                () -> assertFalse(provider.supports(query(BooleanLogicalKind.OR,
+                        NoOperationAttrs.INSTANCE, List.of(i32, i32), bool))));
     }
 
     private static TensorDescriptor descriptor(Shape shape, LayoutDescriptor layout) {

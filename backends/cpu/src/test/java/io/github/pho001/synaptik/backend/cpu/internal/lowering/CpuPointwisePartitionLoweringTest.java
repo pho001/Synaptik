@@ -13,6 +13,8 @@ import io.github.pho001.synaptik.model.layout.LayoutDescriptor;
 import io.github.pho001.synaptik.model.operation.Operation;
 import io.github.pho001.synaptik.model.operation.elementwise.scalar.ScalarElementwiseKind;
 import io.github.pho001.synaptik.model.operation.elementwise.scalar.ScalarValueAttrs;
+import io.github.pho001.synaptik.model.operation.elementwise.scalar.ClampRangeAttrs;
+import io.github.pho001.synaptik.model.operation.elementwise.logical.BooleanLogicalKind;
 import io.github.pho001.synaptik.model.operation.NoOperationAttrs;
 import io.github.pho001.synaptik.model.operation.elementwise.selection.WhereSelectionKind;
 import io.github.pho001.synaptik.model.operation.elementwise.binary.BinaryArithmeticKind;
@@ -109,6 +111,22 @@ class CpuPointwisePartitionLoweringTest {
         } finally { state.close(); }
     }
 
+    @Test void coldBindingRejectsNonCanonicalLogicalInput() {
+        var context = logical();
+        var analysis = new CpuPartitionPreparer().analyze(context);
+        var executable = CpuPartitionFinalizerTest.finalizeExecutable(analysis, Optional.empty());
+        var left = CpuNativeBuffer.allocate(DataType.BOOL, 5, 1);
+        var right = CpuNativeBuffer.allocate(DataType.BOOL, 5, 1);
+        var output = CpuNativeBuffer.allocate(DataType.BOOL, 5, 1);
+        left.segment().set(ValueLayout.JAVA_BYTE, 0, (byte) 2);
+        var state = new RunState(executable.memoryPlan(), List.of(left, right, output).stream()
+                .map(buffer -> List.of(new BufferRepresentationBinding(buffer,
+                        RunResourceOwnership.RUN_OWNED))).toList(), List.of());
+        try {
+            assertThrows(IllegalArgumentException.class, () -> executable.bind(state));
+        } finally { state.close(); }
+    }
+
     @Test void lowersBroadcastDivisionAndEveryScalarPowerPlanAsOrdinaryInstructions() {
         Shape output = Shape.of(2, 3);
         var f32Left = descriptor(DataType.FLOAT32, Shape.of(2, 1));
@@ -152,6 +170,41 @@ class CpuPointwisePartitionLoweringTest {
                                 .scalarPowerRealizations()),
                 () -> assertTrue(direct.loweringManifest().contains("power=[DIRECT]")),
                 () -> assertTrue(square.loweringManifest().contains("power=[SQUARE]")));
+    }
+
+    @Test void lowersExtremaClampTensorPowerAndLogicalOccurrencesWithoutDecomposition() {
+        Shape shape = Shape.of(3);
+        var f64 = descriptor(DataType.FLOAT64, shape);
+        var bool = descriptor(DataType.BOOL, shape);
+        var clamp = new CpuPartitionLowering().lower(single(new Operation(
+                ScalarElementwiseKind.CLAMP, new ClampRangeAttrs(
+                        ScalarValue.float64(-0.0d), ScalarValue.float64(+0.0d))),
+                List.of(f64), f64, CpuPartitionAnalysisInputs.DEFAULT));
+        var tensorPower = new CpuPartitionPreparer().analyze(single(new Operation(
+                BinaryArithmeticKind.POW, NoOperationAttrs.INSTANCE), List.of(f64, f64), f64,
+                vectorInputs())).plan();
+        var logical = new CpuPartitionPreparer().analyze(single(new Operation(
+                BooleanLogicalKind.AND, NoOperationAttrs.INSTANCE), List.of(bool, bool), bool,
+                vectorInputs())).plan();
+        assertAll(
+                () -> assertEquals(1, clamp.kernelIr().instructions().size()),
+                () -> assertEquals(CpuPointwiseOpcode.SCALAR_CLAMP,
+                        clamp.kernelIr().instructions().getFirst().opcode()),
+                () -> assertEquals(Double.doubleToRawLongBits(-0.0d), clamp.kernelIr()
+                        .instructions().getFirst().clampImmediate().lower().bits()),
+                () -> assertEquals(Double.doubleToRawLongBits(+0.0d), clamp.kernelIr()
+                        .instructions().getFirst().clampImmediate().upper().bits()),
+                () -> assertEquals("parallel-scalar", tensorPower.executionStrategy().toString()),
+                () -> assertEquals("parallel-scalar", logical.executionStrategy().toString()),
+                () -> assertEquals(0, tensorPower.vectorSpeciesBitSize()),
+                () -> assertEquals(0, logical.vectorSpeciesBitSize()));
+    }
+
+    private static CpuPartitionAnalysisInputs vectorInputs() {
+        return new CpuPartitionAnalysisInputs(false, List.of(),
+                new CpuPartitionAnalysisInputs.PortableExecutionConfig(
+                        CpuPartitionAnalysisInputs.PortableExecutionConfig.ComputePreference
+                                .VECTOR_IF_ELIGIBLE, 2, 2, 1));
     }
 
     static PrepareContext<CpuPartitionAnalysisInputs> chain(int count) {
@@ -243,5 +296,12 @@ class CpuPointwisePartitionLoweringTest {
         }
         return new PrepareContext<>(partition, List.of(node), values, memory, Map.of(),
                 CpuPartitionAnalysisInputs.DEFAULT);
+    }
+
+    private static PrepareContext<CpuPartitionAnalysisInputs> logical() {
+        Shape shape = Shape.of(5);
+        var bool = descriptor(DataType.BOOL, shape);
+        return single(new Operation(BooleanLogicalKind.OR, NoOperationAttrs.INSTANCE),
+                List.of(bool, bool), bool, CpuPartitionAnalysisInputs.DEFAULT);
     }
 }

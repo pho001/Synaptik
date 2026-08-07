@@ -13,12 +13,12 @@ therefore declares only external inputs and the sole final output, in determinis
 Generated scalar and Java 26 Vector API loops accept primitive `start` and `end` bounds.
 Compatible concrete extents bind on the cold path and share identical class bytes and one
 process-local loaded compatibility identity. The current semantic matrix uses exactly five
-executable carrier types—FLOAT64, FLOAT32, INT32, INT64, and BOOL—and one twenty-two-opcode
+executable carrier types—FLOAT64, FLOAT32, INT32, INT64, and BOOL—and one thirty-one-opcode
 CPU-private pointwise vocabulary. The access family covers scalar/rank/singleton/multi-axis
 broadcasting, zero extents, offsets, positive and broadcast-zero strides, and ordered
-heap/segment/mixed carrier patterns for the derived boundaries. CPU 0005F adds same-typed
-FLOAT32/FLOAT64 Tensor/Tensor division, Tensor/scalar division, and Tensor/scalar power without
-adding Tensor/Tensor power. Cold analysis selects scalar,
+heap/segment/mixed carrier patterns for the derived boundaries. CPU 0005G adds same-typed
+binary/scalar extrema, first-class floating range clamp, direct FLOAT32/FLOAT64 Tensor power, and
+canonical-BOOL logic to CPU 0005F's division and scalar-power coverage. Cold analysis selects scalar,
 vector, parallel-scalar, or parallel-vector execution; vector-ineligible admitted geometry falls
 back to scalar compute. Analysis can also compare direct access with at most one CPU-private
 contiguous input copy from explicit dimensionless cold cost evidence. A selected copy uses one
@@ -425,16 +425,17 @@ enters the analysis input.
 ### Current bounded pointwise family
 
 The portable route maps admitted Model occurrences once into a single CPU-private
-`CpuPointwiseOpcode` vocabulary. The twenty-two opcodes are grouped by family rather than by
+`CpuPointwiseOpcode` vocabulary. The thirty-one opcodes are grouped by family rather than by
 operation-specific lowerer, emitter, executable, or registry class:
 
 | Family | Current admitted semantics and exact types |
 |---|---|
-| Binary arithmetic | Same-type `ADD`, `SUB`, and `MUL` for FLOAT64, FLOAT32, INT32, and INT64; same-type `DIV` for FLOAT64 and FLOAT32 |
-| Scalar arithmetic | Exact typed scalar `ADD`, `SUB`, and `MUL` for the same four numeric types; exact typed scalar `DIV` and `POW` for FLOAT64 and FLOAT32 |
+| Binary arithmetic | Same-type `ADD`, `SUB`, `MUL`, `MIN`, and `MAX` for FLOAT64, FLOAT32, INT32, and INT64; same-type `DIV` and direct Tensor/Tensor `POW` for FLOAT64 and FLOAT32 |
+| Scalar arithmetic and range | Exact typed scalar `ADD`, `SUB`, `MUL`, `MIN`, and `MAX` for the same four numeric types; exact typed scalar `DIV` and `POW` plus first-class range `CLAMP` for FLOAT64 and FLOAT32 |
 | Unary | `NEG` for FLOAT64/FLOAT32 and existing exact `GELU` for FLOAT64 |
 | Classification | `IS_FINITE`, `IS_NAN`, and `IS_INF` for FLOAT64/FLOAT32 to BOOL |
 | Comparison | All six ordered/equality comparisons for the four numeric types to BOOL |
+| Logical | Canonical-BOOL `AND`, `OR`, and `NOT` |
 | Selection | BOOL-conditioned `WHERE` with same-type FLOAT64 or FLOAT32 branches |
 | Cast | Represented-value-preserving same-type `CAST` for all five executable types |
 
@@ -443,7 +444,8 @@ eligible only when every IR value is FLOAT64, every opcode is numeric and vector
 `SUB`, `MUL`, `DIV`, their exact scalar forms, the four special scalar-power plans, `NEG`, or exact
 `GELU`), and the completed contiguous-run
 access checks pass. FLOAT32, integral, BOOL-producing, WHERE, and CAST chains remain supported but
-select scalar compute. Direct scalar power also selects scalar compute. Parallel-scalar remains
+select scalar compute. Direct scalar power and every CPU 0005G opcode also select scalar compute.
+Parallel-scalar remains
 available when cold orchestration selects more than one range. This fallback is a cold strategy
 decision, not an execution failure or a claim of vector coverage.
 
@@ -493,19 +495,21 @@ prepare configuration; hardware, an installed provider, workload size, a tuning 
 benchmark result cannot grant it. Tuning and benchmarking compare only candidates already eligible
 under that permission and contract.
 
-### Floating division and scalar-power realization
+### Floating division, extrema, clamp, and power realization
 
 CPU 0005F adds three distinct semantic opcodes. Binary `DIV` reads two tensor boundaries and uses
 ordinary right-aligned broadcasting. Scalar `DIV` reads one tensor boundary and divides each
 element by the exact same-typed `ScalarValueAttrs` denominator. Scalar `POW` also reads one tensor
 boundary, but retains its exponent bits and semantic power opcode even when its selected
-realization uses division. Tensor/Tensor `POW` remains unsupported.
+realization uses division. CPU 0005G adds direct Tensor/Tensor `POW`; it never applies scalar-
+exponent analysis because the exponent is a runtime Tensor value.
 
 | Semantic operation | FLOAT32 | FLOAT64 | Vector eligibility |
 |---|---|---|---|
 | Tensor/Tensor `DIV` | Primitive `left / right` | Primitive `left / right` | FLOAT64 only, under the existing topology, access, and carrier gates |
 | Tensor/scalar `DIV` | Primitive `input / denominator` | Primitive `input / denominator` | FLOAT64 only, under the same gates |
 | Tensor/scalar `POW` | Direct or one selected exact plan | Direct or one selected exact plan | FLOAT64 special plans only; direct power is scalar-compute only |
+| Tensor/Tensor `POW` | Widen both represented binary32 values, call `StrictMath.pow`, narrow once | Direct `StrictMath.pow` | Scalar-compute only |
 
 Division uses Java/IEEE-754 behavior in operand order. It preserves NaN classification,
 infinities, signed zero, division by zero, overflow, underflow, and subnormal transitions without
@@ -536,10 +540,29 @@ three-instruction unit. The two intermediate graph values remain virtual, instru
 preserved, and only the last result is stored. This example explains lowering structure; it does
 not add a public execution facade or broaden Tensor/Tensor power support.
 
+CPU 0005G also realizes represented-value extrema and first-class range clamp. FLOAT32/FLOAT64
+use `Math.min`/`Math.max` semantics so either NaN propagates and opposite signed zeros select
+negative zero for minimum or positive zero for maximum. INT32/INT64 use exact signed order.
+`CLAMP(input, lower, upper)` remains one Model occurrence and one `SCALAR_CLAMP` instruction whose
+calculation is ordered exactly as `MIN(MAX(input, lower), upper)`.
+
+For a concrete signed-zero example, the input values `[-1.0, -0.0, +0.0, +1.0]` with bounds
+`[-0.0, +0.0]` produce `[-0.0, -0.0, +0.0, +0.0]`. The lower `MAX` stage runs first, then the
+upper `MIN` stage. This result demonstrates directional zero selection and ordered clamp
+evaluation; it does not promise which NaN payload is retained. Reversing the accepted zero bounds
+to `[+0.0, -0.0]` produces `-0.0` for every non-NaN input.
+
+Logical `AND` and `OR` use ordinary right-aligned broadcasting; `NOT` preserves Shape. Cold
+binding validates external BOOL bytes as canonical `0` or `1`, and internal logical results stay
+canonical. Generated loops perform no numeric-truthiness conversion or repeated BOOL validation.
+All nine CPU 0005G opcodes remain scalar or parallel-scalar, while the previously eligible
+FLOAT64 vector rows are unchanged.
+
 The selected realization is a preparation-time code-shaping fact. It participates, with the
 semantic opcode and exact scalar bits, in canonical IR, specialization and artifact compatibility,
-and the optional lowering manifest. Generator schema 6 rejects older stored artifacts as
-incompatible. Generated code performs no exponent comparison or policy lookup, and Runtime only
+and the optional lowering manifest. Generator schema 7 also includes the expanded opcode and
+first-class clamp instruction shape and rejects older stored artifacts as incompatible. Generated
+code performs no exponent comparison or policy lookup, and Runtime only
 invokes the already-prepared executable.
 
 The implemented access regimes are dense linear, scalar/all-zero broadcast,
@@ -847,7 +870,8 @@ architecture capability checkpoint then passed, and the provider milestone is co
 
 The current CPU foundation provides the bounded fully static pointwise matrix and carrier forms
 described above, including scalar execution for all admitted rows and vector execution only for
-eligible FLOAT64 numeric chains. No excluded pointwise or later semantic family, cross-type CAST,
+eligible pre-0005G FLOAT64 numeric chains. No excluded pointwise or later semantic family,
+cross-type CAST,
 native fallback, backend-conformance result, public Engine integration, or performance result is
 implemented or promised.
 Ordinary provider tests

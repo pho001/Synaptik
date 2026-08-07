@@ -6,8 +6,9 @@
  * exact ordered typed primitive-array or {@code MemorySegment} carrier pattern. Scalar generation
  * covers the admitted FLOAT64, FLOAT32, INT32, INT64, and BOOL rows; vector generation remains
  * limited to eligible FLOAT64 numeric opcodes, including primitive division and the four proved
- * scalar-power plans; direct power is scalar-only. Direct FLOAT32 power widens the represented
- * base and exponent exactly, invokes {@code StrictMath.pow}, and narrows once. Segment access uses
+ * scalar-power plans. Extrema, first-class clamp, Tensor power, canonical-BOOL logic, and direct
+ * scalar power are scalar-compute only. Direct FLOAT32 power widens the represented base and
+ * exponent exactly, invokes {@code StrictMath.pow}, and narrows once. Segment access uses
  * native byte order. Dense,
  * scalar-broadcast, last-axis, and block/outer regimes admit
  * unmasked complete vectors followed by the existing scalar body for every remainder; the general

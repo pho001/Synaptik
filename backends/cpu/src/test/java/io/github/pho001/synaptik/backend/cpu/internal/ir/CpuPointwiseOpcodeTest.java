@@ -8,7 +8,7 @@ import org.junit.jupiter.api.Test;
 class CpuPointwiseOpcodeTest {
     @Test void exposesOneBoundedFamilyOrientedOpcodeVocabulary() {
         assertAll(
-                () -> assertEquals(22, CpuPointwiseOpcode.values().length),
+                () -> assertEquals(31, CpuPointwiseOpcode.values().length),
                 () -> assertEquals(2, CpuPointwiseOpcode.ADD.arity()),
                 () -> assertEquals(3, CpuPointwiseOpcode.WHERE.arity()),
                 () -> assertTrue(CpuPointwiseOpcode.SCALAR_MUL.carriesScalarImmediate()),

@@ -63,9 +63,11 @@ public record CpuKernelIr(
      *     {@code null}
      * @param powerRealization selected scalar-power realization for {@code SCALAR_POW}, otherwise
      *     {@code null}
+     * @param clampImmediate exact ordered bounds for {@code SCALAR_CLAMP}, otherwise {@code null}
      */
     public record Instruction(CpuPointwiseOpcode opcode, List<Integer> inputs, int output,
-            ScalarImmediate scalarImmediate, PowerRealization powerRealization) {
+            ScalarImmediate scalarImmediate, PowerRealization powerRealization,
+            ClampImmediate clampImmediate) {
         /**
          * Validates topology-local operands.
          *
@@ -89,6 +91,40 @@ public record CpuKernelIr(
             if ((opcode == CpuPointwiseOpcode.SCALAR_POW) != (powerRealization != null)) {
                 throw new IllegalArgumentException("instruction power realization does not match opcode");
             }
+            if ((opcode == CpuPointwiseOpcode.SCALAR_CLAMP) != (clampImmediate != null)) {
+                throw new IllegalArgumentException("instruction clamp immediate does not match opcode");
+            }
+        }
+
+        /**
+         * Creates an instruction with the existing scalar-power shape.
+         * @param opcode non-null opcode
+         * @param inputs non-null ordered input ordinals
+         * @param output non-negative output ordinal
+         * @param scalarImmediate exact scalar bits when required
+         * @param powerRealization selected realization for scalar power
+         * @throws NullPointerException if {@code opcode}, {@code inputs}, or an input is null
+         * @throws IllegalArgumentException if ordinals, arity, immediate, or realization rules
+         *     disagree
+         */
+        public Instruction(CpuPointwiseOpcode opcode, List<Integer> inputs, int output,
+                ScalarImmediate scalarImmediate, PowerRealization powerRealization) {
+            this(opcode, inputs, output, scalarImmediate, powerRealization, null);
+        }
+
+        /**
+         * Creates one first-class range-clamp instruction.
+         * @param opcode non-null {@code SCALAR_CLAMP} opcode
+         * @param inputs non-null one-element input-ordinal list
+         * @param output non-negative output ordinal
+         * @param clampImmediate non-null exact ordered clamp bounds
+         * @throws NullPointerException if {@code opcode}, {@code inputs}, an input, or
+         *     {@code clampImmediate} is null
+         * @throws IllegalArgumentException if ordinals, arity, or clamp-immediate rules disagree
+         */
+        public Instruction(CpuPointwiseOpcode opcode, List<Integer> inputs, int output,
+                ClampImmediate clampImmediate) {
+            this(opcode, inputs, output, null, null, clampImmediate);
         }
 
         /**
@@ -104,7 +140,7 @@ public record CpuKernelIr(
          */
         public Instruction(CpuPointwiseOpcode opcode, List<Integer> inputs, int output,
                 ScalarImmediate scalarImmediate) {
-            this(opcode, inputs, output, scalarImmediate, null);
+            this(opcode, inputs, output, scalarImmediate, null, null);
         }
 
         /**
@@ -117,7 +153,7 @@ public record CpuKernelIr(
          * @throws IllegalArgumentException if ordinals, arity, or immediate requirements disagree
          */
         public Instruction(CpuPointwiseOpcode opcode, List<Integer> inputs, int output) {
-            this(opcode, inputs, output, null, null);
+            this(opcode, inputs, output, null, null, null);
         }
     }
 
@@ -145,6 +181,30 @@ public record CpuKernelIr(
          * @throws NullPointerException if {@code dataType} is {@code null}
          */
         public ScalarImmediate { Objects.requireNonNull(dataType, "dataType"); }
+    }
+
+    /**
+     * Exact ordered typed primitive bounds retained by one first-class clamp instruction.
+     *
+     * @param lower non-null exact lower bound
+     * @param upper non-null exact upper bound of the same FLOAT32 or FLOAT64 type
+     */
+    public record ClampImmediate(ScalarImmediate lower, ScalarImmediate upper) {
+        /**
+         * Validates two same-typed supported floating bounds.
+         * @param lower non-null exact lower bound
+         * @param upper non-null exact upper bound
+         * @throws NullPointerException if either bound is {@code null}
+         * @throws IllegalArgumentException if their types differ or are not FLOAT32/FLOAT64
+         */
+        public ClampImmediate {
+            Objects.requireNonNull(lower, "lower");
+            Objects.requireNonNull(upper, "upper");
+            if (lower.dataType() != upper.dataType()
+                    || lower.dataType() != DataType.FLOAT32 && lower.dataType() != DataType.FLOAT64) {
+                throw new IllegalArgumentException("clamp bounds must have one floating data type");
+            }
+        }
     }
 
     /**
@@ -235,7 +295,7 @@ public record CpuKernelIr(
                 .append(v.accessPlan().contiguousSuffix()).append('|'));
         instructions.forEach(i -> text.append(i.opcode()).append(':').append(i.inputs())
                 .append('>').append(i.output()).append(':').append(i.scalarImmediate()).append(':')
-                .append(i.powerRealization()).append('|'));
+                .append(i.powerRealization()).append(':').append(i.clampImmediate()).append('|'));
         stores.forEach(s -> text.append("store:").append(s.value()).append('>')
                 .append(s.outputOrdinal()).append('|'));
         try {
@@ -260,7 +320,7 @@ public record CpuKernelIr(
                 || type == DataType.FLOAT32 || type == DataType.INT32 || type == DataType.INT64);
         boolean valid = switch (opcode.family()) {
             case BINARY_ARITHMETIC -> same && numeric && output == inputs.getFirst()
-                    && (opcode != CpuPointwiseOpcode.DIV
+                    && (opcode != CpuPointwiseOpcode.DIV && opcode != CpuPointwiseOpcode.POW
                         || output == DataType.FLOAT64 || output == DataType.FLOAT32);
             case SCALAR_ARITHMETIC -> numeric && output == inputs.getFirst()
                     && instruction.scalarImmediate().dataType() == output
@@ -269,6 +329,9 @@ public record CpuKernelIr(
                         || output == DataType.FLOAT64 || output == DataType.FLOAT32)
                     && (opcode != CpuPointwiseOpcode.SCALAR_POW
                         || powerRealizationMatches(instruction));
+            case SCALAR_RANGE -> output == inputs.getFirst()
+                    && (output == DataType.FLOAT64 || output == DataType.FLOAT32)
+                    && instruction.clampImmediate().lower().dataType() == output;
             case UNARY -> output == inputs.getFirst()
                     && (opcode == CpuPointwiseOpcode.GELU_EXACT
                         ? output == DataType.FLOAT64
@@ -276,6 +339,8 @@ public record CpuKernelIr(
             case CLASSIFICATION -> (inputs.getFirst() == DataType.FLOAT64
                     || inputs.getFirst() == DataType.FLOAT32) && output == DataType.BOOL;
             case COMPARISON -> same && numeric && output == DataType.BOOL;
+            case LOGICAL -> inputs.stream().allMatch(type -> type == DataType.BOOL)
+                    && output == DataType.BOOL;
             case SELECTION -> inputs.get(0) == DataType.BOOL
                     && inputs.get(1) == inputs.get(2) && output == inputs.get(1)
                     && (output == DataType.FLOAT64 || output == DataType.FLOAT32);

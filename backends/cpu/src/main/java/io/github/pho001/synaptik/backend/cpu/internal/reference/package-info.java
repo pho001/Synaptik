@@ -2,7 +2,8 @@
  * Owns the unsupported scalar conformance and fail-closed reference realization.
  *
  * <p>The reference code evaluates the already-lowered typed CPU opcode sequence, including the
- * shared scalar error-function behavior, primitive floating division, and selected exact/default
+ * shared scalar error-function behavior, primitive floating division, represented-value extrema,
+ * first-class clamp, direct Tensor power, canonical-BOOL logic, and selected exact/default
  * scalar-power realization, over the same normalized heap/segment access bindings
  * used by generated code across all five access regimes. It is test and conformance support: it
  * does not interpret Model operations, run inside Runtime, dispatch a Runtime fallback, or define

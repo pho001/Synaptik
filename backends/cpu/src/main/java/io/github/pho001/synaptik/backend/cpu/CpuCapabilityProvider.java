@@ -9,6 +9,8 @@ import io.github.pho001.synaptik.model.operation.elementwise.cast.CastAttrs;
 import io.github.pho001.synaptik.model.operation.elementwise.cast.CastKind;
 import io.github.pho001.synaptik.model.operation.elementwise.classification.FloatingClassificationKind;
 import io.github.pho001.synaptik.model.operation.elementwise.comparison.BinaryComparisonKind;
+import io.github.pho001.synaptik.model.operation.elementwise.logical.BooleanLogicalKind;
+import io.github.pho001.synaptik.model.operation.elementwise.scalar.ClampRangeAttrs;
 import io.github.pho001.synaptik.model.operation.elementwise.scalar.ScalarElementwiseKind;
 import io.github.pho001.synaptik.model.operation.elementwise.scalar.ScalarValueAttrs;
 import io.github.pho001.synaptik.model.operation.elementwise.selection.WhereSelectionKind;
@@ -23,8 +25,9 @@ import java.util.Objects;
  * Reports the executable semantic coverage currently delivered by the CPU backend.
  *
  * <p>The provider has a stable CPU ownership identity and advertises the bounded, fully static
- * pointwise matrix implemented by the portable route: selected same-type arithmetic, floating
- * division and scalar power, negation and classification, comparisons, floating {@code WHERE},
+ * pointwise matrix implemented by the portable route: selected same-type arithmetic including
+ * extrema and floating Tensor power, exact scalar arithmetic and floating range clamp,
+ * canonical-BOOL logic, negation and classification, comparisons, floating {@code WHERE},
  * same-type {@code CAST}, and
  * exact {@code FLOAT64} {@code GELU}. Every descriptor has a resolved layout, and results obey the
  * Model family's shape rule. Complete-partition lowering remains stricter: it validates a connected
@@ -52,7 +55,8 @@ public final class CpuCapabilityProvider implements BackendCapabilityProvider {
     /**
      * Reports whether an occurrence belongs to the exact implemented semantic set.
      * Binary and comparison results must equal the current right-aligned broadcast result;
-     * unary, classification, scalar-arithmetic, and same-type-cast results preserve shape;
+     * unary, classification, scalar-arithmetic, range-clamp, logical-NOT, and same-type-cast
+     * results preserve shape; binary logical rows use the same right-aligned broadcast rule;
      * {@code WHERE} applies branch-first then condition broadcasting. Every descriptor must be
      * fully static with a resolved layout. Cross-type casts and all rows outside the implemented
      * matrix return {@code false} without defining conversion or fallback behavior.
@@ -77,21 +81,45 @@ public final class CpuCapabilityProvider implements BackendCapabilityProvider {
                 return attrs == NoOperationAttrs.INSTANCE
                         && (arithmetic == BinaryArithmeticKind.ADD || arithmetic == BinaryArithmeticKind.SUB
                             || arithmetic == BinaryArithmeticKind.MUL
+                            || arithmetic == BinaryArithmeticKind.MIN
+                            || arithmetic == BinaryArithmeticKind.MAX
+                            || arithmetic == BinaryArithmeticKind.POW
+                                && floating(output.dataType())
                             || arithmetic == BinaryArithmeticKind.DIV
                                 && floating(output.dataType()))
                         && sameNumeric(query.inputs(), output)
                         && broadcast(query.inputs().get(0), query.inputs().get(1), output);
             }
             if (kind instanceof ScalarElementwiseKind scalar) {
+                if (scalar == ScalarElementwiseKind.CLAMP) {
+                    return attrs instanceof ClampRangeAttrs range
+                            && query.inputs().size() == 1 && floating(output.dataType())
+                            && sameTypeAndShape(query.inputs().getFirst(), output)
+                            && range.minValue().dataType() == output.dataType()
+                            && range.maxValue().dataType() == output.dataType();
+                }
                 return attrs instanceof ScalarValueAttrs value
                         && (scalar == ScalarElementwiseKind.ADD || scalar == ScalarElementwiseKind.SUB
                             || scalar == ScalarElementwiseKind.MUL
+                            || scalar == ScalarElementwiseKind.MIN
+                            || scalar == ScalarElementwiseKind.MAX
                             || (scalar == ScalarElementwiseKind.DIV
                                 || scalar == ScalarElementwiseKind.POW)
                                 && floating(output.dataType()))
                         && query.inputs().size() == 1 && supportedNumeric(query.inputs().getFirst().dataType())
                         && sameTypeAndShape(query.inputs().getFirst(), output)
                         && value.value().dataType() == output.dataType();
+            }
+            if (kind instanceof BooleanLogicalKind logical) {
+                if (attrs != NoOperationAttrs.INSTANCE || output.dataType() != DataType.BOOL) return false;
+                if (logical == BooleanLogicalKind.NOT) {
+                    return query.inputs().size() == 1
+                            && query.inputs().getFirst().dataType() == DataType.BOOL
+                            && output.shape().equals(query.inputs().getFirst().shape());
+                }
+                return query.inputs().size() == 2
+                        && query.inputs().stream().allMatch(input -> input.dataType() == DataType.BOOL)
+                        && broadcast(query.inputs().get(0), query.inputs().get(1), output);
             }
             if (kind instanceof UnaryElementwiseKind unary) {
                 return attrs == NoOperationAttrs.INSTANCE && query.inputs().size() == 1

@@ -3,8 +3,9 @@
  *
  * <p>Lowering consumes the semantic and logical-memory facts projected by shared Prepare. It
  * derives supported binary arithmetic results with Model {@code ShapeBroadcast}, preserves
- * Shape for scalar arithmetic and power, classifies exact FLOAT32/FLOAT64 scalar exponents into
- * one proved realization or the direct fallback, requires exact GELU shape,
+ * Shape for scalar arithmetic, clamp, and power, preserves canonical BOOL logic, classifies exact
+ * FLOAT32/FLOAT64 scalar exponents into one proved realization or the direct fallback, retains
+ * Tensor/Tensor power as a direct instruction, requires exact GELU shape,
  * normalizes resolved layouts into five access regimes, proves output-write injectivity, and
  * decides fusion legality before resource declaration. Private intermediates remain virtual
  * canonical-IR values. It collaborates with {@code internal.ir} and route-neutral CPU

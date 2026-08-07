@@ -79,6 +79,10 @@ SIMD routes, optional native routes, storage, workspace, and execution.
   materialization accounting, numerical/determinism filtering, and representation planning are
   route-independent. Native provider adapters do not interpret graphs, plan broadcasting or
   fusion, or own shared resource lifetimes.
+- Fusion legality is a fail-closed correctness decision made before profitability. Profitability
+  ranks only complete legal CPU candidates and may select a split plan even when a fused plan is
+  legal. Safe bounded heuristics are the default; optional model autotuning may later measure
+  eligible complete candidates before Runtime, but Runtime never searches or revises the choice.
 - Planning selects one CPU backend owner and one `BackendId("cpu")`. CPU Prepare chooses among the
   portable baseline, OpenBLAS where narrowly eligible, and vendor/platform-specialized peer routes
   by exact capabilities and whole-plan cost. There is no fixed vendor priority.
@@ -192,11 +196,15 @@ created by 0005A. All consume the common analysis above; none creates another ba
 | 0005D | [Materialization, specialization, and persistence evidence gate](tasks/0005d-materialization-specialization-and-persistence-evidence-gate.md) | Complete | 0005C | Added at most one CPU-internal contiguous materialization before assignment, enforced four-candidate/one-artifact/zero-shape/zero-unroll budgets, and recorded a `KEEP_DISABLED` opt-in persistence-evidence verdict. |
 | 0005E | [Portable pointwise types, carriers, and semantic-family expansion](tasks/0005e-portable-pointwise-types-carriers-and-semantic-family-expansion.md) | Complete | 0005D | Delivered the first bounded five-type core pointwise increment through one nineteen-opcode family pipeline, derived-boundary typed carriers, and the completed unit/IR/access/materialization/route/artifact/executable architecture; unsupported rows remain fail-closed. |
 | 0005F | [Floating division and exact scalar-power realization](tasks/0005f-floating-division-and-exact-scalar-power-realization.md) | Complete | 0005E | Added exact/default same-typed FLOAT32/FLOAT64 binary and scalar DIV plus direct scalar `POW`; retained semantic `POW` while selecting only the proved positive-one, identity, one-multiply square, or one-division reciprocal realizations. All three family opcodes preserve the completed pointwise boundaries, and reciprocal power remains semantically distinct from DIV. |
-| 0005G | Remaining portable pointwise-family coverage | Draft | 0005F; sufficient Model semantics for each selected row | Close all remaining selected portable pointwise rows before layout/indexing: pairwise and scalar MIN/MAX, range CLAMP, Tensor/Tensor POW if still selected, remaining unary/transcendental/activation and boolean-logical families, and only the exact cross-type CAST work whose Model numerical conversion policy is sufficient. Keep every unselected, underspecified, or unsupported row fail-closed; do not invent semantics. |
-| 0006 | Portable layout, indexing, ordering, and random family coverage | Draft | 0005G | Generate truthful coverage for executable layout transforms, slicing, padding, tiling, composition, windows, gather/scatter, ordering, one-hot, and explicit-state random/dropout work; metadata-only or zero-work views remain computation-free. |
-| 0007 | Portable reduction, scan, statistics, and normalization family coverage | Draft | 0002–0006, including 0005A–0005G | Generate family-specific range, tile, partial-reduction, and combine bodies for aggregates, arg extrema, scans, softmax/log-softmax, statistics, and normalization with exact semantics and determinism. |
-| 0008 | Portable linear algebra, convolution, pooling, attention, and loss coverage | Draft | 0002–0007 | Generate the remaining portable executable families, including exact fused-partition forms only where the same lowering contracts preserve semantics across storage and execution modes. |
-| 0009 | Portable generated-coverage closure checkpoint | Draft | 0001–0008, explicitly including 0005A–0005G; complete current selected Model semantic inventory | Prove the bytecode/Vector portable route is the truthful supported semantic baseline and fallback, classify metadata-only work, prove unsupported work fails closed, and close capability/conformance before native peer-route expansion. |
+| 0005G | [Extrema, clamp, Tensor power, and logical coverage](tasks/0005g-extrema-clamp-tensor-power-and-logical-coverage.md) | Complete | 0005F; Model 0018T/0018U/0025A | Added exact same-typed binary/scalar MIN/MAX, first-class floating CLAMP, direct floating Tensor/Tensor POW, and canonical-BOOL AND/OR/NOT through the existing family pipeline. Every new row is scalar or parallel-scalar; one-instruction CLAMP, completed budgets, and fail-closed cross-type CAST/unary boundaries remain preserved. |
+| 0005H | Portable unary, transcendental, and activation closure | Draft | 0005G; sufficient Model semantics and per-type conformance policy | Close the remaining selected FLOAT32/FLOAT64 unary, transcendental, and activation rows through one explicit algorithm, special-value, accuracy, and vector-eligibility matrix. Re-audit cross-type CAST but retain it fail-closed unless Model has first fixed numerical conversion semantics. |
+| 0006 | Portable layout, indexing, ordering, and random family coverage | Draft | 0005H | Generate truthful coverage for executable layout transforms, slicing, padding, tiling, composition, windows, gather/scatter, ordering, one-hot, and explicit-state random/dropout work; metadata-only or zero-work views remain computation-free. |
+| 0007 | Portable reduction, scan, statistics, and normalization family coverage | Draft | 0002–0006, including 0005A–0005H | Generate family-specific range, tile, partial-reduction, and combine bodies for aggregates, arg extrema, scans, softmax/log-softmax, statistics, and normalization with exact semantics and determinism. |
+| 0008 | Portable linear algebra, convolution, pooling, attention, and loss coverage | Draft | 0002–0007 | Generate the remaining portable executable families. Establish a bounded initial epilogue direction for MATMUL or convolution followed by an optional compatible bias ADD and at most one already-supported exact pointwise activation or clamp, only when single-use dataflow, Shape/layout, numerical order, publication, and resource rules preserve semantics; all other forms split safely. |
+| 0008A | General partition-DAG computation-unit decomposition and bounded fusion | Draft | 0006–0008 | Decompose one CPU-owned partition directed acyclic graph (DAG) into computation units, then admit bounded vertical and horizontal fusion only across legal edges. Bound fan-out, indexing complexity, generated-code size, simultaneously live values, and unit/candidate count; preserve a deterministic materialized split fallback whenever fusion is illegal, over budget, or unprofitable. |
+| 0008B | Typed specialized-subgraph and epilogue recognition | Draft | 0007–0008A | Add CPU-private typed recognition for a selected closed set of specialized subgraphs: initially MATMUL, convolution, and reduction epilogues plus explicit semantic kernels. Add no public pattern registry or domain-specific language (DSL), no new Model kinds, and no recognition that silently turns decomposed softmax into stable `SOFTMAX`. Unrecognized or ineligible graphs retain ordinary decomposed units. |
+| 0008C | Bounded fusion profitability and typed decision facts | Draft | 0008A–0008B | Rank only complete legal fused and split candidates with bounded safe no-measurement heuristics by default. Retain typed cold accepted, rejected, and selected decision facts, including legality rejection separately from profitability rejection, for later Trace backend payload translation and tuning inspection without exposing a public registry or moving selection into Runtime. |
+| 0009 | Portable generated-coverage closure checkpoint | Draft | 0001–0008C, explicitly including 0005A–0005H and 0008A–0008C; complete current selected Model semantic inventory | Prove the bytecode/Vector portable route is the truthful supported semantic baseline and fallback, including safe general DAG decomposition, bounded recognition/fusion, deterministic split fallback, and typed cold decision evidence. Classify metadata-only work, prove unsupported work fails closed, and close capability/conformance before native peer-route expansion. |
 | 0010 | Narrow OpenBLAS BLAS-compatible native route | Draft | 0005A; 0009; completed OpenBLAS provider | Add only `route.nativeblas.openblas` for eligible BLAS-compatible linear algebra, preserving portable alternatives and using shared lowering, representations, exact filtering, materialization accounting, and whole-plan transition cost; never treat OpenBLAS as universal or preferred. |
 | 0011 | Intel oneMKL BLAS and VML peer routes | Draft | 0005A; 0009; concrete Intel CPU use case and supported oneMKL ABI evidence | Add distinct `route.nativeblas.mkl` BLAS and `route.nativeops.mkl` VML leaves over shared analysis, without duplicating graph interpretation, fusion, access planning, or lifecycle ownership. |
 | 0012 | Intel oneDNN partition peer routes | Draft | 0005A; 0009; stable common CPU lowering; concrete DNN/ML use case and supported oneDNN ABI evidence | Add `route.nativeops.onednn` as a distinct eligible partition route over common lowering/IR and whole-plan cost, without collapsing it into oneMKL or portable code generation. |
@@ -227,8 +235,10 @@ is Complete; detailed
 [CPU 0005E Portable pointwise types, carriers, and semantic-family expansion](tasks/0005e-portable-pointwise-types-carriers-and-semantic-family-expansion.md)
 is Complete. Detailed
 [CPU 0005F Floating division and exact scalar-power realization](tasks/0005f-floating-division-and-exact-scalar-power-realization.md)
-is Complete. CPU 0005G is the next Draft frontier, and every later CPU task remains Draft without
-a detailed specification.
+is Complete. Detailed
+[CPU 0005G Extrema, clamp, Tensor power, and logical coverage](tasks/0005g-extrema-clamp-tensor-power-and-logical-coverage.md)
+is Complete. CPU 0005H is the next Draft frontier, and every later CPU task remains Draft without a detailed
+specification.
 
 Superseded task 0001 remains preserved through its sole detailed CPU
 [capability, representation, binding, and parallel foundation](tasks/0001-cpu-capability-representation-binding-and-parallel-foundation.md)
@@ -292,8 +302,8 @@ two compatible extents. Detailed
 is Complete. It adds right-aligned static broadcast/layout normalization, exact per-boundary
 declaration and accessed-range spans, complete write-injectivity proof, five generated scalar
 state machines, and all sixteen ordered heap/segment carrier specializations. Detailed CPU 0005C
-is Complete. CPU 0005D, detailed CPU 0005E, and detailed CPU 0005F are also Complete; CPU 0005G
-and tasks 0006–0017 remain `Draft` without detailed specifications.
+is Complete. CPU 0005D, detailed CPU 0005E, detailed CPU 0005F, and detailed CPU 0005G are also
+Complete. CPU 0005H and tasks 0006–0017 remain `Draft` without detailed specifications.
 CPU 0005C preserves that exact slice and implements cold selection among all four portable
 strategies. It uses the preferred Java 26 FLOAT64 species only for direct contiguous runs and
 scalar broadcasts, scalar tails and general-odometer fallback, configured/available parallelism
@@ -352,6 +362,19 @@ implementation context passed compile-test, focused generated-kernel validation,
 IR/lowering/generated run, and the sole final 25-suite/102-test CPU run with one opt-in timing
 skip and no failures or errors. Clean documentation context `/root` reused that Java evidence and
 passed CPU Javadoc, Markdown, exact 31-path scope, semantic/status, and whitespace gates.
+
+Detailed CPU 0005G is Complete. It extends the closed family pipeline to 31 opcodes with exact
+same-typed FLOAT32/FLOAT64/INT32/INT64 binary and scalar extrema, first-class FLOAT32/FLOAT64
+range CLAMP, direct same-typed FLOAT32/FLOAT64 Tensor power, and canonical-BOOL AND/OR/NOT.
+CLAMP remains one occurrence and one IR instruction with exact ordered raw bounds. All nine new
+opcodes use scalar or parallel-scalar compute, while existing vector coverage and all fusion,
+access, materialization, specialization, artifact, and lifecycle budgets remain unchanged.
+Generator schema 7 rejects every older envelope without migration. Implementation context
+`/root/cpu_0005g_impl` passed the focused 9-suite/41-test command and exactly one final
+25-suite/106-test CPU command with zero failures/errors and one existing opt-in persistence-timing
+skip. Clean documentation context `/root/cpu_0005g_docs` reused that evidence, finalized affected
+Javadocs and five Markdown records, and passed CPU Javadoc, Markdown, exact authorized-scope,
+semantic/status, and whitespace gates without changing executable Java.
 
 The reset was a working-tree replacement, not deletion of history. CPU 0001–0005 are Superseded
 with all recorded evidence preserved; the repository contains no old/new dual pipeline.
@@ -419,6 +442,20 @@ changing executable Java.
   and explicit semantic kernels as their Draft tasks land. Fusion legality and profitability are
   separate; neither may cross alias/state/random/publication/fan-out/partition or numerical-order
   boundaries. Decomposed softmax is not silently recognized as stable `SOFTMAX`.
+- Draft 0008A first generalizes the current straight-line unit boundary to bounded partition-DAG
+  decomposition with deterministic materialized split fallback. Draft 0008B then owns only a
+  closed typed CPU-private recognition set, and Draft 0008C owns profitability ranking and cold
+  decision facts. Legality rejects a candidate that cannot preserve semantics or resource rules;
+  profitability may reject a legal candidate because of indexing complexity, fan-out, code size,
+  live-value pressure, materialization, route eligibility, or estimated complete-plan cost.
+- Draft 0008C uses safe deterministic no-measurement heuristics for ordinary preparation. Later
+  Config 0006A supplies declarative model-autotuning inputs, Prepare 0004 carries candidates and
+  compatible decisions opaquely, CPU 0016 consumes compatible workload-cache selections, and
+  Tuning 0001–0002 may measure eligible complete candidates when the user explicitly requests
+  model autotuning. Autotuning is not the default fusion-profitability mechanism, and no search,
+  cache mutation, or choice occurs in Runtime. Draft 0008C's typed cold decision facts remain
+  CPU-owned; later Trace backend payloads and tuning inspection may translate or consume them
+  without making Trace or tuning the decision owner.
 - One route-independent `CpuKernelIr` contains typed boundary/virtual values, ordered semantics,
   structural access-plan form, universal start/end loop model, and stores. Selected route, thread
   count, vector species, cache root, slots/segments, graph identities, generator versions, and

@@ -14,6 +14,8 @@ import io.github.pho001.synaptik.model.operation.elementwise.binary.BinaryArithm
 import io.github.pho001.synaptik.model.operation.elementwise.cast.CastKind;
 import io.github.pho001.synaptik.model.operation.elementwise.classification.FloatingClassificationKind;
 import io.github.pho001.synaptik.model.operation.elementwise.comparison.BinaryComparisonKind;
+import io.github.pho001.synaptik.model.operation.elementwise.logical.BooleanLogicalKind;
+import io.github.pho001.synaptik.model.operation.elementwise.scalar.ClampRangeAttrs;
 import io.github.pho001.synaptik.model.operation.elementwise.scalar.ScalarElementwiseKind;
 import io.github.pho001.synaptik.model.operation.elementwise.scalar.ScalarValueAttrs;
 import io.github.pho001.synaptik.model.operation.elementwise.selection.WhereSelectionKind;
@@ -156,10 +158,11 @@ public final class CpuPartitionLowering {
             }).toList();
             CpuPointwiseOpcode opcode = opcode(pending.node());
             CpuKernelIr.ScalarImmediate immediate = scalarImmediate(pending.node());
+            CpuKernelIr.ClampImmediate clamp = clampImmediate(pending.node());
             CpuKernelIr.PowerRealization realization = opcode == CpuPointwiseOpcode.SCALAR_POW
                     ? scalarPowerAnalysis.analyze(immediate) : null;
             irInstructions.add(new CpuKernelIr.Instruction(opcode, inputs,
-                    producedOrdinals.get(pending.output()), immediate, realization));
+                    producedOrdinals.get(pending.output()), immediate, realization, clamp));
         }
         var ir = new CpuKernelIr(irValues, irInstructions,
                 new CpuKernelIr.Loop("start", "end"),
@@ -183,6 +186,8 @@ public final class CpuPartitionLowering {
         if (kind instanceof BinaryArithmeticKind value) return switch (value) {
             case ADD -> CpuPointwiseOpcode.ADD; case SUB -> CpuPointwiseOpcode.SUB;
             case MUL -> CpuPointwiseOpcode.MUL; case DIV -> CpuPointwiseOpcode.DIV;
+            case MIN -> CpuPointwiseOpcode.MIN; case MAX -> CpuPointwiseOpcode.MAX;
+            case POW -> CpuPointwiseOpcode.POW;
             default -> throw unsupported();
         };
         if (kind instanceof ScalarElementwiseKind value) return switch (value) {
@@ -190,6 +195,9 @@ public final class CpuPartitionLowering {
             case MUL -> CpuPointwiseOpcode.SCALAR_MUL;
             case DIV -> CpuPointwiseOpcode.SCALAR_DIV;
             case POW -> CpuPointwiseOpcode.SCALAR_POW;
+            case MIN -> CpuPointwiseOpcode.SCALAR_MIN;
+            case MAX -> CpuPointwiseOpcode.SCALAR_MAX;
+            case CLAMP -> CpuPointwiseOpcode.SCALAR_CLAMP;
             default -> throw unsupported();
         };
         if (kind instanceof UnaryElementwiseKind value) return switch (value) {
@@ -207,6 +215,11 @@ public final class CpuPartitionLowering {
             case LESS_OR_EQUAL -> CpuPointwiseOpcode.LESS_OR_EQUAL;
             case EQUAL -> CpuPointwiseOpcode.EQUAL; case NOT_EQUAL -> CpuPointwiseOpcode.NOT_EQUAL;
         };
+        if (kind instanceof BooleanLogicalKind value) return switch (value) {
+            case AND -> CpuPointwiseOpcode.LOGICAL_AND;
+            case OR -> CpuPointwiseOpcode.LOGICAL_OR;
+            case NOT -> CpuPointwiseOpcode.LOGICAL_NOT;
+        };
         if (kind == WhereSelectionKind.WHERE) return CpuPointwiseOpcode.WHERE;
         if (kind == CastKind.CAST) return CpuPointwiseOpcode.CAST;
         throw unsupported();
@@ -219,6 +232,23 @@ public final class CpuPartitionLowering {
     private static CpuKernelIr.ScalarImmediate scalarImmediate(CompiledNode node) {
         if (!(node.operation().attrs() instanceof ScalarValueAttrs attrs)) return null;
         ScalarValue value = attrs.value();
+        long bits = switch (value.dataType()) {
+            case FLOAT64 -> Double.doubleToRawLongBits(value.float64Value());
+            case FLOAT32 -> Float.floatToRawIntBits(value.float32Value()) & 0xffff_ffffL;
+            case INT32 -> value.int32Value() & 0xffff_ffffL;
+            case INT64 -> value.int64Value();
+            default -> throw new IllegalArgumentException("unsupported scalar immediate type");
+        };
+        return new CpuKernelIr.ScalarImmediate(value.dataType(), bits);
+    }
+
+    private static CpuKernelIr.ClampImmediate clampImmediate(CompiledNode node) {
+        if (!(node.operation().attrs() instanceof ClampRangeAttrs attrs)) return null;
+        return new CpuKernelIr.ClampImmediate(scalarImmediate(attrs.minValue()),
+                scalarImmediate(attrs.maxValue()));
+    }
+
+    private static CpuKernelIr.ScalarImmediate scalarImmediate(ScalarValue value) {
         long bits = switch (value.dataType()) {
             case FLOAT64 -> Double.doubleToRawLongBits(value.float64Value());
             case FLOAT32 -> Float.floatToRawIntBits(value.float32Value()) & 0xffff_ffffL;

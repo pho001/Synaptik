@@ -67,6 +67,37 @@ class CpuKernelIrTest {
                 () -> assertNotEquals(first.structuralKey(), identity.structuralKey()));
     }
 
+    @Test void clampRequiresTwoSameTypedFloatingBoundsAndRetainsExactIdentity() {
+        var negativeZero = new CpuKernelIr.ScalarImmediate(DataType.FLOAT32, 0x8000_0000L);
+        var positiveZero = new CpuKernelIr.ScalarImmediate(DataType.FLOAT32, 0L);
+        var clamp = new CpuKernelIr.ClampImmediate(negativeZero, positiveZero);
+        assertAll(
+                () -> assertDoesNotThrow(() -> clampIr(clamp)),
+                () -> assertThrows(IllegalArgumentException.class,
+                        () -> new CpuKernelIr.Instruction(CpuPointwiseOpcode.SCALAR_CLAMP,
+                                List.of(0), 1)),
+                () -> assertThrows(IllegalArgumentException.class,
+                        () -> new CpuKernelIr.ClampImmediate(negativeZero,
+                                new CpuKernelIr.ScalarImmediate(DataType.FLOAT64, 0L))),
+                () -> assertNotEquals(clampIr(clamp).structuralKey(), clampIr(
+                        new CpuKernelIr.ClampImmediate(positiveZero, positiveZero)).structuralKey()));
+    }
+
+    private static CpuKernelIr clampIr(CpuKernelIr.ClampImmediate immediate) {
+        var read = new CpuAccessPlan(CpuAccessPlan.AccessKind.READ,
+                CpuAccessPlan.Regime.DENSE_LINEAR, 1,
+                List.of(CpuAccessPlan.AxisRole.CONTIGUOUS), 1);
+        var write = new CpuAccessPlan(CpuAccessPlan.AccessKind.WRITE,
+                CpuAccessPlan.Regime.DENSE_LINEAR, 1,
+                List.of(CpuAccessPlan.AxisRole.CONTIGUOUS), 1);
+        return new CpuKernelIr(List.of(
+                new CpuKernelIr.Value(0, DataType.FLOAT32, CpuKernelIr.Value.Kind.INPUT, read),
+                new CpuKernelIr.Value(1, DataType.FLOAT32, CpuKernelIr.Value.Kind.OUTPUT, write)),
+                List.of(new CpuKernelIr.Instruction(CpuPointwiseOpcode.SCALAR_CLAMP,
+                        List.of(0), 1, immediate)), new CpuKernelIr.Loop("start", "end"),
+                List.of(new CpuKernelIr.Store(1, 0)));
+    }
+
     private static CpuKernelIr powerIr(DataType type, CpuKernelIr.ScalarImmediate immediate,
             CpuKernelIr.PowerRealization realization) {
         var read = new CpuAccessPlan(CpuAccessPlan.AccessKind.READ,

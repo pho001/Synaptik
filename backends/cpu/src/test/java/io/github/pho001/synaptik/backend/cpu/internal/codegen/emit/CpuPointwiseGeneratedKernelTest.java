@@ -22,11 +22,20 @@ class CpuPointwiseGeneratedKernelTest {
                 CpuPointwiseOpcode.MUL)) for (DataType type : numericTypes()) cases.add(new Case(opcode, type));
         for (DataType type : List.of(DataType.FLOAT64, DataType.FLOAT32))
             cases.add(new Case(CpuPointwiseOpcode.DIV, type));
+        for (CpuPointwiseOpcode opcode : List.of(CpuPointwiseOpcode.MIN, CpuPointwiseOpcode.MAX))
+            for (DataType type : numericTypes()) cases.add(new Case(opcode, type));
+        for (DataType type : List.of(DataType.FLOAT64, DataType.FLOAT32))
+            cases.add(new Case(CpuPointwiseOpcode.POW, type));
         for (CpuPointwiseOpcode opcode : List.of(CpuPointwiseOpcode.SCALAR_ADD,
                 CpuPointwiseOpcode.SCALAR_SUB, CpuPointwiseOpcode.SCALAR_MUL))
             for (DataType type : numericTypes()) cases.add(new Case(opcode, type));
         for (DataType type : List.of(DataType.FLOAT64, DataType.FLOAT32))
             cases.add(new Case(CpuPointwiseOpcode.SCALAR_DIV, type));
+        for (CpuPointwiseOpcode opcode : List.of(CpuPointwiseOpcode.SCALAR_MIN,
+                CpuPointwiseOpcode.SCALAR_MAX)) for (DataType type : numericTypes())
+            cases.add(new Case(opcode, type));
+        for (DataType type : List.of(DataType.FLOAT64, DataType.FLOAT32))
+            cases.add(new Case(CpuPointwiseOpcode.SCALAR_CLAMP, type));
         for (DataType type : List.of(DataType.FLOAT64, DataType.FLOAT32)) {
             cases.add(new Case(CpuPointwiseOpcode.NEG, type));
             for (CpuPointwiseOpcode opcode : List.of(CpuPointwiseOpcode.IS_FINITE,
@@ -40,11 +49,14 @@ class CpuPointwiseGeneratedKernelTest {
             cases.add(new Case(opcode, type));
         cases.add(new Case(CpuPointwiseOpcode.WHERE, DataType.FLOAT64));
         cases.add(new Case(CpuPointwiseOpcode.WHERE, DataType.FLOAT32));
+        cases.add(new Case(CpuPointwiseOpcode.LOGICAL_AND, DataType.BOOL));
+        cases.add(new Case(CpuPointwiseOpcode.LOGICAL_OR, DataType.BOOL));
+        cases.add(new Case(CpuPointwiseOpcode.LOGICAL_NOT, DataType.BOOL));
         for (DataType type : List.of(DataType.FLOAT64, DataType.FLOAT32, DataType.INT32,
                 DataType.INT64, DataType.BOOL)) cases.add(new Case(CpuPointwiseOpcode.CAST, type));
 
         for (Case one : cases) assertCase(one);
-        assertEquals(68, cases.size());
+        assertEquals(91, cases.size());
     }
 
     @Test void float64NumericSubsetUsesVectorBodiesWithScalarTails() throws Throwable {
@@ -165,6 +177,64 @@ class CpuPointwiseGeneratedKernelTest {
                 geometry(2, input.length), 0L, (long) input.length);
         for (int index = 0; index < input.length; index++) assertFloatingResult(
                 input[index] / denominator, scalarOutput[index]);
+    }
+
+    @Test void extremaClampTensorPowerAndLogicalRowsPreserveExactEdgeSemantics() throws Throwable {
+        CpuKernelIr min = ir(new Case(CpuPointwiseOpcode.MIN, DataType.FLOAT64));
+        var minArtifact = artifact(min, List.of(DataType.FLOAT64, DataType.FLOAT64, DataType.FLOAT64),
+                java.util.Collections.nCopies(3, CpuKernelSpecialization.CarrierAccess.DOUBLE_ARRAY));
+        double[] left = {-0.0d, +0.0d, Double.NaN, Double.POSITIVE_INFINITY};
+        double[] right = {+0.0d, -0.0d, 1.0d, Double.NEGATIVE_INFINITY};
+        double[] minimum = new double[4];
+        minArtifact.entryPoint().invokeWithArguments(left, right, minimum, geometry(3, 4), 0L, 4L);
+        assertAll(
+                () -> assertEquals(Double.doubleToRawLongBits(-0.0d),
+                        Double.doubleToRawLongBits(minimum[0])),
+                () -> assertEquals(Double.doubleToRawLongBits(-0.0d),
+                        Double.doubleToRawLongBits(minimum[1])),
+                () -> assertTrue(Double.isNaN(minimum[2])),
+                () -> assertEquals(Double.NEGATIVE_INFINITY, minimum[3]));
+
+        CpuKernelIr clamp = clampIr(DataType.FLOAT64, Double.doubleToRawLongBits(+0.0d),
+                Double.doubleToRawLongBits(-0.0d));
+        var clampArtifact = artifact(clamp, List.of(DataType.FLOAT64, DataType.FLOAT64),
+                java.util.Collections.nCopies(2, CpuKernelSpecialization.CarrierAccess.DOUBLE_ARRAY));
+        double[] clamped = new double[4];
+        clampArtifact.entryPoint().invokeWithArguments(
+                new double[] {-1.0d, -0.0d, +0.0d, 1.0d}, clamped,
+                geometry(2, 4), 0L, 4L);
+        for (double value : clamped) assertEquals(Double.doubleToRawLongBits(-0.0d),
+                Double.doubleToRawLongBits(value));
+
+        CpuKernelIr power = ir(new Case(CpuPointwiseOpcode.POW, DataType.FLOAT32));
+        var powerArtifact = artifact(power, List.of(DataType.FLOAT32, DataType.FLOAT32, DataType.FLOAT32),
+                java.util.Collections.nCopies(3, CpuKernelSpecialization.CarrierAccess.FLOAT_ARRAY));
+        float[] bases = {-2.0f, Float.MIN_VALUE, -0.0f, Float.NaN};
+        float[] exponents = {3.0f, 0.5f, -1.0f, 2.0f};
+        float[] powered = new float[4];
+        powerArtifact.entryPoint().invokeWithArguments(bases, exponents, powered,
+                geometry(3, 4), 0L, 4L);
+        for (int index = 0; index < powered.length; index++) {
+            float expected = (float) StrictMath.pow((double) bases[index], (double) exponents[index]);
+            if (Float.isNaN(expected)) assertTrue(Float.isNaN(powered[index]));
+            else assertEquals(Float.floatToRawIntBits(expected), Float.floatToRawIntBits(powered[index]));
+        }
+
+        for (CpuPointwiseOpcode opcode : List.of(CpuPointwiseOpcode.LOGICAL_AND,
+                CpuPointwiseOpcode.LOGICAL_OR, CpuPointwiseOpcode.LOGICAL_NOT)) {
+            CpuKernelIr logical = ir(new Case(opcode, DataType.BOOL));
+            var logicalArtifact = artifact(logical,
+                    java.util.Collections.nCopies(opcode.arity() + 1, DataType.BOOL),
+                    java.util.Collections.nCopies(opcode.arity() + 1,
+                            CpuKernelSpecialization.CarrierAccess.BYTE_ARRAY));
+            byte[] first = {0, 1, 1, 0};
+            byte[] output = new byte[4];
+            if (opcode.arity() == 2) logicalArtifact.entryPoint().invokeWithArguments(first,
+                    new byte[] {0, 0, 1, 1}, output, geometry(3, 4), 0L, 4L);
+            else logicalArtifact.entryPoint().invokeWithArguments(first, output,
+                    geometry(2, 4), 0L, 4L);
+            for (byte value : output) assertTrue(value == 0 || value == 1);
+        }
     }
 
     @Test void zeroPowerDoesNotReadTheBaseAndSpecialPowerVectorizes() throws Throwable {
@@ -290,6 +360,19 @@ class CpuPointwiseGeneratedKernelTest {
                 List.of(new CpuKernelIr.Store(inputCount, 0)));
     }
 
+    private static CpuKernelIr clampIr(DataType type, long lower, long upper) {
+        return new CpuKernelIr(List.of(
+                new CpuKernelIr.Value(0, type, CpuKernelIr.Value.Kind.INPUT,
+                        dense(CpuAccessPlan.AccessKind.READ)),
+                new CpuKernelIr.Value(1, type, CpuKernelIr.Value.Kind.OUTPUT,
+                        dense(CpuAccessPlan.AccessKind.WRITE))),
+                List.of(new CpuKernelIr.Instruction(CpuPointwiseOpcode.SCALAR_CLAMP,
+                        List.of(0), 1, new CpuKernelIr.ClampImmediate(
+                                new CpuKernelIr.ScalarImmediate(type, lower),
+                                new CpuKernelIr.ScalarImmediate(type, upper)))),
+                new CpuKernelIr.Loop("start", "end"), List.of(new CpuKernelIr.Store(1, 0)));
+    }
+
     private static void assertFloatingResult(double expected, double actual) {
         if (Double.isNaN(expected)) assertTrue(Double.isNaN(actual));
         else assertEquals(Double.doubleToRawLongBits(expected),
@@ -360,8 +443,13 @@ class CpuPointwiseGeneratedKernelTest {
                 dense(CpuAccessPlan.AccessKind.WRITE)));
         CpuKernelIr.ScalarImmediate immediate = one.opcode().carriesScalarImmediate()
                 ? immediate(one.type()) : null;
+        CpuKernelIr.ClampImmediate clamp = one.opcode() == CpuPointwiseOpcode.SCALAR_CLAMP
+                ? new CpuKernelIr.ClampImmediate(
+                        new CpuKernelIr.ScalarImmediate(one.type(), negativeZero(one.type())),
+                        new CpuKernelIr.ScalarImmediate(one.type(), positiveZero(one.type()))) : null;
         return new CpuKernelIr(values, List.of(new CpuKernelIr.Instruction(one.opcode(),
-                java.util.stream.IntStream.range(0, inputs.size()).boxed().toList(), output, immediate)),
+                java.util.stream.IntStream.range(0, inputs.size()).boxed().toList(), output,
+                immediate, null, clamp)),
                 new CpuKernelIr.Loop("start", "end"), List.of(new CpuKernelIr.Store(output, 0)));
     }
 
@@ -404,6 +492,13 @@ class CpuPointwiseGeneratedKernelTest {
             default -> throw new IllegalArgumentException("unsupported immediate");
         });
     }
+
+    private static long negativeZero(DataType type) {
+        return type == DataType.FLOAT64 ? Double.doubleToRawLongBits(-0.0d)
+                : Float.floatToRawIntBits(-0.0f) & 0xffff_ffffL;
+    }
+
+    private static long positiveZero(DataType type) { return 0L; }
 
     private static CpuAccessPlan dense(CpuAccessPlan.AccessKind kind) {
         return new CpuAccessPlan(kind, CpuAccessPlan.Regime.DENSE_LINEAR, 1,

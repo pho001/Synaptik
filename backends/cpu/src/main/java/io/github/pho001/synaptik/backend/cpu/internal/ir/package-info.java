@@ -1,8 +1,8 @@
 /**
  * Defines the unsupported, route-independent canonical CPU kernel intermediate representation.
  *
- * <p>The representation records typed boundary and virtual values, one twenty-two-opcode
- * family-oriented pointwise vocabulary, exact typed scalar-immediate bits, the selected
+ * <p>The representation records typed boundary and virtual values, one thirty-one-opcode
+ * family-oriented pointwise vocabulary, exact typed scalar and two-bound clamp bits, the selected
  * scalar-power realization where applicable, ordered computation,
  * normalized access forms, primitive half-open loop bounds, and ordered stores. Each access form
  * selects one of five scalar state-machine regimes while its binding retains cold extents, base

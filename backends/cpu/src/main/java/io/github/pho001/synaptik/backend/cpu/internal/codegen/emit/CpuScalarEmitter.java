@@ -14,6 +14,9 @@ import java.lang.constant.MethodTypeDesc;
 final class CpuScalarEmitter {
     private static final ClassDesc REFERENCE = ClassDesc.of(CpuScalarReferenceKernel.class.getName());
     private static final ClassDesc STRICT_MATH = ClassDesc.of(StrictMath.class.getName());
+    private static final ClassDesc MATH = ClassDesc.of(Math.class.getName());
+    private static final ClassDesc INTEGER = ClassDesc.of(Integer.class.getName());
+    private static final ClassDesc LONG = ClassDesc.of(Long.class.getName());
     private static final ClassDesc DOUBLE = ClassDesc.of(Double.class.getName());
     private static final ClassDesc FLOAT = ClassDesc.of(Float.class.getName());
     private final CodeBuilder code;
@@ -45,6 +48,20 @@ final class CpuScalarEmitter {
             store(outputType, locals[instruction.output()]);
             return;
         }
+        if (opcode == CpuPointwiseOpcode.POW) {
+            emitTensorPower(instruction, locals, inputType);
+            store(outputType, locals[instruction.output()]);
+            return;
+        }
+        if (opcode == CpuPointwiseOpcode.SCALAR_CLAMP) {
+            load(inputType, locals[instruction.inputs().getFirst()]);
+            loadImmediate(instruction.clampImmediate().lower());
+            extrema(false, inputType);
+            loadImmediate(instruction.clampImmediate().upper());
+            extrema(true, inputType);
+            store(outputType, locals[instruction.output()]);
+            return;
+        }
         load(inputType, locals[instruction.inputs().getFirst()]);
         if (instruction.inputs().size() == 2) {
             load(inputType, locals[instruction.inputs().get(1)]);
@@ -55,8 +72,9 @@ final class CpuScalarEmitter {
             case UNARY -> unary(opcode, inputType);
             case CLASSIFICATION -> classification(opcode, inputType);
             case COMPARISON -> comparison(opcode, inputType);
+            case LOGICAL -> logical(opcode);
             case CAST -> { }
-            case SELECTION -> throw new AssertionError(opcode);
+            case SELECTION, SCALAR_RANGE -> throw new AssertionError(opcode);
         }
         store(outputType, locals[instruction.output()]);
     }
@@ -65,6 +83,12 @@ final class CpuScalarEmitter {
         boolean add = opcode == CpuPointwiseOpcode.ADD || opcode == CpuPointwiseOpcode.SCALAR_ADD;
         boolean sub = opcode == CpuPointwiseOpcode.SUB || opcode == CpuPointwiseOpcode.SCALAR_SUB;
         boolean div = opcode == CpuPointwiseOpcode.DIV || opcode == CpuPointwiseOpcode.SCALAR_DIV;
+        boolean min = opcode == CpuPointwiseOpcode.MIN || opcode == CpuPointwiseOpcode.SCALAR_MIN;
+        boolean max = opcode == CpuPointwiseOpcode.MAX || opcode == CpuPointwiseOpcode.SCALAR_MAX;
+        if (min || max) {
+            extrema(min, type);
+            return;
+        }
         switch (type) {
             case FLOAT64 -> { if (add) code.dadd(); else if (sub) code.dsub();
                 else if (div) code.ddiv(); else code.dmul(); }
@@ -75,6 +99,39 @@ final class CpuScalarEmitter {
             case INT64 -> { if (div) throw new IllegalArgumentException("integral division unsupported");
                 if (add) code.ladd(); else if (sub) code.lsub(); else code.lmul(); }
             default -> throw new IllegalArgumentException("unsupported arithmetic type");
+        }
+    }
+
+    private void emitTensorPower(CpuKernelIr.Instruction instruction, int[] locals, DataType type) {
+        load(type, locals[instruction.inputs().get(0)]);
+        if (type == DataType.FLOAT32) code.f2d();
+        load(type, locals[instruction.inputs().get(1)]);
+        if (type == DataType.FLOAT32) code.f2d();
+        code.invokestatic(STRICT_MATH, "pow", MethodTypeDesc.of(ConstantDescs.CD_double,
+                ConstantDescs.CD_double, ConstantDescs.CD_double));
+        if (type == DataType.FLOAT32) code.d2f();
+    }
+
+    private void extrema(boolean minimum, DataType type) {
+        String method = minimum ? "min" : "max";
+        ClassDesc owner;
+        ClassDesc primitive;
+        switch (type) {
+            case FLOAT64 -> { owner = MATH; primitive = ConstantDescs.CD_double; }
+            case FLOAT32 -> { owner = MATH; primitive = ConstantDescs.CD_float; }
+            case INT32 -> { owner = INTEGER; primitive = ConstantDescs.CD_int; }
+            case INT64 -> { owner = LONG; primitive = ConstantDescs.CD_long; }
+            default -> throw new IllegalArgumentException("unsupported extrema type");
+        }
+        code.invokestatic(owner, method, MethodTypeDesc.of(primitive, primitive, primitive));
+    }
+
+    private void logical(CpuPointwiseOpcode opcode) {
+        switch (opcode) {
+            case LOGICAL_AND -> code.iand();
+            case LOGICAL_OR -> code.ior();
+            case LOGICAL_NOT -> code.loadConstant(1).ixor();
+            default -> throw new AssertionError(opcode);
         }
     }
 

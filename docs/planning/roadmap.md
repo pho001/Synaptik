@@ -101,14 +101,13 @@ The Prepare milestone is therefore closed. The OpenBLAS provider project area is
 CPU 0005A is now Complete and atomically supersedes the provisional CPU 0001–0005 implementation;
 those five task records remain preserved as Superseded historical evidence. The current completed
 CPU implementation frontier is detailed
-[CPU 0005F Floating division and exact scalar-power realization](backends/cpu/tasks/0005f-floating-division-and-exact-scalar-power-realization.md)
-with a twenty-two-opcode pointwise matrix, exact FLOAT32/FLOAT64 binary/scalar division, direct
-scalar power plus four proved exact-bit special realizations, and schema-6 compatibility. CPU
-0005E's five types, derived typed carrier boundaries, scalar coverage, and FLOAT64 numeric-only
-vector boundary remain preserved, as do CPU 0005D's one-copy materialization, explicit
-specialization budgets, bounded optional class-byte persistence, and `KEEP_DISABLED` verdict. CPU
-0005G remaining portable pointwise-family coverage is the next Draft frontier, and every later task
-remains Draft without detailed specifications.
+[CPU 0005G extrema, clamp, Tensor power, and logical coverage](backends/cpu/tasks/0005g-extrema-clamp-tensor-power-and-logical-coverage.md)
+with a thirty-one-opcode matrix, exact same-typed extrema, first-class floating clamp, direct
+floating Tensor power, canonical-BOOL logic, and schema-7 compatibility. CPU 0005F's floating
+division, direct scalar power, and four proved exact-bit special realizations remain preserved, as
+do CPU 0005E's five types and typed carriers, CPU 0005D's one-copy materialization and bounded
+optional persistence, and the existing FLOAT64 numeric-only vector boundary. CPU 0005H is the
+next Draft frontier, and every later task remains Draft without a detailed specification.
 Historical
 [CPU 0001 Capability, representation, binding, and parallel foundation](backends/cpu/tasks/0001-cpu-capability-representation-binding-and-parallel-foundation.md)
 is `Superseded`; historical
@@ -133,8 +132,8 @@ documentation pass reused because it changed no executable Java behavior. Detail
 is Complete. Detailed CPU 0005C vector and parallel strategies are Complete. Detailed CPU 0005D
 materialization/specialization/persistence evidence is also `Complete`; detailed 0005E is
 `Complete` for its bounded first five-type core pointwise increment. Detailed CPU 0005F floating
-division and exact scalar-power realization is `Complete`; CPU 0005G and CPU 0006–0017 remain
-`Draft` without detailed specifications.
+division and exact scalar-power realization is `Complete`; detailed CPU 0005G is `Complete`. CPU
+0005H and CPU 0006–0017 remain `Draft` without detailed specifications.
 CPU 0003
 implements a
 model-independent filesystem store beneath an explicit
@@ -286,18 +285,63 @@ emitters and vendor adapters consume it. Numerical mode and realization-changing
 participate in specialization/cache compatibility and cold manifests, never hot-path policy
 lookup. Forward and compiler-generated gradient operations share the same policy.
 
-Draft CPU 0005G follows 0005F and precedes broader layout/indexing work. It owns all remaining
-selected portable pointwise-family coverage from the live Model inventory: pairwise and scalar
-MIN/MAX, range CLAMP, Tensor/Tensor POW if still selected, remaining unary/transcendental/
-activation and boolean-logical families, and exact cross-type CAST only if the Model numerical
-conversion policy is sufficient. It remains fail-closed and bounded and has no detailed task
-specification. CPU 0006 depends on 0005G, and CPU 0009 closure explicitly includes 0005G so the
-pointwise inventory cannot be omitted silently.
+Complete CPU 0005G follows 0005F and owns the remaining exact algebraic/logical pointwise rows whose
+current Model contracts are already sufficient: same-typed binary/scalar MIN/MAX, first-class
+floating CLAMP, direct floating Tensor/Tensor POW, and canonical-BOOL AND/OR/NOT. It preserves one
+first-class CLAMP instruction and deliberately keeps every new row scalar or parallel-scalar while
+retaining all existing vector coverage. It also records why cross-type CAST remains fail-closed:
+the Model currently permits construction but intentionally defines no numerical conversion.
+The implementation expands the closed vocabulary from 22 to 31 opcodes and generator schema 6
+to 7 without another route, type, public API, or shared-module change. Implementation context
+`/root/cpu_0005g_impl` passed the focused 9-suite/41-test command and exactly one final
+25-suite/106-test CPU command with zero failures/errors and one existing opt-in persistence-timing
+skip. Clean documentation context `/root/cpu_0005g_docs` reused that Java evidence, finalized the
+affected Javadocs, CPU guide, glossary, and planning records, and passed CPU Javadoc, Markdown,
+exact authorized-scope, semantic/status, and whitespace gates without changing executable Java.
+
+Draft CPU 0005H then owns the distinct unary/transcendental/activation closure through an explicit
+algorithm, special-value, accuracy, and vector-eligibility matrix. It re-audits cross-type CAST but
+may not implement it without a completed Model conversion contract. This split replaces the former
+over-broad 0005G row so each isolated task remains reviewable without dropping any selected
+capability. CPU 0006 depends on 0005H, and CPU 0009 closure explicitly includes CPU 0005A–0005H so
+the pointwise inventory cannot be omitted silently.
 
 Whole-partition lowering, fusion legality/profitability, canonical CPU IR, access planning,
 materialization accounting, numerical/determinism filtering, and representation planning remain
 common across routes. Provider adapters do not reinterpret graphs, duplicate broadcast/fusion
 planners, or take shared resource-lifetime ownership.
+
+Draft CPU 0007 already owns reduction, scan, stable multi-pass softmax/log-softmax, statistics,
+and normalization families. Draft CPU 0008 already owns heavy portable linear algebra,
+convolution, pooling, attention, and loss families; its initial bounded epilogue direction is
+MATMUL or convolution followed by an optional compatible bias ADD and at most one existing exact
+pointwise activation or clamp, with a safe split whenever semantic, Shape/layout, publication,
+resource, or numerical-order conditions do not hold. These rows remain the family implementation
+owners rather than being replaced by generic fusion planning.
+
+Before portable closure, Draft CPU 0008A adds general partition-DAG decomposition into computation
+units plus bounded vertical and horizontal fusion with deterministic materialized split fallback.
+Its budgets cover fan-out, indexing complexity, generated-code size, simultaneously live values,
+and candidate/unit count. Draft CPU 0008B then adds a closed typed CPU-private recognizer for
+selected MATMUL, convolution, and reduction epilogues plus explicit semantic kernels. It creates
+no public pattern registry or domain-specific language, adds no Model kind, and never silently
+recognizes decomposed softmax as stable `SOFTMAX`. Draft CPU 0008C ranks only complete legal fused
+and split candidates and records typed cold accepted, rejected, and selected facts. Legality is a
+fail-closed semantic/resource gate; profitability may still select a split candidate because of
+code size, live-value pressure, materialization, route eligibility, or estimated complete-plan
+cost.
+
+Ordinary CPU preparation uses bounded deterministic no-measurement profitability heuristics.
+The distinct future Config 0006A request inputs, Prepare 0004 opaque candidate handoff, CPU 0016
+compatible workload-cache selection, and Tuning 0001–0002 measurement/selection workflow may later
+measure eligible complete candidates only when model autotuning is explicitly requested before
+Runtime. Autotuning is not the default fusion-profitability mechanism, and Runtime never searches,
+reads or mutates tuning caches, or revises a prepared selection. Later Trace backend payloads and
+tuning inspection may consume translated typed cold decision facts without taking ownership of
+CPU legality, recognition, or selection. CPU 0009 depends on 0008A–0008C and closes these
+foundations before CPU 0010–0015 add portable/native peer-route choices; those later routes consume
+the common decomposition, recognition, and profitability decisions instead of creating competing
+graph interpreters or fusion planners.
 
 Portable generation uses family-specific typed lowerers plus shared scalar, vector, heap,
 segment, range, tile, partial-reduction, and combine emitters rather than one god generator.
@@ -408,13 +452,14 @@ inputs may select another type-compatible ordered pattern. Its five generated st
 cover dense linear, all-zero/scalar, last-axis bias, block/outer, and general odometer access.
 Exact cold range spans support constant-time alias checks, and a complete bounded static
 injectivity decision accepts valid interleaved positive strides while rejecting repeated writes.
-Detailed CPU 0005C through CPU 0005F are Complete. CPU 0005G is the next `Draft` task;
-CPU 0005G, CPU 0006–0017, and the refined Config, Prepare, Metal, and tuning rows remain `Draft`
+Detailed CPU 0005C through CPU 0005G are Complete. CPU 0005H is the next `Draft` task.
+CPU 0005H, CPU 0006–0017, and the refined Config, Prepare, Metal, and tuning rows remain `Draft`
 without new detailed specifications.
 Completed OpenBLAS history and every completed project area remain unchanged.
 
-CPU remains the active global project area. CPU 0005A through CPU 0005F are `Complete`; CPU 0005G
-is the next `Draft` frontier, and later CPU work remains `Draft` without detailed specifications.
+CPU remains the active global project area. CPU 0005A through CPU 0005F are `Complete`; detailed
+CPU 0005G is `Complete`, and CPU 0005H plus later CPU work remain `Draft` without
+detailed specifications.
 CPU 0001–0005 are
 historical Superseded records whose Git history
 and validation evidence remain intact. Complete CPU 0004 added no public facade, registry, service locator,
@@ -460,8 +505,8 @@ broadcasts, preserves scalar tails and general-odometer fallback, and borrows an
 caller-owned worker group for deterministic disjoint chunks. Its final corrected CPU module run
 passed 18 suites and 49 tests with zero failures, errors, or skips; clean documentation context
 `/root/cpu_0005c_docs` reused that evidence because no executable Java or tests changed afterward.
-The Ready frontier begins with direct-versus-materialized analysis and persistence/specialization
-evidence; Draft follow-ups then cover broader pointwise families. They retain no hot cursor,
+At the completed CPU 0005C frontier, the next work began with direct-versus-materialized analysis
+and persistence/specialization evidence; later tasks then covered broader pointwise families. They retain no hot cursor,
 universal vectorization, gather, masked tail, tuning, or performance claim. Broadcast gradients
 remain Compiler/Model `SUM_TO_SHAPE` plus later CPU reduction coverage.
 

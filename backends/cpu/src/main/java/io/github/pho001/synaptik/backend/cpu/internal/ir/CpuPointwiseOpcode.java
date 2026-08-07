@@ -1,7 +1,7 @@
 package io.github.pho001.synaptik.backend.cpu.internal.ir;
 
 /**
- * CPU-private, family-oriented pointwise opcode vocabulary with exactly twenty-two opcodes.
+ * CPU-private, family-oriented pointwise opcode vocabulary with exactly thirty-one opcodes.
  *
  * <p>Each opcode is selected once while lowering a Model operation occurrence. Generated and
  * reference execution consume this typed value and never inspect Model operations or strings.</p>
@@ -15,6 +15,12 @@ public enum CpuPointwiseOpcode {
     MUL(Family.BINARY_ARITHMETIC, 2, ResultCategory.INPUT_TYPE, false, true),
     /** Same-type floating binary division in left-divided-by-right order. */
     DIV(Family.BINARY_ARITHMETIC, 2, ResultCategory.INPUT_TYPE, false, true),
+    /** Same-type represented-value minimum. */
+    MIN(Family.BINARY_ARITHMETIC, 2, ResultCategory.INPUT_TYPE, false, false),
+    /** Same-type represented-value maximum. */
+    MAX(Family.BINARY_ARITHMETIC, 2, ResultCategory.INPUT_TYPE, false, false),
+    /** Same-type floating Tensor base and exponent power. */
+    POW(Family.BINARY_ARITHMETIC, 2, ResultCategory.INPUT_TYPE, false, false),
     /** Addition of one exact typed scalar immediate. */
     SCALAR_ADD(Family.SCALAR_ARITHMETIC, 1, ResultCategory.INPUT_TYPE, true, true),
     /** Subtraction of one exact typed scalar immediate. */
@@ -25,6 +31,12 @@ public enum CpuPointwiseOpcode {
     SCALAR_DIV(Family.SCALAR_ARITHMETIC, 1, ResultCategory.INPUT_TYPE, true, true),
     /** Scalar power with one exact exponent and one selected realization fact. */
     SCALAR_POW(Family.SCALAR_ARITHMETIC, 1, ResultCategory.INPUT_TYPE, true, true),
+    /** Minimum with one exact same-typed scalar candidate. */
+    SCALAR_MIN(Family.SCALAR_ARITHMETIC, 1, ResultCategory.INPUT_TYPE, true, false),
+    /** Maximum with one exact same-typed scalar candidate. */
+    SCALAR_MAX(Family.SCALAR_ARITHMETIC, 1, ResultCategory.INPUT_TYPE, true, false),
+    /** One first-class floating range clamp with two exact bounds. */
+    SCALAR_CLAMP(Family.SCALAR_RANGE, 1, ResultCategory.INPUT_TYPE, false, false),
     /** Floating primitive negation. */
     NEG(Family.UNARY, 1, ResultCategory.INPUT_TYPE, false, true),
     /** Exact/default FLOAT64 Gaussian error linear unit. */
@@ -47,6 +59,12 @@ public enum CpuPointwiseOpcode {
     EQUAL(Family.COMPARISON, 2, ResultCategory.BOOL, false, false),
     /** Same-type numeric inequality comparison. */
     NOT_EQUAL(Family.COMPARISON, 2, ResultCategory.BOOL, false, false),
+    /** Canonical-BOOL conjunction. */
+    LOGICAL_AND(Family.LOGICAL, 2, ResultCategory.BOOL, false, false),
+    /** Canonical-BOOL disjunction. */
+    LOGICAL_OR(Family.LOGICAL, 2, ResultCategory.BOOL, false, false),
+    /** Canonical-BOOL complement. */
+    LOGICAL_NOT(Family.LOGICAL, 1, ResultCategory.BOOL, false, false),
     /** Canonical-BOOL selection between same-type floating branches. */
     WHERE(Family.SELECTION, 3, ResultCategory.BRANCH_TYPE, false, false),
     /** Represented-value-preserving same-type explicit cast. */
@@ -56,9 +74,11 @@ public enum CpuPointwiseOpcode {
     public enum Family {
         /** Two-value same-type arithmetic. */ BINARY_ARITHMETIC,
         /** One value plus an exact typed scalar immediate. */ SCALAR_ARITHMETIC,
+        /** One value plus two exact ordered scalar bounds. */ SCALAR_RANGE,
         /** One-value floating computation. */ UNARY,
         /** Floating predicate producing BOOL. */ CLASSIFICATION,
         /** Two-value numeric predicate producing BOOL. */ COMPARISON,
+        /** Canonical-BOOL logic producing canonical BOOL. */ LOGICAL,
         /** BOOL-conditioned branch selection. */ SELECTION,
         /** Same-type represented-value identity. */ CAST
     }

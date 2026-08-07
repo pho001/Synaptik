@@ -54,8 +54,9 @@ current [`PreparedPublication`](#prepared-publication--preparedpublication) reci
 [`BoundPublication`](#bound-publication--boundpublication) occurrences, and current
 [`RunResult`](#run-result--runresult) leases complete states. The CPU backend supplies concrete
 borrowed and run-owned native buffer representations plus one bounded fully static pointwise
-route. Its twenty-two-opcode vocabulary includes same-typed FLOAT32/FLOAT64 Tensor/Tensor DIV,
-Tensor/scalar DIV, and Tensor/scalar POW, while its normalized access plans cover resolved
+route. Its thirty-one-opcode vocabulary includes same-typed binary/scalar extrema, floating
+Tensor/Tensor DIV and POW, Tensor/scalar DIV and POW, first-class floating range CLAMP, and
+canonical-BOOL AND/OR/NOT, while its normalized access plans cover resolved
 right-broadcastable scalar/rank/singleton/multi-axis inputs, zero extents, offsets, positive and
 broadcast-zero strides, injective output layouts, and derived heap/segment carrier patterns.
 Connected chains contain one through eight occurrences, keep single-use intermediates virtual,
@@ -986,7 +987,9 @@ checking. Metadata-only work may require no generated class. Task 0005A implemen
 scalar proving slice and `internal.route.portable`; completed CPU 0005C added preferred-species
 FLOAT64 vector compute and explicit CPU-private parallel orchestration. Completed CPU 0005E now
 uses that route for a bounded five-type pointwise matrix and connected one-to-eight-occurrence
-chains; vector compute remains limited to eligible FLOAT64 numeric-only chains.
+chains. CPU 0005G completes the selected exact algebraic/logical increment through scalar or
+parallel-scalar compute; vector compute remains limited to the previously eligible FLOAT64
+numeric-only chains.
 
 OpenBLAS is not another meaning of portable route. It is a narrow cross-platform native fallback
 for eligible BLAS-compatible linear algebra. It is neither a universal fallback nor preferred over
@@ -1033,8 +1036,9 @@ static entry retains the lowering-derived boundary count.
 ### CPU kernel specialization
 
 The implemented backend-private immutable description of every fact allowed to change one
-generated CPU class. The current form includes schema 5, the canonical lowering fingerprint with
-typed opcode sequence and exact scalar-immediate bits, exact/default numerical mode, generated
+generated CPU class. The current form includes schema 7, the canonical lowering fingerprint with
+typed opcode sequence, exact scalar-immediate bits, exact ordered clamp-bound bits, and selected
+scalar-power realizations, exact/default numerical mode, generated
 scalar/vector compute form, exact preferred FLOAT64 species bit size for vector compute, and the
 complete ordered boundary data-type/carrier pattern.
 The direct-versus-materialized input position and adjusted canonical consumer access form are also
@@ -1163,8 +1167,9 @@ concrete Draft tasks.
 
 The immutable CPU-private loop-oriented representation of one CPU execution
 unit. Its route-independent canonical form records typed boundary and virtual values, one
-twenty-two-opcode family-oriented pointwise vocabulary, exact typed scalar-immediate bits,
-selected scalar-power realizations, ordered computation semantics, normalized access-plan form,
+thirty-one-opcode family-oriented pointwise vocabulary, exact typed scalar-immediate and ordered
+two-bound clamp bits, selected scalar-power realizations, ordered computation semantics,
+normalized access-plan form,
 a universal primitive `start`/`end` loop
 model, fusion form, output stores, and the numerical semantic version. It contains no compatible
 concrete extents or element count by default, selected route/configuration, thread count, vector
@@ -1728,10 +1733,11 @@ The current Compiler already bypasses typed scalar `POW(+1)` under task 0003A's 
 future graph-level `POW(0)` identity needs a typed shape-correct logical one-splat and a complete
 exceptional-value, constant-sidecar, output/publication, phase/autograd, and descriptor proof.
 `POW(0.5)` is not silently `SQRT`, because domain, signed-zero, exceptional-value, and rounding
-behavior can differ. Tensor/Tensor power remains outside the current CPU route and is never
-inferred from Tensor storage or factory history. The semantic opcode, exact exponent bits,
-selected realization, and numerical mode participate in generated-artifact compatibility and the
-cold lowering manifest under generator schema 6, with no Runtime hot-path lookup.
+behavior can differ. Current same-typed FLOAT32/FLOAT64 Tensor/Tensor power is instead always a
+direct `StrictMath.pow` realization and is never inferred from Tensor storage or factory history.
+The scalar semantic opcode, exact exponent bits, selected realization, and numerical mode
+participate in generated-artifact compatibility and the cold lowering manifest under generator
+schema 7, with no Runtime hot-path lookup.
 
 ### Typed scalar value / `ScalarValue`
 
