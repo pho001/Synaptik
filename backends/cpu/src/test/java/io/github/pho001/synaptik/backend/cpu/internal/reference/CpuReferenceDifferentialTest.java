@@ -15,11 +15,21 @@ class CpuReferenceDifferentialTest {
                 () -> assertTrue(Double.isNaN(CpuScalarReferenceKernel.gelu(Double.NaN))),
                 () -> assertEquals(Double.POSITIVE_INFINITY,
                         CpuScalarReferenceKernel.gelu(Double.POSITIVE_INFINITY)),
-                () -> assertTrue(Double.isNaN(
+                () -> assertEquals(Double.doubleToRawLongBits(-0.0), Double.doubleToRawLongBits(
                         CpuScalarReferenceKernel.gelu(Double.NEGATIVE_INFINITY))),
                 () -> assertEquals(Double.doubleToRawLongBits(-0.0),
                         Double.doubleToRawLongBits(CpuScalarReferenceKernel.gelu(-0.0))),
                 () -> assertEquals(0.8427007929497149, CpuScalarReferenceKernel.erf(1.0), 2e-7));
+        assertAll(
+                () -> assertEquals(0.0d, CpuScalarReferenceKernel.sigmoid(Double.NEGATIVE_INFINITY)),
+                () -> assertEquals(1.0d, CpuScalarReferenceKernel.sigmoid(Double.POSITIVE_INFINITY)),
+                () -> assertEquals(0.5d, CpuScalarReferenceKernel.sigmoid(-0.0d)),
+                () -> assertEquals(Double.doubleToRawLongBits(-0.0d), Double.doubleToRawLongBits(
+                        CpuScalarReferenceKernel.geluTanhApproximation(Double.NEGATIVE_INFINITY))),
+                () -> assertEquals(Double.doubleToRawLongBits(-0.0d), Double.doubleToRawLongBits(
+                        CpuScalarReferenceKernel.silu(Double.NEGATIVE_INFINITY))),
+                () -> assertEquals(Double.doubleToRawLongBits(-0.0d), Double.doubleToRawLongBits(
+                        CpuScalarReferenceKernel.silu(-0.0d))));
         double[][] oracle = {
                 {-3.0, -0.00404969409489031}, {-1.0, -0.15865525393145707},
                 {-0.25, -0.100323432704662}, {0.0, 0.0},

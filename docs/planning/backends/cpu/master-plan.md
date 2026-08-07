@@ -197,7 +197,7 @@ created by 0005A. All consume the common analysis above; none creates another ba
 | 0005E | [Portable pointwise types, carriers, and semantic-family expansion](tasks/0005e-portable-pointwise-types-carriers-and-semantic-family-expansion.md) | Complete | 0005D | Delivered the first bounded five-type core pointwise increment through one nineteen-opcode family pipeline, derived-boundary typed carriers, and the completed unit/IR/access/materialization/route/artifact/executable architecture; unsupported rows remain fail-closed. |
 | 0005F | [Floating division and exact scalar-power realization](tasks/0005f-floating-division-and-exact-scalar-power-realization.md) | Complete | 0005E | Added exact/default same-typed FLOAT32/FLOAT64 binary and scalar DIV plus direct scalar `POW`; retained semantic `POW` while selecting only the proved positive-one, identity, one-multiply square, or one-division reciprocal realizations. All three family opcodes preserve the completed pointwise boundaries, and reciprocal power remains semantically distinct from DIV. |
 | 0005G | [Extrema, clamp, Tensor power, and logical coverage](tasks/0005g-extrema-clamp-tensor-power-and-logical-coverage.md) | Complete | 0005F; Model 0018T/0018U/0025A | Added exact same-typed binary/scalar MIN/MAX, first-class floating CLAMP, direct floating Tensor/Tensor POW, and canonical-BOOL AND/OR/NOT through the existing family pipeline. Every new row is scalar or parallel-scalar; one-instruction CLAMP, completed budgets, and fail-closed cross-type CAST/unary boundaries remain preserved. |
-| 0005H | Portable unary, transcendental, and activation closure | Draft | 0005G; sufficient Model semantics and per-type conformance policy | Close the remaining selected FLOAT32/FLOAT64 unary, transcendental, and activation rows through one explicit algorithm, special-value, accuracy, and vector-eligibility matrix. Re-audit cross-type CAST but retain it fail-closed unless Model has first fixed numerical conversion semantics. |
+| 0005H | [Portable unary, transcendental, and activation closure](tasks/0005h-portable-unary-transcendental-and-activation-closure.md) | Complete | 0005G; Model 0018P/0018T1/0019A semantics; Java 26 math/Vector contracts | Closed all nineteen FLOAT32/FLOAT64 unary kinds through the existing family pipeline, preserved completed NEG and classification rows, extended/corrected GELU, selected an explicit scalar/vector algorithm, special-value, and tolerance matrix, advanced to schema 8, and retained cross-type CAST fail-closed. |
 | 0006 | Portable layout, indexing, ordering, and random family coverage | Draft | 0005H | Generate truthful coverage for executable layout transforms, slicing, padding, tiling, composition, windows, gather/scatter, ordering, one-hot, and explicit-state random/dropout work; metadata-only or zero-work views remain computation-free. |
 | 0007 | Portable reduction, scan, statistics, and normalization family coverage | Draft | 0002–0006, including 0005A–0005H | Generate family-specific range, tile, partial-reduction, and combine bodies for aggregates, arg extrema, scans, softmax/log-softmax, statistics, and normalization with exact semantics and determinism. |
 | 0008 | Portable linear algebra, convolution, pooling, attention, and loss coverage | Draft | 0002–0007 | Generate the remaining portable executable families. Establish a bounded initial epilogue direction for MATMUL or convolution followed by an optional compatible bias ADD and at most one already-supported exact pointwise activation or clamp, only when single-use dataflow, Shape/layout, numerical order, publication, and resource rules preserve semantics; all other forms split safely. |
@@ -237,8 +237,9 @@ is Complete. Detailed
 [CPU 0005F Floating division and exact scalar-power realization](tasks/0005f-floating-division-and-exact-scalar-power-realization.md)
 is Complete. Detailed
 [CPU 0005G Extrema, clamp, Tensor power, and logical coverage](tasks/0005g-extrema-clamp-tensor-power-and-logical-coverage.md)
-is Complete. CPU 0005H is the next Draft frontier, and every later CPU task remains Draft without a detailed
-specification.
+is Complete. Detailed
+[CPU 0005H Portable unary, transcendental, and activation closure](tasks/0005h-portable-unary-transcendental-and-activation-closure.md)
+is Complete. CPU 0006 and every later CPU task remain Draft without a detailed specification.
 
 Superseded task 0001 remains preserved through its sole detailed CPU
 [capability, representation, binding, and parallel foundation](tasks/0001-cpu-capability-representation-binding-and-parallel-foundation.md)
@@ -303,7 +304,8 @@ is Complete. It adds right-aligned static broadcast/layout normalization, exact 
 declaration and accessed-range spans, complete write-injectivity proof, five generated scalar
 state machines, and all sixteen ordered heap/segment carrier specializations. Detailed CPU 0005C
 is Complete. CPU 0005D, detailed CPU 0005E, detailed CPU 0005F, and detailed CPU 0005G are also
-Complete. CPU 0005H and tasks 0006–0017 remain `Draft` without detailed specifications.
+Complete. Detailed CPU 0005H is `Complete`; tasks 0006–0017 remain `Draft` without detailed
+specifications.
 CPU 0005C preserves that exact slice and implements cold selection among all four portable
 strategies. It uses the preferred Java 26 FLOAT64 species only for direct contiguous runs and
 scalar broadcasts, scalar tails and general-odometer fallback, configured/available parallelism
@@ -375,6 +377,26 @@ Generator schema 7 rejects every older envelope without migration. Implementatio
 skip. Clean documentation context `/root/cpu_0005g_docs` reused that evidence, finalized affected
 Javadocs and five Markdown records, and passed CPU Javadoc, Markdown, exact authorized-scope,
 semantic/status, and whitespace gates without changing executable Java.
+
+Detailed CPU 0005H is Complete. It extends the closed family pipeline to exactly 48 opcodes and
+schema 8, with one distinct opcode for each of the nineteen same-typed FLOAT32/FLOAT64 unary
+semantics and the existing three floating classifications unchanged. Scalar and parallel-scalar
+cover every unary row; the selected FLOAT64 lane-operator and ERF/GELU rows also admit vector and
+parallel-vector compute, while vector-ineligible chains select scalar compute. GELU now covers
+both precisions and maps negative infinity to negative zero; stable sigmoid, tanh-approximation
+GELU, and SiLU preserve their fixed exceptional-value contracts. One-through-eight fusion, five
+access regimes, one-copy/four-candidate/one-artifact materialization budgets, zero fixed-shape and
+unroll budgets, same-type CAST, and fail-closed cross-type CAST/BFLOAT16 remain unchanged.
+
+Implementation context `/root/cpu_0005h_impl` passed CPU compilation, test compilation, the
+required focused nine-class command with 43 tests, and exactly one new final 25-suite/108-test CPU
+command with zero failures/errors and one expected opt-in persistence-timing skip after correcting
+FLOAT32 RSQRT to perform its square root and reciprocal before one final narrowing. This supersedes
+the earlier 42-test/107-test evidence. Clean documentation context `/root/cpu_0005h_docs` reopened,
+reused the restabilized Java evidence, finalized the
+affected Javadocs/package summaries, CPU guide, glossary, and planning records, and passed CPU
+Javadoc, Markdown/link/anchor/formatting, exact authorized-scope, semantic/status, and whitespace
+gates without rerunning Java tests.
 
 The reset was a working-tree replacement, not deletion of history. CPU 0001–0005 are Superseded
 with all recorded evidence preserved; the repository contains no old/new dual pipeline.

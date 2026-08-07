@@ -6,11 +6,21 @@ import io.github.pho001.synaptik.backend.cpu.internal.reference.CpuScalarReferen
 import io.github.pho001.synaptik.model.datatype.DataType;
 import java.lang.classfile.CodeBuilder;
 import java.lang.classfile.Opcode;
+import java.lang.classfile.TypeKind;
 import java.lang.constant.ClassDesc;
 import java.lang.constant.ConstantDescs;
 import java.lang.constant.MethodTypeDesc;
 
-/** Package-private family-grouped exact scalar semantic emitter. */
+/**
+ * Package-private family-grouped exact/default scalar semantic emitter.
+ *
+ * <p>Unary FLOAT64 emission uses primitive operations, {@link Math}, {@link StrictMath}, or the
+ * shared pure activation helpers according to the selected opcode. FLOAT32 widens one represented
+ * value to {@code double} where the JDK lacks a float overload and narrows the result once. The
+ * FLOAT32 reciprocal-square-root path performs both the square root and reciprocal after that
+ * widening, then narrows only their combined result. The emitter consumes typed IR only and makes
+ * no capability, route, or numerical-policy decision.</p>
+ */
 final class CpuScalarEmitter {
     private static final ClassDesc REFERENCE = ClassDesc.of(CpuScalarReferenceKernel.class.getName());
     private static final ClassDesc STRICT_MATH = ClassDesc.of(StrictMath.class.getName());
@@ -169,13 +179,65 @@ final class CpuScalarEmitter {
     }
 
     private void unary(CpuPointwiseOpcode opcode, DataType type) {
-        if (opcode == CpuPointwiseOpcode.GELU_EXACT) {
-            code.invokestatic(REFERENCE, "gelu", MethodTypeDesc.of(ConstantDescs.CD_double,
-                    ConstantDescs.CD_double));
+        if (opcode == CpuPointwiseOpcode.NEG) {
+            if (type == DataType.FLOAT64) code.dneg(); else if (type == DataType.FLOAT32) code.fneg();
+            else throw new IllegalArgumentException("unsupported unary type");
             return;
         }
-        if (type == DataType.FLOAT64) code.dneg(); else if (type == DataType.FLOAT32) code.fneg();
-        else throw new IllegalArgumentException("unsupported negation type");
+        if (opcode == CpuPointwiseOpcode.RSQRT && type == DataType.FLOAT32) {
+            code.f2d();
+            code.invokestatic(STRICT_MATH, "sqrt", MethodTypeDesc.of(ConstantDescs.CD_double,
+                    ConstantDescs.CD_double));
+            int root = code.allocateLocal(TypeKind.DOUBLE);
+            code.dstore(root);
+            code.loadConstant(1.0d);
+            code.dload(root);
+            code.ddiv();
+            code.d2f();
+            return;
+        }
+        if (opcode == CpuPointwiseOpcode.RECIPROCAL || opcode == CpuPointwiseOpcode.RSQRT) {
+            int value = code.allocateLocal(type == DataType.FLOAT64 ? TypeKind.DOUBLE : TypeKind.FLOAT);
+            store(type, value);
+            loadPositiveOne(type);
+            load(type, value);
+            if (opcode == CpuPointwiseOpcode.RSQRT) invokeDoubleUnary(type, STRICT_MATH, "sqrt");
+            if (type == DataType.FLOAT64) code.ddiv(); else code.fdiv();
+            return;
+        }
+        if (opcode == CpuPointwiseOpcode.ABS || opcode == CpuPointwiseOpcode.SIGN
+                || opcode == CpuPointwiseOpcode.RELU) {
+            ClassDesc primitive = type == DataType.FLOAT64 ? ConstantDescs.CD_double
+                    : ConstantDescs.CD_float;
+            if (opcode == CpuPointwiseOpcode.RELU) {
+                if (type == DataType.FLOAT64) code.loadConstant(+0.0d); else code.loadConstant(+0.0f);
+                code.invokestatic(MATH, "max", MethodTypeDesc.of(primitive, primitive, primitive));
+            } else code.invokestatic(MATH, opcode == CpuPointwiseOpcode.ABS ? "abs" : "signum",
+                    MethodTypeDesc.of(primitive, primitive));
+            return;
+        }
+        String helper = switch (opcode) {
+            case ERF -> "erf"; case SIGMOID -> "sigmoid"; case GELU_EXACT -> "gelu";
+            case GELU_TANH_APPROXIMATION -> "geluTanhApproximation"; case SILU -> "silu";
+            default -> null;
+        };
+        if (helper != null) {
+            invokeDoubleUnary(type, REFERENCE, helper);
+            return;
+        }
+        String method = switch (opcode) {
+            case LOG -> "log"; case LOG1P -> "log1p"; case EXP -> "exp"; case EXPM1 -> "expm1";
+            case SQRT -> "sqrt"; case FLOOR -> "floor"; case CEIL -> "ceil"; case TANH -> "tanh";
+            default -> throw new AssertionError(opcode);
+        };
+        invokeDoubleUnary(type, STRICT_MATH, method);
+    }
+
+    private void invokeDoubleUnary(DataType type, ClassDesc owner, String method) {
+        if (type == DataType.FLOAT32) code.f2d();
+        code.invokestatic(owner, method, MethodTypeDesc.of(ConstantDescs.CD_double,
+                ConstantDescs.CD_double));
+        if (type == DataType.FLOAT32) code.d2f();
     }
 
     private void classification(CpuPointwiseOpcode opcode, DataType type) {

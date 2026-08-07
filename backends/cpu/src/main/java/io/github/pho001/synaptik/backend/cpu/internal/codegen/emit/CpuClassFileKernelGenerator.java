@@ -15,8 +15,17 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 
-/** Stateless Java 26 Class-File generator for one typed pointwise CPU unit. */
+/**
+ * Stateless Java 26 Class-File generator for one typed pointwise CPU unit.
+ *
+ * <p>It realizes the already-selected scalar body or eligible preferred-species FLOAT64 vector
+ * body, including the closed unary opcode matrix, and retains the scalar body for tails. It does
+ * not choose capability, numerical semantics, access structure, strategy, or fallback.</p>
+ */
 public final class CpuClassFileKernelGenerator {
+    /** Creates a stateless generator with no retained route or specialization state. */
+    public CpuClassFileKernelGenerator() { }
+
     /**
      * Emits deterministic verified bytes for one exact structural specialization.
      *
@@ -171,6 +180,10 @@ public final class CpuClassFileKernelGenerator {
                     }
                 }
                 case NEG -> code.invokevirtual(vector, "neg", MethodTypeDesc.of(vector));
+                case ABS, RECIPROCAL, LOG, LOG1P, EXP, EXPM1, ERF, SQRT, RSQRT, TANH ->
+                        code.invokestatic(ClassDesc.of(CpuVectorEmitter.class.getName()),
+                                instruction.opcode().name().toLowerCase(java.util.Locale.ROOT),
+                                MethodTypeDesc.of(vector, vector));
                 case GELU_EXACT -> code.invokestatic(ClassDesc.of(CpuVectorEmitter.class.getName()),
                         "gelu", MethodTypeDesc.of(vector, vector));
                 default -> throw new IllegalArgumentException("unsupported vector opcode");

@@ -36,12 +36,16 @@ import java.util.Objects;
  *
  * <p>Lowering derives external boundaries in deterministic first-use order, retains internal
  * single-use results as typed virtual values, and materializes only the final store. It consumes
- * Model operation, shape, and layout contracts during analysis; generated and Runtime code see
- * only the resulting CPU-private IR and cold bindings.</p>
+ * Model operation, shape, and layout contracts during analysis and maps every admitted unary kind
+ * to one distinct CPU opcode without decomposition. Generated and Runtime code see only the
+ * resulting CPU-private IR and cold bindings.</p>
  */
 public final class CpuPartitionLowering {
     private final CpuCapabilityProvider capabilities = new CpuCapabilityProvider();
     private final CpuScalarPowerAnalysis scalarPowerAnalysis = new CpuScalarPowerAnalysis();
+
+    /** Creates a stateless lowering boundary with the current CPU capability and power analysis. */
+    public CpuPartitionLowering() { }
 
     /**
      * Lowers one through eight supported occurrences and rejects every non-linear partition.
@@ -201,8 +205,17 @@ public final class CpuPartitionLowering {
             default -> throw unsupported();
         };
         if (kind instanceof UnaryElementwiseKind value) return switch (value) {
-            case NEG -> CpuPointwiseOpcode.NEG; case GELU -> CpuPointwiseOpcode.GELU_EXACT;
-            default -> throw unsupported();
+            case ABS -> CpuPointwiseOpcode.ABS; case NEG -> CpuPointwiseOpcode.NEG;
+            case RECIPROCAL -> CpuPointwiseOpcode.RECIPROCAL; case LOG -> CpuPointwiseOpcode.LOG;
+            case LOG1P -> CpuPointwiseOpcode.LOG1P; case EXP -> CpuPointwiseOpcode.EXP;
+            case EXPM1 -> CpuPointwiseOpcode.EXPM1; case ERF -> CpuPointwiseOpcode.ERF;
+            case SQRT -> CpuPointwiseOpcode.SQRT; case RSQRT -> CpuPointwiseOpcode.RSQRT;
+            case FLOOR -> CpuPointwiseOpcode.FLOOR; case CEIL -> CpuPointwiseOpcode.CEIL;
+            case SIGN -> CpuPointwiseOpcode.SIGN; case RELU -> CpuPointwiseOpcode.RELU;
+            case SIGMOID -> CpuPointwiseOpcode.SIGMOID; case TANH -> CpuPointwiseOpcode.TANH;
+            case GELU -> CpuPointwiseOpcode.GELU_EXACT;
+            case GELU_TANH_APPROXIMATION -> CpuPointwiseOpcode.GELU_TANH_APPROXIMATION;
+            case SILU -> CpuPointwiseOpcode.SILU;
         };
         if (kind instanceof FloatingClassificationKind value) return switch (value) {
             case IS_FINITE -> CpuPointwiseOpcode.IS_FINITE; case IS_NAN -> CpuPointwiseOpcode.IS_NAN;

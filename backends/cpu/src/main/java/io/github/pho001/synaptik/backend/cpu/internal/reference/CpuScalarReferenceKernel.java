@@ -6,14 +6,17 @@ import java.lang.foreign.ValueLayout;
 import java.nio.ByteOrder;
 import java.util.List;
 import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuKernelIr;
+import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuPointwiseOpcode;
 import io.github.pho001.synaptik.model.datatype.DataType;
 
 /**
  * Scalar conformance realization for the bounded typed CPU pointwise semantics.
  * It evaluates already-lowered primitive arithmetic, exact extrema and clamp, direct Tensor
- * power, canonical-BOOL logic, and the selected scalar-power plan. Direct power uses {@link
- * StrictMath#pow(double, double)} without reclassifying an exponent. It is an unsupported
- * cold-test/reference contract and is never a Runtime IR interpreter.
+ * power, canonical-BOOL logic, the closed FLOAT32/FLOAT64 unary matrix, and the selected
+ * scalar-power plan. Direct power uses {@link StrictMath#pow(double, double)} without
+ * reclassifying an exponent. Unary evaluation preserves the specified exceptional-value
+ * classifications, widens represented FLOAT32 values where required, and narrows once. It is an
+ * unsupported cold-test/reference contract and is never a Runtime IR interpreter.
  */
 public final class CpuScalarReferenceKernel {
     private static final ValueLayout.OfDouble DOUBLE = ValueLayout.JAVA_DOUBLE_UNALIGNED
@@ -45,14 +48,51 @@ public final class CpuScalarReferenceKernel {
     private CpuScalarReferenceKernel() { }
 
     /**
-     * Evaluates the exact Model GELU target in fixed operation order.
+     * Evaluates the portable exact/default GELU target in fixed operation order.
      *
      * @param value input value, including IEEE 754 special values
-     * @return {@code 0.5 * value * (1 + erf(value / sqrt(2)))}, preserving the implementation's
-     *     documented special-value classifications
+     * @return {@code 0.5 * value * (1 + erf(value / sqrt(2)))} using the shared bounded error-
+     *     function approximation, with negative infinity mapped to negative zero and other
+     *     documented special-value classifications preserved
      */
     public static double gelu(double value) {
+        if (value == Double.NEGATIVE_INFINITY) return -0.0d;
         return 0.5d * value * (1.0d + erf(value / Math.sqrt(2.0d)));
+    }
+
+    /**
+     * Evaluates logistic sigmoid without avoidable exponential overflow.
+     * @param value input value, including IEEE 754 special values
+     * @return the stable two-branch sigmoid result; NaN remains NaN
+     */
+    public static double sigmoid(double value) {
+        if (value >= 0.0d) return 1.0d / (1.0d + StrictMath.exp(-value));
+        double exponential = StrictMath.exp(value);
+        return exponential / (1.0d + exponential);
+    }
+
+    /**
+     * Evaluates the fixed Model hyperbolic-tangent GELU approximation.
+     * @param value input value, including IEEE 754 special values
+     * @return the fixed-coefficient approximation, with negative infinity mapped to negative zero
+     */
+    public static double geluTanhApproximation(double value) {
+        if (value == Double.NEGATIVE_INFINITY) return -0.0d;
+        double cube = value * value * value;
+        return 0.5d * value * (1.0d + StrictMath.tanh(Math.sqrt(2.0d / Math.PI)
+                * (value + 0.044715d * cube)));
+    }
+
+    /**
+     * Evaluates sigmoid linear unit without avoidable exponential overflow.
+     * @param value input value, including IEEE 754 special values
+     * @return {@code value * sigmoid(value)}, with negative infinity mapped to negative zero
+     */
+    public static double silu(double value) {
+        if (value == Double.NEGATIVE_INFINITY) return -0.0d;
+        if (value >= 0.0d) return value / (1.0d + StrictMath.exp(-value));
+        double exponential = StrictMath.exp(value);
+        return value * exponential / (1.0d + exponential);
     }
 
     /**
@@ -212,7 +252,9 @@ public final class CpuScalarReferenceKernel {
                     immediate(instruction.clampImmediate().upper()), true);
             case NEG -> { if (type == DataType.FLOAT64) yield Double.valueOf(-(double) left);
                 yield Float.valueOf(-(float) left); }
-            case GELU_EXACT -> gelu((double) left);
+            case ABS, RECIPROCAL, LOG, LOG1P, EXP, EXPM1, ERF, SQRT, RSQRT, FLOOR, CEIL,
+                    SIGN, RELU, SIGMOID, TANH, GELU_EXACT, GELU_TANH_APPROXIMATION, SILU ->
+                    unary(instruction.opcode(), type, left);
             case IS_FINITE -> (byte) ((type == DataType.FLOAT64
                     ? Double.isFinite((double) left) : Float.isFinite((float) left)) ? 1 : 0);
             case IS_NAN -> (byte) ((type == DataType.FLOAT64
@@ -230,6 +272,24 @@ public final class CpuScalarReferenceKernel {
                     : values[instruction.inputs().get(2)];
             case CAST -> left;
         };
+    }
+
+    private static Object unary(CpuPointwiseOpcode opcode, DataType type, Object input) {
+        double value = type == DataType.FLOAT64 ? (double) input : (double) (float) input;
+        double result = switch (opcode) {
+            case ABS -> Math.abs(value); case RECIPROCAL -> 1.0d / value;
+            case LOG -> StrictMath.log(value); case LOG1P -> StrictMath.log1p(value);
+            case EXP -> StrictMath.exp(value); case EXPM1 -> StrictMath.expm1(value);
+            case ERF -> erf(value); case SQRT -> StrictMath.sqrt(value);
+            case RSQRT -> 1.0d / StrictMath.sqrt(value); case FLOOR -> StrictMath.floor(value);
+            case CEIL -> StrictMath.ceil(value); case SIGN -> Math.signum(value);
+            case RELU -> Math.max(value, +0.0d); case SIGMOID -> sigmoid(value);
+            case TANH -> StrictMath.tanh(value); case GELU_EXACT -> gelu(value);
+            case GELU_TANH_APPROXIMATION -> geluTanhApproximation(value); case SILU -> silu(value);
+            default -> throw new AssertionError(opcode);
+        };
+        if (type == DataType.FLOAT64) return Double.valueOf(result);
+        return Float.valueOf((float) result);
     }
 
     private static Object tensorPower(DataType type, Object base, Object exponent) {

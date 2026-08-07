@@ -11,6 +11,9 @@ import java.util.Objects;
 
 /**
  * Immutable route-independent canonical CPU kernel intermediate representation (IR).
+ * The instruction vocabulary includes the closed nineteen-kind unary matrix as distinct typed
+ * opcodes; each unary Model occurrence remains one instruction with one same-typed FLOAT32 or
+ * FLOAT64 result.
  * Values use topology-local ordinals, so graph identities, extents, slots, routes, generator
  * versions, segment instances, and invocation bindings cannot enter canonical identity.
  * When analysis selects one contiguous input copy, it derives a second canonical consumer form
@@ -333,9 +336,7 @@ public record CpuKernelIr(
                     && (output == DataType.FLOAT64 || output == DataType.FLOAT32)
                     && instruction.clampImmediate().lower().dataType() == output;
             case UNARY -> output == inputs.getFirst()
-                    && (opcode == CpuPointwiseOpcode.GELU_EXACT
-                        ? output == DataType.FLOAT64
-                        : output == DataType.FLOAT64 || output == DataType.FLOAT32);
+                    && (output == DataType.FLOAT64 || output == DataType.FLOAT32);
             case CLASSIFICATION -> (inputs.getFirst() == DataType.FLOAT64
                     || inputs.getFirst() == DataType.FLOAT32) && output == DataType.BOOL;
             case COMPARISON -> same && numeric && output == DataType.BOOL;

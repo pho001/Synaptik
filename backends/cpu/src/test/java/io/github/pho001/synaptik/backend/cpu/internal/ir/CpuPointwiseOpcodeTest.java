@@ -8,7 +8,7 @@ import org.junit.jupiter.api.Test;
 class CpuPointwiseOpcodeTest {
     @Test void exposesOneBoundedFamilyOrientedOpcodeVocabulary() {
         assertAll(
-                () -> assertEquals(31, CpuPointwiseOpcode.values().length),
+                () -> assertEquals(48, CpuPointwiseOpcode.values().length),
                 () -> assertEquals(2, CpuPointwiseOpcode.ADD.arity()),
                 () -> assertEquals(3, CpuPointwiseOpcode.WHERE.arity()),
                 () -> assertTrue(CpuPointwiseOpcode.SCALAR_MUL.carriesScalarImmediate()),
@@ -18,7 +18,12 @@ class CpuPointwiseOpcodeTest {
                                 CpuPointwiseOpcode.SCALAR_ADD,
                                 CpuPointwiseOpcode.SCALAR_SUB, CpuPointwiseOpcode.SCALAR_MUL,
                                 CpuPointwiseOpcode.SCALAR_DIV, CpuPointwiseOpcode.SCALAR_POW,
-                                CpuPointwiseOpcode.NEG, CpuPointwiseOpcode.GELU_EXACT),
+                                CpuPointwiseOpcode.NEG, CpuPointwiseOpcode.ABS,
+                                CpuPointwiseOpcode.RECIPROCAL, CpuPointwiseOpcode.LOG,
+                                CpuPointwiseOpcode.LOG1P, CpuPointwiseOpcode.EXP,
+                                CpuPointwiseOpcode.EXPM1, CpuPointwiseOpcode.ERF,
+                                CpuPointwiseOpcode.SQRT, CpuPointwiseOpcode.RSQRT,
+                                CpuPointwiseOpcode.TANH, CpuPointwiseOpcode.GELU_EXACT),
                         EnumSet.copyOf(java.util.Arrays.stream(CpuPointwiseOpcode.values())
                                 .filter(CpuPointwiseOpcode::vectorEligible).toList())));
     }

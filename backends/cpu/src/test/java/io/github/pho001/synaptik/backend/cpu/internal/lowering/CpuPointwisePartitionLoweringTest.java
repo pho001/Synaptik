@@ -18,6 +18,7 @@ import io.github.pho001.synaptik.model.operation.elementwise.logical.BooleanLogi
 import io.github.pho001.synaptik.model.operation.NoOperationAttrs;
 import io.github.pho001.synaptik.model.operation.elementwise.selection.WhereSelectionKind;
 import io.github.pho001.synaptik.model.operation.elementwise.binary.BinaryArithmeticKind;
+import io.github.pho001.synaptik.model.operation.elementwise.unary.UnaryElementwiseKind;
 import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuKernelIr;
 import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuPointwiseOpcode;
 import io.github.pho001.synaptik.model.shape.Shape;
@@ -198,6 +199,29 @@ class CpuPointwisePartitionLoweringTest {
                 () -> assertEquals("parallel-scalar", logical.executionStrategy().toString()),
                 () -> assertEquals(0, tensorPower.vectorSpeciesBitSize()),
                 () -> assertEquals(0, logical.vectorSpeciesBitSize()));
+    }
+
+    @Test void lowersEveryUnaryKindOnceAndSelectsTheDeclaredComputeEligibility() {
+        int count = jdk.incubator.vector.DoubleVector.SPECIES_PREFERRED.length() * 2;
+        Shape shape = Shape.of(count);
+        var inputs = vectorInputs();
+        for (UnaryElementwiseKind kind : UnaryElementwiseKind.values()) {
+            CpuPointwiseOpcode expected = kind == UnaryElementwiseKind.GELU
+                    ? CpuPointwiseOpcode.GELU_EXACT : CpuPointwiseOpcode.valueOf(kind.name());
+            for (DataType type : List.of(DataType.FLOAT64, DataType.FLOAT32)) {
+                var descriptor = descriptor(type, shape);
+                var plan = new CpuPartitionPreparer().analyze(single(new Operation(kind,
+                        NoOperationAttrs.INSTANCE), List.of(descriptor), descriptor, inputs)).plan();
+                assertAll(kind + " " + type,
+                        () -> assertEquals(1, plan.units().getFirst().portablePlan().kernelIr()
+                                .instructions().size()),
+                        () -> assertEquals(expected, plan.units().getFirst().portablePlan().kernelIr()
+                                .instructions().getFirst().opcode()),
+                        () -> assertEquals(type == DataType.FLOAT64 && expected.vectorEligible()
+                                        ? "parallel-vector" : "parallel-scalar",
+                                plan.executionStrategy().toString()));
+            }
+        }
     }
 
     private static CpuPartitionAnalysisInputs vectorInputs() {

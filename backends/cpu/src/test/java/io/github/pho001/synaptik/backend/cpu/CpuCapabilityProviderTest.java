@@ -36,7 +36,7 @@ class CpuCapabilityProviderTest {
                         List.of(dense), dense))),
                 () -> assertTrue(provider.supports(query(BinaryArithmeticKind.MUL,
                         List.of(dense, dense), dense))),
-                () -> assertFalse(provider.supports(query(UnaryElementwiseKind.GELU_TANH_APPROXIMATION,
+                () -> assertTrue(provider.supports(query(UnaryElementwiseKind.GELU_TANH_APPROXIMATION,
                         List.of(dense), dense))));
         var unresolved = new TensorDescriptor(DataType.FLOAT64, shape, Optional.empty(), false);
         var float32 = new TensorDescriptor(DataType.FLOAT32, shape,
@@ -77,6 +77,11 @@ class CpuCapabilityProviderTest {
         var i64 = descriptor(DataType.INT64, shape);
         var bool = descriptor(DataType.BOOL, shape);
         var bf16 = descriptor(DataType.BFLOAT16, shape);
+        for (var kind : UnaryElementwiseKind.values()) {
+            assertTrue(provider.supports(query(kind, List.of(f64), f64)), kind + " FLOAT64");
+            assertTrue(provider.supports(query(kind, List.of(f32), f32)), kind + " FLOAT32");
+            assertFalse(provider.supports(query(kind, List.of(bf16), bf16)), kind + " BFLOAT16");
+        }
         for (var type : List.of(f64, f32, i32, i64)) {
             for (var kind : List.of(BinaryArithmeticKind.ADD, BinaryArithmeticKind.SUB,
                     BinaryArithmeticKind.MUL)) assertTrue(provider.supports(query(kind,

@@ -101,13 +101,14 @@ The Prepare milestone is therefore closed. The OpenBLAS provider project area is
 CPU 0005A is now Complete and atomically supersedes the provisional CPU 0001–0005 implementation;
 those five task records remain preserved as Superseded historical evidence. The current completed
 CPU implementation frontier is detailed
-[CPU 0005G extrema, clamp, Tensor power, and logical coverage](backends/cpu/tasks/0005g-extrema-clamp-tensor-power-and-logical-coverage.md)
-with a thirty-one-opcode matrix, exact same-typed extrema, first-class floating clamp, direct
-floating Tensor power, canonical-BOOL logic, and schema-7 compatibility. CPU 0005F's floating
-division, direct scalar power, and four proved exact-bit special realizations remain preserved, as
-do CPU 0005E's five types and typed carriers, CPU 0005D's one-copy materialization and bounded
-optional persistence, and the existing FLOAT64 numeric-only vector boundary. CPU 0005H is the
-next Draft frontier, and every later task remains Draft without a detailed specification.
+[CPU 0005H portable unary, transcendental, and activation closure](backends/cpu/tasks/0005h-portable-unary-transcendental-and-activation-closure.md)
+with all nineteen same-typed FLOAT32/FLOAT64 unary kinds, the existing three separate floating
+classifications, exactly forty-eight opcodes, and schema-8 compatibility. CPU 0005G's extrema,
+clamp, Tensor power, and canonical-BOOL logic remain preserved, as do CPU 0005F's division and
+scalar-power realizations, CPU 0005E's five types and typed carriers, and CPU 0005D's one-copy
+materialization and bounded optional persistence. Selected FLOAT64 unary rows join the existing
+vector matrix; every vector-ineligible admitted chain retains scalar fallback. CPU 0006 and every
+later task remain Draft without a detailed specification.
 Historical
 [CPU 0001 Capability, representation, binding, and parallel foundation](backends/cpu/tasks/0001-cpu-capability-representation-binding-and-parallel-foundation.md)
 is `Superseded`; historical
@@ -132,8 +133,8 @@ documentation pass reused because it changed no executable Java behavior. Detail
 is Complete. Detailed CPU 0005C vector and parallel strategies are Complete. Detailed CPU 0005D
 materialization/specialization/persistence evidence is also `Complete`; detailed 0005E is
 `Complete` for its bounded first five-type core pointwise increment. Detailed CPU 0005F floating
-division and exact scalar-power realization is `Complete`; detailed CPU 0005G is `Complete`. CPU
-0005H and CPU 0006–0017 remain `Draft` without detailed specifications.
+division and exact scalar-power realization is `Complete`; detailed CPU 0005G and CPU 0005H are
+`Complete`; CPU 0006–0017 remain `Draft` without detailed specifications.
 CPU 0003
 implements a
 model-independent filesystem store beneath an explicit
@@ -299,12 +300,19 @@ skip. Clean documentation context `/root/cpu_0005g_docs` reused that Java eviden
 affected Javadocs, CPU guide, glossary, and planning records, and passed CPU Javadoc, Markdown,
 exact authorized-scope, semantic/status, and whitespace gates without changing executable Java.
 
-Draft CPU 0005H then owns the distinct unary/transcendental/activation closure through an explicit
-algorithm, special-value, accuracy, and vector-eligibility matrix. It re-audits cross-type CAST but
-may not implement it without a completed Model conversion contract. This split replaces the former
-over-broad 0005G row so each isolated task remains reviewable without dropping any selected
-capability. CPU 0006 depends on 0005H, and CPU 0009 closure explicitly includes CPU 0005A–0005H so
-the pointwise inventory cannot be omitted silently.
+Complete CPU 0005H owns the distinct unary/transcendental/activation closure through an explicit
+algorithm, special-value, accuracy, and vector-eligibility matrix. It keeps cross-type CAST
+fail-closed because Model defines no numerical conversion contract. The task expanded the closed
+vocabulary from 31 to 48 opcodes and schema 7 to 8 without another route, type, public API, shared-
+module, dependency, build, or architecture change. Implementation context `/root/cpu_0005h_impl`
+passed compilation, test compilation, the required focused nine-class/43-test command, and exactly
+one new final 25-suite/108-test CPU command with zero failures/errors and one expected opt-in timing
+skip after correcting FLOAT32 RSQRT to keep square root and reciprocal in FLOAT64 before one final
+narrowing. Those counts supersede the earlier 42-test/107-test evidence. Clean documentation
+context `/root/cpu_0005h_docs` reopened, reused the restabilized evidence, and finalized the
+affected Javadocs/package summaries, CPU guide, glossary, and planning records. CPU 0006 depends on
+0005H, and CPU 0009 closure explicitly includes CPU 0005A–0005H so the pointwise inventory cannot
+be omitted silently.
 
 Whole-partition lowering, fusion legality/profitability, canonical CPU IR, access planning,
 materialization accounting, numerical/determinism filtering, and representation planning remain
@@ -452,14 +460,13 @@ inputs may select another type-compatible ordered pattern. Its five generated st
 cover dense linear, all-zero/scalar, last-axis bias, block/outer, and general odometer access.
 Exact cold range spans support constant-time alias checks, and a complete bounded static
 injectivity decision accepts valid interleaved positive strides while rejecting repeated writes.
-Detailed CPU 0005C through CPU 0005G are Complete. CPU 0005H is the next `Draft` task.
-CPU 0005H, CPU 0006–0017, and the refined Config, Prepare, Metal, and tuning rows remain `Draft`
-without new detailed specifications.
+Detailed CPU 0005C through CPU 0005H are Complete.
+CPU 0006–0017 and the refined Config, Prepare, Metal, and tuning rows remain `Draft` without new
+detailed specifications.
 Completed OpenBLAS history and every completed project area remain unchanged.
 
-CPU remains the active global project area. CPU 0005A through CPU 0005F are `Complete`; detailed
-CPU 0005G is `Complete`, and CPU 0005H plus later CPU work remain `Draft` without
-detailed specifications.
+CPU remains the active global project area. CPU 0005A through CPU 0005H are `Complete`, and later CPU work remains `Draft`
+without detailed specifications.
 CPU 0001–0005 are
 historical Superseded records whose Git history
 and validation evidence remain intact. Complete CPU 0004 added no public facade, registry, service locator,

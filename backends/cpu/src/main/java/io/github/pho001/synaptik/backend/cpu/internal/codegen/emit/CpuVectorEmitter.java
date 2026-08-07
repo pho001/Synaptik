@@ -6,10 +6,11 @@ import jdk.incubator.vector.VectorSpecies;
 
 /**
  * Supplies exact/default FLOAT64 helpers for vector-specialized generated entries.
- * GELU preserves the scalar polynomial branches and coefficient order; scalar power uses only
- * exact positive-one construction or primitive reciprocal division. Every helper uses the Java
- * 26 preferred FLOAT64 species selected during CPU analysis and performs no route or exponent
- * selection.
+ * The helpers cover the selected direct Java 26 lane operations, exact reciprocal/square-root
+ * composition, and the shared error-function/GELU polynomial. GELU preserves the scalar
+ * polynomial branches and coefficient order; scalar power uses only exact positive-one
+ * construction or primitive reciprocal division. Every helper uses the preferred FLOAT64 species
+ * selected during CPU analysis and performs no route, type, or exponent selection.
  */
 final class CpuVectorEmitter {
     private static final VectorSpecies<Double> SPECIES = DoubleVector.SPECIES_PREFERRED;
@@ -52,8 +53,93 @@ final class CpuVectorEmitter {
         DoubleVector erf = large.blend(small, x.compare(VectorOperators.LE, 1.0d));
         erf = erf.blend(1.0d, x.eq(Double.POSITIVE_INFINITY));
         erf = erf.blend(erf.neg(), erfInput.lt(0.0d));
-        return value.mul(0.5d).mul(erf.add(1.0d));
+        DoubleVector result = value.mul(0.5d).mul(erf.add(1.0d));
+        return result.blend(-0.0d, value.eq(Double.NEGATIVE_INFINITY));
     }
+
+    /**
+     * Returns the absolute magnitude of every lane.
+     * @param value non-null preferred-species input vector
+     * @return a non-null preferred-species result vector
+     */
+    static DoubleVector abs(DoubleVector value) { return value.abs(); }
+
+    /**
+     * Returns exact positive one divided by each represented lane.
+     * @param value non-null preferred-species input vector
+     * @return a non-null preferred-species reciprocal result vector
+     */
+    static DoubleVector reciprocal(DoubleVector value) {
+        return DoubleVector.broadcast(SPECIES, 1.0d).div(value);
+    }
+
+    /**
+     * Returns the natural logarithm of every lane.
+     * @param value non-null preferred-species input vector
+     * @return a non-null preferred-species result vector
+     */
+    static DoubleVector log(DoubleVector value) { return value.lanewise(VectorOperators.LOG); }
+
+    /**
+     * Returns the natural logarithm of one plus every lane.
+     * @param value non-null preferred-species input vector
+     * @return a non-null preferred-species result vector
+     */
+    static DoubleVector log1p(DoubleVector value) { return value.lanewise(VectorOperators.LOG1P); }
+
+    /**
+     * Returns the natural exponential of every lane.
+     * @param value non-null preferred-species input vector
+     * @return a non-null preferred-species result vector
+     */
+    static DoubleVector exp(DoubleVector value) { return value.lanewise(VectorOperators.EXP); }
+
+    /**
+     * Returns the natural exponential minus one of every lane.
+     * @param value non-null preferred-species input vector
+     * @return a non-null preferred-species result vector
+     */
+    static DoubleVector expm1(DoubleVector value) { return value.lanewise(VectorOperators.EXPM1); }
+
+    /**
+     * Returns the shared piecewise error-function approximation for every lane.
+     * @param value non-null preferred-species input vector
+     * @return a non-null preferred-species result vector preserving signed-zero and infinity rules
+     */
+    static DoubleVector erf(DoubleVector value) {
+        DoubleVector x = value.abs();
+        DoubleVector z = x.mul(x);
+        DoubleVector small = polevl(z, ERF_T).div(p1evl(z, ERF_U)).mul(x);
+        DoubleVector near = polevl(x, ERFC_P).div(p1evl(x, ERFC_Q));
+        DoubleVector far = polevl(x, ERFC_R).div(p1evl(x, ERFC_S));
+        DoubleVector ratio = far.blend(near, x.lt(8.0d));
+        DoubleVector large = DoubleVector.broadcast(SPECIES, 1.0d)
+                .sub(z.neg().lanewise(VectorOperators.EXP).mul(ratio));
+        DoubleVector result = large.blend(small, x.compare(VectorOperators.LE, 1.0d));
+        result = result.blend(1.0d, x.eq(Double.POSITIVE_INFINITY));
+        return result.blend(result.neg(), value.test(VectorOperators.IS_NEGATIVE));
+    }
+
+    /**
+     * Returns the principal square root of every lane.
+     * @param value non-null preferred-species input vector
+     * @return a non-null preferred-species result vector
+     */
+    static DoubleVector sqrt(DoubleVector value) { return value.lanewise(VectorOperators.SQRT); }
+
+    /**
+     * Returns exact positive one divided by the principal square root of every lane.
+     * @param value non-null preferred-species input vector
+     * @return a non-null preferred-species reciprocal-square-root result vector
+     */
+    static DoubleVector rsqrt(DoubleVector value) { return reciprocal(sqrt(value)); }
+
+    /**
+     * Returns the hyperbolic tangent of every lane.
+     * @param value non-null preferred-species input vector
+     * @return a non-null preferred-species result vector
+     */
+    static DoubleVector tanh(DoubleVector value) { return value.lanewise(VectorOperators.TANH); }
 
     /**
      * Produces exact positive one in every preferred-species lane without reading a base vector.
@@ -62,16 +148,6 @@ final class CpuVectorEmitter {
      */
     static DoubleVector positiveOne() {
         return DoubleVector.broadcast(SPECIES, 1.0d);
-    }
-
-    /**
-     * Divides exact positive one by each represented base lane using ordinary vector division.
-     *
-     * @param value non-null preferred-species vector of base values
-     * @return a non-null preferred-species vector containing the typed reciprocal results
-     */
-    static DoubleVector reciprocal(DoubleVector value) {
-        return DoubleVector.broadcast(SPECIES, 1.0d).div(value);
     }
 
     private static DoubleVector polevl(DoubleVector x, double[] coefficients) {

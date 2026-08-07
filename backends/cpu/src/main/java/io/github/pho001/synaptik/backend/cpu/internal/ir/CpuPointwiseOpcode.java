@@ -1,7 +1,7 @@
 package io.github.pho001.synaptik.backend.cpu.internal.ir;
 
 /**
- * CPU-private, family-oriented pointwise opcode vocabulary with exactly thirty-one opcodes.
+ * CPU-private, family-oriented pointwise opcode vocabulary with exactly forty-eight opcodes.
  *
  * <p>Each opcode is selected once while lowering a Model operation occurrence. Generated and
  * reference execution consume this typed value and never inspect Model operations or strings.</p>
@@ -39,8 +39,42 @@ public enum CpuPointwiseOpcode {
     SCALAR_CLAMP(Family.SCALAR_RANGE, 1, ResultCategory.INPUT_TYPE, false, false),
     /** Floating primitive negation. */
     NEG(Family.UNARY, 1, ResultCategory.INPUT_TYPE, false, true),
+    /** Floating absolute magnitude. */
+    ABS(Family.UNARY, 1, ResultCategory.INPUT_TYPE, false, true),
+    /** Floating reciprocal. */
+    RECIPROCAL(Family.UNARY, 1, ResultCategory.INPUT_TYPE, false, true),
+    /** Floating natural logarithm. */
+    LOG(Family.UNARY, 1, ResultCategory.INPUT_TYPE, false, true),
+    /** Floating natural logarithm of one plus the input. */
+    LOG1P(Family.UNARY, 1, ResultCategory.INPUT_TYPE, false, true),
+    /** Floating natural exponential. */
+    EXP(Family.UNARY, 1, ResultCategory.INPUT_TYPE, false, true),
+    /** Floating natural exponential minus one. */
+    EXPM1(Family.UNARY, 1, ResultCategory.INPUT_TYPE, false, true),
+    /** Floating Gaussian error function. */
+    ERF(Family.UNARY, 1, ResultCategory.INPUT_TYPE, false, true),
+    /** Floating principal square root. */
+    SQRT(Family.UNARY, 1, ResultCategory.INPUT_TYPE, false, true),
+    /** Floating reciprocal principal square root. */
+    RSQRT(Family.UNARY, 1, ResultCategory.INPUT_TYPE, false, true),
+    /** Floating floor. */
+    FLOOR(Family.UNARY, 1, ResultCategory.INPUT_TYPE, false, false),
+    /** Floating ceiling. */
+    CEIL(Family.UNARY, 1, ResultCategory.INPUT_TYPE, false, false),
+    /** Floating sign classification as a floating result. */
+    SIGN(Family.UNARY, 1, ResultCategory.INPUT_TYPE, false, false),
+    /** Rectified linear unit. */
+    RELU(Family.UNARY, 1, ResultCategory.INPUT_TYPE, false, false),
+    /** Stable logistic sigmoid. */
+    SIGMOID(Family.UNARY, 1, ResultCategory.INPUT_TYPE, false, false),
+    /** Floating hyperbolic tangent. */
+    TANH(Family.UNARY, 1, ResultCategory.INPUT_TYPE, false, true),
     /** Exact/default FLOAT64 Gaussian error linear unit. */
     GELU_EXACT(Family.UNARY, 1, ResultCategory.INPUT_TYPE, false, true),
+    /** Fixed hyperbolic-tangent GELU approximation. */
+    GELU_TANH_APPROXIMATION(Family.UNARY, 1, ResultCategory.INPUT_TYPE, false, false),
+    /** Stable sigmoid linear unit. */
+    SILU(Family.UNARY, 1, ResultCategory.INPUT_TYPE, false, false),
     /** Floating finite-value classification. */
     IS_FINITE(Family.CLASSIFICATION, 1, ResultCategory.BOOL, false, false),
     /** Floating not-a-number classification. */

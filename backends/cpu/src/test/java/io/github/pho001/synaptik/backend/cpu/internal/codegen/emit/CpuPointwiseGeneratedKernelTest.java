@@ -37,11 +37,11 @@ class CpuPointwiseGeneratedKernelTest {
         for (DataType type : List.of(DataType.FLOAT64, DataType.FLOAT32))
             cases.add(new Case(CpuPointwiseOpcode.SCALAR_CLAMP, type));
         for (DataType type : List.of(DataType.FLOAT64, DataType.FLOAT32)) {
-            cases.add(new Case(CpuPointwiseOpcode.NEG, type));
+            for (CpuPointwiseOpcode opcode : CpuPointwiseOpcode.values())
+                if (opcode.family() == CpuPointwiseOpcode.Family.UNARY) cases.add(new Case(opcode, type));
             for (CpuPointwiseOpcode opcode : List.of(CpuPointwiseOpcode.IS_FINITE,
                     CpuPointwiseOpcode.IS_NAN, CpuPointwiseOpcode.IS_INF)) cases.add(new Case(opcode, type));
         }
-        cases.add(new Case(CpuPointwiseOpcode.GELU_EXACT, DataType.FLOAT64));
         for (CpuPointwiseOpcode opcode : List.of(CpuPointwiseOpcode.GREATER_THAN,
                 CpuPointwiseOpcode.GREATER_OR_EQUAL, CpuPointwiseOpcode.LESS_THAN,
                 CpuPointwiseOpcode.LESS_OR_EQUAL, CpuPointwiseOpcode.EQUAL,
@@ -56,14 +56,18 @@ class CpuPointwiseGeneratedKernelTest {
                 DataType.INT64, DataType.BOOL)) cases.add(new Case(CpuPointwiseOpcode.CAST, type));
 
         for (Case one : cases) assertCase(one);
-        assertEquals(91, cases.size());
+        assertEquals(126, cases.size());
     }
 
     @Test void float64NumericSubsetUsesVectorBodiesWithScalarTails() throws Throwable {
         for (CpuPointwiseOpcode opcode : List.of(CpuPointwiseOpcode.SUB,
                 CpuPointwiseOpcode.SCALAR_ADD, CpuPointwiseOpcode.SCALAR_SUB,
                 CpuPointwiseOpcode.SCALAR_MUL, CpuPointwiseOpcode.DIV,
-                CpuPointwiseOpcode.SCALAR_DIV, CpuPointwiseOpcode.NEG)) {
+                CpuPointwiseOpcode.SCALAR_DIV, CpuPointwiseOpcode.NEG,
+                CpuPointwiseOpcode.ABS, CpuPointwiseOpcode.RECIPROCAL,
+                CpuPointwiseOpcode.LOG, CpuPointwiseOpcode.LOG1P, CpuPointwiseOpcode.EXP,
+                CpuPointwiseOpcode.EXPM1, CpuPointwiseOpcode.ERF, CpuPointwiseOpcode.SQRT,
+                CpuPointwiseOpcode.RSQRT, CpuPointwiseOpcode.TANH, CpuPointwiseOpcode.GELU_EXACT)) {
             Case one = new Case(opcode, DataType.FLOAT64);
             CpuKernelIr ir = ir(one);
             List<DataType> types = ir.values().stream().map(CpuKernelIr.Value::dataType).toList();
@@ -177,6 +181,27 @@ class CpuPointwiseGeneratedKernelTest {
                 geometry(2, input.length), 0L, (long) input.length);
         for (int index = 0; index < input.length; index++) assertFloatingResult(
                 input[index] / denominator, scalarOutput[index]);
+    }
+
+    @Test void float32RsqrtNarrowsOnlyAfterDoublePrecisionSqrtAndReciprocal() throws Throwable {
+        float input = Float.intBitsToFloat(0x0000_26f6);
+        float intermediateRoot = (float) StrictMath.sqrt((double) input);
+        float oldIntermediateNarrowing = 1.0f / intermediateRoot;
+        float expected = (float) (1.0d / StrictMath.sqrt((double) input));
+        assertAll(
+                () -> assertEquals(0x6168_01ad, Float.floatToRawIntBits(oldIntermediateNarrowing)),
+                () -> assertEquals(0x6168_01ae, Float.floatToRawIntBits(expected)),
+                () -> assertNotEquals(Float.floatToRawIntBits(oldIntermediateNarrowing),
+                        Float.floatToRawIntBits(expected)));
+
+        CpuKernelIr ir = ir(new Case(CpuPointwiseOpcode.RSQRT, DataType.FLOAT32));
+        var generated = artifact(ir, List.of(DataType.FLOAT32, DataType.FLOAT32),
+                List.of(CpuKernelSpecialization.CarrierAccess.FLOAT_ARRAY,
+                        CpuKernelSpecialization.CarrierAccess.FLOAT_ARRAY));
+        float[] output = new float[1];
+        generated.entryPoint().invokeWithArguments(new float[] {input}, output,
+                geometry(2, 1), 0L, 1L);
+        assertEquals(Float.floatToRawIntBits(expected), Float.floatToRawIntBits(output[0]));
     }
 
     @Test void extremaClampTensorPowerAndLogicalRowsPreserveExactEdgeSemantics() throws Throwable {

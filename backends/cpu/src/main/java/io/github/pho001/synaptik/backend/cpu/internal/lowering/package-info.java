@@ -5,7 +5,8 @@
  * derives supported binary arithmetic results with Model {@code ShapeBroadcast}, preserves
  * Shape for scalar arithmetic, clamp, and power, preserves canonical BOOL logic, classifies exact
  * FLOAT32/FLOAT64 scalar exponents into one proved realization or the direct fallback, retains
- * Tensor/Tensor power as a direct instruction, requires exact GELU shape,
+ * Tensor/Tensor power as a direct instruction, maps all nineteen same-typed FLOAT32/FLOAT64 unary
+ * kinds to one instruction each, keeps floating classification separate,
  * normalizes resolved layouts into five access regimes, proves output-write injectivity, and
  * decides fusion legality before resource declaration. Private intermediates remain virtual
  * canonical-IR values. It collaborates with {@code internal.ir} and route-neutral CPU

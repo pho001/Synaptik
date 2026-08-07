@@ -54,9 +54,10 @@ current [`PreparedPublication`](#prepared-publication--preparedpublication) reci
 [`BoundPublication`](#bound-publication--boundpublication) occurrences, and current
 [`RunResult`](#run-result--runresult) leases complete states. The CPU backend supplies concrete
 borrowed and run-owned native buffer representations plus one bounded fully static pointwise
-route. Its thirty-one-opcode vocabulary includes same-typed binary/scalar extrema, floating
-Tensor/Tensor DIV and POW, Tensor/scalar DIV and POW, first-class floating range CLAMP, and
-canonical-BOOL AND/OR/NOT, while its normalized access plans cover resolved
+route. Its forty-eight-opcode vocabulary includes same-typed binary/scalar extrema, floating
+Tensor/Tensor DIV and POW, Tensor/scalar DIV and POW, first-class floating range CLAMP,
+canonical-BOOL AND/OR/NOT, all nineteen FLOAT32/FLOAT64 unary kinds, and three separate floating
+classifications, while its normalized access plans cover resolved
 right-broadcastable scalar/rank/singleton/multi-axis inputs, zero extents, offsets, positive and
 broadcast-zero strides, injective output layouts, and derived heap/segment carrier patterns.
 Connected chains contain one through eight occurrences, keep single-use intermediates virtual,
@@ -988,8 +989,9 @@ scalar proving slice and `internal.route.portable`; completed CPU 0005C added pr
 FLOAT64 vector compute and explicit CPU-private parallel orchestration. Completed CPU 0005E now
 uses that route for a bounded five-type pointwise matrix and connected one-to-eight-occurrence
 chains. CPU 0005G completes the selected exact algebraic/logical increment through scalar or
-parallel-scalar compute; vector compute remains limited to the previously eligible FLOAT64
-numeric-only chains.
+parallel-scalar compute. CPU 0005H closes all nineteen same-typed FLOAT32/FLOAT64 unary kinds and
+keeps the three floating classifications separate; selected FLOAT64 unary rows join the existing
+vector-eligible numeric matrix, while every other admitted row retains scalar fallback.
 
 OpenBLAS is not another meaning of portable route. It is a narrow cross-platform native fallback
 for eligible BLAS-compatible linear algebra. It is neither a universal fallback nor preferred over
@@ -1036,7 +1038,7 @@ static entry retains the lowering-derived boundary count.
 ### CPU kernel specialization
 
 The implemented backend-private immutable description of every fact allowed to change one
-generated CPU class. The current form includes schema 7, the canonical lowering fingerprint with
+generated CPU class. The current form includes schema 8, the canonical lowering fingerprint with
 typed opcode sequence, exact scalar-immediate bits, exact ordered clamp-bound bits, and selected
 scalar-power realizations, exact/default numerical mode, generated
 scalar/vector compute form, exact preferred FLOAT64 species bit size for vector compute, and the
@@ -1068,8 +1070,9 @@ Keeping the artifact reachable keeps its hidden-class state reachable, without p
 unreferenced class unloads. Direct generator calls produce equal class bytes but distinct hidden
 classes and artifact identities. The current durable generated-kernel artifact store may instead
 reuse compatible class bytes and weakly intern one loaded artifact while it remains live. The
-artifact is not by itself a prepared route. Current artifacts execute the admitted bounded
-pointwise chains across the implemented normalized access regimes and carrier patterns.
+artifact is not by itself a prepared route. Current schema-8 artifacts execute the admitted
+bounded forty-eight-opcode pointwise chains across the implemented normalized access regimes and
+carrier patterns.
 
 ### CPU generated-kernel artifact store
 
@@ -1167,7 +1170,7 @@ concrete Draft tasks.
 
 The immutable CPU-private loop-oriented representation of one CPU execution
 unit. Its route-independent canonical form records typed boundary and virtual values, one
-thirty-one-opcode family-oriented pointwise vocabulary, exact typed scalar-immediate and ordered
+forty-eight-opcode family-oriented pointwise vocabulary, exact typed scalar-immediate and ordered
 two-bound clamp bits, selected scalar-power realizations, ordered computation semantics,
 normalized access-plan form,
 a universal primitive `start`/`end` loop
@@ -1264,6 +1267,12 @@ four before shared assignment. It uses the Java 26 preferred FLOAT64 species for
 contiguous runs and scalar broadcasts, unmasked complete vectors plus scalar tails, and scalar
 fallback for general odometers or short runs. Generated kernels accept primitive `start` and
 `end`; worker orchestration remains outside generated code.
+
+The vector-eligible unary subset is FLOAT64 `ABS`, `NEG`, `RECIPROCAL`, `LOG`, `LOG1P`, `EXP`,
+`EXPM1`, `ERF`, `SQRT`, `RSQRT`, `TANH`, and `GELU`. FLOAT32 and the remaining seven unary kinds
+select scalar compute without losing semantic support. The Java 26 math lane operators make no
+hardware-intrinsic or performance promise, and generated code contains no explicit per-lane
+scalar-call loop.
 
 Configured and available parallelism are positive immutable CPU-private snapshots. Analysis also
 uses a positive minimum elements per worker, while cold binding forms deterministic contiguous,
@@ -1737,7 +1746,7 @@ behavior can differ. Current same-typed FLOAT32/FLOAT64 Tensor/Tensor power is i
 direct `StrictMath.pow` realization and is never inferred from Tensor storage or factory history.
 The scalar semantic opcode, exact exponent bits, selected realization, and numerical mode
 participate in generated-artifact compatibility and the cold lowering manifest under generator
-schema 7, with no Runtime hot-path lookup.
+schema 8, with no Runtime hot-path lookup.
 
 ### Typed scalar value / `ScalarValue`
 
@@ -3106,9 +3115,9 @@ casts, raw `Object`, or a shared parameter map.
 `BackendPartitionAnalysis` with the exact context partition, opaque selected plan, and every exact
 shared requirement. It performs no tuning measurement or search, cache mutation, physical
 allocation, executable construction, slot assignment, scheduling, or Runtime execution. No
-public concrete-backend implementation is composed yet. The current CPU module has a
-package-private implementation for the exact fused FLOAT64 proving topology and advertises only
-its occurrence-local ADD, exact GELU, and MUL matrix.
+public concrete-backend implementation is composed yet. The current CPU module has an internal
+implementation for one connected one-through-eight-occurrence fully static pointwise partition;
+its exact supported matrix is described under [CPU portable route](#cpu-portable-route).
 
 ### Preparation resource assignment
 

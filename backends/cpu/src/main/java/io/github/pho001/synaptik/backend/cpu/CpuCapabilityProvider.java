@@ -27,9 +27,9 @@ import java.util.Objects;
  * <p>The provider has a stable CPU ownership identity and advertises the bounded, fully static
  * pointwise matrix implemented by the portable route: selected same-type arithmetic including
  * extrema and floating Tensor power, exact scalar arithmetic and floating range clamp,
- * canonical-BOOL logic, negation and classification, comparisons, floating {@code WHERE},
- * same-type {@code CAST}, and
- * exact {@code FLOAT64} {@code GELU}. Every descriptor has a resolved layout, and results obey the
+ * canonical-BOOL logic, all nineteen same-typed FLOAT32/FLOAT64 unary semantics, floating
+ * classification, comparisons, floating {@code WHERE}, and same-type {@code CAST}. Every
+ * descriptor has a resolved layout, and results obey the
  * Model family's shape rule. Complete-partition lowering remains stricter: it validates a connected
  * one-to-eight-occurrence chain, normalizes exact layout geometry, and applies alias, fan-out,
  * publication, and partition-boundary checks before resource declaration.</p>
@@ -123,10 +123,7 @@ public final class CpuCapabilityProvider implements BackendCapabilityProvider {
             }
             if (kind instanceof UnaryElementwiseKind unary) {
                 return attrs == NoOperationAttrs.INSTANCE && query.inputs().size() == 1
-                        && ((unary == UnaryElementwiseKind.NEG
-                                && floating(query.inputs().getFirst().dataType()))
-                            || (unary == UnaryElementwiseKind.GELU
-                                && query.inputs().getFirst().dataType() == DataType.FLOAT64))
+                        && floating(query.inputs().getFirst().dataType())
                         && sameTypeAndShape(query.inputs().getFirst(), output);
             }
             if (kind instanceof FloatingClassificationKind) {
