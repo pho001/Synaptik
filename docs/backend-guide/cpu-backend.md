@@ -18,16 +18,17 @@ CPU-private pointwise vocabulary. The access family covers scalar/rank/singleton
 broadcasting, zero extents, offsets, positive and broadcast-zero strides, and ordered
 heap/segment/mixed carrier patterns for the derived boundaries. CPU 0005H closes all nineteen
 same-typed FLOAT32/FLOAT64 unary kinds, while preserving the three separate floating-classification
-kinds and CPU 0005G's extrema, clamp, Tensor power, and canonical-BOOL logic. Cold analysis selects
-scalar, vector, parallel-scalar, or parallel-vector execution; vector-ineligible admitted geometry
-or opcodes fall back to scalar compute. Analysis can also compare direct access with at most one CPU-private
-contiguous input copy from explicit dimensionless cold cost evidence. A selected copy uses one
-declared run-owned workspace and completes before consumer execution. Capability and lowering fail
-closed for every other operation, type, shape, layout, parameter, alias, fan-out, publication,
-carrier, or route. In particular, CAST is same-type only and BFLOAT16 remains storage-only for
-this family; CPU does not invent cross-type conversion semantics. Native, tuning, excluded
-pointwise rows, and later operation families
-remain Draft.
+kinds and CPU 0005G's extrema, clamp, Tensor power, and canonical-BOOL logic. CPU 0005I gives
+preferred-species FLOAT32 and FLOAT64 vector parity for the same closed twenty-one-opcode subset.
+Cold analysis selects scalar, vector, parallel-scalar, or parallel-vector execution;
+vector-ineligible admitted geometry or opcodes fall back to scalar compute. Analysis can also
+compare direct access with at most one CPU-private contiguous FLOAT64 input copy from explicit
+dimensionless cold cost evidence. A selected copy uses one declared run-owned workspace and
+completes before consumer execution. Capability and lowering fail closed for every other
+operation, type, shape, layout, parameter, alias, fan-out, publication, carrier, or route. In
+particular, CAST is same-type only and BFLOAT16 remains storage-only for this family; CPU does not
+invent cross-type conversion semantics. Native, tuning, excluded pointwise rows, and later
+operation families remain Draft.
 
 The lower-level OpenBLAS provider separately implements explicit library loading, required-symbol
 binding, a caller-owned lookup lifetime, low-level FLOAT32/FLOAT64 dense row-major general matrix
@@ -441,14 +442,22 @@ operation-specific lowerer, emitter, executable, or registry class:
 | Cast | Represented-value-preserving same-type `CAST` for all five executable types |
 
 Scalar and parallel-scalar generated execution cover every row. Vector and parallel-vector are
-eligible only when every IR value is FLOAT64, every opcode is numeric and vector-safe (`ADD`,
-`SUB`, `MUL`, `DIV`, their exact scalar forms, the four special scalar-power plans, or one of the
-eligible unary rows listed below), and the completed contiguous-run
-access checks pass. FLOAT32, integral, BOOL-producing, WHERE, and CAST chains remain supported but
-select scalar compute. Direct scalar power and every CPU 0005G opcode also select scalar compute.
-Parallel-scalar remains
-available when cold orchestration selects more than one range. This fallback is a cold strategy
-decision, not an execution failure or a claim of vector coverage.
+eligible only when every IR value has one homogeneous type—either all FLOAT32 or all FLOAT64—every
+opcode belongs to this exact closed subset, and the completed contiguous-run access checks pass:
+
+| Family | Exact vector-eligible opcodes in both precisions |
+|---|---|
+| Binary arithmetic | `ADD`, `SUB`, `MUL`, `DIV` |
+| Exact scalar arithmetic | `SCALAR_ADD`, `SCALAR_SUB`, `SCALAR_MUL`, `SCALAR_DIV`, `SCALAR_POW` |
+| Unary | `NEG`, `ABS`, `RECIPROCAL`, `LOG`, `LOG1P`, `EXP`, `EXPM1`, `ERF`, `SQRT`, `RSQRT`, `TANH`, `GELU_EXACT` |
+
+`SCALAR_POW` is vector-realizable only for `POSITIVE_ONE`, `IDENTITY`, `SQUARE`, and
+`RECIPROCAL`; `DIRECT` remains scalar. Integral, BOOL-producing, `WHERE`, and `CAST` chains remain
+supported but select scalar compute. A chain containing one vector-ineligible instruction remains
+one unit and selects scalar or parallel-scalar; it is not split and does not extract individual
+lanes. Parallel-scalar remains available when cold orchestration selects more than one range. This
+fallback is a cold strategy decision, not an execution failure or a universal vectorization
+claim.
 
 For example, a three-occurrence chain can add two FLOAT32 inputs, negate the virtual result, and
 compare it with a third FLOAT32 input. Lowering derives the three external reads in first-use
@@ -511,11 +520,11 @@ operations.
 
 The compute matrix separates semantic support from vector eligibility:
 
-| Unary group | FLOAT32 scalar / parallel-scalar | FLOAT64 scalar / parallel-scalar | FLOAT64 vector / parallel-vector |
+| Unary group | FLOAT32 scalar / parallel-scalar | FLOAT64 scalar / parallel-scalar | FLOAT32 and FLOAT64 vector / parallel-vector |
 |---|---|---|---|
 | `ABS`, `NEG`, `RECIPROCAL` | yes | yes | yes |
-| `LOG`, `LOG1P`, `EXP`, `EXPM1`, `SQRT`, `RSQRT`, `TANH` | yes | yes | yes, direct Java 26 lane operators or exact division/square-root composition |
-| `ERF`, `GELU` | yes | yes | yes, shared polynomial helper |
+| `LOG`, `LOG1P`, `EXP`, `EXPM1`, `SQRT`, `RSQRT`, `TANH` | yes | yes | yes, direct Java 26 lane operators or typed division/square-root composition |
+| `ERF`, `GELU` | yes | yes | yes, typed pure vector formulas |
 | `FLOOR`, `CEIL`, `SIGN`, `RELU` | yes | yes | no; scalar compute |
 | `SIGMOID`, `GELU_TANH_APPROXIMATION`, `SILU` | yes | yes | no; scalar compute |
 
@@ -535,12 +544,34 @@ negative infinity to negative zero rather than evaluating an indeterminate infin
 product. NaN results have a classification promise only; payload and sign are unspecified.
 
 Scalar `LOG`, `LOG1P`, `EXP`, and `EXPM1` retain the Java method's at-most-one-ulp contract;
-`SQRT` is correctly rounded and scalar `TANH` permits at most 2.5 ulps. FLOAT64 vector
+`SQRT` is correctly rounded and scalar `TANH` permits at most 2.5 ulps. FLOAT32 vector
+`LOG`/`LOG1P`/`EXP`/`EXPM1` and `RSQRT` permit at most 2 binary32 ulps against the completed scalar
+reference; vector `SQRT` permits at most 1 binary32 ulp and vector `TANH` at most 5. FLOAT64 vector
 `EXP`/`LOG`/`LOG1P`/`EXPM1` permit at most 2 ulps against the scalar oracle, and vector `TANH`
 permits at most 5 ulps. ERF, sigmoid, both GELU kinds, and SiLU use
 `max(2e-7, 2e-7 * abs(expected))` for FLOAT64 and
-`max(2e-5, 2e-5 * abs(expected))` for FLOAT32; vector ERF/GELU use the FLOAT64 activation bound.
-These are conformance limits for the fixed algorithms, not relaxed-math permission.
+`max(2e-5, 2e-5 * abs(expected))` for FLOAT32. These are conformance limits for the fixed
+algorithms, not relaxed-math permission or a hardware-acceleration claim.
+
+The vector ERF formula retains the selected Cephes double-precision piecewise rational
+approximation and coefficient order documented by the official [Cephes double-precision
+reference](https://netlib.org/cephes/doubldoc.html). The FLOAT32 tables are source-stable
+hexadecimal float literals: each is the one-time IEEE-754 binary32 rounding of its corresponding
+retained binary64 coefficient. They are not per-call casts and do not substitute the different
+Cephes `erff` polynomial family; the official [Cephes single-precision
+reference](https://netlib.org/cephes/singldoc.html) is provenance review evidence. Directed,
+deterministic-random, scalar-differential, and independent numerical-integration tests establish
+the stated FLOAT32 bound. GELU calls the matching typed ERF formula and then evaluates
+`0.5 * x * (1 + erf(x / sqrt(2)))`, including the explicit negative-infinity-to-negative-zero
+correction.
+
+Emission ownership follows the computation boundary. `CpuVectorInstructionEmitter` owns the
+single closed opcode switch and emits one already-validated `FloatVector` or `DoubleVector`
+instruction into preallocated locals. `CpuVectorMath` has overloads for both precisions and owns
+only pure multi-instruction formulas such as reciprocal, ERF, and GELU. It owns no `CodeBuilder`,
+loop, carrier, route, or opcode selection. `CpuClassFileKernelGenerator` still owns class and loop
+construction, local allocation, boundary loads/stores, scalar tails, byte verification, and hidden
+class definition. Generated hot code contains no opcode, type, carrier, route, or shape dispatch.
 
 ### Floating division, extrema, clamp, and power realization
 
@@ -553,9 +584,9 @@ exponent analysis because the exponent is a runtime Tensor value.
 
 | Semantic operation | FLOAT32 | FLOAT64 | Vector eligibility |
 |---|---|---|---|
-| Tensor/Tensor `DIV` | Primitive `left / right` | Primitive `left / right` | FLOAT64 only, under the existing topology, access, and carrier gates |
-| Tensor/scalar `DIV` | Primitive `input / denominator` | Primitive `input / denominator` | FLOAT64 only, under the same gates |
-| Tensor/scalar `POW` | Direct or one selected exact plan | Direct or one selected exact plan | FLOAT64 special plans only; direct power is scalar-compute only |
+| Tensor/Tensor `DIV` | Primitive `left / right` | Primitive `left / right` | Both precisions, under the existing homogeneous-type, topology, access, and carrier gates |
+| Tensor/scalar `DIV` | Primitive `input / denominator` | Primitive `input / denominator` | Both precisions, under the same gates |
+| Tensor/scalar `POW` | Direct or one selected exact plan | Direct or one selected exact plan | Both precisions for the four special plans; direct power is scalar-compute only |
 | Tensor/Tensor `POW` | Widen both represented binary32 values, call `StrictMath.pow`, narrow once | Direct `StrictMath.pow` | Scalar-compute only |
 
 Division uses Java/IEEE-754 behavior in operand order. It preserves NaN classification,
@@ -602,14 +633,15 @@ to `[+0.0, -0.0]` produces `-0.0` for every non-NaN input.
 Logical `AND` and `OR` use ordinary right-aligned broadcasting; `NOT` preserves Shape. Cold
 binding validates external BOOL bytes as canonical `0` or `1`, and internal logical results stay
 canonical. Generated loops perform no numeric-truthiness conversion or repeated BOOL validation.
-All nine CPU 0005G opcodes remain scalar or parallel-scalar, while the previously eligible
-FLOAT64 vector rows are unchanged.
+All nine CPU 0005G opcodes remain scalar or parallel-scalar, while the twenty-one eligible rows
+now have FLOAT32 and FLOAT64 vector realizations.
 
 The selected realization is a preparation-time code-shaping fact. It participates, with the
 semantic opcode and exact scalar bits, in canonical IR, specialization and artifact compatibility,
-and the optional lowering manifest. Generator schema 8 includes the forty-eight-opcode vocabulary,
-the closed unary emission matrix, and the earlier scalar-power/clamp instruction shapes; it rejects
-schema 7 and every older stored artifact as incompatible. Generated
+and the optional lowering manifest. Generator schema 9 includes homogeneous FLOAT32 preferred-
+species vector specialization and the separated instruction-emission/math boundary in addition to
+the forty-eight-opcode vocabulary and earlier instruction shapes. It rejects schema 8 and every
+older stored artifact as incompatible, with no migration reader. Generated
 code performs no exponent comparison or policy lookup, and Runtime only
 invokes the already-prepared executable.
 
@@ -624,14 +656,18 @@ too-short runs select scalar compute rather than rejecting the partition. There 
 gather. Cost-gated contiguous materialization may replace one eligible non-dense input access, but
 complete access semantics do not promise universal vectorization.
 
-Vector classes use the Java 26 preferred FLOAT64 species captured during cold analysis. The exact
-species bit size participates in generated specialization and cache identity. Each generated class
-contains only its selected scalar or vector body and one direct entry signature for the prepared
-derived-boundary carrier pattern. Vector loads and stores call the direct array or `MemorySegment`
-forms selected during generation; segment access uses native byte order. Each contiguous run uses
-unmasked complete vectors, then the existing scalar body for every remainder. This scalar-tail
-rule covers arbitrary starts, worker chunk ends, and runs shorter than one vector; CPU 0005C adds
-no masked tail, gather, per-lane scalar GELU, or hot scalar/vector switch.
+Vector classes use the Java 26 preferred species for their validated homogeneous type:
+`FloatVector.SPECIES_PREFERRED` for FLOAT32 or `DoubleVector.SPECIES_PREFERRED` for FLOAT64. The
+exact species bit size and ordered boundary types participate in generated specialization and
+cache identity; no duplicate lane-type field is needed. Each generated class contains only its
+selected scalar or vector body and one direct entry signature for the prepared derived-boundary
+carrier pattern. Vector loads and stores call the exact `float[]`, `double[]`, or
+`MemorySegment` form selected during generation; segment access uses native byte order. Each
+contiguous run uses unmasked complete vectors, then the existing scalar body for every remainder.
+This scalar-tail rule covers arbitrary starts and worker chunk ends. General odometers, masked
+tails, gather access, and vector-ineligible chains select scalar compute. The JVM may internally
+scalarize a Vector API operation, so this route and its tests do not promise hardware intrinsics
+or speedup.
 
 ### Current contiguous materialization decision
 
@@ -917,11 +953,11 @@ fixed SGEMM/DGEMM cases, and restoration of the original thread count. The order
 architecture capability checkpoint then passed, and the provider milestone is complete.
 
 The current CPU foundation provides the bounded fully static pointwise matrix and carrier forms
-described above, including scalar execution for all admitted rows and vector execution only for
-the documented eligible FLOAT64 numeric and unary chains. No excluded pointwise or later semantic family,
-cross-type CAST,
-native fallback, backend-conformance result, public Engine integration, or performance result is
-implemented or promised.
+described above, including scalar execution for all admitted rows and preferred-species FLOAT32
+and FLOAT64 vector execution for the exact closed twenty-one-opcode subset. No excluded pointwise
+or later semantic family, cross-type CAST, native fallback, backend-conformance result, public
+Engine integration, hardware-intrinsic guarantee, or performance result is implemented or
+promised.
 Ordinary provider tests
 prove Java validation and exact ABI forwarding, not installed-library numerical correctness. The
 native checkpoint proves only its selected binary and fixed cases.

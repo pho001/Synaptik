@@ -1,14 +1,15 @@
 /**
  * Owns unsupported Java 26 Class-File generation from canonical CPU kernel IR.
  *
- * <p>Emitters consume an already-selected exact scalar or preferred-species FLOAT64 vector
+ * <p>Emitters consume an already-selected exact scalar or preferred-species FLOAT32/FLOAT64 vector
  * specialization and generate one universal primitive {@code start}/{@code end} loop over its
  * exact ordered typed primitive-array or {@code MemorySegment} carrier pattern. Scalar generation
  * covers the admitted FLOAT64, FLOAT32, INT32, INT64, and BOOL rows; vector generation remains
- * limited to eligible FLOAT64 numeric opcodes, including primitive division, the four proved
+ * limited to eligible homogeneous floating numeric opcodes, including primitive division, the four proved
  * scalar-power plans, and the selected direct unary lane operations and shared ERF/GELU helpers.
  * Every unary opcode has a scalar body; FLOOR, CEIL, SIGN, RELU, SIGMOID, GELU tanh approximation,
- * and SiLU remain scalar-compute only. Extrema, first-class clamp, Tensor power, canonical-BOOL
+ * and SiLU remain scalar-compute only. Vector instruction bytecode emission is separate from the
+ * pure typed vector mathematics. Extrema, first-class clamp, Tensor power, canonical-BOOL
  * logic, and direct scalar power are also scalar-compute only. FLOAT32 reciprocal square root
  * widens before both {@code StrictMath.sqrt} and the reciprocal and narrows their combined result
  * once. Direct FLOAT32 power widens the represented base and exponent exactly, invokes

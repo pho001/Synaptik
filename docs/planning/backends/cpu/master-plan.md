@@ -198,13 +198,14 @@ created by 0005A. All consume the common analysis above; none creates another ba
 | 0005F | [Floating division and exact scalar-power realization](tasks/0005f-floating-division-and-exact-scalar-power-realization.md) | Complete | 0005E | Added exact/default same-typed FLOAT32/FLOAT64 binary and scalar DIV plus direct scalar `POW`; retained semantic `POW` while selecting only the proved positive-one, identity, one-multiply square, or one-division reciprocal realizations. All three family opcodes preserve the completed pointwise boundaries, and reciprocal power remains semantically distinct from DIV. |
 | 0005G | [Extrema, clamp, Tensor power, and logical coverage](tasks/0005g-extrema-clamp-tensor-power-and-logical-coverage.md) | Complete | 0005F; Model 0018T/0018U/0025A | Added exact same-typed binary/scalar MIN/MAX, first-class floating CLAMP, direct floating Tensor/Tensor POW, and canonical-BOOL AND/OR/NOT through the existing family pipeline. Every new row is scalar or parallel-scalar; one-instruction CLAMP, completed budgets, and fail-closed cross-type CAST/unary boundaries remain preserved. |
 | 0005H | [Portable unary, transcendental, and activation closure](tasks/0005h-portable-unary-transcendental-and-activation-closure.md) | Complete | 0005G; Model 0018P/0018T1/0019A semantics; Java 26 math/Vector contracts | Closed all nineteen FLOAT32/FLOAT64 unary kinds through the existing family pipeline, preserved completed NEG and classification rows, extended/corrected GELU, selected an explicit scalar/vector algorithm, special-value, and tolerance matrix, advanced to schema 8, and retained cross-type CAST fail-closed. |
-| 0006 | Portable layout, indexing, ordering, and random family coverage | Draft | 0005H | Generate truthful coverage for executable layout transforms, slicing, padding, tiling, composition, windows, gather/scatter, ordering, one-hot, and explicit-state random/dropout work; metadata-only or zero-work views remain computation-free. |
-| 0007 | Portable reduction, scan, statistics, and normalization family coverage | Draft | 0002–0006, including 0005A–0005H | Generate family-specific range, tile, partial-reduction, and combine bodies for aggregates, arg extrema, scans, softmax/log-softmax, statistics, and normalization with exact semantics and determinism. |
+| 0005I | [FLOAT32 vector parity and vector-emission boundary](tasks/0005i-float32-vector-parity-and-vector-emission-boundary.md) | Complete | 0005H; Java 26 `FloatVector`/`DoubleVector`; completed pointwise access, specialization, and numerical contracts | Added preferred-species FLOAT32 parity for the exact twenty-one current vector-eligible pointwise opcodes, kept every unsupported row on scalar fallback, split operation-level vector bytecode emission from pure vector math, and made the selected ERF/GELU coefficient provenance and binary32 derivation auditable. |
+| 0006 | Portable layout, indexing, ordering, and random family coverage | Draft | 0005I | Generate truthful coverage for executable layout transforms, slicing, padding, tiling, composition, windows, gather/scatter, ordering, one-hot, and explicit-state random/dropout work; metadata-only or zero-work views remain computation-free. |
+| 0007 | Portable reduction, scan, statistics, and normalization family coverage | Draft | 0002–0006, including 0005A–0005I | Generate family-specific range, tile, partial-reduction, and combine bodies for aggregates, arg extrema, scans, softmax/log-softmax, statistics, and normalization with exact semantics and determinism. |
 | 0008 | Portable linear algebra, convolution, pooling, attention, and loss coverage | Draft | 0002–0007 | Generate the remaining portable executable families. Establish a bounded initial epilogue direction for MATMUL or convolution followed by an optional compatible bias ADD and at most one already-supported exact pointwise activation or clamp, only when single-use dataflow, Shape/layout, numerical order, publication, and resource rules preserve semantics; all other forms split safely. |
 | 0008A | General partition-DAG computation-unit decomposition and bounded fusion | Draft | 0006–0008 | Decompose one CPU-owned partition directed acyclic graph (DAG) into computation units, then admit bounded vertical and horizontal fusion only across legal edges. Bound fan-out, indexing complexity, generated-code size, simultaneously live values, and unit/candidate count; preserve a deterministic materialized split fallback whenever fusion is illegal, over budget, or unprofitable. |
 | 0008B | Typed specialized-subgraph and epilogue recognition | Draft | 0007–0008A | Add CPU-private typed recognition for a selected closed set of specialized subgraphs: initially MATMUL, convolution, and reduction epilogues plus explicit semantic kernels. Add no public pattern registry or domain-specific language (DSL), no new Model kinds, and no recognition that silently turns decomposed softmax into stable `SOFTMAX`. Unrecognized or ineligible graphs retain ordinary decomposed units. |
 | 0008C | Bounded fusion profitability and typed decision facts | Draft | 0008A–0008B | Rank only complete legal fused and split candidates with bounded safe no-measurement heuristics by default. Retain typed cold accepted, rejected, and selected decision facts, including legality rejection separately from profitability rejection, for later Trace backend payload translation and tuning inspection without exposing a public registry or moving selection into Runtime. |
-| 0009 | Portable generated-coverage closure checkpoint | Draft | 0001–0008C, explicitly including 0005A–0005H and 0008A–0008C; complete current selected Model semantic inventory | Prove the bytecode/Vector portable route is the truthful supported semantic baseline and fallback, including safe general DAG decomposition, bounded recognition/fusion, deterministic split fallback, and typed cold decision evidence. Classify metadata-only work, prove unsupported work fails closed, and close capability/conformance before native peer-route expansion. |
+| 0009 | Portable generated-coverage closure checkpoint | Draft | 0001–0008C, explicitly including 0005A–0005I and 0008A–0008C; complete current selected Model semantic inventory | Prove the bytecode/Vector portable route is the truthful supported semantic baseline and fallback, including safe general DAG decomposition, bounded recognition/fusion, deterministic split fallback, and typed cold decision evidence. Classify metadata-only work, prove unsupported work fails closed, and close capability/conformance before native peer-route expansion. |
 | 0010 | Narrow OpenBLAS BLAS-compatible native route | Draft | 0005A; 0009; completed OpenBLAS provider | Add only `route.nativeblas.openblas` for eligible BLAS-compatible linear algebra, preserving portable alternatives and using shared lowering, representations, exact filtering, materialization accounting, and whole-plan transition cost; never treat OpenBLAS as universal or preferred. |
 | 0011 | Intel oneMKL BLAS and VML peer routes | Draft | 0005A; 0009; concrete Intel CPU use case and supported oneMKL ABI evidence | Add distinct `route.nativeblas.mkl` BLAS and `route.nativeops.mkl` VML leaves over shared analysis, without duplicating graph interpretation, fusion, access planning, or lifecycle ownership. |
 | 0012 | Intel oneDNN partition peer routes | Draft | 0005A; 0009; stable common CPU lowering; concrete DNN/ML use case and supported oneDNN ABI evidence | Add `route.nativeops.onednn` as a distinct eligible partition route over common lowering/IR and whole-plan cost, without collapsing it into oneMKL or portable code generation. |
@@ -239,6 +240,8 @@ is Complete. Detailed
 [CPU 0005G Extrema, clamp, Tensor power, and logical coverage](tasks/0005g-extrema-clamp-tensor-power-and-logical-coverage.md)
 is Complete. Detailed
 [CPU 0005H Portable unary, transcendental, and activation closure](tasks/0005h-portable-unary-transcendental-and-activation-closure.md)
+is Complete. Detailed
+[CPU 0005I FLOAT32 vector parity and vector-emission boundary](tasks/0005i-float32-vector-parity-and-vector-emission-boundary.md)
 is Complete. CPU 0006 and every later CPU task remain Draft without a detailed specification.
 
 Superseded task 0001 remains preserved through its sole detailed CPU
@@ -304,8 +307,8 @@ is Complete. It adds right-aligned static broadcast/layout normalization, exact 
 declaration and accessed-range spans, complete write-injectivity proof, five generated scalar
 state machines, and all sixteen ordered heap/segment carrier specializations. Detailed CPU 0005C
 is Complete. CPU 0005D, detailed CPU 0005E, detailed CPU 0005F, and detailed CPU 0005G are also
-Complete. Detailed CPU 0005H is `Complete`; tasks 0006–0017 remain `Draft` without detailed
-specifications.
+Complete. Detailed CPU 0005H and detailed CPU 0005I are `Complete`; tasks 0006–0017 remain
+`Draft` without detailed specifications.
 CPU 0005C preserves that exact slice and implements cold selection among all four portable
 strategies. It uses the preferred Java 26 FLOAT64 species only for direct contiguous runs and
 scalar broadcasts, scalar tails and general-odometer fallback, configured/available parallelism
@@ -397,6 +400,24 @@ reused the restabilized Java evidence, finalized the
 affected Javadocs/package summaries, CPU guide, glossary, and planning records, and passed CPU
 Javadoc, Markdown/link/anchor/formatting, exact authorized-scope, semantic/status, and whitespace
 gates without rerunning Java tests.
+
+Detailed CPU 0005I is Complete. It closes the intentional FLOAT64-only vector realization before
+family expansion with preferred-species FLOAT32 parity for the exact existing twenty-one eligible
+opcodes. Package-private final `CpuVectorInstructionEmitter` owns the closed family switch, while
+package-private final `CpuVectorMath` owns pure `FloatVector`/`DoubleVector` formulas. The retained
+Cephes binary64 ERF family now has exact source-stable binary32 rounded tables, independent-oracle
+and scalar-differential evidence, and explicit FLOAT32 bounds. Schema 9 rejects every older
+envelope. Scalar fallback and tails, FLOAT64-only materialization, one-through-eight fusion, the
+four-candidate/one-artifact/zero-fixed-shape/zero-unroll budgets, optional persistence policy,
+capability, public API, modules, dependencies, and architecture remain unchanged.
+
+The implementation pass's revised focused eleven-class command passed 11 suites/62 tests. The
+final CPU command passed 26 suites/117 tests with zero failures/errors and one expected opt-in
+persistence-evidence skip. Clean documentation context `/root` reused that evidence, finalized
+the affected Javadocs, CPU guide, glossary, and planning records, and passed CPU Javadoc plus
+local Markdown, official-link, exact-scope/status/inventory, formatting, and whitespace gates
+without rerunning Java tests. CPU 0006 and later tasks remain Draft without detailed
+specifications.
 
 The reset was a working-tree replacement, not deletion of history. CPU 0001–0005 are Superseded
 with all recorded evidence preserved; the repository contains no old/new dual pipeline.

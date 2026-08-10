@@ -31,8 +31,8 @@ import io.github.pho001.synaptik.backend.cpu.internal.cache.CpuSpecializationBud
  * @param selectedRangeCount positive maximum range count selected during cold analysis; one for
  *     single-thread strategies and at least two for parallel strategies
  * @param minimumElementsPerWorker positive minimum logical elements per submitted worker chunk
- * @param vectorSpeciesBitSize exact positive preferred FLOAT64 species size in bits for vector
- *     strategies, or zero for scalar strategies
+ * @param vectorSpeciesBitSize exact positive preferred typed floating species size in bits for
+ *     vector strategies, or zero for scalar strategies
  * @param loweringManifest non-null optional cold diagnostic text, empty when disabled
  * @param materialization non-null optional selected one-input copy fact
  * @param workspaceDeclaration non-null optional exact workspace declaration; present exactly when
@@ -132,8 +132,8 @@ public record CpuPartitionPreparationPlan(List<ExecutionUnitPlan> units, Route r
      * @param elementCount checked logical element count represented by {@code extents}
      * @param selectedRangeCount positive maximum selected range count
      * @param minimumElementsPerWorker positive minimum elements per submitted worker chunk
-     * @param vectorSpeciesBitSize positive preferred FLOAT64 species bit size for vector compute,
-     *     or zero for scalar compute
+     * @param vectorSpeciesBitSize positive preferred typed floating species bit size for vector
+     *     compute, or zero for scalar compute
      * @param loweringManifest non-null optional cold diagnostic text
      * @param materialization non-null optional selected copy
      * @param workspaceDeclaration non-null optional exact selected-copy workspace declaration

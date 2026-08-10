@@ -23,8 +23,8 @@ import io.github.pho001.synaptik.model.datatype.DataType;
  *     because parallel plans reuse the corresponding scalar or vector artifact
  * @param boundaryDataTypes non-null immutable ordered data type for every derived boundary
  * @param carrierPattern non-null immutable ordered carrier form for every derived boundary
- * @param vectorSpeciesBitSize exact positive preferred FLOAT64 species size in bits for vector
- *     compute, or zero for scalar compute
+ * @param vectorSpeciesBitSize exact positive preferred typed floating species size in bits for
+ *     vector compute, or zero for scalar compute
  * @param materializedSourcePosition copied input position before the final output, or
  *     {@code -1} for direct access; a copied position must use a segment carrier in the generated
  *     pattern
@@ -124,8 +124,8 @@ public record CpuKernelSpecialization(CpuLoweringFingerprint loweringFingerprint
      * @param executionStrategy non-null single-thread generated compute strategy
      * @param boundaryDataTypes non-null ordered boundary types; copied defensively
      * @param carrierPattern non-null ordered boundary carrier pattern; copied defensively
-     * @param vectorSpeciesBitSize positive preferred FLOAT64 species bit size for vector compute,
-     *     or zero for scalar compute
+     * @param vectorSpeciesBitSize positive preferred typed floating species bit size for vector
+     *     compute, or zero for scalar compute
      * @param materializedSourcePosition copied input position, or {@code -1} for direct access
      * @param scalarPowerRealizations non-null ordered scalar-power realization facts; copied
      * @throws NullPointerException if a component is {@code null}

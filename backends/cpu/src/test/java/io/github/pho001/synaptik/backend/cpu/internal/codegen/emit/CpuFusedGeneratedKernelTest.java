@@ -25,6 +25,7 @@ import io.github.pho001.synaptik.runtime.run.RunState;
 import io.github.pho001.synaptik.backend.cpu.internal.prepare.CpuPartitionAnalysisInputs.PortableExecutionConfig;
 import io.github.pho001.synaptik.backend.cpu.internal.prepare.CpuPartitionAnalysisInputs.PortableExecutionConfig.ComputePreference;
 import jdk.incubator.vector.DoubleVector;
+import jdk.incubator.vector.FloatVector;
 import io.github.pho001.synaptik.backend.cpu.internal.memory.CpuContiguousWorkspace;
 import io.github.pho001.synaptik.backend.cpu.internal.executable.CpuWorkerGroup;
 import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuAccessPlan;
@@ -32,6 +33,8 @@ import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuAccessPlan;
 class CpuFusedGeneratedKernelTest {
     private static final ValueLayout.OfDouble DOUBLE =
             ValueLayout.JAVA_DOUBLE_UNALIGNED.withOrder(ByteOrder.nativeOrder());
+    private static final ValueLayout.OfFloat FLOAT =
+            ValueLayout.JAVA_FLOAT_UNALIGNED.withOrder(ByteOrder.nativeOrder());
 
     @Test void executesArbitraryHalfOpenBoundsWithoutMaterializedIntermediates() throws Throwable {
         var route = CpuPartitionPreparerTest.analyze(Shape.of(5)).plan().units().getFirst().portablePlan();
@@ -117,6 +120,19 @@ class CpuFusedGeneratedKernelTest {
         executeVectorCase(descriptor(source, LayoutDescriptor.contiguous(source)), target);
     }
 
+    @Test void floatVectorExecutionAgreesAcrossEveryAdmittedAccessRegime() {
+        int lanes = FloatVector.SPECIES_PREFERRED.length();
+        Shape denseShape = Shape.of(2, lanes + 1);
+        executeFloatVectorCase(floatDescriptor(denseShape,
+                LayoutDescriptor.contiguous(denseShape)), denseShape);
+        executeFloatVectorCase(floatDescriptor(Shape.scalar(),
+                LayoutDescriptor.contiguous(Shape.scalar())), denseShape);
+        executeFloatVectorCase(floatDescriptor(Shape.of(lanes + 1),
+                LayoutDescriptor.contiguous(Shape.of(lanes + 1))), denseShape);
+        Shape source = Shape.of(2, 1, lanes + 1), target = Shape.of(2, 3, lanes + 1);
+        executeFloatVectorCase(floatDescriptor(source, LayoutDescriptor.contiguous(source)), target);
+    }
+
     @Test void vectorGeluPreservesSpecialClassificationsAndThresholdNeighborhoods() {
         double[] values = {Double.NaN, Double.POSITIVE_INFINITY, Double.NEGATIVE_INFINITY,
                 -0.0, 0.0, Math.nextDown(Math.sqrt(2.0)), Math.sqrt(2.0),
@@ -129,7 +145,7 @@ class CpuFusedGeneratedKernelTest {
             for (int lane = 0; lane < lanes; lane++) input[lane] = values[
                     Math.min(values.length - 1, offset + lane)];
             double[] output = new double[lanes];
-            CpuVectorEmitter.gelu(DoubleVector.fromArray(DoubleVector.SPECIES_PREFERRED, input, 0))
+            CpuVectorMath.gelu(DoubleVector.fromArray(DoubleVector.SPECIES_PREFERRED, input, 0))
                     .intoArray(output, 0);
             for (int lane = 0; lane < lanes && offset + lane < values.length; lane++) {
                 double expected = CpuScalarReferenceKernel.gelu(input[lane]);
@@ -190,6 +206,17 @@ class CpuFusedGeneratedKernelTest {
         executeAnalysis(analysis);
     }
 
+    private static void executeFloatVectorCase(TensorDescriptor first, Shape target) {
+        var dense = floatDescriptor(target, LayoutDescriptor.contiguous(target));
+        var scalar = floatDescriptor(Shape.scalar(), LayoutDescriptor.contiguous(Shape.scalar()));
+        var inputs = new CpuPartitionAnalysisInputs(false,
+                CpuPartitionAnalysisInputs.DEFAULT.carrierPattern(),
+                new PortableExecutionConfig(ComputePreference.VECTOR_IF_ELIGIBLE, 1, 1, 1));
+        var analysis = CpuPartitionPreparerTest.analyze(first, dense, scalar, dense, inputs);
+        assertEquals("vector", analysis.plan().executionStrategy().toString());
+        executeAnalysis(analysis);
+    }
+
     private static void executeCase(TensorDescriptor first, Shape target) {
         var dense = descriptor(target, LayoutDescriptor.contiguous(target));
         var scalar = descriptor(Shape.scalar(), LayoutDescriptor.contiguous(Shape.scalar()));
@@ -207,17 +234,23 @@ class CpuFusedGeneratedKernelTest {
         var fullExecutable = CpuPartitionFinalizerTest.finalizeExecutable(analysis, Optional.empty(),
                 Optional.ofNullable(workers));
         var executable = fullExecutable.forRange(1, fullExecutable.binding().elementCount() - 1);
+        DataType dataType = analysis.plan().units().getFirst().portablePlan().specialization()
+                .boundaryDataTypes().getFirst();
+        int width = dataType.byteWidth();
         var buffers = new ArrayList<CpuNativeBuffer>();
         var runtimeBindings = new ArrayList<List<BufferRepresentationBinding>>();
         for (var entry : executable.memoryPlan().buffers()) {
-            var buffer = CpuNativeBuffer.allocate(DataType.FLOAT64, entry.byteSize(), 8);
+            var buffer = CpuNativeBuffer.allocate(dataType, entry.byteSize(), width);
             buffers.add(buffer);
             runtimeBindings.add(List.of(new BufferRepresentationBinding(buffer,
                     RunResourceOwnership.RUN_OWNED)));
         }
         for (int value = 0; value < 3; value++) for (long offset = 0;
-                offset < buffers.get(value).byteSize(); offset += 8) {
-            buffers.get(value).segment().set(DOUBLE, offset, value + offset / 8.0 + 0.25);
+                offset < buffers.get(value).byteSize(); offset += width) {
+            if (dataType == DataType.FLOAT32) buffers.get(value).segment().set(FLOAT, offset,
+                    value + offset / width + 0.25f);
+            else buffers.get(value).segment().set(DOUBLE, offset,
+                    value + offset / (double) width + 0.25);
         }
         List<io.github.pho001.synaptik.runtime.resource.WorkspaceRepresentation> workspaces =
                 executable.memoryPlan().workspaces().isEmpty() ? List.of()
@@ -227,22 +260,33 @@ class CpuFusedGeneratedKernelTest {
         var state = new RunState(executable.memoryPlan(), runtimeBindings, workspaces);
         try {
             executable.bind(state).execute();
-            int outputLength = Math.toIntExact(buffers.get(3).byteSize() / 8);
+            int outputLength = Math.toIntExact(buffers.get(3).byteSize() / width);
             double[] generated = new double[outputLength];
             for (int i = 0; i < outputLength; i++) {
-                generated[i] = buffers.get(3).segment().get(DOUBLE, i * 8L);
-                buffers.get(3).segment().set(DOUBLE, i * 8L, 0);
+                generated[i] = dataType == DataType.FLOAT32
+                        ? buffers.get(3).segment().get(FLOAT, i * 4L)
+                        : buffers.get(3).segment().get(DOUBLE, i * 8L);
+                if (dataType == DataType.FLOAT32) buffers.get(3).segment().set(FLOAT, i * 4L, 0);
+                else buffers.get(3).segment().set(DOUBLE, i * 8L, 0);
             }
             var referenceBindings = new ArrayList<>(executable.accessBindings());
             analysis.plan().materialization().ifPresent(copy -> referenceBindings.set(
                     copy.sourceBoundaryIndex(), ranged(copy.sourceBinding(),
                             executable.binding().start(), executable.binding().end())));
-            CpuScalarReferenceKernel.execute(buffers.stream().map(buffer -> buffer.argument()).toList(),
+            CpuScalarReferenceKernel.execute(
+                    analysis.plan().units().getFirst().portablePlan().kernelIr(),
+                    buffers.stream().map(buffer -> buffer.argument()).toList(),
                     referenceBindings, executable.binding().start(),
                     executable.binding().end());
-            for (int i = 0; i < outputLength; i++) assertEquals(
-                    buffers.get(3).segment().get(DOUBLE, i * 8L), generated[i],
-                    2e-7 * Math.max(1.0, Math.abs(generated[i])));
+            for (int i = 0; i < outputLength; i++) {
+                double expected = dataType == DataType.FLOAT32
+                        ? buffers.get(3).segment().get(FLOAT, i * 4L)
+                        : buffers.get(3).segment().get(DOUBLE, i * 8L);
+                double tolerance = dataType == DataType.FLOAT32
+                        ? Math.max(2e-5, 2e-5 * Math.abs(expected))
+                        : 2e-7 * Math.max(1.0, Math.abs(generated[i]));
+                assertEquals(expected, generated[i], tolerance);
+            }
         } finally {
             state.close();
             if (workers != null) workers.close();
@@ -259,5 +303,9 @@ class CpuFusedGeneratedKernelTest {
 
     private static TensorDescriptor descriptor(Shape shape, LayoutDescriptor layout) {
         return new TensorDescriptor(DataType.FLOAT64, shape, Optional.of(layout), false);
+    }
+
+    private static TensorDescriptor floatDescriptor(Shape shape, LayoutDescriptor layout) {
+        return new TensorDescriptor(DataType.FLOAT32, shape, Optional.of(layout), false);
     }
 }

@@ -5,7 +5,7 @@
  * one-to-eight-occurrence pointwise chain, forms one computation unit, retains normalized access
  * bindings and the derived ordered type/carrier pattern, compares direct access
  * with at most three one-input contiguous-copy candidates from explicit dimensionless cold
- * evidence, selects scalar or eligible FLOAT64 numeric/unary preferred-species vector compute plus
+ * evidence, selects scalar or eligible homogeneous FLOAT32/FLOAT64 preferred-species vector compute plus
  * single-thread or bounded parallel orchestration, and
  * declares each boundary's exact referenced storage span plus at most one workspace before shared
  * assignment. Finalization verifies all assignments and any required borrowed worker group before

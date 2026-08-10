@@ -217,7 +217,7 @@ class CpuPointwisePartitionLoweringTest {
                                 .instructions().size()),
                         () -> assertEquals(expected, plan.units().getFirst().portablePlan().kernelIr()
                                 .instructions().getFirst().opcode()),
-                        () -> assertEquals(type == DataType.FLOAT64 && expected.vectorEligible()
+                        () -> assertEquals(expected.vectorEligible()
                                         ? "parallel-vector" : "parallel-scalar",
                                 plan.executionStrategy().toString()));
             }

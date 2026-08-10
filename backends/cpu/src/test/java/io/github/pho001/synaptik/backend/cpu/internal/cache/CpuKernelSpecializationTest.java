@@ -13,6 +13,7 @@ import io.github.pho001.synaptik.backend.cpu.internal.prepare.CpuPartitionPrepar
 import io.github.pho001.synaptik.backend.cpu.internal.prepare.CpuPartitionAnalysisInputs.PortableExecutionConfig;
 import io.github.pho001.synaptik.backend.cpu.internal.prepare.CpuPartitionAnalysisInputs.PortableExecutionConfig.ComputePreference;
 import jdk.incubator.vector.DoubleVector;
+import jdk.incubator.vector.FloatVector;
 import io.github.pho001.synaptik.model.datatype.DataType;
 import io.github.pho001.synaptik.model.layout.LayoutDescriptor;
 import io.github.pho001.synaptik.model.tensor.TensorDescriptor;
@@ -61,6 +62,29 @@ class CpuKernelSpecializationTest {
                 () -> assertEquals(DoubleVector.SPECIES_PREFERRED.vectorBitSize(),
                         vector.vectorSpeciesBitSize()),
                 () -> assertNotEquals(scalarSingle.structuralKey(), vector.structuralKey()));
+    }
+
+    @Test void typedPreferredSpeciesAndBoundaryTypeChangeVectorIdentity() {
+        int count = Math.max(DoubleVector.SPECIES_PREFERRED.length(),
+                FloatVector.SPECIES_PREFERRED.length()) * 2;
+        Shape shape = Shape.of(count);
+        var config = new PortableExecutionConfig(ComputePreference.VECTOR_IF_ELIGIBLE, 1, 1, 1);
+        var doubleSpecialization = specialization(CpuPartitionPreparerTest.context(shape), config);
+        var floatDescriptor = new TensorDescriptor(DataType.FLOAT32, shape,
+                Optional.of(LayoutDescriptor.contiguous(shape)), false);
+        var floatContext = CpuPartitionPreparerTest.context(floatDescriptor, floatDescriptor,
+                floatDescriptor, floatDescriptor, new CpuPartitionAnalysisInputs(false,
+                        CpuPartitionAnalysisInputs.DEFAULT.carrierPattern(), config));
+        var floatSpecialization = specialization(floatContext, config);
+        assertAll(
+                () -> assertEquals(DoubleVector.SPECIES_PREFERRED.vectorBitSize(),
+                        doubleSpecialization.vectorSpeciesBitSize()),
+                () -> assertEquals(FloatVector.SPECIES_PREFERRED.vectorBitSize(),
+                        floatSpecialization.vectorSpeciesBitSize()),
+                () -> assertNotEquals(doubleSpecialization.structuralKey(),
+                        floatSpecialization.structuralKey()),
+                () -> assertFalse(java.util.Arrays.equals(doubleSpecialization.compatibilityBytes(),
+                        floatSpecialization.compatibilityBytes())));
     }
 
     @Test void materializationStructureChangesIdentityWhileInstanceFactsAndVariantsStayBounded() {

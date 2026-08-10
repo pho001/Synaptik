@@ -29,10 +29,13 @@ import org.junit.jupiter.api.Test;
 import io.github.pho001.synaptik.backend.cpu.internal.prepare.CpuPartitionAnalysisInputs.PortableExecutionConfig;
 import io.github.pho001.synaptik.backend.cpu.internal.prepare.CpuPartitionAnalysisInputs.PortableExecutionConfig.ComputePreference;
 import jdk.incubator.vector.DoubleVector;
+import jdk.incubator.vector.FloatVector;
 
 class CpuPreparedExecutableTest {
     private static final ValueLayout.OfDouble DOUBLE =
             ValueLayout.JAVA_DOUBLE_UNALIGNED.withOrder(ByteOrder.nativeOrder());
+    private static final ValueLayout.OfFloat FLOAT =
+            ValueLayout.JAVA_FLOAT_UNALIGNED.withOrder(ByteOrder.nativeOrder());
 
     @Test void executesParallelVectorChunksWithArbitraryBoundsAndScalarTails() {
         int count = DoubleVector.SPECIES_PREFERRED.length() * 4 + 3;
@@ -240,15 +243,28 @@ class CpuPreparedExecutableTest {
         var strategies = List.of("scalar", "vector", "parallel-scalar", "parallel-vector");
         for (int strategy = 0; strategy < configurations.size(); strategy++) {
             for (int mask = 0; mask < 16; mask++) executeCarrierPattern(descriptor, count, mask,
-                    configurations.get(strategy), strategies.get(strategy));
+                    configurations.get(strategy), strategies.get(strategy), DataType.FLOAT64);
+        }
+        int floatCount = FloatVector.SPECIES_PREFERRED.length() * 2 + 1;
+        Shape floatShape = Shape.of(floatCount);
+        var floatDescriptor = new TensorDescriptor(DataType.FLOAT32, floatShape,
+                Optional.of(LayoutDescriptor.contiguous(floatShape)), false);
+        var floatConfigurations = List.of(
+                new PortableExecutionConfig(ComputePreference.VECTOR_IF_ELIGIBLE, 1, 1, 1),
+                new PortableExecutionConfig(ComputePreference.VECTOR_IF_ELIGIBLE, 2, 2, 1));
+        for (int strategy = 0; strategy < floatConfigurations.size(); strategy++) {
+            for (int mask = 0; mask < 16; mask++) executeCarrierPattern(floatDescriptor,
+                    floatCount, mask, floatConfigurations.get(strategy),
+                    strategy == 0 ? "vector" : "parallel-vector", DataType.FLOAT32);
         }
     }
 
     private static void executeCarrierPattern(TensorDescriptor descriptor, int count, int mask,
-            PortableExecutionConfig config, String expectedStrategy) {
+            PortableExecutionConfig config, String expectedStrategy, DataType dataType) {
             var pattern = new ArrayList<CarrierAccess>();
             for (int i = 0; i < 4; i++) pattern.add((mask & (1 << i)) != 0
-                    ? CarrierAccess.DOUBLE_ARRAY : CarrierAccess.MEMORY_SEGMENT);
+                    ? dataType == DataType.FLOAT32 ? CarrierAccess.FLOAT_ARRAY
+                            : CarrierAccess.DOUBLE_ARRAY : CarrierAccess.MEMORY_SEGMENT);
             var analysis = CpuPartitionPreparerTest.analyze(descriptor, descriptor, descriptor,
                     descriptor, new CpuPartitionAnalysisInputs(false, pattern, config));
             assertEquals(expectedStrategy, analysis.plan().executionStrategy().toString());
@@ -261,13 +277,15 @@ class CpuPreparedExecutableTest {
             for (int i = 0; i < 4; i++) {
                 io.github.pho001.synaptik.runtime.resource.BufferRepresentation resource;
                 RunResourceOwnership ownership;
-                if (pattern.get(i) == CarrierAccess.DOUBLE_ARRAY) {
-                    var storage = new MemorySegmentStorage(DataType.FLOAT64, count,
-                            MemorySegment.ofArray(new double[count]));
+                if (pattern.get(i) != CarrierAccess.MEMORY_SEGMENT) {
+                    var storage = new MemorySegmentStorage(dataType, count,
+                            dataType == DataType.FLOAT32 ? MemorySegment.ofArray(new float[count])
+                                    : MemorySegment.ofArray(new double[count]));
                     resource = CpuBorrowedBuffer.borrow(storage);
                     ownership = RunResourceOwnership.BORROWED;
                 } else {
-                    resource = CpuNativeBuffer.allocate(DataType.FLOAT64, count * 8L, 8);
+                    resource = CpuNativeBuffer.allocate(dataType,
+                            (long) count * dataType.byteWidth(), dataType.byteWidth());
                     ownership = RunResourceOwnership.RUN_OWNED;
                 }
                 resources.add(resource);
@@ -276,16 +294,29 @@ class CpuPreparedExecutableTest {
             var state = new RunState(executable.memoryPlan(), bindings, List.of());
             try {
                 for (int i = 0; i < count; i++) {
-                    segment(resources.get(0)).set(DOUBLE, i * 8L, i - 1.0);
-                    segment(resources.get(1)).set(DOUBLE, i * 8L, 0.5);
-                    segment(resources.get(2)).set(DOUBLE, i * 8L, 2.0);
+                    if (dataType == DataType.FLOAT32) {
+                        segment(resources.get(0)).set(FLOAT, i * 4L, i - 1.0f);
+                        segment(resources.get(1)).set(FLOAT, i * 4L, 0.5f);
+                        segment(resources.get(2)).set(FLOAT, i * 4L, 2.0f);
+                    } else {
+                        segment(resources.get(0)).set(DOUBLE, i * 8L, i - 1.0);
+                        segment(resources.get(1)).set(DOUBLE, i * 8L, 0.5);
+                        segment(resources.get(2)).set(DOUBLE, i * 8L, 2.0);
+                    }
                 }
                 executable.bind(state).execute();
-                for (int i = 0; i < count; i++) assertEquals(
-                        CpuScalarReferenceKernel.gelu(i - 0.5) * 2.0,
-                        segment(resources.get(3)).get(DOUBLE, i * 8L),
-                        2e-7 * Math.max(1.0, Math.abs(i - 0.5)),
-                        expectedStrategy + " carrier mask " + mask + " index " + i);
+                for (int i = 0; i < count; i++) {
+                    if (dataType == DataType.FLOAT32) {
+                        float sum = (float) ((i - 1.0f) + 0.5f);
+                        float expected = (float) ((float) CpuScalarReferenceKernel.gelu(sum) * 2.0f);
+                        assertEquals(expected, segment(resources.get(3)).get(FLOAT, i * 4L),
+                                Math.max(2e-5f, 2e-5f * Math.abs(expected)),
+                                expectedStrategy + " carrier mask " + mask + " index " + i);
+                    } else assertEquals(CpuScalarReferenceKernel.gelu(i - 0.5) * 2.0,
+                            segment(resources.get(3)).get(DOUBLE, i * 8L),
+                            2e-7 * Math.max(1.0, Math.abs(i - 0.5)),
+                            expectedStrategy + " carrier mask " + mask + " index " + i);
+                }
             } finally {
                 state.close();
                 if (workers != null) workers.close();

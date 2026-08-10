@@ -21,6 +21,8 @@ import io.github.pho001.synaptik.model.datatype.DataType;
 public final class CpuScalarReferenceKernel {
     private static final ValueLayout.OfDouble DOUBLE = ValueLayout.JAVA_DOUBLE_UNALIGNED
             .withOrder(ByteOrder.nativeOrder());
+    // Cephes erf/erfc rational coefficients, documented at
+    // https://netlib.org/cephes/doubldoc.html and published in netlib cephes ndtr.c.
     private static final double[] ERF_T = {9.60497373987051638749E0,
             9.00260197203842689217E1, 2.23200534594684319226E3,
             7.00332514112805075473E3, 5.55923013010394962768E4};

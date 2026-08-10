@@ -18,9 +18,10 @@ import java.util.Objects;
 /**
  * Stateless Java 26 Class-File generator for one typed pointwise CPU unit.
  *
- * <p>It realizes the already-selected scalar body or eligible preferred-species FLOAT64 vector
- * body, including the closed unary opcode matrix, and retains the scalar body for tails. It does
- * not choose capability, numerical semantics, access structure, strategy, or fallback.</p>
+ * <p>It realizes the already-selected scalar body or eligible preferred-species
+ * FLOAT32/FLOAT64 vector body, including the closed unary opcode matrix, and retains the scalar
+ * body for tails. It does not choose capability, numerical semantics, access structure,
+ * strategy, or fallback.</p>
  */
 public final class CpuClassFileKernelGenerator {
     /** Creates a stateless generator with no retained route or specialization state. */
@@ -72,10 +73,14 @@ public final class CpuClassFileKernelGenerator {
                             };
                             if (specialization.executionStrategy().compute()
                                     == io.github.pho001.synaptik.backend.cpu.internal.prepare.CpuPartitionPreparationPlan.ExecutionStrategy.Compute.VECTOR) {
+                                DataType vectorType = vectorDataType(kernelIr);
                                 int[] vectorLocals = allocateVectorLocals(code, kernelIr);
-                                loops.emitVector(plans, specialization.vectorSpeciesBitSize() / Double.SIZE,
-                                        state -> emitVectorBody(code, carriers, specialization, kernelIr,
-                                                boundaries, state, vectorLocals), scalarBody);
+                                var vectorInstructions = new CpuVectorInstructionEmitter(code, vectorType);
+                                loops.emitVector(plans, specialization.vectorSpeciesBitSize()
+                                                / vectorType.bitWidth(),
+                                        state -> emitVectorBody(code, carriers, vectorInstructions,
+                                                specialization, kernelIr, boundaries, state,
+                                                vectorLocals, vectorType), scalarBody);
                             } else loops.emit(plans, scalarBody);
                             code.return_();
                         })));
@@ -128,72 +133,24 @@ public final class CpuClassFileKernelGenerator {
     }
 
     private static void emitVectorBody(java.lang.classfile.CodeBuilder code,
-            CpuCarrierEmitter carriers, CpuKernelSpecialization specialization, CpuKernelIr ir,
-            List<CpuKernelIr.Value> boundaries, CpuLoopEmitter.State state, int[] locals) {
-        ClassDesc vector = ClassDesc.of("jdk.incubator.vector.DoubleVector");
-        ClassDesc vectorBase = ClassDesc.of("jdk.incubator.vector.Vector");
+            CpuCarrierEmitter carriers, CpuVectorInstructionEmitter instructions,
+            CpuKernelSpecialization specialization, CpuKernelIr ir,
+            List<CpuKernelIr.Value> boundaries, CpuLoopEmitter.State state, int[] locals,
+            DataType vectorType) {
         for (int boundary = 0; boundary < boundaries.size(); boundary++) {
             CpuKernelIr.Value value = boundaries.get(boundary);
             if (value.kind() != CpuKernelIr.Value.Kind.INPUT
                     || !requiresInputLoad(ir, value.ordinal())) continue;
-            carriers.vectorLoad(specialization.carrierPattern().get(boundary), boundary,
+            carriers.vectorLoad(vectorType, specialization.carrierPattern().get(boundary), boundary,
                     state.addresses()[boundary], value.accessPlan().regime()
                             == io.github.pho001.synaptik.backend.cpu.internal.ir.CpuAccessPlan.Regime.SCALAR_ALL_ZERO);
             code.astore(locals[value.ordinal()]);
         }
-        for (CpuKernelIr.Instruction instruction : ir.instructions()) {
-            if (instruction.opcode() != CpuPointwiseOpcode.SCALAR_POW
-                    || instruction.powerRealization() != CpuKernelIr.PowerRealization.POSITIVE_ONE) {
-                code.aload(locals[instruction.inputs().getFirst()]);
-            }
-            switch (instruction.opcode()) {
-                case ADD, SUB, MUL, DIV -> {
-                    code.aload(locals[instruction.inputs().get(1)]);
-                    String method = instruction.opcode() == CpuPointwiseOpcode.ADD ? "add"
-                            : instruction.opcode() == CpuPointwiseOpcode.SUB ? "sub"
-                            : instruction.opcode() == CpuPointwiseOpcode.DIV ? "div" : "mul";
-                    code.invokevirtual(vector, method, MethodTypeDesc.of(vector, vectorBase));
-                }
-                case SCALAR_ADD, SCALAR_SUB, SCALAR_MUL, SCALAR_DIV -> {
-                    code.loadConstant(Double.longBitsToDouble(instruction.scalarImmediate().bits()));
-                    String method = instruction.opcode() == CpuPointwiseOpcode.SCALAR_ADD ? "add"
-                            : instruction.opcode() == CpuPointwiseOpcode.SCALAR_SUB ? "sub"
-                            : instruction.opcode() == CpuPointwiseOpcode.SCALAR_DIV ? "div" : "mul";
-                    code.invokevirtual(vector, method, MethodTypeDesc.of(vector,
-                            java.lang.constant.ConstantDescs.CD_double));
-                }
-                case SCALAR_POW -> {
-                    switch (instruction.powerRealization()) {
-                        case POSITIVE_ONE -> code.invokestatic(
-                                ClassDesc.of(CpuVectorEmitter.class.getName()), "positiveOne",
-                                MethodTypeDesc.of(vector));
-                        case IDENTITY -> { }
-                        case SQUARE -> {
-                            code.dup();
-                            code.invokevirtual(vector, "mul", MethodTypeDesc.of(vector, vectorBase));
-                        }
-                        case RECIPROCAL -> code.invokestatic(
-                                ClassDesc.of(CpuVectorEmitter.class.getName()), "reciprocal",
-                                MethodTypeDesc.of(vector, vector));
-                        case DIRECT -> throw new IllegalArgumentException(
-                                "direct scalar power is not vector eligible");
-                    }
-                }
-                case NEG -> code.invokevirtual(vector, "neg", MethodTypeDesc.of(vector));
-                case ABS, RECIPROCAL, LOG, LOG1P, EXP, EXPM1, ERF, SQRT, RSQRT, TANH ->
-                        code.invokestatic(ClassDesc.of(CpuVectorEmitter.class.getName()),
-                                instruction.opcode().name().toLowerCase(java.util.Locale.ROOT),
-                                MethodTypeDesc.of(vector, vector));
-                case GELU_EXACT -> code.invokestatic(ClassDesc.of(CpuVectorEmitter.class.getName()),
-                        "gelu", MethodTypeDesc.of(vector, vector));
-                default -> throw new IllegalArgumentException("unsupported vector opcode");
-            }
-            code.astore(locals[instruction.output()]);
-        }
+        ir.instructions().forEach(instruction -> instructions.emit(instruction, locals));
         for (CpuKernelIr.Store store : ir.stores()) {
             CpuKernelIr.Value value = ir.values().get(store.value());
             int boundary = boundaryIndex(boundaries, value.ordinal());
-            carriers.vectorStore(specialization.carrierPattern().get(boundary), boundary,
+            carriers.vectorStore(vectorType, specialization.carrierPattern().get(boundary), boundary,
                     state.addresses()[boundary], locals[value.ordinal()]);
         }
     }
@@ -246,14 +203,28 @@ public final class CpuClassFileKernelGenerator {
         }
         if (specialization.executionStrategy().compute()
                 == io.github.pho001.synaptik.backend.cpu.internal.prepare.CpuPartitionPreparationPlan.ExecutionStrategy.Compute.VECTOR
-                && (kernelIr.values().stream().anyMatch(value -> value.dataType() != DataType.FLOAT64)
+                && (vectorDataTypeOrNull(kernelIr) == null
                     || kernelIr.instructions().stream().anyMatch(instruction ->
                             !instruction.opcode().vectorEligible()
                             || instruction.opcode() == CpuPointwiseOpcode.SCALAR_POW
                                 && instruction.powerRealization()
                                     == CpuKernelIr.PowerRealization.DIRECT))) {
-            throw new IllegalArgumentException("vector specialization requires FLOAT64 numeric-only IR");
+            throw new IllegalArgumentException(
+                    "vector specialization requires homogeneous floating numeric-only IR");
         }
+    }
+
+    private static DataType vectorDataType(CpuKernelIr kernelIr) {
+        DataType result = vectorDataTypeOrNull(kernelIr);
+        if (result == null) throw new IllegalArgumentException(
+                "vector specialization requires homogeneous floating numeric-only IR");
+        return result;
+    }
+
+    private static DataType vectorDataTypeOrNull(CpuKernelIr kernelIr) {
+        DataType result = kernelIr.values().getFirst().dataType();
+        if (result != DataType.FLOAT32 && result != DataType.FLOAT64) return null;
+        return kernelIr.values().stream().allMatch(value -> value.dataType() == result) ? result : null;
     }
 
     private static void verify(CpuKernelSpecialization specialization, byte[] bytes) {

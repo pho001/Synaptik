@@ -29,6 +29,7 @@ import io.github.pho001.synaptik.backend.cpu.internal.cache.CpuKernelSpecializat
 import io.github.pho001.synaptik.backend.cpu.internal.prepare.CpuPartitionAnalysisInputs.PortableExecutionConfig;
 import io.github.pho001.synaptik.backend.cpu.internal.prepare.CpuPartitionAnalysisInputs.PortableExecutionConfig.ComputePreference;
 import jdk.incubator.vector.DoubleVector;
+import jdk.incubator.vector.FloatVector;
 
 public class CpuPartitionPreparerTest {
     @Test void selectsAllFourStrategiesAndFallsBackFromIneligibleVectorGeometry() {
@@ -73,6 +74,44 @@ public class CpuPartitionPreparerTest {
                         analysis.plan().vectorSpeciesBitSize()),
                 () -> assertThrows(IllegalArgumentException.class,
                         () -> new PortableExecutionConfig(ComputePreference.SCALAR, 0, 1, 1)));
+    }
+
+    @Test void selectsPreferredFloatSpeciesForHomogeneousFloatIr() {
+        int lanes = FloatVector.SPECIES_PREFERRED.length();
+        Shape shape = Shape.of(lanes + 1);
+        var floatDescriptor = new TensorDescriptor(DataType.FLOAT32, shape,
+                Optional.of(LayoutDescriptor.contiguous(shape)), false);
+        var inputs = new CpuPartitionAnalysisInputs(false,
+                CpuPartitionAnalysisInputs.DEFAULT.carrierPattern(),
+                new PortableExecutionConfig(ComputePreference.VECTOR_IF_ELIGIBLE, 1, 1, 1));
+        var homogeneous = analyze(floatDescriptor, floatDescriptor, floatDescriptor,
+                floatDescriptor, inputs).plan();
+        assertAll(
+                () -> assertEquals("vector", homogeneous.executionStrategy().toString()),
+                () -> assertEquals(FloatVector.SPECIES_PREFERRED.vectorBitSize(),
+                        homogeneous.vectorSpeciesBitSize()));
+    }
+
+    @Test void floatChainWithOneIneligibleOpcodeFallsBackWithoutSplitting() {
+        int lanes = FloatVector.SPECIES_PREFERRED.length();
+        Shape shape = Shape.of(lanes * 2);
+        var descriptor = new TensorDescriptor(DataType.FLOAT32, shape,
+                Optional.of(LayoutDescriptor.contiguous(shape)), false);
+        var vector = new PortableExecutionConfig(ComputePreference.VECTOR_IF_ELIGIBLE, 1, 1, 1);
+        var parallel = new PortableExecutionConfig(ComputePreference.VECTOR_IF_ELIGIBLE, 2, 2, 1);
+        var scalarPlan = new CpuPartitionPreparer().analyze(context(descriptor, descriptor,
+                descriptor, descriptor, new CpuPartitionAnalysisInputs(false,
+                        CpuPartitionAnalysisInputs.DEFAULT.carrierPattern(), vector),
+                UnaryElementwiseKind.FLOOR)).plan();
+        var parallelPlan = new CpuPartitionPreparer().analyze(context(descriptor, descriptor,
+                descriptor, descriptor, new CpuPartitionAnalysisInputs(false,
+                        CpuPartitionAnalysisInputs.DEFAULT.carrierPattern(), parallel),
+                UnaryElementwiseKind.FLOOR)).plan();
+        assertAll(
+                () -> assertEquals("scalar", scalarPlan.executionStrategy().toString()),
+                () -> assertEquals("parallel-scalar", parallelPlan.executionStrategy().toString()),
+                () -> assertEquals(1, scalarPlan.units().size()),
+                () -> assertEquals(0, scalarPlan.vectorSpeciesBitSize()));
     }
     @Test void formsOneFusedUnitAndDeclaresOnlyFourBoundaries() {
         var analysis = analyze(Shape.of(2, 3));
@@ -202,6 +241,14 @@ public class CpuPartitionPreparerTest {
             TensorDescriptor aDescriptor, TensorDescriptor bDescriptor,
             TensorDescriptor cDescriptor, TensorDescriptor outputDescriptor,
             CpuPartitionAnalysisInputs inputs) {
+        return context(aDescriptor, bDescriptor, cDescriptor, outputDescriptor, inputs,
+                UnaryElementwiseKind.GELU);
+    }
+
+    private static PrepareContext<CpuPartitionAnalysisInputs> context(
+            TensorDescriptor aDescriptor, TensorDescriptor bDescriptor,
+            TensorDescriptor cDescriptor, TensorDescriptor outputDescriptor,
+            CpuPartitionAnalysisInputs inputs, UnaryElementwiseKind unaryKind) {
         ValueId a = new ValueId(0), b = new ValueId(1), c = new ValueId(2);
         ValueId sum = new ValueId(3), activated = new ValueId(4), output = new ValueId(5);
         var nodes = List.of(
@@ -209,7 +256,7 @@ public class CpuPartitionPreparerTest {
                         new Operation(BinaryArithmeticKind.ADD, NoOperationAttrs.INSTANCE),
                         List.of(a, b), List.of(sum)),
                 new CompiledNode(new NodeId(1),
-                        new Operation(UnaryElementwiseKind.GELU, NoOperationAttrs.INSTANCE),
+                        new Operation(unaryKind, NoOperationAttrs.INSTANCE),
                         List.of(sum), List.of(activated)),
                 new CompiledNode(new NodeId(2),
                         new Operation(BinaryArithmeticKind.MUL, NoOperationAttrs.INSTANCE),
@@ -217,7 +264,7 @@ public class CpuPartitionPreparerTest {
         var partition = new PlannedPartition(CpuCapabilityProvider.CPU_BACKEND_ID,
                 nodes.stream().map(CompiledNode::id).toList());
         Shape addShape = ShapeBroadcast.broadcast(aDescriptor.shape(), bDescriptor.shape());
-        var virtualDescriptor = new TensorDescriptor(DataType.FLOAT64, addShape,
+        var virtualDescriptor = new TensorDescriptor(aDescriptor.dataType(), addShape,
                 Optional.of(LayoutDescriptor.contiguous(addShape)), false);
         var descriptors = List.of(aDescriptor, bDescriptor, cDescriptor, virtualDescriptor,
                 virtualDescriptor, outputDescriptor);

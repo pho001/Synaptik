@@ -11,6 +11,7 @@ import io.github.pho001.synaptik.model.datatype.DataType;
 import java.util.*;
 import org.junit.jupiter.api.Test;
 import jdk.incubator.vector.DoubleVector;
+import jdk.incubator.vector.FloatVector;
 import java.lang.foreign.Arena;
 import java.lang.foreign.ValueLayout;
 import java.nio.ByteOrder;
@@ -94,6 +95,77 @@ class CpuPointwiseGeneratedKernelTest {
             CpuScalarReferenceKernel.execute(ir, reference.stream().map(value -> argument(value,
                     DataType.FLOAT64)).toList(), bindings(generated.size(), count), 0, count);
             assertArrayEquals(expected, output, opcode.name());
+        }
+    }
+
+    @Test void float32EligibleOpcodeSetUsesPreferredVectorsWithScalarTails() throws Throwable {
+        for (CpuPointwiseOpcode opcode : Arrays.stream(CpuPointwiseOpcode.values())
+                .filter(CpuPointwiseOpcode::vectorEligible)
+                .filter(candidate -> candidate != CpuPointwiseOpcode.SCALAR_POW).toList()) {
+            Case one = new Case(opcode, DataType.FLOAT32);
+            CpuKernelIr ir = ir(one);
+            List<DataType> types = ir.values().stream().map(CpuKernelIr.Value::dataType).toList();
+            List<CpuKernelSpecialization.CarrierAccess> carriers = types.stream()
+                    .map(CpuPointwiseGeneratedKernelTest::heapCarrier).toList();
+            var specialization = new CpuKernelSpecialization(
+                    CpuLoweringFingerprint.fromHex(ir.structuralKey()),
+                    CpuKernelSpecialization.NumericalMode.EXACT_DEFAULT,
+                    CpuPartitionPreparationPlan.ExecutionStrategy.VECTOR, types, carriers,
+                    FloatVector.SPECIES_PREFERRED.vectorBitSize(), -1);
+            var generator = new CpuClassFileKernelGenerator();
+            var artifact = generator.defineClassBytes(specialization,
+                    generator.generateClassBytes(specialization, ir));
+            int count = FloatVector.SPECIES_PREFERRED.length() + 1;
+            var generated = new ArrayList<Object>();
+            for (Object input : inputs(one)) generated.add(Arrays.copyOf((float[]) input, count));
+            float[] output = new float[count]; generated.add(output);
+            var call = new ArrayList<>(generated); call.add(geometry(generated.size(), count));
+            call.add(0L); call.add((long) count);
+            artifact.entryPoint().invokeWithArguments(call);
+            float[] expected = new float[count];
+            var reference = new ArrayList<Object>(generated.subList(0, generated.size() - 1));
+            reference.add(expected);
+            CpuScalarReferenceKernel.execute(ir, reference.stream().map(value -> argument(value,
+                    DataType.FLOAT32)).toList(), bindings(generated.size(), count), 0, count);
+            for (int lane = 0; lane < count; lane++) assertFloatVectorResult(
+                    opcode, expected[lane], output[lane]);
+        }
+    }
+
+    @Test void float32VectorFusionLengthsOneThroughEightKeepVirtualIntermediates() throws Throwable {
+        int count = FloatVector.SPECIES_PREFERRED.length() + 1;
+        for (int length = 1; length <= 8; length++) {
+            var values = new ArrayList<CpuKernelIr.Value>();
+            values.add(new CpuKernelIr.Value(0, DataType.FLOAT32, CpuKernelIr.Value.Kind.INPUT,
+                    dense(CpuAccessPlan.AccessKind.READ)));
+            for (int ordinal = 1; ordinal <= length; ordinal++) values.add(new CpuKernelIr.Value(
+                    ordinal, DataType.FLOAT32, ordinal == length ? CpuKernelIr.Value.Kind.OUTPUT
+                            : CpuKernelIr.Value.Kind.VIRTUAL,
+                    dense(ordinal == length ? CpuAccessPlan.AccessKind.WRITE
+                            : CpuAccessPlan.AccessKind.READ)));
+            var instructions = new ArrayList<CpuKernelIr.Instruction>();
+            for (int ordinal = 1; ordinal <= length; ordinal++) instructions.add(
+                    new CpuKernelIr.Instruction(CpuPointwiseOpcode.NEG,
+                            List.of(ordinal - 1), ordinal));
+            CpuKernelIr ir = new CpuKernelIr(values, instructions,
+                    new CpuKernelIr.Loop("start", "end"), List.of(new CpuKernelIr.Store(length, 0)));
+            var specialization = new CpuKernelSpecialization(
+                    CpuLoweringFingerprint.fromHex(ir.structuralKey()),
+                    CpuKernelSpecialization.NumericalMode.EXACT_DEFAULT,
+                    CpuPartitionPreparationPlan.ExecutionStrategy.VECTOR,
+                    List.of(DataType.FLOAT32, DataType.FLOAT32),
+                    List.of(CpuKernelSpecialization.CarrierAccess.FLOAT_ARRAY,
+                            CpuKernelSpecialization.CarrierAccess.FLOAT_ARRAY),
+                    FloatVector.SPECIES_PREFERRED.vectorBitSize(), -1);
+            var generator = new CpuClassFileKernelGenerator();
+            var artifact = generator.defineClassBytes(specialization,
+                    generator.generateClassBytes(specialization, ir));
+            float[] input = new float[count], output = new float[count];
+            for (int i = 0; i < count; i++) input[i] = i - 3.25f;
+            artifact.entryPoint().invokeWithArguments(input, output, geometry(2, count),
+                    0L, (long) count);
+            for (int i = 0; i < count; i++) assertEquals(length % 2 == 0 ? input[i] : -input[i],
+                    output[i], "fusion length " + length + " lane " + i);
         }
     }
 
@@ -287,6 +359,20 @@ class CpuPointwiseGeneratedKernelTest {
                         Double.doubleToRawLongBits(generated[i]));
             }
         }
+        int floatLanes = FloatVector.SPECIES_PREFERRED.length();
+        for (float exponent : List.of(+0.0f, 1.0f, 2.0f, -1.0f)) {
+            CpuKernelIr ir = powerIr(DataType.FLOAT32,
+                    Float.floatToRawIntBits(exponent) & 0xffff_ffffL);
+            var vector = powerArtifact(ir, DataType.FLOAT32,
+                    CpuPartitionPreparationPlan.ExecutionStrategy.VECTOR);
+            float[] input = new float[floatLanes + 1];
+            for (int i = 0; i < input.length; i++) input[i] = i - 2.0f;
+            float[] generated = new float[input.length];
+            vector.entryPoint().invokeWithArguments(input, generated,
+                    geometry(2, input.length), 0L, (long) input.length);
+            for (int i = 0; i < input.length; i++) assertFloatingResult(
+                    (float) StrictMath.pow(input[i], exponent), generated[i]);
+        }
     }
 
     @Test void exactSegmentsLoadAndStoreEveryAdmittedCarrierWidth() throws Throwable {
@@ -345,7 +431,8 @@ class CpuPointwiseGeneratedKernelTest {
             CpuPartitionPreparationPlan.ExecutionStrategy strategy) {
         int species = strategy.compute()
                 == CpuPartitionPreparationPlan.ExecutionStrategy.Compute.VECTOR
-                ? DoubleVector.SPECIES_PREFERRED.vectorBitSize() : 0;
+                ? type == DataType.FLOAT32 ? FloatVector.SPECIES_PREFERRED.vectorBitSize()
+                        : DoubleVector.SPECIES_PREFERRED.vectorBitSize() : 0;
         var specialization = new CpuKernelSpecialization(
                 CpuLoweringFingerprint.fromHex(ir.structuralKey()),
                 CpuKernelSpecialization.NumericalMode.EXACT_DEFAULT, strategy,
@@ -407,6 +494,37 @@ class CpuPointwiseGeneratedKernelTest {
     private static void assertFloatingResult(float expected, float actual) {
         if (Float.isNaN(expected)) assertTrue(Float.isNaN(actual));
         else assertEquals(Float.floatToRawIntBits(expected), Float.floatToRawIntBits(actual));
+    }
+
+    private static void assertFloatVectorResult(CpuPointwiseOpcode opcode, float expected,
+            float actual) {
+        if (Float.isNaN(expected)) { assertTrue(Float.isNaN(actual), opcode.name()); return; }
+        if (expected == 0.0f || Float.isInfinite(expected)) {
+            assertEquals(Float.floatToRawIntBits(expected), Float.floatToRawIntBits(actual),
+                    opcode.name());
+            return;
+        }
+        if (opcode == CpuPointwiseOpcode.ERF || opcode == CpuPointwiseOpcode.GELU_EXACT) {
+            assertEquals(expected, actual, Math.max(2e-5f, 2e-5f * Math.abs(expected)),
+                    opcode.name());
+            return;
+        }
+        int allowedUlps = switch (opcode) {
+            case TANH -> 5;
+            case LOG, LOG1P, EXP, EXPM1, RSQRT -> 2;
+            case RECIPROCAL, SQRT -> 1;
+            default -> 0;
+        };
+        assertTrue(floatUlpDistance(expected, actual) <= allowedUlps,
+                () -> opcode + " expected=" + expected + " actual=" + actual);
+    }
+
+    private static long floatUlpDistance(float left, float right) {
+        int a = Float.floatToRawIntBits(left);
+        int b = Float.floatToRawIntBits(right);
+        long orderedA = a < 0 ? 0x8000_0000L - a : 0x8000_0000L + a;
+        long orderedB = b < 0 ? 0x8000_0000L - b : 0x8000_0000L + b;
+        return Math.abs(orderedA - orderedB);
     }
 
     private static java.lang.foreign.MemorySegment segmentOf(Object array) {

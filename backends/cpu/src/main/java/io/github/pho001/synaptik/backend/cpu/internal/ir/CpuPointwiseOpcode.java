@@ -69,7 +69,7 @@ public enum CpuPointwiseOpcode {
     SIGMOID(Family.UNARY, 1, ResultCategory.INPUT_TYPE, false, false),
     /** Floating hyperbolic tangent. */
     TANH(Family.UNARY, 1, ResultCategory.INPUT_TYPE, false, true),
-    /** Exact/default FLOAT64 Gaussian error linear unit. */
+    /** Exact/default floating Gaussian error linear unit. */
     GELU_EXACT(Family.UNARY, 1, ResultCategory.INPUT_TYPE, false, true),
     /** Fixed hyperbolic-tangent GELU approximation. */
     GELU_TANH_APPROXIMATION(Family.UNARY, 1, ResultCategory.INPUT_TYPE, false, false),
@@ -168,12 +168,13 @@ public enum CpuPointwiseOpcode {
     public boolean carriesScalarImmediate() { return scalarImmediate; }
 
     /**
-     * Reports eligibility for the current exact FLOAT64 Vector emitter.
+     * Reports opcode eligibility for the current exact floating Vector emitter.
      *
      * <p>This flag is necessary but not sufficient: analysis also requires every IR value to be
-     * {@code FLOAT64} and every external access plan to satisfy the vector-run rules.</p>
+     * homogeneously {@code FLOAT32} or {@code FLOAT64} and every external access plan to satisfy
+     * the vector-run rules.</p>
      *
-     * @return {@code true} only for an opcode the current FLOAT64 Vector emitter can realize
+     * @return {@code true} only for an opcode the current typed Vector emitter can realize
      */
     public boolean vectorEligible() { return vectorEligible; }
 }

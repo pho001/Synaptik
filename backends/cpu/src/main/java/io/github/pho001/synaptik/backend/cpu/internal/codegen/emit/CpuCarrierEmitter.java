@@ -18,6 +18,7 @@ final class CpuCarrierEmitter {
     private static final ClassDesc BYTE_LAYOUT = ClassDesc.of("java.lang.foreign.ValueLayout$OfByte");
     private static final ClassDesc BYTE_ORDER = ClassDesc.of("java.nio.ByteOrder");
     private static final ClassDesc DOUBLE_VECTOR = ClassDesc.of("jdk.incubator.vector.DoubleVector");
+    private static final ClassDesc FLOAT_VECTOR = ClassDesc.of("jdk.incubator.vector.FloatVector");
     private static final ClassDesc VECTOR_SPECIES = ClassDesc.of("jdk.incubator.vector.VectorSpecies");
     private final CodeBuilder code;
     /**
@@ -78,56 +79,62 @@ final class CpuCarrierEmitter {
     }
 
     /**
-     * Emits one unmasked preferred-species FLOAT64 vector load or scalar broadcast.
+     * Emits one unmasked preferred-species floating vector load or scalar broadcast.
      *
+     * @param type exact vector lane type, either FLOAT32 or FLOAT64
      * @param access non-null generation-time-selected direct carrier form
      * @param parameterSlot local-variable slot holding the exact carrier
      * @param addressLocal local-variable slot holding the element address
      * @param broadcast whether to load one scalar and broadcast it to every lane
      */
-    void vectorLoad(CarrierAccess access, int parameterSlot, int addressLocal, boolean broadcast) {
-        code.getstatic(DOUBLE_VECTOR, "SPECIES_PREFERRED", VECTOR_SPECIES);
+    void vectorLoad(DataType type, CarrierAccess access, int parameterSlot, int addressLocal,
+            boolean broadcast) {
+        ClassDesc vector = vectorClass(type);
+        code.getstatic(vector, "SPECIES_PREFERRED", VECTOR_SPECIES);
         if (broadcast) {
-            load(DataType.FLOAT64, access, parameterSlot, addressLocal);
-            code.invokestatic(DOUBLE_VECTOR, "broadcast", MethodTypeDesc.of(DOUBLE_VECTOR,
-                    VECTOR_SPECIES, TypeKind.DOUBLE.upperBound()));
+            load(type, access, parameterSlot, addressLocal);
+            code.invokestatic(vector, "broadcast", MethodTypeDesc.of(vector,
+                    VECTOR_SPECIES, primitive(type)));
             return;
         }
         code.aload(parameterSlot);
-        if (access == CarrierAccess.DOUBLE_ARRAY) {
+        if (access == arrayCarrier(type)) {
             code.lload(addressLocal).l2i();
-            code.invokestatic(DOUBLE_VECTOR, "fromArray", MethodTypeDesc.of(DOUBLE_VECTOR,
-                    VECTOR_SPECIES, java.lang.constant.ConstantDescs.CD_double.arrayType(),
+            code.invokestatic(vector, "fromArray", MethodTypeDesc.of(vector,
+                    VECTOR_SPECIES, primitive(type).arrayType(),
                     TypeKind.INT.upperBound()));
-        } else {
-            code.lload(addressLocal).loadConstant((long) Double.BYTES).lmul();
+        } else if (access == CarrierAccess.MEMORY_SEGMENT) {
+            code.lload(addressLocal).loadConstant((long) type.byteWidth()).lmul();
             code.invokestatic(BYTE_ORDER, "nativeOrder", MethodTypeDesc.of(BYTE_ORDER));
-            code.invokestatic(DOUBLE_VECTOR, "fromMemorySegment", MethodTypeDesc.of(DOUBLE_VECTOR,
+            code.invokestatic(vector, "fromMemorySegment", MethodTypeDesc.of(vector,
                     VECTOR_SPECIES, SEGMENT, TypeKind.LONG.upperBound(), BYTE_ORDER));
-        }
+        } else throw new IllegalArgumentException("carrier does not match vector data type");
     }
 
     /**
-     * Emits one unmasked preferred-species FLOAT64 vector store.
+     * Emits one unmasked preferred-species floating vector store.
      *
+     * @param type exact vector lane type, either FLOAT32 or FLOAT64
      * @param access non-null generation-time-selected direct carrier form
      * @param parameterSlot local-variable slot holding the writable exact carrier
      * @param addressLocal local-variable slot holding the element address
-     * @param valueLocal local-variable slot holding the non-null {@code DoubleVector}
+     * @param valueLocal local-variable slot holding the non-null typed vector
      */
-    void vectorStore(CarrierAccess access, int parameterSlot, int addressLocal, int valueLocal) {
+    void vectorStore(DataType type, CarrierAccess access, int parameterSlot, int addressLocal,
+            int valueLocal) {
+        ClassDesc vector = vectorClass(type);
         code.aload(valueLocal).aload(parameterSlot);
-        if (access == CarrierAccess.DOUBLE_ARRAY) {
+        if (access == arrayCarrier(type)) {
             code.lload(addressLocal).l2i();
-            code.invokevirtual(DOUBLE_VECTOR, "intoArray", MethodTypeDesc.of(
-                    TypeKind.VOID.upperBound(), java.lang.constant.ConstantDescs.CD_double.arrayType(),
+            code.invokevirtual(vector, "intoArray", MethodTypeDesc.of(
+                    TypeKind.VOID.upperBound(), primitive(type).arrayType(),
                     TypeKind.INT.upperBound()));
-        } else {
-            code.lload(addressLocal).loadConstant((long) Double.BYTES).lmul();
+        } else if (access == CarrierAccess.MEMORY_SEGMENT) {
+            code.lload(addressLocal).loadConstant((long) type.byteWidth()).lmul();
             code.invokestatic(BYTE_ORDER, "nativeOrder", MethodTypeDesc.of(BYTE_ORDER));
-            code.invokevirtual(DOUBLE_VECTOR, "intoMemorySegment", MethodTypeDesc.of(
+            code.invokevirtual(vector, "intoMemorySegment", MethodTypeDesc.of(
                     TypeKind.VOID.upperBound(), SEGMENT, TypeKind.LONG.upperBound(), BYTE_ORDER));
-        }
+        } else throw new IllegalArgumentException("carrier does not match vector data type");
     }
 
     private void layout(DataType type) {
@@ -168,6 +175,22 @@ final class CpuCarrierEmitter {
             case INT64 -> java.lang.constant.ConstantDescs.CD_long;
             case BOOL -> java.lang.constant.ConstantDescs.CD_byte;
             default -> throw new IllegalArgumentException("unsupported type");
+        };
+    }
+
+    private static ClassDesc vectorClass(DataType type) {
+        return switch (type) {
+            case FLOAT64 -> DOUBLE_VECTOR;
+            case FLOAT32 -> FLOAT_VECTOR;
+            default -> throw new IllegalArgumentException("unsupported vector data type");
+        };
+    }
+
+    private static CarrierAccess arrayCarrier(DataType type) {
+        return switch (type) {
+            case FLOAT64 -> CarrierAccess.DOUBLE_ARRAY;
+            case FLOAT32 -> CarrierAccess.FLOAT_ARRAY;
+            default -> throw new IllegalArgumentException("unsupported vector data type");
         };
     }
 }
