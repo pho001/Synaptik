@@ -61,8 +61,10 @@ classifications, while its normalized access plans cover resolved
 right-broadcastable scalar/rank/singleton/multi-axis inputs, zero extents, offsets, positive and
 broadcast-zero strides, injective output layouts, and derived heap/segment carrier patterns.
 Connected chains contain one through eight occurrences, keep single-use intermediates virtual,
-and produce one final store. Other operation topologies, types, strategies, and routes fail
-closed. The earlier per-node ADD/worker pipeline is Superseded historical evidence rather than
+and produce one final store. Preferred-species vector execution covers selected FLOAT32/FLOAT64
+value rows, INT32/INT64 arithmetic and extrema, canonical BOOL logic, and virtual floating
+predicate masks through logical masks into WHERE. Other operation topologies, types, strategies,
+and routes fail closed. The earlier per-node ADD/worker pipeline is Superseded historical evidence rather than
 the current implementation baseline.
 
 Prepare currently provides the public immutable analysis-side contracts in
@@ -991,8 +993,14 @@ uses that route for a bounded five-type pointwise matrix and connected one-to-ei
 chains. CPU 0005G completes the selected exact algebraic/logical increment through scalar or
 parallel-scalar compute. CPU 0005H closes all nineteen same-typed FLOAT32/FLOAT64 unary kinds and
 keeps the three floating classifications separate. CPU 0005I gives preferred-species FLOAT32 and
-FLOAT64 vector parity for exactly twenty-one existing eligible pointwise opcodes; every other
-admitted row or ineligible access pattern retains scalar fallback.
+FLOAT64 parity to its original twenty-one eligible opcodes. Completed CPU 0005J adds the exact
+floating extrema/clamp/ReLU/sign/cast, signed-integral arithmetic/extrema/cast, canonical-BOOL
+logic/cast, and virtual floating-mask-to-WHERE vector rows; every other admitted row or ineligible
+access pattern retains deterministic scalar or parallel-scalar fallback.
+
+Cross-type cast, BFLOAT16/FLOAT16 execution, relaxed math, native/vendor realization, and other
+operation families are not part of this route increment. General partition-DAG decomposition and
+bounded vertical/horizontal fusion remain Draft CPU 0008A work.
 
 OpenBLAS is not another meaning of portable route. It is a narrow cross-platform native fallback
 for eligible BLAS-compatible linear algebra. It is neither a universal fallback nor preferred over
@@ -1029,7 +1037,9 @@ method handle. FLOAT64, FLOAT32, INT32, INT64, and BOOL heap boundaries use `dou
 `int[]`, `long[]`, and canonical `byte[]`. The
 Class-File API and Java Vector API are CPU-internal implementation choices, not architecture
 invariants. The production kernel executes one admitted bounded pointwise chain with one generated
-scalar or, for eligible homogeneous FLOAT32/FLOAT64 IR, preferred-species vector body. It
+scalar or exactly eligible typed preferred-species vector body. Floating bodies may retain
+comparison/classification BOOL values as unit-private virtual masks through logical combination
+and floating WHERE; materialized masks remain scalar. It
 emits generation-time-selected primitive access state machines, direct array or native-order
 `MemorySegment` vector access, unmasked complete vectors, and scalar remainders. Parallel
 orchestration remains outside generated code. The family-level
@@ -1043,10 +1053,11 @@ materialization policy. The static entry retains the lowering-derived boundary c
 ### CPU kernel specialization
 
 The implemented backend-private immutable description of every fact allowed to change one
-generated CPU class. The current form includes schema 9, the canonical lowering fingerprint with
+generated CPU class. The current form includes schema 10, the canonical lowering fingerprint with
 typed opcode sequence, exact scalar-immediate bits, exact ordered clamp-bound bits, and selected
 scalar-power realizations, exact/default numerical mode, generated
-scalar/vector compute form, exact preferred typed floating species bit size for vector compute,
+scalar/vector compute form, exact preferred FLOAT32, FLOAT64, INT32, INT64, or BOOL species bit
+size for vector compute,
 and the complete ordered boundary data-type/carrier pattern. The homogeneous boundary types
 distinguish FLOAT32 from FLOAT64; no second lane-type field is retained.
 The direct-versus-materialized input position and adjusted canonical consumer access form are also
@@ -1076,9 +1087,9 @@ Keeping the artifact reachable keeps its hidden-class state reachable, without p
 unreferenced class unloads. Direct generator calls produce equal class bytes but distinct hidden
 classes and artifact identities. The current durable generated-kernel artifact store may instead
 reuse compatible class bytes and weakly intern one loaded artifact while it remains live. The
-artifact is not by itself a prepared route. Current schema-9 artifacts execute the admitted
+artifact is not by itself a prepared route. Current schema-10 artifacts execute the admitted
 bounded forty-eight-opcode pointwise chains across the implemented normalized access regimes and
-carrier patterns. Schema 8 and older artifacts are incompatible misses with no migration reader.
+carrier patterns. Schema 9 and older artifacts are incompatible misses with no migration reader.
 
 ### CPU generated-kernel artifact store
 
@@ -1230,10 +1241,10 @@ general positive-strided odometer fallback. The five regimes emit distinct state
 linear increment, a constant address, a final-axis counter/reset, a contiguous-inner plus outer
 carry/reset, or a full-axis odometer. Generated hot code uses primitive address/carry
 arithmetic without per-element cursor allocation, semantic dispatch, division, or modulo.
-Completed CPU 0005I vectorizes direct contiguous runs and scalar broadcasts for homogeneous
-FLOAT32 or FLOAT64 IR when every opcode is in the closed eligible subset and every non-scalar
-boundary admits a complete preferred-species vector. It uses the scalar body for tails and
-selects scalar fallback for a general odometer, a too-short run, or any ineligible instruction.
+Completed CPU 0005J vectorizes direct contiguous runs and scalar broadcasts for exactly eligible
+FLOAT32, FLOAT64, INT32, INT64, or canonical-BOOL IR and admits narrowly virtual floating masks
+when every non-scalar boundary has a complete preferred-species run. It uses the scalar body for
+tails and selects scalar fallback for a general odometer, a too-short run, or any ineligible instruction.
 It implements no gather or masked tail. Completed CPU 0005D can replace one eligible FLOAT64
 input with canonical dense workspace access; FLOAT32 vector parity does not broaden that policy,
 and complete access semantics do not promise universal vectorization.
@@ -1271,20 +1282,28 @@ select a future tuning-cache entry, or authorize more than one copy.
 
 One of exactly `scalar`, `vector`, `parallel-scalar`, or `parallel-vector`. Scalar/vector is the
 compute axis and single-thread/parallel is the orchestration axis. CPU analysis selects among all
-four before shared assignment. It uses the Java 26 preferred FLOAT64 species for eligible direct
-contiguous runs and scalar broadcasts, and CPU 0005I generalizes that choice to the matching Java
-26 preferred FLOAT32 species. Both use unmasked complete vectors plus scalar tails and scalar
-fallback for general odometers or short runs. Generated kernels accept primitive `start` and
+four before shared assignment. It uses the exact Java 26 preferred FLOAT64, FLOAT32, INT32, INT64,
+or ByteVector species for an eligible lane type. All use unmasked complete vectors plus scalar
+tails and scalar fallback for general odometers or short runs. Generated kernels accept primitive `start` and
 `end`; worker orchestration remains outside generated code.
 
-The exact twenty-one-opcode subset is `ADD`, `SUB`, `MUL`, `DIV`, `SCALAR_ADD`, `SCALAR_SUB`,
-`SCALAR_MUL`, `SCALAR_DIV`, `SCALAR_POW`, `NEG`, `ABS`, `RECIPROCAL`, `LOG`, `LOG1P`, `EXP`,
-`EXPM1`, `ERF`, `SQRT`, `RSQRT`, `TANH`, and `GELU_EXACT`. Scalar power is eligible only for
-positive-one, identity, square, and reciprocal plans; direct power remains scalar. Every IR value
-must have one homogeneous FLOAT32 or FLOAT64 type. The remaining admitted opcodes and any chain
-containing one ineligible instruction select scalar compute without losing semantic support or
-splitting the chain. The Java 26 math lane operators may be scalarized by the JVM and make no
-hardware-intrinsic or performance promise.
+The floating value set is the CPU 0005I twenty-one-opcode set plus binary/scalar extrema, ordered
+clamp, ReLU, sign, and same-type cast. The INT32/INT64 set is binary/scalar ADD/SUB/MUL/MIN/MAX
+plus same-type cast. The canonical BOOL set is AND/OR/NOT plus same-type cast. Matching virtual
+floating comparison/classification masks may be combined logically and consumed by floating
+WHERE; a scalar/all-zero external BOOL condition is the only external mask form that vectorizes.
+Scalar power is eligible only for positive-one, identity, square, and reciprocal plans; direct
+power remains scalar. Materialized masks, non-scalar external WHERE conditions, mixed vector
+types, and any chain containing another ineligible instruction select scalar compute without
+losing semantic support or splitting the chain. The Java 26 Vector API may be scalarized by the
+JVM and makes no hardware-intrinsic or performance promise.
+
+Floating vector extrema preserve NaN propagation and directional signed zero; clamp is lower
+maximum followed by upper minimum; ReLU is maximum with positive zero; and sign preserves signed
+zero and NaN while mapping other values to exact signed one. Integral arithmetic remains
+fixed-width modular and integral extrema use signed order. External BOOL bytes are validated as
+canonical zero or one, and vector NOT masks its bitwise complement back to those values rather
+than materializing `0xFF`.
 
 Configured and available parallelism are positive immutable CPU-private snapshots. Analysis also
 uses a positive minimum elements per worker, while cold binding forms deterministic contiguous,
@@ -1758,7 +1777,7 @@ behavior can differ. Current same-typed FLOAT32/FLOAT64 Tensor/Tensor power is i
 direct `StrictMath.pow` realization and is never inferred from Tensor storage or factory history.
 The scalar semantic opcode, exact exponent bits, selected realization, and numerical mode
 participate in generated-artifact compatibility and the cold lowering manifest under generator
-schema 9, with no Runtime hot-path lookup.
+schema 10, with no Runtime hot-path lookup.
 
 ### Typed scalar value / `ScalarValue`
 

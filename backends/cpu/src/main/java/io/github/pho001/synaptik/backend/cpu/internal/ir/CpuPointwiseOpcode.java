@@ -8,101 +8,101 @@ package io.github.pho001.synaptik.backend.cpu.internal.ir;
  */
 public enum CpuPointwiseOpcode {
     /** Same-type binary addition. */
-    ADD(Family.BINARY_ARITHMETIC, 2, ResultCategory.INPUT_TYPE, false, true),
+    ADD(Family.BINARY_ARITHMETIC, 2, ResultCategory.INPUT_TYPE, false, VectorForm.VALUE),
     /** Same-type binary subtraction. */
-    SUB(Family.BINARY_ARITHMETIC, 2, ResultCategory.INPUT_TYPE, false, true),
+    SUB(Family.BINARY_ARITHMETIC, 2, ResultCategory.INPUT_TYPE, false, VectorForm.VALUE),
     /** Same-type binary multiplication. */
-    MUL(Family.BINARY_ARITHMETIC, 2, ResultCategory.INPUT_TYPE, false, true),
+    MUL(Family.BINARY_ARITHMETIC, 2, ResultCategory.INPUT_TYPE, false, VectorForm.VALUE),
     /** Same-type floating binary division in left-divided-by-right order. */
-    DIV(Family.BINARY_ARITHMETIC, 2, ResultCategory.INPUT_TYPE, false, true),
+    DIV(Family.BINARY_ARITHMETIC, 2, ResultCategory.INPUT_TYPE, false, VectorForm.VALUE),
     /** Same-type represented-value minimum. */
-    MIN(Family.BINARY_ARITHMETIC, 2, ResultCategory.INPUT_TYPE, false, false),
+    MIN(Family.BINARY_ARITHMETIC, 2, ResultCategory.INPUT_TYPE, false, VectorForm.VALUE),
     /** Same-type represented-value maximum. */
-    MAX(Family.BINARY_ARITHMETIC, 2, ResultCategory.INPUT_TYPE, false, false),
+    MAX(Family.BINARY_ARITHMETIC, 2, ResultCategory.INPUT_TYPE, false, VectorForm.VALUE),
     /** Same-type floating Tensor base and exponent power. */
-    POW(Family.BINARY_ARITHMETIC, 2, ResultCategory.INPUT_TYPE, false, false),
+    POW(Family.BINARY_ARITHMETIC, 2, ResultCategory.INPUT_TYPE, false, VectorForm.NONE),
     /** Addition of one exact typed scalar immediate. */
-    SCALAR_ADD(Family.SCALAR_ARITHMETIC, 1, ResultCategory.INPUT_TYPE, true, true),
+    SCALAR_ADD(Family.SCALAR_ARITHMETIC, 1, ResultCategory.INPUT_TYPE, true, VectorForm.VALUE),
     /** Subtraction of one exact typed scalar immediate. */
-    SCALAR_SUB(Family.SCALAR_ARITHMETIC, 1, ResultCategory.INPUT_TYPE, true, true),
+    SCALAR_SUB(Family.SCALAR_ARITHMETIC, 1, ResultCategory.INPUT_TYPE, true, VectorForm.VALUE),
     /** Multiplication by one exact typed scalar immediate. */
-    SCALAR_MUL(Family.SCALAR_ARITHMETIC, 1, ResultCategory.INPUT_TYPE, true, true),
+    SCALAR_MUL(Family.SCALAR_ARITHMETIC, 1, ResultCategory.INPUT_TYPE, true, VectorForm.VALUE),
     /** Division by one exact same-typed floating scalar immediate. */
-    SCALAR_DIV(Family.SCALAR_ARITHMETIC, 1, ResultCategory.INPUT_TYPE, true, true),
+    SCALAR_DIV(Family.SCALAR_ARITHMETIC, 1, ResultCategory.INPUT_TYPE, true, VectorForm.VALUE),
     /** Scalar power with one exact exponent and one selected realization fact. */
-    SCALAR_POW(Family.SCALAR_ARITHMETIC, 1, ResultCategory.INPUT_TYPE, true, true),
+    SCALAR_POW(Family.SCALAR_ARITHMETIC, 1, ResultCategory.INPUT_TYPE, true, VectorForm.VALUE),
     /** Minimum with one exact same-typed scalar candidate. */
-    SCALAR_MIN(Family.SCALAR_ARITHMETIC, 1, ResultCategory.INPUT_TYPE, true, false),
+    SCALAR_MIN(Family.SCALAR_ARITHMETIC, 1, ResultCategory.INPUT_TYPE, true, VectorForm.VALUE),
     /** Maximum with one exact same-typed scalar candidate. */
-    SCALAR_MAX(Family.SCALAR_ARITHMETIC, 1, ResultCategory.INPUT_TYPE, true, false),
+    SCALAR_MAX(Family.SCALAR_ARITHMETIC, 1, ResultCategory.INPUT_TYPE, true, VectorForm.VALUE),
     /** One first-class floating range clamp with two exact bounds. */
-    SCALAR_CLAMP(Family.SCALAR_RANGE, 1, ResultCategory.INPUT_TYPE, false, false),
+    SCALAR_CLAMP(Family.SCALAR_RANGE, 1, ResultCategory.INPUT_TYPE, false, VectorForm.VALUE),
     /** Floating primitive negation. */
-    NEG(Family.UNARY, 1, ResultCategory.INPUT_TYPE, false, true),
+    NEG(Family.UNARY, 1, ResultCategory.INPUT_TYPE, false, VectorForm.VALUE),
     /** Floating absolute magnitude. */
-    ABS(Family.UNARY, 1, ResultCategory.INPUT_TYPE, false, true),
+    ABS(Family.UNARY, 1, ResultCategory.INPUT_TYPE, false, VectorForm.VALUE),
     /** Floating reciprocal. */
-    RECIPROCAL(Family.UNARY, 1, ResultCategory.INPUT_TYPE, false, true),
+    RECIPROCAL(Family.UNARY, 1, ResultCategory.INPUT_TYPE, false, VectorForm.VALUE),
     /** Floating natural logarithm. */
-    LOG(Family.UNARY, 1, ResultCategory.INPUT_TYPE, false, true),
+    LOG(Family.UNARY, 1, ResultCategory.INPUT_TYPE, false, VectorForm.VALUE),
     /** Floating natural logarithm of one plus the input. */
-    LOG1P(Family.UNARY, 1, ResultCategory.INPUT_TYPE, false, true),
+    LOG1P(Family.UNARY, 1, ResultCategory.INPUT_TYPE, false, VectorForm.VALUE),
     /** Floating natural exponential. */
-    EXP(Family.UNARY, 1, ResultCategory.INPUT_TYPE, false, true),
+    EXP(Family.UNARY, 1, ResultCategory.INPUT_TYPE, false, VectorForm.VALUE),
     /** Floating natural exponential minus one. */
-    EXPM1(Family.UNARY, 1, ResultCategory.INPUT_TYPE, false, true),
+    EXPM1(Family.UNARY, 1, ResultCategory.INPUT_TYPE, false, VectorForm.VALUE),
     /** Floating Gaussian error function. */
-    ERF(Family.UNARY, 1, ResultCategory.INPUT_TYPE, false, true),
+    ERF(Family.UNARY, 1, ResultCategory.INPUT_TYPE, false, VectorForm.VALUE),
     /** Floating principal square root. */
-    SQRT(Family.UNARY, 1, ResultCategory.INPUT_TYPE, false, true),
+    SQRT(Family.UNARY, 1, ResultCategory.INPUT_TYPE, false, VectorForm.VALUE),
     /** Floating reciprocal principal square root. */
-    RSQRT(Family.UNARY, 1, ResultCategory.INPUT_TYPE, false, true),
+    RSQRT(Family.UNARY, 1, ResultCategory.INPUT_TYPE, false, VectorForm.VALUE),
     /** Floating floor. */
-    FLOOR(Family.UNARY, 1, ResultCategory.INPUT_TYPE, false, false),
+    FLOOR(Family.UNARY, 1, ResultCategory.INPUT_TYPE, false, VectorForm.NONE),
     /** Floating ceiling. */
-    CEIL(Family.UNARY, 1, ResultCategory.INPUT_TYPE, false, false),
+    CEIL(Family.UNARY, 1, ResultCategory.INPUT_TYPE, false, VectorForm.NONE),
     /** Floating sign classification as a floating result. */
-    SIGN(Family.UNARY, 1, ResultCategory.INPUT_TYPE, false, false),
+    SIGN(Family.UNARY, 1, ResultCategory.INPUT_TYPE, false, VectorForm.VALUE),
     /** Rectified linear unit. */
-    RELU(Family.UNARY, 1, ResultCategory.INPUT_TYPE, false, false),
+    RELU(Family.UNARY, 1, ResultCategory.INPUT_TYPE, false, VectorForm.VALUE),
     /** Stable logistic sigmoid. */
-    SIGMOID(Family.UNARY, 1, ResultCategory.INPUT_TYPE, false, false),
+    SIGMOID(Family.UNARY, 1, ResultCategory.INPUT_TYPE, false, VectorForm.NONE),
     /** Floating hyperbolic tangent. */
-    TANH(Family.UNARY, 1, ResultCategory.INPUT_TYPE, false, true),
+    TANH(Family.UNARY, 1, ResultCategory.INPUT_TYPE, false, VectorForm.VALUE),
     /** Exact/default floating Gaussian error linear unit. */
-    GELU_EXACT(Family.UNARY, 1, ResultCategory.INPUT_TYPE, false, true),
+    GELU_EXACT(Family.UNARY, 1, ResultCategory.INPUT_TYPE, false, VectorForm.VALUE),
     /** Fixed hyperbolic-tangent GELU approximation. */
-    GELU_TANH_APPROXIMATION(Family.UNARY, 1, ResultCategory.INPUT_TYPE, false, false),
+    GELU_TANH_APPROXIMATION(Family.UNARY, 1, ResultCategory.INPUT_TYPE, false, VectorForm.NONE),
     /** Stable sigmoid linear unit. */
-    SILU(Family.UNARY, 1, ResultCategory.INPUT_TYPE, false, false),
+    SILU(Family.UNARY, 1, ResultCategory.INPUT_TYPE, false, VectorForm.NONE),
     /** Floating finite-value classification. */
-    IS_FINITE(Family.CLASSIFICATION, 1, ResultCategory.BOOL, false, false),
+    IS_FINITE(Family.CLASSIFICATION, 1, ResultCategory.BOOL, false, VectorForm.MASK_PRODUCER),
     /** Floating not-a-number classification. */
-    IS_NAN(Family.CLASSIFICATION, 1, ResultCategory.BOOL, false, false),
+    IS_NAN(Family.CLASSIFICATION, 1, ResultCategory.BOOL, false, VectorForm.MASK_PRODUCER),
     /** Floating infinity classification. */
-    IS_INF(Family.CLASSIFICATION, 1, ResultCategory.BOOL, false, false),
+    IS_INF(Family.CLASSIFICATION, 1, ResultCategory.BOOL, false, VectorForm.MASK_PRODUCER),
     /** Same-type numeric greater-than comparison. */
-    GREATER_THAN(Family.COMPARISON, 2, ResultCategory.BOOL, false, false),
+    GREATER_THAN(Family.COMPARISON, 2, ResultCategory.BOOL, false, VectorForm.MASK_PRODUCER),
     /** Same-type numeric greater-than-or-equal comparison. */
-    GREATER_OR_EQUAL(Family.COMPARISON, 2, ResultCategory.BOOL, false, false),
+    GREATER_OR_EQUAL(Family.COMPARISON, 2, ResultCategory.BOOL, false, VectorForm.MASK_PRODUCER),
     /** Same-type numeric less-than comparison. */
-    LESS_THAN(Family.COMPARISON, 2, ResultCategory.BOOL, false, false),
+    LESS_THAN(Family.COMPARISON, 2, ResultCategory.BOOL, false, VectorForm.MASK_PRODUCER),
     /** Same-type numeric less-than-or-equal comparison. */
-    LESS_OR_EQUAL(Family.COMPARISON, 2, ResultCategory.BOOL, false, false),
+    LESS_OR_EQUAL(Family.COMPARISON, 2, ResultCategory.BOOL, false, VectorForm.MASK_PRODUCER),
     /** Same-type numeric equality comparison. */
-    EQUAL(Family.COMPARISON, 2, ResultCategory.BOOL, false, false),
+    EQUAL(Family.COMPARISON, 2, ResultCategory.BOOL, false, VectorForm.MASK_PRODUCER),
     /** Same-type numeric inequality comparison. */
-    NOT_EQUAL(Family.COMPARISON, 2, ResultCategory.BOOL, false, false),
+    NOT_EQUAL(Family.COMPARISON, 2, ResultCategory.BOOL, false, VectorForm.MASK_PRODUCER),
     /** Canonical-BOOL conjunction. */
-    LOGICAL_AND(Family.LOGICAL, 2, ResultCategory.BOOL, false, false),
+    LOGICAL_AND(Family.LOGICAL, 2, ResultCategory.BOOL, false, VectorForm.VALUE_OR_MASK),
     /** Canonical-BOOL disjunction. */
-    LOGICAL_OR(Family.LOGICAL, 2, ResultCategory.BOOL, false, false),
+    LOGICAL_OR(Family.LOGICAL, 2, ResultCategory.BOOL, false, VectorForm.VALUE_OR_MASK),
     /** Canonical-BOOL complement. */
-    LOGICAL_NOT(Family.LOGICAL, 1, ResultCategory.BOOL, false, false),
+    LOGICAL_NOT(Family.LOGICAL, 1, ResultCategory.BOOL, false, VectorForm.VALUE_OR_MASK),
     /** Canonical-BOOL selection between same-type floating branches. */
-    WHERE(Family.SELECTION, 3, ResultCategory.BRANCH_TYPE, false, false),
+    WHERE(Family.SELECTION, 3, ResultCategory.BRANCH_TYPE, false, VectorForm.MASK_CONSUMER),
     /** Represented-value-preserving same-type explicit cast. */
-    CAST(Family.CAST, 1, ResultCategory.INPUT_TYPE, false, false);
+    CAST(Family.CAST, 1, ResultCategory.INPUT_TYPE, false, VectorForm.VALUE);
 
     /** Semantic family used for grouped validation and emission. */
     public enum Family {
@@ -124,19 +124,28 @@ public enum CpuPointwiseOpcode {
         /** Result has the exact common branch type. */ BRANCH_TYPE
     }
 
+    /** Generated vector representation required by an opcode. */
+    public enum VectorForm {
+        /** No vector realization is currently admitted. */ NONE,
+        /** Consume and produce ordinary typed value vectors. */ VALUE,
+        /** Consume and produce either canonical byte vectors or virtual typed masks. */ VALUE_OR_MASK,
+        /** Produce a virtual typed mask from floating value vectors. */ MASK_PRODUCER,
+        /** Consume a virtual or scalar-broadcast mask to select floating value vectors. */ MASK_CONSUMER
+    }
+
     private final Family family;
     private final int arity;
     private final ResultCategory resultCategory;
     private final boolean scalarImmediate;
-    private final boolean vectorEligible;
+    private final VectorForm vectorForm;
 
     CpuPointwiseOpcode(Family family, int arity, ResultCategory resultCategory,
-            boolean scalarImmediate, boolean vectorEligible) {
+            boolean scalarImmediate, VectorForm vectorForm) {
         this.family = family;
         this.arity = arity;
         this.resultCategory = resultCategory;
         this.scalarImmediate = scalarImmediate;
-        this.vectorEligible = vectorEligible;
+        this.vectorForm = vectorForm;
     }
 
     /**
@@ -168,13 +177,20 @@ public enum CpuPointwiseOpcode {
     public boolean carriesScalarImmediate() { return scalarImmediate; }
 
     /**
-     * Reports opcode eligibility for the current exact floating Vector emitter.
+     * Reports opcode eligibility for some current exact typed vector form.
      *
-     * <p>This flag is necessary but not sufficient: analysis also requires every IR value to be
-     * homogeneously {@code FLOAT32} or {@code FLOAT64} and every external access plan to satisfy
-     * the vector-run rules.</p>
+     * <p>This flag is necessary but not sufficient: analysis also validates lane data type,
+     * immediate realization, BOOL boundary or virtual-mask role, and every external access plan's
+     * vector-run eligibility.</p>
      *
      * @return {@code true} only for an opcode the current typed Vector emitter can realize
      */
-    public boolean vectorEligible() { return vectorEligible; }
+    public boolean vectorEligible() { return vectorForm != VectorForm.NONE; }
+
+    /**
+     * Returns the generated representation role required by this opcode.
+     *
+     * @return the non-null closed vector form
+     */
+    public VectorForm vectorForm() { return vectorForm; }
 }

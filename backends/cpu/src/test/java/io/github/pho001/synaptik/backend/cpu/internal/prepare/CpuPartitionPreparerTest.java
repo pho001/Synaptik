@@ -11,8 +11,12 @@ import io.github.pho001.synaptik.model.graph.ValueId;
 import io.github.pho001.synaptik.model.layout.LayoutDescriptor;
 import io.github.pho001.synaptik.model.operation.NoOperationAttrs;
 import io.github.pho001.synaptik.model.operation.Operation;
+import io.github.pho001.synaptik.model.operation.OperationKind;
 import io.github.pho001.synaptik.model.operation.elementwise.binary.BinaryArithmeticKind;
 import io.github.pho001.synaptik.model.operation.elementwise.unary.UnaryElementwiseKind;
+import io.github.pho001.synaptik.model.operation.elementwise.comparison.BinaryComparisonKind;
+import io.github.pho001.synaptik.model.operation.elementwise.logical.BooleanLogicalKind;
+import io.github.pho001.synaptik.model.operation.elementwise.selection.WhereSelectionKind;
 import io.github.pho001.synaptik.model.shape.Shape;
 import io.github.pho001.synaptik.model.shape.ShapeBroadcast;
 import io.github.pho001.synaptik.model.tensor.TensorDescriptor;
@@ -30,6 +34,9 @@ import io.github.pho001.synaptik.backend.cpu.internal.prepare.CpuPartitionAnalys
 import io.github.pho001.synaptik.backend.cpu.internal.prepare.CpuPartitionAnalysisInputs.PortableExecutionConfig.ComputePreference;
 import jdk.incubator.vector.DoubleVector;
 import jdk.incubator.vector.FloatVector;
+import jdk.incubator.vector.IntVector;
+import jdk.incubator.vector.LongVector;
+import jdk.incubator.vector.ByteVector;
 
 public class CpuPartitionPreparerTest {
     @Test void selectsAllFourStrategiesAndFallsBackFromIneligibleVectorGeometry() {
@@ -112,6 +119,57 @@ public class CpuPartitionPreparerTest {
                 () -> assertEquals("parallel-scalar", parallelPlan.executionStrategy().toString()),
                 () -> assertEquals(1, scalarPlan.units().size()),
                 () -> assertEquals(0, scalarPlan.vectorSpeciesBitSize()));
+    }
+
+    @Test void selectsTypedIntegralAndCanonicalBoolValueVectorsInBothOrchestrationModes() {
+        var rows = List.of(
+                new VectorRow(DataType.INT32, BinaryArithmeticKind.ADD),
+                new VectorRow(DataType.INT64, BinaryArithmeticKind.MAX),
+                new VectorRow(DataType.BOOL, BooleanLogicalKind.AND));
+        for (VectorRow row : rows) {
+            int count = vectorLanes(row.type()) * 2;
+            Shape shape = Shape.of(count);
+            var descriptor = descriptor(row.type(), shape);
+            var scalar = analyze(oneNodeContext(new Operation(row.kind(), NoOperationAttrs.INSTANCE),
+                    List.of(descriptor, descriptor), descriptor,
+                    new PortableExecutionConfig(ComputePreference.SCALAR, 1, 1, 1)));
+            var parallelScalar = analyze(oneNodeContext(
+                    new Operation(row.kind(), NoOperationAttrs.INSTANCE),
+                    List.of(descriptor, descriptor), descriptor,
+                    new PortableExecutionConfig(ComputePreference.SCALAR, 2, 2, 1)));
+            var vector = analyze(oneNodeContext(new Operation(row.kind(), NoOperationAttrs.INSTANCE),
+                    List.of(descriptor, descriptor), descriptor,
+                    new PortableExecutionConfig(ComputePreference.VECTOR_IF_ELIGIBLE, 1, 1, 1)));
+            var parallel = analyze(oneNodeContext(new Operation(row.kind(), NoOperationAttrs.INSTANCE),
+                    List.of(descriptor, descriptor), descriptor,
+                    new PortableExecutionConfig(ComputePreference.VECTOR_IF_ELIGIBLE, 2, 2, 1)));
+            assertAll(row.type().name(),
+                    () -> assertEquals("scalar", scalar.plan().executionStrategy().toString()),
+                    () -> assertEquals("parallel-scalar",
+                            parallelScalar.plan().executionStrategy().toString()),
+                    () -> assertEquals("vector", vector.plan().executionStrategy().toString()),
+                    () -> assertEquals("parallel-vector",
+                            parallel.plan().executionStrategy().toString()),
+                    () -> assertEquals(vectorSpeciesBits(row.type()),
+                            vector.plan().vectorSpeciesBitSize()));
+        }
+    }
+
+    @Test void selectsOnlyVirtualOrScalarBroadcastFloatingMaskTopologies() {
+        int count = FloatVector.SPECIES_PREFERRED.length() * 2;
+        var vector = new PortableExecutionConfig(ComputePreference.VECTOR_IF_ELIGIBLE, 1, 1, 1);
+        var parallel = new PortableExecutionConfig(ComputePreference.VECTOR_IF_ELIGIBLE, 2, 2, 1);
+        assertAll(
+                () -> assertEquals("vector", analyze(maskWhereContext(count, vector)).plan()
+                        .executionStrategy().toString()),
+                () -> assertEquals("parallel-vector", analyze(maskWhereContext(count, parallel))
+                        .plan().executionStrategy().toString()),
+                () -> assertEquals("vector", analyze(externalWhereContext(count, true, vector))
+                        .plan().executionStrategy().toString()),
+                () -> assertEquals("scalar", analyze(externalWhereContext(count, false, vector))
+                        .plan().executionStrategy().toString()),
+                () -> assertEquals("scalar", analyze(materializedComparisonContext(count, vector))
+                        .plan().executionStrategy().toString()));
     }
     @Test void formsOneFusedUnitAndDeclaresOnlyFourBoundaries() {
         var analysis = analyze(Shape.of(2, 3));
@@ -223,6 +281,108 @@ public class CpuPartitionPreparerTest {
     private static TensorDescriptor descriptor(Shape shape, LayoutDescriptor layout) {
         return new TensorDescriptor(DataType.FLOAT64, shape, Optional.of(layout), false);
     }
+
+    private static TensorDescriptor descriptor(DataType type, Shape shape) {
+        return new TensorDescriptor(type, shape, Optional.of(LayoutDescriptor.contiguous(shape)),
+                false);
+    }
+
+    private static BackendPartitionAnalysis<CpuPartitionPreparationPlan> analyze(
+            PrepareContext<CpuPartitionAnalysisInputs> context) {
+        return new CpuPartitionPreparer().analyze(context);
+    }
+
+    private static PrepareContext<CpuPartitionAnalysisInputs> oneNodeContext(Operation operation,
+            List<TensorDescriptor> inputs, TensorDescriptor output,
+            PortableExecutionConfig config) {
+        var inputIds = java.util.stream.IntStream.range(0, inputs.size())
+                .mapToObj(ValueId::new).toList();
+        ValueId outputId = new ValueId(inputs.size());
+        var node = new CompiledNode(new NodeId(0), operation, inputIds, List.of(outputId));
+        return arbitraryContext(List.of(node), concat(inputs, output),
+                new CpuPartitionAnalysisInputs(false, List.of(), config));
+    }
+
+    private static PrepareContext<CpuPartitionAnalysisInputs> maskWhereContext(int count,
+            PortableExecutionConfig config) {
+        Shape shape = Shape.of(count);
+        var value = descriptor(DataType.FLOAT32, shape);
+        var mask = descriptor(DataType.BOOL, shape);
+        var compare = new CompiledNode(new NodeId(0),
+                new Operation(BinaryComparisonKind.GREATER_THAN, NoOperationAttrs.INSTANCE),
+                List.of(new ValueId(0), new ValueId(1)), List.of(new ValueId(4)));
+        var where = new CompiledNode(new NodeId(1),
+                new Operation(WhereSelectionKind.WHERE, NoOperationAttrs.INSTANCE),
+                List.of(new ValueId(4), new ValueId(2), new ValueId(3)), List.of(new ValueId(5)));
+        return arbitraryContext(List.of(compare, where),
+                List.of(value, value, value, value, mask, value),
+                new CpuPartitionAnalysisInputs(false, List.of(), config));
+    }
+
+    private static PrepareContext<CpuPartitionAnalysisInputs> externalWhereContext(int count,
+            boolean scalarCondition, PortableExecutionConfig config) {
+        Shape shape = Shape.of(count);
+        var value = descriptor(DataType.FLOAT32, shape);
+        var condition = descriptor(DataType.BOOL, scalarCondition ? Shape.scalar() : shape);
+        return oneNodeContext(new Operation(WhereSelectionKind.WHERE, NoOperationAttrs.INSTANCE),
+                List.of(condition, value, value), value, config);
+    }
+
+    private static PrepareContext<CpuPartitionAnalysisInputs> materializedComparisonContext(
+            int count, PortableExecutionConfig config) {
+        Shape shape = Shape.of(count);
+        var value = descriptor(DataType.FLOAT32, shape);
+        return oneNodeContext(new Operation(BinaryComparisonKind.EQUAL, NoOperationAttrs.INSTANCE),
+                List.of(value, value), descriptor(DataType.BOOL, shape), config);
+    }
+
+    private static PrepareContext<CpuPartitionAnalysisInputs> arbitraryContext(
+            List<CompiledNode> nodes, List<TensorDescriptor> descriptors,
+            CpuPartitionAnalysisInputs inputs) {
+        var partition = new PlannedPartition(CpuCapabilityProvider.CPU_BACKEND_ID,
+                nodes.stream().map(CompiledNode::id).toList());
+        var values = new ArrayList<GraphValue>();
+        var memory = new ArrayList<LogicalMemoryRequirement>();
+        for (int i = 0; i < descriptors.size(); i++) {
+            ValueId id = new ValueId(i);
+            TensorDescriptor descriptor = descriptors.get(i);
+            boolean produced = nodes.stream().anyMatch(node -> node.outputs().contains(id));
+            boolean consumed = nodes.stream().anyMatch(node -> node.inputs().contains(id));
+            boolean graphOutput = nodes.getLast().outputs().contains(id);
+            values.add(new GraphValue(id, descriptor));
+            memory.add(new LogicalMemoryRequirement(id, descriptor,
+                    produced ? Optional.of(partition) : Optional.empty(),
+                    consumed ? List.of(partition) : List.of(), graphOutput));
+        }
+        return new PrepareContext<>(partition, nodes, values, memory, Map.of(), inputs);
+    }
+
+    private static List<TensorDescriptor> concat(List<TensorDescriptor> inputs,
+            TensorDescriptor output) {
+        var result = new ArrayList<>(inputs);
+        result.add(output);
+        return result;
+    }
+
+    private static int vectorLanes(DataType type) {
+        return switch (type) {
+            case INT32 -> IntVector.SPECIES_PREFERRED.length();
+            case INT64 -> LongVector.SPECIES_PREFERRED.length();
+            case BOOL -> ByteVector.SPECIES_PREFERRED.length();
+            default -> throw new IllegalArgumentException("unsupported test vector type");
+        };
+    }
+
+    private static int vectorSpeciesBits(DataType type) {
+        return switch (type) {
+            case INT32 -> IntVector.SPECIES_PREFERRED.vectorBitSize();
+            case INT64 -> LongVector.SPECIES_PREFERRED.vectorBitSize();
+            case BOOL -> ByteVector.SPECIES_PREFERRED.vectorBitSize();
+            default -> throw new IllegalArgumentException("unsupported test vector type");
+        };
+    }
+
+    private record VectorRow(DataType type, OperationKind kind) { }
 
     public static BackendPartitionAnalysis<CpuPartitionPreparationPlan> analyze(
             TensorDescriptor a, TensorDescriptor b, TensorDescriptor c, TensorDescriptor output,

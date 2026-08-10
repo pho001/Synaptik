@@ -19,14 +19,17 @@ import java.util.Objects;
 import java.util.Optional;
 import jdk.incubator.vector.DoubleVector;
 import jdk.incubator.vector.FloatVector;
+import jdk.incubator.vector.IntVector;
+import jdk.incubator.vector.LongVector;
+import jdk.incubator.vector.ByteVector;
 
 /**
  * Whole-partition CPU analysis entry for the current bounded static pointwise family.
  * Analysis deterministically compares direct access with at most three one-input contiguous-copy
  * candidates, then selects scalar or preferred-species vector compute and single-thread or
- * bounded parallel orchestration before shared resource assignment. Homogeneous FLOAT32 and
- * FLOAT64 floating division and proved scalar-power plans may remain vector eligible; direct
- * power remains scalar. Analysis measures nothing and
+ * bounded parallel orchestration before shared resource assignment. Exact vector eligibility is
+ * typed across floating, signed-integral, canonical-BOOL, and narrowly virtual floating-mask
+ * topologies; direct power and unsafe mask storage remain scalar. Analysis measures nothing and
  * performs no artifact or persistence access.
  */
 public final class CpuPartitionPreparer implements BackendPartitionPreparer<
@@ -87,22 +90,13 @@ public final class CpuPartitionPreparer implements BackendPartitionPreparer<
                     selected.consumerBinding().plan());
         }
         var config = context.backendInputs().portableExecution();
-        DataType vectorType = homogeneousFloatingType(kernelIr);
-        int lanes = vectorType == DataType.FLOAT32 ? FloatVector.SPECIES_PREFERRED.length()
-                : vectorType == DataType.FLOAT64 ? DoubleVector.SPECIES_PREFERRED.length() : 0;
-        int speciesBits = vectorType == DataType.FLOAT32
-                ? FloatVector.SPECIES_PREFERRED.vectorBitSize()
-                : vectorType == DataType.FLOAT64
-                        ? DoubleVector.SPECIES_PREFERRED.vectorBitSize() : 0;
+        DataType vectorType = vectorLaneType(kernelIr);
+        int lanes = speciesLanes(vectorType);
+        int speciesBits = speciesBits(vectorType);
         boolean vectorEligible = config.computePreference()
                         == CpuPartitionAnalysisInputs.PortableExecutionConfig.ComputePreference.VECTOR_IF_ELIGIBLE
                 && vectorType != null && lanes > 1 && lowered.elementCount() >= lanes
-                && kernelIr.instructions().stream().allMatch(instruction ->
-                        instruction.opcode().vectorEligible()
-                        && (instruction.opcode()
-                                != io.github.pho001.synaptik.backend.cpu.internal.ir.CpuPointwiseOpcode.SCALAR_POW
-                            || instruction.powerRealization()
-                                != CpuKernelIr.PowerRealization.DIRECT))
+                && vectorTopologyEligible(kernelIr, vectorType)
                 && bindings.stream().allMatch(binding -> vectorEligible(binding, lanes));
         int usableParallelism = Math.min(config.configuredMaximumParallelism(),
                 config.availableParallelism());
@@ -207,10 +201,101 @@ public final class CpuPartitionPreparer implements BackendPartitionPreparer<
                 .map(CpuKernelIr.Instruction::powerRealization).toList();
     }
 
-    private static DataType homogeneousFloatingType(CpuKernelIr kernelIr) {
-        DataType first = kernelIr.values().getFirst().dataType();
-        if (first != DataType.FLOAT32 && first != DataType.FLOAT64) return null;
-        return kernelIr.values().stream().allMatch(value -> value.dataType() == first) ? first : null;
+    private static DataType vectorLaneType(CpuKernelIr kernelIr) {
+        var numeric = kernelIr.values().stream().map(CpuKernelIr.Value::dataType)
+                .filter(type -> type != DataType.BOOL).distinct().toList();
+        if (numeric.size() > 1) return null;
+        if (numeric.isEmpty()) return kernelIr.values().stream()
+                .allMatch(value -> value.dataType() == DataType.BOOL) ? DataType.BOOL : null;
+        DataType type = numeric.getFirst();
+        return type == DataType.FLOAT32 || type == DataType.FLOAT64
+                || type == DataType.INT32 || type == DataType.INT64 ? type : null;
+    }
+
+    private static boolean vectorTopologyEligible(CpuKernelIr ir, DataType laneType) {
+        if (laneType == null) return false;
+        boolean mixedMasks = laneType == DataType.FLOAT32 || laneType == DataType.FLOAT64
+                ? ir.values().stream().anyMatch(value -> value.dataType() == DataType.BOOL) : false;
+        for (CpuKernelIr.Value value : ir.values()) {
+            if (value.dataType() == DataType.BOOL && mixedMasks
+                    && value.kind() != CpuKernelIr.Value.Kind.VIRTUAL
+                    && !(value.kind() == CpuKernelIr.Value.Kind.INPUT
+                        && value.accessPlan().regime() == CpuAccessPlan.Regime.SCALAR_ALL_ZERO)) {
+                return false;
+            }
+        }
+        for (CpuKernelIr.Instruction instruction : ir.instructions()) {
+            if (!instruction.opcode().vectorEligible()
+                    || instruction.opcode() == io.github.pho001.synaptik.backend.cpu.internal.ir.CpuPointwiseOpcode.SCALAR_POW
+                        && instruction.powerRealization() == CpuKernelIr.PowerRealization.DIRECT) {
+                return false;
+            }
+            switch (instruction.opcode().vectorForm()) {
+                case VALUE -> {
+                    if (!valueOpcodeEligible(instruction.opcode(), laneType)) return false;
+                }
+                case MASK_PRODUCER -> {
+                    if (!mixedMasks || ir.values().get(instruction.output()).kind()
+                            != CpuKernelIr.Value.Kind.VIRTUAL) return false;
+                }
+                case VALUE_OR_MASK -> {
+                    boolean byteValues = laneType == DataType.BOOL;
+                    boolean virtualMasks = mixedMasks
+                            && instruction.inputs().stream().allMatch(input ->
+                                ir.values().get(input).kind() == CpuKernelIr.Value.Kind.VIRTUAL)
+                            && ir.values().get(instruction.output()).kind()
+                                == CpuKernelIr.Value.Kind.VIRTUAL;
+                    if (!byteValues && !virtualMasks) return false;
+                }
+                case MASK_CONSUMER -> {
+                    if (!mixedMasks) return false;
+                    CpuKernelIr.Value condition = ir.values().get(instruction.inputs().getFirst());
+                    if (condition.kind() != CpuKernelIr.Value.Kind.VIRTUAL
+                            && !(condition.kind() == CpuKernelIr.Value.Kind.INPUT
+                                && condition.accessPlan().regime()
+                                    == CpuAccessPlan.Regime.SCALAR_ALL_ZERO)) return false;
+                }
+                case NONE -> { return false; }
+            }
+        }
+        return true;
+    }
+
+    private static boolean valueOpcodeEligible(
+            io.github.pho001.synaptik.backend.cpu.internal.ir.CpuPointwiseOpcode opcode,
+            DataType laneType) {
+        if (laneType == DataType.BOOL) return opcode
+                == io.github.pho001.synaptik.backend.cpu.internal.ir.CpuPointwiseOpcode.CAST;
+        if (laneType == DataType.INT32 || laneType == DataType.INT64) return switch (opcode) {
+            case ADD, SUB, MUL, MIN, MAX, SCALAR_ADD, SCALAR_SUB, SCALAR_MUL,
+                    SCALAR_MIN, SCALAR_MAX, CAST -> true;
+            default -> false;
+        };
+        return laneType == DataType.FLOAT32 || laneType == DataType.FLOAT64;
+    }
+
+    private static int speciesLanes(DataType type) {
+        if (type == null) return 0;
+        return switch (type) {
+            case FLOAT32 -> FloatVector.SPECIES_PREFERRED.length();
+            case FLOAT64 -> DoubleVector.SPECIES_PREFERRED.length();
+            case INT32 -> IntVector.SPECIES_PREFERRED.length();
+            case INT64 -> LongVector.SPECIES_PREFERRED.length();
+            case BOOL -> ByteVector.SPECIES_PREFERRED.length();
+            default -> 0;
+        };
+    }
+
+    private static int speciesBits(DataType type) {
+        if (type == null) return 0;
+        return switch (type) {
+            case FLOAT32 -> FloatVector.SPECIES_PREFERRED.vectorBitSize();
+            case FLOAT64 -> DoubleVector.SPECIES_PREFERRED.vectorBitSize();
+            case INT32 -> IntVector.SPECIES_PREFERRED.vectorBitSize();
+            case INT64 -> LongVector.SPECIES_PREFERRED.vectorBitSize();
+            case BOOL -> ByteVector.SPECIES_PREFERRED.vectorBitSize();
+            default -> 0;
+        };
     }
 
     private static CpuAccessPlan.Binding denseBinding(long[] extents, long elementCount) {

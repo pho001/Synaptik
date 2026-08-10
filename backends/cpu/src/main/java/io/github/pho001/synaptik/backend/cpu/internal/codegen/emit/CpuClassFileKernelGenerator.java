@@ -19,9 +19,9 @@ import java.util.Objects;
  * Stateless Java 26 Class-File generator for one typed pointwise CPU unit.
  *
  * <p>It realizes the already-selected scalar body or eligible preferred-species
- * FLOAT32/FLOAT64 vector body, including the closed unary opcode matrix, and retains the scalar
- * body for tails. It does not choose capability, numerical semantics, access structure,
- * strategy, or fallback.</p>
+ * FLOAT32/FLOAT64, signed-integral, canonical-BOOL, or narrowly virtual floating-mask vector
+ * body, and retains the scalar body for tails. It does not choose capability, numerical
+ * semantics, access structure, strategy, or fallback.</p>
  */
 public final class CpuClassFileKernelGenerator {
     /** Creates a stateless generator with no retained route or specialization state. */
@@ -75,7 +75,8 @@ public final class CpuClassFileKernelGenerator {
                                     == io.github.pho001.synaptik.backend.cpu.internal.prepare.CpuPartitionPreparationPlan.ExecutionStrategy.Compute.VECTOR) {
                                 DataType vectorType = vectorDataType(kernelIr);
                                 int[] vectorLocals = allocateVectorLocals(code, kernelIr);
-                                var vectorInstructions = new CpuVectorInstructionEmitter(code, vectorType);
+                                var vectorInstructions = new CpuVectorInstructionEmitter(
+                                        code, kernelIr, vectorType);
                                 loops.emitVector(plans, specialization.vectorSpeciesBitSize()
                                                 / vectorType.bitWidth(),
                                         state -> emitVectorBody(code, carriers, vectorInstructions,
@@ -141,7 +142,12 @@ public final class CpuClassFileKernelGenerator {
             CpuKernelIr.Value value = boundaries.get(boundary);
             if (value.kind() != CpuKernelIr.Value.Kind.INPUT
                     || !requiresInputLoad(ir, value.ordinal())) continue;
-            carriers.vectorLoad(vectorType, specialization.carrierPattern().get(boundary), boundary,
+            if (value.dataType() == DataType.BOOL && vectorType != DataType.BOOL) {
+                carriers.scalarBoolMaskLoad(vectorType,
+                        specialization.carrierPattern().get(boundary), boundary,
+                        state.addresses()[boundary]);
+            } else carriers.vectorLoad(vectorType,
+                    specialization.carrierPattern().get(boundary), boundary,
                     state.addresses()[boundary], value.accessPlan().regime()
                             == io.github.pho001.synaptik.backend.cpu.internal.ir.CpuAccessPlan.Regime.SCALAR_ALL_ZERO);
             code.astore(locals[value.ordinal()]);
@@ -203,28 +209,91 @@ public final class CpuClassFileKernelGenerator {
         }
         if (specialization.executionStrategy().compute()
                 == io.github.pho001.synaptik.backend.cpu.internal.prepare.CpuPartitionPreparationPlan.ExecutionStrategy.Compute.VECTOR
-                && (vectorDataTypeOrNull(kernelIr) == null
-                    || kernelIr.instructions().stream().anyMatch(instruction ->
-                            !instruction.opcode().vectorEligible()
-                            || instruction.opcode() == CpuPointwiseOpcode.SCALAR_POW
-                                && instruction.powerRealization()
-                                    == CpuKernelIr.PowerRealization.DIRECT))) {
+                && vectorDataTypeOrNull(kernelIr) == null) {
             throw new IllegalArgumentException(
-                    "vector specialization requires homogeneous floating numeric-only IR");
+                    "vector specialization requires one supported typed value or virtual-mask topology");
         }
     }
 
     private static DataType vectorDataType(CpuKernelIr kernelIr) {
         DataType result = vectorDataTypeOrNull(kernelIr);
         if (result == null) throw new IllegalArgumentException(
-                "vector specialization requires homogeneous floating numeric-only IR");
+                "vector specialization requires one supported typed value or virtual-mask topology");
         return result;
     }
 
     private static DataType vectorDataTypeOrNull(CpuKernelIr kernelIr) {
-        DataType result = kernelIr.values().getFirst().dataType();
-        if (result != DataType.FLOAT32 && result != DataType.FLOAT64) return null;
-        return kernelIr.values().stream().allMatch(value -> value.dataType() == result) ? result : null;
+        var numeric = kernelIr.values().stream().map(CpuKernelIr.Value::dataType)
+                .filter(type -> type != DataType.BOOL).distinct().toList();
+        DataType result;
+        if (numeric.isEmpty()) result = DataType.BOOL;
+        else if (numeric.size() == 1) result = numeric.getFirst();
+        else return null;
+        if (result != DataType.FLOAT32 && result != DataType.FLOAT64
+                && result != DataType.INT32 && result != DataType.INT64
+                && result != DataType.BOOL) return null;
+        return vectorTopologyEligible(kernelIr, result) ? result : null;
+    }
+
+    private static boolean vectorTopologyEligible(CpuKernelIr ir, DataType laneType) {
+        boolean mixedMasks = (laneType == DataType.FLOAT32 || laneType == DataType.FLOAT64)
+                && ir.values().stream().anyMatch(value -> value.dataType() == DataType.BOOL);
+        for (CpuKernelIr.Value value : ir.values()) {
+            if (value.dataType() == DataType.BOOL && mixedMasks
+                    && value.kind() != CpuKernelIr.Value.Kind.VIRTUAL
+                    && !(value.kind() == CpuKernelIr.Value.Kind.INPUT
+                        && value.accessPlan().regime()
+                            == io.github.pho001.synaptik.backend.cpu.internal.ir.CpuAccessPlan.Regime.SCALAR_ALL_ZERO)) {
+                return false;
+            }
+        }
+        for (CpuKernelIr.Instruction instruction : ir.instructions()) {
+            if (!instruction.opcode().vectorEligible()
+                    || instruction.opcode() == CpuPointwiseOpcode.SCALAR_POW
+                        && instruction.powerRealization() == CpuKernelIr.PowerRealization.DIRECT) {
+                return false;
+            }
+            switch (instruction.opcode().vectorForm()) {
+                case VALUE -> {
+                    if (!valueOpcodeEligible(instruction.opcode(), laneType)) return false;
+                }
+                case MASK_PRODUCER -> {
+                    if (!mixedMasks || ir.values().get(instruction.output()).kind()
+                            != CpuKernelIr.Value.Kind.VIRTUAL) return false;
+                }
+                case VALUE_OR_MASK -> {
+                    boolean byteValues = laneType == DataType.BOOL;
+                    boolean virtualMasks = mixedMasks
+                            && instruction.inputs().stream().allMatch(input ->
+                                ir.values().get(input).kind() == CpuKernelIr.Value.Kind.VIRTUAL)
+                            && ir.values().get(instruction.output()).kind()
+                                == CpuKernelIr.Value.Kind.VIRTUAL;
+                    if (!byteValues && !virtualMasks) return false;
+                }
+                case MASK_CONSUMER -> {
+                    if (!mixedMasks) return false;
+                    CpuKernelIr.Value condition = ir.values().get(instruction.inputs().getFirst());
+                    if (condition.kind() != CpuKernelIr.Value.Kind.VIRTUAL
+                            && !(condition.kind() == CpuKernelIr.Value.Kind.INPUT
+                                && condition.accessPlan().regime()
+                                    == io.github.pho001.synaptik.backend.cpu.internal.ir.CpuAccessPlan.Regime.SCALAR_ALL_ZERO)) {
+                        return false;
+                    }
+                }
+                case NONE -> { return false; }
+            }
+        }
+        return true;
+    }
+
+    private static boolean valueOpcodeEligible(CpuPointwiseOpcode opcode, DataType laneType) {
+        if (laneType == DataType.BOOL) return opcode == CpuPointwiseOpcode.CAST;
+        if (laneType == DataType.INT32 || laneType == DataType.INT64) return switch (opcode) {
+            case ADD, SUB, MUL, MIN, MAX, SCALAR_ADD, SCALAR_SUB, SCALAR_MUL,
+                    SCALAR_MIN, SCALAR_MAX, CAST -> true;
+            default -> false;
+        };
+        return laneType == DataType.FLOAT32 || laneType == DataType.FLOAT64;
     }
 
     private static void verify(CpuKernelSpecialization specialization, byte[] bytes) {

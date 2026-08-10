@@ -11,6 +11,11 @@ import java.util.HexFormat;
 import java.util.Objects;
 import java.util.List;
 import io.github.pho001.synaptik.model.datatype.DataType;
+import jdk.incubator.vector.ByteVector;
+import jdk.incubator.vector.DoubleVector;
+import jdk.incubator.vector.FloatVector;
+import jdk.incubator.vector.IntVector;
+import jdk.incubator.vector.LongVector;
 
 /**
  * Structural portable-kernel specialization for one generated scalar or vector body.
@@ -23,7 +28,7 @@ import io.github.pho001.synaptik.model.datatype.DataType;
  *     because parallel plans reuse the corresponding scalar or vector artifact
  * @param boundaryDataTypes non-null immutable ordered data type for every derived boundary
  * @param carrierPattern non-null immutable ordered carrier form for every derived boundary
- * @param vectorSpeciesBitSize exact positive preferred typed floating species size in bits for
+ * @param vectorSpeciesBitSize exact positive preferred typed species size in bits for
  *     vector compute, or zero for scalar compute
  * @param materializedSourcePosition copied input position before the final output, or
  *     {@code -1} for direct access; a copied position must use a segment carrier in the generated
@@ -124,7 +129,7 @@ public record CpuKernelSpecialization(CpuLoweringFingerprint loweringFingerprint
      * @param executionStrategy non-null single-thread generated compute strategy
      * @param boundaryDataTypes non-null ordered boundary types; copied defensively
      * @param carrierPattern non-null ordered boundary carrier pattern; copied defensively
-     * @param vectorSpeciesBitSize positive preferred typed floating species bit size for vector
+     * @param vectorSpeciesBitSize positive preferred typed species bit size for vector
      *     compute, or zero for scalar compute
      * @param materializedSourcePosition copied input position, or {@code -1} for direct access
      * @param scalarPowerRealizations non-null ordered scalar-power realization facts; copied
@@ -150,8 +155,10 @@ public record CpuKernelSpecialization(CpuLoweringFingerprint loweringFingerprint
         }
         boolean vector = executionStrategy.compute()
                 == CpuPartitionPreparationPlan.ExecutionStrategy.Compute.VECTOR;
+        int expectedSpeciesBitSize = preferredSpeciesBitSize(boundaryDataTypes);
         if (numericalMode != NumericalMode.EXACT_DEFAULT
                 || vector != (vectorSpeciesBitSize > 0)
+                || (vector && vectorSpeciesBitSize != expectedSpeciesBitSize)
                 || materializedSourcePosition < -1
                 || materializedSourcePosition >= carrierPattern.size() - 1
                 || (materializedSourcePosition >= 0
@@ -195,6 +202,21 @@ public record CpuKernelSpecialization(CpuLoweringFingerprint loweringFingerprint
             case INT64 -> CarrierAccess.LONG_ARRAY;
             case BOOL -> CarrierAccess.BYTE_ARRAY;
             case BFLOAT16 -> throw new IllegalArgumentException("BFLOAT16 is not executable");
+        };
+    }
+
+    private static int preferredSpeciesBitSize(List<DataType> boundaryTypes) {
+        List<DataType> numeric = boundaryTypes.stream()
+                .filter(type -> type != DataType.BOOL).distinct().toList();
+        if (numeric.size() > 1) return 0;
+        DataType laneType = numeric.isEmpty() ? DataType.BOOL : numeric.getFirst();
+        return switch (laneType) {
+            case FLOAT64 -> DoubleVector.SPECIES_PREFERRED.vectorBitSize();
+            case FLOAT32 -> FloatVector.SPECIES_PREFERRED.vectorBitSize();
+            case INT32 -> IntVector.SPECIES_PREFERRED.vectorBitSize();
+            case INT64 -> LongVector.SPECIES_PREFERRED.vectorBitSize();
+            case BOOL -> ByteVector.SPECIES_PREFERRED.vectorBitSize();
+            case BFLOAT16 -> 0;
         };
     }
 

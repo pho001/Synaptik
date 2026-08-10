@@ -8,8 +8,9 @@
  * Tensor/Tensor power as a direct instruction, maps all nineteen same-typed FLOAT32/FLOAT64 unary
  * kinds to one instruction each, keeps floating classification separate,
  * normalizes resolved layouts into five access regimes, proves output-write injectivity, and
- * decides fusion legality before resource declaration. Private intermediates remain virtual
- * canonical-IR values. It collaborates with {@code internal.ir} and route-neutral CPU
+ * decides fusion legality before resource declaration. Private intermediates, including eligible
+ * comparison/classification BOOL results consumed inside the unit, remain virtual canonical-IR
+ * values. It collaborates with {@code internal.ir} and route-neutral CPU
  * preparation, but never allocates Runtime resources, selects a physical slot, or delegates graph
  * interpretation to a route implementation.
  *

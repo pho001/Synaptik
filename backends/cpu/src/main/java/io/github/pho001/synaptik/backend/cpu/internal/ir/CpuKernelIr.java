@@ -13,7 +13,8 @@ import java.util.Objects;
  * Immutable route-independent canonical CPU kernel intermediate representation (IR).
  * The instruction vocabulary includes the closed nineteen-kind unary matrix as distinct typed
  * opcodes; each unary Model occurrence remains one instruction with one same-typed FLOAT32 or
- * FLOAT64 result.
+ * FLOAT64 result. Canonical BOOL values retain their materialized-boundary or unit-private virtual
+ * role so generated code may represent eligible virtual floating masks without changing storage.
  * Values use topology-local ordinals, so graph identities, extents, slots, routes, generator
  * versions, segment instances, and invocation bindings cannot enter canonical identity.
  * When analysis selects one contiguous input copy, it derives a second canonical consumer form

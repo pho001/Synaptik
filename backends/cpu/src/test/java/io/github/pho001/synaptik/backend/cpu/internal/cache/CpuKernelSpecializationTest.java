@@ -61,7 +61,14 @@ class CpuKernelSpecializationTest {
                 () -> assertEquals(0, scalarSingle.vectorSpeciesBitSize()),
                 () -> assertEquals(DoubleVector.SPECIES_PREFERRED.vectorBitSize(),
                         vector.vectorSpeciesBitSize()),
-                () -> assertNotEquals(scalarSingle.structuralKey(), vector.structuralKey()));
+                () -> assertNotEquals(scalarSingle.structuralKey(), vector.structuralKey()),
+                () -> assertThrows(IllegalArgumentException.class,
+                        () -> new CpuKernelSpecialization(vector.loweringFingerprint(),
+                                vector.numericalMode(), vector.executionStrategy(),
+                                vector.boundaryDataTypes(), vector.carrierPattern(),
+                                vector.vectorSpeciesBitSize() / 2,
+                                vector.materializedSourcePosition(),
+                                vector.scalarPowerRealizations())));
     }
 
     @Test void typedPreferredSpeciesAndBoundaryTypeChangeVectorIdentity() {

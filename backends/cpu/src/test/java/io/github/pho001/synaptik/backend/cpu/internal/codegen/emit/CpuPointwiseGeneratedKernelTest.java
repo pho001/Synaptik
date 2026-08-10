@@ -12,6 +12,9 @@ import java.util.*;
 import org.junit.jupiter.api.Test;
 import jdk.incubator.vector.DoubleVector;
 import jdk.incubator.vector.FloatVector;
+import jdk.incubator.vector.IntVector;
+import jdk.incubator.vector.LongVector;
+import jdk.incubator.vector.ByteVector;
 import java.lang.foreign.Arena;
 import java.lang.foreign.ValueLayout;
 import java.nio.ByteOrder;
@@ -65,10 +68,15 @@ class CpuPointwiseGeneratedKernelTest {
                 CpuPointwiseOpcode.SCALAR_ADD, CpuPointwiseOpcode.SCALAR_SUB,
                 CpuPointwiseOpcode.SCALAR_MUL, CpuPointwiseOpcode.DIV,
                 CpuPointwiseOpcode.SCALAR_DIV, CpuPointwiseOpcode.NEG,
+                CpuPointwiseOpcode.MIN, CpuPointwiseOpcode.MAX,
+                CpuPointwiseOpcode.SCALAR_MIN, CpuPointwiseOpcode.SCALAR_MAX,
+                CpuPointwiseOpcode.SCALAR_CLAMP,
                 CpuPointwiseOpcode.ABS, CpuPointwiseOpcode.RECIPROCAL,
                 CpuPointwiseOpcode.LOG, CpuPointwiseOpcode.LOG1P, CpuPointwiseOpcode.EXP,
                 CpuPointwiseOpcode.EXPM1, CpuPointwiseOpcode.ERF, CpuPointwiseOpcode.SQRT,
-                CpuPointwiseOpcode.RSQRT, CpuPointwiseOpcode.TANH, CpuPointwiseOpcode.GELU_EXACT)) {
+                CpuPointwiseOpcode.RSQRT, CpuPointwiseOpcode.SIGN, CpuPointwiseOpcode.RELU,
+                CpuPointwiseOpcode.TANH, CpuPointwiseOpcode.GELU_EXACT,
+                CpuPointwiseOpcode.CAST)) {
             Case one = new Case(opcode, DataType.FLOAT64);
             CpuKernelIr ir = ir(one);
             List<DataType> types = ir.values().stream().map(CpuKernelIr.Value::dataType).toList();
@@ -100,7 +108,7 @@ class CpuPointwiseGeneratedKernelTest {
 
     @Test void float32EligibleOpcodeSetUsesPreferredVectorsWithScalarTails() throws Throwable {
         for (CpuPointwiseOpcode opcode : Arrays.stream(CpuPointwiseOpcode.values())
-                .filter(CpuPointwiseOpcode::vectorEligible)
+                .filter(candidate -> candidate.vectorForm() == CpuPointwiseOpcode.VectorForm.VALUE)
                 .filter(candidate -> candidate != CpuPointwiseOpcode.SCALAR_POW).toList()) {
             Case one = new Case(opcode, DataType.FLOAT32);
             CpuKernelIr ir = ir(one);
@@ -166,6 +174,89 @@ class CpuPointwiseGeneratedKernelTest {
                     0L, (long) count);
             for (int i = 0; i < count; i++) assertEquals(length % 2 == 0 ? input[i] : -input[i],
                     output[i], "fusion length " + length + " lane " + i);
+        }
+    }
+
+    @Test void integralAndCanonicalBoolRowsUseExactPreferredVectorsAndScalarTails()
+            throws Throwable {
+        var cases = new ArrayList<Case>();
+        for (DataType type : List.of(DataType.INT32, DataType.INT64)) {
+            for (CpuPointwiseOpcode opcode : List.of(CpuPointwiseOpcode.ADD,
+                    CpuPointwiseOpcode.SUB, CpuPointwiseOpcode.MUL, CpuPointwiseOpcode.MIN,
+                    CpuPointwiseOpcode.MAX, CpuPointwiseOpcode.SCALAR_ADD,
+                    CpuPointwiseOpcode.SCALAR_SUB, CpuPointwiseOpcode.SCALAR_MUL,
+                    CpuPointwiseOpcode.SCALAR_MIN, CpuPointwiseOpcode.SCALAR_MAX,
+                    CpuPointwiseOpcode.CAST)) cases.add(new Case(opcode, type));
+        }
+        for (CpuPointwiseOpcode opcode : List.of(CpuPointwiseOpcode.LOGICAL_AND,
+                CpuPointwiseOpcode.LOGICAL_OR, CpuPointwiseOpcode.LOGICAL_NOT,
+                CpuPointwiseOpcode.CAST)) cases.add(new Case(opcode, DataType.BOOL));
+        for (Case one : cases) assertVectorCase(one);
+        assertEquals(26, cases.size());
+    }
+
+    @Test void virtualFloatingMasksComposeAndDriveWhereWithoutMaterialization() throws Throwable {
+        for (DataType type : List.of(DataType.FLOAT32, DataType.FLOAT64)) {
+            int lanes = vectorLanes(type);
+            for (boolean or : List.of(false, true)) {
+                CpuKernelIr ir = maskIr(type, or);
+                Object a = repeated(type, lanes + 1, -2, 3, Double.NaN, -0.0);
+                Object b = repeated(type, lanes + 1, -1, 2, 0, +0.0);
+                Object c = repeated(type, lanes + 1, 10, 20, 30, 40);
+                Object d = repeated(type, lanes + 1, 11, 19, 31, 39);
+                Object output = array(type, lanes + 1, false);
+                invokeVector(ir, List.of(a, b, c, d, output), type, lanes + 1);
+                for (int i = 0; i < lanes + 1; i++) {
+                    double av = numberAt(a, i), bv = numberAt(b, i);
+                    double cv = numberAt(c, i), dv = numberAt(d, i);
+                    boolean condition = or ? av > bv || cv < dv : av > bv && cv < dv;
+                    double expected = condition ? av : cv;
+                    assertEquals(expected, numberAt(output, i),
+                            type + " " + (or ? "OR" : "AND") + " mask lane " + i);
+                }
+            }
+        }
+    }
+
+    @Test void virtualFloatingClassificationAndNotDriveWhere() throws Throwable {
+        for (DataType type : List.of(DataType.FLOAT32, DataType.FLOAT64)) {
+            int count = vectorLanes(type) + 1;
+            CpuKernelIr ir = classificationWhereIr(type);
+            Object input = repeated(type, count, Double.NaN, Double.POSITIVE_INFINITY, -2, +0.0);
+            Object fallback = repeated(type, count, 7, 8, 9, 10);
+            Object output = array(type, count, false);
+            invokeVector(ir, List.of(input, fallback, output), type, count);
+            for (int i = 0; i < count; i++) {
+                double value = numberAt(input, i);
+                double expected = !Double.isNaN(value) ? value : numberAt(fallback, i);
+                assertEquals(expected, numberAt(output, i), type + " classification lane " + i);
+            }
+        }
+    }
+
+    @Test void scalarCanonicalBoolBroadcastDrivesFloatingWhereMask() throws Throwable {
+        for (DataType type : List.of(DataType.FLOAT32, DataType.FLOAT64)) {
+            int count = vectorLanes(type) + 1;
+            for (byte condition : new byte[] {0, 1}) {
+                CpuKernelIr ir = scalarWhereIr(type);
+                Object whenTrue = repeated(type, count, 1, 2, 3, 4);
+                Object whenFalse = repeated(type, count, -1, -2, -3, -4);
+                for (boolean segmentCondition : List.of(false, true)) {
+                    Object output = array(type, count, false);
+                    Object conditionCarrier = segmentCondition
+                            ? segmentOf(new byte[] {condition}) : new byte[] {condition};
+                    List<CpuKernelSpecialization.CarrierAccess> carriers = List.of(
+                            segmentCondition
+                                    ? CpuKernelSpecialization.CarrierAccess.MEMORY_SEGMENT
+                                    : CpuKernelSpecialization.CarrierAccess.BYTE_ARRAY,
+                            heapCarrier(type), heapCarrier(type), heapCarrier(type));
+                    invokeVector(ir, List.of(conditionCarrier, whenTrue, whenFalse, output),
+                            type, count, carriers);
+                    Object expected = condition == 1 ? whenTrue : whenFalse;
+                    assertPrimitiveArrayEquals(expected, output,
+                            type + " scalar condition segment=" + segmentCondition);
+                }
+            }
         }
     }
 
@@ -416,6 +507,36 @@ class CpuPointwiseGeneratedKernelTest {
         }
     }
 
+    @Test void preferredTypedVectorsUseSegmentAndMixedCarriers() throws Throwable {
+        try (Arena arena = Arena.ofConfined()) {
+            for (DataType type : List.of(DataType.FLOAT64, DataType.FLOAT32, DataType.INT32,
+                    DataType.INT64, DataType.BOOL)) {
+                int count = vectorLanes(type) + 1;
+                Case one = new Case(CpuPointwiseOpcode.CAST, type);
+                CpuKernelIr ir = ir(one);
+                List<DataType> types = List.of(type, type);
+                Object source = resize(arrayValues(type, false), count);
+                var input = arena.allocate((long) count * type.byteWidth(), type.byteWidth());
+                var output = arena.allocate((long) count * type.byteWidth(), type.byteWidth());
+                input.copyFrom(segmentOf(source));
+
+                var allSegment = vectorArtifact(ir, types, List.of(
+                        CpuKernelSpecialization.CarrierAccess.MEMORY_SEGMENT,
+                        CpuKernelSpecialization.CarrierAccess.MEMORY_SEGMENT), type);
+                allSegment.entryPoint().invokeWithArguments(input, output,
+                        geometry(2, count), 0L, (long) count);
+                assertEquals(-1L, input.mismatch(output), type + " vector segments");
+
+                output.fill((byte) 0);
+                var mixed = vectorArtifact(ir, types, List.of(heapCarrier(type),
+                        CpuKernelSpecialization.CarrierAccess.MEMORY_SEGMENT), type);
+                mixed.entryPoint().invokeWithArguments(source, output,
+                        geometry(2, count), 0L, (long) count);
+                assertEquals(-1L, segmentOf(source).mismatch(output), type + " vector mixed");
+            }
+        }
+    }
+
     private static CpuGeneratedKernel artifact(CpuKernelIr ir, List<DataType> types,
             List<CpuKernelSpecialization.CarrierAccess> carriers) {
         var specialization = new CpuKernelSpecialization(
@@ -425,6 +546,164 @@ class CpuPointwiseGeneratedKernelTest {
         var generator = new CpuClassFileKernelGenerator();
         return generator.defineClassBytes(specialization,
                 generator.generateClassBytes(specialization, ir));
+    }
+
+    private static CpuGeneratedKernel vectorArtifact(CpuKernelIr ir, List<DataType> types,
+            List<CpuKernelSpecialization.CarrierAccess> carriers, DataType laneType) {
+        var specialization = new CpuKernelSpecialization(
+                CpuLoweringFingerprint.fromHex(ir.structuralKey()),
+                CpuKernelSpecialization.NumericalMode.EXACT_DEFAULT,
+                CpuPartitionPreparationPlan.ExecutionStrategy.VECTOR, types, carriers,
+                vectorSpeciesBits(laneType), -1);
+        var generator = new CpuClassFileKernelGenerator();
+        return generator.defineClassBytes(specialization,
+                generator.generateClassBytes(specialization, ir));
+    }
+
+    private static void assertVectorCase(Case one) throws Throwable {
+        CpuKernelIr ir = ir(one);
+        int count = vectorLanes(one.type()) + 1;
+        var arguments = new ArrayList<Object>();
+        for (Object input : inputs(one)) arguments.add(resize(input, count));
+        Object output = array(one.outputType(), count, false);
+        arguments.add(output);
+        invokeVector(ir, arguments, one.type(), count);
+        Object expected = array(one.outputType(), count, false);
+        var reference = new ArrayList<>(arguments.subList(0, arguments.size() - 1));
+        reference.add(expected);
+        List<DataType> types = ir.values().stream()
+                .filter(value -> value.kind() != CpuKernelIr.Value.Kind.VIRTUAL)
+                .map(CpuKernelIr.Value::dataType).toList();
+        CpuScalarReferenceKernel.execute(ir, reference.stream().map(value ->
+                argument(value, types.get(reference.indexOf(value)))).toList(),
+                bindings(types.size(), count), 0, count);
+        assertPrimitiveArrayEquals(expected, output, one.opcode() + " " + one.type());
+    }
+
+    private static void invokeVector(CpuKernelIr ir, List<Object> arguments, DataType laneType,
+            int count) throws Throwable {
+        List<DataType> types = ir.values().stream()
+                .filter(value -> value.kind() != CpuKernelIr.Value.Kind.VIRTUAL)
+                .map(CpuKernelIr.Value::dataType).toList();
+        List<CpuKernelSpecialization.CarrierAccess> carriers = types.stream()
+                .map(CpuPointwiseGeneratedKernelTest::heapCarrier).toList();
+        invokeVector(ir, arguments, laneType, count, carriers);
+    }
+
+    private static void invokeVector(CpuKernelIr ir, List<Object> arguments, DataType laneType,
+            int count, List<CpuKernelSpecialization.CarrierAccess> carriers) throws Throwable {
+        List<DataType> types = ir.values().stream()
+                .filter(value -> value.kind() != CpuKernelIr.Value.Kind.VIRTUAL)
+                .map(CpuKernelIr.Value::dataType).toList();
+        var specialization = new CpuKernelSpecialization(
+                CpuLoweringFingerprint.fromHex(ir.structuralKey()),
+                CpuKernelSpecialization.NumericalMode.EXACT_DEFAULT,
+                CpuPartitionPreparationPlan.ExecutionStrategy.VECTOR, types, carriers,
+                vectorSpeciesBits(laneType), -1);
+        var generator = new CpuClassFileKernelGenerator();
+        var artifact = generator.defineClassBytes(specialization,
+                generator.generateClassBytes(specialization, ir));
+        var call = new ArrayList<Object>(arguments);
+        call.add(geometry(arguments.size(), count)); call.add(0L); call.add((long) count);
+        artifact.entryPoint().invokeWithArguments(call);
+    }
+
+    private static CpuKernelIr maskIr(DataType type, boolean or) {
+        var values = new ArrayList<CpuKernelIr.Value>();
+        for (int i = 0; i < 4; i++) values.add(new CpuKernelIr.Value(i, type,
+                CpuKernelIr.Value.Kind.INPUT, dense(CpuAccessPlan.AccessKind.READ)));
+        for (int i = 4; i < 7; i++) values.add(new CpuKernelIr.Value(i, DataType.BOOL,
+                CpuKernelIr.Value.Kind.VIRTUAL, dense(CpuAccessPlan.AccessKind.READ)));
+        values.add(new CpuKernelIr.Value(7, type, CpuKernelIr.Value.Kind.OUTPUT,
+                dense(CpuAccessPlan.AccessKind.WRITE)));
+        return new CpuKernelIr(values, List.of(
+                new CpuKernelIr.Instruction(CpuPointwiseOpcode.GREATER_THAN, List.of(0, 1), 4),
+                new CpuKernelIr.Instruction(CpuPointwiseOpcode.LESS_THAN, List.of(2, 3), 5),
+                new CpuKernelIr.Instruction(or ? CpuPointwiseOpcode.LOGICAL_OR
+                        : CpuPointwiseOpcode.LOGICAL_AND, List.of(4, 5), 6),
+                new CpuKernelIr.Instruction(CpuPointwiseOpcode.WHERE, List.of(6, 0, 2), 7)),
+                new CpuKernelIr.Loop("start", "end"), List.of(new CpuKernelIr.Store(7, 0)));
+    }
+
+    private static CpuKernelIr scalarWhereIr(DataType type) {
+        CpuAccessPlan scalar = new CpuAccessPlan(CpuAccessPlan.AccessKind.READ,
+                CpuAccessPlan.Regime.SCALAR_ALL_ZERO, 1,
+                List.of(CpuAccessPlan.AxisRole.BROADCAST), 0);
+        return new CpuKernelIr(List.of(
+                new CpuKernelIr.Value(0, DataType.BOOL, CpuKernelIr.Value.Kind.INPUT, scalar),
+                new CpuKernelIr.Value(1, type, CpuKernelIr.Value.Kind.INPUT,
+                        dense(CpuAccessPlan.AccessKind.READ)),
+                new CpuKernelIr.Value(2, type, CpuKernelIr.Value.Kind.INPUT,
+                        dense(CpuAccessPlan.AccessKind.READ)),
+                new CpuKernelIr.Value(3, type, CpuKernelIr.Value.Kind.OUTPUT,
+                        dense(CpuAccessPlan.AccessKind.WRITE))),
+                List.of(new CpuKernelIr.Instruction(CpuPointwiseOpcode.WHERE,
+                        List.of(0, 1, 2), 3)), new CpuKernelIr.Loop("start", "end"),
+                List.of(new CpuKernelIr.Store(3, 0)));
+    }
+
+    private static CpuKernelIr classificationWhereIr(DataType type) {
+        return new CpuKernelIr(List.of(
+                new CpuKernelIr.Value(0, type, CpuKernelIr.Value.Kind.INPUT,
+                        dense(CpuAccessPlan.AccessKind.READ)),
+                new CpuKernelIr.Value(1, type, CpuKernelIr.Value.Kind.INPUT,
+                        dense(CpuAccessPlan.AccessKind.READ)),
+                new CpuKernelIr.Value(2, DataType.BOOL, CpuKernelIr.Value.Kind.VIRTUAL,
+                        dense(CpuAccessPlan.AccessKind.READ)),
+                new CpuKernelIr.Value(3, DataType.BOOL, CpuKernelIr.Value.Kind.VIRTUAL,
+                        dense(CpuAccessPlan.AccessKind.READ)),
+                new CpuKernelIr.Value(4, type, CpuKernelIr.Value.Kind.OUTPUT,
+                        dense(CpuAccessPlan.AccessKind.WRITE))),
+                List.of(new CpuKernelIr.Instruction(CpuPointwiseOpcode.IS_NAN, List.of(0), 2),
+                        new CpuKernelIr.Instruction(CpuPointwiseOpcode.LOGICAL_NOT,
+                                List.of(2), 3),
+                        new CpuKernelIr.Instruction(CpuPointwiseOpcode.WHERE,
+                                List.of(3, 0, 1), 4)),
+                new CpuKernelIr.Loop("start", "end"), List.of(new CpuKernelIr.Store(4, 0)));
+    }
+
+    private static int vectorLanes(DataType type) {
+        return switch (type) {
+            case FLOAT32 -> FloatVector.SPECIES_PREFERRED.length();
+            case FLOAT64 -> DoubleVector.SPECIES_PREFERRED.length();
+            case INT32 -> IntVector.SPECIES_PREFERRED.length();
+            case INT64 -> LongVector.SPECIES_PREFERRED.length();
+            case BOOL -> ByteVector.SPECIES_PREFERRED.length();
+            default -> throw new IllegalArgumentException("unsupported vector type");
+        };
+    }
+
+    private static int vectorSpeciesBits(DataType type) {
+        return switch (type) {
+            case FLOAT32 -> FloatVector.SPECIES_PREFERRED.vectorBitSize();
+            case FLOAT64 -> DoubleVector.SPECIES_PREFERRED.vectorBitSize();
+            case INT32 -> IntVector.SPECIES_PREFERRED.vectorBitSize();
+            case INT64 -> LongVector.SPECIES_PREFERRED.vectorBitSize();
+            case BOOL -> ByteVector.SPECIES_PREFERRED.vectorBitSize();
+            default -> throw new IllegalArgumentException("unsupported vector type");
+        };
+    }
+
+    private static Object resize(Object source, int count) {
+        if (source instanceof double[] value) return Arrays.copyOf(value, count);
+        if (source instanceof float[] value) return Arrays.copyOf(value, count);
+        if (source instanceof int[] value) return Arrays.copyOf(value, count);
+        if (source instanceof long[] value) return Arrays.copyOf(value, count);
+        return Arrays.copyOf((byte[]) source, count);
+    }
+
+    private static Object repeated(DataType type, int count, double... values) {
+        Object result = array(type, count, false);
+        for (int i = 0; i < count; i++) {
+            double value = values[i % values.length];
+            if (result instanceof double[] array) array[i] = value;
+            else ((float[]) result)[i] = (float) value;
+        }
+        return result;
+    }
+
+    private static double numberAt(Object array, int index) {
+        return array instanceof double[] values ? values[index] : ((float[]) array)[index];
     }
 
     private static CpuGeneratedKernel powerArtifact(CpuKernelIr ir, DataType type,

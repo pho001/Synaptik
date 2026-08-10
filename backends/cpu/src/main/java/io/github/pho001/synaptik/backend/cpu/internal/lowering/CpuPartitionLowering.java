@@ -35,7 +35,8 @@ import java.util.Objects;
  * Lowers one bounded straight-line pointwise partition into one route-neutral CPU unit.
  *
  * <p>Lowering derives external boundaries in deterministic first-use order, retains internal
- * single-use results as typed virtual values, and materializes only the final store. It consumes
+ * single-use results as typed virtual values, including internal BOOL mask results, and
+ * materializes only the final store. It consumes
  * Model operation, shape, and layout contracts during analysis and maps every admitted unary kind
  * to one distinct CPU opcode without decomposition. Generated and Runtime code see only the
  * resulting CPU-private IR and cold bindings.</p>

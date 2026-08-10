@@ -31,7 +31,7 @@ import io.github.pho001.synaptik.backend.cpu.internal.cache.CpuSpecializationBud
  * @param selectedRangeCount positive maximum range count selected during cold analysis; one for
  *     single-thread strategies and at least two for parallel strategies
  * @param minimumElementsPerWorker positive minimum logical elements per submitted worker chunk
- * @param vectorSpeciesBitSize exact positive preferred typed floating species size in bits for
+ * @param vectorSpeciesBitSize exact positive preferred typed species size in bits for
  *     vector strategies, or zero for scalar strategies
  * @param loweringManifest non-null optional cold diagnostic text, empty when disabled
  * @param materialization non-null optional selected one-input copy fact
@@ -132,7 +132,7 @@ public record CpuPartitionPreparationPlan(List<ExecutionUnitPlan> units, Route r
      * @param elementCount checked logical element count represented by {@code extents}
      * @param selectedRangeCount positive maximum selected range count
      * @param minimumElementsPerWorker positive minimum elements per submitted worker chunk
-     * @param vectorSpeciesBitSize positive preferred typed floating species bit size for vector
+     * @param vectorSpeciesBitSize positive preferred typed species bit size for vector
      *     compute, or zero for scalar compute
      * @param loweringManifest non-null optional cold diagnostic text
      * @param materialization non-null optional selected copy
@@ -169,7 +169,9 @@ public record CpuPartitionPreparationPlan(List<ExecutionUnitPlan> units, Route r
         boolean parallel = executionStrategy.orchestration() == ExecutionStrategy.Orchestration.PARALLEL;
         if (selectedRangeCount <= 0 || minimumElementsPerWorker <= 0
                 || parallel != (selectedRangeCount >= 2)
-                || vector != (vectorSpeciesBitSize > 0)) {
+                || vector != (vectorSpeciesBitSize > 0)
+                || units.getFirst().portablePlan().specialization().vectorSpeciesBitSize()
+                    != vectorSpeciesBitSize) {
             throw new IllegalArgumentException("portable strategy facts are inconsistent");
         }
         if (materialization.isPresent() != workspaceDeclaration.isPresent()) {

@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.*;
 
 import java.lang.reflect.Field;
 import java.util.Random;
+import jdk.incubator.vector.DoubleVector;
 import jdk.incubator.vector.FloatVector;
 import org.junit.jupiter.api.Test;
 
@@ -29,6 +30,40 @@ class CpuVectorMathTest {
         float[] values = new float[4096];
         for (int i = 0; i < values.length; i++) values[i] = -10.0f + 20.0f * random.nextFloat();
         check(values);
+    }
+
+    @Test void signPreservesNaNAndBothZeroSignsForBothFloatingLaneTypes() {
+        double[] doubles = repeatedDoubles(DoubleVector.SPECIES_PREFERRED.length(),
+                Double.NaN, Double.NEGATIVE_INFINITY, -2.0d, -0.0d, +0.0d, 3.0d,
+                Double.POSITIVE_INFINITY);
+        double[] doubleResult = new double[doubles.length];
+        CpuVectorMath.sign(DoubleVector.fromArray(DoubleVector.SPECIES_PREFERRED, doubles, 0))
+                .intoArray(doubleResult, 0);
+        for (int i = 0; i < doubles.length; i++) assertEquals(
+                Double.doubleToRawLongBits(Math.signum(doubles[i])),
+                Double.doubleToRawLongBits(doubleResult[i]), "double lane " + i);
+
+        float[] floats = repeatedFloats(FloatVector.SPECIES_PREFERRED.length(),
+                Float.NaN, Float.NEGATIVE_INFINITY, -2.0f, -0.0f, +0.0f, 3.0f,
+                Float.POSITIVE_INFINITY);
+        float[] floatResult = new float[floats.length];
+        CpuVectorMath.sign(FloatVector.fromArray(FloatVector.SPECIES_PREFERRED, floats, 0))
+                .intoArray(floatResult, 0);
+        for (int i = 0; i < floats.length; i++) assertEquals(
+                Float.floatToRawIntBits(Math.signum(floats[i])),
+                Float.floatToRawIntBits(floatResult[i]), "float lane " + i);
+    }
+
+    private static double[] repeatedDoubles(int count, double... values) {
+        double[] result = new double[count];
+        for (int i = 0; i < count; i++) result[i] = values[i % values.length];
+        return result;
+    }
+
+    private static float[] repeatedFloats(int count, float... values) {
+        float[] result = new float[count];
+        for (int i = 0; i < count; i++) result[i] = values[i % values.length];
+        return result;
     }
 
     private static void check(float[] values) {

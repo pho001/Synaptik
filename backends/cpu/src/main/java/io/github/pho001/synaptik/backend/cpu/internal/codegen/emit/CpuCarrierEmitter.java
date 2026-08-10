@@ -7,7 +7,16 @@ import java.lang.constant.ClassDesc;
 import java.lang.constant.MethodTypeDesc;
 import io.github.pho001.synaptik.model.datatype.DataType;
 
-/** Package-private direct typed primitive-array or native-order segment access emitter. */
+/**
+ * Emits direct typed primitive-array or native-order segment loads and stores for one generated
+ * CPU entry.
+ *
+ * <p>The selected lane type determines the exact scalar carrier and preferred Vector API class.
+ * Floating comparison/classification BOOL values may instead remain {@code VectorMask} locals;
+ * an external scalar/all-zero BOOL condition is converted once to the matching all-true or
+ * all-false mask. Materialized BOOL boundaries retain canonical byte {@code 0}/{@code 1}
+ * storage. Carrier choice and access geometry are already validated before emission.</p>
+ */
 final class CpuCarrierEmitter {
     private static final ClassDesc SEGMENT = ClassDesc.of("java.lang.foreign.MemorySegment");
     private static final ClassDesc VALUE_LAYOUT = ClassDesc.of("java.lang.foreign.ValueLayout");
@@ -19,7 +28,11 @@ final class CpuCarrierEmitter {
     private static final ClassDesc BYTE_ORDER = ClassDesc.of("java.nio.ByteOrder");
     private static final ClassDesc DOUBLE_VECTOR = ClassDesc.of("jdk.incubator.vector.DoubleVector");
     private static final ClassDesc FLOAT_VECTOR = ClassDesc.of("jdk.incubator.vector.FloatVector");
+    private static final ClassDesc INT_VECTOR = ClassDesc.of("jdk.incubator.vector.IntVector");
+    private static final ClassDesc LONG_VECTOR = ClassDesc.of("jdk.incubator.vector.LongVector");
+    private static final ClassDesc BYTE_VECTOR = ClassDesc.of("jdk.incubator.vector.ByteVector");
     private static final ClassDesc VECTOR_SPECIES = ClassDesc.of("jdk.incubator.vector.VectorSpecies");
+    private static final ClassDesc VECTOR_MASK = ClassDesc.of("jdk.incubator.vector.VectorMask");
     private final CodeBuilder code;
     /**
      * Creates an emitter bound to one non-null generated method body.
@@ -79,9 +92,9 @@ final class CpuCarrierEmitter {
     }
 
     /**
-     * Emits one unmasked preferred-species floating vector load or scalar broadcast.
+     * Emits one unmasked preferred-species typed vector load or scalar broadcast.
      *
-     * @param type exact vector lane type, either FLOAT32 or FLOAT64
+     * @param type exact admitted vector lane type
      * @param access non-null generation-time-selected direct carrier form
      * @param parameterSlot local-variable slot holding the exact carrier
      * @param addressLocal local-variable slot holding the element address
@@ -112,9 +125,9 @@ final class CpuCarrierEmitter {
     }
 
     /**
-     * Emits one unmasked preferred-species floating vector store.
+     * Emits one unmasked preferred-species typed vector store.
      *
-     * @param type exact vector lane type, either FLOAT32 or FLOAT64
+     * @param type exact admitted vector lane type
      * @param access non-null generation-time-selected direct carrier form
      * @param parameterSlot local-variable slot holding the writable exact carrier
      * @param addressLocal local-variable slot holding the element address
@@ -135,6 +148,24 @@ final class CpuCarrierEmitter {
             code.invokevirtual(vector, "intoMemorySegment", MethodTypeDesc.of(
                     TypeKind.VOID.upperBound(), SEGMENT, TypeKind.LONG.upperBound(), BYTE_ORDER));
         } else throw new IllegalArgumentException("carrier does not match vector data type");
+    }
+
+    /**
+     * Emits an allocation-free canonical scalar BOOL load broadcast as a typed numeric mask.
+     *
+     * @param laneType exact FLOAT32 or FLOAT64 mask lane type
+     * @param access exact BOOL boundary carrier form
+     * @param parameterSlot local-variable slot holding the carrier
+     * @param addressLocal local-variable slot holding the scalar element address
+     */
+    void scalarBoolMaskLoad(DataType laneType, CarrierAccess access, int parameterSlot,
+            int addressLocal) {
+        ClassDesc vector = vectorClass(laneType);
+        code.getstatic(vector, "SPECIES_PREFERRED", VECTOR_SPECIES);
+        load(DataType.BOOL, access, parameterSlot, addressLocal);
+        code.i2l().lneg();
+        code.invokestatic(VECTOR_MASK, "fromLong", MethodTypeDesc.of(VECTOR_MASK,
+                VECTOR_SPECIES, TypeKind.LONG.upperBound()));
     }
 
     private void layout(DataType type) {
@@ -182,6 +213,9 @@ final class CpuCarrierEmitter {
         return switch (type) {
             case FLOAT64 -> DOUBLE_VECTOR;
             case FLOAT32 -> FLOAT_VECTOR;
+            case INT32 -> INT_VECTOR;
+            case INT64 -> LONG_VECTOR;
+            case BOOL -> BYTE_VECTOR;
             default -> throw new IllegalArgumentException("unsupported vector data type");
         };
     }
@@ -190,6 +224,9 @@ final class CpuCarrierEmitter {
         return switch (type) {
             case FLOAT64 -> CarrierAccess.DOUBLE_ARRAY;
             case FLOAT32 -> CarrierAccess.FLOAT_ARRAY;
+            case INT32 -> CarrierAccess.INT_ARRAY;
+            case INT64 -> CarrierAccess.LONG_ARRAY;
+            case BOOL -> CarrierAccess.BYTE_ARRAY;
             default -> throw new IllegalArgumentException("unsupported vector data type");
         };
     }

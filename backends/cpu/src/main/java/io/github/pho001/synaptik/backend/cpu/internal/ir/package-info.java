@@ -4,7 +4,8 @@
  * <p>The representation records typed boundary and virtual values, one forty-eight-opcode
  * family-oriented pointwise vocabulary, exact typed scalar and two-bound clamp bits, the selected
  * scalar-power realization where applicable, all nineteen distinct same-typed floating unary
- * semantics, ordered computation,
+ * semantics, ordered computation, and the boundary-versus-virtual role of canonical BOOL values
+ * used as stored bytes or unit-private generated masks,
  * normalized access forms, primitive half-open loop bounds, and ordered stores. Each access form
  * selects one of five scalar state-machine regimes while its binding retains cold extents, base
  * offset, effective strides, start coordinates/address, and exact half-open accessed span. It deliberately

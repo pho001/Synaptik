@@ -181,6 +181,22 @@ final class CpuVectorMath {
      * @return non-null lane-wise reciprocal-square-root values
      */
     static FloatVector rsqrt(FloatVector value) { return reciprocal(sqrt(value)); }
+    /** Returns binary64 lane-wise signs with both zero signs and NaN preserved.
+     * @param value non-null input vector
+     * @return exact negative one, the original signed zero or NaN, or exact positive one per lane
+     */
+    static DoubleVector sign(DoubleVector value) {
+        DoubleVector result = positiveOne().blend(-1.0d, value.lt(0.0d));
+        return result.blend(value, value.eq(0.0d).or(value.test(VectorOperators.IS_NAN)));
+    }
+    /** Returns binary32 lane-wise signs with both zero signs and NaN preserved.
+     * @param value non-null input vector
+     * @return exact negative one, the original signed zero or NaN, or exact positive one per lane
+     */
+    static FloatVector sign(FloatVector value) {
+        FloatVector result = positiveOneFloat().blend(-1.0f, value.lt(0.0f));
+        return result.blend(value, value.eq(0.0f).or(value.test(VectorOperators.IS_NAN)));
+    }
     /** Returns binary64 lane-wise hyperbolic tangents.
      * @param value non-null input vector
      * @return non-null lane-wise hyperbolic tangents
