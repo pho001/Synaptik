@@ -149,6 +149,27 @@ class CpuKernelSpecializationTest {
                                 base.vectorSpeciesBitSize(), base.materializedSourcePosition(), null)));
     }
 
+    @Test void shortArrayIsTheSeventhCarrierAndOnlyMatchesBfloat16() {
+        var fingerprint = CpuLoweringFingerprint.fromHex("0".repeat(64));
+        var bfloat = new CpuKernelSpecialization(fingerprint,
+                CpuKernelSpecialization.NumericalMode.EXACT_DEFAULT,
+                io.github.pho001.synaptik.backend.cpu.internal.prepare.CpuPartitionPreparationPlan
+                        .ExecutionStrategy.SCALAR,
+                List.of(DataType.BFLOAT16, DataType.BFLOAT16),
+                List.of(CarrierAccess.SHORT_ARRAY, CarrierAccess.MEMORY_SEGMENT), 0, -1, List.of());
+        assertAll(
+                () -> assertEquals(7, CarrierAccess.values().length),
+                () -> assertEquals(short[].class, bfloat.entryType().parameterType(0)),
+                () -> assertThrows(IllegalArgumentException.class,
+                        () -> new CpuKernelSpecialization(fingerprint,
+                                CpuKernelSpecialization.NumericalMode.EXACT_DEFAULT,
+                                io.github.pho001.synaptik.backend.cpu.internal.prepare
+                                        .CpuPartitionPreparationPlan.ExecutionStrategy.SCALAR,
+                                List.of(DataType.FLOAT32, DataType.FLOAT32),
+                                List.of(CarrierAccess.SHORT_ARRAY, CarrierAccess.FLOAT_ARRAY),
+                                0, -1, List.of())));
+    }
+
     private static CpuKernelSpecialization specialization(
             PrepareContext<CpuPartitionAnalysisInputs> old, PortableExecutionConfig config) {
         var context = new PrepareContext<>(old.partition(), old.nodes(), old.values(),

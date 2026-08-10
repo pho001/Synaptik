@@ -28,6 +28,8 @@ import io.github.pho001.synaptik.backend.cpu.internal.cache.CpuSpecializationBud
  *     contiguous workspace segment
  * @param extents non-null cold-bound compatible extents; copied defensively
  * @param elementCount checked logical element count represented by {@code extents}
+ * @param affineAddressPairs alternating cold-composed source/result element addresses for an
+ *     affine copy, or an empty array for pointwise execution; copied defensively
  * @param selectedRangeCount positive maximum range count selected during cold analysis; one for
  *     single-thread strategies and at least two for parallel strategies
  * @param minimumElementsPerWorker positive minimum logical elements per submitted worker chunk
@@ -44,7 +46,7 @@ public record CpuPartitionPreparationPlan(List<ExecutionUnitPlan> units, Route r
         List<PreparationResourceRequirement.Buffer> bufferDeclarations,
         List<ValueId> boundaryValues, List<CpuAccessPlan.Binding> accessBindings,
         List<CarrierAccess> carrierPattern, List<CarrierAccess> generatedCarrierPattern,
-        long[] extents, long elementCount,
+        long[] extents, long elementCount, long[] affineAddressPairs,
         int selectedRangeCount, long minimumElementsPerWorker, int vectorSpeciesBitSize,
         String loweringManifest, Optional<CpuMaterializationPlan> materialization,
         Optional<PreparationResourceRequirement.Workspace> workspaceDeclaration,
@@ -153,6 +155,7 @@ public record CpuPartitionPreparationPlan(List<ExecutionUnitPlan> units, Route r
         carrierPattern = List.copyOf(carrierPattern);
         generatedCarrierPattern = List.copyOf(generatedCarrierPattern);
         extents = extents.clone();
+        affineAddressPairs = affineAddressPairs.clone();
         Objects.requireNonNull(loweringManifest, "loweringManifest");
         materialization = Objects.requireNonNull(materialization, "materialization");
         workspaceDeclaration = Objects.requireNonNull(workspaceDeclaration, "workspaceDeclaration");
@@ -163,7 +166,13 @@ public record CpuPartitionPreparationPlan(List<ExecutionUnitPlan> units, Route r
                 || accessBindings.size() != bufferDeclarations.size()
                 || carrierPattern.size() != bufferDeclarations.size()
                 || generatedCarrierPattern.size() != bufferDeclarations.size()) {
-            throw new IllegalArgumentException("CPU plan must contain one portable unit and matching boundaries");
+                throw new IllegalArgumentException("CPU plan must contain one portable unit and matching boundaries");
+        }
+        boolean affine = units.getFirst().portablePlan().portableKernelIr()
+                instanceof io.github.pho001.synaptik.backend.cpu.internal.ir.CpuAffineCopyIr;
+        if (affine ? affineAddressPairs.length != Math.multiplyExact(elementCount, 2)
+                : affineAddressPairs.length != 0) {
+            throw new IllegalArgumentException("affine address geometry must match the copy domain");
         }
         boolean vector = executionStrategy.compute() == ExecutionStrategy.Compute.VECTOR;
         boolean parallel = executionStrategy.orchestration() == ExecutionStrategy.Orchestration.PARALLEL;
@@ -192,4 +201,11 @@ public record CpuPartitionPreparationPlan(List<ExecutionUnitPlan> units, Route r
     /** Returns instance geometry.
      * @return a new defensive copy of compatible extents */
     @Override public long[] extents() { return extents.clone(); }
+    /**
+     * Returns cold-composed affine source/result element addresses.
+     *
+     * @return a defensive copy of alternating source/result addresses, or an empty array for a
+     *     pointwise plan
+     */
+    @Override public long[] affineAddressPairs() { return affineAddressPairs.clone(); }
 }

@@ -3,18 +3,24 @@
 ## Outcome and status
 
 This guide defines the CPU integration boundary and helps contributors avoid treating CPU routes
-as separate backends. The current CPU module accepts a bounded, fully static pointwise partition:
-one supported occurrence or one connected straight-line chain of at most eight occurrences lowers
-to one computation unit, one route-independent canonical kernel intermediate representation (IR),
-one generated Java 26 class, and one partition-level prepared executable. Internal single-use
-results remain graph and logical-memory values but are virtual in the fused unit. CPU analysis
-therefore declares only external inputs and the sole final output, in deterministic order.
+as separate backends. The current CPU module accepts two bounded, fully static portable families.
+A pointwise partition is one supported occurrence or one connected straight-line chain of at most
+eight occurrences. A static affine partition is one connected one-input/one-output chain of at
+most eight resolved-layout view occurrences. Either family lowers to one computation unit, one
+route-independent canonical kernel intermediate representation (IR), one generated Java 26 class,
+and one partition-level prepared executable. Internal single-use results remain graph and logical-
+memory values but are virtual in the unit. Pointwise analysis declares its derived external
+boundaries and sole final output; affine analysis declares exactly the original source and final
+result.
 
 Generated scalar and Java 26 Vector API loops accept primitive `start` and `end` bounds.
 Compatible concrete extents bind on the cold path and share identical class bytes and one
-process-local loaded compatibility identity. The current semantic matrix uses exactly five
-executable carrier types—FLOAT64, FLOAT32, INT32, INT64, and BOOL—and one forty-eight-opcode
-CPU-private pointwise vocabulary. The access family covers scalar/rank/singleton/multi-axis
+process-local loaded compatibility identity. The pointwise semantic matrix uses exactly five
+executable types—FLOAT64, FLOAT32, INT32, INT64, and BOOL—and one forty-eight-opcode CPU-private
+vocabulary. Affine copies accept all six current Model data types and transfer represented bits
+without conversion. BFLOAT16 uses the existing raw `short[]` representation or native-order
+two-byte segment access only; this is not BFLOAT16 arithmetic or numerical support. The access
+family covers scalar/rank/singleton/multi-axis
 broadcasting, zero extents, offsets, positive and broadcast-zero strides, and ordered
 heap/segment/mixed carrier patterns for the derived boundaries. CPU 0005H closes all nineteen
 same-typed FLOAT32/FLOAT64 unary kinds, while preserving the three separate floating-classification
@@ -28,9 +34,10 @@ compare direct access with at most one CPU-private contiguous FLOAT64 input copy
 dimensionless cold cost evidence. A selected copy uses one declared run-owned workspace and
 completes before consumer execution. Capability and lowering fail closed for every other
 operation, type, shape, layout, parameter, alias, fan-out, publication, carrier, or route. In
-particular, CAST is same-type only and BFLOAT16 remains storage-only for this family; CPU does not
-invent cross-type conversion semantics. Native, tuning, excluded pointwise rows, and later
-operation families remain Draft.
+particular, CAST is same-type only and BFLOAT16 remains representation-only for affine movement;
+CPU does not invent cross-type conversion semantics. Native, tuning, excluded pointwise rows,
+non-affine/index/scatter/order/random work, general partition-DAG fusion, and later operation
+families remain Draft.
 
 The lower-level OpenBLAS provider separately implements explicit library loading, required-symbol
 binding, a caller-owned lookup lifetime, low-level FLOAT32/FLOAT64 dense row-major general matrix
@@ -519,6 +526,78 @@ prepare configuration; hardware, an installed provider, workload size, a tuning 
 benchmark result cannot grant it. Tuning and benchmarking compare only candidates already eligible
 under that permission and contract.
 
+### Current static affine view family
+
+The portable affine family composes a closed set of existing Model view meanings during CPU
+analysis:
+
+- `CONTIGUOUS`, `RESHAPE`, and `EXPAND`;
+- `PERMUTE`, `EXPAND_DIMS`, and `SQUEEZE`;
+- scalar-coordinate `SELECT`; and
+- positive-step `SLICE`, including the current target-relative crop attribute form.
+
+Every occurrence has exactly one input and one output of the same data type. Input, output, target,
+and prefix Shapes used by the mapping must be fully static, and both tensor layouts must already be
+resolved and exactly match the Model relationship. CPU does not bind symbolic dimensions, invent a
+layout, normalize caller syntax, or admit the currently unresolved negative-step slice result.
+
+One through eight occurrences may form one unit only when the chain has one external source and
+one final result. Each intermediate must feed the next occurrence exactly once and must have no
+publication, fan-out, or cross-partition obligation. Such an intermediate remains present in the
+compiled graph and `LogicalMemoryPlan`, but CPU analysis declares no buffer or workspace for it;
+there is no Runtime slot, generated instruction, or store for that value. This is CPU-private
+virtuality, not shared storage aliasing. Because shared preparation does not assign two graph
+values to one representation, the final result always receives its own buffer and one explicit
+boundary copy.
+
+Analysis walks the final result's logical coordinates, reverses the complete view chain, and
+composes exact source and result element addresses. The result buffer keeps its resolved offset,
+positive strides, zero strides, referenced element span, and view classification. An injective
+result layout uses one write per logical element. A zero-stride or otherwise non-injective result
+uses one deterministic write per distinct address, but only when all omitted repeated logical
+coordinates select the same source value. Otherwise lowering fails closed. Scalar results contain
+one address pair, and zero-element results contain none.
+
+For example, start with a contiguous INT32 source of Shape `[2, 1]`, expand it to Shape `[2, 3]`
+with result strides `[1, 0]`, and publish that expanded result. The six logical result coordinates
+refer to only two result addresses:
+
+```text
+source logical values:                  [a, b]
+expanded logical coordinates:           [a, a, a, b, b, b]
+distinct source -> result address pairs: 0 -> 0, 1 -> 1
+```
+
+The generated copy writes `a` and `b` once each. This proves deterministic distinct-address
+materialization; it does not attach shared aliasing to the expanded graph value or promise a dense
+six-element result representation.
+
+The copy transfers raw represented bits for FLOAT64, FLOAT32, BFLOAT16, INT32, INT64, and BOOL.
+The seven generated carrier forms are `DOUBLE_ARRAY`, `FLOAT_ARRAY`, `SHORT_ARRAY`, `INT_ARRAY`,
+`LONG_ARRAY`, `BYTE_ARRAY`, and `MEMORY_SEGMENT`. `SHORT_ARRAY` maps only the existing BFLOAT16
+`CpuBufferArgument.Shorts` form. Array-to-array, array-to-segment, segment-to-array, and segment-to-
+segment copies preserve floating NaN payloads and signed zeros, raw BFLOAT16 payloads, signed
+integral patterns, and canonical BOOL bytes without conversion, promotion, arithmetic, or
+canonicalization.
+
+Affine bodies use scalar compute. The scalar and parallel-scalar strategies execute arbitrary
+half-open ranges; parallel ranges are allowed only over disjoint distinct-address writes.
+`VECTOR_IF_ELIGIBLE` therefore selects scalar compute for this family. There is no Vector API
+affine load/store, gather, scatter, masked tail, or speed claim.
+
+Lifecycle ownership remains unchanged. CPU analysis validates and composes the chain, chooses the
+scalar orchestration, and declares exactly the source and final result. Shared Prepare assigns
+those two slots without interpreting the affine plan. CPU finalization validates both assignments
+before schema-11 artifact access and constructs one immutable executable. Cold binding validates
+the exact data type, carrier, byte size, alignment, accessibility, output writability, canonical
+BOOL input bytes, and source/result non-overlap. Runtime then invokes only the prepared direct
+carriers, address table, and `start`/`end` bounds; it receives no operation, graph node, Shape,
+layout, affine IR, or route choice.
+
+Non-affine movement, index tensors, functional scatter and overlap-fold, ordering and top-K,
+explicit-state random work, dynamic layouts, general partition-DAG decomposition/fusion, and
+benchmarks remain outside this implemented family.
+
 ### Unary numerical closure
 
 Every unary occurrence remains one Model node and one CPU instruction. FLOAT64 scalar emission
@@ -970,12 +1049,15 @@ supplied compatible arm64 OpenBLAS 0.3.33 library, including shared thread-count
 fixed SGEMM/DGEMM cases, and restoration of the original thread count. The ordered repository and
 architecture capability checkpoint then passed, and the provider milestone is complete.
 
-The current CPU foundation provides the bounded fully static pointwise matrix and carrier forms
-described above, including scalar execution for all admitted rows and the exact schema-10 typed
-value-vector and virtual-mask parity matrix. No excluded pointwise
-or later semantic family, cross-type CAST, native fallback, backend-conformance result, public
-Engine integration, hardware-intrinsic guarantee, or performance result is implemented or
-promised.
+The current CPU foundation provides the bounded fully static pointwise matrix and the static
+resolved-layout affine family described above. Scalar execution covers every admitted row;
+parallel-scalar orchestration is available for disjoint affine write ranges; and the pointwise
+family retains its exact typed value-vector and virtual-mask parity matrix. Generator schema 11
+distinguishes pointwise and affine structures, the affine mapping/write domain, and all seven
+carrier forms. No excluded pointwise or later semantic family, BFLOAT16 numerical operation,
+cross-type CAST, dynamic layout, vector affine execution, native fallback, backend-conformance
+result, public Engine integration, hardware-intrinsic guarantee, or performance result is
+implemented or promised.
 Ordinary provider tests
 prove Java validation and exact ABI forwarding, not installed-library numerical correctness. The
 native checkpoint proves only its selected binary and fixed cases.

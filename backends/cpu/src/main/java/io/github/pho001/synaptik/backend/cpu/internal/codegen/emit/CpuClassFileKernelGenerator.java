@@ -44,6 +44,11 @@ public final class CpuClassFileKernelGenerator {
                 .withVersion(ClassFile.JAVA_26_VERSION, 0).withFlags(AccessFlag.FINAL)
                 .withMethod(CpuGeneratorSchema.ENTRY_NAME, type, AccessFlag.STATIC.mask(), method ->
                         method.withCode(code -> {
+                            if (kernelIr.instructions().isEmpty()) {
+                                new CpuAffineCopyEmitter().emit(code, specialization, kernelIr);
+                                code.return_();
+                                return;
+                            }
                             var carriers = new CpuCarrierEmitter(code);
                             var scalar = new CpuScalarEmitter(code);
                             var loops = new CpuLoopEmitter(code);
@@ -197,8 +202,28 @@ public final class CpuClassFileKernelGenerator {
                 .filter(value -> value.kind() != CpuKernelIr.Value.Kind.VIRTUAL)
                 .map(CpuKernelIr.Value::dataType).toList();
         if (!boundaryTypes.equals(specialization.boundaryDataTypes())
-                || kernelIr.instructions().isEmpty() || kernelIr.instructions().size() > 8
+                || kernelIr.instructions().size() > 8
                 || kernelIr.stores().size() != 1) {
+            throw new IllegalArgumentException("unsupported canonical pointwise IR");
+        }
+        if (kernelIr.instructions().isEmpty()) {
+            if (kernelIr.values().size() != 2
+                    || !kernelIr.familyIdentity().startsWith("affine:")
+                    || kernelIr.values().get(0).kind() != CpuKernelIr.Value.Kind.INPUT
+                    || kernelIr.values().get(1).kind() != CpuKernelIr.Value.Kind.OUTPUT
+                    || kernelIr.values().get(0).dataType() != kernelIr.values().get(1).dataType()
+                    || specialization.executionStrategy().compute()
+                        != io.github.pho001.synaptik.backend.cpu.internal.prepare.CpuPartitionPreparationPlan.ExecutionStrategy.Compute.SCALAR
+                    || !specialization.scalarPowerRealizations().isEmpty()) {
+                throw new IllegalArgumentException("unsupported canonical affine copy IR");
+            }
+            return;
+        }
+        if (!kernelIr.familyIdentity().equals("pointwise")
+                || kernelIr.values().stream().anyMatch(value -> value.dataType()
+                        == io.github.pho001.synaptik.model.datatype.DataType.BFLOAT16)
+                || specialization.carrierPattern().contains(
+                        CpuKernelSpecialization.CarrierAccess.SHORT_ARRAY)) {
             throw new IllegalArgumentException("unsupported canonical pointwise IR");
         }
         List<CpuKernelIr.PowerRealization> realizations = kernelIr.instructions().stream()

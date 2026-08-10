@@ -3,8 +3,32 @@ package io.github.pho001.synaptik.backend.cpu.internal.reference;
 import static org.junit.jupiter.api.Assertions.*;
 
 import org.junit.jupiter.api.Test;
+import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuAffineCopyIr;
+import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuAffineLayoutLoweringTest;
+import io.github.pho001.synaptik.backend.cpu.internal.memory.CpuBufferArgument;
+import io.github.pho001.synaptik.backend.cpu.internal.prepare.CpuPartitionPreparer;
+import io.github.pho001.synaptik.model.datatype.DataType;
+import java.util.List;
 
 class CpuReferenceDifferentialTest {
+    @Test void affineReferencePreservesOpaqueBfloat16AddressPairs() {
+        var lowered = new io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuPartitionLowering()
+                .lower(CpuAffineLayoutLoweringTest.select(DataType.BFLOAT16, List.of()));
+        var encoded = lowered.kernelIr();
+        var affine = new CpuAffineCopyIr(DataType.BFLOAT16,
+                encoded.values().get(0).accessPlan(), encoded.values().get(1).accessPlan(),
+                List.of(new CpuAffineCopyIr.MappingStep(CpuAffineCopyIr.MappingKind.SELECT,
+                        2, 1, List.of(0))),
+                CpuAffineCopyIr.WriteDomain.LOGICAL_ELEMENTS);
+        short[] source = {1, (short)0x7fc1, 2, 3, (short)0xff80, 4, 5, (short)0x8000, 6};
+        short[] output = new short[8];
+        CpuScalarReferenceKernel.execute(affine, lowered.affineAddressPairs(), List.of(
+                new CpuBufferArgument.Shorts(source, 0, 18, true),
+                new CpuBufferArgument.Shorts(output, 0, 16, false)), 0, 3);
+        assertAll(() -> assertEquals(source[1], output[1]),
+                () -> assertEquals(source[4], output[4]),
+                () -> assertEquals(source[7], output[7]));
+    }
     @Test void preservesClassificationsSignedZeroAndOracleTolerance() {
         assertAll(
                 () -> assertTrue(Double.isNaN(CpuScalarReferenceKernel.erf(Double.NaN))),

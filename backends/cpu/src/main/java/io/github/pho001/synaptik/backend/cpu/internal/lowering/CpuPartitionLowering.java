@@ -4,6 +4,8 @@ import io.github.pho001.synaptik.backend.cpu.CpuCapabilityProvider;
 import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuAccessPlan;
 import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuKernelIr;
 import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuPointwiseOpcode;
+import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuPortableKernelIr;
+import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuAffineCopyIr;
 import io.github.pho001.synaptik.model.datatype.DataType;
 import io.github.pho001.synaptik.model.datatype.ScalarValue;
 import io.github.pho001.synaptik.model.graph.CompiledNode;
@@ -44,6 +46,7 @@ import java.util.Objects;
 public final class CpuPartitionLowering {
     private final CpuCapabilityProvider capabilities = new CpuCapabilityProvider();
     private final CpuScalarPowerAnalysis scalarPowerAnalysis = new CpuScalarPowerAnalysis();
+    private final CpuAffineLayoutLowering affineLowering = new CpuAffineLayoutLowering();
 
     /** Creates a stateless lowering boundary with the current CPU capability and power analysis. */
     public CpuPartitionLowering() { }
@@ -62,6 +65,14 @@ public final class CpuPartitionLowering {
         if (context.nodes().isEmpty() || context.nodes().size() > 8) {
             throw new IllegalArgumentException("CPU pointwise partition requires one through eight nodes");
         }
+        if (context.nodes().stream().allMatch(node -> {
+            Object kind = node.operation().kind();
+            return kind instanceof io.github.pho001.synaptik.model.operation.layout.ContiguousKind
+                    || kind instanceof io.github.pho001.synaptik.model.operation.layout.ShapeTransformKind
+                    || kind instanceof io.github.pho001.synaptik.model.operation.layout.AxisTransformKind
+                    || kind instanceof io.github.pho001.synaptik.model.operation.index.SelectKind
+                    || kind == io.github.pho001.synaptik.model.operation.layout.SliceKind.SLICE;
+        })) return affineLowering.lower(context);
         Map<ValueId, GraphValue> values = indexValues(context.values());
         Map<ValueId, LogicalMemoryRequirement> memory = new LinkedHashMap<>();
         context.memoryRequirements().forEach(value -> memory.put(value.valueId(), value));
@@ -174,7 +185,7 @@ public final class CpuPartitionLowering {
                 List.of(new CpuKernelIr.Store(producedOrdinals.get(finalOutput), 0)));
         return new LoweredPartition(ir, boundaryValues, bindings, spans, boundaryTypes,
                 virtualOutputs, iterationShape.toLongArray(), elementCount,
-                "legal: bounded connected straight-line pointwise chain");
+                "legal: bounded connected straight-line pointwise chain", new long[0]);
     }
 
     private void assertOccurrence(CompiledNode node, Map<ValueId, GraphValue> values) {
@@ -383,7 +394,7 @@ public final class CpuPartitionLowering {
     /**
      * Immutable lowering result consumed by route-neutral CPU analysis.
      *
-     * @param kernelIr non-null route-independent typed opcode and access representation
+     * @param portableKernelIr non-null route-independent pointwise or affine representation
      * @param boundaryValues non-null deterministic external-read values followed by the sole
      *     final materialized output; copied defensively
      * @param accessBindings non-null normalized cold bindings in the same boundary order; copied
@@ -396,11 +407,13 @@ public final class CpuPartitionLowering {
      * @param extents non-null final iteration extents; copied defensively
      * @param elementCount checked non-negative product of {@code extents}
      * @param fusionReason non-null cold diagnostic explanation
+     * @param affineAddressPairs alternating source/result addresses for affine copying, or an
+     *     empty array for pointwise lowering; copied defensively
      */
-    public record LoweredPartition(CpuKernelIr kernelIr, List<ValueId> boundaryValues,
+    public record LoweredPartition(CpuPortableKernelIr portableKernelIr, List<ValueId> boundaryValues,
             List<CpuAccessPlan.Binding> accessBindings, List<Long> referencedElementSpans,
             List<DataType> boundaryDataTypes, List<ValueId> virtualValues, long[] extents,
-            long elementCount, String fusionReason) {
+            long elementCount, String fusionReason, long[] affineAddressPairs) {
         /**
          * Validates matching boundary facts and snapshots every mutable collection or array.
          *
@@ -409,13 +422,14 @@ public final class CpuPartitionLowering {
          *     boundary collections have different cardinalities
          */
         public LoweredPartition {
-            Objects.requireNonNull(kernelIr, "kernelIr");
+            Objects.requireNonNull(portableKernelIr, "portableKernelIr");
             boundaryValues = List.copyOf(boundaryValues);
             accessBindings = List.copyOf(accessBindings);
             referencedElementSpans = List.copyOf(referencedElementSpans);
             boundaryDataTypes = List.copyOf(boundaryDataTypes);
             virtualValues = List.copyOf(virtualValues);
             extents = extents.clone();
+            affineAddressPairs = affineAddressPairs.clone();
             Objects.requireNonNull(fusionReason, "fusionReason");
             int size = boundaryValues.size();
             if (size < 2 || accessBindings.size() != size || referencedElementSpans.size() != size
@@ -429,5 +443,22 @@ public final class CpuPartitionLowering {
          * @return a new defensive copy of the non-null extents
          */
         @Override public long[] extents() { return extents.clone(); }
+        /**
+         * Returns cold-composed affine source/result addresses.
+         *
+         * @return a defensive copy of alternating source/result address pairs, empty for
+         *     pointwise IR
+         */
+        @Override public long[] affineAddressPairs() { return affineAddressPairs.clone(); }
+        /**
+         * Returns the cache-compatible generated form.
+         *
+         * @return the retained pointwise IR or a newly encoded instruction-free affine IR;
+         *     never {@code null}
+         */
+        public CpuKernelIr kernelIr() {
+            return portableKernelIr instanceof CpuKernelIr pointwise ? pointwise
+                    : ((CpuAffineCopyIr) portableKernelIr).encodedKernelIr();
+        }
     }
 }

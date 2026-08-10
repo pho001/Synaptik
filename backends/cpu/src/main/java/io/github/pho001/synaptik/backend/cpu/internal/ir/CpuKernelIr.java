@@ -25,9 +25,24 @@ import java.util.Objects;
  * @param instructions non-null ordered exact computations; copied defensively
  * @param loop non-null universal primitive loop model
  * @param stores non-null ordered boundary stores; copied defensively
+ * @param familyIdentity non-null CPU-private family identity included in structural compatibility
  */
 public record CpuKernelIr(
-        List<Value> values, List<Instruction> instructions, Loop loop, List<Store> stores) {
+        List<Value> values, List<Instruction> instructions, Loop loop, List<Store> stores,
+        String familyIdentity)
+        implements CpuPortableKernelIr {
+    /**
+     * Creates the established pointwise-family form.
+     *
+     * @param values non-null dense ordered typed values; copied defensively
+     * @param instructions non-null ordered exact computations; copied defensively
+     * @param loop non-null universal primitive loop model
+     * @param stores non-null ordered boundary stores; copied defensively
+     */
+    public CpuKernelIr(List<Value> values, List<Instruction> instructions, Loop loop,
+            List<Store> stores) {
+        this(values, instructions, loop, stores, "pointwise");
+    }
     /**
      * A typed topology-local boundary or virtual value.
      *
@@ -261,6 +276,7 @@ public record CpuKernelIr(
         instructions = copy(instructions, "instructions");
         Objects.requireNonNull(loop, "loop");
         stores = copy(stores, "stores");
+        Objects.requireNonNull(familyIdentity, "familyIdentity");
         for (int i = 0; i < values.size(); i++) if (values.get(i).ordinal() != i) {
             throw new IllegalArgumentException("value ordinals must be dense and ordered");
         }
@@ -290,7 +306,7 @@ public record CpuKernelIr(
      * @return a lowercase hexadecimal SHA-256 structural key; never {@code null}
      */
     public String structuralKey() {
-        StringBuilder text = new StringBuilder("cpu-ir-v2|");
+        StringBuilder text = new StringBuilder("cpu-ir-v3|").append(familyIdentity).append('|');
         values.forEach(v -> text.append(v.ordinal()).append(':').append(v.dataType())
                 .append(':').append(v.kind()).append(':').append(v.accessPlan().accessKind())
                 .append(':').append(v.accessPlan().regime()).append(':')

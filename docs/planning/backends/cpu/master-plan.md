@@ -200,8 +200,12 @@ created by 0005A. All consume the common analysis above; none creates another ba
 | 0005H | [Portable unary, transcendental, and activation closure](tasks/0005h-portable-unary-transcendental-and-activation-closure.md) | Complete | 0005G; Model 0018P/0018T1/0019A semantics; Java 26 math/Vector contracts | Closed all nineteen FLOAT32/FLOAT64 unary kinds through the existing family pipeline, preserved completed NEG and classification rows, extended/corrected GELU, selected an explicit scalar/vector algorithm, special-value, and tolerance matrix, advanced to schema 8, and retained cross-type CAST fail-closed. |
 | 0005I | [FLOAT32 vector parity and vector-emission boundary](tasks/0005i-float32-vector-parity-and-vector-emission-boundary.md) | Complete | 0005H; Java 26 `FloatVector`/`DoubleVector`; completed pointwise access, specialization, and numerical contracts | Added preferred-species FLOAT32 parity for the exact twenty-one current vector-eligible pointwise opcodes, kept every unsupported row on scalar fallback, split operation-level vector bytecode emission from pure vector math, and made the selected ERF/GELU coefficient provenance and binary32 derivation auditable. |
 | 0005J | [Bounded pointwise coverage and parity hardening](tasks/0005j-bounded-pointwise-coverage-and-parity-hardening.md) | Complete | 0005I; current Model pointwise semantics; Java 26 Byte/Int/Long/Float/Double Vector API contracts | Added exact floating extrema/clamp/ReLU/sign/cast, signed-integral arithmetic/extrema/cast, canonical-BOOL logic/cast, and virtual floating-mask-to-WHERE preferred-species parity; schema 10, deterministic scalar fallback, and all completed budgets remain explicit. |
-| 0006 | Portable layout, indexing, ordering, and random family coverage | Draft | 0005J | Generate truthful coverage for executable layout transforms, slicing, padding, tiling, composition, windows, gather/scatter, ordering, one-hot, and explicit-state random/dropout work; metadata-only or zero-work views remain computation-free. |
-| 0007 | Portable reduction, scan, statistics, and normalization family coverage | Draft | 0002–0006, including 0005A–0005J | Generate family-specific range, tile, partial-reduction, and combine bodies for aggregates, arg extrema, scans, softmax/log-softmax, statistics, and normalization with exact semantics and determinism. |
+| 0006 | [Portable static affine views and boundary materialization](tasks/0006-portable-static-affine-views-and-boundary-materialization.md) | Complete | 0005J | Folds bounded straight-line static RESHAPE, EXPAND, PERMUTE, EXPAND_DIMS, SQUEEZE, SELECT, and normalized SLICE mappings without computation or slots when they remain internal; otherwise generates one exact portable scalar or parallel-scalar boundary copy, including CONTIGUOUS, for all six Model data types through the resulting seven carrier forms. The new `SHORT_ARRAY` form copies BFLOAT16 represented bits only and does not advertise BFLOAT16 arithmetic or numerical support. |
+| 0006A | Portable non-affine layout movement, gather, and one-hot coverage | Draft | 0006 | Add PAD, TILE, CONCAT, STACK, UNFOLD_AXIS, UNFOLD2D, GATHER, GATHER_ELEMENTS, GATHER_ND, and ONE_HOT through bounded family-specific generated data-movement units with execution-time index validation. |
+| 0006B | Portable functional update, scatter, and overlap-fold coverage | Draft | 0006A | Add SLICE_UPDATE, SCATTER_ELEMENTS, SCATTER_ADD, SCATTER_ND, FOLD_AXIS, and FOLD2D with exact base participation, bounds checks, duplicate-target policy, overlap accumulation, determinism, and safe split fallback. |
+| 0006C | Portable stable ordering and selection coverage | Draft | 0006B | Add stable SORT and ARGSORT plus two-output TOP_K with exact NaN, signed-zero, tie, empty-axis, output-order, workspace, and multi-store behavior. |
+| 0006D | Portable explicit-state RNG and dropout coverage | Draft | 0006C | Select and version one CPU-private portable counter-based generator configuration, materialize INITIAL_STATE, and add three-output DROPOUT with exact state advancement, auxiliary mask, bounded replay, and multi-store behavior. |
+| 0007 | Portable reduction, scan, statistics, and normalization family coverage | Draft | 0006D; completed 0005A–0005J | Generate family-specific range, tile, partial-reduction, and combine bodies for aggregates, arg extrema, scans, softmax/log-softmax, statistics, and normalization with exact semantics and determinism. |
 | 0008 | Portable linear algebra, convolution, pooling, attention, and loss coverage | Draft | 0002–0007 | Generate the remaining portable executable families. Establish a bounded initial epilogue direction for MATMUL or convolution followed by an optional compatible bias ADD and at most one already-supported exact pointwise activation or clamp, only when single-use dataflow, Shape/layout, numerical order, publication, and resource rules preserve semantics; all other forms split safely. |
 | 0008A | General partition-DAG computation-unit decomposition and bounded fusion | Draft | 0006–0008 | Decompose one CPU-owned partition directed acyclic graph (DAG) into computation units, then admit bounded vertical and horizontal fusion only across legal edges. Bound fan-out, indexing complexity, generated-code size, simultaneously live values, and unit/candidate count; preserve a deterministic materialized split fallback whenever fusion is illegal, over budget, or unprofitable. |
 | 0008B | Typed specialized-subgraph and epilogue recognition | Draft | 0007–0008A | Add CPU-private typed recognition for a selected closed set of specialized subgraphs: initially MATMUL, convolution, and reduction epilogues plus explicit semantic kernels. Add no public pattern registry or domain-specific language (DSL), no new Model kinds, and no recognition that silently turns decomposed softmax into stable `SOFTMAX`. Unrecognized or ineligible graphs retain ordinary decomposed units. |
@@ -245,9 +249,12 @@ is Complete. Detailed
 [CPU 0005I FLOAT32 vector parity and vector-emission boundary](tasks/0005i-float32-vector-parity-and-vector-emission-boundary.md)
 is Complete. Detailed
 [CPU 0005J Bounded pointwise coverage and parity hardening](tasks/0005j-bounded-pointwise-coverage-and-parity-hardening.md)
-is the one current Ready task. It precedes rather than replaces the established CPU 0006
-layout/indexing family owner. CPU 0006 and every later CPU task remain Draft without a detailed
-specification.
+is Complete. Detailed
+[CPU 0006 Portable static affine views and boundary materialization](tasks/0006-portable-static-affine-views-and-boundary-materialization.md)
+is Complete. The fresh operation inventory split the former broad row into this
+static resolved-layout affine slice and Draft 0006A–0006D follow-ups for non-affine movement and
+gather, functional scatter/fold, ordering, and explicit-state random work. CPU 0006A and every
+later CPU task remain Draft without a detailed specification.
 
 Superseded task 0001 remains preserved through its sole detailed CPU
 [capability, representation, binding, and parallel foundation](tasks/0001-cpu-capability-representation-binding-and-parallel-foundation.md)
@@ -313,7 +320,7 @@ declaration and accessed-range spans, complete write-injectivity proof, five gen
 state machines, and all sixteen ordered heap/segment carrier specializations. Detailed CPU 0005C
 is Complete. CPU 0005D, detailed CPU 0005E, detailed CPU 0005F, and detailed CPU 0005G are also
 Complete. Detailed CPU 0005H, detailed CPU 0005I, and detailed CPU 0005J are `Complete`;
-tasks 0006–0017 remain `Draft` without detailed specifications.
+task 0006 is `Complete`, and tasks 0006A–0017 remain `Draft` without detailed specifications.
 CPU 0005C preserves that exact slice and implements cold selection among all four portable
 strategies. It uses the preferred Java 26 FLOAT64 species only for direct contiguous runs and
 scalar broadcasts, scalar tails and general-odometer fallback, configured/available parallelism
@@ -421,8 +428,8 @@ final CPU command passed 26 suites/117 tests with zero failures/errors and one e
 persistence-evidence skip. Clean documentation context `/root` reused that evidence, finalized
 the affected Javadocs, CPU guide, glossary, and planning records, and passed CPU Javadoc plus
 local Markdown, official-link, exact-scope/status/inventory, formatting, and whitespace gates
-without rerunning Java tests. CPU 0005J is Complete; CPU 0006 and later tasks remain Draft without
-detailed specifications.
+without rerunning Java tests. CPU 0005J and detailed CPU 0006 are Complete, and CPU 0006A and
+later tasks remain Draft without detailed specifications.
 
 Detailed CPU 0005J is Complete. It preserves the exact forty-eight-opcode semantic inventory and
 adds preferred-species FLOAT32/FLOAT64 extrema, clamp, ReLU, sign, and same-type cast;
@@ -441,6 +448,21 @@ passed 26 suites/125 tests with zero failures or errors and one skipped opt-in p
 evidence test. The clean documentation pass reused that stable Java evidence, finalized the
 authorized Javadocs and documentation, and passed CPU Javadoc, Markdown, exact-scope, semantic,
 status, unchanged-layer, and whitespace checks without rerunning Java tests.
+
+Detailed CPU 0006 is Complete. It composes one-through-eight connected static resolved-layout
+affine view occurrences into one source-to-result mapping, keeps same-unit internal view values
+virtual without declarations or Runtime slots, and emits one exact scalar or parallel-scalar
+represented-bit boundary copy. The result retains its resolved offsets and positive or zero
+strides; non-injective layouts use deterministic distinct-address writes only after proving that
+repeated logical coordinates select the same source value. All six Model data types copy across
+array, segment, and mixed carriers, with the seventh `SHORT_ARRAY` form limited to raw BFLOAT16
+payloads. Schema 11 distinguishes affine structure and carrier compatibility. The implementation
+pass's focused command and sole final CPU command passed; the final suite recorded 29 suites and
+140 tests with zero failures, zero errors, and one skipped opt-in persistence-evidence test on
+OpenJDK 26.0.1+8-34. Clean documentation context `/root/cpu_0006_docs` reused that stabilized Java
+evidence, finalized Javadocs/package summaries, the CPU guide, glossary, and planning records,
+and passed CPU Javadoc plus Markdown, exact-scope/status, and whitespace validation without
+rerunning Java tests. CPU 0006A and every later task remain Draft without detailed specifications.
 
 The reset was a working-tree replacement, not deletion of history. CPU 0001–0005 are Superseded
 with all recorded evidence preserved; the repository contains no old/new dual pipeline.

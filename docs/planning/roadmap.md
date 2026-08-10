@@ -101,7 +101,7 @@ The Prepare milestone is therefore closed. The OpenBLAS provider project area is
 CPU 0005A is now Complete and atomically supersedes the provisional CPU 0001–0005 implementation;
 those five task records remain preserved as Superseded historical evidence. The current completed
 CPU implementation frontier is detailed
-[CPU 0005J Bounded pointwise coverage and parity hardening](backends/cpu/tasks/0005j-bounded-pointwise-coverage-and-parity-hardening.md).
+[CPU 0006 Portable static affine views and boundary materialization](backends/cpu/tasks/0006-portable-static-affine-views-and-boundary-materialization.md).
 It preserves CPU 0005H's nineteen same-typed FLOAT32/FLOAT64 unary kinds, three separate floating
 classifications, and exact forty-eight-opcode inventory; CPU 0005G's extrema, clamp, Tensor power,
 and canonical-BOOL logic; CPU 0005F's division and scalar-power realizations; CPU 0005E's five
@@ -111,8 +111,21 @@ separates vector instruction emission from pure vector math, makes ERF/GELU coef
 auditable, and advances generated compatibility from schema 8 to schema 9. CPU 0005J then adds
 preferred-species floating extrema/clamp/ReLU/sign/cast, signed-integral arithmetic/extrema/cast,
 canonical-BOOL logic/cast, and virtual internal-mask-to-WHERE rows while advancing compatibility
-to schema 10. Every unsafe or unavailable row retains deterministic scalar fallback. CPU 0006 and
-every later task remain Draft without a detailed specification.
+to schema 10. Every unsafe or unavailable row retains deterministic scalar fallback. CPU 0006
+bounds the first layout/indexing slice to resolved-layout static affine view folding plus one
+exact boundary copy for all six Model data types. It adds
+`SHORT_ARRAY` to the six current generated carrier forms, yielding seven forms, solely to preserve
+raw BFLOAT16 bits through existing `short[]` storage; BFLOAT16 pointwise arithmetic, conversion,
+numerical semantics, and vector support remain unadvertised. Internal affine values keep their
+graph/logical-memory identity without CPU declarations or Runtime slots; final resolved layouts,
+including zero strides, are materialized through disjoint distinct-address writes. Schema 11 and
+the cold binding/finalization path retain exact compatibility and overlap checks. The focused
+implementation command and sole final CPU suite passed; the final suite recorded 29 suites and
+140 tests with zero failures, zero errors, and one skipped opt-in persistence-evidence test on
+OpenJDK 26.0.1+8-34. Clean documentation context `/root/cpu_0006_docs` reused that stabilized Java
+evidence and finalized the CPU Javadocs, guide, glossary, and planning/status records. Draft 0006A–0006D retain non-affine
+movement and gather, functional scatter/fold, ordering, and explicit-state random work without
+detailed specs.
 Historical
 [CPU 0001 Capability, representation, binding, and parallel foundation](backends/cpu/tasks/0001-cpu-capability-representation-binding-and-parallel-foundation.md)
 is `Superseded`; historical
@@ -138,8 +151,8 @@ is Complete. Detailed CPU 0005C vector and parallel strategies are Complete. Det
 materialization/specialization/persistence evidence is also `Complete`; detailed 0005E is
 `Complete` for its bounded first five-type core pointwise increment. Detailed CPU 0005F floating
 division and exact scalar-power realization is `Complete`; detailed CPU 0005G and CPU 0005H are
-`Complete`; detailed CPU 0005I and CPU 0005J are `Complete`; CPU 0006–0017 remain
-`Draft` without detailed specifications.
+`Complete`; detailed CPU 0005I, CPU 0005J, and CPU 0006 are `Complete`; and CPU
+0006A–0017 remain `Draft` without detailed specifications.
 CPU 0003
 implements a
 model-independent filesystem store beneath an explicit
@@ -492,12 +505,12 @@ cover dense linear, all-zero/scalar, last-axis bias, block/outer, and general od
 Exact cold range spans support constant-time alias checks, and a complete bounded static
 injectivity decision accepts valid interleaved positive strides while rejecting repeated writes.
 Detailed CPU 0005C through CPU 0005J are Complete.
-CPU 0006–0017 and the refined Config, Prepare, Metal, and tuning rows remain `Draft` without new
-detailed specifications.
+Detailed CPU 0006 is Complete. CPU 0006A–0017 and the refined Config, Prepare, Metal, and tuning rows
+remain `Draft` without new detailed specifications.
 Completed OpenBLAS history and every completed project area remain unchanged.
 
-CPU remains the active global project area. CPU 0005A through CPU 0005J are `Complete`, and later
-CPU work remains `Draft` without detailed
+CPU remains the active global project area. CPU 0005A through CPU 0006 are `Complete`, and CPU
+0006A and later work remain `Draft` without detailed
 specifications.
 CPU 0001–0005 are
 historical Superseded records whose Git history

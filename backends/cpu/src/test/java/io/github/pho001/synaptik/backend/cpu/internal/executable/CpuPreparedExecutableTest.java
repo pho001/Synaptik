@@ -30,6 +30,8 @@ import io.github.pho001.synaptik.backend.cpu.internal.prepare.CpuPartitionAnalys
 import io.github.pho001.synaptik.backend.cpu.internal.prepare.CpuPartitionAnalysisInputs.PortableExecutionConfig.ComputePreference;
 import jdk.incubator.vector.DoubleVector;
 import jdk.incubator.vector.FloatVector;
+import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuAffineLayoutLoweringTest;
+import io.github.pho001.synaptik.backend.cpu.internal.prepare.CpuPartitionPreparer;
 
 class CpuPreparedExecutableTest {
     private static final ValueLayout.OfDouble DOUBLE =
@@ -379,6 +381,21 @@ class CpuPreparedExecutableTest {
                 borrow(new double[4], 0)));
         try { assertThrows(IllegalArgumentException.class, () -> executable.bind(state)); }
         finally { state.close(); }
+    }
+
+    @Test void affineColdBindingRejectsOverlappingSourceAndResultAddresses() {
+        var context = CpuAffineLayoutLoweringTest.select(DataType.INT32,
+                List.of(CarrierAccess.INT_ARRAY, CarrierAccess.INT_ARRAY));
+        var executable = CpuPartitionFinalizerTest.finalizeExecutable(
+                new CpuPartitionPreparer().analyze(context), Optional.empty());
+        int[] shared = new int[9];
+        var input = CpuBorrowedBuffer.borrow(new MemorySegmentStorage(DataType.INT32, 9,
+                MemorySegment.ofArray(shared)));
+        var output = CpuBorrowedBuffer.borrow(new MemorySegmentStorage(DataType.INT32, 8,
+                MemorySegment.ofArray(shared).asSlice(0, 32)));
+        var run = state(executable, List.of(input, output));
+        try { assertThrows(IllegalArgumentException.class, () -> executable.bind(run)); }
+        finally { run.close(); }
     }
 
     private static CpuBorrowedBuffer borrow(double[] carrier, int elementOffset) {

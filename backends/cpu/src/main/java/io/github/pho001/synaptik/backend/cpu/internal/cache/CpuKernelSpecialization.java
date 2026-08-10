@@ -45,6 +45,10 @@ public record CpuKernelSpecialization(CpuLoweringFingerprint loweringFingerprint
     public enum CarrierAccess {
         /** Observable direct {@code double[]} access. */ DOUBLE_ARRAY,
         /** Observable direct {@code float[]} access. */ FLOAT_ARRAY,
+        /**
+         * Observable direct opaque {@code short[]} access for represented-bit BFLOAT16 affine
+         * copies only; it supplies no numerical or vector semantics.
+         */ SHORT_ARRAY,
         /** Observable direct {@code int[]} access. */ INT_ARRAY,
         /** Observable direct {@code long[]} access. */ LONG_ARRAY,
         /** Observable direct canonical {@code byte[]} access. */ BYTE_ARRAY,
@@ -198,10 +202,10 @@ public record CpuKernelSpecialization(CpuLoweringFingerprint loweringFingerprint
         return switch (type) {
             case FLOAT64 -> CarrierAccess.DOUBLE_ARRAY;
             case FLOAT32 -> CarrierAccess.FLOAT_ARRAY;
+            case BFLOAT16 -> CarrierAccess.SHORT_ARRAY;
             case INT32 -> CarrierAccess.INT_ARRAY;
             case INT64 -> CarrierAccess.LONG_ARRAY;
             case BOOL -> CarrierAccess.BYTE_ARRAY;
-            case BFLOAT16 -> throw new IllegalArgumentException("BFLOAT16 is not executable");
         };
     }
 
@@ -224,6 +228,7 @@ public record CpuKernelSpecialization(CpuLoweringFingerprint loweringFingerprint
         return switch (carrier) {
             case DOUBLE_ARRAY -> double[].class;
             case FLOAT_ARRAY -> float[].class;
+            case SHORT_ARRAY -> short[].class;
             case INT_ARRAY -> int[].class;
             case LONG_ARRAY -> long[].class;
             case BYTE_ARRAY -> byte[].class;

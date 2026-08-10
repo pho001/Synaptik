@@ -17,6 +17,11 @@ import io.github.pho001.synaptik.model.operation.elementwise.selection.WhereSele
 import io.github.pho001.synaptik.model.operation.elementwise.unary.UnaryElementwiseKind;
 import io.github.pho001.synaptik.model.tensor.TensorDescriptor;
 import io.github.pho001.synaptik.model.shape.ShapeBroadcast;
+import io.github.pho001.synaptik.model.layout.LayoutDescriptor;
+import io.github.pho001.synaptik.model.operation.layout.*;
+import io.github.pho001.synaptik.model.operation.index.SelectAttrs;
+import io.github.pho001.synaptik.model.operation.index.SelectKind;
+import io.github.pho001.synaptik.model.shape.Shape;
 import io.github.pho001.synaptik.planning.capability.BackendCapabilityProvider;
 import io.github.pho001.synaptik.planning.capability.OperationCapabilityQuery;
 import java.util.Objects;
@@ -30,9 +35,17 @@ import java.util.Objects;
  * canonical-BOOL logic, all nineteen same-typed FLOAT32/FLOAT64 unary semantics, floating
  * classification, comparisons, floating {@code WHERE}, and same-type {@code CAST}. Every
  * descriptor has a resolved layout, and results obey the
- * Model family's shape rule. Complete-partition lowering remains stricter: it validates a connected
- * one-to-eight-occurrence chain, normalizes exact layout geometry, and applies alias, fan-out,
- * publication, and partition-boundary checks before resource declaration.</p>
+ * Model family's shape rule. The provider also admits the exact one-input, one-output, fully
+ * static and resolved-layout occurrences of {@code CONTIGUOUS}, {@code RESHAPE}, {@code EXPAND},
+ * {@code PERMUTE}, {@code EXPAND_DIMS}, {@code SQUEEZE}, scalar {@code SELECT}, and positive-step
+ * {@code SLICE}, including target-relative crop attributes. These affine rows preserve one data
+ * type and must carry the exact layout implied by their Model semantics.</p>
+ *
+ * <p>Complete-partition lowering remains stricter: it validates either a connected one-to-eight
+ * pointwise chain or a connected one-to-eight affine chain, then applies exact layout, alias,
+ * fan-out, publication, and partition-boundary checks before resource declaration. Occurrence
+ * support therefore does not promise that an arbitrary mixed or branched partition can be
+ * prepared.</p>
  */
 public final class CpuCapabilityProvider implements BackendCapabilityProvider {
     /** Stable Planning ownership identity for the CPU backend. */
@@ -57,8 +70,10 @@ public final class CpuCapabilityProvider implements BackendCapabilityProvider {
      * Binary and comparison results must equal the current right-aligned broadcast result;
      * unary, classification, scalar-arithmetic, range-clamp, logical-NOT, and same-type-cast
      * results preserve shape; binary logical rows use the same right-aligned broadcast rule;
-     * {@code WHERE} applies branch-first then condition broadcasting. Every descriptor must be
-     * fully static with a resolved layout. Cross-type casts and all rows outside the implemented
+     * {@code WHERE} applies branch-first then condition broadcasting. Admitted affine operations
+     * require one input, one output, the same data type, fully static Shapes, resolved layouts,
+     * and their exact current attributes and descriptor relationship. Cross-type casts, dynamic
+     * or unresolved affine geometry, negative-step slices, and all rows outside the implemented
      * matrix return {@code false} without defining conversion or fallback behavior.
      *
      * @param query non-null immutable operation occurrence to validate structurally
@@ -77,6 +92,7 @@ public final class CpuCapabilityProvider implements BackendCapabilityProvider {
         var attrs = query.operation().attrs();
         TensorDescriptor output = query.outputs().getFirst();
         try {
+            if (affineKind(kind)) return supportsAffine(query, output);
             if (kind instanceof BinaryArithmeticKind arithmetic) {
                 return attrs == NoOperationAttrs.INSTANCE
                         && (arithmetic == BinaryArithmeticKind.ADD || arithmetic == BinaryArithmeticKind.SUB
@@ -155,12 +171,152 @@ public final class CpuCapabilityProvider implements BackendCapabilityProvider {
                         && cast.targetDataType() == query.inputs().getFirst().dataType()
                         && sameTypeAndShape(query.inputs().getFirst(), output);
             }
-        } catch (IllegalArgumentException incompatible) { return false; }
+        } catch (IllegalArgumentException | ArithmeticException incompatible) { return false; }
         return false;
     }
 
     private static boolean staticResolved(TensorDescriptor descriptor) {
         return descriptor.shape().isFullyStatic() && descriptor.layout().isPresent();
+    }
+
+    private static boolean affineKind(Object kind) {
+        return kind == ContiguousKind.CONTIGUOUS || kind instanceof ShapeTransformKind
+                || kind instanceof AxisTransformKind || kind == SelectKind.SELECT
+                || kind == SliceKind.SLICE;
+    }
+
+    private static boolean supportsAffine(OperationCapabilityQuery query, TensorDescriptor output) {
+        if (query.inputs().size() != 1) return false;
+        TensorDescriptor input = query.inputs().getFirst();
+        if (input.dataType() != output.dataType()) return false;
+        Object kind = query.operation().kind();
+        Object attrs = query.operation().attrs();
+        LayoutDescriptor inputLayout = input.layout().orElseThrow();
+        LayoutDescriptor expected;
+        if (kind == ContiguousKind.CONTIGUOUS) {
+            return attrs == NoOperationAttrs.INSTANCE && input.shape().equals(output.shape())
+                    && output.layout().orElseThrow().equals(LayoutDescriptor.contiguous(output.shape()));
+        }
+        if (kind instanceof ShapeTransformKind transform) {
+            if (!(attrs instanceof TargetShapeAttrs target) || !target.targetShape().isFullyStatic()
+                    || !target.targetShape().equals(output.shape())) return false;
+            if (transform == ShapeTransformKind.RESHAPE) {
+                if (!inputLayout.isContiguous() || input.shape().knownElementCount().orElseThrow()
+                        != output.shape().knownElementCount().orElseThrow()) return false;
+                LayoutDescriptor canonical = LayoutDescriptor.contiguous(output.shape());
+                expected = LayoutDescriptor.of(output.shape(), canonical.strides(),
+                        inputLayout.storageOffset(), true);
+            } else {
+                if (!expands(input.shape(), output.shape())) return false;
+                long[] strides = new long[output.shape().rank()];
+                int offset = output.shape().rank() - input.shape().rank();
+                for (int axis = 0; axis < input.shape().rank(); axis++) {
+                    long in = input.shape().toLongArray()[axis];
+                    long out = output.shape().toLongArray()[axis + offset];
+                    strides[axis + offset] = in == 1 && out != 1 ? 0 : inputLayout.stride(axis);
+                }
+                expected = LayoutDescriptor.of(output.shape(), strides,
+                        inputLayout.storageOffset(), true);
+            }
+            return output.layout().orElseThrow().equals(expected);
+        }
+        if (kind instanceof AxisTransformKind transform) {
+            long[] inputShape = input.shape().toLongArray();
+            if (transform == AxisTransformKind.PERMUTE) {
+                if (!(attrs instanceof PermutationAttrs permutation)
+                        || permutation.axes().size() != inputShape.length
+                        || output.shape().rank() != inputShape.length) return false;
+                long[] strides = new long[inputShape.length];
+                long[] expectedShape = new long[inputShape.length];
+                for (int axis = 0; axis < inputShape.length; axis++) {
+                    int source = permutation.axes().get(axis);
+                    strides[axis] = inputLayout.stride(source);
+                    expectedShape[axis] = inputShape[source];
+                }
+                if (!java.util.Arrays.equals(expectedShape, output.shape().toLongArray())) return false;
+                expected = LayoutDescriptor.of(output.shape(), strides, inputLayout.storageOffset(), true);
+            } else {
+                if (!(attrs instanceof AxisTransformAttrs axisAttrs)) return false;
+                int axis = axisAttrs.axis();
+                if (transform == AxisTransformKind.EXPAND_DIMS) {
+                    if (axis > inputShape.length || output.shape().rank() != inputShape.length + 1) return false;
+                    long[] expectedShape = new long[inputShape.length + 1];
+                    long[] strides = new long[inputShape.length + 1];
+                    for (int i = 0; i < expectedShape.length; i++) {
+                        if (i == axis) { expectedShape[i] = 1; strides[i] = i == inputShape.length
+                                ? 1 : Math.multiplyExact(inputLayout.stride(i), inputShape[i]); }
+                        else { int source = i < axis ? i : i - 1;
+                            expectedShape[i] = inputShape[source]; strides[i] = inputLayout.stride(source); }
+                    }
+                    if (!java.util.Arrays.equals(expectedShape, output.shape().toLongArray())) return false;
+                    expected = LayoutDescriptor.of(output.shape(), strides, inputLayout.storageOffset(), true);
+                } else {
+                    if (axis >= inputShape.length || inputShape[axis] != 1
+                            || output.shape().rank() != inputShape.length - 1) return false;
+                    long[] expectedShape = new long[inputShape.length - 1];
+                    long[] strides = new long[inputShape.length - 1];
+                    for (int i = 0, j = 0; i < inputShape.length; i++) if (i != axis) {
+                        expectedShape[j] = inputShape[i]; strides[j++] = inputLayout.stride(i);
+                    }
+                    if (!java.util.Arrays.equals(expectedShape, output.shape().toLongArray())) return false;
+                    expected = LayoutDescriptor.of(output.shape(), strides, inputLayout.storageOffset(), true);
+                }
+            }
+            return output.layout().orElseThrow().equals(expected);
+        }
+        if (kind == SelectKind.SELECT) {
+            if (!(attrs instanceof SelectAttrs select) || select.axis() >= input.shape().rank()) return false;
+            long[] inShape = input.shape().toLongArray();
+            if (select.index() >= inShape[select.axis()] || output.shape().rank() != inShape.length - 1) return false;
+            long[] shape = new long[inShape.length - 1], strides = new long[inShape.length - 1];
+            for (int i = 0, j = 0; i < inShape.length; i++) if (i != select.axis()) {
+                shape[j] = inShape[i]; strides[j++] = inputLayout.stride(i);
+            }
+            if (!java.util.Arrays.equals(shape, output.shape().toLongArray())) return false;
+            expected = LayoutDescriptor.of(output.shape(), strides, Math.addExact(inputLayout.storageOffset(),
+                    Math.multiplyExact(select.index(), inputLayout.stride(select.axis()))), true);
+            return output.layout().orElseThrow().equals(expected);
+        }
+        if (kind == SliceKind.SLICE) {
+            long[] shape = input.shape().toLongArray();
+            long[] strides = inputLayout.strides();
+            long offset = inputLayout.storageOffset();
+            if (attrs instanceof SliceAttrs slice) {
+                for (int i = 0; i < slice.axes().size(); i++) {
+                    int axis = slice.axes().get(i); long step = slice.steps().get(i);
+                    if (axis >= shape.length || step <= 0) return false;
+                    long length = slice.lengths().get(i);
+                    if (length > 0 && Math.addExact(slice.starts().get(i),
+                            Math.multiplyExact(length - 1, step)) >= shape[axis]) return false;
+                    shape[axis] = length;
+                    offset = Math.addExact(offset, Math.multiplyExact(slice.starts().get(i), strides[axis]));
+                    strides[axis] = Math.multiplyExact(strides[axis], step);
+                }
+            } else if (attrs instanceof CropToShapeAttrs crop) {
+                if (!crop.targetShape().isFullyStatic() || !crop.prefixShape().isFullyStatic()
+                        || crop.targetShape().rank() != shape.length
+                        || crop.prefixShape().rank() != shape.length) return false;
+                long[] target = crop.targetShape().toLongArray();
+                long[] prefix = crop.prefixShape().toLongArray();
+                for (int axis = 0; axis < shape.length; axis++) {
+                    if (Math.addExact(prefix[axis], target[axis]) > shape[axis]) return false;
+                    offset = Math.addExact(offset, Math.multiplyExact(prefix[axis], strides[axis]));
+                }
+                shape = target;
+            } else return false;
+            if (!java.util.Arrays.equals(shape, output.shape().toLongArray())) return false;
+            expected = LayoutDescriptor.of(output.shape(), strides, offset, true);
+            return output.layout().orElseThrow().equals(expected);
+        }
+        return false;
+    }
+
+    private static boolean expands(Shape input, Shape output) {
+        long[] in = input.toLongArray(), out = output.toLongArray();
+        if (in.length > out.length) return false;
+        for (int i = 1; i <= in.length; i++) if (in[in.length - i] != 1
+                && in[in.length - i] != out[out.length - i]) return false;
+        return true;
     }
 
     private static boolean floating(DataType type) {

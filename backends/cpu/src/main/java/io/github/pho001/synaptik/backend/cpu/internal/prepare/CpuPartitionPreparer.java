@@ -24,13 +24,15 @@ import jdk.incubator.vector.LongVector;
 import jdk.incubator.vector.ByteVector;
 
 /**
- * Whole-partition CPU analysis entry for the current bounded static pointwise family.
+ * Whole-partition CPU analysis entry for the current bounded static pointwise and affine families.
  * Analysis deterministically compares direct access with at most three one-input contiguous-copy
  * candidates, then selects scalar or preferred-species vector compute and single-thread or
  * bounded parallel orchestration before shared resource assignment. Exact vector eligibility is
  * typed across floating, signed-integral, canonical-BOOL, and narrowly virtual floating-mask
  * topologies; direct power and unsafe mask storage remain scalar. Analysis measures nothing and
- * performs no artifact or persistence access.
+ * performs no artifact or persistence access. Static affine chains instead retain scalar compute,
+ * compose one exact distinct-write address domain, declare only source and final result buffers,
+ * and use deterministic scalar fallback when vector compute was preferred.
  */
 public final class CpuPartitionPreparer implements BackendPartitionPreparer<
         CpuPartitionAnalysisInputs, CpuPartitionPreparationPlan> {
@@ -52,8 +54,8 @@ public final class CpuPartitionPreparer implements BackendPartitionPreparer<
      * Lowers, fuses, selects one bounded complete plan, and declares exact post-fusion resources.
      * @param context non-null complete CPU analysis context
      * @return one immutable analysis with one unit, a cold-selected portable strategy, one exact
-     *     declaration per derived boundary, and at most one appended workspace declaration;
-     *     never {@code null}
+     *     declaration per derived boundary, and at most one pointwise workspace declaration;
+     *     affine plans always have two buffer declarations and no workspace; never {@code null}
      * @throws NullPointerException if {@code context} is {@code null}
      * @throws IllegalArgumentException if complete-partition lowering rejects the occurrence or
      *     declared resource geometry is invalid
@@ -82,6 +84,7 @@ public final class CpuPartitionPreparer implements BackendPartitionPreparer<
         var bindings = new ArrayList<>(lowered.accessBindings());
         var carriers = new ArrayList<>(requestedCarriers);
         CpuKernelIr kernelIr = lowered.kernelIr();
+        boolean affineCopy = kernelIr.instructions().isEmpty();
         if (materialization.isPresent()) {
             var selected = materialization.orElseThrow();
             bindings.set(selected.sourceBoundaryIndex(), selected.consumerBinding());
@@ -93,7 +96,7 @@ public final class CpuPartitionPreparer implements BackendPartitionPreparer<
         DataType vectorType = vectorLaneType(kernelIr);
         int lanes = speciesLanes(vectorType);
         int speciesBits = speciesBits(vectorType);
-        boolean vectorEligible = config.computePreference()
+        boolean vectorEligible = !affineCopy && config.computePreference()
                         == CpuPartitionAnalysisInputs.PortableExecutionConfig.ComputePreference.VECTOR_IF_ELIGIBLE
                 && vectorType != null && lanes > 1 && lowered.elementCount() >= lanes
                 && vectorTopologyEligible(kernelIr, vectorType)
@@ -119,7 +122,10 @@ public final class CpuPartitionPreparer implements BackendPartitionPreparer<
                 vectorEligible ? speciesBits : 0,
                 materialization.map(CpuMaterializationPlan::sourceBoundaryIndex).orElse(-1),
                 powerRealizations(kernelIr));
-        var routePlan = new CpuPortableRoutePlan(kernelIr, specialization);
+        var selectedPortableIr = lowered.portableKernelIr()
+                instanceof io.github.pho001.synaptik.backend.cpu.internal.ir.CpuAffineCopyIr
+                ? lowered.portableKernelIr() : kernelIr;
+        var routePlan = new CpuPortableRoutePlan(selectedPortableIr, specialization);
         String manifest = "unit=0;fusion=" + lowered.fusionReason()
                 + ";access=" + bindings.stream()
                         .map(binding -> binding.plan().regime().name()).toList()
@@ -135,7 +141,7 @@ public final class CpuPartitionPreparer implements BackendPartitionPreparer<
                 strategy,
                 declarations, lowered.boundaryValues(), bindings,
                 requestedCarriers, carriers,
-                lowered.extents(), lowered.elementCount(),
+                lowered.extents(), lowered.elementCount(), lowered.affineAddressPairs(),
                 selectedRangeCount, config.minimumElementsPerWorker(),
                 vectorEligible ? speciesBits : 0,
                 context.backendInputs().loweringManifestEnabled() ? manifest : "",

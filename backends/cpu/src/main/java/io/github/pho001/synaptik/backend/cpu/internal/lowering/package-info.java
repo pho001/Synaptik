@@ -1,5 +1,6 @@
 /**
- * Owns unsupported complete-partition unit formation, fusion, and canonical lowering.
+ * Owns unsupported complete-partition unit formation, fusion, affine composition, and canonical
+ * lowering.
  *
  * <p>Lowering consumes the semantic and logical-memory facts projected by shared Prepare. It
  * derives supported binary arithmetic results with Model {@code ShapeBroadcast}, preserves
@@ -13,6 +14,13 @@
  * values. It collaborates with {@code internal.ir} and route-neutral CPU
  * preparation, but never allocates Runtime resources, selects a physical slot, or delegates graph
  * interpretation to a route implementation.
+ *
+ * <p>The bounded affine family accepts only one-through-eight connected one-input/one-output
+ * static resolved-layout view occurrences. It composes their coordinate mappings on the cold
+ * path, keeps eligible same-unit intermediates virtual, and derives one deterministic source-to-
+ * result address table. A zero-stride result uses one write per distinct address only when all
+ * repeated logical coordinates select the same represented source value. Final boundary
+ * materialization is always explicit because shared preparation provides no cross-value aliasing.
  *
  * <p>The selected {@code CpuMaterializationPlan} is a separate route-independent copy fact. It
  * retains original source geometry and canonical dense consumer geometry without changing the

@@ -15,6 +15,8 @@ import io.github.pho001.synaptik.model.operation.elementwise.classification.Floa
 import io.github.pho001.synaptik.model.operation.elementwise.comparison.BinaryComparisonKind;
 import io.github.pho001.synaptik.model.operation.elementwise.logical.BooleanLogicalKind;
 import io.github.pho001.synaptik.model.operation.elementwise.selection.WhereSelectionKind;
+import io.github.pho001.synaptik.model.operation.index.*;
+import io.github.pho001.synaptik.model.operation.layout.*;
 import io.github.pho001.synaptik.model.shape.Shape;
 import io.github.pho001.synaptik.model.tensor.TensorDescriptor;
 import io.github.pho001.synaptik.planning.capability.OperationCapabilityQuery;
@@ -148,6 +150,42 @@ class CpuCapabilityProviderTest {
                         NoOperationAttrs.INSTANCE, List.of(bool), bool))),
                 () -> assertFalse(provider.supports(query(BooleanLogicalKind.OR,
                         NoOperationAttrs.INSTANCE, List.of(i32, i32), bool))));
+    }
+
+    @Test void reportsOnlyExactStaticResolvedAffineOccurrencesForEveryDataType() {
+        var provider = new CpuCapabilityProvider();
+        Shape inputShape = Shape.of(2,3), selectedShape = Shape.of(2);
+        for (DataType type : DataType.values()) {
+            var input = descriptor(type, inputShape);
+            var selected = new TensorDescriptor(type, selectedShape, Optional.of(
+                    LayoutDescriptor.of(selectedShape, new long[]{3}, 1, true)), false);
+            assertTrue(provider.supports(query(SelectKind.SELECT, new SelectAttrs(1,1),
+                    List.of(input), selected)), type.toString());
+        }
+        var input = descriptor(DataType.FLOAT64, inputShape);
+        var selected = new TensorDescriptor(DataType.FLOAT64, selectedShape, Optional.of(
+                LayoutDescriptor.of(selectedShape, new long[]{3}, 1, true)), false);
+        var wrongLayout = new TensorDescriptor(DataType.FLOAT64, selectedShape, Optional.of(
+                LayoutDescriptor.contiguous(selectedShape)), false);
+        var wrongType = new TensorDescriptor(DataType.FLOAT32, selectedShape, Optional.of(
+                LayoutDescriptor.of(selectedShape, new long[]{3}, 1, true)), false);
+        var unresolved = new TensorDescriptor(DataType.FLOAT64, selectedShape, Optional.empty(), false);
+        assertAll(
+                () -> assertTrue(provider.supports(query(ContiguousKind.CONTIGUOUS,
+                        NoOperationAttrs.INSTANCE, List.of(input), input))),
+                () -> assertTrue(provider.supports(query(ShapeTransformKind.RESHAPE,
+                        new TargetShapeAttrs(Shape.of(3,2)), List.of(input),
+                        new TensorDescriptor(DataType.FLOAT64, Shape.of(3,2), Optional.of(
+                                LayoutDescriptor.of(Shape.of(3,2), new long[]{2,1}, 0, true)), false)))),
+                () -> assertFalse(provider.supports(query(SelectKind.SELECT, new SelectAttrs(1,1),
+                        List.of(input), wrongLayout))),
+                () -> assertFalse(provider.supports(query(SelectKind.SELECT, new SelectAttrs(1,1),
+                        List.of(input), wrongType))),
+                () -> assertFalse(provider.supports(query(SelectKind.SELECT, new SelectAttrs(1,1),
+                        List.of(input), unresolved))),
+                () -> assertFalse(provider.supports(query(SliceKind.SLICE_UPDATE,
+                        new SliceAttrs(List.of(0L), List.of(1L), List.of(0), List.of(1L)),
+                        List.of(input, input), input))));
     }
 
     private static TensorDescriptor descriptor(Shape shape, LayoutDescriptor layout) {

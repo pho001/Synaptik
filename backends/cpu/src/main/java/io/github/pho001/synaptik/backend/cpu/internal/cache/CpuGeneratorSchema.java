@@ -12,7 +12,11 @@ package io.github.pho001.synaptik.backend.cpu.internal.cache;
  * or converter.
  */
 public final class CpuGeneratorSchema {
-    /** Current schema version. */ public static final int CURRENT_VERSION = 10;
+    /**
+     * Current schema version, including the portable affine-copy family, its structural mapping
+     * and write domain, and the opaque BFLOAT16 {@code SHORT_ARRAY} carrier form.
+     */
+    public static final int CURRENT_VERSION = 11;
     /** Generated entry name. */ public static final String ENTRY_NAME = "invoke";
     private CpuGeneratorSchema() { }
 

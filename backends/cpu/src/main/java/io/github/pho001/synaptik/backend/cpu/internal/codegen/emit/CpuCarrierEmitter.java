@@ -22,6 +22,7 @@ final class CpuCarrierEmitter {
     private static final ClassDesc VALUE_LAYOUT = ClassDesc.of("java.lang.foreign.ValueLayout");
     private static final ClassDesc DOUBLE_LAYOUT = ClassDesc.of("java.lang.foreign.ValueLayout$OfDouble");
     private static final ClassDesc FLOAT_LAYOUT = ClassDesc.of("java.lang.foreign.ValueLayout$OfFloat");
+    private static final ClassDesc SHORT_LAYOUT = ClassDesc.of("java.lang.foreign.ValueLayout$OfShort");
     private static final ClassDesc INT_LAYOUT = ClassDesc.of("java.lang.foreign.ValueLayout$OfInt");
     private static final ClassDesc LONG_LAYOUT = ClassDesc.of("java.lang.foreign.ValueLayout$OfLong");
     private static final ClassDesc BYTE_LAYOUT = ClassDesc.of("java.lang.foreign.ValueLayout$OfByte");
@@ -54,7 +55,8 @@ final class CpuCarrierEmitter {
             code.aload(parameterSlot).lload(addressLocal).l2i();
             switch (type) {
                 case FLOAT64 -> code.daload(); case FLOAT32 -> code.faload();
-                case INT32 -> code.iaload(); case INT64 -> code.laload(); case BOOL -> code.baload();
+                case BFLOAT16 -> code.saload(); case INT32 -> code.iaload();
+                case INT64 -> code.laload(); case BOOL -> code.baload();
                 default -> throw new IllegalArgumentException("unsupported carrier data type");
             }
             return;
@@ -79,7 +81,8 @@ final class CpuCarrierEmitter {
             code.aload(parameterSlot).lload(addressLocal).l2i(); loadLocal(type, valueLocal);
             switch (type) {
                 case FLOAT64 -> code.dastore(); case FLOAT32 -> code.fastore();
-                case INT32 -> code.iastore(); case INT64 -> code.lastore(); case BOOL -> code.bastore();
+                case BFLOAT16 -> code.sastore(); case INT32 -> code.iastore();
+                case INT64 -> code.lastore(); case BOOL -> code.bastore();
                 default -> throw new IllegalArgumentException("unsupported carrier data type");
             }
             return;
@@ -171,6 +174,7 @@ final class CpuCarrierEmitter {
     private void layout(DataType type) {
         String field = switch (type) {
             case FLOAT64 -> "JAVA_DOUBLE_UNALIGNED"; case FLOAT32 -> "JAVA_FLOAT_UNALIGNED";
+            case BFLOAT16 -> "JAVA_SHORT_UNALIGNED";
             case INT32 -> "JAVA_INT_UNALIGNED"; case INT64 -> "JAVA_LONG_UNALIGNED";
             case BOOL -> "JAVA_BYTE"; default -> throw new IllegalArgumentException("unsupported type");
         };
@@ -185,14 +189,15 @@ final class CpuCarrierEmitter {
     private void loadLocal(DataType type, int local) {
         switch (type) {
             case FLOAT64 -> code.dload(local); case FLOAT32 -> code.fload(local);
-            case INT32, BOOL -> code.iload(local); case INT64 -> code.lload(local);
+            case BFLOAT16, INT32, BOOL -> code.iload(local); case INT64 -> code.lload(local);
             default -> throw new IllegalArgumentException("unsupported type");
         }
     }
 
     private static ClassDesc layoutClass(DataType type) {
         return switch (type) {
-            case FLOAT64 -> DOUBLE_LAYOUT; case FLOAT32 -> FLOAT_LAYOUT; case INT32 -> INT_LAYOUT;
+            case FLOAT64 -> DOUBLE_LAYOUT; case FLOAT32 -> FLOAT_LAYOUT;
+            case BFLOAT16 -> SHORT_LAYOUT; case INT32 -> INT_LAYOUT;
             case INT64 -> LONG_LAYOUT; case BOOL -> BYTE_LAYOUT;
             default -> throw new IllegalArgumentException("unsupported type");
         };
@@ -202,6 +207,7 @@ final class CpuCarrierEmitter {
         return switch (type) {
             case FLOAT64 -> java.lang.constant.ConstantDescs.CD_double;
             case FLOAT32 -> java.lang.constant.ConstantDescs.CD_float;
+            case BFLOAT16 -> java.lang.constant.ConstantDescs.CD_short;
             case INT32 -> java.lang.constant.ConstantDescs.CD_int;
             case INT64 -> java.lang.constant.ConstantDescs.CD_long;
             case BOOL -> java.lang.constant.ConstantDescs.CD_byte;

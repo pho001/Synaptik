@@ -118,6 +118,9 @@ public final class CpuPartitionFinalizer implements BackendPartitionFinalizer<Cp
                 plan.accessBindings(), plan.carrierPattern(), plan.generatedCarrierPattern(),
                 0, plan.elementCount(),
                 plan.selectedRangeCount(), plan.minimumElementsPerWorker(), selectedWorkers,
-                plan.materialization(), Optional.ofNullable(workspaceSelection));
+                plan.materialization(), Optional.ofNullable(workspaceSelection),
+                plan.units().getFirst().portablePlan().portableKernelIr()
+                        instanceof io.github.pho001.synaptik.backend.cpu.internal.ir.CpuAffineCopyIr
+                        ? plan.affineAddressPairs() : null);
     }
 }

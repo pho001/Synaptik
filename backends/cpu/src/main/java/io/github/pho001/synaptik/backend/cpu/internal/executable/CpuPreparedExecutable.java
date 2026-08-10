@@ -30,6 +30,9 @@ import java.util.Optional;
  * retains the original read-only source for one canonical copy and substitutes the workspace
  * segment only in the generated consumer arguments. Execution completes that copy on the invoking
  * thread before any inline or worker consumer call begins.
+ * For an affine plan, cold binding additionally validates the exact two boundary carriers and
+ * represented address spans, rejects source/result overlap, and retains the composed address
+ * pairs directly. Runtime invokes only the prepared range and never interprets the view chain.
  */
 public final class CpuPreparedExecutable extends PreparedExecutable {
     private final CpuGeneratedKernel artifact;
@@ -43,6 +46,8 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
     private final CpuWorkerGroup workerGroup;
     private final Optional<CpuMaterializationPlan> materialization;
     private final Optional<WorkspaceSelection> workspaceSelection;
+    private final boolean affineCopy;
+    private final long[] affineAddressPairs;
 
     /**
      * Creates a direct derived-boundary recipe for one exact half-open logical range.
@@ -122,7 +127,7 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
             Optional<WorkspaceSelection> workspaceSelection) {
         this(memoryPlan, selections, artifact, bindings, carrierPattern, carrierPattern, start, end,
                 selectedRangeCount, minimumElementsPerWorker, workerGroup, materialization,
-                workspaceSelection);
+                workspaceSelection, null);
     }
 
     /**
@@ -155,6 +160,44 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
             long minimumElementsPerWorker, CpuWorkerGroup workerGroup,
             Optional<CpuMaterializationPlan> materialization,
             Optional<WorkspaceSelection> workspaceSelection) {
+        this(memoryPlan, selections, artifact, bindings, carrierPattern, generatedCarrierPattern,
+                start, end, selectedRangeCount, minimumElementsPerWorker, workerGroup,
+                materialization, workspaceSelection, null);
+    }
+
+    /**
+     * Creates the complete recipe, optionally with cold-composed affine address pairs.
+     *
+     * @param memoryPlan non-null exact plan against which selections are resolved
+     * @param selections non-null ordered boundary selections; copied by the superclass
+     * @param artifact non-null generated artifact matching {@code generatedCarrierPattern}
+     * @param bindings non-null full-range boundary bindings; copied defensively
+     * @param carrierPattern non-null ordered Runtime carrier pattern; copied defensively
+     * @param generatedCarrierPattern non-null ordered generated-entry carrier pattern; copied
+     *     defensively
+     * @param start non-negative inclusive logical or distinct-address bound
+     * @param end exclusive bound no greater than the prepared copy or computation count
+     * @param selectedRangeCount positive maximum chunk count selected during analysis
+     * @param minimumElementsPerWorker positive minimum elements per submitted worker chunk
+     * @param workerGroup borrowed open group for a parallel recipe, or {@code null} for a
+     *     single-thread recipe; never closed by this executable
+     * @param materialization non-null optional pointwise contiguous-input copy plan
+     * @param workspaceSelection non-null optional workspace selection, present exactly with
+     *     {@code materialization}
+     * @param affineAddressPairs alternating source/result element addresses for an affine copy,
+     *     or {@code null} for pointwise execution; copied defensively
+     * @throws NullPointerException if a required reference is {@code null}
+     * @throws IllegalArgumentException if selections, bindings, carrier patterns, ranges,
+     *     parallel facts, materialization, workspace, or affine address geometry disagree
+     * @throws ArithmeticException if affine range validation overflows
+     */
+    public CpuPreparedExecutable(PreparedMemoryPlan memoryPlan, List<BufferSelection> selections,
+            CpuGeneratedKernel artifact, List<CpuAccessPlan.Binding> bindings,
+            List<CarrierAccess> carrierPattern, List<CarrierAccess> generatedCarrierPattern,
+            long start, long end, int selectedRangeCount,
+            long minimumElementsPerWorker, CpuWorkerGroup workerGroup,
+            Optional<CpuMaterializationPlan> materialization,
+            Optional<WorkspaceSelection> workspaceSelection, long[] affineAddressPairs) {
         super(memoryPlan, selections, workspaceSelection.map(List::of).orElseGet(List::of),
                 accesses(selections.size()));
         if (selections.size() < 2) throw new IllegalArgumentException("at least two buffers required");
@@ -181,6 +224,12 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
         this.workerGroup = workerGroup;
         this.materialization = Objects.requireNonNull(materialization, "materialization");
         this.workspaceSelection = Objects.requireNonNull(workspaceSelection, "workspaceSelection");
+        this.affineCopy = affineAddressPairs != null;
+        this.affineAddressPairs = affineAddressPairs == null ? new long[0] : affineAddressPairs.clone();
+        if (affineCopy && (this.affineAddressPairs.length % 2 != 0
+                || this.affineAddressPairs.length < Math.multiplyExact(end, 2))) {
+            throw new IllegalArgumentException("affine address pairs must cover the selected copy range");
+        }
         if (materialization.isPresent() != workspaceSelection.isPresent()) {
             throw new IllegalArgumentException("materialization and workspace selection must agree");
         }
@@ -231,7 +280,7 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
         return new CpuPreparedExecutable(memoryPlan(), selections, artifact, bindings,
                 carrierPattern, generatedCarrierPattern, rangeStart, rangeEnd, selectedRangeCount,
                 minimumElementsPerWorker, workerGroup, materialization,
-                workspaceSelection);
+                workspaceSelection, affineCopy ? affineAddressPairs : null);
     }
 
     private CpuAccessPlan.Binding ranged(CpuAccessPlan.Binding source) {
@@ -286,8 +335,12 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
             CpuAccessPlan.Binding inputBinding = materialization.isPresent()
                     && materialization.orElseThrow().sourceBoundaryIndex() == input
                     ? materialization.orElseThrow().sourceBinding() : bindings.get(input);
-            if (overlaps(arguments.get(input), ranged(inputBinding),
-                    arguments.get(outputIndex), ranged(bindings.get(outputIndex)))) {
+            boolean overlap = affineCopy
+                    ? affineOverlaps(arguments.get(input), arguments.get(outputIndex), input,
+                            outputIndex)
+                    : overlaps(arguments.get(input), ranged(inputBinding),
+                            arguments.get(outputIndex), ranged(bindings.get(outputIndex)));
+            if (overlap) {
                 throw new IllegalArgumentException("output accessed span must not overlap an input");
             }
         }
@@ -390,6 +443,18 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
     }
 
     private long[] geometry(List<CpuBufferArgument> arguments, long rangeStart, long rangeEnd) {
+        if (affineCopy) {
+            long[] geometry = affineAddressPairs.clone();
+            int sourceWidth = dataType(arguments.get(0)).byteWidth();
+            int resultWidth = dataType(arguments.get(1)).byteWidth();
+            long sourceBase = arguments.get(0).byteOffset() / sourceWidth;
+            long resultBase = arguments.get(1).byteOffset() / resultWidth;
+            for (int index = 0; index < geometry.length; index += 2) {
+                geometry[index] = Math.addExact(geometry[index], sourceBase);
+                geometry[index + 1] = Math.addExact(geometry[index + 1], resultBase);
+            }
+            return geometry;
+        }
         int rank = bindings.getFirst().plan().iterationRank();
         int boundaryCount = bindings.size();
         long[] geometry = new long[2 * rank + boundaryCount + boundaryCount * rank
@@ -441,6 +506,30 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
         return leftStart < rightEnd && rightStart < leftEnd;
     }
 
+    private boolean affineOverlaps(CpuBufferArgument left, CpuBufferArgument right,
+            int leftIndex, int rightIndex) {
+        Object leftCarrier = carrier(left), rightCarrier = carrier(right);
+        if (leftCarrier instanceof MemorySegment a && rightCarrier instanceof MemorySegment b
+                && a.asOverlappingSlice(b).isEmpty()) return false;
+        if (leftCarrier != rightCarrier && !(leftCarrier instanceof MemorySegment
+                && rightCarrier instanceof MemorySegment)) return false;
+        int width = artifact.specialization().boundaryDataTypes().get(leftIndex).byteWidth();
+        long leftBase = carrierBase(left), rightBase = carrierBase(right);
+        var addresses = new java.util.HashSet<Long>();
+        for (long logical = start; logical < end; logical++) {
+            int pair = Math.toIntExact(Math.multiplyExact(logical, 2));
+            long element = leftIndex == 0 ? affineAddressPairs[pair] : affineAddressPairs[pair + 1];
+            addresses.add(Math.addExact(leftBase, Math.multiplyExact(element, width)));
+        }
+        for (long logical = start; logical < end; logical++) {
+            int pair = Math.toIntExact(Math.multiplyExact(logical, 2));
+            long element = rightIndex == 0 ? affineAddressPairs[pair] : affineAddressPairs[pair + 1];
+            if (addresses.contains(Math.addExact(rightBase, Math.multiplyExact(element, width))))
+                return true;
+        }
+        return false;
+    }
+
     private static long carrierBase(CpuBufferArgument argument) {
         return argument instanceof CpuBufferArgument.Segment segment
                 ? segment.segment().address() : argument.byteOffset();
@@ -464,6 +553,7 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
     private static Object carrier(CpuBufferArgument argument) {
         if (argument instanceof CpuBufferArgument.Doubles value) return value.carrier();
         if (argument instanceof CpuBufferArgument.Floats value) return value.carrier();
+        if (argument instanceof CpuBufferArgument.Shorts value) return value.carrier();
         if (argument instanceof CpuBufferArgument.Ints value) return value.carrier();
         if (argument instanceof CpuBufferArgument.Longs value) return value.carrier();
         if (argument instanceof CpuBufferArgument.Bytes value) return value.carrier();
@@ -481,6 +571,7 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
     private static CarrierAccess carrierAccess(CpuBufferArgument argument) {
         if (argument instanceof CpuBufferArgument.Doubles) return CarrierAccess.DOUBLE_ARRAY;
         if (argument instanceof CpuBufferArgument.Floats) return CarrierAccess.FLOAT_ARRAY;
+        if (argument instanceof CpuBufferArgument.Shorts) return CarrierAccess.SHORT_ARRAY;
         if (argument instanceof CpuBufferArgument.Ints) return CarrierAccess.INT_ARRAY;
         if (argument instanceof CpuBufferArgument.Longs) return CarrierAccess.LONG_ARRAY;
         if (argument instanceof CpuBufferArgument.Bytes) return CarrierAccess.BYTE_ARRAY;
@@ -491,6 +582,7 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
             CpuBufferArgument argument) {
         if (argument instanceof CpuBufferArgument.Doubles) return io.github.pho001.synaptik.model.datatype.DataType.FLOAT64;
         if (argument instanceof CpuBufferArgument.Floats) return io.github.pho001.synaptik.model.datatype.DataType.FLOAT32;
+        if (argument instanceof CpuBufferArgument.Shorts) return io.github.pho001.synaptik.model.datatype.DataType.BFLOAT16;
         if (argument instanceof CpuBufferArgument.Ints) return io.github.pho001.synaptik.model.datatype.DataType.INT32;
         if (argument instanceof CpuBufferArgument.Longs) return io.github.pho001.synaptik.model.datatype.DataType.INT64;
         if (argument instanceof CpuBufferArgument.Bytes) return io.github.pho001.synaptik.model.datatype.DataType.BOOL;
@@ -502,6 +594,16 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
         for (int index = 0; index < output; index++) {
             if (artifact.specialization().boundaryDataTypes().get(index)
                     != io.github.pho001.synaptik.model.datatype.DataType.BOOL) continue;
+            if (affineCopy) {
+                for (long logical = start; logical < end; logical++) {
+                    int pair = Math.toIntExact(Math.multiplyExact(logical, 2));
+                    long address = affineAddressPairs[pair];
+                    byte value = readByte(arguments.get(index), address);
+                    if (value != 0 && value != 1) throw new IllegalArgumentException(
+                            "BOOL condition must use canonical bytes");
+                }
+                continue;
+            }
             CpuAccessPlan.Binding binding = ranged(bindings.get(index));
             long[] extents = binding.extents().stream().mapToLong(Long::longValue).toArray();
             long[] strides = binding.effectiveStrides().stream().mapToLong(Long::longValue).toArray();

@@ -1,7 +1,7 @@
 /**
- * Defines the unsupported, route-independent canonical CPU kernel intermediate representation.
+ * Defines the unsupported, route-independent canonical CPU portable-kernel representations.
  *
- * <p>The representation records typed boundary and virtual values, one forty-eight-opcode
+ * <p>The pointwise representation records typed boundary and virtual values, one forty-eight-opcode
  * family-oriented pointwise vocabulary, exact typed scalar and two-bound clamp bits, the selected
  * scalar-power realization where applicable, all nineteen distinct same-typed floating unary
  * semantics, ordered computation, and the boundary-versus-virtual role of canonical BOOL values
@@ -15,7 +15,14 @@
  * generated artifact, while its concrete extent, source binding, workspace, and cost evidence
  * remain instance facts outside canonical identity.
  *
- * <p>Lowering creates this cold immutable model. Portable code generation and the scalar reference
- * realization may consume its established semantics, but Runtime never receives or interprets it.
+ * <p>The affine representation records one static one-source/one-result represented-bit copy,
+ * its ordered structural mapping steps, exact read/write access forms, and whether iteration uses
+ * logical elements or a deduplicated distinct-address write domain. Concrete composed addresses
+ * remain cold plan facts. Internal view values remain graph and logical-memory values but do not
+ * become affine IR instructions, stores, declarations, or Runtime slots.
+ *
+ * <p>Lowering creates these cold immutable models. Portable code generation and the scalar
+ * reference realization may consume their established semantics, but Runtime never receives or
+ * interprets them.
  */
 package io.github.pho001.synaptik.backend.cpu.internal.ir;

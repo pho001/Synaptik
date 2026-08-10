@@ -53,15 +53,19 @@ similarly create [`BoundBufferTransfer`](#bound-buffer-transfer--boundbuffertran
 current [`PreparedPublication`](#prepared-publication--preparedpublication) recipes create
 [`BoundPublication`](#bound-publication--boundpublication) occurrences, and current
 [`RunResult`](#run-result--runresult) leases complete states. The CPU backend supplies concrete
-borrowed and run-owned native buffer representations plus one bounded fully static pointwise
-route. Its forty-eight-opcode vocabulary includes same-typed binary/scalar extrema, floating
+borrowed and run-owned native buffer representations plus bounded fully static pointwise and
+affine-copy families. Its forty-eight-opcode pointwise vocabulary includes same-typed binary/scalar extrema, floating
 Tensor/Tensor DIV and POW, Tensor/scalar DIV and POW, first-class floating range CLAMP,
 canonical-BOOL AND/OR/NOT, all nineteen FLOAT32/FLOAT64 unary kinds, and three separate floating
 classifications, while its normalized access plans cover resolved
 right-broadcastable scalar/rank/singleton/multi-axis inputs, zero extents, offsets, positive and
 broadcast-zero strides, injective output layouts, and derived heap/segment carrier patterns.
-Connected chains contain one through eight occurrences, keep single-use intermediates virtual,
-and produce one final store. Preferred-species vector execution covers selected FLOAT32/FLOAT64
+Connected pointwise chains contain one through eight occurrences, keep single-use intermediates
+virtual, and produce one final store. The affine family composes one-through-eight resolved-layout
+CONTIGUOUS, RESHAPE, EXPAND, PERMUTE, EXPAND_DIMS, SQUEEZE, SELECT, or positive-step SLICE
+occurrences into one represented-bit source/result boundary copy. It accepts all six data types;
+BFLOAT16 remains opaque two-byte movement rather than numerical execution. Preferred-species
+vector execution covers selected FLOAT32/FLOAT64
 value rows, INT32/INT64 arithmetic and extrema, canonical BOOL logic, and virtual floating
 predicate masks through logical masks into WHERE. Other operation topologies, types, strategies,
 and routes fail closed. The earlier per-node ADD/worker pipeline is Superseded historical evidence rather than
@@ -998,9 +1002,16 @@ floating extrema/clamp/ReLU/sign/cast, signed-integral arithmetic/extrema/cast, 
 logic/cast, and virtual floating-mask-to-WHERE vector rows; every other admitted row or ineligible
 access pattern retains deterministic scalar or parallel-scalar fallback.
 
-Cross-type cast, BFLOAT16/FLOAT16 execution, relaxed math, native/vendor realization, and other
-operation families are not part of this route increment. General partition-DAG decomposition and
-bounded vertical/horizontal fusion remain Draft CPU 0008A work.
+Completed CPU 0006 adds one static resolved-layout affine-copy family through the same portable
+route. It composes bounded straight-line view chains during cold analysis, keeps eligible internal
+views virtual, and materializes only the final boundary through scalar or parallel-scalar
+represented-bit copying. Its seventh carrier form, `SHORT_ARRAY`, is limited to raw BFLOAT16
+movement and does not add BFLOAT16 arithmetic, conversion, numerical meaning, or vector support.
+
+Cross-type cast, BFLOAT16/FLOAT16 numerical execution, relaxed math, native/vendor realization,
+non-affine/index/scatter/order/random families, and dynamic layouts are not part of this route
+increment. General partition-DAG decomposition and bounded vertical/horizontal fusion remain Draft
+CPU 0008A work.
 
 OpenBLAS is not another meaning of portable route. It is a narrow cross-platform native fallback
 for eligible BLAS-compatible linear algebra. It is neither a universal fallback nor preferred over
@@ -1033,8 +1044,9 @@ generation library or builder API used by the current implementation.
 The current package-private implementation uses the Java 26 Class-File API to emit and verify one
 static typed entry method for the specialization's exact ordered primitive-array or
 `MemorySegment` pattern, defines the result as a hidden nestmate class, and retains its exact
-method handle. FLOAT64, FLOAT32, INT32, INT64, and BOOL heap boundaries use `double[]`, `float[]`,
-`int[]`, `long[]`, and canonical `byte[]`. The
+method handle. FLOAT64, FLOAT32, BFLOAT16, INT32, INT64, and BOOL heap boundaries use `double[]`,
+`float[]`, opaque `short[]`, `int[]`, `long[]`, and canonical `byte[]` respectively when their
+family admits that type. The
 Class-File API and Java Vector API are CPU-internal implementation choices, not architecture
 invariants. The production kernel executes one admitted bounded pointwise chain with one generated
 scalar or exactly eligible typed preferred-species vector body. Floating bodies may retain
@@ -1049,16 +1061,22 @@ GELU approximations. Class/loop/carrier/store/tail generation remains in the cla
 When analysis selects one FLOAT64 contiguous input copy, the generated body consumes the adjusted
 dense segment at that original boundary position; FLOAT32 vector parity does not broaden this
 materialization policy. The static entry retains the lowering-derived boundary count.
+An affine-copy class instead has exactly two typed carriers plus one cold-composed address table
+and primitive `start`/`end` bounds. It transfers one payload per pair with scalar instructions;
+parallel orchestration remains outside the class, and no Shape, layout, mapping, or vector
+decision occurs in the generated loop.
 
 ### CPU kernel specialization
 
 The implemented backend-private immutable description of every fact allowed to change one
-generated CPU class. The current form includes schema 10, the canonical lowering fingerprint with
+generated CPU class. The current form includes schema 11, the canonical lowering fingerprint with
 typed opcode sequence, exact scalar-immediate bits, exact ordered clamp-bound bits, and selected
 scalar-power realizations, exact/default numerical mode, generated
 scalar/vector compute form, exact preferred FLOAT32, FLOAT64, INT32, INT64, or BOOL species bit
 size for vector compute,
-and the complete ordered boundary data-type/carrier pattern. The homogeneous boundary types
+and the complete ordered boundary data-type/carrier pattern. Schema 11 also distinguishes the
+pointwise or affine IR family, affine mapping topology, logical-element or distinct-address write
+domain, and the seventh opaque BFLOAT16 `SHORT_ARRAY` carrier. The homogeneous boundary types
 distinguish FLOAT32 from FLOAT64; no second lane-type field is retained.
 The direct-versus-materialized input position and adjusted canonical consumer access form are also
 structural when present.
@@ -1087,9 +1105,10 @@ Keeping the artifact reachable keeps its hidden-class state reachable, without p
 unreferenced class unloads. Direct generator calls produce equal class bytes but distinct hidden
 classes and artifact identities. The current durable generated-kernel artifact store may instead
 reuse compatible class bytes and weakly intern one loaded artifact while it remains live. The
-artifact is not by itself a prepared route. Current schema-10 artifacts execute the admitted
-bounded forty-eight-opcode pointwise chains across the implemented normalized access regimes and
-carrier patterns. Schema 9 and older artifacts are incompatible misses with no migration reader.
+artifact is not by itself a prepared route. Current schema-11 artifacts execute either admitted
+bounded forty-eight-opcode pointwise chains or one static affine represented-bit copy across the
+implemented carrier patterns. Schema 10 and older artifacts are incompatible misses with no
+migration reader.
 
 ### CPU generated-kernel artifact store
 
@@ -1185,8 +1204,9 @@ concrete Draft tasks.
 
 ### CPU kernel intermediate representation
 
-The immutable CPU-private loop-oriented representation of one CPU execution
-unit. Its route-independent canonical form records typed boundary and virtual values, one
+The immutable CPU-private portable representation of one CPU execution unit. The sealed family
+contains the established pointwise form and the static affine-copy form. The pointwise route-
+independent canonical form records typed boundary and virtual values, one
 forty-eight-opcode family-oriented pointwise vocabulary, exact typed scalar-immediate and ordered
 two-bound clamp bits, selected scalar-power realizations, ordered computation semantics,
 normalized access-plan form,
@@ -1203,13 +1223,19 @@ facts. Instance extents, offsets, carriers, slots, and segments participate in n
 fixed-shape or unrolled variant may add extents only as an explicit evidence-selected specialization
 under a class-count budget.
 
-This is backend-internal state, not another Model, Compiler, Planning, Prepare, or Runtime
-IR.
+The affine form records the copied data type, exact structural read/write access forms, ordered
+view-mapping kinds and ranks, and the logical-element or distinct-address write domain. Cold
+lowering separately retains the exact composed source/result addresses. It contains no operation,
+graph identity, concrete carrier, slot, address, worker, or Runtime state. Encoding it for the
+current generator produces two boundary values, no computation instructions, one loop, and one
+ordered store.
+
+This is backend-internal state, not another Model, Compiler, Planning, Prepare, or Runtime IR.
 
 ### CPU access plan
 
-The implemented normalized per-value address description shared by the current bounded fused CPU
-pointwise unit. CPU 0005B right-aligns rank and separates the
+The implemented normalized per-value address description shared by the current bounded CPU
+pointwise and affine units. CPU 0005B right-aligns pointwise rank and separates the
 structural regime/axis pattern used by generated-class identity from cold concrete extents, base
 element offset, effective `long` strides, exact carrier objects, slots, and addresses. Different
 inputs and the output of one fused unit may have different plans. The plan consumes current Model
@@ -1254,6 +1280,12 @@ and the exact half-open accessed span for their selected logical range. Output n
 a complete bounded static injectivity decision: interleaved positive strides are accepted when
 distinct coordinates remain distinct, while actual repeated writes are rejected. Declaration
 geometry remains each layout's referenced span, not the iteration element count.
+
+Static affine lowering also derives a compact structural read/write plan over its cold-composed
+address pairs. Exact source and final-result declaration geometry remains the respective resolved
+layout's referenced span, including offsets, holes, positive strides, and zero strides. A
+non-injective result uses a deduplicated distinct-address domain only when every repeated logical
+coordinate selects the same represented source value.
 
 Current Prepare has no exact dynamic binding and rejects non-static projected shapes. CPU
 therefore fails closed for dynamic or symbolic dimensions. Supporting them requires a future
@@ -1343,12 +1375,34 @@ machine code/profile and from the future workload tuning cache of route/configur
 Deterministic structural identity and prepared-execution strong artifact ownership remain
 mandatory, and there is no reader for earlier schemas.
 
+### CPU affine boundary copy
+
+The implemented CPU-private materialization of one bounded static resolved-layout affine view
+chain. Analysis composes one through eight admitted one-input/one-output occurrences into exact
+source/result element-address pairs. Eligible internal results remain graph and logical-memory
+values without CPU declarations or Runtime slots. The final result always has a distinct declared
+buffer because current shared preparation has no cross-value alias assignment.
+
+The copy preserves represented bits for all six current Model data types. FLOAT64/FLOAT32 NaN
+payloads and signed zeros, raw BFLOAT16 16-bit payloads, signed integral patterns, and canonical
+BOOL bytes are transferred without conversion or arithmetic. An injective result has one pair per
+logical coordinate; a zero-stride/non-injective result has one pair per distinct address after
+lowering proves repeated coordinates agree. Scalar results have one pair and zero-element results
+have none.
+
+This term does not mean that Model view construction attaches shared storage. It does not include
+dynamic layouts, BFLOAT16 numerical behavior, Vector API affine access, non-affine movement,
+index-tensor work, scatter/fold, ordering, random generation, general partition-DAG fusion, or a
+performance claim.
+
 ### CPU virtual intermediate
 
 A graph value whose producer and every consumer are inside one fused CPU execution unit and which
 has no publication or other unit/partition boundary obligation. It remains present in the
-compiled graph, `LogicalMemoryPlan`, and CPU kernel IR, but CPU analysis emits no buffer
-declaration for it, so shared Prepare assigns no physical slot.
+compiled graph and `LogicalMemoryPlan`, but CPU analysis emits no buffer declaration for it, so
+shared Prepare assigns no physical slot. A pointwise virtual remains a typed IR value; an affine
+view intermediate is folded into the composed mapping and has no computation instruction, store,
+or affine boundary of its own.
 
 Virtuality is decided only by CPU analysis after legal fusion. Shared Prepare does not infer it or
 require one buffer per projected value. A fan-out, publication, cross-partition consumer, or
@@ -2344,6 +2398,11 @@ The current CPU proving slice also implements one backend-private workspace mate
 copies one selected input into a CPU-owned run workspace before the generated consumer, without
 creating another graph value or Runtime transfer recipe. See [CPU contiguous materialization
 plan](#cpu-contiguous-materialization-plan).
+
+The CPU affine family performs a different boundary materialization: after folding eligible
+same-unit view intermediates, it copies the original source's represented bits into the final
+result's distinct declared buffer according to both resolved layouts. It allocates no optional
+workspace and creates no shared alias. See [CPU affine boundary copy](#cpu-affine-boundary-copy).
 
 ### Linear projection
 

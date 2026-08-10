@@ -5,7 +5,9 @@ import io.github.pho001.synaptik.backend.cpu.internal.memory.CpuBufferArgument;
 import java.lang.foreign.ValueLayout;
 import java.nio.ByteOrder;
 import java.util.List;
+import java.util.Objects;
 import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuKernelIr;
+import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuAffineCopyIr;
 import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuPointwiseOpcode;
 import io.github.pho001.synaptik.model.datatype.DataType;
 
@@ -226,6 +228,33 @@ public final class CpuScalarReferenceKernel {
         }
     }
 
+    /**
+     * Executes one cold-composed represented-bit affine address sequence for differential tests.
+     *
+     * @param ir non-null affine copy contract supplying the represented data type
+     * @param addressPairs non-null alternating source and result element addresses
+     * @param arguments non-null ordered source and writable result arguments
+     * @param start non-negative inclusive address-pair index
+     * @param end exclusive address-pair index no greater than the available pair count
+     * @throws NullPointerException if {@code ir} or {@code addressPairs} is {@code null}
+     * @throws IllegalArgumentException if the argument count, pair table, or range is invalid
+     * @throws ArithmeticException if a requested pair index cannot be represented safely
+     */
+    public static void execute(CpuAffineCopyIr ir, long[] addressPairs,
+            List<CpuBufferArgument> arguments, long start, long end) {
+        Objects.requireNonNull(ir, "ir");
+        Objects.requireNonNull(addressPairs, "addressPairs");
+        if (arguments.size() != 2 || addressPairs.length % 2 != 0 || start < 0 || end < start
+                || end > addressPairs.length / 2) {
+            throw new IllegalArgumentException("invalid affine reference boundaries or range");
+        }
+        for (long index = start; index < end; index++) {
+            int pair = Math.toIntExact(Math.multiplyExact(index, 2));
+            Object represented = load(arguments.get(0), ir.dataType(), addressPairs[pair]);
+            store(arguments.get(1), ir.dataType(), addressPairs[pair + 1], represented);
+        }
+    }
+
     private static Object evaluate(CpuKernelIr ir, CpuKernelIr.Instruction instruction,
             Object[] values) {
         DataType type = ir.values().get(instruction.inputs().getFirst()).dataType();
@@ -435,6 +464,7 @@ public final class CpuScalarReferenceKernel {
         long base = argument.byteOffset() / type.byteWidth() + address;
         if (argument instanceof CpuBufferArgument.Doubles value) return value.carrier()[Math.toIntExact(base)];
         if (argument instanceof CpuBufferArgument.Floats value) return value.carrier()[Math.toIntExact(base)];
+        if (argument instanceof CpuBufferArgument.Shorts value) return value.carrier()[Math.toIntExact(base)];
         if (argument instanceof CpuBufferArgument.Ints value) return value.carrier()[Math.toIntExact(base)];
         if (argument instanceof CpuBufferArgument.Longs value) return value.carrier()[Math.toIntExact(base)];
         if (argument instanceof CpuBufferArgument.Bytes value) return value.carrier()[Math.toIntExact(base)];
@@ -443,6 +473,7 @@ public final class CpuScalarReferenceKernel {
         return switch (type) {
             case FLOAT64 -> segment.get(ValueLayout.JAVA_DOUBLE_UNALIGNED.withOrder(ByteOrder.nativeOrder()), offset);
             case FLOAT32 -> segment.get(ValueLayout.JAVA_FLOAT_UNALIGNED.withOrder(ByteOrder.nativeOrder()), offset);
+            case BFLOAT16 -> segment.get(ValueLayout.JAVA_SHORT_UNALIGNED.withOrder(ByteOrder.nativeOrder()), offset);
             case INT32 -> segment.get(ValueLayout.JAVA_INT_UNALIGNED.withOrder(ByteOrder.nativeOrder()), offset);
             case INT64 -> segment.get(ValueLayout.JAVA_LONG_UNALIGNED.withOrder(ByteOrder.nativeOrder()), offset);
             case BOOL -> segment.get(ValueLayout.JAVA_BYTE, offset);
@@ -461,6 +492,7 @@ public final class CpuScalarReferenceKernel {
         long base = argument.byteOffset() / type.byteWidth() + address;
         if (argument instanceof CpuBufferArgument.Doubles value) value.carrier()[Math.toIntExact(base)] = (double) stored;
         else if (argument instanceof CpuBufferArgument.Floats value) value.carrier()[Math.toIntExact(base)] = (float) stored;
+        else if (argument instanceof CpuBufferArgument.Shorts value) value.carrier()[Math.toIntExact(base)] = (short) stored;
         else if (argument instanceof CpuBufferArgument.Ints value) value.carrier()[Math.toIntExact(base)] = (int) stored;
         else if (argument instanceof CpuBufferArgument.Longs value) value.carrier()[Math.toIntExact(base)] = (long) stored;
         else if (argument instanceof CpuBufferArgument.Bytes value) value.carrier()[Math.toIntExact(base)] = (byte) stored;
@@ -470,6 +502,7 @@ public final class CpuScalarReferenceKernel {
             switch (type) {
                 case FLOAT64 -> segment.set(ValueLayout.JAVA_DOUBLE_UNALIGNED.withOrder(ByteOrder.nativeOrder()), offset, (double) stored);
                 case FLOAT32 -> segment.set(ValueLayout.JAVA_FLOAT_UNALIGNED.withOrder(ByteOrder.nativeOrder()), offset, (float) stored);
+                case BFLOAT16 -> segment.set(ValueLayout.JAVA_SHORT_UNALIGNED.withOrder(ByteOrder.nativeOrder()), offset, (short) stored);
                 case INT32 -> segment.set(ValueLayout.JAVA_INT_UNALIGNED.withOrder(ByteOrder.nativeOrder()), offset, (int) stored);
                 case INT64 -> segment.set(ValueLayout.JAVA_LONG_UNALIGNED.withOrder(ByteOrder.nativeOrder()), offset, (long) stored);
                 case BOOL -> segment.set(ValueLayout.JAVA_BYTE, offset, (byte) stored);
