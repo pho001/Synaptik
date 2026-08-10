@@ -24,6 +24,10 @@
  * owned immutable artifact state.
  * The affine body reads one cold-composed source/result address pair per iteration and performs
  * no conversion, numerical operation, Shape/layout interpretation, allocation, or vector access.
+ * A separate movement emitter consumes compact cold geometry for one static PAD, TILE, CONCAT,
+ * or STACK occurrence and emits a direct represented-bit scalar loop. It uses coordinate
+ * carry/reset state for arbitrary ranges and tiling, performs no per-element division or modulo,
+ * and preserves repeated composition occurrences without duplicating boundary carriers.
  *
  * <p>Generation and verification are cold-path operations. Only the resolved static entry handle
  * executes on the Runtime hot path. Parallel plans reuse that direct scalar or vector entry for

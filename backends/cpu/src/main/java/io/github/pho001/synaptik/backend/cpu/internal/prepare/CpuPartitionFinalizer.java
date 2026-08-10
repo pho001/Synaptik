@@ -121,6 +121,7 @@ public final class CpuPartitionFinalizer implements BackendPartitionFinalizer<Cp
                 plan.materialization(), Optional.ofNullable(workspaceSelection),
                 plan.units().getFirst().portablePlan().portableKernelIr()
                         instanceof io.github.pho001.synaptik.backend.cpu.internal.ir.CpuAffineCopyIr
-                        ? plan.affineAddressPairs() : null);
+                        ? plan.affineAddressPairs() : null,
+                plan.movementGeometry());
     }
 }

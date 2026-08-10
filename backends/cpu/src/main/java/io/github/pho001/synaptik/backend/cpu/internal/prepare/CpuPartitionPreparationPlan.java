@@ -11,6 +11,7 @@ import java.util.Objects;
 import java.util.Optional;
 import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuMaterializationPlan;
 import io.github.pho001.synaptik.backend.cpu.internal.cache.CpuSpecializationBudget;
+import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuNonAffineMovementLowering;
 
 /**
  * Route-neutral immutable selected CPU partition plan.
@@ -40,6 +41,7 @@ import io.github.pho001.synaptik.backend.cpu.internal.cache.CpuSpecializationBud
  * @param workspaceDeclaration non-null optional exact workspace declaration; present exactly when
  *     {@code materialization} is present
  * @param specializationBudget non-null enforced candidate/artifact/shape/unroll ceiling
+ * @param movementGeometry non-null optional compact cold non-affine movement geometry
  */
 public record CpuPartitionPreparationPlan(List<ExecutionUnitPlan> units, Route route,
         ExecutionStrategy executionStrategy,
@@ -50,8 +52,52 @@ public record CpuPartitionPreparationPlan(List<ExecutionUnitPlan> units, Route r
         int selectedRangeCount, long minimumElementsPerWorker, int vectorSpeciesBitSize,
         String loweringManifest, Optional<CpuMaterializationPlan> materialization,
         Optional<PreparationResourceRequirement.Workspace> workspaceDeclaration,
-        CpuSpecializationBudget specializationBudget)
+        CpuSpecializationBudget specializationBudget,
+        Optional<CpuNonAffineMovementLowering.Geometry> movementGeometry)
         implements BackendPreparationPlan {
+    /**
+     * Creates a pointwise or affine plan without non-affine movement geometry.
+     *
+     * @param units non-null computation units; copied defensively
+     * @param route non-null selected route
+     * @param executionStrategy non-null selected compute and orchestration strategy
+     * @param bufferDeclarations non-null exact post-fusion declarations; copied defensively
+     * @param boundaryValues non-null values in declaration order; copied defensively
+     * @param accessBindings non-null boundary access geometry; copied defensively
+     * @param carrierPattern non-null Runtime carrier forms; copied defensively
+     * @param generatedCarrierPattern non-null generated-entry carrier forms; copied defensively
+     * @param extents non-null compatible extents; copied defensively
+     * @param elementCount checked logical element count
+     * @param affineAddressPairs alternating affine source/result addresses, or an empty array for
+     *     pointwise execution; copied defensively
+     * @param selectedRangeCount positive selected maximum range count
+     * @param minimumElementsPerWorker positive minimum elements per worker chunk
+     * @param vectorSpeciesBitSize positive selected species size, or zero for scalar compute
+     * @param loweringManifest non-null optional cold diagnostic text
+     * @param materialization non-null optional contiguous-input copy fact
+     * @param workspaceDeclaration non-null optional workspace, present exactly with a selected
+     *     materialization
+     * @param specializationBudget non-null enforced specialization ceiling
+     * @throws NullPointerException if a required component or element is {@code null}
+     * @throws IllegalArgumentException if strategy, declarations, boundaries, carrier forms,
+     *     ranges, materialization, or specialization facts disagree
+     */
+    public CpuPartitionPreparationPlan(List<ExecutionUnitPlan> units, Route route,
+            ExecutionStrategy executionStrategy,
+            List<PreparationResourceRequirement.Buffer> bufferDeclarations,
+            List<ValueId> boundaryValues, List<CpuAccessPlan.Binding> accessBindings,
+            List<CarrierAccess> carrierPattern, List<CarrierAccess> generatedCarrierPattern,
+            long[] extents, long elementCount, long[] affineAddressPairs,
+            int selectedRangeCount, long minimumElementsPerWorker, int vectorSpeciesBitSize,
+            String loweringManifest, Optional<CpuMaterializationPlan> materialization,
+            Optional<PreparationResourceRequirement.Workspace> workspaceDeclaration,
+            CpuSpecializationBudget specializationBudget) {
+        this(units, route, executionStrategy, bufferDeclarations, boundaryValues, accessBindings,
+                carrierPattern, generatedCarrierPattern, extents, elementCount, affineAddressPairs,
+                selectedRangeCount, minimumElementsPerWorker, vectorSpeciesBitSize,
+                loweringManifest, materialization, workspaceDeclaration, specializationBudget,
+                Optional.empty());
+    }
     /**
      * One computation-oriented execution unit.
      *
@@ -160,6 +206,7 @@ public record CpuPartitionPreparationPlan(List<ExecutionUnitPlan> units, Route r
         materialization = Objects.requireNonNull(materialization, "materialization");
         workspaceDeclaration = Objects.requireNonNull(workspaceDeclaration, "workspaceDeclaration");
         Objects.requireNonNull(specializationBudget, "specializationBudget");
+        movementGeometry = Objects.requireNonNull(movementGeometry, "movementGeometry");
         if (units.size() != 1 || route != Route.PORTABLE
                 || bufferDeclarations.size() < 2
                 || boundaryValues.size() != bufferDeclarations.size()
@@ -170,9 +217,14 @@ public record CpuPartitionPreparationPlan(List<ExecutionUnitPlan> units, Route r
         }
         boolean affine = units.getFirst().portablePlan().portableKernelIr()
                 instanceof io.github.pho001.synaptik.backend.cpu.internal.ir.CpuAffineCopyIr;
+        boolean movement = units.getFirst().portablePlan().portableKernelIr()
+                instanceof io.github.pho001.synaptik.backend.cpu.internal.ir.CpuDataMovementIr;
         if (affine ? affineAddressPairs.length != Math.multiplyExact(elementCount, 2)
                 : affineAddressPairs.length != 0) {
             throw new IllegalArgumentException("affine address geometry must match the copy domain");
+        }
+        if (movement != movementGeometry.isPresent()) {
+            throw new IllegalArgumentException("movement IR and cold geometry must agree");
         }
         boolean vector = executionStrategy.compute() == ExecutionStrategy.Compute.VECTOR;
         boolean parallel = executionStrategy.orchestration() == ExecutionStrategy.Orchestration.PARALLEL;

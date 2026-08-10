@@ -1008,10 +1008,16 @@ views virtual, and materializes only the final boundary through scalar or parall
 represented-bit copying. Its seventh carrier form, `SHORT_ARRAY`, is limited to raw BFLOAT16
 movement and does not add BFLOAT16 arithmetic, conversion, numerical meaning, or vector support.
 
+Completed CPU 0006A adds exactly one fully static resolved-layout PAD, TILE, CONCAT, or STACK
+occurrence through compact movement IR and cold geometry. It preserves one through sixteen
+semantic composition occurrences while declaring repeated graph inputs once, requires one
+distinct injective output, copies represented bits for all six Model data types, and uses scalar
+or parallel-scalar execution. Vector preference falls back to scalar.
+
 Cross-type cast, BFLOAT16/FLOAT16 numerical execution, relaxed math, native/vendor realization,
-non-affine/index/scatter/order/random families, and dynamic layouts are not part of this route
-increment. General partition-DAG decomposition and bounded vertical/horizontal fusion remain Draft
-CPU 0008A work.
+window/index/scatter/order/random families, functional updates, and dynamic layouts are not part
+of this route increment. General partition-DAG decomposition and bounded vertical/horizontal
+fusion remain Draft CPU 0008A work.
 
 OpenBLAS is not another meaning of portable route. It is a narrow cross-platform native fallback
 for eligible BLAS-compatible linear algebra. It is neither a universal fallback nor preferred over
@@ -1069,14 +1075,15 @@ decision occurs in the generated loop.
 ### CPU kernel specialization
 
 The implemented backend-private immutable description of every fact allowed to change one
-generated CPU class. The current form includes schema 11, the canonical lowering fingerprint with
+generated CPU class. The current form includes schema 12, the canonical lowering fingerprint with
 typed opcode sequence, exact scalar-immediate bits, exact ordered clamp-bound bits, and selected
 scalar-power realizations, exact/default numerical mode, generated
 scalar/vector compute form, exact preferred FLOAT32, FLOAT64, INT32, INT64, or BOOL species bit
 size for vector compute,
-and the complete ordered boundary data-type/carrier pattern. Schema 11 also distinguishes the
-pointwise or affine IR family, affine mapping topology, logical-element or distinct-address write
-domain, and the seventh opaque BFLOAT16 `SHORT_ARRAY` carrier. The homogeneous boundary types
+and the complete ordered boundary data-type/carrier pattern. Schema 12 also distinguishes the
+pointwise, affine, or movement IR family; affine mapping topology and write domain; movement
+family, rank, occurrence map, and exact padding bits; and the seventh opaque BFLOAT16
+`SHORT_ARRAY` carrier. The homogeneous boundary types
 distinguish FLOAT32 from FLOAT64; no second lane-type field is retained.
 The direct-versus-materialized input position and adjusted canonical consumer access form are also
 structural when present.
@@ -1105,10 +1112,10 @@ Keeping the artifact reachable keeps its hidden-class state reachable, without p
 unreferenced class unloads. Direct generator calls produce equal class bytes but distinct hidden
 classes and artifact identities. The current durable generated-kernel artifact store may instead
 reuse compatible class bytes and weakly intern one loaded artifact while it remains live. The
-artifact is not by itself a prepared route. Current schema-11 artifacts execute either admitted
-bounded forty-eight-opcode pointwise chains or one static affine represented-bit copy across the
-implemented carrier patterns. Schema 10 and older artifacts are incompatible misses with no
-migration reader.
+artifact is not by itself a prepared route. Current schema-12 artifacts execute admitted bounded
+forty-eight-opcode pointwise chains, one static affine represented-bit copy, or one static
+PAD/TILE/CONCAT/STACK movement across the implemented carrier patterns. Schema 11 and older
+artifacts are incompatible misses with no migration reader.
 
 ### CPU generated-kernel artifact store
 
@@ -1145,11 +1152,12 @@ IR and portable specialization, exact/default compute and orchestration strategy
 ordered boundary values and data-type/carrier pattern, normalized access bindings, exact per-boundary
 declarations, compatible extents/count, selected range count, positive minimum range size, exact
 vector species when applicable, optional selected materialization, original and adjusted generated
-carrier patterns, optional exact workspace declaration, specialization budget, and an optional
-cold lowering manifest.
+carrier patterns, optional exact workspace declaration, specialization budget, optional compact
+movement geometry, and an optional cold lowering manifest.
 
 CPU analysis validates that Planning selected CPU ownership, admits one connected straight-line
-chain of one through eight supported pointwise occurrences, derives every family-specific Model
+chain of one through eight supported pointwise occurrences or one exact static movement
+occurrence, derives every family-specific Model
 shape, normalizes resolved layouts, proves output write injectivity, derives external boundaries
 and virtual single-use results, and compares direct plus at most three eligible one-input copy
 candidates. It declares each boundary's referenced byte span and, when selected, appends workspace
@@ -1166,7 +1174,8 @@ more than eight occurrences.
 The implemented backend-private immutable Runtime recipe constructed by CPU finalization after
 shared slot assignment. `CpuPreparedExecutable` strongly retains the partition's one generated
 artifact and exact static `MethodHandle`, the lowering-derived selected buffers, full normalized geometry, ordered
-original/generated carrier patterns, optional materialization/workspace selection, one half-open
+original/generated carrier patterns, optional materialization/workspace selection, optional
+compact movement geometry, one half-open
 logical range, selected range bounds, and an optional borrowed CPU worker group. It owns no
 physical representation or worker close lifecycle and may bind
 concurrently to distinct open `RunState` instances.
@@ -1180,11 +1189,13 @@ signature-specific `BoundInvocation` with direct typed fields and primitive addr
 argument classification, artifact access, reflection, handle adaptation, route selection, or
 allocation. A selected copy reads the original source into the contiguous workspace once on the
 invoking thread before any consumer chunk; copy failure prevents consumer execution. A bound
-partition invocation performs the Runtime state guard. It invokes one range inline or
+partition invocation performs the Runtime state guard. Movement binding packs the current
+range-start coordinate, carrier bases, strides, and compact family facts without a per-element
+table. It invokes one range inline or
 synchronously joins deterministic disjoint chunks through the borrowed group; generated code
-performs no scheduling. The current production family establishes only the admitted bounded
-pointwise matrix; it makes no Tensor-result, gradient, compiler, conformance, integration, or
-performance claim.
+performs no scheduling. The current production families establish only the admitted bounded
+pointwise, affine, and movement matrices; they make no Tensor-result, gradient, compiler,
+conformance, integration, or performance claim.
 
 ### CPU execution unit
 
@@ -1205,7 +1216,8 @@ concrete Draft tasks.
 ### CPU kernel intermediate representation
 
 The immutable CPU-private portable representation of one CPU execution unit. The sealed family
-contains the established pointwise form and the static affine-copy form. The pointwise route-
+contains the established pointwise form, static affine-copy form, and static movement form. The
+pointwise route-
 independent canonical form records typed boundary and virtual values, one
 forty-eight-opcode family-oriented pointwise vocabulary, exact typed scalar-immediate and ordered
 two-bound clamp bits, selected scalar-power realizations, ordered computation semantics,
@@ -1230,12 +1242,17 @@ graph identity, concrete carrier, slot, address, worker, or Runtime state. Encod
 current generator produces two boundary values, no computation instructions, one loop, and one
 ordered store.
 
+The movement form records PAD, TILE, CONCAT, or STACK identity, represented type, unique
+structural input accesses, ordered occurrence-to-boundary mapping, one injective output access,
+and exact padding bits. Concrete movement extents, offsets, strides, axes, repeats, and segment
+prefixes remain compact instance geometry outside structural identity.
+
 This is backend-internal state, not another Model, Compiler, Planning, Prepare, or Runtime IR.
 
 ### CPU access plan
 
 The implemented normalized per-value address description shared by the current bounded CPU
-pointwise and affine units. CPU 0005B right-aligns pointwise rank and separates the
+pointwise, affine, and movement units. CPU 0005B right-aligns pointwise rank and separates the
 structural regime/axis pattern used by generated-class identity from cold concrete extents, base
 element offset, effective `long` strides, exact carrier objects, slots, and addresses. Different
 inputs and the output of one fused unit may have different plans. The plan consumes current Model
@@ -1391,9 +1408,28 @@ lowering proves repeated coordinates agree. Scalar results have one pair and zer
 have none.
 
 This term does not mean that Model view construction attaches shared storage. It does not include
-dynamic layouts, BFLOAT16 numerical behavior, Vector API affine access, non-affine movement,
+dynamic layouts, BFLOAT16 numerical behavior, Vector API affine access, static non-affine movement,
 index-tensor work, scatter/fold, ordering, random generation, general partition-DAG fusion, or a
 performance claim.
+
+### CPU static data movement
+
+The implemented CPU-private represented-bit realization of exactly one fully static,
+resolved-layout PAD, TILE, CONCAT, or STACK occurrence. It retains one through sixteen semantic
+input occurrences in order while declaring each distinct graph input once in first-occurrence
+order. The final output has one distinct declared representation and an injective layout.
+
+Canonical movement IR contains family, rank, represented type, unique structural accesses,
+composition occurrence mapping, one output store, and exact PAD bits. Compact cold geometry owns
+concrete extents, layout offsets and strides, normalized axis, padding widths, repeats, segment
+prefixes, and arbitrary-range initial state. Generated scalar loops advance that state directly;
+they retain no per-output-element table and perform no per-element division or modulo. Parallel-
+scalar orchestration is permitted over disjoint output ranges, while vector preference falls back
+to scalar.
+
+This term does not include Model expression construction, affine view folding, window extraction,
+index tensors, functional updates, scatter/fold, dynamic Shape binding, native routing, general
+partition-DAG fusion, or a performance claim.
 
 ### CPU virtual intermediate
 

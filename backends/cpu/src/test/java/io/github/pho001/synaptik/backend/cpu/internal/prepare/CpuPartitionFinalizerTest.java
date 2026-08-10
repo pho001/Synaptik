@@ -3,6 +3,10 @@ package io.github.pho001.synaptik.backend.cpu.internal.prepare;
 import static org.junit.jupiter.api.Assertions.*;
 
 import io.github.pho001.synaptik.backend.cpu.internal.executable.CpuPreparedExecutable;
+import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuNonAffineMovementLoweringTest;
+import io.github.pho001.synaptik.model.operation.Operation;
+import io.github.pho001.synaptik.model.operation.layout.CompositionAxisAttrs;
+import io.github.pho001.synaptik.model.operation.layout.TensorCompositionKind;
 import io.github.pho001.synaptik.model.shape.Shape;
 import io.github.pho001.synaptik.prepare.BackendPartitionFinalization;
 import io.github.pho001.synaptik.prepare.PreparationResourceAssignment;
@@ -76,6 +80,26 @@ public class CpuPartitionFinalizerTest {
                 () -> assertThrows(IllegalArgumentException.class,
                         () -> finalizeExecutable(analysis, Optional.of(artifactRoot))),
                 () -> assertFalse(Files.exists(artifactRoot)));
+    }
+
+    @Test void finalizesMovementAsOneArtifactWithoutWorkspace() {
+        var analysis = new CpuPartitionPreparer().analyze(
+                CpuNonAffineMovementLoweringTest.context(
+                        new Operation(TensorCompositionKind.CONCAT,
+                                new CompositionAxisAttrs(0)),
+                        List.of(0, 1, 0),
+                        List.of(CpuNonAffineMovementLoweringTest.descriptor(
+                                        DataType.INT32, Shape.of(2)),
+                                CpuNonAffineMovementLoweringTest.descriptor(
+                                        DataType.INT32, Shape.of(1))),
+                        CpuNonAffineMovementLoweringTest.descriptor(
+                                DataType.INT32, Shape.of(5))));
+        var executable = finalizeExecutable(analysis, Optional.of(root.resolve("movement")));
+        assertAll(
+                () -> assertEquals(3, executable.bufferSelectionCount()),
+                () -> assertEquals(3, executable.accessBindings().size()),
+                () -> assertTrue(executable.memoryPlan().workspaces().isEmpty()),
+                () -> assertNotNull(executable.artifact().hiddenClass()));
     }
 
     public static CpuPreparedExecutable finalizeExecutable(Shape shape, Optional<Path> root) {

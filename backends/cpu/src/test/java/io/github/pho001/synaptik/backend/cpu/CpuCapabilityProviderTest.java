@@ -188,6 +188,32 @@ class CpuCapabilityProviderTest {
                         List.of(input, input), input))));
     }
 
+    @Test void reportsOnlyTheExactStaticResolvedMovementMatrix() {
+        var provider = new CpuCapabilityProvider();
+        var two = descriptor(DataType.INT32, Shape.of(2));
+        var one = descriptor(DataType.INT32, Shape.of(1));
+        var five = descriptor(DataType.INT32, Shape.of(5));
+        var six = descriptor(DataType.INT32, Shape.of(6));
+        var stacked = descriptor(DataType.INT32, Shape.of(2, 2));
+        var nonInjective = new TensorDescriptor(DataType.INT32, Shape.of(4), Optional.of(
+                LayoutDescriptor.of(Shape.of(4), new long[]{0}, 0, true)), false);
+        assertAll(
+                () -> assertTrue(provider.supports(query(PadKind.PAD,
+                        new PadAttrs(List.of(1L), List.of(2L), ScalarValue.int32(-1)),
+                        List.of(two), five))),
+                () -> assertTrue(provider.supports(query(TileKind.TILE,
+                        new TileAttrs(List.of(3L)), List.of(two), six))),
+                () -> assertTrue(provider.supports(query(TensorCompositionKind.CONCAT,
+                        new CompositionAxisAttrs(0), List.of(two, one, two), five))),
+                () -> assertTrue(provider.supports(query(TensorCompositionKind.STACK,
+                        new CompositionAxisAttrs(1), List.of(two, two), stacked))),
+                () -> assertFalse(provider.supports(query(TileKind.TILE,
+                        new TileAttrs(List.of(2L)), List.of(two), nonInjective))),
+                () -> assertFalse(provider.supports(query(PadKind.PAD,
+                        new PadAttrs(List.of(1L), List.of(2L), ScalarValue.int64(-1)),
+                        List.of(two), five))));
+    }
+
     private static TensorDescriptor descriptor(Shape shape, LayoutDescriptor layout) {
         return new TensorDescriptor(DataType.FLOAT64, shape, Optional.of(layout), false);
     }

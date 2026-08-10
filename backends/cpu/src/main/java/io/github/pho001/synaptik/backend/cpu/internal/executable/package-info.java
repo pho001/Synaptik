@@ -6,6 +6,9 @@
  * geometry, mutability, liveness, size, alignment, canonical BOOL bytes, and input/output
  * accessed-span overlap, then
  * captures direct array or segment references and primitive range/address state in one invocation.
+ * Static movement recipes additionally retain compact immutable output/input layout geometry and
+ * family mapping facts. Cold binding packs only the selected invocation range's coordinate and
+ * address state; it retains no per-output-element selector or address table.
  * For a selected materialization it validates the original source and exact contiguous workspace,
  * retains the original carrier for the copy, substitutes the workspace segment only in the
  * generated consumer pattern, and completes one canonical-order copy before any consumer chunk.

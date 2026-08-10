@@ -201,8 +201,10 @@ created by 0005A. All consume the common analysis above; none creates another ba
 | 0005I | [FLOAT32 vector parity and vector-emission boundary](tasks/0005i-float32-vector-parity-and-vector-emission-boundary.md) | Complete | 0005H; Java 26 `FloatVector`/`DoubleVector`; completed pointwise access, specialization, and numerical contracts | Added preferred-species FLOAT32 parity for the exact twenty-one current vector-eligible pointwise opcodes, kept every unsupported row on scalar fallback, split operation-level vector bytecode emission from pure vector math, and made the selected ERF/GELU coefficient provenance and binary32 derivation auditable. |
 | 0005J | [Bounded pointwise coverage and parity hardening](tasks/0005j-bounded-pointwise-coverage-and-parity-hardening.md) | Complete | 0005I; current Model pointwise semantics; Java 26 Byte/Int/Long/Float/Double Vector API contracts | Added exact floating extrema/clamp/ReLU/sign/cast, signed-integral arithmetic/extrema/cast, canonical-BOOL logic/cast, and virtual floating-mask-to-WHERE preferred-species parity; schema 10, deterministic scalar fallback, and all completed budgets remain explicit. |
 | 0006 | [Portable static affine views and boundary materialization](tasks/0006-portable-static-affine-views-and-boundary-materialization.md) | Complete | 0005J | Folds bounded straight-line static RESHAPE, EXPAND, PERMUTE, EXPAND_DIMS, SQUEEZE, SELECT, and normalized SLICE mappings without computation or slots when they remain internal; otherwise generates one exact portable scalar or parallel-scalar boundary copy, including CONTIGUOUS, for all six Model data types through the resulting seven carrier forms. The new `SHORT_ARRAY` form copies BFLOAT16 represented bits only and does not advertise BFLOAT16 arithmetic or numerical support. |
-| 0006A | Portable non-affine layout movement, gather, and one-hot coverage | Draft | 0006 | Add PAD, TILE, CONCAT, STACK, UNFOLD_AXIS, UNFOLD2D, GATHER, GATHER_ELEMENTS, GATHER_ND, and ONE_HOT through bounded family-specific generated data-movement units with execution-time index validation. |
-| 0006B | Portable functional update, scatter, and overlap-fold coverage | Draft | 0006A | Add SLICE_UPDATE, SCATTER_ELEMENTS, SCATTER_ADD, SCATTER_ND, FOLD_AXIS, and FOLD2D with exact base participation, bounds checks, duplicate-target policy, overlap accumulation, determinism, and safe split fallback. |
+| 0006A | [Portable pad, tile, and tensor-composition movement](tasks/0006a-portable-pad-tile-and-tensor-composition-movement.md) | Complete | 0006 | Added one fully static resolved-layout PAD, TILE, CONCAT, or STACK node through compact CPU-private movement IR, unique multi-input declarations, exact represented-bit scalar/parallel-scalar generation, and one materialized injective output; schema 12 records movement identity. |
+| 0006A1 | Portable static window extraction | Draft | 0006A | Add UNFOLD_AXIS and both UNFOLD2D attribute variants through the completed movement foundation, with exact axis/NCHW window, dilation, ceil-grid, conceptual-zero, and typed-padding geometry; no fold accumulation. |
+| 0006A2 | Portable gather and one-hot indexing | Draft | 0006A1 | Add GATHER, GATHER_ELEMENTS, GATHER_ND, and ONE_HOT with INT32/INT64 carriers, a complete pre-write execution-time index-validation pass, deterministic first-invalid-index failure, and no wrap, clamp, default selection, partial Gather output, or all-false invalid one-hot row. |
+| 0006B | Portable functional update, scatter, and overlap-fold coverage | Draft | 0006A2 | Add SLICE_UPDATE, SCATTER_ELEMENTS, SCATTER_ADD, SCATTER_ND, FOLD_AXIS, and FOLD2D with exact base participation, bounds checks, duplicate-target policy, overlap accumulation, determinism, and safe split fallback. |
 | 0006C | Portable stable ordering and selection coverage | Draft | 0006B | Add stable SORT and ARGSORT plus two-output TOP_K with exact NaN, signed-zero, tie, empty-axis, output-order, workspace, and multi-store behavior. |
 | 0006D | Portable explicit-state RNG and dropout coverage | Draft | 0006C | Select and version one CPU-private portable counter-based generator configuration, materialize INITIAL_STATE, and add three-output DROPOUT with exact state advancement, auxiliary mask, bounded replay, and multi-store behavior. |
 | 0007 | Portable reduction, scan, statistics, and normalization family coverage | Draft | 0006D; completed 0005A–0005J | Generate family-specific range, tile, partial-reduction, and combine bodies for aggregates, arg extrema, scans, softmax/log-softmax, statistics, and normalization with exact semantics and determinism. |
@@ -251,10 +253,14 @@ is Complete. Detailed
 [CPU 0005J Bounded pointwise coverage and parity hardening](tasks/0005j-bounded-pointwise-coverage-and-parity-hardening.md)
 is Complete. Detailed
 [CPU 0006 Portable static affine views and boundary materialization](tasks/0006-portable-static-affine-views-and-boundary-materialization.md)
-is Complete. The fresh operation inventory split the former broad row into this
-static resolved-layout affine slice and Draft 0006A–0006D follow-ups for non-affine movement and
-gather, functional scatter/fold, ordering, and explicit-state random work. CPU 0006A and every
-later CPU task remain Draft without a detailed specification.
+is Complete. The fresh operation inventory first split the former broad row into this static
+resolved-layout affine slice and later non-affine/index, functional scatter/fold, ordering, and
+explicit-state random work. Planning for the next frontier found that the remaining
+non-affine/index row still combined three distinct dependencies. Detailed
+[CPU 0006A Portable pad, tile, and tensor-composition movement](tasks/0006a-portable-pad-tile-and-tensor-composition-movement.md)
+is now `Complete`; Draft 0006A1 owns static window extraction, and Draft 0006A2 owns Gather/one-hot
+index loading plus complete pre-write runtime validation. CPU 0006A1 and every later CPU task
+remain Draft without a detailed specification.
 
 Superseded task 0001 remains preserved through its sole detailed CPU
 [capability, representation, binding, and parallel foundation](tasks/0001-cpu-capability-representation-binding-and-parallel-foundation.md)
@@ -320,7 +326,8 @@ declaration and accessed-range spans, complete write-injectivity proof, five gen
 state machines, and all sixteen ordered heap/segment carrier specializations. Detailed CPU 0005C
 is Complete. CPU 0005D, detailed CPU 0005E, detailed CPU 0005F, and detailed CPU 0005G are also
 Complete. Detailed CPU 0005H, detailed CPU 0005I, and detailed CPU 0005J are `Complete`;
-task 0006 is `Complete`, and tasks 0006A–0017 remain `Draft` without detailed specifications.
+task 0006 and detailed task 0006A are `Complete`, and tasks 0006A1–0017 remain `Draft`
+without detailed specifications.
 CPU 0005C preserves that exact slice and implements cold selection among all four portable
 strategies. It uses the preferred Java 26 FLOAT64 species only for direct contiguous runs and
 scalar broadcasts, scalar tails and general-odometer fallback, configured/available parallelism
@@ -428,8 +435,9 @@ final CPU command passed 26 suites/117 tests with zero failures/errors and one e
 persistence-evidence skip. Clean documentation context `/root` reused that evidence, finalized
 the affected Javadocs, CPU guide, glossary, and planning records, and passed CPU Javadoc plus
 local Markdown, official-link, exact-scope/status/inventory, formatting, and whitespace gates
-without rerunning Java tests. CPU 0005J and detailed CPU 0006 are Complete, and CPU 0006A and
-later tasks remain Draft without detailed specifications.
+without rerunning Java tests. CPU 0005J and detailed CPU 0006 are Complete. CPU 0006A's later
+completion is recorded below; CPU 0006A1 and later tasks remain Draft without detailed
+specifications.
 
 Detailed CPU 0005J is Complete. It preserves the exact forty-eight-opcode semantic inventory and
 adds preferred-species FLOAT32/FLOAT64 extrema, clamp, ReLU, sign, and same-type cast;
@@ -462,7 +470,19 @@ pass's focused command and sole final CPU command passed; the final suite record
 OpenJDK 26.0.1+8-34. Clean documentation context `/root/cpu_0006_docs` reused that stabilized Java
 evidence, finalized Javadocs/package summaries, the CPU guide, glossary, and planning records,
 and passed CPU Javadoc plus Markdown, exact-scope/status, and whitespace validation without
-rerunning Java tests. CPU 0006A and every later task remain Draft without detailed specifications.
+rerunning Java tests.
+
+Detailed CPU 0006A is Complete. It adds one exact fully static resolved-layout PAD, TILE, CONCAT,
+or STACK occurrence with one-through-sixteen ordered semantic inputs, first-occurrence unique
+resource declarations, compact cold movement geometry, all-six-type represented-bit scalar or
+parallel-scalar generation, and one distinct injective output. Generator schema 12 records family,
+rank, occurrence mapping, and exact PAD bits. The focused command passed 8 suites/43 tests and the
+sole final CPU command passed 32 suites/153 tests with zero failures or errors and one skipped
+opt-in persistence test on Java 26.0.2, HotSpot 26.0.2+10-55. Clean documentation context `/root`
+reused that stabilized evidence, finalized Javadocs/package summaries, the CPU guide, glossary,
+and planning records, and passed CPU Javadoc plus Markdown, exact-scope/status/inventory, forbidden-
+change, and whitespace validation without rerunning Java tests. CPU 0006A1 and every later task
+remain Draft without detailed specifications.
 
 The reset was a working-tree replacement, not deletion of history. CPU 0001–0005 are Superseded
 with all recorded evidence preserved; the repository contains no old/new dual pipeline.
@@ -540,6 +560,17 @@ the work at the active frontier.
 
 - The implementation must follow the current architecture contract.
 - Legacy code is capability evidence only; new implementation is written from scratch.
+- The former broad 0006A row was dependency-split before implementation. Complete 0006A owns one-node
+  static PAD/TILE/CONCAT/STACK movement and unique multi-input binding; Draft 0006A1 owns window
+  extraction; Draft 0006A2 owns Gather/one-hot plus complete pre-write index validation. Only the
+  first slice has a detailed task specification.
+- CPU 0006A declares each distinct composition input `ValueId` once in first-occurrence order and
+  retains a CPU-private ordered occurrence-to-boundary map. Repeated semantic inputs do not force
+  duplicate shared requirements. The one output is separate, injective, and materialized.
+- Value-dependent index work begins only in 0006A2. That slice must validate all INT32/INT64 index
+  values before any output write and deterministically reject the first invalid logical index;
+  invalid indices never wrap, clamp, select defaults, expose partial Gather output, or become an
+  all-false one-hot row.
 - Task 0005A replaces the provisional per-node implementation atomically. The permanent model is
   partition -> computation-oriented execution units -> canonical loop IR -> route realization ->
   one partition executable. There is no compatibility layer between the two designs.

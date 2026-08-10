@@ -123,9 +123,12 @@ the cold binding/finalization path retain exact compatibility and overlap checks
 implementation command and sole final CPU suite passed; the final suite recorded 29 suites and
 140 tests with zero failures, zero errors, and one skipped opt-in persistence-evidence test on
 OpenJDK 26.0.1+8-34. Clean documentation context `/root/cpu_0006_docs` reused that stabilized Java
-evidence and finalized the CPU Javadocs, guide, glossary, and planning/status records. Draft 0006A–0006D retain non-affine
-movement and gather, functional scatter/fold, ordering, and explicit-state random work without
-detailed specs.
+evidence and finalized the CPU Javadocs, guide, glossary, and planning/status records. The former
+broad 0006A row is now dependency-split: detailed
+[CPU 0006A Portable pad, tile, and tensor-composition movement](backends/cpu/tasks/0006a-portable-pad-tile-and-tensor-composition-movement.md)
+is `Complete`; Draft 0006A1 retains static window extraction; and Draft 0006A2 retains Gather and
+one-hot with complete pre-write execution-time index validation. Functional scatter/fold,
+ordering, and explicit-state random work remain Draft 0006B–0006D without detailed specs.
 Historical
 [CPU 0001 Capability, representation, binding, and parallel foundation](backends/cpu/tasks/0001-cpu-capability-representation-binding-and-parallel-foundation.md)
 is `Superseded`; historical
@@ -152,7 +155,8 @@ materialization/specialization/persistence evidence is also `Complete`; detailed
 `Complete` for its bounded first five-type core pointwise increment. Detailed CPU 0005F floating
 division and exact scalar-power realization is `Complete`; detailed CPU 0005G and CPU 0005H are
 `Complete`; detailed CPU 0005I, CPU 0005J, and CPU 0006 are `Complete`; and CPU
-0006A–0017 remain `Draft` without detailed specifications.
+0006A is `Complete`; 0006A1–0017 remain `Draft` without
+detailed specifications.
 CPU 0003
 implements a
 model-independent filesystem store beneath an explicit
@@ -505,13 +509,22 @@ cover dense linear, all-zero/scalar, last-axis bias, block/outer, and general od
 Exact cold range spans support constant-time alias checks, and a complete bounded static
 injectivity decision accepts valid interleaved positive strides while rejecting repeated writes.
 Detailed CPU 0005C through CPU 0005J are Complete.
-Detailed CPU 0006 is Complete. CPU 0006A–0017 and the refined Config, Prepare, Metal, and tuning rows
-remain `Draft` without new detailed specifications.
+Detailed CPU 0006 and detailed CPU 0006A are Complete after splitting static movement,
+window extraction, and value-dependent indexing by dependency. CPU 0006A1–0017 and the refined
+Config, Prepare, Metal, and tuning rows remain `Draft` without new detailed specifications.
 Completed OpenBLAS history and every completed project area remain unchanged.
 
-CPU remains the active global project area. CPU 0005A through CPU 0006 are `Complete`, and CPU
-0006A and later work remain `Draft` without detailed
+CPU remains the active global project area. CPU 0005A through CPU 0006 are `Complete`, detailed
+CPU 0006A is `Complete`, and CPU 0006A1 and later work remain `Draft` without detailed
 specifications.
+CPU 0006A delivers one exact static resolved-layout PAD, TILE, CONCAT, or STACK occurrence with
+ordered one-through-sixteen composition inputs, first-occurrence unique declarations, compact
+cold movement geometry, all-six-type represented-bit scalar/parallel-scalar generation, one
+distinct injective output, and schema 12. Its focused command passed 8 suites/43 tests; the sole
+final CPU command passed 32 suites/153 tests with zero failures or errors and one skipped opt-in
+persistence test on Java 26.0.2, HotSpot 26.0.2+10-55. Clean documentation context `/root` reused
+that stabilized evidence and passed CPU Javadoc plus documentation, exact-scope/status/inventory,
+forbidden-change, and whitespace validation without rerunning Java tests.
 CPU 0001–0005 are
 historical Superseded records whose Git history
 and validation evidence remain intact. Complete CPU 0004 added no public facade, registry, service locator,

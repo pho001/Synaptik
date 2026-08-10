@@ -39,7 +39,11 @@ import java.util.Objects;
  * static and resolved-layout occurrences of {@code CONTIGUOUS}, {@code RESHAPE}, {@code EXPAND},
  * {@code PERMUTE}, {@code EXPAND_DIMS}, {@code SQUEEZE}, scalar {@code SELECT}, and positive-step
  * {@code SLICE}, including target-relative crop attributes. These affine rows preserve one data
- * type and must carry the exact layout implied by their Model semantics.</p>
+ * type and must carry the exact layout implied by their Model semantics. The provider also
+ * admits one fully static, resolved-layout {@code PAD}, {@code TILE}, {@code CONCAT}, or
+ * {@code STACK} occurrence for all six represented data types. Movement inputs preserve their
+ * exact semantic occurrence order, the output layout must be injective, and composition is
+ * bounded to one through sixteen occurrences.</p>
  *
  * <p>Complete-partition lowering remains stricter: it validates either a connected one-to-eight
  * pointwise chain or a connected one-to-eight affine chain, then applies exact layout, alias,
@@ -72,9 +76,12 @@ public final class CpuCapabilityProvider implements BackendCapabilityProvider {
      * results preserve shape; binary logical rows use the same right-aligned broadcast rule;
      * {@code WHERE} applies branch-first then condition broadcasting. Admitted affine operations
      * require one input, one output, the same data type, fully static Shapes, resolved layouts,
-     * and their exact current attributes and descriptor relationship. Cross-type casts, dynamic
-     * or unresolved affine geometry, negative-step slices, and all rows outside the implemented
-     * matrix return {@code false} without defining conversion or fallback behavior.
+     * and their exact current attributes and descriptor relationship. Admitted movement
+     * operations additionally require exact static PAD/TILE/composition shape relationships,
+     * an injective result layout, and at most sixteen composition occurrences. Cross-type casts,
+     * dynamic or unresolved geometry, negative-step slices, non-injective movement outputs, and
+     * all rows outside the implemented matrix return {@code false} without defining conversion
+     * or fallback behavior.
      *
      * @param query non-null immutable operation occurrence to validate structurally
      * @return {@code true} only for the exact implemented occurrence-local matrix; otherwise
@@ -92,6 +99,7 @@ public final class CpuCapabilityProvider implements BackendCapabilityProvider {
         var attrs = query.operation().attrs();
         TensorDescriptor output = query.outputs().getFirst();
         try {
+            if (movementKind(kind)) return supportsMovement(query, output);
             if (affineKind(kind)) return supportsAffine(query, output);
             if (kind instanceof BinaryArithmeticKind arithmetic) {
                 return attrs == NoOperationAttrs.INSTANCE
@@ -183,6 +191,111 @@ public final class CpuCapabilityProvider implements BackendCapabilityProvider {
         return kind == ContiguousKind.CONTIGUOUS || kind instanceof ShapeTransformKind
                 || kind instanceof AxisTransformKind || kind == SelectKind.SELECT
                 || kind == SliceKind.SLICE;
+    }
+
+    private static boolean movementKind(Object kind) {
+        return kind == PadKind.PAD || kind == TileKind.TILE
+                || kind == TensorCompositionKind.CONCAT
+                || kind == TensorCompositionKind.STACK;
+    }
+
+    private static boolean supportsMovement(OperationCapabilityQuery query,
+            TensorDescriptor output) {
+        if (query.inputs().isEmpty() || query.inputs().size() > 16
+                || !injective(output.shape().toLongArray(),
+                    output.layout().orElseThrow().strides())) return false;
+        if (query.inputs().stream().anyMatch(input -> input.dataType() != output.dataType())) {
+            return false;
+        }
+        Object kind = query.operation().kind();
+        Object attrs = query.operation().attrs();
+        if (kind == PadKind.PAD && attrs instanceof PadAttrs pad) {
+            if (query.inputs().size() != 1) return false;
+            long[] input = query.inputs().getFirst().shape().toLongArray();
+            long[] result = output.shape().toLongArray();
+            if (pad.before().size() != input.length || pad.after().size() != input.length
+                    || result.length != input.length
+                    || pad.constantValue().dataType() != output.dataType()) return false;
+            for (int axis = 0; axis < input.length; axis++) if (result[axis]
+                    != Math.addExact(pad.before().get(axis),
+                        Math.addExact(input[axis], pad.after().get(axis)))) return false;
+            return true;
+        }
+        if (kind == TileKind.TILE && attrs instanceof TileAttrs tile) {
+            if (query.inputs().size() != 1) return false;
+            long[] input = query.inputs().getFirst().shape().toLongArray();
+            long[] result = output.shape().toLongArray();
+            if (tile.repeats().size() != input.length || result.length != input.length) return false;
+            for (int axis = 0; axis < input.length; axis++) if (result[axis]
+                    != Math.multiplyExact(input[axis], tile.repeats().get(axis))) return false;
+            return true;
+        }
+        if (!(attrs instanceof CompositionAxisAttrs composition)) return false;
+        int axis = composition.axis();
+        long[] first = query.inputs().getFirst().shape().toLongArray();
+        long[] result = output.shape().toLongArray();
+        if (kind == TensorCompositionKind.CONCAT) {
+            if (first.length == 0 || axis >= first.length || result.length != first.length) return false;
+            long selected = 0;
+            for (TensorDescriptor input : query.inputs()) {
+                long[] shape = input.shape().toLongArray();
+                if (shape.length != first.length) return false;
+                for (int current = 0; current < first.length; current++) {
+                    if (current != axis && shape[current] != first[current]) return false;
+                }
+                selected = Math.addExact(selected, shape[axis]);
+            }
+            for (int current = 0; current < result.length; current++) {
+                if (result[current] != (current == axis ? selected : first[current])) return false;
+            }
+            return true;
+        }
+        if (kind == TensorCompositionKind.STACK) {
+            if (axis > first.length || result.length != first.length + 1
+                    || query.inputs().stream().anyMatch(input -> !input.shape()
+                        .equals(query.inputs().getFirst().shape()))) return false;
+            for (int outAxis = 0, inAxis = 0; outAxis < result.length; outAxis++) {
+                if (result[outAxis] != (outAxis == axis ? query.inputs().size() : first[inAxis++])) {
+                    return false;
+                }
+            }
+            return true;
+        }
+        return false;
+    }
+
+    private static boolean injective(long[] extents, long[] strides) {
+        if (java.util.Arrays.stream(extents).anyMatch(extent -> extent == 0)) return true;
+        long count = 1;
+        for (int axis = 0; axis < extents.length; axis++) {
+            if (strides[axis] == 0 && extents[axis] > 1) return false;
+            count = Math.multiplyExact(count, extents[axis]);
+        }
+        if (count > 1_000_000) {
+            var axes = new java.util.ArrayList<Integer>();
+            for (int axis = 0; axis < extents.length; axis++) if (extents[axis] > 1) axes.add(axis);
+            axes.sort(java.util.Comparator.comparingLong(axis -> strides[axis]));
+            long covered = 1;
+            for (int axis : axes) {
+                if (strides[axis] < covered) return false;
+                covered = Math.addExact(covered,
+                        Math.multiplyExact(extents[axis] - 1, strides[axis]));
+            }
+            return true;
+        }
+        var seen = new java.util.HashSet<Long>();
+        long[] coordinates = new long[extents.length];
+        for (long logical = 0; logical < count; logical++) {
+            long address = 0;
+            for (int axis = 0; axis < extents.length; axis++) address = Math.addExact(address,
+                    Math.multiplyExact(coordinates[axis], strides[axis]));
+            if (!seen.add(address)) return false;
+            for (int axis = extents.length - 1; axis >= 0; axis--) {
+                if (++coordinates[axis] < extents[axis]) break;
+                coordinates[axis] = 0;
+            }
+        }
+        return true;
     }
 
     private static boolean supportsAffine(OperationCapabilityQuery query, TensorDescriptor output) {

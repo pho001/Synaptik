@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.*;
 
 import io.github.pho001.synaptik.backend.cpu.CpuCapabilityProvider;
 import io.github.pho001.synaptik.model.datatype.DataType;
+import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuNonAffineMovementLoweringTest;
 import io.github.pho001.synaptik.model.graph.CompiledNode;
 import io.github.pho001.synaptik.model.graph.GraphValue;
 import io.github.pho001.synaptik.model.graph.NodeId;
@@ -12,6 +13,10 @@ import io.github.pho001.synaptik.model.layout.LayoutDescriptor;
 import io.github.pho001.synaptik.model.operation.NoOperationAttrs;
 import io.github.pho001.synaptik.model.operation.Operation;
 import io.github.pho001.synaptik.model.operation.OperationKind;
+import io.github.pho001.synaptik.model.operation.layout.CompositionAxisAttrs;
+import io.github.pho001.synaptik.model.operation.layout.TensorCompositionKind;
+import io.github.pho001.synaptik.model.operation.layout.TileAttrs;
+import io.github.pho001.synaptik.model.operation.layout.TileKind;
 import io.github.pho001.synaptik.model.operation.elementwise.binary.BinaryArithmeticKind;
 import io.github.pho001.synaptik.model.operation.elementwise.unary.UnaryElementwiseKind;
 import io.github.pho001.synaptik.model.operation.elementwise.comparison.BinaryComparisonKind;
@@ -264,6 +269,42 @@ public class CpuPartitionPreparerTest {
                         CpuPartitionAnalysisInputs.DEFAULT.carrierPattern(),
                         PortableExecutionConfig.DEFAULT, eligible));
         assertTrue(denseOnly.plan().materialization().isEmpty());
+    }
+
+    @Test void movementKeepsUniqueBoundaryOrderDisablesWorkspaceAndUsesScalarCompute() {
+        var base = CpuNonAffineMovementLoweringTest.context(
+                new Operation(TensorCompositionKind.CONCAT, new CompositionAxisAttrs(0)),
+                List.of(0, 1, 0),
+                List.of(descriptor(DataType.INT32, Shape.of(4)),
+                        descriptor(DataType.INT32, Shape.of(2))),
+                descriptor(DataType.INT32, Shape.of(10)));
+        var preference = new PortableExecutionConfig(ComputePreference.VECTOR_IF_ELIGIBLE,
+                4, 2, 1);
+        var context = new PrepareContext<>(base.partition(), base.nodes(), base.values(),
+                base.memoryRequirements(), base.constants(), new CpuPartitionAnalysisInputs(false,
+                        CpuPartitionAnalysisInputs.DEFAULT.carrierPattern(), preference));
+        var analysis = new CpuPartitionPreparer().analyze(context);
+        var plan = analysis.plan();
+
+        var zeroBase = CpuNonAffineMovementLoweringTest.context(
+                new Operation(TileKind.TILE, new TileAttrs(List.of(2L))), List.of(0),
+                List.of(descriptor(DataType.INT32, Shape.of(0))),
+                descriptor(DataType.INT32, Shape.of(0)));
+        var zero = new CpuPartitionPreparer().analyze(new PrepareContext<>(zeroBase.partition(),
+                zeroBase.nodes(), zeroBase.values(), zeroBase.memoryRequirements(),
+                zeroBase.constants(), new CpuPartitionAnalysisInputs(false,
+                        CpuPartitionAnalysisInputs.DEFAULT.carrierPattern(), preference))).plan();
+        assertAll(
+                () -> assertEquals(List.of(new ValueId(0), new ValueId(1), new ValueId(2)),
+                        plan.boundaryValues()),
+                () -> assertEquals(3, analysis.requirements().size()),
+                () -> assertTrue(plan.movementGeometry().isPresent()),
+                () -> assertTrue(plan.materialization().isEmpty()),
+                () -> assertTrue(plan.workspaceDeclaration().isEmpty()),
+                () -> assertEquals("parallel-scalar", plan.executionStrategy().toString()),
+                () -> assertEquals(0, plan.vectorSpeciesBitSize()),
+                () -> assertEquals("scalar", zero.executionStrategy().toString()),
+                () -> assertEquals(0, zero.elementCount()));
     }
 
     public static BackendPartitionAnalysis<CpuPartitionPreparationPlan> analyze(Shape shape) {

@@ -35,8 +35,7 @@ public record CpuPortableRoutePlan(CpuPortableKernelIr portableKernelIr,
         if (!portableKernelIr.structuralKey().equals(specialization.loweringFingerprint().hex())) {
             throw new IllegalArgumentException("specialization must match canonical IR");
         }
-        CpuKernelIr generated = portableKernelIr instanceof CpuKernelIr pointwise ? pointwise
-                : ((CpuAffineCopyIr) portableKernelIr).encodedKernelIr();
+        CpuKernelIr generated = encoded(portableKernelIr);
         if (portableKernelIr instanceof CpuKernelIr
                 && (generated.values().stream().anyMatch(value -> value.dataType()
                         == io.github.pho001.synaptik.model.datatype.DataType.BFLOAT16)
@@ -60,7 +59,13 @@ public record CpuPortableRoutePlan(CpuPortableKernelIr portableKernelIr,
      *     never {@code null}
      */
     public CpuKernelIr kernelIr() {
-        return portableKernelIr instanceof CpuKernelIr pointwise ? pointwise
-                : ((CpuAffineCopyIr) portableKernelIr).encodedKernelIr();
+        return encoded(portableKernelIr);
+    }
+
+    private static CpuKernelIr encoded(CpuPortableKernelIr source) {
+        if (source instanceof CpuKernelIr pointwise) return pointwise;
+        if (source instanceof CpuAffineCopyIr affine) return affine.encodedKernelIr();
+        return ((io.github.pho001.synaptik.backend.cpu.internal.ir.CpuDataMovementIr) source)
+                .encodedKernelIr();
     }
 }

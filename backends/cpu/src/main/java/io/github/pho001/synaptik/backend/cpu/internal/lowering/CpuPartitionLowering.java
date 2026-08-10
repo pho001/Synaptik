@@ -32,6 +32,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 
 /**
  * Lowers one bounded straight-line pointwise partition into one route-neutral CPU unit.
@@ -47,6 +48,7 @@ public final class CpuPartitionLowering {
     private final CpuCapabilityProvider capabilities = new CpuCapabilityProvider();
     private final CpuScalarPowerAnalysis scalarPowerAnalysis = new CpuScalarPowerAnalysis();
     private final CpuAffineLayoutLowering affineLowering = new CpuAffineLayoutLowering();
+    private final CpuNonAffineMovementLowering movementLowering = new CpuNonAffineMovementLowering();
 
     /** Creates a stateless lowering boundary with the current CPU capability and power analysis. */
     public CpuPartitionLowering() { }
@@ -64,6 +66,15 @@ public final class CpuPartitionLowering {
         }
         if (context.nodes().isEmpty() || context.nodes().size() > 8) {
             throw new IllegalArgumentException("CPU pointwise partition requires one through eight nodes");
+        }
+        if (context.nodes().size() == 1) {
+            Object kind = context.nodes().getFirst().operation().kind();
+            if (kind == io.github.pho001.synaptik.model.operation.layout.PadKind.PAD
+                    || kind == io.github.pho001.synaptik.model.operation.layout.TileKind.TILE
+                    || kind == io.github.pho001.synaptik.model.operation.layout.TensorCompositionKind.CONCAT
+                    || kind == io.github.pho001.synaptik.model.operation.layout.TensorCompositionKind.STACK) {
+                return movementLowering.lower(context);
+            }
         }
         if (context.nodes().stream().allMatch(node -> {
             Object kind = node.operation().kind();
@@ -409,11 +420,39 @@ public final class CpuPartitionLowering {
      * @param fusionReason non-null cold diagnostic explanation
      * @param affineAddressPairs alternating source/result addresses for affine copying, or an
      *     empty array for pointwise lowering; copied defensively
+     * @param movementGeometry compact cold movement geometry, present only for data movement
      */
     public record LoweredPartition(CpuPortableKernelIr portableKernelIr, List<ValueId> boundaryValues,
             List<CpuAccessPlan.Binding> accessBindings, List<Long> referencedElementSpans,
             List<DataType> boundaryDataTypes, List<ValueId> virtualValues, long[] extents,
-            long elementCount, String fusionReason, long[] affineAddressPairs) {
+            long elementCount, String fusionReason, long[] affineAddressPairs,
+            Optional<CpuNonAffineMovementLowering.Geometry> movementGeometry) {
+        /**
+         * Creates a pointwise or affine lowering without movement geometry.
+         *
+         * @param portableKernelIr non-null pointwise or affine portable representation
+         * @param boundaryValues non-null external inputs followed by the final output; copied
+         *     defensively
+         * @param accessBindings non-null boundary access bindings; copied defensively
+         * @param referencedElementSpans non-null exact boundary spans; copied defensively
+         * @param boundaryDataTypes non-null exact boundary types; copied defensively
+         * @param virtualValues non-null internal values without Runtime slots; copied defensively
+         * @param extents non-null final iteration extents; copied defensively
+         * @param elementCount checked non-negative product of {@code extents}
+         * @param fusionReason non-null cold diagnostic explanation
+         * @param affineAddressPairs alternating source/result addresses for affine copying, or an
+         *     empty array for pointwise lowering; copied defensively
+         * @throws NullPointerException if a required component or element is {@code null}
+         * @throws IllegalArgumentException if boundary collections have inconsistent cardinality
+         */
+        public LoweredPartition(CpuPortableKernelIr portableKernelIr, List<ValueId> boundaryValues,
+                List<CpuAccessPlan.Binding> accessBindings, List<Long> referencedElementSpans,
+                List<DataType> boundaryDataTypes, List<ValueId> virtualValues, long[] extents,
+                long elementCount, String fusionReason, long[] affineAddressPairs) {
+            this(portableKernelIr, boundaryValues, accessBindings, referencedElementSpans,
+                    boundaryDataTypes, virtualValues, extents, elementCount, fusionReason,
+                    affineAddressPairs, Optional.empty());
+        }
         /**
          * Validates matching boundary facts and snapshots every mutable collection or array.
          *
@@ -430,6 +469,7 @@ public final class CpuPartitionLowering {
             virtualValues = List.copyOf(virtualValues);
             extents = extents.clone();
             affineAddressPairs = affineAddressPairs.clone();
+            movementGeometry = Objects.requireNonNull(movementGeometry, "movementGeometry");
             Objects.requireNonNull(fusionReason, "fusionReason");
             int size = boundaryValues.size();
             if (size < 2 || accessBindings.size() != size || referencedElementSpans.size() != size
@@ -458,7 +498,10 @@ public final class CpuPartitionLowering {
          */
         public CpuKernelIr kernelIr() {
             return portableKernelIr instanceof CpuKernelIr pointwise ? pointwise
-                    : ((CpuAffineCopyIr) portableKernelIr).encodedKernelIr();
+                    : portableKernelIr instanceof CpuAffineCopyIr affine
+                        ? affine.encodedKernelIr()
+                        : ((io.github.pho001.synaptik.backend.cpu.internal.ir.CpuDataMovementIr)
+                            portableKernelIr).encodedKernelIr();
         }
     }
 }

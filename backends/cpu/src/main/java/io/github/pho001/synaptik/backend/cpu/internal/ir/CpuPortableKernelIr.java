@@ -8,7 +8,8 @@ package io.github.pho001.synaptik.backend.cpu.internal.ir;
  * identifiers, concrete extents, slots, carriers, addresses, and run state remain cold facts
  * outside this role.</p>
  */
-public sealed interface CpuPortableKernelIr permits CpuKernelIr, CpuAffineCopyIr {
+public sealed interface CpuPortableKernelIr permits CpuKernelIr, CpuAffineCopyIr,
+        CpuDataMovementIr {
     /**
      * Returns the deterministic structural key used for generated-code compatibility.
      *

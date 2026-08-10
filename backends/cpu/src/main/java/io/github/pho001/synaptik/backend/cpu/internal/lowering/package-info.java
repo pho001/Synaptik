@@ -22,6 +22,12 @@
  * repeated logical coordinates select the same represented source value. Final boundary
  * materialization is always explicit because shared preparation provides no cross-value aliasing.
  *
+ * <p>The bounded non-affine movement family accepts exactly one fully static resolved-layout
+ * PAD, TILE, CONCAT, or STACK occurrence. It retains semantic input occurrence order while
+ * declaring each distinct input once, requires one distinct injective output, and lowers exact
+ * extents, offsets, strides, axes, padding widths, repeats, and composition prefixes into compact
+ * cold geometry rather than a per-output-element table.</p>
+ *
  * <p>The selected {@code CpuMaterializationPlan} is a separate route-independent copy fact. It
  * retains original source geometry and canonical dense consumer geometry without changing the
  * Model graph, backend-neutral logical memory, or boundary {@code ValueId}. At most one selected

@@ -24,6 +24,7 @@ import java.lang.foreign.ValueLayout;
 import java.nio.ByteOrder;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
 import io.github.pho001.synaptik.backend.cpu.internal.prepare.CpuPartitionAnalysisInputs.PortableExecutionConfig;
@@ -31,7 +32,12 @@ import io.github.pho001.synaptik.backend.cpu.internal.prepare.CpuPartitionAnalys
 import jdk.incubator.vector.DoubleVector;
 import jdk.incubator.vector.FloatVector;
 import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuAffineLayoutLoweringTest;
+import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuNonAffineMovementLoweringTest;
 import io.github.pho001.synaptik.backend.cpu.internal.prepare.CpuPartitionPreparer;
+import io.github.pho001.synaptik.model.datatype.ScalarValue;
+import io.github.pho001.synaptik.model.operation.Operation;
+import io.github.pho001.synaptik.model.operation.layout.PadAttrs;
+import io.github.pho001.synaptik.model.operation.layout.PadKind;
 
 class CpuPreparedExecutableTest {
     private static final ValueLayout.OfDouble DOUBLE =
@@ -398,6 +404,34 @@ class CpuPreparedExecutableTest {
         finally { run.close(); }
     }
 
+    @Test void movementColdBindingExecutesRangesAndRejectsOutputInputOverlapBeforeWrite() {
+        var base = CpuNonAffineMovementLoweringTest.context(new Operation(PadKind.PAD,
+                        new PadAttrs(List.of(1L), List.of(2L), ScalarValue.int32(-7))),
+                List.of(0), List.of(CpuNonAffineMovementLoweringTest.descriptor(
+                        DataType.INT32, Shape.of(2))),
+                CpuNonAffineMovementLoweringTest.descriptor(DataType.INT32, Shape.of(5)));
+        var context = new io.github.pho001.synaptik.prepare.analysis.PrepareContext<>(
+                base.partition(), base.nodes(), base.values(), base.memoryRequirements(), Map.of(),
+                new CpuPartitionAnalysisInputs(false,
+                        List.of(CarrierAccess.INT_ARRAY, CarrierAccess.INT_ARRAY)));
+        var executable = CpuPartitionFinalizerTest.finalizeExecutable(
+                new CpuPartitionPreparer().analyze(context), Optional.empty()).forRange(1, 4);
+        int[] input = {10, 20};
+        int[] output = {99, 99, 99, 99, 99};
+        var run = state(executable, List.of(borrow(input), borrow(output)));
+        try {
+            executable.bind(run).execute();
+            assertArrayEquals(new int[]{99, 10, 20, -7, 99}, output);
+        } finally { run.close(); }
+
+        int[] shared = {10, 20, 77, 77, 77};
+        var overlap = state(executable, List.of(borrow(shared, 0, 2), borrow(shared, 0, 5)));
+        try {
+            assertThrows(IllegalArgumentException.class, () -> executable.bind(overlap));
+            assertArrayEquals(new int[]{10, 20, 77, 77, 77}, shared);
+        } finally { overlap.close(); }
+    }
+
     private static CpuBorrowedBuffer borrow(double[] carrier, int elementOffset) {
         return borrow(carrier, elementOffset, 4);
     }
@@ -405,6 +439,15 @@ class CpuPreparedExecutableTest {
     private static CpuBorrowedBuffer borrow(double[] carrier, int elementOffset, int count) {
         var segment = MemorySegment.ofArray(carrier).asSlice(elementOffset * 8L, count * 8L);
         return CpuBorrowedBuffer.borrow(new MemorySegmentStorage(DataType.FLOAT64, count, segment));
+    }
+
+    private static CpuBorrowedBuffer borrow(int[] carrier) {
+        return borrow(carrier, 0, carrier.length);
+    }
+
+    private static CpuBorrowedBuffer borrow(int[] carrier, int elementOffset, int count) {
+        var segment = MemorySegment.ofArray(carrier).asSlice(elementOffset * 4L, count * 4L);
+        return CpuBorrowedBuffer.borrow(new MemorySegmentStorage(DataType.INT32, count, segment));
     }
 
     private static RunState state(CpuPreparedExecutable executable,

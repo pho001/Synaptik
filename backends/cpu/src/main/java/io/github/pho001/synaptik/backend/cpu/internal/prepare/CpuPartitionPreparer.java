@@ -73,8 +73,10 @@ public final class CpuPartitionPreparer implements BackendPartitionPreparer<
             throw new IllegalArgumentException("carrier pattern count must match boundary count");
         }
         var budget = new CpuSpecializationBudget(4, 1, 0, 0);
-        Optional<CpuMaterializationPlan> materialization = selectMaterialization(lowered,
-                context.backendInputs().materializationPolicy());
+        boolean movement = lowered.portableKernelIr()
+                instanceof io.github.pho001.synaptik.backend.cpu.internal.ir.CpuDataMovementIr;
+        Optional<CpuMaterializationPlan> materialization = movement ? Optional.empty()
+                : selectMaterialization(lowered, context.backendInputs().materializationPolicy());
         var declarations = new ArrayList<PreparationResourceRequirement.Buffer>(lowered.boundaryValues().size());
         for (int i = 0; i < lowered.boundaryValues().size(); i++) declarations.add(
                 new PreparationResourceRequirement.Buffer(lowered.boundaryValues().get(i),
@@ -122,9 +124,8 @@ public final class CpuPartitionPreparer implements BackendPartitionPreparer<
                 vectorEligible ? speciesBits : 0,
                 materialization.map(CpuMaterializationPlan::sourceBoundaryIndex).orElse(-1),
                 powerRealizations(kernelIr));
-        var selectedPortableIr = lowered.portableKernelIr()
-                instanceof io.github.pho001.synaptik.backend.cpu.internal.ir.CpuAffineCopyIr
-                ? lowered.portableKernelIr() : kernelIr;
+        var selectedPortableIr = materialization.isPresent()
+                ? kernelIr : lowered.portableKernelIr();
         var routePlan = new CpuPortableRoutePlan(selectedPortableIr, specialization);
         String manifest = "unit=0;fusion=" + lowered.fusionReason()
                 + ";access=" + bindings.stream()
@@ -147,7 +148,8 @@ public final class CpuPartitionPreparer implements BackendPartitionPreparer<
                 context.backendInputs().loweringManifestEnabled() ? manifest : "",
                 materialization, materialization.map(copy ->
                     new PreparationResourceRequirement.Workspace(copy.workspaceRequirementId(),
-                            copy.byteCount(), copy.byteAlignment())), budget);
+                            copy.byteCount(), copy.byteAlignment())), budget,
+                lowered.movementGeometry());
         var requirements = new ArrayList<PreparationResourceRequirement>(declarations);
         plan.workspaceDeclaration().ifPresent(requirements::add);
         return new BackendPartitionAnalysis<>(context.partition(), plan, requirements);

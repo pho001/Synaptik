@@ -3,7 +3,7 @@
 ## Outcome and status
 
 This guide defines the CPU integration boundary and helps contributors avoid treating CPU routes
-as separate backends. The current CPU module accepts two bounded, fully static portable families.
+as separate backends. The current CPU module accepts three bounded, fully static portable families.
 A pointwise partition is one supported occurrence or one connected straight-line chain of at most
 eight occurrences. A static affine partition is one connected one-input/one-output chain of at
 most eight resolved-layout view occurrences. Either family lowers to one computation unit, one
@@ -11,7 +11,9 @@ route-independent canonical kernel intermediate representation (IR), one generat
 and one partition-level prepared executable. Internal single-use results remain graph and logical-
 memory values but are virtual in the unit. Pointwise analysis declares its derived external
 boundaries and sole final output; affine analysis declares exactly the original source and final
-result.
+result. A static movement partition is exactly one resolved-layout PAD, TILE, CONCAT, or STACK
+occurrence. It declares each distinct input once in first-occurrence order plus one distinct
+injective output while preserving every semantic composition occurrence.
 
 Generated scalar and Java 26 Vector API loops accept primitive `start` and `end` bounds.
 Compatible concrete extents bind on the cold path and share identical class bytes and one
@@ -36,8 +38,8 @@ completes before consumer execution. Capability and lowering fail closed for eve
 operation, type, shape, layout, parameter, alias, fan-out, publication, carrier, or route. In
 particular, CAST is same-type only and BFLOAT16 remains representation-only for affine movement;
 CPU does not invent cross-type conversion semantics. Native, tuning, excluded pointwise rows,
-non-affine/index/scatter/order/random work, general partition-DAG fusion, and later operation
-families remain Draft.
+window/index/scatter/order/random work, general partition-DAG fusion, and later operation families
+remain Draft.
 
 The lower-level OpenBLAS provider separately implements explicit library loading, required-symbol
 binding, a caller-owned lookup lifetime, low-level FLOAT32/FLOAT64 dense row-major general matrix
@@ -588,15 +590,65 @@ affine load/store, gather, scatter, masked tail, or speed claim.
 Lifecycle ownership remains unchanged. CPU analysis validates and composes the chain, chooses the
 scalar orchestration, and declares exactly the source and final result. Shared Prepare assigns
 those two slots without interpreting the affine plan. CPU finalization validates both assignments
-before schema-11 artifact access and constructs one immutable executable. Cold binding validates
+before schema-12 artifact access and constructs one immutable executable. Cold binding validates
 the exact data type, carrier, byte size, alignment, accessibility, output writability, canonical
 BOOL input bytes, and source/result non-overlap. Runtime then invokes only the prepared direct
 carriers, address table, and `start`/`end` bounds; it receives no operation, graph node, Shape,
 layout, affine IR, or route choice.
 
-Non-affine movement, index tensors, functional scatter and overlap-fold, ordering and top-K,
+Static non-affine movement is the separate bounded family below. Index tensors, functional
+scatter and overlap-fold, ordering and top-K,
 explicit-state random work, dynamic layouts, general partition-DAG decomposition/fusion, and
 benchmarks remain outside this implemented family.
+
+### Current static pad, tile, and composition movement family
+
+The portable movement family accepts exactly one fully static, resolved-layout `PAD`, `TILE`,
+`CONCAT`, or `STACK` occurrence. All inputs and the output have one exact common Model data type;
+represented-bit movement therefore covers FLOAT64, FLOAT32, BFLOAT16, INT32, INT64, and BOOL
+without conversion or numerical interpretation. PAD retains the exact typed fill bits, TILE
+repeats complete logical input patterns, CONCAT selects ordered segments along an existing axis,
+and STACK selects ordered inputs along one inserted axis.
+
+Composition accepts one through sixteen semantic input occurrences. A repeated input remains a
+repeated semantic segment, but CPU analysis declares that graph value only once. Unique input
+boundaries appear in first-occurrence order, followed by one output declaration. The output must
+have an injective resolved layout and a representation distinct from every input; even an
+identity-like request materializes its result. Input layouts may be offset or strided because
+cold geometry maps output coordinates directly to the selected input carrier.
+
+The canonical movement IR records only the family, rank, represented type, unique structural
+access forms, ordered occurrence-to-boundary mapping, one output store, and PAD bits. Compatible
+extents, layout offsets and strides, normalized axis, padding widths, repeats, and composition
+segment prefixes remain compact immutable preparation geometry outside artifact identity. CPU
+retains no address or selector entry per output element.
+
+For example, concatenating semantic inputs `[left, middle, left]` along axis zero declares two
+unique input buffers plus the output, while retaining occurrence map `[0, 1, 0]`:
+
+```text
+unique boundaries:  0 = left, 1 = middle
+semantic segments:  left, middle, left
+occurrence map:      0, 1, 0
+```
+
+Generated scalar bodies accept arbitrary half-open output ranges. Cold binding computes the
+range-start coordinate and base addresses once. The hot loop advances coordinates with carry and
+reset state; TILE wraps through the same mechanism, without per-element division or modulo.
+PAD may branch between exact fill bits and its source, while CONCAT and STACK may branch among at
+most sixteen ordered occurrences. There is no reflection, Model interpretation, map lookup,
+callback, or per-element allocation in generated code.
+
+Movement uses scalar compute and either single-thread or deterministic parallel orchestration.
+Parallel chunks are safe because output injectivity proves disjoint writes. Vector preference
+falls back to scalar for this family. CPU finalization realizes schema-12 generated artifacts;
+cold binding validates complete input/output spans and rejects every output/input overlap before
+execution. The scalar reference consumes the same movement IR and compact geometry for
+differential tests, not as a Runtime fallback.
+
+This family does not implement window extraction, value-dependent indices, functional updates,
+scatter, overlap-fold, dynamic Shape binding, general mixed-family fusion, a native route, or a
+performance claim.
 
 ### Unary numerical closure
 
@@ -1049,12 +1101,14 @@ supplied compatible arm64 OpenBLAS 0.3.33 library, including shared thread-count
 fixed SGEMM/DGEMM cases, and restoration of the original thread count. The ordered repository and
 architecture capability checkpoint then passed, and the provider milestone is complete.
 
-The current CPU foundation provides the bounded fully static pointwise matrix and the static
-resolved-layout affine family described above. Scalar execution covers every admitted row;
-parallel-scalar orchestration is available for disjoint affine write ranges; and the pointwise
-family retains its exact typed value-vector and virtual-mask parity matrix. Generator schema 11
-distinguishes pointwise and affine structures, the affine mapping/write domain, and all seven
-carrier forms. No excluded pointwise or later semantic family, BFLOAT16 numerical operation,
+The current CPU foundation provides the bounded fully static pointwise matrix, static
+resolved-layout affine family, and one-node static movement family described above. Scalar
+execution covers every admitted row; parallel-scalar orchestration is available for disjoint
+affine and movement write ranges; and the pointwise family retains its exact typed value-vector
+and virtual-mask parity matrix. Generator schema 12 distinguishes pointwise, affine, and movement
+structures, including movement occurrence order and exact padding bits, plus the affine
+mapping/write domain and all seven carrier forms. No excluded pointwise or later semantic family,
+BFLOAT16 numerical operation,
 cross-type CAST, dynamic layout, vector affine execution, native fallback, backend-conformance
 result, public Engine integration, hardware-intrinsic guarantee, or performance result is
 implemented or promised.

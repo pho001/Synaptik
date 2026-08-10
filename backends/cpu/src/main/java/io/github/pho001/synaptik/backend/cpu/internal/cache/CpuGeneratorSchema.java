@@ -6,17 +6,19 @@ package io.github.pho001.synaptik.backend.cpu.internal.cache;
  * <p>The schema is current-only: changing a code-shaping fact, including scalar versus vector
  * compute, exact vector species, adjusted carrier/access pattern, selected materialized source,
  * opcode vocabulary, scalar-power realization, or exact two-bound clamp immediate, requires
- * compatible current-version metadata. Schema 10 adds typed integral and canonical-BOOL vector
- * bodies plus virtual floating-mask topology and selection.
+ * compatible current-version metadata. Schema 12 extends schema 11 with the structural static
+ * PAD/TILE/CONCAT/STACK family, ordered unique-boundary occurrence mapping, exact represented-bit
+ * padding immediate, and scalar generated body.
  * The optional persistent envelope stores this version and has no legacy reader, migration path,
  * or converter.
  */
 public final class CpuGeneratorSchema {
     /**
-     * Current schema version, including the portable affine-copy family, its structural mapping
-     * and write domain, and the opaque BFLOAT16 {@code SHORT_ARRAY} carrier form.
+     * Current schema version, including the portable static PAD/TILE/CONCAT/STACK movement
+     * family, unique-boundary occurrence mapping, represented-bit padding immediate, and scalar
+     * generated body.
      */
-    public static final int CURRENT_VERSION = 11;
+    public static final int CURRENT_VERSION = 12;
     /** Generated entry name. */ public static final String ENTRY_NAME = "invoke";
     private CpuGeneratorSchema() { }
 

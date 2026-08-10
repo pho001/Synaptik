@@ -4,6 +4,7 @@ import io.github.pho001.synaptik.backend.cpu.internal.cache.CpuKernelSpecializat
 import io.github.pho001.synaptik.backend.cpu.internal.codegen.emit.CpuGeneratedKernel;
 import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuAccessPlan;
 import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuMaterializationPlan;
+import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuNonAffineMovementLowering;
 import io.github.pho001.synaptik.backend.cpu.internal.memory.CpuBufferArgument;
 import io.github.pho001.synaptik.backend.cpu.internal.memory.CpuBufferRepresentation;
 import io.github.pho001.synaptik.backend.cpu.internal.memory.CpuContiguousWorkspace;
@@ -48,6 +49,7 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
     private final Optional<WorkspaceSelection> workspaceSelection;
     private final boolean affineCopy;
     private final long[] affineAddressPairs;
+    private final Optional<CpuNonAffineMovementLowering.Geometry> movementGeometry;
 
     /**
      * Creates a direct derived-boundary recipe for one exact half-open logical range.
@@ -198,6 +200,48 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
             long minimumElementsPerWorker, CpuWorkerGroup workerGroup,
             Optional<CpuMaterializationPlan> materialization,
             Optional<WorkspaceSelection> workspaceSelection, long[] affineAddressPairs) {
+        this(memoryPlan, selections, artifact, bindings, carrierPattern, generatedCarrierPattern,
+                start, end, selectedRangeCount, minimumElementsPerWorker, workerGroup,
+                materialization, workspaceSelection, affineAddressPairs, Optional.empty());
+    }
+
+    /**
+     * Creates the complete recipe with optional affine or compact movement geometry.
+     *
+     * @param memoryPlan non-null exact plan against which selections are resolved
+     * @param selections non-null ordered unique-input then output selections
+     * @param artifact non-null generated artifact matching {@code generatedCarrierPattern}
+     * @param bindings non-null full-range boundary bindings; copied defensively
+     * @param carrierPattern non-null ordered Runtime carrier pattern; copied defensively
+     * @param generatedCarrierPattern non-null ordered generated-entry carrier pattern; copied
+     *     defensively
+     * @param start non-negative inclusive logical bound
+     * @param end exclusive bound no greater than the prepared output count
+     * @param selectedRangeCount positive maximum chunk count selected during analysis
+     * @param minimumElementsPerWorker positive minimum elements per submitted worker chunk
+     * @param workerGroup borrowed open group for a parallel recipe, or {@code null} for a
+     *     single-thread recipe; never closed by this executable
+     * @param materialization non-null optional pointwise contiguous-input copy plan
+     * @param workspaceSelection non-null optional workspace selection, present exactly with
+     *     {@code materialization}
+     * @param affineAddressPairs alternating source/result element addresses for affine copying,
+     *     or {@code null} for pointwise and movement execution; copied defensively
+     * @param movementGeometry non-null optional compact movement geometry, present only for a
+     *     matching movement artifact and mutually exclusive with affine address pairs
+     * @throws NullPointerException if a required reference is {@code null}
+     * @throws IllegalArgumentException if selections, bindings, carrier patterns, ranges,
+     *     parallel facts, materialization, workspace, affine addresses, or movement geometry
+     *     disagree
+     * @throws ArithmeticException if prepared range or movement element-count validation overflows
+     */
+    public CpuPreparedExecutable(PreparedMemoryPlan memoryPlan, List<BufferSelection> selections,
+            CpuGeneratedKernel artifact, List<CpuAccessPlan.Binding> bindings,
+            List<CarrierAccess> carrierPattern, List<CarrierAccess> generatedCarrierPattern,
+            long start, long end, int selectedRangeCount,
+            long minimumElementsPerWorker, CpuWorkerGroup workerGroup,
+            Optional<CpuMaterializationPlan> materialization,
+            Optional<WorkspaceSelection> workspaceSelection, long[] affineAddressPairs,
+            Optional<CpuNonAffineMovementLowering.Geometry> movementGeometry) {
         super(memoryPlan, selections, workspaceSelection.map(List::of).orElseGet(List::of),
                 accesses(selections.size()));
         if (selections.size() < 2) throw new IllegalArgumentException("at least two buffers required");
@@ -211,7 +255,10 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
                 || !artifact.specialization().carrierPattern().equals(this.generatedCarrierPattern)) {
             throw new IllegalArgumentException("binding and specialization patterns must agree");
         }
-        long count = this.bindings.getFirst().elementCount();
+        this.movementGeometry = Objects.requireNonNull(movementGeometry, "movementGeometry");
+        long count = this.movementGeometry.isPresent()
+                ? elementCount(this.movementGeometry.orElseThrow().outputExtents())
+                : this.bindings.getFirst().elementCount();
         if (start < 0 || end < start || end > count) throw new IllegalArgumentException("invalid range");
         this.start = start;
         this.end = end;
@@ -229,6 +276,9 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
         if (affineCopy && (this.affineAddressPairs.length % 2 != 0
                 || this.affineAddressPairs.length < Math.multiplyExact(end, 2))) {
             throw new IllegalArgumentException("affine address pairs must cover the selected copy range");
+        }
+        if (affineCopy && this.movementGeometry.isPresent()) {
+            throw new IllegalArgumentException("affine and movement geometry are mutually exclusive");
         }
         if (materialization.isPresent() != workspaceSelection.isPresent()) {
             throw new IllegalArgumentException("materialization and workspace selection must agree");
@@ -250,18 +300,27 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
      */
     public CpuGeneratedKernel artifact() { return artifact; }
     /**
-     * Returns the first boundary's geometry adjusted to this recipe's range.
+     * Returns the iteration boundary's geometry adjusted to this recipe's range.
+     * For movement this is the output boundary; other routes retain the first boundary contract.
      *
      * @return a new immutable ranged binding
      */
-    public CpuAccessPlan.Binding binding() { return ranged(bindings.getFirst()); }
+    public CpuAccessPlan.Binding binding() {
+        return ranged(movementGeometry.isPresent() ? bindings.getLast() : bindings.getFirst());
+    }
     /**
-     * Returns the exact ranged geometry for every ordered boundary.
+     * Returns the exact geometry for every ordered boundary.
+     * Movement inputs retain their complete input domains while its output carries this recipe's
+     * output range; same-domain routes range every boundary.
      *
-     * @return a new immutable list whose entries share this recipe's range and remain in boundary
-     *     order
+     * @return a new immutable list in boundary order with route-appropriate ranges
      */
     public List<CpuAccessPlan.Binding> accessBindings() {
+        if (movementGeometry.isPresent()) {
+            var result = new ArrayList<CpuAccessPlan.Binding>(bindings);
+            result.set(result.size() - 1, ranged(result.getLast()));
+            return List.copyOf(result);
+        }
         return bindings.stream().map(this::ranged).toList();
     }
 
@@ -280,7 +339,7 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
         return new CpuPreparedExecutable(memoryPlan(), selections, artifact, bindings,
                 carrierPattern, generatedCarrierPattern, rangeStart, rangeEnd, selectedRangeCount,
                 minimumElementsPerWorker, workerGroup, materialization,
-                workspaceSelection, affineCopy ? affineAddressPairs : null);
+                workspaceSelection, affineCopy ? affineAddressPairs : null, movementGeometry);
     }
 
     private CpuAccessPlan.Binding ranged(CpuAccessPlan.Binding source) {
@@ -338,7 +397,10 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
             boolean overlap = affineCopy
                     ? affineOverlaps(arguments.get(input), arguments.get(outputIndex), input,
                             outputIndex)
-                    : overlaps(arguments.get(input), ranged(inputBinding),
+                    : movementGeometry.isPresent()
+                        ? overlaps(arguments.get(input), inputBinding,
+                            arguments.get(outputIndex), bindings.get(outputIndex))
+                        : overlaps(arguments.get(input), ranged(inputBinding),
                             arguments.get(outputIndex), ranged(bindings.get(outputIndex)));
             if (overlap) {
                 throw new IllegalArgumentException("output accessed span must not overlap an input");
@@ -443,6 +505,14 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
     }
 
     private long[] geometry(List<CpuBufferArgument> arguments, long rangeStart, long rangeEnd) {
+        if (movementGeometry.isPresent()) {
+            long[] bases = new long[arguments.size()];
+            for (int index = 0; index < arguments.size(); index++) {
+                int width = artifact.specialization().boundaryDataTypes().get(index).byteWidth();
+                bases[index] = arguments.get(index).byteOffset() / width;
+            }
+            return movementGeometry.orElseThrow().pack(bases, rangeStart, rangeEnd);
+        }
         if (affineCopy) {
             long[] geometry = affineAddressPairs.clone();
             int sourceWidth = dataType(arguments.get(0)).byteWidth();
@@ -604,7 +674,8 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
                 }
                 continue;
             }
-            CpuAccessPlan.Binding binding = ranged(bindings.get(index));
+            CpuAccessPlan.Binding binding = movementGeometry.isPresent()
+                    ? bindings.get(index) : ranged(bindings.get(index));
             long[] extents = binding.extents().stream().mapToLong(Long::longValue).toArray();
             long[] strides = binding.effectiveStrides().stream().mapToLong(Long::longValue).toArray();
             long[] coordinates = binding.startCoordinates().stream().mapToLong(Long::longValue).toArray();
@@ -624,6 +695,13 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
             return bytes.carrier()[Math.toIntExact(bytes.byteOffset() + address)];
         }
         return ((CpuBufferArgument.Segment) argument).segment().get(ValueLayout.JAVA_BYTE, address);
+    }
+
+    private static long elementCount(long[] extents) {
+        if (java.util.Arrays.stream(extents).anyMatch(extent -> extent == 0)) return 0;
+        long result = 1;
+        for (long extent : extents) result = Math.multiplyExact(result, extent);
+        return result;
     }
 
     private final class Invocation extends BoundInvocation {

@@ -8,6 +8,8 @@ import java.util.List;
 import java.util.Objects;
 import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuKernelIr;
 import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuAffineCopyIr;
+import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuDataMovementIr;
+import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuNonAffineMovementLowering;
 import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuPointwiseOpcode;
 import io.github.pho001.synaptik.model.datatype.DataType;
 
@@ -253,6 +255,103 @@ public final class CpuScalarReferenceKernel {
             Object represented = load(arguments.get(0), ir.dataType(), addressPairs[pair]);
             store(arguments.get(1), ir.dataType(), addressPairs[pair + 1], represented);
         }
+    }
+
+    /**
+     * Executes one compact static movement mapping for differential conformance.
+     *
+     * @param ir non-null PAD, TILE, CONCAT, or STACK represented-bit movement IR
+     * @param geometry non-null matching compact cold occurrence geometry
+     * @param arguments non-null unique input arguments followed by one writable output
+     * @param start non-negative inclusive output logical bound
+     * @param end exclusive output logical bound
+     * @throws NullPointerException if {@code ir}, {@code geometry}, {@code arguments}, or a
+     *     required argument is {@code null}
+     * @throws IllegalArgumentException if boundary counts or bounds are inconsistent
+     * @throws ArithmeticException if the output element count or an address calculation overflows
+     */
+    public static void execute(CpuDataMovementIr ir,
+            CpuNonAffineMovementLowering.Geometry geometry,
+            List<CpuBufferArgument> arguments, long start, long end) {
+        Objects.requireNonNull(ir, "ir");
+        Objects.requireNonNull(geometry, "geometry");
+        long[] outputExtents = geometry.outputExtents();
+        long count = outputExtents.length == 0 ? 1 : 1;
+        for (long extent : outputExtents) count = Math.multiplyExact(count, extent);
+        if (arguments.size() != geometry.inputs().size() + 1
+                || start < 0 || end < start || end > count) {
+            throw new IllegalArgumentException("invalid movement reference boundaries or range");
+        }
+        long[] outputStrides = geometry.outputStrides();
+        int output = arguments.size() - 1;
+        for (long logical = start; logical < end; logical++) {
+            long[] coordinate = coordinates(logical, outputExtents);
+            Object represented;
+            if (ir.plan() instanceof CpuDataMovementIr.PadPlan pad) {
+                var variant = (CpuNonAffineMovementLowering.Geometry.Pad) geometry.variant();
+                long[] before = variant.before(), inputExtents = variant.inputExtents();
+                boolean fill = false;
+                long[] source = coordinate.clone();
+                for (int axis = 0; axis < source.length; axis++) {
+                    source[axis] -= before[axis];
+                    fill |= source[axis] < 0 || source[axis] >= inputExtents[axis];
+                }
+                represented = fill ? representedImmediate(ir.dataType(), pad.immediateBits())
+                        : load(arguments.getFirst(), ir.dataType(),
+                            movementAddress(geometry.inputs().getFirst(), source));
+            } else if (ir.plan() instanceof CpuDataMovementIr.TilePlan) {
+                var variant = (CpuNonAffineMovementLowering.Geometry.Tile) geometry.variant();
+                long[] source = coordinate.clone(), extents = variant.inputExtents();
+                for (int axis = 0; axis < source.length; axis++) source[axis] %= extents[axis];
+                represented = load(arguments.getFirst(), ir.dataType(),
+                        movementAddress(geometry.inputs().getFirst(), source));
+            } else if (ir.plan() instanceof CpuDataMovementIr.ConcatPlan concat) {
+                var variant = (CpuNonAffineMovementLowering.Geometry.Concat) geometry.variant();
+                long[] prefixes = variant.prefixes();
+                int occurrence = 0;
+                while (coordinate[variant.axis()] >= prefixes[occurrence + 1]) occurrence++;
+                long[] source = coordinate.clone();
+                source[variant.axis()] -= prefixes[occurrence];
+                int boundary = concat.occurrenceToBoundary().get(occurrence);
+                represented = load(arguments.get(boundary), ir.dataType(),
+                        movementAddress(geometry.inputs().get(boundary), source));
+            } else {
+                var stack = (CpuDataMovementIr.StackPlan) ir.plan();
+                var variant = (CpuNonAffineMovementLowering.Geometry.Stack) geometry.variant();
+                int occurrence = Math.toIntExact(coordinate[variant.axis()]);
+                long[] source = new long[coordinate.length - 1];
+                for (int outAxis = 0, inAxis = 0; outAxis < coordinate.length; outAxis++) {
+                    if (outAxis != variant.axis()) source[inAxis++] = coordinate[outAxis];
+                }
+                int boundary = stack.occurrenceToBoundary().get(occurrence);
+                represented = load(arguments.get(boundary), ir.dataType(),
+                        movementAddress(geometry.inputs().get(boundary), source));
+            }
+            long outputAddress = geometry.outputOffset();
+            for (int axis = 0; axis < coordinate.length; axis++) outputAddress = Math.addExact(
+                    outputAddress, Math.multiplyExact(coordinate[axis], outputStrides[axis]));
+            store(arguments.get(output), ir.dataType(), outputAddress, represented);
+        }
+    }
+
+    private static long movementAddress(CpuNonAffineMovementLowering.Geometry.Input input,
+            long[] coordinate) {
+        long result = input.offset();
+        long[] strides = input.strides();
+        for (int axis = 0; axis < coordinate.length; axis++) result = Math.addExact(result,
+                Math.multiplyExact(coordinate[axis], strides[axis]));
+        return result;
+    }
+
+    private static Object representedImmediate(DataType type, long bits) {
+        return switch (type) {
+            case FLOAT64 -> Double.longBitsToDouble(bits);
+            case FLOAT32 -> Float.intBitsToFloat((int) bits);
+            case BFLOAT16 -> (short) bits;
+            case INT32 -> (int) bits;
+            case INT64 -> bits;
+            case BOOL -> (byte) bits;
+        };
     }
 
     private static Object evaluate(CpuKernelIr ir, CpuKernelIr.Instruction instruction,

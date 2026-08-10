@@ -21,6 +21,12 @@
  * remain cold plan facts. Internal view values remain graph and logical-memory values but do not
  * become affine IR instructions, stores, declarations, or Runtime slots.
  *
+ * <p>The static movement representation records one PAD, TILE, CONCAT, or STACK family, all-six-
+ * type represented-bit identity, unique input access forms in first-occurrence order, the ordered
+ * composition-occurrence map, one injective output access form, and exact padding bits when
+ * applicable. Concrete extents, strides, offsets, axes, repeats, and segment prefixes remain
+ * instance geometry outside generated-artifact identity.</p>
+ *
  * <p>Lowering creates these cold immutable models. Portable code generation and the scalar
  * reference realization may consume their established semantics, but Runtime never receives or
  * interprets them.
