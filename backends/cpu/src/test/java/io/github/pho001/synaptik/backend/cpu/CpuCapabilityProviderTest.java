@@ -284,6 +284,88 @@ class CpuCapabilityProviderTest {
                         new UnfoldAxisAttrs(3, 1, 1), List.of(input), output))));
     }
 
+    @Test void reportsEveryExactStaticResolvedIndexingTypeAndRankRow() {
+        var provider = new CpuCapabilityProvider();
+        for (DataType dataType : DataType.values()) {
+            for (DataType indexType : List.of(DataType.INT32, DataType.INT64)) {
+                var data = descriptor(dataType, Shape.of(2, 3));
+                var axisIndices = descriptor(indexType, Shape.of(4));
+                var elementIndices = descriptor(indexType, Shape.of(2, 4));
+                var ndIndices = descriptor(indexType, Shape.of(4, 1));
+                assertAll(dataType + "/" + indexType,
+                        () -> assertTrue(provider.supports(query(AxisGatherKind.GATHER,
+                                new IndexAxisAttrs(1), List.of(data, axisIndices),
+                                descriptor(dataType, Shape.of(2, 4))))),
+                        () -> assertTrue(provider.supports(query(
+                                AxisGatherKind.GATHER_ELEMENTS, new IndexAxisAttrs(1),
+                                List.of(data, elementIndices),
+                                descriptor(dataType, Shape.of(2, 4))))),
+                        () -> assertTrue(provider.supports(query(GatherNdKind.GATHER_ND,
+                                new GatherNdAttrs(0), List.of(data, ndIndices),
+                                descriptor(dataType, Shape.of(4, 3))))));
+            }
+        }
+        for (DataType indexType : List.of(DataType.INT32, DataType.INT64)) {
+            assertAll(indexType.toString(),
+                    () -> assertTrue(provider.supports(query(AxisGatherKind.GATHER,
+                            new IndexAxisAttrs(0),
+                            List.of(descriptor(DataType.INT64, Shape.of(3)),
+                                    descriptor(indexType, Shape.scalar())),
+                            descriptor(DataType.INT64, Shape.scalar())))),
+                    () -> assertTrue(provider.supports(query(OneHotKind.ONE_HOT,
+                            new OneHotAttrs(5), List.of(descriptor(indexType, Shape.of(2, 3))),
+                            descriptor(DataType.BOOL, Shape.of(2, 3, 5))))));
+        }
+        assertTrue(provider.supports(query(GatherNdKind.GATHER_ND, new GatherNdAttrs(1),
+                List.of(descriptor(DataType.FLOAT32, Shape.of(2, 3, 4)),
+                        descriptor(DataType.INT64, Shape.of(2, 5, 2))),
+                descriptor(DataType.FLOAT32, Shape.of(2, 5)))));
+    }
+
+    @Test void indexingCapabilityFailsClosedAtEveryStructuralBoundary() {
+        var provider = new CpuCapabilityProvider();
+        var data = descriptor(DataType.FLOAT32, Shape.of(2, 3));
+        var indices = descriptor(DataType.INT32, Shape.of(2));
+        var validOutput = descriptor(DataType.FLOAT32, Shape.of(2, 2));
+        var unresolved = new TensorDescriptor(DataType.FLOAT32, Shape.of(2, 2),
+                Optional.empty(), false);
+        var nonInjective = new TensorDescriptor(DataType.FLOAT32, Shape.of(2, 2), Optional.of(
+                LayoutDescriptor.of(Shape.of(2, 2), new long[]{0, 1}, 0, true)), false);
+        assertAll(
+                () -> assertFalse(provider.supports(query(AxisGatherKind.GATHER,
+                        new IndexAxisAttrs(2), List.of(data, indices), validOutput))),
+                () -> assertFalse(provider.supports(query(AxisGatherKind.GATHER,
+                        new IndexAxisAttrs(1), List.of(data, descriptor(DataType.FLOAT32,
+                                Shape.of(2))), validOutput))),
+                () -> assertFalse(provider.supports(query(AxisGatherKind.GATHER,
+                        new IndexAxisAttrs(1), List.of(data, indices),
+                        descriptor(DataType.INT32, Shape.of(2, 2))))),
+                () -> assertFalse(provider.supports(query(AxisGatherKind.GATHER,
+                        new IndexAxisAttrs(1), List.of(data, indices),
+                        descriptor(DataType.FLOAT32, Shape.of(2, 3))))),
+                () -> assertFalse(provider.supports(query(AxisGatherKind.GATHER,
+                        new IndexAxisAttrs(1), List.of(data, indices), unresolved))),
+                () -> assertFalse(provider.supports(query(AxisGatherKind.GATHER,
+                        new IndexAxisAttrs(1), List.of(data, indices), nonInjective))),
+                () -> assertFalse(provider.supports(query(AxisGatherKind.GATHER_ELEMENTS,
+                        new IndexAxisAttrs(1), List.of(data,
+                                descriptor(DataType.INT32, Shape.of(3, 2))), validOutput))),
+                () -> assertFalse(provider.supports(query(GatherNdKind.GATHER_ND,
+                        new GatherNdAttrs(1), List.of(data,
+                                descriptor(DataType.INT32, Shape.of(3, 1))),
+                        descriptor(DataType.FLOAT32, Shape.of(3))))),
+                () -> assertFalse(provider.supports(query(GatherNdKind.GATHER_ND,
+                        new GatherNdAttrs(0), List.of(data,
+                                descriptor(DataType.INT32, Shape.of(2, 3))),
+                        descriptor(DataType.FLOAT32, Shape.of(2))))),
+                () -> assertFalse(provider.supports(query(OneHotKind.ONE_HOT,
+                        new OneHotAttrs(3), List.of(descriptor(DataType.INT32, Shape.of(2))),
+                        descriptor(DataType.INT32, Shape.of(2, 3))))),
+                () -> assertFalse(provider.supports(query(OneHotKind.ONE_HOT,
+                        new OneHotAttrs(3), List.of(descriptor(DataType.INT32, Shape.of(2))),
+                        descriptor(DataType.BOOL, Shape.of(3, 2))))));
+    }
+
     private static TensorDescriptor descriptor(Shape shape, LayoutDescriptor layout) {
         return new TensorDescriptor(DataType.FLOAT64, shape, Optional.of(layout), false);
     }

@@ -12,6 +12,7 @@ import java.util.Optional;
 import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuMaterializationPlan;
 import io.github.pho001.synaptik.backend.cpu.internal.cache.CpuSpecializationBudget;
 import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuNonAffineMovementLowering;
+import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuIndexingLowering;
 
 /**
  * Route-neutral immutable selected CPU partition plan.
@@ -42,6 +43,8 @@ import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuNonAffineMovem
  *     {@code materialization} is present
  * @param specializationBudget non-null enforced candidate/artifact/shape/unroll ceiling
  * @param movementGeometry non-null optional compact cold non-affine movement geometry
+ * @param indexingGeometry non-null optional compact cold indexing geometry; present exactly for
+ *     a gather or one-hot plan and mutually exclusive with materialization and workspace
  */
 public record CpuPartitionPreparationPlan(List<ExecutionUnitPlan> units, Route route,
         ExecutionStrategy executionStrategy,
@@ -53,7 +56,8 @@ public record CpuPartitionPreparationPlan(List<ExecutionUnitPlan> units, Route r
         String loweringManifest, Optional<CpuMaterializationPlan> materialization,
         Optional<PreparationResourceRequirement.Workspace> workspaceDeclaration,
         CpuSpecializationBudget specializationBudget,
-        Optional<CpuNonAffineMovementLowering.Geometry> movementGeometry)
+        Optional<CpuNonAffineMovementLowering.Geometry> movementGeometry,
+        Optional<CpuIndexingLowering.Geometry> indexingGeometry)
         implements BackendPreparationPlan {
     /**
      * Creates a pointwise or affine plan without non-affine movement geometry.
@@ -96,7 +100,7 @@ public record CpuPartitionPreparationPlan(List<ExecutionUnitPlan> units, Route r
                 carrierPattern, generatedCarrierPattern, extents, elementCount, affineAddressPairs,
                 selectedRangeCount, minimumElementsPerWorker, vectorSpeciesBitSize,
                 loweringManifest, materialization, workspaceDeclaration, specializationBudget,
-                Optional.empty());
+                Optional.empty(), Optional.empty());
     }
     /**
      * One computation-oriented execution unit.
@@ -207,6 +211,7 @@ public record CpuPartitionPreparationPlan(List<ExecutionUnitPlan> units, Route r
         workspaceDeclaration = Objects.requireNonNull(workspaceDeclaration, "workspaceDeclaration");
         Objects.requireNonNull(specializationBudget, "specializationBudget");
         movementGeometry = Objects.requireNonNull(movementGeometry, "movementGeometry");
+        indexingGeometry = Objects.requireNonNull(indexingGeometry, "indexingGeometry");
         if (units.size() != 1 || route != Route.PORTABLE
                 || bufferDeclarations.size() < 2
                 || boundaryValues.size() != bufferDeclarations.size()
@@ -219,12 +224,18 @@ public record CpuPartitionPreparationPlan(List<ExecutionUnitPlan> units, Route r
                 instanceof io.github.pho001.synaptik.backend.cpu.internal.ir.CpuAffineCopyIr;
         boolean movement = units.getFirst().portablePlan().portableKernelIr()
                 instanceof io.github.pho001.synaptik.backend.cpu.internal.ir.CpuDataMovementIr;
+        boolean indexing = units.getFirst().portablePlan().portableKernelIr()
+                instanceof io.github.pho001.synaptik.backend.cpu.internal.ir.CpuIndexingIr;
         if (affine ? affineAddressPairs.length != Math.multiplyExact(elementCount, 2)
                 : affineAddressPairs.length != 0) {
             throw new IllegalArgumentException("affine address geometry must match the copy domain");
         }
         if (movement != movementGeometry.isPresent()) {
             throw new IllegalArgumentException("movement IR and cold geometry must agree");
+        }
+        if (indexing != indexingGeometry.isPresent() || indexing && (materialization.isPresent()
+                || workspaceDeclaration.isPresent())) {
+            throw new IllegalArgumentException("indexing IR and cold geometry must agree");
         }
         boolean vector = executionStrategy.compute() == ExecutionStrategy.Compute.VECTOR;
         boolean parallel = executionStrategy.orchestration() == ExecutionStrategy.Orchestration.PARALLEL;

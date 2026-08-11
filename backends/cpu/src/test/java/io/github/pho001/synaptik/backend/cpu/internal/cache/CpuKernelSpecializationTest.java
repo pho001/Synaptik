@@ -19,6 +19,11 @@ import io.github.pho001.synaptik.model.layout.LayoutDescriptor;
 import io.github.pho001.synaptik.model.tensor.TensorDescriptor;
 import java.util.Optional;
 import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuKernelIr;
+import io.github.pho001.synaptik.backend.cpu.internal.codegen.emit.CpuClassFileKernelGenerator;
+import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuIndexingLoweringTest;
+import io.github.pho001.synaptik.model.operation.Operation;
+import io.github.pho001.synaptik.model.operation.index.AxisGatherKind;
+import io.github.pho001.synaptik.model.operation.index.IndexAxisAttrs;
 
 class CpuKernelSpecializationTest {
     @Test void excludesCompatibleExtentsButIncludesNumericalAndStrategyFacts() {
@@ -170,6 +175,41 @@ class CpuKernelSpecializationTest {
                                 0, -1, List.of())));
     }
 
+    @Test void indexingIdentityIncludesStructureAndExcludesCompatibleColdGeometry() {
+        var axisZero = indexing(AxisGatherKind.GATHER, 0, Shape.of(2, 2), Shape.of(2),
+                Shape.of(2, 2), DataType.FLOAT32, DataType.INT64,
+                List.of(CarrierAccess.FLOAT_ARRAY, CarrierAccess.LONG_ARRAY,
+                        CarrierAccess.FLOAT_ARRAY));
+        var axisOne = indexing(AxisGatherKind.GATHER, 1, Shape.of(2, 2), Shape.of(2),
+                Shape.of(2, 2), DataType.FLOAT32, DataType.INT64,
+                List.of(CarrierAccess.FLOAT_ARRAY, CarrierAccess.LONG_ARRAY,
+                        CarrierAccess.FLOAT_ARRAY));
+        var otherExtents = indexing(AxisGatherKind.GATHER, 1, Shape.of(3, 4), Shape.of(5),
+                Shape.of(3, 5), DataType.FLOAT32, DataType.INT64,
+                List.of(CarrierAccess.FLOAT_ARRAY, CarrierAccess.LONG_ARRAY,
+                        CarrierAccess.FLOAT_ARRAY));
+        var otherFamily = indexing(AxisGatherKind.GATHER_ELEMENTS, 1, Shape.of(2, 2),
+                Shape.of(2, 2), Shape.of(2, 2), DataType.FLOAT32, DataType.INT64,
+                List.of(CarrierAccess.FLOAT_ARRAY, CarrierAccess.LONG_ARRAY,
+                        CarrierAccess.FLOAT_ARRAY));
+        var otherCarrier = indexing(AxisGatherKind.GATHER, 0, Shape.of(2, 2), Shape.of(2),
+                Shape.of(2, 2), DataType.FLOAT32, DataType.INT64,
+                List.of(CarrierAccess.MEMORY_SEGMENT, CarrierAccess.LONG_ARRAY,
+                        CarrierAccess.FLOAT_ARRAY));
+        var generator = new CpuClassFileKernelGenerator();
+        assertAll(
+                () -> assertEquals(axisZero.specialization(), axisOne.specialization()),
+                () -> assertEquals(axisOne.specialization(), otherExtents.specialization()),
+                () -> assertArrayEquals(generator.generateClassBytes(axisZero.specialization(),
+                                axisZero.kernelIr()),
+                        generator.generateClassBytes(otherExtents.specialization(),
+                                otherExtents.kernelIr())),
+                () -> assertNotEquals(axisZero.specialization(), otherFamily.specialization()),
+                () -> assertNotEquals(axisZero.specialization(), otherCarrier.specialization()),
+                () -> assertEquals(14, CpuGeneratorSchema.CURRENT_VERSION),
+                () -> assertEquals(-1, axisZero.specialization().materializedSourcePosition()));
+    }
+
     private static CpuKernelSpecialization specialization(
             PrepareContext<CpuPartitionAnalysisInputs> old, PortableExecutionConfig config) {
         var context = new PrepareContext<>(old.partition(), old.nodes(), old.values(),
@@ -186,5 +226,20 @@ class CpuKernelSpecializationTest {
                 new CpuPartitionAnalysisInputs(false, pattern));
         return new CpuPartitionPreparer().analyze(context).plan().units().getFirst()
                 .portablePlan().specialization();
+    }
+
+    private static io.github.pho001.synaptik.backend.cpu.internal.route.portable
+            .CpuPortableRoutePlan indexing(AxisGatherKind kind, int axis, Shape dataShape,
+                    Shape indexShape, Shape outputShape, DataType dataType, DataType indexType,
+                    List<CarrierAccess> carriers) {
+        var base = CpuIndexingLoweringTest.context(new Operation(kind, new IndexAxisAttrs(axis)),
+                List.of(0, 1), List.of(CpuIndexingLoweringTest.descriptor(dataType, dataShape),
+                        CpuIndexingLoweringTest.descriptor(indexType, indexShape)),
+                CpuIndexingLoweringTest.descriptor(dataType, outputShape));
+        var context = new PrepareContext<>(base.partition(), base.nodes(), base.values(),
+                base.memoryRequirements(), base.constants(),
+                new CpuPartitionAnalysisInputs(false, carriers));
+        return new CpuPartitionPreparer().analyze(context).plan().units().getFirst()
+                .portablePlan();
     }
 }

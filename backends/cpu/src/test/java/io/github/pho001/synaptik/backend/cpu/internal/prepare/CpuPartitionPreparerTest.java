@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.*;
 import io.github.pho001.synaptik.backend.cpu.CpuCapabilityProvider;
 import io.github.pho001.synaptik.model.datatype.DataType;
 import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuNonAffineMovementLoweringTest;
+import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuIndexingLoweringTest;
 import io.github.pho001.synaptik.model.graph.CompiledNode;
 import io.github.pho001.synaptik.model.graph.GraphValue;
 import io.github.pho001.synaptik.model.graph.NodeId;
@@ -19,6 +20,8 @@ import io.github.pho001.synaptik.model.operation.layout.TileAttrs;
 import io.github.pho001.synaptik.model.operation.layout.TileKind;
 import io.github.pho001.synaptik.model.operation.layout.Window2dAttrs;
 import io.github.pho001.synaptik.model.operation.layout.WindowTransformKind;
+import io.github.pho001.synaptik.model.operation.index.AxisGatherKind;
+import io.github.pho001.synaptik.model.operation.index.IndexAxisAttrs;
 import io.github.pho001.synaptik.model.operation.elementwise.binary.BinaryArithmeticKind;
 import io.github.pho001.synaptik.model.operation.elementwise.unary.UnaryElementwiseKind;
 import io.github.pho001.synaptik.model.operation.elementwise.comparison.BinaryComparisonKind;
@@ -46,6 +49,35 @@ import jdk.incubator.vector.LongVector;
 import jdk.incubator.vector.ByteVector;
 
 public class CpuPartitionPreparerTest {
+    @Test void indexingDeclaresUniqueInputsThenOutputWithOneUnitAndNoWorkspace() {
+        var distinct = new CpuPartitionPreparer().analyze(CpuIndexingLoweringTest.context(
+                new Operation(AxisGatherKind.GATHER, new IndexAxisAttrs(0)), List.of(0, 1),
+                List.of(CpuIndexingLoweringTest.descriptor(DataType.INT32, Shape.of(2)),
+                        CpuIndexingLoweringTest.descriptor(DataType.INT64, Shape.of(2))),
+                CpuIndexingLoweringTest.descriptor(DataType.INT32, Shape.of(2))));
+        var deduplicated = new CpuPartitionPreparer().analyze(CpuIndexingLoweringTest.context(
+                new Operation(AxisGatherKind.GATHER, new IndexAxisAttrs(0)), List.of(0, 0),
+                List.of(CpuIndexingLoweringTest.descriptor(DataType.INT32, Shape.of(2))),
+                CpuIndexingLoweringTest.descriptor(DataType.INT32, Shape.of(2))));
+        assertAll(
+                () -> assertEquals(List.of(new ValueId(0), new ValueId(1), new ValueId(2)),
+                        distinct.requirements().stream().map(requirement ->
+                                ((io.github.pho001.synaptik.prepare.analysis
+                                        .PreparationResourceRequirement.Buffer) requirement)
+                                        .valueId()).toList()),
+                () -> assertEquals(1, distinct.plan().units().size()),
+                () -> assertTrue(distinct.plan().workspaceDeclaration().isEmpty()),
+                () -> assertTrue(distinct.plan().materialization().isEmpty()),
+                () -> assertEquals(-1, distinct.plan().units().getFirst().portablePlan()
+                        .specialization().materializedSourcePosition()),
+                () -> assertEquals(List.of(new ValueId(0), new ValueId(1)),
+                        deduplicated.requirements().stream().map(requirement ->
+                                ((io.github.pho001.synaptik.prepare.analysis
+                                        .PreparationResourceRequirement.Buffer) requirement)
+                                        .valueId()).toList()),
+                () -> assertEquals(2, deduplicated.plan().accessBindings().size()));
+    }
+
     @Test void selectsAllFourStrategiesAndFallsBackFromIneligibleVectorGeometry() {
         int lanes = DoubleVector.SPECIES_PREFERRED.length();
         var pattern = CpuPartitionAnalysisInputs.DEFAULT.carrierPattern();

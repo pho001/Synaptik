@@ -15,6 +15,9 @@
  * graph semantics, change fusion, route, strategy, or species selection, or introduce an
  * undeclared resource after shared Prepare has assigned slots. Ordinary analysis and finalization
  * never benchmark; optional persistence only performs bounded verified lookup/store work.
+ * Indexing plans declare unique inputs followed by one output, select scalar or parallel-scalar
+ * output execution, declare no workspace, and retain compact validation/write geometry. Their
+ * one generated artifact contains only the output-writing pass.
  *
  * <p>All work in this package is cold-path work. Runtime collaborates only through the resulting
  * prepared executable and never receives the canonical kernel intermediate representation.

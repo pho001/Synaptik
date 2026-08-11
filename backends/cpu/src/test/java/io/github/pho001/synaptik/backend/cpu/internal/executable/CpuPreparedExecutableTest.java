@@ -40,6 +40,9 @@ import io.github.pho001.synaptik.model.operation.layout.PadAttrs;
 import io.github.pho001.synaptik.model.operation.layout.PadKind;
 import io.github.pho001.synaptik.model.operation.layout.UnfoldAxisAttrs;
 import io.github.pho001.synaptik.model.operation.layout.WindowTransformKind;
+import io.github.pho001.synaptik.model.operation.index.*;
+import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuIndexingLoweringTest;
+import java.lang.foreign.Arena;
 
 class CpuPreparedExecutableTest {
     private static final ValueLayout.OfDouble DOUBLE =
@@ -478,6 +481,259 @@ class CpuPreparedExecutableTest {
         } finally { boolRun.close(); }
     }
 
+    @Test void indexingValidatesEveryIndexBeforeAnyOutputWrite() {
+        var base = CpuIndexingLoweringTest.context(
+                new Operation(OneHotKind.ONE_HOT, new OneHotAttrs(3)), List.of(0),
+                List.of(CpuIndexingLoweringTest.descriptor(DataType.INT64, Shape.of(3))),
+                CpuIndexingLoweringTest.descriptor(DataType.BOOL, Shape.of(3, 3)));
+        var context = new io.github.pho001.synaptik.prepare.analysis.PrepareContext<>(
+                base.partition(), base.nodes(), base.values(), base.memoryRequirements(), Map.of(),
+                new CpuPartitionAnalysisInputs(false,
+                        List.of(CarrierAccess.LONG_ARRAY, CarrierAccess.BYTE_ARRAY)));
+        var executable = CpuPartitionFinalizerTest.finalizeExecutable(
+                new CpuPartitionPreparer().analyze(context), Optional.empty());
+        byte[] output = new byte[9]; java.util.Arrays.fill(output, (byte) 7);
+        var invalid = state(executable, List.of(borrow(new long[]{2, -1, 3}), borrow(output)));
+        try {
+            var failure = assertThrows(IndexOutOfBoundsException.class,
+                    () -> executable.bind(invalid).execute());
+            assertAll(() -> assertEquals("ONE_HOT index at logical position 1 is out of bounds: "
+                            + "value=-1, depth=3", failure.getMessage()),
+                    () -> assertArrayEquals(new byte[]{7,7,7,7,7,7,7,7,7}, output));
+        } finally { invalid.close(); }
+
+        byte[] validOutput = new byte[9];
+        var valid = state(executable, List.of(borrow(new long[]{2, 0, 1}), borrow(validOutput)));
+        try {
+            executable.bind(valid).execute();
+            assertArrayEquals(new byte[]{0,0,1, 1,0,0, 0,1,0}, validOutput);
+        } finally { valid.close(); }
+    }
+
+    @Test void everyIndexingFamilyReportsTheFirstNegativeOrUpperFailureWithoutWrites() {
+        var gather = indexingExecutable(new Operation(AxisGatherKind.GATHER,
+                        new IndexAxisAttrs(0)), List.of(0, 1),
+                List.of(CpuIndexingLoweringTest.descriptor(DataType.INT32, Shape.of(2)),
+                        CpuIndexingLoweringTest.descriptor(DataType.INT32, Shape.of(3))),
+                CpuIndexingLoweringTest.descriptor(DataType.INT32, Shape.of(3)),
+                List.of(CarrierAccess.INT_ARRAY, CarrierAccess.INT_ARRAY,
+                        CarrierAccess.INT_ARRAY));
+        int[] gatherOutput = {7, 7, 7};
+        var gatherRun = state(gather, List.of(borrow(new int[]{10, 20}),
+                borrow(new int[]{0, -1, 2}), borrow(gatherOutput)));
+        try {
+            var failure = assertThrows(IndexOutOfBoundsException.class,
+                    () -> gather.bind(gatherRun).execute());
+            assertAll(() -> assertEquals("GATHER index at logical position 1 for data axis 0 "
+                            + "is out of bounds: value=-1, extent=2", failure.getMessage()),
+                    () -> assertArrayEquals(new int[]{7, 7, 7}, gatherOutput));
+        } finally { gatherRun.close(); }
+
+        var elements = indexingExecutable(new Operation(AxisGatherKind.GATHER_ELEMENTS,
+                        new IndexAxisAttrs(1)), List.of(0, 1),
+                List.of(CpuIndexingLoweringTest.descriptor(DataType.INT64, Shape.of(2, 2)),
+                        CpuIndexingLoweringTest.descriptor(DataType.INT64, Shape.of(2, 2))),
+                CpuIndexingLoweringTest.descriptor(DataType.INT64, Shape.of(2, 2)),
+                List.of(CarrierAccess.LONG_ARRAY, CarrierAccess.LONG_ARRAY,
+                        CarrierAccess.LONG_ARRAY));
+        long[] elementsOutput = {7, 7, 7, 7};
+        var elementsRun = state(elements, List.of(borrow(new long[]{10, 11, 20, 21}),
+                borrow(new long[]{0, 1, 2, -1}), borrow(elementsOutput)));
+        try {
+            var failure = assertThrows(IndexOutOfBoundsException.class,
+                    () -> elements.bind(elementsRun).execute());
+            assertAll(() -> assertEquals("GATHER_ELEMENTS index at logical position 2 for data "
+                            + "axis 1 is out of bounds: value=2, extent=2", failure.getMessage()),
+                    () -> assertArrayEquals(new long[]{7, 7, 7, 7}, elementsOutput));
+        } finally { elementsRun.close(); }
+
+        var nd = indexingExecutable(new Operation(GatherNdKind.GATHER_ND,
+                        new GatherNdAttrs(0)), List.of(0, 1),
+                List.of(CpuIndexingLoweringTest.descriptor(DataType.INT32, Shape.of(2, 3)),
+                        CpuIndexingLoweringTest.descriptor(DataType.INT32, Shape.of(2, 2))),
+                CpuIndexingLoweringTest.descriptor(DataType.INT32, Shape.of(2)),
+                List.of(CarrierAccess.INT_ARRAY, CarrierAccess.INT_ARRAY,
+                        CarrierAccess.INT_ARRAY));
+        int[] ndOutput = {7, 7};
+        var ndRun = state(nd, List.of(borrow(new int[]{0, 1, 2, 3, 4, 5}),
+                borrow(new int[]{1, 3, -1, 0}), borrow(ndOutput)));
+        try {
+            var failure = assertThrows(IndexOutOfBoundsException.class,
+                    () -> nd.bind(ndRun).execute());
+            assertAll(() -> assertEquals("GATHER_ND index at logical position 1 for data axis 1 "
+                            + "is out of bounds: value=3, extent=3", failure.getMessage()),
+                    () -> assertArrayEquals(new int[]{7, 7}, ndOutput));
+        } finally { ndRun.close(); }
+
+        var hot = indexingExecutable(new Operation(OneHotKind.ONE_HOT, new OneHotAttrs(2)),
+                List.of(0), List.of(CpuIndexingLoweringTest.descriptor(
+                        DataType.INT32, Shape.of(3))),
+                CpuIndexingLoweringTest.descriptor(DataType.BOOL, Shape.of(3, 2)),
+                List.of(CarrierAccess.INT_ARRAY, CarrierAccess.BYTE_ARRAY));
+        byte[] hotOutput = {7, 7, 7, 7, 7, 7};
+        var hotRun = state(hot, List.of(borrow(new int[]{1, 2, -1}), borrow(hotOutput)));
+        try {
+            var failure = assertThrows(IndexOutOfBoundsException.class,
+                    () -> hot.bind(hotRun).execute());
+            assertAll(() -> assertEquals("ONE_HOT index at logical position 1 is out of bounds: "
+                            + "value=2, depth=2", failure.getMessage()),
+                    () -> assertArrayEquals(new byte[]{7, 7, 7, 7, 7, 7}, hotOutput));
+        } finally { hotRun.close(); }
+    }
+
+    @Test void emptyIndexAndZeroOutputValidationDomainsRemainIndependent() {
+        var emptyHot = indexingExecutable(new Operation(OneHotKind.ONE_HOT, new OneHotAttrs(3)),
+                List.of(0), List.of(CpuIndexingLoweringTest.descriptor(
+                        DataType.INT32, Shape.of(0))),
+                CpuIndexingLoweringTest.descriptor(DataType.BOOL, Shape.of(0, 3)),
+                List.of(CarrierAccess.INT_ARRAY, CarrierAccess.BYTE_ARRAY));
+        var emptyRun = state(emptyHot, List.of(borrow(new int[0]), borrow(new byte[0])));
+        try { assertDoesNotThrow(() -> emptyHot.bind(emptyRun).execute()); }
+        finally { emptyRun.close(); }
+
+        var zeroSuffix = indexingExecutable(new Operation(GatherNdKind.GATHER_ND,
+                        new GatherNdAttrs(0)), List.of(0, 1),
+                List.of(CpuIndexingLoweringTest.descriptor(DataType.INT32, Shape.of(1, 1, 0)),
+                        CpuIndexingLoweringTest.descriptor(DataType.INT32, Shape.of(1, 2))),
+                CpuIndexingLoweringTest.descriptor(DataType.INT32, Shape.of(1, 0)),
+                List.of(CarrierAccess.INT_ARRAY, CarrierAccess.INT_ARRAY,
+                        CarrierAccess.INT_ARRAY));
+        var invalidRun = state(zeroSuffix, List.of(borrow(new int[0]),
+                borrow(new int[]{0, 1}), borrow(new int[0])));
+        try {
+            var failure = assertThrows(IndexOutOfBoundsException.class,
+                    () -> zeroSuffix.bind(invalidRun).execute());
+            assertEquals("GATHER_ND index at logical position 1 for data axis 1 is out of bounds: "
+                    + "value=1, extent=1", failure.getMessage());
+        } finally { invalidRun.close(); }
+        var validRun = state(zeroSuffix, List.of(borrow(new int[0]),
+                borrow(new int[]{0, 0}), borrow(new int[0])));
+        try { assertDoesNotThrow(() -> zeroSuffix.bind(validRun).execute()); }
+        finally { validRun.close(); }
+
+        var zeroAxis = indexingExecutable(new Operation(AxisGatherKind.GATHER,
+                        new IndexAxisAttrs(0)), List.of(0, 1),
+                List.of(CpuIndexingLoweringTest.descriptor(DataType.INT32, Shape.of(0)),
+                        CpuIndexingLoweringTest.descriptor(DataType.INT32, Shape.of(1))),
+                CpuIndexingLoweringTest.descriptor(DataType.INT32, Shape.of(1)),
+                List.of(CarrierAccess.INT_ARRAY, CarrierAccess.INT_ARRAY,
+                        CarrierAccess.INT_ARRAY));
+        int[] sentinel = {7};
+        var zeroAxisRun = state(zeroAxis, List.of(borrow(new int[0]), borrow(new int[]{0}),
+                borrow(sentinel)));
+        try {
+            assertThrows(IndexOutOfBoundsException.class, () -> zeroAxis.bind(zeroAxisRun).execute());
+            assertArrayEquals(new int[]{7}, sentinel);
+        } finally { zeroAxisRun.close(); }
+    }
+
+    @Test void indexingSupportsDeduplicationMixedSegmentsOffsetsAndRejectsOverlap() {
+        var deduplicated = indexingExecutable(new Operation(AxisGatherKind.GATHER,
+                        new IndexAxisAttrs(0)), List.of(0, 0),
+                List.of(CpuIndexingLoweringTest.descriptor(DataType.INT32, Shape.of(2))),
+                CpuIndexingLoweringTest.descriptor(DataType.INT32, Shape.of(2)),
+                List.of(CarrierAccess.INT_ARRAY, CarrierAccess.INT_ARRAY));
+        int[] deduplicatedOutput = new int[2];
+        var deduplicatedRun = state(deduplicated,
+                List.of(borrow(new int[]{1, 0}), borrow(deduplicatedOutput)));
+        try {
+            deduplicated.bind(deduplicatedRun).execute();
+            assertArrayEquals(new int[]{0, 1}, deduplicatedOutput);
+        } finally { deduplicatedRun.close(); }
+
+        var mixed = indexingExecutable(new Operation(AxisGatherKind.GATHER,
+                        new IndexAxisAttrs(0)), List.of(0, 1),
+                List.of(CpuIndexingLoweringTest.descriptor(DataType.INT32, Shape.of(3)),
+                        CpuIndexingLoweringTest.descriptor(DataType.INT64, Shape.of(2))),
+                CpuIndexingLoweringTest.descriptor(DataType.INT32, Shape.of(2)),
+                List.of(CarrierAccess.INT_ARRAY, CarrierAccess.MEMORY_SEGMENT,
+                        CarrierAccess.INT_ARRAY));
+        try (var arena = Arena.ofConfined()) {
+            var indexSegment = arena.allocate(2 * Long.BYTES, Long.BYTES);
+            indexSegment.set(java.lang.foreign.ValueLayout.JAVA_LONG, 0, 2);
+            indexSegment.set(java.lang.foreign.ValueLayout.JAVA_LONG, Long.BYTES, 0);
+            int[] dataCarrier = {99, 10, 20, 30, 99};
+            int[] outputCarrier = {99, 99, 99, 99};
+            var mixedRun = state(mixed, List.of(borrow(dataCarrier, 1, 3),
+                    CpuBorrowedBuffer.borrow(new MemorySegmentStorage(DataType.INT64, 2,
+                            indexSegment)), borrow(outputCarrier, 1, 2)));
+            try {
+                mixed.bind(mixedRun).execute();
+                assertArrayEquals(new int[]{99, 30, 10, 99}, outputCarrier);
+            } finally { mixedRun.close(); }
+        }
+
+        var overlap = indexingExecutable(new Operation(AxisGatherKind.GATHER,
+                        new IndexAxisAttrs(0)), List.of(0, 1),
+                List.of(CpuIndexingLoweringTest.descriptor(DataType.INT32, Shape.of(2)),
+                        CpuIndexingLoweringTest.descriptor(DataType.INT64, Shape.of(2))),
+                CpuIndexingLoweringTest.descriptor(DataType.INT32, Shape.of(2)),
+                List.of(CarrierAccess.INT_ARRAY, CarrierAccess.LONG_ARRAY,
+                        CarrierAccess.INT_ARRAY));
+        int[] shared = {0, 1};
+        var overlapRun = state(overlap,
+                List.of(borrow(shared), borrow(new long[]{1, 0}), borrow(shared)));
+        try { assertThrows(IllegalArgumentException.class, () -> overlap.bind(overlapRun)); }
+        finally { overlapRun.close(); }
+
+        var boolGather = indexingExecutable(new Operation(AxisGatherKind.GATHER,
+                        new IndexAxisAttrs(0)), List.of(0, 1),
+                List.of(CpuIndexingLoweringTest.descriptor(DataType.BOOL, Shape.of(2)),
+                        CpuIndexingLoweringTest.descriptor(DataType.INT32, Shape.of(1))),
+                CpuIndexingLoweringTest.descriptor(DataType.BOOL, Shape.of(1)),
+                List.of(CarrierAccess.BYTE_ARRAY, CarrierAccess.INT_ARRAY,
+                        CarrierAccess.BYTE_ARRAY));
+        byte[] boolOutput = {7};
+        var boolRun = state(boolGather,
+                List.of(borrow(new byte[]{1, 2}), borrow(new int[]{0}), borrow(boolOutput)));
+        try {
+            assertThrows(IllegalArgumentException.class, () -> boolGather.bind(boolRun));
+            assertArrayEquals(new byte[]{7}, boolOutput);
+        } finally { boolRun.close(); }
+    }
+
+    @Test void parallelIndexingStillValidatesBeforeWorkerWrites() {
+        var base = CpuIndexingLoweringTest.context(
+                new Operation(OneHotKind.ONE_HOT, new OneHotAttrs(2)), List.of(0),
+                List.of(CpuIndexingLoweringTest.descriptor(DataType.INT64, Shape.of(16))),
+                CpuIndexingLoweringTest.descriptor(DataType.BOOL, Shape.of(16, 2)));
+        var config = new CpuPartitionAnalysisInputs.PortableExecutionConfig(
+                CpuPartitionAnalysisInputs.PortableExecutionConfig.ComputePreference.SCALAR,
+                4, 4, 1);
+        var context = new io.github.pho001.synaptik.prepare.analysis.PrepareContext<>(
+                base.partition(), base.nodes(), base.values(), base.memoryRequirements(),
+                base.constants(), new CpuPartitionAnalysisInputs(false,
+                        List.of(CarrierAccess.LONG_ARRAY, CarrierAccess.BYTE_ARRAY), config));
+        var analysis = new CpuPartitionPreparer().analyze(context);
+        var workers = new CpuWorkerGroup(4);
+        try {
+            var executable = CpuPartitionFinalizerTest.finalizeExecutable(analysis,
+                    Optional.empty(), Optional.of(workers));
+            long[] indices = new long[16]; indices[1] = 2;
+            byte[] output = new byte[32]; java.util.Arrays.fill(output, (byte) 7);
+            var run = state(executable, List.of(borrow(indices), borrow(output)));
+            try {
+                assertThrows(IndexOutOfBoundsException.class,
+                        () -> executable.bind(run).execute());
+                byte[] expected = new byte[32]; java.util.Arrays.fill(expected, (byte) 7);
+                assertArrayEquals(expected, output);
+            } finally { run.close(); }
+        } finally { workers.close(); }
+    }
+
+    private static CpuPreparedExecutable indexingExecutable(Operation operation,
+            List<Integer> occurrences,
+            List<io.github.pho001.synaptik.model.tensor.TensorDescriptor> inputs,
+            io.github.pho001.synaptik.model.tensor.TensorDescriptor output,
+            List<CarrierAccess> carriers) {
+        var base = CpuIndexingLoweringTest.context(operation, occurrences, inputs, output);
+        var context = new io.github.pho001.synaptik.prepare.analysis.PrepareContext<>(
+                base.partition(), base.nodes(), base.values(), base.memoryRequirements(),
+                base.constants(), new CpuPartitionAnalysisInputs(false, carriers));
+        return CpuPartitionFinalizerTest.finalizeExecutable(
+                new CpuPartitionPreparer().analyze(context), Optional.empty());
+    }
+
     private static CpuBorrowedBuffer borrow(double[] carrier, int elementOffset) {
         return borrow(carrier, elementOffset, 4);
     }
@@ -498,6 +754,11 @@ class CpuPreparedExecutableTest {
 
     private static CpuBorrowedBuffer borrow(byte[] carrier) {
         return CpuBorrowedBuffer.borrow(new MemorySegmentStorage(DataType.BOOL, carrier.length,
+                MemorySegment.ofArray(carrier)));
+    }
+
+    private static CpuBorrowedBuffer borrow(long[] carrier) {
+        return CpuBorrowedBuffer.borrow(new MemorySegmentStorage(DataType.INT64, carrier.length,
                 MemorySegment.ofArray(carrier)));
     }
 

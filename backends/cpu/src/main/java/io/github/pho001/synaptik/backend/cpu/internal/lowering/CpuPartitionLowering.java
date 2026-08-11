@@ -49,6 +49,7 @@ public final class CpuPartitionLowering {
     private final CpuScalarPowerAnalysis scalarPowerAnalysis = new CpuScalarPowerAnalysis();
     private final CpuAffineLayoutLowering affineLowering = new CpuAffineLayoutLowering();
     private final CpuNonAffineMovementLowering movementLowering = new CpuNonAffineMovementLowering();
+    private final CpuIndexingLowering indexingLowering = new CpuIndexingLowering();
 
     /** Creates a stateless lowering boundary with the current CPU capability and power analysis. */
     public CpuPartitionLowering() { }
@@ -69,6 +70,11 @@ public final class CpuPartitionLowering {
         }
         if (context.nodes().size() == 1) {
             Object kind = context.nodes().getFirst().operation().kind();
+            if (kind instanceof io.github.pho001.synaptik.model.operation.index.AxisGatherKind
+                    || kind == io.github.pho001.synaptik.model.operation.index.GatherNdKind.GATHER_ND
+                    || kind == io.github.pho001.synaptik.model.operation.index.OneHotKind.ONE_HOT) {
+                return indexingLowering.lower(context);
+            }
             if (kind == io.github.pho001.synaptik.model.operation.layout.PadKind.PAD
                     || kind == io.github.pho001.synaptik.model.operation.layout.TileKind.TILE
                     || kind == io.github.pho001.synaptik.model.operation.layout.TensorCompositionKind.CONCAT
@@ -423,12 +429,14 @@ public final class CpuPartitionLowering {
      * @param affineAddressPairs alternating source/result addresses for affine copying, or an
      *     empty array for pointwise lowering; copied defensively
      * @param movementGeometry compact cold movement geometry, present only for data movement
+     * @param indexingGeometry compact cold indexing geometry, present only for gather or one-hot
      */
     public record LoweredPartition(CpuPortableKernelIr portableKernelIr, List<ValueId> boundaryValues,
             List<CpuAccessPlan.Binding> accessBindings, List<Long> referencedElementSpans,
             List<DataType> boundaryDataTypes, List<ValueId> virtualValues, long[] extents,
             long elementCount, String fusionReason, long[] affineAddressPairs,
-            Optional<CpuNonAffineMovementLowering.Geometry> movementGeometry) {
+            Optional<CpuNonAffineMovementLowering.Geometry> movementGeometry,
+            Optional<CpuIndexingLowering.Geometry> indexingGeometry) {
         /**
          * Creates a pointwise or affine lowering without movement geometry.
          *
@@ -453,7 +461,33 @@ public final class CpuPartitionLowering {
                 long elementCount, String fusionReason, long[] affineAddressPairs) {
             this(portableKernelIr, boundaryValues, accessBindings, referencedElementSpans,
                     boundaryDataTypes, virtualValues, extents, elementCount, fusionReason,
-                    affineAddressPairs, Optional.empty());
+                    affineAddressPairs, Optional.empty(), Optional.empty());
+        }
+
+        /**
+         * Creates a lowering with optional compact movement geometry.
+         *
+         * @param portableKernelIr non-null route-independent portable representation
+         * @param boundaryValues non-null external inputs followed by the output; copied defensively
+         * @param accessBindings non-null boundary access bindings; copied defensively
+         * @param referencedElementSpans non-null exact boundary spans; copied defensively
+         * @param boundaryDataTypes non-null exact boundary types; copied defensively
+         * @param virtualValues non-null internal values without Runtime slots; copied defensively
+         * @param extents non-null output iteration extents; copied defensively
+         * @param elementCount checked non-negative product of {@code extents}
+         * @param fusionReason non-null cold diagnostic explanation
+         * @param affineAddressPairs non-null alternating affine addresses, empty otherwise;
+         *     copied defensively
+         * @param movementGeometry non-null optional compact movement geometry
+         */
+        public LoweredPartition(CpuPortableKernelIr portableKernelIr, List<ValueId> boundaryValues,
+                List<CpuAccessPlan.Binding> accessBindings, List<Long> referencedElementSpans,
+                List<DataType> boundaryDataTypes, List<ValueId> virtualValues, long[] extents,
+                long elementCount, String fusionReason, long[] affineAddressPairs,
+                Optional<CpuNonAffineMovementLowering.Geometry> movementGeometry) {
+            this(portableKernelIr, boundaryValues, accessBindings, referencedElementSpans,
+                    boundaryDataTypes, virtualValues, extents, elementCount, fusionReason,
+                    affineAddressPairs, movementGeometry, Optional.empty());
         }
         /**
          * Validates matching boundary facts and snapshots every mutable collection or array.
@@ -472,6 +506,7 @@ public final class CpuPartitionLowering {
             extents = extents.clone();
             affineAddressPairs = affineAddressPairs.clone();
             movementGeometry = Objects.requireNonNull(movementGeometry, "movementGeometry");
+            indexingGeometry = Objects.requireNonNull(indexingGeometry, "indexingGeometry");
             Objects.requireNonNull(fusionReason, "fusionReason");
             int size = boundaryValues.size();
             if (size < 2 || accessBindings.size() != size || referencedElementSpans.size() != size
@@ -502,8 +537,10 @@ public final class CpuPartitionLowering {
             return portableKernelIr instanceof CpuKernelIr pointwise ? pointwise
                     : portableKernelIr instanceof CpuAffineCopyIr affine
                         ? affine.encodedKernelIr()
-                        : ((io.github.pho001.synaptik.backend.cpu.internal.ir.CpuDataMovementIr)
-                            portableKernelIr).encodedKernelIr();
+                        : portableKernelIr instanceof io.github.pho001.synaptik.backend.cpu.internal.ir.CpuDataMovementIr movement
+                            ? movement.encodedKernelIr()
+                            : ((io.github.pho001.synaptik.backend.cpu.internal.ir.CpuIndexingIr)
+                                portableKernelIr).encodedKernelIr();
         }
     }
 }

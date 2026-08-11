@@ -3,7 +3,7 @@
 ## Outcome and status
 
 This guide defines the CPU integration boundary and helps contributors avoid treating CPU routes
-as separate backends. The current CPU module accepts three bounded, fully static portable families.
+as separate backends. The current CPU module accepts four bounded, fully static portable families.
 A pointwise partition is one supported occurrence or one connected straight-line chain of at most
 eight occurrences. A static affine partition is one connected one-input/one-output chain of at
 most eight resolved-layout view occurrences. Either family lowers to one computation unit, one
@@ -16,6 +16,9 @@ UNFOLD_AXIS, or UNFOLD2D occurrence. It declares each distinct input once in fir
 order plus one distinct injective output while preserving every semantic composition occurrence.
 UNFOLD_AXIS copies all six represented types; UNFOLD2D copies only FLOAT64, FLOAT32, and BFLOAT16
 under the Model's canonical NCHW columns contract.
+The fourth family is exactly one resolved-layout `GATHER`, `GATHER_ELEMENTS`, `GATHER_ND`, or
+`ONE_HOT` occurrence. It validates every logical INT32/INT64 index deterministically before any
+output write and then uses scalar or parallel-scalar generated output ranges.
 
 Generated scalar and Java 26 Vector API loops accept primitive `start` and `end` bounds.
 Compatible concrete extents bind on the cold path and share identical class bytes and one
@@ -40,7 +43,7 @@ completes before consumer execution. Capability and lowering fail closed for eve
 operation, type, shape, layout, parameter, alias, fan-out, publication, carrier, or route. In
 particular, CAST is same-type only and BFLOAT16 remains representation-only for affine movement;
 CPU does not invent cross-type conversion semantics. Native, tuning, excluded pointwise rows,
-index/scatter/fold/order/random work, general partition-DAG fusion, and later operation families
+scatter/fold/order/random work, general partition-DAG fusion, and later operation families
 remain Draft.
 
 The lower-level OpenBLAS provider separately implements explicit library loading, required-symbol
@@ -675,6 +678,72 @@ initialization. One input and one distinct injective output are declared, with n
 This family does not implement value-dependent indices, functional updates, scatter, fold or
 overlap accumulation, dynamic Shape binding, general mixed-family fusion, a native route, or a
 performance claim.
+
+### Current gather and one-hot indexing family
+
+The portable indexing family accepts exactly one fully static, resolved-layout occurrence of
+`GATHER`, `GATHER_ELEMENTS`, `GATHER_ND`, or `ONE_HOT`. Gather data and output may use any of the
+six current Model data types and copy represented bits without conversion. Indices are INT32 or
+INT64. `ONE_HOT` writes canonical BOOL byte `0` or `1` and has no configurable on/off values,
+alternate output type, ignored index, or default row.
+
+The coordinate meanings remain Model-owned. `GATHER` replaces one data axis with the complete
+indices Shape, `GATHER_ELEMENTS` aligns every indices coordinate with data except at the selected
+axis, `GATHER_ND` uses the final indices axis as tuple components after any shared batch axes, and
+`ONE_HOT` appends its positive depth. CPU capability and lowering recheck those exact signatures,
+types, Shapes, static extents, resolved layouts, and output injectivity; they do not broaden or
+reinterpret the public contracts.
+
+For example, gather data Shape `[2, 3]` at axis `1` with indices Shape `[2]` and logical values
+`[2, 0]`. The result Shape is `[2, 2]`. Each data row selects its third value and then its first:
+
+```text
+data:    [[10, 11, 12], [20, 21, 22]]
+indices: [2, 0]
+result:  [[12, 10],     [22, 20]]
+```
+
+The same indices vector is logically visited once during validation, even though both data rows
+reuse it during output generation. This example demonstrates axis-gather coordinate mapping and
+strict bounds. It does not imply embedding-specific behavior, negative-index normalization, or a
+general multi-node indexing route.
+
+Execution deliberately separates the value-dependent failure domain from output writes:
+
+```text
+direct bound INT32/INT64 index carrier
+  -> scalar row-major validation of the complete logical index domain
+  -> only after success, generated scalar or parallel-scalar output ranges
+```
+
+The invoking thread selects the first invalid scalar deterministically. Negative and upper-bound
+indices throw `IndexOutOfBoundsException`; they never wrap, clamp, select a default, leave an
+all-false one-hot row, or expose partially written CPU output bytes. Validation uses the exact
+logical indices order rather than physical address order, so an offset, positive stride, or
+read-zero stride does not change which failure is first. Generated writers may reload already
+validated indices but contain no bounds branch. Worker submission begins only after the complete
+validation pass succeeds.
+
+Validation and output have independent zero domains. An empty index domain succeeds without a
+load. A zero output caused by an unrelated data suffix still validates every supplied index. A
+zero selected data extent rejects every encountered value because its valid interval is empty.
+After successful validation, zero output invokes no generated entry and submits no worker work.
+All cold carrier, span, alignment, accessibility, output-writability, canonical gathered-BOOL,
+injectivity, and output/input non-overlap checks still run.
+
+CPU analysis declares each distinct gather input `ValueId` once in semantic first-use order and
+then one separate output; one-hot declares indices and output. Every indexing plan has one unit,
+no materialization, no workspace, one schema-14 generated class artifact, one prepared
+executable, and one bound invocation. The artifact owns only output writing. Compact CPU-private
+geometry retains layout and coordinate facts without a per-index or per-output table, while the
+bound executable owns run-value validation. Shared Prepare assigns declared buffers opaquely,
+and Runtime sees only the prepared executable and direct carriers.
+
+Current support ends at these four one-node, fully static operations. Functional update,
+scatter/fold accumulation and duplicate-target policy, ordering/top-K, random execution, dynamic
+Shape/layout binding, vector gather, native routes, tuning, and general partition-DAG fusion
+remain planned. The independent scalar reference is differential-test evidence, not a Runtime
+fallback or a second artifact.
 
 ### Unary numerical closure
 

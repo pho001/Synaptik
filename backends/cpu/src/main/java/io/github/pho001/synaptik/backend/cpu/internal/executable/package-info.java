@@ -9,6 +9,11 @@
  * Static movement recipes additionally retain compact immutable output/input layout geometry and
  * family mapping facts. Cold binding packs only the selected invocation range's coordinate and
  * address state; it retains no per-output-element selector or address table.
+ * Indexing recipes retain similarly compact geometry plus one direct typed validator. Each run
+ * validates the complete logical index domain on the invoking thread before every generated call
+ * or worker submission. Invalid input therefore mutates no physical output bytes. Empty index
+ * domains validate without a load; zero output still validates any non-empty index domain and,
+ * after success, invokes no generated entry and submits no worker work.
  * For a selected materialization it validates the original source and exact contiguous workspace,
  * retains the original carrier for the copy, substitutes the workspace segment only in the
  * generated consumer pattern, and completes one canonical-order copy before any consumer chunk.

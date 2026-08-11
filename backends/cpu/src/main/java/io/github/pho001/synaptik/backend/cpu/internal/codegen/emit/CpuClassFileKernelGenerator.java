@@ -45,7 +45,9 @@ public final class CpuClassFileKernelGenerator {
                 .withMethod(CpuGeneratorSchema.ENTRY_NAME, type, AccessFlag.STATIC.mask(), method ->
                         method.withCode(code -> {
                             if (kernelIr.instructions().isEmpty()) {
-                                if (kernelIr.familyIdentity().startsWith("movement:")) {
+                                if (kernelIr.familyIdentity().startsWith("indexing:")) {
+                                    new CpuIndexingEmitter().emit(code, specialization);
+                                } else if (kernelIr.familyIdentity().startsWith("movement:")) {
                                     new CpuDataMovementEmitter().emit(code, specialization, kernelIr);
                                 } else {
                                     new CpuAffineCopyEmitter().emit(code, specialization, kernelIr);
@@ -211,15 +213,16 @@ public final class CpuClassFileKernelGenerator {
             throw new IllegalArgumentException("unsupported canonical pointwise IR");
         }
         if (kernelIr.instructions().isEmpty()) {
+            boolean indexing = kernelIr.familyIdentity().startsWith("indexing:");
             boolean movement = kernelIr.familyIdentity().startsWith("movement:");
             boolean affine = kernelIr.familyIdentity().startsWith("affine:");
-            if ((!movement && !affine)
+            if ((!movement && !affine && !indexing)
                     || affine && kernelIr.values().size() != 2
                     || movement && (kernelIr.values().size() < 2 || kernelIr.values().size() > 17)
                     || kernelIr.values().subList(0, kernelIr.values().size() - 1).stream()
                         .anyMatch(value -> value.kind() != CpuKernelIr.Value.Kind.INPUT)
                     || kernelIr.values().getLast().kind() != CpuKernelIr.Value.Kind.OUTPUT
-                    || kernelIr.values().stream().map(CpuKernelIr.Value::dataType).distinct().count() != 1
+                    || !indexing && kernelIr.values().stream().map(CpuKernelIr.Value::dataType).distinct().count() != 1
                     || specialization.executionStrategy().compute()
                         != io.github.pho001.synaptik.backend.cpu.internal.prepare.CpuPartitionPreparationPlan.ExecutionStrategy.Compute.SCALAR
                     || !specialization.scalarPowerRealizations().isEmpty()) {

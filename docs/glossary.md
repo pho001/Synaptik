@@ -544,7 +544,9 @@ Data `[2, 3, 4]`, axis `1`, and indices `[5, 6]` therefore produce
 `[2, 5, 6, 4]`; scalar indices produce `[2, 4]`. Public `Tensor.gather` requires INT32 or
 INT64 indices, normalizes the caller axis, preserves data type and gradient eligibility, leaves
 layout unresolved, and records exact `[data, indices]` provenance without reading index values
-or checking bounds. See [Gather and Gather Elements semantic kinds and
+or checking bounds. The current CPU portable route executes one fully static resolved-layout
+occurrence with complete deterministic pre-write bounds validation; this does not move bounds
+checking into Model construction or make dynamic layouts executable. See [Gather and Gather Elements semantic kinds and
 attributes](api/tensor-api.md#gather-and-gather-elements-semantic-kinds-and-attributes) and
 [axis-gather expressions](api/tensor-api.md#axis-gather-expressions).
 
@@ -584,8 +586,10 @@ materialization.
 One-hot differs from [Gather](#gather): Gather uses index values to select existing data, whereas
 one-hot turns each index into a new trailing indicator row. Construction reads no values. Valid
 eventual execution requires `0 <= i < depth`; negative and out-of-range values do not wrap,
-clamp, select a default, or produce an all-false row. Compiler analysis, bounds enforcement,
-gradient construction, lowering, backend support, and execution remain separately owned. See
+clamp, select a default, or produce an all-false row. Compiler analysis and gradient construction
+remain separately owned. The current CPU portable route supplies the first fully static resolved-
+layout backend lowering, strict bounds enforcement, and execution path; other layouts, backends,
+and general composition remain planned. See
 [one-hot encoding expressions in the Tensor API](api/tensor-api.md#one-hot-encoding-expressions).
 
 ### Gather Elements
@@ -599,7 +603,8 @@ differ. The result retains the exact indices Shape. Data `[2, 3, 4]`, axis `1`, 
 Public `Tensor.gatherElements` requires INT32 or INT64 indices and performs the rank and
 increasing-axis alignment checks before constructing fresh unresolved-layout exact
 `[data, indices]` provenance. It reads no index value and defines no bound, gradient, compiler,
-backend, or execution behavior.
+backend, or execution behavior. The current CPU portable route separately executes one fully
+static resolved-layout occurrence after complete deterministic pre-write bounds validation.
 
 ### Scatter Add
 
@@ -704,7 +709,10 @@ tuple depth no greater than the remaining data rank. It constructs the formula a
 retaining exact prefix/suffix Dimension references and returning canonical scalar Shape when both
 parts are empty. Each result preserves the data type and gradient eligibility, leaves layout
 unresolved, has no label or storage, and records fresh exact `[data, indices]` provenance. It never
-reads an index value or checks its bounds. Gather-ND differs from [scalar select](#scalar-select),
+reads an index value or checks its bounds. The current CPU portable route separately lowers and
+executes one fully static resolved-layout occurrence with deterministic tuple-component bounds
+validation before any output write; other backend and dynamic-layout work remain planned.
+Gather-ND differs from [scalar select](#scalar-select),
 whose coordinate is an intrinsic attribute; [Gather](#gather), whose index values
 address one selected data axis; and scatter-ND, which writes or combines updates. Gradients,
 compiler behavior, materialization, backend behavior, and execution remain separately owned. See
@@ -1014,8 +1022,14 @@ semantic composition occurrences while declaring repeated graph inputs once, req
 distinct injective output, copies represented bits for all six Model data types, and uses scalar
 or parallel-scalar execution. Vector preference falls back to scalar.
 
+Completed CPU 0006A1 extends movement with one static UNFOLD_AXIS or floating UNFOLD2D occurrence.
+Completed CPU 0006A2 adds one fully static resolved-layout GATHER, GATHER_ELEMENTS, GATHER_ND, or
+ONE_HOT occurrence through a distinct mixed-type indexing IR. It validates the complete logical
+index domain deterministically before one generated scalar or parallel-scalar output artifact can
+write or submit worker work. Indexing declares no workspace or materialization.
+
 Cross-type cast, BFLOAT16/FLOAT16 numerical execution, relaxed math, native/vendor realization,
-window/index/scatter/order/random families, functional updates, and dynamic layouts are not part
+scatter/order/random families, functional updates, and dynamic layouts are not part
 of this route increment. General partition-DAG decomposition and bounded vertical/horizontal
 fusion remain Draft CPU 0008A work.
 
@@ -1217,7 +1231,8 @@ concrete Draft tasks.
 ### CPU kernel intermediate representation
 
 The immutable CPU-private portable representation of one CPU execution unit. The sealed family
-contains the established pointwise form, static affine-copy form, and static movement form. The
+contains the established pointwise form, static affine-copy form, static movement form, and static
+indexing form. The
 pointwise route-
 independent canonical form records typed boundary and virtual values, one
 forty-eight-opcode family-oriented pointwise vocabulary, exact typed scalar-immediate and ordered
@@ -1248,12 +1263,18 @@ structural input accesses, ordered occurrence-to-boundary mapping, one injective
 and exact padding bits. Concrete movement extents, offsets, strides, axes, repeats, and segment
 prefixes remain compact instance geometry outside structural identity.
 
+The indexing form records GATHER, GATHER_ELEMENTS, GATHER_ND, or ONE_HOT identity, mixed ordered
+boundary types, structural access/rank forms, semantic occurrence-to-unique-boundary mapping, and
+one output store. Axis, batch count, tuple depth, one-hot depth, extents, layout magnitudes,
+carriers, index values, and validation results remain compact cold or run-bound facts outside
+artifact identity.
+
 This is backend-internal state, not another Model, Compiler, Planning, Prepare, or Runtime IR.
 
 ### CPU access plan
 
 The implemented normalized per-value address description shared by the current bounded CPU
-pointwise, affine, and movement units. CPU 0005B right-aligns pointwise rank and separates the
+pointwise, affine, movement, and indexing units. CPU 0005B right-aligns pointwise rank and separates the
 structural regime/axis pattern used by generated-class identity from cold concrete extents, base
 element offset, effective `long` strides, exact carrier objects, slots, and addresses. Different
 inputs and the output of one fused unit may have different plans. The plan consumes current Model
@@ -1434,6 +1455,28 @@ BFLOAT16 with direct positive-zero or exact matching typed padding.
 This term does not include Model expression construction, affine view folding, index tensors,
 functional updates, scatter/fold accumulation, dynamic Shape binding, native routing, general
 partition-DAG fusion, or a performance claim.
+
+### CPU static indexing
+
+The implemented CPU-private realization of exactly one fully static, resolved-layout `GATHER`,
+`GATHER_ELEMENTS`, `GATHER_ND`, or `ONE_HOT` occurrence. Gather forms accept all six current data
+types with INT32 or INT64 indices and copy represented bits; one-hot accepts those index types and
+writes canonical BOOL bytes. Inputs may use non-negative offsets and strides, including repeated
+reads through zero strides. The output is separate, injective, writable, and physically
+non-overlapping with every unique input.
+
+Each run first scans the complete logical index domain in row-major order on the invoking thread.
+The first invalid scalar throws before any generated output call or worker submission, so CPU
+performs no partial physical output write. An empty index domain validates without a load. A zero
+output does not skip a non-empty validation domain; after successful validation it invokes no
+generated entry and submits no worker work.
+
+CPU analysis declares unique inputs in semantic first-use order followed by one output. It selects
+one execution unit, no materialization, no workspace, and one generated schema-14 artifact whose
+only role is scalar or parallel-scalar output writing. Compact geometry retains no per-index or
+per-output table. This term does not add Model semantics, dynamic Shape/layout binding, negative-
+index normalization, scatter/fold policy, vector/native indexing, Runtime semantic inspection, a
+second artifact, or a performance claim.
 
 ### CPU virtual intermediate
 

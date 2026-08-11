@@ -128,8 +128,10 @@ broad 0006A row is now dependency-split: detailed
 [CPU 0006A Portable pad, tile, and tensor-composition movement](backends/cpu/tasks/0006a-portable-pad-tile-and-tensor-composition-movement.md)
 is `Complete`; detailed
 [CPU 0006A1 Portable static window extraction](backends/cpu/tasks/0006a1-portable-static-window-extraction.md)
-is `Complete`; and Draft 0006A2 retains Gather and one-hot with complete pre-write execution-time
-index validation. Functional scatter/fold,
+is `Complete`; and detailed
+[CPU 0006A2 Portable gather and one-hot indexing](backends/cpu/tasks/0006a2-portable-gather-and-one-hot-indexing.md)
+is `Complete`, delivering Gather and one-hot with complete pre-write
+execution-time index validation. Functional scatter/fold,
 ordering, and explicit-state random work remain Draft 0006B–0006D without detailed specs.
 Historical
 [CPU 0001 Capability, representation, binding, and parallel foundation](backends/cpu/tasks/0001-cpu-capability-representation-binding-and-parallel-foundation.md)
@@ -157,8 +159,8 @@ materialization/specialization/persistence evidence is also `Complete`; detailed
 `Complete` for its bounded first five-type core pointwise increment. Detailed CPU 0005F floating
 division and exact scalar-power realization is `Complete`; detailed CPU 0005G and CPU 0005H are
 `Complete`; detailed CPU 0005I, CPU 0005J, and CPU 0006 are `Complete`; and CPU
-0006A is `Complete`; detailed 0006A1 is `Complete`; 0006A2–0017 remain `Draft` without detailed
-specifications.
+0006A is `Complete`; detailed 0006A1 and 0006A2 are `Complete`; 0006B–0017 remain `Draft` without
+detailed specifications.
 CPU 0003
 implements a
 model-independent filesystem store beneath an explicit
@@ -513,13 +515,13 @@ injectivity decision accepts valid interleaved positive strides while rejecting 
 Detailed CPU 0005C through CPU 0005J are Complete.
 Detailed CPU 0006 and detailed CPU 0006A are Complete after splitting static movement,
 window extraction, and value-dependent indexing by dependency. Detailed CPU 0006A1 is `Complete`;
-CPU 0006A2–0017 and the refined Config, Prepare, Metal, and tuning rows remain `Draft` without new
-detailed specifications.
+detailed CPU 0006A2 is `Complete`; CPU 0006B–0017 and the refined Config,
+Prepare, Metal, and tuning rows remain `Draft` without new detailed specifications.
 Completed OpenBLAS history and every completed project area remain unchanged.
 
 CPU remains the active global project area. CPU 0005A through CPU 0006 are `Complete`, detailed
-CPU 0006A is `Complete`, detailed CPU 0006A1 is `Complete`, and CPU 0006A2 and later work remain
-`Draft` without detailed specifications.
+CPU 0006A, detailed CPU 0006A1, and detailed CPU 0006A2 are `Complete`. CPU 0006B and later work
+remain `Draft` without detailed specifications.
 CPU 0006A delivers one exact static resolved-layout PAD, TILE, CONCAT, or STACK occurrence with
 ordered one-through-sixteen composition inputs, first-occurrence unique declarations, compact
 cold movement geometry, all-six-type represented-bit scalar/parallel-scalar generation, one
@@ -537,6 +539,17 @@ CPU suite passed 32 suites/163 tests with one expected persistence skip on OpenJ
 Clean documentation context `019ff061-4aa7-7f62-b2c5-7a1aed7b16f4` reused that stable evidence
 and passed CPU Javadoc plus final documentation, scope, schema, status, forbidden-change, and
 whitespace gates without rerunning Java tests.
+CPU 0006A2 adds one exact static resolved-layout GATHER, GATHER_ELEMENTS, GATHER_ND, or ONE_HOT
+occurrence with deterministic complete pre-write index validation, unique input declarations,
+zero workspace/materialization, scalar or parallel-scalar output writing, and one schema-14
+artifact. Implementation context `019ff098-313c-7b53-8a03-df9f31fcf71f` established the
+implementation. Mandatory clean audit/fix context `019ff0bc-5996-7c30-903e-6f32d1b53a36` found no
+production defect, expanded the allowlisted regression matrix, and recorded a focused
+12-suite/71-test pass plus final CPU 35-suite/183-test pass with one expected persistence-evidence
+skip and zero failures/errors on Oracle OpenJDK 26.0.1, Runtime/VM 26.0.1+8-34. Clean
+documentation context `019ff0c9-83cf-7d82-8f3c-e61be7a30269` reused that stable evidence and
+finalized Javadocs, package summaries, the CPU guide, glossary, and synchronized planning status
+without rerunning Java tests.
 CPU 0001–0005 are
 historical Superseded records whose Git history
 and validation evidence remain intact. Complete CPU 0004 added no public facade, registry, service locator,

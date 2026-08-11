@@ -1,9 +1,10 @@
 /**
  * Supplies the sole supported CPU capability provider and its stable {@code cpu} identity.
  * The provider truthfully reports the implemented fully static pointwise and affine occurrence
- * matrices plus the bounded one-node {@code PAD}, {@code TILE}, {@code CONCAT}, and {@code STACK}
- * represented-bit movement matrix. Movement covers all six Model data types, requires resolved
- * layouts and an injective output, and bounds composition to sixteen semantic input occurrences.
+ * matrices plus bounded one-node movement, window-extraction, and indexing matrices. Movement
+ * covers all six Model data types; two-dimensional unfold is floating-only. Indexing covers
+ * {@code GATHER}, {@code GATHER_ELEMENTS}, {@code GATHER_ND}, and {@code ONE_HOT} with INT32 or
+ * INT64 indices, resolved layouts, an injective distinct output, and strict bounds validation.
  * The provider exposes no route, carrier, preparation, or execution API.
  *
  * <p>The {@code internal} namespace contains unsupported implementation contracts for complete-

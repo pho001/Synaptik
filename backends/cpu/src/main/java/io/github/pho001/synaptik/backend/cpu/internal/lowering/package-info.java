@@ -27,6 +27,12 @@
  * declaring each distinct input once, requires one distinct injective output, and lowers exact
  * extents, offsets, strides, axes, padding widths, repeats, and composition prefixes into compact
  * cold geometry rather than a per-output-element table.</p>
+
+ * <p>The indexing family accepts exactly one fully static resolved-layout GATHER,
+ * GATHER_ELEMENTS, GATHER_ND, or ONE_HOT occurrence. It preserves semantic input occurrence
+ * order while declaring each exact input value once, derives compact layout and family geometry,
+ * and requires one distinct injective output. It creates no workspace or per-index/per-output
+ * table; execution-time values remain unavailable until direct cold binding.</p>
  *
  * <p>The selected {@code CpuMaterializationPlan} is a separate route-independent copy fact. It
  * retains original source geometry and canonical dense consumer geometry without changing the

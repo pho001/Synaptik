@@ -21,6 +21,12 @@ import io.github.pho001.synaptik.model.layout.LayoutDescriptor;
 import io.github.pho001.synaptik.model.operation.layout.*;
 import io.github.pho001.synaptik.model.operation.index.SelectAttrs;
 import io.github.pho001.synaptik.model.operation.index.SelectKind;
+import io.github.pho001.synaptik.model.operation.index.AxisGatherKind;
+import io.github.pho001.synaptik.model.operation.index.IndexAxisAttrs;
+import io.github.pho001.synaptik.model.operation.index.GatherNdKind;
+import io.github.pho001.synaptik.model.operation.index.GatherNdAttrs;
+import io.github.pho001.synaptik.model.operation.index.OneHotKind;
+import io.github.pho001.synaptik.model.operation.index.OneHotAttrs;
 import io.github.pho001.synaptik.model.shape.Shape;
 import io.github.pho001.synaptik.planning.capability.BackendCapabilityProvider;
 import io.github.pho001.synaptik.planning.capability.OperationCapabilityQuery;
@@ -104,6 +110,8 @@ public final class CpuCapabilityProvider implements BackendCapabilityProvider {
         var attrs = query.operation().attrs();
         TensorDescriptor output = query.outputs().getFirst();
         try {
+            if (kind instanceof AxisGatherKind || kind == GatherNdKind.GATHER_ND
+                    || kind == OneHotKind.ONE_HOT) return supportsIndexing(query, output);
             if (movementKind(kind)) return supportsMovement(query, output);
             if (affineKind(kind)) return supportsAffine(query, output);
             if (kind instanceof BinaryArithmeticKind arithmetic) {
@@ -190,6 +198,63 @@ public final class CpuCapabilityProvider implements BackendCapabilityProvider {
 
     private static boolean staticResolved(TensorDescriptor descriptor) {
         return descriptor.shape().isFullyStatic() && descriptor.layout().isPresent();
+    }
+
+    private static boolean supportsIndexing(OperationCapabilityQuery query,
+            TensorDescriptor output) {
+        if (!injective(output.shape().toLongArray(), output.layout().orElseThrow().strides())) {
+            return false;
+        }
+        Object kind = query.operation().kind();
+        Object attrs = query.operation().attrs();
+        if (kind == OneHotKind.ONE_HOT) {
+            if (!(attrs instanceof OneHotAttrs hot) || query.inputs().size() != 1
+                    || !indexType(query.inputs().getFirst().dataType())
+                    || output.dataType() != DataType.BOOL) return false;
+            long[] input = query.inputs().getFirst().shape().toLongArray();
+            long[] result = output.shape().toLongArray();
+            if (result.length != input.length + 1 || result[result.length - 1] != hot.depth()) return false;
+            for (int i = 0; i < input.length; i++) if (input[i] != result[i]) return false;
+            return true;
+        }
+        if (query.inputs().size() != 2) return false;
+        TensorDescriptor data = query.inputs().get(0), indices = query.inputs().get(1);
+        if (!indexType(indices.dataType()) || output.dataType() != data.dataType()) return false;
+        long[] d = data.shape().toLongArray(), i = indices.shape().toLongArray();
+        long[] result = output.shape().toLongArray();
+        if (kind instanceof AxisGatherKind axisKind && attrs instanceof IndexAxisAttrs axisAttrs) {
+            int axis = axisAttrs.axis();
+            if (axis >= d.length) return false;
+            if (axisKind == AxisGatherKind.GATHER) {
+                if (result.length != d.length - 1 + i.length) return false;
+                int out = 0;
+                for (int a = 0; a < axis; a++) if (result[out++] != d[a]) return false;
+                for (long extent : i) if (result[out++] != extent) return false;
+                for (int a = axis + 1; a < d.length; a++) if (result[out++] != d[a]) return false;
+                return true;
+            }
+            if (i.length != d.length || !java.util.Arrays.equals(result, i)) return false;
+            for (int a = 0; a < d.length; a++) if (a != axis && d[a] != i[a]) return false;
+            return true;
+        }
+        if (kind == GatherNdKind.GATHER_ND && attrs instanceof GatherNdAttrs nd) {
+            int batch = nd.batchDimensions();
+            if (batch < 0 || batch >= Math.min(d.length, i.length) || i.length == 0) return false;
+            long tupleLong = i[i.length - 1];
+            if (tupleLong < 1 || tupleLong > d.length - batch) return false;
+            int tuple = Math.toIntExact(tupleLong);
+            for (int a = 0; a < batch; a++) if (d[a] != i[a]) return false;
+            if (result.length != i.length - 1 + d.length - batch - tuple) return false;
+            int out = 0;
+            for (int a = 0; a < i.length - 1; a++) if (result[out++] != i[a]) return false;
+            for (int a = batch + tuple; a < d.length; a++) if (result[out++] != d[a]) return false;
+            return true;
+        }
+        return false;
+    }
+
+    private static boolean indexType(DataType type) {
+        return type == DataType.INT32 || type == DataType.INT64;
     }
 
     private static boolean affineKind(Object kind) {

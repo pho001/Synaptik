@@ -14,7 +14,7 @@ import java.util.Objects;
  * exposing an instruction-free encoded form to the existing generator/cache boundary. The plan
  * does not retain source/workspace objects or concrete affine addresses.
  *
- * @param portableKernelIr non-null route-independent pointwise or affine canonical IR
+ * @param portableKernelIr non-null route-independent pointwise, affine, movement, or indexing IR
  * @param specialization non-null selected exact/default scalar or preferred-species vector
  *     Class-File specialization; parallel orchestration, if selected, remains outside the artifact
  */
@@ -23,7 +23,7 @@ public record CpuPortableRoutePlan(CpuPortableKernelIr portableKernelIr,
     /**
      * Validates one portable realization plan.
      *
-     * @param portableKernelIr non-null route-independent pointwise or affine canonical IR
+     * @param portableKernelIr non-null route-independent pointwise, affine, movement, or indexing IR
      * @param specialization non-null matching scalar or vector generated specialization
      * @throws NullPointerException if either component is {@code null}
      * @throws IllegalArgumentException if the specialization does not match the canonical IR, or
@@ -55,8 +55,8 @@ public record CpuPortableRoutePlan(CpuPortableKernelIr portableKernelIr,
     /**
      * Returns the cache-compatible generated IR form.
      *
-     * @return the retained pointwise IR or a newly encoded instruction-free affine copy IR;
-     *     never {@code null}
+     * @return the retained pointwise IR or a newly encoded instruction-free affine, movement, or
+     *     indexing IR; never {@code null}
      */
     public CpuKernelIr kernelIr() {
         return encoded(portableKernelIr);
@@ -65,7 +65,9 @@ public record CpuPortableRoutePlan(CpuPortableKernelIr portableKernelIr,
     private static CpuKernelIr encoded(CpuPortableKernelIr source) {
         if (source instanceof CpuKernelIr pointwise) return pointwise;
         if (source instanceof CpuAffineCopyIr affine) return affine.encodedKernelIr();
-        return ((io.github.pho001.synaptik.backend.cpu.internal.ir.CpuDataMovementIr) source)
+        if (source instanceof io.github.pho001.synaptik.backend.cpu.internal.ir.CpuDataMovementIr movement)
+            return movement.encodedKernelIr();
+        return ((io.github.pho001.synaptik.backend.cpu.internal.ir.CpuIndexingIr) source)
                 .encodedKernelIr();
     }
 }

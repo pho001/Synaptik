@@ -9,7 +9,7 @@ package io.github.pho001.synaptik.backend.cpu.internal.ir;
  * outside this role.</p>
  */
 public sealed interface CpuPortableKernelIr permits CpuKernelIr, CpuAffineCopyIr,
-        CpuDataMovementIr {
+        CpuDataMovementIr, CpuIndexingIr {
     /**
      * Returns the deterministic structural key used for generated-code compatibility.
      *

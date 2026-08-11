@@ -7,7 +7,9 @@
  * and selected direct-versus-
  * materialized source position under the current generator schema.
  * Instance extents, offsets, strides, costs, chunk configuration, worker identity, and Runtime
- * resources remain outside artifact identity. Four complete candidate plans, one realized
+ * resources remain outside artifact identity. Indexing identity includes its closed family,
+ * occurrence map, mixed ordered boundary types, and structural access/rank form while excluding
+ * axes, tuple/depth values, concrete geometry, carriers, and validation results. Four complete candidate plans, one realized
  * artifact, zero fixed-shape variants, and zero unrolled variants are the current hard budget.
  * With no trusted root, realization remains entirely in memory. With a root, one bounded
  * current-schema envelope may supply class bytes after compatibility, integrity, size, class

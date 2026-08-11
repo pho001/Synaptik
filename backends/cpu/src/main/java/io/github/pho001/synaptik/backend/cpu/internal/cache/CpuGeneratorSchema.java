@@ -16,9 +16,11 @@ public final class CpuGeneratorSchema {
     /**
      * Current schema version, including portable static axis and NCHW window extraction,
      * unequal-rank movement geometry, exact represented padding bits, and scalar generated
-     * bodies. Envelopes written for earlier schemas are incompatible misses.
+     * bodies. Schema 14 adds mixed-type gather/one-hot structural identity and generated output
+     * writers; execution-time index validation remains outside generated artifacts. Envelopes
+     * written for earlier schemas are incompatible misses.
      */
-    public static final int CURRENT_VERSION = 13;
+    public static final int CURRENT_VERSION = 14;
     /** Generated entry name. */ public static final String ENTRY_NAME = "invoke";
     private CpuGeneratorSchema() { }
 

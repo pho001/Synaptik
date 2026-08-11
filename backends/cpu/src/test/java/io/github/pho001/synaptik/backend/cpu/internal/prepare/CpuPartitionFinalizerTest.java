@@ -23,11 +23,14 @@ import java.util.Optional;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import io.github.pho001.synaptik.backend.cpu.internal.executable.CpuWorkerGroup;
+import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuIndexingLoweringTest;
 import io.github.pho001.synaptik.backend.cpu.internal.prepare.CpuPartitionAnalysisInputs.PortableExecutionConfig;
 import io.github.pho001.synaptik.backend.cpu.internal.prepare.CpuPartitionAnalysisInputs.PortableExecutionConfig.ComputePreference;
 import io.github.pho001.synaptik.model.datatype.DataType;
 import io.github.pho001.synaptik.model.layout.LayoutDescriptor;
 import io.github.pho001.synaptik.model.tensor.TensorDescriptor;
+import io.github.pho001.synaptik.model.operation.index.OneHotAttrs;
+import io.github.pho001.synaptik.model.operation.index.OneHotKind;
 import java.nio.file.Files;
 
 public class CpuPartitionFinalizerTest {
@@ -101,6 +104,41 @@ public class CpuPartitionFinalizerTest {
                 () -> assertEquals(2, executable.accessBindings().size()),
                 () -> assertTrue(executable.memoryPlan().workspaces().isEmpty()),
                 () -> assertNotNull(executable.artifact().hiddenClass()));
+    }
+
+    @Test void indexingValidatesWorkersBeforeCreatingItsOnlyArtifact() throws Exception {
+        var base = CpuIndexingLoweringTest.context(
+                new Operation(OneHotKind.ONE_HOT, new OneHotAttrs(4)), List.of(0),
+                List.of(CpuIndexingLoweringTest.descriptor(DataType.INT32, Shape.of(4))),
+                CpuIndexingLoweringTest.descriptor(DataType.BOOL, Shape.of(4, 4)));
+        var inputs = new CpuPartitionAnalysisInputs(false,
+                CpuPartitionAnalysisInputs.DEFAULT.carrierPattern(),
+                new PortableExecutionConfig(ComputePreference.SCALAR, 4, 4, 1));
+        var context = new io.github.pho001.synaptik.prepare.analysis.PrepareContext<>(
+                base.partition(), base.nodes(), base.values(), base.memoryRequirements(),
+                base.constants(), inputs);
+        var analysis = new CpuPartitionPreparer().analyze(context);
+        Path artifactRoot = root.resolve("indexing");
+        assertAll(
+                () -> assertEquals(2, analysis.requirements().size()),
+                () -> assertEquals(1, analysis.plan().units().size()),
+                () -> assertTrue(analysis.plan().workspaceDeclaration().isEmpty()),
+                () -> assertThrows(IllegalArgumentException.class,
+                        () -> finalizeExecutable(analysis, Optional.of(artifactRoot))),
+                () -> assertFalse(Files.exists(artifactRoot)));
+        var workers = new CpuWorkerGroup(4);
+        try {
+            var executable = finalizeExecutable(analysis, Optional.of(artifactRoot),
+                    Optional.of(workers));
+            try (var files = Files.list(artifactRoot)) {
+                assertAll(
+                        () -> assertNotNull(executable.artifact().hiddenClass()),
+                        () -> assertEquals(2, executable.bufferSelectionCount()),
+                        () -> assertTrue(executable.memoryPlan().workspaces().isEmpty()),
+                        () -> assertEquals(1, files.filter(path -> path.getFileName().toString()
+                                .endsWith(".artifact")).count()));
+            }
+        } finally { workers.close(); }
     }
 
     public static CpuPreparedExecutable finalizeExecutable(Shape shape, Optional<Path> root) {

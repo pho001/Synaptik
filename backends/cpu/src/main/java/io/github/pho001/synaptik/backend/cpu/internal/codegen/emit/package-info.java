@@ -28,6 +28,10 @@
  * or STACK occurrence and emits a direct represented-bit scalar loop. It uses coordinate
  * carry/reset state for arbitrary ranges and tiling, performs no per-element division or modulo,
  * and preserves repeated composition occurrences without duplicating boundary carriers.
+ * The indexing emitter receives compact range-start geometry only after a separate bound scalar
+ * pass has validated every logical INT32/INT64 index. It writes GATHER, GATHER_ELEMENTS,
+ * GATHER_ND, or canonical-BOOL ONE_HOT output, performs no bounds branch, and owns neither
+ * validation nor worker submission.
  *
  * <p>Generation and verification are cold-path operations. Only the resolved static entry handle
  * executes on the Runtime hot path. Parallel plans reuse that direct scalar or vector entry for

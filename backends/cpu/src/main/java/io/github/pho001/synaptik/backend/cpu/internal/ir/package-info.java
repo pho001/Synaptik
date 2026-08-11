@@ -26,6 +26,12 @@
  * composition-occurrence map, one injective output access form, and exact padding bits when
  * applicable. Concrete extents, strides, offsets, axes, repeats, and segment prefixes remain
  * instance geometry outside generated-artifact identity.</p>
+
+ * <p>The indexing representation keeps GATHER, GATHER_ELEMENTS, GATHER_ND, and ONE_HOT distinct,
+ * records semantic occurrence-to-unique-boundary mapping, permits mixed index/data/output types,
+ * and retains one injective output store. Concrete extents, normalized axis, batch and tuple
+ * counts, one-hot depth, layout magnitudes, carriers, values, and validation results remain cold
+ * facts outside structural identity.</p>
  *
  * <p>Lowering creates these cold immutable models. Portable code generation and the scalar
  * reference realization may consume their established semantics, but Runtime never receives or

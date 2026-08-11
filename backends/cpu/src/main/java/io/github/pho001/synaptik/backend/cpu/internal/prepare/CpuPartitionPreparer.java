@@ -75,7 +75,9 @@ public final class CpuPartitionPreparer implements BackendPartitionPreparer<
         var budget = new CpuSpecializationBudget(4, 1, 0, 0);
         boolean movement = lowered.portableKernelIr()
                 instanceof io.github.pho001.synaptik.backend.cpu.internal.ir.CpuDataMovementIr;
-        Optional<CpuMaterializationPlan> materialization = movement ? Optional.empty()
+        boolean indexing = lowered.portableKernelIr()
+                instanceof io.github.pho001.synaptik.backend.cpu.internal.ir.CpuIndexingIr;
+        Optional<CpuMaterializationPlan> materialization = movement || indexing ? Optional.empty()
                 : selectMaterialization(lowered, context.backendInputs().materializationPolicy());
         var declarations = new ArrayList<PreparationResourceRequirement.Buffer>(lowered.boundaryValues().size());
         for (int i = 0; i < lowered.boundaryValues().size(); i++) declarations.add(
@@ -98,7 +100,7 @@ public final class CpuPartitionPreparer implements BackendPartitionPreparer<
         DataType vectorType = vectorLaneType(kernelIr);
         int lanes = speciesLanes(vectorType);
         int speciesBits = speciesBits(vectorType);
-        boolean vectorEligible = !affineCopy && config.computePreference()
+        boolean vectorEligible = !affineCopy && !indexing && config.computePreference()
                         == CpuPartitionAnalysisInputs.PortableExecutionConfig.ComputePreference.VECTOR_IF_ELIGIBLE
                 && vectorType != null && lanes > 1 && lowered.elementCount() >= lanes
                 && vectorTopologyEligible(kernelIr, vectorType)
@@ -149,7 +151,7 @@ public final class CpuPartitionPreparer implements BackendPartitionPreparer<
                 materialization, materialization.map(copy ->
                     new PreparationResourceRequirement.Workspace(copy.workspaceRequirementId(),
                             copy.byteCount(), copy.byteAlignment())), budget,
-                lowered.movementGeometry());
+                lowered.movementGeometry(), lowered.indexingGeometry());
         var requirements = new ArrayList<PreparationResourceRequirement>(declarations);
         plan.workspaceDeclaration().ifPresent(requirements::add);
         return new BackendPartitionAnalysis<>(context.partition(), plan, requirements);

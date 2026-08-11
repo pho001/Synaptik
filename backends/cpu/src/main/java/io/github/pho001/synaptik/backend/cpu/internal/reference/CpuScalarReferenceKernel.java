@@ -10,6 +10,8 @@ import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuKernelIr;
 import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuAffineCopyIr;
 import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuDataMovementIr;
 import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuNonAffineMovementLowering;
+import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuIndexingIr;
+import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuIndexingLowering;
 import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuPointwiseOpcode;
 import io.github.pho001.synaptik.model.datatype.DataType;
 
@@ -52,6 +54,94 @@ public final class CpuScalarReferenceKernel {
             1.70814450747565897222E1, 9.60896809063285878198E0,
             3.36907645100081516050E0};
     private CpuScalarReferenceKernel() { }
+
+    /**
+     * Independently validates and evaluates one indexing occurrence for conformance tests.
+     * @param ir non-null closed indexing structural form
+     * @param geometry non-null compact static geometry matching {@code ir}
+     * @param arguments unique inputs followed by the output
+     * @param start inclusive output logical bound
+     * @param end exclusive output logical bound
+     * @throws NullPointerException if a required argument is {@code null}
+     * @throws IllegalArgumentException if boundary counts or output bounds disagree
+     * @throws IndexOutOfBoundsException if the first logical index value is outside its selected
+     *     data-axis extent or one-hot depth
+     * @throws ArithmeticException if exact reference address or count arithmetic overflows
+     */
+    public static void execute(CpuIndexingIr ir, CpuIndexingLowering.Geometry geometry,
+            List<CpuBufferArgument> arguments, long start, long end) {
+        Objects.requireNonNull(ir, "ir"); Objects.requireNonNull(geometry, "geometry");
+        if (arguments.size() != geometry.boundaries().size()) throw new IllegalArgumentException(
+                "indexing reference boundary count is inconsistent");
+        int indexBoundary = ir.family() == CpuIndexingIr.Family.ONE_HOT
+                ? ir.occurrenceToBoundary().getFirst() : ir.occurrenceToBoundary().get(1);
+        var indexLayout = geometry.boundaries().get(indexBoundary);
+        long indexCount = count(indexLayout.extents());
+        long[] indexCoordinate = new long[indexLayout.extents().length];
+        int dataBoundary = ir.family() == CpuIndexingIr.Family.ONE_HOT ? -1
+                : ir.occurrenceToBoundary().getFirst();
+        long[] dataExtents = dataBoundary < 0 ? new long[0]
+                : geometry.boundaries().get(dataBoundary).extents();
+        int axis = geometry.variant() instanceof CpuIndexingLowering.Geometry.Axis a ? a.axis() : -1;
+        int batch = geometry.variant() instanceof CpuIndexingLowering.Geometry.Nd n
+                ? n.batchDimensions() : 0;
+        int tuple = geometry.variant() instanceof CpuIndexingLowering.Geometry.Nd n
+                ? n.tupleDepth() : 0;
+        long fixedBound = geometry.variant() instanceof CpuIndexingLowering.Geometry.Hot h
+                ? h.depth() : axis >= 0 ? dataExtents[axis] : -1;
+        for (long ordinal = 0; ordinal < indexCount; ordinal++) {
+            indexCoordinate = coordinates(ordinal, indexLayout.extents());
+            long value = ((Number) load(arguments.get(indexBoundary),
+                    geometry.boundaryTypes().get(indexBoundary),
+                    address(indexLayout, indexCoordinate))).longValue();
+            int selectedAxis = axis; long bound = fixedBound;
+            if (ir.family() == CpuIndexingIr.Family.GATHER_ND) {
+                selectedAxis = batch + (int) (ordinal % tuple); bound = dataExtents[selectedAxis];
+            }
+            if (value < 0 || value >= bound) throw indexingFailure(ir.family(), ordinal, value,
+                    selectedAxis, bound);
+        }
+        long[] outputExtents = geometry.outputExtents();
+        if (start < 0 || end < start || end > count(outputExtents))
+            throw new IllegalArgumentException("invalid reference bounds");
+        for (long logical = start; logical < end; logical++) {
+            long[] out = coordinates(logical, outputExtents);
+            long[] index = new long[indexLayout.extents().length];
+            long[] data = new long[dataExtents.length];
+            if (ir.family() == CpuIndexingIr.Family.GATHER) {
+                System.arraycopy(out, axis, index, 0, index.length);
+                long selected = ((Number) load(arguments.get(indexBoundary),
+                        geometry.boundaryTypes().get(indexBoundary), address(indexLayout,index))).longValue();
+                for(int a=0;a<axis;a++)data[a]=out[a]; data[axis]=selected;
+                for(int a=axis+1;a<data.length;a++)data[a]=out[a-1+index.length];
+            } else if (ir.family() == CpuIndexingIr.Family.GATHER_ELEMENTS) {
+                index=out.clone(); data=out.clone();
+                data[axis]=((Number)load(arguments.get(indexBoundary),
+                        geometry.boundaryTypes().get(indexBoundary),address(indexLayout,index))).longValue();
+            } else if (ir.family() == CpuIndexingIr.Family.GATHER_ND) {
+                System.arraycopy(out,0,index,0,index.length-1);
+                for(int a=0;a<batch;a++)data[a]=out[a];
+                for(int k=0;k<tuple;k++){index[index.length-1]=k;data[batch+k]=((Number)load(
+                        arguments.get(indexBoundary),geometry.boundaryTypes().get(indexBoundary),
+                        address(indexLayout,index))).longValue();}
+                for(int a=batch+tuple;a<data.length;a++)data[a]=out[index.length-1+a-batch-tuple];
+            } else {
+                System.arraycopy(out,0,index,0,index.length);
+                long selected=((Number)load(arguments.get(indexBoundary),
+                        geometry.boundaryTypes().get(indexBoundary),address(indexLayout,index))).longValue();
+                store(arguments.getLast(),DataType.BOOL,address(geometry.boundaries().getLast(),out),
+                        (byte)(selected==out[out.length-1]?1:0)); continue;
+            }
+            Object value=load(arguments.get(dataBoundary),geometry.boundaryTypes().get(dataBoundary),
+                    address(geometry.boundaries().get(dataBoundary),data));
+            store(arguments.getLast(),geometry.boundaryTypes().getLast(),
+                    address(geometry.boundaries().getLast(),out),value);
+        }
+    }
+
+    private static long count(long[] extents){if(java.util.Arrays.stream(extents).anyMatch(v->v==0))return 0;long n=1;for(long e:extents)n=Math.multiplyExact(n,e);return n;}
+    private static long address(CpuIndexingLowering.Geometry.Layout layout,long[] coordinate){long a=layout.offset();long[] s=layout.strides();for(int i=0;i<coordinate.length;i++)a=Math.addExact(a,Math.multiplyExact(coordinate[i],s[i]));return a;}
+    private static IndexOutOfBoundsException indexingFailure(CpuIndexingIr.Family family,long ordinal,long value,int axis,long bound){String m=switch(family){case GATHER->"GATHER index at logical position "+ordinal+" for data axis "+axis+" is out of bounds: value="+value+", extent="+bound;case GATHER_ELEMENTS->"GATHER_ELEMENTS index at logical position "+ordinal+" for data axis "+axis+" is out of bounds: value="+value+", extent="+bound;case GATHER_ND->"GATHER_ND index at logical position "+ordinal+" for data axis "+axis+" is out of bounds: value="+value+", extent="+bound;case ONE_HOT->"ONE_HOT index at logical position "+ordinal+" is out of bounds: value="+value+", depth="+bound;};return new IndexOutOfBoundsException(m);}
 
     /**
      * Evaluates the portable exact/default GELU target in fixed operation order.

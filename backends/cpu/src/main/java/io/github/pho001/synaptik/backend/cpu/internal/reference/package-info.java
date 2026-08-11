@@ -14,6 +14,9 @@
  * The reference realization also evaluates the compact static PAD, TILE, CONCAT, and STACK
  * mapping over unique boundary carriers for generated/reference differential tests; it copies
  * represented bits and does not define a Runtime fallback route.
+ * It also validates and evaluates the four compact indexing mappings independently for
+ * generated/reference differential tests, preserving deterministic first-invalid order and
+ * strict no-wrap/no-clamp bounds meaning.
  *
  * <p>Reference evaluation is outside the generated Runtime hot path and owns no buffers, slots, or
  * artifact lifecycle.
