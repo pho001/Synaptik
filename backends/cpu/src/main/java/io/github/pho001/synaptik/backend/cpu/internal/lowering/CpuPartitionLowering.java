@@ -72,7 +72,9 @@ public final class CpuPartitionLowering {
             if (kind == io.github.pho001.synaptik.model.operation.layout.PadKind.PAD
                     || kind == io.github.pho001.synaptik.model.operation.layout.TileKind.TILE
                     || kind == io.github.pho001.synaptik.model.operation.layout.TensorCompositionKind.CONCAT
-                    || kind == io.github.pho001.synaptik.model.operation.layout.TensorCompositionKind.STACK) {
+                    || kind == io.github.pho001.synaptik.model.operation.layout.TensorCompositionKind.STACK
+                    || kind == io.github.pho001.synaptik.model.operation.layout.WindowTransformKind.UNFOLD_AXIS
+                    || kind == io.github.pho001.synaptik.model.operation.layout.WindowTransformKind.UNFOLD2D) {
                 return movementLowering.lower(context);
             }
         }

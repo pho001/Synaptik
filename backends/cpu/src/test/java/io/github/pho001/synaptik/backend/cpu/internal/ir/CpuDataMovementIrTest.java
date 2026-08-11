@@ -39,6 +39,24 @@ class CpuDataMovementIrTest {
                         DataType.INT64, new CpuDataMovementIr.TilePlan(1), List.of(write), write)));
     }
 
+    @Test void windowIdentityIncludesFamilyRanksAccessAndPaddingBits() {
+        var input4 = access(CpuAccessPlan.AccessKind.READ, 4);
+        var output3 = access(CpuAccessPlan.AccessKind.WRITE, 3);
+        var direct = new CpuDataMovementIr(DataType.FLOAT32,
+                new CpuDataMovementIr.Unfold2dPlan(3, 0), List.of(input4), output3);
+        var negativeZero = new CpuDataMovementIr(DataType.FLOAT32,
+                new CpuDataMovementIr.Unfold2dPlan(3, 0x8000_0000L), List.of(input4), output3);
+        var axis = new CpuDataMovementIr(DataType.FLOAT32,
+                new CpuDataMovementIr.UnfoldAxisPlan(3),
+                List.of(access(CpuAccessPlan.AccessKind.READ, 2)), output3);
+        assertAll(
+                () -> assertNotEquals(direct.structuralKey(), negativeZero.structuralKey()),
+                () -> assertNotEquals(direct.structuralKey(), axis.structuralKey()),
+                () -> assertThrows(IllegalArgumentException.class, () -> new CpuDataMovementIr(
+                        DataType.FLOAT32, new CpuDataMovementIr.Unfold2dPlan(3, 0),
+                        List.of(access(CpuAccessPlan.AccessKind.READ, 3)), output3)));
+    }
+
     private static CpuAccessPlan access(CpuAccessPlan.AccessKind kind, int rank) {
         return new CpuAccessPlan(kind, CpuAccessPlan.Regime.DENSE_LINEAR, rank,
                 java.util.Collections.nCopies(rank, CpuAccessPlan.AxisRole.CONTIGUOUS), rank);

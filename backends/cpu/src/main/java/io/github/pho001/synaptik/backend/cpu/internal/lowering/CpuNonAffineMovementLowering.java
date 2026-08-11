@@ -13,6 +13,10 @@ import io.github.pho001.synaptik.model.operation.layout.PadKind;
 import io.github.pho001.synaptik.model.operation.layout.TensorCompositionKind;
 import io.github.pho001.synaptik.model.operation.layout.TileAttrs;
 import io.github.pho001.synaptik.model.operation.layout.TileKind;
+import io.github.pho001.synaptik.model.operation.layout.Unfold2dAttrs;
+import io.github.pho001.synaptik.model.operation.layout.UnfoldAxisAttrs;
+import io.github.pho001.synaptik.model.operation.layout.Window2dAttrs;
+import io.github.pho001.synaptik.model.operation.layout.WindowTransformKind;
 import io.github.pho001.synaptik.prepare.analysis.BackendAnalysisInputs;
 import io.github.pho001.synaptik.prepare.analysis.PrepareContext;
 import java.util.ArrayList;
@@ -25,13 +29,17 @@ import java.util.Objects;
 import java.util.Optional;
 
 /**
- * Lowers one fully static {@code PAD}, {@code TILE}, {@code CONCAT}, or {@code STACK}
+ * Lowers one fully static {@code PAD}, {@code TILE}, {@code CONCAT}, {@code STACK},
+ * {@code UNFOLD_AXIS}, or {@code UNFOLD2D}
  * occurrence into one represented-bit movement unit.
  *
  * <p>The lowering preserves semantic input occurrence order while declaring each distinct input
  * value once in first-occurrence order. Exact extents, layout offsets and strides, padding,
- * repeats, and composition prefixes remain in compact immutable {@link Geometry}; no prepared
- * address or selector table is retained per output element.</p>
+ * repeats, composition prefixes, and window facts remain in compact immutable {@link Geometry};
+ * no prepared address or selector table is retained per output element. General-axis unfold
+ * copies all six represented types. NCHW two-dimensional unfold copies only FLOAT64, FLOAT32,
+ * and BFLOAT16 and retains exact configured padding bits; direct attributes use represented
+ * positive zero.</p>
  */
 public final class CpuNonAffineMovementLowering {
     /** Creates a stateless movement-family lowerer. */
@@ -163,6 +171,75 @@ public final class CpuNonAffineMovementLowering {
             }
             movementPlan = new CpuDataMovementIr.StackPlan(outputExtents.length, occurrenceMap);
             variant = new Geometry.Stack(axis);
+        } else if (kind == WindowTransformKind.UNFOLD_AXIS
+                && attrs instanceof UnfoldAxisAttrs unfold) {
+            requireUnary(occurrences, "UNFOLD_AXIS");
+            long[] input = occurrences.getFirst().descriptor().shape().toLongArray();
+            int axis = unfold.axis();
+            if (input.length == 0 || axis >= input.length || outputExtents.length != input.length + 1
+                    || unfold.size() > input[axis]) {
+                throw new IllegalArgumentException("UNFOLD_AXIS rank, axis, or size is inconsistent");
+            }
+            long positions = Math.addExact((input[axis] - unfold.size()) / unfold.step(), 1);
+            for (int outAxis = 0; outAxis < outputExtents.length; outAxis++) {
+                long expected = outAxis == input.length ? unfold.size()
+                        : outAxis == axis ? positions : input[outAxis];
+                if (outputExtents[outAxis] != expected) {
+                    throw new IllegalArgumentException("UNFOLD_AXIS output shape is inconsistent");
+                }
+            }
+            Math.addExact(Math.multiplyExact(positions - 1, unfold.step()), unfold.size() - 1);
+            movementPlan = new CpuDataMovementIr.UnfoldAxisPlan(outputExtents.length);
+            variant = new Geometry.UnfoldAxis(axis, unfold.size(), unfold.step());
+        } else if (kind == WindowTransformKind.UNFOLD2D
+                && (attrs instanceof Window2dAttrs || attrs instanceof Unfold2dAttrs)) {
+            requireUnary(occurrences, "UNFOLD2D");
+            DataType type = output.descriptor().dataType();
+            if (type != DataType.FLOAT64 && type != DataType.FLOAT32 && type != DataType.BFLOAT16) {
+                throw new IllegalArgumentException("UNFOLD2D requires a floating represented type");
+            }
+            Window2dAttrs window;
+            long bits;
+            if (attrs instanceof Window2dAttrs direct) {
+                window = direct;
+                bits = 0;
+            } else {
+                Unfold2dAttrs configured = (Unfold2dAttrs) attrs;
+                window = configured.window();
+                if (configured.paddingValue().dataType() != type) {
+                    throw new IllegalArgumentException("UNFOLD2D padding type must match the boundary type");
+                }
+                bits = scalarBits(configured.paddingValue());
+            }
+            long[] input = occurrences.getFirst().descriptor().shape().toLongArray();
+            if (input.length != 4 || outputExtents.length != 3) {
+                throw new IllegalArgumentException("UNFOLD2D requires rank-four NCHW input and rank-three output");
+            }
+            long effectiveH = Math.addExact(Math.multiplyExact(window.dilationHeight(),
+                    window.kernelHeight() - 1), 1);
+            long effectiveW = Math.addExact(Math.multiplyExact(window.dilationWidth(),
+                    window.kernelWidth() - 1), 1);
+            long paddedH = Math.addExact(input[2], Math.multiplyExact(2, window.paddingHeight()));
+            long paddedW = Math.addExact(input[3], Math.multiplyExact(2, window.paddingWidth()));
+            long numeratorH = Math.subtractExact(paddedH, effectiveH);
+            long numeratorW = Math.subtractExact(paddedW, effectiveW);
+            if (numeratorH < 0 || numeratorW < 0) {
+                throw new IllegalArgumentException("UNFOLD2D effective kernel exceeds padded input");
+            }
+            long outH = outputExtent(numeratorH, window.strideHeight(), window.ceilMode());
+            long outW = outputExtent(numeratorW, window.strideWidth(), window.ceilMode());
+            long columns = Math.multiplyExact(Math.multiplyExact(input[1], window.kernelHeight()),
+                    window.kernelWidth());
+            long positions = Math.multiplyExact(outH, outW);
+            if (outputExtents[0] != input[0] || outputExtents[1] != columns
+                    || outputExtents[2] != positions) {
+                throw new IllegalArgumentException("UNFOLD2D output shape is inconsistent");
+            }
+            movementPlan = new CpuDataMovementIr.Unfold2dPlan(3, bits);
+            variant = new Geometry.Unfold2d(input[1], input[2], input[3], window.kernelHeight(),
+                    window.kernelWidth(), window.strideHeight(), window.strideWidth(),
+                    window.paddingHeight(), window.paddingWidth(), window.dilationHeight(),
+                    window.dilationWidth(), outH, outW);
         } else {
             throw new IllegalArgumentException("unsupported CPU movement family");
         }
@@ -233,6 +310,12 @@ public final class CpuNonAffineMovementLowering {
         return source.stream().mapToLong(Long::longValue).toArray();
     }
 
+    private static long outputExtent(long numerator, long stride, boolean ceilMode) {
+        long quotient = numerator / stride;
+        if (ceilMode && numerator % stride != 0) quotient = Math.addExact(quotient, 1);
+        return Math.addExact(quotient, 1);
+    }
+
     private static CpuAccessPlan.Binding binding(long[] extents, LayoutDescriptor layout,
             CpuAccessPlan.AccessKind kind) {
         long[] strides = layout.strides();
@@ -258,12 +341,12 @@ public final class CpuNonAffineMovementLowering {
     }
 
     private static void validateInjective(long[] extents, long[] strides) {
+        if (Arrays.stream(extents).anyMatch(extent -> extent == 0)) return;
         for (int axis = 0; axis < extents.length; axis++) {
             if (strides[axis] == 0 && extents[axis] > 1) {
                 throw new IllegalArgumentException("movement output layout is not injective");
             }
         }
-        if (Arrays.stream(extents).anyMatch(extent -> extent == 0)) return;
         long count = 1;
         for (long extent : extents) count = Math.multiplyExact(count, extent);
         if (count <= 1_000_000) {
@@ -338,8 +421,11 @@ public final class CpuNonAffineMovementLowering {
              */
             @Override public long[] strides() { return strides.clone(); }
         }
-        /** Closed family-specific cold mapping geometry. */
-        public sealed interface Variant permits Pad, Tile, Concat, Stack { }
+        /**
+         * Closed family-specific cold mapping geometry. Implementations contain checked
+         * occurrence facts only and are never exposed to Runtime hot-path semantic inspection.
+         */
+        public sealed interface Variant permits Pad, Tile, Concat, Stack, UnfoldAxis, Unfold2d { }
         /**
          * Constant-padding widths and source extents.
          *
@@ -402,6 +488,35 @@ public final class CpuNonAffineMovementLowering {
          * @param axis normalized inserted output axis
          */
         public record Stack(int axis) implements Variant { }
+        /**
+         * General-axis window facts used with an output odometer.
+         * @param axis normalized input axis
+         * @param size positive window extent
+         * @param step positive distance between window starts
+         */
+        public record UnfoldAxis(int axis, long size, long step) implements Variant { }
+        /**
+         * Canonical NCHW window and output-grid facts used to seed generated odometers. Padding
+         * values remain structural IR bits because they shape emitted instructions.
+         *
+         * @param channels input channel extent
+         * @param height input height extent
+         * @param width input width extent
+         * @param kernelHeight positive kernel height
+         * @param kernelWidth positive kernel width
+         * @param strideHeight positive height stride
+         * @param strideWidth positive width stride
+         * @param paddingHeight non-negative symmetric height padding
+         * @param paddingWidth non-negative symmetric width padding
+         * @param dilationHeight positive height dilation
+         * @param dilationWidth positive width dilation
+         * @param outputHeight positive checked output-grid height
+         * @param outputWidth positive checked output-grid width
+         */
+        public record Unfold2d(long channels, long height, long width,
+                long kernelHeight, long kernelWidth, long strideHeight, long strideWidth,
+                long paddingHeight, long paddingWidth, long dilationHeight, long dilationWidth,
+                long outputHeight, long outputWidth) implements Variant { }
 
         /** Validates and snapshots the compact occurrence geometry. */
         public Geometry {
@@ -439,19 +554,24 @@ public final class CpuNonAffineMovementLowering {
         public long[] pack(long[] carrierBases, long start, long end) {
             Objects.requireNonNull(carrierBases, "carrierBases");
             int rank = outputExtents.length;
-            int inputRank = inputs.getFirst().extents.length;
+            int inputStrideCount = inputs.stream().mapToInt(input -> input.extents.length).sum();
             int variantSize = switch (variant) {
                 case Pad ignored -> 2 * rank;
                 case Tile ignored -> 2 * rank;
                 case Concat concat -> 1 + concat.prefixes.length;
                 case Stack ignored -> 1;
+                case UnfoldAxis ignored -> 3;
+                case Unfold2d ignored -> 18;
             };
-            if (carrierBases.length != inputs.size() + 1 || start < 0 || end < start) {
+            long elementCount = 1;
+            for (long extent : outputExtents) elementCount = Math.multiplyExact(elementCount, extent);
+            if (carrierBases.length != inputs.size() + 1 || start < 0 || end < start
+                    || end > elementCount) {
                 throw new IllegalArgumentException("movement range geometry is inconsistent");
             }
             long[] coordinates = coordinates(start, outputExtents);
             long[] packed = new long[3 * rank + 1 + inputs.size()
-                    + inputs.size() * inputRank + variantSize];
+                    + inputStrideCount + variantSize];
             int cursor = 0;
             for (long value : outputExtents) packed[cursor++] = value;
             for (long value : coordinates) packed[cursor++] = value;
@@ -481,6 +601,33 @@ public final class CpuNonAffineMovementLowering {
                     for (long value : concat.prefixes) packed[cursor++] = value;
                 }
                 case Stack stack -> packed[cursor++] = stack.axis;
+                case UnfoldAxis unfold -> {
+                    packed[cursor++] = unfold.axis;
+                    packed[cursor++] = unfold.size;
+                    packed[cursor++] = unfold.step;
+                }
+                case Unfold2d unfold -> {
+                    packed[cursor++] = unfold.channels;
+                    packed[cursor++] = unfold.height;
+                    packed[cursor++] = unfold.width;
+                    packed[cursor++] = unfold.kernelHeight;
+                    packed[cursor++] = unfold.kernelWidth;
+                    packed[cursor++] = unfold.strideHeight;
+                    packed[cursor++] = unfold.strideWidth;
+                    packed[cursor++] = unfold.paddingHeight;
+                    packed[cursor++] = unfold.paddingWidth;
+                    packed[cursor++] = unfold.dilationHeight;
+                    packed[cursor++] = unfold.dilationWidth;
+                    packed[cursor++] = unfold.outputHeight;
+                    packed[cursor++] = unfold.outputWidth;
+                    long q = coordinates[1], p = coordinates[2];
+                    packed[cursor++] = q / Math.multiplyExact(unfold.kernelHeight,
+                            unfold.kernelWidth);
+                    packed[cursor++] = q / unfold.kernelWidth % unfold.kernelHeight;
+                    packed[cursor++] = q % unfold.kernelWidth;
+                    packed[cursor++] = p / unfold.outputWidth;
+                    packed[cursor++] = p % unfold.outputWidth;
+                }
             }
             return packed;
         }

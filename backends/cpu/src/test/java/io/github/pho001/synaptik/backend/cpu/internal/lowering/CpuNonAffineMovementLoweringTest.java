@@ -21,6 +21,28 @@ import java.util.*;
 import org.junit.jupiter.api.Test;
 
 public class CpuNonAffineMovementLoweringTest {
+    @Test void lowersWindowFamiliesWithUnequalRanksAndExactPaddingBits() {
+        var axis = lower(context(new Operation(WindowTransformKind.UNFOLD_AXIS,
+                        new UnfoldAxisAttrs(1, 2, 1)), List.of(0),
+                List.of(descriptor(DataType.BOOL, Shape.of(2, 3))),
+                descriptor(DataType.BOOL, Shape.of(2, 2, 2))));
+        var window = new Window2dAttrs(2, 2, 1, 1, 1, 1, 1, 1, false);
+        var image = lower(context(new Operation(WindowTransformKind.UNFOLD2D,
+                        new Unfold2dAttrs(window,
+                                ScalarValue.float64(Double.longBitsToDouble(0xfff8_0000_0000_0042L)))),
+                List.of(0), List.of(descriptor(DataType.FLOAT64, Shape.of(1, 1, 3, 3))),
+                descriptor(DataType.FLOAT64, Shape.of(1, 4, 16))));
+        var imagePlan = assertInstanceOf(CpuDataMovementIr.Unfold2dPlan.class,
+                ((CpuDataMovementIr) image.portableKernelIr()).plan());
+        assertAll(
+                () -> assertInstanceOf(CpuDataMovementIr.UnfoldAxisPlan.class,
+                        ((CpuDataMovementIr) axis.portableKernelIr()).plan()),
+                () -> assertEquals(0xfff8_0000_0000_0042L, imagePlan.immediateBits()),
+                () -> assertEquals(4, image.movementGeometry().orElseThrow()
+                        .inputs().getFirst().extents().length),
+                () -> assertEquals(3, image.movementGeometry().orElseThrow().outputExtents().length));
+    }
+
     @Test void lowersEveryFamilyAndDeduplicatesRepeatedCompositionInputs() {
         var pad = lower(context(new Operation(PadKind.PAD,
                 new PadAttrs(List.of(1L), List.of(2L), ScalarValue.int32(-7))),
@@ -72,6 +94,48 @@ public class CpuNonAffineMovementLoweringTest {
                         () -> new CpuPartitionLowering().lower(wrong)),
                 () -> assertThrows(IllegalArgumentException.class,
                         () -> new CpuPartitionLowering().lower(repeatedOutput)));
+    }
+
+    @Test void rejectsExcludedWindowSignaturesTypesLayoutsAndOverflow() {
+        var window = new Window2dAttrs(2, 2, 1, 1, 0, 0, 1, 1, false);
+        var input = descriptor(DataType.FLOAT32, Shape.of(1, 1, 3, 3));
+        var output = descriptor(DataType.FLOAT32, Shape.of(1, 4, 4));
+        var unresolved = new TensorDescriptor(DataType.FLOAT32, Shape.of(1, 4, 4),
+                Optional.empty(), false);
+        var overflow = new Window2dAttrs(Long.MAX_VALUE, 1, 1, 1,
+                0, 0, Long.MAX_VALUE, 1, false);
+        var oneNode = context(new Operation(WindowTransformKind.UNFOLD2D, window), List.of(0),
+                List.of(input), output);
+        var secondNode = new CompiledNode(new NodeId(1), oneNode.nodes().getFirst().operation(),
+                oneNode.nodes().getFirst().inputs(), oneNode.nodes().getFirst().outputs());
+        var twoNodePartition = new PlannedPartition(CpuCapabilityProvider.CPU_BACKEND_ID,
+                List.of(new NodeId(0), new NodeId(1)));
+        var twoNodes = new PrepareContext<>(twoNodePartition,
+                List.of(oneNode.nodes().getFirst(), secondNode), oneNode.values(),
+                oneNode.memoryRequirements(), oneNode.constants(), oneNode.backendInputs());
+        assertAll(
+                () -> assertThrows(IllegalArgumentException.class, () -> lower(twoNodes)),
+                () -> assertThrows(IllegalArgumentException.class, () -> lower(context(
+                        new Operation(WindowTransformKind.UNFOLD2D, window), List.of(0, 0),
+                        List.of(input), output))),
+                () -> assertThrows(IllegalArgumentException.class, () -> lower(context(
+                        new Operation(WindowTransformKind.UNFOLD2D,
+                                new Unfold2dAttrs(window, ScalarValue.float64(0))),
+                        List.of(0), List.of(input), output))),
+                () -> assertThrows(IllegalArgumentException.class, () -> lower(context(
+                        new Operation(WindowTransformKind.UNFOLD2D, window), List.of(0),
+                        List.of(descriptor(DataType.INT32, Shape.of(1, 1, 3, 3))),
+                        descriptor(DataType.INT32, Shape.of(1, 4, 4))))),
+                () -> assertThrows(IllegalArgumentException.class, () -> lower(context(
+                        new Operation(WindowTransformKind.UNFOLD2D, window), List.of(0),
+                        List.of(input), unresolved))),
+                () -> assertThrows(ArithmeticException.class, () -> lower(context(
+                        new Operation(WindowTransformKind.UNFOLD2D, overflow), List.of(0),
+                        List.of(input), output))),
+                () -> assertThrows(IllegalArgumentException.class, () -> lower(context(
+                        new Operation(WindowTransformKind.FOLD2D,
+                                new Fold2dAttrs(Shape.of(1, 1, 3, 3), window)),
+                        List.of(0), List.of(output), input))));
     }
 
     @Test void acceptsOneAndSixteenCompositionOccurrencesAndRejectsSeventeen() {

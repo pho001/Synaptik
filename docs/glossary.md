@@ -1075,14 +1075,15 @@ decision occurs in the generated loop.
 ### CPU kernel specialization
 
 The implemented backend-private immutable description of every fact allowed to change one
-generated CPU class. The current form includes schema 12, the canonical lowering fingerprint with
+generated CPU class. The current form includes schema 13, the canonical lowering fingerprint with
 typed opcode sequence, exact scalar-immediate bits, exact ordered clamp-bound bits, and selected
 scalar-power realizations, exact/default numerical mode, generated
 scalar/vector compute form, exact preferred FLOAT32, FLOAT64, INT32, INT64, or BOOL species bit
 size for vector compute,
-and the complete ordered boundary data-type/carrier pattern. Schema 12 also distinguishes the
+and the complete ordered boundary data-type/carrier pattern. Schema 13 also distinguishes the
 pointwise, affine, or movement IR family; affine mapping topology and write domain; movement
-family, rank, occurrence map, and exact padding bits; and the seventh opaque BFLOAT16
+family, input/output rank, occurrence map, and exact PAD or UNFOLD2D padding bits; and the seventh
+opaque BFLOAT16
 `SHORT_ARRAY` carrier. The homogeneous boundary types
 distinguish FLOAT32 from FLOAT64; no second lane-type field is retained.
 The direct-versus-materialized input position and adjusted canonical consumer access form are also
@@ -1112,10 +1113,10 @@ Keeping the artifact reachable keeps its hidden-class state reachable, without p
 unreferenced class unloads. Direct generator calls produce equal class bytes but distinct hidden
 classes and artifact identities. The current durable generated-kernel artifact store may instead
 reuse compatible class bytes and weakly intern one loaded artifact while it remains live. The
-artifact is not by itself a prepared route. Current schema-12 artifacts execute admitted bounded
+artifact is not by itself a prepared route. Current schema-13 artifacts execute admitted bounded
 forty-eight-opcode pointwise chains, one static affine represented-bit copy, or one static
-PAD/TILE/CONCAT/STACK movement across the implemented carrier patterns. Schema 11 and older
-artifacts are incompatible misses with no migration reader.
+PAD/TILE/CONCAT/STACK/window-extraction movement across the implemented carrier patterns. Schema
+12 and older artifacts are incompatible misses with no migration reader.
 
 ### CPU generated-kernel artifact store
 
@@ -1415,20 +1416,23 @@ performance claim.
 ### CPU static data movement
 
 The implemented CPU-private represented-bit realization of exactly one fully static,
-resolved-layout PAD, TILE, CONCAT, or STACK occurrence. It retains one through sixteen semantic
-input occurrences in order while declaring each distinct graph input once in first-occurrence
-order. The final output has one distinct declared representation and an injective layout.
+resolved-layout PAD, TILE, CONCAT, STACK, UNFOLD_AXIS, or UNFOLD2D occurrence. Composition retains
+one through sixteen semantic input occurrences in order while declaring each distinct graph input
+once in first-occurrence order. Window extraction has exactly one input. Every form has one
+distinct declared output representation with an injective layout.
 
-Canonical movement IR contains family, rank, represented type, unique structural accesses,
-composition occurrence mapping, one output store, and exact PAD bits. Compact cold geometry owns
-concrete extents, layout offsets and strides, normalized axis, padding widths, repeats, segment
-prefixes, and arbitrary-range initial state. Generated scalar loops advance that state directly;
-they retain no per-output-element table and perform no per-element division or modulo. Parallel-
-scalar orchestration is permitted over disjoint output ranges, while vector preference falls back
-to scalar.
+Canonical movement IR contains family, input/output rank, represented type, unique structural
+accesses, composition occurrence mapping, one output store, and exact PAD or UNFOLD2D padding
+bits. Compact cold geometry owns concrete extents, layout offsets and strides, normalized axes,
+padding widths, repeats, segment prefixes, axis-window facts, NCHW spatial geometry, and
+arbitrary-range initial state. Generated scalar loops advance that state directly; they retain no
+per-output-element table and perform no per-element division or modulo. Parallel-scalar
+orchestration is permitted over disjoint output ranges, while vector preference falls back to
+scalar. UNFOLD_AXIS copies all six represented types; UNFOLD2D copies only FLOAT64, FLOAT32, and
+BFLOAT16 with direct positive-zero or exact matching typed padding.
 
-This term does not include Model expression construction, affine view folding, window extraction,
-index tensors, functional updates, scatter/fold, dynamic Shape binding, native routing, general
+This term does not include Model expression construction, affine view folding, index tensors,
+functional updates, scatter/fold accumulation, dynamic Shape binding, native routing, general
 partition-DAG fusion, or a performance claim.
 
 ### CPU virtual intermediate

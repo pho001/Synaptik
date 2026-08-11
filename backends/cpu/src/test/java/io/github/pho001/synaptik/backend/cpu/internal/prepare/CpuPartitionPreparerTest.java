@@ -17,6 +17,8 @@ import io.github.pho001.synaptik.model.operation.layout.CompositionAxisAttrs;
 import io.github.pho001.synaptik.model.operation.layout.TensorCompositionKind;
 import io.github.pho001.synaptik.model.operation.layout.TileAttrs;
 import io.github.pho001.synaptik.model.operation.layout.TileKind;
+import io.github.pho001.synaptik.model.operation.layout.Window2dAttrs;
+import io.github.pho001.synaptik.model.operation.layout.WindowTransformKind;
 import io.github.pho001.synaptik.model.operation.elementwise.binary.BinaryArithmeticKind;
 import io.github.pho001.synaptik.model.operation.elementwise.unary.UnaryElementwiseKind;
 import io.github.pho001.synaptik.model.operation.elementwise.comparison.BinaryComparisonKind;
@@ -294,6 +296,17 @@ public class CpuPartitionPreparerTest {
                 zeroBase.nodes(), zeroBase.values(), zeroBase.memoryRequirements(),
                 zeroBase.constants(), new CpuPartitionAnalysisInputs(false,
                         CpuPartitionAnalysisInputs.DEFAULT.carrierPattern(), preference))).plan();
+        var windowBase = CpuNonAffineMovementLoweringTest.context(
+                new Operation(WindowTransformKind.UNFOLD2D,
+                        new Window2dAttrs(1, 1, 1, 1, 0, 0, 1, 1, false)), List.of(0),
+                List.of(descriptor(DataType.FLOAT32, Shape.of(2, 0, 3, 3))),
+                descriptor(DataType.FLOAT32, Shape.of(2, 0, 9)));
+        var windowAnalysis = new CpuPartitionPreparer().analyze(new PrepareContext<>(
+                windowBase.partition(), windowBase.nodes(), windowBase.values(),
+                windowBase.memoryRequirements(), windowBase.constants(),
+                new CpuPartitionAnalysisInputs(false,
+                        CpuPartitionAnalysisInputs.DEFAULT.carrierPattern(), preference)));
+        var windowPlan = windowAnalysis.plan();
         assertAll(
                 () -> assertEquals(List.of(new ValueId(0), new ValueId(1), new ValueId(2)),
                         plan.boundaryValues()),
@@ -304,7 +317,13 @@ public class CpuPartitionPreparerTest {
                 () -> assertEquals("parallel-scalar", plan.executionStrategy().toString()),
                 () -> assertEquals(0, plan.vectorSpeciesBitSize()),
                 () -> assertEquals("scalar", zero.executionStrategy().toString()),
-                () -> assertEquals(0, zero.elementCount()));
+                () -> assertEquals(0, zero.elementCount()),
+                () -> assertEquals(2, windowAnalysis.requirements().size()),
+                () -> assertTrue(windowPlan.workspaceDeclaration().isEmpty()),
+                () -> assertTrue(windowPlan.materialization().isEmpty()),
+                () -> assertEquals(0, windowPlan.elementCount()),
+                () -> assertEquals("scalar", windowPlan.executionStrategy().toString()),
+                () -> assertEquals(0, windowPlan.vectorSpeciesBitSize()));
     }
 
     public static BackendPartitionAnalysis<CpuPartitionPreparationPlan> analyze(Shape shape) {

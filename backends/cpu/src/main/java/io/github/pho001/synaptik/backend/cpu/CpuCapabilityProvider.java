@@ -43,7 +43,10 @@ import java.util.Objects;
  * admits one fully static, resolved-layout {@code PAD}, {@code TILE}, {@code CONCAT}, or
  * {@code STACK} occurrence for all six represented data types. Movement inputs preserve their
  * exact semantic occurrence order, the output layout must be injective, and composition is
- * bounded to one through sixteen occurrences.</p>
+ * bounded to one through sixteen occurrences. The same movement route admits one
+ * {@code UNFOLD_AXIS} occurrence for all six represented types or one floating
+ * {@code UNFOLD2D} occurrence with direct positive-zero or exact typed padding. Both window
+ * forms require their exact static result geometry and one distinct injective output.</p>
  *
  * <p>Complete-partition lowering remains stricter: it validates either a connected one-to-eight
  * pointwise chain or a connected one-to-eight affine chain, then applies exact layout, alias,
@@ -77,11 +80,13 @@ public final class CpuCapabilityProvider implements BackendCapabilityProvider {
      * {@code WHERE} applies branch-first then condition broadcasting. Admitted affine operations
      * require one input, one output, the same data type, fully static Shapes, resolved layouts,
      * and their exact current attributes and descriptor relationship. Admitted movement
-     * operations additionally require exact static PAD/TILE/composition shape relationships,
-     * an injective result layout, and at most sixteen composition occurrences. Cross-type casts,
-     * dynamic or unresolved geometry, negative-step slices, non-injective movement outputs, and
-     * all rows outside the implemented matrix return {@code false} without defining conversion
-     * or fallback behavior.
+     * operations additionally require exact static PAD/TILE/composition/window shape
+     * relationships, an injective result layout, and at most sixteen composition occurrences.
+     * General-axis unfold admits every represented type; NCHW two-dimensional unfold admits only
+     * FLOAT64, FLOAT32, and BFLOAT16 with exact matching padding type. Cross-type casts, dynamic
+     * or unresolved geometry, negative-step slices, fold operations, non-injective movement
+     * outputs, and all rows outside the implemented matrix return {@code false} without defining
+     * conversion or fallback behavior.
      *
      * @param query non-null immutable operation occurrence to validate structurally
      * @return {@code true} only for the exact implemented occurrence-local matrix; otherwise
@@ -196,7 +201,9 @@ public final class CpuCapabilityProvider implements BackendCapabilityProvider {
     private static boolean movementKind(Object kind) {
         return kind == PadKind.PAD || kind == TileKind.TILE
                 || kind == TensorCompositionKind.CONCAT
-                || kind == TensorCompositionKind.STACK;
+                || kind == TensorCompositionKind.STACK
+                || kind == WindowTransformKind.UNFOLD_AXIS
+                || kind == WindowTransformKind.UNFOLD2D;
     }
 
     private static boolean supportsMovement(OperationCapabilityQuery query,
@@ -209,6 +216,50 @@ public final class CpuCapabilityProvider implements BackendCapabilityProvider {
         }
         Object kind = query.operation().kind();
         Object attrs = query.operation().attrs();
+        if (kind == WindowTransformKind.UNFOLD_AXIS && attrs instanceof UnfoldAxisAttrs unfold) {
+            if (query.inputs().size() != 1) return false;
+            long[] input = query.inputs().getFirst().shape().toLongArray();
+            long[] result = output.shape().toLongArray();
+            if (input.length == 0 || unfold.axis() >= input.length || unfold.size() > input[unfold.axis()]
+                    || result.length != input.length + 1) return false;
+            long positions = Math.addExact((input[unfold.axis()] - unfold.size()) / unfold.step(), 1);
+            Math.addExact(Math.multiplyExact(positions - 1, unfold.step()), unfold.size() - 1);
+            for (int axis = 0; axis < result.length; axis++) {
+                long expected = axis == input.length ? unfold.size()
+                        : axis == unfold.axis() ? positions : input[axis];
+                if (result[axis] != expected) return false;
+            }
+            return true;
+        }
+        if (kind == WindowTransformKind.UNFOLD2D
+                && (attrs instanceof Window2dAttrs || attrs instanceof Unfold2dAttrs)) {
+            if (query.inputs().size() != 1 || !windowFloating(output.dataType())) return false;
+            Window2dAttrs window;
+            if (attrs instanceof Window2dAttrs direct) window = direct;
+            else {
+                Unfold2dAttrs configured = (Unfold2dAttrs) attrs;
+                if (configured.paddingValue().dataType() != output.dataType()) return false;
+                window = configured.window();
+            }
+            long[] input = query.inputs().getFirst().shape().toLongArray();
+            long[] result = output.shape().toLongArray();
+            if (input.length != 4 || result.length != 3) return false;
+            long effectiveH = Math.addExact(Math.multiplyExact(window.dilationHeight(),
+                    window.kernelHeight() - 1), 1);
+            long effectiveW = Math.addExact(Math.multiplyExact(window.dilationWidth(),
+                    window.kernelWidth() - 1), 1);
+            long numeratorH = Math.subtractExact(Math.addExact(input[2],
+                    Math.multiplyExact(2, window.paddingHeight())), effectiveH);
+            long numeratorW = Math.subtractExact(Math.addExact(input[3],
+                    Math.multiplyExact(2, window.paddingWidth())), effectiveW);
+            if (numeratorH < 0 || numeratorW < 0) return false;
+            long outH = windowOutput(numeratorH, window.strideHeight(), window.ceilMode());
+            long outW = windowOutput(numeratorW, window.strideWidth(), window.ceilMode());
+            return result[0] == input[0]
+                    && result[1] == Math.multiplyExact(Math.multiplyExact(input[1],
+                        window.kernelHeight()), window.kernelWidth())
+                    && result[2] == Math.multiplyExact(outH, outW);
+        }
         if (kind == PadKind.PAD && attrs instanceof PadAttrs pad) {
             if (query.inputs().size() != 1) return false;
             long[] input = query.inputs().getFirst().shape().toLongArray();
@@ -262,6 +313,16 @@ public final class CpuCapabilityProvider implements BackendCapabilityProvider {
             return true;
         }
         return false;
+    }
+
+    private static long windowOutput(long numerator, long stride, boolean ceilMode) {
+        long quotient = numerator / stride;
+        if (ceilMode && numerator % stride != 0) quotient = Math.addExact(quotient, 1);
+        return Math.addExact(quotient, 1);
+    }
+
+    private static boolean windowFloating(DataType type) {
+        return type == DataType.FLOAT64 || type == DataType.FLOAT32 || type == DataType.BFLOAT16;
     }
 
     private static boolean injective(long[] extents, long[] strides) {

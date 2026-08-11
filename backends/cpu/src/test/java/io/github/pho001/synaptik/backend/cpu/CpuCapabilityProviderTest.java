@@ -18,6 +18,8 @@ import io.github.pho001.synaptik.model.operation.elementwise.selection.WhereSele
 import io.github.pho001.synaptik.model.operation.index.*;
 import io.github.pho001.synaptik.model.operation.layout.*;
 import io.github.pho001.synaptik.model.shape.Shape;
+import io.github.pho001.synaptik.model.shape.DynamicDimension;
+import io.github.pho001.synaptik.model.shape.StaticDimension;
 import io.github.pho001.synaptik.model.tensor.TensorDescriptor;
 import io.github.pho001.synaptik.planning.capability.OperationCapabilityQuery;
 import java.util.List;
@@ -212,6 +214,74 @@ class CpuCapabilityProviderTest {
                 () -> assertFalse(provider.supports(query(PadKind.PAD,
                         new PadAttrs(List.of(1L), List.of(2L), ScalarValue.int64(-1)),
                         List.of(two), five))));
+    }
+
+    @Test void reportsExactWindowExtractionTypeAndGeometryMatrix() {
+        var provider = new CpuCapabilityProvider();
+        var boolInput = descriptor(DataType.BOOL, Shape.of(2, 3));
+        var boolOutput = descriptor(DataType.BOOL, Shape.of(2, 2, 2));
+        var imageF32 = descriptor(DataType.FLOAT32, Shape.of(1, 1, 3, 3));
+        var columnsF32 = descriptor(DataType.FLOAT32, Shape.of(1, 4, 16));
+        var imageI32 = descriptor(DataType.INT32, Shape.of(1, 1, 3, 3));
+        var columnsI32 = descriptor(DataType.INT32, Shape.of(1, 4, 16));
+        var window = new Window2dAttrs(2, 2, 1, 1, 1, 1, 1, 1, false);
+        assertAll(
+                () -> assertTrue(provider.supports(query(WindowTransformKind.UNFOLD_AXIS,
+                        new UnfoldAxisAttrs(1, 2, 1), List.of(boolInput), boolOutput))),
+                () -> assertTrue(provider.supports(query(WindowTransformKind.UNFOLD2D,
+                        window, List.of(imageF32), columnsF32))),
+                () -> assertTrue(provider.supports(query(WindowTransformKind.UNFOLD2D,
+                        new Unfold2dAttrs(window, ScalarValue.float32(-0.0f)),
+                        List.of(imageF32), columnsF32))),
+                () -> assertFalse(provider.supports(query(WindowTransformKind.UNFOLD2D,
+                        window, List.of(imageI32), columnsI32))),
+                () -> assertFalse(provider.supports(query(WindowTransformKind.UNFOLD2D,
+                        new Unfold2dAttrs(window, ScalarValue.float64(0.0)),
+                        List.of(imageF32), columnsF32))),
+                () -> assertFalse(provider.supports(query(WindowTransformKind.FOLD2D,
+                        new Fold2dAttrs(Shape.of(1, 1, 3, 3), window),
+                        List.of(columnsF32), imageF32))));
+    }
+
+    @Test void windowExtractionFailsClosedForEveryExcludedStructuralBoundary() {
+        var provider = new CpuCapabilityProvider();
+        var input = descriptor(DataType.FLOAT32, Shape.of(1, 1, 3, 3));
+        var output = descriptor(DataType.FLOAT32, Shape.of(1, 4, 4));
+        var window = new Window2dAttrs(2, 2, 1, 1, 0, 0, 1, 1, false);
+        var unresolved = new TensorDescriptor(DataType.FLOAT32, Shape.of(1, 4, 4),
+                Optional.empty(), false);
+        var dynamicShape = Shape.ofDimensions(new StaticDimension(1),
+                new DynamicDimension("columns"), new StaticDimension(4));
+        var dynamic = new TensorDescriptor(DataType.FLOAT32, dynamicShape,
+                Optional.empty(), false);
+        var nonInjective = new TensorDescriptor(DataType.FLOAT32, Shape.of(1, 4, 4),
+                Optional.of(LayoutDescriptor.of(Shape.of(1, 4, 4),
+                        new long[]{0, 0, 1}, 0, true)), false);
+        var overflowWindow = new Window2dAttrs(Long.MAX_VALUE, 1, 1, 1,
+                0, 0, Long.MAX_VALUE, 1, false);
+        assertAll(
+                () -> assertThrows(IllegalArgumentException.class,
+                        () -> query(WindowTransformKind.UNFOLD2D,
+                                window, List.of(input, input), output)),
+                () -> assertFalse(provider.supports(query(WindowTransformKind.UNFOLD2D,
+                        window, List.of(descriptor(DataType.FLOAT32, Shape.of(1, 3, 3))), output))),
+                () -> assertFalse(provider.supports(query(WindowTransformKind.UNFOLD2D,
+                        window, List.of(input), descriptor(DataType.FLOAT32, Shape.of(1, 4, 5))))),
+                () -> assertFalse(provider.supports(query(WindowTransformKind.UNFOLD2D,
+                        window, List.of(input), unresolved))),
+                () -> assertFalse(provider.supports(query(WindowTransformKind.UNFOLD2D,
+                        window, List.of(input), dynamic))),
+                () -> assertFalse(provider.supports(query(WindowTransformKind.UNFOLD2D,
+                        window, List.of(input), nonInjective))),
+                () -> assertFalse(provider.supports(query(WindowTransformKind.UNFOLD2D,
+                        overflowWindow, List.of(input), output))),
+                () -> assertThrows(IllegalArgumentException.class,
+                        () -> query(WindowTransformKind.UNFOLD_AXIS,
+                                window, List.of(input), output)),
+                () -> assertFalse(provider.supports(query(WindowTransformKind.FOLD_AXIS,
+                        new FoldAxisAttrs(1, 3, 1), List.of(input), output))),
+                () -> assertFalse(provider.supports(query(WindowTransformKind.UNFOLD_AXIS,
+                        new UnfoldAxisAttrs(3, 1, 1), List.of(input), output))));
     }
 
     private static TensorDescriptor descriptor(Shape shape, LayoutDescriptor layout) {

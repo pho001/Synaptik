@@ -7,6 +7,8 @@ import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuNonAffineMovem
 import io.github.pho001.synaptik.model.operation.Operation;
 import io.github.pho001.synaptik.model.operation.layout.CompositionAxisAttrs;
 import io.github.pho001.synaptik.model.operation.layout.TensorCompositionKind;
+import io.github.pho001.synaptik.model.operation.layout.UnfoldAxisAttrs;
+import io.github.pho001.synaptik.model.operation.layout.WindowTransformKind;
 import io.github.pho001.synaptik.model.shape.Shape;
 import io.github.pho001.synaptik.prepare.BackendPartitionFinalization;
 import io.github.pho001.synaptik.prepare.PreparationResourceAssignment;
@@ -85,19 +87,18 @@ public class CpuPartitionFinalizerTest {
     @Test void finalizesMovementAsOneArtifactWithoutWorkspace() {
         var analysis = new CpuPartitionPreparer().analyze(
                 CpuNonAffineMovementLoweringTest.context(
-                        new Operation(TensorCompositionKind.CONCAT,
-                                new CompositionAxisAttrs(0)),
-                        List.of(0, 1, 0),
+                        new Operation(WindowTransformKind.UNFOLD_AXIS,
+                                new UnfoldAxisAttrs(0, 2, 1)),
+                        List.of(0),
                         List.of(CpuNonAffineMovementLoweringTest.descriptor(
-                                        DataType.INT32, Shape.of(2)),
-                                CpuNonAffineMovementLoweringTest.descriptor(
-                                        DataType.INT32, Shape.of(1))),
+                                DataType.INT32, Shape.of(3))),
                         CpuNonAffineMovementLoweringTest.descriptor(
-                                DataType.INT32, Shape.of(5))));
+                                DataType.INT32, Shape.of(2, 2))));
         var executable = finalizeExecutable(analysis, Optional.of(root.resolve("movement")));
         assertAll(
-                () -> assertEquals(3, executable.bufferSelectionCount()),
-                () -> assertEquals(3, executable.accessBindings().size()),
+                () -> assertEquals(1, analysis.plan().units().size()),
+                () -> assertEquals(2, executable.bufferSelectionCount()),
+                () -> assertEquals(2, executable.accessBindings().size()),
                 () -> assertTrue(executable.memoryPlan().workspaces().isEmpty()),
                 () -> assertNotNull(executable.artifact().hiddenClass()));
     }

@@ -126,8 +126,10 @@ OpenJDK 26.0.1+8-34. Clean documentation context `/root/cpu_0006_docs` reused th
 evidence and finalized the CPU Javadocs, guide, glossary, and planning/status records. The former
 broad 0006A row is now dependency-split: detailed
 [CPU 0006A Portable pad, tile, and tensor-composition movement](backends/cpu/tasks/0006a-portable-pad-tile-and-tensor-composition-movement.md)
-is `Complete`; Draft 0006A1 retains static window extraction; and Draft 0006A2 retains Gather and
-one-hot with complete pre-write execution-time index validation. Functional scatter/fold,
+is `Complete`; detailed
+[CPU 0006A1 Portable static window extraction](backends/cpu/tasks/0006a1-portable-static-window-extraction.md)
+is `Complete`; and Draft 0006A2 retains Gather and one-hot with complete pre-write execution-time
+index validation. Functional scatter/fold,
 ordering, and explicit-state random work remain Draft 0006B–0006D without detailed specs.
 Historical
 [CPU 0001 Capability, representation, binding, and parallel foundation](backends/cpu/tasks/0001-cpu-capability-representation-binding-and-parallel-foundation.md)
@@ -155,8 +157,8 @@ materialization/specialization/persistence evidence is also `Complete`; detailed
 `Complete` for its bounded first five-type core pointwise increment. Detailed CPU 0005F floating
 division and exact scalar-power realization is `Complete`; detailed CPU 0005G and CPU 0005H are
 `Complete`; detailed CPU 0005I, CPU 0005J, and CPU 0006 are `Complete`; and CPU
-0006A is `Complete`; 0006A1–0017 remain `Draft` without
-detailed specifications.
+0006A is `Complete`; detailed 0006A1 is `Complete`; 0006A2–0017 remain `Draft` without detailed
+specifications.
 CPU 0003
 implements a
 model-independent filesystem store beneath an explicit
@@ -510,13 +512,14 @@ Exact cold range spans support constant-time alias checks, and a complete bounde
 injectivity decision accepts valid interleaved positive strides while rejecting repeated writes.
 Detailed CPU 0005C through CPU 0005J are Complete.
 Detailed CPU 0006 and detailed CPU 0006A are Complete after splitting static movement,
-window extraction, and value-dependent indexing by dependency. CPU 0006A1–0017 and the refined
-Config, Prepare, Metal, and tuning rows remain `Draft` without new detailed specifications.
+window extraction, and value-dependent indexing by dependency. Detailed CPU 0006A1 is `Complete`;
+CPU 0006A2–0017 and the refined Config, Prepare, Metal, and tuning rows remain `Draft` without new
+detailed specifications.
 Completed OpenBLAS history and every completed project area remain unchanged.
 
 CPU remains the active global project area. CPU 0005A through CPU 0006 are `Complete`, detailed
-CPU 0006A is `Complete`, and CPU 0006A1 and later work remain `Draft` without detailed
-specifications.
+CPU 0006A is `Complete`, detailed CPU 0006A1 is `Complete`, and CPU 0006A2 and later work remain
+`Draft` without detailed specifications.
 CPU 0006A delivers one exact static resolved-layout PAD, TILE, CONCAT, or STACK occurrence with
 ordered one-through-sixteen composition inputs, first-occurrence unique declarations, compact
 cold movement geometry, all-six-type represented-bit scalar/parallel-scalar generation, one
@@ -525,6 +528,15 @@ final CPU command passed 32 suites/153 tests with zero failures or errors and on
 persistence test on Java 26.0.2, HotSpot 26.0.2+10-55. Clean documentation context `/root` reused
 that stabilized evidence and passed CPU Javadoc plus documentation, exact-scope/status/inventory,
 forbidden-change, and whitespace validation without rerunning Java tests.
+CPU 0006A1 adds one exact static resolved-layout UNFOLD_AXIS occurrence for all six represented
+types and both ordered floating-only UNFOLD2D signatures. It preserves canonical NCHW column
+order, exact direct/typed padding bits, compact unequal-rank cold geometry, scalar or
+parallel-scalar execution, one distinct injective output, and schema 13 without fold, index,
+shared-contract, or public-API work. Its focused matrix passed 10 suites/63 tests; the sole final
+CPU suite passed 32 suites/163 tests with one expected persistence skip on OpenJDK 26.0.1+8-34.
+Clean documentation context `019ff061-4aa7-7f62-b2c5-7a1aed7b16f4` reused that stable evidence
+and passed CPU Javadoc plus final documentation, scope, schema, status, forbidden-change, and
+whitespace gates without rerunning Java tests.
 CPU 0001–0005 are
 historical Superseded records whose Git history
 and validation evidence remain intact. Complete CPU 0004 added no public facade, registry, service locator,

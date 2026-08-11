@@ -13,10 +13,11 @@ import java.util.Arrays;
 /**
  * Emits one direct allocation-free scalar body for static represented-bit movement.
  *
- * <p>The encoded structural IR chooses PAD, TILE, CONCAT, or STACK during class generation.
- * Compact primitive geometry supplies range-start coordinates, carrier bases, strides, and
- * family facts at invocation time. Emitted hot loops use carry/reset coordinate state and contain
- * no Model interpretation, reflection, map lookup, per-element allocation, division, or modulo.</p>
+ * <p>The encoded structural IR chooses PAD, TILE, CONCAT, STACK, UNFOLD_AXIS, or UNFOLD2D during
+ * class generation. Compact primitive geometry supplies range-start coordinates, carrier bases,
+ * rank-specific strides, and family facts at invocation time. Emitted hot loops use carry/reset
+ * coordinate state and contain no Model interpretation, reflection, map lookup, per-element
+ * allocation, division, or modulo.</p>
  */
 final class CpuDataMovementEmitter {
     /** Creates one stateless family emitter. */
@@ -59,7 +60,12 @@ final class CpuDataMovementEmitter {
         });
         int inputBases = 3 * rank + 1;
         int inputStrides = inputBases + uniqueInputs;
-        int variant = inputStrides + uniqueInputs * inputRank;
+        int[] strideOffsets = new int[uniqueInputs];
+        int variant = inputStrides;
+        for (int input = 0; input < uniqueInputs; input++) {
+            strideOffsets[input] = variant;
+            variant += ir.values().get(input).accessPlan().iterationRank();
+        }
         int[] tileCoordinates = null;
         if (parsed.family.equals("TILE")) {
             tileCoordinates = new int[rank];
@@ -77,22 +83,28 @@ final class CpuDataMovementEmitter {
         switch (parsed.family) {
             case "PAD" -> emitPad(code, carriers, specialization, type, parsed.bits,
                     geometrySlot, coordinates, sourceAddress, value, inputBases,
-                    inputStrides, variant);
+                    strideOffsets[0], variant);
             case "TILE" -> emitTile(code, carriers, specialization, type, geometrySlot,
                     tileCoordinates, sourceAddress, value, inputBases, inputStrides);
             case "CONCAT" -> emitConcat(code, carriers, specialization, type, parsed,
                     geometrySlot, coordinates, sourceAddress, value, inputBases,
-                    inputStrides, variant, inputRank);
+                    strideOffsets, variant, inputRank);
             case "STACK" -> emitStack(code, carriers, specialization, type, parsed,
                     geometrySlot, coordinates, sourceAddress, value, inputBases,
-                    inputStrides, variant, inputRank);
+                    strideOffsets, variant, inputRank);
+            case "UNFOLD_AXIS" -> emitUnfoldAxis(code, carriers, specialization, type,
+                    geometrySlot, coordinates, sourceAddress, value, inputBases,
+                    strideOffsets[0], variant, inputRank);
+            case "UNFOLD2D" -> emitUnfold2d(code, carriers, specialization, type, parsed.bits,
+                    geometrySlot, coordinates, sourceAddress, value, inputBases,
+                    strideOffsets[0], variant);
             default -> throw new IllegalArgumentException("unsupported movement family");
         }
         carriers.store(type, specialization.carrierPattern().get(uniqueInputs), uniqueInputs,
                 outputAddress, value);
         emitAdvance(code, geometrySlot, coordinates, outputAddress, 0, 2 * rank + 1);
         if (tileCoordinates != null) emitAdvance(code, geometrySlot, tileCoordinates,
-                sourceAddress, variant, inputStrides);
+                sourceAddress, variant, strideOffsets[0]);
         code.lload(logical).loadConstant(1L).ladd().lstore(logical);
         code.branch(Opcode.GOTO, loop);
         code.labelBinding(done);
@@ -145,7 +157,7 @@ final class CpuDataMovementEmitter {
     private static void emitConcat(CodeBuilder code, CpuCarrierEmitter carriers,
             CpuKernelSpecialization specialization, DataType type, Parsed parsed,
             int geometrySlot, int[] coordinates, int sourceAddress, int value,
-            int inputBases, int inputStrides, int variant, int inputRank) {
+            int inputBases, int[] strideOffsets, int variant, int inputRank) {
         int axisCoordinate = selectedCoordinate(code, geometrySlot, variant, coordinates);
         var loaded = code.newLabel();
         for (int occurrence = 0; occurrence < parsed.mapping.length; occurrence++) {
@@ -160,7 +172,7 @@ final class CpuDataMovementEmitter {
                         coordinates, axis, axisCoordinate,
                         variant + 1 + occurrence);
                 code.lload(sourceAddress).lload(coordinate).aload(geometrySlot)
-                        .loadConstant(inputStrides + boundary * inputRank + axis).laload()
+                        .loadConstant(strideOffsets[boundary] + axis).laload()
                         .lmul().ladd().lstore(sourceAddress);
             }
             carriers.load(type, specialization.carrierPattern().get(boundary), boundary,
@@ -180,7 +192,7 @@ final class CpuDataMovementEmitter {
     private static void emitStack(CodeBuilder code, CpuCarrierEmitter carriers,
             CpuKernelSpecialization specialization, DataType type, Parsed parsed,
             int geometrySlot, int[] coordinates, int sourceAddress, int value,
-            int inputBases, int inputStrides, int variant, int inputRank) {
+            int inputBases, int[] strideOffsets, int variant, int inputRank) {
         int occurrenceCoordinate = selectedCoordinate(code, geometrySlot, variant, coordinates);
         var loaded = code.newLabel();
         for (int occurrence = 0; occurrence < parsed.mapping.length; occurrence++) {
@@ -193,7 +205,7 @@ final class CpuDataMovementEmitter {
                 int coordinate = stackCoordinate(code, geometrySlot, variant,
                         coordinates, inputAxis);
                 code.lload(sourceAddress).lload(coordinate).aload(geometrySlot)
-                        .loadConstant(inputStrides + boundary * inputRank + inputAxis).laload()
+                        .loadConstant(strideOffsets[boundary] + inputAxis).laload()
                         .lmul().ladd().lstore(sourceAddress);
             }
             carriers.load(type, specialization.carrierPattern().get(boundary), boundary,
@@ -208,6 +220,133 @@ final class CpuDataMovementEmitter {
                         MethodTypeDesc.ofDescriptor("(Ljava/lang/String;)V"))
                 .athrow();
         code.labelBinding(loaded);
+    }
+
+    private static void emitUnfoldAxis(CodeBuilder code, CpuCarrierEmitter carriers,
+            CpuKernelSpecialization specialization, DataType type, int geometrySlot,
+            int[] coordinates, int sourceAddress, int value, int inputBases,
+            int inputStrides, int variant, int inputRank) {
+        geometry(code, geometrySlot, inputBases).lstore(sourceAddress);
+        for (int inputAxis = 0; inputAxis < inputRank; inputAxis++) {
+            int sourceCoordinate = code.allocateLocal(TypeKind.LONG);
+            var ordinary = code.newLabel();
+            var selected = code.newLabel();
+            geometry(code, geometrySlot, variant).loadConstant((long) inputAxis).lcmp()
+                    .branch(Opcode.IFEQ, selected);
+            code.lload(coordinates[inputAxis]).lstore(sourceCoordinate)
+                    .branch(Opcode.GOTO, ordinary);
+            code.labelBinding(selected);
+            code.lload(coordinates[inputAxis]).aload(geometrySlot).loadConstant(variant + 2)
+                    .laload().lmul().lload(coordinates[coordinates.length - 1]).ladd()
+                    .lstore(sourceCoordinate);
+            code.labelBinding(ordinary);
+            code.lload(sourceAddress).lload(sourceCoordinate).aload(geometrySlot)
+                    .loadConstant(inputStrides + inputAxis).laload().lmul().ladd()
+                    .lstore(sourceAddress);
+        }
+        carriers.load(type, specialization.carrierPattern().getFirst(), 0, sourceAddress);
+        storeValue(code, type, value);
+    }
+
+    private static void emitUnfold2d(CodeBuilder code, CpuCarrierEmitter carriers,
+            CpuKernelSpecialization specialization, DataType type, long bits, int geometrySlot,
+            int[] coordinates, int sourceAddress, int value, int inputBases,
+            int inputStrides, int variant) {
+        int channel = variant + 13, kh = variant + 14, kw = variant + 15;
+        int oh = variant + 16, ow = variant + 17;
+        int ih = code.allocateLocal(TypeKind.LONG);
+        int iw = code.allocateLocal(TypeKind.LONG);
+        geometry(code, geometrySlot, oh).aload(geometrySlot).loadConstant(variant + 5).laload()
+                .lmul().aload(geometrySlot).loadConstant(variant + 7).laload().lsub()
+                .aload(geometrySlot).loadConstant(kh).laload()
+                .aload(geometrySlot).loadConstant(variant + 9).laload().lmul().ladd().lstore(ih);
+        geometry(code, geometrySlot, ow).aload(geometrySlot).loadConstant(variant + 6).laload()
+                .lmul().aload(geometrySlot).loadConstant(variant + 8).laload().lsub()
+                .aload(geometrySlot).loadConstant(kw).laload()
+                .aload(geometrySlot).loadConstant(variant + 10).laload().lmul().ladd().lstore(iw);
+        var padding = code.newLabel();
+        var loaded = code.newLabel();
+        code.lload(ih).loadConstant(0L).lcmp().branch(Opcode.IFLT, padding);
+        code.lload(ih).aload(geometrySlot).loadConstant(variant + 1).laload().lcmp()
+                .branch(Opcode.IFGE, padding);
+        code.lload(iw).loadConstant(0L).lcmp().branch(Opcode.IFLT, padding);
+        code.lload(iw).aload(geometrySlot).loadConstant(variant + 2).laload().lcmp()
+                .branch(Opcode.IFGE, padding);
+        geometry(code, geometrySlot, inputBases).lstore(sourceAddress);
+        addAddressTerm(code, geometrySlot, sourceAddress, coordinates[0], inputStrides);
+        addGeometryAddressTerm(code, geometrySlot, sourceAddress, channel, inputStrides + 1);
+        addAddressTerm(code, geometrySlot, sourceAddress, ih, inputStrides + 2);
+        addAddressTerm(code, geometrySlot, sourceAddress, iw, inputStrides + 3);
+        carriers.load(type, specialization.carrierPattern().getFirst(), 0, sourceAddress);
+        storeValue(code, type, value);
+        code.branch(Opcode.GOTO, loaded);
+        code.labelBinding(padding);
+        loadImmediate(code, type, bits);
+        storeValue(code, type, value);
+        code.labelBinding(loaded);
+        advanceUnfold2d(code, geometrySlot, ow, variant + 12, oh, variant + 11,
+                kw, variant + 4, kh, variant + 3, channel, variant);
+    }
+
+    private static void addAddressTerm(CodeBuilder code, int geometrySlot, int address,
+            int coordinate, int strideIndex) {
+        code.lload(address).lload(coordinate).aload(geometrySlot).loadConstant(strideIndex)
+                .laload().lmul().ladd().lstore(address);
+    }
+
+    private static void addGeometryAddressTerm(CodeBuilder code, int geometrySlot, int address,
+            int coordinateIndex, int strideIndex) {
+        code.lload(address).aload(geometrySlot).loadConstant(coordinateIndex).laload()
+                .aload(geometrySlot).loadConstant(strideIndex).laload().lmul().ladd()
+                .lstore(address);
+    }
+
+    private static void advanceUnfold2d(CodeBuilder code, int geometrySlot,
+            int ow, int outWidth, int oh, int outHeight, int kw, int kernelWidth,
+            int kh, int kernelHeight, int channel, int channels) {
+        var done = code.newLabel();
+        int next = code.allocateLocal(TypeKind.LONG);
+        geometry(code, geometrySlot, ow).loadConstant(1L).ladd().lstore(next);
+        var carryOh = code.newLabel();
+        code.lload(next).aload(geometrySlot).loadConstant(outWidth).laload().lcmp()
+                .branch(Opcode.IFGE, carryOh);
+        code.aload(geometrySlot).loadConstant(ow).lload(next).lastore()
+                .branch(Opcode.GOTO, done);
+        code.labelBinding(carryOh);
+        code.aload(geometrySlot).loadConstant(ow).loadConstant(0L).lastore();
+        geometry(code, geometrySlot, oh).loadConstant(1L).ladd().lstore(next);
+        var carryKw = code.newLabel();
+        code.lload(next).aload(geometrySlot).loadConstant(outHeight).laload().lcmp()
+                .branch(Opcode.IFGE, carryKw);
+        code.aload(geometrySlot).loadConstant(oh).lload(next).lastore()
+                .branch(Opcode.GOTO, done);
+        code.labelBinding(carryKw);
+        code.aload(geometrySlot).loadConstant(oh).loadConstant(0L).lastore();
+        geometry(code, geometrySlot, kw).loadConstant(1L).ladd().lstore(next);
+        var carryKh = code.newLabel();
+        code.lload(next).aload(geometrySlot).loadConstant(kernelWidth).laload().lcmp()
+                .branch(Opcode.IFGE, carryKh);
+        code.aload(geometrySlot).loadConstant(kw).lload(next).lastore()
+                .branch(Opcode.GOTO, done);
+        code.labelBinding(carryKh);
+        code.aload(geometrySlot).loadConstant(kw).loadConstant(0L).lastore();
+        geometry(code, geometrySlot, kh).loadConstant(1L).ladd().lstore(next);
+        var carryChannel = code.newLabel();
+        code.lload(next).aload(geometrySlot).loadConstant(kernelHeight).laload().lcmp()
+                .branch(Opcode.IFGE, carryChannel);
+        code.aload(geometrySlot).loadConstant(kh).lload(next).lastore()
+                .branch(Opcode.GOTO, done);
+        code.labelBinding(carryChannel);
+        code.aload(geometrySlot).loadConstant(kh).loadConstant(0L).lastore();
+        geometry(code, geometrySlot, channel).loadConstant(1L).ladd().lstore(next);
+        var resetChannel = code.newLabel();
+        code.lload(next).aload(geometrySlot).loadConstant(channels).laload().lcmp()
+                .branch(Opcode.IFGE, resetChannel);
+        code.aload(geometrySlot).loadConstant(channel).lload(next).lastore()
+                .branch(Opcode.GOTO, done);
+        code.labelBinding(resetChannel);
+        code.aload(geometrySlot).loadConstant(channel).loadConstant(0L).lastore();
+        code.labelBinding(done);
     }
 
     private static int selectedCoordinate(CodeBuilder code, int geometrySlot, int axisIndex,

@@ -14,11 +14,11 @@ package io.github.pho001.synaptik.backend.cpu.internal.cache;
  */
 public final class CpuGeneratorSchema {
     /**
-     * Current schema version, including the portable static PAD/TILE/CONCAT/STACK movement
-     * family, unique-boundary occurrence mapping, represented-bit padding immediate, and scalar
-     * generated body.
+     * Current schema version, including portable static axis and NCHW window extraction,
+     * unequal-rank movement geometry, exact represented padding bits, and scalar generated
+     * bodies. Envelopes written for earlier schemas are incompatible misses.
      */
-    public static final int CURRENT_VERSION = 12;
+    public static final int CURRENT_VERSION = 13;
     /** Generated entry name. */ public static final String ENTRY_NAME = "invoke";
     private CpuGeneratorSchema() { }
 

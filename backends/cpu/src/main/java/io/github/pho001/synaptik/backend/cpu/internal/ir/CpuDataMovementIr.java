@@ -17,8 +17,12 @@ import java.util.Objects;
 public record CpuDataMovementIr(DataType dataType, MovementPlan plan,
         List<CpuAccessPlan> inputAccesses, CpuAccessPlan outputAccess)
         implements CpuPortableKernelIr {
-    /** Closed structural movement-plan vocabulary. */
-    public sealed interface MovementPlan permits PadPlan, TilePlan, ConcatPlan, StackPlan {
+    /**
+     * Closed structural movement-plan vocabulary. Concrete extents, layout magnitudes, window
+     * starts, and other invocation facts remain in cold geometry rather than artifact identity.
+     */
+    public sealed interface MovementPlan permits PadPlan, TilePlan, ConcatPlan, StackPlan,
+            UnfoldAxisPlan, Unfold2dPlan {
         /**
          * Returns the stable generated family name.
          *
@@ -111,6 +115,43 @@ public record CpuDataMovementIr(DataType dataType, MovementPlan plan,
         @Override public String family() { return "STACK"; }
         @Override public long immediateBits() { return 0; }
     }
+    /**
+     * Structural general-axis window-extraction plan whose axis, window size, step, extents, and
+     * layout magnitudes remain cold geometry. The occurrence map selects the sole input boundary.
+     *
+     * @param outputRank result iteration rank, exactly one greater than the input rank
+     */
+    public record UnfoldAxisPlan(int outputRank) implements MovementPlan {
+        /**
+         * Validates the result-rank boundary.
+         * @throws IllegalArgumentException if {@code outputRank} is less than two
+         */
+        public UnfoldAxisPlan {
+            if (outputRank < 2) throw new IllegalArgumentException("unfold-axis result rank must be at least two");
+        }
+        @Override public String family() { return "UNFOLD_AXIS"; }
+        @Override public List<Integer> occurrenceToBoundary() { return List.of(0); }
+        @Override public long immediateBits() { return 0; }
+    }
+    /**
+     * Structural NCHW-to-columns window-extraction plan. Exact represented padding bits shape
+     * generated compatibility while all spatial geometry remains cold. Direct conceptual zero
+     * and exact typed positive zero therefore share structural identity.
+     *
+     * @param outputRank canonical rank-three result iteration rank
+     * @param immediateBits exact represented padding bits in the type-appropriate low bits
+     */
+    public record Unfold2dPlan(int outputRank, long immediateBits) implements MovementPlan {
+        /**
+         * Validates the canonical result rank.
+         * @throws IllegalArgumentException if {@code outputRank} is not three
+         */
+        public Unfold2dPlan {
+            if (outputRank != 3) throw new IllegalArgumentException("unfold2d result rank must be three");
+        }
+        @Override public String family() { return "UNFOLD2D"; }
+        @Override public List<Integer> occurrenceToBoundary() { return List.of(0); }
+    }
 
     /**
      * Validates one structural movement identity and snapshots its unique input accesses.
@@ -133,6 +174,14 @@ public record CpuDataMovementIr(DataType dataType, MovementPlan plan,
             if (access.accessKind() != CpuAccessPlan.AccessKind.READ) {
                 throw new IllegalArgumentException("movement inputs must be read-only access forms");
             }
+        }
+        if (plan instanceof UnfoldAxisPlan && (inputAccesses.size() != 1
+                || inputAccesses.getFirst().iterationRank() + 1 != plan.outputRank())) {
+            throw new IllegalArgumentException("unfold-axis access ranks are inconsistent");
+        }
+        if (plan instanceof Unfold2dPlan && (inputAccesses.size() != 1
+                || inputAccesses.getFirst().iterationRank() != 4)) {
+            throw new IllegalArgumentException("unfold2d access ranks are inconsistent");
         }
         for (int boundary : plan.occurrenceToBoundary()) {
             if (boundary < 0 || boundary >= inputAccesses.size()) {

@@ -260,8 +260,10 @@ public final class CpuScalarReferenceKernel {
     /**
      * Executes one compact static movement mapping for differential conformance.
      *
-     * @param ir non-null PAD, TILE, CONCAT, or STACK represented-bit movement IR
-     * @param geometry non-null matching compact cold occurrence geometry
+     * @param ir non-null represented-bit movement IR, including static axis and NCHW window
+     *     extraction
+     * @param geometry non-null matching compact cold occurrence geometry; window forms may have
+     *     unequal input and output ranks
      * @param arguments non-null unique input arguments followed by one writable output
      * @param start non-negative inclusive output logical bound
      * @param end exclusive output logical bound
@@ -315,8 +317,7 @@ public final class CpuScalarReferenceKernel {
                 int boundary = concat.occurrenceToBoundary().get(occurrence);
                 represented = load(arguments.get(boundary), ir.dataType(),
                         movementAddress(geometry.inputs().get(boundary), source));
-            } else {
-                var stack = (CpuDataMovementIr.StackPlan) ir.plan();
+            } else if (ir.plan() instanceof CpuDataMovementIr.StackPlan stack) {
                 var variant = (CpuNonAffineMovementLowering.Geometry.Stack) geometry.variant();
                 int occurrence = Math.toIntExact(coordinate[variant.axis()]);
                 long[] source = new long[coordinate.length - 1];
@@ -326,6 +327,34 @@ public final class CpuScalarReferenceKernel {
                 int boundary = stack.occurrenceToBoundary().get(occurrence);
                 represented = load(arguments.get(boundary), ir.dataType(),
                         movementAddress(geometry.inputs().get(boundary), source));
+            } else if (ir.plan() instanceof CpuDataMovementIr.UnfoldAxisPlan) {
+                var variant = (CpuNonAffineMovementLowering.Geometry.UnfoldAxis) geometry.variant();
+                long[] source = new long[coordinate.length - 1];
+                for (int axis = 0; axis < source.length; axis++) source[axis] = axis == variant.axis()
+                        ? Math.addExact(Math.multiplyExact(coordinate[axis], variant.step()),
+                            coordinate[coordinate.length - 1])
+                        : coordinate[axis];
+                represented = load(arguments.getFirst(), ir.dataType(),
+                        movementAddress(geometry.inputs().getFirst(), source));
+            } else {
+                var plan = (CpuDataMovementIr.Unfold2dPlan) ir.plan();
+                var variant = (CpuNonAffineMovementLowering.Geometry.Unfold2d) geometry.variant();
+                long q = coordinate[1], p = coordinate[2];
+                long kw = q % variant.kernelWidth();
+                long kh = q / variant.kernelWidth() % variant.kernelHeight();
+                long channel = q / Math.multiplyExact(variant.kernelHeight(), variant.kernelWidth());
+                long ow = p % variant.outputWidth(), oh = p / variant.outputWidth();
+                long ih = Math.addExact(Math.subtractExact(Math.multiplyExact(oh,
+                        variant.strideHeight()), variant.paddingHeight()),
+                        Math.multiplyExact(kh, variant.dilationHeight()));
+                long iw = Math.addExact(Math.subtractExact(Math.multiplyExact(ow,
+                        variant.strideWidth()), variant.paddingWidth()),
+                        Math.multiplyExact(kw, variant.dilationWidth()));
+                represented = ih < 0 || ih >= variant.height() || iw < 0 || iw >= variant.width()
+                        ? representedImmediate(ir.dataType(), plan.immediateBits())
+                        : load(arguments.getFirst(), ir.dataType(),
+                            movementAddress(geometry.inputs().getFirst(),
+                                new long[] {coordinate[0], channel, ih, iw}));
             }
             long outputAddress = geometry.outputOffset();
             for (int axis = 0; axis < coordinate.length; axis++) outputAddress = Math.addExact(

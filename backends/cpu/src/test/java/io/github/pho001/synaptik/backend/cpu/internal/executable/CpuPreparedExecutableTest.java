@@ -38,6 +38,8 @@ import io.github.pho001.synaptik.model.datatype.ScalarValue;
 import io.github.pho001.synaptik.model.operation.Operation;
 import io.github.pho001.synaptik.model.operation.layout.PadAttrs;
 import io.github.pho001.synaptik.model.operation.layout.PadKind;
+import io.github.pho001.synaptik.model.operation.layout.UnfoldAxisAttrs;
+import io.github.pho001.synaptik.model.operation.layout.WindowTransformKind;
 
 class CpuPreparedExecutableTest {
     private static final ValueLayout.OfDouble DOUBLE =
@@ -432,6 +434,50 @@ class CpuPreparedExecutableTest {
         } finally { overlap.close(); }
     }
 
+    @Test void windowMovementExecutesParallelChunksAndRejectsNoncanonicalBoolBeforeWrite() {
+        var base = CpuNonAffineMovementLoweringTest.context(
+                new Operation(WindowTransformKind.UNFOLD_AXIS, new UnfoldAxisAttrs(0, 2, 1)),
+                List.of(0), List.of(CpuNonAffineMovementLoweringTest.descriptor(
+                        DataType.INT32, Shape.of(6))),
+                CpuNonAffineMovementLoweringTest.descriptor(DataType.INT32, Shape.of(5, 2)));
+        var parallelContext = new io.github.pho001.synaptik.prepare.analysis.PrepareContext<>(
+                base.partition(), base.nodes(), base.values(), base.memoryRequirements(), Map.of(),
+                new CpuPartitionAnalysisInputs(false,
+                        List.of(CarrierAccess.INT_ARRAY, CarrierAccess.INT_ARRAY),
+                        new PortableExecutionConfig(ComputePreference.SCALAR, 2, 2, 1)));
+        var analysis = new CpuPartitionPreparer().analyze(parallelContext);
+        try (var workers = new CpuWorkerGroup(2)) {
+            var executable = CpuPartitionFinalizerTest.finalizeExecutable(analysis,
+                    Optional.empty(), Optional.of(workers));
+            int[] output = new int[10];
+            var run = state(executable, List.of(borrow(new int[]{1, 2, 3, 4, 5, 6}),
+                    borrow(output)));
+            try {
+                executable.bind(run).execute();
+                assertArrayEquals(new int[]{1, 2, 2, 3, 3, 4, 4, 5, 5, 6}, output);
+            } finally { run.close(); }
+        }
+
+        var boolBase = CpuNonAffineMovementLoweringTest.context(
+                new Operation(WindowTransformKind.UNFOLD_AXIS, new UnfoldAxisAttrs(0, 2, 1)),
+                List.of(0), List.of(CpuNonAffineMovementLoweringTest.descriptor(
+                        DataType.BOOL, Shape.of(3))),
+                CpuNonAffineMovementLoweringTest.descriptor(DataType.BOOL, Shape.of(2, 2)));
+        var boolContext = new io.github.pho001.synaptik.prepare.analysis.PrepareContext<>(
+                boolBase.partition(), boolBase.nodes(), boolBase.values(),
+                boolBase.memoryRequirements(), Map.of(), new CpuPartitionAnalysisInputs(false,
+                        List.of(CarrierAccess.BYTE_ARRAY, CarrierAccess.BYTE_ARRAY)));
+        var boolExecutable = CpuPartitionFinalizerTest.finalizeExecutable(
+                new CpuPartitionPreparer().analyze(boolContext), Optional.empty());
+        byte[] boolOutput = {9, 9, 9, 9};
+        var boolRun = state(boolExecutable,
+                List.of(borrow(new byte[]{1, 2, 0}), borrow(boolOutput)));
+        try {
+            assertThrows(IllegalArgumentException.class, () -> boolExecutable.bind(boolRun));
+            assertArrayEquals(new byte[]{9, 9, 9, 9}, boolOutput);
+        } finally { boolRun.close(); }
+    }
+
     private static CpuBorrowedBuffer borrow(double[] carrier, int elementOffset) {
         return borrow(carrier, elementOffset, 4);
     }
@@ -448,6 +494,11 @@ class CpuPreparedExecutableTest {
     private static CpuBorrowedBuffer borrow(int[] carrier, int elementOffset, int count) {
         var segment = MemorySegment.ofArray(carrier).asSlice(elementOffset * 4L, count * 4L);
         return CpuBorrowedBuffer.borrow(new MemorySegmentStorage(DataType.INT32, count, segment));
+    }
+
+    private static CpuBorrowedBuffer borrow(byte[] carrier) {
+        return CpuBorrowedBuffer.borrow(new MemorySegmentStorage(DataType.BOOL, carrier.length,
+                MemorySegment.ofArray(carrier)));
     }
 
     private static RunState state(CpuPreparedExecutable executable,
