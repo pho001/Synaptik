@@ -12,6 +12,7 @@ import io.github.pho001.synaptik.backend.cpu.internal.reference.CpuScalarReferen
 import io.github.pho001.synaptik.backend.cpu.internal.route.portable.CpuPortableRoutePlan;
 import io.github.pho001.synaptik.model.datatype.DataType;
 import io.github.pho001.synaptik.model.datatype.ScalarValue;
+import io.github.pho001.synaptik.model.layout.LayoutDescriptor;
 import io.github.pho001.synaptik.model.operation.Operation;
 import io.github.pho001.synaptik.model.operation.layout.*;
 import io.github.pho001.synaptik.model.shape.Shape;
@@ -21,6 +22,125 @@ import java.util.*;
 import org.junit.jupiter.api.Test;
 
 class CpuDataMovementGeneratedKernelTest {
+    @Test void sliceUpdateArtifactIdentityIncludesStructureAndExcludesPlacement() {
+        var base = CpuNonAffineMovementLoweringTest.descriptor(DataType.INT32, Shape.of(5));
+        var update = CpuNonAffineMovementLoweringTest.descriptor(DataType.INT32, Shape.of(2));
+        var output = CpuNonAffineMovementLoweringTest.descriptor(DataType.INT32, Shape.of(5));
+        var signed = route(context(new Operation(SliceKind.SLICE_UPDATE,
+                        new SliceAttrs(List.of(4L), List.of(2L), List.of(0), List.of(-2L))),
+                List.of(0,1), List.of(base, update), output));
+        var targetRelative = route(context(new Operation(SliceKind.SLICE_UPDATE,
+                        new CropToShapeAttrs(Shape.of(2), Shape.of(2))),
+                List.of(0,1), List.of(base, update), output));
+        var deduplicated = route(context(new Operation(SliceKind.SLICE_UPDATE,
+                        new SliceAttrs(List.of(), List.of(), List.of(), List.of())),
+                List.of(0,0), List.of(base), output));
+        var generator = new CpuClassFileKernelGenerator();
+        assertAll(
+                () -> assertEquals(signed.specialization(), targetRelative.specialization()),
+                () -> assertArrayEquals(generator.generateClassBytes(signed.specialization(), signed.kernelIr()),
+                        generator.generateClassBytes(targetRelative.specialization(), targetRelative.kernelIr())),
+                () -> assertNotEquals(signed.specialization(), deduplicated.specialization()));
+    }
+
+    @Test void sliceUpdatePreservesEveryRepresentedTypeAndDegenerateDomain() throws Throwable {
+        var rows = List.of(
+                new SliceRow(DataType.FLOAT64, new double[]{-0.0, Double.longBitsToDouble(0x7ff8000000000042L), 3}, new double[]{+0.0}, new double[3]),
+                new SliceRow(DataType.FLOAT32, new float[]{-0.0f, Float.intBitsToFloat(0x7fc00042), 3}, new float[]{+0.0f}, new float[3]),
+                new SliceRow(DataType.BFLOAT16, new short[]{(short)0x8000, (short)0x7fc2, 3}, new short[]{0}, new short[3]),
+                new SliceRow(DataType.INT32, new int[]{Integer.MIN_VALUE, 2, 3}, new int[]{Integer.MAX_VALUE}, new int[3]),
+                new SliceRow(DataType.INT64, new long[]{Long.MIN_VALUE, 2, 3}, new long[]{Long.MAX_VALUE}, new long[3]),
+                new SliceRow(DataType.BOOL, new byte[]{0,1,0}, new byte[]{1}, new byte[3]));
+        var attrs = new SliceAttrs(List.of(1L), List.of(1L), List.of(0), List.of(Long.MIN_VALUE));
+        for (SliceRow row : rows) {
+            var one = context(new Operation(SliceKind.SLICE_UPDATE, attrs), List.of(0,1),
+                    List.of(CpuNonAffineMovementLoweringTest.descriptor(row.type(), Shape.of(3)),
+                            CpuNonAffineMovementLoweringTest.descriptor(row.type(), Shape.of(1))),
+                    CpuNonAffineMovementLoweringTest.descriptor(row.type(), Shape.of(3)));
+            Object generated = copy(row.output()), reference = copy(row.output());
+            invoke(one, List.of(row.base(), row.update(), generated), 0, 3);
+            invokeReference(one, List.of(row.base(), row.update(), reference), 0, 3);
+            assertTrue(equalBits(reference, generated), row.type().toString());
+        }
+
+        var scalar = context(new Operation(SliceKind.SLICE_UPDATE,
+                        new SliceAttrs(List.of(), List.of(), List.of(), List.of())), List.of(0,1),
+                List.of(CpuNonAffineMovementLoweringTest.descriptor(DataType.INT32, Shape.scalar()),
+                        CpuNonAffineMovementLoweringTest.descriptor(DataType.INT32, Shape.scalar())),
+                CpuNonAffineMovementLoweringTest.descriptor(DataType.INT32, Shape.scalar()));
+        int[] scalarOutput = {0};
+        invoke(scalar, List.of(new int[]{4}, new int[]{9}, scalarOutput), 0, 1);
+
+        var emptyTarget = context(new Operation(SliceKind.SLICE_UPDATE,
+                        new SliceAttrs(List.of(0L), List.of(0L), List.of(0), List.of(-1L))),
+                List.of(0,1), List.of(CpuNonAffineMovementLoweringTest.descriptor(DataType.INT32, Shape.of(3)),
+                        CpuNonAffineMovementLoweringTest.descriptor(DataType.INT32, Shape.of(0))),
+                CpuNonAffineMovementLoweringTest.descriptor(DataType.INT32, Shape.of(3)));
+        int[] emptyOutput = new int[3];
+        invoke(emptyTarget, List.of(new int[]{1,2,3}, new int[0], emptyOutput), 0, 3);
+        assertAll(() -> assertArrayEquals(new int[]{9}, scalarOutput),
+                () -> assertArrayEquals(new int[]{1,2,3}, emptyOutput));
+    }
+
+    @Test void executesBothSliceUpdateFormsAcrossArbitraryRanges() throws Throwable {
+        var signed = context(new Operation(SliceKind.SLICE_UPDATE,
+                        new SliceAttrs(List.of(4L), List.of(2L), List.of(0), List.of(-2L))),
+                List.of(0, 1), List.of(CpuNonAffineMovementLoweringTest.descriptor(
+                                DataType.INT32, Shape.of(5)),
+                        CpuNonAffineMovementLoweringTest.descriptor(DataType.INT32, Shape.of(2))),
+                CpuNonAffineMovementLoweringTest.descriptor(DataType.INT32, Shape.of(5)));
+        int[] generated = {-1,-1,-1,-1,-1}, reference = generated.clone();
+        invoke(signed, List.of(new int[]{10,11,12,13,14}, new int[]{90,80}, generated), 1, 5);
+        invokeReference(signed, List.of(new int[]{10,11,12,13,14}, new int[]{90,80}, reference), 1, 5);
+
+        var crop = context(new Operation(SliceKind.SLICE_UPDATE,
+                        new CropToShapeAttrs(Shape.of(2,2), Shape.of(0,1))), List.of(0,1),
+                List.of(CpuNonAffineMovementLoweringTest.descriptor(DataType.INT64, Shape.of(2,4)),
+                        CpuNonAffineMovementLoweringTest.descriptor(DataType.INT64, Shape.of(2,2))),
+                CpuNonAffineMovementLoweringTest.descriptor(DataType.INT64, Shape.of(2,4)));
+        long[] cropGenerated = new long[8], cropReference = new long[8];
+        invoke(crop, List.of(new long[]{1,2,3,4,5,6,7,8}, new long[]{9,10,11,12}, cropGenerated), 0, 8);
+        invokeReference(crop, List.of(new long[]{1,2,3,4,5,6,7,8}, new long[]{9,10,11,12}, cropReference), 0, 8);
+        assertAll(
+                () -> assertArrayEquals(new int[]{-1,11,80,13,90}, generated),
+                () -> assertArrayEquals(reference, generated),
+                () -> assertArrayEquals(new long[]{1,9,10,4,5,11,12,8}, cropGenerated),
+                () -> assertArrayEquals(cropReference, cropGenerated));
+    }
+
+    @Test void sliceUpdateHonorsArbitraryLayoutsMultipleAxesAndColdRangeSeeding() throws Throwable {
+        Shape baseShape = Shape.of(3, 4), updateShape = Shape.of(2, 2);
+        var base = CpuNonAffineMovementLoweringTest.descriptor(DataType.INT32, baseShape,
+                LayoutDescriptor.of(baseShape, new long[]{0, 2}, 1, true));
+        var update = CpuNonAffineMovementLoweringTest.descriptor(DataType.INT32, updateShape,
+                LayoutDescriptor.of(updateShape, new long[]{3, 1}, 1, true));
+        var output = CpuNonAffineMovementLoweringTest.descriptor(DataType.INT32, baseShape,
+                LayoutDescriptor.of(baseShape, new long[]{10, 2}, 2, true));
+        var slice = context(new Operation(SliceKind.SLICE_UPDATE,
+                        new SliceAttrs(List.of(2L, 3L), List.of(2L, 2L), List.of(0, 1),
+                                List.of(-2L, -2L))),
+                List.of(0, 1), List.of(base, update), output);
+        int[] baseBits = {99, 10, 99, 20, 99, 30, 99, 40};
+        int[] updateBits = {99, 90, 91, 99, 80, 81};
+        int[] generated = new int[30], reference = new int[30];
+        Arrays.fill(generated, -7);
+        Arrays.fill(reference, -7);
+        invoke(slice, List.of(baseBits, updateBits, generated), 1, 11);
+        invokeReference(slice, List.of(baseBits, updateBits, reference), 1, 11);
+        assertAll(
+                () -> assertArrayEquals(reference, generated),
+                () -> assertEquals(-7, generated[2]),
+                () -> assertEquals(81, generated[4]),
+                () -> assertEquals(30, generated[6]),
+                () -> assertEquals(80, generated[8]),
+                () -> assertEquals(10, generated[12]),
+                () -> assertEquals(40, generated[18]),
+                () -> assertEquals(10, generated[22]),
+                () -> assertEquals(91, generated[24]),
+                () -> assertEquals(30, generated[26]),
+                () -> assertEquals(-7, generated[28]));
+    }
+
     @Test void windowArtifactIdentityIncludesOnlyLockedStructuralFacts() {
         var window = new Window2dAttrs(2, 2, 1, 1, 1, 1, 1, 1, false);
         var input = CpuNonAffineMovementLoweringTest.descriptor(
@@ -401,6 +521,7 @@ class CpuDataMovementGeneratedKernelTest {
     private record PadRow(DataType type, ScalarValue padding, Object input, Object output) { }
     private record WindowRow(DataType type, Object input, Object output) { }
     private record ImageWindowRow(DataType type, ScalarValue padding, Object input, Object output) { }
+    private record SliceRow(DataType type, Object base, Object update, Object output) { }
     private record MovementCase(Operation operation, List<Integer> occurrences,
             List<Shape> inputs, Shape output, List<Object> carriers) { }
 }

@@ -11,9 +11,10 @@
  * an independently selectable numerical route. Its pure error-function and activation helpers are
  * also callable by generated scalar bytecode, so the generated and reference realizations share
  * one fixed formula and exceptional-value policy.
- * The reference realization also evaluates the compact static PAD, TILE, CONCAT, and STACK
- * mapping over unique boundary carriers for generated/reference differential tests; it copies
- * represented bits and does not define a Runtime fallback route.
+ * The reference realization also evaluates compact static movement and window mappings plus
+ * functional SLICE_UPDATE over unique boundary carriers for generated/reference differential
+ * tests; it copies represented bits, selects base outside the update region, and does not define
+ * a Runtime fallback route.
  * It also validates and evaluates the four compact indexing mappings independently for
  * generated/reference differential tests, preserving deterministic first-invalid order and
  * strict no-wrap/no-clamp bounds meaning.

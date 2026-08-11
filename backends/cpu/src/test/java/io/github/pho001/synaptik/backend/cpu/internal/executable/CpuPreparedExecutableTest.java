@@ -40,6 +40,8 @@ import io.github.pho001.synaptik.model.operation.layout.PadAttrs;
 import io.github.pho001.synaptik.model.operation.layout.PadKind;
 import io.github.pho001.synaptik.model.operation.layout.UnfoldAxisAttrs;
 import io.github.pho001.synaptik.model.operation.layout.WindowTransformKind;
+import io.github.pho001.synaptik.model.operation.layout.SliceAttrs;
+import io.github.pho001.synaptik.model.operation.layout.SliceKind;
 import io.github.pho001.synaptik.model.operation.index.*;
 import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuIndexingLoweringTest;
 import java.lang.foreign.Arena;
@@ -49,6 +51,8 @@ class CpuPreparedExecutableTest {
             ValueLayout.JAVA_DOUBLE_UNALIGNED.withOrder(ByteOrder.nativeOrder());
     private static final ValueLayout.OfFloat FLOAT =
             ValueLayout.JAVA_FLOAT_UNALIGNED.withOrder(ByteOrder.nativeOrder());
+    private static final ValueLayout.OfInt INT =
+            ValueLayout.JAVA_INT_UNALIGNED.withOrder(ByteOrder.nativeOrder());
 
     @Test void executesParallelVectorChunksWithArbitraryBoundsAndScalarTails() {
         int count = DoubleVector.SPECIES_PREFERRED.length() * 4 + 3;
@@ -481,6 +485,157 @@ class CpuPreparedExecutableTest {
         } finally { boolRun.close(); }
     }
 
+    @Test void sliceUpdateExecutesParallelMixedCarriersWithArbitraryResolvedLayouts() {
+        Shape baseShape = Shape.of(3, 4), updateShape = Shape.of(2, 2);
+        var baseDescriptor = new TensorDescriptor(DataType.INT32, baseShape,
+                Optional.of(LayoutDescriptor.of(baseShape, new long[]{0, 2}, 1, true)), false);
+        var updateDescriptor = new TensorDescriptor(DataType.INT32, updateShape,
+                Optional.of(LayoutDescriptor.of(updateShape, new long[]{3, 1}, 1, true)), false);
+        var outputDescriptor = new TensorDescriptor(DataType.INT32, baseShape,
+                Optional.of(LayoutDescriptor.of(baseShape, new long[]{10, 2}, 2, true)), false);
+        var base = CpuNonAffineMovementLoweringTest.context(
+                new Operation(SliceKind.SLICE_UPDATE,
+                        new SliceAttrs(List.of(2L, 3L), List.of(2L, 2L), List.of(0, 1),
+                                List.of(-2L, -2L))),
+                List.of(0, 1), List.of(baseDescriptor, updateDescriptor), outputDescriptor);
+        var config = new PortableExecutionConfig(ComputePreference.SCALAR, 3, 3, 1);
+        var context = new io.github.pho001.synaptik.prepare.analysis.PrepareContext<>(
+                base.partition(), base.nodes(), base.values(), base.memoryRequirements(),
+                base.constants(), new CpuPartitionAnalysisInputs(false,
+                        List.of(CarrierAccess.INT_ARRAY, CarrierAccess.MEMORY_SEGMENT,
+                                CarrierAccess.INT_ARRAY), config));
+        var analysis = new CpuPartitionPreparer().analyze(context);
+        int[] baseBits = {99, 10, 99, 20, 99, 30, 99, 40};
+        int[] baseSnapshot = baseBits.clone();
+        int[] outputBits = new int[30];
+        java.util.Arrays.fill(outputBits, -7);
+        try (var workers = new CpuWorkerGroup(3)) {
+            var executable = CpuPartitionFinalizerTest.finalizeExecutable(analysis,
+                    Optional.empty(), Optional.of(workers));
+            var update = CpuNativeBuffer.allocate(DataType.INT32,
+                    executable.memoryPlan().buffers().get(1).byteSize(), Integer.BYTES);
+            update.segment().set(INT, 4, 90);
+            update.segment().set(INT, 8, 91);
+            update.segment().set(INT, 16, 80);
+            update.segment().set(INT, 20, 81);
+            int outputCount = Math.toIntExact(
+                    executable.memoryPlan().buffers().get(2).byteSize() / Integer.BYTES);
+            var run = state(executable, List.of(borrow(baseBits), update,
+                    borrow(outputBits, 0, outputCount)));
+            try {
+                executable.bind(run).execute();
+                assertAll(
+                        () -> assertArrayEquals(baseSnapshot, baseBits),
+                        () -> assertEquals(90, update.segment().get(INT, 4)),
+                        () -> assertEquals(91, update.segment().get(INT, 8)),
+                        () -> assertEquals(80, update.segment().get(INT, 16)),
+                        () -> assertEquals(81, update.segment().get(INT, 20)),
+                        () -> assertEquals(10, outputBits[2]),
+                        () -> assertEquals(81, outputBits[4]),
+                        () -> assertEquals(30, outputBits[6]),
+                        () -> assertEquals(80, outputBits[8]),
+                        () -> assertEquals(10, outputBits[12]),
+                        () -> assertEquals(40, outputBits[18]),
+                        () -> assertEquals(10, outputBits[22]),
+                        () -> assertEquals(91, outputBits[24]),
+                        () -> assertEquals(30, outputBits[26]),
+                        () -> assertEquals(90, outputBits[28]));
+            } finally { run.close(); }
+        }
+    }
+
+    @Test void sliceUpdateExecutesAllMemorySegmentCarriers() {
+        var base = CpuNonAffineMovementLoweringTest.context(
+                new Operation(SliceKind.SLICE_UPDATE,
+                        new SliceAttrs(List.of(4L), List.of(2L), List.of(0), List.of(-2L))),
+                List.of(0, 1), List.of(CpuNonAffineMovementLoweringTest.descriptor(
+                                DataType.INT32, Shape.of(5)),
+                        CpuNonAffineMovementLoweringTest.descriptor(DataType.INT32, Shape.of(2))),
+                CpuNonAffineMovementLoweringTest.descriptor(DataType.INT32, Shape.of(5)));
+        var context = new io.github.pho001.synaptik.prepare.analysis.PrepareContext<>(
+                base.partition(), base.nodes(), base.values(), base.memoryRequirements(),
+                base.constants(), new CpuPartitionAnalysisInputs(false,
+                        List.of(CarrierAccess.MEMORY_SEGMENT, CarrierAccess.MEMORY_SEGMENT,
+                                CarrierAccess.MEMORY_SEGMENT)));
+        var executable = CpuPartitionFinalizerTest.finalizeExecutable(
+                new CpuPartitionPreparer().analyze(context), Optional.empty());
+        var resources = executable.memoryPlan().buffers().stream().map(entry ->
+                CpuNativeBuffer.allocate(DataType.INT32, entry.byteSize(), Integer.BYTES)).toList();
+        for (int index = 0; index < 5; index++) {
+            resources.get(0).segment().set(INT, index * 4L, 10 + index);
+        }
+        resources.get(1).segment().set(INT, 0, 90);
+        resources.get(1).segment().set(INT, 4, 80);
+        var run = state(executable, resources);
+        try {
+            executable.bind(run).execute();
+            assertAll(
+                    () -> assertEquals(10, resources.get(2).segment().get(INT, 0)),
+                    () -> assertEquals(11, resources.get(2).segment().get(INT, 4)),
+                    () -> assertEquals(80, resources.get(2).segment().get(INT, 8)),
+                    () -> assertEquals(13, resources.get(2).segment().get(INT, 12)),
+                    () -> assertEquals(90, resources.get(2).segment().get(INT, 16)));
+        } finally { run.close(); }
+    }
+
+    @Test void sliceUpdateBindingRejectsBoolAndOutputOverlapBeforeWritingButAllowsInputAlias() {
+        var base = CpuNonAffineMovementLoweringTest.context(
+                new Operation(SliceKind.SLICE_UPDATE,
+                        new SliceAttrs(List.of(1L), List.of(2L), List.of(0), List.of(1L))),
+                List.of(0, 1), List.of(CpuNonAffineMovementLoweringTest.descriptor(
+                                DataType.BOOL, Shape.of(4)),
+                        CpuNonAffineMovementLoweringTest.descriptor(DataType.BOOL, Shape.of(2))),
+                CpuNonAffineMovementLoweringTest.descriptor(DataType.BOOL, Shape.of(4)));
+        var context = new io.github.pho001.synaptik.prepare.analysis.PrepareContext<>(
+                base.partition(), base.nodes(), base.values(), base.memoryRequirements(),
+                base.constants(), new CpuPartitionAnalysisInputs(false,
+                        List.of(CarrierAccess.BYTE_ARRAY, CarrierAccess.BYTE_ARRAY,
+                                CarrierAccess.BYTE_ARRAY)));
+        var executable = CpuPartitionFinalizerTest.finalizeExecutable(
+                new CpuPartitionPreparer().analyze(context), Optional.empty());
+
+        byte[] invalidOutput = {7, 7, 7, 7};
+        var invalid = state(executable, List.of(borrow(new byte[]{0, 2, 0, 1}),
+                borrow(new byte[]{1, 0}), borrow(invalidOutput)));
+        try {
+            assertThrows(IllegalArgumentException.class, () -> executable.bind(invalid));
+            assertArrayEquals(new byte[]{7, 7, 7, 7}, invalidOutput);
+        } finally { invalid.close(); }
+
+        byte[] invalidUpdateOutput = {7, 7, 7, 7};
+        var invalidUpdate = state(executable, List.of(borrow(new byte[]{0, 1, 0, 1}),
+                borrow(new byte[]{1, 2}), borrow(invalidUpdateOutput)));
+        try {
+            assertThrows(IllegalArgumentException.class, () -> executable.bind(invalidUpdate));
+            assertArrayEquals(new byte[]{7, 7, 7, 7}, invalidUpdateOutput);
+        } finally { invalidUpdate.close(); }
+
+        byte[] sharedOutput = {0, 1, 0, 1};
+        var overlap = state(executable, List.of(borrow(sharedOutput),
+                borrow(new byte[]{1, 0}), borrow(sharedOutput)));
+        try {
+            assertThrows(IllegalArgumentException.class, () -> executable.bind(overlap));
+            assertArrayEquals(new byte[]{0, 1, 0, 1}, sharedOutput);
+        } finally { overlap.close(); }
+
+        byte[] sharedUpdateOutput = {1, 0, 7, 7};
+        var updateOverlap = state(executable, List.of(borrow(new byte[]{0, 1, 0, 1}),
+                borrow(sharedUpdateOutput, 0, 2), borrow(sharedUpdateOutput)));
+        try {
+            assertThrows(IllegalArgumentException.class, () -> executable.bind(updateOverlap));
+            assertArrayEquals(new byte[]{1, 0, 7, 7}, sharedUpdateOutput);
+        } finally { updateOverlap.close(); }
+
+        byte[] sharedInputs = {0, 1, 1, 0};
+        byte[] aliasedOutput = {7, 7, 7, 7};
+        var aliased = state(executable, List.of(borrow(sharedInputs),
+                borrow(sharedInputs, 0, 2), borrow(aliasedOutput)));
+        try {
+            executable.bind(aliased).execute();
+            assertArrayEquals(new byte[]{0, 0, 1, 0}, aliasedOutput);
+        } finally { aliased.close(); }
+    }
+
     @Test void indexingValidatesEveryIndexBeforeAnyOutputWrite() {
         var base = CpuIndexingLoweringTest.context(
                 new Operation(OneHotKind.ONE_HOT, new OneHotAttrs(3)), List.of(0),
@@ -753,8 +908,12 @@ class CpuPreparedExecutableTest {
     }
 
     private static CpuBorrowedBuffer borrow(byte[] carrier) {
-        return CpuBorrowedBuffer.borrow(new MemorySegmentStorage(DataType.BOOL, carrier.length,
-                MemorySegment.ofArray(carrier)));
+        return borrow(carrier, 0, carrier.length);
+    }
+
+    private static CpuBorrowedBuffer borrow(byte[] carrier, int elementOffset, int count) {
+        return CpuBorrowedBuffer.borrow(new MemorySegmentStorage(DataType.BOOL, count,
+                MemorySegment.ofArray(carrier).asSlice(elementOffset, count)));
     }
 
     private static CpuBorrowedBuffer borrow(long[] carrier) {

@@ -16,13 +16,15 @@ import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuPointwiseOpcode;
 import io.github.pho001.synaptik.model.datatype.DataType;
 
 /**
- * Scalar conformance realization for the bounded typed CPU pointwise semantics.
+ * Scalar conformance realization for the bounded typed CPU portable semantics.
  * It evaluates already-lowered primitive arithmetic, exact extrema and clamp, direct Tensor
  * power, canonical-BOOL logic, the closed FLOAT32/FLOAT64 unary matrix, and the selected
  * scalar-power plan. Direct power uses {@link StrictMath#pow(double, double)} without
  * reclassifying an exponent. Unary evaluation preserves the specified exceptional-value
  * classifications, widens represented FLOAT32 values where required, and narrows once. It is an
- * unsupported cold-test/reference contract and is never a Runtime IR interpreter.
+ * It also evaluates already-lowered affine, movement, indexing, and functional slice-update
+ * mappings for differential tests. This is an unsupported cold-test/reference contract and is
+ * never a Runtime IR interpreter.
  */
 public final class CpuScalarReferenceKernel {
     private static final ValueLayout.OfDouble DOUBLE = ValueLayout.JAVA_DOUBLE_UNALIGNED
@@ -350,8 +352,8 @@ public final class CpuScalarReferenceKernel {
     /**
      * Executes one compact static movement mapping for differential conformance.
      *
-     * @param ir non-null represented-bit movement IR, including static axis and NCHW window
-     *     extraction
+     * @param ir non-null represented-bit movement IR, including window extraction and functional
+     *     slice update
      * @param geometry non-null matching compact cold occurrence geometry; window forms may have
      *     unequal input and output ranks
      * @param arguments non-null unique input arguments followed by one writable output
@@ -426,6 +428,29 @@ public final class CpuScalarReferenceKernel {
                         : coordinate[axis];
                 represented = load(arguments.getFirst(), ir.dataType(),
                         movementAddress(geometry.inputs().getFirst(), source));
+            } else if (ir.plan() instanceof CpuDataMovementIr.SliceUpdatePlan slicePlan) {
+                var variant = (CpuNonAffineMovementLowering.Geometry.SliceUpdate) geometry.variant();
+                long[] starts = variant.starts(), lengths = variant.lengths(), steps = variant.steps();
+                long[] updateCoordinate = new long[coordinate.length];
+                boolean selected = true;
+                for (int axis = 0; axis < coordinate.length; axis++) {
+                    long length = lengths[axis];
+                    if (length == 0) { selected = false; break; }
+                    long ordinal = -1;
+                    for (long candidate = 0; candidate < length; candidate++) {
+                        if (Math.addExact(starts[axis], Math.multiplyExact(candidate, steps[axis]))
+                                == coordinate[axis]) {
+                            ordinal = candidate;
+                            break;
+                        }
+                    }
+                    if (ordinal < 0) { selected = false; break; }
+                    updateCoordinate[axis] = ordinal;
+                }
+                int boundary = slicePlan.occurrenceToBoundary().get(selected ? 1 : 0);
+                long[] source = selected ? updateCoordinate : coordinate;
+                represented = load(arguments.get(boundary), ir.dataType(),
+                        movementAddress(geometry.inputs().get(boundary), source));
             } else {
                 var plan = (CpuDataMovementIr.Unfold2dPlan) ir.plan();
                 var variant = (CpuNonAffineMovementLowering.Geometry.Unfold2d) geometry.variant();

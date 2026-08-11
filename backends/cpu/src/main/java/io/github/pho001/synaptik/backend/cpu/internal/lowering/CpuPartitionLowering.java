@@ -35,14 +35,15 @@ import java.util.Objects;
 import java.util.Optional;
 
 /**
- * Lowers one bounded straight-line pointwise partition into one route-neutral CPU unit.
+ * Lowers one bounded supported CPU partition into one route-neutral CPU unit.
  *
  * <p>Lowering derives external boundaries in deterministic first-use order, retains internal
  * single-use results as typed virtual values, including internal BOOL mask results, and
  * materializes only the final store. It consumes
  * Model operation, shape, and layout contracts during analysis and maps every admitted unary kind
  * to one distinct CPU opcode without decomposition. Generated and Runtime code see only the
- * resulting CPU-private IR and cold bindings.</p>
+ * resulting CPU-private IR and cold bindings. Exact one-node movement and indexing families are
+ * delegated to their focused lowerers; the movement family includes functional slice update.</p>
  */
 public final class CpuPartitionLowering {
     private final CpuCapabilityProvider capabilities = new CpuCapabilityProvider();
@@ -55,10 +56,15 @@ public final class CpuPartitionLowering {
     public CpuPartitionLowering() { }
 
     /**
-     * Lowers one through eight supported occurrences and rejects every non-linear partition.
+     * Lowers one supported movement or indexing occurrence, or one through eight connected
+     * pointwise or affine occurrences, and rejects every unsupported partition shape.
      *
      * @param context non-null complete validated CPU partition projection
      * @return one immutable single-unit lowering with derived materialized boundaries
+     * @throws NullPointerException if {@code context} is {@code null}
+     * @throws IllegalArgumentException if ownership, cardinality, dataflow, or an occurrence is
+     *     outside the implemented CPU matrix
+     * @throws ArithmeticException if exact Shape, layout, or address arithmetic overflows
      */
     public LoweredPartition lower(PrepareContext<? extends BackendAnalysisInputs> context) {
         Objects.requireNonNull(context, "context");
@@ -80,7 +86,8 @@ public final class CpuPartitionLowering {
                     || kind == io.github.pho001.synaptik.model.operation.layout.TensorCompositionKind.CONCAT
                     || kind == io.github.pho001.synaptik.model.operation.layout.TensorCompositionKind.STACK
                     || kind == io.github.pho001.synaptik.model.operation.layout.WindowTransformKind.UNFOLD_AXIS
-                    || kind == io.github.pho001.synaptik.model.operation.layout.WindowTransformKind.UNFOLD2D) {
+                    || kind == io.github.pho001.synaptik.model.operation.layout.WindowTransformKind.UNFOLD2D
+                    || kind == io.github.pho001.synaptik.model.operation.layout.SliceKind.SLICE_UPDATE) {
                 return movementLowering.lower(context);
             }
         }
@@ -413,7 +420,8 @@ public final class CpuPartitionLowering {
     /**
      * Immutable lowering result consumed by route-neutral CPU analysis.
      *
-     * @param portableKernelIr non-null route-independent pointwise or affine representation
+     * @param portableKernelIr non-null route-independent pointwise, affine, movement, or indexing
+     *     representation
      * @param boundaryValues non-null deterministic external-read values followed by the sole
      *     final materialized output; copied defensively
      * @param accessBindings non-null normalized cold bindings in the same boundary order; copied
@@ -465,7 +473,7 @@ public final class CpuPartitionLowering {
         }
 
         /**
-         * Creates a lowering with optional compact movement geometry.
+         * Creates a lowering with optional compact movement geometry and no indexing geometry.
          *
          * @param portableKernelIr non-null route-independent portable representation
          * @param boundaryValues non-null external inputs followed by the output; copied defensively

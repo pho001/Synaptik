@@ -21,6 +21,64 @@ import java.util.*;
 import org.junit.jupiter.api.Test;
 
 public class CpuNonAffineMovementLoweringTest {
+    @Test void lowersSignedAndTargetRelativeSliceUpdateWithDeduplicatedBoundaries() {
+        var signed = lower(context(new Operation(SliceKind.SLICE_UPDATE,
+                        new SliceAttrs(List.of(4L), List.of(2L), List.of(0), List.of(-2L))),
+                List.of(0, 1), List.of(descriptor(DataType.INT32, Shape.of(5)),
+                        descriptor(DataType.INT32, Shape.of(2))),
+                descriptor(DataType.INT32, Shape.of(5))));
+        var crop = lower(context(new Operation(SliceKind.SLICE_UPDATE,
+                        new CropToShapeAttrs(Shape.of(2, 2), Shape.of(0, 1))),
+                List.of(0, 1), List.of(descriptor(DataType.FLOAT32, Shape.of(2, 4)),
+                        descriptor(DataType.FLOAT32, Shape.of(2, 2))),
+                descriptor(DataType.FLOAT32, Shape.of(2, 4))));
+        var same = lower(context(new Operation(SliceKind.SLICE_UPDATE,
+                        new SliceAttrs(List.of(), List.of(), List.of(), List.of())),
+                List.of(0, 0), List.of(descriptor(DataType.BOOL, Shape.of(2))),
+                descriptor(DataType.BOOL, Shape.of(2))));
+        var signedGeometry = assertInstanceOf(CpuNonAffineMovementLowering.Geometry.SliceUpdate.class,
+                signed.movementGeometry().orElseThrow().variant());
+        var cropGeometry = assertInstanceOf(CpuNonAffineMovementLowering.Geometry.SliceUpdate.class,
+                crop.movementGeometry().orElseThrow().variant());
+        assertAll(
+                () -> assertArrayEquals(new long[]{4}, signedGeometry.starts()),
+                () -> assertArrayEquals(new long[]{-2}, signedGeometry.steps()),
+                () -> assertArrayEquals(new long[]{0, 1}, cropGeometry.starts()),
+                () -> assertEquals(List.of(0, 1), ((CpuDataMovementIr) signed.portableKernelIr())
+                        .plan().occurrenceToBoundary()),
+                () -> assertEquals(List.of(0, 0), ((CpuDataMovementIr) same.portableKernelIr())
+                        .plan().occurrenceToBoundary()),
+                () -> assertEquals(2, same.boundaryValues().size()));
+    }
+
+    @Test void sliceUpdateLoweringAcceptsExactBoundsAndRejectsInvalidBoundsAndOutputLayout() {
+        var base = descriptor(DataType.INT32, Shape.of(5));
+        var update = descriptor(DataType.INT32, Shape.of(2));
+        var output = descriptor(DataType.INT32, Shape.of(5));
+        var positiveBoundary = context(new Operation(SliceKind.SLICE_UPDATE,
+                        new SliceAttrs(List.of(0L), List.of(2L), List.of(0), List.of(4L))),
+                List.of(0, 1), List.of(base, update), output);
+        var negativeBoundary = context(new Operation(SliceKind.SLICE_UPDATE,
+                        new SliceAttrs(List.of(4L), List.of(2L), List.of(0), List.of(-4L))),
+                List.of(0, 1), List.of(base, update), output);
+        var invalidPositive = context(new Operation(SliceKind.SLICE_UPDATE,
+                        new SliceAttrs(List.of(1L), List.of(2L), List.of(0), List.of(4L))),
+                List.of(0, 1), List.of(base, update), output);
+        var invalidCrop = context(new Operation(SliceKind.SLICE_UPDATE,
+                        new CropToShapeAttrs(Shape.of(2), Shape.of(4))),
+                List.of(0, 1), List.of(base, update), output);
+        var repeatedOutput = context(new Operation(SliceKind.SLICE_UPDATE,
+                        new SliceAttrs(List.of(0L), List.of(2L), List.of(0), List.of(1L))),
+                List.of(0, 1), List.of(base, update), descriptor(DataType.INT32, Shape.of(5),
+                        LayoutDescriptor.of(Shape.of(5), new long[]{0}, 0, true)));
+        assertAll(
+                () -> assertDoesNotThrow(() -> lower(positiveBoundary)),
+                () -> assertDoesNotThrow(() -> lower(negativeBoundary)),
+                () -> assertThrows(IllegalArgumentException.class, () -> lower(invalidPositive)),
+                () -> assertThrows(IllegalArgumentException.class, () -> lower(invalidCrop)),
+                () -> assertThrows(IllegalArgumentException.class, () -> lower(repeatedOutput)));
+    }
+
     @Test void lowersWindowFamiliesWithUnequalRanksAndExactPaddingBits() {
         var axis = lower(context(new Operation(WindowTransformKind.UNFOLD_AXIS,
                         new UnfoldAxisAttrs(1, 2, 1)), List.of(0),

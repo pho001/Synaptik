@@ -131,8 +131,11 @@ is `Complete`; detailed
 is `Complete`; and detailed
 [CPU 0006A2 Portable gather and one-hot indexing](backends/cpu/tasks/0006a2-portable-gather-and-one-hot-indexing.md)
 is `Complete`, delivering Gather and one-hot with complete pre-write
-execution-time index validation. Functional scatter/fold,
-ordering, and explicit-state random work remain Draft 0006B–0006D without detailed specs.
+execution-time index validation. Detailed
+[CPU 0006B Portable functional slice update](backends/cpu/tasks/0006b-portable-functional-slice-update.md)
+is `Complete`. Functional scatter and overlap fold remain Draft 0006B1
+and 0006B2 without detailed specs; ordering and explicit-state random work remain Draft 0006C and
+0006D.
 Historical
 [CPU 0001 Capability, representation, binding, and parallel foundation](backends/cpu/tasks/0001-cpu-capability-representation-binding-and-parallel-foundation.md)
 is `Superseded`; historical
@@ -159,8 +162,8 @@ materialization/specialization/persistence evidence is also `Complete`; detailed
 `Complete` for its bounded first five-type core pointwise increment. Detailed CPU 0005F floating
 division and exact scalar-power realization is `Complete`; detailed CPU 0005G and CPU 0005H are
 `Complete`; detailed CPU 0005I, CPU 0005J, and CPU 0006 are `Complete`; and CPU
-0006A is `Complete`; detailed 0006A1 and 0006A2 are `Complete`; 0006B–0017 remain `Draft` without
-detailed specifications.
+0006A is `Complete`; detailed 0006A1 and 0006A2 are `Complete`; detailed CPU 0006B is `Complete`;
+0006B1–0017 remain `Draft` without detailed specifications.
 CPU 0003
 implements a
 model-independent filesystem store beneath an explicit
@@ -515,13 +518,14 @@ injectivity decision accepts valid interleaved positive strides while rejecting 
 Detailed CPU 0005C through CPU 0005J are Complete.
 Detailed CPU 0006 and detailed CPU 0006A are Complete after splitting static movement,
 window extraction, and value-dependent indexing by dependency. Detailed CPU 0006A1 is `Complete`;
-detailed CPU 0006A2 is `Complete`; CPU 0006B–0017 and the refined Config,
-Prepare, Metal, and tuning rows remain `Draft` without new detailed specifications.
+detailed CPU 0006A2 is `Complete`; detailed CPU 0006B is `Complete`; CPU 0006B1–0017 and the refined
+Config, Prepare, Metal, and tuning rows remain `Draft` without new detailed specifications.
 Completed OpenBLAS history and every completed project area remain unchanged.
 
 CPU remains the active global project area. CPU 0005A through CPU 0006 are `Complete`, detailed
-CPU 0006A, detailed CPU 0006A1, and detailed CPU 0006A2 are `Complete`. CPU 0006B and later work
-remain `Draft` without detailed specifications.
+CPU 0006A, detailed CPU 0006A1, detailed CPU 0006A2, and detailed CPU 0006B are `Complete`. CPU
+0006B1 is the next Draft frontier; CPU 0006B1 and later work remain `Draft` without detailed
+specifications.
 CPU 0006A delivers one exact static resolved-layout PAD, TILE, CONCAT, or STACK occurrence with
 ordered one-through-sixteen composition inputs, first-occurrence unique declarations, compact
 cold movement geometry, all-six-type represented-bit scalar/parallel-scalar generation, one
@@ -550,6 +554,30 @@ skip and zero failures/errors on Oracle OpenJDK 26.0.1, Runtime/VM 26.0.1+8-34. 
 documentation context `019ff0c9-83cf-7d82-8f3c-e61be7a30269` reused that stable evidence and
 finalized Javadocs, package summaries, the CPU guide, glossary, and synchronized planning status
 without rerunning Java tests.
+The former combined CPU 0006B row is dependency-split. Detailed Complete CPU 0006B owns only
+value-blind functional SLICE_UPDATE through the existing movement pipeline. Draft CPU 0006B1 owns
+SCATTER_ELEMENTS, Gather-compatible SCATTER_ADD, and SCATTER_ND with their value-dependent index,
+duplicate, replacement, and reduction rules. Draft CPU 0006B2 owns zero-initialized FOLD_AXIS and
+FOLD2D overlap accumulation plus padding exclusion. Only CPU 0006B has a new detailed task
+specification, and CPU 0006C now depends on CPU 0006B2.
+CPU 0006B executes both current SLICE_UPDATE attribute forms for one fully static resolved-layout
+occurrence. Its one-pass output-domain selection has copy-base-then-replace semantics across all
+six represented types, signed/non-unit steps, scalar and empty cases, arbitrary disjoint ranges,
+heap/segment/mixed carriers, deduplicated inputs, one unit/artifact, strict output/input
+non-overlap, and schema 15. Implementation context
+`019ff156-d822-7442-b8a6-20f7e5e55d4d` established the implementation, and clean documentation
+context `019ff15f-a57f-7b62-aadc-40d3335d4a96` finalized its Javadocs, package summaries, guide,
+glossary, and planning records. Later mandatory audit/fix context
+`019ff188-85cb-7d50-be34-c5c3038b5634` found no production defect and changed tests only. Across
+all ten authorized test owners it added direct generated arbitrary-layout/range/multiple-axis
+coverage; parallel mixed, all-segment, and all-heap BOOL execution plus binding/overlap/input-alias
+evidence; one-unit exact deduplicated declarations, scalar/parallel and zero-output preparation
+without workspace/materialization; exact final assignments with one artifact and no workspace;
+bounds and output-injectivity rejection; and both reference forms with multiple axes. The final
+focused command passed 10 suites and 91 tests; the final CPU command passed 35 suites and 198 tests
+with one expected skip and no failures/errors on Oracle OpenJDK 26.0.1+8-34. No production Java
+contract changed after the prior Javadoc pass, so final documentation synchronization changed
+evidence only and reran neither Java tests nor Javadoc.
 CPU 0001–0005 are
 historical Superseded records whose Git history
 and validation evidence remain intact. Complete CPU 0004 added no public facade, registry, service locator,

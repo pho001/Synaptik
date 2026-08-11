@@ -23,10 +23,12 @@
  * materialization is always explicit because shared preparation provides no cross-value aliasing.
  *
  * <p>The bounded non-affine movement family accepts exactly one fully static resolved-layout
- * PAD, TILE, CONCAT, or STACK occurrence. It retains semantic input occurrence order while
- * declaring each distinct input once, requires one distinct injective output, and lowers exact
- * extents, offsets, strides, axes, padding widths, repeats, and composition prefixes into compact
- * cold geometry rather than a per-output-element table.</p>
+ * PAD, TILE, CONCAT, STACK, window-extraction, or functional SLICE_UPDATE occurrence. It retains
+ * semantic input occurrence order while declaring each distinct input once, requires one distinct
+ * injective output, and lowers exact extents, offsets, strides, axes, padding widths, repeats,
+ * composition prefixes, and signed slice placement into compact cold geometry rather than a
+ * per-output-element table. Slice update normalizes both current attribute forms to one
+ * rank-sized start/length/step mapping and leaves base and update inputs unchanged.</p>
 
  * <p>The indexing family accepts exactly one fully static resolved-layout GATHER,
  * GATHER_ELEMENTS, GATHER_ND, or ONE_HOT occurrence. It preserves semantic input occurrence

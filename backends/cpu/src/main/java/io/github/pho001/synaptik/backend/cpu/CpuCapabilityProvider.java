@@ -52,13 +52,23 @@ import java.util.Objects;
  * bounded to one through sixteen occurrences. The same movement route admits one
  * {@code UNFOLD_AXIS} occurrence for all six represented types or one floating
  * {@code UNFOLD2D} occurrence with direct positive-zero or exact typed padding. Both window
- * forms require their exact static result geometry and one distinct injective output.</p>
+ * forms require their exact static result geometry and one distinct injective output. A separate
+ * one-node indexing matrix admits {@code GATHER}, {@code GATHER_ELEMENTS}, {@code GATHER_ND}, and
+ * {@code ONE_HOT} with INT32/INT64 indices, exact static result geometry, and an injective
+ * output.</p>
  *
- * <p>Complete-partition lowering remains stricter: it validates either a connected one-to-eight
- * pointwise chain or a connected one-to-eight affine chain, then applies exact layout, alias,
- * fan-out, publication, and partition-boundary checks before resource declaration. Occurrence
- * support therefore does not promise that an arbitrary mixed or branched partition can be
- * prepared.</p>
+ * <p>The movement route also admits exactly one fully static, resolved-layout
+ * {@code SLICE_UPDATE} occurrence with ordered {@code [base, update]} inputs. Both normalized
+ * signed finite-coordinate {@link SliceAttrs} and target-relative {@link CropToShapeAttrs}
+ * placement are supported for all six represented types. The result retains the base Shape and
+ * uses a distinct injective layout; its semantic effect is to copy base values and replace only
+ * selected positions, without mutating either input.</p>
+ *
+ * <p>Complete-partition lowering remains stricter: it validates either one supported movement or
+ * indexing occurrence, a connected one-to-eight pointwise chain, or a connected one-to-eight
+ * affine chain, then applies exact layout, alias, fan-out, publication, and partition-boundary
+ * checks before resource declaration. Occurrence support therefore does not promise that an
+ * arbitrary mixed or branched partition can be prepared.</p>
  */
 public final class CpuCapabilityProvider implements BackendCapabilityProvider {
     /** Stable Planning ownership identity for the CPU backend. */
@@ -86,13 +96,18 @@ public final class CpuCapabilityProvider implements BackendCapabilityProvider {
      * {@code WHERE} applies branch-first then condition broadcasting. Admitted affine operations
      * require one input, one output, the same data type, fully static Shapes, resolved layouts,
      * and their exact current attributes and descriptor relationship. Admitted movement
-     * operations additionally require exact static PAD/TILE/composition/window shape
+     * operations additionally require exact static PAD/TILE/composition/window/slice-update shape
      * relationships, an injective result layout, and at most sixteen composition occurrences.
      * General-axis unfold admits every represented type; NCHW two-dimensional unfold admits only
-     * FLOAT64, FLOAT32, and BFLOAT16 with exact matching padding type. Cross-type casts, dynamic
-     * or unresolved geometry, negative-step slices, fold operations, non-injective movement
-     * outputs, and all rows outside the implemented matrix return {@code false} without defining
-     * conversion or fallback behavior.
+     * FLOAT64, FLOAT32, and BFLOAT16 with exact matching padding type. Indexing rows additionally
+     * require INT32/INT64 indices and their exact current Shape
+     * formulas; run-bound value checks remain an execution responsibility rather than capability
+     * inspection. Cross-type casts, dynamic
+     * or unresolved geometry, negative-step extraction slices, fold operations, non-injective
+     * movement outputs, and all rows outside the implemented matrix return {@code false} without
+     * defining conversion or fallback behavior. Negative and non-unit steps are supported for
+     * {@code SLICE_UPDATE}; they describe logical placement and do not create a negative storage
+     * stride.
      *
      * @param query non-null immutable operation occurrence to validate structurally
      * @return {@code true} only for the exact implemented occurrence-local matrix; otherwise
@@ -268,7 +283,8 @@ public final class CpuCapabilityProvider implements BackendCapabilityProvider {
                 || kind == TensorCompositionKind.CONCAT
                 || kind == TensorCompositionKind.STACK
                 || kind == WindowTransformKind.UNFOLD_AXIS
-                || kind == WindowTransformKind.UNFOLD2D;
+                || kind == WindowTransformKind.UNFOLD2D
+                || kind == SliceKind.SLICE_UPDATE;
     }
 
     private static boolean supportsMovement(OperationCapabilityQuery query,
@@ -281,6 +297,9 @@ public final class CpuCapabilityProvider implements BackendCapabilityProvider {
         }
         Object kind = query.operation().kind();
         Object attrs = query.operation().attrs();
+        if (kind == SliceKind.SLICE_UPDATE) {
+            return supportsSliceUpdate(query, output, attrs);
+        }
         if (kind == WindowTransformKind.UNFOLD_AXIS && attrs instanceof UnfoldAxisAttrs unfold) {
             if (query.inputs().size() != 1) return false;
             long[] input = query.inputs().getFirst().shape().toLongArray();
@@ -374,6 +393,49 @@ public final class CpuCapabilityProvider implements BackendCapabilityProvider {
                 if (result[outAxis] != (outAxis == axis ? query.inputs().size() : first[inAxis++])) {
                     return false;
                 }
+            }
+            return true;
+        }
+        return false;
+    }
+
+    private static boolean supportsSliceUpdate(OperationCapabilityQuery query,
+            TensorDescriptor output, Object attrs) {
+        if (query.inputs().size() != 2) return false;
+        TensorDescriptor base = query.inputs().get(0), update = query.inputs().get(1);
+        if (base.dataType() != update.dataType() || base.dataType() != output.dataType()
+                || !base.shape().equals(output.shape())
+                || base.shape().rank() != update.shape().rank()) return false;
+        long[] baseShape = base.shape().toLongArray();
+        long[] updateShape = update.shape().toLongArray();
+        if (attrs instanceof SliceAttrs slice) {
+            boolean[] selected = new boolean[baseShape.length];
+            for (int index = 0; index < slice.axes().size(); index++) {
+                int axis = slice.axes().get(index);
+                if (axis >= baseShape.length || selected[axis]
+                        || updateShape[axis] != slice.lengths().get(index)) return false;
+                selected[axis] = true;
+                long length = slice.lengths().get(index);
+                if (length > 0) {
+                    long start = slice.starts().get(index);
+                    long last = Math.addExact(start,
+                            Math.multiplyExact(length - 1, slice.steps().get(index)));
+                    if (start >= baseShape[axis] || last < 0 || last >= baseShape[axis]) return false;
+                }
+            }
+            for (int axis = 0; axis < baseShape.length; axis++) {
+                if (!selected[axis] && updateShape[axis] != baseShape[axis]) return false;
+            }
+            return true;
+        }
+        if (attrs instanceof CropToShapeAttrs crop) {
+            if (!crop.targetShape().isFullyStatic() || !crop.prefixShape().isFullyStatic()
+                    || crop.targetShape().rank() != baseShape.length
+                    || crop.prefixShape().rank() != baseShape.length
+                    || !crop.targetShape().equals(update.shape())) return false;
+            long[] prefix = crop.prefixShape().toLongArray();
+            for (int axis = 0; axis < baseShape.length; axis++) {
+                if (Math.addExact(prefix[axis], updateShape[axis]) > baseShape[axis]) return false;
             }
             return true;
         }

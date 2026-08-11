@@ -9,6 +9,8 @@ import io.github.pho001.synaptik.model.operation.layout.CompositionAxisAttrs;
 import io.github.pho001.synaptik.model.operation.layout.TensorCompositionKind;
 import io.github.pho001.synaptik.model.operation.layout.UnfoldAxisAttrs;
 import io.github.pho001.synaptik.model.operation.layout.WindowTransformKind;
+import io.github.pho001.synaptik.model.operation.layout.SliceAttrs;
+import io.github.pho001.synaptik.model.operation.layout.SliceKind;
 import io.github.pho001.synaptik.model.shape.Shape;
 import io.github.pho001.synaptik.prepare.BackendPartitionFinalization;
 import io.github.pho001.synaptik.prepare.PreparationResourceAssignment;
@@ -102,6 +104,29 @@ public class CpuPartitionFinalizerTest {
                 () -> assertEquals(1, analysis.plan().units().size()),
                 () -> assertEquals(2, executable.bufferSelectionCount()),
                 () -> assertEquals(2, executable.accessBindings().size()),
+                () -> assertTrue(executable.memoryPlan().workspaces().isEmpty()),
+                () -> assertNotNull(executable.artifact().hiddenClass()));
+    }
+
+    @Test void finalizesSliceUpdateAsOneArtifactAfterExactAssignments() {
+        var analysis = new CpuPartitionPreparer().analyze(
+                CpuNonAffineMovementLoweringTest.context(
+                        new Operation(SliceKind.SLICE_UPDATE,
+                                new SliceAttrs(List.of(3L), List.of(2L), List.of(0),
+                                        List.of(-2L))),
+                        List.of(0, 1),
+                        List.of(CpuNonAffineMovementLoweringTest.descriptor(
+                                        DataType.INT32, Shape.of(4)),
+                                CpuNonAffineMovementLoweringTest.descriptor(
+                                        DataType.INT32, Shape.of(2))),
+                        CpuNonAffineMovementLoweringTest.descriptor(
+                                DataType.INT32, Shape.of(4))));
+        Path artifactRoot = root.resolve("slice-update");
+        var executable = finalizeExecutable(analysis, Optional.of(artifactRoot));
+        assertAll(
+                () -> assertEquals(1, analysis.plan().units().size()),
+                () -> assertEquals(3, executable.bufferSelectionCount()),
+                () -> assertEquals(3, executable.accessBindings().size()),
                 () -> assertTrue(executable.memoryPlan().workspaces().isEmpty()),
                 () -> assertNotNull(executable.artifact().hiddenClass()));
     }

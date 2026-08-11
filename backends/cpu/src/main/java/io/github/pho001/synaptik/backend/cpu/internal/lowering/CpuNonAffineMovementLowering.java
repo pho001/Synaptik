@@ -8,8 +8,11 @@ import io.github.pho001.synaptik.model.graph.GraphValue;
 import io.github.pho001.synaptik.model.graph.ValueId;
 import io.github.pho001.synaptik.model.layout.LayoutDescriptor;
 import io.github.pho001.synaptik.model.operation.layout.CompositionAxisAttrs;
+import io.github.pho001.synaptik.model.operation.layout.CropToShapeAttrs;
 import io.github.pho001.synaptik.model.operation.layout.PadAttrs;
 import io.github.pho001.synaptik.model.operation.layout.PadKind;
+import io.github.pho001.synaptik.model.operation.layout.SliceAttrs;
+import io.github.pho001.synaptik.model.operation.layout.SliceKind;
 import io.github.pho001.synaptik.model.operation.layout.TensorCompositionKind;
 import io.github.pho001.synaptik.model.operation.layout.TileAttrs;
 import io.github.pho001.synaptik.model.operation.layout.TileKind;
@@ -30,7 +33,7 @@ import java.util.Optional;
 
 /**
  * Lowers one fully static {@code PAD}, {@code TILE}, {@code CONCAT}, {@code STACK},
- * {@code UNFOLD_AXIS}, or {@code UNFOLD2D}
+ * {@code UNFOLD_AXIS}, {@code UNFOLD2D}, or {@code SLICE_UPDATE}
  * occurrence into one represented-bit movement unit.
  *
  * <p>The lowering preserves semantic input occurrence order while declaring each distinct input
@@ -39,7 +42,10 @@ import java.util.Optional;
  * no prepared address or selector table is retained per output element. General-axis unfold
  * copies all six represented types. NCHW two-dimensional unfold copies only FLOAT64, FLOAT32,
  * and BFLOAT16 and retains exact configured padding bits; direct attributes use represented
- * positive zero.</p>
+ * positive zero. Functional slice update normalizes either signed finite-coordinate or
+ * target-relative attributes to rank-sized start, length, and step arrays. Its result-domain
+ * mapping has the semantic effect of copying the base and replacing selected positions while
+ * leaving both inputs unchanged.</p>
  */
 public final class CpuNonAffineMovementLowering {
     /** Creates a stateless movement-family lowerer. */
@@ -93,7 +99,63 @@ public final class CpuNonAffineMovementLowering {
         Object attrs = node.operation().attrs();
         CpuDataMovementIr.MovementPlan movementPlan;
         Geometry.Variant variant;
-        if (kind == PadKind.PAD && attrs instanceof PadAttrs pad) {
+        if (kind == SliceKind.SLICE_UPDATE) {
+            if (occurrences.size() != 2) {
+                throw new IllegalArgumentException("SLICE_UPDATE requires base and update inputs");
+            }
+            long[] base = occurrences.get(0).descriptor().shape().toLongArray();
+            long[] update = occurrences.get(1).descriptor().shape().toLongArray();
+            if (!Arrays.equals(base, outputExtents) || base.length != update.length) {
+                throw new IllegalArgumentException("SLICE_UPDATE base, update, and output ranks are inconsistent");
+            }
+            long[] starts = new long[base.length];
+            long[] lengths = base.clone();
+            long[] steps = new long[base.length];
+            Arrays.fill(steps, 1L);
+            if (attrs instanceof SliceAttrs slice) {
+                boolean[] selected = new boolean[base.length];
+                for (int index = 0; index < slice.axes().size(); index++) {
+                    int axis = slice.axes().get(index);
+                    if (axis >= base.length || selected[axis]
+                            || update[axis] != slice.lengths().get(index)) {
+                        throw new IllegalArgumentException("SLICE_UPDATE signed geometry is inconsistent");
+                    }
+                    selected[axis] = true;
+                    starts[axis] = slice.starts().get(index);
+                    lengths[axis] = slice.lengths().get(index);
+                    steps[axis] = slice.steps().get(index);
+                    if (lengths[axis] > 0) {
+                        long last = Math.addExact(starts[axis],
+                                Math.multiplyExact(lengths[axis] - 1, steps[axis]));
+                        if (starts[axis] >= base[axis] || last < 0 || last >= base[axis]) {
+                            throw new IllegalArgumentException("SLICE_UPDATE coordinate is outside the base");
+                        }
+                    }
+                }
+                for (int axis = 0; axis < base.length; axis++) {
+                    if (!selected[axis] && update[axis] != base[axis]) {
+                        throw new IllegalArgumentException("SLICE_UPDATE unselected extent must match base");
+                    }
+                }
+            } else if (attrs instanceof CropToShapeAttrs crop) {
+                if (!crop.targetShape().isFullyStatic() || !crop.prefixShape().isFullyStatic()
+                        || !crop.targetShape().equals(occurrences.get(1).descriptor().shape())
+                        || crop.prefixShape().rank() != base.length) {
+                    throw new IllegalArgumentException("SLICE_UPDATE target-relative geometry is inconsistent");
+                }
+                starts = crop.prefixShape().toLongArray();
+                lengths = update.clone();
+                for (int axis = 0; axis < base.length; axis++) {
+                    if (Math.addExact(starts[axis], lengths[axis]) > base[axis]) {
+                        throw new IllegalArgumentException("SLICE_UPDATE target exceeds base");
+                    }
+                }
+            } else {
+                throw new IllegalArgumentException("unsupported SLICE_UPDATE attributes");
+            }
+            movementPlan = new CpuDataMovementIr.SliceUpdatePlan(outputExtents.length, occurrenceMap);
+            variant = new Geometry.SliceUpdate(starts, lengths, steps);
+        } else if (kind == PadKind.PAD && attrs instanceof PadAttrs pad) {
             requireUnary(occurrences, "PAD");
             long[] input = occurrences.getFirst().descriptor().shape().toLongArray();
             if (pad.before().size() != input.length || pad.after().size() != input.length
@@ -425,7 +487,8 @@ public final class CpuNonAffineMovementLowering {
          * Closed family-specific cold mapping geometry. Implementations contain checked
          * occurrence facts only and are never exposed to Runtime hot-path semantic inspection.
          */
-        public sealed interface Variant permits Pad, Tile, Concat, Stack, UnfoldAxis, Unfold2d { }
+        public sealed interface Variant permits Pad, Tile, Concat, Stack, UnfoldAxis, Unfold2d,
+                SliceUpdate { }
         /**
          * Constant-padding widths and source extents.
          *
@@ -517,6 +580,47 @@ public final class CpuNonAffineMovementLowering {
                 long kernelHeight, long kernelWidth, long strideHeight, long strideWidth,
                 long paddingHeight, long paddingWidth, long dilationHeight, long dilationWidth,
                 long outputHeight, long outputWidth) implements Variant { }
+        /**
+         * Normalized finite sequence placement on every result axis.
+         * @param starts inclusive logical starts; copied defensively
+         * @param lengths finite non-negative sequence lengths; copied defensively
+         * @param steps signed non-zero sequence steps; copied defensively
+         */
+        public record SliceUpdate(long[] starts, long[] lengths, long[] steps) implements Variant {
+            /**
+             * Validates rank agreement and snapshots all arrays.
+             *
+             * @param starts non-null inclusive logical starts, one per result axis
+             * @param lengths non-null finite non-negative lengths, one per result axis
+             * @param steps non-null signed non-zero steps, one per result axis
+             * @throws NullPointerException if an array is {@code null}
+             * @throws IllegalArgumentException if the array ranks differ
+             */
+            public SliceUpdate {
+                starts = starts.clone(); lengths = lengths.clone(); steps = steps.clone();
+                if (starts.length != lengths.length || starts.length != steps.length) {
+                    throw new IllegalArgumentException("slice-update geometry ranks must match");
+                }
+            }
+            /**
+             * Returns isolated inclusive logical starts.
+             *
+             * @return a defensive copy with one start per result axis
+             */
+            @Override public long[] starts() { return starts.clone(); }
+            /**
+             * Returns isolated finite sequence lengths.
+             *
+             * @return a defensive copy with one non-negative length per result axis
+             */
+            @Override public long[] lengths() { return lengths.clone(); }
+            /**
+             * Returns isolated signed sequence steps.
+             *
+             * @return a defensive copy with one non-zero step per result axis
+             */
+            @Override public long[] steps() { return steps.clone(); }
+        }
 
         /** Validates and snapshots the compact occurrence geometry. */
         public Geometry {
@@ -562,6 +666,7 @@ public final class CpuNonAffineMovementLowering {
                 case Stack ignored -> 1;
                 case UnfoldAxis ignored -> 3;
                 case Unfold2d ignored -> 18;
+                case SliceUpdate ignored -> 6 * rank;
             };
             long elementCount = 1;
             for (long extent : outputExtents) elementCount = Math.multiplyExact(elementCount, extent);
@@ -627,6 +732,42 @@ public final class CpuNonAffineMovementLowering {
                     packed[cursor++] = q % unfold.kernelWidth;
                     packed[cursor++] = p / unfold.outputWidth;
                     packed[cursor++] = p % unfold.outputWidth;
+                }
+                case SliceUpdate slice -> {
+                    long[] lowTargets = new long[rank];
+                    long[] lowOrdinals = new long[rank];
+                    long[] currentTargets = new long[rank];
+                    long[] currentOrdinals = new long[rank];
+                    for (int axis = 0; axis < rank; axis++) {
+                        long length = slice.lengths[axis], step = slice.steps[axis];
+                        if (length == 0) {
+                            lowTargets[axis] = currentTargets[axis] = -1;
+                            lowOrdinals[axis] = currentOrdinals[axis] = -1;
+                            continue;
+                        }
+                        long lowOrdinal = step > 0 ? 0 : length - 1;
+                        long lowTarget = step > 0 ? slice.starts[axis] : Math.addExact(
+                                slice.starts[axis], Math.multiplyExact(length - 1, step));
+                        lowTargets[axis] = lowTarget;
+                        lowOrdinals[axis] = lowOrdinal;
+                        long delta = coordinates[axis] <= lowTarget ? 0
+                                : coordinates[axis] - lowTarget;
+                        long increment = length == 1 ? 1 : step > 0 ? step : -step;
+                        long advances = delta / increment + (delta % increment == 0 ? 0 : 1);
+                        if (advances >= length) {
+                            currentTargets[axis] = currentOrdinals[axis] = -1;
+                        } else {
+                            currentTargets[axis] = Math.addExact(lowTarget,
+                                    Math.multiplyExact(advances, increment));
+                            currentOrdinals[axis] = step > 0 ? advances : length - 1 - advances;
+                        }
+                    }
+                    for (long value : lowTargets) packed[cursor++] = value;
+                    for (long value : lowOrdinals) packed[cursor++] = value;
+                    for (long value : slice.lengths) packed[cursor++] = value;
+                    for (long value : slice.steps) packed[cursor++] = value;
+                    for (long value : currentTargets) packed[cursor++] = value;
+                    for (long value : currentOrdinals) packed[cursor++] = value;
                 }
             }
             return packed;

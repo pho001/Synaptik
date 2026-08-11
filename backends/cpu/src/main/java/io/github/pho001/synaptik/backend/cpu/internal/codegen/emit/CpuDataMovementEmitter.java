@@ -13,9 +13,11 @@ import java.util.Arrays;
 /**
  * Emits one direct allocation-free scalar body for static represented-bit movement.
  *
- * <p>The encoded structural IR chooses PAD, TILE, CONCAT, STACK, UNFOLD_AXIS, or UNFOLD2D during
- * class generation. Compact primitive geometry supplies range-start coordinates, carrier bases,
- * rank-specific strides, and family facts at invocation time. Emitted hot loops use carry/reset
+ * <p>The encoded structural IR chooses PAD, TILE, CONCAT, STACK, UNFOLD_AXIS, UNFOLD2D, or
+ * SLICE_UPDATE during class generation. Compact primitive geometry supplies range-start
+ * coordinates, carrier bases, rank-specific strides, and family facts at invocation time. For
+ * slice update, per-axis target and update-ordinal cursors select the update only at positions in
+ * the finite signed sequences and otherwise select the base. Emitted hot loops use carry/reset
  * coordinate state and contain no Model interpretation, reflection, map lookup, per-element
  * allocation, division, or modulo.</p>
  */
@@ -28,8 +30,8 @@ final class CpuDataMovementEmitter {
      * Emits the family-specialized loop represented by an encoded movement IR.
      *
      * @param code non-null method body receiving generated instructions
-     * @param ir non-null instruction-free structural movement encoding
      * @param specialization non-null exact carrier and represented-type specialization
+     * @param ir non-null instruction-free structural movement encoding
      * @throws IllegalArgumentException if the structural family identity is not a supported
      *     movement encoding
      */
@@ -67,12 +69,24 @@ final class CpuDataMovementEmitter {
             variant += ir.values().get(input).accessPlan().iterationRank();
         }
         int[] tileCoordinates = null;
+        int[] sliceTargets = null;
+        int[] sliceOrdinals = null;
         if (parsed.family.equals("TILE")) {
             tileCoordinates = new int[rank];
             for (int axis = 0; axis < rank; axis++) {
                 tileCoordinates[axis] = code.allocateLocal(TypeKind.LONG);
                 geometry(code, geometrySlot, variant + rank + axis)
                         .lstore(tileCoordinates[axis]);
+            }
+        }
+        if (parsed.family.equals("SLICE_UPDATE")) {
+            sliceTargets = new int[rank];
+            sliceOrdinals = new int[rank];
+            for (int axis = 0; axis < rank; axis++) {
+                sliceTargets[axis] = code.allocateLocal(TypeKind.LONG);
+                geometry(code, geometrySlot, variant + 4 * rank + axis).lstore(sliceTargets[axis]);
+                sliceOrdinals[axis] = code.allocateLocal(TypeKind.LONG);
+                geometry(code, geometrySlot, variant + 5 * rank + axis).lstore(sliceOrdinals[axis]);
             }
         }
         var carriers = new CpuCarrierEmitter(code);
@@ -98,15 +112,109 @@ final class CpuDataMovementEmitter {
             case "UNFOLD2D" -> emitUnfold2d(code, carriers, specialization, type, parsed.bits,
                     geometrySlot, coordinates, sourceAddress, value, inputBases,
                     strideOffsets[0], variant);
+            case "SLICE_UPDATE" -> emitSliceUpdate(code, carriers, specialization, type, parsed,
+                    geometrySlot, coordinates, sliceTargets, sliceOrdinals, sourceAddress, value,
+                    inputBases, strideOffsets);
             default -> throw new IllegalArgumentException("unsupported movement family");
         }
         carriers.store(type, specialization.carrierPattern().get(uniqueInputs), uniqueInputs,
                 outputAddress, value);
-        emitAdvance(code, geometrySlot, coordinates, outputAddress, 0, 2 * rank + 1);
+        if (sliceTargets == null) {
+            emitAdvance(code, geometrySlot, coordinates, outputAddress, 0, 2 * rank + 1);
+        } else {
+            emitSliceAdvance(code, geometrySlot, coordinates, outputAddress, sliceTargets,
+                    sliceOrdinals, variant, 2 * rank + 1);
+        }
         if (tileCoordinates != null) emitAdvance(code, geometrySlot, tileCoordinates,
                 sourceAddress, variant, strideOffsets[0]);
         code.lload(logical).loadConstant(1L).ladd().lstore(logical);
         code.branch(Opcode.GOTO, loop);
+        code.labelBinding(done);
+    }
+
+    private static void emitSliceUpdate(CodeBuilder code, CpuCarrierEmitter carriers,
+            CpuKernelSpecialization specialization, DataType type, Parsed parsed, int geometrySlot,
+            int[] coordinates, int[] targets, int[] ordinals, int sourceAddress, int value,
+            int inputBases, int[] strideOffsets) {
+        var base = code.newLabel();
+        var loaded = code.newLabel();
+        for (int axis = 0; axis < coordinates.length; axis++) {
+            code.lload(coordinates[axis]).lload(targets[axis]).lcmp()
+                    .branch(Opcode.IFNE, base);
+        }
+        int updateBoundary = parsed.mapping[1];
+        geometry(code, geometrySlot, inputBases + updateBoundary).lstore(sourceAddress);
+        for (int axis = 0; axis < coordinates.length; axis++) {
+            code.lload(sourceAddress).lload(ordinals[axis]).aload(geometrySlot)
+                    .loadConstant(strideOffsets[updateBoundary] + axis).laload().lmul().ladd()
+                    .lstore(sourceAddress);
+        }
+        carriers.load(type, specialization.carrierPattern().get(updateBoundary), updateBoundary,
+                sourceAddress);
+        storeValue(code, type, value);
+        code.branch(Opcode.GOTO, loaded);
+        code.labelBinding(base);
+        int baseBoundary = parsed.mapping[0];
+        geometry(code, geometrySlot, inputBases + baseBoundary).lstore(sourceAddress);
+        for (int axis = 0; axis < coordinates.length; axis++) {
+            code.lload(sourceAddress).lload(coordinates[axis]).aload(geometrySlot)
+                    .loadConstant(strideOffsets[baseBoundary] + axis).laload().lmul().ladd()
+                    .lstore(sourceAddress);
+        }
+        carriers.load(type, specialization.carrierPattern().get(baseBoundary), baseBoundary,
+                sourceAddress);
+        storeValue(code, type, value);
+        code.labelBinding(loaded);
+    }
+
+    private static void emitSliceAdvance(CodeBuilder code, int geometrySlot, int[] coordinates,
+            int address, int[] targets, int[] ordinals, int variant, int stridesBase) {
+        int rank = coordinates.length;
+        var finished = code.newLabel();
+        for (int axis = rank - 1; axis >= 0; axis--) {
+            int old = code.allocateLocal(TypeKind.LONG);
+            code.lload(coordinates[axis]).lstore(old);
+            code.lload(coordinates[axis]).loadConstant(1L).ladd().lstore(coordinates[axis]);
+            code.lload(address).aload(geometrySlot).loadConstant(stridesBase + axis).laload()
+                    .ladd().lstore(address);
+            var wrapped = code.newLabel();
+            code.lload(coordinates[axis]).aload(geometrySlot).loadConstant(axis).laload().lcmp()
+                    .branch(Opcode.IFGE, wrapped);
+            emitAdvanceSliceCursor(code, geometrySlot, old, targets[axis], ordinals[axis],
+                    variant + 2 * rank + axis, variant + 3 * rank + axis);
+            code.branch(Opcode.GOTO, finished);
+            code.labelBinding(wrapped);
+            code.loadConstant(0L).lstore(coordinates[axis]);
+            code.lload(address).aload(geometrySlot).loadConstant(axis).laload()
+                    .aload(geometrySlot).loadConstant(stridesBase + axis).laload().lmul()
+                    .lsub().lstore(address);
+            geometry(code, geometrySlot, variant + axis).lstore(targets[axis]);
+            geometry(code, geometrySlot, variant + rank + axis).lstore(ordinals[axis]);
+        }
+        code.labelBinding(finished);
+    }
+
+    private static void emitAdvanceSliceCursor(CodeBuilder code, int geometrySlot, int old,
+            int target, int ordinal, int lengthIndex, int stepIndex) {
+        var done = code.newLabel();
+        code.lload(old).lload(target).lcmp().branch(Opcode.IFNE, done);
+        var negative = code.newLabel();
+        var exhausted = code.newLabel();
+        geometry(code, geometrySlot, stepIndex).loadConstant(0L).lcmp()
+                .branch(Opcode.IFLT, negative);
+        code.lload(ordinal).loadConstant(1L).ladd().lstore(ordinal);
+        code.lload(ordinal).aload(geometrySlot).loadConstant(lengthIndex).laload().lcmp()
+                .branch(Opcode.IFGE, exhausted);
+        code.lload(target).aload(geometrySlot).loadConstant(stepIndex).laload().ladd().lstore(target)
+                .branch(Opcode.GOTO, done);
+        code.labelBinding(negative);
+        code.lload(ordinal).loadConstant(1L).lsub().lstore(ordinal);
+        code.lload(ordinal).loadConstant(0L).lcmp().branch(Opcode.IFLT, exhausted);
+        code.lload(target).aload(geometrySlot).loadConstant(stepIndex).laload().lsub().lstore(target)
+                .branch(Opcode.GOTO, done);
+        code.labelBinding(exhausted);
+        code.loadConstant(-1L).lstore(target);
+        code.loadConstant(-1L).lstore(ordinal);
         code.labelBinding(done);
     }
 

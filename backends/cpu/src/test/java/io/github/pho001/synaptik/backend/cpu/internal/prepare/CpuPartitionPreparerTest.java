@@ -20,6 +20,8 @@ import io.github.pho001.synaptik.model.operation.layout.TileAttrs;
 import io.github.pho001.synaptik.model.operation.layout.TileKind;
 import io.github.pho001.synaptik.model.operation.layout.Window2dAttrs;
 import io.github.pho001.synaptik.model.operation.layout.WindowTransformKind;
+import io.github.pho001.synaptik.model.operation.layout.SliceAttrs;
+import io.github.pho001.synaptik.model.operation.layout.SliceKind;
 import io.github.pho001.synaptik.model.operation.index.AxisGatherKind;
 import io.github.pho001.synaptik.model.operation.index.IndexAxisAttrs;
 import io.github.pho001.synaptik.model.operation.elementwise.binary.BinaryArithmeticKind;
@@ -356,6 +358,45 @@ public class CpuPartitionPreparerTest {
                 () -> assertEquals(0, windowPlan.elementCount()),
                 () -> assertEquals("scalar", windowPlan.executionStrategy().toString()),
                 () -> assertEquals(0, windowPlan.vectorSpeciesBitSize()));
+    }
+
+    @Test void sliceUpdateDeclaresOneParallelScalarUnitAndNoHiddenResources() {
+        var base = CpuNonAffineMovementLoweringTest.context(
+                new Operation(SliceKind.SLICE_UPDATE,
+                        new SliceAttrs(List.of(7L), List.of(4L), List.of(0), List.of(-2L))),
+                List.of(0, 1), List.of(descriptor(DataType.INT32, Shape.of(8)),
+                        descriptor(DataType.INT32, Shape.of(4))),
+                descriptor(DataType.INT32, Shape.of(8)));
+        var preference = new PortableExecutionConfig(ComputePreference.VECTOR_IF_ELIGIBLE,
+                2, 2, 1);
+        var context = new PrepareContext<>(base.partition(), base.nodes(), base.values(),
+                base.memoryRequirements(), base.constants(), new CpuPartitionAnalysisInputs(false,
+                        List.of(CarrierAccess.INT_ARRAY, CarrierAccess.MEMORY_SEGMENT,
+                                CarrierAccess.INT_ARRAY), preference));
+        var analysis = new CpuPartitionPreparer().analyze(context);
+        var plan = analysis.plan();
+
+        var zeroBase = CpuNonAffineMovementLoweringTest.context(
+                new Operation(SliceKind.SLICE_UPDATE,
+                        new SliceAttrs(List.of(), List.of(), List.of(), List.of())),
+                List.of(0, 0), List.of(descriptor(DataType.INT32, Shape.of(0))),
+                descriptor(DataType.INT32, Shape.of(0)));
+        var zero = new CpuPartitionPreparer().analyze(zeroBase);
+        assertAll(
+                () -> assertEquals(List.of(new ValueId(0), new ValueId(1), new ValueId(2)),
+                        plan.boundaryValues()),
+                () -> assertEquals(3, analysis.requirements().size()),
+                () -> assertEquals(1, plan.units().size()),
+                () -> assertTrue(plan.movementGeometry().isPresent()),
+                () -> assertTrue(plan.materialization().isEmpty()),
+                () -> assertTrue(plan.workspaceDeclaration().isEmpty()),
+                () -> assertEquals("parallel-scalar", plan.executionStrategy().toString()),
+                () -> assertEquals(0, plan.vectorSpeciesBitSize()),
+                () -> assertEquals(2, zero.requirements().size()),
+                () -> assertEquals(List.of(new ValueId(0), new ValueId(1)),
+                        zero.plan().boundaryValues()),
+                () -> assertEquals(0, zero.plan().elementCount()),
+                () -> assertEquals("scalar", zero.plan().executionStrategy().toString()));
     }
 
     public static BackendPartitionAnalysis<CpuPartitionPreparationPlan> analyze(Shape shape) {

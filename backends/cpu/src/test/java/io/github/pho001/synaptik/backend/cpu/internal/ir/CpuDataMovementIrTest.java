@@ -7,6 +7,22 @@ import java.util.List;
 import org.junit.jupiter.api.Test;
 
 class CpuDataMovementIrTest {
+    @Test void sliceUpdateIdentityIncludesRankAndOccurrenceMapOnly() {
+        var read = access(CpuAccessPlan.AccessKind.READ, 1);
+        var write = access(CpuAccessPlan.AccessKind.WRITE, 1);
+        var distinct = new CpuDataMovementIr(DataType.INT64,
+                new CpuDataMovementIr.SliceUpdatePlan(1, List.of(0, 1)),
+                List.of(read, read), write);
+        var deduplicated = new CpuDataMovementIr(DataType.INT64,
+                new CpuDataMovementIr.SliceUpdatePlan(1, List.of(0, 0)),
+                List.of(read), write);
+        assertAll(
+                () -> assertEquals("SLICE_UPDATE", distinct.plan().family()),
+                () -> assertNotEquals(distinct.structuralKey(), deduplicated.structuralKey()),
+                () -> assertThrows(IllegalArgumentException.class,
+                        () -> new CpuDataMovementIr.SliceUpdatePlan(1, List.of(0))));
+    }
+
     @Test void retainsClosedVariantOccurrenceOrderAndExactPadBits() {
         var read = access(CpuAccessPlan.AccessKind.READ, 2);
         var write = access(CpuAccessPlan.AccessKind.WRITE, 2);

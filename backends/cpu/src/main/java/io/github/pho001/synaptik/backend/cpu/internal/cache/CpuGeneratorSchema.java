@@ -8,7 +8,9 @@ package io.github.pho001.synaptik.backend.cpu.internal.cache;
  * opcode vocabulary, scalar-power realization, or exact two-bound clamp immediate, requires
  * compatible current-version metadata. Schema 12 extends schema 11 with the structural static
  * PAD/TILE/CONCAT/STACK family, ordered unique-boundary occurrence mapping, exact represented-bit
- * padding immediate, and scalar generated body.
+ * padding immediate, and scalar generated body. Schema 13 adds static window extraction,
+ * schema 14 adds mixed-type gather/one-hot identity and output writers, and schema 15 adds
+ * functional slice-update identity and its signed-sequence cursor body.
  * The optional persistent envelope stores this version and has no legacy reader, migration path,
  * or converter.
  */
@@ -17,10 +19,10 @@ public final class CpuGeneratorSchema {
      * Current schema version, including portable static axis and NCHW window extraction,
      * unequal-rank movement geometry, exact represented padding bits, and scalar generated
      * bodies. Schema 14 adds mixed-type gather/one-hot structural identity and generated output
-     * writers; execution-time index validation remains outside generated artifacts. Envelopes
-     * written for earlier schemas are incompatible misses.
+     * writers; schema 15 adds structural functional slice-update identity and its generated
+     * cursor body. Envelopes written for earlier schemas are incompatible misses.
      */
-    public static final int CURRENT_VERSION = 14;
+    public static final int CURRENT_VERSION = 15;
     /** Generated entry name. */ public static final String ENTRY_NAME = "invoke";
     private CpuGeneratorSchema() { }
 

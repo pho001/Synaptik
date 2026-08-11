@@ -27,6 +27,53 @@ import java.util.Optional;
 import org.junit.jupiter.api.Test;
 
 class CpuCapabilityProviderTest {
+    @Test void reportsOnlyExactStaticSliceUpdateOccurrences() {
+        var provider = new CpuCapabilityProvider();
+        var base = descriptor(DataType.BFLOAT16, Shape.of(5));
+        var update = descriptor(DataType.BFLOAT16, Shape.of(2));
+        var output = descriptor(DataType.BFLOAT16, Shape.of(5));
+        var signed = new SliceAttrs(List.of(4L), List.of(2L), List.of(0), List.of(-2L));
+        var crop = new CropToShapeAttrs(Shape.of(2), Shape.of(3));
+        assertAll(
+                () -> assertTrue(provider.supports(query(SliceKind.SLICE_UPDATE, signed,
+                        List.of(base, update), output))),
+                () -> assertTrue(provider.supports(query(SliceKind.SLICE_UPDATE, crop,
+                        List.of(base, update), output))),
+                () -> assertFalse(provider.supports(query(SliceKind.SLICE_UPDATE,
+                        new CropToShapeAttrs(Shape.of(1), Shape.of(3)),
+                        List.of(base, update), output))),
+                () -> assertFalse(provider.supports(query(SliceKind.SLICE_UPDATE, signed,
+                        List.of(base, descriptor(DataType.BFLOAT16, Shape.of(3))), output))),
+                () -> assertFalse(provider.supports(query(SliceKind.SLICE_UPDATE, signed,
+                        List.of(base, update), descriptor(DataType.BFLOAT16, Shape.of(4))))));
+    }
+
+    @Test void sliceUpdateAcceptsExactEndpointsAndRejectsEveryOutOfBoundsEndpoint() {
+        var provider = new CpuCapabilityProvider();
+        var base = descriptor(DataType.INT32, Shape.of(5));
+        var update = descriptor(DataType.INT32, Shape.of(2));
+        var output = descriptor(DataType.INT32, Shape.of(5));
+        var positiveBoundary = new SliceAttrs(List.of(0L), List.of(2L), List.of(0), List.of(4L));
+        var negativeBoundary = new SliceAttrs(List.of(4L), List.of(2L), List.of(0), List.of(-4L));
+        assertAll(
+                () -> assertTrue(provider.supports(query(SliceKind.SLICE_UPDATE,
+                        positiveBoundary, List.of(base, update), output))),
+                () -> assertTrue(provider.supports(query(SliceKind.SLICE_UPDATE,
+                        negativeBoundary, List.of(base, update), output))),
+                () -> assertFalse(provider.supports(query(SliceKind.SLICE_UPDATE,
+                        new SliceAttrs(List.of(1L), List.of(2L), List.of(0), List.of(4L)),
+                        List.of(base, update), output))),
+                () -> assertThrows(IllegalArgumentException.class,
+                        () -> new SliceAttrs(List.of(3L), List.of(2L), List.of(0),
+                                List.of(-4L))),
+                () -> assertTrue(provider.supports(query(SliceKind.SLICE_UPDATE,
+                        new CropToShapeAttrs(Shape.of(2), Shape.of(3)),
+                        List.of(base, update), output))),
+                () -> assertFalse(provider.supports(query(SliceKind.SLICE_UPDATE,
+                        new CropToShapeAttrs(Shape.of(2), Shape.of(4)),
+                        List.of(base, update), output))));
+    }
+
     @Test void reportsExactResolvedPointwiseOccurrences() {
         var provider = new CpuCapabilityProvider();
         Shape shape = Shape.of(2, 0, 3);

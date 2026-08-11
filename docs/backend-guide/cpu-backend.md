@@ -18,7 +18,10 @@ UNFOLD_AXIS copies all six represented types; UNFOLD2D copies only FLOAT64, FLOA
 under the Model's canonical NCHW columns contract.
 The fourth family is exactly one resolved-layout `GATHER`, `GATHER_ELEMENTS`, `GATHER_ND`, or
 `ONE_HOT` occurrence. It validates every logical INT32/INT64 index deterministically before any
-output write and then uses scalar or parallel-scalar generated output ranges.
+output write and then uses scalar or parallel-scalar generated output ranges. The movement family
+also accepts exactly one resolved-layout `SLICE_UPDATE` with ordered `[base, update]` inputs and
+either signed finite-coordinate or target-relative placement. It writes a distinct injective
+result with the base Shape and leaves both inputs unchanged.
 
 Generated scalar and Java 26 Vector API loops accept primitive `start` and `end` bounds.
 Compatible concrete extents bind on the cold path and share identical class bytes and one
@@ -43,7 +46,7 @@ completes before consumer execution. Capability and lowering fail closed for eve
 operation, type, shape, layout, parameter, alias, fan-out, publication, carrier, or route. In
 particular, CAST is same-type only and BFLOAT16 remains representation-only for affine movement;
 CPU does not invent cross-type conversion semantics. Native, tuning, excluded pointwise rows,
-scatter/fold/order/random work, general partition-DAG fusion, and later operation families
+functional scatter/fold, order/random work, general partition-DAG fusion, and later operation families
 remain Draft.
 
 The lower-level OpenBLAS provider separately implements explicit library loading, required-symbol
@@ -623,10 +626,10 @@ identity-like request materializes its result. Input layouts may be offset or st
 cold geometry maps output coordinates directly to the selected input carrier.
 
 The canonical movement IR records only the family, rank, represented type, unique structural
-access forms, ordered occurrence-to-boundary mapping, one output store, and PAD bits. Compatible
-extents, layout offsets and strides, normalized axis, padding widths, repeats, and composition
-segment prefixes remain compact immutable preparation geometry outside artifact identity. CPU
-retains no address or selector entry per output element.
+access forms, ordered occurrence-to-boundary mapping, one output store, and code-shaping padding
+bits. Compatible extents, layout offsets and strides, normalized axes, padding widths, repeats,
+composition segment prefixes, and slice placement remain compact immutable preparation geometry
+outside artifact identity. CPU retains no address or selector entry per output element.
 
 For example, concatenating semantic inputs `[left, middle, left]` along axis zero declares two
 unique input buffers plus the output, while retaining occurrence map `[0, 1, 0]`:
@@ -646,7 +649,7 @@ callback, or per-element allocation in generated code.
 
 Movement uses scalar compute and either single-thread or deterministic parallel orchestration.
 Parallel chunks are safe because output injectivity proves disjoint writes. Vector preference
-falls back to scalar for this family. CPU finalization realizes schema-13 generated artifacts;
+falls back to scalar for this family. CPU finalization realizes current schema-15 generated artifacts;
 cold binding validates complete input/output spans and rejects every output/input overlap before
 execution. The scalar reference consumes the same movement IR and compact geometry for
 differential tests, not as a Runtime fallback.
@@ -675,9 +678,9 @@ cold geometry can therefore reuse the same class bytes. Generated loops advance 
 window coordinates with carry/reset odometers; division and remainder are confined to cold range
 initialization. One input and one distinct injective output are declared, with no workspace.
 
-This family does not implement value-dependent indices, functional updates, scatter, fold or
-overlap accumulation, dynamic Shape binding, general mixed-family fusion, a native route, or a
-performance claim.
+Window extraction does not implement value-dependent indices, scatter, fold or overlap
+accumulation, dynamic Shape binding, general mixed-family fusion, a native route, or a performance
+claim. Functional slice update is a separate one-node movement form described below.
 
 ### Current gather and one-hot indexing family
 
@@ -739,11 +742,62 @@ geometry retains layout and coordinate facts without a per-index or per-output t
 bound executable owns run-value validation. Shared Prepare assigns declared buffers opaquely,
 and Runtime sees only the prepared executable and direct carriers.
 
-Current support ends at these four one-node, fully static operations. Functional update,
+Current indexing support ends at these four one-node, fully static operations. Functional
 scatter/fold accumulation and duplicate-target policy, ordering/top-K, random execution, dynamic
 Shape/layout binding, vector gather, native routes, tuning, and general partition-DAG fusion
 remain planned. The independent scalar reference is differential-test evidence, not a Runtime
 fallback or a second artifact.
+
+### Current functional slice update
+
+The portable movement family accepts exactly one fully static, resolved-layout
+`SliceKind.SLICE_UPDATE` occurrence. Ordered inputs are `[base, update]`; the output has the exact
+base Shape and data type. All three descriptors have resolved layouts, the output layout is
+injective, and cold binding rejects every output/input physical overlap. Input/input overlap is
+allowed, including the deduplicated case where both occurrences are the same graph value and the
+occurrence map is `[0, 0]`.
+
+The semantic effect is copy-base-then-replace selected positions, although the generated body
+realizes that effect in one output-domain pass: each result coordinate selects either the
+corresponding base value or the unique mapped update value and writes once. Both inputs remain
+unchanged. `SliceAttrs` supplies distinct normalized axes and finite coordinate sequences:
+
+```text
+baseCoordinate = start + updateCoordinate * step
+0 <= updateCoordinate < length
+```
+
+Positive, negative, and non-unit steps are supported. A length-one sequence may legally retain
+`Long.MIN_VALUE` because no second coordinate or absolute step is needed. Unselected axes use
+start zero, the full base extent, and step one. `CropToShapeAttrs` instead uses every prefix extent
+as a start, every update extent as a length, and step one. For example:
+
+```text
+base:    [10, 11, 12, 13, 14]
+update:  [90, 80]
+start:   4
+length:  2
+step:   -2
+result:  [10, 11, 80, 13, 90]
+```
+
+The implementation copies represented bits for FLOAT64, FLOAT32, BFLOAT16, INT32, INT64, and
+canonical BOOL through heap arrays, native-order `MemorySegment` carriers, or compatible mixed
+patterns. It covers scalar and empty results or update regions. Arbitrary half-open result ranges,
+including parallel chunks, cold-seed their own coordinate and signed-sequence cursors, so chunks
+remain independent and deterministic. The hot loop performs no per-element allocation, division,
+modulo, Model interpretation, or semantic dispatch.
+
+CPU analysis declares each unique input once followed by one output, one execution unit, no
+workspace or materialization, and one generated artifact. Schema 15 records the movement family,
+output rank, occurrence map, access/type/carrier structure, and generated body compatibility;
+exact starts, lengths, steps, extents, offsets, and stride magnitudes remain cold facts. Older
+schemas are incompatible misses and have no migration reader.
+
+This current row is functional replacement only. It does not implement index-valued
+`SCATTER_ELEMENTS`, `SCATTER_ADD`, or `SCATTER_ND`, duplicate-target reduction, zero-initialized
+`FOLD_AXIS` or `FOLD2D`, or overlap accumulation. Those remain separate Draft CPU 0006B1 and
+0006B2 work.
 
 ### Unary numerical closure
 
@@ -1197,15 +1251,15 @@ fixed SGEMM/DGEMM cases, and restoration of the original thread count. The order
 architecture capability checkpoint then passed, and the provider milestone is complete.
 
 The current CPU foundation provides the bounded fully static pointwise matrix, static
-resolved-layout affine family, and one-node static movement family described above. Scalar
+resolved-layout affine family, and one-node static movement and indexing families described above. Scalar
 execution covers every admitted row; parallel-scalar orchestration is available for disjoint
 affine and movement write ranges; and the pointwise family retains its exact typed value-vector
-and virtual-mask parity matrix. Generator schema 13 distinguishes pointwise, affine, and movement
-structures, including movement occurrence order, unequal-rank access, and exact padding bits,
-plus the affine
+and virtual-mask parity matrix. Generator schema 15 distinguishes pointwise, affine, movement,
+and indexing structures, including movement occurrence order, unequal-rank access, exact padding
+bits, and functional slice-update rank/map identity, plus the affine
 mapping/write domain and all seven carrier forms. No excluded pointwise or later semantic family,
 BFLOAT16 numerical operation,
-cross-type CAST, dynamic layout, vector affine execution, native fallback, backend-conformance
+cross-type CAST, dynamic layout, vector affine/update execution, native fallback, backend-conformance
 result, public Engine integration, hardware-intrinsic guarantee, or performance result is
 implemented or promised.
 Ordinary provider tests

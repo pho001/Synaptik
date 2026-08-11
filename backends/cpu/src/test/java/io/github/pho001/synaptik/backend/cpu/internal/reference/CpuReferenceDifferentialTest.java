@@ -9,6 +9,9 @@ import io.github.pho001.synaptik.backend.cpu.internal.memory.CpuBufferArgument;
 import io.github.pho001.synaptik.backend.cpu.internal.prepare.CpuPartitionPreparer;
 import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuIndexingLoweringTest;
 import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuIndexingIr;
+import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuDataMovementIr;
+import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuNonAffineMovementLoweringTest;
+import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuPartitionLowering;
 import io.github.pho001.synaptik.model.operation.Operation;
 import io.github.pho001.synaptik.model.operation.index.OneHotKind;
 import io.github.pho001.synaptik.model.operation.index.OneHotAttrs;
@@ -16,11 +19,52 @@ import io.github.pho001.synaptik.model.operation.index.AxisGatherKind;
 import io.github.pho001.synaptik.model.operation.index.IndexAxisAttrs;
 import io.github.pho001.synaptik.model.operation.index.GatherNdAttrs;
 import io.github.pho001.synaptik.model.operation.index.GatherNdKind;
+import io.github.pho001.synaptik.model.operation.layout.CropToShapeAttrs;
+import io.github.pho001.synaptik.model.operation.layout.SliceAttrs;
+import io.github.pho001.synaptik.model.operation.layout.SliceKind;
 import io.github.pho001.synaptik.model.shape.Shape;
 import io.github.pho001.synaptik.model.datatype.DataType;
 import java.util.List;
 
 class CpuReferenceDifferentialTest {
+    @Test void sliceUpdateReferenceCoversBothFormsAndMultipleSelectedAxes() {
+        var signed = new CpuPartitionLowering().lower(CpuNonAffineMovementLoweringTest.context(
+                new Operation(SliceKind.SLICE_UPDATE,
+                        new SliceAttrs(List.of(2L, 3L), List.of(2L, 2L), List.of(0, 1),
+                                List.of(-2L, -2L))),
+                List.of(0, 1), List.of(CpuNonAffineMovementLoweringTest.descriptor(
+                                DataType.INT64, Shape.of(3, 4)),
+                        CpuNonAffineMovementLoweringTest.descriptor(
+                                DataType.INT64, Shape.of(2, 2))),
+                CpuNonAffineMovementLoweringTest.descriptor(DataType.INT64, Shape.of(3, 4))));
+        long[] signedOutput = new long[12];
+        CpuScalarReferenceKernel.execute((CpuDataMovementIr) signed.portableKernelIr(),
+                signed.movementGeometry().orElseThrow(), List.of(
+                        new CpuBufferArgument.Longs(
+                                new long[]{1,2,3,4,5,6,7,8,9,10,11,12}, 0, 96, true),
+                        new CpuBufferArgument.Longs(new long[]{90,91,80,81}, 0, 32, true),
+                        new CpuBufferArgument.Longs(signedOutput, 0, 96, false)), 0, 12);
+
+        var crop = new CpuPartitionLowering().lower(CpuNonAffineMovementLoweringTest.context(
+                new Operation(SliceKind.SLICE_UPDATE,
+                        new CropToShapeAttrs(Shape.of(2, 2), Shape.of(0, 1))),
+                List.of(0, 1), List.of(CpuNonAffineMovementLoweringTest.descriptor(
+                                DataType.INT64, Shape.of(2, 4)),
+                        CpuNonAffineMovementLoweringTest.descriptor(
+                                DataType.INT64, Shape.of(2, 2))),
+                CpuNonAffineMovementLoweringTest.descriptor(DataType.INT64, Shape.of(2, 4))));
+        long[] cropOutput = new long[8];
+        CpuScalarReferenceKernel.execute((CpuDataMovementIr) crop.portableKernelIr(),
+                crop.movementGeometry().orElseThrow(), List.of(
+                        new CpuBufferArgument.Longs(new long[]{1,2,3,4,5,6,7,8}, 0, 64, true),
+                        new CpuBufferArgument.Longs(new long[]{9,10,11,12}, 0, 32, true),
+                        new CpuBufferArgument.Longs(cropOutput, 0, 64, false)), 0, 8);
+        assertAll(
+                () -> assertArrayEquals(new long[]{1,81,3,80,5,6,7,8,9,91,11,90},
+                        signedOutput),
+                () -> assertArrayEquals(new long[]{1,9,10,4,5,11,12,8}, cropOutput));
+    }
+
     @Test void gatherReferenceMatchesRepresentedBitsForEveryDataAndIndexType() {
         for (DataType dataType : DataType.values()) {
             for (DataType indexType : List.of(DataType.INT32, DataType.INT64)) {

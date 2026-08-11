@@ -22,7 +22,7 @@ public record CpuDataMovementIr(DataType dataType, MovementPlan plan,
      * starts, and other invocation facts remain in cold geometry rather than artifact identity.
      */
     public sealed interface MovementPlan permits PadPlan, TilePlan, ConcatPlan, StackPlan,
-            UnfoldAxisPlan, Unfold2dPlan {
+            UnfoldAxisPlan, Unfold2dPlan, SliceUpdatePlan {
         /**
          * Returns the stable generated family name.
          *
@@ -152,10 +152,44 @@ public record CpuDataMovementIr(DataType dataType, MovementPlan plan,
         @Override public String family() { return "UNFOLD2D"; }
         @Override public List<Integer> occurrenceToBoundary() { return List.of(0); }
     }
+    /**
+     * Structural functional slice-update plan. Exact placement geometry and attribute form remain
+     * cold; only the two semantic occurrences and output rank shape generated code.
+     *
+     * @param outputRank non-negative base/result rank
+     * @param occurrenceToBoundary exact {@code [base, update]} occurrence map; copied defensively
+     */
+    public record SliceUpdatePlan(int outputRank, List<Integer> occurrenceToBoundary)
+            implements MovementPlan {
+        /**
+         * Validates the rank and snapshots the exact two-occurrence map.
+         *
+         * @param outputRank non-negative base/result rank
+         * @param occurrenceToBoundary non-null exact {@code [base, update]} occurrence map;
+         *     positions may both be zero when the logical inputs are the same value
+         * @throws NullPointerException if {@code occurrenceToBoundary} is {@code null} or
+         *     contains a null position
+         * @throws IllegalArgumentException if {@code outputRank} is negative or the map does not
+         *     contain exactly two positions
+         */
+        public SliceUpdatePlan {
+            if (outputRank < 0) throw new IllegalArgumentException("slice-update rank must be non-negative");
+            occurrenceToBoundary = List.copyOf(occurrenceToBoundary);
+            if (occurrenceToBoundary.size() != 2) {
+                throw new IllegalArgumentException("slice update requires base and update occurrences");
+            }
+        }
+        @Override public String family() { return "SLICE_UPDATE"; }
+        @Override public long immediateBits() { return 0; }
+    }
 
     /**
      * Validates one structural movement identity and snapshots its unique input accesses.
      *
+     * @param dataType non-null represented-bit element type shared by every boundary
+     * @param plan non-null closed movement-family plan
+     * @param inputAccesses non-null unique read forms in first-occurrence order
+     * @param outputAccess non-null sole injective output write form
      * @throws NullPointerException if a required component or input access is {@code null}
      * @throws IllegalArgumentException if boundary counts, access roles, ranks, or occurrence
      *     positions are inconsistent

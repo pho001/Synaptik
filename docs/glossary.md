@@ -1029,9 +1029,9 @@ index domain deterministically before one generated scalar or parallel-scalar ou
 write or submit worker work. Indexing declares no workspace or materialization.
 
 Cross-type cast, BFLOAT16/FLOAT16 numerical execution, relaxed math, native/vendor realization,
-scatter/order/random families, functional updates, and dynamic layouts are not part
-of this route increment. General partition-DAG decomposition and bounded vertical/horizontal
-fusion remain Draft CPU 0008A work.
+functional scatter/fold, order/random families, and dynamic layouts are not part of this route
+increment. One fully static resolved-layout functional `SLICE_UPDATE` is current; general
+partition-DAG decomposition and bounded vertical/horizontal fusion remain Draft CPU 0008A work.
 
 OpenBLAS is not another meaning of portable route. It is a narrow cross-platform native fallback
 for eligible BLAS-compatible linear algebra. It is neither a universal fallback nor preferred over
@@ -1089,15 +1089,15 @@ decision occurs in the generated loop.
 ### CPU kernel specialization
 
 The implemented backend-private immutable description of every fact allowed to change one
-generated CPU class. The current form includes schema 13, the canonical lowering fingerprint with
+generated CPU class. The current form includes schema 15, the canonical lowering fingerprint with
 typed opcode sequence, exact scalar-immediate bits, exact ordered clamp-bound bits, and selected
 scalar-power realizations, exact/default numerical mode, generated
 scalar/vector compute form, exact preferred FLOAT32, FLOAT64, INT32, INT64, or BOOL species bit
 size for vector compute,
-and the complete ordered boundary data-type/carrier pattern. Schema 13 also distinguishes the
-pointwise, affine, or movement IR family; affine mapping topology and write domain; movement
-family, input/output rank, occurrence map, and exact PAD or UNFOLD2D padding bits; and the seventh
-opaque BFLOAT16
+and the complete ordered boundary data-type/carrier pattern. Schema 15 also distinguishes the
+pointwise, affine, movement, or indexing IR family; affine mapping topology and write domain;
+movement family, input/output rank, occurrence map, exact PAD or UNFOLD2D padding bits, and
+functional slice-update structure; mixed indexing boundary types; and the seventh opaque BFLOAT16
 `SHORT_ARRAY` carrier. The homogeneous boundary types
 distinguish FLOAT32 from FLOAT64; no second lane-type field is retained.
 The direct-versus-materialized input position and adjusted canonical consumer access form are also
@@ -1127,10 +1127,11 @@ Keeping the artifact reachable keeps its hidden-class state reachable, without p
 unreferenced class unloads. Direct generator calls produce equal class bytes but distinct hidden
 classes and artifact identities. The current durable generated-kernel artifact store may instead
 reuse compatible class bytes and weakly intern one loaded artifact while it remains live. The
-artifact is not by itself a prepared route. Current schema-13 artifacts execute admitted bounded
-forty-eight-opcode pointwise chains, one static affine represented-bit copy, or one static
-PAD/TILE/CONCAT/STACK/window-extraction movement across the implemented carrier patterns. Schema
-12 and older artifacts are incompatible misses with no migration reader.
+artifact is not by itself a prepared route. Current schema-15 artifacts execute admitted bounded
+forty-eight-opcode pointwise chains, one static affine represented-bit copy, one static
+PAD/TILE/CONCAT/STACK/window-extraction/SLICE_UPDATE movement, or one static indexing occurrence
+across the implemented carrier patterns. Schema 14 and older artifacts are incompatible misses
+with no migration reader.
 
 ### CPU generated-kernel artifact store
 
@@ -1437,23 +1438,26 @@ performance claim.
 ### CPU static data movement
 
 The implemented CPU-private represented-bit realization of exactly one fully static,
-resolved-layout PAD, TILE, CONCAT, STACK, UNFOLD_AXIS, or UNFOLD2D occurrence. Composition retains
-one through sixteen semantic input occurrences in order while declaring each distinct graph input
-once in first-occurrence order. Window extraction has exactly one input. Every form has one
-distinct declared output representation with an injective layout.
+resolved-layout PAD, TILE, CONCAT, STACK, UNFOLD_AXIS, UNFOLD2D, or SLICE_UPDATE occurrence.
+Composition retains one through sixteen semantic input occurrences in order while declaring each
+distinct graph input once in first-occurrence order. Window extraction has exactly one input.
+Slice update has ordered `[base, update]` occurrences, which may deduplicate to boundary map
+`[0, 0]`. Every form has one distinct declared output representation with an injective layout.
 
 Canonical movement IR contains family, input/output rank, represented type, unique structural
-accesses, composition occurrence mapping, one output store, and exact PAD or UNFOLD2D padding
-bits. Compact cold geometry owns concrete extents, layout offsets and strides, normalized axes,
-padding widths, repeats, segment prefixes, axis-window facts, NCHW spatial geometry, and
-arbitrary-range initial state. Generated scalar loops advance that state directly; they retain no
-per-output-element table and perform no per-element division or modulo. Parallel-scalar
+accesses, occurrence mapping, one output store, and exact PAD or UNFOLD2D padding bits. Compact
+cold geometry owns concrete extents, layout offsets and strides, normalized axes, padding widths,
+repeats, segment prefixes, axis-window facts, NCHW spatial geometry, signed slice starts/lengths/
+steps, and arbitrary-range initial state. Generated scalar loops advance that state directly;
+they retain no per-output-element table and perform no per-element division or modulo. Parallel-scalar
 orchestration is permitted over disjoint output ranges, while vector preference falls back to
 scalar. UNFOLD_AXIS copies all six represented types; UNFOLD2D copies only FLOAT64, FLOAT32, and
-BFLOAT16 with direct positive-zero or exact matching typed padding.
+BFLOAT16 with direct positive-zero or exact matching typed padding. SLICE_UPDATE copies base
+values and replaces selected positions from update for both current attribute forms and all six
+represented types, including positive, negative, non-unit, scalar, and empty cases.
 
 This term does not include Model expression construction, affine view folding, index tensors,
-functional updates, scatter/fold accumulation, dynamic Shape binding, native routing, general
+functional scatter/fold accumulation, dynamic Shape binding, native routing, general
 partition-DAG fusion, or a performance claim.
 
 ### CPU static indexing
@@ -3876,12 +3880,21 @@ base, prefix, or update extent defers its whole fit. The result still retains th
 
 Both public `Tensor.sliceUpdate` forms accept all current data types with exact base/update type
 equality, combine their gradient eligibility, leave result layout unresolved, and create one fresh,
-unlabeled, storage-free result at provenance index zero. They read no values and define no
-lowering, backend, or execution behavior. Current package-private compiler autograd masks the
+unlabeled, storage-free result at provenance index zero. They read no values and do not themselves
+define lowering, backend, or execution behavior. Current package-private compiler autograd masks the
 supported floating base cotangent and extracts the supported floating update cotangent for both
 `SliceAttrs` and target-relative `CropToShapeAttrs` after exact constraint-aware preflight. See
 [Slice update and
 target-relative crop expressions](api/tensor-api.md#slice-update-and-target-relative-crop-expressions).
+
+The current CPU portable route separately executes exactly one fully static, resolved-layout
+SLICE_UPDATE occurrence with either attribute form. Its output-domain pass has copy-base-then-
+replace semantics, preserves represented bits for all six types, accepts signed and non-unit
+finite steps including legal length-one `Long.MIN_VALUE`, handles scalar and empty regions, and
+supports arbitrary disjoint scalar or parallel-scalar ranges across heap, segment, and mixed
+carriers. Output/input physical overlap is rejected; exact same-value base/update inputs may share
+one deduplicated boundary. Schema 15 records generated compatibility. Functional scatter and
+overlap fold remain planned CPU 0006B1 and 0006B2 work.
 
 ### Target-relative crop
 

@@ -25,9 +25,11 @@
  * The affine body reads one cold-composed source/result address pair per iteration and performs
  * no conversion, numerical operation, Shape/layout interpretation, allocation, or vector access.
  * A separate movement emitter consumes compact cold geometry for one static PAD, TILE, CONCAT,
- * or STACK occurrence and emits a direct represented-bit scalar loop. It uses coordinate
- * carry/reset state for arbitrary ranges and tiling, performs no per-element division or modulo,
- * and preserves repeated composition occurrences without duplicating boundary carriers.
+ * STACK, window-extraction, or functional SLICE_UPDATE occurrence and emits a direct
+ * represented-bit scalar loop. Slice update walks the output once, selecting update values at
+ * signed-sequence positions and base values elsewhere. It uses coordinate and sequence-cursor
+ * carry/reset state for arbitrary ranges, performs no per-element division or modulo, and
+ * preserves repeated input occurrences without duplicating boundary carriers.
  * The indexing emitter receives compact range-start geometry only after a separate bound scalar
  * pass has validated every logical INT32/INT64 index. It writes GATHER, GATHER_ELEMENTS,
  * GATHER_ND, or canonical-BOOL ONE_HOT output, performs no bounds branch, and owns neither

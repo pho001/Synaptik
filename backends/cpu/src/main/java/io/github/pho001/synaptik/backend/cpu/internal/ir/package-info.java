@@ -21,10 +21,12 @@
  * remain cold plan facts. Internal view values remain graph and logical-memory values but do not
  * become affine IR instructions, stores, declarations, or Runtime slots.
  *
- * <p>The static movement representation records one PAD, TILE, CONCAT, or STACK family, all-six-
- * type represented-bit identity, unique input access forms in first-occurrence order, the ordered
- * composition-occurrence map, one injective output access form, and exact padding bits when
- * applicable. Concrete extents, strides, offsets, axes, repeats, and segment prefixes remain
+ * <p>The static movement representation records one PAD, TILE, CONCAT, STACK, window-extraction,
+ * or functional SLICE_UPDATE family, all-six-type represented-bit identity, unique input access
+ * forms in first-occurrence order, the ordered occurrence map, one injective output access form,
+ * and exact padding bits when applicable. Slice-update structure retains only output rank and its
+ * exact {@code [base, update]} occurrence map; signed placement geometry remains cold. Concrete
+ * extents, strides, offsets, axes, repeats, segment prefixes, starts, lengths, and steps remain
  * instance geometry outside generated-artifact identity.</p>
 
  * <p>The indexing representation keeps GATHER, GATHER_ELEMENTS, GATHER_ND, and ONE_HOT distinct,
