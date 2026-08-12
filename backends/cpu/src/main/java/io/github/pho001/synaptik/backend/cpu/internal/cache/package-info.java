@@ -12,7 +12,11 @@
  * axes, tuple/depth values, concrete geometry, carriers, and validation results. Functional
  * slice-update identity includes the movement family, result rank, structural access forms, and
  * exact {@code [base, update]} occurrence map while excluding starts, lengths, steps, extents,
- * and layout magnitudes. Schema 15 is current-only. Four complete candidate plans, one realized
+ * and layout magnitudes. Functional-scatter identity additionally records its family, reduction,
+ * occurrence map, structural accesses, and optional exact-product scratch signature while keeping
+ * concrete axes, extents, ranges, and scratch sizes cold. Fold identity records its family,
+ * represented type, boundary ranks/accesses, and explicit addition policy while leaving concrete
+ * window and layout geometry cold. Schema 17 is current-only. Four complete candidate plans, one realized
  * artifact, zero fixed-shape variants, and zero unrolled variants are the current hard budget.
  * With no trusted root, realization remains entirely in memory. With a root, one bounded
  * current-schema envelope may supply class bytes after compatibility, integrity, size, class

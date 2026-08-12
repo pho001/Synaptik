@@ -27,6 +27,11 @@ import io.github.pho001.synaptik.model.operation.index.GatherNdKind;
 import io.github.pho001.synaptik.model.operation.index.GatherNdAttrs;
 import io.github.pho001.synaptik.model.operation.index.OneHotKind;
 import io.github.pho001.synaptik.model.operation.index.OneHotAttrs;
+import io.github.pho001.synaptik.model.operation.index.AxisScatterKind;
+import io.github.pho001.synaptik.model.operation.index.ScatterElementsAttrs;
+import io.github.pho001.synaptik.model.operation.index.ScatterNdKind;
+import io.github.pho001.synaptik.model.operation.index.ScatterNdAttrs;
+import io.github.pho001.synaptik.model.operation.index.ScatterReduction;
 import io.github.pho001.synaptik.model.shape.Shape;
 import io.github.pho001.synaptik.planning.capability.BackendCapabilityProvider;
 import io.github.pho001.synaptik.planning.capability.OperationCapabilityQuery;
@@ -55,7 +60,13 @@ import java.util.Objects;
  * forms require their exact static result geometry and one distinct injective output. A separate
  * one-node indexing matrix admits {@code GATHER}, {@code GATHER_ELEMENTS}, {@code GATHER_ND}, and
  * {@code ONE_HOT} with INT32/INT64 indices, exact static result geometry, and an injective
- * output.</p>
+ * output. A separate one-node functional-scatter matrix admits current {@code SCATTER_ELEMENTS},
+ * Gather-compatible fixed-add {@code SCATTER_ADD}, and {@code SCATTER_ND}, with exact Model
+ * shapes, permitted represented reductions, and a distinct injective data-shaped output.</p>
+ *
+ * <p>A distinct one-node fold matrix admits numeric {@code FOLD_AXIS} and floating
+ * {@code FOLD2D}. Fold requires exact current static geometry, a distinct injective result,
+ * canonical represented addition, and no implicit base, workspace, or padding value.</p>
  *
  * <p>The movement route also admits exactly one fully static, resolved-layout
  * {@code SLICE_UPDATE} occurrence with ordered {@code [base, update]} inputs. Both normalized
@@ -64,11 +75,11 @@ import java.util.Objects;
  * uses a distinct injective layout; its semantic effect is to copy base values and replace only
  * selected positions, without mutating either input.</p>
  *
- * <p>Complete-partition lowering remains stricter: it validates either one supported movement or
- * indexing occurrence, a connected one-to-eight pointwise chain, or a connected one-to-eight
- * affine chain, then applies exact layout, alias, fan-out, publication, and partition-boundary
- * checks before resource declaration. Occurrence support therefore does not promise that an
- * arbitrary mixed or branched partition can be prepared.</p>
+ * <p>Complete-partition lowering remains stricter: it validates either one supported movement,
+ * indexing, functional-scatter, or overlap-fold occurrence, a connected one-to-eight pointwise
+ * chain, or a connected one-to-eight affine chain, then applies exact layout, alias, fan-out,
+ * publication, and partition-boundary checks before resource declaration. Occurrence support
+ * therefore does not promise that an arbitrary mixed or branched partition can be prepared.</p>
  */
 public final class CpuCapabilityProvider implements BackendCapabilityProvider {
     /** Stable Planning ownership identity for the CPU backend. */
@@ -102,8 +113,11 @@ public final class CpuCapabilityProvider implements BackendCapabilityProvider {
      * FLOAT64, FLOAT32, and BFLOAT16 with exact matching padding type. Indexing rows additionally
      * require INT32/INT64 indices and their exact current Shape
      * formulas; run-bound value checks remain an execution responsibility rather than capability
-     * inspection. Cross-type casts, dynamic
-     * or unresolved geometry, negative-step extraction slices, fold operations, non-injective
+     * inspection. Functional scatter additionally requires ordered data/indices/updates, exact
+     * data/update type equality, current family attributes and shape formulas, and rejects BOOL
+     * arithmetic. Fold additionally requires exact current one-input Shapes and admits INT32/
+     * INT64 only for general-axis fold. Cross-type casts, dynamic
+     * or unresolved geometry, negative-step extraction slices, non-injective
      * movement outputs, and all rows outside the implemented matrix return {@code false} without
      * defining conversion or fallback behavior. Negative and non-unit steps are supported for
      * {@code SLICE_UPDATE}; they describe logical placement and do not create a negative storage
@@ -127,6 +141,12 @@ public final class CpuCapabilityProvider implements BackendCapabilityProvider {
         try {
             if (kind instanceof AxisGatherKind || kind == GatherNdKind.GATHER_ND
                     || kind == OneHotKind.ONE_HOT) return supportsIndexing(query, output);
+            if (kind instanceof AxisScatterKind || kind == ScatterNdKind.SCATTER_ND) {
+                return supportsScatter(query, output);
+            }
+            if (kind == WindowTransformKind.FOLD_AXIS || kind == WindowTransformKind.FOLD2D) {
+                return supportsFold(query, output);
+            }
             if (movementKind(kind)) return supportsMovement(query, output);
             if (affineKind(kind)) return supportsAffine(query, output);
             if (kind instanceof BinaryArithmeticKind arithmetic) {
@@ -212,7 +232,10 @@ public final class CpuCapabilityProvider implements BackendCapabilityProvider {
     }
 
     private static boolean staticResolved(TensorDescriptor descriptor) {
-        return descriptor.shape().isFullyStatic() && descriptor.layout().isPresent();
+        return descriptor.shape().isFullyStatic() && descriptor.layout().isPresent()
+                && descriptor.layout().orElseThrow().storageOffset() >= 0
+                && java.util.Arrays.stream(descriptor.layout().orElseThrow().strides())
+                        .allMatch(stride -> stride >= 0);
     }
 
     private static boolean supportsIndexing(OperationCapabilityQuery query,
@@ -270,6 +293,113 @@ public final class CpuCapabilityProvider implements BackendCapabilityProvider {
 
     private static boolean indexType(DataType type) {
         return type == DataType.INT32 || type == DataType.INT64;
+    }
+
+    private static boolean supportsScatter(OperationCapabilityQuery query,
+            TensorDescriptor output) {
+        if (query.inputs().size() != 3
+                || !injective(output.shape().toLongArray(), output.layout().orElseThrow().strides())) {
+            return false;
+        }
+        TensorDescriptor data = query.inputs().get(0);
+        TensorDescriptor indices = query.inputs().get(1);
+        TensorDescriptor updates = query.inputs().get(2);
+        if (!indexType(indices.dataType()) || updates.dataType() != data.dataType()
+                || output.dataType() != data.dataType() || !output.shape().equals(data.shape())) {
+            return false;
+        }
+        Object kind = query.operation().kind();
+        Object attrs = query.operation().attrs();
+        ScatterReduction reduction;
+        int axis = -1;
+        if (kind == AxisScatterKind.SCATTER_ELEMENTS && attrs instanceof ScatterElementsAttrs a) {
+            reduction = a.reduction(); axis = a.axis();
+        } else if (kind == AxisScatterKind.SCATTER_ADD && attrs instanceof IndexAxisAttrs a) {
+            reduction = ScatterReduction.ADD; axis = a.axis();
+        } else if (kind == ScatterNdKind.SCATTER_ND && attrs instanceof ScatterNdAttrs a) {
+            reduction = a.reduction();
+        } else return false;
+        if (data.dataType() == DataType.BOOL && reduction != ScatterReduction.NONE) return false;
+        long[] d = data.shape().toLongArray();
+        long[] i = indices.shape().toLongArray();
+        long[] u = updates.shape().toLongArray();
+        if (kind == AxisScatterKind.SCATTER_ELEMENTS) {
+            if (d.length == 0 || axis >= d.length || !java.util.Arrays.equals(i, u)
+                    || i.length != d.length) return false;
+            for (int a = 0; a < d.length; a++) if (a != axis && d[a] != i[a]) return false;
+            return true;
+        }
+        if (kind == AxisScatterKind.SCATTER_ADD) {
+            if (d.length == 0 || axis >= d.length || u.length != d.length - 1 + i.length) return false;
+            int p = 0;
+            for (int a = 0; a < axis; a++) if (u[p++] != d[a]) return false;
+            for (long extent : i) if (u[p++] != extent) return false;
+            for (int a = axis + 1; a < d.length; a++) if (u[p++] != d[a]) return false;
+            return true;
+        }
+        int batch = ((ScatterNdAttrs) attrs).batchDimensions();
+        if (i.length == 0 || batch >= Math.min(d.length, i.length)) return false;
+        long tupleLong = i[i.length - 1];
+        if (tupleLong < 1 || tupleLong > d.length - batch) return false;
+        int tuple = Math.toIntExact(tupleLong);
+        for (int a = 0; a < batch; a++) if (d[a] != i[a]) return false;
+        if (u.length != i.length - 1 + d.length - batch - tuple) return false;
+        int p = 0;
+        for (int a = 0; a < i.length - 1; a++) if (u[p++] != i[a]) return false;
+        for (int a = batch + tuple; a < d.length; a++) if (u[p++] != d[a]) return false;
+        return true;
+    }
+
+    private static boolean supportsFold(OperationCapabilityQuery query, TensorDescriptor output) {
+        if (query.inputs().size() != 1
+                || !injective(output.shape().toLongArray(), output.layout().orElseThrow().strides())) {
+            return false;
+        }
+        TensorDescriptor input = query.inputs().getFirst();
+        if (input.dataType() != output.dataType() || input.dataType() == DataType.BOOL) return false;
+        long[] source = input.shape().toLongArray();
+        long[] result = output.shape().toLongArray();
+        Object kind = query.operation().kind();
+        Object attrs = query.operation().attrs();
+        if (kind == WindowTransformKind.FOLD_AXIS && attrs instanceof FoldAxisAttrs fold) {
+            if (source.length < 2 || result.length != source.length - 1
+                    || fold.axis() >= result.length || result[fold.axis()] != fold.outputSize()) {
+                return false;
+            }
+            for (int axis = 0; axis < result.length; axis++) {
+                if (axis != fold.axis() && result[axis] != source[axis]) return false;
+            }
+            long windows = source[fold.axis()], size = source[source.length - 1];
+            if (size <= 0) return false;
+            if (fold.outputSize() == 0) return windows == 0;
+            if (size > fold.outputSize()) return false;
+            long expected = Math.addExact((fold.outputSize() - size) / fold.step(), 1);
+            Math.addExact(Math.multiplyExact(expected - 1, fold.step()), size - 1);
+            return windows == expected;
+        }
+        if (kind == WindowTransformKind.FOLD2D && attrs instanceof Fold2dAttrs fold) {
+            if (!windowFloating(input.dataType()) || source.length != 3 || result.length != 4
+                    || !output.shape().equals(fold.outputShape())) return false;
+            Window2dAttrs window = fold.window();
+            long effectiveHeight = Math.addExact(Math.multiplyExact(window.dilationHeight(),
+                    window.kernelHeight() - 1), 1);
+            long effectiveWidth = Math.addExact(Math.multiplyExact(window.dilationWidth(),
+                    window.kernelWidth() - 1), 1);
+            long numeratorHeight = Math.subtractExact(Math.addExact(result[2],
+                    Math.multiplyExact(2, window.paddingHeight())), effectiveHeight);
+            long numeratorWidth = Math.subtractExact(Math.addExact(result[3],
+                    Math.multiplyExact(2, window.paddingWidth())), effectiveWidth);
+            if (numeratorHeight < 0 || numeratorWidth < 0) return false;
+            long columnsHeight = windowOutput(numeratorHeight, window.strideHeight(),
+                    window.ceilMode());
+            long columnsWidth = windowOutput(numeratorWidth, window.strideWidth(),
+                    window.ceilMode());
+            return source[0] == result[0]
+                    && source[1] == Math.multiplyExact(Math.multiplyExact(result[1],
+                            window.kernelHeight()), window.kernelWidth())
+                    && source[2] == Math.multiplyExact(columnsHeight, columnsWidth);
+        }
+        return false;
     }
 
     private static boolean affineKind(Object kind) {

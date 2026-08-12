@@ -6,6 +6,8 @@ import io.github.pho001.synaptik.backend.cpu.CpuCapabilityProvider;
 import io.github.pho001.synaptik.model.datatype.DataType;
 import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuNonAffineMovementLoweringTest;
 import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuIndexingLoweringTest;
+import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuScatterLoweringTest;
+import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuFoldLoweringTest;
 import io.github.pho001.synaptik.model.graph.CompiledNode;
 import io.github.pho001.synaptik.model.graph.GraphValue;
 import io.github.pho001.synaptik.model.graph.NodeId;
@@ -24,6 +26,9 @@ import io.github.pho001.synaptik.model.operation.layout.SliceAttrs;
 import io.github.pho001.synaptik.model.operation.layout.SliceKind;
 import io.github.pho001.synaptik.model.operation.index.AxisGatherKind;
 import io.github.pho001.synaptik.model.operation.index.IndexAxisAttrs;
+import io.github.pho001.synaptik.model.operation.index.AxisScatterKind;
+import io.github.pho001.synaptik.model.operation.index.ScatterElementsAttrs;
+import io.github.pho001.synaptik.model.operation.index.ScatterReduction;
 import io.github.pho001.synaptik.model.operation.elementwise.binary.BinaryArithmeticKind;
 import io.github.pho001.synaptik.model.operation.elementwise.unary.UnaryElementwiseKind;
 import io.github.pho001.synaptik.model.operation.elementwise.comparison.BinaryComparisonKind;
@@ -41,6 +46,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
+import io.github.pho001.synaptik.model.operation.layout.FoldAxisAttrs;
 import io.github.pho001.synaptik.backend.cpu.internal.cache.CpuKernelSpecialization.CarrierAccess;
 import io.github.pho001.synaptik.backend.cpu.internal.prepare.CpuPartitionAnalysisInputs.PortableExecutionConfig;
 import io.github.pho001.synaptik.backend.cpu.internal.prepare.CpuPartitionAnalysisInputs.PortableExecutionConfig.ComputePreference;
@@ -51,6 +57,54 @@ import jdk.incubator.vector.LongVector;
 import jdk.incubator.vector.ByteVector;
 
 public class CpuPartitionPreparerTest {
+    @Test void foldDeclaresExactlyTwoBuffersOneArtifactAndNoWorkspaceOrMaterialization() {
+        var base = CpuFoldLoweringTest.context(new Operation(WindowTransformKind.FOLD_AXIS,
+                new FoldAxisAttrs(0, 5, 1)), DataType.FLOAT32, Shape.of(3, 3), Shape.of(5));
+        var config = new PortableExecutionConfig(ComputePreference.VECTOR_IF_ELIGIBLE, 4, 4, 1);
+        var context = new PrepareContext<>(base.partition(), base.nodes(), base.values(),
+                base.memoryRequirements(), base.constants(), new CpuPartitionAnalysisInputs(false,
+                        List.of(CarrierAccess.FLOAT_ARRAY, CarrierAccess.FLOAT_ARRAY), config));
+        var analysis = new CpuPartitionPreparer().analyze(context);
+        var plan = analysis.plan();
+        assertAll(() -> assertEquals(2, analysis.requirements().size()),
+                () -> assertEquals(2, plan.bufferDeclarations().size()),
+                () -> assertEquals(1, plan.units().size()),
+                () -> assertEquals(CpuPartitionPreparationPlan.ExecutionStrategy.PARALLEL_SCALAR,
+                        plan.executionStrategy()),
+                () -> assertEquals(4, plan.selectedRangeCount()),
+                () -> assertTrue(plan.foldGeometry().isPresent()),
+                () -> assertTrue(plan.workspaceDeclaration().isEmpty()),
+                () -> assertTrue(plan.materialization().isEmpty()),
+                () -> assertFalse(plan.units().getFirst().portablePlan().specialization()
+                        .scratchParameter()));
+    }
+
+    @Test void scatterDeclaresExactUniqueBuffersStrategyAndOnlyEligibleProductScratch() {
+        var base=CpuScatterLoweringTest.context(new Operation(AxisScatterKind.SCATTER_ELEMENTS,
+                        new ScatterElementsAttrs(0,ScatterReduction.MUL)),List.of(0,1,2),
+                List.of(CpuScatterLoweringTest.desc(DataType.FLOAT32,Shape.of(4)),
+                        CpuScatterLoweringTest.desc(DataType.INT64,Shape.of(8)),
+                        CpuScatterLoweringTest.desc(DataType.FLOAT32,Shape.of(8))),
+                CpuScatterLoweringTest.desc(DataType.FLOAT32,Shape.of(4)));
+        var config=new CpuPartitionAnalysisInputs.PortableExecutionConfig(
+                ComputePreference.VECTOR_IF_ELIGIBLE,4,4,1);
+        var context=new PrepareContext<>(base.partition(),base.nodes(),base.values(),
+                base.memoryRequirements(),base.constants(),new CpuPartitionAnalysisInputs(false,
+                        List.of(CarrierAccess.FLOAT_ARRAY,CarrierAccess.LONG_ARRAY,
+                                CarrierAccess.FLOAT_ARRAY,CarrierAccess.FLOAT_ARRAY),config));
+        var analysis=new CpuPartitionPreparer().analyze(context);
+        var plan=analysis.plan();
+        assertAll(() -> assertEquals(4,plan.bufferDeclarations().size()),
+                () -> assertEquals(1,plan.workspaceDeclaration().stream().count()),
+                () -> assertEquals(4,plan.selectedRangeCount()),
+                () -> assertEquals(CpuPartitionPreparationPlan.ExecutionStrategy.PARALLEL_SCALAR,
+                        plan.executionStrategy()),
+                () -> assertEquals(CpuPartitionPreparationPlan.WorkspaceUse.SCATTER_PRODUCT,
+                        plan.workspaceUse()),
+                () -> assertEquals(plan.scatterGeometry().orElseThrow().workspaceBytes(4),
+                        plan.workspaceDeclaration().orElseThrow().byteSize()),
+                () -> assertEquals(5,analysis.requirements().size()));
+    }
     @Test void indexingDeclaresUniqueInputsThenOutputWithOneUnitAndNoWorkspace() {
         var distinct = new CpuPartitionPreparer().analyze(CpuIndexingLoweringTest.context(
                 new Operation(AxisGatherKind.GATHER, new IndexAxisAttrs(0)), List.of(0, 1),

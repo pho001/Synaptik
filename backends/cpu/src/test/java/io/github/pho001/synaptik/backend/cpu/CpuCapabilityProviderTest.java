@@ -285,9 +285,16 @@ class CpuCapabilityProviderTest {
                 () -> assertFalse(provider.supports(query(WindowTransformKind.UNFOLD2D,
                         new Unfold2dAttrs(window, ScalarValue.float64(0.0)),
                         List.of(imageF32), columnsF32))),
+                () -> assertTrue(provider.supports(query(WindowTransformKind.FOLD2D,
+                        new Fold2dAttrs(Shape.of(1, 1, 3, 3), window),
+                        List.of(columnsF32), imageF32))),
                 () -> assertFalse(provider.supports(query(WindowTransformKind.FOLD2D,
                         new Fold2dAttrs(Shape.of(1, 1, 3, 3), window),
-                        List.of(columnsF32), imageF32))));
+                        List.of(columnsI32), imageI32))),
+                () -> assertTrue(provider.supports(query(WindowTransformKind.FOLD_AXIS,
+                        new FoldAxisAttrs(0, 5, 1),
+                        List.of(descriptor(DataType.INT64, Shape.of(3, 3))),
+                        descriptor(DataType.INT64, Shape.of(5))))));
     }
 
     @Test void windowExtractionFailsClosedForEveryExcludedStructuralBoundary() {
@@ -411,6 +418,62 @@ class CpuCapabilityProviderTest {
                 () -> assertFalse(provider.supports(query(OneHotKind.ONE_HOT,
                         new OneHotAttrs(3), List.of(descriptor(DataType.INT32, Shape.of(2))),
                         descriptor(DataType.BOOL, Shape.of(3, 2))))));
+    }
+
+    @Test void scatterCapabilityAdmitsOnlyCurrentExactFormsTypesAndShapes() {
+        var provider=new CpuCapabilityProvider();
+        var data=descriptor(DataType.FLOAT32,Shape.of(2,3));
+        var indices=descriptor(DataType.INT64,Shape.of(2,4));
+        var updates=descriptor(DataType.FLOAT32,Shape.of(2,4));
+        var output=descriptor(DataType.FLOAT32,Shape.of(2,3));
+        assertAll(() -> assertTrue(provider.supports(query(AxisScatterKind.SCATTER_ELEMENTS,
+                        new ScatterElementsAttrs(1,ScatterReduction.MUL),List.of(data,indices,updates),output))),
+                () -> assertTrue(provider.supports(query(AxisScatterKind.SCATTER_ADD,
+                        new IndexAxisAttrs(1),List.of(data,descriptor(DataType.INT32,Shape.of(4)),
+                                descriptor(DataType.FLOAT32,Shape.of(2,4))),output))),
+                () -> assertTrue(provider.supports(query(ScatterNdKind.SCATTER_ND,
+                        new ScatterNdAttrs(0,ScatterReduction.NONE),List.of(data,
+                                descriptor(DataType.INT32,Shape.of(5,1)),
+                                descriptor(DataType.FLOAT32,Shape.of(5,3))),output))),
+                () -> assertFalse(provider.supports(query(AxisScatterKind.SCATTER_ADD,
+                        new IndexAxisAttrs(1),List.of(data,descriptor(DataType.INT32,Shape.of(4)),
+                                descriptor(DataType.FLOAT32,Shape.of(4))),output))),
+                () -> assertFalse(provider.supports(query(AxisScatterKind.SCATTER_ELEMENTS,
+                        new ScatterElementsAttrs(1,ScatterReduction.ADD),List.of(
+                                descriptor(DataType.BOOL,Shape.of(2,3)),
+                                descriptor(DataType.INT32,Shape.of(2,4)),
+                                descriptor(DataType.BOOL,Shape.of(2,4))),
+                        descriptor(DataType.BOOL,Shape.of(2,3))))),
+                () -> assertThrows(IllegalArgumentException.class, () ->
+                        new OperationCapabilityQuery(
+                        new Operation(AxisScatterKind.SCATTER_ELEMENTS,
+                                new ScatterElementsAttrs(1, ScatterReduction.NONE)),
+                        List.of(data, indices), List.of(output))),
+                () -> assertThrows(IllegalArgumentException.class, () ->
+                        new OperationCapabilityQuery(
+                        new Operation(AxisScatterKind.SCATTER_ELEMENTS,
+                                new ScatterElementsAttrs(1, ScatterReduction.NONE)),
+                        List.of(data, indices, updates), List.of())),
+                () -> assertThrows(IllegalArgumentException.class, () ->
+                        new OperationCapabilityQuery(
+                        new Operation(AxisScatterKind.SCATTER_ELEMENTS,
+                                new ScatterElementsAttrs(1, ScatterReduction.NONE)),
+                        List.of(data, indices, updates), List.of(output, output))),
+                () -> assertFalse(provider.supports(query(AxisScatterKind.SCATTER_ELEMENTS,
+                        new ScatterElementsAttrs(1, ScatterReduction.NONE), List.of(data,
+                                descriptor(DataType.FLOAT32, Shape.of(2, 4)), updates), output))),
+                () -> assertFalse(provider.supports(query(AxisScatterKind.SCATTER_ELEMENTS,
+                        new ScatterElementsAttrs(1, ScatterReduction.NONE), List.of(data, indices,
+                                descriptor(DataType.INT32, Shape.of(2, 4))), output))),
+                () -> assertFalse(provider.supports(query(AxisScatterKind.SCATTER_ELEMENTS,
+                        new ScatterElementsAttrs(1, ScatterReduction.NONE), List.of(data, indices,
+                                updates), new TensorDescriptor(DataType.FLOAT32, Shape.of(2, 3),
+                                Optional.empty(), false)))),
+                () -> assertFalse(provider.supports(query(AxisScatterKind.SCATTER_ELEMENTS,
+                        new ScatterElementsAttrs(1, ScatterReduction.NONE), List.of(data, indices,
+                                updates), new TensorDescriptor(DataType.FLOAT32, Shape.of(2, 3),
+                                Optional.of(LayoutDescriptor.of(Shape.of(2, 3),
+                                        new long[]{0, 1}, 0, true)), false)))));
     }
 
     private static TensorDescriptor descriptor(Shape shape, LayoutDescriptor layout) {

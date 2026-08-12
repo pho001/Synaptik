@@ -34,6 +34,17 @@
  * pass has validated every logical INT32/INT64 index. It writes GATHER, GATHER_ELEMENTS,
  * GATHER_ND, or canonical-BOOL ONE_HOT output, performs no bounds branch, and owns neither
  * validation nor worker submission.
+ * The functional-scatter emitter receives the same direct carriers only after complete bounds
+ * validation and, for replacement forms, complete target-uniqueness validation. It owns one
+ * output-domain scalar pass for SCATTER_ELEMENTS, Gather-compatible SCATTER_ADD, or SCATTER_ND.
+ * Each range reads the functional base, scans logical updates in row-major order, and writes its
+ * disjoint output coordinates once. Floating multiplication alone receives one assigned scratch
+ * slice and rounds the abstract unchanged-format product once; other reductions receive no
+ * scratch parameter. The emitter neither mutates inputs nor submits workers.
+ * The fold emitter owns a separate output-domain scalar body. It initializes each owned output
+ * from represented positive zero, scans logical input occurrences in canonical row-major order,
+ * excludes out-of-domain FOLD2D positions geometrically, performs represented sequential
+ * addition, and writes each output coordinate once without scratch or atomics.
  *
  * <p>Generation and verification are cold-path operations. Only the resolved static entry handle
  * executes on the Runtime hot path. Parallel plans reuse that direct scalar or vector entry for

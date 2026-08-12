@@ -28,6 +28,18 @@
  * exact {@code [base, update]} occurrence map; signed placement geometry remains cold. Concrete
  * extents, strides, offsets, axes, repeats, segment prefixes, starts, lengths, and steps remain
  * instance geometry outside generated-artifact identity.</p>
+ *
+ * <p>The functional-scatter representation keeps SCATTER_ELEMENTS, Gather-compatible
+ * SCATTER_ADD, and SCATTER_ND distinct. It records the represented reduction, exact three-role
+ * occurrence map over deduplicated inputs, mixed index/data boundary types, structural accesses,
+ * one injective data-shaped output, and whether the generated entry accepts exact-product
+ * scratch. Axes, batch and tuple geometry, extents, layout magnitudes, ranges, carriers, scratch
+ * sizes, values, and validation results remain cold facts.</p>
+
+ * <p>The fold representation keeps FOLD_AXIS and FOLD2D distinct and records only their common
+ * represented type, structural input/output access forms, and canonical sequential-addition
+ * policy. Concrete axes, window geometry, extents, layout magnitudes, ranges, and carriers remain
+ * cold prepared facts.</p>
 
  * <p>The indexing representation keeps GATHER, GATHER_ELEMENTS, GATHER_ND, and ONE_HOT distinct,
  * records semantic occurrence-to-unique-boundary mapping, permits mixed index/data/output types,

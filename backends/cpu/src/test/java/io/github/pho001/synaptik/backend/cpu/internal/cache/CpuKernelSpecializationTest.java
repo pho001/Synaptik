@@ -24,8 +24,62 @@ import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuIndexingLoweri
 import io.github.pho001.synaptik.model.operation.Operation;
 import io.github.pho001.synaptik.model.operation.index.AxisGatherKind;
 import io.github.pho001.synaptik.model.operation.index.IndexAxisAttrs;
+import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuScatterLoweringTest;
+import io.github.pho001.synaptik.model.operation.index.AxisScatterKind;
+import io.github.pho001.synaptik.model.operation.index.ScatterElementsAttrs;
+import io.github.pho001.synaptik.model.operation.index.ScatterReduction;
+import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuFoldLoweringTest;
+import io.github.pho001.synaptik.model.operation.layout.Fold2dAttrs;
+import io.github.pho001.synaptik.model.operation.layout.FoldAxisAttrs;
+import io.github.pho001.synaptik.model.operation.layout.WindowTransformKind;
 
 class CpuKernelSpecializationTest {
+    @Test void foldIdentityExcludesColdGeometryAndSeparatesFamilyTypeCarrierAndRank() {
+        var axisOne = fold(new Operation(WindowTransformKind.FOLD_AXIS,
+                new FoldAxisAttrs(0, 5, 1)), DataType.FLOAT32, Shape.of(3, 3), Shape.of(5),
+                List.of(CarrierAccess.FLOAT_ARRAY, CarrierAccess.FLOAT_ARRAY));
+        var axisTwo = fold(new Operation(WindowTransformKind.FOLD_AXIS,
+                new FoldAxisAttrs(0, 6, 2)), DataType.FLOAT32, Shape.of(2, 3), Shape.of(6),
+                List.of(CarrierAccess.FLOAT_ARRAY, CarrierAccess.FLOAT_ARRAY));
+        Shape imageShape = Shape.of(1, 1, 3, 3);
+        var image = fold(new Operation(WindowTransformKind.FOLD2D,
+                new Fold2dAttrs(imageShape, CpuFoldLoweringTest.window(false))), DataType.FLOAT32,
+                Shape.of(1, 4, 4), imageShape,
+                List.of(CarrierAccess.FLOAT_ARRAY, CarrierAccess.FLOAT_ARRAY));
+        var integral = fold(new Operation(WindowTransformKind.FOLD_AXIS,
+                new FoldAxisAttrs(0, 5, 1)), DataType.INT32, Shape.of(3, 3), Shape.of(5),
+                List.of(CarrierAccess.INT_ARRAY, CarrierAccess.INT_ARRAY));
+        var segment = fold(new Operation(WindowTransformKind.FOLD_AXIS,
+                new FoldAxisAttrs(0, 5, 1)), DataType.FLOAT32, Shape.of(3, 3), Shape.of(5),
+                List.of(CarrierAccess.MEMORY_SEGMENT, CarrierAccess.FLOAT_ARRAY));
+        assertAll(() -> assertEquals(axisOne.specialization(), axisTwo.specialization()),
+                () -> assertArrayEquals(new CpuClassFileKernelGenerator().generateClassBytes(
+                                axisOne.specialization(), axisOne.kernelIr()),
+                        new CpuClassFileKernelGenerator().generateClassBytes(
+                                axisTwo.specialization(), axisTwo.kernelIr())),
+                () -> assertNotEquals(axisOne.specialization(), image.specialization()),
+                () -> assertNotEquals(axisOne.specialization(), integral.specialization()),
+                () -> assertNotEquals(axisOne.specialization(), segment.specialization()));
+    }
+    @Test void scatterCompatibilityExcludesGeometryAndSeparatesReductionAndScratchSignature() {
+        var small=scatter(ScatterReduction.ADD,Shape.of(2),Shape.of(3),DataType.FLOAT32);
+        var large=scatter(ScatterReduction.ADD,Shape.of(7),Shape.of(11),DataType.FLOAT32);
+        var product=scatter(ScatterReduction.MUL,Shape.of(2),Shape.of(3),DataType.FLOAT32);
+        var largeProduct=scatter(ScatterReduction.MUL,Shape.of(7),Shape.of(11),DataType.FLOAT32);
+        assertAll(() -> assertEquals(small.specialization(),large.specialization()),
+                () -> assertArrayEquals(new CpuClassFileKernelGenerator().generateClassBytes(
+                                small.specialization(),small.kernelIr()),
+                        new CpuClassFileKernelGenerator().generateClassBytes(
+                                large.specialization(),large.kernelIr())),
+                () -> assertNotEquals(small.specialization(),product.specialization()),
+                () -> assertEquals(product.specialization(), largeProduct.specialization()),
+                () -> assertArrayEquals(new CpuClassFileKernelGenerator().generateClassBytes(
+                                product.specialization(), product.kernelIr()),
+                        new CpuClassFileKernelGenerator().generateClassBytes(
+                                largeProduct.specialization(), largeProduct.kernelIr())),
+                () -> assertFalse(small.specialization().scratchParameter()),
+                () -> assertTrue(product.specialization().scratchParameter()));
+    }
     @Test void excludesCompatibleExtentsButIncludesNumericalAndStrategyFacts() {
         var one = CpuPartitionPreparerTest.analyze(Shape.of(1)).plan().units().getFirst()
                 .portablePlan().specialization();
@@ -206,7 +260,7 @@ class CpuKernelSpecializationTest {
                                 otherExtents.kernelIr())),
                 () -> assertNotEquals(axisZero.specialization(), otherFamily.specialization()),
                 () -> assertNotEquals(axisZero.specialization(), otherCarrier.specialization()),
-                () -> assertEquals(15, CpuGeneratorSchema.CURRENT_VERSION),
+                () -> assertEquals(17, CpuGeneratorSchema.CURRENT_VERSION),
                 () -> assertEquals(-1, axisZero.specialization().materializedSourcePosition()));
     }
 
@@ -241,5 +295,32 @@ class CpuKernelSpecializationTest {
                 new CpuPartitionAnalysisInputs(false, carriers));
         return new CpuPartitionPreparer().analyze(context).plan().units().getFirst()
                 .portablePlan();
+    }
+
+    private static io.github.pho001.synaptik.backend.cpu.internal.route.portable.CpuPortableRoutePlan
+            scatter(ScatterReduction reduction,Shape dataShape,Shape updateShape,DataType type){
+        var base=CpuScatterLoweringTest.context(new Operation(AxisScatterKind.SCATTER_ELEMENTS,
+                        new ScatterElementsAttrs(0,reduction)),List.of(0,1,2),
+                List.of(CpuScatterLoweringTest.desc(type,dataShape),
+                        CpuScatterLoweringTest.desc(DataType.INT32,updateShape),
+                        CpuScatterLoweringTest.desc(type,updateShape)),
+                CpuScatterLoweringTest.desc(type,dataShape));
+        var context=new PrepareContext<>(base.partition(),base.nodes(),base.values(),
+                base.memoryRequirements(),base.constants(),new CpuPartitionAnalysisInputs(false,
+                        List.of(type==DataType.FLOAT32?CarrierAccess.FLOAT_ARRAY:CarrierAccess.INT_ARRAY,
+                                CarrierAccess.INT_ARRAY,
+                                type==DataType.FLOAT32?CarrierAccess.FLOAT_ARRAY:CarrierAccess.INT_ARRAY,
+                                type==DataType.FLOAT32?CarrierAccess.FLOAT_ARRAY:CarrierAccess.INT_ARRAY)));
+        return new CpuPartitionPreparer().analyze(context).plan().units().getFirst().portablePlan();
+    }
+
+    private static io.github.pho001.synaptik.backend.cpu.internal.route.portable.CpuPortableRoutePlan
+            fold(Operation operation, DataType type, Shape input, Shape output,
+                    List<CarrierAccess> carriers) {
+        var base = CpuFoldLoweringTest.context(operation, type, input, output);
+        var context = new PrepareContext<>(base.partition(), base.nodes(), base.values(),
+                base.memoryRequirements(), base.constants(),
+                new CpuPartitionAnalysisInputs(false, carriers));
+        return new CpuPartitionPreparer().analyze(context).plan().units().getFirst().portablePlan();
     }
 }

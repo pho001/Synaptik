@@ -16,12 +16,14 @@ import java.util.List;
 import java.util.Objects;
 
 /**
- * Stateless Java 26 Class-File generator for one typed pointwise CPU unit.
+ * Stateless Java 26 Class-File generator for one typed portable CPU unit.
  *
  * <p>It realizes the already-selected scalar body or eligible preferred-species
  * FLOAT32/FLOAT64, signed-integral, canonical-BOOL, or narrowly virtual floating-mask vector
  * body, and retains the scalar body for tails. It does not choose capability, numerical
  * semantics, access structure, strategy, or fallback.</p>
+ * Instruction-free affine, movement, indexing, scatter, and fold forms delegate to their focused
+ * emitters after the same structural specialization checks.
  */
 public final class CpuClassFileKernelGenerator {
     /** Creates a stateless generator with no retained route or specialization state. */
@@ -45,7 +47,11 @@ public final class CpuClassFileKernelGenerator {
                 .withMethod(CpuGeneratorSchema.ENTRY_NAME, type, AccessFlag.STATIC.mask(), method ->
                         method.withCode(code -> {
                             if (kernelIr.instructions().isEmpty()) {
-                                if (kernelIr.familyIdentity().startsWith("indexing:")) {
+                                if (kernelIr.familyIdentity().startsWith("fold:")) {
+                                    new CpuFoldEmitter().emit(code, specialization);
+                                } else if (kernelIr.familyIdentity().startsWith("scatter:")) {
+                                    new CpuScatterEmitter().emit(code, specialization);
+                                } else if (kernelIr.familyIdentity().startsWith("indexing:")) {
                                     new CpuIndexingEmitter().emit(code, specialization);
                                 } else if (kernelIr.familyIdentity().startsWith("movement:")) {
                                     new CpuDataMovementEmitter().emit(code, specialization, kernelIr);
@@ -214,15 +220,17 @@ public final class CpuClassFileKernelGenerator {
         }
         if (kernelIr.instructions().isEmpty()) {
             boolean indexing = kernelIr.familyIdentity().startsWith("indexing:");
+            boolean scatter = kernelIr.familyIdentity().startsWith("scatter:");
+            boolean fold = kernelIr.familyIdentity().startsWith("fold:");
             boolean movement = kernelIr.familyIdentity().startsWith("movement:");
             boolean affine = kernelIr.familyIdentity().startsWith("affine:");
-            if ((!movement && !affine && !indexing)
+            if ((!movement && !affine && !indexing && !scatter && !fold)
                     || affine && kernelIr.values().size() != 2
                     || movement && (kernelIr.values().size() < 2 || kernelIr.values().size() > 17)
                     || kernelIr.values().subList(0, kernelIr.values().size() - 1).stream()
                         .anyMatch(value -> value.kind() != CpuKernelIr.Value.Kind.INPUT)
                     || kernelIr.values().getLast().kind() != CpuKernelIr.Value.Kind.OUTPUT
-                    || !indexing && kernelIr.values().stream().map(CpuKernelIr.Value::dataType).distinct().count() != 1
+                    || !indexing && !scatter && !fold && kernelIr.values().stream().map(CpuKernelIr.Value::dataType).distinct().count() != 1
                     || specialization.executionStrategy().compute()
                         != io.github.pho001.synaptik.backend.cpu.internal.prepare.CpuPartitionPreparationPlan.ExecutionStrategy.Compute.SCALAR
                     || !specialization.scalarPowerRealizations().isEmpty()) {

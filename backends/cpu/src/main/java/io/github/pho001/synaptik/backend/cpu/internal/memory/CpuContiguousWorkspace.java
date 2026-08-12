@@ -6,11 +6,12 @@ import java.lang.foreign.MemorySegment;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
- * Run-owned aligned native FLOAT64 materialization workspace.
+ * Run-owned aligned native CPU scratch workspace.
  *
  * <p>Each instance owns one shared arena and exactly one writable segment so an invoking thread
- * may complete the copy before any selected CPU worker reads it. Closing is idempotent and ends
- * accessibility; the workspace never owns the source buffer or generated artifact.
+ * may complete a selected materialization before workers consume it, or disjoint selected
+ * scatter ranges may reuse separate exact-product slices. Closing is idempotent and ends
+ * accessibility; the workspace never owns input buffers, workers, or generated artifacts.
  */
 public final class CpuContiguousWorkspace implements WorkspaceRepresentation {
     private final Arena arena;

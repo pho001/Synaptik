@@ -634,6 +634,12 @@ no gradient, compiler, backend, runtime, or execution behavior. This differs fro
 data, and [Scatter-ND](#scatter-nd), whose indices contain multi-axis coordinate tuples. See
 [Gather-compatible Scatter Add expressions](api/tensor-api.md#gather-compatible-scatter-add-expressions).
 
+The current CPU portable route separately executes one fully static resolved-layout occurrence.
+It validates every INT32/INT64 index before any output write or worker submission, then adds the
+base and all duplicate contributions in deterministic CPU row-major order through scalar or
+parallel-scalar disjoint output ranges. That order is a CPU realization, not a stronger Model
+floating-point guarantee.
+
 ### Functional-scatter target group
 
 For one concrete result coordinate `c` in configurable Scatter Elements or Scatter-ND reduction,
@@ -677,6 +683,11 @@ checks no bounds or duplicate targets, and performs no write or reduction. See
 [Scatter Elements expressions](api/tensor-api.md#scatter-elements-expressions) and
 [axis-scatter semantic kinds, reduction, and
 attributes](api/tensor-api.md#axis-scatter-semantic-kinds-reduction-and-attributes).
+
+The current CPU portable route separately executes one fully static resolved-layout occurrence.
+It validates all bounds before the `NONE` target-uniqueness pass and before writing. Numeric
+reductions preserve the target-group contract; only floating `MUL` receives declared per-range
+exact-product scratch. Scalar and parallel-scalar ranges own disjoint output coordinates.
 
 ### Gather-ND
 
@@ -755,6 +766,11 @@ Scatter-ND differs from [Gather-ND](#gather-nd), which
 reads selected data, and [Scatter Elements](#scatter-elements), whose indices address one selected axis.
 See [Scatter-ND semantic kind and attributes](api/tensor-api.md#scatter-nd-semantic-kind-and-attributes)
 and [Scatter-ND expressions](api/tensor-api.md#scatter-nd-expressions).
+
+The current CPU portable route separately executes one fully static resolved-layout occurrence.
+It validates tuple components in logical scalar order, then checks `NONE` tuple uniqueness within
+each shared batch before any generated work. It supports the same represented reduction matrix as
+CPU Scatter Elements, including per-range exact-product scratch only for floating `MUL`.
 
 ### Axis transform
 
@@ -1028,9 +1044,27 @@ ONE_HOT occurrence through a distinct mixed-type indexing IR. It validates the c
 index domain deterministically before one generated scalar or parallel-scalar output artifact can
 write or submit worker work. Indexing declares no workspace or materialization.
 
-Cross-type cast, BFLOAT16/FLOAT16 numerical execution, relaxed math, native/vendor realization,
-functional scatter/fold, order/random families, and dynamic layouts are not part of this route
-increment. One fully static resolved-layout functional `SLICE_UPDATE` is current; general
+Completed CPU 0006B adds one fully static resolved-layout functional SLICE_UPDATE. Completed CPU
+0006B1 adds exactly one fully static resolved-layout SCATTER_ELEMENTS, Gather-compatible
+SCATTER_ADD, or SCATTER_ND occurrence with ordered `[data, indices, updates]`, a fresh data-shaped
+result, deterministic bounds-before-duplicates validation, scalar or parallel-scalar disjoint
+output ownership, arbitrary non-negative resolved input layouts, injective output layouts, heap/
+segment/mixed carriers, input deduplication and aliasing, and strict output/input non-overlap.
+`NONE` accepts all six represented types; ADD/MUL/MIN/MAX accept the five numeric types, while
+SCATTER_ADD is fixed ADD. Floating MUL alone declares exact per-range primitive-limb scratch and
+rounds the abstract product once. Schema 16 includes scatter structure and scratch signature.
+
+Completed CPU 0006B2 adds exactly one fully static resolved-layout FOLD_AXIS or FOLD2D
+occurrence. Fold starts a fresh output from represented positive zero, visits contributions in
+canonical logical input row-major order, uses scalar or disjoint-output parallel-scalar ranges,
+and declares neither workspace nor materialization. Both families admit FLOAT64, FLOAT32, and
+BFLOAT16; FOLD_AXIS additionally admits modular INT32/INT64 addition. FOLD2D excludes padded and
+ceil-tail coordinates outside the unpadded NCHW output. Schema 17 adds fold structure and its
+canonical sequential-addition policy.
+
+Cross-type cast, general BFLOAT16 pointwise arithmetic, FLOAT16 execution, relaxed math,
+native/vendor realization, order/random families, dynamic layouts, Vector API scatter or fold,
+gradients, and universal backend support are not part of this route increment. General
 partition-DAG decomposition and bounded vertical/horizontal fusion remain Draft CPU 0008A work.
 
 OpenBLAS is not another meaning of portable route. It is a narrow cross-platform native fallback
@@ -1089,16 +1123,22 @@ decision occurs in the generated loop.
 ### CPU kernel specialization
 
 The implemented backend-private immutable description of every fact allowed to change one
-generated CPU class. The current form includes schema 15, the canonical lowering fingerprint with
+generated CPU class. The current form includes schema 17, the canonical lowering fingerprint with
 typed opcode sequence, exact scalar-immediate bits, exact ordered clamp-bound bits, and selected
 scalar-power realizations, exact/default numerical mode, generated
 scalar/vector compute form, exact preferred FLOAT32, FLOAT64, INT32, INT64, or BOOL species bit
 size for vector compute,
-and the complete ordered boundary data-type/carrier pattern. Schema 15 also distinguishes the
-pointwise, affine, movement, or indexing IR family; affine mapping topology and write domain;
+and the complete ordered boundary data-type/carrier pattern. Schema 17 retains the schema-16
+distinctions for the
+pointwise, affine, movement, indexing, or functional-scatter IR family; affine mapping topology and write domain;
 movement family, input/output rank, occurrence map, exact PAD or UNFOLD2D padding bits, and
 functional slice-update structure; mixed indexing boundary types; and the seventh opaque BFLOAT16
-`SHORT_ARRAY` carrier. The homogeneous boundary types
+`SHORT_ARRAY` carrier. Schema 16 added functional-scatter family, reduction,
+three-role occurrence mapping, structural accesses, mixed index/data carriers, and the optional
+exact-product scratch entry signature. Concrete scatter axes, batch/tuple geometry, extents,
+ranges, scratch sizes and offsets, and validation results remain cold. Schema 17 additionally
+records overlap-fold family, common represented type, boundary rank/access structure, and the
+canonical sequential-addition policy while leaving concrete axis/window geometry cold. The homogeneous boundary types
 distinguish FLOAT32 from FLOAT64; no second lane-type field is retained.
 The direct-versus-materialized input position and adjusted canonical consumer access form are also
 structural when present.
@@ -1169,11 +1209,11 @@ ordered boundary values and data-type/carrier pattern, normalized access binding
 declarations, compatible extents/count, selected range count, positive minimum range size, exact
 vector species when applicable, optional selected materialization, original and adjusted generated
 carrier patterns, optional exact workspace declaration, specialization budget, optional compact
-movement geometry, and an optional cold lowering manifest.
+movement, indexing, scatter, or fold geometry, and an optional cold lowering manifest.
 
 CPU analysis validates that Planning selected CPU ownership, admits one connected straight-line
-chain of one through eight supported pointwise occurrences or one exact static movement
-occurrence, derives every family-specific Model
+chain of one through eight supported pointwise occurrences or one exact static movement,
+indexing, functional-scatter, or overlap-fold occurrence, derives every family-specific Model
 shape, normalizes resolved layouts, proves output write injectivity, derives external boundaries
 and virtual single-use results, and compares direct plus at most three eligible one-input copy
 candidates. It declares each boundary's referenced byte span and, when selected, appends workspace
@@ -1191,7 +1231,7 @@ The implemented backend-private immutable Runtime recipe constructed by CPU fina
 shared slot assignment. `CpuPreparedExecutable` strongly retains the partition's one generated
 artifact and exact static `MethodHandle`, the lowering-derived selected buffers, full normalized geometry, ordered
 original/generated carrier patterns, optional materialization/workspace selection, optional
-compact movement geometry, one half-open
+compact movement, indexing, scatter, or fold geometry, one half-open
 logical range, selected range bounds, and an optional borrowed CPU worker group. It owns no
 physical representation or worker close lifecycle and may bind
 concurrently to distinct open `RunState` instances.
@@ -1210,7 +1250,7 @@ range-start coordinate, carrier bases, strides, and compact family facts without
 table. It invokes one range inline or
 synchronously joins deterministic disjoint chunks through the borrowed group; generated code
 performs no scheduling. The current production families establish only the admitted bounded
-pointwise, affine, and movement matrices; they make no Tensor-result, gradient, compiler,
+pointwise, affine, movement, indexing, functional-scatter, and overlap-fold matrices; they make no Tensor-result, gradient, compiler,
 conformance, integration, or performance claim.
 
 ### CPU execution unit
@@ -1232,8 +1272,8 @@ concrete Draft tasks.
 ### CPU kernel intermediate representation
 
 The immutable CPU-private portable representation of one CPU execution unit. The sealed family
-contains the established pointwise form, static affine-copy form, static movement form, and static
-indexing form. The
+contains the established pointwise form, static affine-copy form, static movement form, static
+indexing form, functional-scatter form, and overlap-fold form. The
 pointwise route-
 independent canonical form records typed boundary and virtual values, one
 forty-eight-opcode family-oriented pointwise vocabulary, exact typed scalar-immediate and ordered
@@ -1259,10 +1299,12 @@ graph identity, concrete carrier, slot, address, worker, or Runtime state. Encod
 current generator produces two boundary values, no computation instructions, one loop, and one
 ordered store.
 
-The movement form records PAD, TILE, CONCAT, or STACK identity, represented type, unique
+The movement form records PAD, TILE, CONCAT, STACK, window-extraction, or functional
+SLICE_UPDATE identity, represented type, unique
 structural input accesses, ordered occurrence-to-boundary mapping, one injective output access,
-and exact padding bits. Concrete movement extents, offsets, strides, axes, repeats, and segment
-prefixes remain compact instance geometry outside structural identity.
+and exact padding bits. Concrete movement extents, offsets, strides, axes, repeats, segment
+prefixes, window geometry, and signed slice placement remain compact instance geometry outside
+structural identity.
 
 The indexing form records GATHER, GATHER_ELEMENTS, GATHER_ND, or ONE_HOT identity, mixed ordered
 boundary types, structural access/rank forms, semantic occurrence-to-unique-boundary mapping, and
@@ -1270,12 +1312,23 @@ one output store. Axis, batch count, tuple depth, one-hot depth, extents, layout
 carriers, index values, and validation results remain compact cold or run-bound facts outside
 artifact identity.
 
+The functional-scatter form records SCATTER_ELEMENTS, Gather-compatible SCATTER_ADD, or
+SCATTER_ND identity; represented reduction; exact semantic occurrence mapping over deduplicated
+inputs; mixed index/data boundary types; structural accesses; and whether the generated entry
+accepts exact floating-product scratch. Concrete axes, tuple geometry, layout magnitudes, range
+bounds, values, validation results, and scratch sizes remain cold.
+
+The overlap-fold form records FOLD_AXIS or FOLD2D identity, one represented input/output type,
+structural read/write accesses, and the canonical sequential-addition policy. Concrete axis or
+NCHW window geometry, extents, offsets, strides, carriers, workers, and range bounds remain cold.
+
 This is backend-internal state, not another Model, Compiler, Planning, Prepare, or Runtime IR.
 
 ### CPU access plan
 
 The implemented normalized per-value address description shared by the current bounded CPU
-pointwise, affine, movement, and indexing units. CPU 0005B right-aligns pointwise rank and separates the
+pointwise, affine, movement, indexing, functional-scatter, and overlap-fold units. CPU 0005B
+right-aligns pointwise rank and separates the
 structural regime/axis pattern used by generated-class identity from cold concrete extents, base
 element offset, effective `long` strides, exact carrier objects, slots, and addresses. Different
 inputs and the output of one fused unit may have different plans. The plan consumes current Model
@@ -1481,6 +1534,34 @@ only role is scalar or parallel-scalar output writing. Compact geometry retains 
 per-output table. This term does not add Model semantics, dynamic Shape/layout binding, negative-
 index normalization, scatter/fold policy, vector/native indexing, Runtime semantic inspection, a
 second artifact, or a performance claim.
+
+### CPU overlap fold
+
+The implemented CPU-private realization of exactly one fully static, resolved-layout
+`FOLD_AXIS` or `FOLD2D` occurrence. Both operations read one input and create one distinct
+injective output. Every output coordinate starts at represented positive zero and receives every
+mapped logical input occurrence exactly once in canonical flattened input row-major order;
+repeated physical reads through an input zero stride remain distinct logical contributions.
+
+`FOLD_AXIS` restores one explicit target extent and maps window position `w` plus final window
+offset `k` to `w * step + k`. It accepts FLOAT64, FLOAT32, BFLOAT16, INT32, and INT64. `FOLD2D`
+maps canonical rank-three columns back to explicit rank-four NCHW output, accepts FLOAT64,
+FLOAT32, and BFLOAT16, and excludes every symmetric-padding or ceil-tail column position whose
+derived spatial coordinate is outside the unpadded output.
+
+FLOAT64/FLOAT32 use sequential same-format addition, BFLOAT16 rounds back to BFLOAT16 after every
+addition, and INT32/INT64 `FOLD_AXIS` use fixed-width modular addition. Scalar and
+parallel-scalar ranges preserve identical per-output order; parallel ranges own disjoint output
+coordinates and use no atomics, partials, or merge. Arbitrary supported non-negative resolved
+layouts and heap, native-order segment, or mixed carriers are admitted. Cold binding rejects
+input/output physical overlap before work.
+
+Analysis declares exactly two buffers, zero workspaces or materializations, one unit, and one
+artifact. Schema 17 records fold family, type, structural access/rank facts, carrier form,
+execution mode, and addition policy while keeping concrete geometry and ranges cold. This term
+adds no Model or Compiler semantics, gradient route, Runtime interpretation, native or vector
+fold, dynamic layout, fusion, reduction-framework reuse, cross-backend bitwise promise, or
+performance claim.
 
 ### CPU virtual intermediate
 
@@ -3893,8 +3974,9 @@ replace semantics, preserves represented bits for all six types, accepts signed 
 finite steps including legal length-one `Long.MIN_VALUE`, handles scalar and empty regions, and
 supports arbitrary disjoint scalar or parallel-scalar ranges across heap, segment, and mixed
 carriers. Output/input physical overlap is rejected; exact same-value base/update inputs may share
-one deduplicated boundary. Schema 15 records generated compatibility. Functional scatter and
-overlap fold remain planned CPU 0006B1 and 0006B2 work.
+one deduplicated boundary. Current schema 17 retains the slice-update family/rank/map structure;
+concrete placement remains cold. Functional scatter and overlap fold are separate current CPU
+portable families.
 
 ### Target-relative crop
 
@@ -4738,8 +4820,10 @@ validation, exact Shape arithmetic, preserved data type and gradient eligibility
 layout, and exact one-input provenance. `fold2d` requires complete structural equality with the
 canonical column formulas and rejects unrelated unresolved symbols rather than registering an
 equality constraint.
-Gradient rules, compiler behavior, materialization,
-lowering, backend/ONNX behavior, and execution remain planned. See
+Gradient rules, compiler behavior, materialization, and ONNX behavior remain separately owned.
+The current CPU backend executes only the fully static resolved-layout overlap-fold subset
+described in [CPU overlap fold](#cpu-overlap-fold); this backend-specific coverage does not change
+the broader Model contract or imply other backend execution. See
 [Window-transform semantic kinds and
 attributes](api/tensor-api.md#window-transform-semantic-kinds-and-attributes).
 

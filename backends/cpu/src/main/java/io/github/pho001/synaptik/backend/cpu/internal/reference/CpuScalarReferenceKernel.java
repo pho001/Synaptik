@@ -12,6 +12,11 @@ import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuDataMovementIr;
 import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuNonAffineMovementLowering;
 import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuIndexingIr;
 import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuIndexingLowering;
+import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuScatterIr;
+import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuScatterLowering;
+import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuFoldIr;
+import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuFoldLowering;
+import io.github.pho001.synaptik.model.operation.index.ScatterReduction;
 import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuPointwiseOpcode;
 import io.github.pho001.synaptik.model.datatype.DataType;
 
@@ -22,7 +27,8 @@ import io.github.pho001.synaptik.model.datatype.DataType;
  * scalar-power plan. Direct power uses {@link StrictMath#pow(double, double)} without
  * reclassifying an exponent. Unary evaluation preserves the specified exceptional-value
  * classifications, widens represented FLOAT32 values where required, and narrows once. It is an
- * It also evaluates already-lowered affine, movement, indexing, and functional slice-update
+ * It also evaluates already-lowered affine, movement, indexing, functional slice-update, and
+ * functional-scatter and overlap-fold
  * mappings for differential tests. This is an unsupported cold-test/reference contract and is
  * never a Runtime IR interpreter.
  */
@@ -56,6 +62,205 @@ public final class CpuScalarReferenceKernel {
             1.70814450747565897222E1, 9.60896809063285878198E0,
             3.36907645100081516050E0};
     private CpuScalarReferenceKernel() { }
+
+    /**
+     * Independently evaluates one zero-initialized overlap fold for differential evidence.
+     * This cold oracle constructs logical coordinates directly and shares no packed traversal or
+     * generated-emitter helper with the portable fold body.
+     *
+     * @param ir non-null fold structural identity
+     * @param geometry non-null matching static fold geometry
+     * @param arguments exact read-only input followed by writable output
+     * @param start inclusive flattened output ordinal
+     * @param end exclusive flattened output ordinal
+     * @throws NullPointerException if a required reference is {@code null}
+     * @throws IllegalArgumentException if IR, geometry, arguments, or range disagree
+     */
+    public static void execute(CpuFoldIr ir, CpuFoldLowering.Geometry geometry,
+            List<CpuBufferArgument> arguments, long start, long end) {
+        Objects.requireNonNull(ir, "ir"); Objects.requireNonNull(geometry, "geometry");
+        if (ir.family() != geometry.family() || ir.dataType() != geometry.dataType()
+                || arguments.size() != 2) {
+            throw new IllegalArgumentException("fold reference facts disagree");
+        }
+        long outputCount = count(geometry.output().extents());
+        if (start < 0 || end < start || end > outputCount) {
+            throw new IllegalArgumentException("invalid fold reference bounds");
+        }
+        long inputCount = count(geometry.input().extents());
+        DataType type = geometry.dataType();
+        for (long outputOrdinal = start; outputOrdinal < end; outputOrdinal++) {
+            long[] outputCoordinate = coordinates(outputOrdinal, geometry.output().extents());
+            Object sum = positiveZero(type);
+            for (long inputOrdinal = 0; inputOrdinal < inputCount; inputOrdinal++) {
+                long[] inputCoordinate = coordinates(inputOrdinal, geometry.input().extents());
+                if (!foldMatches(geometry, inputCoordinate, outputCoordinate)) continue;
+                Object value = load(arguments.getFirst(), type,
+                        foldAddress(geometry.input(), inputCoordinate));
+                sum = foldAdd(sum, value, type);
+            }
+            store(arguments.getLast(), type, foldAddress(geometry.output(), outputCoordinate), sum);
+        }
+    }
+
+    private static boolean foldMatches(CpuFoldLowering.Geometry geometry, long[] input,
+            long[] output) {
+        if (geometry.mapping() instanceof CpuFoldLowering.AxisGeometry axis) {
+            for (int current = 0; current < output.length; current++) {
+                long target = current == axis.axis()
+                        ? Math.addExact(Math.multiplyExact(input[current], axis.step()),
+                                input[input.length - 1])
+                        : input[current];
+                if (target != output[current]) return false;
+            }
+            return true;
+        }
+        var two = (CpuFoldLowering.TwoDimensionalGeometry) geometry.mapping();
+        long kernelArea = Math.multiplyExact(two.kernelHeight(), two.kernelWidth());
+        long channel = input[1] / kernelArea;
+        long kernel = input[1] % kernelArea;
+        long kernelHeight = kernel / two.kernelWidth();
+        long kernelWidth = kernel % two.kernelWidth();
+        long columnHeight = input[2] / two.outputColumnsWidth();
+        long columnWidth = input[2] % two.outputColumnsWidth();
+        long height = Math.addExact(Math.subtractExact(
+                Math.multiplyExact(columnHeight, two.strideHeight()), two.paddingHeight()),
+                Math.multiplyExact(kernelHeight, two.dilationHeight()));
+        long width = Math.addExact(Math.subtractExact(
+                Math.multiplyExact(columnWidth, two.strideWidth()), two.paddingWidth()),
+                Math.multiplyExact(kernelWidth, two.dilationWidth()));
+        return input[0] == output[0] && channel == output[1]
+                && height == output[2] && width == output[3];
+    }
+
+    private static long foldAddress(CpuFoldLowering.Layout layout, long[] coordinate) {
+        long result = layout.offset(); long[] strides = layout.strides();
+        for (int axis = 0; axis < coordinate.length; axis++) result = Math.addExact(result,
+                Math.multiplyExact(coordinate[axis], strides[axis]));
+        return result;
+    }
+
+    private static Object positiveZero(DataType type) {
+        return switch (type) {
+            case FLOAT64 -> 0.0d; case FLOAT32 -> 0.0f; case BFLOAT16 -> (short) 0;
+            case INT32 -> 0; case INT64 -> 0L;
+            case BOOL -> throw new AssertionError("BOOL fold is unsupported");
+        };
+    }
+
+    private static Object foldAdd(Object left, Object right, DataType type) {
+        return switch (type) {
+            case FLOAT64 -> (double) left + (double) right;
+            case FLOAT32 -> (float) left + (float) right;
+            case BFLOAT16 -> toBfloat(bfloat((short) left) + bfloat((short) right));
+            case INT32 -> (int) left + (int) right;
+            case INT64 -> (long) left + (long) right;
+            case BOOL -> throw new AssertionError("BOOL fold is unsupported");
+        };
+    }
+
+    /**
+     * Independently validates and evaluates one functional scatter for differential evidence.
+     * This cold reference deliberately uses coordinate arrays, target lists, and {@link
+     * java.math.BigInteger} exact products; it shares no generated emitter or primitive-limb
+     * arithmetic and is never selected as a Runtime fallback.
+     *
+     * @param ir non-null scatter structural identity
+     * @param geometry non-null matching static scatter geometry
+     * @param arguments non-null unique inputs followed by the writable output
+     * @param start inclusive output logical ordinal
+     * @param end exclusive output logical ordinal
+     * @throws IllegalArgumentException if boundaries, range, or NONE uniqueness are invalid
+     * @throws IndexOutOfBoundsException if an index is outside its selected data extent
+     */
+    public static void execute(CpuScatterIr ir, CpuScatterLowering.Geometry geometry,
+            List<CpuBufferArgument> arguments, long start, long end) {
+        Objects.requireNonNull(ir,"ir");Objects.requireNonNull(geometry,"geometry");
+        if(arguments.size()!=geometry.boundaries().size())throw new IllegalArgumentException(
+                "scatter reference boundary count is inconsistent");
+        int db=geometry.occurrenceToBoundary().get(0),ib=geometry.occurrenceToBoundary().get(1),
+                ub=geometry.occurrenceToBoundary().get(2);
+        var dl=geometry.boundaries().get(db);var il=geometry.boundaries().get(ib);
+        var ul=geometry.boundaries().get(ub);var ol=geometry.boundaries().getLast();
+        long indexCount=count(il.extents());
+        for(long ordinal=0;ordinal<indexCount;ordinal++){
+            long[] coordinate=coordinates(ordinal,il.extents());
+            long value=((Number)load(arguments.get(ib),geometry.boundaryTypes().get(ib),
+                    address(il,coordinate))).longValue();
+            int axis=ir.family()==CpuScatterIr.Family.SCATTER_ND
+                    ?geometry.batchDimensions()+(int)(ordinal%geometry.tupleDepth()):geometry.axis();
+            long extent=dl.extents()[axis];
+            if(value<0||value>=extent)throw new IndexOutOfBoundsException(ir.family().name()
+                    +" index at logical position "+ordinal+" for data axis "+axis
+                    +" is out of bounds: value="+value+", extent="+extent);
+        }
+        long updateCount=count(ul.extents());
+        var targets=new java.util.ArrayList<long[]>(Math.toIntExact(Math.min(updateCount,Integer.MAX_VALUE)));
+        for(long ordinal=0;ordinal<updateCount;ordinal++)targets.add(scatterTarget(ir,geometry,
+                arguments.get(ib),geometry.boundaryTypes().get(ib),il,
+                coordinates(ordinal,ul.extents()),dl.extents()));
+        if(ir.reduction()==ScatterReduction.NONE){
+            if(ir.family()==CpuScatterIr.Family.SCATTER_ND){
+                long[] tupleExtents=java.util.Arrays.copyOf(il.extents(),il.extents().length-1);
+                var tupleTargets=new java.util.ArrayList<long[]>();
+                for(long ordinal=0;ordinal<product(tupleExtents);ordinal++){
+                    long[] tupleCoordinate=coordinates(ordinal,tupleExtents);
+                    long[] updateCoordinate=new long[ul.extents().length];
+                    System.arraycopy(tupleCoordinate,0,updateCoordinate,0,tupleCoordinate.length);
+                    tupleTargets.add(prefix(scatterTarget(ir,geometry,arguments.get(ib),
+                            geometry.boundaryTypes().get(ib),il,updateCoordinate,dl.extents()),
+                            dl.extents().length-geometry.batchDimensions()-geometry.tupleDepth()));
+                }
+                for(int later=1;later<tupleTargets.size();later++)for(int first=0;first<later;first++)
+                    if(java.util.Arrays.equals(tupleTargets.get(later),tupleTargets.get(first)))
+                        throw new IllegalArgumentException("SCATTER_ND duplicate target tuple at logical tuple position "+later+"; first addressed at logical tuple position "+first);
+            }else for(int later=1;later<targets.size();later++)for(int first=0;first<later;first++)
+                if(java.util.Arrays.equals(targets.get(later),targets.get(first)))
+                    throw new IllegalArgumentException("SCATTER_ELEMENTS duplicate target at logical update position "+later+"; first addressed at logical update position "+first);
+        }
+        long outputCount=count(ol.extents());
+        if(start<0||end<start||end>outputCount)throw new IllegalArgumentException("invalid reference bounds");
+        DataType type=geometry.boundaryTypes().get(db);
+        for(long ordinal=start;ordinal<end;ordinal++){
+            long[] coordinate=coordinates(ordinal,ol.extents());
+            Object base=load(arguments.get(db),type,address(dl,coordinate));
+            Object result=base;boolean found=false;
+            var productBits=new java.util.ArrayList<Long>();
+            for(int update=0;update<targets.size();update++)if(java.util.Arrays.equals(coordinate,targets.get(update))){
+                Object value=load(arguments.get(ub),type,address(ul,coordinates(update,ul.extents())));
+                if(ir.reduction()==ScatterReduction.NONE)result=value;
+                else if(ir.reduction()==ScatterReduction.MUL&&floatingType(type)){
+                    if(!found)productBits.add(rawBits(base,type));productBits.add(rawBits(value,type));
+                }else result=referenceReduce(result,value,type,ir.reduction());
+                found=true;
+            }
+            if(found&&ir.reduction()==ScatterReduction.MUL&&floatingType(type))
+                result=fromRawBits(referenceProduct(productBits,type),type);
+            store(arguments.getLast(),type,address(ol,coordinate),result);
+        }
+    }
+
+    private static long[] prefix(long[] value,int removedSuffix){return java.util.Arrays.copyOf(value,value.length-removedSuffix);}
+    private static long address(CpuScatterLowering.Geometry.Layout layout,long[] coordinate){long result=layout.offset();long[] strides=layout.strides();for(int i=0;i<coordinate.length;i++)result=Math.addExact(result,Math.multiplyExact(coordinate[i],strides[i]));return result;}
+    private static long product(long[] values){long r=1;for(long v:values)r=Math.multiplyExact(r,v);return r;}
+    private static long[] scatterTarget(CpuScatterIr ir,CpuScatterLowering.Geometry g,
+            CpuBufferArgument indices,DataType indexType,CpuScatterLowering.Geometry.Layout il,
+            long[] update,long[] dataExtents){
+        long[] target=new long[dataExtents.length];
+        if(ir.family()==CpuScatterIr.Family.SCATTER_ELEMENTS){System.arraycopy(update,0,target,0,target.length);target[g.axis()]=((Number)load(indices,indexType,address(il,update))).longValue();return target;}
+        if(ir.family()==CpuScatterIr.Family.SCATTER_ADD){int q=il.extents().length;for(int a=0;a<g.axis();a++)target[a]=update[a];long[] index=java.util.Arrays.copyOfRange(update,g.axis(),g.axis()+q);target[g.axis()]=((Number)load(indices,indexType,address(il,index))).longValue();for(int a=g.axis()+1;a<target.length;a++)target[a]=update[g.axis()+q+a-g.axis()-1];return target;}
+        int q=il.extents().length;for(int a=0;a<g.batchDimensions();a++)target[a]=update[a];long[] index=new long[q];System.arraycopy(update,0,index,0,q-1);for(int k=0;k<g.tupleDepth();k++){index[q-1]=k;target[g.batchDimensions()+k]=((Number)load(indices,indexType,address(il,index))).longValue();}for(int a=g.batchDimensions()+g.tupleDepth();a<target.length;a++)target[a]=update[q-1+a-g.batchDimensions()-g.tupleDepth()];return target;
+    }
+
+    private static boolean floatingType(DataType t){return t==DataType.FLOAT64||t==DataType.FLOAT32||t==DataType.BFLOAT16;}
+    private static long rawBits(Object v,DataType t){return switch(t){case FLOAT64->Double.doubleToRawLongBits((double)v);case FLOAT32->Integer.toUnsignedLong(Float.floatToRawIntBits((float)v));case BFLOAT16->Short.toUnsignedLong((short)v);default->((Number)v).longValue();};}
+    private static Object fromRawBits(long v,DataType t){return switch(t){case FLOAT64->Double.longBitsToDouble(v);case FLOAT32->Float.intBitsToFloat((int)v);case BFLOAT16->(short)v;default->v;};}
+    private static Object referenceReduce(Object a,Object b,DataType t,ScatterReduction r){if(t==DataType.INT32){int x=(int)a,y=(int)b;return switch(r){case ADD->x+y;case MUL->x*y;case MIN->Math.min(x,y);case MAX->Math.max(x,y);default->b;};}if(t==DataType.INT64){long x=(long)a,y=(long)b;return switch(r){case ADD->x+y;case MUL->x*y;case MIN->Math.min(x,y);case MAX->Math.max(x,y);default->b;};}double x=t==DataType.FLOAT64?(double)a:t==DataType.FLOAT32?(float)a:bfloat((short)a),y=t==DataType.FLOAT64?(double)b:t==DataType.FLOAT32?(float)b:bfloat((short)b);double z=r==ScatterReduction.ADD?x+y:Double.isNaN(x)||Double.isNaN(y)?Double.NaN:r==ScatterReduction.MIN?(x==0&&y==0&&(Double.doubleToRawLongBits(x)<0||Double.doubleToRawLongBits(y)<0)?-0.0:Math.min(x,y)):(x==0&&y==0&&(Double.doubleToRawLongBits(x)>=0||Double.doubleToRawLongBits(y)>=0)?0.0:Math.max(x,y));return switch(t){case FLOAT64->z;case FLOAT32->(float)z;case BFLOAT16->toBfloat((float)z);default->throw new AssertionError(t);};}
+    private static float bfloat(short v){return Float.intBitsToFloat(Short.toUnsignedInt(v)<<16);}
+    private static short toBfloat(float v){int bits=Float.floatToRawIntBits(v);if((bits&0x7f800000)==0x7f800000&&(bits&0x7fffff)!=0)return(short)((bits>>>16)|0x40);int upper=bits>>>16,lower=bits&0xffff;if(lower>0x8000||(lower==0x8000&&(upper&1)!=0))upper++;return(short)upper;}
+
+    private static long referenceProduct(List<Long> factors,DataType type){boolean negative=false,zero=false,infinity=false,nan=false;java.math.BigInteger product=java.math.BigInteger.ONE;long exponent=0;int fractionBits=type==DataType.FLOAT64?52:type==DataType.FLOAT32?23:7,exponentBits=type==DataType.FLOAT64?11:8,bias=type==DataType.FLOAT64?1023:127,total=type==DataType.FLOAT64?64:type==DataType.FLOAT32?32:16;long fractionMask=(1L<<fractionBits)-1,exponentMask=(1L<<exponentBits)-1;for(long bits:factors){if((bits&(1L<<(total-1)))!=0)negative=!negative;long f=bits&fractionMask,e=(bits>>>fractionBits)&exponentMask;if(e==exponentMask){if(f!=0)nan=true;else infinity=true;}else if(e==0&&f==0)zero=true;else{long significand=e==0?f:(1L<<fractionBits)|f;product=product.multiply(java.math.BigInteger.valueOf(significand));exponent+=(e==0?1-bias:e-bias)-fractionBits;}}long sign=negative?1L<<(total-1):0;if(nan||zero&&infinity)return sign|(type==DataType.FLOAT64?0x7ff8000000000000L:type==DataType.FLOAT32?0x7fc00000L:0x7fc0L);if(infinity)return sign|(type==DataType.FLOAT64?0x7ff0000000000000L:type==DataType.FLOAT32?0x7f800000L:0x7f80L);if(zero)return sign;int precision=fractionBits+1,minNormal=1-bias,maxExponent=bias;long unbiased=exponent+product.bitLength()-1;if(unbiased>maxExponent)return sign|(exponentMask<<fractionBits);long shift=unbiased>=minNormal?product.bitLength()-precision:(minNormal-fractionBits)-exponent;java.math.BigInteger q=roundShift(product,shift);if(unbiased>=minNormal){if(q.bitLength()>precision){q=q.shiftRight(1);unbiased++;}if(unbiased>maxExponent)return sign|(exponentMask<<fractionBits);return sign|((unbiased+bias)<<fractionBits)|(q.longValue()&fractionMask);}if(q.signum()==0)return sign;if(q.bitLength()>fractionBits)return sign|(1L<<fractionBits);return sign|q.longValue();}
+    private static java.math.BigInteger roundShift(java.math.BigInteger value,long shift){if(shift<=0)return value.shiftLeft(Math.toIntExact(-shift));if(shift>Integer.MAX_VALUE)return java.math.BigInteger.ZERO;int s=(int)shift;java.math.BigInteger q=value.shiftRight(s);if(s==0)return q;boolean guard=value.testBit(s-1),sticky=value.getLowestSetBit()>=0&&value.getLowestSetBit()<s-1;return guard&&(sticky||q.testBit(0))?q.add(java.math.BigInteger.ONE):q;}
 
     /**
      * Independently validates and evaluates one indexing occurrence for conformance tests.

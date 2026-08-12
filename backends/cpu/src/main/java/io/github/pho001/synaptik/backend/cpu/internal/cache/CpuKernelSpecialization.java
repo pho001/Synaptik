@@ -35,12 +35,14 @@ import jdk.incubator.vector.LongVector;
  *     pattern
  * @param scalarPowerRealizations non-null ordered realization facts for every scalar-power
  *     instruction in canonical instruction order; copied defensively
+ * @param scratchParameter whether the generated entry accepts one exact CPU scratch segment
  */
 public record CpuKernelSpecialization(CpuLoweringFingerprint loweringFingerprint,
         NumericalMode numericalMode,
         CpuPartitionPreparationPlan.ExecutionStrategy executionStrategy,
         List<DataType> boundaryDataTypes, List<CarrierAccess> carrierPattern, int vectorSpeciesBitSize,
-        int materializedSourcePosition, List<CpuKernelIr.PowerRealization> scalarPowerRealizations) {
+        int materializedSourcePosition, List<CpuKernelIr.PowerRealization> scalarPowerRealizations,
+        boolean scratchParameter) {
     /** Direct carrier form at one ordered materialized boundary. */
     public enum CarrierAccess {
         /** Observable direct {@code double[]} access. */ DOUBLE_ARRAY,
@@ -77,7 +79,7 @@ public record CpuKernelSpecialization(CpuLoweringFingerprint loweringFingerprint
             List<CarrierAccess> carrierPattern, int vectorSpeciesBitSize) {
         this(loweringFingerprint, numericalMode, executionStrategy,
                 java.util.Collections.nCopies(carrierPattern.size(), DataType.FLOAT64), carrierPattern,
-                vectorSpeciesBitSize, -1, List.of());
+                vectorSpeciesBitSize, -1, List.of(), false);
     }
 
     /**
@@ -101,7 +103,7 @@ public record CpuKernelSpecialization(CpuLoweringFingerprint loweringFingerprint
             int materializedSourcePosition) {
         this(loweringFingerprint, numericalMode, executionStrategy,
                 java.util.Collections.nCopies(carrierPattern.size(), DataType.FLOAT64),
-                carrierPattern, vectorSpeciesBitSize, materializedSourcePosition, List.of());
+                carrierPattern, vectorSpeciesBitSize, materializedSourcePosition, List.of(), false);
     }
 
     /**
@@ -123,7 +125,33 @@ public record CpuKernelSpecialization(CpuLoweringFingerprint loweringFingerprint
             List<DataType> boundaryDataTypes, List<CarrierAccess> carrierPattern,
             int vectorSpeciesBitSize, int materializedSourcePosition) {
         this(loweringFingerprint, numericalMode, executionStrategy, boundaryDataTypes,
-                carrierPattern, vectorSpeciesBitSize, materializedSourcePosition, List.of());
+                carrierPattern, vectorSpeciesBitSize, materializedSourcePosition, List.of(), false);
+    }
+
+    /**
+     * Creates a specialization with scalar-power facts and no generated scratch parameter.
+     *
+     * @param loweringFingerprint non-null canonical lowering fingerprint
+     * @param numericalMode non-null selected exact/default numerical mode
+     * @param executionStrategy non-null generated scalar or vector compute strategy
+     * @param boundaryDataTypes non-null ordered boundary data types; copied defensively
+     * @param carrierPattern non-null ordered boundary carrier forms; copied defensively
+     * @param vectorSpeciesBitSize positive preferred species size for vector compute, or zero
+     * @param materializedSourcePosition copied input position, or {@code -1} for direct access
+     * @param scalarPowerRealizations non-null ordered scalar-power realization facts; copied
+     *     defensively
+     * @throws NullPointerException if a reference component is {@code null}
+     * @throws IllegalArgumentException if specialization facts disagree
+     */
+    public CpuKernelSpecialization(CpuLoweringFingerprint loweringFingerprint,
+            NumericalMode numericalMode,
+            CpuPartitionPreparationPlan.ExecutionStrategy executionStrategy,
+            List<DataType> boundaryDataTypes, List<CarrierAccess> carrierPattern,
+            int vectorSpeciesBitSize, int materializedSourcePosition,
+            List<CpuKernelIr.PowerRealization> scalarPowerRealizations) {
+        this(loweringFingerprint, numericalMode, executionStrategy, boundaryDataTypes,
+                carrierPattern, vectorSpeciesBitSize, materializedSourcePosition,
+                scalarPowerRealizations, false);
     }
     /**
      * Validates the exact/default scalar-or-vector generated specialization.
@@ -137,6 +165,7 @@ public record CpuKernelSpecialization(CpuLoweringFingerprint loweringFingerprint
      *     compute, or zero for scalar compute
      * @param materializedSourcePosition copied input position, or {@code -1} for direct access
      * @param scalarPowerRealizations non-null ordered scalar-power realization facts; copied
+     * @param scratchParameter whether the direct generated entry accepts one scratch segment
      * @throws NullPointerException if a component is {@code null}
      * @throws IllegalArgumentException if the mode, compute/species relationship, boundary/type
      *     mapping, or materialized position is inconsistent
@@ -166,18 +195,21 @@ public record CpuKernelSpecialization(CpuLoweringFingerprint loweringFingerprint
                 || materializedSourcePosition < -1
                 || materializedSourcePosition >= carrierPattern.size() - 1
                 || (materializedSourcePosition >= 0
-                    && carrierPattern.get(materializedSourcePosition) != CarrierAccess.MEMORY_SEGMENT)) {
+                    && carrierPattern.get(materializedSourcePosition) != CarrierAccess.MEMORY_SEGMENT)
+                || scratchParameter && materializedSourcePosition >= 0) {
             throw new IllegalArgumentException("current CPU route requires exact strategy/species facts");
         }
     }
     /** Returns the generated entry signature.
      * @return the immutable universal method type */
     public MethodType entryType() {
-        Class<?>[] parameters = new Class<?>[carrierPattern.size() + 3];
+        Class<?>[] parameters = new Class<?>[carrierPattern.size() + 3 + (scratchParameter ? 1 : 0)];
         for (int i = 0; i < carrierPattern.size(); i++) parameters[i] = carrierClass(carrierPattern.get(i));
-        parameters[carrierPattern.size()] = long[].class;
-        parameters[carrierPattern.size() + 1] = long.class;
-        parameters[carrierPattern.size() + 2] = long.class;
+        int next = carrierPattern.size();
+        if (scratchParameter) parameters[next++] = MemorySegment.class;
+        parameters[next++] = long[].class;
+        parameters[next++] = long.class;
+        parameters[next] = long.class;
         return MethodType.methodType(void.class, parameters);
     }
     /** Returns compatibility metadata.
@@ -187,7 +219,7 @@ public record CpuKernelSpecialization(CpuLoweringFingerprint loweringFingerprint
                 + numericalMode + "|" + executionStrategy.compute() + "|" + boundaryDataTypes
                 + "|" + carrierPattern
                 + "|" + vectorSpeciesBitSize + "|materialized=" + materializedSourcePosition
-                + "|power=" + scalarPowerRealizations)
+                + "|power=" + scalarPowerRealizations + "|scratch=" + scratchParameter)
                 .getBytes(StandardCharsets.US_ASCII);
     }
     /** Returns artifact identity.

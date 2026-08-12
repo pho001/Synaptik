@@ -18,6 +18,13 @@
  * It also validates and evaluates the four compact indexing mappings independently for
  * generated/reference differential tests, preserving deterministic first-invalid order and
  * strict no-wrap/no-clamp bounds meaning.
+ * It also validates and evaluates SCATTER_ELEMENTS, Gather-compatible SCATTER_ADD, and SCATTER_ND
+ * independently for generated/reference differential tests. The oracle preserves functional base
+ * semantics, deterministic bounds-before-duplicates failure, represented reductions, and exact
+ * once-rounded floating products without serving as generated execution or a Runtime fallback.
+ * It independently evaluates FOLD_AXIS and FOLD2D from logical coordinates, positive-zero
+ * initialization, padding exclusion, and represented sequential addition without sharing the
+ * generated packed-coordinate walk.
  *
  * <p>Reference evaluation is outside the generated Runtime hot path and owns no buffers, slots, or
  * artifact lifecycle.

@@ -21,7 +21,8 @@ import java.util.Optional;
  *
  * <p>Every derived-boundary buffer assignment and optional exact workspace assignment is resolved and checked
  * before the single permitted artifact-store call. Finalization cannot change the selected copy,
- * generated carrier pattern, route, strategy, specialization, or declaration geometry.
+ * generated carrier pattern, route, strategy, specialization, or declaration geometry. Fold
+ * plans necessarily retain exactly two buffers and no workspace assignment.
  */
 public final class CpuPartitionFinalizer implements BackendPartitionFinalizer<CpuPartitionPreparationPlan> {
     private final CpuGeneratedKernelArtifactStore artifactStore;
@@ -122,6 +123,7 @@ public final class CpuPartitionFinalizer implements BackendPartitionFinalizer<Cp
                 plan.units().getFirst().portablePlan().portableKernelIr()
                         instanceof io.github.pho001.synaptik.backend.cpu.internal.ir.CpuAffineCopyIr
                         ? plan.affineAddressPairs() : null,
-                plan.movementGeometry(), plan.indexingGeometry());
+                plan.movementGeometry(), plan.indexingGeometry(), plan.scatterGeometry(),
+                plan.foldGeometry());
     }
 }

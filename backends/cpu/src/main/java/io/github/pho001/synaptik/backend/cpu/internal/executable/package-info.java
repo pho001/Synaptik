@@ -14,6 +14,15 @@
  * or worker submission. Invalid input therefore mutates no physical output bytes. Empty index
  * domains validate without a load; zero output still validates any non-empty index domain and,
  * after success, invokes no generated entry and submits no worker work.
+ * Scatter recipes retain three semantic input roles over deduplicated input boundaries. Cold
+ * binding validates all bounds before any replacement-target duplicate check and before generated
+ * work, so failure leaves the output untouched. It then packs reusable coordinate state for
+ * disjoint output ranges. Floating-product scatter also binds one exact declared workspace and
+ * assigns a non-overlapping scratch slice to each selected range; other scatter rows bind no
+ * workspace. Inputs remain borrowed and read-only, and output overlap with any input is rejected.
+ * Fold recipes likewise reject physical input/output overlap before any generated call or worker
+ * submission, then bind one invocation-private geometry array per disjoint output range. They
+ * retain no shared accumulator, atomics, merge state, or hidden scratch.
  * For a selected materialization it validates the original source and exact contiguous workspace,
  * retains the original carrier for the copy, substitutes the workspace segment only in the
  * generated consumer pattern, and completes one canonical-order copy before any consumer chunk.

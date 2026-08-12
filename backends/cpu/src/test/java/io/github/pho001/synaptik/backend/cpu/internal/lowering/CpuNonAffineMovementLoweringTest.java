@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.*;
 
 import io.github.pho001.synaptik.backend.cpu.CpuCapabilityProvider;
 import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuDataMovementIr;
+import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuFoldIr;
 import io.github.pho001.synaptik.backend.cpu.internal.prepare.CpuPartitionAnalysisInputs;
 import io.github.pho001.synaptik.backend.cpu.internal.prepare.CpuPartitionPreparer;
 import io.github.pho001.synaptik.model.datatype.DataType;
@@ -162,6 +163,9 @@ public class CpuNonAffineMovementLoweringTest {
                 Optional.empty(), false);
         var overflow = new Window2dAttrs(Long.MAX_VALUE, 1, 1, 1,
                 0, 0, Long.MAX_VALUE, 1, false);
+        var fold = context(new Operation(WindowTransformKind.FOLD2D,
+                        new Fold2dAttrs(Shape.of(1, 1, 3, 3), window)),
+                List.of(0), List.of(output), input);
         var oneNode = context(new Operation(WindowTransformKind.UNFOLD2D, window), List.of(0),
                 List.of(input), output);
         var secondNode = new CompiledNode(new NodeId(1), oneNode.nodes().getFirst().operation(),
@@ -190,10 +194,9 @@ public class CpuNonAffineMovementLoweringTest {
                 () -> assertThrows(ArithmeticException.class, () -> lower(context(
                         new Operation(WindowTransformKind.UNFOLD2D, overflow), List.of(0),
                         List.of(input), output))),
-                () -> assertThrows(IllegalArgumentException.class, () -> lower(context(
-                        new Operation(WindowTransformKind.FOLD2D,
-                                new Fold2dAttrs(Shape.of(1, 1, 3, 3), window)),
-                        List.of(0), List.of(output), input))));
+                () -> assertInstanceOf(CpuFoldIr.class, lower(fold).portableKernelIr()),
+                () -> assertThrows(IllegalArgumentException.class,
+                        () -> new CpuNonAffineMovementLowering().lower(fold)));
     }
 
     @Test void acceptsOneAndSixteenCompositionOccurrencesAndRejectsSeventeen() {

@@ -4,11 +4,15 @@ import static org.junit.jupiter.api.Assertions.*;
 
 import io.github.pho001.synaptik.backend.cpu.internal.executable.CpuPreparedExecutable;
 import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuNonAffineMovementLoweringTest;
+import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuScatterLoweringTest;
+import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuFoldLoweringTest;
+import io.github.pho001.synaptik.backend.cpu.internal.cache.CpuKernelSpecialization.CarrierAccess;
 import io.github.pho001.synaptik.model.operation.Operation;
 import io.github.pho001.synaptik.model.operation.layout.CompositionAxisAttrs;
 import io.github.pho001.synaptik.model.operation.layout.TensorCompositionKind;
 import io.github.pho001.synaptik.model.operation.layout.UnfoldAxisAttrs;
 import io.github.pho001.synaptik.model.operation.layout.WindowTransformKind;
+import io.github.pho001.synaptik.model.operation.layout.FoldAxisAttrs;
 import io.github.pho001.synaptik.model.operation.layout.SliceAttrs;
 import io.github.pho001.synaptik.model.operation.layout.SliceKind;
 import io.github.pho001.synaptik.model.shape.Shape;
@@ -33,6 +37,9 @@ import io.github.pho001.synaptik.model.layout.LayoutDescriptor;
 import io.github.pho001.synaptik.model.tensor.TensorDescriptor;
 import io.github.pho001.synaptik.model.operation.index.OneHotAttrs;
 import io.github.pho001.synaptik.model.operation.index.OneHotKind;
+import io.github.pho001.synaptik.model.operation.index.AxisScatterKind;
+import io.github.pho001.synaptik.model.operation.index.ScatterElementsAttrs;
+import io.github.pho001.synaptik.model.operation.index.ScatterReduction;
 import java.nio.file.Files;
 
 public class CpuPartitionFinalizerTest {
@@ -164,6 +171,88 @@ public class CpuPartitionFinalizerTest {
                                 .endsWith(".artifact")).count()));
             }
         } finally { workers.close(); }
+    }
+
+    @Test void scatterProductFinalizesOneArtifactAndRejectsMalformedWorkspaceBeforeLookup()
+            throws Exception {
+        var base = CpuScatterLoweringTest.context(new Operation(AxisScatterKind.SCATTER_ELEMENTS,
+                        new ScatterElementsAttrs(0, ScatterReduction.MUL)), List.of(0, 1, 2),
+                List.of(CpuScatterLoweringTest.desc(DataType.FLOAT64, Shape.of(3)),
+                        CpuScatterLoweringTest.desc(DataType.INT32, Shape.of(4)),
+                        CpuScatterLoweringTest.desc(DataType.FLOAT64, Shape.of(4))),
+                CpuScatterLoweringTest.desc(DataType.FLOAT64, Shape.of(3)));
+        var context = new io.github.pho001.synaptik.prepare.analysis.PrepareContext<>(
+                base.partition(), base.nodes(), base.values(), base.memoryRequirements(),
+                base.constants(), new CpuPartitionAnalysisInputs(false, List.of(
+                        CarrierAccess.DOUBLE_ARRAY, CarrierAccess.INT_ARRAY,
+                        CarrierAccess.DOUBLE_ARRAY, CarrierAccess.DOUBLE_ARRAY)));
+        var analysis = new CpuPartitionPreparer().analyze(context);
+        Path validRoot = root.resolve("scatter-valid");
+        var executable = finalizeExecutable(analysis, Optional.of(validRoot));
+        try (var files = Files.list(validRoot)) {
+            assertAll(
+                    () -> assertEquals(1, executable.memoryPlan().workspaces().size()),
+                    () -> assertEquals(analysis.plan().workspaceDeclaration().orElseThrow()
+                                    .byteSize(),
+                            executable.memoryPlan().workspaces().getFirst().byteSize()),
+                    () -> assertEquals(1, files.filter(path -> path.getFileName().toString()
+                            .endsWith(".artifact")).count()));
+        }
+
+        Path malformedRoot = root.resolve("scatter-malformed");
+        assertAll(
+                () -> assertThrows(IllegalArgumentException.class, () ->
+                        finalizeWithMalformedWorkspace(analysis, malformedRoot)),
+                () -> assertFalse(Files.exists(malformedRoot)));
+    }
+
+    @Test void foldFinalizesExactlyTwoAssignedBuffersAndOneSchema17Artifact() throws Exception {
+        var base = CpuFoldLoweringTest.context(new Operation(WindowTransformKind.FOLD_AXIS,
+                new FoldAxisAttrs(0, 5, 1)), DataType.FLOAT64, Shape.of(3, 3), Shape.of(5));
+        var context = new io.github.pho001.synaptik.prepare.analysis.PrepareContext<>(
+                base.partition(), base.nodes(), base.values(), base.memoryRequirements(),
+                base.constants(), new CpuPartitionAnalysisInputs(false,
+                        List.of(CarrierAccess.DOUBLE_ARRAY, CarrierAccess.DOUBLE_ARRAY)));
+        var analysis = new CpuPartitionPreparer().analyze(context);
+        Path artifactRoot = root.resolve("fold");
+        var executable = finalizeExecutable(analysis, Optional.of(artifactRoot));
+        try (var files = Files.list(artifactRoot)) {
+            assertAll(() -> assertEquals(2, executable.bufferSelectionCount()),
+                    () -> assertEquals(2, executable.memoryPlan().buffers().size()),
+                    () -> assertTrue(executable.memoryPlan().workspaces().isEmpty()),
+                    () -> assertEquals(17, io.github.pho001.synaptik.backend.cpu.internal.cache
+                            .CpuGeneratorSchema.CURRENT_VERSION),
+                    () -> assertEquals(1, files.filter(path -> path.getFileName().toString()
+                            .endsWith(".artifact")).count()));
+        }
+    }
+
+    private static void finalizeWithMalformedWorkspace(
+            io.github.pho001.synaptik.prepare.analysis.BackendPartitionAnalysis<
+                    CpuPartitionPreparationPlan> analysis, Path artifactRoot) {
+        var entries = new ArrayList<PreparedMemoryPlan.BufferEntry>();
+        var workspaces = new ArrayList<PreparedMemoryPlan.WorkspaceEntry>();
+        var assignments = new ArrayList<PreparationResourceAssignment>();
+        for (int i = 0; i < analysis.requirements().size(); i++) {
+            var requirement = analysis.requirements().get(i);
+            if (requirement instanceof PreparationResourceRequirement.Workspace workspace) {
+                var slot = new WorkspaceSlot(workspaces.size());
+                workspaces.add(new PreparedMemoryPlan.WorkspaceEntry(slot,
+                        Math.addExact(workspace.byteSize(), 8), workspace.byteAlignment()));
+                assignments.add(new PreparationResourceAssignment.Workspace(workspace, slot,
+                        workspaces.size() - 1));
+            } else {
+                var buffer = (PreparationResourceRequirement.Buffer) requirement;
+                var slot = new BufferSlot(entries.size());
+                entries.add(new PreparedMemoryPlan.BufferEntry(slot, buffer.byteSize(),
+                        buffer.byteAlignment()));
+                assignments.add(new PreparationResourceAssignment.Buffer(buffer, slot,
+                        entries.size() - 1));
+            }
+        }
+        new CpuPartitionFinalizer(Optional.of(artifactRoot), Optional.empty()).finalizePartition(
+                new BackendPartitionFinalization<>(analysis,
+                        new PreparedMemoryPlan(entries, workspaces), assignments));
     }
 
     public static CpuPreparedExecutable finalizeExecutable(Shape shape, Optional<Path> root) {

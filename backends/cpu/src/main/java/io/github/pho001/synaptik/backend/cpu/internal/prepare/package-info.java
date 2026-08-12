@@ -18,6 +18,15 @@
  * Indexing plans declare unique inputs followed by one output, select scalar or parallel-scalar
  * output execution, declare no workspace, and retain compact validation/write geometry. Their
  * one generated artifact contains only the output-writing pass.
+ * Functional-scatter plans likewise declare unique inputs followed by one output and select
+ * scalar or parallel-scalar output ownership. Complete bounds validation and any replacement-
+ * target uniqueness validation occur before generated work. Floating multiplication alone
+ * declares one exact per-range-sliced workspace; it is mutually exclusive with materialization.
+ * Finalization verifies the exact scratch assignment and schema-16 signature before artifact
+ * realization.
+ * Fold plans declare exactly one input and one output buffer, select scalar or parallel-scalar
+ * disjoint output ranges, retain compact geometry, and declare no workspace or materialization.
+ * Their generated compatibility uses schema 17.
  *
  * <p>All work in this package is cold-path work. Runtime collaborates only through the resulting
  * prepared executable and never receives the canonical kernel intermediate representation.

@@ -6,6 +6,8 @@ import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuAccessPlan;
 import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuMaterializationPlan;
 import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuNonAffineMovementLowering;
 import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuIndexingLowering;
+import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuScatterLowering;
+import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuFoldLowering;
 import io.github.pho001.synaptik.backend.cpu.internal.memory.CpuBufferArgument;
 import io.github.pho001.synaptik.backend.cpu.internal.memory.CpuBufferRepresentation;
 import io.github.pho001.synaptik.backend.cpu.internal.memory.CpuContiguousWorkspace;
@@ -39,6 +41,12 @@ import java.util.Optional;
  * scans the complete logical index domain in deterministic row-major order before any generated
  * call or worker submission. A zero output still validates a non-empty index domain, while a
  * valid zero-output execution makes no generated call and submits no worker work.
+ * For scatter, binding validates every index and then replacement uniqueness before any output
+ * call. Successful ranges own disjoint output coordinates and, when floating multiplication is
+ * selected, disjoint slices of the exact declared scratch workspace.
+ * For fold, binding rejects every physical input/output overlap before any generated call or
+ * worker submission. Each scalar or parallel-scalar range owns disjoint output coordinates and
+ * uses only its invocation-private packed coordinate state.
  */
 public final class CpuPreparedExecutable extends PreparedExecutable {
     private final CpuGeneratedKernel artifact;
@@ -56,6 +64,8 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
     private final long[] affineAddressPairs;
     private final Optional<CpuNonAffineMovementLowering.Geometry> movementGeometry;
     private final Optional<CpuIndexingLowering.Geometry> indexingGeometry;
+    private final Optional<CpuScatterLowering.Geometry> scatterGeometry;
+    private final Optional<CpuFoldLowering.Geometry> foldGeometry;
 
     /**
      * Creates a direct derived-boundary recipe for one exact half-open logical range.
@@ -294,6 +304,85 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
             Optional<WorkspaceSelection> workspaceSelection, long[] affineAddressPairs,
             Optional<CpuNonAffineMovementLowering.Geometry> movementGeometry,
             Optional<CpuIndexingLowering.Geometry> indexingGeometry) {
+        this(memoryPlan, selections, artifact, bindings, carrierPattern, generatedCarrierPattern,
+                start, end, selectedRangeCount, minimumElementsPerWorker, workerGroup,
+                materialization, workspaceSelection, affineAddressPairs, movementGeometry,
+                indexingGeometry, Optional.empty());
+    }
+
+    /**
+     * Creates the complete direct recipe with optional scatter geometry and declared scratch.
+     *
+     * @param memoryPlan exact prepared memory plan
+     * @param selections ordered unique-input then output buffer selections
+     * @param artifact verified generated artifact
+     * @param bindings complete boundary access geometry
+     * @param carrierPattern Runtime carrier forms
+     * @param generatedCarrierPattern direct generated-entry carrier forms
+     * @param start inclusive output ordinal
+     * @param end exclusive output ordinal
+     * @param selectedRangeCount positive selected maximum range count
+     * @param minimumElementsPerWorker positive minimum chunk size
+     * @param workerGroup borrowed workers for a parallel plan, otherwise {@code null}
+     * @param materialization optional pointwise materialization; empty for scatter
+     * @param workspaceSelection optional materialization or scatter-product workspace selection
+     * @param affineAddressPairs affine copy pairs, or {@code null}
+     * @param movementGeometry optional movement geometry
+     * @param indexingGeometry optional gather or one-hot geometry
+     * @param scatterGeometry non-null optional compact functional-scatter geometry
+     * @throws NullPointerException if a required reference is {@code null}
+     * @throws IllegalArgumentException if resource, carrier, range, worker, or geometry facts
+     *     disagree
+     * @throws ArithmeticException if exact range or geometry arithmetic overflows
+     */
+    public CpuPreparedExecutable(PreparedMemoryPlan memoryPlan, List<BufferSelection> selections,
+            CpuGeneratedKernel artifact, List<CpuAccessPlan.Binding> bindings,
+            List<CarrierAccess> carrierPattern, List<CarrierAccess> generatedCarrierPattern,
+            long start, long end, int selectedRangeCount, long minimumElementsPerWorker,
+            CpuWorkerGroup workerGroup, Optional<CpuMaterializationPlan> materialization,
+            Optional<WorkspaceSelection> workspaceSelection, long[] affineAddressPairs,
+            Optional<CpuNonAffineMovementLowering.Geometry> movementGeometry,
+            Optional<CpuIndexingLowering.Geometry> indexingGeometry,
+            Optional<CpuScatterLowering.Geometry> scatterGeometry) {
+        this(memoryPlan, selections, artifact, bindings, carrierPattern, generatedCarrierPattern,
+                start, end, selectedRangeCount, minimumElementsPerWorker, workerGroup,
+                materialization, workspaceSelection, affineAddressPairs, movementGeometry,
+                indexingGeometry, scatterGeometry, Optional.empty());
+    }
+
+    /**
+     * Creates the complete direct recipe with mutually exclusive fold geometry.
+     * @param memoryPlan exact prepared memory plan
+     * @param selections ordered input then output selections
+     * @param artifact verified generated artifact
+     * @param bindings complete boundary access geometry
+     * @param carrierPattern Runtime carrier forms
+     * @param generatedCarrierPattern direct generated-entry carrier forms
+     * @param start inclusive output ordinal
+     * @param end exclusive output ordinal
+     * @param selectedRangeCount positive selected maximum range count
+     * @param minimumElementsPerWorker positive minimum chunk size
+     * @param workerGroup borrowed workers for a parallel plan, otherwise {@code null}
+     * @param materialization optional pointwise materialization
+     * @param workspaceSelection optional declared workspace selection
+     * @param affineAddressPairs affine copy pairs, or {@code null}
+     * @param movementGeometry optional movement geometry
+     * @param indexingGeometry optional indexing geometry
+     * @param scatterGeometry optional functional-scatter geometry
+     * @param foldGeometry non-null optional overlap-fold geometry
+     * @throws NullPointerException if a required reference is {@code null}
+     * @throws IllegalArgumentException if resource, range, worker, or geometry facts disagree
+     */
+    public CpuPreparedExecutable(PreparedMemoryPlan memoryPlan, List<BufferSelection> selections,
+            CpuGeneratedKernel artifact, List<CpuAccessPlan.Binding> bindings,
+            List<CarrierAccess> carrierPattern, List<CarrierAccess> generatedCarrierPattern,
+            long start, long end, int selectedRangeCount, long minimumElementsPerWorker,
+            CpuWorkerGroup workerGroup, Optional<CpuMaterializationPlan> materialization,
+            Optional<WorkspaceSelection> workspaceSelection, long[] affineAddressPairs,
+            Optional<CpuNonAffineMovementLowering.Geometry> movementGeometry,
+            Optional<CpuIndexingLowering.Geometry> indexingGeometry,
+            Optional<CpuScatterLowering.Geometry> scatterGeometry,
+            Optional<CpuFoldLowering.Geometry> foldGeometry) {
         super(memoryPlan, selections, workspaceSelection.map(List::of).orElseGet(List::of),
                 accesses(selections.size()));
         if (selections.size() < 2) throw new IllegalArgumentException("at least two buffers required");
@@ -309,7 +398,13 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
         }
         this.movementGeometry = Objects.requireNonNull(movementGeometry, "movementGeometry");
         this.indexingGeometry = Objects.requireNonNull(indexingGeometry, "indexingGeometry");
-        long count = this.indexingGeometry.isPresent()
+        this.scatterGeometry = Objects.requireNonNull(scatterGeometry, "scatterGeometry");
+        this.foldGeometry = Objects.requireNonNull(foldGeometry, "foldGeometry");
+        long count = this.foldGeometry.isPresent()
+                ? elementCount(this.foldGeometry.orElseThrow().outputExtents())
+                : this.scatterGeometry.isPresent()
+                ? elementCount(this.scatterGeometry.orElseThrow().outputExtents())
+                : this.indexingGeometry.isPresent()
                 ? elementCount(this.indexingGeometry.orElseThrow().outputExtents())
                 : this.movementGeometry.isPresent()
                 ? elementCount(this.movementGeometry.orElseThrow().outputExtents())
@@ -332,12 +427,15 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
                 || this.affineAddressPairs.length < Math.multiplyExact(end, 2))) {
             throw new IllegalArgumentException("affine address pairs must cover the selected copy range");
         }
-        if (affineCopy && (this.movementGeometry.isPresent() || this.indexingGeometry.isPresent())
-                || this.movementGeometry.isPresent() && this.indexingGeometry.isPresent()) {
-            throw new IllegalArgumentException("affine, movement, and indexing geometry are exclusive");
+        int geometryCount=(affineCopy?1:0)+(this.movementGeometry.isPresent()?1:0)
+                +(this.indexingGeometry.isPresent()?1:0)+(this.scatterGeometry.isPresent()?1:0)
+                +(this.foldGeometry.isPresent()?1:0);
+        if (geometryCount>1) {
+            throw new IllegalArgumentException("affine, movement, indexing, scatter, and fold geometry are exclusive");
         }
-        if (materialization.isPresent() != workspaceSelection.isPresent()) {
-            throw new IllegalArgumentException("materialization and workspace selection must agree");
+        boolean scatterScratch=this.scatterGeometry.filter(g->g.scratchSliceBytes()>0).isPresent();
+        if (workspaceSelection.isPresent() != (materialization.isPresent() || scatterScratch)) {
+            throw new IllegalArgumentException("workspace selection purpose is inconsistent");
         }
         int materializedPosition = materialization
                 .map(CpuMaterializationPlan::sourceBoundaryIndex).orElse(-1);
@@ -363,6 +461,7 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
      */
     public CpuAccessPlan.Binding binding() {
         return ranged(movementGeometry.isPresent() || indexingGeometry.isPresent()
+                || scatterGeometry.isPresent() || foldGeometry.isPresent()
                 ? bindings.getLast() : bindings.getFirst());
     }
     /**
@@ -373,7 +472,8 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
      * @return a new immutable list in boundary order with route-appropriate ranges
      */
     public List<CpuAccessPlan.Binding> accessBindings() {
-        if (movementGeometry.isPresent() || indexingGeometry.isPresent()) {
+        if (movementGeometry.isPresent() || indexingGeometry.isPresent()
+                || scatterGeometry.isPresent() || foldGeometry.isPresent()) {
             var result = new ArrayList<CpuAccessPlan.Binding>(bindings);
             result.set(result.size() - 1, ranged(result.getLast()));
             return List.copyOf(result);
@@ -397,7 +497,7 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
                 carrierPattern, generatedCarrierPattern, rangeStart, rangeEnd, selectedRangeCount,
                 minimumElementsPerWorker, workerGroup, materialization,
                 workspaceSelection, affineCopy ? affineAddressPairs : null, movementGeometry,
-                indexingGeometry);
+                indexingGeometry, scatterGeometry, foldGeometry);
     }
 
     private CpuAccessPlan.Binding ranged(CpuAccessPlan.Binding source) {
@@ -429,19 +529,22 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
 
     @Override protected boolean acceptsWorkspaceRepresentation(int index,
             WorkspaceRepresentation representation) {
-        if (index != 0 || materialization.isEmpty()
+        if (index != 0 || materialization.isEmpty() && scatterGeometry.isEmpty()
                 || !(representation instanceof CpuContiguousWorkspace workspace)
                 || !workspace.isAccessible()) return false;
-        var copy = materialization.orElseThrow();
-        return workspace.byteSize() == copy.byteCount()
-                && workspace.byteAlignment() == copy.byteAlignment()
-                && workspace.writableSegment().address() % copy.byteAlignment() == 0;
+        long bytes=materialization.map(CpuMaterializationPlan::byteCount)
+                .orElseGet(()->scatterGeometry.orElseThrow().workspaceBytes(selectedRangeCount));
+        long alignment=materialization.map(CpuMaterializationPlan::byteAlignment).orElse(8L);
+        return workspace.byteSize() == bytes && workspace.byteAlignment() == alignment
+                && workspace.writableSegment().address() % alignment == 0;
     }
 
     @Override protected BoundInvocation bindCompatible(RunState state,
             BufferRepresentation[] buffers, WorkspaceRepresentation[] workspaces) {
-        if (workspaces.length != (materialization.isPresent() ? 1 : 0)) {
-            throw new IllegalArgumentException("workspace count disagrees with materialization");
+        boolean hasWorkspace=materialization.isPresent()
+                || scatterGeometry.filter(g->g.scratchSliceBytes()>0).isPresent();
+        if (workspaces.length != (hasWorkspace ? 1 : 0)) {
+            throw new IllegalArgumentException("workspace count disagrees with prepared use");
         }
         var arguments = new ArrayList<CpuBufferArgument>(bindings.size());
         for (BufferRepresentation buffer : buffers) {
@@ -456,6 +559,7 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
                     ? affineOverlaps(arguments.get(input), arguments.get(outputIndex), input,
                             outputIndex)
                     : movementGeometry.isPresent() || indexingGeometry.isPresent()
+                            || scatterGeometry.isPresent() || foldGeometry.isPresent()
                         ? overlaps(arguments.get(input), inputBinding,
                             arguments.get(outputIndex), bindings.get(outputIndex))
                         : overlaps(arguments.get(input), ranged(inputBinding),
@@ -467,6 +571,8 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
         validateCanonicalBooleanInputs(arguments);
         IndexValidation validation = indexingGeometry.map(g ->
                 new IndexValidation(arguments, g)).orElse(null);
+        ScatterValidation scatterValidation = scatterGeometry.map(g ->
+                new ScatterValidation(arguments, g)).orElse(null);
         CopyCall copyCall = null;
         if (materialization.isPresent()) {
             var copy = materialization.orElseThrow();
@@ -489,8 +595,9 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
                 Math.toIntExact(1 + (length - 1) / minimumElementsPerWorker));
         if (chunkCount <= 1) {
             KernelCall call = length == 0 ? null : callFor(artifact.entryPoint(), arguments,
-                    geometry(arguments, start, end), start, end);
-            return new Invocation(state, copyCall, validation, call, null);
+                    artifact.specialization().scratchParameter() ? scratch(workspaces) : null,
+                    geometry(arguments, start, end, 0), start, end);
+            return new Invocation(state, copyCall, validation, scatterValidation, call, null);
         }
         CpuWorkerGroup.RangeCall[] calls = new CpuWorkerGroup.RangeCall[chunkCount];
         long quotient = length / chunkCount;
@@ -499,11 +606,12 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
         for (int index = 0; index < chunkCount; index++) {
             long chunkEnd = chunkStart + quotient + (index < remainder ? 1 : 0);
             KernelCall call = callFor(artifact.entryPoint(), arguments,
-                    geometry(arguments, chunkStart, chunkEnd), chunkStart, chunkEnd);
+                    artifact.specialization().scratchParameter() ? scratch(workspaces) : null,
+                    geometry(arguments, chunkStart, chunkEnd, index), chunkStart, chunkEnd);
             calls[index] = call::invoke;
             chunkStart = chunkEnd;
         }
-        return new Invocation(state, copyCall, validation, null, calls);
+        return new Invocation(state, copyCall, validation, scatterValidation, null, calls);
     }
 
     @FunctionalInterface private interface CopyCall { void invoke(); }
@@ -564,7 +672,24 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
         return address;
     }
 
-    private long[] geometry(List<CpuBufferArgument> arguments, long rangeStart, long rangeEnd) {
+    private long[] geometry(List<CpuBufferArgument> arguments, long rangeStart, long rangeEnd,
+            int rangeIndex) {
+        if (foldGeometry.isPresent()) {
+            long[] bases = new long[2];
+            for (int index = 0; index < 2; index++) {
+                int width = artifact.specialization().boundaryDataTypes().get(index).byteWidth();
+                bases[index] = arguments.get(index).byteOffset() / width;
+            }
+            return foldGeometry.orElseThrow().pack(bases, rangeStart, rangeEnd);
+        }
+        if (scatterGeometry.isPresent()) {
+            long[] bases = new long[arguments.size()];
+            for (int index = 0; index < arguments.size(); index++) {
+                int width = artifact.specialization().boundaryDataTypes().get(index).byteWidth();
+                bases[index] = arguments.get(index).byteOffset() / width;
+            }
+            return scatterGeometry.orElseThrow().pack(bases, rangeStart, rangeEnd, rangeIndex);
+        }
         if (indexingGeometry.isPresent()) {
             long[] bases = new long[arguments.size()];
             for (int index = 0; index < arguments.size(); index++) {
@@ -675,13 +800,19 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
 
     @FunctionalInterface private interface KernelCall { void invoke() throws Throwable; }
 
-    private static KernelCall callFor(MethodHandle h, List<CpuBufferArgument> a, long[] g,
-            long start, long end) {
+    private static KernelCall callFor(MethodHandle h, List<CpuBufferArgument> a,
+            MemorySegment scratch, long[] g, long start, long end) {
         Object[] carriers = a.stream().map(CpuPreparedExecutable::carrier).toArray();
         MethodHandle bound = MethodHandles.insertArguments(h, 0, carriers);
+        if (scratch != null) bound = MethodHandles.insertArguments(bound, 0, scratch);
         bound = MethodHandles.insertArguments(bound, 0, (Object) g);
         MethodHandle target = bound;
         return () -> invokeVoid(target, start, end);
+    }
+
+    private static MemorySegment scratch(WorkspaceRepresentation[] workspaces) {
+        return workspaces.length == 0 ? null
+                : ((CpuContiguousWorkspace) workspaces[0]).writableSegment();
     }
 
     private static void invokeVoid(MethodHandle target, long start, long end) throws Throwable {
@@ -743,6 +874,7 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
                 continue;
             }
             CpuAccessPlan.Binding binding = movementGeometry.isPresent() || indexingGeometry.isPresent()
+                    || scatterGeometry.isPresent()
                     ? bindings.get(index) : ranged(bindings.get(index));
             long[] extents = binding.extents().stream().mapToLong(Long::longValue).toArray();
             long[] strides = binding.effectiveStrides().stream().mapToLong(Long::longValue).toArray();
@@ -873,20 +1005,140 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
                 Math.multiplyExact(address, Long.BYTES));
     }
 
+    /** Reusable allocation-free complete scatter bounds and replacement-uniqueness validator. */
+    private static final class ScatterValidation {
+        private final List<CpuBufferArgument> arguments;
+        private final CpuScatterLowering.Geometry geometry;
+        private final int indexBoundary;
+        private final CpuBufferArgument indices;
+        private final io.github.pho001.synaptik.model.datatype.DataType indexType;
+        private final long[] indexExtents;
+        private final long[] indexStrides;
+        private final long[] tuplePrefixExtents;
+        private final long indexBase;
+        private final long[] current;
+        private final long[] earlier;
+
+        ScatterValidation(List<CpuBufferArgument> arguments,
+                CpuScatterLowering.Geometry geometry) {
+            this.arguments = arguments;
+            this.geometry = geometry;
+            indexBoundary = geometry.occurrenceToBoundary().get(1);
+            indices = arguments.get(indexBoundary);
+            indexType = geometry.boundaryTypes().get(indexBoundary);
+            var layout = geometry.boundaries().get(indexBoundary);
+            indexExtents = layout.extents(); indexStrides = layout.strides();
+            tuplePrefixExtents = java.util.Arrays.copyOf(indexExtents,
+                    Math.max(0, indexExtents.length - 1));
+            indexBase = Math.addExact(indices.byteOffset() / indexType.byteWidth(), layout.offset());
+            current = new long[Math.max(indexExtents.length,
+                    geometry.boundaries().get(geometry.occurrenceToBoundary().get(2)).extents().length)];
+            earlier = current.clone();
+        }
+
+        void validate() {
+            bounds();
+            if (geometry.reduction()
+                    == io.github.pho001.synaptik.model.operation.index.ScatterReduction.NONE) {
+                duplicates();
+            }
+        }
+
+        private void bounds() {
+            java.util.Arrays.fill(current, 0);
+            long address=indexBase;
+            long count=elementCount(indexExtents);
+            for(long ordinal=0;ordinal<count;ordinal++){
+                long value=readIndex(indices,address,indexType);
+                int axis=geometry.family()
+                        ==io.github.pho001.synaptik.backend.cpu.internal.ir.CpuScatterIr.Family.SCATTER_ND
+                        ?geometry.batchDimensions()+(int)(ordinal%geometry.tupleDepth())
+                        :geometry.axis();
+                long extent=geometry.boundaries().get(geometry.occurrenceToBoundary().get(0))
+                        .extents()[axis];
+                if(value<0||value>=extent)throw boundsFailure(ordinal,axis,value,extent);
+                address=advanceAddress(address,indexExtents,indexStrides,current);
+            }
+        }
+
+        private void duplicates() {
+            if (geometry.family()
+                    == io.github.pho001.synaptik.backend.cpu.internal.ir.CpuScatterIr.Family.SCATTER_ADD) return;
+            if (geometry.family()
+                    == io.github.pho001.synaptik.backend.cpu.internal.ir.CpuScatterIr.Family.SCATTER_ELEMENTS) {
+                long[] updateExtents=geometry.boundaries().get(
+                        geometry.occurrenceToBoundary().get(2)).extents();
+                long count=elementCount(updateExtents);
+                for(long later=1;later<count;later++){
+                    coordinates(later,updateExtents,current);
+                    for(long first=0;first<later;first++){
+                        coordinates(first,updateExtents,earlier);
+                        if(elementTargetEqual(current,earlier))throw new IllegalArgumentException(
+                                "SCATTER_ELEMENTS duplicate target at logical update position "+later
+                                +"; first addressed at logical update position "+first);
+                    }
+                }
+                return;
+            }
+            long tupleCount=1;
+            for(int i=0;i<indexExtents.length-1;i++)tupleCount=Math.multiplyExact(tupleCount,indexExtents[i]);
+            for(long later=1;later<tupleCount;later++){
+                coordinates(later,tuplePrefixExtents,current);
+                for(long first=0;first<later;first++){
+                    coordinates(first,tuplePrefixExtents,earlier);
+                    if(ndTargetEqual(current,earlier))throw new IllegalArgumentException(
+                            "SCATTER_ND duplicate target tuple at logical tuple position "+later
+                            +"; first addressed at logical tuple position "+first);
+                }
+            }
+        }
+
+        private boolean elementTargetEqual(long[] left,long[] right){
+            int axis=geometry.axis();
+            for(int i=0;i<indexExtents.length;i++)if(i!=axis&&left[i]!=right[i])return false;
+            return indexAt(left,-1)==indexAt(right,-1);
+        }
+        private boolean ndTargetEqual(long[] left,long[] right){
+            for(int i=0;i<geometry.batchDimensions();i++)if(left[i]!=right[i])return false;
+            for(int k=0;k<geometry.tupleDepth();k++)if(indexAt(left,k)!=indexAt(right,k))return false;
+            return true;
+        }
+        private long indexAt(long[] coordinate,int component){
+            long address=indexBase;
+            int prefix=indexExtents.length-1;
+            for(int i=0;i<(component<0?indexExtents.length:prefix);i++)
+                address=Math.addExact(address,Math.multiplyExact(coordinate[i],indexStrides[i]));
+            if(component>=0)address=Math.addExact(address,Math.multiplyExact(component,indexStrides[prefix]));
+            return readIndex(indices,address,indexType);
+        }
+        private IndexOutOfBoundsException boundsFailure(long ordinal,int axis,long value,long extent){
+            String family=geometry.family().name();
+            return new IndexOutOfBoundsException(family+" index at logical position "+ordinal
+                    +" for data axis "+axis+" is out of bounds: value="+value+", extent="+extent);
+        }
+        private static void coordinates(long ordinal,long[] extents,long[] target){
+            java.util.Arrays.fill(target,0);
+            for(int i=extents.length-1;i>=0;i--){if(extents[i]!=0){target[i]=ordinal%extents[i];ordinal/=extents[i];}}
+        }
+    }
+
     private final class Invocation extends BoundInvocation {
         private final CopyCall copy;
         private final IndexValidation validation;
+        private final ScatterValidation scatterValidation;
         private final KernelCall call;
         private final CpuWorkerGroup.RangeCall[] calls;
-        Invocation(RunState state, CopyCall copy, IndexValidation validation, KernelCall call,
+        Invocation(RunState state, CopyCall copy, IndexValidation validation,
+                ScatterValidation scatterValidation, KernelCall call,
                 CpuWorkerGroup.RangeCall[] calls) {
             super(state); this.copy = copy; this.validation = validation;
-            this.call = call; this.calls = calls;
+            this.scatterValidation=scatterValidation; this.call = call; this.calls = calls;
         }
         @Override protected void executeBound() {
             try {
                 if (copy != null) copy.invoke();
                 if (validation != null) validation.validate();
+                if (scatterValidation != null) scatterValidation.validate();
                 if (call != null) call.invoke();
                 else if (calls != null) workerGroup.execute(calls);
             }

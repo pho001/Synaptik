@@ -10,7 +10,10 @@ package io.github.pho001.synaptik.backend.cpu.internal.cache;
  * PAD/TILE/CONCAT/STACK family, ordered unique-boundary occurrence mapping, exact represented-bit
  * padding immediate, and scalar generated body. Schema 13 adds static window extraction,
  * schema 14 adds mixed-type gather/one-hot identity and output writers, and schema 15 adds
- * functional slice-update identity and its signed-sequence cursor body.
+ * functional slice-update identity and its signed-sequence cursor body. Schema 16 adds functional
+ * scatter family/reduction identity, typed direct output writers, and the optional exact-product
+ * scratch entry signature. Schema 17 adds the distinct overlap-fold family, represented
+ * sequential-addition policy, and workspace-free output-domain writer.
  * The optional persistent envelope stores this version and has no legacy reader, migration path,
  * or converter.
  */
@@ -20,9 +23,11 @@ public final class CpuGeneratorSchema {
      * unequal-rank movement geometry, exact represented padding bits, and scalar generated
      * bodies. Schema 14 adds mixed-type gather/one-hot structural identity and generated output
      * writers; schema 15 adds structural functional slice-update identity and its generated
-     * cursor body. Envelopes written for earlier schemas are incompatible misses.
+     * cursor body; schema 16 adds current functional scatter and its explicit scratch signature;
+     * schema 17 adds current overlap fold and represented sequential addition.
+     * Envelopes written for earlier schemas are incompatible misses.
      */
-    public static final int CURRENT_VERSION = 15;
+    public static final int CURRENT_VERSION = 17;
     /** Generated entry name. */ public static final String ENTRY_NAME = "invoke";
     private CpuGeneratorSchema() { }
 

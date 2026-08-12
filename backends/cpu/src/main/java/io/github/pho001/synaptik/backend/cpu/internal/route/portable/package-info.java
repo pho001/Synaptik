@@ -7,6 +7,12 @@
  * generated class. The plan may be consumed by artifact realization and finalization, but it does
  * not interpret graph semantics, own the scalar reference implementation, select a native
  * provider, schedule workers, or declare resource lifetime.
+ * A functional-scatter specialization may additionally expose one direct scratch-segment
+ * parameter when its already-lowered floating-product row requires the declared per-range
+ * accumulator. Concrete workspace identity, size, slice offset, and lifetime remain prepared
+ * invocation facts rather than route or artifact-selection decisions.
+ * A fold specialization remains a two-boundary workspace-free scalar artifact; parallel-scalar
+ * orchestration reuses it over disjoint output-coordinate ranges.
  *
  * <p>The plan is immutable cold-path state; route dispatch never occurs inside the generated loop.
  */

@@ -12,6 +12,8 @@ import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuIndexingIr;
 import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuDataMovementIr;
 import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuNonAffineMovementLoweringTest;
 import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuPartitionLowering;
+import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuScatterLoweringTest;
+import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuScatterIr;
 import io.github.pho001.synaptik.model.operation.Operation;
 import io.github.pho001.synaptik.model.operation.index.OneHotKind;
 import io.github.pho001.synaptik.model.operation.index.OneHotAttrs;
@@ -19,6 +21,9 @@ import io.github.pho001.synaptik.model.operation.index.AxisGatherKind;
 import io.github.pho001.synaptik.model.operation.index.IndexAxisAttrs;
 import io.github.pho001.synaptik.model.operation.index.GatherNdAttrs;
 import io.github.pho001.synaptik.model.operation.index.GatherNdKind;
+import io.github.pho001.synaptik.model.operation.index.AxisScatterKind;
+import io.github.pho001.synaptik.model.operation.index.ScatterElementsAttrs;
+import io.github.pho001.synaptik.model.operation.index.ScatterReduction;
 import io.github.pho001.synaptik.model.operation.layout.CropToShapeAttrs;
 import io.github.pho001.synaptik.model.operation.layout.SliceAttrs;
 import io.github.pho001.synaptik.model.operation.layout.SliceKind;
@@ -27,6 +32,23 @@ import io.github.pho001.synaptik.model.datatype.DataType;
 import java.util.List;
 
 class CpuReferenceDifferentialTest {
+    @Test void independentScatterOracleCoversExactProductAndReplacementValidation() {
+        var lowered=new CpuPartitionLowering().lower(CpuScatterLoweringTest.context(
+                new Operation(AxisScatterKind.SCATTER_ELEMENTS,
+                        new ScatterElementsAttrs(0,ScatterReduction.MUL)),List.of(0,1,2),
+                List.of(CpuScatterLoweringTest.desc(DataType.FLOAT64,Shape.of(2)),
+                        CpuScatterLoweringTest.desc(DataType.INT32,Shape.of(3)),
+                        CpuScatterLoweringTest.desc(DataType.FLOAT64,Shape.of(3))),
+                CpuScatterLoweringTest.desc(DataType.FLOAT64,Shape.of(2))));
+        double[] output=new double[2];
+        CpuScalarReferenceKernel.execute((CpuScatterIr)lowered.portableKernelIr(),
+                lowered.scatterGeometry().orElseThrow(),List.of(
+                        new CpuBufferArgument.Doubles(new double[]{0.5,3},0,16,true),
+                        new CpuBufferArgument.Ints(new int[]{0,0,0},0,12,true),
+                        new CpuBufferArgument.Doubles(new double[]{0.25,8,0.1},0,24,true),
+                        new CpuBufferArgument.Doubles(output,0,16,false)),0,2);
+        assertAll(() -> assertEquals(0.1,output[0]),()->assertEquals(3.0,output[1]));
+    }
     @Test void sliceUpdateReferenceCoversBothFormsAndMultipleSelectedAxes() {
         var signed = new CpuPartitionLowering().lower(CpuNonAffineMovementLoweringTest.context(
                 new Operation(SliceKind.SLICE_UPDATE,

@@ -36,10 +36,24 @@
  * and requires one distinct injective output. It creates no workspace or per-index/per-output
  * table; execution-time values remain unavailable until direct cold binding.</p>
  *
+ * <p>The functional-scatter family accepts exactly one fully static resolved-layout
+ * SCATTER_ELEMENTS, Gather-compatible SCATTER_ADD, or SCATTER_ND occurrence with ordered
+ * {@code [data, indices, updates]} roles. It preserves those roles while deduplicating exact input
+ * values, derives compact coordinate geometry, requires one distinct injective data-shaped
+ * output, and declares no materialization. Only floating {@code MUL} with a non-empty possible
+ * calculation derives one checked per-range exact-product scratch slice; every other row has no
+ * workspace.</p>
+
+ * <p>The overlap-fold family accepts exactly one fully static resolved-layout FOLD_AXIS or
+ * FOLD2D occurrence. It derives checked compact general-axis or canonical NCHW geometry, retains
+ * logical input repetition from zero strides, proves a distinct injective output, and selects no
+ * materialization or workspace.</p>
+ *
  * <p>The selected {@code CpuMaterializationPlan} is a separate route-independent copy fact. It
  * retains original source geometry and canonical dense consumer geometry without changing the
  * Model graph, backend-neutral logical memory, or boundary {@code ValueId}. At most one selected
- * input receives CPU-private workspace ID {@code 0}.
+ * input receives CPU-private workspace ID {@code 0}. Scatter product scratch uses the same
+ * analysis-local ID only in a mutually exclusive scatter plan.
  *
  * <p>Lowering runs on the preparation cold path; no lowering object or Model operation reaches the
  * generated execution loop.

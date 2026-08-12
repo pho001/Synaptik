@@ -13,6 +13,8 @@ import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuMaterializatio
 import io.github.pho001.synaptik.backend.cpu.internal.cache.CpuSpecializationBudget;
 import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuNonAffineMovementLowering;
 import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuIndexingLowering;
+import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuScatterLowering;
+import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuFoldLowering;
 
 /**
  * Route-neutral immutable selected CPU partition plan.
@@ -40,11 +42,15 @@ import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuIndexingLoweri
  * @param loweringManifest non-null optional cold diagnostic text, empty when disabled
  * @param materialization non-null optional selected one-input copy fact
  * @param workspaceDeclaration non-null optional exact workspace declaration; present exactly when
- *     {@code materialization} is present
+ *     materialization or floating scatter multiplication requires it
+ * @param workspaceUse non-null explicit meaning of the optional workspace
  * @param specializationBudget non-null enforced candidate/artifact/shape/unroll ceiling
  * @param movementGeometry non-null optional compact cold non-affine movement geometry
  * @param indexingGeometry non-null optional compact cold indexing geometry; present exactly for
  *     a gather or one-hot plan and mutually exclusive with materialization and workspace
+ * @param scatterGeometry non-null optional functional-scatter geometry; floating multiplication
+ *     may pair it with the exact declared product workspace
+ * @param foldGeometry non-null optional zero-workspace overlap-fold geometry
  */
 public record CpuPartitionPreparationPlan(List<ExecutionUnitPlan> units, Route route,
         ExecutionStrategy executionStrategy,
@@ -55,9 +61,12 @@ public record CpuPartitionPreparationPlan(List<ExecutionUnitPlan> units, Route r
         int selectedRangeCount, long minimumElementsPerWorker, int vectorSpeciesBitSize,
         String loweringManifest, Optional<CpuMaterializationPlan> materialization,
         Optional<PreparationResourceRequirement.Workspace> workspaceDeclaration,
+        WorkspaceUse workspaceUse,
         CpuSpecializationBudget specializationBudget,
         Optional<CpuNonAffineMovementLowering.Geometry> movementGeometry,
-        Optional<CpuIndexingLowering.Geometry> indexingGeometry)
+        Optional<CpuIndexingLowering.Geometry> indexingGeometry,
+        Optional<CpuScatterLowering.Geometry> scatterGeometry,
+        Optional<CpuFoldLowering.Geometry> foldGeometry)
         implements BackendPreparationPlan {
     /**
      * Creates a pointwise or affine plan without non-affine movement geometry.
@@ -99,8 +108,16 @@ public record CpuPartitionPreparationPlan(List<ExecutionUnitPlan> units, Route r
         this(units, route, executionStrategy, bufferDeclarations, boundaryValues, accessBindings,
                 carrierPattern, generatedCarrierPattern, extents, elementCount, affineAddressPairs,
                 selectedRangeCount, minimumElementsPerWorker, vectorSpeciesBitSize,
-                loweringManifest, materialization, workspaceDeclaration, specializationBudget,
-                Optional.empty(), Optional.empty());
+                loweringManifest, materialization, workspaceDeclaration,
+                materialization.isPresent() ? WorkspaceUse.MATERIALIZATION : WorkspaceUse.NONE,
+                specializationBudget, Optional.empty(), Optional.empty(), Optional.empty(),
+                Optional.empty());
+    }
+    /** Meaning of the plan's sole optional CPU workspace. */
+    public enum WorkspaceUse {
+        /** No workspace is declared. */ NONE,
+        /** Contiguous pointwise input materialization. */ MATERIALIZATION,
+        /** Per-range exact floating scatter-product accumulator slices. */ SCATTER_PRODUCT
     }
     /**
      * One computation-oriented execution unit.
@@ -209,9 +226,12 @@ public record CpuPartitionPreparationPlan(List<ExecutionUnitPlan> units, Route r
         Objects.requireNonNull(loweringManifest, "loweringManifest");
         materialization = Objects.requireNonNull(materialization, "materialization");
         workspaceDeclaration = Objects.requireNonNull(workspaceDeclaration, "workspaceDeclaration");
+        Objects.requireNonNull(workspaceUse, "workspaceUse");
         Objects.requireNonNull(specializationBudget, "specializationBudget");
         movementGeometry = Objects.requireNonNull(movementGeometry, "movementGeometry");
         indexingGeometry = Objects.requireNonNull(indexingGeometry, "indexingGeometry");
+        scatterGeometry = Objects.requireNonNull(scatterGeometry, "scatterGeometry");
+        foldGeometry = Objects.requireNonNull(foldGeometry, "foldGeometry");
         if (units.size() != 1 || route != Route.PORTABLE
                 || bufferDeclarations.size() < 2
                 || boundaryValues.size() != bufferDeclarations.size()
@@ -226,6 +246,10 @@ public record CpuPartitionPreparationPlan(List<ExecutionUnitPlan> units, Route r
                 instanceof io.github.pho001.synaptik.backend.cpu.internal.ir.CpuDataMovementIr;
         boolean indexing = units.getFirst().portablePlan().portableKernelIr()
                 instanceof io.github.pho001.synaptik.backend.cpu.internal.ir.CpuIndexingIr;
+        boolean scatter = units.getFirst().portablePlan().portableKernelIr()
+                instanceof io.github.pho001.synaptik.backend.cpu.internal.ir.CpuScatterIr;
+        boolean fold = units.getFirst().portablePlan().portableKernelIr()
+                instanceof io.github.pho001.synaptik.backend.cpu.internal.ir.CpuFoldIr;
         if (affine ? affineAddressPairs.length != Math.multiplyExact(elementCount, 2)
                 : affineAddressPairs.length != 0) {
             throw new IllegalArgumentException("affine address geometry must match the copy domain");
@@ -237,6 +261,24 @@ public record CpuPartitionPreparationPlan(List<ExecutionUnitPlan> units, Route r
                 || workspaceDeclaration.isPresent())) {
             throw new IllegalArgumentException("indexing IR and cold geometry must agree");
         }
+        if (scatter != scatterGeometry.isPresent() || scatter && materialization.isPresent()) {
+            throw new IllegalArgumentException("scatter IR and cold geometry must agree");
+        }
+        if (fold != foldGeometry.isPresent() || fold && (bufferDeclarations.size() != 2
+                || materialization.isPresent() || workspaceDeclaration.isPresent())) {
+            throw new IllegalArgumentException("fold IR and zero-resource geometry must agree");
+        }
+        if (fold) {
+            var foldIr = (io.github.pho001.synaptik.backend.cpu.internal.ir.CpuFoldIr)
+                    units.getFirst().portablePlan().portableKernelIr();
+            var geometry = foldGeometry.orElseThrow();
+            if (foldIr.family() != geometry.family() || foldIr.dataType() != geometry.dataType()
+                    || !foldIr.inputAccess().equals(accessBindings.getFirst().plan())
+                    || !foldIr.outputAccess().equals(accessBindings.getLast().plan())
+                    || !java.util.Arrays.equals(extents, geometry.outputExtents())) {
+                throw new IllegalArgumentException("fold structural IR and geometry disagree");
+            }
+        }
         boolean vector = executionStrategy.compute() == ExecutionStrategy.Compute.VECTOR;
         boolean parallel = executionStrategy.orchestration() == ExecutionStrategy.Orchestration.PARALLEL;
         if (selectedRangeCount <= 0 || minimumElementsPerWorker <= 0
@@ -246,8 +288,20 @@ public record CpuPartitionPreparationPlan(List<ExecutionUnitPlan> units, Route r
                     != vectorSpeciesBitSize) {
             throw new IllegalArgumentException("portable strategy facts are inconsistent");
         }
-        if (materialization.isPresent() != workspaceDeclaration.isPresent()) {
-            throw new IllegalArgumentException("materialization and workspace must agree");
+        WorkspaceUse expectedUse = materialization.isPresent() ? WorkspaceUse.MATERIALIZATION
+                : scatterGeometry.filter(g -> g.scratchSliceBytes() > 0).isPresent()
+                    ? WorkspaceUse.SCATTER_PRODUCT : WorkspaceUse.NONE;
+        if (workspaceUse != expectedUse
+                || workspaceDeclaration.isPresent() != (workspaceUse != WorkspaceUse.NONE)) {
+            throw new IllegalArgumentException("workspace purpose and declaration must agree");
+        }
+        if (workspaceUse == WorkspaceUse.SCATTER_PRODUCT) {
+            var geometry = scatterGeometry.orElseThrow();
+            var workspace = workspaceDeclaration.orElseThrow();
+            if (workspace.requirementId() != 0 || workspace.byteAlignment() != Long.BYTES
+                    || workspace.byteSize() != geometry.workspaceBytes(selectedRangeCount)) {
+                throw new IllegalArgumentException("scatter product workspace facts disagree");
+            }
         }
         if (materialization.isPresent()) {
             var copy = materialization.orElseThrow();

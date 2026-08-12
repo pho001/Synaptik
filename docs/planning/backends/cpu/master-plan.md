@@ -205,8 +205,8 @@ created by 0005A. All consume the common analysis above; none creates another ba
 | 0006A1 | [Portable static window extraction](tasks/0006a1-portable-static-window-extraction.md) | Complete | 0006A | Added one-node fully static resolved-layout UNFOLD_AXIS for all six current types and both ordered floating-only UNFOLD2D variants through the completed movement foundation, with exact axis/NCHW mapping, dilation, floor/ceil grids, conceptual-zero and typed-padding represented bits, compact unequal-rank geometry, and schema 13; no fold accumulation. |
 | 0006A2 | [Portable gather and one-hot indexing](tasks/0006a2-portable-gather-and-one-hot-indexing.md) | Complete | 0006A1 | Added GATHER, GATHER_ELEMENTS, GATHER_ND, and ONE_HOT with INT32/INT64 carriers, a complete pre-write execution-time index-validation pass, deterministic first-invalid-index failure, scalar or parallel-scalar writes, and schema 14; no wrap, clamp, default selection, partial Gather output, or all-false invalid one-hot row. |
 | 0006B | [Portable functional slice update](tasks/0006b-portable-functional-slice-update.md) | Complete | 0006A2 | Added one fully static resolved-layout SLICE_UPDATE occurrence for both current `SliceAttrs` signed finite-coordinate placement and `CropToShapeAttrs` target-relative placement through the existing represented-bit movement pipeline, with functional base/update selection, injective disjoint output, compact geometry, scalar or parallel-scalar generation, and schema 15. |
-| 0006B1 | Portable functional scatter | Draft | 0006B | Add SCATTER_ELEMENTS, Gather-compatible SCATTER_ADD, and SCATTER_ND with exact base participation, INT32/INT64 index bounds, replacement/reduction identity, duplicate-target policy, deterministic execution conforming to current represented-value contracts, and complete pre-write validation where required. |
-| 0006B2 | Portable overlap fold | Draft | 0006B1 | Add FOLD_AXIS and FOLD2D with zero initialization, deterministic overlap accumulation, exact 2D padding exclusion, type-specific accumulation semantics, and safe split fallback. |
+| 0006B1 | [Portable functional scatter](tasks/0006b1-portable-functional-scatter.md) | Complete | 0006B | Added SCATTER_ELEMENTS, Gather-compatible SCATTER_ADD, and SCATTER_ND with exact base participation, INT32/INT64 bounds, complete pre-write bounds/NONE-duplicate validation, represented-value reductions, deterministic disjoint output ranges, declared exact floating-product scratch, and schema 16. |
+| 0006B2 | [Portable overlap fold](tasks/0006b2-portable-overlap-fold.md) | Complete | 0006B1 | Added FOLD_AXIS and FOLD2D with represented positive-zero initialization, deterministic row-major overlap accumulation, exact 2D padding exclusion, type-specific addition, disjoint output ranges, scalar fallback, zero workspace, and schema 17. |
 | 0006C | Portable stable ordering and selection coverage | Draft | 0006B2 | Add stable SORT and ARGSORT plus two-output TOP_K with exact NaN, signed-zero, tie, empty-axis, output-order, workspace, and multi-store behavior. |
 | 0006D | Portable explicit-state RNG and dropout coverage | Draft | 0006C | Select and version one CPU-private portable counter-based generator configuration, materialize INITIAL_STATE, and add three-output DROPOUT with exact state advancement, auxiliary mask, bounded replay, and multi-store behavior. |
 | 0007 | Portable reduction, scan, statistics, and normalization family coverage | Draft | 0006D; completed 0005A–0005J | Generate family-specific range, tile, partial-reduction, and combine bodies for aggregates, arg extrema, scans, softmax/log-softmax, statistics, and normalization with exact semantics and determinism. |
@@ -267,8 +267,38 @@ is `Complete`, and detailed
 is `Complete`. It delivers Gather/one-hot index loading plus complete pre-write execution-time
 validation. Detailed
 [CPU 0006B Portable functional slice update](tasks/0006b-portable-functional-slice-update.md)
-is `Complete`. CPU 0006B1 is the next Draft frontier; CPU 0006B1, CPU 0006B2, and every later CPU
-task remain `Draft` without detailed specifications.
+is `Complete`. Detailed
+[CPU 0006B1 Portable functional scatter](tasks/0006b1-portable-functional-scatter.md) is
+`Complete`. Detailed
+[CPU 0006B2 Portable overlap fold](tasks/0006b2-portable-overlap-fold.md) is `Complete`. CPU 0006C
+is the next `Draft` frontier, depends on CPU 0006B2, and has no detailed specification; every later
+CPU task also remains `Draft` without a detailed specification.
+
+CPU 0006B1 now executes exactly one fully static resolved-layout SCATTER_ELEMENTS,
+Gather-compatible SCATTER_ADD, or SCATTER_ND occurrence through scalar or parallel-scalar
+disjoint output ownership, complete bounds-before-duplicates validation, represented reductions,
+and optional declared exact floating-product scratch. Implementation context
+`019ff230-109c-73a3-933f-611ee7f6143d` and independent audit/fix context
+`019ff248-a9e4-7150-8fbb-db2730d7cc1b` produced the stabilized 12-suite/103-test focused and
+38-suite/230-test CPU evidence, with one expected existing skip in the latter and no failures or
+errors. The mandatory clean documentation context had no available context ID; it reused those
+tests, finalized Javadocs/package summaries, the CPU guide, glossary, and planning records, and
+passed CPU Javadoc plus final documentation/scope/whitespace gates. Schema 16 was current at the
+CPU 0006B1 checkpoint.
+
+CPU 0006B2 now executes exactly one fully static resolved-layout FOLD_AXIS or FOLD2D occurrence.
+It creates a fresh represented-positive-zero output and adds logical input positions in canonical
+row-major order, with FLOAT64/FLOAT32/BFLOAT16 in both families, modular INT32/INT64 in axis fold,
+BFLOAT16 rounding after each addition, and exact FOLD2D padding and ceil-tail exclusion. Arbitrary
+supported layouts and carriers retain a distinct injective non-overlapping output; execution is
+direct scalar or parallel-scalar over disjoint output ranges, with no workspace, materialization,
+atomics, partials, or merge. Schema 17 is current. Implementation context
+`019ff549-d477-7140-921d-8404d10a2c7e` recorded focused 12-suite/98-test and final CPU
+41-suite/245-test evidence with respectively zero and one skips and no failures or errors on
+OpenJDK 26.0.1+8-34 and Gradle 9.6.1. Clean documentation context
+`019ff565-3991-72a1-a47a-78f63ae600ec` reused that evidence, finalized Javadocs, package-summary
+review, guide, glossary, and planning records, and passed CPU Javadoc plus final documentation,
+scope, synchronization, preservation, and whitespace gates without changing executable Java.
 
 Superseded task 0001 remains preserved through its sole detailed CPU
 [capability, representation, binding, and parallel foundation](tasks/0001-cpu-capability-representation-binding-and-parallel-foundation.md)
@@ -335,8 +365,9 @@ state machines, and all sixteen ordered heap/segment carrier specializations. De
 is Complete. CPU 0005D, detailed CPU 0005E, detailed CPU 0005F, and detailed CPU 0005G are also
 Complete. Detailed CPU 0005H, detailed CPU 0005I, and detailed CPU 0005J are `Complete`;
 task 0006 and detailed task 0006A are `Complete`, detailed task 0006A1 is `Complete`, detailed
-task 0006A2 is `Complete`, detailed task 0006B is `Complete`, and tasks 0006B1–0017 remain `Draft`
-without detailed specifications.
+task 0006A2 is `Complete`, detailed task 0006B is `Complete`, detailed task 0006B1 is `Complete`,
+detailed task 0006B2 is `Complete`, and tasks 0006C–0017 remain `Draft` without detailed
+specifications.
 CPU 0005C preserves that exact slice and implements cold selection among all four portable
 strategies. It uses the preferred Java 26 FLOAT64 species only for direct contiguous runs and
 scalar broadcasts, scalar tails and general-odometer fallback, configured/available parallelism
@@ -446,7 +477,9 @@ the affected Javadocs, CPU guide, glossary, and planning records, and passed CPU
 local Markdown, official-link, exact-scope/status/inventory, formatting, and whitespace gates
 without rerunning Java tests. CPU 0005J and detailed CPU 0006 are Complete. CPU 0006A's later
 completion is recorded below; detailed CPU 0006A1 and CPU 0006A2 are `Complete`, detailed CPU
-0006B is `Complete`, and CPU 0006B1 and later tasks remain `Draft` without detailed specifications.
+0006B is `Complete`, detailed CPU 0006B1 and CPU 0006B2 are `Complete`, and CPU 0006C is the next
+`Draft` frontier without a detailed specification; later tasks remain `Draft` without detailed
+specifications.
 
 Detailed CPU 0005J is Complete. It preserves the exact forty-eight-opcode semantic inventory and
 adds preferred-species FLOAT32/FLOAT64 extrema, clamp, ReLU, sign, and same-type cast;
@@ -491,8 +524,9 @@ opt-in persistence test on Java 26.0.2, HotSpot 26.0.2+10-55. Clean documentatio
 reused that stabilized evidence, finalized Javadocs/package summaries, the CPU guide, glossary,
 and planning records, and passed CPU Javadoc plus Markdown, exact-scope/status/inventory, forbidden-
 change, and whitespace validation without rerunning Java tests. Detailed CPU 0006A1 is `Complete`;
-detailed CPU 0006A2 is `Complete`, detailed CPU 0006B is `Complete`, and CPU 0006B1 and every later
-task remain `Draft` without detailed specifications.
+detailed CPU 0006A2 is `Complete`, detailed CPU 0006B is `Complete`, detailed CPU 0006B1 and CPU
+0006B2 are `Complete`, and CPU 0006C and every later task remain `Draft`
+without detailed specifications.
 
 Detailed CPU 0006A1 is Complete. It extends the same movement pipeline with one fully static,
 resolved-layout UNFOLD_AXIS occurrence for all six represented types or one floating UNFOLD2D
@@ -621,10 +655,11 @@ the work at the active frontier.
   owns window extraction; detailed Complete 0006A2 owns Gather/one-hot plus complete pre-write
   index validation. All three slices have detailed task specifications.
 - The former broad 0006B row is dependency-split. Detailed Complete 0006B owns only value-blind
-  functional SLICE_UPDATE through the existing movement path. Draft 0006B1 owns
-  index-valued functional scatter and its bounds, duplicate, replacement, and reduction rules.
-  Draft 0006B2 owns zero-initialized overlap fold and padding exclusion. Only completed 0006B has
-  a detailed specification; 0006C depends on 0006B2.
+  functional SLICE_UPDATE through the existing movement path. Detailed Complete 0006B1 owns
+  index-valued functional scatter, complete pre-write bounds/NONE-duplicate validation, exact
+  base/reduction semantics, deterministic output ranges, and declared floating-product scratch.
+  Detailed Complete 0006B2 owns zero-initialized overlap fold and padding exclusion; 0006C
+  remains Draft, depends on 0006B2, and has no detailed specification.
 - CPU 0006A declares each distinct composition input `ValueId` once in first-occurrence order and
   retains a CPU-private ordered occurrence-to-boundary map. Repeated semantic inputs do not force
   duplicate shared requirements. The one output is separate, injective, and materialized.

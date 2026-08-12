@@ -33,6 +33,8 @@ import jdk.incubator.vector.DoubleVector;
 import jdk.incubator.vector.FloatVector;
 import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuAffineLayoutLoweringTest;
 import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuNonAffineMovementLoweringTest;
+import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuScatterLoweringTest;
+import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuFoldLoweringTest;
 import io.github.pho001.synaptik.backend.cpu.internal.prepare.CpuPartitionPreparer;
 import io.github.pho001.synaptik.model.datatype.ScalarValue;
 import io.github.pho001.synaptik.model.operation.Operation;
@@ -40,6 +42,7 @@ import io.github.pho001.synaptik.model.operation.layout.PadAttrs;
 import io.github.pho001.synaptik.model.operation.layout.PadKind;
 import io.github.pho001.synaptik.model.operation.layout.UnfoldAxisAttrs;
 import io.github.pho001.synaptik.model.operation.layout.WindowTransformKind;
+import io.github.pho001.synaptik.model.operation.layout.FoldAxisAttrs;
 import io.github.pho001.synaptik.model.operation.layout.SliceAttrs;
 import io.github.pho001.synaptik.model.operation.layout.SliceKind;
 import io.github.pho001.synaptik.model.operation.index.*;
@@ -874,6 +877,262 @@ class CpuPreparedExecutableTest {
                 assertArrayEquals(expected, output);
             } finally { run.close(); }
         } finally { workers.close(); }
+    }
+
+    @Test void scatterBoundsPrecedeDuplicatesAndEveryFailureLeavesOutputUntouched() {
+        var executable=scatterExecutable(new Operation(AxisScatterKind.SCATTER_ELEMENTS,
+                        new ScatterElementsAttrs(0,ScatterReduction.NONE)),
+                List.of(CpuScatterLoweringTest.desc(DataType.INT32,Shape.of(3)),
+                        CpuScatterLoweringTest.desc(DataType.INT32,Shape.of(3)),
+                        CpuScatterLoweringTest.desc(DataType.INT32,Shape.of(3))),
+                CpuScatterLoweringTest.desc(DataType.INT32,Shape.of(3)));
+        int[] firstOutput={7,7,7};
+        var bounds=state(executable,List.of(borrow(new int[]{1,2,3}),borrow(new int[]{0,0,3}),
+                borrow(new int[]{9,8,7}),borrow(firstOutput)));
+        try{
+            var failure=assertThrows(IndexOutOfBoundsException.class,()->executable.bind(bounds).execute());
+            assertAll(()->assertEquals("SCATTER_ELEMENTS index at logical position 2 for data axis 0 is out of bounds: value=3, extent=3",failure.getMessage()),
+                    ()->assertArrayEquals(new int[]{7,7,7},firstOutput));
+        }finally{bounds.close();}
+        int[] duplicateOutput={6,6,6};
+        var duplicate=state(executable,List.of(borrow(new int[]{1,2,3}),borrow(new int[]{0,0,1}),
+                borrow(new int[]{9,8,7}),borrow(duplicateOutput)));
+        try{
+            var failure=assertThrows(IllegalArgumentException.class,()->executable.bind(duplicate).execute());
+            assertAll(()->assertEquals("SCATTER_ELEMENTS duplicate target at logical update position 1; first addressed at logical update position 0",failure.getMessage()),
+                    ()->assertArrayEquals(new int[]{6,6,6},duplicateOutput));
+        }finally{duplicate.close();}
+    }
+
+    @Test void foldRejectsOverlapBeforeWritesAndParallelRangesRepeatDeterministically() {
+        var base = CpuFoldLoweringTest.context(new Operation(WindowTransformKind.FOLD_AXIS,
+                new FoldAxisAttrs(0, 16, 1)), DataType.INT32, Shape.of(15, 2), Shape.of(16));
+        var config = new PortableExecutionConfig(ComputePreference.SCALAR, 4, 4, 1);
+        var context = new io.github.pho001.synaptik.prepare.analysis.PrepareContext<>(
+                base.partition(), base.nodes(), base.values(), base.memoryRequirements(),
+                base.constants(), new CpuPartitionAnalysisInputs(false,
+                        List.of(CarrierAccess.INT_ARRAY, CarrierAccess.INT_ARRAY), config));
+        var analysis = new CpuPartitionPreparer().analyze(context);
+        var workers = new CpuWorkerGroup(4);
+        try {
+            var executable = CpuPartitionFinalizerTest.finalizeExecutable(analysis,
+                    Optional.empty(), Optional.of(workers));
+            int[] input = new int[30]; java.util.Arrays.fill(input, 1);
+            int[] output = new int[16]; java.util.Arrays.fill(output, -7);
+            var run = state(executable, List.of(borrow(input), borrow(output)));
+            try {
+                var bound = executable.bind(run);
+                bound.execute();
+                int[] expected = new int[16]; java.util.Arrays.fill(expected, 2);
+                expected[0] = 1; expected[15] = 1;
+                assertArrayEquals(expected, output);
+                bound.execute();
+                assertArrayEquals(expected, output);
+                int[] original = new int[30]; java.util.Arrays.fill(original, 1);
+                assertArrayEquals(original, input);
+            } finally { run.close(); }
+
+            int[] shared = new int[30]; java.util.Arrays.fill(shared, 9);
+            var overlap = state(executable, List.of(borrow(shared, 0, 30),
+                    borrow(shared, 0, 16)));
+            try {
+                assertThrows(IllegalArgumentException.class, () -> executable.bind(overlap));
+                int[] untouched = new int[30]; java.util.Arrays.fill(untouched, 9);
+                assertArrayEquals(untouched, shared);
+            } finally { overlap.close(); }
+        } finally { workers.close(); }
+    }
+
+    @Test void scatterNdRejectsFirstLaterDuplicateTupleEvenWithEmptySuffix() {
+        var executable=scatterExecutable(new Operation(ScatterNdKind.SCATTER_ND,
+                        new ScatterNdAttrs(0,ScatterReduction.NONE)),
+                List.of(CpuScatterLoweringTest.desc(DataType.INT64,Shape.of(2,0)),
+                        CpuScatterLoweringTest.desc(DataType.INT32,Shape.of(3,1)),
+                        CpuScatterLoweringTest.desc(DataType.INT64,Shape.of(3,0))),
+                CpuScatterLoweringTest.desc(DataType.INT64,Shape.of(2,0)));
+        var run=state(executable,List.of(borrow(new long[0]),borrow(new int[]{1,0,1}),
+                borrow(new long[0]),borrow(new long[0])));
+        try{
+            var failure=assertThrows(IllegalArgumentException.class,()->executable.bind(run).execute());
+            assertEquals("SCATTER_ND duplicate target tuple at logical tuple position 2; first addressed at logical tuple position 0",failure.getMessage());
+        }finally{run.close();}
+    }
+
+    @Test void zeroOutputScatterStillCompletesBoundsValidationBeforeExecution() {
+        var executable = scatterExecutable(new Operation(AxisScatterKind.SCATTER_ELEMENTS,
+                        new ScatterElementsAttrs(0, ScatterReduction.ADD)),
+                List.of(CpuScatterLoweringTest.desc(DataType.INT32, Shape.of(0)),
+                        CpuScatterLoweringTest.desc(DataType.INT32, Shape.of(1)),
+                        CpuScatterLoweringTest.desc(DataType.INT32, Shape.of(1))),
+                CpuScatterLoweringTest.desc(DataType.INT32, Shape.of(0)));
+        var run = state(executable, List.of(borrow(new int[0]), borrow(new int[]{0}),
+                borrow(new int[]{9}), borrow(new int[0])));
+        try {
+            var failure = assertThrows(IndexOutOfBoundsException.class,
+                    () -> executable.bind(run).execute());
+            assertEquals("SCATTER_ELEMENTS index at logical position 0 for data axis 0 is out "
+                    + "of bounds: value=0, extent=0", failure.getMessage());
+        } finally { run.close(); }
+    }
+
+    @Test void replacementUniquenessDistinguishesNonAxisCoordinatesAndNdBatches() {
+        var elements = scatterExecutable(new Operation(AxisScatterKind.SCATTER_ELEMENTS,
+                        new ScatterElementsAttrs(1, ScatterReduction.NONE)),
+                List.of(CpuScatterLoweringTest.desc(DataType.INT32, Shape.of(2, 2)),
+                        CpuScatterLoweringTest.desc(DataType.INT32, Shape.of(2, 2)),
+                        CpuScatterLoweringTest.desc(DataType.INT32, Shape.of(2, 2))),
+                CpuScatterLoweringTest.desc(DataType.INT32, Shape.of(2, 2)));
+        int[] elementsOutput = new int[4];
+        var elementsRun = state(elements, List.of(borrow(new int[]{1, 2, 3, 4}),
+                borrow(new int[]{0, 1, 0, 1}), borrow(new int[]{9, 8, 7, 6}),
+                borrow(elementsOutput)));
+        try {
+            elements.bind(elementsRun).execute();
+            assertArrayEquals(new int[]{9, 8, 7, 6}, elementsOutput);
+        } finally { elementsRun.close(); }
+
+        var nd = scatterExecutable(new Operation(ScatterNdKind.SCATTER_ND,
+                        new ScatterNdAttrs(1, ScatterReduction.NONE)),
+                List.of(CpuScatterLoweringTest.desc(DataType.INT64, Shape.of(2, 2)),
+                        CpuScatterLoweringTest.desc(DataType.INT32, Shape.of(2, 1, 1)),
+                        CpuScatterLoweringTest.desc(DataType.INT64, Shape.of(2, 1))),
+                CpuScatterLoweringTest.desc(DataType.INT64, Shape.of(2, 2)));
+        long[] ndOutput = new long[4];
+        var ndRun = state(nd, List.of(borrow(new long[]{1, 2, 3, 4}),
+                borrow(new int[]{0, 0}), borrow(new long[]{9, 8}), borrow(ndOutput)));
+        try {
+            nd.bind(ndRun).execute();
+            assertArrayEquals(new long[]{9, 2, 8, 4}, ndOutput);
+        } finally { ndRun.close(); }
+    }
+
+    @Test void scatterRejectsOutputOverlapAndSupportsExactInputOccurrenceDeduplication() {
+        var overlap = scatterExecutable(new Operation(AxisScatterKind.SCATTER_ELEMENTS,
+                        new ScatterElementsAttrs(0, ScatterReduction.ADD)),
+                List.of(CpuScatterLoweringTest.desc(DataType.INT32, Shape.of(2)),
+                        CpuScatterLoweringTest.desc(DataType.INT32, Shape.of(2)),
+                        CpuScatterLoweringTest.desc(DataType.INT32, Shape.of(2))),
+                CpuScatterLoweringTest.desc(DataType.INT32, Shape.of(2)));
+        int[] shared = {2, 3};
+        var overlapRun = state(overlap, List.of(borrow(shared), borrow(new int[]{0, 1}),
+                borrow(new int[]{4, 5}), borrow(shared)));
+        try {
+            assertThrows(IllegalArgumentException.class, () -> overlap.bind(overlapRun));
+            assertArrayEquals(new int[]{2, 3}, shared);
+        } finally { overlapRun.close(); }
+
+        var descriptors = List.of(CpuScatterLoweringTest.desc(DataType.INT32, Shape.of(2)),
+                CpuScatterLoweringTest.desc(DataType.INT32, Shape.of(2)));
+        var base = CpuScatterLoweringTest.context(new Operation(AxisScatterKind.SCATTER_ELEMENTS,
+                        new ScatterElementsAttrs(0, ScatterReduction.ADD)), List.of(0, 1, 0),
+                descriptors, CpuScatterLoweringTest.desc(DataType.INT32, Shape.of(2)));
+        var context = new io.github.pho001.synaptik.prepare.analysis.PrepareContext<>(
+                base.partition(), base.nodes(), base.values(), base.memoryRequirements(),
+                base.constants(), new CpuPartitionAnalysisInputs(false, List.of(
+                        CarrierAccess.INT_ARRAY, CarrierAccess.INT_ARRAY,
+                        CarrierAccess.INT_ARRAY)));
+        var deduplicated = CpuPartitionFinalizerTest.finalizeExecutable(
+                new CpuPartitionPreparer().analyze(context), Optional.empty());
+        int[] output = new int[2];
+        var dedupRun = state(deduplicated, List.of(borrow(new int[]{2, 3}),
+                borrow(new int[]{1, 0}), borrow(output)));
+        try {
+            deduplicated.bind(dedupRun).execute();
+            assertArrayEquals(new int[]{5, 5}, output);
+        } finally { dedupRun.close(); }
+    }
+
+    @Test void parallelScatterProductUsesMixedCarriersDisjointScratchAndRepeatsDeterministically() {
+        int outputCount = 8, updateCount = 16;
+        var inputs = List.of(CpuScatterLoweringTest.desc(DataType.FLOAT64,
+                        Shape.of(outputCount)),
+                CpuScatterLoweringTest.desc(DataType.INT32, Shape.of(updateCount)),
+                CpuScatterLoweringTest.desc(DataType.FLOAT64, Shape.of(updateCount)));
+        var base = CpuScatterLoweringTest.context(new Operation(AxisScatterKind.SCATTER_ELEMENTS,
+                        new ScatterElementsAttrs(0, ScatterReduction.MUL)), List.of(0, 1, 2),
+                inputs, CpuScatterLoweringTest.desc(DataType.FLOAT64, Shape.of(outputCount)));
+        var config = new PortableExecutionConfig(ComputePreference.SCALAR, 4, 4, 1);
+        var context = new io.github.pho001.synaptik.prepare.analysis.PrepareContext<>(
+                base.partition(), base.nodes(), base.values(), base.memoryRequirements(),
+                base.constants(), new CpuPartitionAnalysisInputs(false,
+                List.of(CarrierAccess.MEMORY_SEGMENT, CarrierAccess.INT_ARRAY,
+                        CarrierAccess.DOUBLE_ARRAY, CarrierAccess.DOUBLE_ARRAY), config));
+        var analysis = new CpuPartitionPreparer().analyze(context);
+        assertEquals(4, analysis.plan().selectedRangeCount());
+        var workers = new CpuWorkerGroup(4);
+        try {
+            var executable = CpuPartitionFinalizerTest.finalizeExecutable(analysis,
+                    Optional.empty(), Optional.of(workers));
+            var data = CpuNativeBuffer.allocate(DataType.FLOAT64,
+                    outputCount * (long) Double.BYTES, Double.BYTES);
+            for (int i = 0; i < outputCount; i++) data.segment().set(ValueLayout.JAVA_DOUBLE,
+                    i * (long) Double.BYTES, 2.0);
+            int[] indices = new int[updateCount];
+            double[] updates = new double[updateCount];
+            for (int i = 0; i < outputCount; i++) {
+                indices[2 * i] = i; indices[2 * i + 1] = i;
+                updates[2 * i] = 3.0; updates[2 * i + 1] = 4.0;
+            }
+            double[] output = new double[outputCount]; java.util.Arrays.fill(output, -7.0);
+            var declaration = analysis.plan().workspaceDeclaration().orElseThrow();
+            var workspace = CpuContiguousWorkspace.allocate(declaration.byteSize(),
+                    declaration.byteAlignment());
+            var run = state(executable, List.of(data, borrow(indices), borrow(updates, 0,
+                    updateCount), borrow(output, 0, outputCount)), List.of(workspace));
+            try {
+                var bound = executable.bind(run);
+                bound.execute();
+                assertArrayEquals(new double[]{24, 24, 24, 24, 24, 24, 24, 24}, output);
+                bound.execute();
+                assertArrayEquals(new double[]{24, 24, 24, 24, 24, 24, 24, 24}, output);
+                for (int i = 0; i < outputCount; i++) assertEquals(2.0,
+                        data.segment().get(ValueLayout.JAVA_DOUBLE, i * (long) Double.BYTES));
+            } finally { run.close(); }
+        } finally { workers.close(); }
+    }
+
+    @Test void parallelScatterValidationCompletesBeforeAnyWorkerCanWrite() {
+        int count = 16;
+        var inputs = List.of(CpuScatterLoweringTest.desc(DataType.INT32, Shape.of(count)),
+                CpuScatterLoweringTest.desc(DataType.INT32, Shape.of(count)),
+                CpuScatterLoweringTest.desc(DataType.INT32, Shape.of(count)));
+        var base = CpuScatterLoweringTest.context(new Operation(AxisScatterKind.SCATTER_ELEMENTS,
+                        new ScatterElementsAttrs(0, ScatterReduction.NONE)), List.of(0, 1, 2),
+                inputs, CpuScatterLoweringTest.desc(DataType.INT32, Shape.of(count)));
+        var config = new PortableExecutionConfig(ComputePreference.SCALAR, 4, 4, 1);
+        var context = new io.github.pho001.synaptik.prepare.analysis.PrepareContext<>(
+                base.partition(), base.nodes(), base.values(), base.memoryRequirements(),
+                base.constants(), new CpuPartitionAnalysisInputs(false, List.of(
+                        CarrierAccess.INT_ARRAY, CarrierAccess.INT_ARRAY, CarrierAccess.INT_ARRAY,
+                        CarrierAccess.INT_ARRAY), config));
+        var analysis = new CpuPartitionPreparer().analyze(context);
+        var workers = new CpuWorkerGroup(4);
+        try {
+            var executable = CpuPartitionFinalizerTest.finalizeExecutable(analysis,
+                    Optional.empty(), Optional.of(workers));
+            int[] indices = new int[count];
+            for (int i = 0; i < count; i++) indices[i] = i;
+            indices[3] = count;
+            int[] output = new int[count]; java.util.Arrays.fill(output, 73);
+            var run = state(executable, List.of(borrow(new int[count]), borrow(indices),
+                    borrow(new int[count]), borrow(output)));
+            try {
+                var failure = assertThrows(IndexOutOfBoundsException.class,
+                        () -> executable.bind(run).execute());
+                assertEquals("SCATTER_ELEMENTS index at logical position 3 for data axis 0 is "
+                        + "out of bounds: value=16, extent=16", failure.getMessage());
+                int[] expected = new int[count]; java.util.Arrays.fill(expected, 73);
+                assertArrayEquals(expected, output);
+            } finally { run.close(); }
+        } finally { workers.close(); }
+    }
+
+    private static CpuPreparedExecutable scatterExecutable(Operation operation,
+            List<TensorDescriptor> inputs,TensorDescriptor output){
+        var base=CpuScatterLoweringTest.context(operation,List.of(0,1,2),inputs,output);
+        var carriers=new ArrayList<CarrierAccess>();for(var input:inputs)carriers.add(switch(input.dataType()){case FLOAT64->CarrierAccess.DOUBLE_ARRAY;case FLOAT32->CarrierAccess.FLOAT_ARRAY;case BFLOAT16->CarrierAccess.SHORT_ARRAY;case INT32->CarrierAccess.INT_ARRAY;case INT64->CarrierAccess.LONG_ARRAY;case BOOL->CarrierAccess.BYTE_ARRAY;});carriers.add(switch(output.dataType()){case FLOAT64->CarrierAccess.DOUBLE_ARRAY;case FLOAT32->CarrierAccess.FLOAT_ARRAY;case BFLOAT16->CarrierAccess.SHORT_ARRAY;case INT32->CarrierAccess.INT_ARRAY;case INT64->CarrierAccess.LONG_ARRAY;case BOOL->CarrierAccess.BYTE_ARRAY;});
+        var context=new io.github.pho001.synaptik.prepare.analysis.PrepareContext<>(base.partition(),base.nodes(),base.values(),base.memoryRequirements(),base.constants(),new CpuPartitionAnalysisInputs(false,carriers));
+        return CpuPartitionFinalizerTest.finalizeExecutable(new CpuPartitionPreparer().analyze(context),Optional.empty());
     }
 
     private static CpuPreparedExecutable indexingExecutable(Operation operation,
