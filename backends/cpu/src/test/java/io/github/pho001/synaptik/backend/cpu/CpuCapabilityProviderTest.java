@@ -17,6 +17,7 @@ import io.github.pho001.synaptik.model.operation.elementwise.logical.BooleanLogi
 import io.github.pho001.synaptik.model.operation.elementwise.selection.WhereSelectionKind;
 import io.github.pho001.synaptik.model.operation.index.*;
 import io.github.pho001.synaptik.model.operation.layout.*;
+import io.github.pho001.synaptik.model.operation.ordering.*;
 import io.github.pho001.synaptik.model.shape.Shape;
 import io.github.pho001.synaptik.model.shape.DynamicDimension;
 import io.github.pho001.synaptik.model.shape.StaticDimension;
@@ -27,6 +28,23 @@ import java.util.Optional;
 import org.junit.jupiter.api.Test;
 
 class CpuCapabilityProviderTest {
+    @Test void reportsExactStaticStableOrderingAndTwoOutputTopK() {
+        var provider = new CpuCapabilityProvider();
+        var input = descriptor(DataType.BFLOAT16, Shape.of(2, 5));
+        var values = descriptor(DataType.BFLOAT16, Shape.of(2, 3));
+        var indices = descriptor(DataType.INT64, Shape.of(2, 3));
+        assertAll(() -> assertTrue(provider.supports(query(OrderingKind.SORT,
+                        new SortAttrs(1, true), List.of(input), input))),
+                () -> assertTrue(provider.supports(query(OrderingKind.ARGSORT,
+                        new SortAttrs(1, false), List.of(input),
+                        descriptor(DataType.INT64, Shape.of(2, 5))))),
+                () -> assertTrue(provider.supports(new OperationCapabilityQuery(
+                        new Operation(TopKKind.TOP_K, new TopKAttrs(1, 3, true, false)),
+                        List.of(input), List.of(values, indices)))),
+                () -> assertFalse(provider.supports(new OperationCapabilityQuery(
+                        new Operation(TopKKind.TOP_K, new TopKAttrs(1, 3, true, false)),
+                        List.of(input), List.of(indices, values)))));
+    }
     @Test void reportsOnlyExactStaticSliceUpdateOccurrences() {
         var provider = new CpuCapabilityProvider();
         var base = descriptor(DataType.BFLOAT16, Shape.of(5));

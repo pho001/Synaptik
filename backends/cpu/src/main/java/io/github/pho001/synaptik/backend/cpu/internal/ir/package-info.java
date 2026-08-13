@@ -41,6 +41,12 @@
  * policy. Concrete axes, window geometry, extents, layout magnitudes, ranges, and carriers remain
  * cold prepared facts.</p>
 
+ * <p>The ordering representation keeps SORT, ARGSORT, and TOP_K distinct. It records the
+ * represented input/value type, direction, TOP_K output-order flag, ordered read/write boundary
+ * access forms, one- or two-output structure, and explicit two-index-region scratch policy.
+ * Concrete axis, K, extents, layout magnitudes, carriers, assigned workspace, and range slicing
+ * remain cold prepared facts.</p>
+
  * <p>The indexing representation keeps GATHER, GATHER_ELEMENTS, GATHER_ND, and ONE_HOT distinct,
  * records semantic occurrence-to-unique-boundary mapping, permits mixed index/data/output types,
  * and retains one injective output store. Concrete extents, normalized axis, batch and tuple

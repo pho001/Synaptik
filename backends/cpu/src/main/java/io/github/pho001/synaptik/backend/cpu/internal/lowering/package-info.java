@@ -48,12 +48,19 @@
  * FOLD2D occurrence. It derives checked compact general-axis or canonical NCHW geometry, retains
  * logical input repetition from zero strides, proves a distinct injective output, and selects no
  * materialization or workspace.</p>
+
+ * <p>The stable ordering family accepts exactly one fully static resolved-layout SORT, ARGSORT,
+ * or TOP_K occurrence. It revalidates Model Shape/output-slot roles, derives complete independent
+ * logical-axis slices, proves one or two distinct injective outputs, and sizes two INT64 merge-
+ * index regions for each selected execution range. Axis, K, offsets, strides, and slice geometry
+ * remain cold; value comparison and scratch allocation occur later.</p>
  *
  * <p>The selected {@code CpuMaterializationPlan} is a separate route-independent copy fact. It
  * retains original source geometry and canonical dense consumer geometry without changing the
  * Model graph, backend-neutral logical memory, or boundary {@code ValueId}. At most one selected
  * input receives CPU-private workspace ID {@code 0}. Scatter product scratch uses the same
- * analysis-local ID only in a mutually exclusive scatter plan.
+ * analysis-local ID only in a mutually exclusive scatter plan. Stable ordering uses that same
+ * ID in its mutually exclusive exact run-owned merge-scratch plan.
  *
  * <p>Lowering runs on the preparation cold path; no lowering object or Model operation reaches the
  * generated execution loop.

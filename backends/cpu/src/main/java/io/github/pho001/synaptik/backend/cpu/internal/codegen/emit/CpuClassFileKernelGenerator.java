@@ -47,7 +47,9 @@ public final class CpuClassFileKernelGenerator {
                 .withMethod(CpuGeneratorSchema.ENTRY_NAME, type, AccessFlag.STATIC.mask(), method ->
                         method.withCode(code -> {
                             if (kernelIr.instructions().isEmpty()) {
-                                if (kernelIr.familyIdentity().startsWith("fold:")) {
+                                if (kernelIr.familyIdentity().startsWith("ordering:")) {
+                                    new CpuOrderingEmitter().emit(code, specialization);
+                                } else if (kernelIr.familyIdentity().startsWith("fold:")) {
                                     new CpuFoldEmitter().emit(code, specialization);
                                 } else if (kernelIr.familyIdentity().startsWith("scatter:")) {
                                     new CpuScatterEmitter().emit(code, specialization);
@@ -222,15 +224,16 @@ public final class CpuClassFileKernelGenerator {
             boolean indexing = kernelIr.familyIdentity().startsWith("indexing:");
             boolean scatter = kernelIr.familyIdentity().startsWith("scatter:");
             boolean fold = kernelIr.familyIdentity().startsWith("fold:");
+            boolean ordering = kernelIr.familyIdentity().startsWith("ordering:");
             boolean movement = kernelIr.familyIdentity().startsWith("movement:");
             boolean affine = kernelIr.familyIdentity().startsWith("affine:");
-            if ((!movement && !affine && !indexing && !scatter && !fold)
+            if ((!movement && !affine && !indexing && !scatter && !fold && !ordering)
                     || affine && kernelIr.values().size() != 2
                     || movement && (kernelIr.values().size() < 2 || kernelIr.values().size() > 17)
-                    || kernelIr.values().subList(0, kernelIr.values().size() - 1).stream()
+                    || !ordering && kernelIr.values().subList(0, kernelIr.values().size() - 1).stream()
                         .anyMatch(value -> value.kind() != CpuKernelIr.Value.Kind.INPUT)
                     || kernelIr.values().getLast().kind() != CpuKernelIr.Value.Kind.OUTPUT
-                    || !indexing && !scatter && !fold && kernelIr.values().stream().map(CpuKernelIr.Value::dataType).distinct().count() != 1
+                    || !indexing && !scatter && !fold && !ordering && kernelIr.values().stream().map(CpuKernelIr.Value::dataType).distinct().count() != 1
                     || specialization.executionStrategy().compute()
                         != io.github.pho001.synaptik.backend.cpu.internal.prepare.CpuPartitionPreparationPlan.ExecutionStrategy.Compute.SCALAR
                     || !specialization.scalarPowerRealizations().isEmpty()) {

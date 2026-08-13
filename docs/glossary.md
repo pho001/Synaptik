@@ -1052,18 +1052,29 @@ output ownership, arbitrary non-negative resolved input layouts, injective outpu
 segment/mixed carriers, input deduplication and aliasing, and strict output/input non-overlap.
 `NONE` accepts all six represented types; ADD/MUL/MIN/MAX accept the five numeric types, while
 SCATTER_ADD is fixed ADD. Floating MUL alone declares exact per-range primitive-limb scratch and
-rounds the abstract product once. Schema 16 includes scatter structure and scratch signature.
+rounds the abstract product once. Schema 16 introduced scatter structure and scratch signature;
+current schema 18 retains them.
 
 Completed CPU 0006B2 adds exactly one fully static resolved-layout FOLD_AXIS or FOLD2D
 occurrence. Fold starts a fresh output from represented positive zero, visits contributions in
 canonical logical input row-major order, uses scalar or disjoint-output parallel-scalar ranges,
 and declares neither workspace nor materialization. Both families admit FLOAT64, FLOAT32, and
 BFLOAT16; FOLD_AXIS additionally admits modular INT32/INT64 addition. FOLD2D excludes padded and
-ceil-tail coordinates outside the unpadded NCHW output. Schema 17 adds fold structure and its
-canonical sequential-addition policy.
+ceil-tail coordinates outside the unpadded NCHW output. Schema 17 added fold structure and its
+canonical sequential-addition policy; current schema 18 retains both.
+
+Completed CPU 0006C adds exactly one fully static resolved-layout stable SORT, ARGSORT, or TOP_K
+occurrence for all six represented types. It uses logical-axis order, keeps floating NaNs last in
+both directions, reverses signed-zero order with direction, preserves increasing original index
+for equal values and NaNs, copies selected represented bits, and writes zero-based INT64 axis
+indices. TOP_K writes values then indices from one occurrence; unsorted output deterministically
+uses increasing original index. Scalar or complete-slice parallel-scalar execution declares exact
+disjoint two-region INT64 merge scratch per selected range. Schema 18 adds ordering structure,
+multi-store roles, direction/output order, and its scratch-bearing entry signature.
 
 Cross-type cast, general BFLOAT16 pointwise arithmetic, FLOAT16 execution, relaxed math,
-native/vendor realization, order/random families, dynamic layouts, Vector API scatter or fold,
+native/vendor realization, explicit-state random families, dynamic layouts, Vector API scatter,
+fold, or ordering,
 gradients, and universal backend support are not part of this route increment. General
 partition-DAG decomposition and bounded vertical/horizontal fusion remain Draft CPU 0008A work.
 
@@ -1123,12 +1134,12 @@ decision occurs in the generated loop.
 ### CPU kernel specialization
 
 The implemented backend-private immutable description of every fact allowed to change one
-generated CPU class. The current form includes schema 17, the canonical lowering fingerprint with
+generated CPU class. The current form includes schema 18, the canonical lowering fingerprint with
 typed opcode sequence, exact scalar-immediate bits, exact ordered clamp-bound bits, and selected
 scalar-power realizations, exact/default numerical mode, generated
 scalar/vector compute form, exact preferred FLOAT32, FLOAT64, INT32, INT64, or BOOL species bit
 size for vector compute,
-and the complete ordered boundary data-type/carrier pattern. Schema 17 retains the schema-16
+and the complete ordered boundary data-type/carrier pattern. Schema 18 retains the schema-17
 distinctions for the
 pointwise, affine, movement, indexing, or functional-scatter IR family; affine mapping topology and write domain;
 movement family, input/output rank, occurrence map, exact PAD or UNFOLD2D padding bits, and
@@ -1141,7 +1152,10 @@ records overlap-fold family, common represented type, boundary rank/access struc
 canonical sequential-addition policy while leaving concrete axis/window geometry cold. The homogeneous boundary types
 distinguish FLOAT32 from FLOAT64; no second lane-type field is retained.
 The direct-versus-materialized input position and adjusted canonical consumer access form are also
-structural when present.
+structural when present. Schema 18 additionally records stable SORT/ARGSORT/TOP_K family,
+represented type, direction and TOP_K output-order flags, ordered one- or two-output boundary
+roles, and the scratch-bearing entry shape. Concrete axis, K, layout magnitudes, workspace
+identity, and execution ranges remain cold.
 Canonical IR separately supplies value kind, data type, ordered semantics/stores, iteration rank,
 axis roles, contiguous-suffix form, and access regime. Their derived compatibility bytes and
 structural identity are order-sensitive.
@@ -1557,11 +1571,41 @@ layouts and heap, native-order segment, or mixed carriers are admitted. Cold bin
 input/output physical overlap before work.
 
 Analysis declares exactly two buffers, zero workspaces or materializations, one unit, and one
-artifact. Schema 17 records fold family, type, structural access/rank facts, carrier form,
-execution mode, and addition policy while keeping concrete geometry and ranges cold. This term
+artifact. Schema 17 introduced fold family, type, structural access/rank facts, carrier form,
+execution mode, and addition policy; current schema 18 retains those facts while keeping concrete
+geometry and ranges cold. This term
 adds no Model or Compiler semantics, gradient route, Runtime interpretation, native or vector
 fold, dynamic layout, fusion, reduction-framework reuse, cross-backend bitwise promise, or
 performance claim.
+
+### CPU stable ordering
+
+The implemented CPU-private realization of exactly one fully static, resolved-layout stable
+`SORT`, `ARGSORT`, or `TOP_K` occurrence. Each independent logical-axis slice uses the Model's
+complete order: floating NaNs are last in ascending and descending order; negative zero precedes
+positive zero ascending and follows it descending; equal numeric, integral, BOOL, and NaN values
+retain increasing original logical index. INT32/INT64 use signed order and BOOL uses
+`false < true` before direction reversal.
+
+SORT writes represented values, ARGSORT writes zero-based INT64 logical-axis coordinates, and
+TOP_K writes ordered `[values, indices]` outputs from one occurrence and artifact. TOP_K selects
+the first `k` pairs from the complete stable value order. Sorted output retains that order;
+unsorted output retains the same selected set and orders it by increasing original index. Values
+outputs preserve raw FLOAT64/FLOAT32 NaN and signed-zero bits, raw BFLOAT16 payloads, integral
+patterns, and canonical BOOL bytes.
+
+Analysis declares one exact run-owned workspace containing two axis-extent INT64 merge-index
+regions for each selected range. Parallel-scalar ranges own complete disjoint slices and scratch
+regions, so they neither split a slice nor share mutable coordinates. Cold binding rejects every
+input/output and TOP_K output/output physical overlap before scratch mutation, output writes,
+generated calls, or worker submission. Schema 18 records structural family, represented type,
+direction/output order, boundary roles and carriers, output count, and scratch-bearing entry
+shape; concrete axis, K, layout magnitudes, resources, and ranges remain cold.
+
+This term describes CPU realization, not Model expression construction or a universal sorting
+contract. It adds no dynamic layouts, unstable/custom ordering, vector or native sorting,
+approximate selection, fusion, autotuning, Runtime semantic interpretation, cross-backend bitwise
+promise, or performance claim.
 
 ### CPU virtual intermediate
 
@@ -3974,7 +4018,8 @@ replace semantics, preserves represented bits for all six types, accepts signed 
 finite steps including legal length-one `Long.MIN_VALUE`, handles scalar and empty regions, and
 supports arbitrary disjoint scalar or parallel-scalar ranges across heap, segment, and mixed
 carriers. Output/input physical overlap is rejected; exact same-value base/update inputs may share
-one deduplicated boundary. Current schema 17 retains the slice-update family/rank/map structure;
+one deduplicated boundary. Schema 15 introduced the slice-update family/rank/map structure, and
+current schema 18 retains it;
 concrete placement remains cold. Functional scatter and overlap fold are separate current CPU
 portable families.
 

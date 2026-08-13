@@ -40,7 +40,7 @@ class CpuGeneratedKernelArtifactStoreTest {
                 route.specialization(), route.kernelIr());
         var hit = hitResult.artifact();
         assertAll(
-                () -> assertEquals(17, CpuGeneratorSchema.CURRENT_VERSION),
+                () -> assertEquals(18, CpuGeneratorSchema.CURRENT_VERSION),
                 () -> assertTrue(Files.exists(root.resolve("legacy-v1.class"))),
                 () -> assertArrayEquals(memoryOnly.classBytes(), persisted.classBytes()),
                 () -> assertTrue(Files.size(current) > persisted.classBytes().length),

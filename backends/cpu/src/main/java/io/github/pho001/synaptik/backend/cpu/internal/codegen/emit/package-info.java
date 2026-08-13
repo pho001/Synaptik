@@ -45,6 +45,11 @@
  * from represented positive zero, scans logical input occurrences in canonical row-major order,
  * excludes out-of-domain FOLD2D positions geometrically, performs represented sequential
  * addition, and writes each output coordinate once without scratch or atomics.
+ * The ordering emitter owns a separate logical-slice scalar body. It performs a stable bottom-up
+ * merge over two assigned INT64 index regions, compares floating values with NaNs last and
+ * directional signed zero, preserves selected represented bits, writes logical-axis INT64
+ * indices, and emits both TOP_K outputs from one entry. Parallel orchestration supplies disjoint
+ * complete slices and scratch regions; vector sorting and worker submission remain outside it.
  *
  * <p>Generation and verification are cold-path operations. Only the resolved static entry handle
  * executes on the Runtime hot path. Parallel plans reuse that direct scalar or vector entry for

@@ -25,6 +25,9 @@
  * It independently evaluates FOLD_AXIS and FOLD2D from logical coordinates, positive-zero
  * initialization, padding exclusion, and represented sequential addition without sharing the
  * generated packed-coordinate walk.
+ * It independently evaluates stable SORT, ARGSORT, and TOP_K with primitive-index insertion,
+ * fixed NaN-last and signed-zero order, logical INT64 coordinates, represented-bit value copies,
+ * and deterministic increasing-index order for unsorted selected pairs.
  *
  * <p>Reference evaluation is outside the generated Runtime hot path and owns no buffers, slots, or
  * artifact lifecycle.

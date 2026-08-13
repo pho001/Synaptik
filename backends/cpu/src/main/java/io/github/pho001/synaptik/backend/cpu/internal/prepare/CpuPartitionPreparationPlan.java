@@ -15,6 +15,7 @@ import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuNonAffineMovem
 import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuIndexingLowering;
 import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuScatterLowering;
 import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuFoldLowering;
+import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuOrderingLowering;
 
 /**
  * Route-neutral immutable selected CPU partition plan.
@@ -42,7 +43,7 @@ import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuFoldLowering;
  * @param loweringManifest non-null optional cold diagnostic text, empty when disabled
  * @param materialization non-null optional selected one-input copy fact
  * @param workspaceDeclaration non-null optional exact workspace declaration; present exactly when
- *     materialization or floating scatter multiplication requires it
+ *     materialization, floating scatter multiplication, or stable ordering requires it
  * @param workspaceUse non-null explicit meaning of the optional workspace
  * @param specializationBudget non-null enforced candidate/artifact/shape/unroll ceiling
  * @param movementGeometry non-null optional compact cold non-affine movement geometry
@@ -51,6 +52,8 @@ import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuFoldLowering;
  * @param scatterGeometry non-null optional functional-scatter geometry; floating multiplication
  *     may pair it with the exact declared product workspace
  * @param foldGeometry non-null optional zero-workspace overlap-fold geometry
+ * @param orderingGeometry non-null optional stable ordering geometry; present exactly for one
+ *     SORT, ARGSORT, or TOP_K plan and paired with exact per-range merge scratch
  */
 public record CpuPartitionPreparationPlan(List<ExecutionUnitPlan> units, Route route,
         ExecutionStrategy executionStrategy,
@@ -66,7 +69,8 @@ public record CpuPartitionPreparationPlan(List<ExecutionUnitPlan> units, Route r
         Optional<CpuNonAffineMovementLowering.Geometry> movementGeometry,
         Optional<CpuIndexingLowering.Geometry> indexingGeometry,
         Optional<CpuScatterLowering.Geometry> scatterGeometry,
-        Optional<CpuFoldLowering.Geometry> foldGeometry)
+        Optional<CpuFoldLowering.Geometry> foldGeometry,
+        Optional<CpuOrderingLowering.Geometry> orderingGeometry)
         implements BackendPreparationPlan {
     /**
      * Creates a pointwise or affine plan without non-affine movement geometry.
@@ -111,13 +115,14 @@ public record CpuPartitionPreparationPlan(List<ExecutionUnitPlan> units, Route r
                 loweringManifest, materialization, workspaceDeclaration,
                 materialization.isPresent() ? WorkspaceUse.MATERIALIZATION : WorkspaceUse.NONE,
                 specializationBudget, Optional.empty(), Optional.empty(), Optional.empty(),
-                Optional.empty());
+                Optional.empty(), Optional.empty());
     }
     /** Meaning of the plan's sole optional CPU workspace. */
     public enum WorkspaceUse {
         /** No workspace is declared. */ NONE,
         /** Contiguous pointwise input materialization. */ MATERIALIZATION,
-        /** Per-range exact floating scatter-product accumulator slices. */ SCATTER_PRODUCT
+        /** Per-range exact floating scatter-product accumulator slices. */ SCATTER_PRODUCT,
+        /** Per-range two-region stable ordering indices. */ ORDERING_INDICES
     }
     /**
      * One computation-oriented execution unit.
@@ -199,14 +204,22 @@ public record CpuPartitionPreparationPlan(List<ExecutionUnitPlan> units, Route r
      * @param generatedCarrierPattern non-null generated-consumer carrier forms; copied
      * @param extents non-null compatible iteration extents; copied defensively
      * @param elementCount checked logical element count represented by {@code extents}
+     * @param affineAddressPairs alternating affine source/result addresses, or empty otherwise;
+     *     copied defensively
      * @param selectedRangeCount positive maximum selected range count
      * @param minimumElementsPerWorker positive minimum elements per submitted worker chunk
      * @param vectorSpeciesBitSize positive preferred typed species bit size for vector
      *     compute, or zero for scalar compute
      * @param loweringManifest non-null optional cold diagnostic text
      * @param materialization non-null optional selected copy
-     * @param workspaceDeclaration non-null optional exact selected-copy workspace declaration
+     * @param workspaceDeclaration non-null optional exact workspace declaration
+     * @param workspaceUse non-null purpose of the optional workspace
      * @param specializationBudget non-null current hard specialization ceiling
+     * @param movementGeometry non-null optional static movement geometry
+     * @param indexingGeometry non-null optional indexing geometry
+     * @param scatterGeometry non-null optional functional-scatter geometry
+     * @param foldGeometry non-null optional overlap-fold geometry
+     * @param orderingGeometry non-null optional stable ordering geometry
      * @throws NullPointerException if a required component is {@code null}
      * @throws IllegalArgumentException if the plan is not one portable unit with matching derived
      *     boundary facts, or if strategy, range, materialization, workspace, species, or budget
@@ -232,6 +245,7 @@ public record CpuPartitionPreparationPlan(List<ExecutionUnitPlan> units, Route r
         indexingGeometry = Objects.requireNonNull(indexingGeometry, "indexingGeometry");
         scatterGeometry = Objects.requireNonNull(scatterGeometry, "scatterGeometry");
         foldGeometry = Objects.requireNonNull(foldGeometry, "foldGeometry");
+        orderingGeometry = Objects.requireNonNull(orderingGeometry, "orderingGeometry");
         if (units.size() != 1 || route != Route.PORTABLE
                 || bufferDeclarations.size() < 2
                 || boundaryValues.size() != bufferDeclarations.size()
@@ -250,6 +264,8 @@ public record CpuPartitionPreparationPlan(List<ExecutionUnitPlan> units, Route r
                 instanceof io.github.pho001.synaptik.backend.cpu.internal.ir.CpuScatterIr;
         boolean fold = units.getFirst().portablePlan().portableKernelIr()
                 instanceof io.github.pho001.synaptik.backend.cpu.internal.ir.CpuFoldIr;
+        boolean ordering = units.getFirst().portablePlan().portableKernelIr()
+                instanceof io.github.pho001.synaptik.backend.cpu.internal.ir.CpuOrderingIr;
         if (affine ? affineAddressPairs.length != Math.multiplyExact(elementCount, 2)
                 : affineAddressPairs.length != 0) {
             throw new IllegalArgumentException("affine address geometry must match the copy domain");
@@ -268,6 +284,8 @@ public record CpuPartitionPreparationPlan(List<ExecutionUnitPlan> units, Route r
                 || materialization.isPresent() || workspaceDeclaration.isPresent())) {
             throw new IllegalArgumentException("fold IR and zero-resource geometry must agree");
         }
+        if (ordering != orderingGeometry.isPresent() || ordering && materialization.isPresent())
+            throw new IllegalArgumentException("ordering IR and geometry must agree");
         if (fold) {
             var foldIr = (io.github.pho001.synaptik.backend.cpu.internal.ir.CpuFoldIr)
                     units.getFirst().portablePlan().portableKernelIr();
@@ -290,7 +308,9 @@ public record CpuPartitionPreparationPlan(List<ExecutionUnitPlan> units, Route r
         }
         WorkspaceUse expectedUse = materialization.isPresent() ? WorkspaceUse.MATERIALIZATION
                 : scatterGeometry.filter(g -> g.scratchSliceBytes() > 0).isPresent()
-                    ? WorkspaceUse.SCATTER_PRODUCT : WorkspaceUse.NONE;
+                    ? WorkspaceUse.SCATTER_PRODUCT
+                    : orderingGeometry.isPresent()
+                        ? WorkspaceUse.ORDERING_INDICES : WorkspaceUse.NONE;
         if (workspaceUse != expectedUse
                 || workspaceDeclaration.isPresent() != (workspaceUse != WorkspaceUse.NONE)) {
             throw new IllegalArgumentException("workspace purpose and declaration must agree");
@@ -302,6 +322,13 @@ public record CpuPartitionPreparationPlan(List<ExecutionUnitPlan> units, Route r
                     || workspace.byteSize() != geometry.workspaceBytes(selectedRangeCount)) {
                 throw new IllegalArgumentException("scatter product workspace facts disagree");
             }
+        }
+        if (workspaceUse == WorkspaceUse.ORDERING_INDICES) {
+            var geometry = orderingGeometry.orElseThrow();
+            var workspace = workspaceDeclaration.orElseThrow();
+            if (workspace.requirementId() != 0 || workspace.byteAlignment() != Long.BYTES
+                    || workspace.byteSize() != geometry.workspaceBytes(selectedRangeCount))
+                throw new IllegalArgumentException("ordering workspace facts disagree");
         }
         if (materialization.isPresent()) {
             var copy = materialization.orElseThrow();

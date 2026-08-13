@@ -6,6 +6,7 @@ import io.github.pho001.synaptik.backend.cpu.internal.executable.CpuPreparedExec
 import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuNonAffineMovementLoweringTest;
 import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuScatterLoweringTest;
 import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuFoldLoweringTest;
+import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuOrderingLoweringTest;
 import io.github.pho001.synaptik.backend.cpu.internal.cache.CpuKernelSpecialization.CarrierAccess;
 import io.github.pho001.synaptik.model.operation.Operation;
 import io.github.pho001.synaptik.model.operation.layout.CompositionAxisAttrs;
@@ -220,11 +221,30 @@ public class CpuPartitionFinalizerTest {
             assertAll(() -> assertEquals(2, executable.bufferSelectionCount()),
                     () -> assertEquals(2, executable.memoryPlan().buffers().size()),
                     () -> assertTrue(executable.memoryPlan().workspaces().isEmpty()),
-                    () -> assertEquals(17, io.github.pho001.synaptik.backend.cpu.internal.cache
+                    () -> assertEquals(18, io.github.pho001.synaptik.backend.cpu.internal.cache
                             .CpuGeneratorSchema.CURRENT_VERSION),
                     () -> assertEquals(1, files.filter(path -> path.getFileName().toString()
                             .endsWith(".artifact")).count()));
         }
+    }
+
+    @Test void topKFinalizesThreeBuffersExactScratchAndOneArtifact() throws Exception {
+        var base = CpuOrderingLoweringTest.context(new Operation(
+                io.github.pho001.synaptik.model.operation.ordering.TopKKind.TOP_K,
+                new io.github.pho001.synaptik.model.operation.ordering.TopKAttrs(1, 2, true, false)),
+                DataType.FLOAT32, Shape.of(3, 5), Shape.of(3, 2), true);
+        var context = new io.github.pho001.synaptik.prepare.analysis.PrepareContext<>(
+                base.partition(), base.nodes(), base.values(), base.memoryRequirements(),
+                base.constants(), new CpuPartitionAnalysisInputs(false,
+                        List.of(CarrierAccess.FLOAT_ARRAY, CarrierAccess.FLOAT_ARRAY,
+                                CarrierAccess.LONG_ARRAY)));
+        var analysis = new CpuPartitionPreparer().analyze(context);
+        var executable = finalizeExecutable(analysis, Optional.of(root.resolve("ordering")));
+        assertAll(() -> assertEquals(3, executable.bufferSelectionCount()),
+                () -> assertEquals(3, executable.memoryPlan().buffers().size()),
+                () -> assertEquals(1, executable.memoryPlan().workspaces().size()),
+                () -> assertEquals(80, executable.memoryPlan().workspaces().getFirst().byteSize()),
+                () -> assertTrue(executable.artifact().specialization().scratchParameter()));
     }
 
     private static void finalizeWithMalformedWorkspace(

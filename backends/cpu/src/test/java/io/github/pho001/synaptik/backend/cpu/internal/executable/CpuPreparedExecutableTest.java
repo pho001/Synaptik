@@ -35,6 +35,7 @@ import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuAffineLayoutLo
 import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuNonAffineMovementLoweringTest;
 import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuScatterLoweringTest;
 import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuFoldLoweringTest;
+import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuOrderingLoweringTest;
 import io.github.pho001.synaptik.backend.cpu.internal.prepare.CpuPartitionPreparer;
 import io.github.pho001.synaptik.model.datatype.ScalarValue;
 import io.github.pho001.synaptik.model.operation.Operation;
@@ -56,6 +57,108 @@ class CpuPreparedExecutableTest {
             ValueLayout.JAVA_FLOAT_UNALIGNED.withOrder(ByteOrder.nativeOrder());
     private static final ValueLayout.OfInt INT =
             ValueLayout.JAVA_INT_UNALIGNED.withOrder(ByteOrder.nativeOrder());
+
+    @Test void topKColdBindingExecutesBothOutputsAndRejectsAllOverlapBeforeMutation() {
+        var base = CpuOrderingLoweringTest.context(new Operation(
+                io.github.pho001.synaptik.model.operation.ordering.TopKKind.TOP_K,
+                new io.github.pho001.synaptik.model.operation.ordering.TopKAttrs(1, 3, true, false)),
+                DataType.FLOAT32, Shape.of(2, 5), Shape.of(2, 3), true);
+        var context = new io.github.pho001.synaptik.prepare.analysis.PrepareContext<>(base.partition(),
+                base.nodes(), base.values(), base.memoryRequirements(), base.constants(),
+                new CpuPartitionAnalysisInputs(false, List.of(CarrierAccess.MEMORY_SEGMENT,
+                        CarrierAccess.MEMORY_SEGMENT, CarrierAccess.MEMORY_SEGMENT)));
+        var analysis = new CpuPartitionPreparer().analyze(context);
+        var executable = CpuPartitionFinalizerTest.finalizeExecutable(analysis, Optional.empty());
+        try (Arena arena = Arena.ofConfined()) {
+            MemorySegment input = arena.allocate(10L * 4, 8);
+            float[] source = {3, 1, 4, 2, 0, 9, 7, 8, 6, 5};
+            for (int i = 0; i < source.length; i++) input.set(FLOAT, i * 4L, source[i]);
+            MemorySegment values = arena.allocate(6L * 4, 8);
+            MemorySegment indices = arena.allocate(6L * 8, 8);
+            var workspaceEntry = executable.memoryPlan().workspaces().getFirst();
+            var workspace = CpuContiguousWorkspace.allocate(workspaceEntry.byteSize(), 8);
+            var run = state(executable, List.of(borrowed(DataType.FLOAT32, 10, input),
+                    borrowed(DataType.FLOAT32, 6, values), borrowed(DataType.INT64, 6, indices)),
+                    List.of(workspace));
+            try {
+                executable.bind(run).execute();
+                assertArrayEquals(new long[]{0, 2, 3, 0, 1, 2}, new long[]{
+                        indices.get(ValueLayout.JAVA_LONG, 0), indices.get(ValueLayout.JAVA_LONG, 8),
+                        indices.get(ValueLayout.JAVA_LONG, 16), indices.get(ValueLayout.JAVA_LONG, 24),
+                        indices.get(ValueLayout.JAVA_LONG, 32), indices.get(ValueLayout.JAVA_LONG, 40)});
+            } finally { run.close(); }
+
+            MemorySegment shared = arena.allocate(48, 8); shared.fill((byte) 0x5a);
+            var overlapWorkspace = CpuContiguousWorkspace.allocate(workspaceEntry.byteSize(), 8);
+            var overlap = state(executable, List.of(borrowed(DataType.FLOAT32, 10, input),
+                    borrowed(DataType.FLOAT32, 6, shared.asSlice(0, 24)),
+                    borrowed(DataType.INT64, 6, shared.asSlice(0, 48))), List.of(overlapWorkspace));
+            try {
+                assertThrows(IllegalArgumentException.class, () -> executable.bind(overlap));
+                assertEquals((byte) 0x5a, shared.get(ValueLayout.JAVA_BYTE, 0));
+            } finally { overlap.close(); }
+        }
+    }
+
+    @Test void sortAndArgsortRejectOverlapOutsideTheSliceOrdinalPrefixBeforeMutation() {
+        for (var family : List.of(
+                io.github.pho001.synaptik.model.operation.ordering.OrderingKind.SORT,
+                io.github.pho001.synaptik.model.operation.ordering.OrderingKind.ARGSORT)) {
+            var base = CpuOrderingLoweringTest.context(new Operation(family,
+                            new io.github.pho001.synaptik.model.operation.ordering.SortAttrs(1, false)),
+                    DataType.INT64, Shape.of(4, 5), Shape.of(4, 5), false);
+            var context = new io.github.pho001.synaptik.prepare.analysis.PrepareContext<>(
+                    base.partition(), base.nodes(), base.values(), base.memoryRequirements(),
+                    base.constants(), new CpuPartitionAnalysisInputs(false,
+                            List.of(CarrierAccess.LONG_ARRAY, CarrierAccess.LONG_ARRAY)));
+            var executable = CpuPartitionFinalizerTest.finalizeExecutable(
+                    new CpuPartitionPreparer().analyze(context), Optional.empty());
+            long[] shared = new long[30];
+            java.util.Arrays.fill(shared, 0x5a5a5a5a5a5a5a5aL);
+            long[] unchanged = shared.clone();
+            var workspaceEntry = executable.memoryPlan().workspaces().getFirst();
+            var workspace = CpuContiguousWorkspace.allocate(workspaceEntry.byteSize(),
+                    workspaceEntry.byteAlignment());
+            var run = state(executable, List.of(borrow(shared, 0, 20),
+                    borrow(shared, 10, 20)), List.of(workspace));
+            try {
+                assertThrows(IllegalArgumentException.class, () -> executable.bind(run),
+                        family.name());
+                assertArrayEquals(unchanged, shared, family.name());
+            } finally { run.close(); }
+        }
+    }
+
+    @Test void orderingParallelSlicesMatchScalarBitwiseWithDisjointScratch() {
+        var operation = new Operation(io.github.pho001.synaptik.model.operation.ordering.OrderingKind.SORT,
+                new io.github.pho001.synaptik.model.operation.ordering.SortAttrs(1, true));
+        var base = CpuOrderingLoweringTest.context(operation, DataType.FLOAT32,
+                Shape.of(4, 5), Shape.of(4, 5), false);
+        var parallel = new PortableExecutionConfig(ComputePreference.SCALAR, 2, 2, 1);
+        var context = new io.github.pho001.synaptik.prepare.analysis.PrepareContext<>(base.partition(),
+                base.nodes(), base.values(), base.memoryRequirements(), base.constants(),
+                new CpuPartitionAnalysisInputs(false,
+                        List.of(CarrierAccess.FLOAT_ARRAY, CarrierAccess.FLOAT_ARRAY), parallel));
+        var analysis = new CpuPartitionPreparer().analyze(context);
+        float[] input = {1, 5, 3, 2, 4, -0.0f, +0.0f, Float.NaN, 9, 9,
+                -4, -2, -3, -1, -5, Float.POSITIVE_INFINITY, 7, 8, 6, Float.NEGATIVE_INFINITY};
+        float[] actual = new float[20];
+        try (var workers = new CpuWorkerGroup(2)) {
+            var executable = CpuPartitionFinalizerTest.finalizeExecutable(analysis,
+                    Optional.empty(), Optional.of(workers));
+            var entry = executable.memoryPlan().workspaces().getFirst();
+            var workspace = CpuContiguousWorkspace.allocate(entry.byteSize(), entry.byteAlignment());
+            var run = state(executable, List.of(borrow(input, 0, input.length),
+                    borrow(actual, 0, actual.length)), List.of(workspace));
+            try { executable.bind(run).execute(); } finally { run.close(); }
+        }
+        float[] expected = {5,4,3,2,1, 9,9,+0.0f,-0.0f,Float.NaN,
+                -1,-2,-3,-4,-5, Float.POSITIVE_INFINITY,8,7,6,Float.NEGATIVE_INFINITY};
+        assertArrayEquals(java.util.stream.IntStream.range(0, expected.length)
+                        .map(i -> Float.floatToRawIntBits(expected[i])).toArray(),
+                java.util.stream.IntStream.range(0, actual.length)
+                        .map(i -> Float.floatToRawIntBits(actual[i])).toArray());
+    }
 
     @Test void executesParallelVectorChunksWithArbitraryBoundsAndScalarTails() {
         int count = DoubleVector.SPECIES_PREFERRED.length() * 4 + 3;
@@ -1161,6 +1264,11 @@ class CpuPreparedExecutableTest {
         return borrow(carrier, 0, carrier.length);
     }
 
+    private static CpuBorrowedBuffer borrow(float[] carrier, int elementOffset, int count) {
+        return CpuBorrowedBuffer.borrow(new MemorySegmentStorage(DataType.FLOAT32, count,
+                MemorySegment.ofArray(carrier).asSlice(elementOffset * 4L, count * 4L)));
+    }
+
     private static CpuBorrowedBuffer borrow(int[] carrier, int elementOffset, int count) {
         var segment = MemorySegment.ofArray(carrier).asSlice(elementOffset * 4L, count * 4L);
         return CpuBorrowedBuffer.borrow(new MemorySegmentStorage(DataType.INT32, count, segment));
@@ -1176,8 +1284,16 @@ class CpuPreparedExecutableTest {
     }
 
     private static CpuBorrowedBuffer borrow(long[] carrier) {
-        return CpuBorrowedBuffer.borrow(new MemorySegmentStorage(DataType.INT64, carrier.length,
-                MemorySegment.ofArray(carrier)));
+        return borrow(carrier, 0, carrier.length);
+    }
+
+    private static CpuBorrowedBuffer borrow(long[] carrier, int elementOffset, int count) {
+        return CpuBorrowedBuffer.borrow(new MemorySegmentStorage(DataType.INT64, count,
+                MemorySegment.ofArray(carrier).asSlice(elementOffset * 8L, count * 8L)));
+    }
+
+    private static CpuBorrowedBuffer borrowed(DataType type, long elements, MemorySegment segment) {
+        return CpuBorrowedBuffer.borrow(new MemorySegmentStorage(type, elements, segment));
     }
 
     private static RunState state(CpuPreparedExecutable executable,

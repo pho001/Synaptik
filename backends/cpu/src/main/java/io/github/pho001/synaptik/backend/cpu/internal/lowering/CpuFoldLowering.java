@@ -109,7 +109,8 @@ public final class CpuFoldLowering {
                         output.descriptor().layout().orElseThrow().referencedElementSpan()),
                 List.of(type, type), List.of(), outputLayout.extents, outputCount,
                 "legal: one fully static resolved-layout overlap fold occurrence", new long[0],
-                Optional.empty(), Optional.empty(), Optional.empty(), Optional.of(geometry));
+                Optional.empty(), Optional.empty(), Optional.empty(), Optional.of(geometry),
+                Optional.empty());
     }
 
     private static long windowCount(long size, long padding, long effective, long stride,

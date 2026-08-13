@@ -13,6 +13,10 @@
  * invocation facts rather than route or artifact-selection decisions.
  * A fold specialization remains a two-boundary workspace-free scalar artifact; parallel-scalar
  * orchestration reuses it over disjoint output-coordinate ranges.
+ * An ordering specialization remains scalar and adds one direct scratch-segment parameter. SORT
+ * and ARGSORT have two boundaries; TOP_K has three and writes both outputs from one artifact.
+ * Concrete workspace identity, slice offset, axis, K, and slice ranges stay in the bound
+ * invocation, while parallel-scalar orchestration assigns complete disjoint slices.
  *
  * <p>The plan is immutable cold-path state; route dispatch never occurs inside the generated loop.
  */

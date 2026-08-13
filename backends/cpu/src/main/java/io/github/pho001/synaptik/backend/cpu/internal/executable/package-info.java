@@ -23,6 +23,11 @@
  * Fold recipes likewise reject physical input/output overlap before any generated call or worker
  * submission, then bind one invocation-private geometry array per disjoint output range. They
  * retain no shared accumulator, atomics, merge state, or hidden scratch.
+ * Ordering recipes bind complete logical-axis slices, one exact run-owned workspace, and one
+ * non-overlapping merge-scratch region per selected range. They reject every input/output and
+ * TOP_K output/output overlap before scratch mutation, output writes, generated calls, or worker
+ * submission. SORT copies represented values, ARGSORT writes logical-axis INT64 coordinates, and
+ * one TOP_K invocation writes values and indices; unsorted TOP_K uses increasing original index.
  * For a selected materialization it validates the original source and exact contiguous workspace,
  * retains the original carrier for the copy, substitutes the workspace segment only in the
  * generated consumer pattern, and completes one canonical-order copy before any consumer chunk.

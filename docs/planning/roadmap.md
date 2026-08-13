@@ -137,8 +137,21 @@ is `Complete`. Detailed
 [CPU 0006B1 Portable functional scatter](backends/cpu/tasks/0006b1-portable-functional-scatter.md)
 is `Complete`. Detailed
 [CPU 0006B2 Portable overlap fold](backends/cpu/tasks/0006b2-portable-overlap-fold.md) is
-`Complete`; ordering remains the next `Draft` frontier as CPU 0006C, depends on CPU 0006B2, and
-has no detailed specification. Explicit-state random work remains Draft CPU 0006D.
+`Complete`; [CPU 0006C portable stable ordering and selection](backends/cpu/tasks/0006c-portable-stable-ordering-and-selection.md)
+is `Complete` and depends on CPU 0006B2. It adds stable six-type SORT/ARGSORT and two-output TOP_K,
+exact represented value copies and logical INT64 indices, deterministic scalar/slice-parallel
+execution with bounded scratch, pre-mutation overlap rejection, and schema 18. The implementation
+pass initially recorded 257 tests before clean documentation context
+`019ffbb7-f877-73f3-afc3-5cbd8b6f593d` finalized Javadocs, package summaries, guide, glossary, and
+planning. A later coordinator review found that one-output SORT/ARGSORT overlap validation could
+range complete bindings by slice ordinals and miss physical overlap outside that prefix. Fix
+context `019ffbc8-fb51-7a73-9504-9a3929cefe58` restored complete-boundary overlap checks, added the
+multidimensional regression, and ran the authoritative final CPU suite: 258 tests with zero
+failures, zero errors, and one skip. Clean documentation re-review context
+`019ffbcb-4c30-7e53-8e4d-9474f5cda235` reused that result, changed no executable Java or tests,
+confirmed existing Javadocs/package summaries/guide/glossary remained accurate, and synchronized
+the planning evidence. Explicit-state random work remains Draft CPU 0006D with no detailed
+specification.
 CPU 0006B1 implementation context `019ff230-109c-73a3-933f-611ee7f6143d` and independent
 audit/fix context `019ff248-a9e4-7150-8fbb-db2730d7cc1b` produced the final focused
 12-suite/103-test and CPU 38-suite/230-test evidence; the latter has one expected existing skip
@@ -172,8 +185,8 @@ materialization/specialization/persistence evidence is also `Complete`; detailed
 division and exact scalar-power realization is `Complete`; detailed CPU 0005G and CPU 0005H are
 `Complete`; detailed CPU 0005I, CPU 0005J, and CPU 0006 are `Complete`; and CPU
 0006A is `Complete`; detailed 0006A1 and 0006A2 are `Complete`; detailed CPU 0006B is `Complete`;
-detailed CPU 0006B1 and CPU 0006B2 are `Complete`; 0006C–0017 remain `Draft`
-without detailed specifications.
+detailed CPU 0006B1, CPU 0006B2, and CPU 0006C are `Complete`; 0006D–0017 remain
+`Draft` without detailed specifications.
 CPU 0003
 implements a
 model-independent filesystem store beneath an explicit
@@ -548,14 +561,14 @@ Detailed CPU 0005C through CPU 0005J are Complete.
 Detailed CPU 0006 and detailed CPU 0006A are Complete after splitting static movement,
 window extraction, and value-dependent indexing by dependency. Detailed CPU 0006A1 is `Complete`;
 detailed CPU 0006A2 is `Complete`; detailed CPU 0006B is `Complete`; detailed CPU 0006B1 is
-`Complete`; detailed CPU 0006B2 is `Complete`; CPU 0006C–0017 and the refined Config, Prepare, Metal,
-and tuning rows remain `Draft` without new detailed specifications.
+`Complete`; detailed CPU 0006B2 and CPU 0006C are `Complete`; CPU 0006D–0017 and the refined
+Config, Prepare, Metal, and tuning rows remain `Draft` without new detailed specifications.
 Completed OpenBLAS history and every completed project area remain unchanged.
 
 CPU remains the active global project area. CPU 0005A through CPU 0006 are `Complete`, detailed
 CPU 0006A, detailed CPU 0006A1, detailed CPU 0006A2, and detailed CPU 0006B are `Complete`.
-Detailed CPU 0006B1 and CPU 0006B2 are `Complete`; CPU 0006C is the next `Draft` frontier without
-a detailed specification, and later work remains `Draft` without detailed specifications.
+Detailed CPU 0006B1, CPU 0006B2, and CPU 0006C are `Complete`; CPU 0006D is the next `Draft`
+frontier, and later work remains `Draft` without detailed specifications.
 CPU 0006A delivers one exact static resolved-layout PAD, TILE, CONCAT, or STACK occurrence with
 ordered one-through-sixteen composition inputs, first-occurrence unique declarations, compact
 cold movement geometry, all-six-type represented-bit scalar/parallel-scalar generation, one
@@ -593,8 +606,10 @@ layout FOLD_AXIS or FOLD2D with fresh zero output, canonical row-major represent
 floating support for both families, modular INT32/INT64 axis-fold support, BFLOAT16 rounding after
 each addition, exact FOLD2D padding/ceil-tail exclusion, arbitrary supported layouts/carriers,
 distinct injective non-overlapping output, disjoint output-range scalar/parallel-scalar execution,
-zero workspace/materialization, and schema 17. Draft CPU 0006C depends on CPU 0006B2 and has no
-detailed specification.
+zero workspace/materialization, and schema 17. Complete CPU 0006C depends on CPU 0006B2 and owns
+the one-node fully static resolved-layout portable frontier for stable SORT/ARGSORT and two-output
+TOP_K across all six current types, with exact Model order, bounded per-range scratch,
+slice-parallel parity, overlap rejection, multi-store execution, and schema 18.
 CPU 0006B executes both current SLICE_UPDATE attribute forms for one fully static resolved-layout
 occurrence. Its one-pass output-domain selection has copy-base-then-replace semantics across all
 six represented types, signed/non-unit steps, scalar and empty cases, arbitrary disjoint ranges,

@@ -73,6 +73,8 @@ public record CpuPortableRoutePlan(CpuPortableKernelIr portableKernelIr,
             return indexing.encodedKernelIr();
         if (source instanceof io.github.pho001.synaptik.backend.cpu.internal.ir.CpuScatterIr scatter)
             return scatter.encodedKernelIr();
-        return ((io.github.pho001.synaptik.backend.cpu.internal.ir.CpuFoldIr) source).encodedKernelIr();
+        if (source instanceof io.github.pho001.synaptik.backend.cpu.internal.ir.CpuFoldIr fold)
+            return fold.encodedKernelIr();
+        return ((io.github.pho001.synaptik.backend.cpu.internal.ir.CpuOrderingIr) source).encodedKernelIr();
     }
 }

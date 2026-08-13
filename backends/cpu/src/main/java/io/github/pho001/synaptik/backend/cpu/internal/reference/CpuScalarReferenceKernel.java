@@ -16,6 +16,8 @@ import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuScatterIr;
 import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuScatterLowering;
 import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuFoldIr;
 import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuFoldLowering;
+import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuOrderingIr;
+import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuOrderingLowering;
 import io.github.pho001.synaptik.model.operation.index.ScatterReduction;
 import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuPointwiseOpcode;
 import io.github.pho001.synaptik.model.datatype.DataType;
@@ -27,10 +29,11 @@ import io.github.pho001.synaptik.model.datatype.DataType;
  * scalar-power plan. Direct power uses {@link StrictMath#pow(double, double)} without
  * reclassifying an exponent. Unary evaluation preserves the specified exceptional-value
  * classifications, widens represented FLOAT32 values where required, and narrows once. It is an
- * It also evaluates already-lowered affine, movement, indexing, functional slice-update, and
- * functional-scatter and overlap-fold
- * mappings for differential tests. This is an unsupported cold-test/reference contract and is
- * never a Runtime IR interpreter.
+ * It also evaluates already-lowered affine, movement, indexing, functional slice-update,
+ * functional-scatter, overlap-fold, and stable ordering mappings for differential tests. The
+ * ordering oracle uses an independent primitive-index insertion algorithm while preserving the
+ * same Model order and represented output bits. This is an unsupported cold-test/reference
+ * contract and is never a Runtime IR interpreter.
  */
 public final class CpuScalarReferenceKernel {
     private static final ValueLayout.OfDouble DOUBLE = ValueLayout.JAVA_DOUBLE_UNALIGNED
@@ -62,6 +65,100 @@ public final class CpuScalarReferenceKernel {
             1.70814450747565897222E1, 9.60896809063285878198E0,
             3.36907645100081516050E0};
     private CpuScalarReferenceKernel() { }
+
+    /**
+     * Independently evaluates one stable ordering occurrence using primitive-index insertion.
+     *
+     * <p>The oracle writes represented values without conversion, emits zero-based logical-axis
+     * INT64 indices, keeps floating NaNs last in both directions, distinguishes signed zero, and
+     * uses increasing logical indices for equal values. Unsorted TOP_K reorders the selected set
+     * by increasing logical index. The caller owns all carriers; this method allocates only its
+     * cold reference index array and does not mutate the input.</p>
+     *
+     * @param ir non-null structural ordering identity
+     * @param geometry non-null compatible complete cold geometry
+     * @param arguments non-null ordered input then one or two writable output arguments
+     * @throws NullPointerException if a required reference or argument element is null
+     * @throws IllegalArgumentException if family or boundary cardinality disagrees
+     * @throws ArithmeticException if exact address arithmetic overflows
+     * @throws IndexOutOfBoundsException if geometry exceeds a supplied carrier
+     * @throws IllegalStateException if a supplied segment is not accessible
+     */
+    public static void execute(CpuOrderingIr ir, CpuOrderingLowering.Geometry geometry,
+            List<CpuBufferArgument> arguments) {
+        Objects.requireNonNull(ir, "ir"); Objects.requireNonNull(geometry, "geometry");
+        if (arguments.size() != geometry.boundaries().size() || ir.family() != geometry.family())
+            throw new IllegalArgumentException("ordering reference facts disagree");
+        long axisExtent = geometry.boundaries().getFirst().extents()[geometry.axis()];
+        long[] indices = new long[Math.toIntExact(axisExtent)];
+        for (long slice = 0; slice < geometry.sliceCount(); slice++) {
+            for (int i = 0; i < indices.length; i++) indices[i] = i;
+            for (int i = 1; i < indices.length; i++) {
+                long selected = indices[i]; int j = i;
+                while (j > 0 && orderingCompare(arguments.getFirst(), geometry, slice,
+                        indices[j - 1], selected) > 0) indices[j] = indices[--j];
+                indices[j] = selected;
+            }
+            int count = Math.toIntExact(geometry.family() == CpuOrderingIr.Family.TOP_K
+                    ? geometry.k() : axisExtent);
+            if (geometry.family() == CpuOrderingIr.Family.TOP_K && !geometry.sorted())
+                java.util.Arrays.sort(indices, 0, count);
+            for (int position = 0; position < count; position++) {
+                long index = indices[position];
+                if (geometry.family() == CpuOrderingIr.Family.ARGSORT) {
+                    store(arguments.get(1), DataType.INT64,
+                            orderingAddress(geometry.boundaries().get(1), slice, geometry.axis(), position), index);
+                } else {
+                    Object value = load(arguments.getFirst(), geometry.dataType(),
+                            orderingAddress(geometry.boundaries().getFirst(), slice, geometry.axis(), index));
+                    store(arguments.get(1), geometry.dataType(),
+                            orderingAddress(geometry.boundaries().get(1), slice, geometry.axis(), position), value);
+                    if (geometry.family() == CpuOrderingIr.Family.TOP_K) store(arguments.get(2),
+                            DataType.INT64, orderingAddress(geometry.boundaries().get(2), slice,
+                                    geometry.axis(), position), index);
+                }
+            }
+        }
+    }
+
+    private static int orderingCompare(CpuBufferArgument input, CpuOrderingLowering.Geometry geometry,
+            long slice, long leftIndex, long rightIndex) {
+        Object left = load(input, geometry.dataType(), orderingAddress(geometry.boundaries().getFirst(),
+                slice, geometry.axis(), leftIndex));
+        Object right = load(input, geometry.dataType(), orderingAddress(geometry.boundaries().getFirst(),
+                slice, geometry.axis(), rightIndex));
+        int comparison = switch (geometry.dataType()) {
+            case FLOAT64 -> orderedFloating((double) left, (double) right, geometry.descending());
+            case FLOAT32 -> orderedFloating((float) left, (float) right, geometry.descending());
+            case BFLOAT16 -> orderedFloating(Float.intBitsToFloat(Short.toUnsignedInt((short) left) << 16),
+                    Float.intBitsToFloat(Short.toUnsignedInt((short) right) << 16), geometry.descending());
+            case INT32 -> Integer.compare((int) left, (int) right);
+            case INT64 -> Long.compare((long) left, (long) right);
+            case BOOL -> Byte.compare((byte) left, (byte) right);
+        };
+        return geometry.descending() && geometry.dataType() != DataType.FLOAT64
+                && geometry.dataType() != DataType.FLOAT32 && geometry.dataType() != DataType.BFLOAT16
+                ? -comparison : comparison;
+    }
+
+    private static int orderedFloating(double left, double right, boolean descending) {
+        boolean ln = Double.isNaN(left), rn = Double.isNaN(right);
+        if (ln || rn) return ln == rn ? 0 : ln ? 1 : -1;
+        int result = Double.compare(left, right); return descending ? -result : result;
+    }
+
+    private static long orderingAddress(CpuOrderingLowering.Layout layout, long slice, int axis,
+            long selected) {
+        long[] extents = layout.extents(), strides = layout.strides(); long result = layout.offset();
+        for (int current = extents.length - 1; current >= 0; current--) {
+            long coordinate;
+            if (current == axis) coordinate = selected;
+            else { coordinate = extents[current] == 0 ? 0 : slice % extents[current];
+                if (extents[current] != 0) slice /= extents[current]; }
+            result = Math.addExact(result, Math.multiplyExact(coordinate, strides[current]));
+        }
+        return result;
+    }
 
     /**
      * Independently evaluates one zero-initialized overlap fold for differential evidence.

@@ -130,7 +130,7 @@ public final class CpuScatterLowering {
                 List.of(), layouts.getLast().extents(), outputCount,
                 "legal: one fully static resolved-layout functional scatter occurrence",
                 new long[0], Optional.empty(), Optional.empty(), Optional.of(geometry),
-                Optional.empty());
+                Optional.empty(), Optional.empty());
     }
 
     private static long maximumUpdates(CpuScatterIr.Family family, List<Geometry.Layout> layouts,

@@ -32,6 +32,10 @@ import io.github.pho001.synaptik.model.operation.index.ScatterElementsAttrs;
 import io.github.pho001.synaptik.model.operation.index.ScatterNdKind;
 import io.github.pho001.synaptik.model.operation.index.ScatterNdAttrs;
 import io.github.pho001.synaptik.model.operation.index.ScatterReduction;
+import io.github.pho001.synaptik.model.operation.ordering.OrderingKind;
+import io.github.pho001.synaptik.model.operation.ordering.SortAttrs;
+import io.github.pho001.synaptik.model.operation.ordering.TopKAttrs;
+import io.github.pho001.synaptik.model.operation.ordering.TopKKind;
 import io.github.pho001.synaptik.model.shape.Shape;
 import io.github.pho001.synaptik.planning.capability.BackendCapabilityProvider;
 import io.github.pho001.synaptik.planning.capability.OperationCapabilityQuery;
@@ -68,6 +72,12 @@ import java.util.Objects;
  * {@code FOLD2D}. Fold requires exact current static geometry, a distinct injective result,
  * canonical represented addition, and no implicit base, workspace, or padding value.</p>
  *
+ * <p>A distinct one-node ordering matrix admits stable {@code SORT}, {@code ARGSORT}, and
+ * two-output {@code TOP_K} for all six represented types. It requires exact static Shape and
+ * output-role relationships, resolved non-negative layouts, and injective outputs. This
+ * occurrence-local capability records Model order only; CPU lowering and binding remain
+ * responsible for exact scratch, carrier compatibility, and physical non-overlap.</p>
+ *
  * <p>The movement route also admits exactly one fully static, resolved-layout
  * {@code SLICE_UPDATE} occurrence with ordered {@code [base, update]} inputs. Both normalized
  * signed finite-coordinate {@link SliceAttrs} and target-relative {@link CropToShapeAttrs}
@@ -76,7 +86,7 @@ import java.util.Objects;
  * selected positions, without mutating either input.</p>
  *
  * <p>Complete-partition lowering remains stricter: it validates either one supported movement,
- * indexing, functional-scatter, or overlap-fold occurrence, a connected one-to-eight pointwise
+ * indexing, functional-scatter, overlap-fold, or ordering occurrence, a connected one-to-eight pointwise
  * chain, or a connected one-to-eight affine chain, then applies exact layout, alias, fan-out,
  * publication, and partition-boundary checks before resource declaration. Occurrence support
  * therefore does not promise that an arbitrary mixed or branched partition can be prepared.</p>
@@ -116,7 +126,10 @@ public final class CpuCapabilityProvider implements BackendCapabilityProvider {
      * inspection. Functional scatter additionally requires ordered data/indices/updates, exact
      * data/update type equality, current family attributes and shape formulas, and rejects BOOL
      * arithmetic. Fold additionally requires exact current one-input Shapes and admits INT32/
-     * INT64 only for general-axis fold. Cross-type casts, dynamic
+     * INT64 only for general-axis fold. Ordering additionally requires one input, exact one- or
+     * two-output roles, and an injective resolved output layout; execution supplies stable
+     * NaN-last/signed-zero order, logical INT64 indices, and represented-bit value copies.
+     * Cross-type casts, dynamic
      * or unresolved geometry, negative-step extraction slices, non-injective
      * movement outputs, and all rows outside the implemented matrix return {@code false} without
      * defining conversion or fallback behavior. Negative and non-unit steps are supported for
@@ -131,7 +144,9 @@ public final class CpuCapabilityProvider implements BackendCapabilityProvider {
     @Override
     public boolean supports(OperationCapabilityQuery query) {
         Objects.requireNonNull(query, "query");
-        if (query.outputs().size() != 1 || !query.inputs().stream().allMatch(CpuCapabilityProvider::staticResolved)
+        Object requestedKind = query.operation().kind();
+        int expectedOutputs = requestedKind == TopKKind.TOP_K ? 2 : 1;
+        if (query.outputs().size() != expectedOutputs || !query.inputs().stream().allMatch(CpuCapabilityProvider::staticResolved)
                 || !query.outputs().stream().allMatch(CpuCapabilityProvider::staticResolved)) {
             return false;
         }
@@ -139,6 +154,8 @@ public final class CpuCapabilityProvider implements BackendCapabilityProvider {
         var attrs = query.operation().attrs();
         TensorDescriptor output = query.outputs().getFirst();
         try {
+            if (kind instanceof OrderingKind || kind == TopKKind.TOP_K)
+                return supportsOrdering(query);
             if (kind instanceof AxisGatherKind || kind == GatherNdKind.GATHER_ND
                     || kind == OneHotKind.ONE_HOT) return supportsIndexing(query, output);
             if (kind instanceof AxisScatterKind || kind == ScatterNdKind.SCATTER_ND) {
@@ -229,6 +246,36 @@ public final class CpuCapabilityProvider implements BackendCapabilityProvider {
             }
         } catch (IllegalArgumentException | ArithmeticException incompatible) { return false; }
         return false;
+    }
+
+    private static boolean supportsOrdering(OperationCapabilityQuery query) {
+        if (query.inputs().size() != 1) return false;
+        TensorDescriptor input = query.inputs().getFirst();
+        int axis;
+        long k;
+        if (query.operation().kind() instanceof OrderingKind kind
+                && query.operation().attrs() instanceof SortAttrs attrs) {
+            axis = attrs.axis();
+            if (axis >= input.shape().rank()) return false;
+            k = input.shape().toLongArray()[axis];
+            TensorDescriptor result = query.outputs().getFirst();
+            if (!result.shape().equals(input.shape())
+                    || kind == OrderingKind.SORT && result.dataType() != input.dataType()
+                    || kind == OrderingKind.ARGSORT && result.dataType() != DataType.INT64) return false;
+        } else if (query.operation().kind() == TopKKind.TOP_K
+                && query.operation().attrs() instanceof TopKAttrs attrs) {
+            axis = attrs.axis(); k = attrs.k();
+            if (axis >= input.shape().rank() || k > input.shape().toLongArray()[axis]) return false;
+            long[] expected = input.shape().toLongArray(); expected[axis] = k;
+            if (query.outputs().get(0).dataType() != input.dataType()
+                    || query.outputs().get(1).dataType() != DataType.INT64
+                    || !java.util.Arrays.equals(query.outputs().get(0).shape().toLongArray(), expected)
+                    || !java.util.Arrays.equals(query.outputs().get(1).shape().toLongArray(), expected)) return false;
+        } else return false;
+        if (axis < 0 || axis >= input.shape().rank()) return false;
+        for (TensorDescriptor result : query.outputs()) if (!injective(result.shape().toLongArray(),
+                result.layout().orElseThrow().strides())) return false;
+        return k >= 0;
     }
 
     private static boolean staticResolved(TensorDescriptor descriptor) {

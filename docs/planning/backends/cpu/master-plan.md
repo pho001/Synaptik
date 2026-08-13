@@ -207,7 +207,7 @@ created by 0005A. All consume the common analysis above; none creates another ba
 | 0006B | [Portable functional slice update](tasks/0006b-portable-functional-slice-update.md) | Complete | 0006A2 | Added one fully static resolved-layout SLICE_UPDATE occurrence for both current `SliceAttrs` signed finite-coordinate placement and `CropToShapeAttrs` target-relative placement through the existing represented-bit movement pipeline, with functional base/update selection, injective disjoint output, compact geometry, scalar or parallel-scalar generation, and schema 15. |
 | 0006B1 | [Portable functional scatter](tasks/0006b1-portable-functional-scatter.md) | Complete | 0006B | Added SCATTER_ELEMENTS, Gather-compatible SCATTER_ADD, and SCATTER_ND with exact base participation, INT32/INT64 bounds, complete pre-write bounds/NONE-duplicate validation, represented-value reductions, deterministic disjoint output ranges, declared exact floating-product scratch, and schema 16. |
 | 0006B2 | [Portable overlap fold](tasks/0006b2-portable-overlap-fold.md) | Complete | 0006B1 | Added FOLD_AXIS and FOLD2D with represented positive-zero initialization, deterministic row-major overlap accumulation, exact 2D padding exclusion, type-specific addition, disjoint output ranges, scalar fallback, zero workspace, and schema 17. |
-| 0006C | Portable stable ordering and selection coverage | Draft | 0006B2 | Add stable SORT and ARGSORT plus two-output TOP_K with exact NaN, signed-zero, tie, empty-axis, output-order, workspace, and multi-store behavior. |
+| 0006C | [Portable stable ordering and selection coverage](tasks/0006c-portable-stable-ordering-and-selection.md) | Complete | 0006B2 | Added one-node fully static resolved-layout stable SORT and ARGSORT plus two-output TOP_K for all six current types through deterministic scalar/slice-parallel generated execution, with exact NaN-last, signed-zero, logical-tie, empty/K, output-order, bounded per-range scratch, overlap, schema-18, and multi-store behavior. |
 | 0006D | Portable explicit-state RNG and dropout coverage | Draft | 0006C | Select and version one CPU-private portable counter-based generator configuration, materialize INITIAL_STATE, and add three-output DROPOUT with exact state advancement, auxiliary mask, bounded replay, and multi-store behavior. |
 | 0007 | Portable reduction, scan, statistics, and normalization family coverage | Draft | 0006D; completed 0005A–0005J | Generate family-specific range, tile, partial-reduction, and combine bodies for aggregates, arg extrema, scans, softmax/log-softmax, statistics, and normalization with exact semantics and determinism. |
 | 0008 | Portable linear algebra, convolution, pooling, attention, and loss coverage | Draft | 0002–0007 | Generate the remaining portable executable families. Establish a bounded initial epilogue direction for MATMUL or convolution followed by an optional compatible bias ADD and at most one already-supported exact pointwise activation or clamp, only when single-use dataflow, Shape/layout, numerical order, publication, and resource rules preserve semantics; all other forms split safely. |
@@ -271,9 +271,10 @@ validation. Detailed
 is `Complete`. Detailed
 [CPU 0006B1 Portable functional scatter](tasks/0006b1-portable-functional-scatter.md) is
 `Complete`. Detailed
-[CPU 0006B2 Portable overlap fold](tasks/0006b2-portable-overlap-fold.md) is `Complete`. CPU 0006C
-is the next `Draft` frontier, depends on CPU 0006B2, and has no detailed specification; every later
-CPU task also remains `Draft` without a detailed specification.
+[CPU 0006B2 Portable overlap fold](tasks/0006b2-portable-overlap-fold.md) is `Complete`. Detailed
+[CPU 0006C Portable stable ordering and selection](tasks/0006c-portable-stable-ordering-and-selection.md)
+is `Complete` and depends on CPU 0006B2. CPU 0006D is the next `Draft` frontier and has no detailed
+specification; every later CPU task also remains `Draft` without a detailed specification.
 
 CPU 0006B1 now executes exactly one fully static resolved-layout SCATTER_ELEMENTS,
 Gather-compatible SCATTER_ADD, or SCATTER_ND occurrence through scalar or parallel-scalar
@@ -293,13 +294,31 @@ row-major order, with FLOAT64/FLOAT32/BFLOAT16 in both families, modular INT32/I
 BFLOAT16 rounding after each addition, and exact FOLD2D padding and ceil-tail exclusion. Arbitrary
 supported layouts and carriers retain a distinct injective non-overlapping output; execution is
 direct scalar or parallel-scalar over disjoint output ranges, with no workspace, materialization,
-atomics, partials, or merge. Schema 17 is current. Implementation context
+atomics, partials, or merge. Schema 17 was current at the CPU 0006B2 checkpoint. Implementation context
 `019ff549-d477-7140-921d-8404d10a2c7e` recorded focused 12-suite/98-test and final CPU
 41-suite/245-test evidence with respectively zero and one skips and no failures or errors on
 OpenJDK 26.0.1+8-34 and Gradle 9.6.1. Clean documentation context
 `019ff565-3991-72a1-a47a-78f63ae600ec` reused that evidence, finalized Javadocs, package-summary
 review, guide, glossary, and planning records, and passed CPU Javadoc plus final documentation,
 scope, synchronization, preservation, and whitespace gates without changing executable Java.
+
+CPU 0006C now executes exactly one fully static resolved-layout stable SORT, ARGSORT, or TOP_K
+occurrence across FLOAT64, FLOAT32, BFLOAT16, INT32, INT64, and BOOL. It preserves NaN-last and
+directional signed-zero order, increasing logical-index stability, exact represented value bits,
+zero-based INT64 axis indices, deterministic increasing-index unsorted TOP_K output, and ordered
+two-output binding. Scalar and complete-slice parallel-scalar execution share one schema-18
+artifact and use exact disjoint two-region INT64 scratch per selected range. Cold binding rejects
+every input/output and TOP_K output/output overlap before mutation or worker submission. The
+original implementation pass recorded 257 tests before clean documentation context
+`019ffbb7-f877-73f3-afc3-5cbd8b6f593d` finalized the affected documentation. A later coordinator
+review found that one-output SORT/ARGSORT overlap validation could range complete bindings by slice
+ordinals and miss overlap outside that prefix. Fix context
+`019ffbc8-fb51-7a73-9504-9a3929cefe58` restored complete-boundary overlap checks, added the
+multidimensional regression, and ran the authoritative final `./gradlew :backends:cpu:test`: 258
+tests with zero failures, zero errors, and one skip. Clean documentation re-review context
+`019ffbcb-4c30-7e53-8e4d-9474f5cda235` reused that result, changed no executable Java or tests,
+confirmed the existing Javadocs, package summaries, CPU guide, and glossary remained accurate,
+and synchronized final planning evidence.
 
 Superseded task 0001 remains preserved through its sole detailed CPU
 [capability, representation, binding, and parallel foundation](tasks/0001-cpu-capability-representation-binding-and-parallel-foundation.md)
@@ -367,8 +386,8 @@ is Complete. CPU 0005D, detailed CPU 0005E, detailed CPU 0005F, and detailed CPU
 Complete. Detailed CPU 0005H, detailed CPU 0005I, and detailed CPU 0005J are `Complete`;
 task 0006 and detailed task 0006A are `Complete`, detailed task 0006A1 is `Complete`, detailed
 task 0006A2 is `Complete`, detailed task 0006B is `Complete`, detailed task 0006B1 is `Complete`,
-detailed task 0006B2 is `Complete`, and tasks 0006C–0017 remain `Draft` without detailed
-specifications.
+detailed task 0006B2 and detailed task 0006C are `Complete`, and tasks 0006D–0017 remain
+`Draft` without detailed specifications.
 CPU 0005C preserves that exact slice and implements cold selection among all four portable
 strategies. It uses the preferred Java 26 FLOAT64 species only for direct contiguous runs and
 scalar broadcasts, scalar tails and general-odometer fallback, configured/available parallelism
@@ -478,9 +497,8 @@ the affected Javadocs, CPU guide, glossary, and planning records, and passed CPU
 local Markdown, official-link, exact-scope/status/inventory, formatting, and whitespace gates
 without rerunning Java tests. CPU 0005J and detailed CPU 0006 are Complete. CPU 0006A's later
 completion is recorded below; detailed CPU 0006A1 and CPU 0006A2 are `Complete`, detailed CPU
-0006B is `Complete`, detailed CPU 0006B1 and CPU 0006B2 are `Complete`, and CPU 0006C is the next
-`Draft` frontier without a detailed specification; later tasks remain `Draft` without detailed
-specifications.
+0006B is `Complete`, and detailed CPU 0006B1, CPU 0006B2, and CPU 0006C are `Complete`; CPU 0006D
+is the next `Draft` frontier without a detailed specification, and later tasks remain `Draft`.
 
 Detailed CPU 0005J is Complete. It preserves the exact forty-eight-opcode semantic inventory and
 adds preferred-species FLOAT32/FLOAT64 extrema, clamp, ReLU, sign, and same-type cast;
@@ -526,8 +544,8 @@ reused that stabilized evidence, finalized Javadocs/package summaries, the CPU g
 and planning records, and passed CPU Javadoc plus Markdown, exact-scope/status/inventory, forbidden-
 change, and whitespace validation without rerunning Java tests. Detailed CPU 0006A1 is `Complete`;
 detailed CPU 0006A2 is `Complete`, detailed CPU 0006B is `Complete`, detailed CPU 0006B1 and CPU
-0006B2 are `Complete`, and CPU 0006C and every later task remain `Draft`
-without detailed specifications.
+0006B2 and detailed CPU 0006C are `Complete`, and every later task remains `Draft` without
+detailed specifications.
 
 Detailed CPU 0006A1 is Complete. It extends the same movement pipeline with one fully static,
 resolved-layout UNFOLD_AXIS occurrence for all six represented types or one floating UNFOLD2D
@@ -659,8 +677,9 @@ the work at the active frontier.
   functional SLICE_UPDATE through the existing movement path. Detailed Complete 0006B1 owns
   index-valued functional scatter, complete pre-write bounds/NONE-duplicate validation, exact
   base/reduction semantics, deterministic output ranges, and declared floating-product scratch.
-  Detailed Complete 0006B2 owns zero-initialized overlap fold and padding exclusion; 0006C
-  remains Draft, depends on 0006B2, and has no detailed specification.
+  Detailed Complete 0006B2 owns zero-initialized overlap fold and padding exclusion; detailed
+  Complete 0006C depends on 0006B2 and owns stable ordering/selection execution; 0006D remains
+  Draft without a detailed specification.
 - CPU 0006A declares each distinct composition input `ValueId` once in first-occurrence order and
   retains a CPU-private ordered occurrence-to-boundary map. Repeated semantic inputs do not force
   duplicate shared requirements. The one output is separate, injective, and materialized.
