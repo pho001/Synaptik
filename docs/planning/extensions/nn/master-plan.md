@@ -71,9 +71,8 @@ The initial public surface is deliberately confined to `module/`:
 - `ForwardMode` and immutable `ForwardContext` provide the mode snapshot supplied to a concrete
   layer's own typed forward method.
 
-`layers/` and `functional/` remain empty until their own ready tasks. Module-tree traversal,
-recursive mode propagation, state dictionaries, binding replacement, and initialization remain
-later work. The `initialization/` package is reserved for a focused task rather than making
+`layers/` and `functional/` remain empty until their own ready tasks. State dictionaries and
+initialization remain later work. The `initialization/` package is reserved for a focused task rather than making
 `Parameter` responsible for creating its own value.
 
 ## Task list
@@ -82,7 +81,7 @@ later work. The `initialization/` package is reserved for a focused task rather 
 |---|---|---|---|---|
 | [0001](tasks/0001-module-parameter-buffer-and-forward-context-foundation.md) | Module, parameter, buffer, and forward-context foundation | Complete | Completed `modules/model` Tensor contracts; ADR 0007 | Created the NN Gradle module and its minimal model-only state/mode API, activated the required one-way training build edge, and enforced it with architecture tests; it adds no layers or execution behavior. |
 | [0002](tasks/0002-module-tree-ownership-and-recursive-mode-propagation.md) | Module-tree ownership and recursive mode propagation | Complete | 0001 | Added exclusively owned child modules, deterministic collision-free dot-path parameter/buffer snapshots, and atomic recursive `train()`/`eval()` propagation without checkpoint or optimizer behavior. |
-| 0003 | Validated parameter and buffer binding replacement | Draft | 0002 | Define controlled replacement of a current Tensor binding, including validation and concurrency/checkpoint interaction, without optimizer algorithms. |
+| [0003](tasks/0003-validated-parameter-and-buffer-binding-replacement.md) | Validated parameter and buffer binding replacement | Complete | 0002 | Added Module-owned replacement of one direct current Tensor binding with exact wrapper identity, structural snapshot, validation, and explicit no-concurrency-guarantee semantics; it adds no optimizer or checkpoint behavior. |
 | 0004 | Explicit eager parameter initializers | Draft | 0001; completed model `TensorRandoms` contracts | Add small zero/one and floating uniform/normal initializer conveniences over fully static Shapes and caller-owned `RandomGenerator` sources; add fan-in/fan-out Xavier/Glorot and Kaiming policies only when their type, shape, and numerical conventions are fully specified. |
 | 0005 | Linear layer | Draft | 0001, 0004; completed model `Tensor.linear` | Add the first stateful layer with explicitly initialized or caller-supplied `weight` and optional `bias`; validate only Tensor-expression ownership/provenance until numerical execution coverage is available. |
 
@@ -114,10 +113,15 @@ active CPU work, the global roadmap, Gradle dependencies, or architecture rules.
 exclusive permanent child ownership, collision-free dot-separated recursive paths, immutable
 discovery snapshots, and identity-preflighted recursive mode propagation.
 
+NN 0003 is Complete under that same authorized parallel exception. Its bounded replacement API stays
+inside the existing NN module and existing model-only dependency edge; it changes no Gradle,
+global-roadmap, architecture, CPU, or Engine files. The task deliberately makes replacement a
+direct-state operation of the declaring `Module`, rather than a public `Parameter`/`Buffer`
+setter, and records the absent checkpoint and concurrency guarantees before a downstream training
+extension can consume the stable binding contract.
+
 ## Open questions
 
-- Define controlled parameter/buffer binding replacement with training, checkpoint, and concurrency
-  contracts before exposing mutation.
 - Define checkpoint/state-dictionary semantics after stable recursive traversal exists.
 - Select the minimum initializer public surface and the precise fan-in/fan-out rules for rank-two
   linear weights before NN 0004 becomes Ready; convolution and other layout-specific policies are
@@ -134,6 +138,11 @@ discovery snapshots, and identity-preflighted recursive mode propagation.
   child attachment is exclusive and permanent, and depth-first declaration order produces
   dot-separated state paths. Local names reserve `.` for the path separator, so recursive state
   paths cannot collide. Its detailed task specifies the resulting APIs and failure behavior.
+- NN 0003 replaces the value of exactly one direct binding through protected named `Module`
+  methods. The `Parameter` or `Buffer` wrapper and its local name retain identity; a successful
+  replacement changes only its current Tensor reference. There is no descriptor-freezing policy,
+  version counter, recursive/path replacement, batch atomicity, or thread-safety guarantee in
+  this first mutation contract.
 - Initializers create eager model leaf Tensors through existing model APIs and receive any random
   source explicitly from the caller. They do not use `GraphRngState`, which represents deferred
   graph-random expressions rather than eager host-data initialization.

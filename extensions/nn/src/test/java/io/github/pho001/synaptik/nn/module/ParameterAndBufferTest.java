@@ -32,16 +32,22 @@ class ParameterAndBufferTest {
 
     @Test
     void exposesNoBindingReplacementOrUpdateApi() {
-        assertFalse(Arrays.stream(Parameter.class.getDeclaredMethods())
-                .map(Method::getName)
-                .anyMatch(name -> name.equals("setValue") || name.equals("replace") || name.equals("update") || name.equals("rebind")));
-        assertFalse(Arrays.stream(Buffer.class.getDeclaredMethods())
-                .map(Method::getName)
-                .anyMatch(name -> name.equals("setValue") || name.equals("replace") || name.equals("update") || name.equals("rebind")));
+        assertFalse(Arrays.stream(Parameter.class.getDeclaredMethods()).anyMatch(this::isPublicOrProtectedBindingMutation));
+        assertFalse(Arrays.stream(Buffer.class.getDeclaredMethods()).anyMatch(this::isPublicOrProtectedBindingMutation));
         assertTrue(Arrays.stream(Parameter.class.getDeclaredFields())
+                .filter(field -> field.getName().equals("name"))
                 .allMatch(field -> Modifier.isFinal(field.getModifiers())));
         assertTrue(Arrays.stream(Buffer.class.getDeclaredFields())
+                .filter(field -> field.getName().equals("name"))
                 .allMatch(field -> Modifier.isFinal(field.getModifiers())));
+    }
+
+    private boolean isPublicOrProtectedBindingMutation(Method method) {
+        return (Modifier.isPublic(method.getModifiers()) || Modifier.isProtected(method.getModifiers()))
+                && (method.getName().contains("Value")
+                || method.getName().equals("replace")
+                || method.getName().equals("update")
+                || method.getName().equals("rebind"));
     }
 
     private static final class StateModule extends Module {

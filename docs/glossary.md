@@ -2332,9 +2332,15 @@ objects rather than copying or replacing their Tensor bindings. Calling `train()
 changes the receiving module and its owned descendants only after a full identity-based preflight,
 so a malformed repeated identity cannot expose a partial requested-mode change.
 
-The current foundation has no binding replacement, checkpointing, layer API, or generic
-`Module.forward(...)` method. A parameter or buffer retains the exact Tensor reference supplied at
-declaration; this does not make either wrapper a Tensor subtype or add gradient state to Tensor.
+The current foundation permits only the declaring module's protected, direct-name replacement of
+one parameter or buffer binding at a time. A successful replacement retains the exact supplied
+Tensor reference while preserving the wrapper and local name; it performs no descriptor-schema
+validation. Discovery snapshots are structural, so their retained wrappers observe a later
+replacement when `value()` is called, while an earlier Tensor reference and expressions already
+formed from it remain unchanged. There is no version, checkpoint, transaction, concurrent-view,
+or thread-safety guarantee. The foundation has no checkpointing, layer API, or generic
+`Module.forward(...)` method. A parameter or buffer is not a Tensor subtype and adds no gradient
+state to Tensor.
 
 `extensions/nn` composes generic [`Tensor`](#tensor) and operation semantics from
 `modules/model`. [`extensions/training`](#training-graph) consumes nn-declared parameters for

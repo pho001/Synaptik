@@ -117,6 +117,44 @@ class ModuleTreeTest {
         assertEquals(ForwardMode.EVALUATION, child.mode());
     }
 
+    @Test
+    void structuralSnapshotsRetainWrappersWhoseBindingsObserveLaterDirectReplacement() {
+        StateModule child = new StateModule("weight", "runningMean");
+        TreeModule root = new TreeModule("rootWeight", "rootBuffer");
+        root.attach("child", child);
+        Map<String, Parameter> parametersBefore = root.parametersRecursively();
+        Map<String, Buffer> buffersBefore = root.buffersRecursively();
+        Parameter childParameter = parametersBefore.get("child.weight");
+        Buffer childBuffer = buffersBefore.get("child.runningMean");
+        Tensor nextParameter = TensorFactory.scalar(2.0d, Optional.empty(), true);
+        Tensor nextBuffer = TensorFactory.scalar(3.0d, Optional.empty(), true);
+
+        child.replaceDirectParameter("weight", nextParameter);
+        child.replaceDirectBuffer("runningMean", nextBuffer);
+
+        assertSame(child.parameter, childParameter);
+        assertSame(child.buffer, childBuffer);
+        assertSame(nextParameter, childParameter.value());
+        assertSame(nextBuffer, childBuffer.value());
+        assertEquals(List.of("rootWeight", "child.weight"), List.copyOf(parametersBefore.keySet()));
+        assertEquals(List.of("rootBuffer", "child.runningMean"), List.copyOf(buffersBefore.keySet()));
+        assertThrows(UnsupportedOperationException.class, parametersBefore::clear);
+        assertThrows(UnsupportedOperationException.class, buffersBefore::clear);
+    }
+
+    @Test
+    void parentCannotReplaceAChildBindingByDotPath() {
+        StateModule child = new StateModule("weight", "runningMean");
+        TreeModule root = new TreeModule();
+        root.attach("child", child);
+        Tensor original = child.parameter.value();
+
+        assertThrows(IllegalArgumentException.class, () -> root.replaceDirectParameter("child.weight", tensor()));
+        assertThrows(IllegalArgumentException.class, () -> root.replaceDirectBuffer("child.runningMean", tensor()));
+
+        assertSame(original, child.parameter.value());
+    }
+
     @SuppressWarnings("unchecked")
     private static Map<String, Module> corruptChildren(Module module) throws ReflectiveOperationException {
         Field children = Module.class.getDeclaredField("children");
@@ -148,6 +186,14 @@ class ModuleTreeTest {
         private Buffer declareBuffer(String name) {
             return buffer(name, tensor());
         }
+
+        private void replaceDirectParameter(String name, Tensor value) {
+            replaceParameter(name, value);
+        }
+
+        private void replaceDirectBuffer(String name, Tensor value) {
+            replaceBuffer(name, value);
+        }
     }
 
     private static final class StateModule extends Module {
@@ -157,6 +203,14 @@ class ModuleTreeTest {
         private StateModule(String parameterName, String bufferName) {
             parameter = parameter(parameterName, tensor());
             buffer = buffer(bufferName, tensor());
+        }
+
+        private void replaceDirectParameter(String name, Tensor value) {
+            replaceParameter(name, value);
+        }
+
+        private void replaceDirectBuffer(String name, Tensor value) {
+            replaceBuffer(name, value);
         }
     }
 }

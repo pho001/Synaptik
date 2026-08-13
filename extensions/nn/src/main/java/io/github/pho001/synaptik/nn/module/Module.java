@@ -20,10 +20,11 @@ import java.util.Objects;
  * <p>Parameters, buffers, and children share one local-name namespace. Direct declaration order
  * and child-registration order determine immutable discovery snapshots. Recursive state uses
  * dot-separated paths and depth-first traversal: each module contributes parameters, then
- * buffers, then its children. Module instances are mutable through {@link #train()} and
- * {@link #eval()} and are not thread-safe; callers must synchronize concurrent declaration,
- * traversal, ownership, or mode operations. This type provides neither binding replacement,
- * checkpoints, optimizer behavior, nor execution lifecycle.</p>
+ * buffers, then its children. Module instances are mutable through {@link #train()},
+ * {@link #eval()}, and direct binding replacement and are not thread-safe; callers must
+ * synchronize concurrent declaration, traversal, ownership, mode, replacement, or forward
+ * construction when a consistent view matters. This type provides no version counter,
+ * checkpoints, optimizer behavior, transaction across bindings, or execution lifecycle.</p>
  */
 public abstract class Module {
     private final Map<String, Parameter> parameters = new LinkedHashMap<>();
@@ -81,6 +82,74 @@ public abstract class Module {
     }
 
     /**
+     * Replaces the current Tensor binding of one parameter declared directly by this module.
+     *
+     * <p>The supplied local name never traverses a child or interprets a dot path. This method
+     * first rejects a null {@code name}, then a null {@code value}, then a name that is not a
+     * direct parameter of this module; only then does it replace the current binding. A direct
+     * buffer with the requested name is not a parameter. Replacement retains the exact supplied
+     * Tensor reference without copying or evaluation. Because this module declares no binding
+     * schema, it performs no descriptor, data-type, shape, layout, provenance,
+     * gradient-eligibility, or storage compatibility validation. It neither replaces the
+     * {@link Parameter} wrapper nor changes discovery order, child ownership, or mode.</p>
+     *
+     * <p>This individual operation is not a versioned snapshot, checkpoint, or transaction with
+     * other bindings. It is not thread-safe; callers must externally synchronize concurrent
+     * replacement, declaration, traversal, mode changes, and forward construction when they need
+     * a consistent view.</p>
+     *
+     * @param name the non-null local name of a parameter directly declared by this module
+     * @param value the non-null exact Tensor reference to become that parameter's current binding
+     * @throws NullPointerException if {@code name} is null, or if {@code value} is null after a
+     *     non-null {@code name}
+     * @throws IllegalArgumentException if {@code name} does not identify a direct parameter of
+     *     this module, including when it identifies a direct buffer
+     */
+    protected final void replaceParameter(String name, Tensor value) {
+        Objects.requireNonNull(name, "name");
+        Objects.requireNonNull(value, "value");
+        Parameter parameter = parameters.get(name);
+        if (parameter == null) {
+            throw new IllegalArgumentException("no direct parameter declared with name: " + name);
+        }
+        parameter.replaceValue(value);
+    }
+
+    /**
+     * Replaces the current Tensor binding of one buffer declared directly by this module.
+     *
+     * <p>The supplied local name never traverses a child or interprets a dot path. This method
+     * first rejects a null {@code name}, then a null {@code value}, then a name that is not a
+     * direct buffer of this module; only then does it replace the current binding. A direct
+     * parameter with the requested name is not a buffer. Replacement retains the exact supplied
+     * Tensor reference without copying or evaluation. Because this module declares no binding
+     * schema, it performs no descriptor, data-type, shape, layout, provenance,
+     * gradient-eligibility, or storage compatibility validation. It neither replaces the
+     * {@link Buffer} wrapper nor changes discovery order, child ownership, or mode.</p>
+     *
+     * <p>This individual operation is not a versioned snapshot, checkpoint, or transaction with
+     * other bindings. It is not thread-safe; callers must externally synchronize concurrent
+     * replacement, declaration, traversal, mode changes, and forward construction when they need
+     * a consistent view.</p>
+     *
+     * @param name the non-null local name of a buffer directly declared by this module
+     * @param value the non-null exact Tensor reference to become that buffer's current binding
+     * @throws NullPointerException if {@code name} is null, or if {@code value} is null after a
+     *     non-null {@code name}
+     * @throws IllegalArgumentException if {@code name} does not identify a direct buffer of this
+     *     module, including when it identifies a direct parameter
+     */
+    protected final void replaceBuffer(String name, Tensor value) {
+        Objects.requireNonNull(name, "name");
+        Objects.requireNonNull(value, "value");
+        Buffer buffer = buffers.get(name);
+        if (buffer == null) {
+            throw new IllegalArgumentException("no direct buffer declared with name: " + name);
+        }
+        buffer.replaceValue(value);
+    }
+
+    /**
      * Registers one named child that this module owns permanently.
      *
      * <p>The child must not already have a parent and must not be this module or an ancestor of
@@ -118,7 +187,8 @@ public abstract class Module {
     /**
      * Returns this module's direct trainable declarations in declaration order.
      *
-     * @return an unmodifiable snapshot of direct parameters; never {@code null}
+     * @return an unmodifiable structural snapshot of direct parameter wrappers; never {@code
+     *     null}. A wrapper's {@link Parameter#value()} observes its current binding when read.
      */
     public final List<Parameter> parameters() {
         return List.copyOf(parameters.values());
@@ -127,7 +197,8 @@ public abstract class Module {
     /**
      * Returns this module's direct persistent non-trainable declarations in declaration order.
      *
-     * @return an unmodifiable snapshot of direct buffers; never {@code null}
+     * @return an unmodifiable structural snapshot of direct buffer wrappers; never {@code null}.
+     *     A wrapper's {@link Buffer#value()} observes its current binding when read.
      */
     public final List<Buffer> buffers() {
         return List.copyOf(buffers.values());
@@ -155,7 +226,9 @@ public abstract class Module {
      * through children in registration order. Keys are paths relative to this receiving module:
      * a direct parameter uses its local name and a descendant parameter uses dot-separated child
      * names, such as {@code encoder.layer1.weight}. The result contains the exact declared
-     * {@link Parameter} objects, not copies or replacement bindings.</p>
+     * {@link Parameter} objects, not copies or historical Tensor bindings. The map is a
+     * structural snapshot: a wrapper it contains observes its current binding when
+     * {@link Parameter#value()} is later called.</p>
      *
      * @return an unmodifiable insertion-ordered snapshot from relative parameter path to exact
      *     parameter; never {@code null}
@@ -174,7 +247,9 @@ public abstract class Module {
      * children in registration order. Keys are paths relative to this receiving module: a direct
      * buffer uses its local name and a descendant buffer uses dot-separated child names, such as
      * {@code encoder.layer1.runningMean}. The result contains the exact declared {@link Buffer}
-     * objects, not copies or replacement bindings.</p>
+     * objects, not copies or historical Tensor bindings. The map is a structural snapshot: a
+     * wrapper it contains observes its current binding when {@link Buffer#value()} is later
+     * called.</p>
      *
      * @return an unmodifiable insertion-ordered snapshot from relative buffer path to exact
      *     buffer; never {@code null}

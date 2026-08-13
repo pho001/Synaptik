@@ -7,13 +7,13 @@ import java.util.Objects;
  * A module-owned, named trainable binding to one exact current {@link Tensor}.
  *
  * <p>This type marks its value as an eventual optimizer target without adding gradient, optimizer,
- * or mutable training state to {@code Tensor}. The binding is established only during direct
- * {@link Module} declaration in this foundation: {@link #value()} always returns the exact object
- * supplied at declaration, and no replacement or update operation is exposed.</p>
+ * or mutable training state to {@code Tensor}. Its declaring {@link Module} can replace this
+ * binding through its direct, protected replacement operation. The wrapper and its local
+ * name remain stable; {@link #value()} returns the exact Tensor bound when it is called.</p>
  */
 public final class Parameter {
     private final String name;
-    private final Tensor value;
+    private Tensor value;
 
     /**
      * Creates one module-declared parameter binding.
@@ -41,12 +41,34 @@ public final class Parameter {
     }
 
     /**
-     * Returns the exact tensor object bound when this parameter was declared.
+     * Returns the exact tensor object currently bound to this parameter.
      *
-     * @return the non-null declaration-time tensor reference, without copying, evaluation, or
-     *     replacement
+     * <p>A direct or recursive module-discovery snapshot retains this wrapper object rather than
+     * a historical tensor value. Consequently, reading this method through a wrapper obtained
+     * from an earlier snapshot observes a later successful Module-owned replacement. A Tensor
+     * returned before a replacement, and expressions constructed from that Tensor, remain
+     * unchanged.</p>
+     *
+     * @return the non-null current tensor reference, without copying or evaluation
      */
     public Tensor value() {
         return value;
+    }
+
+    /**
+     * Replaces this wrapper's current Tensor only through its declaring module's direct-state
+     * contract.
+     *
+     * <p>This package-private method is not a general wrapper update API. {@link Module} invokes
+     * it only after validating a non-null local name, a non-null value, and a direct parameter
+     * target. It retains the exact supplied reference without validating descriptor, data type,
+     * shape, layout, provenance, gradient eligibility, or storage compatibility because a module
+     * declares no binding schema. It does not alter this wrapper's name or identity.</p>
+     *
+     * @param value the non-null exact Tensor reference to become the current binding
+     * @throws NullPointerException if {@code value} is {@code null}
+     */
+    void replaceValue(Tensor value) {
+        this.value = Objects.requireNonNull(value, "value");
     }
 }
