@@ -20,6 +20,8 @@ import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuOrderingIr;
 import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuOrderingLowering;
 import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuRandomIr;
 import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuRandomLowering;
+import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuScanIr;
+import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuScanLowering;
 import io.github.pho001.synaptik.model.operation.index.ScatterReduction;
 import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuPointwiseOpcode;
 import io.github.pho001.synaptik.model.datatype.DataType;
@@ -32,7 +34,8 @@ import io.github.pho001.synaptik.model.datatype.DataType;
  * reclassifying an exponent. Unary evaluation preserves the specified exceptional-value
  * classifications, widens represented FLOAT32 values where required, and narrows once. It also
  * evaluates already-lowered affine, movement, indexing, functional slice-update,
- * functional-scatter, overlap-fold, stable ordering, and explicit-state random mappings for
+ * functional-scatter, overlap-fold, stable ordering, explicit-state random, and cumulative-scan
+ * mappings for
  * differential tests. The
  * ordering oracle uses an independent primitive-index insertion algorithm while preserving the
  * same Model order and represented output bits. This is an unsupported cold-test/reference
@@ -71,6 +74,67 @@ public final class CpuScalarReferenceKernel {
             1.70814450747565897222E1, 9.60896809063285878198E0,
             3.36907645100081516050E0};
     private CpuScalarReferenceKernel() { }
+
+    /**
+     * Independently evaluates a complete cumulative scan using logical coordinates.
+     * @param ir non-null scan semantics
+     * @param geometry non-null matching layouts and slice geometry
+     * @param arguments non-null exact two-element input/output carrier list; read but not retained
+     * @throws NullPointerException if {@code ir}, {@code geometry}, or {@code arguments} is null
+     * @throws IllegalArgumentException if the IR, geometry, or carrier count disagrees
+     */
+    public static void execute(CpuScanIr ir, CpuScanLowering.Geometry geometry,
+            List<CpuBufferArgument> arguments) {
+        Objects.requireNonNull(ir, "ir"); Objects.requireNonNull(geometry, "geometry");
+        if (arguments.size() != 2 || ir.kind() != geometry.kind()
+                || ir.dataType() != geometry.dataType())
+            throw new IllegalArgumentException("scan reference facts disagree");
+        long[] extents = geometry.input().extents();
+        long[] coordinates = new long[extents.length];
+        for (long slice = 0; slice < geometry.sliceCount(); slice++) {
+            long remaining = slice;
+            for (int axis = extents.length - 1; axis >= 0; axis--) {
+                if (axis == geometry.axis()) continue;
+                coordinates[axis] = remaining % extents[axis]; remaining /= extents[axis];
+            }
+            Object accumulator = scanIdentity(ir.kind(), ir.dataType());
+            for (long step = 0; step < geometry.axisExtent(); step++) {
+                coordinates[geometry.axis()] = geometry.reverse()
+                        ? geometry.axisExtent() - 1 - step : step;
+                Object value = load(arguments.get(0), ir.dataType(),
+                        scanAddress(geometry.input(), coordinates));
+                if (!geometry.exclusive()) accumulator = scanApply(ir.kind(), ir.dataType(), accumulator, value);
+                store(arguments.get(1), ir.dataType(), scanAddress(geometry.output(), coordinates), accumulator);
+                if (geometry.exclusive()) accumulator = scanApply(ir.kind(), ir.dataType(), accumulator, value);
+            }
+        }
+    }
+
+    private static long scanAddress(CpuScanLowering.Layout layout, long[] coordinates) {
+        long result = layout.offset(); long[] strides = layout.strides();
+        for (int axis = 0; axis < coordinates.length; axis++) result += coordinates[axis] * strides[axis];
+        return result;
+    }
+    private static Object scanIdentity(CpuScanIr.Kind kind, DataType type) {
+        boolean sum = kind == CpuScanIr.Kind.CUM_SUM;
+        return switch (type) {
+            case FLOAT64 -> sum ? 0.0d : 1.0d; case FLOAT32 -> sum ? 0.0f : 1.0f;
+            case BFLOAT16 -> (short) (sum ? 0 : 0x3f80); case INT32 -> sum ? 0 : 1;
+            case INT64 -> sum ? 0L : 1L; case BOOL -> throw new AssertionError();
+        };
+    }
+    private static Object scanApply(CpuScanIr.Kind kind, DataType type, Object left, Object right) {
+        boolean sum = kind == CpuScanIr.Kind.CUM_SUM;
+        return switch (type) {
+            case FLOAT64 -> sum ? (double) left + (double) right : (double) left * (double) right;
+            case FLOAT32 -> sum ? (float) left + (float) right : (float) left * (float) right;
+            case BFLOAT16 -> toBfloat(sum ? bfloat((short) left) + bfloat((short) right)
+                    : bfloat((short) left) * bfloat((short) right));
+            case INT32 -> sum ? (int) left + (int) right : (int) left * (int) right;
+            case INT64 -> sum ? (long) left + (long) right : (long) left * (long) right;
+            case BOOL -> throw new AssertionError();
+        };
+    }
 
     /**
      * Independently evaluates one explicit-state initializer or dropout occurrence.

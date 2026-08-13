@@ -2,7 +2,8 @@
  * Supplies the sole supported CPU capability provider and its stable {@code cpu} identity.
  * The provider truthfully reports the implemented fully static pointwise and affine occurrence
  * matrices plus bounded one-node movement, window-extraction, indexing, functional scatter,
- * slice-update, overlap-fold, and stable ordering/selection matrices. Movement covers all six Model data types; two-dimensional unfold is
+ * slice-update, overlap-fold, stable ordering/selection, explicit-state random, and cumulative-
+ * scan matrices. Movement covers all six Model data types; two-dimensional unfold is
  * floating-only. Slice update accepts both current signed finite-coordinate and target-relative
  * forms, retains the base Shape, and functionally replaces selected positions without input
  * mutation. Indexing covers
@@ -17,6 +18,10 @@
  * inverted dropout with ordered value/state inputs and value/BOOL-mask/next-state outputs. The
  * generated scalar route uses the CPU-private V1 mapping, exact binary64 threshold/scaling,
  * modulo advancement, and no workspace; BFLOAT16 remains unsupported.
+ * Cumulative scan covers one static resolved-layout {@code CUM_SUM} or {@code CUM_PROD}
+ * occurrence across FLOAT64, FLOAT32, BFLOAT16, INT32, and INT64 in every inclusive/exclusive
+ * and forward/reverse mode. It keeps sequential typed accumulation within a logical slice,
+ * parallelizes only across whole slices, and declares no workspace or materialization.
  * The provider exposes no route, carrier, preparation, or execution API.
  *
  * <p>The {@code internal} namespace contains unsupported implementation contracts for complete-

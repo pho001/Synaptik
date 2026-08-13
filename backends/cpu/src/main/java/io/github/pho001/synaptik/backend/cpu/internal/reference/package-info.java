@@ -33,6 +33,10 @@
  * top-53-bit uniform conversion, exact keep comparison, FLOAT64/FLOAT32 scaling, canonical BOOL
  * mask, and modulo state advancement for generated differential coverage.</p>
  *
+ * <p>The cumulative-scan oracle independently reconstructs logical slice coordinates and applies
+ * forward/reverse, inclusive/exclusive typed accumulation across FLOAT64, FLOAT32, BFLOAT16,
+ * INT32, and INT64. It shares neither the generated packed-coordinate walk nor the emitter.</p>
+ *
  * <p>Reference evaluation is outside the generated Runtime hot path and owns no buffers, slots, or
  * artifact lifecycle.
  */

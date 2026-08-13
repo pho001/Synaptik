@@ -10,6 +10,7 @@ import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuScatterLowerin
 import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuFoldLowering;
 import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuOrderingLowering;
 import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuRandomLowering;
+import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuScanLowering;
 import io.github.pho001.synaptik.backend.cpu.internal.memory.CpuBufferArgument;
 import io.github.pho001.synaptik.backend.cpu.internal.memory.CpuBufferRepresentation;
 import io.github.pho001.synaptik.backend.cpu.internal.memory.CpuContiguousWorkspace;
@@ -52,6 +53,9 @@ import java.util.Optional;
  * For explicit-state random execution, binding validates all six dropout input/output and all
  * three output/output span pairs before creating calls. One generated {@code [0,0)} prologue
  * writes initializer or next-state words exactly once before any dropout element range.
+ * For cumulative scans, binding rejects complete input/output physical overlap before creating
+ * calls or submitting workers. Each selected range owns complete independent logical slices;
+ * one slice is never divided, and every range receives invocation-private coordinate state.
  */
 public final class CpuPreparedExecutable extends PreparedExecutable {
     private final CpuGeneratedKernel artifact;
@@ -73,6 +77,7 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
     private final Optional<CpuFoldLowering.Geometry> foldGeometry;
     private final Optional<CpuOrderingLowering.Geometry> orderingGeometry;
     private final Optional<CpuRandomLowering.Geometry> randomGeometry;
+    private final Optional<CpuScanLowering.Geometry> scanGeometry;
 
     /**
      * Creates a direct derived-boundary recipe for one exact half-open logical range.
@@ -114,7 +119,8 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
         this(memoryPlan, selections, artifact, bindings, carrierPattern, generatedCarrierPattern,
                 start, end, selectedRangeCount, minimumElementsPerWorker, workerGroup,
                 materialization, workspaceSelection, affineAddressPairs, movementGeometry,
-                indexingGeometry, scatterGeometry, foldGeometry, orderingGeometry, Optional.empty());
+                indexingGeometry, scatterGeometry, foldGeometry, orderingGeometry,
+                Optional.empty(), Optional.empty());
     }
 
     /**
@@ -440,7 +446,8 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
     }
 
     /**
-     * Creates the complete direct recipe including mutually exclusive stable ordering geometry.
+     * Creates the complete direct recipe including mutually exclusive ordering, random, or
+     * cumulative-scan geometry.
      *
      * <p>For SORT and ARGSORT the ordered selections are input then output. TOP_K uses input,
      * values output, then INT64 indices output and declares both outputs write-only. Ordering
@@ -469,6 +476,7 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
      * @param foldGeometry non-null optional overlap-fold geometry
      * @param orderingGeometry non-null optional stable ordering geometry
      * @param randomGeometry non-null optional explicit-state initializer/dropout geometry
+     * @param scanGeometry non-null optional cumulative-scan slice/layout geometry
      * @throws NullPointerException if a required reference or list element is null
      * @throws IllegalArgumentException if memory, boundary, carrier, range, worker, geometry,
      *     workspace, or specialization facts disagree
@@ -485,7 +493,8 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
             Optional<CpuScatterLowering.Geometry> scatterGeometry,
             Optional<CpuFoldLowering.Geometry> foldGeometry,
             Optional<CpuOrderingLowering.Geometry> orderingGeometry,
-            Optional<CpuRandomLowering.Geometry> randomGeometry) {
+            Optional<CpuRandomLowering.Geometry> randomGeometry,
+            Optional<CpuScanLowering.Geometry> scanGeometry) {
         super(memoryPlan, selections, workspaceSelection.map(List::of).orElseGet(List::of),
                 accesses(selections.size(), randomGeometry.map(g -> g.family()
                         == io.github.pho001.synaptik.backend.cpu.internal.ir.CpuRandomIr.Family.DROPOUT
@@ -509,7 +518,10 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
         this.foldGeometry = Objects.requireNonNull(foldGeometry, "foldGeometry");
         this.orderingGeometry = Objects.requireNonNull(orderingGeometry, "orderingGeometry");
         this.randomGeometry = Objects.requireNonNull(randomGeometry, "randomGeometry");
-        long count = this.randomGeometry.isPresent()
+        this.scanGeometry = Objects.requireNonNull(scanGeometry, "scanGeometry");
+        long count = this.scanGeometry.isPresent()
+                ? this.scanGeometry.orElseThrow().sliceCount()
+                : this.randomGeometry.isPresent()
                 ? this.randomGeometry.orElseThrow().elementCount()
                 : this.orderingGeometry.isPresent()
                 ? this.orderingGeometry.orElseThrow().sliceCount()
@@ -543,7 +555,7 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
         int geometryCount=(affineCopy?1:0)+(this.movementGeometry.isPresent()?1:0)
                 +(this.indexingGeometry.isPresent()?1:0)+(this.scatterGeometry.isPresent()?1:0)
                 +(this.foldGeometry.isPresent()?1:0)+(this.orderingGeometry.isPresent()?1:0)
-                +(this.randomGeometry.isPresent()?1:0);
+                +(this.randomGeometry.isPresent()?1:0)+(this.scanGeometry.isPresent()?1:0);
         if (geometryCount>1) {
             throw new IllegalArgumentException("affine, movement, indexing, scatter, and fold geometry are exclusive");
         }
@@ -578,6 +590,7 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
         return ranged(movementGeometry.isPresent() || indexingGeometry.isPresent()
                 || scatterGeometry.isPresent() || foldGeometry.isPresent() || orderingGeometry.isPresent()
                 || randomGeometry.isPresent()
+                || scanGeometry.isPresent()
                 ? bindings.getLast() : bindings.getFirst());
     }
     /**
@@ -590,7 +603,7 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
     public List<CpuAccessPlan.Binding> accessBindings() {
         if (movementGeometry.isPresent() || indexingGeometry.isPresent()
                 || scatterGeometry.isPresent() || foldGeometry.isPresent() || orderingGeometry.isPresent()
-                || randomGeometry.isPresent()) {
+                || randomGeometry.isPresent() || scanGeometry.isPresent()) {
             var result = new ArrayList<CpuAccessPlan.Binding>(bindings);
             if (orderingGeometry.isEmpty() && randomGeometry.isEmpty())
                 result.set(result.size() - 1, ranged(result.getLast()));
@@ -615,7 +628,8 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
                 carrierPattern, generatedCarrierPattern, rangeStart, rangeEnd, selectedRangeCount,
                 minimumElementsPerWorker, workerGroup, materialization,
                 workspaceSelection, affineCopy ? affineAddressPairs : null, movementGeometry,
-                indexingGeometry, scatterGeometry, foldGeometry, orderingGeometry, randomGeometry);
+                indexingGeometry, scatterGeometry, foldGeometry, orderingGeometry, randomGeometry,
+                scanGeometry);
     }
 
     private CpuAccessPlan.Binding ranged(CpuAccessPlan.Binding source) {
@@ -705,7 +719,7 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
                             firstOutputIndex)
                     : movementGeometry.isPresent() || indexingGeometry.isPresent()
                             || scatterGeometry.isPresent() || foldGeometry.isPresent()
-                            || orderingGeometry.isPresent()
+                            || orderingGeometry.isPresent() || scanGeometry.isPresent()
                         ? overlaps(arguments.get(input), inputBinding,
                             arguments.get(firstOutputIndex), bindings.get(firstOutputIndex))
                         : overlaps(arguments.get(input), ranged(inputBinding),
@@ -836,6 +850,14 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
 
     private long[] geometry(List<CpuBufferArgument> arguments, long rangeStart, long rangeEnd,
             int rangeIndex) {
+        if (scanGeometry.isPresent()) {
+            long[] bases = new long[2];
+            for (int index = 0; index < 2; index++) {
+                int width = artifact.specialization().boundaryDataTypes().get(index).byteWidth();
+                bases[index] = arguments.get(index).byteOffset() / width;
+            }
+            return scanGeometry.orElseThrow().pack(bases);
+        }
         if (randomGeometry.isPresent()) {
             long[] bases = new long[arguments.size()];
             for (int index = 0; index < arguments.size(); index++) {

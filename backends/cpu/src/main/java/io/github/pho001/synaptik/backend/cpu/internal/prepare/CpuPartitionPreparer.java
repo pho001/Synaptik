@@ -38,6 +38,8 @@ import jdk.incubator.vector.ByteVector;
  * per-range scratch only for nonempty floating multiplication. Ordering always declares the
  * checked run-owned workspace required by its two primitive INT64 merge-index regions per
  * selected range and may expose one or two output stores.
+ * One-node cumulative scans remain scalar compute, declare exactly input and output with no
+ * workspace or materialization, and may parallelize only across complete independent slices.
  */
 public final class CpuPartitionPreparer implements BackendPartitionPreparer<
         CpuPartitionAnalysisInputs, CpuPartitionPreparationPlan> {
@@ -60,8 +62,8 @@ public final class CpuPartitionPreparer implements BackendPartitionPreparer<
      * @param context non-null complete CPU analysis context
      * @return one immutable analysis with one unit, a cold-selected portable strategy, one exact
      *     declaration per derived boundary, and at most one workspace declaration; affine and
-     *     fold plans have no workspace, while ordering has exact per-range scratch and TOP_K has
-     *     ordered values then INT64-index outputs; never {@code null}
+     *     fold and cumulative-scan plans have no workspace, while ordering has exact per-range
+     *     scratch and TOP_K has ordered values then INT64-index outputs; never {@code null}
      * @throws NullPointerException if {@code context} is {@code null}
      * @throws IllegalArgumentException if complete-partition lowering rejects the occurrence or
      *     declared resource geometry is invalid
@@ -91,7 +93,9 @@ public final class CpuPartitionPreparer implements BackendPartitionPreparer<
                 instanceof io.github.pho001.synaptik.backend.cpu.internal.ir.CpuOrderingIr;
         boolean random = lowered.portableKernelIr()
                 instanceof io.github.pho001.synaptik.backend.cpu.internal.ir.CpuRandomIr;
-        Optional<CpuMaterializationPlan> materialization = movement || indexing || scatter || fold || ordering || random ? Optional.empty()
+        boolean scan = lowered.portableKernelIr()
+                instanceof io.github.pho001.synaptik.backend.cpu.internal.ir.CpuScanIr;
+        Optional<CpuMaterializationPlan> materialization = movement || indexing || scatter || fold || ordering || random || scan ? Optional.empty()
                 : selectMaterialization(lowered, context.backendInputs().materializationPolicy());
         var declarations = new ArrayList<PreparationResourceRequirement.Buffer>(lowered.boundaryValues().size());
         for (int i = 0; i < lowered.boundaryValues().size(); i++) declarations.add(
@@ -114,7 +118,7 @@ public final class CpuPartitionPreparer implements BackendPartitionPreparer<
         DataType vectorType = vectorLaneType(kernelIr);
         int lanes = speciesLanes(vectorType);
         int speciesBits = speciesBits(vectorType);
-        boolean vectorEligible = !affineCopy && !indexing && !scatter && !fold && !ordering && !random && config.computePreference()
+        boolean vectorEligible = !affineCopy && !indexing && !scatter && !fold && !ordering && !random && !scan && config.computePreference()
                         == CpuPartitionAnalysisInputs.PortableExecutionConfig.ComputePreference.VECTOR_IF_ELIGIBLE
                 && vectorType != null && lanes > 1 && lowered.elementCount() >= lanes
                 && vectorTopologyEligible(kernelIr, vectorType)
@@ -185,7 +189,8 @@ public final class CpuPartitionPreparer implements BackendPartitionPreparer<
                 context.backendInputs().loweringManifestEnabled() ? manifest : "",
                 materialization, workspace, workspaceUse, budget,
                 lowered.movementGeometry(), lowered.indexingGeometry(), lowered.scatterGeometry(),
-                lowered.foldGeometry(), lowered.orderingGeometry(), lowered.randomGeometry());
+                lowered.foldGeometry(), lowered.orderingGeometry(), lowered.randomGeometry(),
+                lowered.scanGeometry());
         var requirements = new ArrayList<PreparationResourceRequirement>(declarations);
         plan.workspaceDeclaration().ifPresent(requirements::add);
         return new BackendPartitionAnalysis<>(context.partition(), plan, requirements);

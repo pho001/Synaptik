@@ -165,8 +165,24 @@ sole authoritative final CPU suite passed 47 suites and 275 tests with 0 failure
 `019ffcab-2c42-7d62-be4a-4b2815654c89` reused that stabilized evidence, changed no executable Java
 or tests, finalized CPU Javadocs/package summaries, guide, glossary, and planning records, and
 passed Javadoc, rendered-page, Markdown, exact 43-path, schema/vector/status/package-placement,
-concurrent-scope-preservation, and whitespace checks. CPU 0007 is the next `Draft` frontier and
-has no detailed specification.
+concurrent-scope-preservation, and whitespace checks. The former broad CPU 0007 row is now split
+at current Model semantic-family and algorithm/resource boundaries. Detailed
+[CPU 0007 portable cumulative scan coverage](backends/cpu/tasks/0007-portable-cumulative-scan-coverage.md)
+is `Complete`. It owns only one static resolved CUM_SUM/CUM_PROD occurrence across
+the five current numeric types and all four modes, with sequential typed accumulation inside each
+logical slice, scalar or slice-parallel deterministic execution, arbitrary supported
+layouts/carriers, complete overlap rejection, zero workspace/materialization, and schema 20.
+Draft CPU 0007A–0007F retain ordinary aggregate, arg-extrema, masked, advanced statistical/norm,
+stable softmax/log-softmax, and layer/RMS/batch-normalization work respectively; none has a
+detailed specification.
+Corrective implementation/audit context `019ffcea-9e5e-7d60-9c45-f5664c8c4d4c` passed the
+1-suite/3-test regression, focused 11-suite/109-test matrix, and sole latest authoritative CPU
+suite with 50 suites, 292 tests, one existing opt-in skip, and no failures or errors. Clean
+documentation context `019ffcf5-ac50-7920-b528-1ea57c175e96` changed no executable Java or tests,
+reused that evidence, finalized the scan Javadocs/package summaries, CPU guide, glossary, and
+task/master/roadmap records, and passed CPU Javadoc plus rendered-page, Markdown, exact 39-path,
+schema/status, concurrent-scope-preservation, and whitespace checks. CPU 0007A remains the next
+Draft frontier without a detailed specification.
 CPU 0006B1 implementation context `019ff230-109c-73a3-933f-611ee7f6143d` and independent
 audit/fix context `019ff248-a9e4-7150-8fbb-db2730d7cc1b` produced the final focused
 12-suite/103-test and CPU 38-suite/230-test evidence; the latter has one expected existing skip
@@ -200,8 +216,8 @@ materialization/specialization/persistence evidence is also `Complete`; detailed
 division and exact scalar-power realization is `Complete`; detailed CPU 0005G and CPU 0005H are
 `Complete`; detailed CPU 0005I, CPU 0005J, and CPU 0006 are `Complete`; and CPU
 0006A is `Complete`; detailed 0006A1 and 0006A2 are `Complete`; detailed CPU 0006B is `Complete`;
-detailed CPU 0006B1, CPU 0006B2, CPU 0006C, and CPU 0006D are `Complete`;
-0007–0017 remain `Draft` without detailed specifications.
+detailed CPU 0006B1, CPU 0006B2, CPU 0006C, CPU 0006D, and CPU 0007 are `Complete`; 0007A–0017
+remain `Draft` without detailed specifications.
 CPU 0003
 implements a
 model-independent filesystem store beneath an explicit
@@ -412,8 +428,12 @@ materialization accounting, numerical/determinism filtering, and representation 
 common across routes. Provider adapters do not reinterpret graphs, duplicate broadcast/fusion
 planners, or take shared resource-lifetime ownership.
 
-Draft CPU 0007 already owns reduction, scan, stable multi-pass softmax/log-softmax, statistics,
-and normalization families. Draft CPU 0008 already owns heavy portable linear algebra,
+The former broad CPU 0007 ownership is refined without changing the active project area. Complete
+CPU 0007 comes first because the closed cumulative-scan family has no aggregate-combination
+dependency and can parallelize only across complete logical slices with no partial/combine
+workspace. Draft CPU 0007A–0007F then own ordinary aggregates, arg extrema, masked reductions,
+advanced logarithmic/statistical/norm reductions, stable multi-pass softmax/log-softmax, and
+layer/RMS/batch normalization in dependency order. Draft CPU 0008 already owns heavy portable linear algebra,
 convolution, pooling, attention, and loss families; its initial bounded epilogue direction is
 MATMUL or convolution followed by an optional compatible bias ADD and at most one existing exact
 pointwise activation or clamp, with a safe split whenever semantic, Shape/layout, publication,
@@ -577,14 +597,14 @@ Detailed CPU 0006 and detailed CPU 0006A are Complete after splitting static mov
 window extraction, and value-dependent indexing by dependency. Detailed CPU 0006A1 is `Complete`;
 detailed CPU 0006A2 is `Complete`; detailed CPU 0006B is `Complete`; detailed CPU 0006B1 is
 `Complete`; detailed CPU 0006B2, CPU 0006C, and CPU 0006D are `Complete`;
-CPU 0007–0017 and the refined Config, Prepare, Metal, and tuning rows remain `Draft` without new
-detailed specifications.
+Detailed CPU 0007 is `Complete`; CPU 0007A–0017 and the refined Config, Prepare, Metal, and tuning
+rows remain `Draft` without new detailed specifications.
 Completed OpenBLAS history and every completed project area remain unchanged.
 
 CPU remains the active global project area. CPU 0005A through CPU 0006 are `Complete`, detailed
 CPU 0006A, detailed CPU 0006A1, detailed CPU 0006A2, and detailed CPU 0006B are `Complete`.
-Detailed CPU 0006B1, CPU 0006B2, CPU 0006C, and CPU 0006D are `Complete`; CPU 0007 is the next
-`Draft` frontier, and later work remains `Draft` without detailed specifications.
+Detailed CPU 0006B1, CPU 0006B2, CPU 0006C, CPU 0006D, and CPU 0007 are `Complete`; CPU 0007A is
+the next `Draft` frontier without a detailed specification, and later work remains `Draft`.
 CPU 0006A delivers one exact static resolved-layout PAD, TILE, CONCAT, or STACK occurrence with
 ordered one-through-sixteen composition inputs, first-occurrence unique declarations, compact
 cold movement geometry, all-six-type represented-bit scalar/parallel-scalar generation, one

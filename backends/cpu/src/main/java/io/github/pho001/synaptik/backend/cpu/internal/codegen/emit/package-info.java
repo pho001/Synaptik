@@ -56,6 +56,12 @@
  * each dropout element derives its word from the global logical ordinal and writes one canonical
  * BOOL byte plus its exact FLOAT64/FLOAT32 result.</p>
  *
+ * <p>The scan emitter owns a two-boundary scalar body over complete independent slice ordinals.
+ * It reconstructs non-axis coordinates once per slice, walks the selected axis sequentially in
+ * the requested direction, applies inclusive or exclusive placement, and retains same-type
+ * FLOAT64/FLOAT32 or modular INT32/INT64 accumulators. BFLOAT16 widens to FLOAT32 and rounds back
+ * after every visited value. Parallel orchestration never splits a slice.</p>
+ *
  * <p>Generation and verification are cold-path operations. Only the resolved static entry handle
  * executes on the Runtime hot path. Parallel plans reuse that direct scalar or vector entry for
  * already-bound disjoint chunks; generated code contains no parallel scheduler or strategy switch.

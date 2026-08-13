@@ -35,6 +35,8 @@ import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuAffineLayoutLo
 import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuNonAffineMovementLoweringTest;
 import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuScatterLoweringTest;
 import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuFoldLoweringTest;
+import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuScanLoweringTest;
+import io.github.pho001.synaptik.model.operation.scan.CumulativeScanKind;
 import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuOrderingLoweringTest;
 import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuRandomLoweringTest;
 import io.github.pho001.synaptik.backend.cpu.internal.prepare.CpuPartitionPreparer;
@@ -1161,6 +1163,36 @@ class CpuPreparedExecutableTest {
             int[] shared = new int[30]; java.util.Arrays.fill(shared, 9);
             var overlap = state(executable, List.of(borrow(shared, 0, 30),
                     borrow(shared, 0, 16)));
+            try {
+                assertThrows(IllegalArgumentException.class, () -> executable.bind(overlap));
+                int[] untouched = new int[30]; java.util.Arrays.fill(untouched, 9);
+                assertArrayEquals(untouched, shared);
+            } finally { overlap.close(); }
+        } finally { workers.close(); }
+    }
+
+    @Test void scanRejectsCompleteOverlapBeforeWritesAndParallelizesOnlyWholeSlices() {
+        var base = CpuScanLoweringTest.context(CumulativeScanKind.CUM_SUM, DataType.INT32,
+                Shape.of(8, 3), 1, false, false);
+        var config = new PortableExecutionConfig(ComputePreference.SCALAR, 4, 4, 1);
+        var context = new io.github.pho001.synaptik.prepare.analysis.PrepareContext<>(
+                base.partition(), base.nodes(), base.values(), base.memoryRequirements(),
+                base.constants(), new CpuPartitionAnalysisInputs(false,
+                        List.of(CarrierAccess.INT_ARRAY, CarrierAccess.INT_ARRAY), config));
+        var analysis = new CpuPartitionPreparer().analyze(context);
+        var workers = new CpuWorkerGroup(4);
+        try {
+            var executable = CpuPartitionFinalizerTest.finalizeExecutable(analysis,
+                    Optional.empty(), Optional.of(workers));
+            int[] input = new int[24]; java.util.Arrays.fill(input, 1);
+            int[] output = new int[24]; java.util.Arrays.fill(output, -7);
+            var run = state(executable, List.of(borrow(input), borrow(output)));
+            try {
+                executable.bind(run).execute();
+                for (int i = 0; i < output.length; i++) assertEquals(i % 3 + 1, output[i]);
+            } finally { run.close(); }
+            int[] shared = new int[30]; java.util.Arrays.fill(shared, 9);
+            var overlap = state(executable, List.of(borrow(shared, 0, 24), borrow(shared, 3, 24)));
             try {
                 assertThrows(IllegalArgumentException.class, () -> executable.bind(overlap));
                 int[] untouched = new int[30]; java.util.Arrays.fill(untouched, 9);

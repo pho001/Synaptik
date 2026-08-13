@@ -4,13 +4,15 @@ package io.github.pho001.synaptik.backend.cpu.internal.ir;
  * CPU-private structural identity shared by portable generated kernel families.
  *
  * <p>The permitted implementations distinguish the pointwise instruction form from the static
- * affine copy, movement, indexing, functional-scatter, and overlap-fold forms. Every form exposes only
+ * affine copy, movement, indexing, functional-scatter, overlap-fold, ordering, explicit-state
+ * random, and cumulative-scan forms. Every form exposes only
  * deterministic code-shaping identity; graph
  * identifiers, concrete extents, slots, carriers, addresses, and run state remain cold facts
  * outside this role.</p>
  */
 public sealed interface CpuPortableKernelIr permits CpuKernelIr, CpuAffineCopyIr,
-        CpuDataMovementIr, CpuIndexingIr, CpuScatterIr, CpuFoldIr, CpuOrderingIr, CpuRandomIr {
+        CpuDataMovementIr, CpuIndexingIr, CpuScatterIr, CpuFoldIr, CpuOrderingIr, CpuRandomIr,
+        CpuScanIr {
     /**
      * Returns the deterministic structural key used for generated-code compatibility.
      *

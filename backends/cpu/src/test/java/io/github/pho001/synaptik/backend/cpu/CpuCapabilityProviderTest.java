@@ -18,6 +18,7 @@ import io.github.pho001.synaptik.model.operation.elementwise.selection.WhereSele
 import io.github.pho001.synaptik.model.operation.index.*;
 import io.github.pho001.synaptik.model.operation.layout.*;
 import io.github.pho001.synaptik.model.operation.ordering.*;
+import io.github.pho001.synaptik.model.operation.scan.*;
 import io.github.pho001.synaptik.model.shape.Shape;
 import io.github.pho001.synaptik.model.shape.DynamicDimension;
 import io.github.pho001.synaptik.model.shape.StaticDimension;
@@ -28,6 +29,21 @@ import java.util.Optional;
 import org.junit.jupiter.api.Test;
 
 class CpuCapabilityProviderTest {
+    @Test void reportsOnlyExactStaticResolvedCumulativeScanMatrix() {
+        var provider = new CpuCapabilityProvider();
+        for (DataType type : List.of(DataType.FLOAT64, DataType.FLOAT32, DataType.BFLOAT16,
+                DataType.INT32, DataType.INT64)) for (CumulativeScanKind kind : CumulativeScanKind.values())
+            assertTrue(provider.supports(query(kind, new CumulativeScanAttrs(1, true, true),
+                    List.of(descriptor(type, Shape.of(2, 3))), descriptor(type, Shape.of(2, 3)))));
+        assertAll(() -> assertFalse(provider.supports(query(CumulativeScanKind.CUM_SUM,
+                        new CumulativeScanAttrs(0, false, false),
+                        List.of(descriptor(DataType.BOOL, Shape.of(2))),
+                        descriptor(DataType.BOOL, Shape.of(2))))),
+                () -> assertFalse(provider.supports(query(CumulativeScanKind.CUM_PROD,
+                        new CumulativeScanAttrs(1, false, false),
+                        List.of(descriptor(DataType.FLOAT64, Shape.of(2))),
+                        descriptor(DataType.FLOAT64, Shape.of(2))))));
+    }
     @Test void reportsExactExplicitStateRandomMatrixFailClosed() {
         var provider = new CpuCapabilityProvider();
         var state = descriptor(DataType.INT64, Shape.of(2));

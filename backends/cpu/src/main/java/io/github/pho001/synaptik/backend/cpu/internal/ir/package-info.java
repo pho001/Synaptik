@@ -58,6 +58,12 @@
  * probability bits, represented type, finite-precision policy, and one- or five-boundary roles;
  * layouts, carriers, ranges, and consumed dropout state values remain cold facts.</p>
  *
+ * <p>The cumulative-scan representation distinguishes addition from multiplication and records
+ * the five-type represented arithmetic, normalized axis role, inclusive/exclusive and forward/
+ * reverse modes, sequential typed-rounding policy, and exact read-input/write-output access
+ * structure. Extents, offsets, stride magnitudes, carriers, slots, workers, and slice ranges
+ * remain cold facts.</p>
+ *
  * <p>Lowering creates these cold immutable models. Portable code generation and the scalar
  * reference realization may consume their established semantics, but Runtime never receives or
  * interprets them.

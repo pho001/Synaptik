@@ -44,6 +44,11 @@
  * {@code [0,0)} state prologue followed by zero or more deterministic dropout element ranges;
  * initialization and empty dropout therefore still write their state result exactly once.</p>
  *
+ * <p>Cumulative-scan binding validates the complete input and output carriers and rejects their
+ * complete physical-span overlap before a generated call or worker submission. It packs one
+ * invocation-private coordinate array per range and partitions only the independent slice
+ * domain, so one slice and its sequential accumulator never cross worker boundaries.</p>
+ *
  * <p>Runtime retains run-level lifecycle ownership; CPU memory representations retain physical
  * allocation and release ownership. Composition owns and closes the worker group; finalizers,
  * prepared executables, and bound invocations only borrow it.

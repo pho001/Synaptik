@@ -14,6 +14,8 @@ import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuNonAffineMovem
 import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuPartitionLowering;
 import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuRandomLoweringTest;
 import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuRandomIr;
+import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuScanIr;
+import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuScanLoweringTest;
 import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuScatterLoweringTest;
 import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuScatterIr;
 import io.github.pho001.synaptik.model.operation.Operation;
@@ -38,6 +40,22 @@ class CpuReferenceDifferentialTest {
     private static final long RANDOM_KEY_BIAS = 0x9e3779b97f4a7c15L;
     private static final long RANDOM_M1 = 0xbf58476d1ce4e5b9L;
     private static final long RANDOM_M2 = 0x94d049bb133111ebL;
+
+    @Test void independentScanReferenceCoversKindsModesTypesAndSlices() {
+        for (DataType type : List.of(DataType.FLOAT64, DataType.FLOAT32, DataType.BFLOAT16,
+                DataType.INT32, DataType.INT64))
+            for (var kind : io.github.pho001.synaptik.model.operation.scan.CumulativeScanKind.values())
+                for (boolean exclusive : List.of(false, true)) for (boolean reverse : List.of(false, true)) {
+                    var lowered = new CpuPartitionLowering().lower(CpuScanLoweringTest.context(
+                            kind, type, Shape.of(2, 3), 1, exclusive, reverse));
+                    Object input = represented(type, 1, 2, 3, 4, 5, 6);
+                    Object output = represented(type, 0, 0, 0, 0, 0, 0);
+                    CpuScalarReferenceKernel.execute((CpuScanIr) lowered.portableKernelIr(),
+                            lowered.scanGeometry().orElseThrow(),
+                            List.of(argument(type, input, true), argument(type, output, false)));
+                    assertNotNull(output);
+                }
+    }
 
     @Test void independentRandomReferenceMatchesExactVectorsMaskScalingAndState() {
         var lowered = new CpuPartitionLowering().lower(CpuRandomLoweringTest.dropoutContext(

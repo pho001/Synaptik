@@ -40,6 +40,8 @@ import io.github.pho001.synaptik.model.operation.random.DropoutAttrs;
 import io.github.pho001.synaptik.model.operation.random.DropoutKind;
 import io.github.pho001.synaptik.model.operation.random.GraphRngKind;
 import io.github.pho001.synaptik.model.operation.random.GraphRngStateAttrs;
+import io.github.pho001.synaptik.model.operation.scan.CumulativeScanAttrs;
+import io.github.pho001.synaptik.model.operation.scan.CumulativeScanKind;
 import io.github.pho001.synaptik.model.shape.Shape;
 import io.github.pho001.synaptik.planning.capability.BackendCapabilityProvider;
 import io.github.pho001.synaptik.planning.capability.OperationCapabilityQuery;
@@ -82,6 +84,13 @@ import java.util.Objects;
  * occurrence-local capability records Model order only; CPU lowering and binding remain
  * responsible for exact scratch, carrier compatibility, and physical non-overlap.</p>
  *
+ * <p>A distinct one-node cumulative-scan matrix admits {@code CUM_SUM} and {@code CUM_PROD}
+ * across FLOAT64, FLOAT32, BFLOAT16, INT32, and INT64. It requires one non-scalar static Shape,
+ * the same input/output type and Shape, a valid normalized axis, resolved non-negative layouts,
+ * and an injective output. Capability covers inclusive/exclusive and forward/reverse modes;
+ * lowering and binding remain responsible for exact sequential per-slice realization, carrier
+ * compatibility, and complete physical non-overlap.</p>
+ *
  * <p>The movement route also admits exactly one fully static, resolved-layout
  * {@code SLICE_UPDATE} occurrence with ordered {@code [base, update]} inputs. Both normalized
  * signed finite-coordinate {@link SliceAttrs} and target-relative {@link CropToShapeAttrs}
@@ -90,7 +99,7 @@ import java.util.Objects;
  * selected positions, without mutating either input.</p>
  *
  * <p>Complete-partition lowering remains stricter: it validates either one supported movement,
- * indexing, functional-scatter, overlap-fold, or ordering occurrence, a connected one-to-eight pointwise
+ * indexing, functional-scatter, overlap-fold, ordering, random, or cumulative-scan occurrence, a connected one-to-eight pointwise
  * chain, or a connected one-to-eight affine chain, then applies exact layout, alias, fan-out,
  * publication, and partition-boundary checks before resource declaration. Occurrence support
  * therefore does not promise that an arbitrary mixed or branched partition can be prepared.</p>
@@ -133,6 +142,8 @@ public final class CpuCapabilityProvider implements BackendCapabilityProvider {
      * INT64 only for general-axis fold. Ordering additionally requires one input, exact one- or
      * two-output roles, and an injective resolved output layout; execution supplies stable
      * NaN-last/signed-zero order, logical INT64 indices, and represented-bit value copies.
+     * Cumulative scans additionally require a non-scalar input, the same five-type numeric input
+     * and output descriptor, a valid normalized axis, and an injective output layout.
      * Cross-type casts, dynamic
      * or unresolved geometry, negative-step extraction slices, non-injective
      * movement outputs, and all rows outside the implemented matrix return {@code false} without
@@ -159,6 +170,7 @@ public final class CpuCapabilityProvider implements BackendCapabilityProvider {
         var attrs = query.operation().attrs();
         TensorDescriptor output = query.outputs().getFirst();
         try {
+            if (kind instanceof CumulativeScanKind) return supportsScan(query, output);
             if (kind == GraphRngKind.INITIAL_STATE) return supportsInitialState(query);
             if (kind == DropoutKind.DROPOUT) return supportsDropout(query);
             if (kind instanceof OrderingKind || kind == TopKKind.TOP_K)
@@ -253,6 +265,16 @@ public final class CpuCapabilityProvider implements BackendCapabilityProvider {
             }
         } catch (IllegalArgumentException | ArithmeticException incompatible) { return false; }
         return false;
+    }
+
+    private static boolean supportsScan(OperationCapabilityQuery query, TensorDescriptor output) {
+        if (!(query.operation().attrs() instanceof CumulativeScanAttrs attrs)
+                || query.inputs().size() != 1) return false;
+        TensorDescriptor input = query.inputs().getFirst();
+        if (input.shape().rank() == 0 || attrs.axis() >= input.shape().rank()
+                || input.dataType() == DataType.BOOL || input.dataType() != output.dataType()
+                || !input.shape().equals(output.shape())) return false;
+        return injective(output.shape().toLongArray(), output.layout().orElseThrow().strides());
     }
 
     private static boolean supportsInitialState(OperationCapabilityQuery query) {

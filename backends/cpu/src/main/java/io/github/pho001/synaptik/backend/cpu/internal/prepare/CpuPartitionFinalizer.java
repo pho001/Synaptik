@@ -21,8 +21,8 @@ import java.util.Optional;
  *
  * <p>Every derived-boundary buffer assignment and optional exact workspace assignment is resolved and checked
  * before the single permitted artifact-store call. Finalization cannot change the selected copy,
- * generated carrier pattern, route, strategy, specialization, or declaration geometry. Fold
- * plans necessarily retain exactly two buffers and no workspace assignment.
+ * generated carrier pattern, route, strategy, specialization, or declaration geometry. Fold and
+ * cumulative-scan plans necessarily retain exactly two buffers and no workspace assignment.
  */
 public final class CpuPartitionFinalizer implements BackendPartitionFinalizer<CpuPartitionPreparationPlan> {
     private final CpuGeneratedKernelArtifactStore artifactStore;
@@ -61,7 +61,8 @@ public final class CpuPartitionFinalizer implements BackendPartitionFinalizer<Cp
     /**
      * Verifies exact assignments and realizes the selected artifact without changing analysis.
      * @param finalization non-null complete shared post-assignment handoff
-     * @return one immutable partition-level executable that strongly owns its artifact
+     * @return one immutable partition-level executable that strongly owns its artifact and, for
+     *     cumulative scans, retains only immutable slice/layout geometry; never {@code null}
      * @throws NullPointerException if {@code finalization} is {@code null}
      * @throws IllegalArgumentException if ownership, assignments, specialization, or artifact
      *     realization is incompatible with the analyzed plan
@@ -124,6 +125,7 @@ public final class CpuPartitionFinalizer implements BackendPartitionFinalizer<Cp
                         instanceof io.github.pho001.synaptik.backend.cpu.internal.ir.CpuAffineCopyIr
                         ? plan.affineAddressPairs() : null,
                 plan.movementGeometry(), plan.indexingGeometry(), plan.scatterGeometry(),
-                plan.foldGeometry(), plan.orderingGeometry(), plan.randomGeometry());
+                plan.foldGeometry(), plan.orderingGeometry(), plan.randomGeometry(),
+                plan.scanGeometry());
     }
 }

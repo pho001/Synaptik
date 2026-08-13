@@ -21,7 +21,8 @@
  * shape while leaving axis, K, extents, layout magnitudes, workspace identity, and ranges cold.
  * Schema 19 adds CPU-private explicit-state initializer/dropout algorithm identity, baked raw
  * initializer/probability bits, one- or five-boundary entry shape, and exact finite-precision
- * policy. Schema 19 is current-only. Four complete candidate plans, one realized
+ * policy. Schema 20 adds cumulative sum/product, axis and mode roles, sequential typed rounding,
+ * and a two-boundary workspace-free slice entry. Schema 20 is current-only. Four complete candidate plans, one realized
  * artifact, zero fixed-shape variants, and zero unrolled variants are the current hard budget.
  * With no trusted root, realization remains entirely in memory. With a root, one bounded
  * current-schema envelope may supply class bytes after compatibility, integrity, size, class

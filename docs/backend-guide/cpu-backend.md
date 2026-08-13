@@ -3,7 +3,7 @@
 ## Outcome and status
 
 This guide defines the CPU integration boundary and helps contributors avoid treating CPU routes
-as separate backends. The current CPU module accepts eight bounded, fully static portable families.
+as separate backends. The current CPU module accepts nine bounded, fully static portable families.
 A pointwise partition is one supported occurrence or one connected straight-line chain of at most
 eight occurrences. A static affine partition is one connected one-input/one-output chain of at
 most eight resolved-layout view occurrences. Either family lowers to one computation unit, one
@@ -45,14 +45,20 @@ occurrence. It uses explicit key/counter state and the versioned CPU-private
 DROPOUT consumes one draw per row-major logical value ordinal, writes the dropped value, a
 canonical one-byte BOOL keep mask, and the next key/counter state, with identical scalar and
 parallel-scalar results and zero workspace.
+The ninth family is exactly one resolved-layout `CUM_SUM` or `CUM_PROD` occurrence. It accepts
+FLOAT64, FLOAT32, BFLOAT16, INT32, and INT64 in inclusive/exclusive and forward/reverse modes.
+Each logical scan slice keeps one sequential typed accumulator; scalar or parallel-scalar
+execution may distribute only whole independent slices. The family declares one input and one
+distinct output, with zero workspace or materialization.
 
 Generated scalar and Java 26 Vector API loops accept primitive `start` and `end` bounds.
 Compatible concrete extents bind on the cold path and share identical class bytes and one
 process-local loaded compatibility identity. The pointwise semantic matrix uses exactly five
 executable types—FLOAT64, FLOAT32, INT32, INT64, and BOOL—and one forty-eight-opcode CPU-private
 vocabulary. Affine copies accept all six current Model data types and transfer represented bits
-without conversion. BFLOAT16 uses the existing raw `short[]` representation or native-order
-two-byte segment access only; this is not BFLOAT16 arithmetic or numerical support. The access
+without conversion. Outside the cumulative-scan and overlap-fold families described below,
+BFLOAT16 uses the existing raw `short[]` representation or native-order two-byte segment access
+only; raw movement support is not general BFLOAT16 arithmetic or numerical support. The access
 family covers scalar/rank/singleton/multi-axis
 broadcasting, zero extents, offsets, positive and broadcast-zero strides, and ordered
 heap/segment/mixed carrier patterns for the derived boundaries. CPU 0005H closes all nineteen
@@ -70,7 +76,8 @@ operation, type, shape, layout, parameter, alias, fan-out, publication, carrier,
 particular, CAST is same-type only and BFLOAT16 remains representation-only for affine movement;
 CPU does not invent cross-type conversion semantics. Native, tuning, excluded pointwise rows,
 general partition-DAG fusion and later operation families remain Draft. Functional scatter,
-overlap fold, stable ordering, and explicit-state random execution are current only within the exact
+overlap fold, stable ordering, explicit-state random, and cumulative-scan execution are current
+only within the exact
 static portable boundaries described below; they do not imply native, vector, dynamic-layout, or
 universal backend coverage.
 
@@ -623,7 +630,7 @@ affine load/store, gather, scatter, masked tail, or speed claim.
 Lifecycle ownership remains unchanged. CPU analysis validates and composes the chain, chooses the
 scalar orchestration, and declares exactly the source and final result. Shared Prepare assigns
 those two slots without interpreting the affine plan. CPU finalization validates both assignments
-before current schema-19 artifact access and constructs one immutable executable. Cold binding validates
+before current schema-20 artifact access and constructs one immutable executable. Cold binding validates
 the exact data type, carrier, byte size, alignment, accessibility, output writability, canonical
 BOOL input bytes, and source/result non-overlap. Runtime then invokes only the prepared direct
 carriers, address table, and `start`/`end` bounds; it receives no operation, graph node, Shape,
@@ -674,7 +681,7 @@ callback, or per-element allocation in generated code.
 
 Movement uses scalar compute and either single-thread or deterministic parallel orchestration.
 Parallel chunks are safe because output injectivity proves disjoint writes. Vector preference
-falls back to scalar for this family. CPU finalization realizes current schema-19 generated artifacts;
+falls back to scalar for this family. CPU finalization realizes current schema-20 generated artifacts;
 cold binding validates complete input/output spans and rejects every output/input overlap before
 execution. The scalar reference consumes the same movement IR and compact geometry for
 differential tests, not as a Runtime fallback.
@@ -761,7 +768,7 @@ injectivity, and output/input non-overlap checks still run.
 
 CPU analysis declares each distinct gather input `ValueId` once in semantic first-use order and
 then one separate output; one-hot declares indices and output. Every indexing plan has one unit,
-no materialization, no workspace, one current schema-19 generated class artifact, one prepared
+no materialization, no workspace, one current schema-20 generated class artifact, one prepared
 executable, and one bound invocation. The artifact owns only output writing. Compact CPU-private
 geometry retains layout and coordinate facts without a per-index or per-output table, while the
 bound executable owns run-value validation. Shared Prepare assigns declared buffers opaquely,
@@ -919,7 +926,7 @@ parallel orchestration calls the same scalar body over disjoint output ranges. F
 API body, atomics, partial sums, cross-range merge, hidden scratch, or input-domain parallelism.
 CPU analysis and finalization keep concrete axes, windows, extents, layouts, carriers, and ranges
 cold. Schema 17 introduced the fold family, represented type, boundary access/rank structure,
-carrier pattern, execution mode, and canonical sequential-addition policy; current schema 19
+carrier pattern, execution mode, and canonical sequential-addition policy; current schema 20
 retains those facts, and every older schema is an incompatible miss with no migration reader.
 
 This is exact current CPU route coverage, not broader Model, Compiler, Runtime, Engine, gradient,
@@ -1058,6 +1065,79 @@ order. It is not a public Model configuration, serialized RNG format, cross-back
 cross-version bitstream, distinct-key disjointness guarantee, statistical certification, or
 cryptographic generator. Model owns the explicit key/counter meaning, one abstract draw per
 logical element, keep rule, and modulo advancement; CPU owns this private mapping and realization.
+
+### Current cumulative scan family
+
+The portable scan family accepts exactly one fully static, resolved-layout `CUM_SUM` or
+`CUM_PROD` occurrence with one read-only input and one distinct writable output. Both descriptors
+have the same non-scalar Shape and data type, the normalized axis is valid for that rank, and the
+output layout is injective. Input reads may use dense, offset, positive-strided, interleaved,
+transposed, or zero-strided layouts. Output writes may use any supported injective resolved
+layout. Heap primitive arrays, native-order `MemorySegment` carriers, and compatible mixed input/
+output patterns are supported.
+
+The exact current type and execution matrix is:
+
+| Type | `CUM_SUM` | `CUM_PROD` | Accumulator rule | Compute modes |
+|---|---|---|---|---|
+| FLOAT64 | yes | yes | One binary64 operation per visited value; retain the binary64 result | Scalar, parallel-scalar |
+| FLOAT32 | yes | yes | One binary32 operation per visited value; retain the binary32 result | Scalar, parallel-scalar |
+| BFLOAT16 | yes | yes | Widen represented operands to FLOAT32, operate once, then round back to BFLOAT16 after every value | Scalar, parallel-scalar |
+| INT32 | yes | yes | Two's-complement 32-bit modular operation after every value | Scalar, parallel-scalar |
+| INT64 | yes | yes | Two's-complement 64-bit modular operation after every value | Scalar, parallel-scalar |
+| BOOL | no | no | Unsupported | None |
+
+A logical scan slice fixes every coordinate except the selected axis. Slice ordinals follow
+row-major order over those non-axis coordinates and do not depend on physical layout. Forward
+mode visits axis coordinates from zero upward; reverse mode visits them from the last coordinate
+downward while storing at their original coordinates. Inclusive mode incorporates the current
+input before writing. Exclusive mode writes the current accumulator first. The represented
+identities are positive zero for sum and positive one for product.
+
+This concrete example uses one INT32 slice with input `[1, 2, 3]` and axis `0`:
+
+| Mode | `CUM_SUM` result |
+|---|---|
+| Inclusive, forward | `[1, 3, 6]` |
+| Exclusive, forward | `[0, 1, 3]` |
+| Inclusive, reverse | `[6, 5, 3]` |
+| Exclusive, reverse | `[5, 3, 0]` |
+
+The example demonstrates placement and traversal order. It does not imply in-place execution,
+cross-backend bitwise identity, a particular NaN payload, or a vector prefix algorithm.
+
+Scalar execution covers every independent slice directly. Parallel-scalar execution partitions
+only the slice-ordinal domain into deterministic disjoint ranges; it never divides one slice
+between workers. Both modes therefore use the same sequential order for every output and are
+bitwise identical for this CPU realization. When there is only one non-empty slice, execution is
+scalar even if its selected axis is long. If the selected axis or any non-axis extent is zero,
+the logical output is empty and no generated call or worker work occurs after cold validation.
+
+Analysis declares exactly `[input, output]`, one computation unit, one generated artifact, zero
+workspace, zero materialization, and no partial/carry/scratch buffer. Cold binding validates
+type/carrier compatibility, complete byte sizes, alignment, access, output writability, and the
+complete physical spans. Any input/output overlap fails before output mutation, generated-call
+creation, or worker submission. The immutable prepared recipe owns no mutable accumulator or
+shared state; each invocation range receives private packed coordinate state.
+
+The generated two-boundary entry is a direct bridge to a CPU-owned static scan body. That body,
+not an inlined generated typed loop, reconstructs coordinates and performs the sequential typed
+accumulation. The bridge retains the same structural generated-artifact and compatibility
+boundary as the other portable families.
+
+Schema 20 records scan kind, represented type, normalized axis role, inclusive/exclusive and
+forward/reverse modes, ordered boundary roles and carrier forms, structural accesses, sequential
+typed-rounding policy, scalar compute shape, and absence of scratch. Concrete extents, offsets,
+stride magnitudes, assigned slots, carrier objects, addresses, worker identity, run identity, and
+selected range count remain cold when they do not change emitted bytes. Schema-19 artifacts are
+incompatible misses, and there is no migration reader.
+
+Current coverage ends at this one-node static portable family. Ordinary aggregate, arg-extrema,
+masked, logarithmic, statistical, and norm reductions remain Draft CPU 0007A–0007D work. Stable
+`SOFTMAX`/`LOG_SOFTMAX` and normalization remain Draft CPU 0007E–0007F work. Multi-node scan
+fusion, partial scans, cross-worker prefix combination, vector or native scan bodies, dynamic
+Shape/layout binding, in-place/overlapping execution, public scan configuration, and a shared
+Runtime scan primitive are not implemented.
 
 ### Unary numerical closure
 
@@ -1512,17 +1592,20 @@ architecture capability checkpoint then passed, and the provider milestone is co
 
 The current CPU foundation provides the bounded fully static pointwise matrix, static
 resolved-layout affine family, and one-node static movement, indexing, functional-scatter,
-overlap-fold, and stable ordering families described above. Scalar
+overlap-fold, stable ordering, explicit-state random, and cumulative-scan families described
+above. Scalar
 execution covers every admitted row; parallel-scalar orchestration is available for disjoint
-affine, movement, scatter, fold, and ordering ranges; and the pointwise family retains its exact
-typed value-vector and virtual-mask parity matrix. Generator schema 19 distinguishes pointwise,
-affine, movement, indexing, scatter, fold, and ordering structures, including movement occurrence order,
+affine, movement, scatter, fold, ordering, random-element, and whole-scan-slice ranges; and the
+pointwise family retains its exact
+typed value-vector and virtual-mask parity matrix. Generator schema 20 distinguishes pointwise,
+affine, movement, indexing, scatter, fold, ordering, random, and scan structures, including movement occurrence order,
 unequal-rank access, exact
 padding bits, functional slice-update rank/map identity, and scatter reduction/scratch signature,
 plus fold family/addition-policy identity, ordering direction/output-order/output-count/scratch-
-entry identity, and the affine
+entry identity, explicit-state mapping/scaling identity, cumulative kind/axis/mode/typed-rounding
+identity, and the affine
 mapping/write domain and all seven carrier forms. No excluded pointwise or later semantic family,
-BFLOAT16 numerical operation,
+general BFLOAT16 pointwise or dropout numerical operation,
 cross-type CAST, dynamic layout, vector affine/scatter/fold/ordering execution, native fallback, backend-conformance
 result, public Engine integration, hardware-intrinsic guarantee, or performance result is
 implemented or promised.

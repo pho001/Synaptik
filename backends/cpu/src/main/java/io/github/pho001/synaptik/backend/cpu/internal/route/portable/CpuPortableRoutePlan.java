@@ -15,7 +15,7 @@ import java.util.Objects;
  * does not retain source/workspace objects or concrete affine addresses.
  *
  * @param portableKernelIr non-null route-independent pointwise, affine, movement, indexing,
- *     functional-scatter, or overlap-fold IR
+ *     functional-scatter, overlap-fold, ordering, random, or cumulative-scan IR
  * @param specialization non-null selected exact/default scalar or preferred-species vector
  *     Class-File specialization; parallel orchestration, if selected, remains outside the artifact
  */
@@ -25,7 +25,7 @@ public record CpuPortableRoutePlan(CpuPortableKernelIr portableKernelIr,
      * Validates one portable realization plan.
      *
      * @param portableKernelIr non-null route-independent pointwise, affine, movement, indexing,
-     *     scatter, or fold IR
+     *     scatter, fold, ordering, random, or cumulative-scan IR
      * @param specialization non-null matching scalar or vector generated specialization
      * @throws NullPointerException if either component is {@code null}
      * @throws IllegalArgumentException if the specialization does not match the canonical IR, or
@@ -77,6 +77,8 @@ public record CpuPortableRoutePlan(CpuPortableKernelIr portableKernelIr,
             return fold.encodedKernelIr();
         if (source instanceof io.github.pho001.synaptik.backend.cpu.internal.ir.CpuOrderingIr ordering)
             return ordering.encodedKernelIr();
-        return ((io.github.pho001.synaptik.backend.cpu.internal.ir.CpuRandomIr) source).encodedKernelIr();
+        if (source instanceof io.github.pho001.synaptik.backend.cpu.internal.ir.CpuRandomIr random)
+            return random.encodedKernelIr();
+        return ((io.github.pho001.synaptik.backend.cpu.internal.ir.CpuScanIr) source).encodedKernelIr();
     }
 }

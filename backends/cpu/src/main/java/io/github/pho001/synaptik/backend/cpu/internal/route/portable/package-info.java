@@ -20,6 +20,9 @@
  * A random specialization remains scalar and workspace-free. It has one initializer output or
  * five ordered dropout boundaries; cold invocation geometry owns concrete layouts, while
  * explicit dropout state values remain direct input data.
+ * A cumulative-scan specialization remains scalar, has exactly one input and one output, and
+ * carries no scratch parameter. Parallel-scalar orchestration reuses the same artifact over
+ * complete independent slices; concrete extents, layouts, carriers, and range count stay cold.
  *
  * <p>The plan is immutable cold-path state; route dispatch never occurs inside the generated loop.
  */

@@ -204,9 +204,12 @@ The `CumulativeScanKind` vocabulary is implemented with `CUM_SUM` and `CUM_PROD`
 identities, together with `CumulativeScanAttrs` carrying one normalized axis and exact exclusive/
 reverse mode flags. Public `Tensor.cumSum` and `Tensor.cumProd` construct all four traversal/
 inclusion modes for floating and integral inputs, retaining exact Shape/type/eligibility metadata
-in an unresolved descriptor and recording one-input provenance. Value accumulation and execution
-remain planned. Current package-private compiler autograd supports floating CUM_SUM and CUM_PROD;
-integral scans remain non-differentiable.
+in an unresolved descriptor and recording one-input provenance. The current CPU portable route
+executes exactly one static resolved-layout occurrence for FLOAT64, FLOAT32, BFLOAT16, INT32, or
+INT64 with scalar or whole-slice parallel-scalar sequential accumulation, distinct non-overlapping
+input/output storage, and no workspace. Other backend and execution forms remain planned. Current
+package-private compiler autograd supports floating CUM_SUM and CUM_PROD; integral scans remain
+non-differentiable.
 The `SoftmaxKind` vocabulary is implemented with distinct `SOFTMAX` probability and
 `LOG_SOFTMAX` log-probability meanings, together with `SoftmaxAttrs` carrying one normalized axis.
 These semantic values preserve logical positions and describe complete normalization slices
@@ -1960,9 +1963,12 @@ propagates NaN, makes zero times infinity NaN, and follows multiplication parity
 infinity signs. Current package-private first-order autograd supports floating `CUM_SUM` and
 `CUM_PROD`. `CUM_SUM` preserves exclusivity and reverses direction. `CUM_PROD` uses safe products,
 cumulative zero counts, and an opposite-direction cumulative sum rather than dividing by the
-original input. This is compiler expression construction, not a forward algorithm, intermediate
-rounding rule, NaN-payload promise, bitwise backend result, runtime behavior, backend support, or
-execution. See
+original input. This is compiler expression construction, not a forward algorithm or backend
+rounding rule. The CPU backend separately executes exactly one fully static, resolved-layout
+`CUM_SUM` or `CUM_PROD` occurrence across the five numeric types. Its scalar or whole-slice
+parallel-scalar realization retains sequential same-type accumulation and rounds BFLOAT16 after
+each operation; this is not a NaN-payload, cross-backend bitwise, vector-scan, or in-place promise.
+See
 [Cumulative-scan semantic kinds and attributes](api/tensor-api.md#cumulative-scan-semantic-kinds-and-attributes).
 
 ### Dropout / inverted dropout

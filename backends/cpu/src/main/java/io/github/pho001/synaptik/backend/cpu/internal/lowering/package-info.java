@@ -67,6 +67,12 @@
  * {@code [value,state,output,keepMask,nextState]} boundary order, derives complete output spans
  * and logical draw geometry, and declares no workspace or mutable generator state.</p>
  *
+ * <p>Cumulative-scan lowering admits exactly one static resolved-layout CUM_SUM or CUM_PROD
+ * occurrence across FLOAT64, FLOAT32, BFLOAT16, INT32, and INT64. It derives the independent
+ * non-axis slice domain, retains exact input/output layout geometry, requires a distinct
+ * injective output, and declares exactly those two buffers with no workspace, materialization,
+ * partial scan, or combine state.</p>
+ *
  * <p>Lowering runs on the preparation cold path; no lowering object or Model operation reaches the
  * generated execution loop.
  */

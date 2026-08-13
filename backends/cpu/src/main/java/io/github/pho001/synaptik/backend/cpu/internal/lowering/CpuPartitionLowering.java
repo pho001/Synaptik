@@ -42,9 +42,9 @@ import java.util.Optional;
  * materializes only the final store. It consumes
  * Model operation, shape, and layout contracts during analysis and maps every admitted unary kind
  * to one distinct CPU opcode without decomposition. Generated and Runtime code see only the
- * resulting CPU-private IR and cold bindings. Exact one-node movement, indexing, scatter, and
- * fold families are delegated to their focused lowerers; the movement family includes functional
- * slice update.</p>
+ * resulting CPU-private IR and cold bindings. Exact one-node movement, indexing, scatter, fold,
+ * ordering, explicit-state random, and cumulative-scan families are delegated to focused
+ * lowerers; the movement family includes functional slice update.</p>
  */
 public final class CpuPartitionLowering {
     private final CpuCapabilityProvider capabilities = new CpuCapabilityProvider();
@@ -56,12 +56,13 @@ public final class CpuPartitionLowering {
     private final CpuFoldLowering foldLowering = new CpuFoldLowering();
     private final CpuOrderingLowering orderingLowering = new CpuOrderingLowering();
     private final CpuRandomLowering randomLowering = new CpuRandomLowering();
+    private final CpuScanLowering scanLowering = new CpuScanLowering();
 
     /** Creates a stateless lowering boundary with the current CPU capability and power analysis. */
     public CpuPartitionLowering() { }
 
     /**
-     * Lowers one supported movement, indexing, scatter, or fold occurrence, or one through eight connected
+     * Lowers one supported one-node specialized family occurrence, or one through eight connected
      * pointwise or affine occurrences, and rejects every unsupported partition shape.
      *
      * @param context non-null complete validated CPU partition projection
@@ -81,6 +82,9 @@ public final class CpuPartitionLowering {
         }
         if (context.nodes().size() == 1) {
             Object kind = context.nodes().getFirst().operation().kind();
+            if (kind instanceof io.github.pho001.synaptik.model.operation.scan.CumulativeScanKind) {
+                return scanLowering.lower(context);
+            }
             if (kind instanceof io.github.pho001.synaptik.model.operation.random.GraphRngKind
                     || kind instanceof io.github.pho001.synaptik.model.operation.random.DropoutKind) {
                 return randomLowering.lower(context);
@@ -442,7 +446,7 @@ public final class CpuPartitionLowering {
      * Immutable lowering result consumed by route-neutral CPU analysis.
      *
      * @param portableKernelIr non-null route-independent pointwise, affine, movement, indexing,
-     *     scatter, fold, or ordering
+     *     scatter, fold, ordering, random, or cumulative-scan
      *     representation
      * @param boundaryValues non-null deterministic external-read values followed by the sole
      *     final materialized output; copied defensively
@@ -466,6 +470,8 @@ public final class CpuPartitionLowering {
      *     ARGSORT, or TOP_K
      * @param randomGeometry compact cold explicit-state geometry, present only for INITIAL_STATE
      *     or DROPOUT
+     * @param scanGeometry compact cold cumulative-scan geometry, present only for CUM_SUM or
+     *     CUM_PROD
      */
     public record LoweredPartition(CpuPortableKernelIr portableKernelIr, List<ValueId> boundaryValues,
             List<CpuAccessPlan.Binding> accessBindings, List<Long> referencedElementSpans,
@@ -476,7 +482,47 @@ public final class CpuPartitionLowering {
             Optional<CpuScatterLowering.Geometry> scatterGeometry,
             Optional<CpuFoldLowering.Geometry> foldGeometry,
             Optional<CpuOrderingLowering.Geometry> orderingGeometry,
-            Optional<CpuRandomLowering.Geometry> randomGeometry) {
+            Optional<CpuRandomLowering.Geometry> randomGeometry,
+            Optional<CpuScanLowering.Geometry> scanGeometry) {
+
+        /**
+         * Creates an existing-family lowering without cumulative-scan geometry.
+         *
+         * @param portableKernelIr non-null route-independent portable representation
+         * @param boundaryValues non-null ordered external boundaries; copied defensively
+         * @param accessBindings non-null ordered normalized accesses; copied defensively
+         * @param referencedElementSpans non-null exact boundary spans; copied defensively
+         * @param boundaryDataTypes non-null exact boundary types; copied defensively
+         * @param virtualValues non-null internal values without Runtime slots; copied defensively
+         * @param extents non-null iteration extents; copied defensively
+         * @param elementCount checked non-negative iteration-domain size
+         * @param fusionReason non-null cold diagnostic explanation
+         * @param affineAddressPairs non-null alternating affine addresses, empty otherwise;
+         *     copied defensively
+         * @param movementGeometry non-null optional movement geometry
+         * @param indexingGeometry non-null optional indexing geometry
+         * @param scatterGeometry non-null optional scatter geometry
+         * @param foldGeometry non-null optional fold geometry
+         * @param orderingGeometry non-null optional ordering geometry
+         * @param randomGeometry non-null optional explicit-state random geometry
+         * @throws NullPointerException if a required component or list element is null
+         * @throws IllegalArgumentException if boundary collections or family geometry disagree
+         */
+        public LoweredPartition(CpuPortableKernelIr portableKernelIr, List<ValueId> boundaryValues,
+                List<CpuAccessPlan.Binding> accessBindings, List<Long> referencedElementSpans,
+                List<DataType> boundaryDataTypes, List<ValueId> virtualValues, long[] extents,
+                long elementCount, String fusionReason, long[] affineAddressPairs,
+                Optional<CpuNonAffineMovementLowering.Geometry> movementGeometry,
+                Optional<CpuIndexingLowering.Geometry> indexingGeometry,
+                Optional<CpuScatterLowering.Geometry> scatterGeometry,
+                Optional<CpuFoldLowering.Geometry> foldGeometry,
+                Optional<CpuOrderingLowering.Geometry> orderingGeometry,
+                Optional<CpuRandomLowering.Geometry> randomGeometry) {
+            this(portableKernelIr, boundaryValues, accessBindings, referencedElementSpans,
+                    boundaryDataTypes, virtualValues, extents, elementCount, fusionReason,
+                    affineAddressPairs, movementGeometry, indexingGeometry, scatterGeometry,
+                    foldGeometry, orderingGeometry, randomGeometry, Optional.empty());
+        }
 
         /**
          * Creates a lowering without random geometry for existing portable families.
@@ -512,7 +558,7 @@ public final class CpuPartitionLowering {
             this(portableKernelIr, boundaryValues, accessBindings, referencedElementSpans,
                     boundaryDataTypes, virtualValues, extents, elementCount, fusionReason,
                     affineAddressPairs, movementGeometry, indexingGeometry, scatterGeometry,
-                    foldGeometry, orderingGeometry, Optional.empty());
+                    foldGeometry, orderingGeometry, Optional.empty(), Optional.empty());
         }
         /**
          * Creates a pointwise or affine lowering without movement geometry.
@@ -539,7 +585,7 @@ public final class CpuPartitionLowering {
             this(portableKernelIr, boundaryValues, accessBindings, referencedElementSpans,
                     boundaryDataTypes, virtualValues, extents, elementCount, fusionReason,
                     affineAddressPairs, Optional.empty(), Optional.empty(), Optional.empty(),
-                    Optional.empty(), Optional.empty(), Optional.empty());
+                    Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty());
         }
 
         /**
@@ -566,7 +612,7 @@ public final class CpuPartitionLowering {
             this(portableKernelIr, boundaryValues, accessBindings, referencedElementSpans,
                     boundaryDataTypes, virtualValues, extents, elementCount, fusionReason,
                     affineAddressPairs, movementGeometry, Optional.empty(), Optional.empty(),
-                    Optional.empty(), Optional.empty(), Optional.empty());
+                    Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty());
         }
 
         /**
@@ -597,7 +643,7 @@ public final class CpuPartitionLowering {
             this(portableKernelIr, boundaryValues, accessBindings, referencedElementSpans,
                     boundaryDataTypes, virtualValues, extents, elementCount, fusionReason,
                     affineAddressPairs, movementGeometry, indexingGeometry, Optional.empty(),
-                    Optional.empty(), Optional.empty(), Optional.empty());
+                    Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty());
         }
         /**
          * Validates matching boundary facts and snapshots every mutable collection or array.
@@ -637,6 +683,7 @@ public final class CpuPartitionLowering {
             foldGeometry = Objects.requireNonNull(foldGeometry, "foldGeometry");
             orderingGeometry = Objects.requireNonNull(orderingGeometry, "orderingGeometry");
             randomGeometry = Objects.requireNonNull(randomGeometry, "randomGeometry");
+            scanGeometry = Objects.requireNonNull(scanGeometry, "scanGeometry");
             Objects.requireNonNull(fusionReason, "fusionReason");
             int size = boundaryValues.size();
             if (size < 1 || accessBindings.size() != size || referencedElementSpans.size() != size
@@ -677,8 +724,10 @@ public final class CpuPartitionLowering {
                                         ? fold.encodedKernelIr()
                                         : portableKernelIr instanceof io.github.pho001.synaptik.backend.cpu.internal.ir.CpuOrderingIr ordering
                                             ? ordering.encodedKernelIr()
-                                            : ((io.github.pho001.synaptik.backend.cpu.internal.ir.CpuRandomIr)
-                                                portableKernelIr).encodedKernelIr();
+                                            : portableKernelIr instanceof io.github.pho001.synaptik.backend.cpu.internal.ir.CpuRandomIr random
+                                                ? random.encodedKernelIr()
+                                                : ((io.github.pho001.synaptik.backend.cpu.internal.ir.CpuScanIr)
+                                                    portableKernelIr).encodedKernelIr();
         }
     }
 }
