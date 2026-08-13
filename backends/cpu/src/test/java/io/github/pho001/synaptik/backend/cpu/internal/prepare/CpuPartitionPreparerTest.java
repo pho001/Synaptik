@@ -8,6 +8,7 @@ import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuNonAffineMovem
 import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuIndexingLoweringTest;
 import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuScatterLoweringTest;
 import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuFoldLoweringTest;
+import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuRandomLoweringTest;
 import io.github.pho001.synaptik.model.graph.CompiledNode;
 import io.github.pho001.synaptik.model.graph.GraphValue;
 import io.github.pho001.synaptik.model.graph.NodeId;
@@ -57,6 +58,23 @@ import jdk.incubator.vector.LongVector;
 import jdk.incubator.vector.ByteVector;
 
 public class CpuPartitionPreparerTest {
+    @Test void randomPlansDeclareExactBoundariesScalarStrategyAndZeroWorkspace() {
+        var initial = new CpuPartitionPreparer().analyze(
+                CpuRandomLoweringTest.initialContext(1, 2)).plan();
+        var dropout = new CpuPartitionPreparer().analyze(
+                CpuRandomLoweringTest.dropoutContext(DataType.FLOAT64, Shape.of(16), .2)).plan();
+        assertAll(() -> assertEquals(1, initial.bufferDeclarations().size()),
+                () -> assertEquals(5, dropout.bufferDeclarations().size()),
+                () -> assertEquals(CpuPartitionPreparationPlan.ExecutionStrategy.SCALAR,
+                        initial.executionStrategy()),
+                () -> assertEquals(CpuPartitionPreparationPlan.ExecutionStrategy.SCALAR,
+                        dropout.executionStrategy()),
+                () -> assertTrue(initial.workspaceDeclaration().isEmpty()),
+                () -> assertTrue(dropout.workspaceDeclaration().isEmpty()),
+                () -> assertTrue(dropout.randomGeometry().isPresent()),
+                () -> assertEquals(19, io.github.pho001.synaptik.backend.cpu.internal.cache
+                        .CpuGeneratorSchema.CURRENT_VERSION));
+    }
     @Test void foldDeclaresExactlyTwoBuffersOneArtifactAndNoWorkspaceOrMaterialization() {
         var base = CpuFoldLoweringTest.context(new Operation(WindowTransformKind.FOLD_AXIS,
                 new FoldAxisAttrs(0, 5, 1)), DataType.FLOAT32, Shape.of(3, 3), Shape.of(5));

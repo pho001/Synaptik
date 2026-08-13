@@ -16,6 +16,7 @@ import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuIndexingLoweri
 import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuScatterLowering;
 import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuFoldLowering;
 import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuOrderingLowering;
+import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuRandomLowering;
 
 /**
  * Route-neutral immutable selected CPU partition plan.
@@ -54,6 +55,7 @@ import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuOrderingLoweri
  * @param foldGeometry non-null optional zero-workspace overlap-fold geometry
  * @param orderingGeometry non-null optional stable ordering geometry; present exactly for one
  *     SORT, ARGSORT, or TOP_K plan and paired with exact per-range merge scratch
+ * @param randomGeometry non-null optional zero-workspace INITIAL_STATE or DROPOUT geometry
  */
 public record CpuPartitionPreparationPlan(List<ExecutionUnitPlan> units, Route route,
         ExecutionStrategy executionStrategy,
@@ -70,8 +72,64 @@ public record CpuPartitionPreparationPlan(List<ExecutionUnitPlan> units, Route r
         Optional<CpuIndexingLowering.Geometry> indexingGeometry,
         Optional<CpuScatterLowering.Geometry> scatterGeometry,
         Optional<CpuFoldLowering.Geometry> foldGeometry,
-        Optional<CpuOrderingLowering.Geometry> orderingGeometry)
+        Optional<CpuOrderingLowering.Geometry> orderingGeometry,
+        Optional<CpuRandomLowering.Geometry> randomGeometry)
         implements BackendPreparationPlan {
+
+    /**
+     * Creates an existing-family plan without explicit-state random geometry.
+     *
+     * @param units non-null computation-oriented units; copied defensively
+     * @param route non-null selected route
+     * @param executionStrategy non-null selected compute and orchestration strategy
+     * @param bufferDeclarations non-null exact buffer declarations; copied defensively
+     * @param boundaryValues non-null ordered boundary values; copied defensively
+     * @param accessBindings non-null ordered normalized accesses; copied defensively
+     * @param carrierPattern non-null Runtime carrier forms; copied defensively
+     * @param generatedCarrierPattern non-null generated-entry carrier forms; copied defensively
+     * @param extents non-null iteration extents; copied defensively
+     * @param elementCount non-negative iteration element count
+     * @param affineAddressPairs non-null affine address pairs; copied defensively
+     * @param selectedRangeCount positive selected maximum range count
+     * @param minimumElementsPerWorker positive minimum work items per worker chunk
+     * @param vectorSpeciesBitSize selected vector size in bits, or zero for scalar compute
+     * @param loweringManifest non-null deterministic lowering summary
+     * @param materialization non-null optional input materialization
+     * @param workspaceDeclaration non-null optional workspace declaration
+     * @param workspaceUse non-null workspace purpose
+     * @param specializationBudget non-null immutable specialization budget
+     * @param movementGeometry non-null optional movement geometry
+     * @param indexingGeometry non-null optional indexing geometry
+     * @param scatterGeometry non-null optional scatter geometry
+     * @param foldGeometry non-null optional fold geometry
+     * @param orderingGeometry non-null optional ordering geometry
+     * @throws NullPointerException if a required reference or list element is null
+     * @throws IllegalArgumentException if route, boundary, range, workspace, carrier, or family
+     *     geometry facts disagree
+     * @throws ArithmeticException if exact geometry or resource validation overflows
+     */
+    public CpuPartitionPreparationPlan(List<ExecutionUnitPlan> units, Route route,
+            ExecutionStrategy executionStrategy,
+            List<PreparationResourceRequirement.Buffer> bufferDeclarations,
+            List<ValueId> boundaryValues, List<CpuAccessPlan.Binding> accessBindings,
+            List<CarrierAccess> carrierPattern, List<CarrierAccess> generatedCarrierPattern,
+            long[] extents, long elementCount, long[] affineAddressPairs,
+            int selectedRangeCount, long minimumElementsPerWorker, int vectorSpeciesBitSize,
+            String loweringManifest, Optional<CpuMaterializationPlan> materialization,
+            Optional<PreparationResourceRequirement.Workspace> workspaceDeclaration,
+            WorkspaceUse workspaceUse, CpuSpecializationBudget specializationBudget,
+            Optional<CpuNonAffineMovementLowering.Geometry> movementGeometry,
+            Optional<CpuIndexingLowering.Geometry> indexingGeometry,
+            Optional<CpuScatterLowering.Geometry> scatterGeometry,
+            Optional<CpuFoldLowering.Geometry> foldGeometry,
+            Optional<CpuOrderingLowering.Geometry> orderingGeometry) {
+        this(units, route, executionStrategy, bufferDeclarations, boundaryValues, accessBindings,
+                carrierPattern, generatedCarrierPattern, extents, elementCount, affineAddressPairs,
+                selectedRangeCount, minimumElementsPerWorker, vectorSpeciesBitSize,
+                loweringManifest, materialization, workspaceDeclaration, workspaceUse,
+                specializationBudget, movementGeometry, indexingGeometry, scatterGeometry,
+                foldGeometry, orderingGeometry, Optional.empty());
+    }
     /**
      * Creates a pointwise or affine plan without non-affine movement geometry.
      *
@@ -246,8 +304,9 @@ public record CpuPartitionPreparationPlan(List<ExecutionUnitPlan> units, Route r
         scatterGeometry = Objects.requireNonNull(scatterGeometry, "scatterGeometry");
         foldGeometry = Objects.requireNonNull(foldGeometry, "foldGeometry");
         orderingGeometry = Objects.requireNonNull(orderingGeometry, "orderingGeometry");
+        randomGeometry = Objects.requireNonNull(randomGeometry, "randomGeometry");
         if (units.size() != 1 || route != Route.PORTABLE
-                || bufferDeclarations.size() < 2
+                || bufferDeclarations.isEmpty()
                 || boundaryValues.size() != bufferDeclarations.size()
                 || accessBindings.size() != bufferDeclarations.size()
                 || carrierPattern.size() != bufferDeclarations.size()
@@ -266,6 +325,8 @@ public record CpuPartitionPreparationPlan(List<ExecutionUnitPlan> units, Route r
                 instanceof io.github.pho001.synaptik.backend.cpu.internal.ir.CpuFoldIr;
         boolean ordering = units.getFirst().portablePlan().portableKernelIr()
                 instanceof io.github.pho001.synaptik.backend.cpu.internal.ir.CpuOrderingIr;
+        boolean random = units.getFirst().portablePlan().portableKernelIr()
+                instanceof io.github.pho001.synaptik.backend.cpu.internal.ir.CpuRandomIr;
         if (affine ? affineAddressPairs.length != Math.multiplyExact(elementCount, 2)
                 : affineAddressPairs.length != 0) {
             throw new IllegalArgumentException("affine address geometry must match the copy domain");
@@ -286,6 +347,9 @@ public record CpuPartitionPreparationPlan(List<ExecutionUnitPlan> units, Route r
         }
         if (ordering != orderingGeometry.isPresent() || ordering && materialization.isPresent())
             throw new IllegalArgumentException("ordering IR and geometry must agree");
+        if (random != randomGeometry.isPresent() || random && (materialization.isPresent()
+                || workspaceDeclaration.isPresent()))
+            throw new IllegalArgumentException("random IR and zero-workspace geometry must agree");
         if (fold) {
             var foldIr = (io.github.pho001.synaptik.backend.cpu.internal.ir.CpuFoldIr)
                     units.getFirst().portablePlan().portableKernelIr();

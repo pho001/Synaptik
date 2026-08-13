@@ -12,7 +12,11 @@
  * overlap addition with represented positive-zero initialization and padding exclusion.
  * Ordering covers stable SORT and ARGSORT plus two-output TOP_K for all six represented types,
  * with fixed NaN-last and signed-zero order, logical INT64 indices, represented-bit value copies,
- * deterministic unsorted selection, and static resolved-layout output requirements.
+ * deterministic unsorted selection, and static resolved-layout output requirements. Explicit
+ * graph random coverage consists of a zero-input raw two-word initializer and FLOAT64/FLOAT32
+ * inverted dropout with ordered value/state inputs and value/BOOL-mask/next-state outputs. The
+ * generated scalar route uses the CPU-private V1 mapping, exact binary64 threshold/scaling,
+ * modulo advancement, and no workspace; BFLOAT16 remains unsupported.
  * The provider exposes no route, carrier, preparation, or execution API.
  *
  * <p>The {@code internal} namespace contains unsupported implementation contracts for complete-

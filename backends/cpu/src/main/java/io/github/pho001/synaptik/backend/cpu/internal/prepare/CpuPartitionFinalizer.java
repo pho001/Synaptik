@@ -124,6 +124,6 @@ public final class CpuPartitionFinalizer implements BackendPartitionFinalizer<Cp
                         instanceof io.github.pho001.synaptik.backend.cpu.internal.ir.CpuAffineCopyIr
                         ? plan.affineAddressPairs() : null,
                 plan.movementGeometry(), plan.indexingGeometry(), plan.scatterGeometry(),
-                plan.foldGeometry(), plan.orderingGeometry());
+                plan.foldGeometry(), plan.orderingGeometry(), plan.randomGeometry());
     }
 }

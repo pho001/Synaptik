@@ -39,6 +39,11 @@
  * selection, reflection, allocation, storage classification, or resource lookup in the generated
  * hot loop.
  *
+ * <p>Random binding permits input/input overlap but rejects every input/output and output/output
+ * overlap from complete spans before mutation or submission. It binds one generated
+ * {@code [0,0)} state prologue followed by zero or more deterministic dropout element ranges;
+ * initialization and empty dropout therefore still write their state result exactly once.</p>
+ *
  * <p>Runtime retains run-level lifecycle ownership; CPU memory representations retain physical
  * allocation and release ownership. Composition owns and closes the worker group; finalizers,
  * prepared executables, and bound invocations only borrow it.

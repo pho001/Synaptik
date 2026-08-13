@@ -22,8 +22,8 @@ import java.util.Objects;
  * FLOAT32/FLOAT64, signed-integral, canonical-BOOL, or narrowly virtual floating-mask vector
  * body, and retains the scalar body for tails. It does not choose capability, numerical
  * semantics, access structure, strategy, or fallback.</p>
- * Instruction-free affine, movement, indexing, scatter, and fold forms delegate to their focused
- * emitters after the same structural specialization checks.
+ * Instruction-free affine, movement, indexing, scatter, fold, ordering, and explicit-state
+ * random forms delegate to their focused emitters after structural specialization checks.
  */
 public final class CpuClassFileKernelGenerator {
     /** Creates a stateless generator with no retained route or specialization state. */
@@ -47,7 +47,9 @@ public final class CpuClassFileKernelGenerator {
                 .withMethod(CpuGeneratorSchema.ENTRY_NAME, type, AccessFlag.STATIC.mask(), method ->
                         method.withCode(code -> {
                             if (kernelIr.instructions().isEmpty()) {
-                                if (kernelIr.familyIdentity().startsWith("ordering:")) {
+                                if (kernelIr.familyIdentity().startsWith("random:")) {
+                                    new CpuRandomEmitter().emit(code, specialization, kernelIr);
+                                } else if (kernelIr.familyIdentity().startsWith("ordering:")) {
                                     new CpuOrderingEmitter().emit(code, specialization);
                                 } else if (kernelIr.familyIdentity().startsWith("fold:")) {
                                     new CpuFoldEmitter().emit(code, specialization);
@@ -222,18 +224,21 @@ public final class CpuClassFileKernelGenerator {
         }
         if (kernelIr.instructions().isEmpty()) {
             boolean indexing = kernelIr.familyIdentity().startsWith("indexing:");
+            boolean random = kernelIr.familyIdentity().startsWith("random:");
             boolean scatter = kernelIr.familyIdentity().startsWith("scatter:");
             boolean fold = kernelIr.familyIdentity().startsWith("fold:");
             boolean ordering = kernelIr.familyIdentity().startsWith("ordering:");
             boolean movement = kernelIr.familyIdentity().startsWith("movement:");
             boolean affine = kernelIr.familyIdentity().startsWith("affine:");
-            if ((!movement && !affine && !indexing && !scatter && !fold && !ordering)
+            if ((!movement && !affine && !indexing && !scatter && !fold && !ordering && !random)
                     || affine && kernelIr.values().size() != 2
                     || movement && (kernelIr.values().size() < 2 || kernelIr.values().size() > 17)
-                    || !ordering && kernelIr.values().subList(0, kernelIr.values().size() - 1).stream()
+                    || !ordering && !random && kernelIr.values().subList(0, kernelIr.values().size() - 1).stream()
                         .anyMatch(value -> value.kind() != CpuKernelIr.Value.Kind.INPUT)
                     || kernelIr.values().getLast().kind() != CpuKernelIr.Value.Kind.OUTPUT
-                    || !indexing && !scatter && !fold && !ordering && kernelIr.values().stream().map(CpuKernelIr.Value::dataType).distinct().count() != 1
+                    || !indexing && !scatter && !fold && !ordering && !random
+                        && kernelIr.values().stream().map(CpuKernelIr.Value::dataType).distinct().count() != 1
+                    || random && kernelIr.values().size() != 1 && kernelIr.values().size() != 5
                     || specialization.executionStrategy().compute()
                         != io.github.pho001.synaptik.backend.cpu.internal.prepare.CpuPartitionPreparationPlan.ExecutionStrategy.Compute.SCALAR
                     || !specialization.scalarPowerRealizations().isEmpty()) {

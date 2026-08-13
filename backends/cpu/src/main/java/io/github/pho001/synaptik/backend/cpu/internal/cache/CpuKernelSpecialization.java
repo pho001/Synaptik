@@ -177,7 +177,7 @@ public record CpuKernelSpecialization(CpuLoweringFingerprint loweringFingerprint
         boundaryDataTypes = List.copyOf(boundaryDataTypes);
         carrierPattern = List.copyOf(carrierPattern);
         scalarPowerRealizations = List.copyOf(scalarPowerRealizations);
-        if (carrierPattern.size() < 2 || carrierPattern.size() != boundaryDataTypes.size()) {
+        if (carrierPattern.isEmpty() || carrierPattern.size() != boundaryDataTypes.size()) {
             throw new IllegalArgumentException("boundary type and carrier entries must agree");
         }
         for (int i = 0; i < carrierPattern.size(); i++) {

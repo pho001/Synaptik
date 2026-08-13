@@ -1735,6 +1735,14 @@ configuration. Equal graph RNG key/counter state and equal consuming-operation i
 equal results within that boundary. It is not a cross-backend or cross-version bitstream promise,
 because no portable pseudorandom-number-generator algorithm is currently selected.
 
+The current CPU backend provides one such boundary for explicit-state dropout:
+`SYNAPTIK_CPU_SPLITMIX64_COUNTER_V1`. The name identifies a CPU-private generated-artifact
+configuration, not a public Model option or serialized RNG format. Within that exact
+configuration, a draw depends only on the explicit key, counter, and row-major logical ordinal;
+scalar and parallel-scalar chunking therefore replay identically. See the [CPU backend
+guide](backend-guide/cpu-backend.md#current-explicit-state-rng-and-dropout-family) for the mapping,
+finite-precision order, and limitations.
+
 ### Bindable input
 
 A structural graph input that a later caller or run is allowed to supply. In the current internal

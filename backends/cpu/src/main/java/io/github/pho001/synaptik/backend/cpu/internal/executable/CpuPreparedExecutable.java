@@ -9,6 +9,7 @@ import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuIndexingLoweri
 import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuScatterLowering;
 import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuFoldLowering;
 import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuOrderingLowering;
+import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuRandomLowering;
 import io.github.pho001.synaptik.backend.cpu.internal.memory.CpuBufferArgument;
 import io.github.pho001.synaptik.backend.cpu.internal.memory.CpuBufferRepresentation;
 import io.github.pho001.synaptik.backend.cpu.internal.memory.CpuContiguousWorkspace;
@@ -48,6 +49,9 @@ import java.util.Optional;
  * For fold, binding rejects every physical input/output overlap before any generated call or
  * worker submission. Each scalar or parallel-scalar range owns disjoint output coordinates and
  * uses only its invocation-private packed coordinate state.
+ * For explicit-state random execution, binding validates all six dropout input/output and all
+ * three output/output span pairs before creating calls. One generated {@code [0,0)} prologue
+ * writes initializer or next-state words exactly once before any dropout element range.
  */
 public final class CpuPreparedExecutable extends PreparedExecutable {
     private final CpuGeneratedKernel artifact;
@@ -68,6 +72,7 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
     private final Optional<CpuScatterLowering.Geometry> scatterGeometry;
     private final Optional<CpuFoldLowering.Geometry> foldGeometry;
     private final Optional<CpuOrderingLowering.Geometry> orderingGeometry;
+    private final Optional<CpuRandomLowering.Geometry> randomGeometry;
 
     /**
      * Creates a direct derived-boundary recipe for one exact half-open logical range.
@@ -77,10 +82,53 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
      * @param artifact non-null verified artifact matching {@code carrierPattern}
      * @param bindings non-null full-range normalized boundary bindings; copied defensively
      * @param carrierPattern non-null ordered direct carrier pattern; copied defensively
-     * @param start non-negative inclusive logical element bound
-     * @param end exclusive logical element bound no greater than the iteration element count
+     * @param generatedCarrierPattern non-null generated-entry carrier pattern; copied defensively
+     * @param start non-negative inclusive logical element or slice bound
+     * @param end exclusive logical element or slice bound no greater than the iteration count
+     * @param selectedRangeCount positive selected maximum range count
+     * @param minimumElementsPerWorker positive minimum work items per worker chunk
+     * @param workerGroup borrowed open worker group for a parallel plan, otherwise {@code null}
+     * @param materialization non-null optional pointwise input materialization
+     * @param workspaceSelection non-null optional assigned workspace selection
+     * @param affineAddressPairs affine copy pairs, or {@code null}
+     * @param movementGeometry non-null optional static movement geometry
+     * @param indexingGeometry non-null optional indexing geometry
+     * @param scatterGeometry non-null optional functional-scatter geometry
+     * @param foldGeometry non-null optional overlap-fold geometry
+     * @param orderingGeometry non-null optional stable-ordering geometry
      * @throws NullPointerException if a required reference is {@code null}
      * @throws IllegalArgumentException if counts, specialization, or range disagree
+     * @throws ArithmeticException if exact range or geometry validation overflows
+     */
+    public CpuPreparedExecutable(PreparedMemoryPlan memoryPlan, List<BufferSelection> selections,
+            CpuGeneratedKernel artifact, List<CpuAccessPlan.Binding> bindings,
+            List<CarrierAccess> carrierPattern, List<CarrierAccess> generatedCarrierPattern,
+            long start, long end, int selectedRangeCount, long minimumElementsPerWorker,
+            CpuWorkerGroup workerGroup, Optional<CpuMaterializationPlan> materialization,
+            Optional<WorkspaceSelection> workspaceSelection, long[] affineAddressPairs,
+            Optional<CpuNonAffineMovementLowering.Geometry> movementGeometry,
+            Optional<CpuIndexingLowering.Geometry> indexingGeometry,
+            Optional<CpuScatterLowering.Geometry> scatterGeometry,
+            Optional<CpuFoldLowering.Geometry> foldGeometry,
+            Optional<CpuOrderingLowering.Geometry> orderingGeometry) {
+        this(memoryPlan, selections, artifact, bindings, carrierPattern, generatedCarrierPattern,
+                start, end, selectedRangeCount, minimumElementsPerWorker, workerGroup,
+                materialization, workspaceSelection, affineAddressPairs, movementGeometry,
+                indexingGeometry, scatterGeometry, foldGeometry, orderingGeometry, Optional.empty());
+    }
+
+    /**
+     * Creates a direct scalar recipe with no optional family geometry.
+     *
+     * @param memoryPlan non-null exact plan against which selections are resolved
+     * @param selections non-null ordered derived-boundary selections; copied by the superclass
+     * @param artifact non-null verified artifact matching {@code carrierPattern}
+     * @param bindings non-null full-range normalized boundary bindings; copied defensively
+     * @param carrierPattern non-null ordered direct carrier pattern; copied defensively
+     * @param start non-negative inclusive logical element bound
+     * @param end exclusive logical element bound no greater than the iteration element count
+     * @throws NullPointerException if a required reference or list element is null
+     * @throws IllegalArgumentException if memory, boundary, carrier, or range facts disagree
      */
     public CpuPreparedExecutable(PreparedMemoryPlan memoryPlan, List<BufferSelection> selections,
             CpuGeneratedKernel artifact, List<CpuAccessPlan.Binding> bindings,
@@ -420,6 +468,7 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
      * @param scatterGeometry non-null optional functional-scatter geometry
      * @param foldGeometry non-null optional overlap-fold geometry
      * @param orderingGeometry non-null optional stable ordering geometry
+     * @param randomGeometry non-null optional explicit-state initializer/dropout geometry
      * @throws NullPointerException if a required reference or list element is null
      * @throws IllegalArgumentException if memory, boundary, carrier, range, worker, geometry,
      *     workspace, or specialization facts disagree
@@ -435,12 +484,15 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
             Optional<CpuIndexingLowering.Geometry> indexingGeometry,
             Optional<CpuScatterLowering.Geometry> scatterGeometry,
             Optional<CpuFoldLowering.Geometry> foldGeometry,
-            Optional<CpuOrderingLowering.Geometry> orderingGeometry) {
+            Optional<CpuOrderingLowering.Geometry> orderingGeometry,
+            Optional<CpuRandomLowering.Geometry> randomGeometry) {
         super(memoryPlan, selections, workspaceSelection.map(List::of).orElseGet(List::of),
-                accesses(selections.size(), orderingGeometry.filter(g ->
+                accesses(selections.size(), randomGeometry.map(g -> g.family()
+                        == io.github.pho001.synaptik.backend.cpu.internal.ir.CpuRandomIr.Family.DROPOUT
+                        ? 3 : 1).orElseGet(() -> orderingGeometry.filter(g ->
                         g.family() == io.github.pho001.synaptik.backend.cpu.internal.ir.CpuOrderingIr.Family.TOP_K)
-                        .isPresent() ? 2 : 1));
-        if (selections.size() < 2) throw new IllegalArgumentException("at least two buffers required");
+                        .isPresent() ? 2 : 1)));
+        if (selections.isEmpty()) throw new IllegalArgumentException("at least one buffer required");
         this.artifact = Objects.requireNonNull(artifact, "artifact");
         this.bindings = List.copyOf(bindings);
         this.carrierPattern = List.copyOf(carrierPattern);
@@ -456,7 +508,10 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
         this.scatterGeometry = Objects.requireNonNull(scatterGeometry, "scatterGeometry");
         this.foldGeometry = Objects.requireNonNull(foldGeometry, "foldGeometry");
         this.orderingGeometry = Objects.requireNonNull(orderingGeometry, "orderingGeometry");
-        long count = this.orderingGeometry.isPresent()
+        this.randomGeometry = Objects.requireNonNull(randomGeometry, "randomGeometry");
+        long count = this.randomGeometry.isPresent()
+                ? this.randomGeometry.orElseThrow().elementCount()
+                : this.orderingGeometry.isPresent()
                 ? this.orderingGeometry.orElseThrow().sliceCount()
                 : this.foldGeometry.isPresent()
                 ? elementCount(this.foldGeometry.orElseThrow().outputExtents())
@@ -487,7 +542,8 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
         }
         int geometryCount=(affineCopy?1:0)+(this.movementGeometry.isPresent()?1:0)
                 +(this.indexingGeometry.isPresent()?1:0)+(this.scatterGeometry.isPresent()?1:0)
-                +(this.foldGeometry.isPresent()?1:0)+(this.orderingGeometry.isPresent()?1:0);
+                +(this.foldGeometry.isPresent()?1:0)+(this.orderingGeometry.isPresent()?1:0)
+                +(this.randomGeometry.isPresent()?1:0);
         if (geometryCount>1) {
             throw new IllegalArgumentException("affine, movement, indexing, scatter, and fold geometry are exclusive");
         }
@@ -521,6 +577,7 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
     public CpuAccessPlan.Binding binding() {
         return ranged(movementGeometry.isPresent() || indexingGeometry.isPresent()
                 || scatterGeometry.isPresent() || foldGeometry.isPresent() || orderingGeometry.isPresent()
+                || randomGeometry.isPresent()
                 ? bindings.getLast() : bindings.getFirst());
     }
     /**
@@ -532,9 +589,11 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
      */
     public List<CpuAccessPlan.Binding> accessBindings() {
         if (movementGeometry.isPresent() || indexingGeometry.isPresent()
-                || scatterGeometry.isPresent() || foldGeometry.isPresent() || orderingGeometry.isPresent()) {
+                || scatterGeometry.isPresent() || foldGeometry.isPresent() || orderingGeometry.isPresent()
+                || randomGeometry.isPresent()) {
             var result = new ArrayList<CpuAccessPlan.Binding>(bindings);
-            if (orderingGeometry.isEmpty()) result.set(result.size() - 1, ranged(result.getLast()));
+            if (orderingGeometry.isEmpty() && randomGeometry.isEmpty())
+                result.set(result.size() - 1, ranged(result.getLast()));
             return List.copyOf(result);
         }
         return bindings.stream().map(this::ranged).toList();
@@ -556,7 +615,7 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
                 carrierPattern, generatedCarrierPattern, rangeStart, rangeEnd, selectedRangeCount,
                 minimumElementsPerWorker, workerGroup, materialization,
                 workspaceSelection, affineCopy ? affineAddressPairs : null, movementGeometry,
-                indexingGeometry, scatterGeometry, foldGeometry, orderingGeometry);
+                indexingGeometry, scatterGeometry, foldGeometry, orderingGeometry, randomGeometry);
     }
 
     private CpuAccessPlan.Binding ranged(CpuAccessPlan.Binding source) {
@@ -583,7 +642,9 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
                     || segment.segment().address() % entry.byteAlignment() == 0;
             int firstOutput = orderingGeometry.filter(g -> g.family()
                     == io.github.pho001.synaptik.backend.cpu.internal.ir.CpuOrderingIr.Family.TOP_K)
-                    .isPresent() ? bindings.size() - 2 : bindings.size() - 1;
+                    .isPresent() ? bindings.size() - 2 : randomGeometry.map(g -> g.family()
+                        == io.github.pho001.synaptik.backend.cpu.internal.ir.CpuRandomIr.Family.DROPOUT
+                        ? bindings.size() - 3 : 0).orElse(bindings.size() - 1);
             return actual == carrierPattern.get(index) && aligned
                     && (index < firstOutput || !argument.readOnly());
         } catch (IllegalArgumentException | IllegalStateException incompatible) { return false; }
@@ -618,7 +679,23 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
         }
         int firstOutputIndex = orderingGeometry.filter(g ->
                 g.family() == io.github.pho001.synaptik.backend.cpu.internal.ir.CpuOrderingIr.Family.TOP_K)
-                .isPresent() ? bindings.size() - 2 : bindings.size() - 1;
+                .isPresent() ? bindings.size() - 2 : randomGeometry.map(g -> g.family()
+                    == io.github.pho001.synaptik.backend.cpu.internal.ir.CpuRandomIr.Family.DROPOUT
+                    ? bindings.size() - 3 : 0).orElse(bindings.size() - 1);
+        if (randomGeometry.filter(g -> g.family()
+                == io.github.pho001.synaptik.backend.cpu.internal.ir.CpuRandomIr.Family.DROPOUT)
+                .isPresent()) {
+            for (int input = 0; input < 2; input++) for (int output = 2; output < 5; output++) {
+                if (overlaps(arguments.get(input), bindings.get(input), arguments.get(output),
+                        bindings.get(output))) throw new IllegalArgumentException(
+                                "output accessed span must not overlap an input");
+            }
+            for (int left = 2; left < 5; left++) for (int right = left + 1; right < 5; right++) {
+                if (overlaps(arguments.get(left), bindings.get(left), arguments.get(right),
+                        bindings.get(right))) throw new IllegalArgumentException(
+                                "random outputs must not overlap");
+            }
+        } else {
         for (int input = 0; input < firstOutputIndex; input++) {
             CpuAccessPlan.Binding inputBinding = materialization.isPresent()
                     && materialization.orElseThrow().sourceBoundaryIndex() == input
@@ -647,6 +724,7 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
                     arguments.get(firstOutputIndex + 1), bindings.get(firstOutputIndex + 1)))
                 throw new IllegalArgumentException("ordering outputs must not overlap");
         }
+        }
         validateCanonicalBooleanInputs(arguments);
         IndexValidation validation = indexingGeometry.map(g ->
                 new IndexValidation(arguments, g)).orElse(null);
@@ -673,13 +751,15 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
                 ((CpuContiguousWorkspace) workspaces[0]).writableSegment()))
             throw new IllegalArgumentException("scratch is not accessible to every CPU worker");
         long length = end - start;
+        KernelCall prologue = randomGeometry.isPresent() ? callFor(artifact.entryPoint(), arguments,
+                null, geometry(arguments, 0, 0, 0), 0, 0) : null;
         int chunkCount = length == 0 ? 0 : Math.min(selectedRangeCount,
                 Math.toIntExact(1 + (length - 1) / minimumElementsPerWorker));
         if (chunkCount <= 1) {
             KernelCall call = length == 0 ? null : callFor(artifact.entryPoint(), arguments,
                     artifact.specialization().scratchParameter() ? scratch(workspaces) : null,
                     geometry(arguments, start, end, 0), start, end);
-            return new Invocation(state, copyCall, validation, scatterValidation, call, null);
+            return new Invocation(state, copyCall, validation, scatterValidation, prologue, call, null);
         }
         CpuWorkerGroup.RangeCall[] calls = new CpuWorkerGroup.RangeCall[chunkCount];
         long quotient = length / chunkCount;
@@ -693,7 +773,7 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
             calls[index] = call::invoke;
             chunkStart = chunkEnd;
         }
-        return new Invocation(state, copyCall, validation, scatterValidation, null, calls);
+        return new Invocation(state, copyCall, validation, scatterValidation, prologue, null, calls);
     }
 
     @FunctionalInterface private interface CopyCall { void invoke(); }
@@ -756,6 +836,14 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
 
     private long[] geometry(List<CpuBufferArgument> arguments, long rangeStart, long rangeEnd,
             int rangeIndex) {
+        if (randomGeometry.isPresent()) {
+            long[] bases = new long[arguments.size()];
+            for (int index = 0; index < arguments.size(); index++) {
+                int width = artifact.specialization().boundaryDataTypes().get(index).byteWidth();
+                bases[index] = arguments.get(index).byteOffset() / width;
+            }
+            return randomGeometry.orElseThrow().pack(bases);
+        }
         if (orderingGeometry.isPresent()) {
             long[] bases = new long[arguments.size()];
             for (int index = 0; index < arguments.size(); index++) {
@@ -922,7 +1010,8 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
     private static List<BufferAccess> accesses(int count) { return accesses(count, 1); }
 
     private static List<BufferAccess> accesses(int count, int outputCount) {
-        if (count < 2) throw new IllegalArgumentException("at least two buffers required");
+        if (count < 1 || outputCount < 1 || outputCount > count)
+            throw new IllegalArgumentException("buffer access counts are invalid");
         var result = new ArrayList<BufferAccess>(count);
         for (int i = 0; i < count - outputCount; i++) result.add(BufferAccess.READ_ONLY);
         for (int i = 0; i < outputCount; i++) result.add(BufferAccess.WRITE_ONLY);
@@ -953,7 +1042,9 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
     private void validateCanonicalBooleanInputs(List<CpuBufferArgument> arguments) {
         int output = orderingGeometry.filter(g -> g.family()
                 == io.github.pho001.synaptik.backend.cpu.internal.ir.CpuOrderingIr.Family.TOP_K)
-                .isPresent() ? arguments.size() - 2 : arguments.size() - 1;
+                .isPresent() ? arguments.size() - 2 : randomGeometry.map(g -> g.family()
+                    == io.github.pho001.synaptik.backend.cpu.internal.ir.CpuRandomIr.Family.DROPOUT
+                    ? arguments.size() - 3 : 0).orElse(arguments.size() - 1);
         for (int index = 0; index < output; index++) {
             if (artifact.specialization().boundaryDataTypes().get(index)
                     != io.github.pho001.synaptik.model.datatype.DataType.BOOL) continue;
@@ -1220,19 +1311,22 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
         private final CopyCall copy;
         private final IndexValidation validation;
         private final ScatterValidation scatterValidation;
+        private final KernelCall prologue;
         private final KernelCall call;
         private final CpuWorkerGroup.RangeCall[] calls;
         Invocation(RunState state, CopyCall copy, IndexValidation validation,
-                ScatterValidation scatterValidation, KernelCall call,
+                ScatterValidation scatterValidation, KernelCall prologue, KernelCall call,
                 CpuWorkerGroup.RangeCall[] calls) {
             super(state); this.copy = copy; this.validation = validation;
-            this.scatterValidation=scatterValidation; this.call = call; this.calls = calls;
+            this.scatterValidation=scatterValidation; this.prologue=prologue;
+            this.call = call; this.calls = calls;
         }
         @Override protected void executeBound() {
             try {
                 if (copy != null) copy.invoke();
                 if (validation != null) validation.validate();
                 if (scatterValidation != null) scatterValidation.validate();
+                if (prologue != null) prologue.invoke();
                 if (call != null) call.invoke();
                 else if (calls != null) workerGroup.execute(calls);
             }

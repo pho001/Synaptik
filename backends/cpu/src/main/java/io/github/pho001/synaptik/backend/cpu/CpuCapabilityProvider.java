@@ -36,6 +36,10 @@ import io.github.pho001.synaptik.model.operation.ordering.OrderingKind;
 import io.github.pho001.synaptik.model.operation.ordering.SortAttrs;
 import io.github.pho001.synaptik.model.operation.ordering.TopKAttrs;
 import io.github.pho001.synaptik.model.operation.ordering.TopKKind;
+import io.github.pho001.synaptik.model.operation.random.DropoutAttrs;
+import io.github.pho001.synaptik.model.operation.random.DropoutKind;
+import io.github.pho001.synaptik.model.operation.random.GraphRngKind;
+import io.github.pho001.synaptik.model.operation.random.GraphRngStateAttrs;
 import io.github.pho001.synaptik.model.shape.Shape;
 import io.github.pho001.synaptik.planning.capability.BackendCapabilityProvider;
 import io.github.pho001.synaptik.planning.capability.OperationCapabilityQuery;
@@ -145,7 +149,8 @@ public final class CpuCapabilityProvider implements BackendCapabilityProvider {
     public boolean supports(OperationCapabilityQuery query) {
         Objects.requireNonNull(query, "query");
         Object requestedKind = query.operation().kind();
-        int expectedOutputs = requestedKind == TopKKind.TOP_K ? 2 : 1;
+        int expectedOutputs = requestedKind == TopKKind.TOP_K ? 2
+                : requestedKind == DropoutKind.DROPOUT ? 3 : 1;
         if (query.outputs().size() != expectedOutputs || !query.inputs().stream().allMatch(CpuCapabilityProvider::staticResolved)
                 || !query.outputs().stream().allMatch(CpuCapabilityProvider::staticResolved)) {
             return false;
@@ -154,6 +159,8 @@ public final class CpuCapabilityProvider implements BackendCapabilityProvider {
         var attrs = query.operation().attrs();
         TensorDescriptor output = query.outputs().getFirst();
         try {
+            if (kind == GraphRngKind.INITIAL_STATE) return supportsInitialState(query);
+            if (kind == DropoutKind.DROPOUT) return supportsDropout(query);
             if (kind instanceof OrderingKind || kind == TopKKind.TOP_K)
                 return supportsOrdering(query);
             if (kind instanceof AxisGatherKind || kind == GatherNdKind.GATHER_ND
@@ -246,6 +253,34 @@ public final class CpuCapabilityProvider implements BackendCapabilityProvider {
             }
         } catch (IllegalArgumentException | ArithmeticException incompatible) { return false; }
         return false;
+    }
+
+    private static boolean supportsInitialState(OperationCapabilityQuery query) {
+        return query.operation().attrs() instanceof GraphRngStateAttrs
+                && query.inputs().isEmpty() && query.outputs().size() == 1
+                && stateDescriptor(query.outputs().getFirst())
+                && injective(query.outputs().getFirst().shape().toLongArray(),
+                    query.outputs().getFirst().layout().orElseThrow().strides());
+    }
+
+    private static boolean supportsDropout(OperationCapabilityQuery query) {
+        if (!(query.operation().attrs() instanceof DropoutAttrs) || query.inputs().size() != 2
+                || query.outputs().size() != 3) return false;
+        TensorDescriptor value = query.inputs().get(0), state = query.inputs().get(1);
+        TensorDescriptor output = query.outputs().get(0), mask = query.outputs().get(1);
+        TensorDescriptor next = query.outputs().get(2);
+        if ((value.dataType() != DataType.FLOAT64 && value.dataType() != DataType.FLOAT32)
+                || output.dataType() != value.dataType() || !output.shape().equals(value.shape())
+                || mask.dataType() != DataType.BOOL || !mask.shape().equals(value.shape())
+                || !stateDescriptor(state) || !stateDescriptor(next)) return false;
+        return injective(state.shape().toLongArray(), state.layout().orElseThrow().strides())
+                && query.outputs().stream().allMatch(descriptor -> injective(
+                descriptor.shape().toLongArray(), descriptor.layout().orElseThrow().strides()));
+    }
+
+    private static boolean stateDescriptor(TensorDescriptor descriptor) {
+        return descriptor.dataType() == DataType.INT64
+                && java.util.Arrays.equals(descriptor.shape().toLongArray(), new long[] {2});
     }
 
     private static boolean supportsOrdering(OperationCapabilityQuery query) {

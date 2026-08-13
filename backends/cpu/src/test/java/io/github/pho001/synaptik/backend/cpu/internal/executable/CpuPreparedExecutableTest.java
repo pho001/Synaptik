@@ -36,6 +36,7 @@ import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuNonAffineMovem
 import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuScatterLoweringTest;
 import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuFoldLoweringTest;
 import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuOrderingLoweringTest;
+import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuRandomLoweringTest;
 import io.github.pho001.synaptik.backend.cpu.internal.prepare.CpuPartitionPreparer;
 import io.github.pho001.synaptik.model.datatype.ScalarValue;
 import io.github.pho001.synaptik.model.operation.Operation;
@@ -57,6 +58,128 @@ class CpuPreparedExecutableTest {
             ValueLayout.JAVA_FLOAT_UNALIGNED.withOrder(ByteOrder.nativeOrder());
     private static final ValueLayout.OfInt INT =
             ValueLayout.JAVA_INT_UNALIGNED.withOrder(ByteOrder.nativeOrder());
+
+    @Test void zeroInputInitializerExecutesItsSinglePrologueWithNoWorkspace() {
+        var base = CpuRandomLoweringTest.initialContext(Long.MIN_VALUE, Long.MAX_VALUE);
+        var analysis = new CpuPartitionPreparer().analyze(
+                new io.github.pho001.synaptik.prepare.analysis.PrepareContext<>(base.partition(),
+                        base.nodes(), base.values(), base.memoryRequirements(), base.constants(),
+                        new CpuPartitionAnalysisInputs(false, List.of(CarrierAccess.LONG_ARRAY))));
+        var executable = CpuPartitionFinalizerTest.finalizeExecutable(analysis, Optional.empty());
+        long[] stateWords = new long[2];
+        var run = state(executable, List.of(borrow(stateWords)));
+        try { executable.bind(run).execute(); } finally { run.close(); }
+        assertAll(() -> assertArrayEquals(new long[] {Long.MIN_VALUE, Long.MAX_VALUE}, stateWords),
+                () -> assertTrue(executable.memoryPlan().workspaces().isEmpty()));
+    }
+
+    @Test void dropoutColdBindingExecutesPrologueAndParallelRangesBitwise() {
+        int count = 32;
+        var base = CpuRandomLoweringTest.dropoutContext(DataType.FLOAT32, Shape.of(count), .25);
+        var carriers = List.of(CarrierAccess.FLOAT_ARRAY, CarrierAccess.LONG_ARRAY,
+                CarrierAccess.FLOAT_ARRAY, CarrierAccess.BYTE_ARRAY, CarrierAccess.LONG_ARRAY);
+        float[] input = new float[count]; for (int i = 0; i < count; i++) input[i] = i - 7.5f;
+        long[] rng = {0x1234, Long.MAX_VALUE - 5};
+        float[] scalarOutput = new float[count], parallelOutput = new float[count];
+        byte[] scalarMask = new byte[count], parallelMask = new byte[count];
+        long[] scalarNext = new long[2], parallelNext = new long[2];
+
+        var scalarContext = new io.github.pho001.synaptik.prepare.analysis.PrepareContext<>(
+                base.partition(), base.nodes(), base.values(), base.memoryRequirements(), base.constants(),
+                new CpuPartitionAnalysisInputs(false, carriers));
+        var scalar = CpuPartitionFinalizerTest.finalizeExecutable(
+                new CpuPartitionPreparer().analyze(scalarContext), Optional.empty());
+        var scalarRun = state(scalar, List.of(borrow(input, 0, count), borrow(rng),
+                borrow(scalarOutput, 0, count), borrow(scalarMask), borrow(scalarNext)));
+        try { scalar.bind(scalarRun).execute(); } finally { scalarRun.close(); }
+
+        var config = new PortableExecutionConfig(ComputePreference.SCALAR, 4, 4, 1);
+        var parallelContext = new io.github.pho001.synaptik.prepare.analysis.PrepareContext<>(
+                base.partition(), base.nodes(), base.values(), base.memoryRequirements(), base.constants(),
+                new CpuPartitionAnalysisInputs(false, carriers, config));
+        var analysis = new CpuPartitionPreparer().analyze(parallelContext);
+        try (var workers = new CpuWorkerGroup(4)) {
+            var parallel = CpuPartitionFinalizerTest.finalizeExecutable(analysis, Optional.empty(),
+                    Optional.of(workers));
+            var run = state(parallel, List.of(borrow(input, 0, count), borrow(rng),
+                    borrow(parallelOutput, 0, count), borrow(parallelMask), borrow(parallelNext)));
+            try { parallel.bind(run).execute(); } finally { run.close(); }
+        }
+        assertAll(() -> assertArrayEquals(scalarMask, parallelMask),
+                () -> assertArrayEquals(java.util.stream.IntStream.range(0, count)
+                                .map(i -> Float.floatToRawIntBits(scalarOutput[i])).toArray(),
+                        java.util.stream.IntStream.range(0, count)
+                                .map(i -> Float.floatToRawIntBits(parallelOutput[i])).toArray()),
+                () -> assertArrayEquals(scalarNext, parallelNext),
+                () -> assertArrayEquals(new long[] {rng[0], rng[1] + count}, scalarNext),
+                () -> assertTrue(analysis.plan().workspaceDeclaration().isEmpty()));
+    }
+
+    @Test void dropoutRejectsEveryInputOutputAndOutputPairOverlapBeforeMutation() {
+        var base = CpuRandomLoweringTest.dropoutContext(DataType.FLOAT64, Shape.of(3), .5);
+        var carriers = java.util.Collections.nCopies(5, CarrierAccess.MEMORY_SEGMENT);
+        var context = new io.github.pho001.synaptik.prepare.analysis.PrepareContext<>(base.partition(),
+                base.nodes(), base.values(), base.memoryRequirements(), base.constants(),
+                new CpuPartitionAnalysisInputs(false, carriers));
+        var executable = CpuPartitionFinalizerTest.finalizeExecutable(
+                new CpuPartitionPreparer().analyze(context), Optional.empty());
+        try (Arena arena = Arena.ofConfined()) {
+            for (int left = 0; left < 5; left++) for (int right = left + 1; right < 5; right++) {
+                if (left < 2 && right < 2) continue;
+                MemorySegment shared = arena.allocate(256, 8); shared.fill((byte) 0x5a);
+                var resources = new ArrayList<io.github.pho001.synaptik.runtime.resource.BufferRepresentation>();
+                for (int index = 0; index < 5; index++) {
+                    DataType type = List.of(DataType.FLOAT64, DataType.INT64, DataType.FLOAT64,
+                            DataType.BOOL, DataType.INT64).get(index);
+                    long elements = index == 1 || index == 4 ? 2 : 3;
+                    long offset = index == left || index == right ? 0 : 64 + index * 32L;
+                    resources.add(borrowed(type, elements,
+                            shared.asSlice(offset, elements * type.byteWidth())));
+                }
+                var run = state(executable, resources);
+                try {
+                    assertThrows(IllegalArgumentException.class, () -> executable.bind(run),
+                            left + ":" + right);
+                    assertEquals((byte) 0x5a, shared.get(ValueLayout.JAVA_BYTE, 0));
+                } finally { run.close(); }
+            }
+        }
+    }
+
+    @Test void dropoutPermitsPhysicalInputInputOverlapAndExecutesCoherently() {
+        var base = CpuRandomLoweringTest.dropoutContext(DataType.FLOAT64, Shape.of(2), 0.0d);
+        var carriers = java.util.Collections.nCopies(5, CarrierAccess.MEMORY_SEGMENT);
+        var context = new io.github.pho001.synaptik.prepare.analysis.PrepareContext<>(base.partition(),
+                base.nodes(), base.values(), base.memoryRequirements(), base.constants(),
+                new CpuPartitionAnalysisInputs(false, carriers));
+        var executable = CpuPartitionFinalizerTest.finalizeExecutable(
+                new CpuPartitionPreparer().analyze(context), Optional.empty());
+        try (Arena arena = Arena.ofConfined()) {
+            MemorySegment sharedInputs = arena.allocate(16, 8);
+            long key = Double.doubleToRawLongBits(1.5);
+            long counter = Double.doubleToRawLongBits(-2.25);
+            sharedInputs.set(ValueLayout.JAVA_LONG, 0, key);
+            sharedInputs.set(ValueLayout.JAVA_LONG, 8, counter);
+            MemorySegment output = arena.allocate(16, 8);
+            MemorySegment mask = arena.allocate(2, 1);
+            MemorySegment nextState = arena.allocate(16, 8);
+            var run = state(executable, List.of(
+                    borrowed(DataType.FLOAT64, 2, sharedInputs),
+                    borrowed(DataType.INT64, 2, sharedInputs),
+                    borrowed(DataType.FLOAT64, 2, output),
+                    borrowed(DataType.BOOL, 2, mask),
+                    borrowed(DataType.INT64, 2, nextState)));
+            try { executable.bind(run).execute(); } finally { run.close(); }
+            assertAll(() -> assertEquals(Double.doubleToRawLongBits(1.5),
+                            Double.doubleToRawLongBits(output.get(DOUBLE, 0))),
+                    () -> assertEquals(Double.doubleToRawLongBits(-2.25),
+                            Double.doubleToRawLongBits(output.get(DOUBLE, 8))),
+                    () -> assertEquals((byte) 1, mask.get(ValueLayout.JAVA_BYTE, 0)),
+                    () -> assertEquals((byte) 1, mask.get(ValueLayout.JAVA_BYTE, 1)),
+                    () -> assertEquals(key, nextState.get(ValueLayout.JAVA_LONG, 0)),
+                    () -> assertEquals(counter + 2, nextState.get(ValueLayout.JAVA_LONG, 8)));
+        }
+    }
 
     @Test void topKColdBindingExecutesBothOutputsAndRejectsAllOverlapBeforeMutation() {
         var base = CpuOrderingLoweringTest.context(new Operation(

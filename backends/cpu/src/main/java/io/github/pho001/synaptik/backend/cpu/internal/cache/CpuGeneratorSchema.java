@@ -16,6 +16,9 @@ package io.github.pho001.synaptik.backend.cpu.internal.cache;
  * sequential-addition policy, and workspace-free output-domain writer. Schema 18 adds stable
  * ordering family, represented type, direction/output-order flags, ordered one- or two-output
  * boundary structure, and the explicit scratch-bearing generated entry signature.
+ * Schema 19 adds the CPU-private V1 explicit-state initializer/dropout mapping, uniform and
+ * finite-precision policy, baked raw initializer/probability bits, one- or five-boundary entry
+ * shape, three-output stores, and workspace-free state prologue.
  * The optional persistent envelope stores this version and has no legacy reader, migration path,
  * or converter.
  */
@@ -28,9 +31,10 @@ public final class CpuGeneratorSchema {
      * cursor body; schema 16 adds current functional scatter and its explicit scratch signature;
      * schema 17 adds current overlap fold and represented sequential addition; schema 18 adds
      * stable SORT/ARGSORT/TOP_K structural identity, multi-store shape, and merge scratch.
+     * Schema 19 adds explicit-state initialization and FLOAT64/FLOAT32 dropout identity and code.
      * Envelopes written for earlier schemas are incompatible misses.
      */
-    public static final int CURRENT_VERSION = 18;
+    public static final int CURRENT_VERSION = 19;
     /** Generated entry name. */ public static final String ENTRY_NAME = "invoke";
     private CpuGeneratorSchema() { }
 

@@ -12,6 +12,8 @@ import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuIndexingIr;
 import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuDataMovementIr;
 import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuNonAffineMovementLoweringTest;
 import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuPartitionLowering;
+import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuRandomLoweringTest;
+import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuRandomIr;
 import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuScatterLoweringTest;
 import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuScatterIr;
 import io.github.pho001.synaptik.model.operation.Operation;
@@ -29,9 +31,80 @@ import io.github.pho001.synaptik.model.operation.layout.SliceAttrs;
 import io.github.pho001.synaptik.model.operation.layout.SliceKind;
 import io.github.pho001.synaptik.model.shape.Shape;
 import io.github.pho001.synaptik.model.datatype.DataType;
+import io.github.pho001.synaptik.model.layout.LayoutDescriptor;
 import java.util.List;
 
 class CpuReferenceDifferentialTest {
+    private static final long RANDOM_KEY_BIAS = 0x9e3779b97f4a7c15L;
+    private static final long RANDOM_M1 = 0xbf58476d1ce4e5b9L;
+    private static final long RANDOM_M2 = 0x94d049bb133111ebL;
+
+    @Test void independentRandomReferenceMatchesExactVectorsMaskScalingAndState() {
+        var lowered = new CpuPartitionLowering().lower(CpuRandomLoweringTest.dropoutContext(
+                DataType.FLOAT32, Shape.of(5), .25));
+        float[] input = {-0.0f, 1, -2, Float.NaN, Float.POSITIVE_INFINITY};
+        long[] state = {0x1234, 7}, next = new long[2];
+        float[] output = new float[5]; byte[] mask = new byte[5];
+        CpuScalarReferenceKernel.execute((CpuRandomIr) lowered.portableKernelIr(),
+                lowered.randomGeometry().orElseThrow(), List.of(
+                        new CpuBufferArgument.Floats(input, 0, 20, true),
+                        new CpuBufferArgument.Longs(state, 0, 16, true),
+                        new CpuBufferArgument.Floats(output, 0, 20, false),
+                        new CpuBufferArgument.Bytes(mask, 0, 5, false),
+                        new CpuBufferArgument.Longs(next, 0, 16, false)));
+        assertAll(() -> assertArrayEquals(new long[] {0x1234, 12}, next),
+                () -> assertTrue(java.util.Arrays.stream(new int[] {mask[0], mask[1], mask[2],
+                        mask[3], mask[4]}).allMatch(value -> value == 0 || value == 1)),
+                () -> assertEquals(0L, Float.floatToRawIntBits(output[0]) == 0
+                        ? 0L : Integer.toUnsignedLong(Float.floatToRawIntBits(output[0]))));
+    }
+
+    @Test void independentRandomReferenceHonorsBroadcastReadsAndStridedWrites() {
+        Shape shape = Shape.of(2, 2); Shape stateShape = Shape.of(2);
+        var lowered = new CpuPartitionLowering().lower(CpuRandomLoweringTest.dropoutContext(
+                DataType.FLOAT64, shape, .5, List.of(
+                        LayoutDescriptor.of(shape, new long[] {0, 2}, 1, true),
+                        LayoutDescriptor.of(stateShape, new long[] {2}, 1, true),
+                        LayoutDescriptor.of(shape, new long[] {7, 2}, 1, true),
+                        LayoutDescriptor.of(shape, new long[] {8, 3}, 2, true),
+                        LayoutDescriptor.of(stateShape, new long[] {3}, 2, true))));
+        double[] input = {-50, 2, -50, -6}; long[] state = {-50, 0, -50, 0};
+        double[] output = new double[11]; java.util.Arrays.fill(output, -50);
+        byte[] mask = new byte[14]; java.util.Arrays.fill(mask, (byte) -50);
+        long[] next = new long[6]; java.util.Arrays.fill(next, -50);
+        CpuScalarReferenceKernel.execute((CpuRandomIr) lowered.portableKernelIr(),
+                lowered.randomGeometry().orElseThrow(), List.of(
+                        new CpuBufferArgument.Doubles(input, 0, input.length * 8L, true),
+                        new CpuBufferArgument.Longs(state, 0, state.length * 8L, true),
+                        new CpuBufferArgument.Doubles(output, 0, output.length * 8L, false),
+                        new CpuBufferArgument.Bytes(mask, 0, mask.length, false),
+                        new CpuBufferArgument.Longs(next, 0, next.length * 8L, false)));
+        int[] inputAddresses = {1, 3, 1, 3}; int[] outputAddresses = {1, 3, 8, 10};
+        int[] maskAddresses = {2, 5, 10, 13};
+        for (int logical = 0; logical < 4; logical++) {
+            boolean keep = randomUniform(randomWord(0, 0, logical)) >= .5;
+            assertEquals(keep ? (byte) 1 : (byte) 0, mask[maskAddresses[logical]]);
+            assertEquals(Double.doubleToRawLongBits(keep
+                            ? input[inputAddresses[logical]] / .5 : 0.0d),
+                    Double.doubleToRawLongBits(output[outputAddresses[logical]]));
+        }
+        assertAll(() -> assertEquals(-50, output[0]),
+                () -> assertEquals((byte) -50, mask[0]),
+                () -> assertEquals(0, next[2]),
+                () -> assertEquals(4, next[5]));
+    }
+
+    private static long randomWord(long key, long counter, long logical) {
+        return randomMix(counter + logical + randomMix(key + RANDOM_KEY_BIAS));
+    }
+
+    private static long randomMix(long value) {
+        value = (value ^ (value >>> 30)) * RANDOM_M1;
+        value = (value ^ (value >>> 27)) * RANDOM_M2;
+        return value ^ (value >>> 31);
+    }
+
+    private static double randomUniform(long word) { return (word >>> 11) * 0x1.0p-53; }
     @Test void independentScatterOracleCoversExactProductAndReplacementValidation() {
         var lowered=new CpuPartitionLowering().lower(CpuScatterLoweringTest.context(
                 new Operation(AxisScatterKind.SCATTER_ELEMENTS,

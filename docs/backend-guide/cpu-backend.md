@@ -3,7 +3,7 @@
 ## Outcome and status
 
 This guide defines the CPU integration boundary and helps contributors avoid treating CPU routes
-as separate backends. The current CPU module accepts seven bounded, fully static portable families.
+as separate backends. The current CPU module accepts eight bounded, fully static portable families.
 A pointwise partition is one supported occurrence or one connected straight-line chain of at most
 eight occurrences. A static affine partition is one connected one-input/one-output chain of at
 most eight resolved-layout view occurrences. Either family lowers to one computation unit, one
@@ -39,6 +39,12 @@ SORT and TOP_K copy selected represented bits; ARGSORT and TOP_K write zero-base
 coordinates. Unsorted TOP_K deterministically orders the selected pairs by increasing original
 index. Scalar or complete-slice parallel-scalar execution uses one exact run-owned workspace with
 two primitive INT64 merge-index regions per selected range.
+The eighth family is exactly one resolved-layout `INITIAL_STATE` or FLOAT64/FLOAT32 `DROPOUT`
+occurrence. It uses explicit key/counter state and the versioned CPU-private
+`SYNAPTIK_CPU_SPLITMIX64_COUNTER_V1` mapping. INITIAL_STATE writes key then counter without a draw.
+DROPOUT consumes one draw per row-major logical value ordinal, writes the dropped value, a
+canonical one-byte BOOL keep mask, and the next key/counter state, with identical scalar and
+parallel-scalar results and zero workspace.
 
 Generated scalar and Java 26 Vector API loops accept primitive `start` and `end` bounds.
 Compatible concrete extents bind on the cold path and share identical class bytes and one
@@ -63,8 +69,8 @@ completes before consumer execution. Capability and lowering fail closed for eve
 operation, type, shape, layout, parameter, alias, fan-out, publication, carrier, or route. In
 particular, CAST is same-type only and BFLOAT16 remains representation-only for affine movement;
 CPU does not invent cross-type conversion semantics. Native, tuning, excluded pointwise rows,
-explicit-state random work, general partition-DAG fusion, and later operation families remain
-Draft. Functional scatter, overlap fold, and stable ordering are current only within the exact
+general partition-DAG fusion and later operation families remain Draft. Functional scatter,
+overlap fold, stable ordering, and explicit-state random execution are current only within the exact
 static portable boundaries described below; they do not imply native, vector, dynamic-layout, or
 universal backend coverage.
 
@@ -617,7 +623,7 @@ affine load/store, gather, scatter, masked tail, or speed claim.
 Lifecycle ownership remains unchanged. CPU analysis validates and composes the chain, chooses the
 scalar orchestration, and declares exactly the source and final result. Shared Prepare assigns
 those two slots without interpreting the affine plan. CPU finalization validates both assignments
-before current schema-18 artifact access and constructs one immutable executable. Cold binding validates
+before current schema-19 artifact access and constructs one immutable executable. Cold binding validates
 the exact data type, carrier, byte size, alignment, accessibility, output writability, canonical
 BOOL input bytes, and source/result non-overlap. Runtime then invokes only the prepared direct
 carriers, address table, and `start`/`end` bounds; it receives no operation, graph node, Shape,
@@ -625,7 +631,7 @@ layout, affine IR, or route choice.
 
 Static non-affine movement is the separate bounded family below. Index tensors, functional
 scatter, overlap fold, ordering and top-K,
-explicit-state random work, dynamic layouts, general partition-DAG decomposition/fusion, and
+dynamic layouts, general partition-DAG decomposition/fusion, and
 benchmarks remain outside this implemented family.
 
 ### Current static pad, tile, and composition movement family
@@ -668,7 +674,7 @@ callback, or per-element allocation in generated code.
 
 Movement uses scalar compute and either single-thread or deterministic parallel orchestration.
 Parallel chunks are safe because output injectivity proves disjoint writes. Vector preference
-falls back to scalar for this family. CPU finalization realizes current schema-18 generated artifacts;
+falls back to scalar for this family. CPU finalization realizes current schema-19 generated artifacts;
 cold binding validates complete input/output spans and rejects every output/input overlap before
 execution. The scalar reference consumes the same movement IR and compact geometry for
 differential tests, not as a Runtime fallback.
@@ -755,14 +761,15 @@ injectivity, and output/input non-overlap checks still run.
 
 CPU analysis declares each distinct gather input `ValueId` once in semantic first-use order and
 then one separate output; one-hot declares indices and output. Every indexing plan has one unit,
-no materialization, no workspace, one current schema-18 generated class artifact, one prepared
+no materialization, no workspace, one current schema-19 generated class artifact, one prepared
 executable, and one bound invocation. The artifact owns only output writing. Compact CPU-private
 geometry retains layout and coordinate facts without a per-index or per-output table, while the
 bound executable owns run-value validation. Shared Prepare assigns declared buffers opaquely,
 and Runtime sees only the prepared executable and direct carriers.
 
 Current indexing support ends at these four one-node, fully static operations. Functional
-scatter, fold accumulation, and ordering/top-K have separate current families; random execution, dynamic
+scatter, fold accumulation, ordering/top-K, and explicit-state random work have separate current
+families; dynamic
 Shape/layout binding, vector gather, native routes, tuning, and general partition-DAG fusion
 remain planned. The independent scalar reference is differential-test evidence, not a Runtime
 fallback or a second artifact.
@@ -912,7 +919,7 @@ parallel orchestration calls the same scalar body over disjoint output ranges. F
 API body, atomics, partial sums, cross-range merge, hidden scratch, or input-domain parallelism.
 CPU analysis and finalization keep concrete axes, windows, extents, layouts, carriers, and ranges
 cold. Schema 17 introduced the fold family, represented type, boundary access/rank structure,
-carrier pattern, execution mode, and canonical sequential-addition policy; current schema 18
+carrier pattern, execution mode, and canonical sequential-addition policy; current schema 19
 retains those facts, and every older schema is an incompatible miss with no migration reader.
 
 This is exact current CPU route coverage, not broader Model, Compiler, Runtime, Engine, gradient,
@@ -972,6 +979,85 @@ This is CPU realization of the existing Model ordering meaning, not a change to 
 It adds no dynamic Shape or layout binding, custom/unstable ordering, native route, Vector API
 sort, fusion, autotuning, public configuration, Engine integration, cross-backend bitwise promise,
 or performance guarantee.
+
+### Current explicit-state RNG and dropout family
+
+The portable random family accepts exactly one fully static, resolved-layout occurrence. An
+`INITIAL_STATE` occurrence has no input and one writable INT64 `Shape[2]` output. It writes the
+exact raw key word to logical lane zero and counter word to lane one; it does not hash either
+word, draw randomness, or advance the counter. A `DROPOUT` occurrence has ordered boundaries
+`[value, state, output, keepMask, nextState]`. Value and output must be FLOAT64 or FLOAT32 with
+the same Shape, the mask is canonical BOOL with that Shape, and both state values are INT64
+`Shape[2]`. Every writable layout and the state input must be injective. BFLOAT16 dropout fails
+closed: its raw `short` carrier does not establish the direct, correctly rounded scaling and
+conversion rule required for numerical execution.
+
+CPU realizes those Model semantics with the non-cryptographic, CPU-private configuration
+`SYNAPTIK_CPU_SPLITMIX64_COUNTER_V1`. All additions and multiplications below are modulo `2^64`;
+`>>>` is an unsigned shift:
+
+```text
+KEY_BIAS = 0x9e3779b97f4a7c15
+MIX_MULTIPLIER_1 = 0xbf58476d1ce4e5b9
+MIX_MULTIPLIER_2 = 0x94d049bb133111eb
+
+mix64(z):
+  z = (z ^ (z >>> 30)) * MIX_MULTIPLIER_1
+  z = (z ^ (z >>> 27)) * MIX_MULTIPLIER_2
+  return z ^ (z >>> 31)
+
+keyOffset(key) = mix64(key + KEY_BIAS)
+word(key, counter, i) = mix64(counter + i + keyOffset(key))
+uniform53(word) = (word >>> 11) * 0x1.0p-53
+```
+
+Here `i` is the zero-based row-major logical ordinal, independent of physical layout, carrier,
+worker range, or scheduling. Each logical element consumes exactly one word. The element is kept
+when `uniform53(word) >= probability`; equality therefore keeps. The comparison uses binary64
+without first narrowing the draw or probability. Mask storage is byte `1` for kept and byte `0`
+for dropped. A dropped value is represented positive zero. For a kept value, CPU computes
+`denominator = 1.0d - probability` once per invocation. FLOAT64 performs one binary64 division.
+FLOAT32 widens its exact input to binary64, performs the same division, then narrows once. This
+fixed order forbids reciprocal multiplication and fixes parity for this CPU configuration.
+
+The independent compatibility vectors are:
+
+| Key | Counter | Word | Top 53 bits | `Double.toHexString(uniform53)` |
+|---|---|---|---|---|
+| `0000000000000000` | `0000000000000000` | `48218226ff3cd4bf` | `09043044dfe79a` | `0x1.2086089bfcf34p-2` |
+| `0000000000000000` | `0000000000000001` | `ea8568d2e45fd6cb` | `1d50ad1a5c8bfa` | `0x1.d50ad1a5c8bfap-1` |
+| `0000000000000001` | `0000000000000000` | `dce423fc82c0d5b8` | `1b9c847f90581a` | `0x1.b9c847f90581ap-1` |
+| `ffffffffffffffff` | `ffffffffffffffff` | `e8ba9f99ca933538` | `1d1753f3395266` | `0x1.d1753f3395266p-1` |
+| `0000000000001234` | `0000000000000007` | `3e4cf5a0c9489779` | `07c99eb4192912` | `0x1.f267ad064a448p-3` |
+
+One generated `[0,0)` prologue writes state before element work. For dropout it retains the key
+and writes `counter + N` modulo `2^64`, where `N` is the checked logical element count. A scalar
+Shape consumes one draw. A zero extent consumes none, still writes unchanged next state, and
+submits no worker work. Non-empty scalar and parallel-scalar ranges derive every word directly
+from the global ordinal, so scheduling and chunk boundaries cannot alter output, mask, or state.
+The prepared executable owns no mutable generator; separate runs obtain their ordinary isolated
+state through their explicit input and distinct `RunState` resources.
+
+Analysis declares one initializer boundary or five dropout boundaries, one computation unit, one
+generated artifact, and zero workspaces, materializations, random-word buffers, replay buffers,
+or per-thread generators. Cold binding validates carrier type, byte size, alignment, access,
+complete spans, and writable layouts. Before the prologue or any worker submission, it rejects
+each of the three output spans against both input spans and rejects all three output/output pairs.
+Input/input overlap is allowed because both inputs remain read-only. A later generated or worker
+failure may leave ordinary outputs partially written under the existing execution contract, but
+there is no hidden random state to corrupt.
+
+Schema 19 includes the generator name, constants and mapping, uniform and threshold rules,
+finite-precision scaling order, canonical mask and prologue policies, raw initializer or
+probability bits, ordered boundary roles and carriers, and zero-scratch shape. Concrete layouts,
+slots, carriers, workers, and ranges remain cold when they do not change emitted bytes. There is
+no migration reader for schema 18 artifacts.
+
+This configuration defines bounded replay only for the same CPU V1 implementation and numerical
+order. It is not a public Model configuration, serialized RNG format, cross-backend or
+cross-version bitstream, distinct-key disjointness guarantee, statistical certification, or
+cryptographic generator. Model owns the explicit key/counter meaning, one abstract draw per
+logical element, keep rule, and modulo advancement; CPU owns this private mapping and realization.
 
 ### Unary numerical closure
 
@@ -1429,7 +1515,7 @@ resolved-layout affine family, and one-node static movement, indexing, functiona
 overlap-fold, and stable ordering families described above. Scalar
 execution covers every admitted row; parallel-scalar orchestration is available for disjoint
 affine, movement, scatter, fold, and ordering ranges; and the pointwise family retains its exact
-typed value-vector and virtual-mask parity matrix. Generator schema 18 distinguishes pointwise,
+typed value-vector and virtual-mask parity matrix. Generator schema 19 distinguishes pointwise,
 affine, movement, indexing, scatter, fold, and ordering structures, including movement occurrence order,
 unequal-rank access, exact
 padding bits, functional slice-update rank/map identity, and scatter reduction/scratch signature,

@@ -62,6 +62,11 @@
  * analysis-local ID only in a mutually exclusive scatter plan. Stable ordering uses that same
  * ID in its mutually exclusive exact run-owned merge-scratch plan.
  *
+ * <p>Random lowering admits exactly one static resolved-layout initializer or FLOAT64/FLOAT32
+ * dropout occurrence. It preserves initializer output or
+ * {@code [value,state,output,keepMask,nextState]} boundary order, derives complete output spans
+ * and logical draw geometry, and declares no workspace or mutable generator state.</p>
+ *
  * <p>Lowering runs on the preparation cold path; no lowering object or Model operation reaches the
  * generated execution loop.
  */

@@ -19,7 +19,9 @@
  * window and layout geometry cold. Ordering identity records SORT/ARGSORT/TOP_K, represented
  * type, direction/output-order flags, boundary roles, output count, and scratch-bearing entry
  * shape while leaving axis, K, extents, layout magnitudes, workspace identity, and ranges cold.
- * Schema 18 is current-only. Four complete candidate plans, one realized
+ * Schema 19 adds CPU-private explicit-state initializer/dropout algorithm identity, baked raw
+ * initializer/probability bits, one- or five-boundary entry shape, and exact finite-precision
+ * policy. Schema 19 is current-only. Four complete candidate plans, one realized
  * artifact, zero fixed-shape variants, and zero unrolled variants are the current hard budget.
  * With no trusted root, realization remains entirely in memory. With a root, one bounded
  * current-schema envelope may supply class bytes after compatibility, integrity, size, class

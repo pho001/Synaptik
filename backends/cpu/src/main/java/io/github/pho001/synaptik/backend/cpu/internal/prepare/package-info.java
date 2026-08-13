@@ -30,8 +30,11 @@
  * Ordering plans declare one input followed by one SORT/ARGSORT output or ordered TOP_K values
  * and INT64-index outputs. They select scalar or complete-slice parallel-scalar execution and
  * declare one exact run-owned workspace with disjoint two-region INT64 merge scratch per selected
- * range. Finalization verifies all three TOP_K bindings, the workspace assignment, and schema 18
+ * range. Finalization verifies all three TOP_K bindings, the workspace assignment, and schema 19
  * before realizing one multi-store artifact.
+ * Explicit-state random plans declare one initializer output or five dropout buffers in exact
+ * boundary order and no workspace. Parallel dropout reuses one scalar artifact over disjoint
+ * logical ranges after complete cold overlap validation.
  *
  * <p>All work in this package is cold-path work. Runtime collaborates only through the resulting
  * prepared executable and never receives the canonical kernel intermediate representation.

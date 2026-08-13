@@ -34,6 +34,16 @@ import java.lang.foreign.ValueLayout;
 import java.nio.ByteOrder;
 
 class CpuPointwisePartitionLoweringTest {
+    @Test void delegatesRandomFamiliesBeforePointwiseCardinalityRules() {
+        var initial = new CpuPartitionLowering().lower(
+                CpuRandomLoweringTest.initialContext(3, 4));
+        var dropout = new CpuPartitionLowering().lower(
+                CpuRandomLoweringTest.dropoutContext(DataType.FLOAT64, Shape.of(2), .5));
+        assertAll(() -> assertTrue(initial.kernelIr().familyIdentity().startsWith("random:")),
+                () -> assertTrue(dropout.kernelIr().familyIdentity().startsWith("random:")),
+                () -> assertTrue(initial.kernelIr().instructions().isEmpty()),
+                () -> assertTrue(dropout.kernelIr().instructions().isEmpty()));
+    }
     @Test void lowersOneThroughEightOccurrencesWithDerivedBoundaries() {
         for (int count = 1; count <= 8; count++) {
             int expectedCount = count;

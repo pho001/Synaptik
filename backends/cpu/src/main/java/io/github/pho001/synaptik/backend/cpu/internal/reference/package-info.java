@@ -29,6 +29,10 @@
  * fixed NaN-last and signed-zero order, logical INT64 coordinates, represented-bit value copies,
  * and deterministic increasing-index order for unsorted selected pairs.
  *
+ * <p>The explicit-state random oracle independently implements the CPU-private V1 word mapping,
+ * top-53-bit uniform conversion, exact keep comparison, FLOAT64/FLOAT32 scaling, canonical BOOL
+ * mask, and modulo state advancement for generated differential coverage.</p>
+ *
  * <p>Reference evaluation is outside the generated Runtime hot path and owns no buffers, slots, or
  * artifact lifecycle.
  */

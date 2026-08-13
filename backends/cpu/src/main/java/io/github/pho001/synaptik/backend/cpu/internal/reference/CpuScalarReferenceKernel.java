@@ -18,6 +18,8 @@ import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuFoldIr;
 import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuFoldLowering;
 import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuOrderingIr;
 import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuOrderingLowering;
+import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuRandomIr;
+import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuRandomLowering;
 import io.github.pho001.synaptik.model.operation.index.ScatterReduction;
 import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuPointwiseOpcode;
 import io.github.pho001.synaptik.model.datatype.DataType;
@@ -28,14 +30,18 @@ import io.github.pho001.synaptik.model.datatype.DataType;
  * power, canonical-BOOL logic, the closed FLOAT32/FLOAT64 unary matrix, and the selected
  * scalar-power plan. Direct power uses {@link StrictMath#pow(double, double)} without
  * reclassifying an exponent. Unary evaluation preserves the specified exceptional-value
- * classifications, widens represented FLOAT32 values where required, and narrows once. It is an
- * It also evaluates already-lowered affine, movement, indexing, functional slice-update,
- * functional-scatter, overlap-fold, and stable ordering mappings for differential tests. The
+ * classifications, widens represented FLOAT32 values where required, and narrows once. It also
+ * evaluates already-lowered affine, movement, indexing, functional slice-update,
+ * functional-scatter, overlap-fold, stable ordering, and explicit-state random mappings for
+ * differential tests. The
  * ordering oracle uses an independent primitive-index insertion algorithm while preserving the
  * same Model order and represented output bits. This is an unsupported cold-test/reference
  * contract and is never a Runtime IR interpreter.
  */
 public final class CpuScalarReferenceKernel {
+    private static final long RANDOM_KEY_BIAS = 0x9e3779b97f4a7c15L;
+    private static final long RANDOM_M1 = 0xbf58476d1ce4e5b9L;
+    private static final long RANDOM_M2 = 0x94d049bb133111ebL;
     private static final ValueLayout.OfDouble DOUBLE = ValueLayout.JAVA_DOUBLE_UNALIGNED
             .withOrder(ByteOrder.nativeOrder());
     // Cephes erf/erfc rational coefficients, documented at
@@ -65,6 +71,78 @@ public final class CpuScalarReferenceKernel {
             1.70814450747565897222E1, 9.60896809063285878198E0,
             3.36907645100081516050E0};
     private CpuScalarReferenceKernel() { }
+
+    /**
+     * Independently evaluates one explicit-state initializer or dropout occurrence.
+     *
+     * @param ir non-null exact CPU-private random identity
+     * @param geometry non-null compatible cold layouts and draw count
+     * @param arguments non-null ordered output for initialization or
+     *     value/state/output/mask/next-state carriers
+     * @throws NullPointerException if a required reference or argument element is null
+     * @throws IllegalArgumentException if family or boundary facts disagree
+     * @throws ArithmeticException if a heap address does not fit an array index
+     * @throws IndexOutOfBoundsException if geometry addresses outside a supplied carrier
+     */
+    public static void execute(CpuRandomIr ir, CpuRandomLowering.Geometry geometry,
+            List<CpuBufferArgument> arguments) {
+        Objects.requireNonNull(ir, "ir"); Objects.requireNonNull(geometry, "geometry");
+        if (ir.family() != geometry.family() || arguments.size() != geometry.boundaries().size())
+            throw new IllegalArgumentException("random reference facts disagree");
+        if (ir.family() == CpuRandomIr.Family.INITIAL_STATE) {
+            store(arguments.getFirst(), DataType.INT64, randomAddress(
+                    geometry.boundaries().getFirst(), 0), ir.keyBits());
+            store(arguments.getFirst(), DataType.INT64, randomAddress(
+                    geometry.boundaries().getFirst(), 1), ir.counterBits());
+            return;
+        }
+        long key = (long) load(arguments.get(1), DataType.INT64,
+                randomAddress(geometry.boundaries().get(1), 0));
+        long counter = (long) load(arguments.get(1), DataType.INT64,
+                randomAddress(geometry.boundaries().get(1), 1));
+        double probability = Double.longBitsToDouble(ir.probabilityBits());
+        double denominator = 1.0d - probability;
+        long keyOffset = randomMix(key + RANDOM_KEY_BIAS);
+        for (long logical = 0; logical < geometry.elementCount(); logical++) {
+            long mapped = randomMix(counter + logical + keyOffset);
+            boolean keep = (mapped >>> 11) * 0x1.0p-53 >= probability;
+            store(arguments.get(3), DataType.BOOL,
+                    randomAddress(geometry.boundaries().get(3), logical), (byte) (keep ? 1 : 0));
+            if (ir.valueType() == DataType.FLOAT64) {
+                double value = keep ? (double) load(arguments.get(0), DataType.FLOAT64,
+                        randomAddress(geometry.boundaries().get(0), logical)) / denominator : 0.0d;
+                store(arguments.get(2), DataType.FLOAT64,
+                        randomAddress(geometry.boundaries().get(2), logical), value);
+            } else {
+                float input = keep ? (float) load(arguments.get(0), DataType.FLOAT32,
+                        randomAddress(geometry.boundaries().get(0), logical)) : 0.0f;
+                float value = keep ? (float) (((double) input) / denominator) : 0.0f;
+                store(arguments.get(2), DataType.FLOAT32,
+                        randomAddress(geometry.boundaries().get(2), logical), value);
+            }
+        }
+        store(arguments.get(4), DataType.INT64,
+                randomAddress(geometry.boundaries().get(4), 0), key);
+        store(arguments.get(4), DataType.INT64,
+                randomAddress(geometry.boundaries().get(4), 1), counter + geometry.elementCount());
+    }
+
+    private static long randomMix(long value) {
+        value = (value ^ (value >>> 30)) * RANDOM_M1;
+        value = (value ^ (value >>> 27)) * RANDOM_M2;
+        return value ^ (value >>> 31);
+    }
+
+    private static long randomAddress(CpuRandomLowering.Layout layout, long logical) {
+        long[] extents = layout.extents(), strides = layout.strides();
+        long address = layout.offset();
+        for (int axis = extents.length - 1; axis >= 0; axis--) {
+            long coordinate = extents[axis] == 0 ? 0 : logical % extents[axis];
+            if (extents[axis] != 0) logical /= extents[axis];
+            address += coordinate * strides[axis];
+        }
+        return address;
+    }
 
     /**
      * Independently evaluates one stable ordering occurrence using primitive-index insertion.

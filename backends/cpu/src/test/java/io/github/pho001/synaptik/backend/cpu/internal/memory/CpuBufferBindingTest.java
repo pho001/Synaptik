@@ -32,6 +32,18 @@ class CpuBufferBindingTest {
                         borrowed(DataType.BOOL, MemorySegment.ofArray(new byte[2]), 2).argument()));
     }
 
+    @Test void explicitStateAndCanonicalMaskUseDirectLongAndByteCarriers() {
+        long[] state = {Long.MIN_VALUE, Long.MAX_VALUE}; byte[] mask = {0, 1};
+        var stateArgument = assertInstanceOf(CpuBufferArgument.Longs.class,
+                borrowed(DataType.INT64, MemorySegment.ofArray(state), 2).argument());
+        var maskArgument = assertInstanceOf(CpuBufferArgument.Bytes.class,
+                borrowed(DataType.BOOL, MemorySegment.ofArray(mask), 2).argument());
+        assertAll(() -> assertSame(state, stateArgument.carrier()),
+                () -> assertSame(mask, maskArgument.carrier()),
+                () -> assertFalse(stateArgument.readOnly()),
+                () -> assertFalse(maskArgument.readOnly()));
+    }
+
     private static CpuBorrowedBuffer borrowed(DataType type, MemorySegment segment, long count) {
         return CpuBorrowedBuffer.borrow(new MemorySegmentStorage(type, count, segment));
     }

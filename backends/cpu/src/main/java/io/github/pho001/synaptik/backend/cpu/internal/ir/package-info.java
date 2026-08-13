@@ -53,6 +53,11 @@
  * counts, one-hot depth, layout magnitudes, carriers, values, and validation results remain cold
  * facts outside structural identity.</p>
  *
+ * <p>The random representation distinguishes raw state initialization from explicit-state
+ * dropout. Its identity fixes the CPU-private counter algorithm, uniform conversion, exact
+ * probability bits, represented type, finite-precision policy, and one- or five-boundary roles;
+ * layouts, carriers, ranges, and consumed dropout state values remain cold facts.</p>
+ *
  * <p>Lowering creates these cold immutable models. Portable code generation and the scalar
  * reference realization may consume their established semantics, but Runtime never receives or
  * interprets them.

@@ -150,8 +150,23 @@ multidimensional regression, and ran the authoritative final CPU suite: 258 test
 failures, zero errors, and one skip. Clean documentation re-review context
 `019ffbcb-4c30-7e53-8e4d-9474f5cda235` reused that result, changed no executable Java or tests,
 confirmed existing Javadocs/package summaries/guide/glossary remained accurate, and synchronized
-the planning evidence. Explicit-state random work remains Draft CPU 0006D with no detailed
-specification.
+the planning evidence. Detailed
+[CPU 0006D portable explicit-state RNG and dropout coverage](backends/cpu/tasks/0006d-portable-explicit-state-rng-and-dropout.md)
+is `Complete`. It implements the CPU-private versioned
+`SYNAPTIK_CPU_SPLITMIX64_COUNTER_V1` counter mapping, exact top-53-bit binary64 uniform and keep
+threshold, FLOAT64/FLOAT32 finite-precision scaling order, canonical byte BOOL masks, one generated
+state prologue, zero workspace, deterministic scalar/parallel replay, complete overlap rejection,
+and schema 19. INITIAL_STATE materializes key then counter without a draw; DROPOUT advances once
+per row-major logical element modulo `2^64`. BFLOAT16 dropout remains truthfully fail-closed
+because current CPU support does not establish a conforming direct BFLOAT16 scaling/conversion
+rule. The selected bitstream is CPU-private rather than a Model or cross-backend promise. The
+sole authoritative final CPU suite passed 47 suites and 275 tests with 0 failures, 0 errors, and
+1 skip; post-review focused runs passed 71, 9, and 46 tests. Clean documentation context
+`019ffcab-2c42-7d62-be4a-4b2815654c89` reused that stabilized evidence, changed no executable Java
+or tests, finalized CPU Javadocs/package summaries, guide, glossary, and planning records, and
+passed Javadoc, rendered-page, Markdown, exact 43-path, schema/vector/status/package-placement,
+concurrent-scope-preservation, and whitespace checks. CPU 0007 is the next `Draft` frontier and
+has no detailed specification.
 CPU 0006B1 implementation context `019ff230-109c-73a3-933f-611ee7f6143d` and independent
 audit/fix context `019ff248-a9e4-7150-8fbb-db2730d7cc1b` produced the final focused
 12-suite/103-test and CPU 38-suite/230-test evidence; the latter has one expected existing skip
@@ -185,8 +200,8 @@ materialization/specialization/persistence evidence is also `Complete`; detailed
 division and exact scalar-power realization is `Complete`; detailed CPU 0005G and CPU 0005H are
 `Complete`; detailed CPU 0005I, CPU 0005J, and CPU 0006 are `Complete`; and CPU
 0006A is `Complete`; detailed 0006A1 and 0006A2 are `Complete`; detailed CPU 0006B is `Complete`;
-detailed CPU 0006B1, CPU 0006B2, and CPU 0006C are `Complete`; 0006D–0017 remain
-`Draft` without detailed specifications.
+detailed CPU 0006B1, CPU 0006B2, CPU 0006C, and CPU 0006D are `Complete`;
+0007–0017 remain `Draft` without detailed specifications.
 CPU 0003
 implements a
 model-independent filesystem store beneath an explicit
@@ -561,14 +576,15 @@ Detailed CPU 0005C through CPU 0005J are Complete.
 Detailed CPU 0006 and detailed CPU 0006A are Complete after splitting static movement,
 window extraction, and value-dependent indexing by dependency. Detailed CPU 0006A1 is `Complete`;
 detailed CPU 0006A2 is `Complete`; detailed CPU 0006B is `Complete`; detailed CPU 0006B1 is
-`Complete`; detailed CPU 0006B2 and CPU 0006C are `Complete`; CPU 0006D–0017 and the refined
-Config, Prepare, Metal, and tuning rows remain `Draft` without new detailed specifications.
+`Complete`; detailed CPU 0006B2, CPU 0006C, and CPU 0006D are `Complete`;
+CPU 0007–0017 and the refined Config, Prepare, Metal, and tuning rows remain `Draft` without new
+detailed specifications.
 Completed OpenBLAS history and every completed project area remain unchanged.
 
 CPU remains the active global project area. CPU 0005A through CPU 0006 are `Complete`, detailed
 CPU 0006A, detailed CPU 0006A1, detailed CPU 0006A2, and detailed CPU 0006B are `Complete`.
-Detailed CPU 0006B1, CPU 0006B2, and CPU 0006C are `Complete`; CPU 0006D is the next `Draft`
-frontier, and later work remains `Draft` without detailed specifications.
+Detailed CPU 0006B1, CPU 0006B2, CPU 0006C, and CPU 0006D are `Complete`; CPU 0007 is the next
+`Draft` frontier, and later work remains `Draft` without detailed specifications.
 CPU 0006A delivers one exact static resolved-layout PAD, TILE, CONCAT, or STACK occurrence with
 ordered one-through-sixteen composition inputs, first-occurrence unique declarations, compact
 cold movement geometry, all-six-type represented-bit scalar/parallel-scalar generation, one

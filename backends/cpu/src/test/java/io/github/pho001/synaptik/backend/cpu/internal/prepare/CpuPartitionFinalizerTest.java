@@ -7,6 +7,7 @@ import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuNonAffineMovem
 import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuScatterLoweringTest;
 import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuFoldLoweringTest;
 import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuOrderingLoweringTest;
+import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuRandomLoweringTest;
 import io.github.pho001.synaptik.backend.cpu.internal.cache.CpuKernelSpecialization.CarrierAccess;
 import io.github.pho001.synaptik.model.operation.Operation;
 import io.github.pho001.synaptik.model.operation.layout.CompositionAxisAttrs;
@@ -45,6 +46,16 @@ import java.nio.file.Files;
 
 public class CpuPartitionFinalizerTest {
     @TempDir Path root;
+
+    @Test void finalizesZeroInputInitializerWithOneBufferAndNoWorkspace() {
+        var analysis = new CpuPartitionPreparer().analyze(
+                CpuRandomLoweringTest.initialContext(Long.MIN_VALUE, Long.MAX_VALUE));
+        var executable = finalizeExecutable(analysis, Optional.of(root.resolve("random")));
+        assertAll(() -> assertEquals(1, executable.bufferSelectionCount()),
+                () -> assertEquals(1, executable.memoryPlan().buffers().size()),
+                () -> assertTrue(executable.memoryPlan().workspaces().isEmpty()),
+                () -> assertNotNull(executable.artifact().entryPoint()));
+    }
 
     @Test void finalizesOneArtifactAndOnePartitionRecipeAfterExactAssignment() {
         var executable = finalizeExecutable(Shape.of(4), Optional.of(root));
@@ -221,7 +232,7 @@ public class CpuPartitionFinalizerTest {
             assertAll(() -> assertEquals(2, executable.bufferSelectionCount()),
                     () -> assertEquals(2, executable.memoryPlan().buffers().size()),
                     () -> assertTrue(executable.memoryPlan().workspaces().isEmpty()),
-                    () -> assertEquals(18, io.github.pho001.synaptik.backend.cpu.internal.cache
+                    () -> assertEquals(19, io.github.pho001.synaptik.backend.cpu.internal.cache
                             .CpuGeneratorSchema.CURRENT_VERSION),
                     () -> assertEquals(1, files.filter(path -> path.getFileName().toString()
                             .endsWith(".artifact")).count()));

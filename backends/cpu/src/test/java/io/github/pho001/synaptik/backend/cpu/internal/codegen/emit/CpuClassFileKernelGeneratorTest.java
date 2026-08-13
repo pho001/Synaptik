@@ -14,8 +14,26 @@ import java.util.Optional;
 import io.github.pho001.synaptik.backend.cpu.internal.prepare.CpuPartitionAnalysisInputs.PortableExecutionConfig;
 import io.github.pho001.synaptik.backend.cpu.internal.prepare.CpuPartitionAnalysisInputs.PortableExecutionConfig.ComputePreference;
 import jdk.incubator.vector.FloatVector;
+import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuRandomLoweringTest;
+import io.github.pho001.synaptik.backend.cpu.internal.prepare.CpuPartitionPreparer;
 
 class CpuClassFileKernelGeneratorTest {
+    @Test void emitsExactOneAndFiveCarrierRandomEntryShapes() {
+        var initial = new CpuPartitionPreparer().analyze(
+                CpuRandomLoweringTest.initialContext(1, 2)).plan().units().getFirst().portablePlan();
+        var dropout = new CpuPartitionPreparer().analyze(
+                CpuRandomLoweringTest.dropoutContext(DataType.FLOAT32, Shape.of(3), .5))
+                .plan().units().getFirst().portablePlan();
+        var generator = new CpuClassFileKernelGenerator();
+        var initialModel = ClassFile.of().parse(generator.generateClassBytes(
+                initial.specialization(), initial.kernelIr()));
+        var dropoutModel = ClassFile.of().parse(generator.generateClassBytes(
+                dropout.specialization(), dropout.kernelIr()));
+        assertAll(() -> assertEquals(4, initial.specialization().entryType().parameterCount()),
+                () -> assertEquals(8, dropout.specialization().entryType().parameterCount()),
+                () -> assertEquals(1, initialModel.methods().size()),
+                () -> assertEquals(1, dropoutModel.methods().size()));
+    }
     @Test void emitsDeterministicVerifiedJava26BytesWithPrimitiveBounds() {
         var route = CpuPartitionPreparerTest.analyze(Shape.of(7)).plan().units().getFirst().portablePlan();
         var generator = new CpuClassFileKernelGenerator();

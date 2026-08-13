@@ -51,6 +51,11 @@
  * indices, and emits both TOP_K outputs from one entry. Parallel orchestration supplies disjoint
  * complete slices and scratch regions; vector sorting and worker submission remain outside it.
  *
+ * <p>The random emitter owns one allocation-free initializer/dropout bridge. A dedicated
+ * {@code [0,0)} prologue writes state exactly once before scalar or parallel element ranges;
+ * each dropout element derives its word from the global logical ordinal and writes one canonical
+ * BOOL byte plus its exact FLOAT64/FLOAT32 result.</p>
+ *
  * <p>Generation and verification are cold-path operations. Only the resolved static entry handle
  * executes on the Runtime hot path. Parallel plans reuse that direct scalar or vector entry for
  * already-bound disjoint chunks; generated code contains no parallel scheduler or strategy switch.

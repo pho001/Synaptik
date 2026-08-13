@@ -17,6 +17,9 @@
  * and ARGSORT have two boundaries; TOP_K has three and writes both outputs from one artifact.
  * Concrete workspace identity, slice offset, axis, K, and slice ranges stay in the bound
  * invocation, while parallel-scalar orchestration assigns complete disjoint slices.
+ * A random specialization remains scalar and workspace-free. It has one initializer output or
+ * five ordered dropout boundaries; cold invocation geometry owns concrete layouts, while
+ * explicit dropout state values remain direct input data.
  *
  * <p>The plan is immutable cold-path state; route dispatch never occurs inside the generated loop.
  */

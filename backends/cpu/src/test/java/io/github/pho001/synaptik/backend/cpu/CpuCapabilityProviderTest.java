@@ -28,6 +28,37 @@ import java.util.Optional;
 import org.junit.jupiter.api.Test;
 
 class CpuCapabilityProviderTest {
+    @Test void reportsExactExplicitStateRandomMatrixFailClosed() {
+        var provider = new CpuCapabilityProvider();
+        var state = descriptor(DataType.INT64, Shape.of(2));
+        var aliasedState = new TensorDescriptor(DataType.INT64, Shape.of(2), Optional.of(
+                LayoutDescriptor.of(Shape.of(2), new long[] {0}, 0, true)), false);
+        var f64 = descriptor(DataType.FLOAT64, Shape.of(2, 3));
+        var f32 = descriptor(DataType.FLOAT32, Shape.of(2, 3));
+        var bf16 = descriptor(DataType.BFLOAT16, Shape.of(2, 3));
+        var mask = descriptor(DataType.BOOL, Shape.of(2, 3));
+        assertAll(
+                () -> assertTrue(provider.supports(new OperationCapabilityQuery(
+                        new Operation(io.github.pho001.synaptik.model.operation.random.GraphRngKind.INITIAL_STATE,
+                                new io.github.pho001.synaptik.model.operation.random.GraphRngStateAttrs(1, 2)),
+                        List.of(), List.of(state)))),
+                () -> assertTrue(provider.supports(new OperationCapabilityQuery(
+                        new Operation(io.github.pho001.synaptik.model.operation.random.DropoutKind.DROPOUT,
+                                new io.github.pho001.synaptik.model.operation.random.DropoutAttrs(.2)),
+                        List.of(f64, state), List.of(f64, mask, state)))),
+                () -> assertTrue(provider.supports(new OperationCapabilityQuery(
+                        new Operation(io.github.pho001.synaptik.model.operation.random.DropoutKind.DROPOUT,
+                                new io.github.pho001.synaptik.model.operation.random.DropoutAttrs(.2)),
+                        List.of(f32, state), List.of(f32, mask, state)))),
+                () -> assertFalse(provider.supports(new OperationCapabilityQuery(
+                        new Operation(io.github.pho001.synaptik.model.operation.random.DropoutKind.DROPOUT,
+                                new io.github.pho001.synaptik.model.operation.random.DropoutAttrs(.2)),
+                        List.of(bf16, state), List.of(bf16, mask, state)))),
+                () -> assertFalse(provider.supports(new OperationCapabilityQuery(
+                        new Operation(io.github.pho001.synaptik.model.operation.random.DropoutKind.DROPOUT,
+                                new io.github.pho001.synaptik.model.operation.random.DropoutAttrs(.2)),
+                        List.of(f64, aliasedState), List.of(f64, mask, state))))) ;
+    }
     @Test void reportsExactStaticStableOrderingAndTwoOutputTopK() {
         var provider = new CpuCapabilityProvider();
         var input = descriptor(DataType.BFLOAT16, Shape.of(2, 5));
