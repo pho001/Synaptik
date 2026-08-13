@@ -2326,21 +2326,49 @@ local train/eval mode for a concrete layer's typed forward method.
 
 Child ownership is exclusive and permanent: a child has one parent and cannot be detached,
 renamed, reparented, or shared. Module-tree discovery returns separate immutable snapshots for
-parameters and buffers. Each snapshot uses a deterministic depth-first traversal and relative,
-dot-separated paths such as `encoder.layer1.weight`; it retains the exact declared wrapper
-objects rather than copying or replacing their Tensor bindings. Calling `train()` or `eval()`
-changes the receiving module and its owned descendants only after a full identity-based preflight,
-so a malformed repeated identity cannot expose a partial requested-mode change.
+parameters and buffers. Each snapshot uses iterative depth-first traversal in deterministic
+declaration/child-registration order and relative, dot-separated paths such as
+`encoder.layer1.weight`; it retains the exact declared wrapper objects rather than copying or
+replacing their Tensor bindings. The explicit stack imposes no arbitrary tree-depth limit.
+Discovery rejects a malformed repeated module identity without returning a snapshot. Calling
+`train()` or `eval()` likewise performs a complete iterative identity preflight before assigning
+any mode, so a malformed cycle or shared child cannot expose a partial requested-mode change.
 
-The current foundation permits only the declaring module's protected, direct-name replacement of
-one parameter or buffer binding at a time. A successful replacement retains the exact supplied
-Tensor reference while preserving the wrapper and local name; it performs no descriptor-schema
-validation. Discovery snapshots are structural, so their retained wrappers observe a later
-replacement when `value()` is called, while an earlier Tensor reference and expressions already
-formed from it remain unchanged. There is no version, checkpoint, transaction, concurrent-view,
-or thread-safety guarantee. The foundation has no checkpointing, layer API, or generic
+A parameter declaration requires a floating Tensor with `requiresGrad == true` and privately
+captures its exact data type and immutable structural Shape as the permanent replacement schema.
+The final `Parameter` wrapper is the public capability through which a generic downstream
+consumer can install one replacement without knowing the concrete module or layer type.
+`Parameter.replace(value)` checks non-null, exact data type, structural Shape equality, and
+`requiresGrad == true`, in that order. Failure preserves the exact old binding. Success retains
+the exact supplied Tensor reference and preserves the wrapper and local name. Tensor identity,
+layout, host storage, provenance, and label are not frozen and may differ. Discovery snapshots
+are structural, so their retained wrappers observe a later successful replacement when `value()`
+is called, while an earlier Tensor reference and expressions already formed from it remain
+unchanged.
+
+A buffer remains different: only its declaring module subclass can use the protected direct-name
+replacement, and `Buffer` exposes no public update capability or binding schema. Parameter and
+buffer replacement each affect one binding and provide no thread safety, version, batch
+transaction, rollback, checkpoint, update sequencing, or cross-parameter consistency guarantee.
+The foundation has no checkpointing, layer API, optimizer algorithm, or generic
 `Module.forward(...)` method. A parameter or buffer is not a Tensor subtype and adds no gradient
 state to Tensor.
+
+The current stateless `ParameterInitializers` namespace creates eager floating Tensor leaves that
+a module may subsequently bind as parameters. Its exact eight entries cover typed zero and one,
+explicit-source normal and continuous-uniform sampling, fixed unit-gain Glorot normal/uniform, and
+fixed fan-in/ReLU Kaiming normal/uniform. Every entry requires a fully static Shape and explicit
+`FLOAT64`, `FLOAT32`, or `BFLOAT16`, and returns a fresh dense host-backed, provenance-free,
+unlabeled leaf with `requiresGrad == true`. Fan-based entries accept only positive rank-two Linear
+weights in `[outFeatures, inFeatures]` orientation. An initializer does not create, name, retain,
+or update a `Parameter`; `Parameter` owns no initialization policy.
+
+Random initializer entries consume the exact caller-owned `RandomGenerator` eagerly, once per
+logical row-major element through the matching Gaussian or bounded-double method. The caller
+selects, configures, seeds, owns, advances, and coordinates access to that source. NN provides no
+default source and never retains, substitutes, synchronizes, resets, splits, serializes, or closes
+it. These initializers create no random Tensor operation and do not accept or create
+[`GraphRngState`](#graph-rng-state--graphrngstate).
 
 `extensions/nn` composes generic [`Tensor`](#tensor) and operation semantics from
 `modules/model`. [`extensions/training`](#training-graph) consumes nn-declared parameters for
@@ -4560,6 +4588,13 @@ source no lifecycle. The caller creates, configures, seeds, owns, advances, and 
 to the exact generator. Synaptik supplies no default, global, thread-local, engine-owned,
 runtime-owned, or service-located source and does not select, seed, synchronize, reset, split,
 serialize, or close the supplied object.
+
+NN's `ParameterInitializers` is a narrow parameter-oriented convenience over these Model random
+methods and `TensorFactory` constants. It forwards the exact source and distribution arguments,
+uses no Tensor label, fixes `requiresGrad == true`, and adds only the named rank-two Glorot and
+Kaiming-ReLU policies. It does not change `TensorRandoms` sampling, conversion, failure,
+source-advancement, allocation, or identifier semantics, and it remains separate from deferred
+[`GraphRngState`](#graph-rng-state--graphrngstate).
 
 Normal random creation accepts one transient caller-owned `RandomGenerator`, fully static
 Java-array-sized shape, explicit `FLOAT64`, `FLOAT32`, or `BFLOAT16` output, finite mean, finite

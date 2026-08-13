@@ -8,6 +8,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import io.github.pho001.synaptik.model.tensor.Tensor;
 import io.github.pho001.synaptik.model.tensor.TensorFactory;
 import java.lang.reflect.Field;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -112,9 +113,43 @@ class ModuleTreeTest {
         root.eval();
         corruptChildren(child).put("cycle", root);
 
+        assertThrows(IllegalStateException.class, root::parametersRecursively);
+        assertThrows(IllegalStateException.class, root::buffersRecursively);
         assertThrows(IllegalStateException.class, root::train);
+        assertThrows(IllegalStateException.class, root::eval);
         assertEquals(ForwardMode.EVALUATION, root.mode());
         assertEquals(ForwardMode.EVALUATION, child.mode());
+    }
+
+    @Test
+    void deepValidChainSupportsDiscoveryAndModeChangesWithoutCallStackDepthLimit() {
+        int depth = 20_000;
+        StateModule leaf = new StateModule("weight", "runningMean");
+        Module root = leaf;
+        List<Module> modules = new ArrayList<>(depth + 1);
+        modules.add(leaf);
+        for (int index = 0; index < depth; index++) {
+            TreeModule parent = new TreeModule();
+            parent.attach("next", root);
+            root = parent;
+            modules.add(parent);
+        }
+        String prefix = "next.".repeat(depth);
+
+        Map<String, Parameter> parameters = root.parametersRecursively();
+        Map<String, Buffer> buffers = root.buffersRecursively();
+
+        assertEquals(List.of(prefix + "weight"), List.copyOf(parameters.keySet()));
+        assertEquals(List.of(prefix + "runningMean"), List.copyOf(buffers.keySet()));
+        assertSame(leaf.parameter, parameters.get(prefix + "weight"));
+        assertSame(leaf.buffer, buffers.get(prefix + "runningMean"));
+
+        root.eval();
+        assertTrue(modules.stream().allMatch(
+                module -> module.mode() == ForwardMode.EVALUATION));
+        root.train();
+        assertTrue(modules.stream().allMatch(
+                module -> module.mode() == ForwardMode.TRAINING));
     }
 
     @Test

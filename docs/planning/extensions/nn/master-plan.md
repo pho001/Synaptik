@@ -26,12 +26,14 @@ conveniences built from `modules/model` Tensor semantics.
 
 - generic Tensor or operation semantics
 - compiler autograd construction
-- optimizer algorithms, parameter updates, and training sessions
+- optimizer algorithms, update orchestration, and training sessions
 - backend storage, lowering, kernel selection, and backend-specific optimizer execution
 
 ## Module invariants
 
 - NN owns module-declared `Parameter` and `Buffer` values.
+- A discovered `Parameter` is the downstream capability for installing one schema-compatible
+  trainable Tensor binding; NN retains declaration, schema, and validation ownership.
 - NN owns train/eval forward behavior and forward context.
 - NN composes `modules/model`; it does not make model depend on nn.
 - NN must not depend on `extensions/training`, compiler, runtime, prepare, engine, or concrete backends.
@@ -62,7 +64,7 @@ io.github.pho001.synaptik.nn/
   functional/   stateless NN-oriented conveniences over model operations
 ```
 
-The initial public surface is deliberately confined to `module/`:
+The current implemented stateful-composition surface is deliberately confined to `module/`:
 
 - `Module` owns direct named state declarations and its local train/eval mode; it has no universal
   forward signature.
@@ -71,9 +73,11 @@ The initial public surface is deliberately confined to `module/`:
 - `ForwardMode` and immutable `ForwardContext` provide the mode snapshot supplied to a concrete
   layer's own typed forward method.
 
-`layers/` and `functional/` remain empty until their own ready tasks. State dictionaries and
-initialization remain later work. The `initialization/` package is reserved for a focused task rather than making
-`Parameter` responsible for creating its own value.
+Task 0004 adds only the public stateless `ParameterInitializers` namespace and package
+documentation under `initialization/`. It creates eager gradient-enabled unlabeled Tensor leaves;
+it does not change `Parameter`, retain a random source, or introduce an initializer object model.
+`layers/` and `functional/` remain empty until their own ready tasks. State dictionaries remain
+later work.
 
 ## Task list
 
@@ -82,8 +86,9 @@ initialization remain later work. The `initialization/` package is reserved for 
 | [0001](tasks/0001-module-parameter-buffer-and-forward-context-foundation.md) | Module, parameter, buffer, and forward-context foundation | Complete | Completed `modules/model` Tensor contracts; ADR 0007 | Created the NN Gradle module and its minimal model-only state/mode API, activated the required one-way training build edge, and enforced it with architecture tests; it adds no layers or execution behavior. |
 | [0002](tasks/0002-module-tree-ownership-and-recursive-mode-propagation.md) | Module-tree ownership and recursive mode propagation | Complete | 0001 | Added exclusively owned child modules, deterministic collision-free dot-path parameter/buffer snapshots, and atomic recursive `train()`/`eval()` propagation without checkpoint or optimizer behavior. |
 | [0003](tasks/0003-validated-parameter-and-buffer-binding-replacement.md) | Validated parameter and buffer binding replacement | Complete | 0002 | Added Module-owned replacement of one direct current Tensor binding with exact wrapper identity, structural snapshot, validation, and explicit no-concurrency-guarantee semantics; it adds no optimizer or checkpoint behavior. |
-| 0004 | Explicit eager parameter initializers | Draft | 0001; completed model `TensorRandoms` contracts | Add small zero/one and floating uniform/normal initializer conveniences over fully static Shapes and caller-owned `RandomGenerator` sources; add fan-in/fan-out Xavier/Glorot and Kaiming policies only when their type, shape, and numerical conventions are fully specified. |
-| 0005 | Linear layer | Draft | 0001, 0004; completed model `Tensor.linear` | Add the first stateful layer with explicitly initialized or caller-supplied `weight` and optional `bias`; validate only Tensor-expression ownership/provenance until numerical execution coverage is available. |
+| [0004](tasks/0004-explicit-eager-parameter-initializers.md) | Explicit eager parameter initializers | Complete | 0001–0003; completed Model eager constant/random contracts | Added one stateless eight-method parameter-initializer surface: floating zero/one and explicit-source normal/uniform leaves plus fixed rank-two `[outFeatures, inFeatures]` Glorot and Kaiming-ReLU policies, with no label, hidden RNG, or Parameter policy. |
+| [0004A](tasks/0004a-parameter-update-and-traversal-hardening.md) | Parameter update and traversal hardening | Complete | 0001–0004; post-0004 code review | Closed the three review findings with a public schema-validated `Parameter.replace`, iterative identity-defended deep-tree traversal, and complete fan-initializer Java-array-limit contracts before adding a layer. |
+| 0005 | Linear layer | Draft | 0001, 0004, 0004A; completed model `Tensor.linear` | Add the first stateful layer with explicitly initialized or caller-supplied `weight` and optional `bias`; validate only Tensor-expression ownership/provenance until numerical execution coverage is available. |
 
 ## Milestones
 
@@ -120,12 +125,35 @@ direct-state operation of the declaring `Module`, rather than a public `Paramete
 setter, and records the absent checkpoint and concurrency guarantees before a downstream training
 extension can consume the stable binding contract.
 
+Detailed NN 0004 is Complete under the same authorized parallel exception. It added only the
+planned NN `initialization/` package, focused NN tests, the glossary, and synchronized NN planning
+records. Its clean documentation pass finalized the eager ownership, exact fan formula, random-
+source lifecycle, `Parameter`, and graph-RNG boundaries and passed generated-Javadoc, Markdown,
+scope, and whitespace gates while reusing the stable focused test evidence. Those seven task-owned
+files do not overlap the dirty CPU 0007 task, CPU master plan, or global roadmap. Existing Model
+constant/random APIs provide the complete eager leaf, caller-owned RNG, floating conversion, and
+failure semantics, so NN 0004 adds no Model, build, dependency, architecture, compiler, runtime,
+Engine, or backend work.
+
+Detailed NN 0004A is Complete as a bounded review-remediation insertion before NN 0005. The
+post-0004 review proved that task 0003's protected direct Module replacement cannot be consumed by
+a generic downstream optimizer, that the recursive discovery and mode implementation relies on
+the Java call stack, and that the four fan-method Javadocs omit their delegated positive
+Java-array-limit failure. Task 0004A closes those findings inside the existing NN and Model-only
+boundary: `Parameter` becomes the public schema-validated replacement capability, Module traversal
+becomes iterative and identity-defended, and initializer documentation/tests lock the existing
+failure side effects. It changes no dependency, architecture, Gradle, CPU, or global-roadmap file.
+The isolated implementation pass passed the final focused NN suite with 7 suites and 33 tests.
+The independent documentation pass finalized Javadoc, training API, glossary, and planning
+evidence and passed generated-Javadoc, Markdown, public-surface, scope, import, and whitespace
+checks without repeating the stable executable suite. NN 0005 remains the next Draft frontier.
+
 ## Open questions
 
 - Define checkpoint/state-dictionary semantics after stable recursive traversal exists.
-- Select the minimum initializer public surface and the precise fan-in/fan-out rules for rank-two
-  linear weights before NN 0004 becomes Ready; convolution and other layout-specific policies are
-  later work.
+- Decide whether a concrete future consumer justifies configurable gain, activation, fan mode,
+  convolution fan geometry, or an initializer object abstraction. NN 0004 deliberately fixes only
+  unit-gain Glorot and fan-in/ReLU Kaiming for positive rank-two Linear weights.
 
 ## Decisions made
 
@@ -146,6 +174,24 @@ extension can consume the stable binding contract.
 - Initializers create eager model leaf Tensors through existing model APIs and receive any random
   source explicitly from the caller. They do not use `GraphRngState`, which represents deferred
   graph-random expressions rather than eager host-data initialization.
+- NN 0004 exposes one field-free `ParameterInitializers` class. All eight methods require an
+  explicit floating data type and fully static Shape, create fresh unlabeled leaves with
+  `requiresGrad == true`, and retain no RNG. Fan-based methods accept only positive rank-two
+  `[outFeatures, inFeatures]` weights: Glorot uses unit-gain fan average, and Kaiming uses fixed
+  fan-in/ReLU gain. There are no Xavier aliases or ambiguous configurable Kaiming names.
+- NN 0004A supersedes only task 0003's assumption that all binding replacement remains protected
+  behind the declaring Module. The existing final `Parameter` exposes one public
+  `void replace(Tensor)` capability so a generic downstream consumer can update recursively
+  discovered parameters. Declaration requires a floating Tensor with `requiresGrad == true`;
+  replacement preserves exact declaration-time data type and structural Shape while allowing a
+  different Tensor identity, layout, storage, provenance, and label. Buffer replacement remains
+  protected and direct through Module. No optimizer algorithm, batch transaction, checkpoint,
+  version, or thread-safety contract is introduced.
+- NN 0004A preserves recursive discovery and mode preorder while replacing recursive calls with
+  explicit-stack depth-first traversal. Parameter and buffer discovery gain the same repeated-
+  identity defense as mode propagation, and `train()`/`eval()` retain complete preflight before
+  assignment. Qualified prefix text is built only when state is emitted so empty deep chains do
+  not retain one String per intermediate level.
 
 ## Risks
 
@@ -153,6 +199,11 @@ extension can consume the stable binding contract.
 - Letting train/eval mode become backend residency or per-run execution state would blur the lifecycle boundary.
 - Giving NN a default or retained random source would obscure reproducibility, ownership, and
   concurrent-use policy; initializer tasks must keep those responsibilities with the caller.
+- A public parameter replacement that omits declaration schema could silently change a layer's
+  expected type or Shape; NN 0004A freezes only those logical facts and keeps execution/storage
+  facts replaceable.
+- Recursive module-tree algorithms must not use Java call-stack depth as a hidden model-size
+  limit or accept repeated identities during discovery.
 
 ## Notes
 
