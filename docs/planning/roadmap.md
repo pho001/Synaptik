@@ -402,19 +402,38 @@ recognizes decomposed softmax as stable `SOFTMAX`. Draft CPU 0008C ranks only co
 and split candidates and records typed cold accepted, rejected, and selected facts. Legality is a
 fail-closed semantic/resource gate; profitability may still select a split candidate because of
 code size, live-value pressure, materialization, route eligibility, or estimated complete-plan
-cost.
+cost. Draft CPU 0008D then enriches each already legal portable pointwise fused/split topology
+with bounded representation variants. It may cost-select at most two distinct external read-
+boundary materializations—including both operands of eligible binary work—across the five
+currently executable pointwise types, while BFLOAT16 waits for pointwise numerical support.
+Candidate generation remains bounded to selected single/pair copies, repeated boundaries
+deduplicate, one copy may serve compatible repeated uses, and direct access wins ties. The
+complete topology/representation variants return through 0008C's profitability facts, so copy
+cost and compute benefit may change which legal plan wins. CPU 0008D does not change fusion
+legality or invent topologies; DAG split materialization remains CPU 0008A work, while native
+packing and reorder remain owned by CPU 0010–0015. Every complete variant has a stable typed
+CPU-private identity carrying its materialized boundaries, layout/access regimes, reuse,
+workspace, execution strategy, and fused/split topology. Ordinary preparation may select one
+baseline without making the bounded candidate identity irreproducible for the later opaque
+Prepare/tuning handoff. Insufficient profitability evidence selects direct access. CPU 0008D
+performs no measurement, tuning-cache lookup or mutation, public tuning configuration, or shared
+handoff implementation.
 
 Ordinary CPU preparation uses bounded deterministic no-measurement profitability heuristics.
 The distinct future Config 0006A request inputs, Prepare 0004 opaque candidate handoff, CPU 0016
 compatible workload-cache selection, and Tuning 0001–0002 measurement/selection workflow may later
 measure eligible complete candidates only when model autotuning is explicitly requested before
-Runtime. Autotuning is not the default fusion-profitability mechanism, and Runtime never searches,
+Runtime. The tuning workflow measures copy plus complete consumer execution end to end rather than
+ranking an isolated kernel or moving materialization legality out of CPU. Autotuning is not the
+default fusion-profitability mechanism, and Runtime never searches,
 reads or mutates tuning caches, or revises a prepared selection. Later Trace backend payloads and
 tuning inspection may consume translated typed cold decision facts without taking ownership of
-CPU legality, recognition, or selection. CPU 0009 depends on 0008A–0008C and closes these
-foundations before CPU 0010–0015 add portable/native peer-route choices; those later routes consume
-the common decomposition, recognition, and profitability decisions instead of creating competing
-graph interpreters or fusion planners.
+CPU legality, recognition, or selection. CPU 0009 depends on 0008A–0008D and closes these
+foundations—including bounded single/dual-input materialization, direct/materialized parity,
+deduplicated reuse, and candidate/resource ceilings—before CPU 0010–0015 add portable/native
+peer-route choices; those later routes consume the common decomposition, recognition,
+profitability, and representation decisions instead of creating competing graph interpreters or
+fusion planners.
 
 Portable generation uses family-specific typed lowerers plus shared scalar, vector, heap,
 segment, range, tile, partial-reduction, and combine emitters rather than one god generator.
