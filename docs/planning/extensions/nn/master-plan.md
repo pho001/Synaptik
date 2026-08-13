@@ -64,7 +64,8 @@ io.github.pho001.synaptik.nn/
   functional/   stateless NN-oriented conveniences over model operations
 ```
 
-The current implemented stateful-composition surface is deliberately confined to `module/`:
+The implemented foundation remains deliberately small, and task 0005 adds only the first
+concrete type under `layers/`:
 
 - `Module` owns direct named state declarations and its local train/eval mode; it has no universal
   forward signature.
@@ -76,8 +77,8 @@ The current implemented stateful-composition surface is deliberately confined to
 Task 0004 adds only the public stateless `ParameterInitializers` namespace and package
 documentation under `initialization/`. It creates eager gradient-enabled unlabeled Tensor leaves;
 it does not change `Parameter`, retain a random source, or introduce an initializer object model.
-`layers/` and `functional/` remain empty until their own ready tasks. State dictionaries remain
-later work.
+Task 0005 adds final public `Linear` under `layers/` without a generic layer
+abstraction. `functional/` remains future work. State dictionaries remain later work.
 
 ## Task list
 
@@ -88,7 +89,7 @@ later work.
 | [0003](tasks/0003-validated-parameter-and-buffer-binding-replacement.md) | Validated parameter and buffer binding replacement | Complete | 0002 | Added Module-owned replacement of one direct current Tensor binding with exact wrapper identity, structural snapshot, validation, and explicit no-concurrency-guarantee semantics; it adds no optimizer or checkpoint behavior. |
 | [0004](tasks/0004-explicit-eager-parameter-initializers.md) | Explicit eager parameter initializers | Complete | 0001–0003; completed Model eager constant/random contracts | Added one stateless eight-method parameter-initializer surface: floating zero/one and explicit-source normal/uniform leaves plus fixed rank-two `[outFeatures, inFeatures]` Glorot and Kaiming-ReLU policies, with no label, hidden RNG, or Parameter policy. |
 | [0004A](tasks/0004a-parameter-update-and-traversal-hardening.md) | Parameter update and traversal hardening | Complete | 0001–0004; post-0004 code review | Closed the three review findings with a public schema-validated `Parameter.replace`, iterative identity-defended deep-tree traversal, and complete fan-initializer Java-array-limit contracts before adding a layer. |
-| 0005 | Linear layer | Draft | 0001, 0004, 0004A; completed model `Tensor.linear` | Add the first stateful layer with explicitly initialized or caller-supplied `weight` and optional `bias`; validate only Tensor-expression ownership/provenance until numerical execution coverage is available. |
+| [0005](tasks/0005-linear-layer.md) | Linear layer | Complete | 0001, 0004, 0004A; completed model `Tensor.linear` | Added the first stateful layer with caller-supplied or explicit-source Glorot-uniform `weight`, optional caller-supplied or zero `bias`, stable parameter handles, and exact delegation to visible Model linear composition without execution behavior. |
 
 ## Milestones
 
@@ -146,7 +147,19 @@ failure side effects. It changes no dependency, architecture, Gradle, CPU, or gl
 The isolated implementation pass passed the final focused NN suite with 7 suites and 33 tests.
 The independent documentation pass finalized Javadoc, training API, glossary, and planning
 evidence and passed generated-Javadoc, Markdown, public-surface, scope, import, and whitespace
-checks without repeating the stable executable suite. NN 0005 remains the next Draft frontier.
+checks without repeating the stable executable suite.
+
+Detailed NN 0005 is Complete under the same bounded parallel exception. It adds final public
+`Linear`, its `layers` package contract, focused state/initialization/forward tests, the glossary,
+and synchronized NN planning in exactly seven paths. Supplied state keeps exact parameter Tensor
+identity and strict positive static schemas; initialized state uses explicit-source Glorot uniform
+and deterministic zero bias. Forward is mode-insensitive and delegates exactly to the current
+Model `Tensor.linear` composition using the bindings observed by that call. The implementation
+pass passed the focused 2-suite/11-test selection and final 9-suite/44-test NN suite. The
+independent documentation pass finalized glossary and planning wording, reviewed the drafted
+Javadocs unchanged, and passed generated-Javadoc, Markdown, public-surface, dependency/import,
+scope, and whitespace checks without repeating stable executable tests. There is no later detailed
+NN task; the next NN capability remains to be specified at its frontier.
 
 ## Open questions
 
@@ -192,6 +205,12 @@ checks without repeating the stable executable suite. NN 0005 remains the next D
   identity defense as mode propagation, and `train()`/`eval()` retain complete preflight before
   assignment. Qualified prefix text is built only when state is emitted so empty deep chains do
   not retain one String per intermediate level.
+- NN 0005 fixes the first `Linear` surface to two caller-Tensor constructors plus one initialized
+  constructor with explicit feature counts, bias presence, floating data type, and caller-owned
+  random source. Initialized weight delegates to fixed Glorot uniform and optional bias delegates
+  to deterministic zeros. The layer exposes stable weight and optional bias `Parameter` handles
+  and has one mode-insensitive `forward(Tensor)` that delegates to the existing Model linear
+  convenience; it adds no generic layer interface or execution behavior.
 
 ## Risks
 

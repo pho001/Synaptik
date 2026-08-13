@@ -2321,14 +2321,15 @@ requests, higher derivatives, optimizer updates, preparation, and execution rema
 
 ### Neural-network module, parameter, buffer, and forward context
 
-`extensions/nn` currently provides direct-state and module-tree foundations. A **module** is a
-stateful neural-network composition unit that directly declares trainable **parameters** and
-persistent **buffers**, and can permanently own named child modules. Parameters, buffers, and
-children share one module-local namespace. A local name cannot contain `.` because that character
-is reserved exclusively for recursive-path separation. A parameter is module-owned state that a future
-optimizer may update. A buffer is persistent module-owned state that an optimizer does not update,
-such as a future running statistic. A **forward context** is an immutable snapshot of one module's
-local train/eval mode for a concrete layer's typed forward method.
+`extensions/nn` currently provides direct-state and module-tree foundations, eager parameter
+initializers, and its first concrete layer. A **module** is a stateful neural-network composition
+unit that directly declares trainable **parameters** and persistent **buffers**, and can
+permanently own named child modules. Parameters, buffers, and children share one module-local
+namespace. A local name cannot contain `.` because that character is reserved exclusively for
+recursive-path separation. A parameter is module-owned state that a future optimizer may update.
+A buffer is persistent module-owned state that an optimizer does not update, such as a future
+running statistic. A **forward context** is an immutable snapshot of one module's local train/eval
+mode for a concrete layer's typed forward method.
 
 Child ownership is exclusive and permanent: a child has one parent and cannot be detached,
 renamed, reparented, or shared. Module-tree discovery returns separate immutable snapshots for
@@ -2356,9 +2357,8 @@ A buffer remains different: only its declaring module subclass can use the prote
 replacement, and `Buffer` exposes no public update capability or binding schema. Parameter and
 buffer replacement each affect one binding and provide no thread safety, version, batch
 transaction, rollback, checkpoint, update sequencing, or cross-parameter consistency guarantee.
-The foundation has no checkpointing, layer API, optimizer algorithm, or generic
-`Module.forward(...)` method. A parameter or buffer is not a Tensor subtype and adds no gradient
-state to Tensor.
+The foundation has no checkpointing, optimizer algorithm, or generic `Module.forward(...)`
+method. A parameter or buffer is not a Tensor subtype and adds no gradient state to Tensor.
 
 The current stateless `ParameterInitializers` namespace creates eager floating Tensor leaves that
 a module may subsequently bind as parameters. Its exact eight entries cover typed zero and one,
@@ -2375,6 +2375,17 @@ selects, configures, seeds, owns, advances, and coordinates access to that sourc
 default source and never retains, substitutes, synchronizes, resets, splits, serializes, or closes
 it. These initializers create no random Tensor operation and do not accept or create
 [`GraphRngState`](#graph-rng-state--graphrngstate).
+
+The current final `Linear` module owns one rank-two weight `Parameter` in
+`[outFeatures, inFeatures]` orientation and an optional exact rank-one `[outFeatures]` bias
+`Parameter`. Callers may supply the exact parameter Tensors, or construct both from explicit
+feature counts, bias presence, floating data type, and caller-owned random source; that initialized
+path uses fixed Glorot-uniform weight and deterministic zero bias. `Linear.forward(input)` is
+mode-insensitive and delegates to the matching current `Tensor.linear` overload using the current
+bindings. It builds only the visible primitive Tensor-expression chain: it does not evaluate,
+compile, lower, or execute the result. The stable parameter accessors expose the same wrappers as
+module discovery, so a compatible replacement affects a later forward call while an expression
+already constructed from an earlier binding remains unchanged.
 
 `extensions/nn` composes generic [`Tensor`](#tensor) and operation semantics from
 `modules/model`. [`extensions/training`](#training-graph) consumes nn-declared parameters for
@@ -2691,10 +2702,12 @@ The optional bias Dimension must be structurally equal to the weight out-feature
 is stricter than general broadcasting. No-bias returns the MATMUL product directly. In the biased
 form, ADD produces a structurally equal final Shape with the exact product Dimension references,
 although its outer Shape object may be distinct. A linear projection here is storage-free model
-metadata, not a stateful linear layer: it owns no parameters, initialization, serialization,
-dedicated gradient rule, compiler pass, fusion, backend kernel, or execution. Its visible
-floating PERMUTE/MATMUL/ADD primitive chain is differentiable by current package-private compiler
-autograd when each primitive satisfies its closed rule guards. See
+metadata: the `Tensor.linear` convenience itself owns no parameters, initialization,
+serialization, dedicated gradient rule, compiler pass, fusion, backend kernel, or execution. The
+current `extensions/nn` `Linear` module is the separate stateful owner that delegates forward
+construction to this convenience. The visible floating PERMUTE/MATMUL/ADD primitive chain is
+differentiable by current package-private compiler autograd when each primitive satisfies its
+closed rule guards. See
 [Linear-projection convenience](api/tensor-api.md#linear-projection-convenience).
 
 ### Masked reduction
