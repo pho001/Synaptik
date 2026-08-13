@@ -6,36 +6,53 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Set;
+import java.util.regex.Pattern;
 import org.junit.jupiter.api.Test;
 
-/** Verifies the planned one-way dependency between the NN and training extensions. */
+/** Verifies the one-way dependency between the NN and training extensions. */
 final class NnTrainingDependencyContractTest {
     /**
-     * Checks the extension build direction when the planned NN Gradle project is introduced.
+     * Checks the exact model-to-NN-to-training extension direction.
      *
      * @throws IOException if a required build file cannot be read
      */
     @Test
-    void nnAndTrainingUseTheDeclaredOneWayDependencyWhenImplemented() throws IOException {
+    void nnAndTrainingUseTheDeclaredOneWayDependency() throws IOException {
         Path repositoryRoot = repositoryRoot();
         String settings = Files.readString(repositoryRoot.resolve("settings.gradle.kts"));
         Path nnBuild = repositoryRoot.resolve("extensions/nn/build.gradle.kts");
         Path trainingBuild = repositoryRoot.resolve("extensions/training/build.gradle.kts");
 
-        boolean nnIsIncluded = settings.contains("\":extensions:nn\"");
-        if (!nnIsIncluded) {
-            assertFalse(Files.exists(nnBuild),
-                    "an NN build must be included with its Gradle project rather than added implicitly");
-            return;
-        }
-
+        assertTrue(settings.contains("\":extensions:nn\""),
+                "extensions/nn must be included explicitly in the Gradle build");
         assertTrue(Files.isRegularFile(nnBuild), "the included NN project must declare its build");
         assertTrue(Files.isRegularFile(trainingBuild), "the training project must declare its build");
 
         String nnBuildScript = Files.readString(nnBuild);
         String trainingBuildScript = Files.readString(trainingBuild);
+        assertTrue(nnBuildScript.contains("implementation(project(\":modules:model\"))"),
+                "extensions/nn must depend on modules/model");
+        assertTrue(
+                Pattern.compile("project\\(\\\"([^\\\"]+)\\\"\\)")
+                        .matcher(nnBuildScript)
+                        .results()
+                        .map(match -> match.group(1))
+                        .collect(java.util.stream.Collectors.toUnmodifiableSet())
+                        .equals(Set.of(":modules:model")),
+                "extensions/nn may have only the modules/model project dependency");
         assertFalse(nnBuildScript.contains(":extensions:training"),
                 "extensions/nn must not depend on extensions/training");
+        assertFalse(nnBuildScript.contains(":modules:compiler"),
+                "extensions/nn must not depend on modules/compiler");
+        assertFalse(nnBuildScript.contains(":modules:runtime"),
+                "extensions/nn must not depend on modules/runtime");
+        assertFalse(nnBuildScript.contains(":modules:prepare"),
+                "extensions/nn must not depend on modules/prepare");
+        assertFalse(nnBuildScript.contains(":modules:engine"),
+                "extensions/nn must not depend on modules/engine");
+        assertFalse(nnBuildScript.contains(":backends:"),
+                "extensions/nn must not depend on concrete backends");
         assertTrue(trainingBuildScript.contains("implementation(project(\":extensions:nn\"))"),
                 "extensions/training must depend on extensions/nn once both projects exist");
     }

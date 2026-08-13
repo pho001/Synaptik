@@ -14,6 +14,7 @@ include(
     ":backends:cpu",
     ":backends:metal",
     ":backends:cuda",
+    ":extensions:nn",
     ":extensions:training",
     ":extensions:onnx",
     ":tools:tuning",

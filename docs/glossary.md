@@ -2315,17 +2315,31 @@ requests, higher derivatives, optimizer updates, preparation, and execution rema
 
 ### Neural-network module, parameter, buffer, and forward context
 
-These are planned `extensions/nn` contracts; no Gradle `nn` project or production Java API exists
-yet. A **module** is a stateful neural-network composition unit that can declare child modules,
-trainable **parameters**, and persistent **buffers**. A parameter is module-owned state that an
+`extensions/nn` currently provides direct-state and module-tree foundations. A **module** is a
+stateful neural-network composition unit that directly declares trainable **parameters** and
+persistent **buffers**, and can permanently own named child modules. Parameters, buffers, and
+children share one module-local namespace. A local name cannot contain `.` because that character
+is reserved exclusively for recursive-path separation. A parameter is module-owned state that a future
 optimizer may update. A buffer is persistent module-owned state that an optimizer does not update,
-such as a running statistic. A **forward context** carries the module's selected train/eval mode
-through a module tree so layers can choose their forward behavior consistently.
+such as a future running statistic. A **forward context** is an immutable snapshot of one module's
+local train/eval mode for a concrete layer's typed forward method.
+
+Child ownership is exclusive and permanent: a child has one parent and cannot be detached,
+renamed, reparented, or shared. Module-tree discovery returns separate immutable snapshots for
+parameters and buffers. Each snapshot uses a deterministic depth-first traversal and relative,
+dot-separated paths such as `encoder.layer1.weight`; it retains the exact declared wrapper
+objects rather than copying or replacing their Tensor bindings. Calling `train()` or `eval()`
+changes the receiving module and its owned descendants only after a full identity-based preflight,
+so a malformed repeated identity cannot expose a partial requested-mode change.
+
+The current foundation has no binding replacement, checkpointing, layer API, or generic
+`Module.forward(...)` method. A parameter or buffer retains the exact Tensor reference supplied at
+declaration; this does not make either wrapper a Tensor subtype or add gradient state to Tensor.
 
 `extensions/nn` composes generic [`Tensor`](#tensor) and operation semantics from
 `modules/model`. [`extensions/training`](#training-graph) consumes nn-declared parameters for
 optimizer algorithms and training orchestration, but it does not own modules, buffers, or
-train/eval behavior. None of these planned contracts grants autograd, backend storage, kernel
+train/eval behavior. None of these current contracts grants autograd, backend storage, kernel
 selection, runtime execution, or a concrete backend dependency. See [Module
 boundaries](architecture/module-boundaries.md#extensions).
 
