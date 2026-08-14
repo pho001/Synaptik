@@ -1,0 +1,283 @@
+package io.github.pho001.synaptik.nn.layers;
+
+import static org.junit.jupiter.api.Assertions.assertAll;
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
+import io.github.pho001.synaptik.model.datatype.DataType;
+import io.github.pho001.synaptik.model.operation.index.AxisGatherKind;
+import io.github.pho001.synaptik.model.operation.index.IndexAxisAttrs;
+import io.github.pho001.synaptik.model.operation.index.SelectAttrs;
+import io.github.pho001.synaptik.model.operation.index.SelectKind;
+import io.github.pho001.synaptik.model.operation.layout.TensorCompositionKind;
+import io.github.pho001.synaptik.model.operation.scan.CumulativeScanKind;
+import io.github.pho001.synaptik.model.layout.LayoutKind;
+import io.github.pho001.synaptik.model.shape.Shape;
+import io.github.pho001.synaptik.model.tensor.Tensor;
+import io.github.pho001.synaptik.model.tensor.TensorDescriptor;
+import io.github.pho001.synaptik.model.tensor.TensorFactory;
+import java.lang.foreign.ValueLayout;
+import java.lang.reflect.Field;
+import java.util.ArrayDeque;
+import java.util.Collections;
+import java.util.IdentityHashMap;
+import java.util.List;
+import java.util.Optional;
+import java.util.Set;
+import java.util.concurrent.atomic.AtomicLong;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.parallel.Execution;
+import org.junit.jupiter.api.parallel.ExecutionMode;
+
+@Execution(ExecutionMode.SAME_THREAD)
+class RnnSequencePackingTest {
+    @Test
+    void packsFiveThreeOneIntoNineActiveRowsAndRestoresExitRows() {
+        RnnSequence sequence = sequence();
+        Tensor input = tensor(DataType.FLOAT32, Shape.of(5, 3, 3), false);
+        Tensor hidden = tensor(DataType.FLOAT32, Shape.of(3, 4), false);
+        RnnSequenceForwardResult result = sequence.forward(input, hidden, new long[] {5, 3, 1});
+
+        assertAll(
+                () -> assertEquals(
+                        List.of(
+                                Shape.of(3, 4), Shape.of(2, 4), Shape.of(2, 4),
+                                Shape.of(1, 4), Shape.of(1, 4)),
+                        result.packedOutputs().stream()
+                                .map(value -> value.descriptor().shape()).toList()),
+                () -> assertEquals(9L, result.packedOutputs().stream()
+                        .mapToLong(value -> value.descriptor().shape().knownElementCount().orElseThrow() / 4)
+                        .sum()),
+                () -> assertEquals(Shape.of(3, 4), result.finalHidden().descriptor().shape()),
+                () -> assertSame(TensorCompositionKind.STACK,
+                        result.finalHidden().provenance().orElseThrow().operation().kind()));
+
+        List<Tensor> finalRows = result.finalHidden().provenance().orElseThrow().inputs();
+        assertRowSelection(finalRows.get(0), result.packedOutputs().get(4), 0);
+        assertRowSelection(finalRows.get(1), result.packedOutputs().get(2), 1);
+        assertRowSelection(finalRows.get(2), result.packedOutputs().get(0), 2);
+    }
+
+    @Test
+    void unsortedLengthsUseStableOriginalAndRelativeSurvivorIndicesWithoutSorting() {
+        RnnSequence sequence = sequence();
+        Tensor input = tensor(DataType.FLOAT32, Shape.of(3, 3, 3), false);
+        Tensor hidden = tensor(DataType.FLOAT32, Shape.of(3, 4), false);
+        RnnSequenceForwardResult result = sequence.forward(input, hidden, new long[] {1, 3, 2});
+
+        assertAll(
+                () -> assertArrayEquals(new long[] {0, 1, 2}, indexValues(compactInput(result, 0))),
+                () -> assertArrayEquals(new long[] {1, 2}, indexValues(compactInput(result, 1))),
+                () -> assertArrayEquals(new long[] {1}, indexValues(compactInput(result, 2))),
+                () -> assertArrayEquals(new long[] {1, 2}, indexValues(compactHidden(result, 1))),
+                () -> assertArrayEquals(new long[] {0}, indexValues(compactHidden(result, 2))));
+
+        Tensor stepZeroInputIndex = gatherIndex(compactInput(result, 0));
+        Tensor stepZeroHiddenIndex = gatherIndex(compactHidden(result, 0));
+        assertSame(stepZeroInputIndex, stepZeroHiddenIndex);
+
+        List<Tensor> finalRows = result.finalHidden().provenance().orElseThrow().inputs();
+        assertRowSelection(finalRows.get(0), result.packedOutputs().get(0), 0);
+        assertRowSelection(finalRows.get(1), result.packedOutputs().get(2), 0);
+        assertRowSelection(finalRows.get(2), result.packedOutputs().get(1), 1);
+    }
+
+    @Test
+    void zeroLengthRowsNeverEnterCellOperandsAndUseInitialHiddenForFinalState() {
+        RnnSequence sequence = sequence();
+        Tensor input = tensor(DataType.FLOAT32, Shape.of(2, 3, 3), false);
+        Tensor hidden = tensor(DataType.FLOAT32, Shape.of(3, 4), false);
+        RnnSequenceForwardResult result = sequence.forward(input, hidden, new long[] {0, 2, 0});
+
+        assertAll(
+                () -> assertEquals(List.of(Shape.of(1, 4), Shape.of(1, 4)),
+                        result.packedOutputs().stream()
+                                .map(value -> value.descriptor().shape()).toList()),
+                () -> assertArrayEquals(new long[] {1}, indexValues(compactInput(result, 0))),
+                () -> assertArrayEquals(new long[] {1}, indexValues(compactInput(result, 1))));
+
+        List<Tensor> finalRows = result.finalHidden().provenance().orElseThrow().inputs();
+        assertRowSelection(finalRows.get(0), hidden, 0);
+        assertRowSelection(finalRows.get(1), result.packedOutputs().get(1), 0);
+        assertRowSelection(finalRows.get(2), hidden, 2);
+    }
+
+    @Test
+    void storageFreeZeroValuedInputStillRemainsActiveAndNoCumulativeScanAppears() {
+        RnnSequence sequence = sequence();
+        Tensor input = tensor(DataType.FLOAT32, Shape.of(2, 2, 3), false);
+        Tensor hidden = tensor(DataType.FLOAT32, Shape.of(2, 4), false);
+        assertTrue(input.hostStorage().isEmpty());
+        RnnSequenceForwardResult result = sequence.forward(input, hidden, new long[] {2, 1});
+
+        assertAll(
+                () -> assertArrayEquals(new long[] {0, 1}, indexValues(compactInput(result, 0))),
+                () -> assertArrayEquals(new long[] {0}, indexValues(compactInput(result, 1))),
+                () -> assertTrue(allOperationKinds(result).stream()
+                        .noneMatch(CumulativeScanKind.class::isInstance)));
+    }
+
+    @Test
+    void snapshotsLengthsAndCreatesExactUnlabeledDenseInt64IndexLeaves() {
+        RnnSequence sequence = sequence();
+        Tensor input = tensor(DataType.FLOAT32, Shape.of(2, 2, 3), false);
+        Tensor hidden = tensor(DataType.FLOAT32, Shape.of(2, 4), false);
+        long[] lengths = {2, 1};
+        RnnSequenceForwardResult result = sequence.forward(input, hidden, lengths);
+        lengths[0] = 0;
+        lengths[1] = 0;
+
+        Tensor index = gatherIndex(compactInput(result, 0));
+        assertAll(
+                () -> assertArrayEquals(new long[] {0, 1}, indexValues(compactInput(result, 0))),
+                () -> assertArrayEquals(new long[] {0}, indexValues(compactInput(result, 1))),
+                () -> assertSame(DataType.INT64, index.descriptor().dataType()),
+                () -> assertEquals(Shape.of(2), index.descriptor().shape()),
+                () -> assertFalse(index.descriptor().requiresGrad()),
+                () -> assertSame(LayoutKind.DENSE_CONTIGUOUS,
+                        index.descriptor().layout().orElseThrow().kind()),
+                () -> assertTrue(index.label().isEmpty()),
+                () -> assertTrue(index.provenance().isEmpty()),
+                () -> assertTrue(index.hostStorage().isPresent()));
+    }
+
+    @Test
+    void everyStepStartsWithExactTimeSelectAndEveryGatherUsesAxisZero() {
+        RnnSequence sequence = sequence();
+        Tensor input = tensor(DataType.FLOAT64, Shape.of(3, 2, 3), false);
+        Tensor hidden = tensor(DataType.FLOAT32, Shape.of(2, 4), false);
+        RnnSequenceForwardResult result = sequence.forward(input, hidden, new long[] {3, 2});
+
+        for (int step = 0; step < result.packedOutputs().size(); step++) {
+            Tensor compactInput = compactInput(result, step);
+            Tensor timeSlice = compactInput.provenance().orElseThrow().inputs().getFirst();
+            assertAll(
+                    () -> assertSame(AxisGatherKind.GATHER,
+                            compactInput.provenance().orElseThrow().operation().kind()),
+                    () -> assertEquals(new IndexAxisAttrs(0),
+                            compactInput.provenance().orElseThrow().operation().attrs()),
+                    () -> assertSame(SelectKind.SELECT,
+                            timeSlice.provenance().orElseThrow().operation().kind()),
+                    () -> assertSame(input, timeSlice.provenance().orElseThrow().inputs().getFirst()));
+            assertEquals(new SelectAttrs(0, step),
+                    timeSlice.provenance().orElseThrow().operation().attrs());
+        }
+        assertAll(
+                () -> assertSame(DataType.FLOAT64,
+                        result.packedOutputs().getFirst().descriptor().dataType()),
+                () -> assertSame(DataType.FLOAT64, result.finalHidden().descriptor().dataType()),
+                () -> assertFalse(result.packedOutputs().isEmpty()));
+    }
+
+    @Test
+    void oneStepUsesTheFixedSelectIndexGatherCellSelectionStackIdentifierOrder() throws Exception {
+        RnnSequence sequence = sequence();
+        Tensor input = tensor(DataType.FLOAT32, Shape.of(1, 1, 3), false);
+        Tensor hidden = tensor(DataType.FLOAT32, Shape.of(1, 4), false);
+        AtomicLong ids = nextTensorIdState();
+        long start = ids.get();
+
+        RnnSequenceForwardResult result = sequence.forward(input, hidden, new long[] {1});
+        Tensor compactInput = compactInput(result, 0);
+        Tensor compactHidden = compactHidden(result, 0);
+        Tensor timeSlice = compactInput.provenance().orElseThrow().inputs().getFirst();
+        Tensor index = gatherIndex(compactInput);
+        Tensor sum = result.packedOutputs().getFirst()
+                .provenance().orElseThrow().inputs().getFirst();
+        Tensor inputProduct = sum.provenance().orElseThrow().inputs().getFirst();
+        Tensor hiddenProduct = sum.provenance().orElseThrow().inputs().get(1);
+        Tensor inputTranspose = inputProduct.provenance().orElseThrow().inputs().get(1);
+        Tensor hiddenTranspose = hiddenProduct.provenance().orElseThrow().inputs().get(1);
+        Tensor finalRow = result.finalHidden().provenance().orElseThrow().inputs().getFirst();
+
+        assertAll(
+                () -> assertEquals(start, timeSlice.id().value()),
+                () -> assertEquals(start + 1, index.id().value()),
+                () -> assertEquals(start + 2, compactInput.id().value()),
+                () -> assertEquals(start + 3, compactHidden.id().value()),
+                () -> assertEquals(start + 4, inputTranspose.id().value()),
+                () -> assertEquals(start + 5, inputProduct.id().value()),
+                () -> assertEquals(start + 6, hiddenTranspose.id().value()),
+                () -> assertEquals(start + 7, hiddenProduct.id().value()),
+                () -> assertEquals(start + 8, sum.id().value()),
+                () -> assertEquals(start + 9, result.packedOutputs().getFirst().id().value()),
+                () -> assertEquals(start + 10, finalRow.id().value()),
+                () -> assertEquals(start + 11, result.finalHidden().id().value()),
+                () -> assertEquals(start + 12, ids.get()));
+    }
+
+    private static Tensor compactInput(RnnSequenceForwardResult result, int step) {
+        Tensor sum = result.packedOutputs().get(step).provenance().orElseThrow().inputs().getFirst();
+        Tensor projection = sum.provenance().orElseThrow().inputs().getFirst();
+        return projection.provenance().orElseThrow().inputs().getFirst();
+    }
+
+    private static Tensor compactHidden(RnnSequenceForwardResult result, int step) {
+        Tensor sum = result.packedOutputs().get(step).provenance().orElseThrow().inputs().getFirst();
+        Tensor projection = sum.provenance().orElseThrow().inputs().get(1);
+        return projection.provenance().orElseThrow().inputs().getFirst();
+    }
+
+    private static Tensor gatherIndex(Tensor gather) {
+        assertSame(AxisGatherKind.GATHER, gather.provenance().orElseThrow().operation().kind());
+        return gather.provenance().orElseThrow().inputs().get(1);
+    }
+
+    private static long[] indexValues(Tensor gather) {
+        Tensor indices = gatherIndex(gather);
+        int count = Math.toIntExact(indices.descriptor().shape().knownElementCount().orElseThrow());
+        long[] values = new long[count];
+        for (int index = 0; index < count; index++) {
+            values[index] = indices.hostStorage().orElseThrow().segment()
+                    .getAtIndex(ValueLayout.JAVA_LONG, index);
+        }
+        return values;
+    }
+
+    private static void assertRowSelection(Tensor row, Tensor source, long index) {
+        assertAll(
+                () -> assertSame(SelectKind.SELECT,
+                        row.provenance().orElseThrow().operation().kind()),
+                () -> assertEquals(new SelectAttrs(0, index),
+                        row.provenance().orElseThrow().operation().attrs()),
+                () -> assertSame(source, row.provenance().orElseThrow().inputs().getFirst()));
+    }
+
+    private static Set<Object> allOperationKinds(RnnSequenceForwardResult result) {
+        Set<Tensor> visited = Collections.newSetFromMap(new IdentityHashMap<>());
+        Set<Object> kinds = Collections.newSetFromMap(new IdentityHashMap<>());
+        ArrayDeque<Tensor> pending = new ArrayDeque<>();
+        pending.addAll(result.packedOutputs());
+        pending.add(result.finalHidden());
+        while (!pending.isEmpty()) {
+            Tensor tensor = pending.removeFirst();
+            if (!visited.add(tensor) || tensor.provenance().isEmpty()) {
+                continue;
+            }
+            var provenance = tensor.provenance().orElseThrow();
+            kinds.add(provenance.operation().kind());
+            pending.addAll(provenance.inputs());
+        }
+        return kinds;
+    }
+
+    private static RnnSequence sequence() {
+        return new RnnSequence(new RnnCell(
+                tensor(DataType.FLOAT32, Shape.of(4, 3), true),
+                tensor(DataType.FLOAT32, Shape.of(4, 4), true)));
+    }
+
+    private static Tensor tensor(DataType dataType, Shape shape, boolean requiresGrad) {
+        return TensorFactory.create(new TensorDescriptor(
+                dataType, shape, Optional.empty(), requiresGrad));
+    }
+
+    private static AtomicLong nextTensorIdState() throws Exception {
+        Field field = TensorFactory.class.getDeclaredField("NEXT_TENSOR_ID");
+        field.setAccessible(true);
+        return (AtomicLong) field.get(null);
+    }
+}

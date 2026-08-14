@@ -106,7 +106,12 @@ their two-Tensor signatures are not `UnaryTensorModule` contracts and cannot be 
 Tensors and receives exact next-hidden and next-cell references in a cell-specific result. A
 separate sequence task must then choose static unrolling through concrete cell signatures or
 justify a genuinely general recurrent Model scan; existing cumulative sum/product operations are
-not recurrent scan primitives.
+not recurrent scan primitives. Completed task 0015 selects the capability current contracts can
+represent honestly: one cell-specific vanilla `RnnSequence` statically unrolled from fully static
+time-major input metadata and a snapshotted Java `long[]` of sequence lengths. Stable original-
+order active batches omit padded logical rows, and final hidden rows are restored to original
+batch order. Runtime Tensor lengths or masks remain deferred because they require a genuine
+data-dependent recurrent scan/control-flow contract rather than dense post-cell masking.
 
 ## Task list
 
@@ -127,7 +132,9 @@ not recurrent scan primitives.
 | [0012](tasks/0012-vanilla-rnn-cell.md) | Vanilla tanh RNN cell | Complete | 0011; completed Model linear, ADD, and TANH expressions | Added one direct Module with explicit caller-threaded hidden state, two recurrent projections, optional shared bias, fixed tanh activation, and no sequence traversal or hidden state. |
 | [0013](tasks/0013-gru-cell.md) | GRU cell | Complete | 0012 | Added one direct Module with explicit caller-threaded hidden state, packed reset/update/candidate projections, fixed reset-after gating and interpolation, one optional packed input-side bias, and no sequence traversal or hidden state. |
 | [0014](tasks/0014-lstm-cell.md) | LSTM cell | Complete | 0013 | Added one direct Module with explicit caller-threaded hidden/cell state, input/forget/candidate/output packed projections, fixed equations, one optional input-side packed bias with an all-zero initialized policy, and a cell-specific next-hidden/next-cell result. |
-| 0015 | Recurrent sequence composition and scan decision | Draft | 0012–0014 | Decide static unrolling versus a genuine recurrent Model scan and reserve packed variable-length sequencing: explicit lengths or masks, omission of padded cell calls, final-state capture, and original-order restoration; prefer cell-specific sequence types unless a shared contract is proven. |
+| [0015](tasks/0015-static-packed-rnn-sequence.md) | Static packed RNN sequence | Complete | 0012–0014; completed Model SELECT, GATHER, STACK, and eager INT64 leaves | Added one cell-specific vanilla-RNN container with construction-time Java lengths, stable original-order active-batch compaction, compact per-step outputs, and final-hidden restoration; runtime Tensor masks/lengths require a future genuine recurrent scan. |
+| 0016 | Static packed GRU sequence | Draft | 0015 | Reuse the proven one-hidden-state static packing and restoration policy for `GruCell` without a shared recurrent abstraction. |
+| 0017 | Static packed LSTM sequence | Draft | 0016 | Extend static packing cell-specifically to carry and restore both hidden and cell states as each sequence exits. |
 
 ## Milestones
 
@@ -311,8 +318,25 @@ and 154 tests with no skips, failures, or errors. Independent clean documentatio
 `/root/nn_0014_docs` reused that unchanged executable evidence, finalized the type/package
 Javadocs, glossary, and planning records, and passed final generated-Javadoc, surface/private-
 state, dependency/import, Markdown, exact eight-path scope, status, newline, whitespace, and diff
-gates without repeating Java tests. NN 0015 remains the unchanged concise Draft row without a
-detailed task specification.
+gates without repeating Java tests. Detailed
+[NN 0015](tasks/0015-static-packed-rnn-sequence.md) is Complete. Its clean implementation context
+added the exact cell-specific container and result carrier, focused packing and contract tests,
+and draft public/package Javadocs. The focused two-suite selection passed 14 tests, and the
+authoritative NN module run passed 25 suites and 168 tests with no skips, failures, or errors.
+Independent clean documentation context `/root/nn_0015_docs` reused that unchanged executable
+evidence, finalized the public/package Javadocs, Training API, central glossary, and planning
+records, and passed final generated-Javadoc, public/private-surface, dependency/import, Markdown,
+exact nine-path scope, status, newline, whitespace, and diff gates without repeating Java tests.
+Current Model
+SELECT, GATHER, STACK, eager INT64 leaf, static Shape, and vanilla-cell contracts can represent a
+construction-time packed sequence from fully static time-major input and a snapshotted Java
+`long[]` of lengths. The task fixes stable original-order active batches, compact step outputs,
+zero-length handling, and final-hidden restoration without sorting or dense padded cell work. It
+also records the honest boundary: runtime Tensor lengths or masks cannot decide loop count or
+active batch Shape in the current expression model, and applying a dense `WHERE` after the cell
+would not skip padded work. Such inputs require a future genuine recurrent scan/control-flow
+contract. NN 0016 is the next concise Draft frontier, and NN 0017 remains a later concise Draft;
+neither has a task specification.
 
 The ordered follow-up sequence is deliberate. `Embedding` is another mode-insensitive
 parameter-only wrapper. `BatchNorm` follows it as the first layer that must coordinate parameters,
@@ -330,15 +354,13 @@ consumer.
 - Select a persistent checkpoint codec, schema-version, materialization, and storage boundary only
   when a concrete consumer exists; completed NN 0010 fixes only in-memory state and strict atomic
   validation/load.
-- At task 0015, choose the explicit sequence-length and/or mask representation, including whether
-  lengths or masks are static construction-time facts or runtime-dynamic Tensors and whether
-  current Model contracts can represent the latter. Resolve how that choice interacts with static
-  unrolling versus a genuine recurrent Model scan.
-- Define packed active-batch compaction, any required stable sorting, restoration of original
-  batch order, and capture of each sequence's final hidden state—plus final cell state for
-  LSTM—when it leaves the active set. Prefer cell-specific
-  `RnnSequence`/`GruSequence`/`LstmSequence` contracts unless completed signatures prove one
-  type-safe shared `RecurrentSequence` without state erasure.
+- Specify a genuine recurrent Model scan only when a concrete runtime-dynamic length or mask
+  consumer can define the body/subgraph boundary, carried-value tuple, dynamic active-set Shape,
+  result metadata, compiler lowering, and execution requirements. Static NN 0015 does not imply
+  that future architecture.
+- Reassess a shared recurrent sequence abstraction only after cell-specific static RNN, GRU, and
+  LSTM containers prove compatible ownership and result signatures. LSTM must preserve both final
+  hidden and cell state rather than erase them into a generic collection.
 
 ## Decisions made
 
@@ -472,15 +494,26 @@ consumer.
   that interval set to one without hidden host mutation or derived slice/concat parameter state.
   Its packing, input-side-only bias, and zero-bias default are a Synaptik checkpoint schema, not a
   framework-compatibility promise.
-- For NN 0015, packing means processing only the active batch selected by explicit sequence
-  lengths or an explicit mask, so padded time steps cause no cell invocation. Padding is never
-  inferred from a Tensor value equal to zero.
-- NN 0015 may compact or sort only with a defined stable-order policy and restoration to original
-  batch order, and it must retain final hidden state—plus final cell state for LSTM—as each
-  sequence leaves the active set. It must add no hidden recurrent state or silently synthesized
-  mask, must not confuse sequence packing with GRU/LSTM gate-parameter packing, must not
-  reinterpret `CUM_SUM` or `CUM_PROD` as recurrent scan, and must not invent a shared abstraction
-  before the concrete signatures prove it type-safe.
+- NN 0015 selects final `RnnSequence extends Module` with one exact owned `RnnCell` child, fully
+  static time-major input `[time, batch, inputSize]`, explicit initial hidden
+  `[batch, hiddenSize]`, and a snapshotted construction-time Java `long[]` of lengths. It creates
+  no parameter, buffer, retained state, default hidden value, mask, or unary `Sequential` adapter.
+- NN 0015 packing means each unrolled step gathers only original rows whose explicit length
+  exceeds that step. A zero Tensor value is ordinary data and never padding. Active rows remain in
+  ascending original batch order; the task does not sort. Compact per-step cell results are
+  exposed in an immutable list, and each final hidden row is selected from its exit step—or from
+  initial hidden for a zero length—then stacked in original order.
+- NN 0015 invokes `RnnCell.forward` once per non-empty time step, not once per active row. For
+  lengths `[5,3,1]`, five batched calls have active extents `[3,2,2,1,1]` and represent nine
+  logical recurrent rows instead of fifteen dense padded rows.
+- Runtime Tensor lengths or masks are excluded from NN 0015. Current static Tensor expression
+  construction cannot make loop count or active batch Shape depend on runtime values, while dense
+  `WHERE` masking would still construct padded cell work. A future dynamic form requires a genuine
+  recurrent Model scan/control-flow contract; fixed associative `CUM_SUM` and `CUM_PROD` are not
+  that primitive.
+- NN 0015 is cell-specific because completed signatures do not prove a type-safe shared contract:
+  RNN and GRU carry one hidden Tensor, while LSTM carries and returns hidden plus cell state. NN
+  0016 and 0017 remain ordered Draft follow-ups and add no task specification yet.
 
 ## Risks
 
@@ -512,6 +545,9 @@ consumer.
   during active-set compaction, or failing to restore original batch order would silently change
   sequence semantics. The word "packed" also risks confusion with gate-parameter packing or the
   unrelated fixed-associative `CUM_SUM`/`CUM_PROD` family.
+- Promising runtime-dynamic masks through dense selection would preserve padded cell expressions
+  while pretending to skip them. Conversely, inventing a scan in NN would bypass Model ownership
+  of generic operation, Shape, provenance, compiler, and execution semantics.
 
 ## Notes
 

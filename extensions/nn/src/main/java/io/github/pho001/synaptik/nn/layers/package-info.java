@@ -22,6 +22,19 @@
  * state, so they are intentionally excluded from {@code Sequential}. LSTM returns both next
  * states through {@link io.github.pho001.synaptik.nn.layers.LstmCellForwardResult}.</p>
  *
+ * <p>{@link io.github.pho001.synaptik.nn.layers.RnnSequence} owns one vanilla
+ * {@link io.github.pho001.synaptik.nn.layers.RnnCell} and statically unrolls a time-major input
+ * from explicit construction-time Java lengths. Each represented step gathers only its stable
+ * active batch (the original rows whose explicit lengths exceed that step), returns the exact
+ * compact cell output through
+ * {@link io.github.pho001.synaptik.nn.layers.RnnSequenceForwardResult}, and restores final hidden
+ * rows to original batch order. This sequence packing is different from packed gate parameters:
+ * it omits padded logical rows from cell expressions, while gate packing places several trainable
+ * gate matrices in one parameter Tensor. It is also different from {@code Sequential}, which
+ * composes unary modules, and from a runtime recurrent scan, which current Model contracts do not
+ * yet provide. Only the defensively copied explicit Java lengths determine padding; numeric zero
+ * remains ordinary data.</p>
+ *
  * <p>{@link io.github.pho001.synaptik.nn.layers.Linear} uses the conventional
  * {@code [outFeatures, inFeatures]} weight orientation and delegates each forward call to
  * {@link io.github.pho001.synaptik.model.tensor.Tensor#linear(

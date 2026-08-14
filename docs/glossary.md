@@ -2397,7 +2397,8 @@ requests, higher derivatives, optimizer updates, preparation, and execution rema
 ### Neural-network module, parameter, buffer, and forward context
 
 `extensions/nn` currently provides direct-state and module-tree foundations, eager parameter
-initializers, five concrete layers, three recurrent cells, and narrow unary composition. A
+initializers, five concrete layers, three recurrent cells, one statically packed vanilla-RNN
+sequence container, and narrow unary composition. A
 **module** is a stateful
 neural-network composition unit that directly declares trainable **parameters** and persistent
 **buffers**, and can permanently own named child modules. Parameters, buffers, and children share
@@ -2597,11 +2598,11 @@ select a backend, or execute work. Every leading input or hidden axis is ordinar
 broadcastable batch metadata rather than an implicit time axis.
 
 `RnnCell` extends `Module` directly. It is not a `UnaryTensorModule` and cannot be a `Sequential`
-child because its complete forward contract needs two Tensor inputs. A recurrent sequence would
-require a separate container or Model operation that repeatedly threads state. That is also
-different from a [`cumulative scan`](#cumulative-scan): current `CUM_SUM` and `CUM_PROD` combine
-prefixes of one input with a fixed associative operation and carry no caller-selected hidden
-Tensor, cell parameters, or recurrent body.
+child because its complete forward contract needs two Tensor inputs. Current `RnnSequence`
+provides the separate static container described below. That composition is also different from a
+[`cumulative scan`](#cumulative-scan): current `CUM_SUM` and `CUM_PROD` combine prefixes of one
+input with a fixed associative operation and carry no caller-selected hidden Tensor, cell
+parameters, or recurrent body.
 
 A **gated recurrent unit (GRU) cell** is the current final `GruCell`, which adds reset and update
 gates to one explicit hidden-state transition. Its trainable state is packed gate-major in reset,
@@ -2658,14 +2659,47 @@ differs from vanilla RNN and GRU cells, whose visible output and next hidden sta
 and which carry no separate cell state. `LstmCell` extends `Module` directly; its three-Tensor
 input contract and two-state result exclude it from `UnaryTensorModule` and `Sequential`.
 
-A **recurrent scan** would repeatedly invoke a cell body while carrying state and is future work.
-Future packed variable-length sequence handling must use explicit lengths or a mask, omit padded
-cell calls, preserve or restore original batch order after any active-set compaction, and capture
-final hidden state plus final LSTM cell state as each sequence finishes. Here “packed sequence” is
-different from the implemented GRU/LSTM gate-parameter packing, which only places gate matrices
-and bias intervals in a fixed checkpoint order. Neither meaning is a cumulative scan: current
-`CUM_SUM` and `CUM_PROD` use one fixed associative operation over prefixes and do not carry a
-cell body, packed parameters, or caller-selected recurrent state.
+A **construction-time length** is one element of the Java `long[]` supplied to current
+`RnnSequence.forward`. There is exactly one length per original batch row, each in `[0, time]`.
+The method clones the array before validation and uses only the clone to choose static expression
+structure; it retains neither array. The caller must coordinate mutation that could race with the
+clone. Construction-time lengths are metadata for Java expression construction, not Tensor
+values, module state, parameters, buffers, masks, padding sentinels, or runtime inputs.
+
+An **active batch** at time step `t` is the stable subsequence of original batch rows whose copied
+construction-time length is greater than `t`. Current `RnnSequence` keeps those rows in ascending
+original order without sorting. It gathers only that subsequence for the step's input and carried
+hidden Tensor, then invokes the owned `RnnCell` once on the compact batch. Numeric values do not
+participate in this decision: zero is ordinary active data whenever its row's length exceeds the
+step.
+
+A **static packed recurrent sequence** is the current final `RnnSequence`. It owns one exact
+`RnnCell`, accepts fully static time-major input `[time, batch, inputSize]`, explicit initial hidden
+state `[batch, hiddenSize]`, and construction-time lengths, then statically unrolls through
+ordinary Model SELECT, eager INT64 index, GATHER, cell, and STACK expressions. Its immutable
+`RnnSequenceForwardResult` exposes one exact compact cell output per non-empty time step plus final
+hidden rows restored to original batch order. A length-zero row takes its final state from the
+initial hidden Tensor; when no step is active, the result has an empty list and the exact initial-
+hidden reference.
+
+For lengths `[5, 3, 1]`, active original rows are `[0,1,2]`, `[0,1]`, `[0,1]`, `[0]`, and `[0]`.
+Five batched cell calls therefore represent nine logical recurrent rows rather than fifteen dense
+padded rows. This statement describes expression construction: it does not claim numerical
+values, gradients, compiler capture, backend lowering, scheduled work, or runtime kernel
+avoidance.
+
+This sequence packing is different from GRU/LSTM **gate-parameter packing**, which places gate
+matrices and optional bias intervals in a fixed checkpoint order. It also does not produce a
+dense padded output and does not infer padding from zero-valued data.
+
+A **recurrent scan** would invoke a caller-selected cell body while carrying state according to
+runtime-dependent control flow. No such Model primitive is current. Runtime Tensor lengths or
+masks would need that genuine contract because their values would decide the number of steps and
+active-batch Shapes; applying a dense `WHERE` after a full-batch cell would still construct padded
+cell work. Current `CUM_SUM` and `CUM_PROD` instead use one fixed associative operation over every
+prefix and do not carry a cell body, parameters, or caller-selected recurrent state. Static packed
+GRU and LSTM sequence containers remain planned; an LSTM form must restore both final hidden and
+cell states.
 
 `extensions/nn` composes generic [`Tensor`](#tensor) and operation semantics from
 `modules/model`. [`extensions/training`](#training-graph) consumes nn-declared parameters for

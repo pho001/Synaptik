@@ -8,7 +8,8 @@ training and the remaining planned training concepts without inventing optimizer
 parameter discovery, one public schema-validated parameter replacement capability, and strict
 in-memory module-tree state export/load. It also provides the narrow `UnaryTensorModule` subtype
 and immutable numeric-child `Sequential` composition for modules whose complete forward signature
-is exactly `Tensor forward(Tensor)`.
+is exactly `Tensor forward(Tensor)`, three explicit-state recurrent cells, and one statically
+packed vanilla-RNN sequence container.
 `extensions/training`, public gradient publication, optimizer behavior, and prepared execution
 are not implemented. The compiler now provides a public immutable functional-gradient request
 value and a bounded package-private one/two-stage reverse-mode integration path.
@@ -67,6 +68,58 @@ input reference
 Inherited recursive mode propagation and state-dictionary export/load follow those numeric child
 paths. The sequence does not create a training session, choose an optimizer, publish gradients,
 or imply that any Tensor expression has been executed.
+
+## Current NN recurrent composition contract
+
+`RnnCell`, `GruCell`, and `LstmCell` each describe one recurrent step and extend `Module`
+directly. RNN and gated recurrent unit (GRU) cells accept input plus hidden state and return one
+next-hidden Tensor. The long short-term memory (LSTM) cell accepts input, hidden state, and cell
+state and returns both next states. None retains caller-threaded recurrent state, and none fits the
+one-input contract of `UnaryTensorModule` or `Sequential`.
+
+`RnnSequence` is the current cell-specific sequence container. It permanently owns one exact
+`RnnCell` child and accepts:
+
+```java
+RnnSequenceForwardResult result = sequence.forward(input, initialHidden, lengths);
+```
+
+Here `input` must have a fully static time-major Shape `[time, batch, inputSize]`,
+`initialHidden` must have Shape `[batch, hiddenSize]`, and `lengths` is a Java `long[]` with one
+value in `[0, time]` per original batch row. The method defensively copies the array before using
+it and retains neither copy. Callers must coordinate any array mutation that could race with that
+copy.
+
+The copied lengths determine an **active batch** at each time step: original batch rows whose
+length exceeds that step, kept in ascending original order. The sequence statically constructs
+one compact batched cell expression for every non-empty step. It never examines Tensor values to
+decide activity, so an all-zero input row remains active whenever its explicit length includes the
+step.
+
+For example, lengths `[5, 3, 1]` produce five packed outputs with active batch extents
+`[3, 2, 2, 1, 1]`:
+
+```text
+time step          0      1      2      3      4
+active rows      0,1,2   0,1    0,1     0      0
+active extent      3      2      2      1      1
+```
+
+There are five Java cell calls—one per non-empty time step—and their compact Shapes represent
+nine logical recurrent row applications rather than fifteen dense padded rows. Each
+`packedOutputs().get(t)` is the exact cell Tensor for that compact step. `finalHidden()` restores
+one row per original batch entry: row 0 comes from step 4, row 1 from step 2, and row 2 from step
+0. A zero-length row instead uses its row from `initialHidden`; if all lengths are zero, the
+packed list is empty and `finalHidden()` is the exact `initialHidden` reference.
+
+This is static Tensor-expression construction, not numerical execution. It proves that padded
+logical rows are absent from the constructed cell operands; it does not prove compiler capture,
+gradient support, backend lowering, physical kernel skipping, or execution. Runtime Tensor
+lengths or masks cannot currently choose the number of steps or active-batch Shapes. Applying a
+dense `WHERE` after a full-batch cell would still construct padded cell work. A future dynamic
+form therefore needs a genuine Model recurrent scan or control-flow contract. Current cumulative
+sum and product scans have fixed associative bodies and are not that primitive. Cell-specific GRU
+and LSTM sequence containers remain planned rather than implemented.
 
 ## Current NN parameter update contract
 
