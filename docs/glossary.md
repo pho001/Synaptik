@@ -2336,7 +2336,7 @@ requests, higher derivatives, optimizer updates, preparation, and execution rema
 ### Neural-network module, parameter, buffer, and forward context
 
 `extensions/nn` currently provides direct-state and module-tree foundations, eager parameter
-initializers, and its first three concrete layers. A **module** is a stateful neural-network
+initializers, and its first four concrete layers. A **module** is a stateful neural-network
 composition unit that directly declares trainable **parameters** and persistent **buffers**, and
 can
 permanently own named child modules. Parameters, buffers, and children share one module-local
@@ -2425,6 +2425,26 @@ types, result metadata, ordinary axis-zero Gather provenance, and failures. Each
 fresh declarative expression; a compatible replacement changes later calls, while an already
 constructed expression keeps its prior exact table. The layer adds no buffer, numerical lookup,
 gradient/update rule, compiler behavior, backend support, or execution.
+
+The current final `BatchNorm` module owns mandatory rank-one `scale` and `bias` parameters plus
+`runningMean` and `runningVariance` buffers for one fixed positive feature count, non-negative
+logical channel axis, exact floating type, and exact typed momentum and epsilon. Supplied state is
+retained exactly; initialized state is one scale, zero bias, zero running mean, and one running
+variance. `forward(input, context)` treats the explicit immutable context as authoritative.
+Evaluation constructs one Model inference expression and changes no buffer. Training constructs
+one Model training producer, then installs its exact next mean followed by its exact next variance
+into the stable buffer wrappers before returning normalized output. This is a sequential symbolic
+binding transition, not eager statistic calculation, Tensor mutation, backend execution,
+checkpoint or session persistence, rollback, thread safety, or a joint state snapshot. Earlier
+expressions retain their old inputs, while stable discovered wrappers observe later bindings.
+
+For example, rank-one state Shape `[3]`, channel axis `1`, and input Shape `[2, 3, 4]` pass the
+layer's fixed-channel validation. With an evaluation context, the output provenance names one
+`BATCH_NORM_INFERENCE` occurrence and both buffers retain their prior exact bindings. With a
+training context, the output and two installed next-statistic Tensors share one
+`BATCH_NORM_TRAINING` producer at slots zero, one, and two. This example describes Shape,
+provenance, and state binding only; it does not calculate values or prove compiler, runtime, or
+backend execution.
 
 `extensions/nn` composes generic [`Tensor`](#tensor) and operation semantics from
 `modules/model`. [`extensions/training`](#training-graph) consumes nn-declared parameters for
@@ -4265,6 +4285,16 @@ running mean to input/running mean, and next running variance to input/running v
 retrieves the exact same-occurrence saved wrappers for formulas; saved slots are not independent
 cotangent roots. Training-session and checkpoint ownership, physical saved-value lifetime,
 publication, lowering, and execution remain planned in their owning layers.
+
+The current `extensions/nn` `BatchNorm` module is the state owner for this mandatory affine form.
+It narrows the four state vectors to one positive fully static Shape and exact floating type, and
+requires the selected input channel Dimension to match that fixed feature Dimension structurally.
+The explicit `ForwardContext` is authoritative: evaluation composes inference without replacing a
+buffer, while training composes one complete producer before installing its exact next mean and
+then its exact next variance. A Model failure before that complete result preserves both bindings;
+the two later replacement operations provide no transaction, rollback, thread safety, numerical
+execution, or persistence guarantee.
+
 See [batch-normalization inference](api/tensor-api.md#batch-normalization-inference-expressions) and
 [batch-normalization training](api/tensor-api.md#batch-normalization-training-and-statistic-transition-expressions).
 

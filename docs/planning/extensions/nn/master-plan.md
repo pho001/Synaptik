@@ -83,7 +83,11 @@ Completed task 0007 adds final public `Embedding` beside those layers with one c
 table parameter and exact delegation to the existing Model embedding convenience. It deliberately
 adds no layer-owned initializer or padding-row policy because the current contracts provide
 neither a selected embedding initialization policy nor a way to preserve a padding row without
-hidden mutation or new gradient/update behavior. `functional/` remains future work. State
+hidden mutation or new gradient/update behavior. Completed task 0008 adds final public
+`BatchNorm` as the first mode-sensitive layer, with exact rank-one affine parameters and running-
+statistic buffers plus context-selected Model inference or training composition. Training installs
+the pure producer's next mean followed by next variance through stable buffer wrappers; it adds no
+execution, transaction, or checkpoint contract. `functional/` remains future work. State
 dictionaries remain later work.
 
 ## Task list
@@ -98,7 +102,7 @@ dictionaries remain later work.
 | [0005](tasks/0005-linear-layer.md) | Linear layer | Complete | 0001, 0004, 0004A; completed model `Tensor.linear` | Added the first stateful layer with caller-supplied or explicit-source Glorot-uniform `weight`, optional caller-supplied or zero `bias`, stable parameter handles, and exact delegation to visible Model linear composition without execution behavior. |
 | [0006](tasks/0006-layer-normalization-layer.md) | Layer normalization layer | Complete | 0001–0005; completed Model 0021 | Added mandatory exact-Shape `scale` and `bias` parameters, caller-supplied or ones/zeros initialized state, stored typed epsilon, and mode-insensitive exact delegation to affine `Tensor.layerNorm`. |
 | [0007](tasks/0007-embedding-layer.md) | Embedding layer | Complete | 0006; completed Model 0019A1 | Added one positive fully static rank-two `weight` parameter supplied by the caller and mode-insensitive delegation exactly to axis-zero `Tensor.embedding`, with no layer-owned initialization or padding-row contract. |
-| 0008 | Batch normalization layer | Draft | 0007; completed Model 0021B–0021C | Introduce the first layer that owns both trainable parameters and persistent running-statistic buffers, then define an explicit train/eval state-transition contract over Model inference/training expressions. |
+| [0008](tasks/0008-batch-normalization-layer.md) | Batch normalization layer | Complete | 0007; completed Model 0021B–0021C | Added final affine `BatchNorm` with exact rank-one state, explicit typed scalars and channel axis, context-selected inference/training composition, and training-only installation of the two pure next-statistic expressions into stable buffers. |
 | 0009 | Dropout layer | Draft | 0008; completed Model 0019B–0019B1 | Decide explicit `GraphRngState` threading and evaluation-bypass result semantics at this frontier; the layer must never retain, create, or consult hidden random state. |
 | 0010 | State dictionary and checkpoint contract | Draft | 0009; stable module-tree traversal and replacement contracts | Define deterministic state paths, schema and validation, atomic load behavior, and the boundary between an in-memory state dictionary and any serialization format without adding optimizer state. |
 | 0011 | Unary Tensor module composition and Sequential | Draft | 0010; concrete unary layer composition need | Introduce a narrow shared unary Tensor-forward contract only if the actual `Sequential` container requires it; do not add a broad generic layer facade or force non-unary modules into one signature. |
@@ -188,8 +192,15 @@ added the planned layer and focused test, then passed the final 8-test Embedding
 12-suite/61-test NN module suite. The independent clean documentation context finalized Javadocs,
 the glossary, and planning evidence and passed generated-Javadoc, public-surface, Markdown,
 dependency/import, exact-scope, and whitespace checks without repeating stable executable tests.
-Tasks 0008–0011 remain concise Draft rows under progressive planning and have no detailed task
-files; there is no Ready NN task.
+Detailed [NN 0008](tasks/0008-batch-normalization-layer.md) is Complete. Its isolated
+implementation context added the exact planned BatchNorm production and test surface, passed the
+final focused 2-suite/13-test selection and authoritative 14-suite/74-test NN module run with no
+failures, errors, or skips, and changed no executable Java or test afterward. The independent
+clean documentation context `/root/nn_0008_docs` finalized the glossary and planning evidence,
+reviewed the complete package/type Javadocs without requiring a source edit, and passed final
+generated-Javadoc, exact-surface, Markdown, dependency/import, seven-path scope, status, and
+whitespace gates without repeating the stable executable tests. Tasks 0009–0011 remain concise
+Draft rows, have no detailed task files, and no NN task is Ready.
 
 The ordered follow-up sequence is deliberate. `Embedding` is another mode-insensitive
 parameter-only wrapper. `BatchNorm` follows it as the first layer that must coordinate parameters,
@@ -203,8 +214,6 @@ forward contract is deferred until the actual `Sequential` consumer can prove it
 - Decide whether a concrete future consumer justifies configurable gain, activation, fan mode,
   convolution fan geometry, or an initializer object abstraction. NN 0004 deliberately fixes only
   unit-gain Glorot and fan-in/ReLU Kaiming for positive rank-two Linear weights.
-- At NN 0008, decide the exact batch-normalization buffer schema, training-state installation
-  boundary, and failure atomicity without treating buffers as optimizer targets.
 - At NN 0009, decide whether evaluation returns the exact input Tensor or another explicit result
   shape while preserving caller-owned `GraphRngState` and consuming no hidden draw.
 - At NN 0010, select the serialization boundary only after the in-memory deterministic state and
@@ -271,7 +280,15 @@ forward contract is deferred until the actual `Sequential` consumer can prove it
   padding index or padding-row invariant: ordinary `Tensor.embedding` has no such semantic, and
   preserving a zero row across parameter replacement or future optimizer updates would require
   a new update/gradient contract or hidden mutation.
-- NN 0008–0011 remain ordered Draft capabilities only. Their rows record dependencies and
+- NN 0008 selects final affine `BatchNorm` with positive static rank-one state named `scale`,
+  `bias`, `runningMean`, and `runningVariance`; a non-negative stored logical channel axis; exact
+  state-typed momentum and epsilon; and one explicit `forward(Tensor, ForwardContext)` method.
+  Evaluation delegates to Model inference without state replacement. Training delegates once to
+  Model training, then installs its next mean followed by next variance through the existing
+  protected direct-buffer operations before returning the normalized output. This is one layer-
+  owned sequential transition, not generic atomic multi-binding, execution-side mutation, or a
+  training-session/checkpoint contract.
+- NN 0009–0011 remain ordered Draft capabilities only. Their rows record dependencies and
   unresolved decisions without creating premature task specifications.
 
 ## Risks

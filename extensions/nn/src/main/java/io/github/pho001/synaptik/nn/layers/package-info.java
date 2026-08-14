@@ -34,5 +34,14 @@
  * no table initializer, padding-row policy, numerical lookup, or execution behavior. Compatible
  * table replacement affects later calls, while already constructed expressions retain their
  * earlier exact table.</p>
+ *
+ * <p>{@link io.github.pho001.synaptik.nn.layers.BatchNorm} owns mandatory rank-one
+ * {@code scale}, {@code bias}, {@code runningMean}, and {@code runningVariance} state for one
+ * explicit logical channel axis. Its immutable
+ * {@link io.github.pho001.synaptik.nn.module.ForwardContext} selects exact Model inference or
+ * training composition. Evaluation preserves both buffers; successful training installs the
+ * pure producer's next mean and then next variance expressions into their stable wrappers. This
+ * symbolic NN binding transition performs no eager value mutation, compiler/runtime publication,
+ * backend work, or numerical execution.</p>
  */
 package io.github.pho001.synaptik.nn.layers;
