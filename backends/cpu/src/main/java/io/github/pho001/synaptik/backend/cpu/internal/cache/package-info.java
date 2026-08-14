@@ -28,7 +28,9 @@
  * Schema 23 adds proved dense heap-array integer affine-copy and movement bodies with invariant
  * invocation geometry hoisted before their loops. Schema 24 adds carrier-, type-, and family-
  * specialized indexing bodies with proved dense heap-array integer-address and typed general
- * long-address forms. Schema 24 is current-only.
+ * long-address forms. Schema 25 adds family-, type-, reduction-, carrier-, and access-specialized
+ * functional-scatter output and contribution bodies, including inline exact floating-product
+ * state for scratch-bearing entries. Schema 25 is current-only.
  * Four complete candidate plans, one realized
  * artifact, zero fixed-shape variants, and zero unrolled variants are the current hard budget.
  * With no trusted root, realization remains entirely in memory. With a root, one bounded

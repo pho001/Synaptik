@@ -7,10 +7,13 @@
  * generated class. The plan may be consumed by artifact realization and finalization, but it does
  * not interpret graph semantics, own the scalar reference implementation, select a native
  * provider, schedule workers, or declare resource lifetime.
- * A functional-scatter specialization may additionally expose one direct scratch-segment
- * parameter when its already-lowered floating-product row requires the declared per-range
- * accumulator. Concrete workspace identity, size, slice offset, and lifetime remain prepared
- * invocation facts rather than route or artifact-selection decisions.
+ * A functional-scatter specialization embeds its selected family, represented type, reduction,
+ * carrier accesses, and output-domain contribution loop. It may additionally expose one direct
+ * scratch-segment parameter when its already-lowered floating-product row requires the declared
+ * per-range accumulator; the exact-product state machine is embedded in that generated entry.
+ * Complete index and replacement-uniqueness validation remains outside generated work. Concrete
+ * geometry, workspace identity, size, slice offset, and lifetime remain prepared invocation facts
+ * rather than route or artifact-selection decisions.
  * A fold specialization remains a two-boundary workspace-free scalar artifact; parallel-scalar
  * orchestration reuses it over disjoint output-coordinate ranges.
  * An ordering specialization remains scalar and adds one direct scratch-segment parameter. SORT

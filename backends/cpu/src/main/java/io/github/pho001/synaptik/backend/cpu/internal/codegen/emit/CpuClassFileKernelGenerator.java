@@ -25,9 +25,10 @@ import java.util.Objects;
  * Instruction-free affine, movement, indexing, scatter, fold, ordering, explicit-state random,
  * cumulative-scan, and ordinary aggregate forms delegate to their focused emitters after
  * structural specialization checks. Dense heap-array pointwise, affine-copy, movement, and
- * indexing bodies use one-time integer narrowing and hoisted geometry; indexing, scan, and
- * aggregate emitters embed typed family hot loops. General layouts and segment or mixed carriers
- * retain typed long-address fallbacks.
+ * indexing bodies use one-time integer narrowing and hoisted geometry; indexing, functional
+ * scatter, scan, and aggregate emitters embed typed family hot loops. Functional-scatter classes
+ * additionally embed their selected reduction and optional exact-product scratch state. General
+ * layouts and segment or mixed carriers retain typed long-address fallbacks.
  */
 public final class CpuClassFileKernelGenerator {
     /** Creates a stateless generator with no retained route or specialization state. */
@@ -62,7 +63,7 @@ public final class CpuClassFileKernelGenerator {
                                 } else if (kernelIr.familyIdentity().startsWith("fold:")) {
                                     new CpuFoldEmitter().emit(code, specialization);
                                 } else if (kernelIr.familyIdentity().startsWith("scatter:")) {
-                                    new CpuScatterEmitter().emit(code, specialization);
+                                    new CpuScatterEmitter().emit(code, specialization, kernelIr);
                                 } else if (kernelIr.familyIdentity().startsWith("indexing:")) {
                                     new CpuIndexingEmitter().emit(code, specialization, kernelIr);
                                 } else if (kernelIr.familyIdentity().startsWith("movement:")) {

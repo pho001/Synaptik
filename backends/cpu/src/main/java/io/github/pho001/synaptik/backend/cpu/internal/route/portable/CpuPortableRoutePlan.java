@@ -12,8 +12,11 @@ import java.util.Objects;
  * A selected contiguous pointwise input copy is already reflected in the supplied canonical
  * consumer IR and specialization. An affine plan instead retains its structural copy form while
  * exposing an instruction-free encoded form to the existing generator/cache boundary. The plan
- * does not retain source/workspace objects or concrete affine addresses. Ordinary aggregate IR
- * is encoded for compatibility while its generated entry remains a direct CPU-static-body bridge.
+ * does not retain source/workspace objects or concrete affine addresses. Functional-scatter IR
+ * retains the structural family, reduction, boundary access, and optional scratch-entry facts
+ * required to embed its typed output/contribution body; concrete indices, geometry, and scratch
+ * slices remain outside the plan. Ordinary aggregate IR is encoded for compatibility while its
+ * generated entry remains a direct typed body.
  *
  * @param portableKernelIr non-null route-independent pointwise, affine, movement, indexing,
  *     functional-scatter, overlap-fold, ordering, random, cumulative-scan, or aggregate IR

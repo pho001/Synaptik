@@ -1069,8 +1069,10 @@ output ownership, arbitrary non-negative resolved input layouts, injective outpu
 segment/mixed carriers, input deduplication and aliasing, and strict output/input non-overlap.
 `NONE` accepts all six represented types; ADD/MUL/MIN/MAX accept the five numeric types, while
 SCATTER_ADD is fixed ADD. Floating MUL alone declares exact per-range primitive-limb scratch and
-rounds the abstract product once. Schema 16 introduced scatter structure and scratch signature;
-current schema 24 retains them.
+rounds the abstract product once. Complete bounds validation, followed by replacement-target
+uniqueness validation where required, finishes before generated work. Schema 16 introduced
+scatter structure and the scratch signature; current schema 25 embeds family-, type-, reduction-,
+carrier-, and access-specialized output/contribution loops plus the exact-product state machine.
 
 Completed CPU 0006B2 adds exactly one fully static resolved-layout FOLD_AXIS or FOLD2D
 occurrence. Fold starts a fresh output from represented positive zero, visits contributions in
@@ -1078,7 +1080,7 @@ canonical logical input row-major order, uses scalar or disjoint-output parallel
 and declares neither workspace nor materialization. Both families admit FLOAT64, FLOAT32, and
 BFLOAT16; FOLD_AXIS additionally admits modular INT32/INT64 addition. FOLD2D excludes padded and
 ceil-tail coordinates outside the unpadded NCHW output. Schema 17 added fold structure and its
-canonical sequential-addition policy; current schema 24 retains both.
+canonical sequential-addition policy; current schema 25 retains both.
 
 Completed CPU 0006C adds exactly one fully static resolved-layout stable SORT, ARGSORT, or TOP_K
 occurrence for all six represented types. It uses logical-axis order, keeps floating NaNs last in
@@ -1107,9 +1109,11 @@ generated Class-File entry now embeds typed aggregate folds for current emitted 
 CPU 0007A0 introduced schema 22, typed scan/aggregate bodies, and proved dense heap-array integer
 pointwise loops while retaining general-long fallbacks and schema-21 aggregate identity facts.
 Completed CPU 0007A0A advanced the compatibility boundary to schema 23 for proved dense heap-array
-affine and movement integer bodies. Completed CPU 0007A0B advances it to schema 24 for embedded
-typed indexing bodies and their proved dense integer-address/general long-address forms. Schema-23
-and earlier artifacts are incompatible misses without migration.
+affine and movement integer bodies. Completed CPU 0007A0B advanced it to schema 24 for embedded
+typed indexing bodies and their proved dense integer-address/general long-address forms. Completed
+CPU 0007A0C advances it to schema 25 for embedded typed scatter matching, reduction, carrier/access,
+and exact floating-product bodies. Schema-24 and earlier artifacts are incompatible misses without
+migration.
 
 Cross-type cast, general BFLOAT16 pointwise arithmetic, FLOAT16 execution, relaxed math,
 native/vendor realization, dynamic layouts, Vector API scatter, fold, ordering, scan, or ordinary
@@ -1158,10 +1162,11 @@ comparison/classification BOOL values as unit-private virtual masks through logi
 and floating WHERE; materialized masks remain scalar. It
 emits generation-time-selected primitive access state machines, direct array or native-order
 `MemorySegment` vector access, unmasked complete vectors, and scalar remainders. Current
-schema-24 dense heap-array pointwise, affine, movement, and indexing entries narrow universal
+schema-25 dense heap-array pointwise, affine, movement, indexing, and eligible scatter entries narrow universal
 `long` bounds, bases, and applicable geometry once to integer locals, while unproved arrays,
-segments, and general layouts retain long address state. Indexing, scan, and ordinary-aggregate
-entries embed typed family bodies rather than a generic static `Object` carrier bridge. Parallel
+segments, and general layouts retain long address state. Indexing, functional-scatter, scan, and
+ordinary-aggregate entries embed typed family bodies rather than a generic static `Object` carrier
+bridge. Scratch-bearing scatter entries also embed their exact-product state. Parallel
 orchestration remains outside generated code. The family-level
 `CpuVectorInstructionEmitter` owns the closed operation-to-vector-bytecode switch, while
 `CpuVectorMath` owns only pure typed multi-instruction formulas, including the selected ERF and
@@ -1177,7 +1182,7 @@ decision occurs in the generated loop.
 ### CPU kernel specialization
 
 The implemented backend-private immutable description of every fact allowed to change one
-generated CPU class. The current form includes schema 24, the canonical lowering fingerprint with
+generated CPU class. The current form includes schema 25, the canonical lowering fingerprint with
 typed opcode sequence, exact scalar-immediate bits, exact ordered clamp-bound bits, and selected
 scalar-power realizations, exact/default numerical mode, generated
 scalar/vector compute form, exact preferred FLOAT32, FLOAT64, INT32, INT64, or BOOL species bit
@@ -1204,8 +1209,9 @@ mode, and typed-rounding facts, schema 21 adds ordinary aggregate form, selected
 zero-workspace facts, schema 22 adds embedded typed scan/aggregate body compatibility plus the
 proved dense heap-array integer-address pointwise loop category, schema 23 adds proved dense
 heap-array integer affine/movement bodies with invariant invocation geometry hoisted before the
-loop, and schema 24 adds embedded typed indexing bodies with proved dense integer-address and
-general long-address forms.
+loop, schema 24 adds embedded typed indexing bodies with proved dense integer-address and general
+long-address forms, and schema 25 adds embedded typed scatter output, matching, reduction,
+carrier/access, and exact-product bodies.
 Canonical IR separately supplies value kind, data type, ordered semantics/stores, iteration rank,
 axis roles, contiguous-suffix form, and access regime. Their derived compatibility bytes and
 structural identity are order-sensitive.
@@ -1606,7 +1612,7 @@ output does not skip a non-empty validation domain; after successful validation 
 generated entry and submits no worker work.
 
 CPU analysis declares unique inputs in semantic first-use order followed by one output. It selects
-one execution unit, no materialization, no workspace, and one current schema-24 artifact whose
+one execution unit, no materialization, no workspace, and one current schema-25 artifact whose
 generated class embeds carrier-, type-, family-, and access-specialized scalar or parallel-scalar
 output writers. Proved dense heap arrays use integer loop/address state; general layouts and
 segment or mixed carriers retain typed long-address traversal. Compact geometry retains no per-
@@ -1638,7 +1644,7 @@ input/output physical overlap before work.
 
 Analysis declares exactly two buffers, zero workspaces or materializations, one unit, and one
 artifact. Schema 17 introduced fold family, type, structural access/rank facts, carrier form,
-execution mode, and addition policy; current schema 24 retains those facts while keeping concrete
+execution mode, and addition policy; current schema 25 retains those facts while keeping concrete
 geometry and ranges cold. This term
 adds no Model or Compiler semantics, gradient route, Runtime interpretation, native or vector
 fold, dynamic layout, fusion, reduction-framework reuse, cross-backend bitwise promise, or
@@ -4377,7 +4383,7 @@ finite steps including legal length-one `Long.MIN_VALUE`, handles scalar and emp
 supports arbitrary disjoint scalar or parallel-scalar ranges across heap, segment, and mixed
 carriers. Output/input physical overlap is rejected; exact same-value base/update inputs may share
 one deduplicated boundary. Schema 15 introduced the slice-update family/rank/map structure, and
-current schema 24 retains it;
+current schema 25 retains it;
 concrete placement remains cold. Functional scatter and overlap fold are separate current CPU
 portable families.
 

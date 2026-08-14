@@ -638,7 +638,7 @@ affine load/store, gather, scatter, masked tail, or speed claim.
 Lifecycle ownership remains unchanged. CPU analysis validates and composes the chain, chooses the
 scalar orchestration, and declares exactly the source and final result. Shared Prepare assigns
 those two slots without interpreting the affine plan. CPU finalization validates both assignments
-before current schema-24 artifact access and constructs one immutable executable. Cold binding validates
+before current schema-25 artifact access and constructs one immutable executable. Cold binding validates
 the exact data type, carrier, byte size, alignment, accessibility, output writability, canonical
 BOOL input bytes, and source/result non-overlap. Runtime then invokes only the prepared direct
 carriers, address table, and `start`/`end` bounds; it receives no operation, graph node, Shape,
@@ -689,7 +689,7 @@ callback, or per-element allocation in generated code.
 
 Movement uses scalar compute and either single-thread or deterministic parallel orchestration.
 Parallel chunks are safe because output injectivity proves disjoint writes. Vector preference
-falls back to scalar for this family. CPU finalization realizes current schema-24 generated artifacts;
+falls back to scalar for this family. CPU finalization realizes current schema-25 generated artifacts;
 cold binding validates complete input/output spans and rejects every output/input overlap before
 execution. The scalar reference consumes the same movement IR and compact geometry for
 differential tests, not as a Runtime fallback.
@@ -800,15 +800,16 @@ injectivity, and output/input non-overlap checks still run.
 
 CPU analysis declares each distinct gather input `ValueId` once in semantic first-use order and
 then one separate output; one-hot declares indices and output. Every indexing plan has one unit,
-no materialization, no workspace, one current schema-24 generated class artifact, one prepared
+no materialization, no workspace, one current schema-25 generated class artifact, one prepared
 executable, and one bound invocation. The generated class embeds carrier-, type-, family-, and
 access-specialized output loops rather than delegating through a generic carrier bridge. Proved
 dense heap arrays use integer loop/address state; segment, mixed-carrier, and general-layout forms
 retain typed long-address traversal. The artifact owns only output writing. Compact CPU-private
 geometry retains layout and coordinate facts without a per-index or per-output table, while the
 bound executable owns run-value validation. Shared Prepare assigns declared buffers opaquely,
-and Runtime sees only the prepared executable and direct carriers. Schema-23 artifacts are
-incompatible misses; there is no migration reader.
+and Runtime sees only the prepared executable and direct carriers. Schema 24 introduced these
+embedded indexing bodies; under current schema 25, schema-24 and earlier artifacts are
+incompatible misses and there is no migration reader.
 
 Current indexing support ends at these four one-node, fully static operations. Functional
 scatter, fold accumulation, ordering/top-K, and explicit-state random work have separate current
@@ -896,11 +897,17 @@ an earlier complete target. Bounds always precede duplicate checking, including 
 cases, and any validation failure leaves the output bytes unchanged. `SCATTER_ADD` accumulates
 duplicates and has no uniqueness pass.
 
-The generated body scans logical contributions for each owned output coordinate, reads the base
-through the data layout, and writes that output once. A scalar call owns the complete selected
-range; parallel-scalar chunks own disjoint output ranges, share only read-only inputs, and use no
-atomics or merge step. Resolved inputs may use non-negative offsets and strides, including
-broadcast-zero strides; output layout must be writable and injective. Heap carriers are
+The generated class embeds the selected scatter family, represented type, reduction, carrier
+accesses, contribution matching, and output store. For each owned output coordinate it reads the
+base through the data layout, scans logical contributions in row-major order, and writes that
+output once. Cold-proved dense rank-one heap-array forms narrow universal bounds and bases once
+and retain integer loop and address state. Segment, mixed-carrier, arbitrary-layout, large-range,
+and otherwise unproved forms retain typed general long-address traversal. Neither form contains a
+generic `Object` execution bridge or repeats bounds and uniqueness validation inside generated
+work. A scalar call owns the complete selected range; parallel-scalar chunks own disjoint output
+ranges, share only read-only inputs, and use no atomics or merge step. Resolved inputs may use
+non-negative offsets and strides, including broadcast-zero strides; output layout must be writable
+and injective. Heap carriers are
 `double[]`, `float[]`, raw BFLOAT16 `short[]`, `int[]`, `long[]`, and canonical BOOL `byte[]`;
 native-order `MemorySegment` and compatible mixed patterns are also supported. Exact repeated
 input values deduplicate to one boundary, and input/input overlap is allowed. Output overlap with
@@ -908,13 +915,25 @@ any input is rejected.
 
 Only a floating `MUL` plan with non-empty output and contribution domains declares workspace. One
 run-owned `CpuContiguousWorkspace` contains a checked, eight-byte-aligned fixed-capacity primitive-
-limb scratch slice per selected range; slices are disjoint, reset and reused, and contain no
-`BigInteger` or per-output allocation on generated execution. Every other scatter row declares no
-workspace, and scatter never selects input materialization. Schema 16 records scatter family,
-reduction, structural access/type/carrier facts, semantic occurrence mapping, and whether the
-entry accepts scratch. Concrete axes, batch/tuple values, extents, layout magnitudes, ranges,
-workspace sizes and offsets, resource identities, and validation results remain cold compatible
-facts; every older schema is an incompatible miss with no migration reader.
+limb scratch slice per selected range; slices are disjoint, reset and reused. The FLOAT64,
+FLOAT32, or BFLOAT16 generated entry embeds its type-specialized factor classification,
+sign/exponent/significand state, primitive-limb multiplication, and final ties-to-even rounding.
+It uses no `BigInteger`, generic scatter helper, or per-factor/per-output allocation. Every other
+scatter row declares no workspace, and scatter never selects input materialization. Schema 16
+introduced scatter family, reduction, structural access/type/carrier facts, semantic occurrence
+mapping, and the optional scratch entry. Current schema 25 additionally records the embedded
+family/type/reduction/carrier/access body; schema 24 and every earlier envelope are incompatible
+misses with no migration reader. Concrete axes, batch/tuple values, extents, layout magnitudes,
+ranges, workspace sizes and offsets, resource identities, and validation results remain cold
+compatible facts.
+
+The CPU 0007A0C local parity probe measured only two dense rank-one FLOAT32 heap-array cases under
+the retained five-fork protocol: unique `SCATTER_ELEMENTS + NONE` reached a generated/direct
+median-of-fork-medians ratio of `0.979533`, and duplicate-index `SCATTER_ADD` reached `0.983230`.
+Both are below the task's `1.15x` acceptance limit. These results are local evidence for those two
+unchanged class shapes, not a universal performance claim. General layouts, segment and mixed
+carriers, other families/types/reductions/index widths, and exact floating-product entries have
+semantic, resource, and generated-Class-File coverage but no timing threshold in this task.
 
 This coverage changes only the CPU-private portable route. It does not change Model semantics,
 Compiler capture or gradients, shared Prepare or Runtime contracts, public Tensor/API behavior,
@@ -962,7 +981,7 @@ parallel orchestration calls the same scalar body over disjoint output ranges. F
 API body, atomics, partial sums, cross-range merge, hidden scratch, or input-domain parallelism.
 CPU analysis and finalization keep concrete axes, windows, extents, layouts, carriers, and ranges
 cold. Schema 17 introduced the fold family, represented type, boundary access/rank structure,
-carrier pattern, execution mode, and canonical sequential-addition policy; current schema 24
+carrier pattern, execution mode, and canonical sequential-addition policy; current schema 25
 retains those facts, and every older schema is an incompatible miss with no migration reader.
 
 This is exact current CPU route coverage, not broader Model, Compiler, Runtime, Engine, gradient,
@@ -1165,7 +1184,7 @@ The entry contains no generic `Object` carrier bridge or runtime data-type/kind 
 Schema 20 records scan kind, represented type, normalized axis role, inclusive/exclusive and
 forward/reverse modes, ordered boundary roles and carrier forms, structural accesses, sequential
 typed-rounding policy, scalar compute shape, and absence of scratch. Schema 22 added the embedded
-typed body and dense heap-array loop-shape compatibility; current schema 24 retains those facts.
+typed body and dense heap-array loop-shape compatibility; current schema 25 retains those facts.
 Concrete extents, offsets, stride magnitudes, assigned slots, carrier objects,
 addresses, worker identity, run identity, and selected range count remain cold when they do not
 change emitted bytes. Schema-21 and earlier artifacts are incompatible misses, and there is no
@@ -1244,7 +1263,7 @@ combine state, or run-shared reduction state.
 Schema 21 records kind, represented type, ordinary form, canonical selected-axis membership,
 retention, structural boundary access, first-logical-NaN/signed-zero policy, complete-output-cell
 range meaning, carrier forms, and zero scratch. Schema 22 added embedded typed-body and dense
-heap-array loop-shape compatibility; current schema 24 retains those facts. Concrete Shapes,
+heap-array loop-shape compatibility; current schema 25 retains those facts. Concrete Shapes,
 domain counts, offsets, stride magnitudes, slots, carrier objects, addresses, workers, run
 identity, and selected range count remain cold when they do not change emitted bytes. Schema-21
 and earlier artifacts are incompatible misses; there is no migration reader.
@@ -1725,15 +1744,16 @@ above. Scalar
 execution covers every admitted row; parallel-scalar orchestration is available for disjoint
 affine, movement, scatter, fold, ordering, random-element, and whole-scan-slice ranges; and the
 pointwise family retains its exact
-typed value-vector and virtual-mask parity matrix. Generator schema 24 distinguishes pointwise,
+typed value-vector and virtual-mask parity matrix. Generator schema 25 distinguishes pointwise,
 affine, movement, indexing, scatter, fold, ordering, random, scan, and aggregate structures,
 including movement occurrence order,
 unequal-rank access, exact
-padding bits, functional slice-update rank/map identity, and scatter reduction/scratch signature,
+padding bits, functional slice-update rank/map identity, scatter reduction/scratch signature and
+embedded typed output/contribution body,
 plus fold family/addition-policy identity, ordering direction/output-order/output-count/scratch-
 entry identity, explicit-state mapping/scaling identity, cumulative kind/axis/mode/typed-rounding
 identity, ordinary aggregate form/axis/selection/range identity, embedded typed scan/aggregate
-bodies, proved dense heap-array integer pointwise/affine/movement/indexing loop forms, and the affine
+bodies, proved dense heap-array integer pointwise/affine/movement/indexing/scatter loop forms, and the affine
 mapping/write domain and all seven carrier forms. No excluded pointwise or later semantic family,
 general BFLOAT16 pointwise or dropout numerical operation,
 cross-type CAST, dynamic layout, vector affine/scatter/fold/ordering execution, native fallback, backend-conformance
