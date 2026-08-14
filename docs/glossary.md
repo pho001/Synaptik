@@ -2008,7 +2008,13 @@ A training-only stochastic operation that drops a requested fraction of logical 
 Current `Tensor.dropout(probability, state)` represents inverted dropout: a kept value is ideally
 scaled by `1 / (1 - probability)`, while a dropped value becomes positive zero. It consumes
 explicit graph RNG state and returns the next state; construction itself performs no draw,
-scaling, masking, or execution. There is no model-level training flag or inference rewrite.
+scaling, masking, or execution. Its Model `DropoutResult` describes public slots from that one
+training producer, so it cannot also describe an evaluation bypass with no producer. The current
+NN `Dropout` layer therefore owns a separate `DropoutForwardResult` and uses its explicit forward
+context to choose either Model construction or identity-preserving evaluation. There is no
+model-level training flag or inference rewrite. See
+[Neural-network module, parameter, buffer, and forward context](#neural-network-module-parameter-buffer-and-forward-context)
+and [Explicit-state dropout construction](api/tensor-api.md#explicit-state-dropout-construction).
 
 ### Contraction dimension
 
@@ -2462,6 +2468,29 @@ training context, the output and two installed next-statistic Tensors share one
 `BATCH_NORM_TRAINING` producer at slots zero, one, and two. This example describes Shape,
 provenance, and state binding only; it does not calculate values or prove compiler, runtime, or
 backend execution.
+
+The current final `Dropout` module retains only one finite primitive drop probability numerically
+in `[0.0, 1.0)`. It has no parameter, buffer, child, seed, counter, generator, or configuration
+getter. Every `forward(input, state, context)` call receives caller-owned explicit graph RNG state
+and treats that exact context as authoritative even if the module's inherited mode later differs.
+Evaluation returns a fresh NN `DropoutForwardResult` containing the exact input and incoming state
+references without calling Model, allocating a Tensor, or advancing state. Training calls
+`Tensor.dropout` exactly once and returns a fresh NN result containing the exact Model output and
+next-state references. The NN carrier is distinct because Model `DropoutResult` promises public
+slots from one producer, a condition that is false for evaluation bypass.
+
+This small declarative example summarizes the two branches for the same non-null `input` and
+`start` references:
+
+| Explicit context | Returned `output` | Returned `nextState` | Model dropout occurrence |
+|---|---|---|---|
+| Evaluation | exact `input` reference | exact `start` reference | none |
+| Training | exact Model output reference | exact Model next-state reference | exactly one |
+
+The example describes expression identity and explicit state threading, not sampled values,
+numerical randomness, gradients, compilation, backend support, execution, persistence, or
+thread-safety. A caller requests sequential consumption by passing one returned `nextState` to a
+later training call; reusing `start` instead expresses a branch.
 
 `extensions/nn` composes generic [`Tensor`](#tensor) and operation semantics from
 `modules/model`. [`extensions/training`](#training-graph) consumes nn-declared parameters for

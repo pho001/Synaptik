@@ -103,7 +103,7 @@ dictionaries remain later work.
 | [0006](tasks/0006-layer-normalization-layer.md) | Layer normalization layer | Complete | 0001–0005; completed Model 0021 | Added mandatory exact-Shape `scale` and `bias` parameters, caller-supplied or ones/zeros initialized state, stored typed epsilon, and mode-insensitive exact delegation to affine `Tensor.layerNorm`. |
 | [0007](tasks/0007-embedding-layer.md) | Embedding layer | Complete | 0006; completed Model 0019A1 | Added one positive fully static rank-two `weight` parameter supplied by the caller and mode-insensitive delegation exactly to axis-zero `Tensor.embedding`, with no layer-owned initialization or padding-row contract. |
 | [0008](tasks/0008-batch-normalization-layer.md) | Batch normalization layer | Complete | 0007; completed Model 0021B–0021C | Added final affine `BatchNorm` with exact rank-one state, explicit typed scalars and channel axis, context-selected inference/training composition, and training-only installation of the two pure next-statistic expressions into stable buffers. |
-| 0009 | Dropout layer | Draft | 0008; completed Model 0019B–0019B1 | Decide explicit `GraphRngState` threading and evaluation-bypass result semantics at this frontier; the layer must never retain, create, or consult hidden random state. |
+| [0009](tasks/0009-dropout-layer.md) | Dropout layer | Complete | 0008; completed Model 0019B–0019B1 | Added a parameterless/bufferless mode-sensitive layer with caller-threaded `GraphRngState`, a minimal NN result carrier, exact Model training delegation, and identity-preserving evaluation bypass without hidden random state. |
 | 0010 | State dictionary and checkpoint contract | Draft | 0009; stable module-tree traversal and replacement contracts | Define deterministic state paths, schema and validation, atomic load behavior, and the boundary between an in-memory state dictionary and any serialization format without adding optimizer state. |
 | 0011 | Unary Tensor module composition and Sequential | Draft | 0010; concrete unary layer composition need | Introduce a narrow shared unary Tensor-forward contract only if the actual `Sequential` container requires it; do not add a broad generic layer facade or force non-unary modules into one signature. |
 
@@ -199,8 +199,19 @@ failures, errors, or skips, and changed no executable Java or test afterward. Th
 clean documentation context `/root/nn_0008_docs` finalized the glossary and planning evidence,
 reviewed the complete package/type Javadocs without requiring a source edit, and passed final
 generated-Javadoc, exact-surface, Markdown, dependency/import, seven-path scope, status, and
-whitespace gates without repeating the stable executable tests. Tasks 0009–0011 remain concise
-Draft rows, have no detailed task files, and no NN task is Ready.
+whitespace gates without repeating the stable executable tests. Detailed
+[NN 0009](tasks/0009-dropout-layer.md) is Complete. Its isolated implementation context added the
+exact planned Dropout production and test surface, passed the final focused one-suite/9-test
+selection and authoritative 15-suite/83-test NN module run with no failures, errors, or skips,
+and changed no executable Java or test afterward. The independent clean documentation context
+`/root/nn_0009_docs` finalized the glossary and planning evidence, reviewed the complete
+package/type Javadocs without requiring a source edit, and passed final generated-Javadoc,
+independent reflection and `javap`, Markdown, dependency/import, seven-path scope, status, and
+whitespace gates without repeating the stable executable tests. The completed
+parameterless/bufferless `Dropout` module receives explicit graph RNG state on every call:
+training delegates to one existing Model occurrence, while evaluation returns a fresh NN result
+containing the exact input and incoming-state references and creates no Tensor or producer. Tasks
+0010–0011 remain concise Draft rows with no detailed task files, and no NN task is Ready.
 
 The ordered follow-up sequence is deliberate. `Embedding` is another mode-insensitive
 parameter-only wrapper. `BatchNorm` follows it as the first layer that must coordinate parameters,
@@ -214,8 +225,6 @@ forward contract is deferred until the actual `Sequential` consumer can prove it
 - Decide whether a concrete future consumer justifies configurable gain, activation, fan mode,
   convolution fan geometry, or an initializer object abstraction. NN 0004 deliberately fixes only
   unit-gain Glorot and fan-in/ReLU Kaiming for positive rank-two Linear weights.
-- At NN 0009, decide whether evaluation returns the exact input Tensor or another explicit result
-  shape while preserving caller-owned `GraphRngState` and consuming no hidden draw.
 - At NN 0010, select the serialization boundary only after the in-memory deterministic state and
   atomic validation/load contract is fixed.
 
@@ -288,7 +297,17 @@ forward contract is deferred until the actual `Sequential` consumer can prove it
   protected direct-buffer operations before returning the normalized output. This is one layer-
   owned sequential transition, not generic atomic multi-binding, execution-side mutation, or a
   training-session/checkpoint contract.
-- NN 0009–0011 remain ordered Draft capabilities only. Their rows record dependencies and
+- NN 0009 adds final public `Dropout` with one validated immutable primitive `double` drop
+  probability and one `forward(Tensor, GraphRngState, ForwardContext)` method. The layer declares
+  no parameter, buffer, child, seed, generator, counter, or hidden RNG state. The supplied context
+  alone selects behavior: training delegates once to Model `Tensor.dropout`, while evaluation
+  creates no Model operation and returns the exact input and incoming state references.
+- NN 0009 introduces NN-owned `DropoutForwardResult` because Model `DropoutResult` truthfully
+  describes outputs from one training producer and therefore cannot also describe evaluation
+  bypass. The NN record has only `output` and `nextState`; training wraps the exact two references
+  from the Model result, and evaluation retains the exact caller references. It exposes no mask,
+  mode, probability, producer, or mutable state.
+- NN 0010–0011 remain ordered Draft capabilities only. Their rows record dependencies and
   unresolved decisions without creating premature task specifications.
 
 ## Risks

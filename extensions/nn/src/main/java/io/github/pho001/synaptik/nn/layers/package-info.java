@@ -43,5 +43,14 @@
  * pure producer's next mean and then next variance expressions into their stable wrappers. This
  * symbolic NN binding transition performs no eager value mutation, compiler/runtime publication,
  * backend work, or numerical execution.</p>
+ *
+ * <p>{@link io.github.pho001.synaptik.nn.layers.Dropout} declares no module state and receives an
+ * explicit {@link io.github.pho001.synaptik.model.tensor.GraphRngState} on every forward call. Its
+ * immutable {@link io.github.pho001.synaptik.nn.module.ForwardContext} selects one Model training
+ * dropout occurrence or an evaluation bypass. The bypass returns the exact input and incoming
+ * state references without allocating a Tensor or advancing state; training returns the exact
+ * public Model output and next-state references through a fresh NN-owned
+ * {@link io.github.pho001.synaptik.nn.layers.DropoutForwardResult}. The layer owns no hidden
+ * generator, seed, counter, parameter, buffer, execution, or backend behavior.</p>
  */
 package io.github.pho001.synaptik.nn.layers;
