@@ -25,8 +25,34 @@ import java.util.Map;
 import java.lang.foreign.Arena;
 import java.lang.foreign.ValueLayout;
 import org.junit.jupiter.api.Test;
+import java.lang.classfile.ClassFile;
+import java.lang.classfile.Instruction;
+import java.lang.classfile.Opcode;
+import java.lang.classfile.instruction.InvokeInstruction;
 
 class CpuAggregateGeneratedKernelTest {
+    @Test void generatedClassContainsTypedAggregateFoldWithoutGenericDispatchBridge() {
+        var base = CpuAggregateLoweringTest.context(AggregateReductionKind.MIN, DataType.FLOAT64,
+                Shape.of(1024), NoOperationAttrs.INSTANCE, Shape.scalar());
+        PrepareContext<CpuPartitionAnalysisInputs> context = new PrepareContext<>(base.partition(),
+                base.nodes(), base.values(), base.memoryRequirements(), Map.of(),
+                new CpuPartitionAnalysisInputs(false,
+                        List.of(CarrierAccess.DOUBLE_ARRAY, CarrierAccess.DOUBLE_ARRAY)));
+        var route = new CpuPartitionPreparer().analyze(context).plan().units().getFirst().portablePlan();
+        var code = ClassFile.of().parse(new CpuClassFileKernelGenerator().generateClassBytes(
+                route.specialization(), route.kernelIr())).methods().getFirst().code().orElseThrow();
+        var invokes = code.elementStream().filter(InvokeInstruction.class::isInstance)
+                .map(InvokeInstruction.class::cast).toList();
+        assertAll(() -> assertTrue(invokes.stream().noneMatch(i -> i.name().stringValue().equals("execute"))),
+                () -> assertTrue(invokes.stream().noneMatch(i -> i.type().stringValue().contains("Ljava/lang/Object;"))),
+                () -> assertTrue(invokes.stream().anyMatch(i -> i.name().stringValue().equals("minDouble"))),
+                () -> assertTrue(code.elementStream().filter(Instruction.class::isInstance)
+                        .map(Instruction.class::cast).anyMatch(i -> i.opcode() == Opcode.DALOAD)),
+                () -> assertTrue(code.elementStream().filter(Instruction.class::isInstance)
+                        .map(Instruction.class::cast).anyMatch(i -> i.opcode() == Opcode.DASTORE)),
+                () -> assertTrue(code.elementStream().noneMatch(element -> element instanceof java.lang.classfile.instruction.NewObjectInstruction)));
+    }
+
     @Test void executesAllKindsAndRepresentedTypesWithExactIdentities() throws Throwable {
         assertArrayEquals(new double[]{-2,-4}, (double[]) invoke(AggregateReductionKind.MIN,
                 DataType.FLOAT64, Shape.of(2,3), new AxisReductionAttrs(1,false), Shape.of(2),

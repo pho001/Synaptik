@@ -43,6 +43,13 @@ public record CpuKernelSpecialization(CpuLoweringFingerprint loweringFingerprint
         List<DataType> boundaryDataTypes, List<CarrierAccess> carrierPattern, int vectorSpeciesBitSize,
         int materializedSourcePosition, List<CpuKernelIr.PowerRealization> scalarPowerRealizations,
         boolean scratchParameter) {
+    /** Generated loop/address representation selected from structural proof facts. */
+    public enum LoopAddressing {
+        /** Checked {@code long} state for segments, mixed carriers, or general access plans. */
+        GENERAL_LONG,
+        /** One-time narrowed {@code int} indexes for dense/all-zero heap-array boundaries. */
+        DENSE_HEAP_ARRAY_INT
+    }
     /** Direct carrier form at one ordered materialized boundary. */
     public enum CarrierAccess {
         /** Observable direct {@code double[]} access. */ DOUBLE_ARRAY,
@@ -211,6 +218,29 @@ public record CpuKernelSpecialization(CpuLoweringFingerprint loweringFingerprint
         parameters[next++] = long.class;
         parameters[next] = long.class;
         return MethodType.methodType(void.class, parameters);
+    }
+
+    /**
+     * Resolves the typed loop-address proof category encoded by this specialization and IR.
+     * Compatible extents do not affect the result because heap-array binding independently
+     * validates every concrete address span before invocation.
+     *
+     * @param kernelIr non-null canonical IR matching {@link #loweringFingerprint()}
+     * @return the deterministic emitted loop-address form; never {@code null}
+     * @throws NullPointerException if {@code kernelIr} is {@code null}
+     * @throws IllegalArgumentException if the IR does not match this specialization
+     */
+    public LoopAddressing loopAddressing(CpuKernelIr kernelIr) {
+        Objects.requireNonNull(kernelIr, "kernelIr");
+        if (!loweringFingerprint.hex().equals(kernelIr.structuralKey()))
+            throw new IllegalArgumentException("kernel IR does not match specialization");
+        boolean denseArrays = !carrierPattern.contains(CarrierAccess.MEMORY_SEGMENT)
+                && kernelIr.values().stream().filter(value -> value.kind()
+                    != CpuKernelIr.Value.Kind.VIRTUAL).allMatch(value -> value.accessPlan().regime()
+                        == io.github.pho001.synaptik.backend.cpu.internal.ir.CpuAccessPlan.Regime.DENSE_LINEAR
+                    || value.accessPlan().regime()
+                        == io.github.pho001.synaptik.backend.cpu.internal.ir.CpuAccessPlan.Regime.SCALAR_ALL_ZERO);
+        return denseArrays ? LoopAddressing.DENSE_HEAP_ARRAY_INT : LoopAddressing.GENERAL_LONG;
     }
     /** Returns compatibility metadata.
      * @return a new deterministic schema byte array */

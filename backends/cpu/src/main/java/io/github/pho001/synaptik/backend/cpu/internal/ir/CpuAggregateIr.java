@@ -120,8 +120,9 @@ public record CpuAggregateIr(Kind kind, DataType dataType, Form form, int[] sele
 
     /**
      * Encodes this aggregate as the two-boundary structural identity consumed by specialization.
-     * The encoding describes compatibility; it does not claim that the reduction loop is embedded
-     * in the generated class.
+     * The encoding describes compatibility facts. Schema 22 introduced typed aggregate loops
+     * from these facts, and current schema 23 retains that body while concrete geometry and
+     * carrier instances remain cold.
      *
      * @return a new canonical input/output kernel identity; never {@code null}
      */

@@ -1,8 +1,12 @@
 package io.github.pho001.synaptik.backend.cpu.internal.codegen.emit;
 
 import io.github.pho001.synaptik.backend.cpu.internal.cache.CpuKernelSpecialization;
+import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuKernelIr;
+import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuAccessPlan;
 import io.github.pho001.synaptik.model.datatype.DataType;
 import java.lang.classfile.CodeBuilder;
+import java.lang.classfile.Opcode;
+import java.lang.classfile.TypeKind;
 import java.lang.constant.ClassDesc;
 import java.lang.constant.ConstantDescs;
 import java.lang.constant.MethodTypeDesc;
@@ -10,34 +14,328 @@ import java.lang.foreign.MemorySegment;
 import java.lang.foreign.ValueLayout;
 
 /**
- * Emits a direct generated bridge to the CPU-owned ordinary aggregate body.
+ * Emits typed ordinary aggregate folds directly into generated CPU entries.
  *
  * <p>The static body reduces complete output cells only. It traverses every selected domain in
  * logical input row-major order, selects the first represented NaN, applies explicit signed-zero
- * extrema rules, and allocates no per-cell or per-element object. The generated class contains a
- * Class-File bridge to that body rather than an embedded reduction loop.</p>
+ * extrema rules, and allocates no per-cell or per-element object. Full dense heap-array
+ * reductions use one typed integer-address fold; other forms embed a typed long-address fallback
+ * that decodes output and selected-domain coordinates without runtime type, kind, form, or
+ * carrier dispatch.</p>
  */
 public final class CpuAggregateEmitter {
     private static final ClassDesc OWNER = ClassDesc.of(CpuAggregateEmitter.class.getName());
     private static final DataType[] TYPES = DataType.values();
-    /** Creates a stateless bridge emitter. */
+    /** Creates a stateless typed-body emitter. */
     public CpuAggregateEmitter() { }
 
     /**
-     * Emits one direct two-boundary scalar bridge.
-     * @param code non-null Class-File method builder mutated by this call
-     * @param specialization non-null two-boundary, scratch-free specialization
+     * Emits a typed aggregate body whose hot loops contain no runtime semantic dispatch.
+     *
+     * @param code non-null Class-File method builder mutated with the generated fold
+     * @param specialization non-null two-boundary, scratch-free carrier/type specialization
+     * @param ir non-null canonical aggregate IR supplying kind, form, axes, rank, and access facts
      * @throws NullPointerException if an argument is {@code null}
      * @throws IllegalArgumentException if the specialization has another boundary shape
      */
-    public void emit(CodeBuilder code, CpuKernelSpecialization specialization) {
+    public void emit(CodeBuilder code, CpuKernelSpecialization specialization, CpuKernelIr ir) {
         if (specialization.carrierPattern().size() != 2 || specialization.scratchParameter())
             throw new IllegalArgumentException("aggregate requires two boundaries and no scratch");
-        code.aload(0).aload(1).aload(2).lload(3).lload(5);
-        code.invokestatic(OWNER, "execute", MethodTypeDesc.of(ConstantDescs.CD_void,
-                ConstantDescs.CD_Object, ConstantDescs.CD_Object,
-                ConstantDescs.CD_long.arrayType(), ConstantDescs.CD_long, ConstantDescs.CD_long));
+        String identity = ir.familyIdentity();
+        DataType type = specialization.boundaryDataTypes().getFirst();
+        int kind = identity.startsWith("aggregate:MIN:") ? 0
+                : identity.startsWith("aggregate:MAX:") ? 1
+                : identity.startsWith("aggregate:ALL:") ? 2 : 3;
+        int inRank = ir.values().getFirst().accessPlan().iterationRank();
+        int outRank = ir.values().getLast().accessPlan().iterationRank();
+        boolean fullDenseArrays = identity.contains(":FULL:")
+                && specialization.carrierPattern().stream().noneMatch(
+                    access -> access == CpuKernelSpecialization.CarrierAccess.MEMORY_SEGMENT)
+                && ir.values().getFirst().accessPlan().regime() == CpuAccessPlan.Regime.DENSE_LINEAR;
+        if (fullDenseArrays) emitFullDense(code, specialization, type, kind, inRank);
+        else emitGeneral(code, specialization, type, kind, identity, inRank, outRank);
     }
+
+    private static void emitFullDense(CodeBuilder code, CpuKernelSpecialization specialization,
+            DataType type, int kind, int inRank) {
+        var done = code.newLabel();
+        code.lload(3).lload(5).lcmp().branch(Opcode.IFGE, done);
+        int inputLayout = 8 + 2 * inRank;
+        int outputLayout = inputLayout + 2 + 2 * inRank;
+        int input = code.allocateLocal(TypeKind.INT), output = code.allocateLocal(TypeKind.INT);
+        code.aload(2).loadConstant(inputLayout + 1).laload().l2i().istore(input);
+        code.aload(2).loadConstant(outputLayout + 1).laload().l2i().istore(output);
+        int accumulator = code.allocateLocal(localKind(type));
+        emitIdentity(code, type, kind); store(code, type, accumulator);
+        int domain = code.allocateLocal(TypeKind.INT); code.loadConstant(0).istore(domain);
+        var store = code.newLabel();
+        code.aload(2).loadConstant(7).laload().loadConstant(0L).lcmp().branch(Opcode.IFEQ, store);
+        var loop = code.newLabel(); code.labelBinding(loop);
+        int address = code.allocateLocal(TypeKind.INT);
+        code.iload(input).iload(domain).iadd().istore(address);
+        int value = code.allocateLocal(localKind(type));
+        var carriers = new CpuCarrierEmitter(code);
+        carriers.load(type, specialization.carrierPattern().getFirst(), 0, address, true);
+        store(code, type, value); emitApply(code, type, kind, accumulator, value);
+        if (type == DataType.BOOL) {
+            load(code, type, accumulator);
+            code.branch(kind == 2 ? Opcode.IFEQ : Opcode.IFNE, store);
+        }
+        code.iinc(domain, 1); code.iload(domain).aload(2).loadConstant(7).laload().l2i()
+                .branch(Opcode.IF_ICMPLT, loop);
+        code.labelBinding(store);
+        carriers.store(type, specialization.carrierPattern().getLast(), 1, output, accumulator, true);
+        code.labelBinding(done);
+    }
+
+    private static void emitGeneral(CodeBuilder code, CpuKernelSpecialization specialization,
+            DataType type, int kind, String identity, int inRank, int outRank) {
+        boolean keep = identity.contains(":keep=true:");
+        boolean[] selectedAxes = selectedAxes(identity, inRank);
+        int selected = 8, inputCoordinates = selected + inRank;
+        int outputCoordinates = inputCoordinates + inRank;
+        int inputLayout = outputCoordinates + outRank;
+        int outputLayout = inputLayout + 2 + 2 * inRank;
+        int cell = code.allocateLocal(TypeKind.LONG);
+        code.lload(3).lstore(cell);
+        var done = code.newLabel();
+        code.lload(cell).lload(5).lcmp().branch(Opcode.IFGE, done);
+        var cells = code.newLabel(); code.labelBinding(cells);
+        decode(code, cell, outputCoordinates, outputLayout, outRank);
+        int outAxis = 0;
+        for (int axis = 0; axis < inRank; axis++) {
+            code.aload(2).loadConstant(inputCoordinates + axis);
+            if (selectedAxes[axis]) code.loadConstant(0L);
+            else code.aload(2).loadConstant(outputCoordinates + (keep ? axis : outAxis++)).laload();
+            code.lastore();
+        }
+        int accumulator = code.allocateLocal(localKind(type));
+        emitIdentity(code, type, kind); store(code, type, accumulator);
+        int domain = code.allocateLocal(TypeKind.LONG); code.loadConstant(0L).lstore(domain);
+        var write = code.newLabel();
+        code.aload(2).loadConstant(7).laload().loadConstant(0L).lcmp().branch(Opcode.IFEQ, write);
+        var domains = code.newLabel(); code.labelBinding(domains);
+        int remaining = code.allocateLocal(TypeKind.LONG); code.lload(domain).lstore(remaining);
+        for (int axis = inRank - 1; axis >= 0; axis--) if (selectedAxes[axis]) {
+            code.aload(2).loadConstant(inputCoordinates + axis).lload(remaining)
+                    .aload(2).loadConstant(inputLayout + 2 + axis).laload().lrem().lastore();
+            code.lload(remaining).aload(2).loadConstant(inputLayout + 2 + axis).laload()
+                    .ldiv().lstore(remaining);
+        }
+        int inputAddress = address(code, inRank, inputCoordinates, inputLayout);
+        int value = code.allocateLocal(localKind(type));
+        var carriers = new CpuCarrierEmitter(code);
+        carriers.load(type, specialization.carrierPattern().getFirst(), 0, inputAddress);
+        store(code, type, value); emitApply(code, type, kind, accumulator, value);
+        if (type == DataType.BOOL) {
+            load(code, type, accumulator);
+            code.branch(kind == 2 ? Opcode.IFEQ : Opcode.IFNE, write);
+        }
+        code.lload(domain).loadConstant(1L).ladd().lstore(domain);
+        code.lload(domain).aload(2).loadConstant(7).laload().lcmp().branch(Opcode.IFLT, domains);
+        code.labelBinding(write);
+        int outputAddress = address(code, outRank, outputCoordinates, outputLayout);
+        carriers.store(type, specialization.carrierPattern().getLast(), 1, outputAddress, accumulator);
+        code.lload(cell).loadConstant(1L).ladd().lstore(cell);
+        code.lload(cell).lload(5).lcmp().branch(Opcode.IFLT, cells);
+        code.labelBinding(done);
+    }
+
+    private static boolean[] selectedAxes(String identity, int rank) {
+        boolean[] result = new boolean[rank];
+        int start = identity.indexOf(":axes=[") + 7, end = identity.indexOf(']', start);
+        String body = identity.substring(start, end).trim();
+        if (!body.isEmpty()) for (String axis : body.split(", ")) result[Integer.parseInt(axis)] = true;
+        return result;
+    }
+
+    private static void decode(CodeBuilder code, int logical, int coordinates, int layout, int rank) {
+        int remaining = code.allocateLocal(TypeKind.LONG); code.lload(logical).lstore(remaining);
+        for (int axis = rank - 1; axis >= 0; axis--) {
+            code.aload(2).loadConstant(coordinates + axis).lload(remaining)
+                    .aload(2).loadConstant(layout + 2 + axis).laload().lrem().lastore();
+            code.lload(remaining).aload(2).loadConstant(layout + 2 + axis).laload()
+                    .ldiv().lstore(remaining);
+        }
+    }
+
+    private static int address(CodeBuilder code, int rank, int coordinates, int layout) {
+        int address = code.allocateLocal(TypeKind.LONG);
+        code.aload(2).loadConstant(layout + 1).laload().lstore(address);
+        for (int axis = 0; axis < rank; axis++) code.lload(address)
+                .aload(2).loadConstant(coordinates + axis).laload()
+                .aload(2).loadConstant(layout + 2 + rank + axis).laload().lmul().ladd().lstore(address);
+        return address;
+    }
+
+    private static TypeKind localKind(DataType type) { return switch (type) {
+        case FLOAT64 -> TypeKind.DOUBLE; case FLOAT32 -> TypeKind.FLOAT;
+        case INT64 -> TypeKind.LONG; case BFLOAT16, INT32, BOOL -> TypeKind.INT;
+    }; }
+    private static void store(CodeBuilder code, DataType type, int local) { switch (type) {
+        case FLOAT64 -> code.dstore(local); case FLOAT32 -> code.fstore(local);
+        case INT64 -> code.lstore(local); case BFLOAT16, INT32, BOOL -> code.istore(local);
+    } }
+    private static void load(CodeBuilder code, DataType type, int local) { switch (type) {
+        case FLOAT64 -> code.dload(local); case FLOAT32 -> code.fload(local);
+        case INT64 -> code.lload(local); case BFLOAT16, INT32, BOOL -> code.iload(local);
+    } }
+    private static void emitIdentity(CodeBuilder code, DataType type, int kind) { switch (type) {
+        case FLOAT64 -> code.loadConstant(kind == 0 ? Double.POSITIVE_INFINITY : Double.NEGATIVE_INFINITY);
+        case FLOAT32 -> code.loadConstant(kind == 0 ? Float.POSITIVE_INFINITY : Float.NEGATIVE_INFINITY);
+        case BFLOAT16 -> code.loadConstant(kind == 0 ? 0x7f80 : 0xff80);
+        case INT32 -> code.loadConstant(kind == 0 ? Integer.MAX_VALUE : Integer.MIN_VALUE);
+        case INT64 -> code.loadConstant(kind == 0 ? Long.MAX_VALUE : Long.MIN_VALUE);
+        case BOOL -> code.loadConstant(kind == 2 ? 1 : 0);
+    } }
+    private static void emitApply(CodeBuilder code, DataType type, int kind,
+            int accumulator, int value) {
+        load(code, type, accumulator); load(code, type, value);
+        String name = switch (type) {
+            case FLOAT64 -> kind == 0 ? "minDouble" : "maxDouble";
+            case FLOAT32 -> kind == 0 ? "minFloat" : "maxFloat";
+            case BFLOAT16 -> kind == 0 ? "minBfloat" : "maxBfloat";
+            case INT32 -> kind == 0 ? "minInt" : "maxInt";
+            case INT64 -> kind == 0 ? "minLong" : "maxLong";
+            case BOOL -> kind == 2 ? "all" : "any";
+        };
+        ClassDesc primitive = switch (type) {
+            case FLOAT64 -> ConstantDescs.CD_double; case FLOAT32 -> ConstantDescs.CD_float;
+            case INT64 -> ConstantDescs.CD_long; default -> ConstantDescs.CD_int;
+        };
+        code.invokestatic(OWNER, name, MethodTypeDesc.of(primitive, primitive, primitive));
+        store(code, type, accumulator);
+    }
+
+    /**
+     * Selects the FLOAT64 minimum using CPU aggregate NaN and signed-zero rules.
+     *
+     * @param left first represented value
+     * @param right second represented value
+     * @return the selected represented value
+     */
+    static double minDouble(double left, double right) { return selectDouble(left, right, true); }
+
+    /**
+     * Selects the FLOAT64 maximum using CPU aggregate NaN and signed-zero rules.
+     *
+     * @param left first represented value
+     * @param right second represented value
+     * @return the selected represented value
+     */
+    static double maxDouble(double left, double right) { return selectDouble(left, right, false); }
+    private static double selectDouble(double left, double right, boolean minimum) {
+        if (Double.isNaN(left)) return left; if (Double.isNaN(right)) return right;
+        if (left == 0.0 && right == 0.0) return minimum
+                ? (Double.doubleToRawLongBits(left) < 0 ? left : right)
+                : (Double.doubleToRawLongBits(left) >= 0 ? left : right);
+        return minimum ? (right < left ? right : left) : (right > left ? right : left);
+    }
+    /**
+     * Selects the FLOAT32 minimum using CPU aggregate NaN and signed-zero rules.
+     *
+     * @param left first represented value
+     * @param right second represented value
+     * @return the selected represented value
+     */
+    static float minFloat(float left, float right) { return selectFloat(left, right, true); }
+
+    /**
+     * Selects the FLOAT32 maximum using CPU aggregate NaN and signed-zero rules.
+     *
+     * @param left first represented value
+     * @param right second represented value
+     * @return the selected represented value
+     */
+    static float maxFloat(float left, float right) { return selectFloat(left, right, false); }
+    private static float selectFloat(float left, float right, boolean minimum) {
+        if (Float.isNaN(left)) return left; if (Float.isNaN(right)) return right;
+        if (left == 0.0f && right == 0.0f) return minimum
+                ? (Float.floatToRawIntBits(left) < 0 ? left : right)
+                : (Float.floatToRawIntBits(left) >= 0 ? left : right);
+        return minimum ? (right < left ? right : left) : (right > left ? right : left);
+    }
+    /**
+     * Selects the BFLOAT16 minimum using unsigned represented-bit inputs and aggregate
+     * NaN/signed-zero rules.
+     *
+     * @param left unsigned 16-bit BFLOAT16 bits in the low half of the integer
+     * @param right unsigned 16-bit BFLOAT16 bits in the low half of the integer
+     * @return unsigned 16-bit BFLOAT16 bits for the selected represented value
+     */
+    static int minBfloat(int left, int right) { return selectBfloat(left, right, true); }
+
+    /**
+     * Selects the BFLOAT16 maximum using unsigned represented-bit inputs and aggregate
+     * NaN/signed-zero rules.
+     *
+     * @param left unsigned 16-bit BFLOAT16 bits in the low half of the integer
+     * @param right unsigned 16-bit BFLOAT16 bits in the low half of the integer
+     * @return unsigned 16-bit BFLOAT16 bits for the selected represented value
+     */
+    static int maxBfloat(int left, int right) { return selectBfloat(left, right, false); }
+    private static int selectBfloat(int left, int right, boolean minimum) {
+        int le = left & 0xffff, ri = right & 0xffff;
+        if ((le & 0x7f80) == 0x7f80 && (le & 0x7f) != 0) return le;
+        if ((ri & 0x7f80) == 0x7f80 && (ri & 0x7f) != 0) return ri;
+        float l = Float.intBitsToFloat(le << 16), r = Float.intBitsToFloat(ri << 16);
+        if (l == 0.0f && r == 0.0f) return minimum ? ((short) le < 0 ? le : ri)
+                : ((short) le >= 0 ? le : ri);
+        return minimum ? (r < l ? ri : le) : (r > l ? ri : le);
+    }
+    /**
+     * Selects the smaller INT32 value.
+     *
+     * @param left first represented value
+     * @param right second represented value
+     * @return the smaller represented value
+     */
+    static int minInt(int left, int right) { return Math.min(left, right); }
+
+    /**
+     * Selects the larger INT32 value.
+     *
+     * @param left first represented value
+     * @param right second represented value
+     * @return the larger represented value
+     */
+    static int maxInt(int left, int right) { return Math.max(left, right); }
+
+    /**
+     * Selects the smaller INT64 value.
+     *
+     * @param left first represented value
+     * @param right second represented value
+     * @return the smaller represented value
+     */
+    static long minLong(long left, long right) { return Math.min(left, right); }
+
+    /**
+     * Selects the larger INT64 value.
+     *
+     * @param left first represented value
+     * @param right second represented value
+     * @return the larger represented value
+     */
+    static long maxLong(long left, long right) { return Math.max(left, right); }
+
+    /**
+     * Applies represented BOOL conjunction.
+     *
+     * @param left first represented boolean, where zero is false and non-zero is true
+     * @param right second represented boolean, where zero is false and non-zero is true
+     * @return {@code 1} when both inputs are true, otherwise {@code 0}
+     */
+    static int all(int left, int right) { return left != 0 && right != 0 ? 1 : 0; }
+
+    /**
+     * Applies represented BOOL disjunction.
+     *
+     * @param left first represented boolean, where zero is false and non-zero is true
+     * @param right second represented boolean, where zero is false and non-zero is true
+     * @return {@code 1} when either input is true, otherwise {@code 0}
+     */
+    static int any(int left, int right) { return left != 0 || right != 0 ? 1 : 0; }
 
     /**
      * Reduces complete flattened output cells in {@code [start,end)}.

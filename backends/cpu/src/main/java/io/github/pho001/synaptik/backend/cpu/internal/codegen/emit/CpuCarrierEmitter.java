@@ -35,12 +35,23 @@ final class CpuCarrierEmitter {
     private static final ClassDesc VECTOR_SPECIES = ClassDesc.of("jdk.incubator.vector.VectorSpecies");
     private static final ClassDesc VECTOR_MASK = ClassDesc.of("jdk.incubator.vector.VectorMask");
     private final CodeBuilder code;
+    private int speciesLocal = -1;
     /**
      * Creates an emitter bound to one non-null generated method body.
      *
      * @param code non-null Class-File API code builder retained for generation only
      */
     CpuCarrierEmitter(CodeBuilder code) { this.code = code; }
+
+    /**
+     * Emits and retains one preferred-species local for all vector accesses in this method.
+     * @param type non-null exact admitted vector lane type
+     */
+    void prepareVectorSpecies(DataType type) {
+        if (speciesLocal >= 0) return;
+        speciesLocal = code.allocateLocal(TypeKind.REFERENCE);
+        code.getstatic(vectorClass(type), "SPECIES_PREFERRED", VECTOR_SPECIES).astore(speciesLocal);
+    }
 
     /**
      * Emits one scalar load of the supplied type from a generation-time-selected carrier form.
@@ -51,8 +62,29 @@ final class CpuCarrierEmitter {
      * @param addressLocal local-variable slot holding an element address
      */
     void load(DataType type, CarrierAccess access, int parameterSlot, int addressLocal) {
+        load(type, access, parameterSlot, addressLocal, false);
+    }
+
+    /**
+     * Emits one scalar load while honoring the selected element-address local width.
+     *
+     * @param type non-null exact logical data type to load
+     * @param access non-null selected direct carrier form
+     * @param parameterSlot local-variable slot holding the exact carrier
+     * @param addressLocal local-variable slot holding either a proved Java array index when
+     *     {@code intAddress} is {@code true}, or a general element address when it is
+     *     {@code false}
+     * @param intAddress whether heap-array access can use {@code addressLocal} directly as an
+     *     {@code int}; current {@link CarrierAccess#MEMORY_SEGMENT} callers keep this
+     *     {@code false} and supply a {@code long} element address
+     * @throws IllegalArgumentException if the selected data type cannot be loaded through this
+     *     carrier form
+     */
+    void load(DataType type, CarrierAccess access, int parameterSlot, int addressLocal,
+            boolean intAddress) {
         if (access != CarrierAccess.MEMORY_SEGMENT) {
-            code.aload(parameterSlot).lload(addressLocal).l2i();
+            code.aload(parameterSlot);
+            if (intAddress) code.iload(addressLocal); else code.lload(addressLocal).l2i();
             switch (type) {
                 case FLOAT64 -> code.daload(); case FLOAT32 -> code.faload();
                 case BFLOAT16 -> code.saload(); case INT32 -> code.iaload();
@@ -77,8 +109,31 @@ final class CpuCarrierEmitter {
      * @param valueLocal local-variable slot holding the value to store
      */
     void store(DataType type, CarrierAccess access, int parameterSlot, int addressLocal, int valueLocal) {
+        store(type, access, parameterSlot, addressLocal, valueLocal, false);
+    }
+
+    /**
+     * Emits one scalar store while honoring the selected element-address local width.
+     *
+     * @param type non-null exact logical data type to store
+     * @param access non-null selected direct carrier form
+     * @param parameterSlot local-variable slot holding the exact carrier
+     * @param addressLocal local-variable slot holding either a proved Java array index when
+     *     {@code intAddress} is {@code true}, or a general element address when it is
+     *     {@code false}
+     * @param valueLocal local-variable slot holding the value to store
+     * @param intAddress whether heap-array access can use {@code addressLocal} directly as an
+     *     {@code int}; current {@link CarrierAccess#MEMORY_SEGMENT} callers keep this
+     *     {@code false} and supply a {@code long} element address
+     * @throws IllegalArgumentException if the selected data type cannot be stored through this
+     *     carrier form
+     */
+    void store(DataType type, CarrierAccess access, int parameterSlot, int addressLocal,
+            int valueLocal, boolean intAddress) {
         if (access != CarrierAccess.MEMORY_SEGMENT) {
-            code.aload(parameterSlot).lload(addressLocal).l2i(); loadLocal(type, valueLocal);
+            code.aload(parameterSlot);
+            if (intAddress) code.iload(addressLocal); else code.lload(addressLocal).l2i();
+            loadLocal(type, valueLocal);
             switch (type) {
                 case FLOAT64 -> code.dastore(); case FLOAT32 -> code.fastore();
                 case BFLOAT16 -> code.sastore(); case INT32 -> code.iastore();
@@ -105,17 +160,39 @@ final class CpuCarrierEmitter {
      */
     void vectorLoad(DataType type, CarrierAccess access, int parameterSlot, int addressLocal,
             boolean broadcast) {
+        vectorLoad(type, access, parameterSlot, addressLocal, broadcast, false);
+    }
+
+    /**
+     * Emits one unmasked preferred-species typed vector load or scalar broadcast using the
+     * selected element-address local width.
+     *
+     * @param type non-null exact admitted vector lane type
+     * @param access non-null generation-time-selected direct carrier form
+     * @param parameterSlot local-variable slot holding the exact carrier
+     * @param addressLocal local-variable slot holding either a proved Java array index when
+     *     {@code intAddress} is {@code true}, or a general element address when it is
+     *     {@code false}
+     * @param broadcast whether to load one scalar and broadcast it to every lane
+     * @param intAddress whether heap-array access can use {@code addressLocal} directly as an
+     *     {@code int}; current {@link CarrierAccess#MEMORY_SEGMENT} callers keep this
+     *     {@code false} and supply a {@code long} element address
+     * @throws IllegalArgumentException if the selected carrier does not match the vector lane type
+     */
+    void vectorLoad(DataType type, CarrierAccess access, int parameterSlot, int addressLocal,
+            boolean broadcast, boolean intAddress) {
         ClassDesc vector = vectorClass(type);
-        code.getstatic(vector, "SPECIES_PREFERRED", VECTOR_SPECIES);
+        if (speciesLocal < 0) prepareVectorSpecies(type);
+        code.aload(speciesLocal);
         if (broadcast) {
-            load(type, access, parameterSlot, addressLocal);
+            load(type, access, parameterSlot, addressLocal, intAddress);
             code.invokestatic(vector, "broadcast", MethodTypeDesc.of(vector,
                     VECTOR_SPECIES, primitive(type)));
             return;
         }
         code.aload(parameterSlot);
         if (access == arrayCarrier(type)) {
-            code.lload(addressLocal).l2i();
+            if (intAddress) code.iload(addressLocal); else code.lload(addressLocal).l2i();
             code.invokestatic(vector, "fromArray", MethodTypeDesc.of(vector,
                     VECTOR_SPECIES, primitive(type).arrayType(),
                     TypeKind.INT.upperBound()));
@@ -138,10 +215,31 @@ final class CpuCarrierEmitter {
      */
     void vectorStore(DataType type, CarrierAccess access, int parameterSlot, int addressLocal,
             int valueLocal) {
+        vectorStore(type, access, parameterSlot, addressLocal, valueLocal, false);
+    }
+
+    /**
+     * Emits one unmasked preferred-species typed vector store using the selected element-address
+     * local width.
+     *
+     * @param type non-null exact admitted vector lane type
+     * @param access non-null generation-time-selected direct carrier form
+     * @param parameterSlot local-variable slot holding the writable exact carrier
+     * @param addressLocal local-variable slot holding either a proved Java array index when
+     *     {@code intAddress} is {@code true}, or a general element address when it is
+     *     {@code false}
+     * @param valueLocal local-variable slot holding the non-null typed vector
+     * @param intAddress whether heap-array access can use {@code addressLocal} directly as an
+     *     {@code int}; current {@link CarrierAccess#MEMORY_SEGMENT} callers keep this
+     *     {@code false} and supply a {@code long} element address
+     * @throws IllegalArgumentException if the selected carrier does not match the vector lane type
+     */
+    void vectorStore(DataType type, CarrierAccess access, int parameterSlot, int addressLocal,
+            int valueLocal, boolean intAddress) {
         ClassDesc vector = vectorClass(type);
         code.aload(valueLocal).aload(parameterSlot);
         if (access == arrayCarrier(type)) {
-            code.lload(addressLocal).l2i();
+            if (intAddress) code.iload(addressLocal); else code.lload(addressLocal).l2i();
             code.invokevirtual(vector, "intoArray", MethodTypeDesc.of(
                     TypeKind.VOID.upperBound(), primitive(type).arrayType(),
                     TypeKind.INT.upperBound()));
@@ -163,9 +261,31 @@ final class CpuCarrierEmitter {
      */
     void scalarBoolMaskLoad(DataType laneType, CarrierAccess access, int parameterSlot,
             int addressLocal) {
+        scalarBoolMaskLoad(laneType, access, parameterSlot, addressLocal, false);
+    }
+
+    /**
+     * Emits an allocation-free canonical scalar BOOL load broadcast as a typed numeric mask using
+     * the selected element-address local width.
+     *
+     * @param laneType non-null exact FLOAT32 or FLOAT64 mask lane type
+     * @param access exact BOOL boundary carrier form
+     * @param parameterSlot local-variable slot holding the carrier
+     * @param addressLocal local-variable slot holding either a proved Java array index when
+     *     {@code intAddress} is {@code true}, or a general element address when it is
+     *     {@code false}
+     * @param intAddress whether heap-array access can use {@code addressLocal} directly as an
+     *     {@code int}; current {@link CarrierAccess#MEMORY_SEGMENT} callers keep this
+     *     {@code false} and supply a {@code long} element address
+     * @throws IllegalArgumentException if {@code laneType} or {@code access} is outside the
+     *     supported floating-mask form
+     */
+    void scalarBoolMaskLoad(DataType laneType, CarrierAccess access, int parameterSlot,
+            int addressLocal, boolean intAddress) {
         ClassDesc vector = vectorClass(laneType);
-        code.getstatic(vector, "SPECIES_PREFERRED", VECTOR_SPECIES);
-        load(DataType.BOOL, access, parameterSlot, addressLocal);
+        if (speciesLocal < 0) prepareVectorSpecies(laneType);
+        code.aload(speciesLocal);
+        load(DataType.BOOL, access, parameterSlot, addressLocal, intAddress);
         code.i2l().lneg();
         code.invokestatic(VECTOR_MASK, "fromLong", MethodTypeDesc.of(VECTOR_MASK,
                 VECTOR_SPECIES, TypeKind.LONG.upperBound()));

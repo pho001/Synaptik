@@ -16,8 +16,33 @@ import io.github.pho001.synaptik.prepare.analysis.PrepareContext;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
+import java.lang.classfile.ClassFile;
+import java.lang.classfile.Instruction;
+import java.lang.classfile.Opcode;
+import java.lang.classfile.instruction.InvokeInstruction;
 
 class CpuScanGeneratedKernelTest {
+    @Test void generatedClassContainsTypedScanLoopWithoutGenericDispatchBridge() {
+        var base = CpuScanLoweringTest.context(CumulativeScanKind.CUM_SUM, DataType.FLOAT32,
+                Shape.of(1024), 0, false, false);
+        PrepareContext<CpuPartitionAnalysisInputs> context = new PrepareContext<>(base.partition(),
+                base.nodes(), base.values(), base.memoryRequirements(), Map.of(),
+                new CpuPartitionAnalysisInputs(false,
+                        List.of(CarrierAccess.FLOAT_ARRAY, CarrierAccess.FLOAT_ARRAY)));
+        var route = new CpuPartitionPreparer().analyze(context).plan().units().getFirst().portablePlan();
+        var code = ClassFile.of().parse(new CpuClassFileKernelGenerator().generateClassBytes(
+                route.specialization(), route.kernelIr())).methods().getFirst().code().orElseThrow();
+        var invokes = code.elementStream().filter(InvokeInstruction.class::isInstance)
+                .map(InvokeInstruction.class::cast).toList();
+        assertAll(() -> assertTrue(invokes.stream().noneMatch(i -> i.name().stringValue().equals("execute"))),
+                () -> assertTrue(invokes.stream().noneMatch(i -> i.type().stringValue().contains("Ljava/lang/Object;"))),
+                () -> assertTrue(code.elementStream().filter(Instruction.class::isInstance)
+                        .map(Instruction.class::cast).anyMatch(i -> i.opcode() == Opcode.FALOAD)),
+                () -> assertTrue(code.elementStream().filter(Instruction.class::isInstance)
+                        .map(Instruction.class::cast).anyMatch(i -> i.opcode() == Opcode.FASTORE)),
+                () -> assertTrue(code.elementStream().noneMatch(element -> element instanceof java.lang.classfile.instruction.NewObjectInstruction)));
+    }
+
     @Test void executesBothKindsAndAllModesInLogicalAxisOrder() throws Throwable {
         assertArrayEquals(new int[]{1,3,6}, (int[]) invoke(CumulativeScanKind.CUM_SUM,
                 DataType.INT32, false, false, new int[]{1,2,3}));

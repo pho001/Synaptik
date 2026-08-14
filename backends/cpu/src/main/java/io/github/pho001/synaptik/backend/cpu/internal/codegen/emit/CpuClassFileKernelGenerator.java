@@ -24,8 +24,10 @@ import java.util.Objects;
  * semantics, access structure, strategy, or fallback.</p>
  * Instruction-free affine, movement, indexing, scatter, fold, ordering, explicit-state random,
  * cumulative-scan, and ordinary aggregate forms delegate to their focused emitters after
- * structural specialization checks. Aggregate generation emits only a direct static-body bridge;
- * the reduction loop is not embedded in the generated class.
+ * structural specialization checks. Dense heap-array pointwise, affine-copy, and movement bodies
+ * use one-time integer narrowing and hoisted geometry; scan and aggregate emitters embed typed
+ * family hot loops. General layouts and segment or mixed carriers retain typed long-address
+ * fallbacks.
  */
 public final class CpuClassFileKernelGenerator {
     /** Creates a stateless generator with no retained route or specialization state. */
@@ -50,9 +52,9 @@ public final class CpuClassFileKernelGenerator {
                         method.withCode(code -> {
                             if (kernelIr.instructions().isEmpty()) {
                                 if (kernelIr.familyIdentity().startsWith("aggregate:")) {
-                                    new CpuAggregateEmitter().emit(code, specialization);
+                                    new CpuAggregateEmitter().emit(code, specialization, kernelIr);
                                 } else if (kernelIr.familyIdentity().startsWith("scan:")) {
-                                    new CpuScanEmitter().emit(code, specialization);
+                                    new CpuScanEmitter().emit(code, specialization, kernelIr);
                                 } else if (kernelIr.familyIdentity().startsWith("random:")) {
                                     new CpuRandomEmitter().emit(code, specialization, kernelIr);
                                 } else if (kernelIr.familyIdentity().startsWith("ordering:")) {
@@ -86,7 +88,7 @@ public final class CpuClassFileKernelGenerator {
                                     if (value.kind() != CpuKernelIr.Value.Kind.INPUT
                                             || !requiresInputLoad(kernelIr, value.ordinal())) continue;
                                     carriers.load(value.dataType(), specialization.carrierPattern().get(boundary),
-                                            boundary, state.addresses()[boundary]);
+                                            boundary, state.addresses()[boundary], state.intAddresses());
                                     store(code, value.dataType(), scalarLocals[value.ordinal()]);
                                 }
                                 kernelIr.instructions().forEach(instruction ->
@@ -95,21 +97,32 @@ public final class CpuClassFileKernelGenerator {
                                     CpuKernelIr.Value value = kernelIr.values().get(store.value());
                                     int boundary = boundaryIndex(boundaries, value.ordinal());
                                     carriers.store(value.dataType(), specialization.carrierPattern().get(boundary),
-                                            boundary, state.addresses()[boundary], scalarLocals[value.ordinal()]);
+                                            boundary, state.addresses()[boundary], scalarLocals[value.ordinal()],
+                                            state.intAddresses());
                                 }
                             };
                             if (specialization.executionStrategy().compute()
                                     == io.github.pho001.synaptik.backend.cpu.internal.prepare.CpuPartitionPreparationPlan.ExecutionStrategy.Compute.VECTOR) {
                                 DataType vectorType = vectorDataType(kernelIr);
+                                carriers.prepareVectorSpecies(vectorType);
                                 int[] vectorLocals = allocateVectorLocals(code, kernelIr);
                                 var vectorInstructions = new CpuVectorInstructionEmitter(
                                         code, kernelIr, vectorType);
-                                loops.emitVector(plans, specialization.vectorSpeciesBitSize()
-                                                / vectorType.bitWidth(),
-                                        state -> emitVectorBody(code, carriers, vectorInstructions,
-                                                specialization, kernelIr, boundaries, state,
-                                                vectorLocals, vectorType), scalarBody);
-                            } else loops.emit(plans, scalarBody);
+                                int lanes = specialization.vectorSpeciesBitSize() / vectorType.bitWidth();
+                                if (specialization.loopAddressing(kernelIr)
+                                        == CpuKernelSpecialization.LoopAddressing.DENSE_HEAP_ARRAY_INT)
+                                    loops.emitDenseArrayIntVector(plans, lanes,
+                                            state -> emitVectorBody(code, carriers, vectorInstructions,
+                                                    specialization, kernelIr, boundaries, state,
+                                                    vectorLocals, vectorType), scalarBody);
+                                else loops.emitVector(plans, lanes,
+                                            state -> emitVectorBody(code, carriers, vectorInstructions,
+                                                    specialization, kernelIr, boundaries, state,
+                                                    vectorLocals, vectorType), scalarBody);
+                            } else if (specialization.loopAddressing(kernelIr)
+                                    == CpuKernelSpecialization.LoopAddressing.DENSE_HEAP_ARRAY_INT)
+                                loops.emitDenseArrayInt(plans, scalarBody);
+                            else loops.emit(plans, scalarBody);
                             code.return_();
                         })));
         verify(specialization, bytes);
@@ -172,11 +185,12 @@ public final class CpuClassFileKernelGenerator {
             if (value.dataType() == DataType.BOOL && vectorType != DataType.BOOL) {
                 carriers.scalarBoolMaskLoad(vectorType,
                         specialization.carrierPattern().get(boundary), boundary,
-                        state.addresses()[boundary]);
+                        state.addresses()[boundary], state.intAddresses());
             } else carriers.vectorLoad(vectorType,
                     specialization.carrierPattern().get(boundary), boundary,
                     state.addresses()[boundary], value.accessPlan().regime()
-                            == io.github.pho001.synaptik.backend.cpu.internal.ir.CpuAccessPlan.Regime.SCALAR_ALL_ZERO);
+                            == io.github.pho001.synaptik.backend.cpu.internal.ir.CpuAccessPlan.Regime.SCALAR_ALL_ZERO,
+                    state.intAddresses());
             code.astore(locals[value.ordinal()]);
         }
         ir.instructions().forEach(instruction -> instructions.emit(instruction, locals));
@@ -184,7 +198,7 @@ public final class CpuClassFileKernelGenerator {
             CpuKernelIr.Value value = ir.values().get(store.value());
             int boundary = boundaryIndex(boundaries, value.ordinal());
             carriers.vectorStore(vectorType, specialization.carrierPattern().get(boundary), boundary,
-                    state.addresses()[boundary], locals[value.ordinal()]);
+                    state.addresses()[boundary], locals[value.ordinal()], state.intAddresses());
         }
     }
 

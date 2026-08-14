@@ -1070,7 +1070,7 @@ segment/mixed carriers, input deduplication and aliasing, and strict output/inpu
 `NONE` accepts all six represented types; ADD/MUL/MIN/MAX accept the five numeric types, while
 SCATTER_ADD is fixed ADD. Floating MUL alone declares exact per-range primitive-limb scratch and
 rounds the abstract product once. Schema 16 introduced scatter structure and scratch signature;
-current schema 21 retains them.
+current schema 23 retains them.
 
 Completed CPU 0006B2 adds exactly one fully static resolved-layout FOLD_AXIS or FOLD2D
 occurrence. Fold starts a fresh output from represented positive zero, visits contributions in
@@ -1078,7 +1078,7 @@ canonical logical input row-major order, uses scalar or disjoint-output parallel
 and declares neither workspace nor materialization. Both families admit FLOAT64, FLOAT32, and
 BFLOAT16; FOLD_AXIS additionally admits modular INT32/INT64 addition. FOLD2D excludes padded and
 ceil-tail coordinates outside the unpadded NCHW output. Schema 17 added fold structure and its
-canonical sequential-addition policy; current schema 21 retains both.
+canonical sequential-addition policy; current schema 23 retains both.
 
 Completed CPU 0006C adds exactly one fully static resolved-layout stable SORT, ARGSORT, or TOP_K
 occurrence for all six represented types. It uses logical-axis order, keeps floating NaNs last in
@@ -1103,8 +1103,12 @@ walks its complete selected domain in canonical logical row-major order. Floatin
 the first NaN's represented bits under a CPU/schema-local policy, select the required signed zero,
 and copy the selected BFLOAT16 representation without arithmetic. Parallel-scalar work owns whole
 output cells only, with zero workspace, materialization, partial state, or combine state. The
-generated Class-File entry bridges to a CPU-owned static body rather than embedding the reduction
-loop. Schema 21 is current and rejects schema-20 artifacts without migration.
+generated Class-File entry now embeds typed aggregate folds for current emitted bodies. Completed
+CPU 0007A0 introduced schema 22, typed scan/aggregate bodies, and proved dense heap-array integer
+pointwise loops while retaining general-long fallbacks and schema-21 aggregate identity facts.
+Completed CPU 0007A0A advances the current compatibility boundary to schema 23 for proved dense
+heap-array affine and movement integer bodies. Schema-22 and earlier artifacts are incompatible
+misses without migration.
 
 Cross-type cast, general BFLOAT16 pointwise arithmetic, FLOAT16 execution, relaxed math,
 native/vendor realization, dynamic layouts, Vector API scatter, fold, ordering, scan, or ordinary
@@ -1152,8 +1156,12 @@ scalar or exactly eligible typed preferred-species vector body. Floating bodies 
 comparison/classification BOOL values as unit-private virtual masks through logical combination
 and floating WHERE; materialized masks remain scalar. It
 emits generation-time-selected primitive access state machines, direct array or native-order
-`MemorySegment` vector access, unmasked complete vectors, and scalar remainders. Parallel
-orchestration remains outside generated code. The family-level
+`MemorySegment` vector access, unmasked complete vectors, and scalar remainders. Current
+schema-23 dense heap-array pointwise, affine, and movement entries narrow universal `long` bounds,
+bases, and applicable geometry once to integer locals, while unproved arrays, segments, and
+general layouts retain long address state.
+Scan and ordinary-aggregate entries embed typed family bodies rather than a generic static
+`Object` carrier bridge. Parallel orchestration remains outside generated code. The family-level
 `CpuVectorInstructionEmitter` owns the closed operation-to-vector-bytecode switch, while
 `CpuVectorMath` owns only pure typed multi-instruction formulas, including the selected ERF and
 GELU approximations. Class/loop/carrier/store/tail generation remains in the class generator.
@@ -1168,7 +1176,7 @@ decision occurs in the generated loop.
 ### CPU kernel specialization
 
 The implemented backend-private immutable description of every fact allowed to change one
-generated CPU class. The current form includes schema 18, the canonical lowering fingerprint with
+generated CPU class. The current form includes schema 23, the canonical lowering fingerprint with
 typed opcode sequence, exact scalar-immediate bits, exact ordered clamp-bound bits, and selected
 scalar-power realizations, exact/default numerical mode, generated
 scalar/vector compute form, exact preferred FLOAT32, FLOAT64, INT32, INT64, or BOOL species bit
@@ -1190,6 +1198,12 @@ structural when present. Schema 18 additionally records stable SORT/ARGSORT/TOP_
 represented type, direction and TOP_K output-order flags, ordered one- or two-output boundary
 roles, and the scratch-bearing entry shape. Concrete axis, K, layout magnitudes, workspace
 identity, and execution ranges remain cold.
+Schema 19 adds explicit-state random mapping facts, schema 20 adds cumulative-scan kind, axis,
+mode, and typed-rounding facts, schema 21 adds ordinary aggregate form, selected-axis, range, and
+zero-workspace facts, schema 22 adds embedded typed scan/aggregate body compatibility plus the
+proved dense heap-array integer-address pointwise loop category, and schema 23 adds proved dense
+heap-array integer affine/movement bodies with invariant invocation geometry hoisted before the
+loop.
 Canonical IR separately supplies value kind, data type, ordered semantics/stores, iteration rank,
 axis roles, contiguous-suffix form, and access regime. Their derived compatibility bytes and
 structural identity are order-sensitive.
@@ -1215,11 +1229,13 @@ Keeping the artifact reachable keeps its hidden-class state reachable, without p
 unreferenced class unloads. Direct generator calls produce equal class bytes but distinct hidden
 classes and artifact identities. The current durable generated-kernel artifact store may instead
 reuse compatible class bytes and weakly intern one loaded artifact while it remains live. The
-artifact is not by itself a prepared route. Current schema-15 artifacts execute admitted bounded
-forty-eight-opcode pointwise chains, one static affine represented-bit copy, one static
-PAD/TILE/CONCAT/STACK/window-extraction/SLICE_UPDATE movement, or one static indexing occurrence
-across the implemented carrier patterns. Schema 14 and older artifacts are incompatible misses
-with no migration reader.
+artifact is not by itself a prepared route. Current schema-23 artifacts execute admitted bounded
+pointwise chains, one static affine represented-bit copy, one static
+PAD/TILE/CONCAT/STACK/window-extraction/SLICE_UPDATE movement, one static indexing occurrence,
+one functional-scatter output pass, one overlap-fold pass, one stable ordering/selection pass,
+one explicit-state initializer/dropout pass, one typed cumulative-scan body, or one typed
+ordinary-aggregate body across the implemented carrier patterns. Schema 22 and older artifacts
+are incompatible misses with no migration reader.
 
 ### CPU generated-kernel artifact store
 
@@ -1257,11 +1273,13 @@ ordered boundary values and data-type/carrier pattern, normalized access binding
 declarations, compatible extents/count, selected range count, positive minimum range size, exact
 vector species when applicable, optional selected materialization, original and adjusted generated
 carrier patterns, optional exact workspace declaration, specialization budget, optional compact
-movement, indexing, scatter, or fold geometry, and an optional cold lowering manifest.
+movement, indexing, scatter, fold, ordering, random, scan, or aggregate geometry, and an optional
+cold lowering manifest.
 
 CPU analysis validates that Planning selected CPU ownership, admits one connected straight-line
 chain of one through eight supported pointwise occurrences or one exact static movement,
-indexing, functional-scatter, or overlap-fold occurrence, derives every family-specific Model
+indexing, functional-scatter, overlap-fold, stable-ordering, explicit-state random, cumulative-
+scan, or ordinary-aggregate occurrence, derives every family-specific Model
 shape, normalizes resolved layouts, proves output write injectivity, derives external boundaries
 and virtual single-use results, and compares direct plus at most three eligible one-input copy
 candidates. It declares each boundary's referenced byte span and, when selected, appends workspace
@@ -1279,7 +1297,8 @@ The implemented backend-private immutable Runtime recipe constructed by CPU fina
 shared slot assignment. `CpuPreparedExecutable` strongly retains the partition's one generated
 artifact and exact static `MethodHandle`, the lowering-derived selected buffers, full normalized geometry, ordered
 original/generated carrier patterns, optional materialization/workspace selection, optional
-compact movement, indexing, scatter, or fold geometry, one half-open
+compact movement, indexing, scatter, fold, ordering, random, scan, or aggregate geometry, one
+half-open
 logical range, selected range bounds, and an optional borrowed CPU worker group. It owns no
 physical representation or worker close lifecycle and may bind
 concurrently to distinct open `RunState` instances.
@@ -1298,8 +1317,9 @@ range-start coordinate, carrier bases, strides, and compact family facts without
 table. It invokes one range inline or
 synchronously joins deterministic disjoint chunks through the borrowed group; generated code
 performs no scheduling. The current production families establish only the admitted bounded
-pointwise, affine, movement, indexing, functional-scatter, and overlap-fold matrices; they make no Tensor-result, gradient, compiler,
-conformance, integration, or performance claim.
+pointwise, affine, movement, indexing, functional-scatter, overlap-fold, stable-ordering,
+explicit-state random, cumulative-scan, and ordinary-aggregate matrices; they make no
+Tensor-result, gradient, compiler, conformance, integration, or performance guarantee.
 
 ### CPU execution unit
 
@@ -1321,7 +1341,8 @@ concrete Draft tasks.
 
 The immutable CPU-private portable representation of one CPU execution unit. The sealed family
 contains the established pointwise form, static affine-copy form, static movement form, static
-indexing form, functional-scatter form, and overlap-fold form. The
+indexing form, functional-scatter form, overlap-fold form, stable-ordering form,
+explicit-state-random form, cumulative-scan form, and ordinary-aggregate form. The
 pointwise route-
 independent canonical form records typed boundary and virtual values, one
 forty-eight-opcode family-oriented pointwise vocabulary, exact typed scalar-immediate and ordered
@@ -1408,6 +1429,11 @@ general positive-strided odometer fallback. The five regimes emit distinct state
 linear increment, a constant address, a final-axis counter/reset, a contiguous-inner plus outer
 carry/reset, or a full-axis odometer. Generated hot code uses primitive address/carry
 arithmetic without per-element cursor allocation, semantic dispatch, division, or modulo.
+Schema 22 lets proved dense heap-array pointwise entries use integer loop/address locals after
+one-time bound and base narrowing; unproved heap-array, segment, and general-layout forms keep the
+existing long address state. Schema 23 applies the same cold-proved integer-state boundary to
+affine copies and all seven current movement families while preserving their universal long entry
+bounds and typed general-long fallbacks.
 Completed CPU 0005J vectorizes direct contiguous runs and scalar broadcasts for exactly eligible
 FLOAT32, FLOAT64, INT32, INT64, or canonical-BOOL IR and admits narrowly virtual floating masks
 when every non-scalar boundary has a complete preferred-species run. It uses the scalar body for
@@ -1457,8 +1483,9 @@ One of exactly `scalar`, `vector`, `parallel-scalar`, or `parallel-vector`. Scal
 compute axis and single-thread/parallel is the orchestration axis. CPU analysis selects among all
 four before shared assignment. It uses the exact Java 26 preferred FLOAT64, FLOAT32, INT32, INT64,
 or ByteVector species for an eligible lane type. All use unmasked complete vectors plus scalar
-tails and scalar fallback for general odometers or short runs. Generated kernels accept primitive `start` and
-`end`; worker orchestration remains outside generated code.
+tails and scalar fallback for general odometers or short runs. Proved dense heap-array vector
+loops compute one integer bound before vector iteration and then run one scalar tail. Generated
+kernels accept primitive `start` and `end`; worker orchestration remains outside generated code.
 
 The floating value set is the CPU 0005I twenty-one-opcode set plus binary/scalar extrema, ordered
 clamp, ReLU, sign, and same-type cast. The INT32/INT64 set is binary/scalar ADD/SUB/MUL/MIN/MAX
@@ -1606,7 +1633,7 @@ input/output physical overlap before work.
 
 Analysis declares exactly two buffers, zero workspaces or materializations, one unit, and one
 artifact. Schema 17 introduced fold family, type, structural access/rank facts, carrier form,
-execution mode, and addition policy; current schema 21 retains those facts while keeping concrete
+execution mode, and addition policy; current schema 23 retains those facts while keeping concrete
 geometry and ranges cold. This term
 adds no Model or Compiler semantics, gradient route, Runtime interpretation, native or vector
 fold, dynamic layout, fusion, reduction-framework reuse, cross-backend bitwise promise, or
@@ -4284,7 +4311,7 @@ finite steps including legal length-one `Long.MIN_VALUE`, handles scalar and emp
 supports arbitrary disjoint scalar or parallel-scalar ranges across heap, segment, and mixed
 carriers. Output/input physical overlap is rejected; exact same-value base/update inputs may share
 one deduplicated boundary. Schema 15 introduced the slice-update family/rank/map structure, and
-current schema 21 retains it;
+current schema 23 retains it;
 concrete placement remains cold. Functional scatter and overlap fold are separate current CPU
 portable families.
 

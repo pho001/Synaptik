@@ -40,6 +40,8 @@ import jdk.incubator.vector.ByteVector;
  * selected range and may expose one or two output stores.
  * One-node cumulative scans remain scalar compute, declare exactly input and output with no
  * workspace or materialization, and may parallelize only across complete independent slices.
+ * One-node ordinary aggregates likewise remain scalar compute, declare exactly input and output
+ * with no workspace or materialization, and may parallelize only across complete output cells.
  */
 public final class CpuPartitionPreparer implements BackendPartitionPreparer<
         CpuPartitionAnalysisInputs, CpuPartitionPreparationPlan> {
@@ -62,8 +64,9 @@ public final class CpuPartitionPreparer implements BackendPartitionPreparer<
      * @param context non-null complete CPU analysis context
      * @return one immutable analysis with one unit, a cold-selected portable strategy, one exact
      *     declaration per derived boundary, and at most one workspace declaration; affine and
-     *     fold and cumulative-scan plans have no workspace, while ordering has exact per-range
-     *     scratch and TOP_K has ordered values then INT64-index outputs; never {@code null}
+     *     fold, cumulative-scan, and ordinary-aggregate plans have no workspace, while ordering
+     *     has exact per-range scratch and TOP_K has ordered values then INT64-index outputs; never
+     *     {@code null}
      * @throws NullPointerException if {@code context} is {@code null}
      * @throws IllegalArgumentException if complete-partition lowering rejects the occurrence or
      *     declared resource geometry is invalid

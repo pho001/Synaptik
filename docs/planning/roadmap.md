@@ -179,9 +179,44 @@ BOOL folds share zero-workspace output-domain geometry, while ordinary SUM/MEAN/
 separate exact floating numerical/resource design and binding-aware target-Shape SUM requires
 right-aligned bound-Shape geometry. Draft CPU 0007A1, CPU 0007A2, and CPU 0007B–0007F retain those
 numerical aggregates, target-Shape SUM, arg-extrema, masked, advanced statistical/norm, stable
-softmax/log-softmax, and layer/RMS/batch-normalization boundaries; none has a detailed
-specification. CPU 0007A1 is the next `Draft` CPU planning frontier.
-Corrective implementation/audit context `019ffcea-9e5e-7d60-9c45-f5664c8c4d4c` passed the
+softmax/log-softmax, and layer/RMS/batch-normalization boundaries. A completed local
+bytecode/performance audit then inserted detailed
+[CPU 0007A0 generated hot-path parity correction](backends/cpu/tasks/0007a0-generated-hot-path-parity-correction.md)
+and has completed before CPU 0007A1. It corrects dense scalar/vector loop shape and replaces
+bridge-only scan/aggregate hot work with typed generated bodies while retaining all general
+forms. Its isolated five-fork acceptance gate passed: generated/direct median-of-fork-medians
+ratios were 0.819 for scalar ADD, 0.852 for Vector ADD, 0.854 for fused ADD -> GELU_EXACT -> MUL,
+1.001 for full MIN, and 0.998 for CUM_SUM across 1,048,576-element cases on Java 26.0.1, macOS
+26.5.2, aarch64, with 128-bit preferred `DoubleVector` species. This correction supersedes only
+former performance implementation assumptions; completed semantic task records remain
+`Complete`.
+
+A targeted follow-on source and bytecode audit now inserts CPU 0007A0A–0007A0F before CPU 0007A1.
+Detailed
+[CPU 0007A0A affine and movement generated-loop parity](backends/cpu/tasks/0007a0a-affine-and-movement-generated-loop-parity.md)
+is `Complete`. Affine and movement already embedded typed work and now share schema-23
+cold-proved dense integer loop/address forms while retaining universal long entry bounds and typed
+general-long fallbacks. Independent review corrected TILE so each source coordinate wraps by its
+own input extent and an outer source axis advances only on the matching output-axis carry. CPU
+0007A0B is the next single `Draft` frontier; CPU 0007A0B–0007A0F remain ordered `Draft` rows for
+bridge-only indexing, scatter, fold, ordering, and random/dropout. Their generated entries
+currently delegate through static helpers with generic
+`Object` carriers and runtime type/carrier work, but their mapping, workspace, ordering,
+accumulation, multi-output, and replay contracts require distinct implementations and direct-loop
+baselines. Every task requires independent representative minimum five-fork cases and the unchanged
+per-case `<= 1.15x` median-of-fork-medians gate. CPU 0007A0A passed that gate with corrected
+affine/TILE/SLICE_UPDATE ratios `0.868672x`, `1.107360x`, and `1.131942x`; later rows remain future
+acceptance objectives, not current parity claims. CPU 0007A1 depends on 0007A0F and resumes
+semantic-family expansion only after the entire corrective sequence completes.
+CPU 0007A0A implementation context `019ffff6-4acb-75b3-9e4d-b71359d8a6ed` and corrective review
+context `01a0000e-d32a-7fd3-aaa3-4c7d32b7f5af` produced the stabilized result. The post-correction
+focused movement run passed 14 tests, and the authoritative CPU suite passed 53 suites/309 tests
+with zero failures/errors and one existing expected skip. Clean documentation context
+`01a00019-c0d3-7f42-8bc3-adb24b115aa6` changed no executable Java or test and reused the retained
+five-fork evidence. Both baseline and corrected checksum manifests verify; the corrected probe
+used Java 26.0.1, macOS 26.5.2 aarch64, fixed one-gibibyte heaps, five warmup batches, nine
+randomized rounds, adaptive batches of at least 25 ms, and exact verification.
+Earlier CPU 0007 corrective implementation/audit context `019ffcea-9e5e-7d60-9c45-f5664c8c4d4c` passed the
 1-suite/3-test regression, focused 11-suite/109-test matrix, and sole latest authoritative CPU
 suite with 50 suites, 292 tests, one existing opt-in skip, and no failures or errors. Clean
 documentation context `019ffcf5-ac50-7920-b528-1ea57c175e96` changed no executable Java or tests,
@@ -195,8 +230,9 @@ executable Java or tests, independently recounted the preserved final XML as 53 
 zero failures/errors, and one expected opt-in persistence-evidence skip, and finalized the
 schema-21 Javadocs/package summaries, CPU guide, glossary, and planning records. Final Javadoc,
 rendered-page, Markdown, exact 37-path, schema/status/package, concurrent-scope-preservation, and
-whitespace gates passed. Detailed CPU 0007A is `Complete`; CPU 0007A1 is the next `Draft` planning
-frontier, and later CPU rows remain `Draft` without detailed specifications.
+whitespace gates passed. Detailed CPU 0007A and corrective CPU 0007A0/0007A0A are `Complete`;
+CPU 0007A0B is the next single `Draft` frontier; CPU 0007A0B–0007A0F and CPU 0007A1 onward remain
+ordered `Draft` work.
 CPU 0006B1 implementation context `019ff230-109c-73a3-933f-611ee7f6143d` and independent
 audit/fix context `019ff248-a9e4-7150-8fbb-db2730d7cc1b` produced the final focused
 12-suite/103-test and CPU 38-suite/230-test evidence; the latter has one expected existing skip
@@ -231,7 +267,9 @@ division and exact scalar-power realization is `Complete`; detailed CPU 0005G an
 `Complete`; detailed CPU 0005I, CPU 0005J, and CPU 0006 are `Complete`; and CPU
 0006A is `Complete`; detailed 0006A1 and 0006A2 are `Complete`; detailed CPU 0006B is `Complete`;
 detailed CPU 0006B1, CPU 0006B2, CPU 0006C, CPU 0006D, CPU 0007, and detailed CPU 0007A are
-`Complete`; CPU 0007A1–0017 remain `Draft` without detailed specifications.
+`Complete`; corrective CPU 0007A0 and CPU 0007A0A are `Complete`; CPU 0007A0B is the next single
+`Draft` frontier; CPU 0007A0B–0007A0F and CPU 0007A1–0017 remain ordered `Draft` work without
+detailed specifications.
 CPU 0003
 implements a
 model-independent filesystem store beneath an explicit
@@ -614,17 +652,22 @@ Detailed CPU 0006 and detailed CPU 0006A are Complete after splitting static mov
 window extraction, and value-dependent indexing by dependency. Detailed CPU 0006A1 is `Complete`;
 detailed CPU 0006A2 is `Complete`; detailed CPU 0006B is `Complete`; detailed CPU 0006B1 is
 `Complete`; detailed CPU 0006B2, CPU 0006C, and CPU 0006D are `Complete`;
-Detailed CPU 0007 and detailed CPU 0007A are `Complete`; CPU 0007A1–0017 and the refined
-Config, Prepare, Metal, and tuning rows remain `Draft` without new detailed specifications.
+Detailed CPU 0007 and detailed CPU 0007A are `Complete`; corrective CPU 0007A0 and CPU 0007A0A
+are `Complete`; CPU 0007A0B is the next single `Draft` frontier; CPU 0007A0B–0007A0F,
+CPU 0007A1–0017, and the refined Config, Prepare, Metal, and tuning rows remain `Draft` without
+new detailed specifications.
 Completed OpenBLAS history and every completed project area remain unchanged.
 
 CPU remains the active global project area. CPU 0005A through CPU 0006 are `Complete`, detailed
 CPU 0006A, detailed CPU 0006A1, detailed CPU 0006A2, and detailed CPU 0006B are `Complete`.
 Detailed CPU 0006B1, CPU 0006B2, CPU 0006C, CPU 0006D, CPU 0007, and detailed
 [CPU 0007A portable ordinary extrema and boolean reductions](backends/cpu/tasks/0007a-portable-ordinary-extrema-and-boolean-reductions.md)
-are `Complete`. CPU 0007A1 is the next `Draft` planning frontier, and later work remains `Draft`
-without detailed
-specifications.
+are `Complete`. Corrective
+[CPU 0007A0 generated hot-path parity correction](backends/cpu/tasks/0007a0-generated-hot-path-parity-correction.md)
+is `Complete`. Detailed
+[CPU 0007A0A affine and movement generated-loop parity](backends/cpu/tasks/0007a0a-affine-and-movement-generated-loop-parity.md)
+is `Complete`. CPU 0007A0B is the next single `Draft` frontier; CPU 0007A0B–0007A0F and later work
+remain ordered `Draft`, with CPU 0007A1 explicitly behind the final corrective task.
 CPU 0006A delivers one exact static resolved-layout PAD, TILE, CONCAT, or STACK occurrence with
 ordered one-through-sixteen composition inputs, first-occurrence unique declarations, compact
 cold movement geometry, all-six-type represented-bit scalar/parallel-scalar generation, one

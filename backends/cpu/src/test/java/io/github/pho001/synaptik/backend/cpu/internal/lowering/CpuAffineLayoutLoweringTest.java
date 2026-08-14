@@ -236,4 +236,16 @@ public class CpuAffineLayoutLoweringTest {
                 base.memoryRequirements(), Map.of(), new CpuPartitionAnalysisInputs(false, carriers,
                 CpuPartitionAnalysisInputs.DEFAULT.portableExecution()));
     }
+
+    /** Returns one dense identity CONTIGUOUS context for generated-loop tests. */
+    public static PrepareContext<CpuPartitionAnalysisInputs> contiguous(
+            DataType type, List<CarrierAccess> carriers, int elementCount) {
+        Shape shape = Shape.of(elementCount);
+        TensorDescriptor descriptor = descriptor(type, shape, LayoutDescriptor.contiguous(shape));
+        var base = context(List.of(new Operation(ContiguousKind.CONTIGUOUS,
+                NoOperationAttrs.INSTANCE)), List.of(descriptor, descriptor));
+        return new PrepareContext<>(base.partition(), base.nodes(), base.values(),
+                base.memoryRequirements(), Map.of(), new CpuPartitionAnalysisInputs(false, carriers,
+                CpuPartitionAnalysisInputs.DEFAULT.portableExecution()));
+    }
 }

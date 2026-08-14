@@ -638,7 +638,7 @@ affine load/store, gather, scatter, masked tail, or speed claim.
 Lifecycle ownership remains unchanged. CPU analysis validates and composes the chain, chooses the
 scalar orchestration, and declares exactly the source and final result. Shared Prepare assigns
 those two slots without interpreting the affine plan. CPU finalization validates both assignments
-before current schema-21 artifact access and constructs one immutable executable. Cold binding validates
+before current schema-23 artifact access and constructs one immutable executable. Cold binding validates
 the exact data type, carrier, byte size, alignment, accessibility, output writability, canonical
 BOOL input bytes, and source/result non-overlap. Runtime then invokes only the prepared direct
 carriers, address table, and `start`/`end` bounds; it receives no operation, graph node, Shape,
@@ -689,10 +689,34 @@ callback, or per-element allocation in generated code.
 
 Movement uses scalar compute and either single-thread or deterministic parallel orchestration.
 Parallel chunks are safe because output injectivity proves disjoint writes. Vector preference
-falls back to scalar for this family. CPU finalization realizes current schema-21 generated artifacts;
+falls back to scalar for this family. CPU finalization realizes current schema-23 generated artifacts;
 cold binding validates complete input/output spans and rejects every output/input overlap before
 execution. The scalar reference consumes the same movement IR and compact geometry for
 differential tests, not as a Runtime fallback.
+
+Dense heap-array affine and movement entries use a cold-proved integer loop/address form. The
+entry descriptor remains shape-polymorphic and accepts `long start, long end`; it narrows those
+bounds, carrier bases, and compact movement geometry once before entering the loop. Dense affine
+copies then advance direct source/result array indexes. PAD, TILE, CONCAT, STACK, UNFOLD_AXIS,
+UNFOLD2D, and SLICE_UPDATE retain family-specific integer coordinate/address state. Segment,
+mixed-carrier, arbitrary-layout, non-unit/zero-stride, large-range, and otherwise unproved cases
+retain the typed general-long form.
+
+TILE wraps each source coordinate by its own input-axis extent. An outer source coordinate advances
+only when the matching output axis carries; repeating the final axis therefore does not
+incorrectly advance an outer source row. This rule applies to dense and general-long forms and to
+arbitrary legal subranges. The generated TILE loop performs no per-element division, modulo,
+allocation, or helper bridge.
+
+CPU 0007A0A measured this bounded code-shape correction outside JUnit. Its pre-change
+generated/direct ratios were 4.582 for dense FLOAT64 affine CONTIGUOUS, 1.928 for FLOAT32 TILE,
+and 2.181 for INT32 SLICE_UPDATE. The corrected five-fork median-of-fork-medians ratios were
+0.869, 1.107, and 1.132 respectively, all within the fixed `<= 1.15x` gate. The final TILE case
+uses input Shape `[1024, 256]`, repeats the final axis four times, and writes 1,048,576 outputs.
+The probe used Java 26.0.1 on macOS 26.5.2 aarch64, fixed one-gibibyte initial and maximum heaps,
+five warmup batches, nine randomized measurement rounds, adaptive batches of at least 25 ms, and
+exact verification. These local measurements validate the selected cases; they do not select a
+production route or promise parity for every mapping or machine.
 
 ### Current static window extraction
 
@@ -776,7 +800,7 @@ injectivity, and output/input non-overlap checks still run.
 
 CPU analysis declares each distinct gather input `ValueId` once in semantic first-use order and
 then one separate output; one-hot declares indices and output. Every indexing plan has one unit,
-no materialization, no workspace, one current schema-21 generated class artifact, one prepared
+no materialization, no workspace, one current schema-23 generated class artifact, one prepared
 executable, and one bound invocation. The artifact owns only output writing. Compact CPU-private
 geometry retains layout and coordinate facts without a per-index or per-output table, while the
 bound executable owns run-value validation. Shared Prepare assigns declared buffers opaquely,
@@ -934,7 +958,7 @@ parallel orchestration calls the same scalar body over disjoint output ranges. F
 API body, atomics, partial sums, cross-range merge, hidden scratch, or input-domain parallelism.
 CPU analysis and finalization keep concrete axes, windows, extents, layouts, carriers, and ranges
 cold. Schema 17 introduced the fold family, represented type, boundary access/rank structure,
-carrier pattern, execution mode, and canonical sequential-addition policy; current schema 21
+carrier pattern, execution mode, and canonical sequential-addition policy; current schema 23
 retains those facts, and every older schema is an incompatible miss with no migration reader.
 
 This is exact current CPU route coverage, not broader Model, Compiler, Runtime, Engine, gradient,
@@ -1128,17 +1152,20 @@ complete physical spans. Any input/output overlap fails before output mutation, 
 creation, or worker submission. The immutable prepared recipe owns no mutable accumulator or
 shared state; each invocation range receives private packed coordinate state.
 
-The generated two-boundary entry is a direct bridge to a CPU-owned static scan body. That body,
-not an inlined generated typed loop, reconstructs coordinates and performs the sequential typed
-accumulation. The bridge retains the same structural generated-artifact and compatibility
-boundary as the other portable families.
+The generated two-boundary entry embeds a typed scan body selected from structural scan facts.
+Dense rank-one heap-array scans use one-time integer base narrowing and a direct typed loop.
+Other supported layouts, mixed carriers, and `MemorySegment` carriers retain a typed long-address
+body that reconstructs non-axis coordinates once per slice and then walks the axis sequentially.
+The entry contains no generic `Object` carrier bridge or runtime data-type/kind dispatcher.
 
 Schema 20 records scan kind, represented type, normalized axis role, inclusive/exclusive and
 forward/reverse modes, ordered boundary roles and carrier forms, structural accesses, sequential
-typed-rounding policy, scalar compute shape, and absence of scratch. Concrete extents, offsets,
-stride magnitudes, assigned slots, carrier objects, addresses, worker identity, run identity, and
-selected range count remain cold when they do not change emitted bytes. Schema-19 artifacts are
-incompatible misses, and there is no migration reader.
+typed-rounding policy, scalar compute shape, and absence of scratch. Schema 22 added the embedded
+typed body and dense heap-array loop-shape compatibility; current schema 23 retains those facts.
+Concrete extents, offsets, stride magnitudes, assigned slots, carrier objects,
+addresses, worker identity, run identity, and selected range count remain cold when they do not
+change emitted bytes. Schema-21 and earlier artifacts are incompatible misses, and there is no
+migration reader.
 
 Current coverage ends at this one-node static portable family. Numerical ordinary aggregates,
 arg-extrema, masked, logarithmic, statistical, and norm reductions remain Draft CPU
@@ -1188,7 +1215,8 @@ logical traversal and result placement; it does not promise vector reduction or 
 result.
 
 Floating domains use numerical order, with negative zero selected for `MIN` and positive zero for
-`MAX`. Any NaN makes the result NaN. Schema 21's CPU-local deterministic policy copies the
+`MAX`. Any NaN makes the result NaN. The CPU-local deterministic policy introduced with schema 21
+copies the
 represented bits of the first NaN in canonical logical input row-major traversal order; this is
 not a Model, cross-backend, or future-schema payload promise. BFLOAT16 values widen only for
 comparison, and the selected output copies the original 16 represented bits without arithmetic
@@ -1201,18 +1229,29 @@ non-negative resolved input layouts and injective output layouts. It validates c
 input and rejects complete physical input/output overlap before coordinate-pack mutation, output
 initialization, a generated call, or worker submission. Empty output performs no generated work.
 
-The generated entry is a Java Class-File bridge to the CPU-owned static aggregate body; the
-reduction loop is not embedded in the generated class. Primitive `start` and `end` values bound a
-contiguous range of flattened output-cell ordinals. Every range receives invocation-private
-primitive coordinate state, while the prepared recipe retains no mutable accumulator, partial
-buffer, combine state, or run-shared reduction state.
+The generated entry embeds a typed aggregate fold selected from structural aggregate facts.
+Primitive `start` and `end` values bound a contiguous range of flattened output-cell ordinals.
+Full dense heap-array reductions use a direct integer-address linear fold. Other supported forms
+retain a typed long-address fallback that decodes output and selected-domain coordinates only
+where arbitrary rank or strides require it. Every range receives invocation-private primitive
+coordinate state, while the prepared recipe retains no mutable accumulator, partial buffer,
+combine state, or run-shared reduction state.
 
 Schema 21 records kind, represented type, ordinary form, canonical selected-axis membership,
 retention, structural boundary access, first-logical-NaN/signed-zero policy, complete-output-cell
-range meaning, carrier forms, and zero scratch. Concrete Shapes, domain counts, offsets, stride
-magnitudes, slots, carrier objects, addresses, workers, run identity, and selected range count
-remain cold when they do not change emitted bytes. Schema-20 artifacts are incompatible misses;
-there is no migration reader.
+range meaning, carrier forms, and zero scratch. Schema 22 added embedded typed-body and dense
+heap-array loop-shape compatibility; current schema 23 retains those facts. Concrete Shapes,
+domain counts, offsets, stride magnitudes, slots, carrier objects, addresses, workers, run
+identity, and selected range count remain cold when they do not change emitted bytes. Schema-21
+and earlier artifacts are incompatible misses; there is no migration reader.
+
+The local CPU 0007A0 parity probe is evidence for the current generated code shape, not a
+hardware-universal speed guarantee or production selector. On Java 26.0.1, macOS 26.5.2,
+aarch64, with 128-bit preferred `DoubleVector` species and 1,048,576-element cases, the
+median-of-fork-medians generated/direct ratios were 0.819 for scalar FLOAT64 ADD, 0.852 for
+preferred-species FLOAT64 Vector ADD, 0.854 for scalar FLOAT64 ADD -> GELU_EXACT -> MUL, 1.001
+for dense FLOAT64 full MIN, and 0.998 for inclusive forward FLOAT32 CUM_SUM. The probe used five
+fresh JVM forks and kept timing outside ordinary unit tests.
 
 Current coverage ends at this one-node static family. Ordinary `SUM`, `MEAN`, and `PROD` remain
 Draft CPU 0007A1 work; binding-aware `SUM_TO_SHAPE` remains Draft CPU 0007A2 work. Arg extrema,
@@ -1382,10 +1421,12 @@ in generated specialization and cache identity; schema 10 also reflects opcode/m
 through the lowering fingerprint, and no duplicate lane-type field is needed. Each generated class
 contains only its selected scalar or vector body and one direct entry signature for the prepared derived-boundary
 carrier pattern. Vector loads and stores call the exact primitive array or `MemorySegment` form
-selected during generation; segment access uses native byte order. Each
-contiguous run uses unmasked complete vectors, then the existing scalar body for every remainder.
-This scalar-tail rule covers arbitrary starts and worker chunk ends. General odometers, masked
-tails, gather access, and vector-ineligible chains select scalar compute. The JVM may internally
+selected during generation; segment access uses native byte order. Proved dense heap-array loops
+narrow universal `long` bounds and bases once to integer locals. Each contiguous vector run uses
+one precomputed bound, unmasked complete vectors, and then the existing scalar body for every
+remainder. This scalar-tail rule covers arbitrary starts and worker chunk ends. General
+odometers, masked tails, gather access, and vector-ineligible chains select scalar compute. The
+JVM may internally
 scalarize a Vector API operation, so this route and its tests do not promise hardware intrinsics
 or speedup.
 
@@ -1680,14 +1721,15 @@ above. Scalar
 execution covers every admitted row; parallel-scalar orchestration is available for disjoint
 affine, movement, scatter, fold, ordering, random-element, and whole-scan-slice ranges; and the
 pointwise family retains its exact
-typed value-vector and virtual-mask parity matrix. Generator schema 21 distinguishes pointwise,
+typed value-vector and virtual-mask parity matrix. Generator schema 23 distinguishes pointwise,
 affine, movement, indexing, scatter, fold, ordering, random, scan, and aggregate structures,
 including movement occurrence order,
 unequal-rank access, exact
 padding bits, functional slice-update rank/map identity, and scatter reduction/scratch signature,
 plus fold family/addition-policy identity, ordering direction/output-order/output-count/scratch-
 entry identity, explicit-state mapping/scaling identity, cumulative kind/axis/mode/typed-rounding
-identity, ordinary aggregate form/axis/selection/range identity, and the affine
+identity, ordinary aggregate form/axis/selection/range identity, embedded typed scan/aggregate
+bodies, proved dense heap-array integer pointwise/affine/movement loop forms, and the affine
 mapping/write domain and all seven carrier forms. No excluded pointwise or later semantic family,
 general BFLOAT16 pointwise or dropout numerical operation,
 cross-type CAST, dynamic layout, vector affine/scatter/fold/ordering execution, native fallback, backend-conformance

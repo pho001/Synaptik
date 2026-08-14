@@ -23,7 +23,10 @@
  * initializer/probability bits, one- or five-boundary entry shape, and exact finite-precision
  * policy. Schema 20 adds cumulative sum/product, axis and mode roles, sequential typed rounding,
  * and a two-boundary workspace-free slice entry. Schema 21 adds ordinary extrema and Boolean
- * output-cell reduction identity plus its direct static-body bridge. Schema 21 is current-only.
+ * output-cell reduction identity plus its direct static-body bridge. Schema 22 adds embedded typed
+ * scan/aggregate bodies and the proved dense heap-array integer-address pointwise loop category.
+ * Schema 23 adds proved dense heap-array integer affine-copy and movement bodies with invariant
+ * invocation geometry hoisted before their loops. Schema 23 is current-only.
  * Four complete candidate plans, one realized
  * artifact, zero fixed-shape variants, and zero unrolled variants are the current hard budget.
  * With no trusted root, realization remains entirely in memory. With a root, one bounded

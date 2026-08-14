@@ -211,7 +211,14 @@ created by 0005A. All consume the common analysis above; none creates another ba
 | 0006D | [Portable explicit-state RNG and dropout coverage](tasks/0006d-portable-explicit-state-rng-and-dropout.md) | Complete | 0006C | Materialized zero-input INITIAL_STATE and executes FLOAT64/FLOAT32 three-output DROPOUT with the versioned CPU-private `SYNAPTIK_CPU_SPLITMIX64_COUNTER_V1` mapping, exact uniform/threshold/scaling rules, canonical BOOL mask, modulo state advancement, deterministic scalar/parallel replay, zero workspace, complete overlap rejection, and schema 19. BFLOAT16 dropout remains truthfully fail-closed. |
 | 0007 | [Portable cumulative scan coverage](tasks/0007-portable-cumulative-scan-coverage.md) | Complete | 0006D; Model 0023E; completed 0005A–0005J | Executes one static resolved-layout CUM_SUM/CUM_PROD occurrence across five numeric types and all four modes with sequential typed accumulation, whole-slice scalar/parallel-scalar execution, complete overlap rejection, zero workspace/materialization, bounded injectivity validation, and schema 20. |
 | 0007A | [Portable ordinary extrema and boolean reductions](tasks/0007a-portable-ordinary-extrema-and-boolean-reductions.md) | Complete | 0007; current Model aggregate-reduction contracts | Executes one-node full, single-axis, and multi-axis MIN/MAX/ALL/ANY across exact numeric/BOOL types with empty identities, logical row-major deterministic folds, output-cell-only parallelism, arbitrary supported layouts/carriers, zero workspace, complete overlap rejection, and schema 21. |
-| 0007A1 | Portable ordinary numerical aggregate reductions | Draft | 0007A | Add full, single-axis, and multi-axis SUM/MEAN/PROD with Model-conforming exact floating targets, modular integral SUM/PROD, product special values, deterministic traversal/combination, and explicit accumulator/scratch declarations. |
+| 0007A0 | [Generated hot-path parity correction](tasks/0007a0-generated-hot-path-parity-correction.md) | Complete | 0005A/0005B/0005C/0005I; 0007; 0007A; completed local bytecode/performance audit | Corrected every measured dense generated-code defect atomically: cold-proved int scalar/address loops, one-bound Vector API loops, typed generated scan/aggregate hot bodies with general fallbacks, schema 22 compatibility, stable code-shape/semantic tests, and an isolated five-fork `<= 1.15x` direct-Java near-parity gate. |
+| 0007A0A | [Affine and movement generated-loop parity](tasks/0007a0a-affine-and-movement-generated-loop-parity.md) | Complete | 0006/0006A/0006A1/0006B; 0007A0 | Added schema-23 cold-proved integer affine and seven-family movement bodies, corrected multidimensional TILE carry/wrap semantics, retained typed general-long forms, and passed isolated affine/TILE/SLICE_UPDATE five-fork per-case `<= 1.15x` gates. |
+| 0007A0B | Indexing generated-loop parity | Draft | 0007A0A; completed 0006A2 semantics | Replace bridge-only GATHER/GATHER_ELEMENTS/GATHER_ND/ONE_HOT hot work with carrier- and type-specialized generated loops; gate dense FLOAT32 GATHER_ELEMENTS and BOOL ONE_HOT independently at `<= 1.15x` direct-loop parity while retaining complete cold index validation and general layouts. |
+| 0007A0C | Scatter generated-loop parity | Draft | 0007A0B; completed 0006B1 semantics | Replace bridge-only generic scatter output-cell work with typed generated writers; gate dense unique SCATTER_ELEMENTS replacement and duplicate-index FLOAT32 SCATTER_ADD independently at `<= 1.15x`, while preserving canonical contribution order, exact floating-product scratch, and cold validation. |
+| 0007A0D | Fold generated-loop parity | Draft | 0007A0C; completed 0006B2 semantics | Replace bridge-only Object/type-dispatched FOLD_AXIS/FOLD2D contribution loops with typed generated bodies; gate one dense overlapping FLOAT32 FOLD_AXIS case at `<= 1.15x` against the same canonical traversal while preserving BFLOAT16 rounding, modular integral addition, and general layouts. |
+| 0007A0E | Ordering generated-loop parity | Draft | 0007A0D; completed 0006C semantics | Replace bridge-only SORT/ARGSORT/TOP_K comparison and output work with typed generated ordering bodies; gate dense stable FLOAT32 SORT and two-output TOP_K independently at `<= 1.15x` against equivalent stable primitive merge loops while preserving exact scratch and order semantics. |
+| 0007A0F | Random and dropout generated-loop parity | Draft | 0007A0E; completed 0006D semantics | Replace bridge-only Object/carrier-dispatched DROPOUT work with typed generated state/value/mask bodies; gate dense FLOAT64 and FLOAT32 DROPOUT independently at `<= 1.15x` against the exact CPU-private mapping while preserving replay, counter advancement, three-output binding, and general carriers. |
+| 0007A1 | Portable ordinary numerical aggregate reductions | Draft | 0007A; 0007A0F | Add full, single-axis, and multi-axis SUM/MEAN/PROD with Model-conforming exact floating targets, modular integral SUM/PROD, product special values, deterministic traversal/combination, and explicit accumulator/scratch declarations only after every pre-existing generated family completes its corrective parity sequence. |
 | 0007A2 | Portable binding-aware sum-to-Shape reduction | Draft | 0007A1 | Add `SUM` with exact `SumToShapeAttrs`, right-aligned bound-Shape validation, leading/aligned reduction geometry, all five numeric types, and truthful resources without dynamic unresolved execution. |
 | 0007B | Portable arg-extrema coverage | Draft | 0007A | Add one-axis ARG_MIN/ARG_MAX with exact floating/integral order, first/last logical tie policy, INT64 indices, and deterministic scalar/parallel behavior. |
 | 0007C | Portable masked reduction coverage | Draft | 0007A1 | Add two-input masked SUM/MEAN with right-aligned mask broadcasting, false-position exclusion before aggregation, selected-count handling, empty-selection results, and truthful resource declarations. |
@@ -223,7 +230,7 @@ created by 0005A. All consume the common analysis above; none creates another ba
 | 0008B | Typed specialized-subgraph and epilogue recognition | Draft | 0007F–0008A | Add CPU-private typed recognition for a selected closed set of specialized subgraphs: initially MATMUL, convolution, and reduction epilogues plus explicit semantic kernels. Add no public pattern registry or domain-specific language (DSL), no new Model kinds, and no recognition that silently turns decomposed softmax into stable `SOFTMAX`. Unrecognized or ineligible graphs retain ordinary decomposed units. |
 | 0008C | Bounded fusion profitability and typed decision facts | Draft | 0008A–0008B | Rank only complete legal fused and split candidates with bounded safe no-measurement heuristics by default. Retain typed cold accepted, rejected, and selected decision facts, including legality rejection separately from profitability rejection, for later Trace backend payload translation and tuning inspection without exposing a public registry or moving selection into Runtime. |
 | 0008D | Bounded multi-input materialization and representation reuse | Draft | 0008C | Extend portable pointwise computation-unit representation planning to cost-select at most two distinct external read-boundary materializations, including both operands of eligible binary work. Cover FLOAT64, FLOAT32, INT32, INT64, and BOOL where the operation already has CPU execution; gate BFLOAT16 on later pointwise numerical support. Enumerate only bounded single/pair variants of legal fused/split topologies, deduplicate repeated boundaries, reuse one selected copy across compatible uses, and give every complete topology/representation candidate a stable typed CPU-private identity with materialized-boundary, layout/access, reuse, workspace, strategy, and topology facts sufficient for later opaque Prepare/tuning compatibility. Re-rank candidates through 0008C's no-measurement profitability facts, preserve direct access as the uncertainty- and tie-winning fallback, perform no measurement or tuning-cache work, and leave DAG split materialization plus native packing/reorder to their existing owners. |
-| 0009 | Portable generated-coverage closure checkpoint | Draft | 0001–0008D, explicitly including 0005A–0005J, 0007A–0007F including 0007A1/0007A2, and 0008A–0008D; complete current selected Model semantic inventory | Prove the bytecode/Vector portable route is the truthful supported semantic baseline and fallback, including safe general DAG decomposition, bounded recognition/fusion, deterministic split fallback, bounded single/dual-input materialization with representation reuse, and typed cold decision evidence. Classify metadata-only work, prove unsupported work fails closed, and close capability/conformance before native peer-route expansion. |
+| 0009 | Portable generated-coverage closure checkpoint | Draft | 0001–0008D, explicitly including 0005A–0005J, corrective 0007A0A–0007A0F, 0007A–0007F including 0007A1/0007A2, and 0008A–0008D; complete current selected Model semantic inventory | Prove the bytecode/Vector portable route is the truthful supported semantic baseline and fallback, including completed per-family generated/direct corrective evidence, safe general DAG decomposition, bounded recognition/fusion, deterministic split fallback, bounded single/dual-input materialization with representation reuse, and typed cold decision evidence. Classify metadata-only work, prove unsupported work fails closed, and close capability/conformance before native peer-route expansion. |
 | 0010 | Narrow OpenBLAS BLAS-compatible native route | Draft | 0005A; 0009; completed OpenBLAS provider | Add only `route.nativeblas.openblas` for eligible BLAS-compatible linear algebra, preserving portable alternatives and using shared lowering, representations, exact filtering, materialization accounting, and whole-plan transition cost; never treat OpenBLAS as universal or preferred. |
 | 0011 | Intel oneMKL BLAS and VML peer routes | Draft | 0005A; 0009; concrete Intel CPU use case and supported oneMKL ABI evidence | Add distinct `route.nativeblas.mkl` BLAS and `route.nativeops.mkl` VML leaves over shared analysis, without duplicating graph interpretation, fusion, access planning, or lifecycle ownership. |
 | 0012 | Intel oneDNN partition peer routes | Draft | 0005A; 0009; stable common CPU lowering; concrete DNN/ML use case and supported oneDNN ABI evidence | Add `route.nativeops.onednn` as a distinct eligible partition route over common lowering/IR and whole-plan cost, without collapsing it into oneMKL or portable code generation. |
@@ -287,11 +294,70 @@ is `Complete`. Detailed
 [CPU 0007 Portable cumulative scan coverage](tasks/0007-portable-cumulative-scan-coverage.md)
 is `Complete`. Detailed
 [CPU 0007A Portable ordinary extrema and boolean reductions](tasks/0007a-portable-ordinary-extrema-and-boolean-reductions.md)
-is `Complete`; CPU 0007A1 is the next `Draft` planning frontier. CPU 0007A2, CPU 0007B–0007F, and
-every later CPU task remain `Draft` without detailed specifications. CPU 0006D is one bounded
+is `Complete`. Detailed
+[CPU 0007A0 Generated hot-path parity correction](tasks/0007a0-generated-hot-path-parity-correction.md)
+is `Complete`. Detailed
+[CPU 0007A0A Affine and movement generated-loop parity](tasks/0007a0a-affine-and-movement-generated-loop-parity.md)
+is `Complete`. CPU 0007A0B is the single next `Draft` corrective frontier; CPU
+0007A0B–0007A0F remain ordered `Draft` corrections without detailed specifications. CPU 0007A1
+is held behind 0007A0F, and CPU 0007A2,
+CPU 0007B–0007F, and every later CPU task remain `Draft` without detailed specifications. CPU
+0006D is one bounded
 one-node family task because
 INITIAL_STATE and DROPOUT share the same explicit-state execution, generated-emitter,
 multi-output-binding, replay, and schema boundary.
+
+CPU 0007A0 is a corrective insertion based on the completed local audit under
+`/tmp/synaptik-bytecode-benchmark`. The audit measured the large dense generated scalar ADD at
+3.63x direct Java, generated Vector API ADD at 1.84x, generated fused ADD -> GELU_EXACT -> MUL at
+1.32x, bridge-only full MIN at 31.91x, and bridge-only CUM_SUM at 5.45x. The completed task
+atomically corrected the shared generated loop/carrier boundary and current scan/aggregate
+emitters, preserved all semantic/general forms, and advanced generated compatibility to schema
+22. The final isolated five-fork probe under `/tmp/synaptik-bytecode-benchmark-0007a0` measured
+generated/direct median-of-fork-medians ratios of 0.819 for scalar ADD, 0.852 for Vector ADD,
+0.854 for fused ADD -> GELU_EXACT -> MUL, 1.001 for full MIN, and 0.998 for CUM_SUM on Java
+26.0.1, macOS 26.5.2, aarch64, with 128-bit preferred `DoubleVector` species. It changes no
+architecture, dependency, public API, route selection, or Runtime tuning boundary. Completed
+tasks remain historically Complete; the correction supersedes only their former performance
+implementation assumptions.
+
+The post-0007A0 audit extends that evidence boundary across every remaining generated family.
+`CpuAffineCopyEmitter` and `CpuDataMovementEmitter` already contained generated typed loops, and
+CPU 0007A0A has now applied the same cold-proved integer loop/address boundary to their dense
+heap-array forms. The generated entry remains `long start, long end`; narrowing and invariant
+geometry loading occur once before the hot loop. Typed general-long forms remain for segments,
+mixed carriers, arbitrary layouts, and unproved ranges. Independent review corrected TILE so
+each source coordinate wraps by its own input extent and outer source axes advance only on the
+matching output-axis carry.
+The other five emitters are bridge-only and remain separate because their algorithms and resource
+contracts require different fair baselines:
+
+| Task | Current generated-bytecode/source evidence | Required independent parity cases |
+|---|---|---|
+| 0007A0A | Complete: schema-23 dense integer affine/movement bodies, corrected TILE carry/wrap semantics, and preserved typed general-long fallbacks. | FLOAT64 CONTIGUOUS, FLOAT32 TILE, INT32 SLICE_UPDATE all passed. |
+| 0007A0B | `CpuIndexingEmitter.emit` generates one `invokestatic execute2/execute3`; the helper selects `DataType`, carriers, and array-versus-segment access behind `Object` during output traversal. | FLOAT32 GATHER_ELEMENTS and BOOL ONE_HOT. |
+| 0007A0C | `CpuScatterEmitter.emit` generates one `invokestatic execute*`; the helper retains generic carriers and per-cell contribution/reduction dispatch, with distinct exact-product scratch semantics. | Unique replacement SCATTER_ELEMENTS and duplicate-index FLOAT32 SCATTER_ADD. |
+| 0007A0D | `CpuFoldEmitter.emit` generates one `invokestatic execute(Object,Object,long[],long,long)`; the helper selects type and performs generic read/write dispatch during canonical contribution scans. | Overlapping dense FLOAT32 FOLD_AXIS. |
+| 0007A0E | `CpuOrderingEmitter.emit` generates one bridge to `execute`; comparison/copy helpers retain generic carriers and type dispatch, while stable merge and TOP_K require exact assigned scratch. | Stable dense FLOAT32 SORT and two-output TOP_K. |
+| 0007A0F | `CpuRandomEmitter.emit` generates one bridge to a five-`Object` `execute`; dropout retains carrier checks and helper calls per value/mask output, while initializer/state prologue and replay are distinct from ordinary movement. | Dense FLOAT64 and FLOAT32 DROPOUT. |
+
+Each case uses an isolated reproducible minimum five-fork probe with at least five warmup batches,
+nine randomized measurement rounds, adaptive batches of at least 25 ms, fixed heap, deterministic
+inputs, exact pre/post verification, and a per-case generated/direct median-of-fork-medians gate of
+`<= 1.15x`. Timing remains outside JUnit and never selects production behavior. Stable automated
+tests instead lock generated bytecode/dispatch shape. CPU 0007A0A's baseline ratios were
+`4.581565x`, `1.928399x`, and `2.181383x` for affine, TILE, and SLICE_UPDATE. The corrected
+five-fork ratios are `0.868672x`, `1.107360x`, and `1.131942x`; all pass `<= 1.15x` on Java
+26.0.1, macOS 26.5.2 aarch64 under the retained fixed-heap randomized protocol. Later rows remain
+corrective objectives, not current parity claims.
+
+Implementation context `019ffff6-4acb-75b3-9e4d-b71359d8a6ed` and corrective review context
+`01a0000e-d32a-7fd3-aaa3-4c7d32b7f5af` produced the final schema-23 implementation and TILE
+regressions. The corrected focused movement run passed 14 tests, and the authoritative CPU suite
+passed 53 suites/309 tests with zero failures/errors and one existing expected skip. Clean
+documentation context `01a00019-c0d3-7f42-8bc3-adb24b115aa6` changed no executable Java or test,
+reused the stabilized Java/probe evidence, and finalized the affected Javadocs/package summaries,
+guide, glossary, and planning records.
 
 CPU 0007A executes one fully static resolved-layout ordinary MIN, MAX, ALL, or ANY occurrence.
 It supports exact full, single-axis, and multi-axis forms, five represented numeric extrema types,
@@ -442,8 +508,9 @@ Complete. Detailed CPU 0005H, detailed CPU 0005I, and detailed CPU 0005J are `Co
 task 0006 and detailed task 0006A are `Complete`, detailed task 0006A1 is `Complete`, detailed
 task 0006A2 is `Complete`, detailed task 0006B is `Complete`, detailed task 0006B1 is `Complete`,
 detailed task 0006B2, detailed task 0006C, and detailed task 0006D are `Complete`; detailed task
-0007 and detailed 0007A are `Complete`, and tasks 0007A1–0017 remain `Draft` without
-detailed specifications.
+0007 and detailed 0007A are `Complete`; corrective tasks 0007A0 and 0007A0A are `Complete`;
+0007A0B is the next single `Draft` frontier; and tasks 0007A0B–0007A0F plus 0007A1–0017 remain
+ordered `Draft` work without detailed specifications.
 CPU 0005C preserves that exact slice and implements cold selection among all four portable
 strategies. It uses the preferred Java 26 FLOAT64 species only for direct contiguous runs and
 scalar broadcasts, scalar tails and general-odometer fallback, configured/available parallelism
@@ -602,8 +669,9 @@ and planning records, and passed CPU Javadoc plus Markdown, exact-scope/status/i
 change, and whitespace validation without rerunning Java tests. Detailed CPU 0006A1 is `Complete`;
 detailed CPU 0006A2 is `Complete`, detailed CPU 0006B is `Complete`, detailed CPU 0006B1 and CPU
 0006B2, detailed CPU 0006C, detailed CPU 0006D, and detailed CPU 0007 are `Complete`,
-and detailed CPU 0007A is `Complete`; CPU 0007A1 and later tasks remain `Draft` without detailed
-specifications.
+and detailed CPU 0007A is `Complete`; corrective CPU 0007A0 and CPU 0007A0A are `Complete`;
+CPU 0007A0B is the next single `Draft` frontier; CPU 0007A0B–0007A0F and CPU 0007A1 onward remain
+ordered `Draft` work, with 0007A1 dependent on 0007A0F.
 
 Detailed CPU 0006A1 is Complete. It extends the same movement pipeline with one fully static,
 resolved-layout UNFOLD_AXIS occurrence for all six represented types or one floating UNFOLD2D
@@ -758,7 +826,23 @@ the work at the active frontier.
   workspace. CPU 0007A1 is separate because ordinary floating SUM/MEAN require exact-real
   summation followed by result-format rounding rather than scan's per-step typed rounding, and
   PROD has its own product special-value/resource policy. CPU 0007A2 is separate because
-  `SumToShapeAttrs` adds right-aligned binding-aware geometry. Only 0007A has a detailed spec.
+  `SumToShapeAttrs` adds right-aligned binding-aware geometry. The ordinary numerical task remains
+  behind the complete generated-family parity sequence.
+- Completed CPU 0007A0 is inserted after semantic completion and before CPU 0007A1 because a completed
+  bytecode/performance audit found material generated-hot-path defects in the shared pointwise
+  loop shape and the bridge-only implementations delivered by CPU 0007/0007A. It is one atomic
+  compatibility correction: dense heap arrays gain cold-proved int scalar/address loops, Vector
+  API dense loops gain one precomputed bound and scalar tail, and every currently supported scan/
+  aggregate form gains a typed generated hot body plus correct general fallback. The isolated
+  acceptance gate passed at `<= 1.15x` equivalent direct Java for each of the five audited
+  1,048,576-element cases across five fresh forks. Historical semantic completion remains intact.
+- CPU 0007A0A–0007A0F extend corrective parity coverage across every generated family that existed
+  before ordinary numerical aggregates. Completed CPU 0007A0A groups affine plus movement because
+  their typed loops were already embedded and needed the same dense integer address correction.
+  Indexing,
+  scatter, fold, ordering, and random/dropout remain separate because each is bridge-only but has
+  a distinct mapping, resource, state, comparison, or accumulation baseline. CPU 0007A0B is the
+  next single `Draft` frontier; later corrective rows stay ordered `Draft` until they advance.
 - CPU 0006D selects `SYNAPTIK_CPU_SPLITMIX64_COUNTER_V1`: `mix64` uses shifts 30/27/31 and
   multipliers `0xbf58476d1ce4e5b9`/`0x94d049bb133111eb` after key bias
   `0x9e3779b97f4a7c15`; each draw is `mix64(counter + logicalIndex +
@@ -1023,6 +1107,18 @@ the work at the active frontier.
   depend on worker chunking.
 - Advertising BFLOAT16 dropout merely because a `short` carrier exists, or accepting output/input
   or output/output aliasing that can mutate explicit state, value, or mask before validation.
+- Preserving bridge-only or generic per-element scan/aggregate dispatch because semantic tests
+  pass, or weakening the per-case near-parity threshold to accommodate a known slow generated
+  loop.
+- Narrowing the universal long/general carrier and layout contract while optimizing the proved
+  dense heap-array int-index form, or allowing benchmark evidence to mutate Runtime behavior or
+  ordinary preparation choices.
+- Treating one passing movement or bridge-family measurement as evidence for another mapping,
+  weakening a per-case gate after measurement, or comparing against a direct loop with different
+  semantics or algorithmic work.
+- Combining bridge-only indexing, scatter, fold, ordering, or dropout into one implementation task
+  despite their distinct validation, workspace, multi-output, ordering, accumulation, and replay
+  contracts, making a regression or failed parity case difficult to isolate.
 
 ## Notes
 

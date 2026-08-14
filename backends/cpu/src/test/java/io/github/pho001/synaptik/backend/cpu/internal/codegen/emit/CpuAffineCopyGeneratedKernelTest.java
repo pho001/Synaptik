@@ -15,9 +15,35 @@ import java.lang.foreign.ValueLayout;
 import java.nio.ByteOrder;
 import java.util.*;
 import java.nio.charset.StandardCharsets;
+import java.lang.classfile.ClassFile;
+import java.lang.classfile.Instruction;
+import java.lang.classfile.Opcode;
 import org.junit.jupiter.api.Test;
 
 class CpuAffineCopyGeneratedKernelTest {
+    @Test void denseArrayBodyNarrowsOnceAndGeneralBodyRetainsLongAddressPairs() {
+        var denseAnalysis = new CpuPartitionPreparer().analyze(CpuAffineLayoutLoweringTest.contiguous(
+                DataType.FLOAT64, List.of(CarrierAccess.DOUBLE_ARRAY,
+                        CarrierAccess.DOUBLE_ARRAY), 17));
+        var generalAnalysis = new CpuPartitionPreparer().analyze(CpuAffineLayoutLoweringTest.select(
+                DataType.FLOAT64, List.of(CarrierAccess.MEMORY_SEGMENT,
+                        CarrierAccess.MEMORY_SEGMENT)));
+        var generator = new CpuClassFileKernelGenerator();
+        var denseRoute = denseAnalysis.plan().units().getFirst().portablePlan();
+        var generalRoute = generalAnalysis.plan().units().getFirst().portablePlan();
+        var dense = ClassFile.of().parse(generator.generateClassBytes(
+                denseRoute.specialization(), denseRoute.kernelIr()))
+                .methods().getFirst().code().orElseThrow();
+        var general = ClassFile.of().parse(generator.generateClassBytes(
+                generalRoute.specialization(), generalRoute.kernelIr()))
+                .methods().getFirst().code().orElseThrow();
+        assertAll(
+                () -> assertEquals(4, opcodeCount(dense, Opcode.L2I)),
+                () -> assertTrue(opcodeCount(dense, Opcode.IINC) >= 3),
+                () -> assertEquals(2, opcodeCount(general, Opcode.L2I)),
+                () -> assertTrue(opcodeCount(general, Opcode.LMUL) >= 1));
+    }
+
     @Test void preservesEveryRepresentedTypeAcrossEveryArraySegmentPair() {
         for (DataType type : DataType.values()) for (boolean sourceHeap : List.of(false, true))
                 for (boolean resultHeap : List.of(false, true)) {
@@ -149,5 +175,11 @@ class CpuAffineCopyGeneratedKernelTest {
             case INT64 -> assertEquals(((long[]) expected)[expectedIndex], ((long[]) actual)[actualIndex]);
             case BOOL -> assertEquals(((byte[]) expected)[expectedIndex], ((byte[]) actual)[actualIndex]);
         }
+    }
+    private static long opcodeCount(java.lang.classfile.CodeModel code,
+            Opcode opcode) {
+        return code.elementStream().filter(Instruction.class::isInstance)
+                .map(Instruction.class::cast).filter(instruction -> instruction.opcode() == opcode)
+                .count();
     }
 }

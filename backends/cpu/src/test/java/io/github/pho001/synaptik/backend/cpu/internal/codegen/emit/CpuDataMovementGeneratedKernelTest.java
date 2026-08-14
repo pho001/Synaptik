@@ -2,6 +2,7 @@ package io.github.pho001.synaptik.backend.cpu.internal.codegen.emit;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+import io.github.pho001.synaptik.backend.cpu.internal.cache.CpuKernelSpecialization;
 import io.github.pho001.synaptik.backend.cpu.internal.cache.CpuKernelSpecialization.CarrierAccess;
 import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuDataMovementIr;
 import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuNonAffineMovementLoweringTest;
@@ -17,11 +18,78 @@ import io.github.pho001.synaptik.model.operation.Operation;
 import io.github.pho001.synaptik.model.operation.layout.*;
 import io.github.pho001.synaptik.model.shape.Shape;
 import io.github.pho001.synaptik.prepare.analysis.PrepareContext;
+import java.lang.foreign.MemorySegment;
 import java.nio.charset.StandardCharsets;
+import java.lang.classfile.ClassFile;
+import java.lang.classfile.Instruction;
+import java.lang.classfile.Opcode;
 import java.util.*;
 import org.junit.jupiter.api.Test;
 
 class CpuDataMovementGeneratedKernelTest {
+    @Test void everyDenseFamilyHoistsGeometryIntoIntegerLocalsAndKeepsGeneralLongFallback() {
+        var window = new Window2dAttrs(1, 1, 1, 1, 0, 0, 1, 1, false);
+        var cases = List.of(
+                context(new Operation(PadKind.PAD,
+                                new PadAttrs(List.of(1L), List.of(1L), ScalarValue.int32(-1))),
+                        List.of(0), List.of(CpuNonAffineMovementLoweringTest.descriptor(
+                                DataType.INT32, Shape.of(2))),
+                        CpuNonAffineMovementLoweringTest.descriptor(DataType.INT32, Shape.of(4))),
+                context(new Operation(TileKind.TILE, new TileAttrs(List.of(2L))), List.of(0),
+                        List.of(CpuNonAffineMovementLoweringTest.descriptor(
+                                DataType.INT32, Shape.of(2))),
+                        CpuNonAffineMovementLoweringTest.descriptor(DataType.INT32, Shape.of(4))),
+                context(new Operation(TensorCompositionKind.CONCAT, new CompositionAxisAttrs(0)),
+                        List.of(0, 1), List.of(
+                                CpuNonAffineMovementLoweringTest.descriptor(DataType.INT32, Shape.of(2)),
+                                CpuNonAffineMovementLoweringTest.descriptor(DataType.INT32, Shape.of(1))),
+                        CpuNonAffineMovementLoweringTest.descriptor(DataType.INT32, Shape.of(3))),
+                context(new Operation(TensorCompositionKind.STACK, new CompositionAxisAttrs(0)),
+                        List.of(0, 1), List.of(
+                                CpuNonAffineMovementLoweringTest.descriptor(DataType.INT32, Shape.of(2)),
+                                CpuNonAffineMovementLoweringTest.descriptor(DataType.INT32, Shape.of(2))),
+                        CpuNonAffineMovementLoweringTest.descriptor(DataType.INT32, Shape.of(2, 2))),
+                context(new Operation(WindowTransformKind.UNFOLD_AXIS,
+                                new UnfoldAxisAttrs(0, 2, 1)), List.of(0),
+                        List.of(CpuNonAffineMovementLoweringTest.descriptor(
+                                DataType.INT32, Shape.of(3))),
+                        CpuNonAffineMovementLoweringTest.descriptor(DataType.INT32, Shape.of(2, 2))),
+                context(new Operation(WindowTransformKind.UNFOLD2D, window), List.of(0),
+                        List.of(CpuNonAffineMovementLoweringTest.descriptor(
+                                DataType.FLOAT32, Shape.of(1, 1, 2, 2))),
+                        CpuNonAffineMovementLoweringTest.descriptor(
+                                DataType.FLOAT32, Shape.of(1, 1, 4))),
+                context(new Operation(SliceKind.SLICE_UPDATE,
+                                new SliceAttrs(List.of(1L), List.of(1L), List.of(0), List.of(1L))),
+                        List.of(0, 1), List.of(
+                                CpuNonAffineMovementLoweringTest.descriptor(DataType.INT32, Shape.of(3)),
+                                CpuNonAffineMovementLoweringTest.descriptor(DataType.INT32, Shape.of(1))),
+                        CpuNonAffineMovementLoweringTest.descriptor(DataType.INT32, Shape.of(3))));
+        var generator = new CpuClassFileKernelGenerator();
+        for (var movement : cases) {
+            var plan = new CpuPartitionPreparer().analyze(movement).plan();
+            var route = plan.units().getFirst().portablePlan();
+            var code = ClassFile.of().parse(generator.generateClassBytes(
+                    route.specialization(), route.kernelIr())).methods().getFirst().code().orElseThrow();
+            int geometryLength = plan.movementGeometry().orElseThrow()
+                    .pack(new long[plan.carrierPattern().size()], 0, plan.elementCount()).length;
+            assertAll(route.kernelIr().familyIdentity(),
+                    () -> assertEquals(geometryLength + 2L, opcodeCount(code, Opcode.L2I)),
+                    () -> assertEquals(geometryLength, opcodeCount(code, Opcode.LALOAD)),
+                    () -> assertTrue(opcodeCount(code, Opcode.IINC) >= 2));
+        }
+        var heap = cases.get(1);
+        var segment = new PrepareContext<>(heap.partition(), heap.nodes(), heap.values(),
+                heap.memoryRequirements(), heap.constants(), new CpuPartitionAnalysisInputs(false,
+                        List.of(CarrierAccess.MEMORY_SEGMENT, CarrierAccess.MEMORY_SEGMENT)));
+        var general = route(segment);
+        var generalCode = ClassFile.of().parse(generator.generateClassBytes(
+                general.specialization(), general.kernelIr())).methods().getFirst().code().orElseThrow();
+        assertAll(() -> assertEquals(0, opcodeCount(generalCode, Opcode.L2I)),
+                () -> assertTrue(opcodeCount(generalCode, Opcode.LALOAD) > 8),
+                () -> assertTrue(opcodeCount(generalCode, Opcode.LADD) > 0));
+    }
+
     @Test void sliceUpdateArtifactIdentityIncludesStructureAndExcludesPlacement() {
         var base = CpuNonAffineMovementLoweringTest.descriptor(DataType.INT32, Shape.of(5));
         var update = CpuNonAffineMovementLoweringTest.descriptor(DataType.INT32, Shape.of(2));
@@ -345,6 +413,45 @@ class CpuDataMovementGeneratedKernelTest {
                 () -> assertArrayEquals(new int[]{1, 3, 2, 4}, stacked));
     }
 
+    @Test void multidimensionalTileCoordinatesRepeatIndependentlyAcrossDenseAndGeneralRanges()
+            throws Throwable {
+        var finalAxis = context(new Operation(TileKind.TILE, new TileAttrs(List.of(1L, 2L))),
+                List.of(0), List.of(CpuNonAffineMovementLoweringTest.descriptor(
+                        DataType.INT32, Shape.of(2, 2))),
+                CpuNonAffineMovementLoweringTest.descriptor(DataType.INT32, Shape.of(2, 4)));
+        int[] dense = new int[8];
+        invoke(finalAxis, List.of(new int[]{1, 2, 3, 4}, dense), 0, 8);
+
+        var multipleAxesBase = context(new Operation(TileKind.TILE,
+                        new TileAttrs(List.of(2L, 3L))), List.of(0),
+                List.of(CpuNonAffineMovementLoweringTest.descriptor(
+                        DataType.INT32, Shape.of(2, 2))),
+                CpuNonAffineMovementLoweringTest.descriptor(DataType.INT32, Shape.of(4, 6)));
+        var multipleAxes = withCarrierPattern(multipleAxesBase,
+                List.of(CarrierAccess.MEMORY_SEGMENT, CarrierAccess.MEMORY_SEGMENT));
+        int[] source = {1, 2, 3, 4};
+        int[] general = new int[24];
+        Arrays.fill(general, -7);
+        invoke(multipleAxes, List.of(MemorySegment.ofArray(source), MemorySegment.ofArray(general)),
+                3, 22);
+
+        assertAll(
+                () -> assertArrayEquals(new int[]{1, 2, 1, 2, 3, 4, 3, 4}, dense),
+                () -> assertArrayEquals(new int[]{
+                        -7, -7, -7, 2, 1, 2,
+                        3, 4, 3, 4, 3, 4,
+                        1, 2, 1, 2, 1, 2,
+                        3, 4, 3, 4, -7, -7
+                }, general),
+                () -> assertEquals(
+                        CpuKernelSpecialization.LoopAddressing.DENSE_HEAP_ARRAY_INT,
+                        route(finalAxis).specialization().loopAddressing(
+                                route(finalAxis).kernelIr())),
+                () -> assertEquals(CpuKernelSpecialization.LoopAddressing.GENERAL_LONG,
+                        route(multipleAxes).specialization().loopAddressing(
+                                route(multipleAxes).kernelIr())));
+    }
+
     @Test void preservesRawBfloatPaddingBitsAndHasNoSemanticHotDependencies() throws Throwable {
         var context = context(new Operation(PadKind.PAD,
                         new PadAttrs(List.of(1L), List.of(1L),
@@ -444,6 +551,13 @@ class CpuDataMovementGeneratedKernelTest {
                 java.util.Collections.nCopies(inputs.size() + 1, carrier)));
     }
 
+    private static PrepareContext<CpuPartitionAnalysisInputs> withCarrierPattern(
+            PrepareContext<CpuPartitionAnalysisInputs> base, List<CarrierAccess> pattern) {
+        return new PrepareContext<>(base.partition(), base.nodes(), base.values(),
+                base.memoryRequirements(), base.constants(),
+                new CpuPartitionAnalysisInputs(false, pattern));
+    }
+
     private static byte[] invoke(PrepareContext<CpuPartitionAnalysisInputs> context,
             List<Object> carriers, long start, long end) throws Throwable {
         var plan = new CpuPartitionPreparer().analyze(context).plan();
@@ -508,6 +622,13 @@ class CpuDataMovementGeneratedKernelTest {
         if (left instanceof int[] value) return Arrays.equals(value, (int[]) right);
         if (left instanceof long[] value) return Arrays.equals(value, (long[]) right);
         return Arrays.equals((byte[]) left, (byte[]) right);
+    }
+
+    private static long opcodeCount(java.lang.classfile.CodeModel code,
+            Opcode opcode) {
+        return code.elementStream().filter(Instruction.class::isInstance)
+                .map(Instruction.class::cast).filter(instruction -> instruction.opcode() == opcode)
+                .count();
     }
 
     private static void assertAllPaddingBits(Object values, ScalarValue padding) {

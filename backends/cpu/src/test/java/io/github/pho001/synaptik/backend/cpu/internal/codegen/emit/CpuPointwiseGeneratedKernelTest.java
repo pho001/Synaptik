@@ -18,8 +18,50 @@ import jdk.incubator.vector.ByteVector;
 import java.lang.foreign.Arena;
 import java.lang.foreign.ValueLayout;
 import java.nio.ByteOrder;
+import java.lang.classfile.ClassFile;
+import java.lang.classfile.Instruction;
+import java.lang.classfile.Opcode;
 
 class CpuPointwiseGeneratedKernelTest {
+    @Test void denseHeapArrayScalarAndVectorBodiesUseOnlyEntryNarrowingAndOneSpeciesLoad() {
+        CpuKernelIr ir = ir(new Case(CpuPointwiseOpcode.ADD, DataType.FLOAT64));
+        List<DataType> types = ir.values().stream().map(CpuKernelIr.Value::dataType).toList();
+        List<CpuKernelSpecialization.CarrierAccess> carriers = types.stream()
+                .map(CpuPointwiseGeneratedKernelTest::heapCarrier).toList();
+        var scalar = new CpuKernelSpecialization(CpuLoweringFingerprint.fromHex(ir.structuralKey()),
+                CpuKernelSpecialization.NumericalMode.EXACT_DEFAULT,
+                CpuPartitionPreparationPlan.ExecutionStrategy.SCALAR, types, carriers, 0, -1);
+        var vector = new CpuKernelSpecialization(CpuLoweringFingerprint.fromHex(ir.structuralKey()),
+                CpuKernelSpecialization.NumericalMode.EXACT_DEFAULT,
+                CpuPartitionPreparationPlan.ExecutionStrategy.VECTOR, types, carriers,
+                DoubleVector.SPECIES_PREFERRED.vectorBitSize(), -1);
+        var segments = new CpuKernelSpecialization(CpuLoweringFingerprint.fromHex(ir.structuralKey()),
+                CpuKernelSpecialization.NumericalMode.EXACT_DEFAULT,
+                CpuPartitionPreparationPlan.ExecutionStrategy.SCALAR, types,
+                Collections.nCopies(types.size(), CpuKernelSpecialization.CarrierAccess.MEMORY_SEGMENT),
+                0, -1);
+        var generator = new CpuClassFileKernelGenerator();
+        var scalarCode = ClassFile.of().parse(generator.generateClassBytes(scalar, ir))
+                .methods().getFirst().code().orElseThrow();
+        var vectorCode = ClassFile.of().parse(generator.generateClassBytes(vector, ir))
+                .methods().getFirst().code().orElseThrow();
+        long scalarNarrowing = scalarCode.elementStream().filter(Instruction.class::isInstance)
+                .map(Instruction.class::cast).filter(i -> i.opcode() == Opcode.L2I).count();
+        long vectorNarrowing = vectorCode.elementStream().filter(Instruction.class::isInstance)
+                .map(Instruction.class::cast).filter(i -> i.opcode() == Opcode.L2I).count();
+        long speciesLoads = vectorCode.elementStream().filter(Instruction.class::isInstance)
+                .map(Instruction.class::cast).filter(i -> i.opcode() == Opcode.GETSTATIC).count();
+        assertAll(() -> assertEquals(types.size() + 2L, scalarNarrowing),
+                () -> assertEquals(types.size() + 2L, vectorNarrowing),
+                () -> assertEquals(CpuKernelSpecialization.LoopAddressing.DENSE_HEAP_ARRAY_INT,
+                        scalar.loopAddressing(ir)),
+                () -> assertEquals(CpuKernelSpecialization.LoopAddressing.GENERAL_LONG,
+                        segments.loopAddressing(ir)),
+                () -> assertEquals(1, speciesLoads),
+                () -> assertTrue(vectorCode.elementStream().filter(Instruction.class::isInstance)
+                        .map(Instruction.class::cast).anyMatch(i -> i.opcode() == Opcode.IREM)));
+    }
+
     @Test void generatedAndReferenceAgreeForEveryAdmittedOpcodeAndType() throws Throwable {
         var cases = new ArrayList<Case>();
         for (CpuPointwiseOpcode opcode : List.of(CpuPointwiseOpcode.ADD, CpuPointwiseOpcode.SUB,

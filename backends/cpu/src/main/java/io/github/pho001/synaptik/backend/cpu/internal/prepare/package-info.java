@@ -30,18 +30,21 @@
  * Ordering plans declare one input followed by one SORT/ARGSORT output or ordered TOP_K values
  * and INT64-index outputs. They select scalar or complete-slice parallel-scalar execution and
  * declare one exact run-owned workspace with disjoint two-region INT64 merge scratch per selected
- * range. Finalization verifies all three TOP_K bindings, the workspace assignment, and schema 20
- * before realizing one multi-store artifact.
+ * range. Finalization verifies all three TOP_K bindings, the workspace assignment, and the
+ * current schema-23 signature before realizing one multi-store artifact; schema 18 introduced
+ * the ordering-family compatibility facts.
  * Explicit-state random plans declare one initializer output or five dropout buffers in exact
  * boundary order and no workspace. Parallel dropout reuses one scalar artifact over disjoint
  * logical ranges after complete cold overlap validation.
  * Cumulative-scan plans declare input then output, retain the independent slice count as their
  * execution domain, and select scalar or whole-slice parallel-scalar orchestration. They declare
- * no workspace or materialization, and finalization realizes one current schema-21 artifact that
- * retains the scan compatibility identity introduced by schema 20.
+ * no workspace or materialization, and finalization realizes one current schema-23 artifact that
+ * embeds the typed scan body introduced by schema 22 while retaining the scan compatibility
+ * identity introduced by schema 20.
  * Ordinary aggregate plans likewise declare input then output and select scalar or complete-
  * output-cell parallel-scalar orchestration. They retain canonical selected-axis membership,
- * declare no workspace or materialization, and realize one schema-21 artifact.
+ * declare no workspace or materialization, and realize one current schema-23 artifact with the
+ * typed generated aggregate body introduced by schema 22.
  *
  * <p>All work in this package is cold-path work. Runtime collaborates only through the resulting
  * prepared executable and never receives the canonical kernel intermediate representation.

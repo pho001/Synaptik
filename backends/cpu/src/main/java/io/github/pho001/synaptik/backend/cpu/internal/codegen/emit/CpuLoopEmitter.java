@@ -13,8 +13,10 @@ final class CpuLoopEmitter {
      * Generation-local element-address slots supplied to the fused body emitter.
      *
      * @param addresses non-null ordered local-variable slots for all derived boundary addresses
+     * @param intAddresses whether every slot contains a proved Java array index rather than a
+     *     general element address represented as {@code long}
      */
-    record State(int[] addresses) { }
+    record State(int[] addresses, boolean intAddresses) { }
     private record PlanState(CpuAccessPlan plan, int address, int[] outerCoordinates,
             int innerPosition) { }
     private final CodeBuilder code;
@@ -68,7 +70,7 @@ final class CpuLoopEmitter {
         code.lload(startSlot).lstore(index);
         var loop = code.newLabel();
         code.labelBinding(loop);
-        body.accept(new State(addresses));
+        body.accept(new State(addresses, false));
         code.lload(index).loadConstant(1L).ladd().lstore(index);
         code.lload(index).lload(endSlot).lcmp().branch(Opcode.IFGE, done);
         for (int value = 0; value < boundaryCount; value++) emitAdvance(
@@ -145,19 +147,100 @@ final class CpuLoopEmitter {
             code.labelBinding(keep);
         }
         code.lload(available).loadConstant((long) lanes).lcmp().branch(Opcode.IFLT, scalar);
-        vectorBody.accept(new State(addresses));
+        vectorBody.accept(new State(addresses, false));
         code.lload(index).loadConstant((long) lanes).ladd().lstore(index);
         for (int value = 0; value < boundaryCount; value++) emitVectorAdvance(
                 states[value], value, rank, lanes, boundaryCount, geometrySlot);
         code.branch(Opcode.GOTO, loop);
         code.labelBinding(scalar);
-        scalarBody.accept(new State(addresses));
+        scalarBody.accept(new State(addresses, false));
         code.lload(index).loadConstant(1L).ladd().lstore(index);
         code.lload(index).lload(endSlot).lcmp().branch(Opcode.IFGE, done);
         for (int value = 0; value < boundaryCount; value++) emitAdvance(
                 states[value], value, rank, boundaryCount, geometrySlot);
         code.branch(Opcode.GOTO, loop);
         code.labelBinding(done);
+    }
+
+    /**
+     * Emits a proved dense heap-array scalar loop after one-time narrowing at entry.
+     * @param plans non-null dense-linear or all-zero structural plans
+     * @param body non-null scalar body receiving integer address locals
+     */
+    void emitDenseArrayInt(List<CpuAccessPlan> plans, Consumer<State> body) {
+        int boundaryCount = plans.size(), geometrySlot = boundaryCount;
+        int startSlot = boundaryCount + 1, endSlot = boundaryCount + 3;
+        var done = code.newLabel();
+        code.lload(startSlot).lload(endSlot).lcmp().branch(Opcode.IFGE, done);
+        int end = code.allocateLocal(TypeKind.INT);
+        code.lload(endSlot).l2i().istore(end);
+        int[] addresses = denseIntAddresses(plans, geometrySlot);
+        int index = code.allocateLocal(TypeKind.INT);
+        code.lload(startSlot).l2i().istore(index);
+        var loop = code.newLabel();
+        code.labelBinding(loop);
+        body.accept(new State(addresses, true));
+        incrementDenseAddresses(plans, addresses, 1);
+        code.iinc(index, 1);
+        code.iload(index).iload(end).branch(Opcode.IF_ICMPLT, loop);
+        code.labelBinding(done);
+    }
+
+    /**
+     * Emits one dense heap-array vector loop followed by one scalar tail.
+     * @param plans non-null dense-linear or all-zero structural plans
+     * @param lanes positive preferred-species lane count
+     * @param vectorBody non-null body for one complete unmasked vector
+     * @param scalarBody non-null body for one scalar tail element
+     */
+    void emitDenseArrayIntVector(List<CpuAccessPlan> plans, int lanes,
+            Consumer<State> vectorBody, Consumer<State> scalarBody) {
+        int boundaryCount = plans.size(), geometrySlot = boundaryCount;
+        int startSlot = boundaryCount + 1, endSlot = boundaryCount + 3;
+        var done = code.newLabel();
+        code.lload(startSlot).lload(endSlot).lcmp().branch(Opcode.IFGE, done);
+        int start = code.allocateLocal(TypeKind.INT), end = code.allocateLocal(TypeKind.INT);
+        code.lload(startSlot).l2i().istore(start);
+        code.lload(endSlot).l2i().istore(end);
+        int bound = code.allocateLocal(TypeKind.INT);
+        code.iload(end).iload(end).iload(start).isub().loadConstant(lanes).irem()
+                .isub().istore(bound);
+        int[] addresses = denseIntAddresses(plans, geometrySlot);
+        int index = code.allocateLocal(TypeKind.INT);
+        code.iload(start).istore(index);
+        var scalar = code.newLabel();
+        code.iload(index).iload(bound).branch(Opcode.IF_ICMPGE, scalar);
+        var vector = code.newLabel();
+        code.labelBinding(vector);
+        vectorBody.accept(new State(addresses, true));
+        incrementDenseAddresses(plans, addresses, lanes);
+        code.iinc(index, lanes);
+        code.iload(index).iload(bound).branch(Opcode.IF_ICMPLT, vector);
+        code.labelBinding(scalar);
+        code.iload(index).iload(end).branch(Opcode.IF_ICMPGE, done);
+        var tail = code.newLabel();
+        code.labelBinding(tail);
+        scalarBody.accept(new State(addresses, true));
+        incrementDenseAddresses(plans, addresses, 1);
+        code.iinc(index, 1);
+        code.iload(index).iload(end).branch(Opcode.IF_ICMPLT, tail);
+        code.labelBinding(done);
+    }
+
+    private int[] denseIntAddresses(List<CpuAccessPlan> plans, int geometrySlot) {
+        int rank = plans.getFirst().iterationRank();
+        int[] addresses = new int[plans.size()];
+        for (int value = 0; value < plans.size(); value++) {
+            addresses[value] = code.allocateLocal(TypeKind.INT);
+            loadGeometry(geometrySlot, 2 * rank + value).l2i().istore(addresses[value]);
+        }
+        return addresses;
+    }
+
+    private void incrementDenseAddresses(List<CpuAccessPlan> plans, int[] addresses, int amount) {
+        for (int value = 0; value < plans.size(); value++)
+            if (plans.get(value).regime() == CpuAccessPlan.Regime.DENSE_LINEAR)
+                code.iinc(addresses[value], amount);
     }
 
     private void emitVectorAdvance(PlanState state, int value, int rank, int lanes,
