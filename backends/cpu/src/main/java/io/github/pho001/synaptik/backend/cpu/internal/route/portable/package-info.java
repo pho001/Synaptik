@@ -23,6 +23,9 @@
  * A cumulative-scan specialization remains scalar, has exactly one input and one output, and
  * carries no scratch parameter. Parallel-scalar orchestration reuses the same artifact over
  * complete independent slices; concrete extents, layouts, carriers, and range count stay cold.
+ * An ordinary aggregate specialization is likewise scalar, two-boundary, and scratch-free.
+ * Its generated entry bridges to the CPU-owned static output-cell body; concrete selected-domain
+ * geometry and parallel output ranges stay cold.
  *
  * <p>The plan is immutable cold-path state; route dispatch never occurs inside the generated loop.
  */

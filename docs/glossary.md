@@ -1070,7 +1070,7 @@ segment/mixed carriers, input deduplication and aliasing, and strict output/inpu
 `NONE` accepts all six represented types; ADD/MUL/MIN/MAX accept the five numeric types, while
 SCATTER_ADD is fixed ADD. Floating MUL alone declares exact per-range primitive-limb scratch and
 rounds the abstract product once. Schema 16 introduced scatter structure and scratch signature;
-current schema 18 retains them.
+current schema 21 retains them.
 
 Completed CPU 0006B2 adds exactly one fully static resolved-layout FOLD_AXIS or FOLD2D
 occurrence. Fold starts a fresh output from represented positive zero, visits contributions in
@@ -1078,7 +1078,7 @@ canonical logical input row-major order, uses scalar or disjoint-output parallel
 and declares neither workspace nor materialization. Both families admit FLOAT64, FLOAT32, and
 BFLOAT16; FOLD_AXIS additionally admits modular INT32/INT64 addition. FOLD2D excludes padded and
 ceil-tail coordinates outside the unpadded NCHW output. Schema 17 added fold structure and its
-canonical sequential-addition policy; current schema 18 retains both.
+canonical sequential-addition policy; current schema 21 retains both.
 
 Completed CPU 0006C adds exactly one fully static resolved-layout stable SORT, ARGSORT, or TOP_K
 occurrence for all six represented types. It uses logical-axis order, keeps floating NaNs last in
@@ -1089,9 +1089,26 @@ uses increasing original index. Scalar or complete-slice parallel-scalar executi
 disjoint two-region INT64 merge scratch per selected range. Schema 18 adds ordering structure,
 multi-store roles, direction/output order, and its scratch-bearing entry signature.
 
+Completed CPU 0006D adds the CPU-private explicit-state initializer/dropout realization and schema
+19. Completed CPU 0007 adds one fully static resolved-layout `CUM_SUM` or `CUM_PROD` occurrence
+across the five numeric types, with scalar or whole-slice parallel-scalar sequential accumulation,
+zero workspace/materialization, and schema 20.
+
+Completed CPU 0007A adds one fully static resolved-layout ordinary `MIN`, `MAX`, `ALL`, or `ANY`
+occurrence. It accepts exact full, single-axis, and multi-axis forms; an empty multi-axis selection
+is a one-value point domain rather than a full reduction. Numeric extrema cover FLOAT64, FLOAT32,
+BFLOAT16, INT32, and INT64, while Boolean folds cover canonical BOOL. Selected empty domains use
+the exact extrema or Boolean identity; unselected zero extents produce no output cells. Each cell
+walks its complete selected domain in canonical logical row-major order. Floating extrema preserve
+the first NaN's represented bits under a CPU/schema-local policy, select the required signed zero,
+and copy the selected BFLOAT16 representation without arithmetic. Parallel-scalar work owns whole
+output cells only, with zero workspace, materialization, partial state, or combine state. The
+generated Class-File entry bridges to a CPU-owned static body rather than embedding the reduction
+loop. Schema 21 is current and rejects schema-20 artifacts without migration.
+
 Cross-type cast, general BFLOAT16 pointwise arithmetic, FLOAT16 execution, relaxed math,
-native/vendor realization, explicit-state random families, dynamic layouts, Vector API scatter,
-fold, or ordering,
+native/vendor realization, dynamic layouts, Vector API scatter, fold, ordering, scan, or ordinary
+aggregate execution,
 gradients, and universal backend support are not part of this route increment. General
 partition-DAG decomposition and bounded vertical/horizontal fusion remain Draft CPU 0008A work.
 
@@ -1589,7 +1606,7 @@ input/output physical overlap before work.
 
 Analysis declares exactly two buffers, zero workspaces or materializations, one unit, and one
 artifact. Schema 17 introduced fold family, type, structural access/rank facts, carrier form,
-execution mode, and addition policy; current schema 18 retains those facts while keeping concrete
+execution mode, and addition policy; current schema 21 retains those facts while keeping concrete
 geometry and ranges cold. This term
 adds no Model or Compiler semantics, gradient route, Runtime interpretation, native or vector
 fold, dynamic layout, fusion, reduction-framework reuse, cross-backend bitwise promise, or
@@ -4153,7 +4170,7 @@ finite steps including legal length-one `Long.MIN_VALUE`, handles scalar and emp
 supports arbitrary disjoint scalar or parallel-scalar ranges across heap, segment, and mixed
 carriers. Output/input physical overlap is rejected; exact same-value base/update inputs may share
 one deduplicated boundary. Schema 15 introduced the slice-update family/rank/map structure, and
-current schema 18 retains it;
+current schema 21 retains it;
 concrete placement remains cold. Functional scatter and overlap fold are separate current CPU
 portable families.
 

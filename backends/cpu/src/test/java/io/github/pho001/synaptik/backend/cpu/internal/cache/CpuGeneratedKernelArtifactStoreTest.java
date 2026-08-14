@@ -40,7 +40,7 @@ class CpuGeneratedKernelArtifactStoreTest {
                 route.specialization(), route.kernelIr());
         var hit = hitResult.artifact();
         assertAll(
-                () -> assertEquals(20, CpuGeneratorSchema.CURRENT_VERSION),
+                () -> assertEquals(21, CpuGeneratorSchema.CURRENT_VERSION),
                 () -> assertTrue(Files.exists(root.resolve("legacy-v1.class"))),
                 () -> assertArrayEquals(memoryOnly.classBytes(), persisted.classBytes()),
                 () -> assertTrue(Files.size(current) > persisted.classBytes().length),
@@ -93,7 +93,7 @@ class CpuGeneratedKernelArtifactStoreTest {
         byte[] wrongChecksum = valid.clone();
         wrongChecksum[wrongChecksum.length - 1] ^= 1;
         byte[] wrongSchema = valid.clone();
-        java.nio.ByteBuffer.wrap(wrongSchema).putInt(4, 16);
+        java.nio.ByteBuffer.wrap(wrongSchema).putInt(4, 20);
         byte[] malformedClass = envelope(route.specialization().structuralKey(),
                 route.specialization().compatibilityBytes(), new byte[] {1, 2, 3, 4});
         byte[] wrongMetadata = envelope(route.specialization().structuralKey(),

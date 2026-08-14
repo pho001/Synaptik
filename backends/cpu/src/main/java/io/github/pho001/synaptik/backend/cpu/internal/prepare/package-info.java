@@ -37,7 +37,11 @@
  * logical ranges after complete cold overlap validation.
  * Cumulative-scan plans declare input then output, retain the independent slice count as their
  * execution domain, and select scalar or whole-slice parallel-scalar orchestration. They declare
- * no workspace or materialization, and finalization realizes one schema-20 artifact.
+ * no workspace or materialization, and finalization realizes one current schema-21 artifact that
+ * retains the scan compatibility identity introduced by schema 20.
+ * Ordinary aggregate plans likewise declare input then output and select scalar or complete-
+ * output-cell parallel-scalar orchestration. They retain canonical selected-axis membership,
+ * declare no workspace or materialization, and realize one schema-21 artifact.
  *
  * <p>All work in this package is cold-path work. Runtime collaborates only through the resulting
  * prepared executable and never receives the canonical kernel intermediate representation.

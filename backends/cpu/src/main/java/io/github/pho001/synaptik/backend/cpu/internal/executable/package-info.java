@@ -49,6 +49,10 @@
  * invocation-private coordinate array per range and partitions only the independent slice
  * domain, so one slice and its sequential accumulator never cross worker boundaries.</p>
  *
+ * <p>Ordinary aggregate binding validates complete input/output overlap and all logical canonical
+ * Boolean input bytes before any mutation. It packs invocation-private coordinates and partitions
+ * only complete output cells; selected domains are never split or combined.</p>
+ *
  * <p>Runtime retains run-level lifecycle ownership; CPU memory representations retain physical
  * allocation and release ownership. Composition owns and closes the worker group; finalizers,
  * prepared executables, and bound invocations only borrow it.

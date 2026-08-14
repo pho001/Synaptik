@@ -42,6 +42,9 @@ import io.github.pho001.synaptik.model.operation.random.GraphRngKind;
 import io.github.pho001.synaptik.model.operation.random.GraphRngStateAttrs;
 import io.github.pho001.synaptik.model.operation.scan.CumulativeScanAttrs;
 import io.github.pho001.synaptik.model.operation.scan.CumulativeScanKind;
+import io.github.pho001.synaptik.model.operation.reduction.AggregateReductionKind;
+import io.github.pho001.synaptik.model.operation.reduction.AxisReductionAttrs;
+import io.github.pho001.synaptik.model.operation.reduction.MultiAxisReductionAttrs;
 import io.github.pho001.synaptik.model.shape.Shape;
 import io.github.pho001.synaptik.planning.capability.BackendCapabilityProvider;
 import io.github.pho001.synaptik.planning.capability.OperationCapabilityQuery;
@@ -91,6 +94,13 @@ import java.util.Objects;
  * lowering and binding remain responsible for exact sequential per-slice realization, carrier
  * compatibility, and complete physical non-overlap.</p>
  *
+ * <p>A distinct one-node ordinary aggregate matrix admits MIN and MAX for FLOAT64, FLOAT32,
+ * BFLOAT16, INT32, and INT64, plus ALL and ANY for canonical BOOL. Exact parameterless full,
+ * single-axis, and multi-axis attributes are supported with fully static Model-derived output
+ * Shapes, resolved non-negative layouts, and an injective output. Lowering and binding retain
+ * responsibility for canonical selected-axis membership, complete-domain traversal, exact
+ * carriers, and complete physical non-overlap.</p>
+ *
  * <p>The movement route also admits exactly one fully static, resolved-layout
  * {@code SLICE_UPDATE} occurrence with ordered {@code [base, update]} inputs. Both normalized
  * signed finite-coordinate {@link SliceAttrs} and target-relative {@link CropToShapeAttrs}
@@ -99,7 +109,8 @@ import java.util.Objects;
  * selected positions, without mutating either input.</p>
  *
  * <p>Complete-partition lowering remains stricter: it validates either one supported movement,
- * indexing, functional-scatter, overlap-fold, ordering, random, or cumulative-scan occurrence, a connected one-to-eight pointwise
+ * indexing, functional-scatter, overlap-fold, ordering, random, cumulative-scan, or ordinary
+ * aggregate occurrence, a connected one-to-eight pointwise
  * chain, or a connected one-to-eight affine chain, then applies exact layout, alias, fan-out,
  * publication, and partition-boundary checks before resource declaration. Occurrence support
  * therefore does not promise that an arbitrary mixed or branched partition can be prepared.</p>
@@ -144,6 +155,8 @@ public final class CpuCapabilityProvider implements BackendCapabilityProvider {
      * NaN-last/signed-zero order, logical INT64 indices, and represented-bit value copies.
      * Cumulative scans additionally require a non-scalar input, the same five-type numeric input
      * and output descriptor, a valid normalized axis, and an injective output layout.
+     * Ordinary aggregates additionally require the exact five-type extrema or BOOL fold matrix,
+     * one exact ordinary attribute form, the Model-derived output Shape, and an injective output.
      * Cross-type casts, dynamic
      * or unresolved geometry, negative-step extraction slices, non-injective
      * movement outputs, and all rows outside the implemented matrix return {@code false} without
@@ -170,6 +183,8 @@ public final class CpuCapabilityProvider implements BackendCapabilityProvider {
         var attrs = query.operation().attrs();
         TensorDescriptor output = query.outputs().getFirst();
         try {
+            if (kind instanceof AggregateReductionKind aggregate)
+                return supportsAggregate(query, output, aggregate);
             if (kind instanceof CumulativeScanKind) return supportsScan(query, output);
             if (kind == GraphRngKind.INITIAL_STATE) return supportsInitialState(query);
             if (kind == DropoutKind.DROPOUT) return supportsDropout(query);
@@ -265,6 +280,41 @@ public final class CpuCapabilityProvider implements BackendCapabilityProvider {
             }
         } catch (IllegalArgumentException | ArithmeticException incompatible) { return false; }
         return false;
+    }
+
+    private static boolean supportsAggregate(OperationCapabilityQuery query,
+            TensorDescriptor output, AggregateReductionKind kind) {
+        if (query.inputs().size() != 1 || kind != AggregateReductionKind.MIN
+                && kind != AggregateReductionKind.MAX && kind != AggregateReductionKind.ALL
+                && kind != AggregateReductionKind.ANY) return false;
+        TensorDescriptor input = query.inputs().getFirst();
+        boolean bool = kind == AggregateReductionKind.ALL || kind == AggregateReductionKind.ANY;
+        boolean numeric = input.dataType() == DataType.FLOAT64 || input.dataType() == DataType.FLOAT32
+                || input.dataType() == DataType.BFLOAT16 || input.dataType() == DataType.INT32
+                || input.dataType() == DataType.INT64;
+        if (bool != (input.dataType() == DataType.BOOL) || !bool && !numeric
+                || output.dataType() != input.dataType()) return false;
+        Object attrs = query.operation().attrs(); int rank = input.shape().rank();
+        boolean keep; int[] axes;
+        if (attrs == NoOperationAttrs.INSTANCE) { keep = false; axes = new int[rank];
+            for (int axis = 0; axis < rank; axis++) axes[axis] = axis;
+        } else if (attrs instanceof AxisReductionAttrs axis) {
+            if (axis.axis() < 0 || axis.axis() >= rank) return false;
+            keep = axis.keepDimensions(); axes = new int[] {axis.axis()};
+        } else if (attrs instanceof MultiAxisReductionAttrs multi) {
+            keep = multi.keepDimensions(); axes = multi.axes().stream().mapToInt(Integer::intValue).toArray();
+            boolean[] seen = new boolean[rank];
+            for (int axis : axes) if (axis < 0 || axis >= rank || seen[axis]) return false;
+                else seen[axis] = true;
+        } else return false;
+        boolean[] selected = new boolean[rank]; for (int axis : axes) selected[axis] = true;
+        long[] in = input.shape().toLongArray(); var expected = new java.util.ArrayList<Long>();
+        if (attrs != NoOperationAttrs.INSTANCE) for (int axis = 0; axis < rank; axis++) {
+            if (!selected[axis]) expected.add(in[axis]); else if (keep) expected.add(1L);
+        }
+        if (!java.util.Arrays.equals(output.shape().toLongArray(),
+                expected.stream().mapToLong(Long::longValue).toArray())) return false;
+        return injective(output.shape().toLongArray(), output.layout().orElseThrow().strides());
     }
 
     private static boolean supportsScan(OperationCapabilityQuery query, TensorDescriptor output) {

@@ -62,6 +62,11 @@
  * FLOAT64/FLOAT32 or modular INT32/INT64 accumulators. BFLOAT16 widens to FLOAT32 and rounds back
  * after every visited value. Parallel orchestration never splits a slice.</p>
  *
+ * <p>The aggregate emitter generates a direct bridge to a CPU-owned static scalar body. That body
+ * owns complete output cells, walks selected coordinates in canonical logical row-major order,
+ * preserves the first NaN bits and signed-zero extrema, emits canonical Boolean identities and
+ * results, and allocates no object per output cell or selected element.</p>
+ *
  * <p>Generation and verification are cold-path operations. Only the resolved static entry handle
  * executes on the Runtime hot path. Parallel plans reuse that direct scalar or vector entry for
  * already-bound disjoint chunks; generated code contains no parallel scheduler or strategy switch.

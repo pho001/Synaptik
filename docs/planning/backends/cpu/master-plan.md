@@ -210,10 +210,12 @@ created by 0005A. All consume the common analysis above; none creates another ba
 | 0006C | [Portable stable ordering and selection coverage](tasks/0006c-portable-stable-ordering-and-selection.md) | Complete | 0006B2 | Added one-node fully static resolved-layout stable SORT and ARGSORT plus two-output TOP_K for all six current types through deterministic scalar/slice-parallel generated execution, with exact NaN-last, signed-zero, logical-tie, empty/K, output-order, bounded per-range scratch, overlap, schema-18, and multi-store behavior. |
 | 0006D | [Portable explicit-state RNG and dropout coverage](tasks/0006d-portable-explicit-state-rng-and-dropout.md) | Complete | 0006C | Materialized zero-input INITIAL_STATE and executes FLOAT64/FLOAT32 three-output DROPOUT with the versioned CPU-private `SYNAPTIK_CPU_SPLITMIX64_COUNTER_V1` mapping, exact uniform/threshold/scaling rules, canonical BOOL mask, modulo state advancement, deterministic scalar/parallel replay, zero workspace, complete overlap rejection, and schema 19. BFLOAT16 dropout remains truthfully fail-closed. |
 | 0007 | [Portable cumulative scan coverage](tasks/0007-portable-cumulative-scan-coverage.md) | Complete | 0006D; Model 0023E; completed 0005A–0005J | Executes one static resolved-layout CUM_SUM/CUM_PROD occurrence across five numeric types and all four modes with sequential typed accumulation, whole-slice scalar/parallel-scalar execution, complete overlap rejection, zero workspace/materialization, bounded injectivity validation, and schema 20. |
-| 0007A | Portable ordinary aggregate reduction coverage | Draft | 0007; current Model aggregate-reduction contracts | Add full, single-axis, multi-axis, and binding-aware SUM plus ordinary MEAN/PROD/MIN/MAX/ALL/ANY with exact type, empty-domain, Shape, layout, determinism, workspace, and combine rules. |
+| 0007A | [Portable ordinary extrema and boolean reductions](tasks/0007a-portable-ordinary-extrema-and-boolean-reductions.md) | Complete | 0007; current Model aggregate-reduction contracts | Executes one-node full, single-axis, and multi-axis MIN/MAX/ALL/ANY across exact numeric/BOOL types with empty identities, logical row-major deterministic folds, output-cell-only parallelism, arbitrary supported layouts/carriers, zero workspace, complete overlap rejection, and schema 21. |
+| 0007A1 | Portable ordinary numerical aggregate reductions | Draft | 0007A | Add full, single-axis, and multi-axis SUM/MEAN/PROD with Model-conforming exact floating targets, modular integral SUM/PROD, product special values, deterministic traversal/combination, and explicit accumulator/scratch declarations. |
+| 0007A2 | Portable binding-aware sum-to-Shape reduction | Draft | 0007A1 | Add `SUM` with exact `SumToShapeAttrs`, right-aligned bound-Shape validation, leading/aligned reduction geometry, all five numeric types, and truthful resources without dynamic unresolved execution. |
 | 0007B | Portable arg-extrema coverage | Draft | 0007A | Add one-axis ARG_MIN/ARG_MAX with exact floating/integral order, first/last logical tie policy, INT64 indices, and deterministic scalar/parallel behavior. |
-| 0007C | Portable masked reduction coverage | Draft | 0007A | Add two-input masked SUM/MEAN with right-aligned mask broadcasting, false-position exclusion before aggregation, selected-count handling, empty-selection results, and truthful resource declarations. |
-| 0007D | Portable logarithmic, statistical, and norm reduction coverage | Draft | 0007A | Add LOG_SUM_EXP, VARIANCE, STANDARD_DEVIATION, L1_NORM, and L2_NORM with stable exact/default finite-precision algorithms, correction validity, special values, deterministic combination, and declared scratch where required. |
+| 0007C | Portable masked reduction coverage | Draft | 0007A1 | Add two-input masked SUM/MEAN with right-aligned mask broadcasting, false-position exclusion before aggregation, selected-count handling, empty-selection results, and truthful resource declarations. |
+| 0007D | Portable logarithmic, statistical, and norm reduction coverage | Draft | 0007A1 | Add LOG_SUM_EXP, VARIANCE, STANDARD_DEVIATION, L1_NORM, and L2_NORM with stable exact/default finite-precision algorithms, correction validity, special values, deterministic combination, and declared scratch where required. |
 | 0007E | Portable stable softmax and log-softmax coverage | Draft | 0007D | Add one-axis SOFTMAX/LOG_SOFTMAX as explicit stable multi-pass semantic kernels; never infer them from decomposed pointwise/reduction graphs. |
 | 0007F | Portable layer, RMS, and batch normalization coverage | Draft | 0007D | Add current layer/RMS normalization and batch-normalization inference/training signatures with exact ordered inputs/outputs, saved/next statistics, epsilon/momentum rules, deterministic multi-pass execution, and truthful resources. |
 | 0008 | Portable linear algebra, convolution, pooling, attention, and loss coverage | Draft | 0002–0007F | Generate the remaining portable executable families. Establish a bounded initial epilogue direction for MATMUL or convolution followed by an optional compatible bias ADD and at most one already-supported exact pointwise activation or clamp, only when single-use dataflow, Shape/layout, numerical order, publication, and resource rules preserve semantics; all other forms split safely. |
@@ -221,7 +223,7 @@ created by 0005A. All consume the common analysis above; none creates another ba
 | 0008B | Typed specialized-subgraph and epilogue recognition | Draft | 0007F–0008A | Add CPU-private typed recognition for a selected closed set of specialized subgraphs: initially MATMUL, convolution, and reduction epilogues plus explicit semantic kernels. Add no public pattern registry or domain-specific language (DSL), no new Model kinds, and no recognition that silently turns decomposed softmax into stable `SOFTMAX`. Unrecognized or ineligible graphs retain ordinary decomposed units. |
 | 0008C | Bounded fusion profitability and typed decision facts | Draft | 0008A–0008B | Rank only complete legal fused and split candidates with bounded safe no-measurement heuristics by default. Retain typed cold accepted, rejected, and selected decision facts, including legality rejection separately from profitability rejection, for later Trace backend payload translation and tuning inspection without exposing a public registry or moving selection into Runtime. |
 | 0008D | Bounded multi-input materialization and representation reuse | Draft | 0008C | Extend portable pointwise computation-unit representation planning to cost-select at most two distinct external read-boundary materializations, including both operands of eligible binary work. Cover FLOAT64, FLOAT32, INT32, INT64, and BOOL where the operation already has CPU execution; gate BFLOAT16 on later pointwise numerical support. Enumerate only bounded single/pair variants of legal fused/split topologies, deduplicate repeated boundaries, reuse one selected copy across compatible uses, and give every complete topology/representation candidate a stable typed CPU-private identity with materialized-boundary, layout/access, reuse, workspace, strategy, and topology facts sufficient for later opaque Prepare/tuning compatibility. Re-rank candidates through 0008C's no-measurement profitability facts, preserve direct access as the uncertainty- and tie-winning fallback, perform no measurement or tuning-cache work, and leave DAG split materialization plus native packing/reorder to their existing owners. |
-| 0009 | Portable generated-coverage closure checkpoint | Draft | 0001–0008D, explicitly including 0005A–0005J, 0007A–0007F, and 0008A–0008D; complete current selected Model semantic inventory | Prove the bytecode/Vector portable route is the truthful supported semantic baseline and fallback, including safe general DAG decomposition, bounded recognition/fusion, deterministic split fallback, bounded single/dual-input materialization with representation reuse, and typed cold decision evidence. Classify metadata-only work, prove unsupported work fails closed, and close capability/conformance before native peer-route expansion. |
+| 0009 | Portable generated-coverage closure checkpoint | Draft | 0001–0008D, explicitly including 0005A–0005J, 0007A–0007F including 0007A1/0007A2, and 0008A–0008D; complete current selected Model semantic inventory | Prove the bytecode/Vector portable route is the truthful supported semantic baseline and fallback, including safe general DAG decomposition, bounded recognition/fusion, deterministic split fallback, bounded single/dual-input materialization with representation reuse, and typed cold decision evidence. Classify metadata-only work, prove unsupported work fails closed, and close capability/conformance before native peer-route expansion. |
 | 0010 | Narrow OpenBLAS BLAS-compatible native route | Draft | 0005A; 0009; completed OpenBLAS provider | Add only `route.nativeblas.openblas` for eligible BLAS-compatible linear algebra, preserving portable alternatives and using shared lowering, representations, exact filtering, materialization accounting, and whole-plan transition cost; never treat OpenBLAS as universal or preferred. |
 | 0011 | Intel oneMKL BLAS and VML peer routes | Draft | 0005A; 0009; concrete Intel CPU use case and supported oneMKL ABI evidence | Add distinct `route.nativeblas.mkl` BLAS and `route.nativeops.mkl` VML leaves over shared analysis, without duplicating graph interpretation, fusion, access planning, or lifecycle ownership. |
 | 0012 | Intel oneDNN partition peer routes | Draft | 0005A; 0009; stable common CPU lowering; concrete DNN/ML use case and supported oneDNN ABI evidence | Add `route.nativeops.onednn` as a distinct eligible partition route over common lowering/IR and whole-plan cost, without collapsing it into oneMKL or portable code generation. |
@@ -283,10 +285,27 @@ is `Complete` and depends on CPU 0006B2. Detailed
 [CPU 0006D Portable explicit-state RNG and dropout coverage](tasks/0006d-portable-explicit-state-rng-and-dropout.md)
 is `Complete`. Detailed
 [CPU 0007 Portable cumulative scan coverage](tasks/0007-portable-cumulative-scan-coverage.md)
-is `Complete`; CPU 0007A–0007F and every later CPU task remain `Draft` without detailed
-specifications. CPU 0006D is one bounded one-node family task because
+is `Complete`. Detailed
+[CPU 0007A Portable ordinary extrema and boolean reductions](tasks/0007a-portable-ordinary-extrema-and-boolean-reductions.md)
+is `Complete`; CPU 0007A1 is the next `Draft` planning frontier. CPU 0007A2, CPU 0007B–0007F, and
+every later CPU task remain `Draft` without detailed specifications. CPU 0006D is one bounded
+one-node family task because
 INITIAL_STATE and DROPOUT share the same explicit-state execution, generated-emitter,
 multi-output-binding, replay, and schema boundary.
+
+CPU 0007A executes one fully static resolved-layout ordinary MIN, MAX, ALL, or ANY occurrence.
+It supports exact full, single-axis, and multi-axis forms, five represented numeric extrema types,
+canonical BOOL folds, selected-domain identities, first-logical-NaN represented bits, signed zero,
+arbitrary supported layouts/carriers, injective output, complete pre-mutation overlap rejection,
+whole-output-cell scalar/parallel-scalar execution, zero workspace/materialization/partial/combine
+state, an independent reference oracle, and schema 21. Implementation context
+`019ffea4-7930-70c2-9773-ef9c76fefc17` passed the focused 10-test aggregate run, broader 50-test
+integration/cache/preparation run, and final CPU suite. Clean documentation context
+`019ffeb8-d37c-7c31-9c89-26a0264258d8` reused and independently recounted the preserved final
+JUnit XML as 53 suites/303 tests, zero failures/errors, and one existing expected opt-in
+persistence-evidence skip; changed no executable Java or tests; finalized Javadocs/package
+summaries, guide, glossary, and planning; and passed final Javadoc, rendered-page, Markdown,
+exact 37-path, schema/status/package, concurrent-scope-preservation, and whitespace gates.
 
 CPU 0007 executes one fully static resolved-layout CUM_SUM or CUM_PROD occurrence across FLOAT64,
 FLOAT32, BFLOAT16, INT32, and INT64 in every inclusive/exclusive and forward/reverse mode. Each
@@ -423,7 +442,8 @@ Complete. Detailed CPU 0005H, detailed CPU 0005I, and detailed CPU 0005J are `Co
 task 0006 and detailed task 0006A are `Complete`, detailed task 0006A1 is `Complete`, detailed
 task 0006A2 is `Complete`, detailed task 0006B is `Complete`, detailed task 0006B1 is `Complete`,
 detailed task 0006B2, detailed task 0006C, and detailed task 0006D are `Complete`; detailed task
-0007 is `Complete`, and tasks 0007A–0017 remain `Draft` without detailed specifications.
+0007 and detailed 0007A are `Complete`, and tasks 0007A1–0017 remain `Draft` without
+detailed specifications.
 CPU 0005C preserves that exact slice and implements cold selection among all four portable
 strategies. It uses the preferred Java 26 FLOAT64 species only for direct contiguous runs and
 scalar broadcasts, scalar tails and general-odometer fallback, configured/available parallelism
@@ -582,7 +602,8 @@ and planning records, and passed CPU Javadoc plus Markdown, exact-scope/status/i
 change, and whitespace validation without rerunning Java tests. Detailed CPU 0006A1 is `Complete`;
 detailed CPU 0006A2 is `Complete`, detailed CPU 0006B is `Complete`, detailed CPU 0006B1 and CPU
 0006B2, detailed CPU 0006C, detailed CPU 0006D, and detailed CPU 0007 are `Complete`,
-and CPU 0007A and later tasks remain `Draft` without detailed specifications.
+and detailed CPU 0007A is `Complete`; CPU 0007A1 and later tasks remain `Draft` without detailed
+specifications.
 
 Detailed CPU 0006A1 is Complete. It extends the same movement pipeline with one fully static,
 resolved-layout UNFOLD_AXIS occurrence for all six represented types or one floating UNFOLD2D
@@ -720,7 +741,10 @@ the work at the active frontier.
   0006D owns only one-node INITIAL_STATE and FLOAT64/FLOAT32 explicit-state DROPOUT through one
   CPU-private versioned counter mapping. The former broad CPU 0007 row is now split by current
   Model semantic-family and algorithm/resource boundary: detailed Complete CPU 0007 owns only
-  CUM_SUM/CUM_PROD scans; Draft 0007A owns ordinary aggregate reductions; Draft 0007B owns arg
+  CUM_SUM/CUM_PROD scans. The former ordinary-reduction row is further split at numerical/resource
+  and binding-geometry boundaries: detailed Complete 0007A owns full/single-/multi-axis MIN/MAX/ALL/
+  ANY with zero workspace; Draft 0007A1 owns ordinary SUM/MEAN/PROD and its explicit accumulator
+  design; Draft 0007A2 owns binding-aware target-Shape SUM. Draft 0007B owns arg
   extrema; Draft 0007C owns masked reductions; Draft 0007D owns logarithmic/statistical/norm
   reductions; Draft 0007E owns stable softmax/log-softmax; and Draft 0007F owns layer/RMS/batch
   normalization. No later slice has a detailed specification.
@@ -729,6 +753,12 @@ the work at the active frontier.
   preserves one sequential typed accumulation order, requires no partial/combine workspace, and
   establishes the next generated range/body family without pre-deciding later reduction or
   normalization algorithms.
+- CPU 0007A followed because extrema and boolean folds share one ordinary full/single-/multi-axis
+  output/domain geometry, exact identity/selection rules, output-cell-only parallelism, and zero
+  workspace. CPU 0007A1 is separate because ordinary floating SUM/MEAN require exact-real
+  summation followed by result-format rounding rather than scan's per-step typed rounding, and
+  PROD has its own product special-value/resource policy. CPU 0007A2 is separate because
+  `SumToShapeAttrs` adds right-aligned binding-aware geometry. Only 0007A has a detailed spec.
 - CPU 0006D selects `SYNAPTIK_CPU_SPLITMIX64_COUNTER_V1`: `mix64` uses shifts 30/27/31 and
   multipliers `0xbf58476d1ce4e5b9`/`0x94d049bb133111eb` after key bias
   `0x9e3779b97f4a7c15`; each draw is `mix64(counter + logicalIndex +

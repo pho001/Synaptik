@@ -23,8 +23,9 @@ import java.util.Objects;
  * body, and retains the scalar body for tails. It does not choose capability, numerical
  * semantics, access structure, strategy, or fallback.</p>
  * Instruction-free affine, movement, indexing, scatter, fold, ordering, explicit-state random,
- * and cumulative-scan forms delegate to their focused emitters after structural specialization
- * checks.
+ * cumulative-scan, and ordinary aggregate forms delegate to their focused emitters after
+ * structural specialization checks. Aggregate generation emits only a direct static-body bridge;
+ * the reduction loop is not embedded in the generated class.
  */
 public final class CpuClassFileKernelGenerator {
     /** Creates a stateless generator with no retained route or specialization state. */
@@ -48,7 +49,9 @@ public final class CpuClassFileKernelGenerator {
                 .withMethod(CpuGeneratorSchema.ENTRY_NAME, type, AccessFlag.STATIC.mask(), method ->
                         method.withCode(code -> {
                             if (kernelIr.instructions().isEmpty()) {
-                                if (kernelIr.familyIdentity().startsWith("scan:")) {
+                                if (kernelIr.familyIdentity().startsWith("aggregate:")) {
+                                    new CpuAggregateEmitter().emit(code, specialization);
+                                } else if (kernelIr.familyIdentity().startsWith("scan:")) {
                                     new CpuScanEmitter().emit(code, specialization);
                                 } else if (kernelIr.familyIdentity().startsWith("random:")) {
                                     new CpuRandomEmitter().emit(code, specialization, kernelIr);
@@ -229,18 +232,19 @@ public final class CpuClassFileKernelGenerator {
             boolean indexing = kernelIr.familyIdentity().startsWith("indexing:");
             boolean random = kernelIr.familyIdentity().startsWith("random:");
             boolean scan = kernelIr.familyIdentity().startsWith("scan:");
+            boolean aggregate = kernelIr.familyIdentity().startsWith("aggregate:");
             boolean scatter = kernelIr.familyIdentity().startsWith("scatter:");
             boolean fold = kernelIr.familyIdentity().startsWith("fold:");
             boolean ordering = kernelIr.familyIdentity().startsWith("ordering:");
             boolean movement = kernelIr.familyIdentity().startsWith("movement:");
             boolean affine = kernelIr.familyIdentity().startsWith("affine:");
-            if ((!movement && !affine && !indexing && !scatter && !fold && !ordering && !random && !scan)
+            if ((!movement && !affine && !indexing && !scatter && !fold && !ordering && !random && !scan && !aggregate)
                     || affine && kernelIr.values().size() != 2
                     || movement && (kernelIr.values().size() < 2 || kernelIr.values().size() > 17)
-                    || !ordering && !random && !scan && kernelIr.values().subList(0, kernelIr.values().size() - 1).stream()
+                    || !ordering && !random && !scan && !aggregate && kernelIr.values().subList(0, kernelIr.values().size() - 1).stream()
                         .anyMatch(value -> value.kind() != CpuKernelIr.Value.Kind.INPUT)
                     || kernelIr.values().getLast().kind() != CpuKernelIr.Value.Kind.OUTPUT
-                    || !indexing && !scatter && !fold && !ordering && !random && !scan
+                    || !indexing && !scatter && !fold && !ordering && !random && !scan && !aggregate
                         && kernelIr.values().stream().map(CpuKernelIr.Value::dataType).distinct().count() != 1
                     || random && kernelIr.values().size() != 1 && kernelIr.values().size() != 5
                     || specialization.executionStrategy().compute()

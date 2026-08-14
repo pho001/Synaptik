@@ -12,10 +12,11 @@ import java.util.Objects;
  * A selected contiguous pointwise input copy is already reflected in the supplied canonical
  * consumer IR and specialization. An affine plan instead retains its structural copy form while
  * exposing an instruction-free encoded form to the existing generator/cache boundary. The plan
- * does not retain source/workspace objects or concrete affine addresses.
+ * does not retain source/workspace objects or concrete affine addresses. Ordinary aggregate IR
+ * is encoded for compatibility while its generated entry remains a direct CPU-static-body bridge.
  *
  * @param portableKernelIr non-null route-independent pointwise, affine, movement, indexing,
- *     functional-scatter, overlap-fold, ordering, random, or cumulative-scan IR
+ *     functional-scatter, overlap-fold, ordering, random, cumulative-scan, or aggregate IR
  * @param specialization non-null selected exact/default scalar or preferred-species vector
  *     Class-File specialization; parallel orchestration, if selected, remains outside the artifact
  */
@@ -25,7 +26,7 @@ public record CpuPortableRoutePlan(CpuPortableKernelIr portableKernelIr,
      * Validates one portable realization plan.
      *
      * @param portableKernelIr non-null route-independent pointwise, affine, movement, indexing,
-     *     scatter, fold, ordering, random, or cumulative-scan IR
+     *     scatter, fold, ordering, random, cumulative-scan, or aggregate IR
      * @param specialization non-null matching scalar or vector generated specialization
      * @throws NullPointerException if either component is {@code null}
      * @throws IllegalArgumentException if the specialization does not match the canonical IR, or
@@ -79,6 +80,9 @@ public record CpuPortableRoutePlan(CpuPortableKernelIr portableKernelIr,
             return ordering.encodedKernelIr();
         if (source instanceof io.github.pho001.synaptik.backend.cpu.internal.ir.CpuRandomIr random)
             return random.encodedKernelIr();
-        return ((io.github.pho001.synaptik.backend.cpu.internal.ir.CpuScanIr) source).encodedKernelIr();
+        return source instanceof io.github.pho001.synaptik.backend.cpu.internal.ir.CpuScanIr scan
+                ? scan.encodedKernelIr()
+                : ((io.github.pho001.synaptik.backend.cpu.internal.ir.CpuAggregateIr) source)
+                    .encodedKernelIr();
     }
 }

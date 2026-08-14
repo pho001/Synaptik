@@ -64,6 +64,11 @@
  * structure. Extents, offsets, stride magnitudes, carriers, slots, workers, and slice ranges
  * remain cold facts.</p>
  *
+ * <p>The ordinary aggregate representation records MIN, MAX, ALL, or ANY, exact ordinary
+ * attribute form, increasing selected-axis membership, retention, structural two-boundary
+ * access, first-logical-NaN/signed-zero policy, complete-output-cell ranges, and zero workspace.
+ * Concrete Shapes, domain counts, layouts, carriers, and workers remain cold facts.</p>
+ *
  * <p>Lowering creates these cold immutable models. Portable code generation and the scalar
  * reference realization may consume their established semantics, but Runtime never receives or
  * interprets them.

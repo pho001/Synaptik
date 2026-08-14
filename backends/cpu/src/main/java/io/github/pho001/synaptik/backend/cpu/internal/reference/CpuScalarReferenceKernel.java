@@ -22,6 +22,8 @@ import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuRandomIr;
 import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuRandomLowering;
 import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuScanIr;
 import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuScanLowering;
+import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuAggregateIr;
+import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuAggregateLowering;
 import io.github.pho001.synaptik.model.operation.index.ScatterReduction;
 import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuPointwiseOpcode;
 import io.github.pho001.synaptik.model.datatype.DataType;
@@ -74,6 +76,105 @@ public final class CpuScalarReferenceKernel {
             1.70814450747565897222E1, 9.60896809063285878198E0,
             3.36907645100081516050E0};
     private CpuScalarReferenceKernel() { }
+
+    /**
+     * Independently evaluates one complete ordinary extrema or Boolean reduction.
+     *
+     * <p>This oracle derives logical coordinates directly from Shapes and selected membership;
+     * it does not call production aggregate execution, packing, lowering, or coordinate helpers.</p>
+     * @param ir non-null aggregate semantics
+     * @param geometry non-null matching cold layouts and domain counts
+     * @param arguments non-null exact input/output carrier list; read but not retained
+     * @throws NullPointerException if an argument is {@code null}
+     * @throws IllegalArgumentException if IR, geometry, or carrier cardinality disagrees
+     */
+    public static void execute(CpuAggregateIr ir, CpuAggregateLowering.Geometry geometry,
+            List<CpuBufferArgument> arguments) {
+        Objects.requireNonNull(ir, "ir"); Objects.requireNonNull(geometry, "geometry");
+        Objects.requireNonNull(arguments, "arguments");
+        if (arguments.size() != 2 || ir.kind() != geometry.kind()
+                || ir.dataType() != geometry.dataType())
+            throw new IllegalArgumentException("aggregate reference facts disagree");
+        long[] inputExtents = geometry.input().extents();
+        long[] outputExtents = geometry.output().extents();
+        boolean[] selected = new boolean[inputExtents.length];
+        for (int axis : geometry.selectedAxes()) selected[axis] = true;
+        long[] inputCoordinates = new long[inputExtents.length];
+        long[] outputCoordinates = new long[outputExtents.length];
+        for (long cell = 0; cell < geometry.outputCount(); cell++) {
+            decodeReference(cell, outputExtents, outputCoordinates);
+            int outputAxis = 0;
+            for (int axis = 0; axis < inputCoordinates.length; axis++) {
+                inputCoordinates[axis] = selected[axis] ? 0
+                        : outputCoordinates[geometry.keepDimensions() ? axis : outputAxis++];
+            }
+            Object accumulator = aggregateIdentity(ir.kind(), ir.dataType());
+            for (long domain = 0; domain < geometry.domainCount(); domain++) {
+                long remaining = domain;
+                for (int axis = inputCoordinates.length - 1; axis >= 0; axis--) if (selected[axis]) {
+                    inputCoordinates[axis] = remaining % inputExtents[axis];
+                    remaining /= inputExtents[axis];
+                }
+                Object value = load(arguments.getFirst(), ir.dataType(),
+                        aggregateAddress(geometry.input(), inputCoordinates));
+                accumulator = aggregateApply(ir.kind(), ir.dataType(), accumulator, value);
+            }
+            store(arguments.getLast(), ir.dataType(),
+                    aggregateAddress(geometry.output(), outputCoordinates), accumulator);
+        }
+    }
+
+    private static void decodeReference(long logical, long[] extents, long[] coordinates) {
+        for (int axis = extents.length - 1; axis >= 0; axis--) {
+            coordinates[axis] = logical % extents[axis]; logical /= extents[axis];
+        }
+    }
+    private static long aggregateAddress(CpuAggregateLowering.Layout layout, long[] coordinates) {
+        long result = layout.offset(); long[] strides = layout.strides();
+        for (int axis = 0; axis < coordinates.length; axis++) result += coordinates[axis] * strides[axis];
+        return result;
+    }
+    private static Object aggregateIdentity(CpuAggregateIr.Kind kind, DataType type) {
+        boolean minimum = kind == CpuAggregateIr.Kind.MIN;
+        return switch (type) {
+            case FLOAT64 -> minimum ? Double.POSITIVE_INFINITY : Double.NEGATIVE_INFINITY;
+            case FLOAT32 -> minimum ? Float.POSITIVE_INFINITY : Float.NEGATIVE_INFINITY;
+            case BFLOAT16 -> (short) (minimum ? 0x7f80 : 0xff80);
+            case INT32 -> minimum ? Integer.MAX_VALUE : Integer.MIN_VALUE;
+            case INT64 -> minimum ? Long.MAX_VALUE : Long.MIN_VALUE;
+            case BOOL -> (byte) (kind == CpuAggregateIr.Kind.ALL ? 1 : 0);
+        };
+    }
+    private static Object aggregateApply(CpuAggregateIr.Kind kind, DataType type,
+            Object left, Object right) {
+        if (type == DataType.BOOL) return (byte) (kind == CpuAggregateIr.Kind.ALL
+                ? ((byte) left != 0 && (byte) right != 0 ? 1 : 0)
+                : ((byte) left != 0 || (byte) right != 0 ? 1 : 0));
+        if (type == DataType.INT32) return kind == CpuAggregateIr.Kind.MIN
+                ? Math.min((int) left, (int) right) : Math.max((int) left, (int) right);
+        if (type == DataType.INT64) return kind == CpuAggregateIr.Kind.MIN
+                ? Math.min((long) left, (long) right) : Math.max((long) left, (long) right);
+        double l = type == DataType.FLOAT64 ? (double) left
+                : type == DataType.FLOAT32 ? (float) left : bfloat((short) left);
+        double r = type == DataType.FLOAT64 ? (double) right
+                : type == DataType.FLOAT32 ? (float) right : bfloat((short) right);
+        if (Double.isNaN(l)) return left;
+        if (Double.isNaN(r)) return right;
+        if (l == 0.0 && r == 0.0) {
+            boolean ln = rawNegative(type, left), rn = rawNegative(type, right);
+            if (kind == CpuAggregateIr.Kind.MIN) return ln ? left : rn ? right : left;
+            return !ln ? left : !rn ? right : left;
+        }
+        return kind == CpuAggregateIr.Kind.MIN ? (r < l ? right : left) : (r > l ? right : left);
+    }
+    private static boolean rawNegative(DataType type, Object value) {
+        return switch (type) {
+            case FLOAT64 -> Double.doubleToRawLongBits((double) value) < 0;
+            case FLOAT32 -> Float.floatToRawIntBits((float) value) < 0;
+            case BFLOAT16 -> (short) value < 0;
+            default -> false;
+        };
+    }
 
     /**
      * Independently evaluates a complete cumulative scan using logical coordinates.

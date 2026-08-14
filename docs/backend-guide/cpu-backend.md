@@ -3,7 +3,7 @@
 ## Outcome and status
 
 This guide defines the CPU integration boundary and helps contributors avoid treating CPU routes
-as separate backends. The current CPU module accepts nine bounded, fully static portable families.
+as separate backends. The current CPU module accepts ten bounded, fully static portable families.
 A pointwise partition is one supported occurrence or one connected straight-line chain of at most
 eight occurrences. A static affine partition is one connected one-input/one-output chain of at
 most eight resolved-layout view occurrences. Either family lowers to one computation unit, one
@@ -50,13 +50,20 @@ FLOAT64, FLOAT32, BFLOAT16, INT32, and INT64 in inclusive/exclusive and forward/
 Each logical scan slice keeps one sequential typed accumulator; scalar or parallel-scalar
 execution may distribute only whole independent slices. The family declares one input and one
 distinct output, with zero workspace or materialization.
+The tenth family is exactly one resolved-layout ordinary `MIN`, `MAX`, `ALL`, or `ANY`
+occurrence. Numeric extrema accept FLOAT64, FLOAT32, BFLOAT16, INT32, or INT64 and preserve the
+represented type; Boolean folds accept and produce only canonical BOOL. Exact full, single-axis,
+and multi-axis forms share one output-cell geometry, including an empty multi-axis selection as a
+one-value point domain. Scalar or parallel-scalar execution distributes only whole output cells
+and declares zero workspace, materialization, partial state, or combine state.
 
-Generated scalar and Java 26 Vector API loops accept primitive `start` and `end` bounds.
+Generated scalar and Java 26 Vector API entries accept primitive `start` and `end` bounds.
 Compatible concrete extents bind on the cold path and share identical class bytes and one
 process-local loaded compatibility identity. The pointwise semantic matrix uses exactly five
 executable types—FLOAT64, FLOAT32, INT32, INT64, and BOOL—and one forty-eight-opcode CPU-private
 vocabulary. Affine copies accept all six current Model data types and transfer represented bits
-without conversion. Outside the cumulative-scan and overlap-fold families described below,
+without conversion. Outside the cumulative-scan, ordinary-aggregate, and overlap-fold families
+described below,
 BFLOAT16 uses the existing raw `short[]` representation or native-order two-byte segment access
 only; raw movement support is not general BFLOAT16 arithmetic or numerical support. The access
 family covers scalar/rank/singleton/multi-axis
@@ -76,7 +83,8 @@ operation, type, shape, layout, parameter, alias, fan-out, publication, carrier,
 particular, CAST is same-type only and BFLOAT16 remains representation-only for affine movement;
 CPU does not invent cross-type conversion semantics. Native, tuning, excluded pointwise rows,
 general partition-DAG fusion and later operation families remain Draft. Functional scatter,
-overlap fold, stable ordering, explicit-state random, and cumulative-scan execution are current
+overlap fold, stable ordering, explicit-state random, cumulative-scan, and ordinary-aggregate
+execution are current
 only within the exact
 static portable boundaries described below; they do not imply native, vector, dynamic-layout, or
 universal backend coverage.
@@ -630,7 +638,7 @@ affine load/store, gather, scatter, masked tail, or speed claim.
 Lifecycle ownership remains unchanged. CPU analysis validates and composes the chain, chooses the
 scalar orchestration, and declares exactly the source and final result. Shared Prepare assigns
 those two slots without interpreting the affine plan. CPU finalization validates both assignments
-before current schema-20 artifact access and constructs one immutable executable. Cold binding validates
+before current schema-21 artifact access and constructs one immutable executable. Cold binding validates
 the exact data type, carrier, byte size, alignment, accessibility, output writability, canonical
 BOOL input bytes, and source/result non-overlap. Runtime then invokes only the prepared direct
 carriers, address table, and `start`/`end` bounds; it receives no operation, graph node, Shape,
@@ -681,7 +689,7 @@ callback, or per-element allocation in generated code.
 
 Movement uses scalar compute and either single-thread or deterministic parallel orchestration.
 Parallel chunks are safe because output injectivity proves disjoint writes. Vector preference
-falls back to scalar for this family. CPU finalization realizes current schema-20 generated artifacts;
+falls back to scalar for this family. CPU finalization realizes current schema-21 generated artifacts;
 cold binding validates complete input/output spans and rejects every output/input overlap before
 execution. The scalar reference consumes the same movement IR and compact geometry for
 differential tests, not as a Runtime fallback.
@@ -768,7 +776,7 @@ injectivity, and output/input non-overlap checks still run.
 
 CPU analysis declares each distinct gather input `ValueId` once in semantic first-use order and
 then one separate output; one-hot declares indices and output. Every indexing plan has one unit,
-no materialization, no workspace, one current schema-20 generated class artifact, one prepared
+no materialization, no workspace, one current schema-21 generated class artifact, one prepared
 executable, and one bound invocation. The artifact owns only output writing. Compact CPU-private
 geometry retains layout and coordinate facts without a per-index or per-output table, while the
 bound executable owns run-value validation. Shared Prepare assigns declared buffers opaquely,
@@ -926,7 +934,7 @@ parallel orchestration calls the same scalar body over disjoint output ranges. F
 API body, atomics, partial sums, cross-range merge, hidden scratch, or input-domain parallelism.
 CPU analysis and finalization keep concrete axes, windows, extents, layouts, carriers, and ranges
 cold. Schema 17 introduced the fold family, represented type, boundary access/rank structure,
-carrier pattern, execution mode, and canonical sequential-addition policy; current schema 20
+carrier pattern, execution mode, and canonical sequential-addition policy; current schema 21
 retains those facts, and every older schema is an incompatible miss with no migration reader.
 
 This is exact current CPU route coverage, not broader Model, Compiler, Runtime, Engine, gradient,
@@ -1132,12 +1140,86 @@ stride magnitudes, assigned slots, carrier objects, addresses, worker identity, 
 selected range count remain cold when they do not change emitted bytes. Schema-19 artifacts are
 incompatible misses, and there is no migration reader.
 
-Current coverage ends at this one-node static portable family. Ordinary aggregate, arg-extrema,
-masked, logarithmic, statistical, and norm reductions remain Draft CPU 0007A–0007D work. Stable
+Current coverage ends at this one-node static portable family. Numerical ordinary aggregates,
+arg-extrema, masked, logarithmic, statistical, and norm reductions remain Draft CPU
+0007A1–0007D work. Stable
 `SOFTMAX`/`LOG_SOFTMAX` and normalization remain Draft CPU 0007E–0007F work. Multi-node scan
 fusion, partial scans, cross-worker prefix combination, vector or native scan bodies, dynamic
 Shape/layout binding, in-place/overlapping execution, public scan configuration, and a shared
 Runtime scan primitive are not implemented.
+
+### Current ordinary extrema and Boolean reduction family
+
+The portable ordinary-aggregate family accepts exactly one fully static, resolved-layout
+`MIN`, `MAX`, `ALL`, or `ANY` occurrence. `MIN` and `MAX` accept FLOAT64, FLOAT32, BFLOAT16,
+INT32, and INT64 and produce that same represented type. `ALL` and `ANY` accept and produce only
+canonical one-byte BOOL. No promotion, truth conversion, numerical sum/product, target-Shape
+reduction, or other reduction kind is implied.
+
+The accepted attribute forms determine selected axes as follows:
+
+| Attribute form | Selected domain | Output Shape |
+|---|---|---|
+| Exact parameterless form | Every input axis | Canonical scalar |
+| One normalized axis | That axis | Axis removed, or retained with extent one |
+| Distinct normalized axis list | Axis membership, independent of list order | Selected axes removed, or retained with extent one |
+| Empty normalized axis list | One value at the corresponding input position | Input Shape, regardless of retention |
+
+Each existing output cell owns its complete selected domain. Selected zero extents materialize
+the kind's identity independently for every such cell: positive infinity for floating `MIN`,
+negative infinity for floating `MAX`, the corresponding signed integer extreme, canonical true
+for `ALL`, or canonical false for `ANY`. A zero extent on an unselected axis instead makes the
+output empty, so there is no cell on which to write an identity and no generated call or worker
+submission.
+
+For a compact example, reduce this INT32 input of Shape `[2, 3]` along axis `1`:
+
+```text
+input rows: [[3, -2, 7], [4, 5, -1]]
+MIN:        [-2, -1]
+MAX:        [ 7,  5]
+```
+
+The two output cells are independent. For the first `MIN` cell, the selected-domain walk visits
+`3`, then `-2`, then `7`; its result is `-2`. The second cell visits `4`, `5`, then `-1`; its
+result is `-1`. Parallel-scalar execution may assign those two complete rows to different ranges,
+but it never divides either three-value domain or combines partial results. This example shows
+logical traversal and result placement; it does not promise vector reduction or a performance
+result.
+
+Floating domains use numerical order, with negative zero selected for `MIN` and positive zero for
+`MAX`. Any NaN makes the result NaN. Schema 21's CPU-local deterministic policy copies the
+represented bits of the first NaN in canonical logical input row-major traversal order; this is
+not a Model, cross-backend, or future-schema payload promise. BFLOAT16 values widen only for
+comparison, and the selected output copies the original 16 represented bits without arithmetic
+or rounding.
+
+Analysis declares exactly `[input, output]`, one computation unit, one generated artifact, and no
+workspace or materialization. Cold binding accepts the matching heap primitive arrays,
+native-order `MemorySegment` carriers, and compatible mixed boundaries for arbitrary supported
+non-negative resolved input layouts and injective output layouts. It validates canonical BOOL
+input and rejects complete physical input/output overlap before coordinate-pack mutation, output
+initialization, a generated call, or worker submission. Empty output performs no generated work.
+
+The generated entry is a Java Class-File bridge to the CPU-owned static aggregate body; the
+reduction loop is not embedded in the generated class. Primitive `start` and `end` values bound a
+contiguous range of flattened output-cell ordinals. Every range receives invocation-private
+primitive coordinate state, while the prepared recipe retains no mutable accumulator, partial
+buffer, combine state, or run-shared reduction state.
+
+Schema 21 records kind, represented type, ordinary form, canonical selected-axis membership,
+retention, structural boundary access, first-logical-NaN/signed-zero policy, complete-output-cell
+range meaning, carrier forms, and zero scratch. Concrete Shapes, domain counts, offsets, stride
+magnitudes, slots, carrier objects, addresses, workers, run identity, and selected range count
+remain cold when they do not change emitted bytes. Schema-20 artifacts are incompatible misses;
+there is no migration reader.
+
+Current coverage ends at this one-node static family. Ordinary `SUM`, `MEAN`, and `PROD` remain
+Draft CPU 0007A1 work; binding-aware `SUM_TO_SHAPE` remains Draft CPU 0007A2 work. Arg extrema,
+masked and advanced reductions, softmax, normalization, multi-node reduction fusion,
+within-domain parallelism, partial/combine trees, vector/native reduction bodies, dynamic
+Shape/layout binding, in-place overlap, tuning, and performance claims remain outside this
+increment.
 
 ### Unary numerical closure
 
@@ -1592,18 +1674,20 @@ architecture capability checkpoint then passed, and the provider milestone is co
 
 The current CPU foundation provides the bounded fully static pointwise matrix, static
 resolved-layout affine family, and one-node static movement, indexing, functional-scatter,
-overlap-fold, stable ordering, explicit-state random, and cumulative-scan families described
+overlap-fold, stable ordering, explicit-state random, cumulative-scan, and ordinary-aggregate
+families described
 above. Scalar
 execution covers every admitted row; parallel-scalar orchestration is available for disjoint
 affine, movement, scatter, fold, ordering, random-element, and whole-scan-slice ranges; and the
 pointwise family retains its exact
-typed value-vector and virtual-mask parity matrix. Generator schema 20 distinguishes pointwise,
-affine, movement, indexing, scatter, fold, ordering, random, and scan structures, including movement occurrence order,
+typed value-vector and virtual-mask parity matrix. Generator schema 21 distinguishes pointwise,
+affine, movement, indexing, scatter, fold, ordering, random, scan, and aggregate structures,
+including movement occurrence order,
 unequal-rank access, exact
 padding bits, functional slice-update rank/map identity, and scatter reduction/scratch signature,
 plus fold family/addition-policy identity, ordering direction/output-order/output-count/scratch-
 entry identity, explicit-state mapping/scaling identity, cumulative kind/axis/mode/typed-rounding
-identity, and the affine
+identity, ordinary aggregate form/axis/selection/range identity, and the affine
 mapping/write domain and all seven carrier forms. No excluded pointwise or later semantic family,
 general BFLOAT16 pointwise or dropout numerical operation,
 cross-type CAST, dynamic layout, vector affine/scatter/fold/ordering execution, native fallback, backend-conformance

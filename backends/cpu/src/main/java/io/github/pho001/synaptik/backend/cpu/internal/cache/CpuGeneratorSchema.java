@@ -21,6 +21,8 @@ package io.github.pho001.synaptik.backend.cpu.internal.cache;
  * shape, three-output stores, and workspace-free state prologue.
  * Schema 20 adds cumulative sum/product identity, axis and mode roles, sequential typed rounding,
  * and the two-boundary workspace-free independent-slice entry shape.
+ * Schema 21 adds ordinary MIN/MAX/ALL/ANY form, canonical selected-axis membership, deterministic
+ * floating selection policy, complete-output-cell ranges, zero workspace, and its direct bridge.
  * The optional persistent envelope stores this version and has no legacy reader, migration path,
  * or converter.
  */
@@ -34,10 +36,11 @@ public final class CpuGeneratorSchema {
      * schema 17 adds current overlap fold and represented sequential addition; schema 18 adds
      * stable SORT/ARGSORT/TOP_K structural identity, multi-store shape, and merge scratch.
      * Schema 19 adds explicit-state initialization and FLOAT64/FLOAT32 dropout identity and code;
-     * schema 20 adds the five-type cumulative-scan family and slice-domain execution.
+     * schema 20 adds the five-type cumulative-scan family and slice-domain execution; schema 21
+     * adds ordinary extrema and Boolean output-cell reductions through a generated bridge.
      * Envelopes written for earlier schemas are incompatible misses.
      */
-    public static final int CURRENT_VERSION = 20;
+    public static final int CURRENT_VERSION = 21;
     /** Generated entry name. */ public static final String ENTRY_NAME = "invoke";
     private CpuGeneratorSchema() { }
 

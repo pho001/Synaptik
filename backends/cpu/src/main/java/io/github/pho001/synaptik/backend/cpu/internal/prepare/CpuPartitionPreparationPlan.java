@@ -18,6 +18,7 @@ import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuFoldLowering;
 import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuOrderingLowering;
 import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuRandomLowering;
 import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuScanLowering;
+import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuAggregateLowering;
 
 /**
  * Route-neutral immutable selected CPU partition plan.
@@ -58,6 +59,7 @@ import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuScanLowering;
  *     SORT, ARGSORT, or TOP_K plan and paired with exact per-range merge scratch
  * @param randomGeometry non-null optional zero-workspace INITIAL_STATE or DROPOUT geometry
  * @param scanGeometry non-null optional zero-workspace CUM_SUM or CUM_PROD slice geometry
+ * @param aggregateGeometry non-null optional zero-workspace MIN/MAX/ALL/ANY output-cell geometry
  */
 public record CpuPartitionPreparationPlan(List<ExecutionUnitPlan> units, Route route,
         ExecutionStrategy executionStrategy,
@@ -76,7 +78,8 @@ public record CpuPartitionPreparationPlan(List<ExecutionUnitPlan> units, Route r
         Optional<CpuFoldLowering.Geometry> foldGeometry,
         Optional<CpuOrderingLowering.Geometry> orderingGeometry,
         Optional<CpuRandomLowering.Geometry> randomGeometry,
-        Optional<CpuScanLowering.Geometry> scanGeometry)
+        Optional<CpuScanLowering.Geometry> scanGeometry,
+        Optional<CpuAggregateLowering.Geometry> aggregateGeometry)
         implements BackendPreparationPlan {
 
     /**
@@ -131,7 +134,7 @@ public record CpuPartitionPreparationPlan(List<ExecutionUnitPlan> units, Route r
                 selectedRangeCount, minimumElementsPerWorker, vectorSpeciesBitSize,
                 loweringManifest, materialization, workspaceDeclaration, workspaceUse,
                 specializationBudget, movementGeometry, indexingGeometry, scatterGeometry,
-                foldGeometry, orderingGeometry, Optional.empty(), Optional.empty());
+                foldGeometry, orderingGeometry, Optional.empty(), Optional.empty(), Optional.empty());
     }
     /**
      * Creates a pointwise or affine plan without non-affine movement geometry.
@@ -176,7 +179,7 @@ public record CpuPartitionPreparationPlan(List<ExecutionUnitPlan> units, Route r
                 loweringManifest, materialization, workspaceDeclaration,
                 materialization.isPresent() ? WorkspaceUse.MATERIALIZATION : WorkspaceUse.NONE,
                 specializationBudget, Optional.empty(), Optional.empty(), Optional.empty(),
-                Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty());
+                Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty());
     }
     /** Meaning of the plan's sole optional CPU workspace. */
     public enum WorkspaceUse {
@@ -309,6 +312,7 @@ public record CpuPartitionPreparationPlan(List<ExecutionUnitPlan> units, Route r
         orderingGeometry = Objects.requireNonNull(orderingGeometry, "orderingGeometry");
         randomGeometry = Objects.requireNonNull(randomGeometry, "randomGeometry");
         scanGeometry = Objects.requireNonNull(scanGeometry, "scanGeometry");
+        aggregateGeometry = Objects.requireNonNull(aggregateGeometry, "aggregateGeometry");
         if (units.size() != 1 || route != Route.PORTABLE
                 || bufferDeclarations.isEmpty()
                 || boundaryValues.size() != bufferDeclarations.size()
@@ -333,6 +337,8 @@ public record CpuPartitionPreparationPlan(List<ExecutionUnitPlan> units, Route r
                 instanceof io.github.pho001.synaptik.backend.cpu.internal.ir.CpuRandomIr;
         boolean scan = units.getFirst().portablePlan().portableKernelIr()
                 instanceof io.github.pho001.synaptik.backend.cpu.internal.ir.CpuScanIr;
+        boolean aggregate = units.getFirst().portablePlan().portableKernelIr()
+                instanceof io.github.pho001.synaptik.backend.cpu.internal.ir.CpuAggregateIr;
         if (affine ? affineAddressPairs.length != Math.multiplyExact(elementCount, 2)
                 : affineAddressPairs.length != 0) {
             throw new IllegalArgumentException("affine address geometry must match the copy domain");
@@ -373,6 +379,23 @@ public record CpuPartitionPreparationPlan(List<ExecutionUnitPlan> units, Route r
                     || extents.length != 1 || extents[0] != geometry.sliceCount()) {
                 throw new IllegalArgumentException("scan structural IR and geometry disagree");
             }
+        }
+        if (aggregate != aggregateGeometry.isPresent() || aggregate && (bufferDeclarations.size() != 2
+                || materialization.isPresent() || workspaceDeclaration.isPresent()))
+            throw new IllegalArgumentException("aggregate IR and zero-workspace geometry must agree");
+        if (aggregate) {
+            var aggregateIr = (io.github.pho001.synaptik.backend.cpu.internal.ir.CpuAggregateIr)
+                    units.getFirst().portablePlan().portableKernelIr();
+            var geometry = aggregateGeometry.orElseThrow();
+            if (aggregateIr.kind() != geometry.kind() || aggregateIr.dataType() != geometry.dataType()
+                    || aggregateIr.form() != geometry.form()
+                    || aggregateIr.keepDimensions() != geometry.keepDimensions()
+                    || !java.util.Arrays.equals(aggregateIr.selectedAxes(), geometry.selectedAxes())
+                    || !aggregateIr.inputAccess().equals(accessBindings.getFirst().plan())
+                    || !aggregateIr.outputAccess().equals(accessBindings.getLast().plan())
+                    || elementCount != geometry.outputCount() || extents.length != 1
+                    || extents[0] != geometry.outputCount())
+                throw new IllegalArgumentException("aggregate structural IR and geometry disagree");
         }
         if (fold) {
             var foldIr = (io.github.pho001.synaptik.backend.cpu.internal.ir.CpuFoldIr)

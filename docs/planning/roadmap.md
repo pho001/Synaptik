@@ -172,17 +172,31 @@ is `Complete`. It owns only one static resolved CUM_SUM/CUM_PROD occurrence acro
 the five current numeric types and all four modes, with sequential typed accumulation inside each
 logical slice, scalar or slice-parallel deterministic execution, arbitrary supported
 layouts/carriers, complete overlap rejection, zero workspace/materialization, and schema 20.
-Draft CPU 0007A–0007F retain ordinary aggregate, arg-extrema, masked, advanced statistical/norm,
-stable softmax/log-softmax, and layer/RMS/batch-normalization work respectively; none has a
-detailed specification.
+Detailed
+[CPU 0007A portable ordinary extrema and boolean reductions](backends/cpu/tasks/0007a-portable-ordinary-extrema-and-boolean-reductions.md)
+is `Complete`. The former ordinary-aggregate row is split because extrema and
+BOOL folds share zero-workspace output-domain geometry, while ordinary SUM/MEAN/PROD require a
+separate exact floating numerical/resource design and binding-aware target-Shape SUM requires
+right-aligned bound-Shape geometry. Draft CPU 0007A1, CPU 0007A2, and CPU 0007B–0007F retain those
+numerical aggregates, target-Shape SUM, arg-extrema, masked, advanced statistical/norm, stable
+softmax/log-softmax, and layer/RMS/batch-normalization boundaries; none has a detailed
+specification. CPU 0007A1 is the next `Draft` CPU planning frontier.
 Corrective implementation/audit context `019ffcea-9e5e-7d60-9c45-f5664c8c4d4c` passed the
 1-suite/3-test regression, focused 11-suite/109-test matrix, and sole latest authoritative CPU
 suite with 50 suites, 292 tests, one existing opt-in skip, and no failures or errors. Clean
 documentation context `019ffcf5-ac50-7920-b528-1ea57c175e96` changed no executable Java or tests,
 reused that evidence, finalized the scan Javadocs/package summaries, CPU guide, glossary, and
 task/master/roadmap records, and passed CPU Javadoc plus rendered-page, Markdown, exact 39-path,
-schema/status, concurrent-scope-preservation, and whitespace checks. CPU 0007A remains the next
-Draft frontier without a detailed specification.
+schema/status, concurrent-scope-preservation, and whitespace checks.
+Implementation context `019ffea4-7930-70c2-9773-ef9c76fefc17` then completed CPU 0007A and passed
+the focused 10-test aggregate run, broader 50-test integration/cache/preparation run, and final
+CPU suite. Clean documentation context `019ffeb8-d37c-7c31-9c89-26a0264258d8` changed no
+executable Java or tests, independently recounted the preserved final XML as 53 suites/303 tests,
+zero failures/errors, and one expected opt-in persistence-evidence skip, and finalized the
+schema-21 Javadocs/package summaries, CPU guide, glossary, and planning records. Final Javadoc,
+rendered-page, Markdown, exact 37-path, schema/status/package, concurrent-scope-preservation, and
+whitespace gates passed. Detailed CPU 0007A is `Complete`; CPU 0007A1 is the next `Draft` planning
+frontier, and later CPU rows remain `Draft` without detailed specifications.
 CPU 0006B1 implementation context `019ff230-109c-73a3-933f-611ee7f6143d` and independent
 audit/fix context `019ff248-a9e4-7150-8fbb-db2730d7cc1b` produced the final focused
 12-suite/103-test and CPU 38-suite/230-test evidence; the latter has one expected existing skip
@@ -216,8 +230,8 @@ materialization/specialization/persistence evidence is also `Complete`; detailed
 division and exact scalar-power realization is `Complete`; detailed CPU 0005G and CPU 0005H are
 `Complete`; detailed CPU 0005I, CPU 0005J, and CPU 0006 are `Complete`; and CPU
 0006A is `Complete`; detailed 0006A1 and 0006A2 are `Complete`; detailed CPU 0006B is `Complete`;
-detailed CPU 0006B1, CPU 0006B2, CPU 0006C, CPU 0006D, and CPU 0007 are `Complete`; 0007A–0017
-remain `Draft` without detailed specifications.
+detailed CPU 0006B1, CPU 0006B2, CPU 0006C, CPU 0006D, CPU 0007, and detailed CPU 0007A are
+`Complete`; CPU 0007A1–0017 remain `Draft` without detailed specifications.
 CPU 0003
 implements a
 model-independent filesystem store beneath an explicit
@@ -431,9 +445,12 @@ planners, or take shared resource-lifetime ownership.
 The former broad CPU 0007 ownership is refined without changing the active project area. Complete
 CPU 0007 comes first because the closed cumulative-scan family has no aggregate-combination
 dependency and can parallelize only across complete logical slices with no partial/combine
-workspace. Draft CPU 0007A–0007F then own ordinary aggregates, arg extrema, masked reductions,
-advanced logarithmic/statistical/norm reductions, stable multi-pass softmax/log-softmax, and
-layer/RMS/batch normalization in dependency order. Draft CPU 0008 already owns heavy portable linear algebra,
+workspace. Detailed Complete CPU 0007A next owns ordinary full/single-/multi-axis MIN/MAX/ALL/ANY
+through output-cell-only parallelism and zero workspace. Draft CPU 0007A1 then owns ordinary
+SUM/MEAN/PROD numerical/resource policy, Draft CPU 0007A2 owns binding-aware target-Shape SUM, and
+Draft CPU 0007B–0007F own arg extrema, masked reductions, advanced logarithmic/statistical/norm
+reductions, stable multi-pass softmax/log-softmax, and layer/RMS/batch normalization in dependency
+order. Draft CPU 0008 already owns heavy portable linear algebra,
 convolution, pooling, attention, and loss families; its initial bounded epilogue direction is
 MATMUL or convolution followed by an optional compatible bias ADD and at most one existing exact
 pointwise activation or clamp, with a safe split whenever semantic, Shape/layout, publication,
@@ -597,14 +614,17 @@ Detailed CPU 0006 and detailed CPU 0006A are Complete after splitting static mov
 window extraction, and value-dependent indexing by dependency. Detailed CPU 0006A1 is `Complete`;
 detailed CPU 0006A2 is `Complete`; detailed CPU 0006B is `Complete`; detailed CPU 0006B1 is
 `Complete`; detailed CPU 0006B2, CPU 0006C, and CPU 0006D are `Complete`;
-Detailed CPU 0007 is `Complete`; CPU 0007A–0017 and the refined Config, Prepare, Metal, and tuning
-rows remain `Draft` without new detailed specifications.
+Detailed CPU 0007 and detailed CPU 0007A are `Complete`; CPU 0007A1–0017 and the refined
+Config, Prepare, Metal, and tuning rows remain `Draft` without new detailed specifications.
 Completed OpenBLAS history and every completed project area remain unchanged.
 
 CPU remains the active global project area. CPU 0005A through CPU 0006 are `Complete`, detailed
 CPU 0006A, detailed CPU 0006A1, detailed CPU 0006A2, and detailed CPU 0006B are `Complete`.
-Detailed CPU 0006B1, CPU 0006B2, CPU 0006C, CPU 0006D, and CPU 0007 are `Complete`; CPU 0007A is
-the next `Draft` frontier without a detailed specification, and later work remains `Draft`.
+Detailed CPU 0006B1, CPU 0006B2, CPU 0006C, CPU 0006D, CPU 0007, and detailed
+[CPU 0007A portable ordinary extrema and boolean reductions](backends/cpu/tasks/0007a-portable-ordinary-extrema-and-boolean-reductions.md)
+are `Complete`. CPU 0007A1 is the next `Draft` planning frontier, and later work remains `Draft`
+without detailed
+specifications.
 CPU 0006A delivers one exact static resolved-layout PAD, TILE, CONCAT, or STACK occurrence with
 ordered one-through-sixteen composition inputs, first-occurrence unique declarations, compact
 cold movement geometry, all-six-type represented-bit scalar/parallel-scalar generation, one
