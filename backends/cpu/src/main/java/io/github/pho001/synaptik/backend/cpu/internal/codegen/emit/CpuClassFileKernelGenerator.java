@@ -24,10 +24,10 @@ import java.util.Objects;
  * semantics, access structure, strategy, or fallback.</p>
  * Instruction-free affine, movement, indexing, scatter, fold, ordering, explicit-state random,
  * cumulative-scan, and ordinary aggregate forms delegate to their focused emitters after
- * structural specialization checks. Dense heap-array pointwise, affine-copy, and movement bodies
- * use one-time integer narrowing and hoisted geometry; scan and aggregate emitters embed typed
- * family hot loops. General layouts and segment or mixed carriers retain typed long-address
- * fallbacks.
+ * structural specialization checks. Dense heap-array pointwise, affine-copy, movement, and
+ * indexing bodies use one-time integer narrowing and hoisted geometry; indexing, scan, and
+ * aggregate emitters embed typed family hot loops. General layouts and segment or mixed carriers
+ * retain typed long-address fallbacks.
  */
 public final class CpuClassFileKernelGenerator {
     /** Creates a stateless generator with no retained route or specialization state. */
@@ -37,7 +37,7 @@ public final class CpuClassFileKernelGenerator {
      * Emits deterministic verified bytes for one exact structural specialization.
      *
      * @param specialization non-null typed carrier, strategy, and compatibility facts
-     * @param kernelIr non-null canonical typed pointwise IR matching the specialization
+     * @param kernelIr non-null canonical typed CPU kernel IR matching the specialization
      * @return a new deterministic verified class-byte array
      * @throws NullPointerException if an argument is {@code null}
      * @throws IllegalArgumentException if specialization and IR facts disagree
@@ -64,7 +64,7 @@ public final class CpuClassFileKernelGenerator {
                                 } else if (kernelIr.familyIdentity().startsWith("scatter:")) {
                                     new CpuScatterEmitter().emit(code, specialization);
                                 } else if (kernelIr.familyIdentity().startsWith("indexing:")) {
-                                    new CpuIndexingEmitter().emit(code, specialization);
+                                    new CpuIndexingEmitter().emit(code, specialization, kernelIr);
                                 } else if (kernelIr.familyIdentity().startsWith("movement:")) {
                                     new CpuDataMovementEmitter().emit(code, specialization, kernelIr);
                                 } else {

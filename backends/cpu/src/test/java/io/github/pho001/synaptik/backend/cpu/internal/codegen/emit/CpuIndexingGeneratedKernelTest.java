@@ -11,10 +11,61 @@ import io.github.pho001.synaptik.model.layout.LayoutDescriptor;
 import io.github.pho001.synaptik.model.shape.Shape;
 import io.github.pho001.synaptik.prepare.analysis.PrepareContext;
 import java.lang.foreign.MemorySegment;
+import java.lang.classfile.ClassFile;
+import java.lang.classfile.Instruction;
+import java.lang.classfile.Opcode;
+import java.lang.classfile.instruction.InvokeInstruction;
 import java.util.*;
 import org.junit.jupiter.api.Test;
 
 class CpuIndexingGeneratedKernelTest {
+    @Test void generatedClassesEmbedTypedLoopsForEveryFamilyAndGeneralSegments() {
+        var gather = code(context(new Operation(AxisGatherKind.GATHER, new IndexAxisAttrs(1)),
+                List.of(0, 1), List.of(desc(DataType.FLOAT32, Shape.of(2, 3)),
+                        desc(DataType.INT32, Shape.of(2))), desc(DataType.FLOAT32, Shape.of(2, 2))));
+        var elements = code(context(new Operation(AxisGatherKind.GATHER_ELEMENTS,
+                new IndexAxisAttrs(1)), List.of(0, 1),
+                List.of(desc(DataType.FLOAT32, Shape.of(2, 3)),
+                        desc(DataType.INT32, Shape.of(2, 2))),
+                desc(DataType.FLOAT32, Shape.of(2, 2))));
+        var nd = code(context(new Operation(GatherNdKind.GATHER_ND, new GatherNdAttrs(0)),
+                List.of(0, 1), List.of(desc(DataType.BOOL, Shape.of(2, 3)),
+                        desc(DataType.INT32, Shape.of(2, 1))),
+                desc(DataType.BOOL, Shape.of(2, 3))));
+        var hot = code(context(new Operation(OneHotKind.ONE_HOT, new OneHotAttrs(3)), List.of(0),
+                List.of(desc(DataType.INT64, Shape.of(2))), desc(DataType.BOOL, Shape.of(2, 3))));
+        var general = code(context(new Operation(AxisGatherKind.GATHER_ELEMENTS,
+                        new IndexAxisAttrs(1)), List.of(0, 1),
+                List.of(desc(DataType.FLOAT32, Shape.of(2, 3)),
+                        desc(DataType.INT32, Shape.of(2, 2))),
+                desc(DataType.FLOAT32, Shape.of(2, 2)),
+                List.of(CarrierAccess.MEMORY_SEGMENT, CarrierAccess.MEMORY_SEGMENT,
+                        CarrierAccess.MEMORY_SEGMENT)));
+        assertAll(
+                () -> assertTypedLoop(gather, Opcode.FALOAD, Opcode.IALOAD, Opcode.FASTORE),
+                () -> assertTypedLoop(elements, Opcode.FALOAD, Opcode.IALOAD, Opcode.FASTORE),
+                () -> assertTypedLoop(nd, Opcode.BALOAD, Opcode.IALOAD, Opcode.BASTORE),
+                () -> assertTypedLoop(hot, Opcode.LALOAD, Opcode.BASTORE),
+                () -> assertTrue(opcodeCount(general, Opcode.LMUL) > 0),
+                () -> assertTrue(opcodeCount(general, Opcode.LADD) > 0),
+                () -> assertTrue(invokes(general).stream().allMatch(call -> {
+                    String owner = call.owner().asInternalName();
+                    return owner.startsWith("java/lang/foreign/")
+                            || owner.equals("java/nio/ByteOrder");
+                })),
+                () -> assertTrue(java.util.stream.Stream.of(gather, elements, nd, hot, general)
+                        .flatMap(body -> invokes(body).stream()).noneMatch(call ->
+                                call.type().stringValue().contains("Ljava/lang/Object;")
+                                || call.owner().asInternalName().contains("CpuIndexingEmitter")
+                                || call.owner().asInternalName().startsWith("java/lang/reflect/")
+                                || call.owner().asInternalName().equals("java/util/Map")
+                                || call.owner().asInternalName().startsWith(
+                                        "io/github/pho001/synaptik/runtime/"))),
+                () -> assertTrue(java.util.stream.Stream.of(gather, elements, nd, hot, general)
+                        .allMatch(body -> body.elementStream().noneMatch(element -> element instanceof
+                                java.lang.classfile.instruction.NewObjectInstruction))));
+    }
+
     @Test void generatedWritersExecuteAllFourMappings() throws Throwable {
         float[] gather = new float[4];
         invoke(context(new Operation(AxisGatherKind.GATHER, new IndexAxisAttrs(1)),
@@ -135,6 +186,30 @@ class CpuIndexingGeneratedKernelTest {
         long[] geometry = plan.indexingGeometry().orElseThrow().pack(bases, 0, plan.elementCount());
         var args = new ArrayList<Object>(carriers); args.add(geometry); args.add(0L);
         args.add(plan.elementCount()); artifact.entryPoint().invokeWithArguments(args);
+    }
+    private static java.lang.classfile.CodeModel code(
+            PrepareContext<CpuPartitionAnalysisInputs> context) {
+        var route = new CpuPartitionPreparer().analyze(context).plan().units().getFirst()
+                .portablePlan();
+        return ClassFile.of().parse(new CpuClassFileKernelGenerator().generateClassBytes(
+                route.specialization(), route.kernelIr())).methods().getFirst().code().orElseThrow();
+    }
+    private static void assertTypedLoop(java.lang.classfile.CodeModel code,
+            Opcode... required) {
+        assertAll(() -> assertTrue(invokes(code).isEmpty()),
+                () -> assertTrue(java.util.Arrays.stream(required)
+                        .allMatch(opcode -> opcodeCount(code, opcode) > 0)),
+                () -> assertTrue(opcodeCount(code, Opcode.GOTO) > 0));
+    }
+    private static List<InvokeInstruction> invokes(
+            java.lang.classfile.CodeModel code) {
+        return code.elementStream().filter(InvokeInstruction.class::isInstance)
+                .map(InvokeInstruction.class::cast).toList();
+    }
+    private static long opcodeCount(java.lang.classfile.CodeModel code,
+            Opcode opcode) {
+        return code.elementStream().filter(Instruction.class::isInstance)
+                .map(Instruction.class::cast).filter(value -> value.opcode() == opcode).count();
     }
     private static PrepareContext<CpuPartitionAnalysisInputs> context(Operation operation,
             List<Integer> occurrences,

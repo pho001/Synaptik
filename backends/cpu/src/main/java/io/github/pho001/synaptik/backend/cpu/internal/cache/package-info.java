@@ -26,7 +26,9 @@
  * output-cell reduction identity plus its direct static-body bridge. Schema 22 adds embedded typed
  * scan/aggregate bodies and the proved dense heap-array integer-address pointwise loop category.
  * Schema 23 adds proved dense heap-array integer affine-copy and movement bodies with invariant
- * invocation geometry hoisted before their loops. Schema 23 is current-only.
+ * invocation geometry hoisted before their loops. Schema 24 adds carrier-, type-, and family-
+ * specialized indexing bodies with proved dense heap-array integer-address and typed general
+ * long-address forms. Schema 24 is current-only.
  * Four complete candidate plans, one realized
  * artifact, zero fixed-shape variants, and zero unrolled variants are the current hard budget.
  * With no trusted root, realization remains entirely in memory. With a root, one bounded

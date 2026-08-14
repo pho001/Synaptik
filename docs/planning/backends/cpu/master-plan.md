@@ -213,7 +213,7 @@ created by 0005A. All consume the common analysis above; none creates another ba
 | 0007A | [Portable ordinary extrema and boolean reductions](tasks/0007a-portable-ordinary-extrema-and-boolean-reductions.md) | Complete | 0007; current Model aggregate-reduction contracts | Executes one-node full, single-axis, and multi-axis MIN/MAX/ALL/ANY across exact numeric/BOOL types with empty identities, logical row-major deterministic folds, output-cell-only parallelism, arbitrary supported layouts/carriers, zero workspace, complete overlap rejection, and schema 21. |
 | 0007A0 | [Generated hot-path parity correction](tasks/0007a0-generated-hot-path-parity-correction.md) | Complete | 0005A/0005B/0005C/0005I; 0007; 0007A; completed local bytecode/performance audit | Corrected every measured dense generated-code defect atomically: cold-proved int scalar/address loops, one-bound Vector API loops, typed generated scan/aggregate hot bodies with general fallbacks, schema 22 compatibility, stable code-shape/semantic tests, and an isolated five-fork `<= 1.15x` direct-Java near-parity gate. |
 | 0007A0A | [Affine and movement generated-loop parity](tasks/0007a0a-affine-and-movement-generated-loop-parity.md) | Complete | 0006/0006A/0006A1/0006B; 0007A0 | Added schema-23 cold-proved integer affine and seven-family movement bodies, corrected multidimensional TILE carry/wrap semantics, retained typed general-long forms, and passed isolated affine/TILE/SLICE_UPDATE five-fork per-case `<= 1.15x` gates. |
-| 0007A0B | Indexing generated-loop parity | Draft | 0007A0A; completed 0006A2 semantics | Replace bridge-only GATHER/GATHER_ELEMENTS/GATHER_ND/ONE_HOT hot work with carrier- and type-specialized generated loops; gate dense FLOAT32 GATHER_ELEMENTS and BOOL ONE_HOT independently at `<= 1.15x` direct-loop parity while retaining complete cold index validation and general layouts. |
+| 0007A0B | [Indexing generated-loop parity](tasks/0007a0b-indexing-generated-loop-parity.md) | Complete | 0007A0A; completed 0006A2 semantics | Replaced bridge-only GATHER/GATHER_ELEMENTS/GATHER_ND/ONE_HOT hot work with carrier- and type-specialized generated loops, advanced schema 23 to 24, and passed dense FLOAT32 GATHER_ELEMENTS and BOOL ONE_HOT independently at `1.084234x` and `0.895060x` direct-loop parity while retaining complete pre-write index validation and general layouts. |
 | 0007A0C | Scatter generated-loop parity | Draft | 0007A0B; completed 0006B1 semantics | Replace bridge-only generic scatter output-cell work with typed generated writers; gate dense unique SCATTER_ELEMENTS replacement and duplicate-index FLOAT32 SCATTER_ADD independently at `<= 1.15x`, while preserving canonical contribution order, exact floating-product scratch, and cold validation. |
 | 0007A0D | Fold generated-loop parity | Draft | 0007A0C; completed 0006B2 semantics | Replace bridge-only Object/type-dispatched FOLD_AXIS/FOLD2D contribution loops with typed generated bodies; gate one dense overlapping FLOAT32 FOLD_AXIS case at `<= 1.15x` against the same canonical traversal while preserving BFLOAT16 rounding, modular integral addition, and general layouts. |
 | 0007A0E | Ordering generated-loop parity | Draft | 0007A0D; completed 0006C semantics | Replace bridge-only SORT/ARGSORT/TOP_K comparison and output work with typed generated ordering bodies; gate dense stable FLOAT32 SORT and two-output TOP_K independently at `<= 1.15x` against equivalent stable primitive merge loops while preserving exact scratch and order semantics. |
@@ -298,8 +298,10 @@ is `Complete`. Detailed
 [CPU 0007A0 Generated hot-path parity correction](tasks/0007a0-generated-hot-path-parity-correction.md)
 is `Complete`. Detailed
 [CPU 0007A0A Affine and movement generated-loop parity](tasks/0007a0a-affine-and-movement-generated-loop-parity.md)
-is `Complete`. CPU 0007A0B is the single next `Draft` corrective frontier; CPU
-0007A0B–0007A0F remain ordered `Draft` corrections without detailed specifications. CPU 0007A1
+is `Complete`. Detailed
+[CPU 0007A0B Indexing generated-loop parity](tasks/0007a0b-indexing-generated-loop-parity.md)
+is `Complete`. CPU 0007A0C is the single next `Draft` corrective frontier. CPU 0007A0C–0007A0F
+remain ordered `Draft` corrections without detailed specifications. CPU 0007A1
 is held behind 0007A0F, and CPU 0007A2,
 CPU 0007B–0007F, and every later CPU task remain `Draft` without detailed specifications. CPU
 0006D is one bounded
@@ -329,13 +331,13 @@ geometry loading occur once before the hot loop. Typed general-long forms remain
 mixed carriers, arbitrary layouts, and unproved ranges. Independent review corrected TILE so
 each source coordinate wraps by its own input extent and outer source axes advance only on the
 matching output-axis carry.
-The other five emitters are bridge-only and remain separate because their algorithms and resource
-contracts require different fair baselines:
+The remaining four emitters are bridge-only and remain separate because their algorithms and
+resource contracts require different fair baselines:
 
 | Task | Current generated-bytecode/source evidence | Required independent parity cases |
 |---|---|---|
 | 0007A0A | Complete: schema-23 dense integer affine/movement bodies, corrected TILE carry/wrap semantics, and preserved typed general-long fallbacks. | FLOAT64 CONTIGUOUS, FLOAT32 TILE, INT32 SLICE_UPDATE all passed. |
-| 0007A0B | `CpuIndexingEmitter.emit` generates one `invokestatic execute2/execute3`; the helper selects `DataType`, carriers, and array-versus-segment access behind `Object` during output traversal. | FLOAT32 GATHER_ELEMENTS and BOOL ONE_HOT. |
+| 0007A0B | Completed schema-24 classes embed typed GATHER/GATHER_ELEMENTS/GATHER_ND/ONE_HOT bodies. Proved dense heap arrays use integer loop/address state; general layouts and segment or mixed carriers retain typed long-address forms without an `Object` bridge. | FLOAT32 GATHER_ELEMENTS and BOOL ONE_HOT passed at `1.084234x` and `0.895060x`. |
 | 0007A0C | `CpuScatterEmitter.emit` generates one `invokestatic execute*`; the helper retains generic carriers and per-cell contribution/reduction dispatch, with distinct exact-product scratch semantics. | Unique replacement SCATTER_ELEMENTS and duplicate-index FLOAT32 SCATTER_ADD. |
 | 0007A0D | `CpuFoldEmitter.emit` generates one `invokestatic execute(Object,Object,long[],long,long)`; the helper selects type and performs generic read/write dispatch during canonical contribution scans. | Overlapping dense FLOAT32 FOLD_AXIS. |
 | 0007A0E | `CpuOrderingEmitter.emit` generates one bridge to `execute`; comparison/copy helpers retain generic carriers and type dispatch, while stable merge and TOP_K require exact assigned scratch. | Stable dense FLOAT32 SORT and two-output TOP_K. |
@@ -348,8 +350,9 @@ inputs, exact pre/post verification, and a per-case generated/direct median-of-f
 tests instead lock generated bytecode/dispatch shape. CPU 0007A0A's baseline ratios were
 `4.581565x`, `1.928399x`, and `2.181383x` for affine, TILE, and SLICE_UPDATE. The corrected
 five-fork ratios are `0.868672x`, `1.107360x`, and `1.131942x`; all pass `<= 1.15x` on Java
-26.0.1, macOS 26.5.2 aarch64 under the retained fixed-heap randomized protocol. Later rows remain
-corrective objectives, not current parity claims.
+26.0.1, macOS 26.5.2 aarch64 under the retained fixed-heap randomized protocol. CPU 0007A0B's
+accepted corrected ratios are `1.084234x` and `0.895060x`; CPU 0007A0C–0007A0F remain corrective
+objectives, not current parity claims.
 
 Implementation context `019ffff6-4acb-75b3-9e4d-b71359d8a6ed` and corrective review context
 `01a0000e-d32a-7fd3-aaa3-4c7d32b7f5af` produced the final schema-23 implementation and TILE
@@ -358,6 +361,14 @@ passed 53 suites/309 tests with zero failures/errors and one existing expected s
 documentation context `01a00019-c0d3-7f42-8bc3-adb24b115aa6` changed no executable Java or test,
 reused the stabilized Java/probe evidence, and finalized the affected Javadocs/package summaries,
 guide, glossary, and planning records.
+
+CPU 0007A0B planning context `01a0002e-0a9f-7133-ba6f-80d2a1515d78`, implementation context
+`01a00039-8814-7e62-a0cd-45df202c6a13`, and clean documentation context
+`01a00074-37e3-7c33-af1c-18233eae156e` produced the schema-24 indexing correction. The focused
+matrix passed 11 suites/100 tests, the authoritative CPU suite passed 53 suites/310 tests with one
+existing opt-in skip, and both retained baseline/final-pass checksum manifests verify. Dense
+FLOAT32 GATHER_ELEMENTS and BOOL ONE_HOT passed the independent gates at `1.084234x` and
+`0.895060x`; complete pre-write validation and general typed long-address forms remain intact.
 
 CPU 0007A executes one fully static resolved-layout ordinary MIN, MAX, ALL, or ANY occurrence.
 It supports exact full, single-axis, and multi-axis forms, five represented numeric extrema types,
@@ -508,9 +519,9 @@ Complete. Detailed CPU 0005H, detailed CPU 0005I, and detailed CPU 0005J are `Co
 task 0006 and detailed task 0006A are `Complete`, detailed task 0006A1 is `Complete`, detailed
 task 0006A2 is `Complete`, detailed task 0006B is `Complete`, detailed task 0006B1 is `Complete`,
 detailed task 0006B2, detailed task 0006C, and detailed task 0006D are `Complete`; detailed task
-0007 and detailed 0007A are `Complete`; corrective tasks 0007A0 and 0007A0A are `Complete`;
-0007A0B is the next single `Draft` frontier; and tasks 0007A0B–0007A0F plus 0007A1–0017 remain
-ordered `Draft` work without detailed specifications.
+0007 and detailed 0007A are `Complete`; corrective tasks 0007A0, 0007A0A, and 0007A0B are
+`Complete`; 0007A0C is the single next `Draft` frontier; tasks 0007A0C–0007A0F plus 0007A1–0017
+remain ordered `Draft` work without detailed specifications.
 CPU 0005C preserves that exact slice and implements cold selection among all four portable
 strategies. It uses the preferred Java 26 FLOAT64 species only for direct contiguous runs and
 scalar broadcasts, scalar tails and general-odometer fallback, configured/available parallelism
@@ -669,9 +680,9 @@ and planning records, and passed CPU Javadoc plus Markdown, exact-scope/status/i
 change, and whitespace validation without rerunning Java tests. Detailed CPU 0006A1 is `Complete`;
 detailed CPU 0006A2 is `Complete`, detailed CPU 0006B is `Complete`, detailed CPU 0006B1 and CPU
 0006B2, detailed CPU 0006C, detailed CPU 0006D, and detailed CPU 0007 are `Complete`,
-and detailed CPU 0007A is `Complete`; corrective CPU 0007A0 and CPU 0007A0A are `Complete`;
-CPU 0007A0B is the next single `Draft` frontier; CPU 0007A0B–0007A0F and CPU 0007A1 onward remain
-ordered `Draft` work, with 0007A1 dependent on 0007A0F.
+and detailed CPU 0007A is `Complete`; corrective CPU 0007A0, CPU 0007A0A, and CPU 0007A0B are
+`Complete`; CPU 0007A0C is the single next `Draft` frontier. CPU 0007A0C–0007A0F and CPU 0007A1
+onward remain ordered `Draft` work, with 0007A1 dependent on 0007A0F.
 
 Detailed CPU 0006A1 is Complete. It extends the same movement pipeline with one fully static,
 resolved-layout UNFOLD_AXIS occurrence for all six represented types or one floating UNFOLD2D
@@ -839,10 +850,10 @@ the work at the active frontier.
 - CPU 0007A0A–0007A0F extend corrective parity coverage across every generated family that existed
   before ordinary numerical aggregates. Completed CPU 0007A0A groups affine plus movement because
   their typed loops were already embedded and needed the same dense integer address correction.
-  Indexing,
-  scatter, fold, ordering, and random/dropout remain separate because each is bridge-only but has
-  a distinct mapping, resource, state, comparison, or accumulation baseline. CPU 0007A0B is the
-  next single `Draft` frontier; later corrective rows stay ordered `Draft` until they advance.
+  Completed CPU 0007A0B embeds typed indexing bodies while preserving the separate complete
+  validation pass. Scatter, fold, ordering, and random/dropout remain separate because each has a
+  distinct mapping, resource, state, comparison, or accumulation baseline. CPU 0007A0C is the
+  single next `Draft` frontier; later corrective rows stay ordered `Draft` until they advance.
 - CPU 0006D selects `SYNAPTIK_CPU_SPLITMIX64_COUNTER_V1`: `mix64` uses shifts 30/27/31 and
   multipliers `0xbf58476d1ce4e5b9`/`0x94d049bb133111eb` after key bias
   `0x9e3779b97f4a7c15`; each draw is `mix64(counter + logicalIndex +

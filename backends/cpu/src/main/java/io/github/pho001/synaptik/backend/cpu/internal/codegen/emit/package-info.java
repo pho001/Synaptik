@@ -40,9 +40,11 @@
  * carry/reset state for arbitrary ranges, performs no per-element division or modulo, and
  * preserves repeated input occurrences without duplicating boundary carriers.
  * The indexing emitter receives compact range-start geometry only after a separate bound scalar
- * pass has validated every logical INT32/INT64 index. It writes GATHER, GATHER_ELEMENTS,
- * GATHER_ND, or canonical-BOOL ONE_HOT output, performs no bounds branch, and owns neither
- * validation nor worker submission.
+ * pass has validated every logical INT32/INT64 index. It embeds carrier-, type-, and family-
+ * specialized GATHER, GATHER_ELEMENTS, GATHER_ND, or canonical-BOOL ONE_HOT writers. Proved dense
+ * heap arrays use integer loop/address state; segment, mixed-carrier, and general-layout forms use
+ * typed long-address traversal. The writers perform no bounds branch, allocation, or generic
+ * {@code Object} bridge and own neither validation nor worker submission.
  * The functional-scatter emitter receives the same direct carriers only after complete bounds
  * validation and, for replacement forms, complete target-uniqueness validation. It owns one
  * output-domain scalar pass for SCATTER_ELEMENTS, Gather-compatible SCATTER_ADD, or SCATTER_ND.
