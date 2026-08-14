@@ -2322,8 +2322,9 @@ requests, higher derivatives, optimizer updates, preparation, and execution rema
 ### Neural-network module, parameter, buffer, and forward context
 
 `extensions/nn` currently provides direct-state and module-tree foundations, eager parameter
-initializers, and its first concrete layer. A **module** is a stateful neural-network composition
-unit that directly declares trainable **parameters** and persistent **buffers**, and can
+initializers, and its first two concrete layers. A **module** is a stateful neural-network
+composition unit that directly declares trainable **parameters** and persistent **buffers**, and
+can
 permanently own named child modules. Parameters, buffers, and children share one module-local
 namespace. A local name cannot contain `.` because that character is reserved exclusively for
 recursive-path separation. A parameter is module-owned state that a future optimizer may update.
@@ -2386,6 +2387,21 @@ bindings. It builds only the visible primitive Tensor-expression chain: it does 
 compile, lower, or execute the result. The stable parameter accessors expose the same wrappers as
 module discovery, so a compatible replacement affects a later forward call while an expression
 already constructed from an earlier binding remains unchanged.
+
+The current final `LayerNorm` module is the stateful owner for mandatory affine
+layer-normalization state. It owns equal-Shape `scale` and `bias` parameters over one
+positive-rank, fully static, positive normalized Shape and retains one exact parameter-typed
+positive epsilon. Callers may supply both exact parameter Tensors or request deterministic
+typed-one scale followed by typed-zero bias initialization; there is no partial affine form,
+default epsilon, raw-double convenience, random source, buffer, or configuration getter. For
+example, a module configured with normalized Shape `[3]` can accept an input with Shape `[2, 3]`;
+its forward call constructs one affine Model expression whose two independent trailing slices use
+the current exact scale and bias bindings. The example describes Shape selection and expression
+composition only: the layer does not read input values, calculate normalization results, create
+gradients, compile, lower, or execute work. Forward is mode-insensitive. A compatible individual
+parameter replacement affects a later call, while an expression already constructed from earlier
+bindings remains unchanged; replacement and forward construction provide no joint snapshot or
+thread-safety guarantee.
 
 `extensions/nn` composes generic [`Tensor`](#tensor) and operation semantics from
 `modules/model`. [`extensions/training`](#training-graph) consumes nn-declared parameters for
@@ -4161,6 +4177,13 @@ or execute. Current package-private compiler autograd supports the input in both
 scale/bias roles in the affine form. It rebuilds the population statistics through ordinary
 Tensor expressions over the exact trailing axes. See [Layer-normalization
 expressions](api/tensor-api.md#layer-normalization-expressions).
+
+The current `extensions/nn` `LayerNorm` module is a separate stateful composition owner for the
+mandatory affine form. It narrows parameter state to one positive fully static normalized Shape,
+initializes scale to typed one and bias to typed zero when state is not supplied, retains exact
+typed epsilon, and delegates each forward call to the public affine `Tensor.layerNorm` overload.
+It adds no normalization mathematics, numerical algorithm, Tensor-result claim, gradient rule,
+compiler or backend support, or execution behavior.
 
 ### RMS normalization
 

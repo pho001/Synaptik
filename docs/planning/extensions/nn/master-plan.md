@@ -77,8 +77,9 @@ concrete type under `layers/`:
 Task 0004 adds only the public stateless `ParameterInitializers` namespace and package
 documentation under `initialization/`. It creates eager gradient-enabled unlabeled Tensor leaves;
 it does not change `Parameter`, retain a random source, or introduce an initializer object model.
-Task 0005 adds final public `Linear` under `layers/` without a generic layer
-abstraction. `functional/` remains future work. State dictionaries remain later work.
+Task 0005 adds final public `Linear` under `layers/` without a generic layer abstraction. Task
+0006 adds final public `LayerNorm` beside it and reuses the existing affine Model expression.
+`functional/` remains future work. State dictionaries remain later work.
 
 ## Task list
 
@@ -90,12 +91,21 @@ abstraction. `functional/` remains future work. State dictionaries remain later 
 | [0004](tasks/0004-explicit-eager-parameter-initializers.md) | Explicit eager parameter initializers | Complete | 0001–0003; completed Model eager constant/random contracts | Added one stateless eight-method parameter-initializer surface: floating zero/one and explicit-source normal/uniform leaves plus fixed rank-two `[outFeatures, inFeatures]` Glorot and Kaiming-ReLU policies, with no label, hidden RNG, or Parameter policy. |
 | [0004A](tasks/0004a-parameter-update-and-traversal-hardening.md) | Parameter update and traversal hardening | Complete | 0001–0004; post-0004 code review | Closed the three review findings with a public schema-validated `Parameter.replace`, iterative identity-defended deep-tree traversal, and complete fan-initializer Java-array-limit contracts before adding a layer. |
 | [0005](tasks/0005-linear-layer.md) | Linear layer | Complete | 0001, 0004, 0004A; completed model `Tensor.linear` | Added the first stateful layer with caller-supplied or explicit-source Glorot-uniform `weight`, optional caller-supplied or zero `bias`, stable parameter handles, and exact delegation to visible Model linear composition without execution behavior. |
+| [0006](tasks/0006-layer-normalization-layer.md) | Layer normalization layer | Complete | 0001–0005; completed Model 0021 | Added mandatory exact-Shape `scale` and `bias` parameters, caller-supplied or ones/zeros initialized state, stored typed epsilon, and mode-insensitive exact delegation to affine `Tensor.layerNorm`. |
+| 0007 | Embedding layer | Draft | 0006; completed Model 0019A1 | Own one positive fully static rank-two embedding table parameter and delegate indexed lookup to the current axis-zero `Tensor.embedding` convenience; exact initialization and padding-row policy wait for this frontier. |
+| 0008 | Batch normalization layer | Draft | 0007; completed Model 0021B–0021C | Introduce the first layer that owns both trainable parameters and persistent running-statistic buffers, then define an explicit train/eval state-transition contract over Model inference/training expressions. |
+| 0009 | Dropout layer | Draft | 0008; completed Model 0019B–0019B1 | Decide explicit `GraphRngState` threading and evaluation-bypass result semantics at this frontier; the layer must never retain, create, or consult hidden random state. |
+| 0010 | State dictionary and checkpoint contract | Draft | 0009; stable module-tree traversal and replacement contracts | Define deterministic state paths, schema and validation, atomic load behavior, and the boundary between an in-memory state dictionary and any serialization format without adding optimizer state. |
+| 0011 | Unary Tensor module composition and Sequential | Draft | 0010; concrete unary layer composition need | Introduce a narrow shared unary Tensor-forward contract only if the actual `Sequential` container requires it; do not add a broad generic layer facade or force non-unary modules into one signature. |
 
 ## Milestones
 
 - Module, parameter, buffer, and forward-mode contracts
 - Explicit eager initialization and first `Linear` layer
 - Initial stateful layers and functional conveniences
+- Explicit-state stochastic and state-transition layers
+- Deterministic state-dictionary/checkpoint contract
+- Narrow unary composition only when justified by `Sequential`
 - Training-extension integration over the stable parameter contract
 
 ## Current status
@@ -158,15 +168,35 @@ Model `Tensor.linear` composition using the bindings observed by that call. The 
 pass passed the focused 2-suite/11-test selection and final 9-suite/44-test NN suite. The
 independent documentation pass finalized glossary and planning wording, reviewed the drafted
 Javadocs unchanged, and passed generated-Javadoc, Markdown, public-surface, dependency/import,
-scope, and whitespace checks without repeating stable executable tests. There is no later detailed
-NN task; the next NN capability remains to be specified at its frontier.
+scope, and whitespace checks without repeating stable executable tests. Before this planning
+step there was no later detailed NN task. Detailed
+[NN 0006](tasks/0006-layer-normalization-layer.md) is Complete. Its implementation pass added the
+exact planned layer and focused tests inside the model-only boundary, then the independent clean
+documentation pass finalized Javadoc, glossary, and planning evidence. The implementation pass
+passed focused 2-suite/9-test and full NN 11-suite/53-test validation; the documentation pass
+reused that stable Java evidence and passed final generated-Javadoc, public-surface, Markdown,
+dependency/import, scope, and whitespace checks. CPU, Engine, runtime, prepare, and numerical
+execution were not prerequisites. Tasks 0007–0011 remain concise Draft rows under progressive
+planning and have no detailed task files.
+
+The ordered follow-up sequence is deliberate. `Embedding` is another mode-insensitive
+parameter-only wrapper. `BatchNorm` follows it as the first layer that must coordinate parameters,
+buffers, mode, and pure running-statistic outputs. `Dropout` follows that state-transition design
+so its explicit graph-RNG state and evaluation bypass are decided without hidden mutation. State
+dictionary/checkpoint work then covers the established parameter/buffer tree. A shared unary
+forward contract is deferred until the actual `Sequential` consumer can prove its minimal shape.
 
 ## Open questions
 
-- Define checkpoint/state-dictionary semantics after stable recursive traversal exists.
 - Decide whether a concrete future consumer justifies configurable gain, activation, fan mode,
   convolution fan geometry, or an initializer object abstraction. NN 0004 deliberately fixes only
   unit-gain Glorot and fan-in/ReLU Kaiming for positive rank-two Linear weights.
+- At NN 0008, decide the exact batch-normalization buffer schema, training-state installation
+  boundary, and failure atomicity without treating buffers as optimizer targets.
+- At NN 0009, decide whether evaluation returns the exact input Tensor or another explicit result
+  shape while preserving caller-owned `GraphRngState` and consuming no hidden draw.
+- At NN 0010, select the serialization boundary only after the in-memory deterministic state and
+  atomic validation/load contract is fixed.
 
 ## Decisions made
 
@@ -211,6 +241,15 @@ NN task; the next NN capability remains to be specified at its frontier.
   to deterministic zeros. The layer exposes stable weight and optional bias `Parameter` handles
   and has one mode-insensitive `forward(Tensor)` that delegates to the existing Model linear
   convenience; it adds no generic layer interface or execution behavior.
+- NN 0006 uses one affine-only stateful `LayerNorm`: both `scale` and `bias` are mandatory because
+  the current Model affine signature is all-or-none. Caller-supplied construction infers the exact
+  normalized Shape from scale; initialized construction receives a positive fully static Shape,
+  floating data type, and exact typed epsilon and uses ones then zeros. The layer exposes stable
+  parameter handles but no normalized-Shape or epsilon getter because no current consumer needs a
+  second configuration-introspection surface. Forward delegates to the current affine Model
+  overload and is mode-insensitive.
+- NN 0007–0011 are ordered Draft capabilities only. Their rows record dependencies and unresolved
+  decisions without creating premature task specifications.
 
 ## Risks
 
@@ -223,6 +262,12 @@ NN task; the next NN capability remains to be specified at its frontier.
   facts replaceable.
 - Recursive module-tree algorithms must not use Java call-stack depth as a hidden model-size
   limit or accept repeated identities during discovery.
+- Batch-normalization or dropout wrappers could accidentally turn pure Model outputs or explicit
+  graph RNG state into hidden module mutation; their frontier tasks must make state transitions
+  explicit and preserve caller coordination.
+- A checkpoint format selected before its in-memory schema and atomic load contract would freeze
+  transport details into module ownership, while a generic forward facade selected before a real
+  `Sequential` consumer would overconstrain non-unary modules.
 
 ## Notes
 
