@@ -2660,27 +2660,30 @@ and which carry no separate cell state. `LstmCell` extends `Module` directly; it
 input contract and two-state result exclude it from `UnaryTensorModule` and `Sequential`.
 
 A **construction-time length** is one element of the Java `long[]` supplied to current
-`RnnSequence.forward`. There is exactly one length per original batch row, each in `[0, time]`.
-The method clones the array before validation and uses only the clone to choose static expression
-structure; it retains neither array. The caller must coordinate mutation that could race with the
-clone. Construction-time lengths are metadata for Java expression construction, not Tensor
-values, module state, parameters, buffers, masks, padding sentinels, or runtime inputs.
+`RnnSequence.forward`, `GruSequence.forward`, or `LstmSequence.forward`. There is exactly one
+length per original batch row, each in `[0, time]`. Each method clones the array before validation
+and uses only the clone to choose static expression structure; it retains neither array. The
+caller must coordinate mutation that could race with the clone. Construction-time lengths are
+metadata for Java expression construction, not Tensor values, module state, parameters, buffers,
+masks, padding sentinels, or runtime inputs.
 
 An **active batch** at time step `t` is the stable subsequence of original batch rows whose copied
-construction-time length is greater than `t`. Current `RnnSequence` keeps those rows in ascending
-original order without sorting. It gathers only that subsequence for the step's input and carried
-hidden Tensor, then invokes the owned `RnnCell` once on the compact batch. Numeric values do not
-participate in this decision: zero is ordinary active data whenever its row's length exceeds the
-step.
+construction-time length is greater than `t`. Current `RnnSequence`, `GruSequence`, and
+`LstmSequence` keep those rows in ascending original order without sorting. Each gathers only
+that subsequence for the step input and carried state, then invokes its owned concrete cell once
+on the compact batch. Numeric values do not participate in this decision: zero is ordinary active
+data whenever its row's length exceeds the step.
 
-A **static packed recurrent sequence** is the current final `RnnSequence`. It owns one exact
-`RnnCell`, accepts fully static time-major input `[time, batch, inputSize]`, explicit initial hidden
-state `[batch, hiddenSize]`, and construction-time lengths, then statically unrolls through
-ordinary Model SELECT, eager INT64 index, GATHER, cell, and STACK expressions. Its immutable
-`RnnSequenceForwardResult` exposes one exact compact cell output per non-empty time step plus final
-hidden rows restored to original batch order. A length-zero row takes its final state from the
-initial hidden Tensor; when no step is active, the result has an empty list and the exact initial-
-hidden reference.
+A **static packed recurrent sequence** is one of the current final `RnnSequence`, `GruSequence`,
+or `LstmSequence` containers. Each owns one exact matching cell, accepts fully static time-major
+input `[time, batch, inputSize]`, explicit initial state shaped `[batch, hiddenSize]`, and
+construction-time lengths, then statically unrolls through ordinary Model SELECT, eager INT64
+index, GATHER, cell, and STACK expressions. RNN and GRU expose one exact compact next-hidden
+output per non-empty time step plus final hidden rows restored to original batch order. LSTM
+exposes the same compact hidden outputs while carrying compact cell state internally and restores
+both final hidden and final cell rows. A length-zero row takes each final state from the matching
+initial Tensor. When no step is active, every result has an empty output list and retains the
+corresponding exact initial-state references.
 
 For lengths `[5, 3, 1]`, active original rows are `[0,1,2]`, `[0,1]`, `[0,1]`, `[0]`, and `[0]`.
 Five batched cell calls therefore represent nine logical recurrent rows rather than fifteen dense
@@ -2697,9 +2700,9 @@ runtime-dependent control flow. No such Model primitive is current. Runtime Tens
 masks would need that genuine contract because their values would decide the number of steps and
 active-batch Shapes; applying a dense `WHERE` after a full-batch cell would still construct padded
 cell work. Current `CUM_SUM` and `CUM_PROD` instead use one fixed associative operation over every
-prefix and do not carry a cell body, parameters, or caller-selected recurrent state. Static packed
-GRU and LSTM sequence containers remain planned; an LSTM form must restore both final hidden and
-cell states.
+prefix and do not carry a cell body, parameters, or caller-selected recurrent state. The current
+static containers therefore do not accept runtime Tensor lengths or masks and do not imply a
+future scan representation.
 
 `extensions/nn` composes generic [`Tensor`](#tensor) and operation semantics from
 `modules/model`. [`extensions/training`](#training-graph) consumes nn-declared parameters for

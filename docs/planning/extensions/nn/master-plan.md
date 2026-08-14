@@ -112,6 +112,9 @@ time-major input metadata and a snapshotted Java `long[]` of sequence lengths. S
 order active batches omit padded logical rows, and final hidden rows are restored to original
 batch order. Runtime Tensor lengths or masks remain deferred because they require a genuine
 data-dependent recurrent scan/control-flow contract rather than dense post-cell masking.
+Completed tasks 0016 and 0017 apply that same static packing policy through the concrete GRU and
+LSTM signatures. GRU restores one final hidden state; LSTM exposes compact hidden outputs while
+carrying cell state internally and restores both final hidden and final cell state.
 
 ## Task list
 
@@ -133,8 +136,8 @@ data-dependent recurrent scan/control-flow contract rather than dense post-cell 
 | [0013](tasks/0013-gru-cell.md) | GRU cell | Complete | 0012 | Added one direct Module with explicit caller-threaded hidden state, packed reset/update/candidate projections, fixed reset-after gating and interpolation, one optional packed input-side bias, and no sequence traversal or hidden state. |
 | [0014](tasks/0014-lstm-cell.md) | LSTM cell | Complete | 0013 | Added one direct Module with explicit caller-threaded hidden/cell state, input/forget/candidate/output packed projections, fixed equations, one optional input-side packed bias with an all-zero initialized policy, and a cell-specific next-hidden/next-cell result. |
 | [0015](tasks/0015-static-packed-rnn-sequence.md) | Static packed RNN sequence | Complete | 0012–0014; completed Model SELECT, GATHER, STACK, and eager INT64 leaves | Added one cell-specific vanilla-RNN container with construction-time Java lengths, stable original-order active-batch compaction, compact per-step outputs, and final-hidden restoration; runtime Tensor masks/lengths require a future genuine recurrent scan. |
-| 0016 | Static packed GRU sequence | Draft | 0015 | Reuse the proven one-hidden-state static packing and restoration policy for `GruCell` without a shared recurrent abstraction. |
-| 0017 | Static packed LSTM sequence | Draft | 0016 | Extend static packing cell-specifically to carry and restore both hidden and cell states as each sequence exits. |
+| [0016](tasks/0016-static-packed-gru-sequence.md) | Static packed GRU sequence | Complete | 0015 | Reused the proven one-hidden-state static packing and restoration policy for `GruCell` without a shared recurrent abstraction. |
+| [0017](tasks/0017-static-packed-lstm-sequence.md) | Static packed LSTM sequence | Complete | 0014–0015 | Added cell-specific static packing with compact hidden outputs, internal cell-state carrying, and restoration of both final states. |
 
 ## Milestones
 
@@ -335,8 +338,25 @@ zero-length handling, and final-hidden restoration without sorting or dense padd
 also records the honest boundary: runtime Tensor lengths or masks cannot decide loop count or
 active batch Shape in the current expression model, and applying a dense `WHERE` after the cell
 would not skip padded work. Such inputs require a future genuine recurrent scan/control-flow
-contract. NN 0016 is the next concise Draft frontier, and NN 0017 remains a later concise Draft;
-neither has a task specification.
+contract.
+
+The user explicitly authorized NN 0016 and NN 0017 to be implemented simultaneously. This is a
+bounded exception to the normal single-frontier and ascending-order rules: both tasks depend on
+completed NN 0015 and their respective completed cells, while neither depends on the other's
+production result. Their implementation paths are disjoint. The GRU agent owns only
+`GruSequence`, `GruSequenceForwardResult`, its two focused tests, and task-0016 evidence; the LSTM
+agent owns only `LstmSequence`, `LstmSequenceForwardResult`, its two focused tests, and task-0017
+evidence. Neither implementation agent may edit the shared layers package Javadoc, Training API,
+glossary, NN master plan, global roadmap, or the other task. After both executable diffs stabilize,
+one coordinated final NN module run validates their union, and one later clean documentation-
+focused context independently finalizes both public Javadocs, shared documentation, both task
+records, and this master plan. Both tasks are now Complete: the focused GRU selection passed 14
+tests, the focused LSTM selection passed 15 tests, and the one coordinated final NN module run
+passed 29 suites and 197 tests with no skips, failures, or errors. Joint clean documentation
+context `/root/nn_0016_0017_docs` found no executable or architecture defect, finalized the four
+public type Javadocs and shared sequence documentation, and synchronized both task records and
+this plan. The parallel exception changed implementation order only and did not alter the global
+roadmap, dependencies, or architecture boundaries.
 
 The ordered follow-up sequence is deliberate. `Embedding` is another mode-insensitive
 parameter-only wrapper. `BatchNorm` follows it as the first layer that must coordinate parameters,
@@ -358,9 +378,9 @@ consumer.
   consumer can define the body/subgraph boundary, carried-value tuple, dynamic active-set Shape,
   result metadata, compiler lowering, and execution requirements. Static NN 0015 does not imply
   that future architecture.
-- Reassess a shared recurrent sequence abstraction only after cell-specific static RNN, GRU, and
-  LSTM containers prove compatible ownership and result signatures. LSTM must preserve both final
-  hidden and cell state rather than erase them into a generic collection.
+- Reassess a shared recurrent sequence abstraction only when a concrete consumer proves a useful
+  type-safe contract. The three current containers share static packing policy, but LSTM still
+  carries and restores cell state that a one-hidden-state abstraction must not erase.
 
 ## Decisions made
 
@@ -512,8 +532,20 @@ consumer.
   recurrent Model scan/control-flow contract; fixed associative `CUM_SUM` and `CUM_PROD` are not
   that primitive.
 - NN 0015 is cell-specific because completed signatures do not prove a type-safe shared contract:
-  RNN and GRU carry one hidden Tensor, while LSTM carries and returns hidden plus cell state. NN
-  0016 and 0017 remain ordered Draft follow-ups and add no task specification yet.
+  RNN and GRU carry one hidden Tensor, while LSTM carries and returns hidden plus cell state. The
+  explicitly authorized parallel NN 0016 and NN 0017 tasks reuse the proven packing policy
+  independently through concrete cell APIs. A shared abstraction remains deferred until all
+  three concrete results can be compared without erasing LSTM cell state.
+- NN 0016 exposes compact GRU next-hidden outputs plus restored final hidden state through a
+  cell-specific result whose structure matches the proven RNN sequence result but whose type does
+  not claim cell interchangeability.
+- NN 0017 exposes only each step's compact next-hidden Tensor as sequence output while carrying
+  compact next-cell internally for recurrence. Its result additionally restores both
+  `finalHidden` and `finalCell`; zero-length rows use the corresponding initial-state row, and an
+  all-zero request returns both exact initial-state references.
+- Parallel NN 0016/0017 implementation is safe only under the exact ownership partition recorded
+  in Current status. One joint documentation pass owns every shared documentation path and final
+  status synchronization after one authoritative NN validation over the combined executable diff.
 
 ## Risks
 

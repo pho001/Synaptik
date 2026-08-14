@@ -8,8 +8,8 @@ training and the remaining planned training concepts without inventing optimizer
 parameter discovery, one public schema-validated parameter replacement capability, and strict
 in-memory module-tree state export/load. It also provides the narrow `UnaryTensorModule` subtype
 and immutable numeric-child `Sequential` composition for modules whose complete forward signature
-is exactly `Tensor forward(Tensor)`, three explicit-state recurrent cells, and one statically
-packed vanilla-RNN sequence container.
+is exactly `Tensor forward(Tensor)`, three explicit-state recurrent cells, and matching
+cell-specific statically packed sequence containers.
 `extensions/training`, public gradient publication, optimizer behavior, and prepared execution
 are not implemented. The compiler now provides a public immutable functional-gradient request
 value and a bounded package-private one/two-stage reverse-mode integration path.
@@ -77,18 +77,24 @@ next-hidden Tensor. The long short-term memory (LSTM) cell accepts input, hidden
 state and returns both next states. None retains caller-threaded recurrent state, and none fits the
 one-input contract of `UnaryTensorModule` or `Sequential`.
 
-`RnnSequence` is the current cell-specific sequence container. It permanently owns one exact
-`RnnCell` child and accepts:
+`RnnSequence`, `GruSequence`, and `LstmSequence` are intentionally cell-specific containers. Each
+permanently owns one exact matching cell and shares the same static packing policy without
+claiming that the different cell-state signatures are interchangeable. Their calls are:
 
 ```java
-RnnSequenceForwardResult result = sequence.forward(input, initialHidden, lengths);
+RnnSequenceForwardResult rnnResult =
+        rnnSequence.forward(input, initialHidden, lengths);
+GruSequenceForwardResult gruResult =
+        gruSequence.forward(input, initialHidden, lengths);
+LstmSequenceForwardResult lstmResult =
+        lstmSequence.forward(input, initialHidden, initialCell, lengths);
 ```
 
 Here `input` must have a fully static time-major Shape `[time, batch, inputSize]`,
-`initialHidden` must have Shape `[batch, hiddenSize]`, and `lengths` is a Java `long[]` with one
-value in `[0, time]` per original batch row. The method defensively copies the array before using
-it and retains neither copy. Callers must coordinate any array mutation that could race with that
-copy.
+`initialHidden` must have Shape `[batch, hiddenSize]`, and the LSTM call additionally requires
+`initialCell` with that same Shape. `lengths` is a Java `long[]` with one value in `[0, time]` per
+original batch row. Each method defensively copies the array before using it and retains neither
+copy. Callers must coordinate any array mutation that could race with that copy.
 
 The copied lengths determine an **active batch** at each time step: original batch rows whose
 length exceeds that step, kept in ascending original order. The sequence statically constructs
@@ -106,11 +112,19 @@ active extent      3      2      2      1      1
 ```
 
 There are five Java cell calls—one per non-empty time step—and their compact Shapes represent
-nine logical recurrent row applications rather than fifteen dense padded rows. Each
-`packedOutputs().get(t)` is the exact cell Tensor for that compact step. `finalHidden()` restores
-one row per original batch entry: row 0 comes from step 4, row 1 from step 2, and row 2 from step
-0. A zero-length row instead uses its row from `initialHidden`; if all lengths are zero, the
-packed list is empty and `finalHidden()` is the exact `initialHidden` reference.
+nine logical recurrent row applications rather than fifteen dense padded rows. For every
+container, `packedOutputs().get(t)` is the exact next-hidden Tensor returned by its cell for that
+compact step. `finalHidden()` restores one row per original batch entry: row 0 comes from step 4,
+row 1 from step 2, and row 2 from step 0. A zero-length row instead uses its row from
+`initialHidden`.
+
+RNN and GRU carry only hidden state. Their result types therefore contain `packedOutputs` and
+`finalHidden`; when all lengths are zero, the list is empty and `finalHidden()` is the exact
+`initialHidden` reference. LSTM carries hidden and cell state. `LstmSequence` publishes only its
+compact next-hidden Tensors by step, carries each exact compact next-cell Tensor internally, and
+returns both `finalHidden()` and `finalCell()` so the caller can continue recurrence. A
+zero-length LSTM row uses the corresponding initial hidden and initial cell rows; an all-zero
+request returns both exact initial-state references.
 
 This is static Tensor-expression construction, not numerical execution. It proves that padded
 logical rows are absent from the constructed cell operands; it does not prove compiler capture,
@@ -118,8 +132,7 @@ gradient support, backend lowering, physical kernel skipping, or execution. Runt
 lengths or masks cannot currently choose the number of steps or active-batch Shapes. Applying a
 dense `WHERE` after a full-batch cell would still construct padded cell work. A future dynamic
 form therefore needs a genuine Model recurrent scan or control-flow contract. Current cumulative
-sum and product scans have fixed associative bodies and are not that primitive. Cell-specific GRU
-and LSTM sequence containers remain planned rather than implemented.
+sum and product scans have fixed associative bodies and are not that primitive.
 
 ## Current NN parameter update contract
 

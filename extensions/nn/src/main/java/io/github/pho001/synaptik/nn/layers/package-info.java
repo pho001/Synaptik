@@ -22,18 +22,24 @@
  * state, so they are intentionally excluded from {@code Sequential}. LSTM returns both next
  * states through {@link io.github.pho001.synaptik.nn.layers.LstmCellForwardResult}.</p>
  *
- * <p>{@link io.github.pho001.synaptik.nn.layers.RnnSequence} owns one vanilla
- * {@link io.github.pho001.synaptik.nn.layers.RnnCell} and statically unrolls a time-major input
- * from explicit construction-time Java lengths. Each represented step gathers only its stable
- * active batch (the original rows whose explicit lengths exceed that step), returns the exact
- * compact cell output through
- * {@link io.github.pho001.synaptik.nn.layers.RnnSequenceForwardResult}, and restores final hidden
- * rows to original batch order. This sequence packing is different from packed gate parameters:
- * it omits padded logical rows from cell expressions, while gate packing places several trainable
- * gate matrices in one parameter Tensor. It is also different from {@code Sequential}, which
- * composes unary modules, and from a runtime recurrent scan, which current Model contracts do not
- * yet provide. Only the defensively copied explicit Java lengths determine padding; numeric zero
- * remains ordinary data.</p>
+ * <p>{@link io.github.pho001.synaptik.nn.layers.RnnSequence},
+ * {@link io.github.pho001.synaptik.nn.layers.GruSequence}, and
+ * {@link io.github.pho001.synaptik.nn.layers.LstmSequence} each own their matching concrete cell
+ * and statically unroll a time-major input from explicit construction-time Java lengths. Every
+ * represented step gathers only its stable active batch: the original rows whose copied lengths
+ * exceed that step, kept in original order. The RNN and GRU result types expose exact compact
+ * next-hidden outputs and restore final hidden rows. The LSTM result exposes the same kind of
+ * compact hidden outputs while carrying compact cell state internally and restoring both final
+ * hidden and final cell rows. A zero-length row selects its corresponding initial-state row; an
+ * all-zero request returns the corresponding exact initial-state references.</p>
+ *
+ * <p>This sequence packing is different from packed gate parameters: it omits padded logical
+ * rows from cell expressions, while gate packing places several trainable gate matrices in one
+ * parameter Tensor. It is also different from {@code Sequential}, which composes unary modules,
+ * and from a runtime recurrent scan, which current Model contracts do not yet provide. Only the
+ * defensively copied explicit Java lengths determine padding; numeric zero remains ordinary data.
+ * The sequence classes construct Model expressions and make no numerical, gradient, compiler,
+ * backend, scheduling, or execution guarantee.</p>
  *
  * <p>{@link io.github.pho001.synaptik.nn.layers.Linear} uses the conventional
  * {@code [outFeatures, inFeatures]} weight orientation and delegates each forward call to
