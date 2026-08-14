@@ -15,9 +15,10 @@
  * {@link io.github.pho001.synaptik.nn.layers.BatchNorm} and
  * {@link io.github.pho001.synaptik.nn.layers.Dropout} remain direct {@code Module} subclasses
  * because their complete forward contracts require explicit context or graph random state and a
- * result carrier. {@link io.github.pho001.synaptik.nn.layers.RnnCell} is also a direct
- * {@code Module}: its complete one-step contract requires both an input Tensor and an explicit
- * caller-threaded hidden Tensor, so it is intentionally excluded from {@code Sequential}.</p>
+ * result carrier. {@link io.github.pho001.synaptik.nn.layers.RnnCell} and
+ * {@link io.github.pho001.synaptik.nn.layers.GruCell} are also direct {@code Module} subclasses:
+ * each complete one-step contract requires both an input Tensor and an explicit caller-threaded
+ * hidden Tensor, so both are intentionally excluded from {@code Sequential}.</p>
  *
  * <p>{@link io.github.pho001.synaptik.nn.layers.Linear} uses the conventional
  * {@code [outFeatures, inFeatures]} weight orientation and delegates each forward call to
@@ -63,6 +64,16 @@
  * Model expressions and returns that one Tensor as both output and next hidden state. Leading
  * Dimensions use ordinary right-aligned batch broadcasting; the cell performs no sequence loop,
  * time traversal, hidden-state retention, numerical evaluation, or execution.</p>
+ *
+ * <p>{@link io.github.pho001.synaptik.nn.layers.GruCell} owns reset/update/candidate-packed
+ * {@code inputWeight [3 * hiddenSize, inputSize]},
+ * {@code hiddenWeight [3 * hiddenSize, hiddenSize]}, and optional input-side
+ * {@code bias [3 * hiddenSize]}. It constructs independent final-axis gate slices and the fixed
+ * reset-after equations
+ * {@code r = sigmoid(x_r + h_r)}, {@code z = sigmoid(x_z + h_z)},
+ * {@code n = tanh(x_n + r * h_n)}, and {@code n + z * (hidden - n)}. The returned Tensor is both
+ * output and next hidden state; update one retains the old hidden value. The cell retains no
+ * hidden value, time axis, sequence traversal, numerical evaluation, or execution behavior.</p>
  *
  * <p>{@link io.github.pho001.synaptik.nn.layers.Dropout} declares no module state and receives an
  * explicit {@link io.github.pho001.synaptik.model.tensor.GraphRngState} on every forward call. Its

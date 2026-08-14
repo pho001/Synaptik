@@ -98,13 +98,14 @@ Completed task 0011 selects one narrow public `UnaryTensorModule extends Module`
 names. Only mode-insensitive `Linear`, `LayerNorm`, and `Embedding` participate; context-sensitive
 `BatchNorm` and explicit-state/result `Dropout` remain direct `Module` subclasses.
 
-The next milestone adds recurrent composition without hidden runtime state. Task 0012 starts with
-one vanilla tanh `RnnCell` whose hidden Tensor is supplied and returned explicitly on every call.
-It remains a direct `Module`: its two-Tensor signature is not a `UnaryTensorModule` and cannot be
-placed in `Sequential`. Later GRU and LSTM cells preserve the same explicit-state boundary. A
-separate sequence task must then choose static unrolling through concrete cell signatures or
-justify a genuinely general recurrent Model scan; existing cumulative sum/product operations are
-not recurrent scan primitives.
+The recurrent milestone adds composition without hidden runtime state. Task 0012 starts with one
+vanilla tanh `RnnCell`, and task 0013 follows with one packed reset-after `GruCell`; each receives
+and returns the hidden Tensor explicitly on every call. Both remain direct `Module` subclasses:
+their two-Tensor signatures are not `UnaryTensorModule` contracts and cannot be placed in
+`Sequential`. The later LSTM cell preserves explicit hidden and cell state. A separate sequence
+task must then choose static unrolling through concrete cell signatures or justify a genuinely
+general recurrent Model scan; existing cumulative sum/product operations are not recurrent scan
+primitives.
 
 ## Task list
 
@@ -123,9 +124,9 @@ not recurrent scan primitives.
 | [0010](tasks/0010-state-dictionary-and-checkpoint-contract.md) | State dictionary and checkpoint contract | Complete | 0009; stable module-tree traversal and replacement contracts | Added an immutable ordered in-memory dictionary with path/kind/Tensor entries and strict validate-before-install Module load; every byte/file/codec/version format and optimizer state remains deferred. |
 | [0011](tasks/0011-unary-tensor-module-composition-and-sequential.md) | Unary Tensor module composition and Sequential | Complete | 0010; completed Linear, LayerNorm, and Embedding unary Tensor APIs | Added a narrow abstract Module subtype and immutable numeric-child Sequential with type-safe left-to-right Tensor composition; BatchNorm context and Dropout state/result signatures remain outside it. |
 | [0012](tasks/0012-vanilla-rnn-cell.md) | Vanilla tanh RNN cell | Complete | 0011; completed Model linear, ADD, and TANH expressions | Added one direct Module with explicit caller-threaded hidden state, two recurrent projections, optional shared bias, fixed tanh activation, and no sequence traversal or hidden state. |
-| 0013 | GRU cell | Draft | 0012 | Add one explicitly state-threaded gated recurrent unit cell only after the vanilla cell fixes recurrent ownership, validation, and replacement precedents. |
+| [0013](tasks/0013-gru-cell.md) | GRU cell | Complete | 0012 | Added one direct Module with explicit caller-threaded hidden state, packed reset/update/candidate projections, fixed reset-after gating and interpolation, one optional packed input-side bias, and no sequence traversal or hidden state. |
 | 0014 | LSTM cell | Draft | 0013 | Add one explicitly state-threaded long short-term memory cell with truthful hidden/cell-state inputs and outputs; do not hide either state. |
-| 0015 | Recurrent sequence composition and scan decision | Draft | 0012–0014 | Decide static unrolling versus a genuinely general recurrent Model scan, then select type-safe cell-specific sequence types or a shared sequence contract only if real signatures prove it. |
+| 0015 | Recurrent sequence composition and scan decision | Draft | 0012–0014 | Decide static unrolling versus a genuine recurrent Model scan and reserve packed variable-length sequencing: explicit lengths or masks, omission of padded cell calls, final-state capture, and original-order restoration; prefer cell-specific sequence types unless a shared contract is proven. |
 
 ## Milestones
 
@@ -273,8 +274,7 @@ Detailed [NN 0012](tasks/0012-vanilla-rnn-cell.md) is Complete. It delivers the 
 vanilla recurrent capability as final `RnnCell extends Module` with explicit
 `forward(input, hidden)` state threading and one Tensor result that is both the cell output and the
 next hidden state. The current Model linear, ordinary ADD broadcasting, and TANH expressions can
-represent the complete cell without a new operation or scan API. Tasks 0013–0015 remain concise
-Draft rows and intentionally have no detailed task specifications.
+represent the complete cell without a new operation or scan API.
 
 Its clean implementation context `/root/nn_0012_implementation` completed the executable source,
 focused tests, and draft public/package Javadocs without widening the seven-path task scope. The
@@ -284,6 +284,20 @@ suites/125 tests with no failures, errors, or skips. Independent documentation c
 package documentation, glossary, and planning records, and passed generated-Javadoc, exact-
 surface/private-state, dependency/import, Markdown, exact seven-path scope, status, newline,
 whitespace, and diff gates without repeating stable Java tests.
+
+Detailed [NN 0013](tasks/0013-gru-cell.md) is Complete. Its isolated
+implementation context has added final `GruCell extends Module` with the same explicit
+`forward(input, hidden)` boundary and sole next-hidden Tensor result as `RnnCell`. Two gate-major
+packed matrices and one optional packed
+input-side bias use reset, update, candidate order. Current Model linear, SLICE, ADD, SUB, MUL,
+SIGMOID, and TANH expressions can represent the fixed reset-after formula without a new Model
+operation, split carrier, recurrent scan, hidden state, or result record. The focused two-suite
+selection passed 14 tests, and the sole authoritative NN module run passed 21 suites/139 tests
+with no failures, errors, or skips. Independent documentation context `/root/nn_0013_docs` reused
+that unchanged executable evidence, finalized the type/package Javadocs, glossary, and planning
+records, and passed final generated-Javadoc, surface/private-state, dependency/import, Markdown,
+exact seven-path scope, status, newline, whitespace, and diff gates without repeating Java tests.
+Tasks 0014–0015 remain concise Draft rows and intentionally have no detailed task specifications.
 
 The ordered follow-up sequence is deliberate. `Embedding` is another mode-insensitive
 parameter-only wrapper. `BatchNorm` follows it as the first layer that must coordinate parameters,
@@ -301,10 +315,15 @@ consumer.
 - Select a persistent checkpoint codec, schema-version, materialization, and storage boundary only
   when a concrete consumer exists; completed NN 0010 fixes only in-memory state and strict atomic
   validation/load.
-- At task 0015, decide whether recurrent sequence composition should statically unroll concrete
-  cell calls or first requires a genuine general recurrent Model scan. If a container is selected,
-  choose cell-specific `RnnSequence`/`GruSequence`/`LstmSequence` contracts unless real signatures
-  prove one shared `RecurrentSequence`; do not reserve a broader abstraction prematurely.
+- At task 0015, choose the explicit sequence-length and/or mask representation, including whether
+  lengths or masks are static construction-time facts or runtime-dynamic Tensors and whether
+  current Model contracts can represent the latter. Resolve how that choice interacts with static
+  unrolling versus a genuine recurrent Model scan.
+- Define packed active-batch compaction, any required stable sorting, restoration of original
+  batch order, and capture of each sequence's final hidden state—plus final cell state for
+  LSTM—when it leaves the active set. Prefer cell-specific
+  `RnnSequence`/`GruSequence`/`LstmSequence` contracts unless completed signatures prove one
+  type-safe shared `RecurrentSequence` without state erasure.
 
 ## Decisions made
 
@@ -418,9 +437,22 @@ consumer.
   [hiddenSize, hiddenSize]`, and optional `bias [hiddenSize]`. Forward composes only existing
   Model linear, ADD, and TANH expressions, with every leading axis treated as ordinary
   right-broadcastable batch metadata rather than a time axis.
-- NN 0013 and 0014 must preserve explicit hidden, and hidden-plus-cell, state respectively. NN
-  0015 must not reinterpret `CUM_SUM` or `CUM_PROD` as recurrent scan and must not invent a broad
-  recurrent abstraction before the concrete cell signatures establish a type-safe contract.
+- NN 0013 selects final `GruCell extends Module` with one Tensor result and no hidden state. Its
+  `inputWeight [3 * hiddenSize, inputSize]`, `hiddenWeight [3 * hiddenSize, hiddenSize]`, and
+  optional input-side `bias [3 * hiddenSize]` are packed in reset, update, candidate order. The
+  candidate applies reset after the recurrent projection, and the update gate uses
+  `candidate + update * (hidden - candidate)`, so update one retains hidden and update zero selects
+  the candidate. Independent final-axis slices make gate provenance explicit without a new split
+  API or six per-gate matrices.
+- NN 0014 must preserve explicit hidden and cell state. For NN 0015, packing means processing only
+  the active batch selected by explicit sequence lengths or an explicit mask, so padded time
+  steps cause no cell invocation. Padding is never inferred from a Tensor value equal to zero.
+- NN 0015 may compact or sort only with a defined stable-order policy and restoration to original
+  batch order, and it must retain final hidden state—plus final cell state for LSTM—as each
+  sequence leaves the active set. It must add no hidden recurrent state or silently synthesized
+  mask, must not confuse sequence packing with GRU/LSTM gate-parameter packing, must not
+  reinterpret `CUM_SUM` or `CUM_PROD` as recurrent scan, and must not invent a shared abstraction
+  before the concrete signatures prove it type-safe.
 
 ## Risks
 
@@ -442,6 +474,13 @@ consumer.
 - Treating a recurrent cell as unary composition, retaining its hidden state in a Buffer, or
   calling a leading input axis "time" would hide caller-controlled state and confuse batched
   expression construction with sequence recurrence.
+- Leaving GRU gate order, reset placement, bias association, or update interpolation implicit
+  would make identical parameter Shapes describe different functions; task 0013 fixes each choice
+  and requires exact expression-provenance tests.
+- Inferring padding from zero-valued data, invoking cells for padded steps, losing final state
+  during active-set compaction, or failing to restore original batch order would silently change
+  sequence semantics. The word "packed" also risks confusion with gate-parameter packing or the
+  unrelated fixed-associative `CUM_SUM`/`CUM_PROD` family.
 
 ## Notes
 

@@ -2391,7 +2391,7 @@ requests, higher derivatives, optimizer updates, preparation, and execution rema
 ### Neural-network module, parameter, buffer, and forward context
 
 `extensions/nn` currently provides direct-state and module-tree foundations, eager parameter
-initializers, five concrete layers, one recurrent cell, and narrow unary composition. A
+initializers, five concrete layers, two recurrent cells, and narrow unary composition. A
 **module** is a stateful
 neural-network composition unit that directly declares trainable **parameters** and persistent
 **buffers**, and can permanently own named child modules. Parameters, buffers, and children share
@@ -2597,6 +2597,35 @@ different from a [`cumulative scan`](#cumulative-scan): current `CUM_SUM` and `C
 prefixes of one input with a fixed associative operation and carry no caller-selected hidden
 Tensor, cell parameters, or recurrent body.
 
+A **gated recurrent unit (GRU) cell** is the current final `GruCell`, which adds reset and update
+gates to one explicit hidden-state transition. Its trainable state is packed gate-major in reset,
+update, candidate order: `inputWeight [3 * hiddenSize, inputSize]`,
+`hiddenWeight [3 * hiddenSize, hiddenSize]`, and optional input-side-only
+`bias [3 * hiddenSize]`. The hidden projection has no bias. One reset-after step is:
+
+```text
+x_r, x_z, x_n = slices(input projection)
+h_r, h_z, h_n = slices(hidden projection)
+r = sigmoid(x_r + h_r)
+z = sigmoid(x_z + h_z)
+n = tanh(x_n + r * h_n)
+h1 = n + z * (h0 - n)
+```
+
+The reset gate multiplies the already projected candidate lane `h_n`; update value one retains
+`h0`, while update value zero selects `n`. The caller supplies `h0` and may pass the exact returned
+`h1` to a later call. As with the vanilla RNN cell, this describes one metadata-composition step,
+not numerical execution or an implicit sequence. `GruCell` extends `Module` directly, is not a
+`UnaryTensorModule`, and cannot be placed in `Sequential`.
+
+The GRU differs from the vanilla RNN cell because its fixed gate equations and packed parameter
+schema are part of the state/checkpoint meaning. A long short-term memory (LSTM) cell is future
+work and will require explicit hidden and cell state rather than this one hidden Tensor. A
+**recurrent scan** would repeatedly invoke a cell body while carrying state and is also future
+work. It is not a cumulative scan: current `CUM_SUM` and `CUM_PROD` use one fixed associative
+operation over prefixes and do not carry a cell body, packed parameters, or caller-selected
+hidden state.
+
 `extensions/nn` composes generic [`Tensor`](#tensor) and operation semantics from
 `modules/model`. [`extensions/training`](#training-graph) consumes nn-declared parameters for
 optimizer algorithms and training orchestration, but it does not own modules, buffers, or
@@ -2613,12 +2642,12 @@ adapter, or generic `Module.forward(...)`. It defines no shared Shape, data type
 numerical, mode, state-transition, compiler, backend, or execution rule; each concrete child keeps
 its own contract. Current `Linear`, `LayerNorm`, and `Embedding` layers participate.
 
-`BatchNorm`, `Dropout`, and `RnnCell` deliberately remain outside this subtype. Batch
+`BatchNorm`, `Dropout`, `RnnCell`, and `GruCell` deliberately remain outside this subtype. Batch
 normalization requires an explicit `ForwardContext` and can install next-statistic buffer
 expressions. Dropout requires an explicit context plus caller-threaded `GraphRngState` and returns
-output plus next state. `RnnCell` requires both an input and an explicit caller-threaded hidden
-Tensor. `Sequential` does not hide, synthesize, or discard any of those inputs, transitions, or
-results.
+output plus next state. Both recurrent cells require an input and an explicit caller-threaded
+hidden Tensor. `Sequential` does not hide, synthesize, or discard any of those inputs,
+transitions, or results.
 
 **Sequential** is the implemented final module that snapshots one ordered
 `List<? extends UnaryTensorModule>`, owns the exact children permanently under names `0`, `1`, and
