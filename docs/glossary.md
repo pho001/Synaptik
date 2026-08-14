@@ -2386,7 +2386,8 @@ requests, higher derivatives, optimizer updates, preparation, and execution rema
 ### Neural-network module, parameter, buffer, and forward context
 
 `extensions/nn` currently provides direct-state and module-tree foundations, eager parameter
-initializers, five concrete layers, and narrow unary composition. A **module** is a stateful
+initializers, five concrete layers, one recurrent cell, and narrow unary composition. A
+**module** is a stateful
 neural-network composition unit that directly declares trainable **parameters** and persistent
 **buffers**, and can permanently own named child modules. Parameters, buffers, and children share
 one module-local
@@ -2562,6 +2563,35 @@ numerical randomness, gradients, compilation, backend support, execution, persis
 thread-safety. A caller requests sequential consumption by passing one returned `nextState` to a
 later training call; reusing `start` instead expresses a branch.
 
+A **vanilla recurrent neural-network (RNN) cell** is the current final `RnnCell`, which constructs
+one explicit state-transition step. It owns floating, gradient-eligible parameters named
+`inputWeight [hiddenSize, inputSize]`, `hiddenWeight [hiddenSize, hiddenSize]`, and optional shared
+`bias [hiddenSize]`. The caller supplies both the current input and current **hidden state**—the
+Tensor carried from one recurrent step to another—and receives one fresh Tensor that is
+simultaneously the visible output and next hidden state. The cell never stores that caller-owned
+state as a field or `Buffer`.
+
+One caller-threaded step is:
+
+```text
+h1 = cell.forward(x1, h0)
+   = tanh((x1 @ transpose(inputWeight) + bias?)
+          + (h0 @ transpose(hiddenWeight)))
+```
+
+Here `x1` and `h0` are explicit inputs, and the caller may pass the exact returned `h1` as the
+hidden input of a later call. This describes Tensor-expression composition and reference flow; it
+does not calculate values, retain a time index, define a sequence loop, build gradients, compile,
+select a backend, or execute work. Every leading input or hidden axis is ordinary right-
+broadcastable batch metadata rather than an implicit time axis.
+
+`RnnCell` extends `Module` directly. It is not a `UnaryTensorModule` and cannot be a `Sequential`
+child because its complete forward contract needs two Tensor inputs. A recurrent sequence would
+require a separate container or Model operation that repeatedly threads state. That is also
+different from a [`cumulative scan`](#cumulative-scan): current `CUM_SUM` and `CUM_PROD` combine
+prefixes of one input with a fixed associative operation and carry no caller-selected hidden
+Tensor, cell parameters, or recurrent body.
+
 `extensions/nn` composes generic [`Tensor`](#tensor) and operation semantics from
 `modules/model`. [`extensions/training`](#training-graph) consumes nn-declared parameters for
 optimizer algorithms and training orchestration, but it does not own modules, buffers, or
@@ -2578,10 +2608,12 @@ adapter, or generic `Module.forward(...)`. It defines no shared Shape, data type
 numerical, mode, state-transition, compiler, backend, or execution rule; each concrete child keeps
 its own contract. Current `Linear`, `LayerNorm`, and `Embedding` layers participate.
 
-`BatchNorm` and `Dropout` deliberately remain outside this subtype. Batch normalization requires
-an explicit `ForwardContext` and can install next-statistic buffer expressions. Dropout requires
-an explicit context plus caller-threaded `GraphRngState` and returns output plus next state.
-`Sequential` does not hide, synthesize, or discard any of those inputs, transitions, or results.
+`BatchNorm`, `Dropout`, and `RnnCell` deliberately remain outside this subtype. Batch
+normalization requires an explicit `ForwardContext` and can install next-statistic buffer
+expressions. Dropout requires an explicit context plus caller-threaded `GraphRngState` and returns
+output plus next state. `RnnCell` requires both an input and an explicit caller-threaded hidden
+Tensor. `Sequential` does not hide, synthesize, or discard any of those inputs, transitions, or
+results.
 
 **Sequential** is the implemented final module that snapshots one ordered
 `List<? extends UnaryTensorModule>`, owns the exact children permanently under names `0`, `1`, and

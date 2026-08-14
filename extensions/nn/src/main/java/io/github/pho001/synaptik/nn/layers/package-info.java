@@ -15,7 +15,9 @@
  * {@link io.github.pho001.synaptik.nn.layers.BatchNorm} and
  * {@link io.github.pho001.synaptik.nn.layers.Dropout} remain direct {@code Module} subclasses
  * because their complete forward contracts require explicit context or graph random state and a
- * result carrier.</p>
+ * result carrier. {@link io.github.pho001.synaptik.nn.layers.RnnCell} is also a direct
+ * {@code Module}: its complete one-step contract requires both an input Tensor and an explicit
+ * caller-threaded hidden Tensor, so it is intentionally excluded from {@code Sequential}.</p>
  *
  * <p>{@link io.github.pho001.synaptik.nn.layers.Linear} uses the conventional
  * {@code [outFeatures, inFeatures]} weight orientation and delegates each forward call to
@@ -53,6 +55,14 @@
  * pure producer's next mean and then next variance expressions into their stable wrappers. This
  * symbolic NN binding transition performs no eager value mutation, compiler/runtime publication,
  * backend work, or numerical execution.</p>
+ *
+ * <p>{@link io.github.pho001.synaptik.nn.layers.RnnCell} owns positive fully static
+ * {@code inputWeight [hiddenSize, inputSize]}, {@code hiddenWeight [hiddenSize, hiddenSize]}, and
+ * optional shared {@code bias [hiddenSize]} parameters. Each call constructs exactly
+ * {@code tanh((input @ inputWeight^T + bias?) + (hidden @ hiddenWeight^T))} through existing
+ * Model expressions and returns that one Tensor as both output and next hidden state. Leading
+ * Dimensions use ordinary right-aligned batch broadcasting; the cell performs no sequence loop,
+ * time traversal, hidden-state retention, numerical evaluation, or execution.</p>
  *
  * <p>{@link io.github.pho001.synaptik.nn.layers.Dropout} declares no module state and receives an
  * explicit {@link io.github.pho001.synaptik.model.tensor.GraphRngState} on every forward call. Its

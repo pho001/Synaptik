@@ -98,6 +98,14 @@ Completed task 0011 selects one narrow public `UnaryTensorModule extends Module`
 names. Only mode-insensitive `Linear`, `LayerNorm`, and `Embedding` participate; context-sensitive
 `BatchNorm` and explicit-state/result `Dropout` remain direct `Module` subclasses.
 
+The next milestone adds recurrent composition without hidden runtime state. Task 0012 starts with
+one vanilla tanh `RnnCell` whose hidden Tensor is supplied and returned explicitly on every call.
+It remains a direct `Module`: its two-Tensor signature is not a `UnaryTensorModule` and cannot be
+placed in `Sequential`. Later GRU and LSTM cells preserve the same explicit-state boundary. A
+separate sequence task must then choose static unrolling through concrete cell signatures or
+justify a genuinely general recurrent Model scan; existing cumulative sum/product operations are
+not recurrent scan primitives.
+
 ## Task list
 
 | ID | Task | Status | Depends on | Summary |
@@ -114,6 +122,10 @@ names. Only mode-insensitive `Linear`, `LayerNorm`, and `Embedding` participate;
 | [0009](tasks/0009-dropout-layer.md) | Dropout layer | Complete | 0008; completed Model 0019B–0019B1 | Added a parameterless/bufferless mode-sensitive layer with caller-threaded `GraphRngState`, a minimal NN result carrier, exact Model training delegation, and identity-preserving evaluation bypass without hidden random state. |
 | [0010](tasks/0010-state-dictionary-and-checkpoint-contract.md) | State dictionary and checkpoint contract | Complete | 0009; stable module-tree traversal and replacement contracts | Added an immutable ordered in-memory dictionary with path/kind/Tensor entries and strict validate-before-install Module load; every byte/file/codec/version format and optimizer state remains deferred. |
 | [0011](tasks/0011-unary-tensor-module-composition-and-sequential.md) | Unary Tensor module composition and Sequential | Complete | 0010; completed Linear, LayerNorm, and Embedding unary Tensor APIs | Added a narrow abstract Module subtype and immutable numeric-child Sequential with type-safe left-to-right Tensor composition; BatchNorm context and Dropout state/result signatures remain outside it. |
+| [0012](tasks/0012-vanilla-rnn-cell.md) | Vanilla tanh RNN cell | Complete | 0011; completed Model linear, ADD, and TANH expressions | Added one direct Module with explicit caller-threaded hidden state, two recurrent projections, optional shared bias, fixed tanh activation, and no sequence traversal or hidden state. |
+| 0013 | GRU cell | Draft | 0012 | Add one explicitly state-threaded gated recurrent unit cell only after the vanilla cell fixes recurrent ownership, validation, and replacement precedents. |
+| 0014 | LSTM cell | Draft | 0013 | Add one explicitly state-threaded long short-term memory cell with truthful hidden/cell-state inputs and outputs; do not hide either state. |
+| 0015 | Recurrent sequence composition and scan decision | Draft | 0012–0014 | Decide static unrolling versus a genuinely general recurrent Model scan, then select type-safe cell-specific sequence types or a shared sequence contract only if real signatures prove it. |
 
 ## Milestones
 
@@ -123,6 +135,8 @@ names. Only mode-insensitive `Linear`, `LayerNorm`, and `Embedding` participate;
 - Explicit-state stochastic and state-transition layers
 - Deterministic state-dictionary/checkpoint contract
 - Narrow unary composition only when justified by `Sequential`
+- Explicit-state recurrent cells, beginning with vanilla tanh RNN
+- Recurrent sequence composition only after the cell signatures prove its type boundary
 - Training-extension integration over the stable parameter contract
 
 ## Current status
@@ -255,6 +269,22 @@ public/package Javadocs, Training API, glossary, and planning evidence, and pass
 generated-page, exact-surface, external-compilation, Markdown, dependency/import, exact 16-path,
 status, newline, whitespace, and diff gates.
 
+Detailed [NN 0012](tasks/0012-vanilla-rnn-cell.md) is Complete. It delivers the smallest truthful
+vanilla recurrent capability as final `RnnCell extends Module` with explicit
+`forward(input, hidden)` state threading and one Tensor result that is both the cell output and the
+next hidden state. The current Model linear, ordinary ADD broadcasting, and TANH expressions can
+represent the complete cell without a new operation or scan API. Tasks 0013–0015 remain concise
+Draft rows and intentionally have no detailed task specifications.
+
+Its clean implementation context `/root/nn_0012_implementation` completed the executable source,
+focused tests, and draft public/package Javadocs without widening the seven-path task scope. The
+focused two-suite selection passed 15 tests, and the sole authoritative NN module run passed 19
+suites/125 tests with no failures, errors, or skips. Independent documentation context
+`/root/nn_0012_docs` reused that unchanged executable evidence, finalized the type Javadoc,
+package documentation, glossary, and planning records, and passed generated-Javadoc, exact-
+surface/private-state, dependency/import, Markdown, exact seven-path scope, status, newline,
+whitespace, and diff gates without repeating stable Java tests.
+
 The ordered follow-up sequence is deliberate. `Embedding` is another mode-insensitive
 parameter-only wrapper. `BatchNorm` follows it as the first layer that must coordinate parameters,
 buffers, mode, and pure running-statistic outputs. `Dropout` follows that state-transition design
@@ -271,6 +301,10 @@ consumer.
 - Select a persistent checkpoint codec, schema-version, materialization, and storage boundary only
   when a concrete consumer exists; completed NN 0010 fixes only in-memory state and strict atomic
   validation/load.
+- At task 0015, decide whether recurrent sequence composition should statically unroll concrete
+  cell calls or first requires a genuine general recurrent Model scan. If a container is selected,
+  choose cell-specific `RnnSequence`/`GruSequence`/`LstmSequence` contracts unless real signatures
+  prove one shared `RecurrentSequence`; do not reserve a broader abstraction prematurely.
 
 ## Decisions made
 
@@ -374,6 +408,19 @@ consumer.
   failure without widening Module's public/protected API. Numeric names define stable nested state
   paths. `Linear`, `LayerNorm`, and `Embedding` participate; `BatchNorm` and `Dropout` remain
   excluded because their explicit context/state/result contracts are essential.
+- NN 0012 selects final `RnnCell extends Module`, not `UnaryTensorModule`. Its complete forward
+  signature consumes explicit input and hidden Tensors and returns exactly one next-hidden Tensor;
+  vanilla RNN output and next hidden state are the same value, so a two-component result would
+  duplicate one reference without a consumer need. The cell is explicitly excluded from
+  `Sequential`; a later recurrent-style container owns sequence composition.
+- NN 0012 fixes one shared optional bias, fixed tanh activation, and caller-supplied or explicit-
+  source initialization for `inputWeight [hiddenSize, inputSize]`, `hiddenWeight
+  [hiddenSize, hiddenSize]`, and optional `bias [hiddenSize]`. Forward composes only existing
+  Model linear, ADD, and TANH expressions, with every leading axis treated as ordinary
+  right-broadcastable batch metadata rather than a time axis.
+- NN 0013 and 0014 must preserve explicit hidden, and hidden-plus-cell, state respectively. NN
+  0015 must not reinterpret `CUM_SUM` or `CUM_PROD` as recurrent scan and must not invent a broad
+  recurrent abstraction before the concrete cell signatures establish a type-safe contract.
 
 ## Risks
 
@@ -392,6 +439,9 @@ consumer.
 - A checkpoint format selected before a concrete persistence consumer would freeze transport
   details into module ownership, while expanding the selected unary contract into a generic
   forward facade would overconstrain context-sensitive and explicitly stateful modules.
+- Treating a recurrent cell as unary composition, retaining its hidden state in a Buffer, or
+  calling a leading input axis "time" would hide caller-controlled state and confuse batched
+  expression construction with sequence recurrence.
 
 ## Notes
 
