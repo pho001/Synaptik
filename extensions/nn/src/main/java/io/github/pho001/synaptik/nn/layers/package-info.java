@@ -22,7 +22,17 @@
  * io.github.pho001.synaptik.model.tensor.Tensor,
  * io.github.pho001.synaptik.model.datatype.ScalarValue)} expression and is also mode-insensitive.
  * It exposes no default epsilon, partial affine state, or second configuration-introspection
- * surface. For both current layers, compatible parameter replacement affects later forward calls;
- * already constructed Tensor expressions keep their earlier exact inputs.</p>
+ * surface. Compatible parameter replacement affects later forward calls; already constructed
+ * Tensor expressions keep their earlier exact inputs.</p>
+ *
+ * <p>{@link io.github.pho001.synaptik.nn.layers.Embedding} owns one caller-supplied positive
+ * rank-two floating table in {@code [vocabularySize, embeddingSize]} orientation. It delegates
+ * each forward call to the current table's
+ * {@link io.github.pho001.synaptik.model.tensor.Tensor#embedding(
+ * io.github.pho001.synaptik.model.tensor.Tensor)} convenience and is mode-insensitive. Model owns
+ * accepted index types, result metadata, ordinary Gather failures, and provenance. The layer adds
+ * no table initializer, padding-row policy, numerical lookup, or execution behavior. Compatible
+ * table replacement affects later calls, while already constructed expressions retain their
+ * earlier exact table.</p>
  */
 package io.github.pho001.synaptik.nn.layers;

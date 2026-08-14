@@ -555,11 +555,11 @@ attributes](api/tensor-api.md#gather-and-gather-elements-semantic-kinds-and-attr
 
 ### Embedding
 
-An implemented public convenience for using a rank-two floating weight table as an ordinary
-axis-zero [Gather](#gather). For weights `[vocabulary, embeddingSize]` and INT32 or INT64 indices,
-`weights.embedding(indices)` produces metadata shaped
-`indices.shape + [embeddingSize]`. It retains the exact indices Dimensions followed by the exact
-weight axis-one Dimension, with result type and gradient eligibility inherited only from weights.
+An implemented Model convenience, and a current stateful NN layer that delegates to it, for using
+a rank-two floating weight table as an ordinary axis-zero [Gather](#gather). At the Model boundary,
+weights `[vocabulary, embeddingSize]` and INT32 or INT64 indices produce metadata shaped
+`indices.shape + [embeddingSize]`. The result retains the exact indices Dimensions followed by the
+exact weight axis-one Dimension, with type and gradient eligibility inherited only from weights.
 
 Embedding is not a separate operation kind: each call creates one `GATHER` occurrence with
 `IndexAxisAttrs(0)`, ordered `[weights, indices]` provenance, one output at index zero, and one
@@ -568,6 +568,20 @@ invalid for later ordinary Gather execution, and there is no wrapping, padding r
 gradient, maximum-norm, or frequency-scaling option. Gradient construction, compiler analysis,
 bounds enforcement, lowering, backend behavior, and execution remain separately owned. See the
 [embedding convenience](api/tensor-api.md#embedding-convenience).
+
+The final NN `Embedding` module owns exactly one `Parameter` named `weight`. Its caller-supplied
+table must additionally be gradient-eligible, fully static, rank two, and positive on both axes.
+`forward(indices)` reads that parameter's current Tensor once and calls its Model
+`embedding(indices)` convenience. It is mode-insensitive and adds no initialized constructor,
+padding index, invariant padding row, buffer, or separate operation. A compatible parameter
+replacement affects later calls; an expression already constructed from the old Tensor keeps that
+exact old table.
+
+For example, a current FLOAT32 table with Shape `[10, 4]` and INT64 indices with Shape `[2, 3]`
+produce a fresh expression with Shape `[2, 3, 4]`, ordinary `GATHER` at axis zero, and ordered
+`[currentWeight, indices]` provenance. This example describes declarative metadata only: neither
+the layer nor Model expression construction reads index values, selects rows, computes gradients,
+or executes the lookup.
 
 ### One-hot encoding
 
@@ -2322,7 +2336,7 @@ requests, higher derivatives, optimizer updates, preparation, and execution rema
 ### Neural-network module, parameter, buffer, and forward context
 
 `extensions/nn` currently provides direct-state and module-tree foundations, eager parameter
-initializers, and its first two concrete layers. A **module** is a stateful neural-network
+initializers, and its first three concrete layers. A **module** is a stateful neural-network
 composition unit that directly declares trainable **parameters** and persistent **buffers**, and
 can
 permanently own named child modules. Parameters, buffers, and children share one module-local
@@ -2402,6 +2416,15 @@ gradients, compile, lower, or execute work. Forward is mode-insensitive. A compa
 parameter replacement affects a later call, while an expression already constructed from earlier
 bindings remains unchanged; replacement and forward construction provide no joint snapshot or
 thread-safety guarantee.
+
+The current final `Embedding` module owns one caller-supplied, positive fully static rank-two
+floating table `Parameter` named `weight`. It has no initialized constructor or padding-row
+policy. Its mode-insensitive `forward(indices)` reads the current binding once and delegates
+directly to the unchanged Model `Tensor.embedding(indices)` convenience, which owns accepted index
+types, result metadata, ordinary axis-zero Gather provenance, and failures. Each call creates a
+fresh declarative expression; a compatible replacement changes later calls, while an already
+constructed expression keeps its prior exact table. The layer adds no buffer, numerical lookup,
+gradient/update rule, compiler behavior, backend support, or execution.
 
 `extensions/nn` composes generic [`Tensor`](#tensor) and operation semantics from
 `modules/model`. [`extensions/training`](#training-graph) consumes nn-declared parameters for

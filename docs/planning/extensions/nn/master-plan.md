@@ -79,7 +79,12 @@ documentation under `initialization/`. It creates eager gradient-enabled unlabel
 it does not change `Parameter`, retain a random source, or introduce an initializer object model.
 Task 0005 adds final public `Linear` under `layers/` without a generic layer abstraction. Task
 0006 adds final public `LayerNorm` beside it and reuses the existing affine Model expression.
-`functional/` remains future work. State dictionaries remain later work.
+Completed task 0007 adds final public `Embedding` beside those layers with one caller-supplied
+table parameter and exact delegation to the existing Model embedding convenience. It deliberately
+adds no layer-owned initializer or padding-row policy because the current contracts provide
+neither a selected embedding initialization policy nor a way to preserve a padding row without
+hidden mutation or new gradient/update behavior. `functional/` remains future work. State
+dictionaries remain later work.
 
 ## Task list
 
@@ -92,7 +97,7 @@ Task 0005 adds final public `Linear` under `layers/` without a generic layer abs
 | [0004A](tasks/0004a-parameter-update-and-traversal-hardening.md) | Parameter update and traversal hardening | Complete | 0001–0004; post-0004 code review | Closed the three review findings with a public schema-validated `Parameter.replace`, iterative identity-defended deep-tree traversal, and complete fan-initializer Java-array-limit contracts before adding a layer. |
 | [0005](tasks/0005-linear-layer.md) | Linear layer | Complete | 0001, 0004, 0004A; completed model `Tensor.linear` | Added the first stateful layer with caller-supplied or explicit-source Glorot-uniform `weight`, optional caller-supplied or zero `bias`, stable parameter handles, and exact delegation to visible Model linear composition without execution behavior. |
 | [0006](tasks/0006-layer-normalization-layer.md) | Layer normalization layer | Complete | 0001–0005; completed Model 0021 | Added mandatory exact-Shape `scale` and `bias` parameters, caller-supplied or ones/zeros initialized state, stored typed epsilon, and mode-insensitive exact delegation to affine `Tensor.layerNorm`. |
-| 0007 | Embedding layer | Draft | 0006; completed Model 0019A1 | Own one positive fully static rank-two embedding table parameter and delegate indexed lookup to the current axis-zero `Tensor.embedding` convenience; exact initialization and padding-row policy wait for this frontier. |
+| [0007](tasks/0007-embedding-layer.md) | Embedding layer | Complete | 0006; completed Model 0019A1 | Added one positive fully static rank-two `weight` parameter supplied by the caller and mode-insensitive delegation exactly to axis-zero `Tensor.embedding`, with no layer-owned initialization or padding-row contract. |
 | 0008 | Batch normalization layer | Draft | 0007; completed Model 0021B–0021C | Introduce the first layer that owns both trainable parameters and persistent running-statistic buffers, then define an explicit train/eval state-transition contract over Model inference/training expressions. |
 | 0009 | Dropout layer | Draft | 0008; completed Model 0019B–0019B1 | Decide explicit `GraphRngState` threading and evaluation-bypass result semantics at this frontier; the layer must never retain, create, or consult hidden random state. |
 | 0010 | State dictionary and checkpoint contract | Draft | 0009; stable module-tree traversal and replacement contracts | Define deterministic state paths, schema and validation, atomic load behavior, and the boundary between an in-memory state dictionary and any serialization format without adding optimizer state. |
@@ -176,8 +181,15 @@ documentation pass finalized Javadoc, glossary, and planning evidence. The imple
 passed focused 2-suite/9-test and full NN 11-suite/53-test validation; the documentation pass
 reused that stable Java evidence and passed final generated-Javadoc, public-surface, Markdown,
 dependency/import, scope, and whitespace checks. CPU, Engine, runtime, prepare, and numerical
-execution were not prerequisites. Tasks 0007–0011 remain concise Draft rows under progressive
-planning and have no detailed task files.
+execution were not prerequisites. Detailed
+[NN 0007](tasks/0007-embedding-layer.md) is Complete as a bounded model-only layer task over
+completed Model 0019A1 and the stable NN parameter contract. The clean implementation context
+added the planned layer and focused test, then passed the final 8-test Embedding selection and
+12-suite/61-test NN module suite. The independent clean documentation context finalized Javadocs,
+the glossary, and planning evidence and passed generated-Javadoc, public-surface, Markdown,
+dependency/import, exact-scope, and whitespace checks without repeating stable executable tests.
+Tasks 0008–0011 remain concise Draft rows under progressive planning and have no detailed task
+files; there is no Ready NN task.
 
 The ordered follow-up sequence is deliberate. `Embedding` is another mode-insensitive
 parameter-only wrapper. `BatchNorm` follows it as the first layer that must coordinate parameters,
@@ -248,8 +260,19 @@ forward contract is deferred until the actual `Sequential` consumer can prove it
   parameter handles but no normalized-Shape or epsilon getter because no current consumer needs a
   second configuration-introspection surface. Forward delegates to the current affine Model
   overload and is mode-insensitive.
-- NN 0007–0011 are ordered Draft capabilities only. Their rows record dependencies and unresolved
-  decisions without creating premature task specifications.
+- NN 0007 exposes only `Embedding(Tensor weight)`, `weight()`, and `forward(Tensor indices)`. The
+  supplied table must be floating, gradient-eligible, fully static, rank two, and positive on both
+  `[vocabularySize, embeddingSize]` axes. Forward reads the current table once and delegates
+  exactly to `weight.embedding(indices)`; it adds no operation, index interpretation, execution,
+  or mode branch.
+- NN 0007 adds no initialized constructor. Existing generic eager normal/uniform initializers let
+  callers choose an explicit table policy, while the fan-based entries are explicitly Linear-
+  oriented and no current consumer selects one embedding-specific distribution. It also adds no
+  padding index or padding-row invariant: ordinary `Tensor.embedding` has no such semantic, and
+  preserving a zero row across parameter replacement or future optimizer updates would require
+  a new update/gradient contract or hidden mutation.
+- NN 0008–0011 remain ordered Draft capabilities only. Their rows record dependencies and
+  unresolved decisions without creating premature task specifications.
 
 ## Risks
 
