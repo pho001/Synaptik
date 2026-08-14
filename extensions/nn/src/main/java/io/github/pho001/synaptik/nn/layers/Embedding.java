@@ -4,8 +4,8 @@ import io.github.pho001.synaptik.model.datatype.DataType;
 import io.github.pho001.synaptik.model.shape.Shape;
 import io.github.pho001.synaptik.model.shape.StaticDimension;
 import io.github.pho001.synaptik.model.tensor.Tensor;
-import io.github.pho001.synaptik.nn.module.Module;
 import io.github.pho001.synaptik.nn.module.Parameter;
+import io.github.pho001.synaptik.nn.module.UnaryTensorModule;
 import java.util.Objects;
 
 /**
@@ -19,18 +19,18 @@ import java.util.Objects;
  * padding row.</p>
  *
  * <p>{@link #forward(Tensor)} reads the current weight binding once and delegates directly to
-     * {@link Tensor#embedding(Tensor)}. Model therefore owns accepted index types, the ordinary
-     * axis-zero Gather operation, result metadata, provenance, and inherited failures. This layer
-     * adds no numerical lookup, value-bound enforcement, gradient rule, compiler behavior,
-     * storage, backend behavior, or execution. Forward construction is identical in training and
-     * evaluation mode.</p>
+ * {@link Tensor#embedding(Tensor)}. Model therefore owns accepted index types, the ordinary
+ * axis-zero Gather operation, result metadata, provenance, and inherited failures. This layer
+ * adds no numerical lookup, value-bound enforcement, gradient rule, compiler behavior, storage,
+ * backend behavior, or execution. Forward construction is identical in training and evaluation
+ * mode.</p>
  *
  * <p>A successful {@link Parameter#replace(Tensor)} becomes visible to the next forward call.
  * Earlier Tensor references and already constructed expressions retain their prior exact table.
  * Replacement and forward construction are not thread-safe as a combined operation; callers must
  * coordinate them when one stable table snapshot matters.</p>
  */
-public final class Embedding extends Module {
+public final class Embedding extends UnaryTensorModule {
     private final Parameter weight;
 
     /**
@@ -85,6 +85,7 @@ public final class Embedding extends Module {
      * @throws ArithmeticException if inherited checked Gather result-Shape construction overflows
      * @throws IllegalStateException if Tensor identifier space is exhausted
      */
+    @Override
     public Tensor forward(Tensor indices) {
         Objects.requireNonNull(indices, "indices");
         Tensor currentWeight = weight.value();

@@ -7,6 +7,16 @@
  * remains in {@code modules/model}. Calling a forward method builds storage-free expression
  * metadata. It does not evaluate values, compile a graph, select a backend, or execute work.</p>
  *
+ * <p>{@link io.github.pho001.synaptik.nn.layers.Linear},
+ * {@link io.github.pho001.synaptik.nn.layers.LayerNorm}, and
+ * {@link io.github.pho001.synaptik.nn.layers.Embedding} are
+ * {@link io.github.pho001.synaptik.nn.module.UnaryTensorModule} instances and can be owned by
+ * {@link io.github.pho001.synaptik.nn.module.Sequential}.
+ * {@link io.github.pho001.synaptik.nn.layers.BatchNorm} and
+ * {@link io.github.pho001.synaptik.nn.layers.Dropout} remain direct {@code Module} subclasses
+ * because their complete forward contracts require explicit context or graph random state and a
+ * result carrier.</p>
+ *
  * <p>{@link io.github.pho001.synaptik.nn.layers.Linear} uses the conventional
  * {@code [outFeatures, inFeatures]} weight orientation and delegates each forward call to
  * {@link io.github.pho001.synaptik.model.tensor.Tensor#linear(

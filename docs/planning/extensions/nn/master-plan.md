@@ -92,6 +92,12 @@ places the in-memory state-dictionary values beside the module ownership contrac
 `module/`; it deliberately leaves bytes, files, codecs, versions, and other persistent checkpoint
 transport for a future concrete consumer.
 
+Completed task 0011 selects one narrow public `UnaryTensorModule extends Module` base because the real
+`Sequential` consumer must know both ownership and `Tensor forward(Tensor)` at compile time.
+`Sequential` is implemented under `module/` as immutable structural composition with numeric child
+names. Only mode-insensitive `Linear`, `LayerNorm`, and `Embedding` participate; context-sensitive
+`BatchNorm` and explicit-state/result `Dropout` remain direct `Module` subclasses.
+
 ## Task list
 
 | ID | Task | Status | Depends on | Summary |
@@ -107,7 +113,7 @@ transport for a future concrete consumer.
 | [0008](tasks/0008-batch-normalization-layer.md) | Batch normalization layer | Complete | 0007; completed Model 0021B–0021C | Added final affine `BatchNorm` with exact rank-one state, explicit typed scalars and channel axis, context-selected inference/training composition, and training-only installation of the two pure next-statistic expressions into stable buffers. |
 | [0009](tasks/0009-dropout-layer.md) | Dropout layer | Complete | 0008; completed Model 0019B–0019B1 | Added a parameterless/bufferless mode-sensitive layer with caller-threaded `GraphRngState`, a minimal NN result carrier, exact Model training delegation, and identity-preserving evaluation bypass without hidden random state. |
 | [0010](tasks/0010-state-dictionary-and-checkpoint-contract.md) | State dictionary and checkpoint contract | Complete | 0009; stable module-tree traversal and replacement contracts | Added an immutable ordered in-memory dictionary with path/kind/Tensor entries and strict validate-before-install Module load; every byte/file/codec/version format and optimizer state remains deferred. |
-| 0011 | Unary Tensor module composition and Sequential | Draft | 0010; concrete unary layer composition need | Introduce a narrow shared unary Tensor-forward contract only if the actual `Sequential` container requires it; do not add a broad generic layer facade or force non-unary modules into one signature. |
+| [0011](tasks/0011-unary-tensor-module-composition-and-sequential.md) | Unary Tensor module composition and Sequential | Complete | 0010; completed Linear, LayerNorm, and Embedding unary Tensor APIs | Added a narrow abstract Module subtype and immutable numeric-child Sequential with type-safe left-to-right Tensor composition; BatchNorm context and Dropout state/result signatures remain outside it. |
 
 ## Milestones
 
@@ -228,23 +234,43 @@ failures, errors, or skips. Independent documentation context `/root/nn_0010_doc
 unchanged executable evidence, finalized the public/package Javadocs, Training API, glossary, and
 planning records, and passed final Javadoc, generated-page, `javap`, reflection, Markdown,
 dependency/import, exact ten-path scope, status, newline, whitespace, and diff gates. Task 0011
-remains one concise Draft row with no detailed specification, and no NN task is Ready.
+then became the sole detailed Ready NN frontier and is completed below.
+
+Detailed [NN 0011](tasks/0011-unary-tensor-module-composition-and-sequential.md) is Complete as
+the next ordered capability. Its real `Sequential` consumer proves the need for a narrow abstract
+`UnaryTensorModule extends Module`: a public interface cannot guarantee Module ownership without a
+cast or leaky bridge, and an adapter would split state identity from invocation. The selected
+container accepts one immutable List snapshot, allows empty exact-reference identity, registers
+children atomically under numeric names, and chains exact Tensor references left to right. Only
+`Linear`, `LayerNorm`, and `Embedding` move to the base. `BatchNorm` retains explicit
+`ForwardContext`; `Dropout` retains explicit context, graph RNG state, and its result carrier. The
+task adds no generic Module forward method, shape-pipeline prevalidation, Model behavior,
+dependency, architecture, compiler, runtime, backend, or execution work.
+
+Its clean implementation context completed the executable and test diff. The focused Sequential
+suite passed 12 tests, the affected existing layer selection passed 20 tests, and the sole
+authoritative final NN run passed 17 suites/110 tests with no failures, errors, or skips. Independent
+documentation context `/root/nn_0011_docs` reused that unchanged executable evidence, finalized
+public/package Javadocs, Training API, glossary, and planning evidence, and passed final Javadoc,
+generated-page, exact-surface, external-compilation, Markdown, dependency/import, exact 16-path,
+status, newline, whitespace, and diff gates.
 
 The ordered follow-up sequence is deliberate. `Embedding` is another mode-insensitive
 parameter-only wrapper. `BatchNorm` follows it as the first layer that must coordinate parameters,
 buffers, mode, and pure running-statistic outputs. `Dropout` follows that state-transition design
 so its explicit graph-RNG state and evaluation bypass are decided without hidden mutation. State
 dictionary/checkpoint work then covers the established parameter/buffer tree. A shared unary
-forward contract is deferred until the actual `Sequential` consumer can prove its minimal shape.
+forward contract is implemented only in the minimal shape proven by the actual `Sequential`
+consumer.
 
 ## Open questions
 
 - Decide whether a concrete future consumer justifies configurable gain, activation, fan mode,
   convolution fan geometry, or an initializer object abstraction. NN 0004 deliberately fixes only
   unit-gain Glorot and fan-in/ReLU Kaiming for positive rank-two Linear weights.
-- After NN 0010, select a persistent checkpoint codec, schema-version, materialization, and storage
-  boundary only when a concrete consumer exists; the Ready task fixes only in-memory state and
-  strict atomic validation/load.
+- Select a persistent checkpoint codec, schema-version, materialization, and storage boundary only
+  when a concrete consumer exists; completed NN 0010 fixes only in-memory state and strict atomic
+  validation/load.
 
 ## Decisions made
 
@@ -338,8 +364,16 @@ forward contract is deferred until the actual `Sequential` consumer can prove it
   installation under caller coordination. It adds no lock, rollback log, linearizable concurrent
   snapshot, optimizer/session/RNG state, evaluation/materialization, serialization, file I/O,
   codec, version, migration, or persistent checkpoint format.
-- NN 0011 remains an ordered concise Draft capability only. Its row records dependencies and the
-  unresolved unary-composition decision without a premature task specification.
+- NN 0011 selects public abstract `UnaryTensorModule extends Module` rather than an interface or
+  adapter so a heterogeneous sequence retains both ownership and unary forwarding at compile time
+  without casts, reflection, or a bridge accessor. Final `Sequential` belongs in `nn.module`,
+  accepts only `List<? extends UnaryTensorModule>`, permits empty exact-reference identity,
+  snapshots structure, and exposes children only through inherited Module discovery.
+- NN 0011 uses one package-private Module primitive to preflight every indexed child before
+  installing any parent link, avoiding an unreachable partially owned prefix on constructor
+  failure without widening Module's public/protected API. Numeric names define stable nested state
+  paths. `Linear`, `LayerNorm`, and `Embedding` participate; `BatchNorm` and `Dropout` remain
+  excluded because their explicit context/state/result contracts are essential.
 
 ## Risks
 
@@ -355,9 +389,9 @@ forward contract is deferred until the actual `Sequential` consumer can prove it
 - Batch-normalization or dropout wrappers could accidentally turn pure Model outputs or explicit
   graph RNG state into hidden module mutation; their frontier tasks must make state transitions
   explicit and preserve caller coordination.
-- A checkpoint format selected before its in-memory schema and atomic load contract would freeze
-  transport details into module ownership, while a generic forward facade selected before a real
-  `Sequential` consumer would overconstrain non-unary modules.
+- A checkpoint format selected before a concrete persistence consumer would freeze transport
+  details into module ownership, while expanding the selected unary contract into a generic
+  forward facade would overconstrain context-sensitive and explicitly stateful modules.
 
 ## Notes
 

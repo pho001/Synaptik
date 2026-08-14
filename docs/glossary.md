@@ -2359,9 +2359,10 @@ requests, higher derivatives, optimizer updates, preparation, and execution rema
 ### Neural-network module, parameter, buffer, and forward context
 
 `extensions/nn` currently provides direct-state and module-tree foundations, eager parameter
-initializers, and five concrete layers. A **module** is a stateful neural-network composition unit
-that directly declares trainable **parameters** and persistent **buffers**, and can permanently own
-named child modules. Parameters, buffers, and children share one module-local
+initializers, five concrete layers, and narrow unary composition. A **module** is a stateful
+neural-network composition unit that directly declares trainable **parameters** and persistent
+**buffers**, and can permanently own named child modules. Parameters, buffers, and children share
+one module-local
 namespace. A local name cannot contain `.` because that character is reserved exclusively for
 recursive-path separation. A parameter is module-owned state that a future optimizer may update.
 A buffer is persistent module-owned state that an optimizer does not update, such as a future
@@ -2436,7 +2437,9 @@ current checkpoint bytes, file/stream API, codec, format version, migration rule
 session state, graph RNG state, compiler/runtime/backend state, or universal serialization
 contract exists. `StateDictionary` is only the in-memory module-state input that a future concrete
 persistence consumer may use; its enum names, record equality, and diagnostic strings are not wire
-contracts. `Module` still has no generic `forward(...)` method or optimizer algorithm.
+contracts. `Module` still has no generic `forward(...)` method or optimizer algorithm; the narrow
+[`UnaryTensorModule`](#unary-tensor-module-and-sequential) subtype adds only the exact unary
+Tensor-forward signature needed by current `Sequential` composition.
 
 The current stateless `ParameterInitializers` namespace creates eager floating Tensor leaves that
 a module may subsequently bind as parameters. Its exact eight entries cover typed zero and one,
@@ -2538,6 +2541,48 @@ optimizer algorithms and training orchestration, but it does not own modules, bu
 train/eval behavior. None of these current contracts grants autograd, backend storage, kernel
 selection, runtime execution, or a concrete backend dependency. See [Module
 boundaries](architecture/module-boundaries.md#extensions).
+
+### Unary Tensor module and Sequential
+
+A **unary Tensor module** is an implemented `UnaryTensorModule`: a `Module` whose complete public
+forward signature is one non-null Tensor to one non-null Tensor. The nominal subtype preserves
+module ownership and unary invocation together at compile time without a cast, reflection,
+adapter, or generic `Module.forward(...)`. It defines no shared Shape, data type, freshness,
+numerical, mode, state-transition, compiler, backend, or execution rule; each concrete child keeps
+its own contract. Current `Linear`, `LayerNorm`, and `Embedding` layers participate.
+
+`BatchNorm` and `Dropout` deliberately remain outside this subtype. Batch normalization requires
+an explicit `ForwardContext` and can install next-statistic buffer expressions. Dropout requires
+an explicit context plus caller-threaded `GraphRngState` and returns output plus next state.
+`Sequential` does not hide, synthesize, or discard any of those inputs, transitions, or results.
+
+**Sequential** is the implemented final module that snapshots one ordered
+`List<? extends UnaryTensorModule>`, owns the exact children permanently under names `0`, `1`, and
+so on, and forwards exact Tensor references once from left to right. It exposes structure through
+the inherited `children()` snapshot rather than another list accessor. Recursive mode propagation,
+parameter/buffer discovery, and state-dictionary export/load therefore use stable numeric paths.
+
+An empty sequence is an exact-reference identity:
+
+```text
+input -> exact same input reference
+```
+
+A sequence containing `Linear` at child `0` and `LayerNorm` at child `1` composes as:
+
+```text
+input
+  -> 0.forward(input)
+  -> 1.forward(exact child-0 result)
+  -> exact child-1 result
+```
+
+Its state paths include `0.weight`, optional `0.bias`, `1.scale`, and `1.bias`. Each child validates
+the actual Tensor it receives. If a child fails or returns null, already completed prefix calls and
+their expressions remain, no suffix child is called, and no rollback occurs. The examples describe
+ownership, reference flow, and declarative expression construction only; they do not calculate a
+Tensor result, prevalidate the whole pipeline, compile, fuse, allocate runtime storage, or execute
+work.
 
 ### Graph
 

@@ -18,8 +18,9 @@ import java.util.Objects;
  * <p>A subclass declares its direct state through {@link #parameter(String, Tensor)} and
  * {@link #buffer(String, Tensor)}, and {@link #child(String, Module)}, then uses retained tensor
  * references while constructing a layer-specific expression. A child is permanently owned by
- * exactly one parent. This foundation deliberately has no universal {@code forward} method: each
- * future layer defines a typed signature appropriate to its inputs and outputs.</p>
+ * exactly one parent. This foundation deliberately has no universal {@code forward} method:
+ * subclasses choose truthful typed signatures, while {@link UnaryTensorModule} names only the
+ * narrower one-Tensor-to-one-Tensor case.</p>
  *
  * <p>Parameters, buffers, and children share one local-name namespace. Direct declaration order
  * and child-registration order determine immutable discovery snapshots. Recursive state uses
@@ -183,15 +184,58 @@ public abstract class Module {
         validateAvailableName(name);
         Objects.requireNonNull(child, "child");
         Module moduleChild = child;
-        if (moduleChild == this || isAncestor(moduleChild)) {
-            throw new IllegalArgumentException("child must not be this module or an ancestor");
-        }
-        if (moduleChild.parent != null) {
-            throw new IllegalStateException("child is already owned by a module");
-        }
+        validateChildCandidate(moduleChild);
         children.put(name, moduleChild);
         moduleChild.parent = this;
         return child;
+    }
+
+    /**
+     * Registers an immutable snapshot of children under zero-based decimal names.
+     *
+     * <p>The supplied list is traversed once to capture its exact elements. Complete null,
+     * identity-duplicate, local-name, cycle, and existing-ownership validation precedes every
+     * child-map or parent-link change. Installation then follows snapshot order. This
+     * package-private construction primitive does not provide synchronization or recovery from
+     * fatal virtual-machine failure.</p>
+     *
+     * @param modules non-null ordered candidate list; every element must be non-null, have a
+     *     distinct identity, and be available for permanent ownership by this module
+     * @param <T> the common module subtype retained in the immutable result
+     * @return the immutable ordered snapshot whose exact instances were registered; never
+     *     {@code null}
+     * @throws NullPointerException if {@code modules} or its first null element is null
+     * @throws IllegalArgumentException if a candidate identity is repeated, a numeric name is
+     *     unavailable, or a candidate is this module or an ancestor
+     * @throws IllegalStateException if a candidate is already owned by a module
+     */
+    final <T extends Module> List<T> registerIndexedChildren(List<? extends T> modules) {
+        Objects.requireNonNull(modules, "modules");
+        List<T> candidates = new ArrayList<>();
+        int index = 0;
+        for (T candidate : modules) {
+            candidates.add(Objects.requireNonNull(candidate, "modules[" + index + "]"));
+            index++;
+        }
+        List<T> snapshot = List.copyOf(candidates);
+
+        IdentityHashMap<Module, Boolean> identities = new IdentityHashMap<>();
+        for (T candidate : snapshot) {
+            if (identities.put(candidate, Boolean.TRUE) != null) {
+                throw new IllegalArgumentException("module identity is repeated");
+            }
+        }
+
+        for (int childIndex = 0; childIndex < snapshot.size(); childIndex++) {
+            validateAvailableName(Integer.toString(childIndex));
+            validateChildCandidate(snapshot.get(childIndex));
+        }
+        for (int childIndex = 0; childIndex < snapshot.size(); childIndex++) {
+            Module candidate = snapshot.get(childIndex);
+            children.put(Integer.toString(childIndex), candidate);
+            candidate.parent = this;
+        }
+        return snapshot;
     }
 
     /**
@@ -455,6 +499,15 @@ public abstract class Module {
             }
         }
         return false;
+    }
+
+    private void validateChildCandidate(Module candidate) {
+        if (candidate == this || isAncestor(candidate)) {
+            throw new IllegalArgumentException("child must not be this module or an ancestor");
+        }
+        if (candidate.parent != null) {
+            throw new IllegalStateException("child is already owned by a module");
+        }
     }
 
     private void changeModeRecursively(ForwardMode requestedMode) {

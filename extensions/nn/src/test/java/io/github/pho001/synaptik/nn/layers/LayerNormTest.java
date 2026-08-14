@@ -19,8 +19,8 @@ import io.github.pho001.synaptik.model.tensor.TensorDescriptor;
 import io.github.pho001.synaptik.model.tensor.TensorFactory;
 import io.github.pho001.synaptik.model.tensor.TensorProvenance;
 import io.github.pho001.synaptik.nn.module.ForwardMode;
-import io.github.pho001.synaptik.nn.module.Module;
 import io.github.pho001.synaptik.nn.module.Parameter;
+import io.github.pho001.synaptik.nn.module.UnaryTensorModule;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
@@ -56,7 +56,7 @@ class LayerNormTest {
         assertAll(
                 () -> assertTrue(Modifier.isPublic(LayerNorm.class.getModifiers())),
                 () -> assertTrue(Modifier.isFinal(LayerNorm.class.getModifiers())),
-                () -> assertSame(Module.class, LayerNorm.class.getSuperclass()),
+                () -> assertSame(UnaryTensorModule.class, LayerNorm.class.getSuperclass()),
                 () -> assertEquals(
                         Set.of(
                                 List.of(Tensor.class, Tensor.class, ScalarValue.class),
@@ -72,7 +72,7 @@ class LayerNormTest {
                 () -> assertTrue(Arrays.stream(LayerNorm.class.getDeclaredMethods())
                         .filter(method -> Modifier.isPublic(method.getModifiers()))
                         .noneMatch(method -> Modifier.isStatic(method.getModifiers()))),
-                () -> assertFalse(Arrays.stream(Module.class.getDeclaredMethods())
+                () -> assertFalse(Arrays.stream(UnaryTensorModule.class.getSuperclass().getDeclaredMethods())
                         .anyMatch(method -> method.getName().equals("forward"))));
     }
 

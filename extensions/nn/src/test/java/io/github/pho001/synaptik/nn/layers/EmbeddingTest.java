@@ -20,8 +20,8 @@ import io.github.pho001.synaptik.model.tensor.TensorDescriptor;
 import io.github.pho001.synaptik.model.tensor.TensorFactory;
 import io.github.pho001.synaptik.model.tensor.TensorProvenance;
 import io.github.pho001.synaptik.nn.module.ForwardMode;
-import io.github.pho001.synaptik.nn.module.Module;
 import io.github.pho001.synaptik.nn.module.Parameter;
+import io.github.pho001.synaptik.nn.module.UnaryTensorModule;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
@@ -56,7 +56,7 @@ class EmbeddingTest {
         assertAll(
                 () -> assertTrue(Modifier.isPublic(Embedding.class.getModifiers())),
                 () -> assertTrue(Modifier.isFinal(Embedding.class.getModifiers())),
-                () -> assertSame(Module.class, Embedding.class.getSuperclass()),
+                () -> assertSame(UnaryTensorModule.class, Embedding.class.getSuperclass()),
                 () -> assertEquals(Set.of(List.of(Tensor.class)), constructors),
                 () -> assertEquals(Set.of("weight", "forward"), publicMethods),
                 () -> assertSame(Parameter.class, weight.getReturnType()),
@@ -69,7 +69,7 @@ class EmbeddingTest {
                 () -> assertEquals(1, Embedding.class.getDeclaredFields().length),
                 () -> assertSame(Parameter.class, Embedding.class.getDeclaredField("weight").getType()),
                 () -> assertEquals(0, Embedding.class.getDeclaredClasses().length),
-                () -> assertFalse(Arrays.stream(Module.class.getDeclaredMethods())
+                () -> assertFalse(Arrays.stream(UnaryTensorModule.class.getSuperclass().getDeclaredMethods())
                         .anyMatch(method -> method.getName().equals("forward"))));
     }
 

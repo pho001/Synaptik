@@ -7,8 +7,8 @@ import io.github.pho001.synaptik.model.shape.Shape;
 import io.github.pho001.synaptik.model.shape.StaticDimension;
 import io.github.pho001.synaptik.model.tensor.Tensor;
 import io.github.pho001.synaptik.nn.initialization.ParameterInitializers;
-import io.github.pho001.synaptik.nn.module.Module;
 import io.github.pho001.synaptik.nn.module.Parameter;
+import io.github.pho001.synaptik.nn.module.UnaryTensorModule;
 import java.util.Objects;
 
 /**
@@ -33,7 +33,7 @@ import java.util.Objects;
  * Replacement and forward construction are not thread-safe as a combined operation; callers must
  * coordinate them when one scale-and-bias snapshot matters.</p>
  */
-public final class LayerNorm extends Module {
+public final class LayerNorm extends UnaryTensorModule {
     private final Parameter scale;
     private final Parameter bias;
     private final Shape normalizedShape;
@@ -174,6 +174,7 @@ public final class LayerNorm extends Module {
      *     promotion, affine-Shape, or exact epsilon-type validation fails
      * @throws IllegalStateException if Tensor identifier space is exhausted
      */
+    @Override
     public Tensor forward(Tensor input) {
         Tensor suppliedInput = Objects.requireNonNull(input, "input");
         Tensor currentScale = scale.value();

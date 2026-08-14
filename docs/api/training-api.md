@@ -6,7 +6,9 @@ This reference records the implemented neural-network parameter boundary consume
 training and the remaining planned training concepts without inventing optimizer APIs.
 `extensions/nn` now provides module-owned `Parameter` and `Buffer` declarations, recursive
 parameter discovery, one public schema-validated parameter replacement capability, and strict
-in-memory module-tree state export/load.
+in-memory module-tree state export/load. It also provides the narrow `UnaryTensorModule` subtype
+and immutable numeric-child `Sequential` composition for modules whose complete forward signature
+is exactly `Tensor forward(Tensor)`.
 `extensions/training`, public gradient publication, optimizer behavior, and prepared execution
 are not implemented. The compiler now provides a public immutable functional-gradient request
 value and a bounded package-private one/two-stage reverse-mode integration path.
@@ -34,6 +36,37 @@ selected slice before creating formulas, captures forward and all derivative roo
 retains per-node derivative order beside unchanged graph phase. These facts do not expose a
 public training workflow, deliver a gradient at runtime, choose a parameter update, select a
 backend, prepare a schedule, or execute training.
+
+## Current NN unary composition contract
+
+`Module` remains the general owner of named state, children, and train/eval mode and has no
+universal forward method. `UnaryTensorModule` is the narrower public subtype for a module whose
+complete forward contract accepts one non-null Tensor and returns one non-null Tensor. Current
+`Linear`, `LayerNorm`, and `Embedding` layers participate. `BatchNorm` does not, because it
+requires an explicit `ForwardContext` and may transition running-statistic buffers. `Dropout`
+does not, because it requires both an explicit context and caller-threaded graph random-number-
+generator state and returns a result carrying output plus next state.
+
+`Sequential` accepts one `List<? extends UnaryTensorModule>`, snapshots it, and permanently owns
+the exact children under decimal names `0`, `1`, and so on. It passes the exact input reference to
+child `0`, passes each exact child result to the next child once, and returns the exact final
+result. Empty composition returns the exact input. A later failure preserves already constructed
+prefix expressions and suppresses the remaining suffix; the container performs no pipeline-wide
+validation, rollback, caching, flattening, fusion, compilation, or execution.
+
+For example, a sequence containing a `Linear` child followed by a `LayerNorm` child exposes state
+paths such as `0.weight`, `0.bias`, `1.scale`, and `1.bias` and composes declaratively as:
+
+```text
+input reference
+  -> child 0 Linear.forward(input)
+  -> child 1 LayerNorm.forward(exact child-0 result)
+  -> exact child-1 result
+```
+
+Inherited recursive mode propagation and state-dictionary export/load follow those numeric child
+paths. The sequence does not create a training session, choose an optimizer, publish gradients,
+or imply that any Tensor expression has been executed.
 
 ## Current NN parameter update contract
 
