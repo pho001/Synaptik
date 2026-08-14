@@ -208,8 +208,13 @@ FLOAT32 GATHER_ELEMENTS and BOOL ONE_HOT passed the unchanged five-fork gates at
 is `Complete`. Its schema-25 classes embed typed scatter output/contribution/reduction work and
 exact-product state while preserving complete validation before generated work. Dense unique
 SCATTER_ELEMENTS and duplicate-index FLOAT32 SCATTER_ADD passed at `0.979533x` and `0.983230x`.
-CPU 0007A0D is the sole next `Draft` corrective frontier; CPU 0007A0E–0007A0F remain ordered
-`Draft` rows for ordering and random/dropout without detailed specifications.
+Detailed
+[CPU 0007A0D fold generated-loop parity](backends/cpu/tasks/0007a0d-fold-generated-loop-parity.md)
+is `Complete`. Its schema-26 classes embed typed dense/general FOLD_AXIS/FOLD2D mapping and
+sequential-addition bodies. The fixed overlapping dense FLOAT32 FOLD_AXIS case passed all five
+forks and the aggregate at `0.926451x`; no broader fold performance parity is claimed. CPU 0007A0E
+is the sole next ordered `Draft` frontier, followed by Draft CPU 0007A0F, both without detailed
+specifications.
 Those families retain distinct mapping, workspace, ordering, accumulation, multi-output, and
 replay contracts and require their own direct-loop baselines. CPU 0007A1 depends on 0007A0F and
 resumes semantic-family expansion only after the entire corrective sequence completes.
@@ -228,6 +233,15 @@ passed 8 suites/105 tests, the authoritative CPU suite passed 53 suites/312 test
 skip and no failures/errors, and retained Class-File/checksum evidence proves typed direct loops
 without the former scatter bridge. The documentation pass changed no executable behavior and
 reused the accepted five-fork evidence because both timed class files remained byte-identical.
+CPU 0007A0D implementation context `01a000f9-8118-73a0-bcc6-2f43e4f271fc`, audit/fix context
+`01a00197-8794-7ca0-8849-ba3e1de1a0c0`, and clean documentation context
+`01a001a3-2387-7c21-b04b-de96079c5959` produced the accepted schema-26 fold result. The final
+focused command passed 5 suites/50 tests, and the authoritative CPU suite passed 53 suites/317
+tests with zero failures/errors and one existing expected skip. Retained Class-File evidence
+proves direct typed fold loops without the former bridge; the fixed dense FLOAT32 FOLD_AXIS fork
+ratios were `0.929879x`, `0.923513x`, `0.925827x`, `0.927054x`, and `0.926274x`, with aggregate
+`0.926451x`. The documentation pass changed no executable behavior and reused the stabilized Java
+and timing evidence.
 CPU 0007A0A implementation context `019ffff6-4acb-75b3-9e4d-b71359d8a6ed` and corrective review
 context `01a0000e-d32a-7fd3-aaa3-4c7d32b7f5af` produced the stabilized result. The post-correction
 focused movement run passed 14 tests, and the authoritative CPU suite passed 53 suites/309 tests
@@ -251,8 +265,8 @@ zero failures/errors, and one expected opt-in persistence-evidence skip, and fin
 schema-21 Javadocs/package summaries, CPU guide, glossary, and planning records. Final Javadoc,
 rendered-page, Markdown, exact 37-path, schema/status/package, concurrent-scope-preservation, and
 whitespace gates passed. Detailed CPU 0007A and corrective CPU 0007A0/0007A0A are `Complete`;
-detailed CPU 0007A0B and detailed CPU 0007A0C are `Complete`; CPU 0007A0D is the sole next `Draft`
-frontier. CPU 0007A0E–0007A0F and CPU 0007A1
+detailed CPU 0007A0B, detailed CPU 0007A0C, and detailed CPU 0007A0D are `Complete`; CPU 0007A0E
+is the sole next ordered `Draft` frontier. CPU 0007A0F and CPU 0007A1
 onward remain ordered `Draft` work.
 CPU 0006B1 implementation context `019ff230-109c-73a3-933f-611ee7f6143d` and independent
 audit/fix context `019ff248-a9e4-7150-8fbb-db2730d7cc1b` produced the final focused
@@ -288,9 +302,9 @@ division and exact scalar-power realization is `Complete`; detailed CPU 0005G an
 `Complete`; detailed CPU 0005I, CPU 0005J, and CPU 0006 are `Complete`; and CPU
 0006A is `Complete`; detailed 0006A1 and 0006A2 are `Complete`; detailed CPU 0006B is `Complete`;
 detailed CPU 0006B1, CPU 0006B2, CPU 0006C, CPU 0006D, CPU 0007, and detailed CPU 0007A are
-`Complete`; corrective CPU 0007A0, CPU 0007A0A, CPU 0007A0B, and CPU 0007A0C are `Complete`; CPU
-0007A0D is the sole next `Draft` frontier. CPU 0007A0E–0007A0F and CPU 0007A1–0017 remain ordered `Draft` work
-without detailed specifications.
+`Complete`; corrective CPU 0007A0, CPU 0007A0A, CPU 0007A0B, CPU 0007A0C, and detailed CPU
+0007A0D are `Complete`; CPU 0007A0E is the sole next ordered `Draft` frontier. CPU 0007A0F and CPU 0007A1–0017
+remain ordered `Draft` work without later detailed specifications.
 CPU 0003
 implements a
 model-independent filesystem store beneath an explicit
@@ -674,9 +688,9 @@ window extraction, and value-dependent indexing by dependency. Detailed CPU 0006
 detailed CPU 0006A2 is `Complete`; detailed CPU 0006B is `Complete`; detailed CPU 0006B1 is
 `Complete`; detailed CPU 0006B2, CPU 0006C, and CPU 0006D are `Complete`;
 Detailed CPU 0007 and detailed CPU 0007A are `Complete`; corrective CPU 0007A0 and CPU 0007A0A
-and CPU 0007A0B and detailed CPU 0007A0C are `Complete`; CPU 0007A0D is the sole next `Draft`
-frontier. CPU 0007A0E–0007A0F, CPU 0007A1–0017, and the refined Config, Prepare, Metal, and tuning rows remain
-`Draft` without new detailed specifications.
+and CPU 0007A0B and detailed CPU 0007A0C and CPU 0007A0D are `Complete`; CPU 0007A0E is the sole
+next ordered `Draft` frontier. CPU 0007A0F, CPU 0007A1–0017, and the refined Config, Prepare, Metal,
+and tuning rows remain `Draft` without later detailed specifications.
 Completed OpenBLAS history and every completed project area remain unchanged.
 
 CPU remains the active global project area. CPU 0005A through CPU 0006 are `Complete`, detailed
@@ -691,8 +705,10 @@ is `Complete`. Detailed
 [CPU 0007A0B indexing generated-loop parity](backends/cpu/tasks/0007a0b-indexing-generated-loop-parity.md)
 is `Complete`. Detailed
 [CPU 0007A0C scatter generated-loop parity](backends/cpu/tasks/0007a0c-scatter-generated-loop-parity.md)
-is `Complete`; CPU 0007A0D is the sole next `Draft` corrective frontier, CPU 0007A0E–0007A0F
-remain ordered `Draft`, and CPU 0007A1 remains explicitly behind the final corrective task.
+is `Complete`. Detailed
+[CPU 0007A0D fold generated-loop parity](backends/cpu/tasks/0007a0d-fold-generated-loop-parity.md)
+is `Complete`. CPU 0007A0E is the sole next ordered `Draft` corrective frontier; CPU 0007A0F
+remains Draft after it, and CPU 0007A1 remains explicitly behind the final corrective task.
 CPU 0006A delivers one exact static resolved-layout PAD, TILE, CONCAT, or STACK occurrence with
 ordered one-through-sixteen composition inputs, first-occurrence unique declarations, compact
 cold movement geometry, all-six-type represented-bit scalar/parallel-scalar generation, one

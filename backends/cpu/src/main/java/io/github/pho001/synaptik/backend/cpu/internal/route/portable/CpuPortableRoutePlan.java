@@ -15,8 +15,10 @@ import java.util.Objects;
  * does not retain source/workspace objects or concrete affine addresses. Functional-scatter IR
  * retains the structural family, reduction, boundary access, and optional scratch-entry facts
  * required to embed its typed output/contribution body; concrete indices, geometry, and scratch
- * slices remain outside the plan. Ordinary aggregate IR is encoded for compatibility while its
- * generated entry remains a direct typed body.
+ * slices remain outside the plan. Overlap-fold IR similarly retains the structural facts required
+ * for a typed embedded output/contribution body while concrete layouts, mappings, and ranges stay
+ * cold. Ordinary aggregate IR is encoded for compatibility while its generated entry remains a
+ * direct typed body.
  *
  * @param portableKernelIr non-null route-independent pointwise, affine, movement, indexing,
  *     functional-scatter, overlap-fold, ordering, random, cumulative-scan, or aggregate IR

@@ -31,6 +31,9 @@ The sixth family is exactly one resolved-layout overlap fold occurrence: general
 positive zero and accumulates its logical input contributions in canonical input row-major order.
 Both families accept FLOAT64, FLOAT32, and BFLOAT16; `FOLD_AXIS` additionally accepts INT32 and
 INT64. `FOLD2D` excludes symmetric-padding and ceil-tail positions outside the unpadded result.
+Schema-26 generated fold entries embed the selected family mapping, represented addition, and
+typed array or native-order segment access. Dense heap arrays use integer loop/address state;
+general layouts and segment or mixed carriers use long addressing.
 The seventh family is exactly one resolved-layout stable ordering occurrence: `SORT`, `ARGSORT`,
 or two-output `TOP_K`. It accepts all six represented types, orders complete logical-axis slices,
 keeps every floating NaN after non-NaNs in both directions, reverses signed-zero order with the
@@ -800,7 +803,7 @@ injectivity, and output/input non-overlap checks still run.
 
 CPU analysis declares each distinct gather input `ValueId` once in semantic first-use order and
 then one separate output; one-hot declares indices and output. Every indexing plan has one unit,
-no materialization, no workspace, one current schema-25 generated class artifact, one prepared
+no materialization, no workspace, one current schema-26 generated class artifact, one prepared
 executable, and one bound invocation. The generated class embeds carrier-, type-, family-, and
 access-specialized output loops rather than delegating through a generic carrier bridge. Proved
 dense heap arrays use integer loop/address state; segment, mixed-carrier, and general-layout forms
@@ -808,7 +811,7 @@ retain typed long-address traversal. The artifact owns only output writing. Comp
 geometry retains layout and coordinate facts without a per-index or per-output table, while the
 bound executable owns run-value validation. Shared Prepare assigns declared buffers opaquely,
 and Runtime sees only the prepared executable and direct carriers. Schema 24 introduced these
-embedded indexing bodies; under current schema 25, schema-24 and earlier artifacts are
+embedded indexing bodies; under current schema 26, schema-25 and earlier artifacts are
 incompatible misses and there is no migration reader.
 
 Current indexing support ends at these four one-node, fully static operations. Functional
@@ -981,8 +984,9 @@ parallel orchestration calls the same scalar body over disjoint output ranges. F
 API body, atomics, partial sums, cross-range merge, hidden scratch, or input-domain parallelism.
 CPU analysis and finalization keep concrete axes, windows, extents, layouts, carriers, and ranges
 cold. Schema 17 introduced the fold family, represented type, boundary access/rank structure,
-carrier pattern, execution mode, and canonical sequential-addition policy; current schema 25
-retains those facts, and every older schema is an incompatible miss with no migration reader.
+carrier pattern, execution mode, and canonical sequential-addition policy. Current schema 26
+embeds typed mapping, carrier access, and sequential addition; every older schema is an
+incompatible miss with no migration reader.
 
 This is exact current CPU route coverage, not broader Model, Compiler, Runtime, Engine, gradient,
 native, fusion, dynamic-layout, reduction-framework, backend-conformance, cross-backend bitwise,
@@ -1184,7 +1188,7 @@ The entry contains no generic `Object` carrier bridge or runtime data-type/kind 
 Schema 20 records scan kind, represented type, normalized axis role, inclusive/exclusive and
 forward/reverse modes, ordered boundary roles and carrier forms, structural accesses, sequential
 typed-rounding policy, scalar compute shape, and absence of scratch. Schema 22 added the embedded
-typed body and dense heap-array loop-shape compatibility; current schema 25 retains those facts.
+typed body and dense heap-array loop-shape compatibility; current schema 26 retains those facts.
 Concrete extents, offsets, stride magnitudes, assigned slots, carrier objects,
 addresses, worker identity, run identity, and selected range count remain cold when they do not
 change emitted bytes. Schema-21 and earlier artifacts are incompatible misses, and there is no
@@ -1263,7 +1267,7 @@ combine state, or run-shared reduction state.
 Schema 21 records kind, represented type, ordinary form, canonical selected-axis membership,
 retention, structural boundary access, first-logical-NaN/signed-zero policy, complete-output-cell
 range meaning, carrier forms, and zero scratch. Schema 22 added embedded typed-body and dense
-heap-array loop-shape compatibility; current schema 25 retains those facts. Concrete Shapes,
+heap-array loop-shape compatibility; current schema 26 retains those facts. Concrete Shapes,
 domain counts, offsets, stride magnitudes, slots, carrier objects, addresses, workers, run
 identity, and selected range count remain cold when they do not change emitted bytes. Schema-21
 and earlier artifacts are incompatible misses; there is no migration reader.
@@ -1744,16 +1748,16 @@ above. Scalar
 execution covers every admitted row; parallel-scalar orchestration is available for disjoint
 affine, movement, scatter, fold, ordering, random-element, and whole-scan-slice ranges; and the
 pointwise family retains its exact
-typed value-vector and virtual-mask parity matrix. Generator schema 25 distinguishes pointwise,
+typed value-vector and virtual-mask parity matrix. Generator schema 26 distinguishes pointwise,
 affine, movement, indexing, scatter, fold, ordering, random, scan, and aggregate structures,
 including movement occurrence order,
 unequal-rank access, exact
 padding bits, functional slice-update rank/map identity, scatter reduction/scratch signature and
 embedded typed output/contribution body,
-plus fold family/addition-policy identity, ordering direction/output-order/output-count/scratch-
+plus fold family/addition-policy identity and embedded typed mapping/addition body, ordering direction/output-order/output-count/scratch-
 entry identity, explicit-state mapping/scaling identity, cumulative kind/axis/mode/typed-rounding
 identity, ordinary aggregate form/axis/selection/range identity, embedded typed scan/aggregate
-bodies, proved dense heap-array integer pointwise/affine/movement/indexing/scatter loop forms, and the affine
+bodies, proved dense heap-array integer pointwise/affine/movement/indexing/scatter/fold loop forms, and the affine
 mapping/write domain and all seven carrier forms. No excluded pointwise or later semantic family,
 general BFLOAT16 pointwise or dropout numerical operation,
 cross-type CAST, dynamic layout, vector affine/scatter/fold/ordering execution, native fallback, backend-conformance

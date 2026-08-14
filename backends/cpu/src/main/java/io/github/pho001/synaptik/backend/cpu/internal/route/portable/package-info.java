@@ -14,8 +14,9 @@
  * Complete index and replacement-uniqueness validation remains outside generated work. Concrete
  * geometry, workspace identity, size, slice offset, and lifetime remain prepared invocation facts
  * rather than route or artifact-selection decisions.
- * A fold specialization remains a two-boundary workspace-free scalar artifact; parallel-scalar
- * orchestration reuses it over disjoint output-coordinate ranges.
+ * A fold specialization remains a two-boundary workspace-free scalar artifact and embeds its
+ * family, represented type, access form, mapping, and sequential addition body; parallel-scalar
+ * orchestration reuses that same artifact over disjoint output-coordinate ranges.
  * An ordering specialization remains scalar and adds one direct scratch-segment parameter. SORT
  * and ARGSORT have two boundaries; TOP_K has three and writes both outputs from one artifact.
  * Concrete workspace identity, slice offset, axis, K, and slice ranges stay in the bound

@@ -60,7 +60,11 @@
  * The fold emitter owns a separate output-domain scalar body. It initializes each owned output
  * from represented positive zero, scans logical input occurrences in canonical row-major order,
  * excludes out-of-domain FOLD2D positions geometrically, performs represented sequential
- * addition, and writes each output coordinate once without scratch or atomics.
+ * addition, and writes each output coordinate once without scratch or atomics. Family, type,
+ * carrier, access, coordinate mapping, and addition choices are embedded in the generated class;
+ * proved dense heap arrays retain integer coordinate/address state, while segment, mixed-carrier,
+ * and general-layout forms retain typed long state. No generic {@code Object} execution bridge is
+ * present in generated fold work.
  * The ordering emitter owns a separate logical-slice scalar body. It performs a stable bottom-up
  * merge over two assigned INT64 index regions, compares floating values with NaNs last and
  * directional signed zero, preserves selected represented bits, writes logical-axis INT64
