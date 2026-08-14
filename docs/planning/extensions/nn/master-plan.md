@@ -102,10 +102,11 @@ The recurrent milestone adds composition without hidden runtime state. Task 0012
 vanilla tanh `RnnCell`, and task 0013 follows with one packed reset-after `GruCell`; each receives
 and returns the hidden Tensor explicitly on every call. Both remain direct `Module` subclasses:
 their two-Tensor signatures are not `UnaryTensorModule` contracts and cannot be placed in
-`Sequential`. The later LSTM cell preserves explicit hidden and cell state. A separate sequence
-task must then choose static unrolling through concrete cell signatures or justify a genuinely
-general recurrent Model scan; existing cumulative sum/product operations are not recurrent scan
-primitives.
+`Sequential`. Task 0014 adds one packed `LstmCell` whose caller supplies input, hidden, and cell
+Tensors and receives exact next-hidden and next-cell references in a cell-specific result. A
+separate sequence task must then choose static unrolling through concrete cell signatures or
+justify a genuinely general recurrent Model scan; existing cumulative sum/product operations are
+not recurrent scan primitives.
 
 ## Task list
 
@@ -125,7 +126,7 @@ primitives.
 | [0011](tasks/0011-unary-tensor-module-composition-and-sequential.md) | Unary Tensor module composition and Sequential | Complete | 0010; completed Linear, LayerNorm, and Embedding unary Tensor APIs | Added a narrow abstract Module subtype and immutable numeric-child Sequential with type-safe left-to-right Tensor composition; BatchNorm context and Dropout state/result signatures remain outside it. |
 | [0012](tasks/0012-vanilla-rnn-cell.md) | Vanilla tanh RNN cell | Complete | 0011; completed Model linear, ADD, and TANH expressions | Added one direct Module with explicit caller-threaded hidden state, two recurrent projections, optional shared bias, fixed tanh activation, and no sequence traversal or hidden state. |
 | [0013](tasks/0013-gru-cell.md) | GRU cell | Complete | 0012 | Added one direct Module with explicit caller-threaded hidden state, packed reset/update/candidate projections, fixed reset-after gating and interpolation, one optional packed input-side bias, and no sequence traversal or hidden state. |
-| 0014 | LSTM cell | Draft | 0013 | Add one explicitly state-threaded long short-term memory cell with truthful hidden/cell-state inputs and outputs; do not hide either state. |
+| [0014](tasks/0014-lstm-cell.md) | LSTM cell | Complete | 0013 | Added one direct Module with explicit caller-threaded hidden/cell state, input/forget/candidate/output packed projections, fixed equations, one optional input-side packed bias with an all-zero initialized policy, and a cell-specific next-hidden/next-cell result. |
 | 0015 | Recurrent sequence composition and scan decision | Draft | 0012–0014 | Decide static unrolling versus a genuine recurrent Model scan and reserve packed variable-length sequencing: explicit lengths or masks, omission of padded cell calls, final-state capture, and original-order restoration; prefer cell-specific sequence types unless a shared contract is proven. |
 
 ## Milestones
@@ -297,7 +298,21 @@ with no failures, errors, or skips. Independent documentation context `/root/nn_
 that unchanged executable evidence, finalized the type/package Javadocs, glossary, and planning
 records, and passed final generated-Javadoc, surface/private-state, dependency/import, Markdown,
 exact seven-path scope, status, newline, whitespace, and diff gates without repeating Java tests.
-Tasks 0014–0015 remain concise Draft rows and intentionally have no detailed task specifications.
+Detailed [NN 0014](tasks/0014-lstm-cell.md) is Complete. Its isolated implementation context added
+the planned executable cell, result carrier, focused tests, and draft public/package Javadocs
+without widening the Model-only boundary. It fixes
+input/forget/candidate/output packing for two matrices and one optional input-side packed bias,
+all-zero initialized bias, explicit `forward(input, hidden, cell)`, and one
+`LstmCellForwardResult(nextHidden, nextCell)`. Current Model linear, SLICE, ADD, MUL, SIGMOID,
+TANH, promotion, and Shape-broadcast contracts can express its complete preflight and formula
+without a new operation, initializer, recurrent scan, or dependency. The stabilized focused
+two-suite selection passed 15 tests, and the sole authoritative NN module run passed 23 suites
+and 154 tests with no skips, failures, or errors. Independent clean documentation context
+`/root/nn_0014_docs` reused that unchanged executable evidence, finalized the type/package
+Javadocs, glossary, and planning records, and passed final generated-Javadoc, surface/private-
+state, dependency/import, Markdown, exact eight-path scope, status, newline, whitespace, and diff
+gates without repeating Java tests. NN 0015 remains the unchanged concise Draft row without a
+detailed task specification.
 
 The ordered follow-up sequence is deliberate. `Embedding` is another mode-insensitive
 parameter-only wrapper. `BatchNorm` follows it as the first layer that must coordinate parameters,
@@ -444,9 +459,22 @@ consumer.
   `candidate + update * (hidden - candidate)`, so update one retains hidden and update zero selects
   the candidate. Independent final-axis slices make gate provenance explicit without a new split
   API or six per-gate matrices.
-- NN 0014 must preserve explicit hidden and cell state. For NN 0015, packing means processing only
-  the active batch selected by explicit sequence lengths or an explicit mask, so padded time
-  steps cause no cell invocation. Padding is never inferred from a Tensor value equal to zero.
+- NN 0014 selects final `LstmCell extends Module` with explicit input, hidden, and cell Tensors and
+  an NN-owned `LstmCellForwardResult(nextHidden, nextCell)`. Its `inputWeight
+  [4 * hiddenSize, inputSize]`, `hiddenWeight [4 * hiddenSize, hiddenSize]`, and optional
+  input-side `bias [4 * hiddenSize]` are packed in input, forget, candidate, output order. The
+  fixed equations are `i = sigmoid(x_i + h_i)`, `f = sigmoid(x_f + h_f)`,
+  `g = tanh(x_g + h_g)`, `o = sigmoid(x_o + h_o)`, `nextCell = f * cell + i * g`, and
+  `nextHidden = o * tanh(nextCell)`. Independent final-axis slices expose exact provenance.
+- NN 0014 initializes both complete packed matrices with Glorot uniform from one caller-owned
+  source and initializes the optional complete packed bias to typed zero. It does not apply a
+  special forget-bias offset: current initializers cannot produce one direct packed leaf with only
+  that interval set to one without hidden host mutation or derived slice/concat parameter state.
+  Its packing, input-side-only bias, and zero-bias default are a Synaptik checkpoint schema, not a
+  framework-compatibility promise.
+- For NN 0015, packing means processing only the active batch selected by explicit sequence
+  lengths or an explicit mask, so padded time steps cause no cell invocation. Padding is never
+  inferred from a Tensor value equal to zero.
 - NN 0015 may compact or sort only with a defined stable-order policy and restoration to original
   batch order, and it must retain final hidden state—plus final cell state for LSTM—as each
   sequence leaves the active set. It must add no hidden recurrent state or silently synthesized
@@ -477,6 +505,9 @@ consumer.
 - Leaving GRU gate order, reset placement, bias association, or update interpolation implicit
   would make identical parameter Shapes describe different functions; task 0013 fixes each choice
   and requires exact expression-provenance tests.
+- Leaving LSTM gate order, bias/default initialization, activation placement, result-component
+  order, or cell-update association implicit would make identical parameter Shapes and state
+  calls describe different checkpoint schemas or functions; task 0014 fixes and tests each.
 - Inferring padding from zero-valued data, invoking cells for padded steps, losing final state
   during active-set compaction, or failing to restore original batch order would silently change
   sequence semantics. The word "packed" also risks confusion with gate-parameter packing or the

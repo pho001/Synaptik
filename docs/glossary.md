@@ -2397,7 +2397,7 @@ requests, higher derivatives, optimizer updates, preparation, and execution rema
 ### Neural-network module, parameter, buffer, and forward context
 
 `extensions/nn` currently provides direct-state and module-tree foundations, eager parameter
-initializers, five concrete layers, two recurrent cells, and narrow unary composition. A
+initializers, five concrete layers, three recurrent cells, and narrow unary composition. A
 **module** is a stateful
 neural-network composition unit that directly declares trainable **parameters** and persistent
 **buffers**, and can permanently own named child modules. Parameters, buffers, and children share
@@ -2625,12 +2625,47 @@ not numerical execution or an implicit sequence. `GruCell` extends `Module` dire
 `UnaryTensorModule`, and cannot be placed in `Sequential`.
 
 The GRU differs from the vanilla RNN cell because its fixed gate equations and packed parameter
-schema are part of the state/checkpoint meaning. A long short-term memory (LSTM) cell is future
-work and will require explicit hidden and cell state rather than this one hidden Tensor. A
-**recurrent scan** would repeatedly invoke a cell body while carrying state and is also future
-work. It is not a cumulative scan: current `CUM_SUM` and `CUM_PROD` use one fixed associative
-operation over prefixes and do not carry a cell body, packed parameters, or caller-selected
-hidden state.
+schema are part of the state/checkpoint meaning.
+
+A **long short-term memory (LSTM) cell** is the current final `LstmCell`, which carries two
+different recurrent values: hidden state and **cell state**. Its trainable state is packed
+gate-major in input, forget, candidate, output order:
+`inputWeight [4 * hiddenSize, inputSize]`,
+`hiddenWeight [4 * hiddenSize, hiddenSize]`, and optional input-side-only
+`bias [4 * hiddenSize]`. There is no hidden-side bias. Initialized cells draw the complete input
+matrix and then the complete hidden matrix with Glorot uniform from one caller-owned source; the
+complete optional bias is typed zero across all four gates, including forget, and consumes no
+draw. This packing, bias association, and zero-bias default are the Synaptik checkpoint schema,
+not a promise of direct compatibility with another framework.
+
+One caller-threaded step is:
+
+```text
+x_i, x_f, x_g, x_o = slices(input projection)
+h_i, h_f, h_g, h_o = slices(hidden projection)
+i = sigmoid(x_i + h_i)
+f = sigmoid(x_f + h_f)
+g = tanh(x_g + h_g)
+o = sigmoid(x_o + h_o)
+c1 = f * c0 + i * g
+h1 = o * tanh(c1)
+result = LstmCellForwardResult(nextHidden=h1, nextCell=c1)
+```
+
+The caller supplies `h0` and `c0`, receives the exact `h1` and `c1` expression references in
+that order, and may explicitly pass both into a later call. The cell retains neither state. This
+differs from vanilla RNN and GRU cells, whose visible output and next hidden state are one Tensor
+and which carry no separate cell state. `LstmCell` extends `Module` directly; its three-Tensor
+input contract and two-state result exclude it from `UnaryTensorModule` and `Sequential`.
+
+A **recurrent scan** would repeatedly invoke a cell body while carrying state and is future work.
+Future packed variable-length sequence handling must use explicit lengths or a mask, omit padded
+cell calls, preserve or restore original batch order after any active-set compaction, and capture
+final hidden state plus final LSTM cell state as each sequence finishes. Here “packed sequence” is
+different from the implemented GRU/LSTM gate-parameter packing, which only places gate matrices
+and bias intervals in a fixed checkpoint order. Neither meaning is a cumulative scan: current
+`CUM_SUM` and `CUM_PROD` use one fixed associative operation over prefixes and do not carry a
+cell body, packed parameters, or caller-selected recurrent state.
 
 `extensions/nn` composes generic [`Tensor`](#tensor) and operation semantics from
 `modules/model`. [`extensions/training`](#training-graph) consumes nn-declared parameters for
@@ -2648,12 +2683,13 @@ adapter, or generic `Module.forward(...)`. It defines no shared Shape, data type
 numerical, mode, state-transition, compiler, backend, or execution rule; each concrete child keeps
 its own contract. Current `Linear`, `LayerNorm`, and `Embedding` layers participate.
 
-`BatchNorm`, `Dropout`, `RnnCell`, and `GruCell` deliberately remain outside this subtype. Batch
+`BatchNorm`, `Dropout`, `RnnCell`, `GruCell`, and `LstmCell` deliberately remain outside this
+subtype. Batch
 normalization requires an explicit `ForwardContext` and can install next-statistic buffer
 expressions. Dropout requires an explicit context plus caller-threaded `GraphRngState` and returns
-output plus next state. Both recurrent cells require an input and an explicit caller-threaded
-hidden Tensor. `Sequential` does not hide, synthesize, or discard any of those inputs,
-transitions, or results.
+output plus next state. RNN and GRU require an input and explicit hidden Tensor; LSTM requires
+input, hidden, and cell Tensors and returns both next states. `Sequential` does not hide,
+synthesize, or discard any of those inputs, transitions, or results.
 
 **Sequential** is the implemented final module that snapshots one ordered
 `List<? extends UnaryTensorModule>`, owns the exact children permanently under names `0`, `1`, and

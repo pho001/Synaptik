@@ -15,10 +15,12 @@
  * {@link io.github.pho001.synaptik.nn.layers.BatchNorm} and
  * {@link io.github.pho001.synaptik.nn.layers.Dropout} remain direct {@code Module} subclasses
  * because their complete forward contracts require explicit context or graph random state and a
- * result carrier. {@link io.github.pho001.synaptik.nn.layers.RnnCell} and
- * {@link io.github.pho001.synaptik.nn.layers.GruCell} are also direct {@code Module} subclasses:
- * each complete one-step contract requires both an input Tensor and an explicit caller-threaded
- * hidden Tensor, so both are intentionally excluded from {@code Sequential}.</p>
+ * result carrier. {@link io.github.pho001.synaptik.nn.layers.RnnCell},
+ * {@link io.github.pho001.synaptik.nn.layers.GruCell}, and
+ * {@link io.github.pho001.synaptik.nn.layers.LstmCell} are also direct {@code Module} subclasses:
+ * their complete one-step contracts require an input plus explicit caller-threaded recurrent
+ * state, so they are intentionally excluded from {@code Sequential}. LSTM returns both next
+ * states through {@link io.github.pho001.synaptik.nn.layers.LstmCellForwardResult}.</p>
  *
  * <p>{@link io.github.pho001.synaptik.nn.layers.Linear} uses the conventional
  * {@code [outFeatures, inFeatures]} weight orientation and delegates each forward call to
@@ -74,6 +76,20 @@
  * {@code n = tanh(x_n + r * h_n)}, and {@code n + z * (hidden - n)}. The returned Tensor is both
  * output and next hidden state; update one retains the old hidden value. The cell retains no
  * hidden value, time axis, sequence traversal, numerical evaluation, or execution behavior.</p>
+ *
+ * <p>{@link io.github.pho001.synaptik.nn.layers.LstmCell} owns input/forget/candidate/output-
+ * packed {@code inputWeight [4 * hiddenSize, inputSize]},
+ * {@code hiddenWeight [4 * hiddenSize, hiddenSize]}, and optional input-side
+ * {@code bias [4 * hiddenSize]}. It constructs independent projection slices and the fixed
+ * equations {@code i = sigmoid(x_i + h_i)}, {@code f = sigmoid(x_f + h_f)},
+ * {@code g = tanh(x_g + h_g)}, {@code o = sigmoid(x_o + h_o)},
+ * {@code nextCell = f * cell + i * g}, and
+ * {@code nextHidden = o * tanh(nextCell)}. Initialized bias is zero across every gate, including
+ * forget, and there is no hidden-side bias. This gate order, bias association, and zero-bias
+ * default form the Synaptik checkpoint schema rather than a framework-compatibility promise. The
+ * caller supplies and threads both states explicitly through the exact references in
+ * {@link io.github.pho001.synaptik.nn.layers.LstmCellForwardResult}; the cell adds no time axis,
+ * sequence traversal, retained recurrent value, numerical evaluation, or execution behavior.</p>
  *
  * <p>{@link io.github.pho001.synaptik.nn.layers.Dropout} declares no module state and receives an
  * explicit {@link io.github.pho001.synaptik.model.tensor.GraphRngState} on every forward call. Its
