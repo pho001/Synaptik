@@ -5,7 +5,8 @@
 This reference records the implemented neural-network parameter boundary consumed by future
 training and the remaining planned training concepts without inventing optimizer APIs.
 `extensions/nn` now provides module-owned `Parameter` and `Buffer` declarations, recursive
-parameter discovery, and one public schema-validated parameter replacement capability.
+parameter discovery, one public schema-validated parameter replacement capability, and strict
+in-memory module-tree state export/load.
 `extensions/training`, public gradient publication, optimizer behavior, and prepared execution
 are not implemented. The compiler now provides a public immutable functional-gradient request
 value and a bounded package-private one/two-stage reverse-mode integration path.
@@ -49,25 +50,71 @@ provenance, and label are deliberately outside compatibility and may differ. A T
 before replacement, and expressions already constructed from it, remain unchanged.
 
 This is one mutable binding operation, not an optimizer step. It is not thread-safe and provides
-no version, batch transaction, rollback, checkpoint, update sequencing, or multi-parameter
-consistency guarantee. Callers must coordinate it with forward construction and other work that
-requires a consistent binding view. `Buffer` has no corresponding public update operation;
-module subclasses retain only the protected direct-buffer replacement contract for their own
-state transitions.
+no version, update sequencing, or cross-binding consistency guarantee. Callers must coordinate it
+with forward construction and other work that requires a consistent binding view. `Buffer` has no
+corresponding public wrapper update operation; module subclasses retain only the protected
+direct-buffer replacement contract for their own state transitions.
+
+## Current NN state-dictionary contract
+
+`Module.stateDictionary()` exports one complete module tree as an immutable, encounter-ordered
+`StateDictionary`. Every `StateEntry` contains a relative dot-separated path, a `StateKind` of
+`PARAMETER` or `BUFFER`, and the exact current Tensor reference. Export visits each module's direct
+parameters, then direct buffers, then child subtrees in child-registration order. It creates a
+shallow value snapshot: later wrapper replacement does not change an earlier dictionary, but no
+Tensor is copied, evaluated, materialized, detached, or transferred to a new owner.
+
+`Module.loadStateDictionary(dictionary)` is strict and path-keyed, so candidate entry order need
+not match export order. The candidate must contain exactly the complete target path set. Before
+installing anything, load checks missing paths, unexpected paths, then each target's kind, exact
+data type, and structural Shape; a parameter also requires `requiresGrad == true`. A buffer uses
+the target's current data type and Shape as its schema and deliberately ignores gradient
+eligibility because buffer role, not a Tensor flag, excludes it from optimizer discovery. After
+all checks pass, the exact candidate Tensor references are installed through the existing stable
+wrappers in target traversal order.
+
+Ordinary validation failure changes no binding. This validate-before-install guarantee assumes
+caller-coordinated access: module state export and load are not thread-safe, linearizable,
+synchronized, or simultaneously visible to racing readers. Tensors and expressions retained
+before a successful load remain unchanged; later wrapper reads and forward construction observe
+the new bindings.
+
+The dictionary is an in-memory module-state boundary, not a persistent checkpoint. It contains no
+bytes, files, codec, format version, migration rules, evaluated Tensor values, optimizer state,
+`TrainingSession` state, graph random-number-generator state, compiler artifact, prepared
+execution, runtime state, or backend state. A future training workflow may coordinate module state
+with separately owned optimizer or session state, and a future persistence adapter may encode
+materialized values, but neither API exists now.
+
+For example, a root module with parameter `weight`, buffer `step`, and child `encoder` containing
+parameter `scale` and buffer `runningMean` exports this order:
+
+```text
+weight                    PARAMETER
+step                      BUFFER
+encoder.scale             PARAMETER
+encoder.runningMean       BUFFER
+```
+
+Loading those same four paths in another list order succeeds when every binding is compatible;
+omitting `encoder.runningMean` fails before `weight` or any other target changes. This example
+demonstrates ordering, path identity, and atomic validation only—it does not serialize or execute
+Tensor values.
 
 ## Planned concepts
 
-- `extensions/nn` currently owns `Parameter` and `Buffer` declarations as module state. Training
-  will consume discovered `Parameter` wrappers through their bounded replacement capability,
-  while `ParameterGroup` will describe optimizer-group settings.
+- `extensions/nn` currently owns `Parameter` and `Buffer` declarations plus strict in-memory
+  module-tree state export/load. Training will consume discovered `Parameter` wrappers through
+  their bounded replacement capability, while `ParameterGroup` will describe optimizer-group
+  settings.
 - `Optimizer` implementations such as SGD, Adam, and AdamW will define mathematical updates without importing CPU, Metal, or CUDA modules.
 - `TrainingSession` and `TrainingStep` will coordinate forward/backward execution, gradient publication, and optimizer updates through shared lifecycle contracts.
 
 No optimizer signatures, default hyperparameters, update sequencing, gradient-to-parameter
-mapping, serialization format, or optimizer exception types are stable yet. They will be defined
-by focused extension tasks after model, compiler, runtime, and publication contracts exist. The
-individual NN-owned parameter replacement rules above are current and do not imply those future
-training contracts.
+mapping, persistent checkpoint format, or optimizer exception types are stable yet. They will be
+defined by focused extension tasks after model, compiler, runtime, and publication contracts
+exist. The current NN-owned replacement and state-dictionary rules do not imply those future
+training or persistence contracts.
 
 ## Planned public initial flow
 

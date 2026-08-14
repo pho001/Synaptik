@@ -2359,10 +2359,9 @@ requests, higher derivatives, optimizer updates, preparation, and execution rema
 ### Neural-network module, parameter, buffer, and forward context
 
 `extensions/nn` currently provides direct-state and module-tree foundations, eager parameter
-initializers, and its first four concrete layers. A **module** is a stateful neural-network
-composition unit that directly declares trainable **parameters** and persistent **buffers**, and
-can
-permanently own named child modules. Parameters, buffers, and children share one module-local
+initializers, and five concrete layers. A **module** is a stateful neural-network composition unit
+that directly declares trainable **parameters** and persistent **buffers**, and can permanently own
+named child modules. Parameters, buffers, and children share one module-local
 namespace. A local name cannot contain `.` because that character is reserved exclusively for
 recursive-path separation. A parameter is module-owned state that a future optimizer may update.
 A buffer is persistent module-owned state that an optimizer does not update, such as a future
@@ -2392,11 +2391,52 @@ is called, while an earlier Tensor reference and expressions already formed from
 unchanged.
 
 A buffer remains different: only its declaring module subclass can use the protected direct-name
-replacement, and `Buffer` exposes no public update capability or binding schema. Parameter and
-buffer replacement each affect one binding and provide no thread safety, version, batch
-transaction, rollback, checkpoint, update sequencing, or cross-parameter consistency guarantee.
-The foundation has no checkpointing, optimizer algorithm, or generic `Module.forward(...)`
-method. A parameter or buffer is not a Tensor subtype and adds no gradient state to Tensor.
+replacement, and `Buffer` exposes no public wrapper update capability or declaration-time binding
+schema. Parameter and buffer replacement each affect one binding and provide no thread safety,
+version, update sequencing, or cross-binding consistency guarantee. A parameter or buffer is not
+a Tensor subtype and adds no gradient state to Tensor.
+
+A **state dictionary** is the current immutable, ordered, shallow in-memory snapshot of a complete
+module tree's parameter and buffer bindings. `Module.stateDictionary()` emits each module's direct
+parameters, then direct buffers, then child subtrees in registration order. Each `StateEntry`
+retains one relative dot-separated path, its `PARAMETER` or `BUFFER` kind, and the exact Tensor
+reference observed during export. The list and entries are immutable, but the referenced Tensor is
+not copied, evaluated, materialized, detached, or transferred to a new owner. Consequently, a
+later wrapper replacement does not change an earlier dictionary, while an earlier discovery map
+still retains wrappers whose `value()` reads observe the new binding.
+
+Strict `Module.loadStateDictionary(...)` identifies state by path rather than candidate list
+position. It validates the complete target and candidate before installation: missing paths,
+unexpected paths, kind, exact data type, structural Shape, then parameter gradient eligibility.
+A buffer compares against the target's current data type and Shape but ignores `requiresGrad`
+because its wrapper kind keeps it outside optimizer discovery. Successful load installs the exact
+candidate Tensors in target traversal order through the stable wrappers. An ordinary validation
+failure changes no binding. This atomicity requires caller-coordinated access; it is not locking,
+linearizability, rollback for races, simultaneous visibility to racing readers, or a Java-memory-
+model guarantee. Earlier Tensor references and expressions remain unchanged.
+
+For a root parameter `weight`, root buffer `step`, child parameter `encoder.scale`, and child
+buffer `encoder.runningMean`, export produces:
+
+```text
+weight                    PARAMETER
+step                      BUFFER
+encoder.scale             PARAMETER
+encoder.runningMean       BUFFER
+```
+
+Loading the same four unique paths in a different candidate order is valid when their schemas
+match. Omitting `encoder.runningMean` fails before any target changes. The example demonstrates
+path/order and validate-before-install behavior; it does not read, serialize, or execute Tensor
+values.
+
+A **checkpoint** is the broader persistent recovery boundary that may eventually encode
+materialized module values and separately coordinate optimizer or training-session state. No
+current checkpoint bytes, file/stream API, codec, format version, migration rule, optimizer state,
+session state, graph RNG state, compiler/runtime/backend state, or universal serialization
+contract exists. `StateDictionary` is only the in-memory module-state input that a future concrete
+persistence consumer may use; its enum names, record equality, and diagnostic strings are not wire
+contracts. `Module` still has no generic `forward(...)` method or optimizer algorithm.
 
 The current stateless `ParameterInitializers` namespace creates eager floating Tensor leaves that
 a module may subsequently bind as parameters. Its exact eight entries cover typed zero and one,

@@ -87,8 +87,10 @@ hidden mutation or new gradient/update behavior. Completed task 0008 adds final 
 `BatchNorm` as the first mode-sensitive layer, with exact rank-one affine parameters and running-
 statistic buffers plus context-selected Model inference or training composition. Training installs
 the pure producer's next mean followed by next variance through stable buffer wrappers; it adds no
-execution, transaction, or checkpoint contract. `functional/` remains future work. State
-dictionaries remain later work.
+execution, transaction, or checkpoint contract. `functional/` remains future work. Task 0010
+places the in-memory state-dictionary values beside the module ownership contracts under
+`module/`; it deliberately leaves bytes, files, codecs, versions, and other persistent checkpoint
+transport for a future concrete consumer.
 
 ## Task list
 
@@ -104,7 +106,7 @@ dictionaries remain later work.
 | [0007](tasks/0007-embedding-layer.md) | Embedding layer | Complete | 0006; completed Model 0019A1 | Added one positive fully static rank-two `weight` parameter supplied by the caller and mode-insensitive delegation exactly to axis-zero `Tensor.embedding`, with no layer-owned initialization or padding-row contract. |
 | [0008](tasks/0008-batch-normalization-layer.md) | Batch normalization layer | Complete | 0007; completed Model 0021B–0021C | Added final affine `BatchNorm` with exact rank-one state, explicit typed scalars and channel axis, context-selected inference/training composition, and training-only installation of the two pure next-statistic expressions into stable buffers. |
 | [0009](tasks/0009-dropout-layer.md) | Dropout layer | Complete | 0008; completed Model 0019B–0019B1 | Added a parameterless/bufferless mode-sensitive layer with caller-threaded `GraphRngState`, a minimal NN result carrier, exact Model training delegation, and identity-preserving evaluation bypass without hidden random state. |
-| 0010 | State dictionary and checkpoint contract | Draft | 0009; stable module-tree traversal and replacement contracts | Define deterministic state paths, schema and validation, atomic load behavior, and the boundary between an in-memory state dictionary and any serialization format without adding optimizer state. |
+| [0010](tasks/0010-state-dictionary-and-checkpoint-contract.md) | State dictionary and checkpoint contract | Complete | 0009; stable module-tree traversal and replacement contracts | Added an immutable ordered in-memory dictionary with path/kind/Tensor entries and strict validate-before-install Module load; every byte/file/codec/version format and optimizer state remains deferred. |
 | 0011 | Unary Tensor module composition and Sequential | Draft | 0010; concrete unary layer composition need | Introduce a narrow shared unary Tensor-forward contract only if the actual `Sequential` container requires it; do not add a broad generic layer facade or force non-unary modules into one signature. |
 
 ## Milestones
@@ -211,7 +213,22 @@ whitespace gates without repeating the stable executable tests. The completed
 parameterless/bufferless `Dropout` module receives explicit graph RNG state on every call:
 training delegates to one existing Model occurrence, while evaluation returns a fresh NN result
 containing the exact input and incoming-state references and creates no Tensor or producer. Tasks
-0010–0011 remain concise Draft rows with no detailed task files, and no NN task is Ready.
+0010–0011 remained concise Draft rows with no detailed task files at that completion point, and no
+NN task was Ready.
+
+Detailed [NN 0010](tasks/0010-state-dictionary-and-checkpoint-contract.md) is Complete. It adds the
+planned Module-owned immutable in-memory dictionary of ordered qualified path/kind/exact-Tensor
+entries and one strict validate-before-install load. Parameters retain their existing permanent
+schema; buffers compare the target's current data type and Shape while deliberately ignoring
+gradient eligibility so valid BatchNorm next-statistic expressions remain loadable. It adds no
+checkpoint bytes, files, codecs, versions, optimizer/session state, graph RNG state, execution
+behavior, dependency, or architecture change. The implementation context's stabilized focused
+suite passed 15 tests, and its sole authoritative NN module run passed 16 suites/98 tests with no
+failures, errors, or skips. Independent documentation context `/root/nn_0010_docs` reused that
+unchanged executable evidence, finalized the public/package Javadocs, Training API, glossary, and
+planning records, and passed final Javadoc, generated-page, `javap`, reflection, Markdown,
+dependency/import, exact ten-path scope, status, newline, whitespace, and diff gates. Task 0011
+remains one concise Draft row with no detailed specification, and no NN task is Ready.
 
 The ordered follow-up sequence is deliberate. `Embedding` is another mode-insensitive
 parameter-only wrapper. `BatchNorm` follows it as the first layer that must coordinate parameters,
@@ -225,8 +242,9 @@ forward contract is deferred until the actual `Sequential` consumer can prove it
 - Decide whether a concrete future consumer justifies configurable gain, activation, fan mode,
   convolution fan geometry, or an initializer object abstraction. NN 0004 deliberately fixes only
   unit-gain Glorot and fan-in/ReLU Kaiming for positive rank-two Linear weights.
-- At NN 0010, select the serialization boundary only after the in-memory deterministic state and
-  atomic validation/load contract is fixed.
+- After NN 0010, select a persistent checkpoint codec, schema-version, materialization, and storage
+  boundary only when a concrete consumer exists; the Ready task fixes only in-memory state and
+  strict atomic validation/load.
 
 ## Decisions made
 
@@ -307,8 +325,21 @@ forward contract is deferred until the actual `Sequential` consumer can prove it
   bypass. The NN record has only `output` and `nextState`; training wraps the exact two references
   from the Model result, and evaluation retains the exact caller references. It exposes no mask,
   mode, probability, producer, or mutable state.
-- NN 0010–0011 remain ordered Draft capabilities only. Their rows record dependencies and
-  unresolved decisions without creating premature task specifications.
+- NN 0010 uses final public `StateKind`, `StateEntry`, and `StateDictionary` values in `nn.module`.
+  A Module exports exact Tensor references in combined parameter-then-buffer depth-first order and
+  strictly loads a complete path-keyed candidate only after all kind, data-type, Shape, and
+  parameter-gradient checks pass. Candidate list order is retained but need not match target
+  order; duplicate paths fail at dictionary construction.
+- NN 0010 keeps Buffer's existing absence of a declaration schema. Strict load compares a
+  buffer's data type and Shape with the target's current binding and does not compare
+  `requiresGrad`, because BatchNorm may validly install gradient-eligible next-statistic
+  expressions. It exposes no public buffer setter or unchecked batch primitive.
+- NN 0010 defines atomicity as complete ordinary validation before sequential non-throwing
+  installation under caller coordination. It adds no lock, rollback log, linearizable concurrent
+  snapshot, optimizer/session/RNG state, evaluation/materialization, serialization, file I/O,
+  codec, version, migration, or persistent checkpoint format.
+- NN 0011 remains an ordered concise Draft capability only. Its row records dependencies and the
+  unresolved unary-composition decision without a premature task specification.
 
 ## Risks
 

@@ -28,8 +28,10 @@ import java.util.Objects;
  * {@link #eval()}, direct buffer replacement, and compatible parameter replacement and are not
  * thread-safe; callers must synchronize concurrent declaration, traversal, ownership, mode,
  * replacement, or forward construction when a consistent view matters. This type provides no
- * version counter, checkpoints, optimizer behavior, transaction across bindings, or execution
- * lifecycle.</p>
+ * version counter, persistent checkpoint format, optimizer behavior, or execution lifecycle.
+ * {@link #loadStateDictionary(StateDictionary)} provides validate-before-install atomicity for
+ * ordinary caller-coordinated schema failures, not a lock or a simultaneous snapshot for racing
+ * readers.</p>
  */
 public abstract class Module {
     private final Map<String, Parameter> parameters = new LinkedHashMap<>();
@@ -275,6 +277,111 @@ public abstract class Module {
     }
 
     /**
+     * Captures the complete module tree's current parameter and buffer bindings.
+     *
+     * <p>Traversal is deterministic depth first. Each module emits direct parameters in declaration
+     * order, then direct buffers in declaration order, then visits children in registration order.
+     * Paths are relative dot-separated names. Each entry retains the exact Tensor returned by its
+     * wrapper during this call, so later replacement does not change an earlier dictionary.
+     * Wrapper discovery snapshots behave differently: they retain stable wrappers whose later
+     * {@code value()} reads observe replacement.</p>
+     *
+     * <p>The result is an immutable shallow in-memory snapshot. No Tensor is copied, evaluated,
+     * materialized, detached, or mutated, and no Tensor storage is read. The call creates no Tensor
+     * or expression producer and performs no compiler, runtime, or backend work. Traversal uses an
+     * explicit stack and rejects a malformed cycle or shared module identity before returning a
+     * result. This operation is not thread-safe or linearizable; callers must coordinate it with
+     * declaration, replacement, loading, mode changes, and forward construction when they require
+     * a consistent view.</p>
+     *
+     * @return non-null immutable ordered dictionary of exact current Tensor references; empty for
+     *     a tree with no parameters or buffers
+     * @throws IllegalStateException if defensive traversal encounters a repeated module identity
+     */
+    public final StateDictionary stateDictionary() {
+        List<StateBinding> bindings = collectStateBindings();
+        List<StateEntry> entries = new ArrayList<>(bindings.size());
+        for (StateBinding binding : bindings) {
+            entries.add(new StateEntry(binding.path(), binding.kind(), binding.currentValue()));
+        }
+        return new StateDictionary(entries);
+    }
+
+    /**
+     * Strictly installs a complete in-memory state dictionary after validating the whole tree.
+     *
+     * <p>Paths identify entries independent of candidate list order. Validation first captures one
+     * identity-defended target-tree snapshot, then rejects the first missing target path, the first
+     * unexpected candidate path, and finally the first target-order mismatch in kind, exact data
+     * type, structural Shape, or parameter gradient eligibility, in that order. Parameter
+     * compatibility therefore matches the permanent declaration schema. Buffer data type and
+     * Shape are compared with the exact current target binding captured at load start; buffer
+     * gradient eligibility is deliberately ignored because buffer role, rather than a Tensor flag,
+     * excludes it from optimizer discovery.</p>
+     *
+     * <p>Only after every target validates are the exact candidate Tensor references installed in
+     * target traversal order. Existing Parameter and Buffer wrapper identities, names, paths,
+     * declaration order, child ownership, and mode remain unchanged. Tensors and expressions
+     * obtained before this call also remain unchanged; later wrapper reads and later expression
+     * construction observe the new bindings. Ordinary validation failure changes no binding.
+     * Current immutable descriptors make the prevalidated parameter replacements and non-null
+     * buffer assignments non-throwing by construction.</p>
+     *
+     * <p>This mutable operation is not thread-safe or linearizable and provides no Java-memory-
+     * model visibility guarantee. Atomicity means complete ordinary validation before sequential
+     * installation under external caller coordination; it does not promise a simultaneous view to
+     * racing readers, synchronization, rollback for concurrent races, or recovery from JVM-fatal
+     * failure. Loading creates, copies, evaluates, and mutates no Tensor and performs no compiler,
+     * runtime, or backend work. The dictionary contains no persistent checkpoint bytes,
+     * optimizer/session state, graph random state, mode, or execution state.</p>
+     *
+     * @param dictionary non-null complete candidate dictionary whose exact Tensor references will
+     *     be installed when every target validates
+     * @throws NullPointerException if {@code dictionary} is null
+     * @throws IllegalArgumentException if state is missing or unexpected, or a matched entry has
+     *     incompatible kind, data type, Shape, or parameter gradient eligibility, checked in the
+     *     documented order before any installation
+     * @throws IllegalStateException if defensive target traversal encounters a repeated module
+     *     identity before any installation
+     */
+    public final void loadStateDictionary(StateDictionary dictionary) {
+        StateDictionary suppliedDictionary = Objects.requireNonNull(dictionary, "dictionary");
+        List<StateBinding> targets = collectStateBindings();
+        Map<String, StateEntry> candidates = new LinkedHashMap<>();
+        for (StateEntry entry : suppliedDictionary.entries()) {
+            candidates.put(entry.path(), entry);
+        }
+
+        Map<String, StateBinding> targetsByPath = new LinkedHashMap<>();
+        for (StateBinding target : targets) {
+            targetsByPath.put(target.path(), target);
+            if (!candidates.containsKey(target.path())) {
+                throw new IllegalArgumentException("missing state path: " + target.path());
+            }
+        }
+        for (StateEntry candidate : suppliedDictionary.entries()) {
+            if (!targetsByPath.containsKey(candidate.path())) {
+                throw new IllegalArgumentException("unexpected state path: " + candidate.path());
+            }
+        }
+
+        List<StateInstall> installs = new ArrayList<>(targets.size());
+        for (StateBinding target : targets) {
+            StateEntry candidate = candidates.get(target.path());
+            validateCompatible(target, candidate);
+            installs.add(new StateInstall(target, candidate.value()));
+        }
+        for (StateInstall install : installs) {
+            StateBinding target = install.target();
+            if (target.kind() == StateKind.PARAMETER) {
+                target.parameter().replace(install.value());
+            } else {
+                target.buffer().replaceValue(install.value());
+            }
+        }
+    }
+
+    /**
      * Returns this module's current local forward mode.
      *
      * @return the non-null current mode; it is this module's local field, which is changed with
@@ -365,6 +472,44 @@ public abstract class Module {
                 (name, buffer) -> result.put(path(pathSegments, name), buffer)));
     }
 
+    private List<StateBinding> collectStateBindings() {
+        List<StateBinding> result = new ArrayList<>();
+        traverseState((module, pathSegments) -> {
+            module.parameters.forEach((name, parameter) -> result.add(StateBinding.parameter(
+                    path(pathSegments, name), parameter, parameter.value())));
+            module.buffers.forEach((name, buffer) -> result.add(StateBinding.buffer(
+                    path(pathSegments, name), buffer, buffer.value())));
+        });
+        return result;
+    }
+
+    private static void validateCompatible(StateBinding target, StateEntry candidate) {
+        if (candidate.kind() != target.kind()) {
+            throw new IllegalArgumentException(
+                    "state kind mismatch at path " + target.path() + ": expected="
+                            + target.kind() + ", actual=" + candidate.kind());
+        }
+        Tensor expected = target.currentValue();
+        Tensor actual = candidate.value();
+        if (actual.descriptor().dataType() != expected.descriptor().dataType()) {
+            throw new IllegalArgumentException(
+                    "state data type mismatch at path " + target.path() + ": expected="
+                            + expected.descriptor().dataType() + ", actual="
+                            + actual.descriptor().dataType());
+        }
+        if (!actual.descriptor().shape().equals(expected.descriptor().shape())) {
+            throw new IllegalArgumentException(
+                    "state shape mismatch at path " + target.path() + ": expected="
+                            + expected.descriptor().shape() + ", actual="
+                            + actual.descriptor().shape());
+        }
+        if (target.kind() == StateKind.PARAMETER && !actual.descriptor().requiresGrad()) {
+            throw new IllegalArgumentException(
+                    "state parameter requiresGrad mismatch at path " + target.path()
+                            + ": expected=true, actual=false");
+        }
+    }
+
     private void traverseState(StateVisitor visitor) {
         IdentityHashMap<Module, Boolean> visited = new IdentityHashMap<>();
         List<String> pathSegments = new ArrayList<>();
@@ -443,6 +588,24 @@ public abstract class Module {
     @FunctionalInterface
     private interface StateVisitor {
         void visit(Module module, List<String> pathSegments);
+    }
+
+    private record StateBinding(
+            String path,
+            StateKind kind,
+            Parameter parameter,
+            Buffer buffer,
+            Tensor currentValue) {
+        private static StateBinding parameter(String path, Parameter parameter, Tensor value) {
+            return new StateBinding(path, StateKind.PARAMETER, parameter, null, value);
+        }
+
+        private static StateBinding buffer(String path, Buffer buffer, Tensor value) {
+            return new StateBinding(path, StateKind.BUFFER, null, buffer, value);
+        }
+    }
+
+    private record StateInstall(StateBinding target, Tensor value) {
     }
 
     private static final class TraversalFrame {
