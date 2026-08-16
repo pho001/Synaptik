@@ -16,6 +16,8 @@ Provide the public lifecycle facade and explicit composition root for compiler, 
 - explicit backend registration
 - compile and prepare orchestration
 - composition of runtime, validators, tracing, and backends
+- explicit typed caller-input binding and published-result access
+- explicit host materialization/publication needed by downstream persistence consumers
 
 ## Out of scope
 
@@ -47,6 +49,10 @@ Provide the public lifecycle facade and explicit composition root for compiler, 
 
 | ID | Task | Status | Depends on | Summary |
 |---|---|---|---|---|
+| 0001 | Explicit engine composition and lifecycle facade | Draft | CPU reference backend; Compiler/Prepare/Runtime contracts | Compose explicitly registered backends and expose the compile, prepare, and run lifecycle without discovery or inward dependencies. |
+| 0002 | Typed input binding and published output access | Draft | 0001; Runtime publication/result-access extension; Prepare source/publication mapping | Map caller Tensor/host inputs and logical publications to Runtime coordinates, preserve aliases and ownership, and expose typed result values without leaking backend representations. |
+| 0003 | Explicit host materialization boundary | Draft | 0002; concrete-backend host-transfer routes | Materialize selected current Tensor/state values through prepared execution and publication into bounded caller-owned host payloads; add no backend access to NN, Training, or Checkpoint. |
+| 0004 | Engine lifecycle capability checkpoint | Draft | 0001–0003 | Validate composition, typed input/output ownership, host materialization, cleanup, concurrency, architecture tests, and documentation before persistence adapters depend on Engine. |
 
 
 ## Milestones
@@ -57,13 +63,18 @@ Provide the public lifecycle facade and explicit composition root for compiler, 
 
 ## Current status
 
-Draft.
+Draft. Model/training checkpoint persistence depends on the future task 0003 boundary because the
+current Runtime `RunResult` privately retains representations and exposes no value or storage
+access. A checkpoint plan must not bypass that gap by reading backend storage from NN or Training.
 
 This module is not yet planned in detail. Detailed task specifications will be created when it becomes the current or next implementation frontier.
 
 ## Open questions
 
-- No open questions recorded.
+- Define the public materialized host payload, ownership, size limits, cancellation/failure, and
+  close behavior without exposing concrete backend representation types.
+- Decide whether materializing already host-backed leaves can use a proven direct fast path while
+  preserving the same public ownership and validation contract.
 
 ## Decisions made
 

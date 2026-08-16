@@ -28,13 +28,58 @@ Parallel work is not the default. It requires an explicit roadmap or master-plan
 | 12 | [`backends/metal`](backends/metal/master-plan.md) | Draft | Shared backend contracts and CPU reference behavior are stable. | Metal passes the applicable backend-conformance suite. |
 | 13 | [`backends/cuda`](backends/cuda/master-plan.md) | Draft | Shared backend contracts and CPU reference behavior are stable. | CUDA passes the applicable backend-conformance suite. |
 | 14 | [`extensions/onnx`](extensions/onnx/master-plan.md) | Draft | The model representation and public tensor semantics are stable. | Selected import/export mappings and compatibility validation are complete. |
-| 15 | [`extensions/nn`](extensions/nn/master-plan.md) | Draft | Model semantics, compiler capture, and execution foundations are stable. | Module, parameter, buffer, train/eval, and selected layer contracts are complete. |
-| 16 | [`extensions/training`](extensions/training/master-plan.md) | Draft | NN parameter contracts, config, compiler autograd, and runtime publication contracts are stable. | Backend-independent optimizer and training-session capabilities are complete. |
-| 17 | [`tools/benchmarks`](tools/benchmarks/master-plan.md) | Draft | Engine and selected execution paths are operational. | Fixed reproducible workload suites and observational reporting are complete. |
-| 18 | [`tools/tuning`](tools/tuning/master-plan.md) | Draft | Compiler/planning/prepare candidate boundaries, concrete backend route generators, operational engine paths, and artifact consumers are stable. | One model-autotuning workflow reuses compatible local workload results, selects a bounded complete plan, and writes explicit validated caches or prepared-plan records before runtime. |
-| 19 | [`tools/cli`](tools/cli/master-plan.md) | Draft | Engine and diagnostic contracts are stable. | Selected diagnostic and execution commands are complete. |
+| 15 | [`extensions/data`](extensions/data/master-plan.md) | Draft (architecture decision required) | An explicit architecture/module/dependency decision authorizes the new extension after its Model Tensor prerequisites are stable. | Canonical valid-length metadata, right-padded sequence batches, and selected focused numeric sample/sequence batchers are complete. |
+| 16 | [`extensions/nn`](extensions/nn/master-plan.md) | In progress (user-authorized interleave) | Model semantics and module-state foundations are stable; every interleaved task records file/dependency isolation from CPU. | Typed Model topology, honest deferred binding, selected layers/recurrent contracts, and runtime valid-length integration are complete at the selected boundary. |
+| 17 | [`extensions/text`](extensions/text/master-plan.md) | Draft (architecture decision required) | The Data/Text architecture boundary, Data sequence-batch contracts, and selected NN runtime valid-length integration are stable. | Selected tokenizer/vocabulary and text-to-sequence-batch capabilities are complete. |
+| 18 | [`extensions/vision`](extensions/vision/master-plan.md) | Draft (architecture decision required) | The coordinated Data/Text/Vision boundary and focused Data numeric batching contract are accepted. | Selected bounded decoder, explicit image transforms/Tensor conversion, and image batching are complete. |
+| 19 | [`extensions/training`](extensions/training/master-plan.md) | Draft | NN parameter contracts, config, compiler autograd, and runtime publication contracts are stable. | Backend-independent optimizer/session behavior and strict resume-state snapshots are complete. |
+| 20 | [`extensions/checkpoint`](extensions/checkpoint/master-plan.md) | Draft (architecture decision required) | Engine exposes typed host materialization, NN lazy/state schemas are stable, and the optional Training adapter waits for Training snapshots. | Durable strict model checkpointing and any selected optional exact-training-resume adapter are complete. |
+| 21 | [`tools/benchmarks`](tools/benchmarks/master-plan.md) | Draft | Engine and selected execution paths are operational. | Fixed reproducible workload suites and observational reporting are complete. |
+| 22 | [`tools/tuning`](tools/tuning/master-plan.md) | Draft | Compiler/planning/prepare candidate boundaries, concrete backend route generators, operational engine paths, and artifact consumers are stable. | One model-autotuning workflow reuses compatible local workload results, selects a bounded complete plan, and writes explicit validated caches or prepared-plan records before runtime. |
+| 23 | [`tools/cli`](tools/cli/master-plan.md) | Draft | Engine and diagnostic contracts are stable. | Selected diagnostic and execution commands are complete. |
 
 The order above is the default delivery sequence, not a new dependency rule. Allowed and forbidden dependencies remain defined only by `ARCHITECTURE.md`.
+
+The Data/Text/Vision and Checkpoint rows are user-authorized future planning, not architecture
+permission or implementation-order authorization. Their proposed Gradle projects do not exist.
+Data/Text/Vision first require the coordinated architecture/module-boundary/ADR/build/architecture-
+test decision recorded in the [Data master plan](extensions/data/master-plan.md). Checkpoint and
+its optional Training Checkpoint adapter require the separate downstream decision recorded in the
+[Checkpoint master plan](extensions/checkpoint/master-plan.md). None advances ahead of the active
+CPU frontier merely because its master plan exists.
+
+NN 0001–0017 were completed through the bounded user-authorized interleaves recorded in the
+[NN master plan](extensions/nn/master-plan.md). The newly detailed
+[NN 0018 Typed functional Model topology](extensions/nn/tasks/0018-typed-functional-model-topology.md)
+is the sole next `Ready` NN task for planning purposes. It remains model-only and
+architecture-compatible, but this planning update does not itself authorize its execution ahead
+of CPU. Later NN 0019–0024 stay Draft without detailed task files.
+
+The future sequence-padding program uses one valid sequence length per row as the sole canonical
+metadata for ordinary right padding. Data initially owns an immutable validated host value;
+padding lengths and Boolean masks are derived and are not stored beside it. A future runtime form
+is a rank-one non-gradient `INT64` input, but current Tensor creation and execution contracts do
+not yet make such a value a reusable runtime graph input. The genuine recurrent scan/control-flow
+plus Model/Compiler/Prepare/Runtime/Engine/backend input-binding lifecycle therefore precedes the
+new NN valid-length API. Specific lengths may change runtime recurrence and skipped work, but not
+Model topology or compiled graph structure. Current Java `long[]` recurrent containers remain
+compatibility/legacy contracts until deliberate migration; dense masking alone does not skip cell
+work, and arbitrary masks with holes remain a distinct future capability.
+
+Image decoding stays outside Data in the proposed
+[Vision extension](extensions/vision/master-plan.md). Vision owns explicit decoder selection,
+resource bounds, orientation/color/alpha meaning, resize/crop/normalization, channel layout, and
+image batching; Data owns only reusable numeric sample stacking. A JDK Image I/O adapter would
+bring `java.desktop` and provider-selection limitations and therefore remains an explicit Vision
+choice, never a hidden Data dependency.
+
+Durable state stays downstream in the proposed
+[Checkpoint extension](extensions/checkpoint/master-plan.md). The model-only artifact depends on
+NN's in-memory paths plus a future Engine host-materialization boundary and does not depend on Text
+or Training. Text persists the complete tokenizer artifact and supplies its exact fingerprint.
+Exact training resume uses an optional downstream adapter over Training-owned snapshots so
+model-only users do not inherit optimizer/session dependencies. Arbitrary `Model.define` lambdas
+remain code/config-defined; compiled, prepared, Runtime, backend, and device artifacts are rebuilt.
 
 ## Current frontier
 

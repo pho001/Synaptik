@@ -239,6 +239,60 @@ public abstract class Module {
     }
 
     /**
+     * Atomically registers one encounter-ordered snapshot of named children.
+     *
+     * <p>Every null, local-name, collision, repeated-identity, cycle, and existing-ownership
+     * check completes for the full supplied snapshot before this module's child map or any
+     * candidate's parent link changes. The supplied map and its entries are not retained. This
+     * package-private construction primitive is not thread-safe and provides no rollback for
+     * concurrent races or fatal virtual-machine failure.</p>
+     *
+     * @param children non-null encounter-ordered mapping from valid available local names to
+     *     non-null, identity-distinct modules available for permanent ownership
+     * @throws NullPointerException if {@code children}, a key, or a value is {@code null}
+     * @throws IllegalArgumentException if a name is blank, contains {@code .}, or collides with
+     *     direct state or a child; a module identity is repeated; or a candidate is this module
+     *     or an ancestor
+     * @throws IllegalStateException if a candidate is already owned by a module
+     */
+    final void registerNamedChildren(Map<String, ? extends Module> children) {
+        Objects.requireNonNull(children, "children");
+        Map<String, Module> snapshot = new LinkedHashMap<>();
+        int entryIndex = 0;
+        for (Map.Entry<String, ? extends Module> entry : children.entrySet()) {
+            String name = Objects.requireNonNull(entry.getKey(), "children key[" + entryIndex + "]");
+            Module candidate = Objects.requireNonNull(
+                    entry.getValue(), "children[" + name + "]");
+            if (snapshot.put(name, candidate) != null) {
+                throw new IllegalArgumentException("child name is repeated: " + name);
+            }
+            entryIndex++;
+        }
+
+        for (String name : snapshot.keySet()) {
+            validateAvailableName(name);
+        }
+
+        IdentityHashMap<Module, Boolean> identities = new IdentityHashMap<>();
+        for (Module candidate : snapshot.values()) {
+            if (identities.put(candidate, Boolean.TRUE) != null) {
+                throw new IllegalArgumentException("module identity is repeated");
+            }
+        }
+        for (Module candidate : snapshot.values()) {
+            validateChildCycle(candidate);
+        }
+        for (Module candidate : snapshot.values()) {
+            validateChildOwnership(candidate);
+        }
+
+        snapshot.forEach((name, candidate) -> {
+            this.children.put(name, candidate);
+            candidate.parent = this;
+        });
+    }
+
+    /**
      * Returns this module's direct trainable declarations in declaration order.
      *
      * @return an unmodifiable structural snapshot of direct parameter wrappers; never {@code
@@ -502,9 +556,17 @@ public abstract class Module {
     }
 
     private void validateChildCandidate(Module candidate) {
+        validateChildCycle(candidate);
+        validateChildOwnership(candidate);
+    }
+
+    private void validateChildCycle(Module candidate) {
         if (candidate == this || isAncestor(candidate)) {
             throw new IllegalArgumentException("child must not be this module or an ancestor");
         }
+    }
+
+    private static void validateChildOwnership(Module candidate) {
         if (candidate.parent != null) {
             throw new IllegalStateException("child is already owned by a module");
         }

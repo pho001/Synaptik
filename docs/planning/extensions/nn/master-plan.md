@@ -19,6 +19,8 @@ conveniences built from `modules/model` Tensor semantics.
 - `Module`, `Parameter`, and `Buffer` contracts
 - module-tree parameter and buffer discovery
 - train/eval mode propagation and forward context
+- typed functional model definition with immutable named topology
+- deferred input-dependent parameter binding after its lifecycle is specified exactly
 - explicit parameter-initialization conveniences over caller-owned sources
 - neural-network layers, blocks, and functional conveniences that compose model operations
 
@@ -58,7 +60,7 @@ conveniences built from `modules/model` Tensor semantics.
 
 ```text
 io.github.pho001.synaptik.nn/
-  module/       public module ownership, named state, and forward-context contracts
+  module/       public module ownership, named state, typed model topology, and forward-context contracts
   initialization/ explicit eager parameter-initialization conveniences and policies
   layers/       public stateful neural-network layers
   functional/   stateless NN-oriented conveniences over model operations
@@ -116,6 +118,21 @@ Completed tasks 0016 and 0017 apply that same static packing policy through the 
 LSTM signatures. GRU restores one final hidden state; LSTM exposes compact hidden outputs while
 carrying cell state internally and restores both final hidden and final cell state.
 
+The next model-composition milestone begins with task 0018. It adds typed `Model<I, O>`,
+`Model.define`, and a definition-scoped `Topology.addModule` collector while preserving current
+eager layers unchanged. Complete topology validation precedes ownership installation so a failed
+definition does not strand modules under an unreachable partial model. The topology seals after
+the callback and produces descriptive state paths such as `hidden.weight`; Model owns no backward,
+compile, training, or execution method.
+
+Later Draft tasks deliberately separate input-dimension inference from that structural
+foundation. Deferred parameters must define a complete bind/build lifecycle, deterministic
+initialization and failure effects, state-dictionary behavior before and after binding, checkpoint
+load into an unbound model, and concurrency limits before a lazy layer becomes public. Batch,
+time, and input-feature extents are input-dependent and should be inferred. Hidden/output widths,
+embedding size, class count, vocabulary size, and recurrent hidden size remain declared
+architecture or data-schema choices.
+
 ## Task list
 
 | ID | Task | Status | Depends on | Summary |
@@ -138,6 +155,13 @@ carrying cell state internally and restores both final hidden and final cell sta
 | [0015](tasks/0015-static-packed-rnn-sequence.md) | Static packed RNN sequence | Complete | 0012–0014; completed Model SELECT, GATHER, STACK, and eager INT64 leaves | Added one cell-specific vanilla-RNN container with construction-time Java lengths, stable original-order active-batch compaction, compact per-step outputs, and final-hidden restoration; runtime Tensor masks/lengths require a future genuine recurrent scan. |
 | [0016](tasks/0016-static-packed-gru-sequence.md) | Static packed GRU sequence | Complete | 0015 | Reused the proven one-hidden-state static packing and restoration policy for `GruCell` without a shared recurrent abstraction. |
 | [0017](tasks/0017-static-packed-lstm-sequence.md) | Static packed LSTM sequence | Complete | 0014–0015 | Added cell-specific static packing with compact hidden outputs, internal cell-state carrying, and restoration of both final states. |
+| [0018](tasks/0018-typed-functional-model-topology.md) | Typed functional Model topology | Complete | 0010–0017; stable Module ownership | Added typed `Model<I,O>`, functional definition/forward contracts, sealed `Topology.addModule`, atomic descriptive child ownership, and stable state paths without lazy state or training behavior. |
+| 0019 | Deferred parameter binding and lazy Linear | Draft | 0018; exact initialization/state-dictionary decision | Define the honest unbound-to-bound lifecycle, deterministic one-time initialization, failure/coordination rules, checkpoint interaction, and a Linear that infers only `inFeatures` while callers choose `outFeatures`. |
+| 0020 | Lazy Embedding/recurrent inputs and inferred zero states | Draft | 0019; current Embedding and recurrent contracts | Add initialized Embedding policy, infer recurrent input width from the first bound input, and provide zero hidden/cell defaults derived from batch, hidden width, and type while retaining explicit advanced-state overloads. |
+| 0021 | Runtime recurrent scan/control-flow prerequisite program | Draft | 0020; explicit cross-module architecture decision and Model/Compiler/Prepare/Runtime/Engine/backend support | Establish a fixed recurrent body/node plus runtime input-binding and execution contracts before NN exposes a new valid-length recurrent API; specific length values must not specialize Model topology or compiled graph structure. |
+| 0022 | Valid-length recurrent API and Data integration | Draft | 0021; Data 0001–0002 architecture and valid-length contracts | Consume Data-owned runtime valid lengths through the proven scan, derive zero states as selected, and deliberately migrate or retain the current static `long[]` compatibility contracts without presenting a host adapter as the target API. |
+| 0023 | Arbitrary dense validity-mask semantics | Draft | 0022; concrete attention/loss/recurrent consumer | Reassess an explicit Boolean mask only for validity patterns with holes; keep it derived or separately supplied for that consumer, never a second stored representation of ordinary right padding, and never a claim of skipped recurrent work. |
+| 0024 | Typed model/recurrent/data integration checkpoint | Draft | 0019–0022; 0023 only if selected; Checkpoint model-state and Training publication readiness | Validate model state paths, lazy/checkpoint compatibility, variable-batch behavior, recurrent continuation, autograd/training handoff, documentation, and integration without moving persistent checkpoint I/O into NN. |
 
 ## Milestones
 
@@ -149,6 +173,9 @@ carrying cell state internally and restores both final hidden and final cell sta
 - Narrow unary composition only when justified by `Sequential`
 - Explicit-state recurrent cells, beginning with vanilla tanh RNN
 - Recurrent sequence composition only after the cell signatures prove its type boundary
+- Typed functional Model definition with sealed descriptive topology
+- Honest deferred binding for input-dependent parameter dimensions
+- Data-owned canonical valid lengths after a genuine runtime-scan/input-binding prerequisite
 - Training-extension integration over the stable parameter contract
 
 ## Current status
@@ -358,6 +385,38 @@ public type Javadocs and shared sequence documentation, and synchronized both ta
 this plan. The parallel exception changed implementation order only and did not alter the global
 roadmap, dependencies, or architecture boundaries.
 
+The user first authorized planning of the complete typed Model, deferred-dimension,
+tokenizer/batching, and recurrent-valid-length program while CPU remains the active global project
+area, then explicitly authorized implementation of bounded
+[NN 0018](tasks/0018-typed-functional-model-topology.md). Task 0018 is now Complete. Its isolated
+implementation context delivered the model-only executable surface and authoritative NN tests;
+independent clean documentation context `/root/nn_0018_docs` found no executable, API, or
+architecture defect, finalized Javadocs, Training API, glossary, and planning evidence, and passed
+the generated-Javadoc, public-surface, external-use, Markdown, scope, import/mechanism, and
+whitespace gates without repeating stable Java tests. This interleave changes no dependency or
+architecture boundary. NN 0019–0024 remain concise Draft rows without task files; no later NN task
+is Ready or has a detailed task specification.
+The proposed Data, Text, Vision, and Checkpoint master plans are also Draft: their modules do not
+exist in the architecture or build, so their first implementation must be a coordinated
+architecture, module-boundary, ADR, settings/build, and architecture-test decision rather than a
+silent Gradle addition.
+
+The final padding decision uses one valid sequence length per batch row as the sole canonical
+metadata for ordinary right padding. It stores neither padding lengths nor a Boolean mask and is
+never inferred from Tensor values. Proposed Data initially owns an immutable validated host value;
+materializing or binding it as a rank-one non-gradient `INT64` Tensor is deferred until a genuine
+runtime input lifecycle exists. A dense Boolean validity mask may be derived on demand only for a
+concrete consumer such as attention or loss, while arbitrary masks with holes remain distinct.
+
+The dependency order is now strict. NN 0021 first coordinates the genuine recurrent
+scan/control-flow and runtime input-binding prerequisite across its owning Model, Compiler,
+Prepare, Runtime, Engine, and backend layers. Specific valid-length values influence runtime
+recurrence behavior and may permit inactive rows/steps to be skipped, but must not change Model
+topology or compiled graph structure. Only then may NN 0022 add the new Data-owned valid-length
+recurrent API. Current static `long[]` sequence containers remain truthful compatibility/legacy
+contracts until that deliberate migration; no new host-static adapter is the target API. Dense
+masking alone still constructs full recurrent cell work and cannot satisfy the skipping goal.
+
 The ordered follow-up sequence is deliberate. `Embedding` is another mode-insensitive
 parameter-only wrapper. `BatchNorm` follows it as the first layer that must coordinate parameters,
 buffers, mode, and pure running-statistic outputs. `Dropout` follows that state-transition design
@@ -374,13 +433,31 @@ consumer.
 - Select a persistent checkpoint codec, schema-version, materialization, and storage boundary only
   when a concrete consumer exists; completed NN 0010 fixes only in-memory state and strict atomic
   validation/load.
-- Specify a genuine recurrent Model scan only when a concrete runtime-dynamic length or mask
-  consumer can define the body/subgraph boundary, carried-value tuple, dynamic active-set Shape,
-  result metadata, compiler lowering, and execution requirements. Static NN 0015 does not imply
-  that future architecture.
+- Specify a genuine recurrent Model scan and runtime input binding before exposing a new
+  Data-owned valid-length recurrent overload. Its concrete consumer must define the body/subgraph
+  boundary, carried-value tuple, dynamic active-set Shape, result metadata, compiler lowering, and
+  execution requirements without specializing the graph to one batch's host lengths. Static NN
+  0015 does not imply that future architecture.
 - Reassess a shared recurrent sequence abstraction only when a concrete consumer proves a useful
   type-safe contract. The three current containers share static packing policy, but LSTM still
   carries and restores cell state that a one-hidden-state abstraction must not erase.
+- Before NN 0019 becomes Ready, select the exact deferred-initialization source contract and
+  transactional boundary: the design must not retain an undocumented caller random source,
+  publish an incomplete parameter tree, or make state export/load silently depend on whether a
+  previous forward happened to succeed.
+- Before NN 0019 becomes Ready, decide whether an unbound model rejects state export and whether
+  strict checkpoint load may bind deferred slots from candidate Tensor schemas. Both cases must
+  preserve stable paths and validate the complete tree before installation.
+- Before NN 0020 becomes Ready, select the initialized Embedding distribution and padding-row
+  policy, if any. Vocabulary size is tokenizer/schema input and must not be inferred from the
+  maximum token ID in one batch.
+- Data/Text/Vision module names, packages, dependencies, and architecture ownership require an
+  explicit coordinated architecture decision before their first implementation task. Checkpoint
+  and its optional Training adapter require their own explicit downstream architecture decision.
+- Persistent model/training checkpoint bytes and file I/O belong to the proposed
+  [Checkpoint extension](../checkpoint/master-plan.md), downstream of NN and the Engine
+  publication/materialization boundary. NN continues to own only in-memory state paths and strict
+  Tensor-reference load.
 
 ## Decisions made
 
@@ -546,6 +623,26 @@ consumer.
 - Parallel NN 0016/0017 implementation is safe only under the exact ownership partition recorded
   in Current status. One joint documentation pass owns every shared documentation path and final
   status synchronization after one authoritative NN validation over the combined executable diff.
+- NN 0018 names structural registration `Topology.addModule`, not `layer` or `addLayer`, because
+  nested Models and `Sequential` are Modules and the operation establishes ownership and state
+  paths rather than asserting a numerical layer category.
+- `Model<I, O>` generics describe only the Java forward boundary. Tensor-only callers normally
+  infer them with `var`; callers may use their own records for structured inputs and outputs.
+  Backward remains compiler/training work.
+- NN 0018 collects and validates the complete definition before child attachment, then seals the
+  topology. It does not call user forward code during definition and does not add lazy state.
+- Input-dependent batch, time, and incoming feature extents are inferred by later binding or batch
+  metadata. Hidden/output widths, embedding size, class count, vocabulary size, and recurrent
+  hidden width remain explicit architecture or schema decisions.
+- The model does not tokenize or pad raw data. Proposed Text owns tokenization and special tokens;
+  proposed Data owns sequence layout, padding/truncation policy, Tensor batching, and canonical
+  valid lengths. NN must not depend on Text.
+- Valid lengths, derived dense masks, and arbitrary masks with holes are distinct contracts. The
+  batch stores only valid lengths for ordinary right padding. A runtime recurrent scan may consume
+  them without graph specialization only after the full input-binding/execution lifecycle exists.
+- `StateDictionary` remains the exact in-memory NN binding boundary. It is not a byte payload,
+  tokenizer artifact, optimizer snapshot, or durable checkpoint; a downstream checkpoint adapter
+  must materialize through Engine and strict-load only after complete artifact validation.
 
 ## Risks
 
@@ -580,6 +677,19 @@ consumer.
 - Promising runtime-dynamic masks through dense selection would preserve padded cell expressions
   while pretending to skip them. Conversely, inventing a scan in NN would bypass Model ownership
   of generic operation, Shape, provenance, compiler, and execution semantics.
+- Materializing host valid lengths as an eager Tensor before runtime input binding exists could
+  freeze batch-specific values into expression construction and misrepresent graph reuse.
+- A lazy layer that declares parameters only after an incidental forward could expose incomplete
+  state paths, make checkpoint behavior history-dependent, consume random draws nondeterministically,
+  or leave a partially bound model after failure. NN 0019 must fix those effects explicitly.
+- Retaining caller-owned randomness until an unknown first bind could create hidden lifetime and
+  concurrency obligations. The deferred initializer/source contract must make ownership visible.
+- Treating vocabulary size, output classes, hidden width, or embedding width as input-derived
+  would confuse architectural choices with batch facts and may build an invalid model from one
+  unrepresentative batch.
+- Letting NN own tokenization or raw sequence padding would couple a general Tensor model to text
+  and data preparation. Adding Data/Text without the required architecture update would silently
+  change module boundaries.
 
 ## Notes
 

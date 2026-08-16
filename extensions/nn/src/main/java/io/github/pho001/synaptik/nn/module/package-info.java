@@ -17,5 +17,15 @@
  * names and passes exact Tensor-expression references through them from left to right. Empty
  * composition is exact-reference identity. Context-sensitive and explicit-state modules retain
  * their own signatures outside this narrow contract.</p>
+ *
+ * <p>{@link io.github.pho001.synaptik.nn.module.Model} adds a typed Java input/output boundary
+ * above ordinary modules. Its functional factory collects descriptive child names through a
+ * short-lived {@link io.github.pho001.synaptik.nn.module.Topology}, validates the complete
+ * definition before installing ownership, and then seals the structure. Model topology is the
+ * owned module tree and its stable state paths; it is not Tensor graph topology. Deferred input
+ * dimensions, tokenizer or batch preparation, checkpoint persistence, backward construction,
+ * compilation, training orchestration, and execution remain outside this package contract.
+ * Defined models inherit Module's mutable state/mode lifecycle and caller-coordinated threading
+ * rules; only their named structure is sealed.</p>
  */
 package io.github.pho001.synaptik.nn.module;

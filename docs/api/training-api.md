@@ -9,7 +9,9 @@ parameter discovery, one public schema-validated parameter replacement capabilit
 in-memory module-tree state export/load. It also provides the narrow `UnaryTensorModule` subtype
 and immutable numeric-child `Sequential` composition for modules whose complete forward signature
 is exactly `Tensor forward(Tensor)`, three explicit-state recurrent cells, and matching
-cell-specific statically packed sequence containers.
+cell-specific statically packed sequence containers. The typed `Model<I,O>` root and its sealed
+functional topology now provide descriptive composition above those modules without adding a
+training or execution facade.
 `extensions/training`, public gradient publication, optimizer behavior, and prepared execution
 are not implemented. The compiler now provides a public immutable functional-gradient request
 value and a bounded package-private one/two-stage reverse-mode integration path.
@@ -37,6 +39,53 @@ selected slice before creating formulas, captures forward and all derivative roo
 retains per-node derivative order beside unchanged graph phase. These facts do not expose a
 public training workflow, deliver a gradient at runtime, choose a parameter update, select a
 backend, prepare a schedule, or execute training.
+
+## Current NN typed Model composition contract
+
+`Model<I,O>` is an NN `Module` whose generic parameters describe only its caller-visible Java
+forward boundary. Tensor-only callers normally let Java infer `Model<Tensor,Tensor>` through
+`var`; structured callers may use their own records for several inputs or outputs. NN introduces
+no tuple, tokenizer, batch, or text-specific type, and the caller does not define backward code.
+
+`Model.define(definition)` invokes one definition callback with a short-lived `Topology`. During
+that callback, `topology.addModule(name, module)` records the exact module candidate under a
+descriptive local name and returns that exact concrete type for local use. Collection changes no
+parent link. The topology is sealed after every success or failure path, and a captured reference
+cannot add a late child. Only after the callback returns a non-null forward body does the Model
+preflight the complete ordered snapshot and permanently attach every child. A callback, null
+result, name, repeated-identity, cycle, or ownership failure publishes no partial model and leaves
+every previously unowned candidate unattached.
+
+For example, this definition owns two eager layers under stable descriptive names and returns a
+Tensor-to-Tensor forward body:
+
+```java
+var model = Model.define(topology -> {
+    Linear hidden = topology.addModule(
+            "hidden", new Linear(32, 64, true, dataType, random));
+    Linear output = topology.addModule(
+            "output", new Linear(64, 10, true, dataType, random));
+
+    return (Tensor input) -> output.forward(hidden.forward(input).relu());
+});
+```
+
+The input is one Tensor whose final feature extent is 32 under the current eager `Linear`
+contract. Calling `model.forward(input)` passes the exact non-null input to the retained body once
+and returns its exact non-null result. If the body throws or returns null, already constructed
+prefix expressions or module-local effects remain and no rollback occurs. State discovery and
+state dictionaries use paths such as `hidden.weight` and `output.bias`; `train()` and `eval()`
+propagate through the same owned tree.
+
+This **Model topology** is the permanent NN module-ownership tree and its state-path namespace. It
+is not the Tensor producer graph, a modules/model `CompiledGraphModel`, or a compiled/runtime
+schedule. Forward constructs ordinary Java and Tensor expressions only. It does not capture,
+differentiate, compile, prepare, execute, update parameters, persist checkpoints, tokenize input,
+or pad a batch. Current layers also remain eagerly initialized: input-dependent feature inference
+and a safe lazy binding lifecycle are planned rather than performed by `Model.define` or the first
+forward call. Models inherit Module's mutable state/mode lifecycle and are not thread-safe; callers
+coordinate forward construction with replacement, loading, and mode changes when one consistent
+view matters.
 
 ## Current NN unary composition contract
 

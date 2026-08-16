@@ -2403,9 +2403,9 @@ requests, higher derivatives, optimizer updates, preparation, and execution rema
 
 ### Neural-network module, parameter, buffer, and forward context
 
-`extensions/nn` currently provides direct-state and module-tree foundations, eager parameter
-initializers, five concrete layers, three recurrent cells, one statically packed vanilla-RNN
-sequence container, and narrow unary composition. A
+`extensions/nn` currently provides direct-state and module-tree foundations, typed functional
+Model topology, eager parameter initializers, five concrete layers, three recurrent cells, three
+cell-specific statically packed sequence containers, and narrow unary composition. A
 **module** is a stateful
 neural-network composition unit that directly declares trainable **parameters** and persistent
 **buffers**, and can permanently own named child modules. Parameters, buffers, and children share
@@ -2717,6 +2717,36 @@ optimizer algorithms and training orchestration, but it does not own modules, bu
 train/eval behavior. None of these current contracts grants autograd, backend storage, kernel
 selection, runtime execution, or a concrete backend dependency. See [Module
 boundaries](architecture/module-boundaries.md#extensions).
+
+### Functional Model and Model topology
+
+The implemented NN **functional Model** is `Model<I,O>`, a typed root `Module` whose generic
+parameters describe only a caller-selected Java input/output boundary. A simple Tensor model may
+infer those types through `var`; caller-owned records may represent structured values. The types
+do not define Tensor semantics, a tuple or text schema, graph values, serialization, or execution.
+
+`Model.define` invokes one definition callback with an open, callback-scoped `Topology`. Each
+`Topology.addModule(name, module)` retains and returns the exact typed module candidate under one
+descriptive local name without attaching it. The topology seals on success and failure. After a
+non-null forward body is returned, complete name, identity, cycle, and existing-ownership
+validation precedes every parent link. Success gives the Model permanent ownership in declaration
+order; failure publishes no partial Model and leaves every previously unowned candidate
+unattached. The resulting stable paths can include `hidden.weight` and `output.bias`.
+
+**Model topology** means that permanent NN module-ownership tree and state-path namespace. It is
+not a public Tensor producer graph, a modules/model `CompiledGraphModel`, a compiler graph, or a
+runtime schedule. Functional forward validates non-null input, invokes the exact retained body
+once, and returns its exact non-null result. A thrown failure or null result preserves already
+created prefix expressions and module-local effects without rollback. Recursive state discovery,
+strict state loading, parameter replacement, and train/eval propagation are inherited from
+`Module`; the structure is sealed while bindings and mode retain their caller-coordinated mutable
+lifecycle. A Model is not thread-safe.
+
+This boundary performs no lazy parameter binding, input-dimension inference, tokenizer or batch
+preparation, checkpoint persistence, backward definition, automatic differentiation, optimizer
+update, training orchestration, graph capture, compilation, preparation, or execution. Current
+layers retain their eager constructor requirements. See [Current NN typed Model composition
+contract](api/training-api.md#current-nn-typed-model-composition-contract).
 
 ### Unary Tensor module and Sequential
 
