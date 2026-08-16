@@ -44,8 +44,13 @@
  * <p>{@link io.github.pho001.synaptik.nn.layers.Linear} uses the conventional
  * {@code [outFeatures, inFeatures]} weight orientation and delegates each forward call to
  * {@link io.github.pho001.synaptik.model.tensor.Tensor#linear(
- * io.github.pho001.synaptik.model.tensor.Tensor)} or its biased overload. Its behavior is
- * identical in training and evaluation mode.</p>
+ * io.github.pho001.synaptik.model.tensor.Tensor)} or its biased overload. Its input-width-
+ * inferring constructor reserves state names at construction and initializes the complete
+ * parameter set at the start of the first compatible forward before constructing that call's
+ * ordinary expression. Existing supplied and eager constructors remain immediately initialized.
+ * Only the final input-feature extent is inferred; output width, bias, type, policy, factory, and
+ * seed remain explicit. Every form behaves identically in training and evaluation mode, and none
+ * numerically executes its constructed expression.</p>
  *
  * <p>{@link io.github.pho001.synaptik.nn.layers.LayerNorm} owns mandatory equal-Shape scale and
  * bias parameters over one positive-rank fully static normalized Shape, plus one exact

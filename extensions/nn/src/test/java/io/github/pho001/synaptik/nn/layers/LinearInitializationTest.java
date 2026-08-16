@@ -8,19 +8,34 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import io.github.pho001.synaptik.model.datatype.DataType;
+import io.github.pho001.synaptik.model.shape.DynamicDimension;
 import io.github.pho001.synaptik.model.shape.Shape;
+import io.github.pho001.synaptik.model.shape.StaticDimension;
 import io.github.pho001.synaptik.model.tensor.Tensor;
+import io.github.pho001.synaptik.model.tensor.TensorDescriptor;
 import io.github.pho001.synaptik.model.tensor.TensorFactory;
+import io.github.pho001.synaptik.nn.initialization.LinearWeightInitialization;
+import io.github.pho001.synaptik.nn.initialization.ParameterInitializers;
 import java.lang.reflect.Field;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.random.RandomGenerator;
+import java.util.random.RandomGeneratorFactory;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.parallel.Execution;
 import org.junit.jupiter.api.parallel.ExecutionMode;
 
 @Execution(ExecutionMode.SAME_THREAD)
 class LinearInitializationTest {
+    private static final RandomGeneratorFactory<RandomGenerator> FACTORY =
+            RandomGeneratorFactory.of("L64X128MixRandom");
+
     @Test
     void initializesGlorotUniformWeightThenDeterministicZeroBiasForEveryFloatingType()
             throws ReflectiveOperationException {
@@ -137,6 +152,257 @@ class LinearInitializationTest {
         assertAll(
                 () -> assertEquals(3, source.calls()),
                 () -> assertEquals(before, next.get()));
+    }
+
+    @Test
+    void automaticConstructionCreatesNoTensorAndFirstForwardPublishesBeforeExpression()
+            throws ReflectiveOperationException {
+        Tensor input = TensorFactory.create(new TensorDescriptor(
+                DataType.FLOAT32, Shape.of(2, 3), Optional.empty(), false));
+        AtomicLong next = nextTensorIdState();
+        long beforeConstruction = next.get();
+
+        Linear layer = new Linear(
+                4,
+                true,
+                DataType.FLOAT32,
+                LinearWeightInitialization.GLOROT_UNIFORM,
+                FACTORY,
+                73L);
+
+        assertEquals(beforeConstruction, next.get());
+        Tensor result = layer.forward(input);
+        Tensor weight = layer.weight().value();
+        Tensor bias = layer.bias().orElseThrow().value();
+        Tensor product = result.provenance().orElseThrow().inputs().getFirst();
+        Tensor transposed = product.provenance().orElseThrow().inputs().get(1);
+
+        assertAll(
+                () -> assertEquals(beforeConstruction, weight.id().value()),
+                () -> assertEquals(beforeConstruction + 1, bias.id().value()),
+                () -> assertEquals(beforeConstruction + 2, transposed.id().value()),
+                () -> assertEquals(beforeConstruction + 3, product.id().value()),
+                () -> assertEquals(beforeConstruction + 4, result.id().value()),
+                () -> assertEquals(beforeConstruction + 5, next.get()),
+                () -> assertSame(weight,
+                        transposed.provenance().orElseThrow().inputs().getFirst()),
+                () -> assertSame(bias, result.provenance().orElseThrow().inputs().get(1)));
+    }
+
+    @Test
+    void automaticPoliciesMatchExistingInitializersAndLaterForwardsCreateNoParameterTensor() {
+        long seed = 91L;
+        for (LinearWeightInitialization initialization : LinearWeightInitialization.values()) {
+            Linear layer = new Linear(3, false, DataType.FLOAT64, initialization, FACTORY, seed);
+            Tensor firstInput = TensorFactory.create(new TensorDescriptor(
+                    DataType.FLOAT64, Shape.of(4, 2), Optional.empty(), false));
+            layer.forward(firstInput);
+            Tensor actual = layer.weight().value();
+            Tensor expected = switch (initialization) {
+                case GLOROT_NORMAL -> ParameterInitializers.glorotNormal(
+                        Shape.of(3, 2), DataType.FLOAT64, FACTORY.create(seed));
+                case GLOROT_UNIFORM -> ParameterInitializers.glorotUniform(
+                        Shape.of(3, 2), DataType.FLOAT64, FACTORY.create(seed));
+                case KAIMING_RELU_NORMAL -> ParameterInitializers.kaimingReluNormal(
+                        Shape.of(3, 2), DataType.FLOAT64, FACTORY.create(seed));
+                case KAIMING_RELU_UNIFORM -> ParameterInitializers.kaimingReluUniform(
+                        Shape.of(3, 2), DataType.FLOAT64, FACTORY.create(seed));
+            };
+            assertArrayEquals(storage(actual), storage(expected));
+
+            Tensor stableWeight = layer.weight().value();
+            layer.forward(TensorFactory.create(new TensorDescriptor(
+                    DataType.FLOAT64,
+                    Shape.ofDimensions(new DynamicDimension("B"), new StaticDimension(2)),
+                    Optional.empty(),
+                    false)));
+            assertSame(stableWeight, layer.weight().value());
+        }
+    }
+
+    @Test
+    void automaticValidationPrecedesParameterAndExpressionIdentifiers()
+            throws ReflectiveOperationException {
+        Linear layer = new Linear(
+                4,
+                false,
+                DataType.FLOAT32,
+                LinearWeightInitialization.KAIMING_RELU_NORMAL,
+                FACTORY,
+                13L);
+        Tensor wrongType = TensorFactory.create(new TensorDescriptor(
+                DataType.FLOAT64, Shape.of(2, 3), Optional.empty(), false));
+        Tensor scalar = TensorFactory.create(new TensorDescriptor(
+                DataType.FLOAT32, Shape.scalar(), Optional.empty(), false));
+        Tensor dynamicFinal = TensorFactory.create(new TensorDescriptor(
+                DataType.FLOAT32,
+                Shape.ofDimensions(new StaticDimension(2), new DynamicDimension("F")),
+                Optional.empty(),
+                false));
+        Tensor zeroFinal = TensorFactory.create(new TensorDescriptor(
+                DataType.FLOAT32, Shape.of(2, 0), Optional.empty(), false));
+        AtomicLong next = nextTensorIdState();
+        long before = next.get();
+
+        assertAll(
+                () -> assertThrows(IllegalArgumentException.class, () -> layer.forward(wrongType)),
+                () -> assertThrows(IllegalArgumentException.class, () -> layer.forward(scalar)),
+                () -> assertThrows(IllegalArgumentException.class, () -> layer.forward(dynamicFinal)),
+                () -> assertThrows(IllegalArgumentException.class, () -> layer.forward(zeroFinal)),
+                () -> assertEquals(before, next.get()),
+                () -> assertThrows(IllegalStateException.class, layer::weight));
+    }
+
+    @Test
+    void compatibleConcurrentFirstForwardsPublishOneParameterSet() throws Exception {
+        Linear layer = new Linear(
+                5,
+                true,
+                DataType.FLOAT32,
+                LinearWeightInitialization.GLOROT_NORMAL,
+                FACTORY,
+                101L);
+        Tensor input = TensorFactory.create(new TensorDescriptor(
+                DataType.FLOAT32, Shape.of(3, 2), Optional.empty(), false));
+        int callers = 8;
+        CountDownLatch ready = new CountDownLatch(callers);
+        CountDownLatch start = new CountDownLatch(1);
+
+        try (var executor = Executors.newFixedThreadPool(callers)) {
+            List<Future<Tensor>> futures = new ArrayList<>();
+            for (int index = 0; index < callers; index++) {
+                futures.add(executor.submit(() -> {
+                    ready.countDown();
+                    start.await();
+                    return layer.forward(input);
+                }));
+            }
+            ready.await();
+            start.countDown();
+            List<Tensor> results = new ArrayList<>();
+            for (Future<Tensor> future : futures) {
+                results.add(future.get());
+            }
+
+            Tensor weight = layer.weight().value();
+            Tensor bias = layer.bias().orElseThrow().value();
+            assertAll(
+                    () -> assertEquals(2, layer.parameters().size()),
+                    () -> assertTrue(results.stream().allMatch(result -> {
+                        Tensor product = result.provenance().orElseThrow().inputs().getFirst();
+                        Tensor transposed = product.provenance().orElseThrow().inputs().get(1);
+                        return transposed.provenance().orElseThrow().inputs().getFirst() == weight
+                                && result.provenance().orElseThrow().inputs().get(1) == bias;
+                    })));
+        }
+    }
+
+    @Test
+    void incompatibleConcurrentFirstForwardsLetOneSchemaWin() throws Exception {
+        Linear layer = new Linear(
+                5,
+                false,
+                DataType.FLOAT32,
+                LinearWeightInitialization.GLOROT_UNIFORM,
+                FACTORY,
+                151L);
+        Tensor widthTwo = TensorFactory.create(new TensorDescriptor(
+                DataType.FLOAT32, Shape.of(3, 2), Optional.empty(), false));
+        Tensor widthThree = TensorFactory.create(new TensorDescriptor(
+                DataType.FLOAT32, Shape.of(3, 3), Optional.empty(), false));
+        CountDownLatch ready = new CountDownLatch(2);
+        CountDownLatch start = new CountDownLatch(1);
+
+        try (var executor = Executors.newFixedThreadPool(2)) {
+            Future<Tensor> first = executor.submit(() -> {
+                ready.countDown();
+                start.await();
+                return layer.forward(widthTwo);
+            });
+            Future<Tensor> second = executor.submit(() -> {
+                ready.countDown();
+                start.await();
+                return layer.forward(widthThree);
+            });
+            ready.await();
+            start.countDown();
+
+            int successes = 0;
+            int failures = 0;
+            for (Future<Tensor> future : List.of(first, second)) {
+                try {
+                    future.get();
+                    successes++;
+                } catch (ExecutionException exception) {
+                    assertTrue(exception.getCause() instanceof IllegalArgumentException);
+                    failures++;
+                }
+            }
+            long inferred = layer.weight().value().descriptor().shape()
+                    .dimension(1).staticSize().orElseThrow();
+            int successfulCalls = successes;
+            int failedCalls = failures;
+            assertAll(
+                    () -> assertEquals(1, successfulCalls),
+                    () -> assertEquals(1, failedCalls),
+                    () -> assertTrue(inferred == 2 || inferred == 3));
+        }
+    }
+
+    @Test
+    void automaticConstructorValidatesInSpecifiedOrderWithoutTensorEffects()
+            throws ReflectiveOperationException {
+        AtomicLong next = nextTensorIdState();
+        long before = next.get();
+
+        assertAll(
+                () -> assertTrue(assertThrows(
+                                IllegalArgumentException.class,
+                                () -> new Linear(0, true, null, null, null, 1L))
+                        .getMessage().contains("outFeatures")),
+                () -> assertEquals("dataType", assertThrows(
+                                NullPointerException.class,
+                                () -> new Linear(1, true, null, null, null, 1L))
+                        .getMessage()),
+                () -> assertEquals("weightInitialization", assertThrows(
+                                NullPointerException.class,
+                                () -> new Linear(1, true, DataType.FLOAT32, null, null, 1L))
+                        .getMessage()),
+                () -> assertEquals("randomGeneratorFactory", assertThrows(
+                                NullPointerException.class,
+                                () -> new Linear(
+                                        1,
+                                        true,
+                                        DataType.FLOAT32,
+                                        LinearWeightInitialization.GLOROT_UNIFORM,
+                                        null,
+                                        1L))
+                        .getMessage()),
+                () -> assertTrue(assertThrows(
+                                IllegalArgumentException.class,
+                                () -> new Linear(
+                                        1,
+                                        true,
+                                        DataType.INT32,
+                                        LinearWeightInitialization.GLOROT_UNIFORM,
+                                        FACTORY,
+                                        1L))
+                        .getMessage().contains("floating")),
+                () -> assertTrue(assertThrows(
+                                IllegalArgumentException.class,
+                                () -> new Linear(
+                                        1,
+                                        true,
+                                        DataType.FLOAT32,
+                                        LinearWeightInitialization.GLOROT_UNIFORM,
+                                        RandomGeneratorFactory.of("SecureRandom"),
+                                        1L))
+                        .getMessage().contains("deterministic")),
+                () -> assertEquals(before, next.get()));
+    }
+
+    private static double[] storage(Tensor tensor) {
+        return (double[]) tensor.hostStorage().orElseThrow().segment().heapBase().orElseThrow();
     }
 
     private static void assertAllZero(Tensor tensor) {

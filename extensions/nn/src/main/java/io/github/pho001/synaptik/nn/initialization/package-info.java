@@ -14,5 +14,11 @@
  * resets, splits, serializes, or closes it. This eager boundary is distinct from deferred graph
  * random-number-generator state: it creates no random Tensor expression and neither accepts nor
  * creates {@link io.github.pho001.synaptik.model.tensor.GraphRngState}.</p>
+ *
+ * <p>{@link io.github.pho001.synaptik.nn.initialization.LinearWeightInitialization} is the closed
+ * selection used by the input-width-inferring Linear constructor. The layer retains an explicit
+ * deterministic random-generator factory and seed, then dispatches to one existing eager
+ * initializer during its first compatible forward. The enum introduces no general initializer
+ * object model, registry, callback, or default source.</p>
  */
 package io.github.pho001.synaptik.nn.initialization;

@@ -1,6 +1,7 @@
 package io.github.pho001.synaptik.nn.layers;
 
 import static org.junit.jupiter.api.Assertions.assertAll;
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertSame;
@@ -19,6 +20,7 @@ import io.github.pho001.synaptik.model.tensor.Tensor;
 import io.github.pho001.synaptik.model.tensor.TensorDescriptor;
 import io.github.pho001.synaptik.model.tensor.TensorFactory;
 import io.github.pho001.synaptik.model.tensor.TensorProvenance;
+import io.github.pho001.synaptik.nn.initialization.LinearWeightInitialization;
 import io.github.pho001.synaptik.nn.module.ForwardMode;
 import io.github.pho001.synaptik.nn.module.Parameter;
 import io.github.pho001.synaptik.nn.module.UnaryTensorModule;
@@ -32,6 +34,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.random.RandomGenerator;
+import java.util.random.RandomGeneratorFactory;
 import java.util.stream.Collectors;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.parallel.Execution;
@@ -67,7 +70,14 @@ class LinearTest {
                                         long.class,
                                         boolean.class,
                                         DataType.class,
-                                        RandomGenerator.class)),
+                                        RandomGenerator.class),
+                                List.of(
+                                        long.class,
+                                        boolean.class,
+                                        DataType.class,
+                                        LinearWeightInitialization.class,
+                                        RandomGeneratorFactory.class,
+                                        long.class)),
                         constructors),
                 () -> assertEquals(Set.of("weight", "bias", "forward"), methods),
                 () -> assertSame(Parameter.class, weight.getReturnType()),
@@ -79,6 +89,14 @@ class LinearTest {
                 () -> assertTrue(Arrays.stream(Linear.class.getDeclaredMethods())
                         .filter(method -> Modifier.isPublic(method.getModifiers()))
                         .noneMatch(method -> Modifier.isStatic(method.getModifiers()))),
+                () -> assertArrayEquals(
+                        new LinearWeightInitialization[] {
+                            LinearWeightInitialization.GLOROT_NORMAL,
+                            LinearWeightInitialization.GLOROT_UNIFORM,
+                            LinearWeightInitialization.KAIMING_RELU_NORMAL,
+                            LinearWeightInitialization.KAIMING_RELU_UNIFORM
+                        },
+                        LinearWeightInitialization.values()),
                 () -> assertFalse(Arrays.stream(UnaryTensorModule.class.getSuperclass().getDeclaredMethods())
                         .anyMatch(method -> method.getName().equals("forward"))));
     }
@@ -279,6 +297,59 @@ class LinearTest {
                 () -> assertThrows(IllegalArgumentException.class, () -> layer.forward(scalar)),
                 () -> assertThrows(
                         IllegalArgumentException.class, () -> layer.forward(wrongFeatures)));
+    }
+
+    @Test
+    void automaticConstructorInfersOnlyFinalFeaturesAndKeepsLeadingDimensionsVariable() {
+        Linear layer = new Linear(
+                4,
+                true,
+                DataType.FLOAT32,
+                LinearWeightInitialization.GLOROT_UNIFORM,
+                RandomGeneratorFactory.of("L64X128MixRandom"),
+                41L);
+        Linear noBias = new Linear(
+                4,
+                false,
+                DataType.FLOAT32,
+                LinearWeightInitialization.GLOROT_UNIFORM,
+                RandomGeneratorFactory.of("L64X128MixRandom"),
+                42L);
+        Tensor firstInput = tensor(DataType.FLOAT32, Shape.of(7, 3), false);
+
+        assertThrows(IllegalStateException.class, layer::weight);
+        assertThrows(IllegalStateException.class, layer::bias);
+        assertThrows(IllegalStateException.class, layer::parameters);
+        assertTrue(layer.buffers().isEmpty());
+        assertTrue(noBias.bias().isEmpty());
+
+        Tensor first = layer.forward(firstInput);
+        Parameter weight = layer.weight();
+        Parameter bias = layer.bias().orElseThrow();
+        Tensor rankThreeInput = tensor(DataType.FLOAT32, Shape.of(2, 5, 3), false);
+        Tensor dynamicLeadingInput = tensor(
+                DataType.FLOAT32,
+                Shape.ofDimensions(new DynamicDimension("B"), new StaticDimension(3)),
+                false);
+        Tensor rankThree = layer.forward(rankThreeInput);
+        Tensor dynamicLeading = layer.forward(dynamicLeadingInput);
+
+        assertAll(
+                () -> assertEquals(Shape.of(4, 3), weight.value().descriptor().shape()),
+                () -> assertEquals(Shape.of(4), bias.value().descriptor().shape()),
+                () -> assertBiasedChain(first, firstInput, weight.value(), bias.value()),
+                () -> assertEquals(Shape.of(2, 5, 4), rankThree.descriptor().shape()),
+                () -> assertEquals(
+                        Shape.ofDimensions(new DynamicDimension("B"), new StaticDimension(4)),
+                        dynamicLeading.descriptor().shape()),
+                () -> assertThrows(
+                        IllegalArgumentException.class,
+                        () -> layer.forward(tensor(DataType.FLOAT32, Shape.of(2, 5), false))),
+                () -> assertThrows(
+                        IllegalArgumentException.class,
+                        () -> layer.forward(tensor(DataType.FLOAT64, Shape.of(2, 3), false))),
+                () -> assertSame(weight, layer.weight()),
+                () -> assertSame(bias, layer.bias().orElseThrow()));
     }
 
     private static void assertNoBiasChain(Tensor result, Tensor input, Tensor weight) {

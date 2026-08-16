@@ -13,6 +13,8 @@ import io.github.pho001.synaptik.model.datatype.DataType;
 import io.github.pho001.synaptik.model.shape.Shape;
 import io.github.pho001.synaptik.model.tensor.Tensor;
 import io.github.pho001.synaptik.model.tensor.TensorFactory;
+import io.github.pho001.synaptik.nn.initialization.LinearWeightInitialization;
+import io.github.pho001.synaptik.nn.layers.Linear;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
@@ -22,7 +24,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
+import java.util.random.RandomGenerator;
+import java.util.random.RandomGeneratorFactory;
 import org.junit.jupiter.api.Test;
 
 class StateDictionaryTest {
@@ -411,6 +416,144 @@ class StateDictionaryTest {
         assertSame(old.get(1), root.buffer.value());
         assertSame(old.get(2), child.parameter.value());
         assertSame(old.get(3), child.buffer.value());
+    }
+
+    @Test
+    void strictLoadInitializesAutomaticLinearFromExactCandidateReferencesWithoutForward()
+            throws ReflectiveOperationException {
+        Linear layer = automaticLinear(true);
+        Tensor weight = parameterTensor(DataType.FLOAT32, Shape.of(4, 3), "loaded-weight");
+        Tensor bias = parameterTensor(DataType.FLOAT32, Shape.of(4), "loaded-bias");
+        AtomicLong next = nextTensorIdState();
+        long beforeLoad = next.get();
+
+        layer.loadStateDictionary(dictionary(
+                entry("bias", StateKind.PARAMETER, bias),
+                entry("weight", StateKind.PARAMETER, weight)));
+
+        assertAll(
+                () -> assertSame(weight, layer.weight().value()),
+                () -> assertSame(bias, layer.bias().orElseThrow().value()),
+                () -> assertEquals(List.of("weight", "bias"), layer.stateDictionary().entries()
+                        .stream().map(StateEntry::path).toList()),
+                () -> assertSame(weight, layer.stateDictionary().entries().get(0).value()),
+                () -> assertSame(bias, layer.stateDictionary().entries().get(1).value()),
+                () -> assertEquals(beforeLoad, next.get()));
+    }
+
+    @Test
+    void strictLoadValidatesWholeTreeBeforeReplacingExistingOrPublishingReservations() {
+        StateModule existing = new StateModule("weight", "mean", 1.0d);
+        Tensor oldWeight = existing.parameter.value();
+        Tensor oldBuffer = existing.buffer.value();
+        Linear automatic = automaticLinear(true);
+        EmptyModule root = new EmptyModule();
+        root.attach("existing", existing);
+        root.attach("automatic", automatic);
+        Tensor nextWeight = parameterTensor();
+        Tensor nextBuffer = bufferTensor();
+        Tensor candidateWeight = parameterTensor(
+                DataType.FLOAT32, Shape.of(4, 3), "candidate-weight");
+        Tensor wrongBias = parameterTensor(
+                DataType.FLOAT32, Shape.of(5), "wrong-bias");
+
+        IllegalArgumentException failure = assertThrows(
+                IllegalArgumentException.class,
+                () -> root.loadStateDictionary(dictionary(
+                        entry("existing.weight", StateKind.PARAMETER, nextWeight),
+                        entry("existing.mean", StateKind.BUFFER, nextBuffer),
+                        entry("automatic.weight", StateKind.PARAMETER, candidateWeight),
+                        entry("automatic.bias", StateKind.PARAMETER, wrongBias))));
+
+        assertAll(
+                () -> assertTrue(failure.getMessage().contains("automatic.bias")),
+                () -> assertSame(oldWeight, existing.parameter.value()),
+                () -> assertSame(oldBuffer, existing.buffer.value()),
+                () -> assertThrows(IllegalStateException.class, automatic::weight),
+                () -> assertThrows(IllegalStateException.class, root::stateDictionary));
+    }
+
+    @Test
+    void reservedStrictLoadValidatesKindThenConfiguredTypeThenShapeThenGradient() {
+        Linear kindLayer = automaticLinear(false);
+        Linear typeLayer = automaticLinear(false);
+        Linear shapeLayer = automaticLinear(false);
+        Linear gradientLayer = automaticLinear(false);
+
+        IllegalArgumentException kind = assertThrows(
+                IllegalArgumentException.class,
+                () -> kindLayer.loadStateDictionary(dictionary(entry(
+                        "weight",
+                        StateKind.BUFFER,
+                        bufferTensor(DataType.FLOAT64, Shape.of(5), false, "all-wrong")))));
+        IllegalArgumentException type = assertThrows(
+                IllegalArgumentException.class,
+                () -> typeLayer.loadStateDictionary(dictionary(entry(
+                        "weight",
+                        StateKind.PARAMETER,
+                        bufferTensor(DataType.FLOAT64, Shape.of(5), false, "wrong-type")))));
+        IllegalArgumentException shape = assertThrows(
+                IllegalArgumentException.class,
+                () -> shapeLayer.loadStateDictionary(dictionary(entry(
+                        "weight",
+                        StateKind.PARAMETER,
+                        bufferTensor(DataType.FLOAT32, Shape.of(5), false, "wrong-shape")))));
+        IllegalArgumentException gradient = assertThrows(
+                IllegalArgumentException.class,
+                () -> gradientLayer.loadStateDictionary(dictionary(entry(
+                        "weight",
+                        StateKind.PARAMETER,
+                        bufferTensor(DataType.FLOAT32, Shape.of(4, 3), false, "no-gradient")))));
+
+        assertAll(
+                () -> assertTrue(kind.getMessage().contains("kind")),
+                () -> assertTrue(type.getMessage().contains("data type")),
+                () -> assertTrue(shape.getMessage().contains("rank two")),
+                () -> assertTrue(gradient.getMessage().contains("requiresGrad")),
+                () -> assertThrows(IllegalStateException.class, kindLayer::weight),
+                () -> assertThrows(IllegalStateException.class, typeLayer::weight),
+                () -> assertThrows(IllegalStateException.class, shapeLayer::weight),
+                () -> assertThrows(IllegalStateException.class, gradientLayer::weight));
+    }
+
+    @Test
+    void eagerAndInitializedAutomaticLinearDictionariesLoadInBothDirections() {
+        Linear eager = new Linear(
+                parameterTensor(DataType.FLOAT32, Shape.of(4, 3), "eager-weight"),
+                parameterTensor(DataType.FLOAT32, Shape.of(4), "eager-bias"));
+        Linear automatic = automaticLinear(true);
+
+        automatic.loadStateDictionary(eager.stateDictionary());
+        Tensor automaticWeight = automatic.weight().value();
+        Tensor automaticBias = automatic.bias().orElseThrow().value();
+        Linear eagerTarget = new Linear(
+                parameterTensor(DataType.FLOAT32, Shape.of(4, 3), "target-weight"),
+                parameterTensor(DataType.FLOAT32, Shape.of(4), "target-bias"));
+        eagerTarget.loadStateDictionary(automatic.stateDictionary());
+
+        assertAll(
+                () -> assertSame(eager.weight().value(), automaticWeight),
+                () -> assertSame(eager.bias().orElseThrow().value(), automaticBias),
+                () -> assertSame(automaticWeight, eagerTarget.weight().value()),
+                () -> assertSame(automaticBias, eagerTarget.bias().orElseThrow().value()));
+    }
+
+    private static Linear automaticLinear(boolean bias) {
+        RandomGeneratorFactory<RandomGenerator> factory =
+                RandomGeneratorFactory.of("L64X128MixRandom");
+        return new Linear(
+                4,
+                bias,
+                DataType.FLOAT32,
+                LinearWeightInitialization.GLOROT_UNIFORM,
+                factory,
+                7L);
+    }
+
+    private static AtomicLong nextTensorIdState() throws ReflectiveOperationException {
+        Field field = TensorFactory.class.getDeclaredField("NEXT_TENSOR_ID");
+        field.setAccessible(true);
+        return (AtomicLong) field.get(null);
     }
 
     private static StateDictionary dictionary(StateEntry... entries) {

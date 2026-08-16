@@ -1,15 +1,19 @@
 package io.github.pho001.synaptik.nn.layers;
 
 import io.github.pho001.synaptik.model.datatype.DataType;
+import io.github.pho001.synaptik.model.shape.Dimension;
 import io.github.pho001.synaptik.model.shape.Shape;
 import io.github.pho001.synaptik.model.shape.StaticDimension;
 import io.github.pho001.synaptik.model.tensor.Tensor;
+import io.github.pho001.synaptik.nn.initialization.LinearWeightInitialization;
 import io.github.pho001.synaptik.nn.initialization.ParameterInitializers;
 import io.github.pho001.synaptik.nn.module.Parameter;
 import io.github.pho001.synaptik.nn.module.UnaryTensorModule;
+import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.random.RandomGenerator;
+import java.util.random.RandomGeneratorFactory;
 
 /**
  * A stateful linear projection with one rank-two weight and an optional rank-one bias.
@@ -20,27 +24,32 @@ import java.util.random.RandomGenerator;
  * Accessors return the exact stable {@link Parameter} wrappers used by direct and recursive module
  * discovery.</p>
  *
- * <p>{@link #forward(Tensor)} reads each current parameter binding once and delegates to the
- * matching Model {@link Tensor#linear(Tensor)} overload. The visible result is therefore the
- * existing PERMUTE-to-MATMUL or PERMUTE-to-MATMUL-to-ADD Tensor-expression chain; this class adds
- * no LINEAR operation, numerical algorithm, compiler behavior, storage, or execution. Forward
- * construction is identical in training and evaluation mode.</p>
+ * <p>The constructor without {@code inFeatures} reserves those parameter names but creates no
+ * parameter Tensor. Its first compatible {@link #forward(Tensor)} call infers the positive static
+ * final input extent, initializes and publishes the complete direct parameter set, and only then
+ * constructs the ordinary linear expression returned by that same call. Later calls reuse the
+ * published wrappers and permit arbitrary compatible leading Dimensions. Strict state loading
+ * may initialize the reservations instead without invoking the configured random source.</p>
  *
- * <p>A successful {@link Parameter#replace(Tensor)} becomes visible to the next forward call.
- * Tensor references read earlier and expressions already constructed from them remain unchanged.
- * Parameter replacement and forward construction are not thread-safe as a combined operation;
- * callers must coordinate them when a consistent multi-parameter snapshot matters.</p>
+ * <p>Only {@code inFeatures} is inferred. The caller still chooses architectural facts such as
+ * {@code outFeatures}, bias presence, data type, initialization policy, random algorithm, and
+ * seed. Before successful automatic initialization, parameter access, discovery, and state
+ * export fail rather than expose partial state. A failed initialization attempt publishes no
+ * wrapper and is retryable with a fresh generator from the same factory and seed; consumed random
+ * draws, allocations, and opaque Tensor identifiers are not rolled back.</p>
+ *
+ * <p>{@link #forward(Tensor)} delegates to the matching Model {@link Tensor#linear(Tensor)}
+ * overload. The visible result is therefore the existing PERMUTE-to-MATMUL or
+ * PERMUTE-to-MATMUL-to-ADD Tensor-expression chain; this class adds no LINEAR operation,
+ * numerical evaluation, compiler behavior, storage, or execution. Forward construction is
+ * identical in training and evaluation mode.</p>
  */
 public final class Linear extends UnaryTensorModule {
-    private final Parameter weight;
-    private final Optional<Parameter> bias;
+    private final boolean biasConfigured;
+    private final AutomaticConfiguration automaticConfiguration;
 
     /**
      * Creates a no-bias layer from one exact caller-supplied weight Tensor.
-     *
-     * <p>Validation completes before parameter declaration and does not copy, evaluate, allocate,
-     * or otherwise change the supplied Tensor. The weight must be fully static, gradient-eligible,
-     * floating, and shaped as a positive {@code [outFeatures, inFeatures]} matrix.</p>
      *
      * @param weight non-null floating Tensor with {@code requiresGrad == true} and fully static
      *     positive rank-two Shape {@code [outFeatures, inFeatures]}; retained exactly
@@ -52,17 +61,13 @@ public final class Linear extends UnaryTensorModule {
     public Linear(Tensor weight) {
         Tensor suppliedWeight = Objects.requireNonNull(weight, "weight");
         validateWeight(suppliedWeight);
-        this.weight = parameter("weight", suppliedWeight);
-        this.bias = Optional.empty();
+        parameter("weight", suppliedWeight);
+        this.biasConfigured = false;
+        this.automaticConfiguration = null;
     }
 
     /**
      * Creates a biased layer from exact caller-supplied weight and bias Tensors.
-     *
-     * <p>The weight is {@code [outFeatures, inFeatures]}; the bias is exactly rank one
-     * {@code [outFeatures]}. Null bias never means absence. All state validation completes before
-     * either parameter declaration and does not copy, evaluate, allocate, or otherwise change the
-     * supplied Tensors. Weight is declared before bias.</p>
      *
      * @param weight non-null floating Tensor with {@code requiresGrad == true} and fully static
      *     positive rank-two Shape {@code [outFeatures, inFeatures]}; retained exactly
@@ -71,34 +76,21 @@ public final class Linear extends UnaryTensorModule {
      *     retained exactly
      * @throws NullPointerException if {@code weight} or {@code bias} is {@code null}, checked in
      *     that order
-     * @throws IllegalArgumentException if weight floating type, gradient eligibility, rank,
-     *     static Shape, or positive extents fail; or if bias floating type, gradient eligibility,
-     *     rank, static Shape, exact data-type equality, or out-features equality fail, checked in
-     *     that order
+     * @throws IllegalArgumentException if weight or bias schema validation fails
      */
     public Linear(Tensor weight, Tensor bias) {
         Tensor suppliedWeight = Objects.requireNonNull(weight, "weight");
         Tensor suppliedBias = Objects.requireNonNull(bias, "bias");
         validateWeight(suppliedWeight);
         validateBias(suppliedWeight, suppliedBias);
-        this.weight = parameter("weight", suppliedWeight);
-        this.bias = Optional.of(parameter("bias", suppliedBias));
+        parameter("weight", suppliedWeight);
+        parameter("bias", suppliedBias);
+        this.biasConfigured = true;
+        this.automaticConfiguration = null;
     }
 
     /**
-     * Creates a layer with fixed Glorot-uniform weight initialization and optional zero bias.
-     *
-     * <p>Caller-controlled validation completes before a random draw or Tensor identifier
-     * allocation. Weight is created first by exactly
-     * {@link ParameterInitializers#glorotUniform(Shape, DataType, RandomGenerator)} with Shape
-     * {@code [outFeatures, inFeatures]}. When requested, bias is then created by exactly
-     * {@link ParameterInitializers#zeros(Shape, DataType)} with Shape {@code [outFeatures]}; it is
-     * deterministic typed zero and consumes no random draw. The caller selects, owns, advances,
-     * and coordinates the exact random source, which is never retained.</p>
-     *
-     * <p>A source failure leaves its completed draws consumed and creates no weight Tensor. A
-     * later allocation or identifier failure does not roll back successful draws or an already
-     * created weight Tensor identifier. Construction returns no partially initialized layer.</p>
+     * Creates and immediately initializes a layer with Glorot-uniform weight and optional bias.
      *
      * @param inFeatures strictly positive input-feature count
      * @param outFeatures strictly positive output-feature count
@@ -107,11 +99,9 @@ public final class Linear extends UnaryTensorModule {
      * @param randomGenerator non-null transient caller-owned source used only for weight samples
      * @throws NullPointerException if {@code dataType} or {@code randomGenerator} is null, checked
      *     in that order
-     * @throws IllegalArgumentException if {@code inFeatures} or {@code outFeatures} is not
-     *     positive, checked in that order; if {@code dataType} is not floating; or if the
-     *     initialized Shape exceeds the Model Java-array limit
-     * @throws RuntimeException if the random source throws while sampling; completed draws remain
-     *     consumed and no weight Tensor or identifier is created
+     * @throws IllegalArgumentException if a feature count is not positive, the type is not
+     *     floating, or the initialized Shape exceeds the Model Java-array limit
+     * @throws RuntimeException if the random source throws while sampling
      * @throws ArithmeticException if checked Model element-count or layout arithmetic overflows
      * @throws IllegalStateException if Tensor identifier space is exhausted
      * @throws OutOfMemoryError if Model source or destination allocation fails
@@ -125,12 +115,10 @@ public final class Linear extends UnaryTensorModule {
         DataType parameterType = Objects.requireNonNull(dataType, "dataType");
         RandomGenerator source = Objects.requireNonNull(randomGenerator, "randomGenerator");
         if (inFeatures <= 0) {
-            throw new IllegalArgumentException(
-                    "inFeatures must be positive: " + inFeatures);
+            throw new IllegalArgumentException("inFeatures must be positive: " + inFeatures);
         }
         if (outFeatures <= 0) {
-            throw new IllegalArgumentException(
-                    "outFeatures must be positive: " + outFeatures);
+            throw new IllegalArgumentException("outFeatures must be positive: " + outFeatures);
         }
         if (!parameterType.isFloating()) {
             throw new IllegalArgumentException(
@@ -140,63 +128,307 @@ public final class Linear extends UnaryTensorModule {
         Shape weightShape = Shape.of(outFeatures, inFeatures);
         Tensor initializedWeight = ParameterInitializers.glorotUniform(
                 weightShape, parameterType, source);
-        this.weight = parameter("weight", initializedWeight);
+        parameter("weight", initializedWeight);
         if (bias) {
-            Shape biasShape = Shape.of(outFeatures);
-            Tensor initializedBias = ParameterInitializers.zeros(biasShape, parameterType);
-            this.bias = Optional.of(parameter("bias", initializedBias));
-        } else {
-            this.bias = Optional.empty();
+            Tensor initializedBias = ParameterInitializers.zeros(
+                    Shape.of(outFeatures), parameterType);
+            parameter("bias", initializedBias);
+        }
+        this.biasConfigured = bias;
+        this.automaticConfiguration = null;
+    }
+
+    /**
+     * Creates a layer that initializes its parameters during its first compatible forward call.
+     *
+     * <p>Construction retains only immutable configuration and reserves {@code weight}, followed
+     * by optional {@code bias}. It creates no generator, Tensor, Tensor identifier, or Parameter.
+     * The supplied factory must be deterministic; each failed initialization attempt creates a
+     * fresh generator from the exact factory and seed. The factory object is retained but no
+     * created generator or caller input is retained.</p>
+     *
+     * @param outFeatures strictly positive architectural output-feature count
+     * @param bias whether the first compatible forward creates a zero bias
+     * @param dataType non-null exact floating parameter and accepted input type
+     * @param weightInitialization non-null closed weight policy
+     * @param randomGeneratorFactory non-null deterministic factory retained exactly
+     * @param seed seed passed unchanged to the retained factory for each initialization attempt
+     * @throws NullPointerException if {@code dataType}, {@code weightInitialization}, or
+     *     {@code randomGeneratorFactory} is null, checked in that order after
+     *     {@code outFeatures}
+     * @throws IllegalArgumentException if {@code outFeatures} is not positive, the type is not
+     *     floating, or the factory is stochastic, checked in that order
+     */
+    public Linear(
+            long outFeatures,
+            boolean bias,
+            DataType dataType,
+            LinearWeightInitialization weightInitialization,
+            RandomGeneratorFactory<? extends RandomGenerator> randomGeneratorFactory,
+            long seed) {
+        if (outFeatures <= 0) {
+            throw new IllegalArgumentException("outFeatures must be positive: " + outFeatures);
+        }
+        DataType parameterType = Objects.requireNonNull(dataType, "dataType");
+        LinearWeightInitialization initialization =
+                Objects.requireNonNull(weightInitialization, "weightInitialization");
+        RandomGeneratorFactory<? extends RandomGenerator> factory =
+                Objects.requireNonNull(randomGeneratorFactory, "randomGeneratorFactory");
+        if (!parameterType.isFloating()) {
+            throw new IllegalArgumentException(
+                    "linear initialization requires floating data type: " + parameterType);
+        }
+        if (factory.isStochastic()) {
+            throw new IllegalArgumentException(
+                    "linear automatic initialization requires a deterministic random generator factory: "
+                            + factory.name());
+        }
+
+        this.biasConfigured = bias;
+        this.automaticConfiguration = new AutomaticConfiguration(
+                outFeatures, parameterType, initialization, factory, seed);
+        reserveParameter("weight", this::validateAutomaticWeight);
+        if (bias) {
+            reserveParameter("bias", this::validateAutomaticBias);
         }
     }
 
     /**
      * Returns the stable weight parameter wrapper.
      *
-     * @return the exact non-null wrapper declared under local name {@code weight}; its
-     *     {@link Parameter#value()} is the current weight binding
+     * @return the exact non-null wrapper declared under {@code weight}
+     * @throws IllegalStateException if automatic first-forward or strict-load initialization has
+     *     not completed
      */
     public Parameter weight() {
-        return weight;
+        return boundParameter("weight");
     }
 
     /**
      * Returns the optional stable bias parameter wrapper.
      *
-     * @return a non-null empty Optional for a no-bias layer, or an Optional containing the exact
-     *     wrapper declared under local name {@code bias}
+     * @return empty for a no-bias layer, otherwise the exact wrapper declared under {@code bias}
+     * @throws IllegalStateException if bias is configured but automatic initialization has not
+     *     completed
      */
     public Optional<Parameter> bias() {
-        return bias;
+        if (!biasConfigured) {
+            return Optional.empty();
+        }
+        return Optional.of(boundParameter("bias"));
     }
 
     /**
      * Builds a linear Tensor expression from the input and current parameter bindings.
      *
-     * <p>The input null check occurs before either binding read. Each current binding is then read
-     * exactly once and passed unchanged to the matching {@link Tensor#linear(Tensor)} overload.
-     * Model owns rank, promotion, contraction, Shape, allocation, gradient-eligibility, and
-     * primitive provenance behavior. This method is mode-insensitive and performs no value
-     * evaluation, compilation, lowering, storage access, or execution.</p>
+     * <p>For the automatic constructor, the first compatible call initializes and publishes all
+     * direct parameters before it constructs this call's expression. Concurrent first calls
+     * serialize only that initialization phase. A later expression-construction failure does not
+     * undo already published parameters. A failure before publication leaves the reservation
+     * group unbound and retryable; completed random draws, local allocations, and opaque Tensor
+     * identifiers are not rolled back. Initialization is local to this layer: a functional Model
+     * may retain an earlier initialized layer when later user code or another layer fails.</p>
      *
-     * @param input non-null Tensor accepted by the matching Model linear convenience for the
-     *     current weight and optional bias
-     * @return the non-null fresh Model linear expression using the exact bindings observed by
+     * <p>The automatic path validates every descriptor/count fact knowable before sampling,
+     * creates one generator from the configured factory and seed, creates weight before optional
+     * zero bias, validates and publishes the complete group, then constructs the ordinary Model
+     * expression. The method does not numerically execute that expression.</p>
+     *
+     * @param input non-null Tensor; the automatic constructor requires the exact configured type,
+     *     rank at least one, and a positive static final feature Dimension
+     * @return a non-null fresh Model linear expression using the exact bindings observed once by
      *     this call
-     * @throws NullPointerException if {@code input} is null, with message {@code input}
-     * @throws IllegalArgumentException if inherited Model linear type, rank, contraction, or bias
+     * @throws NullPointerException if {@code input} is null
+     * @throws IllegalArgumentException if automatic input compatibility or inherited Model linear
      *     validation fails
-     * @throws IllegalStateException if Tensor identifier space is exhausted
+     * @throws RuntimeException if the configured random generator throws while the automatic
+     *     weight is sampled; completed draws remain consumed and no wrapper is published
+     * @throws ArithmeticException if checked Model count or layout arithmetic overflows during
+     *     automatic initialization or expression construction
+     * @throws IllegalStateException if Tensor identifier space is exhausted or automatic
+     *     publication does not complete
+     * @throws OutOfMemoryError if automatic parameter or expression allocation fails
      */
     @Override
     public Tensor forward(Tensor input) {
         Tensor suppliedInput = Objects.requireNonNull(input, "input");
-        Tensor currentWeight = weight.value();
-        if (bias.isEmpty()) {
+        if (automaticConfiguration != null) {
+            AutomaticInput automaticInput = validateAutomaticInput(suppliedInput);
+            if (!parameterReservationsBound()) {
+                synchronized (this) {
+                    if (!parameterReservationsBound()) {
+                        automaticInput = validateAutomaticInput(suppliedInput);
+                        initializeAutomatically(automaticInput);
+                        if (!parameterReservationsBound()) {
+                            throw new IllegalStateException(
+                                    "linear automatic parameter initialization did not publish complete state");
+                        }
+                    }
+                }
+            }
+        }
+
+        Parameter currentWeightParameter = weight();
+        Tensor currentWeight = currentWeightParameter.value();
+        if (automaticConfiguration != null) {
+            validateAutomaticBoundInput(suppliedInput, currentWeight);
+        }
+        if (!biasConfigured) {
             return suppliedInput.linear(currentWeight);
         }
-        Tensor currentBias = bias.orElseThrow().value();
+        Parameter currentBiasParameter = bias().orElseThrow();
+        Tensor currentBias = currentBiasParameter.value();
         return suppliedInput.linear(currentWeight, currentBias);
+    }
+
+    private AutomaticInput validateAutomaticInput(Tensor input) {
+        AutomaticConfiguration configuration = automaticConfiguration;
+        DataType inputType = input.descriptor().dataType();
+        if (inputType != configuration.dataType) {
+            throw new IllegalArgumentException(
+                    "linear automatic input data type must equal configured data type: expected="
+                            + configuration.dataType + ", actual=" + inputType);
+        }
+        Shape inputShape = input.descriptor().shape();
+        int rank = inputShape.rank();
+        if (rank < 1) {
+            throw new IllegalArgumentException(
+                    "linear automatic input rank must be at least one: " + rank);
+        }
+        Dimension finalDimension = inputShape.dimension(rank - 1);
+        if (!(finalDimension instanceof StaticDimension staticDimension)) {
+            throw new IllegalArgumentException(
+                    "linear automatic input final feature dimension must be static: "
+                            + finalDimension);
+        }
+        long inFeatures = staticDimension.size();
+        if (inFeatures <= 0) {
+            throw new IllegalArgumentException(
+                    "linear automatic input must have positive inFeatures: " + inFeatures);
+        }
+
+        Shape weightShape = Shape.of(configuration.outFeatures, inFeatures);
+        validateJavaArrayCount(weightShape, "linear automatic weight");
+        Shape biasShape = Shape.of(configuration.outFeatures);
+        if (biasConfigured) {
+            validateJavaArrayCount(biasShape, "linear automatic bias");
+        }
+        return new AutomaticInput(inFeatures, weightShape, biasShape);
+    }
+
+    private void initializeAutomatically(AutomaticInput input) {
+        AutomaticConfiguration configuration = automaticConfiguration;
+        RandomGenerator generator = configuration.randomGeneratorFactory.create(configuration.seed);
+        Tensor initializedWeight = switch (configuration.weightInitialization) {
+            case GLOROT_NORMAL -> ParameterInitializers.glorotNormal(
+                    input.weightShape, configuration.dataType, generator);
+            case GLOROT_UNIFORM -> ParameterInitializers.glorotUniform(
+                    input.weightShape, configuration.dataType, generator);
+            case KAIMING_RELU_NORMAL -> ParameterInitializers.kaimingReluNormal(
+                    input.weightShape, configuration.dataType, generator);
+            case KAIMING_RELU_UNIFORM -> ParameterInitializers.kaimingReluUniform(
+                    input.weightShape, configuration.dataType, generator);
+        };
+        if (biasConfigured) {
+            Tensor initializedBias = ParameterInitializers.zeros(
+                    input.biasShape, configuration.dataType);
+            bindReservedParameters(List.of(initializedWeight, initializedBias));
+        } else {
+            bindReservedParameters(List.of(initializedWeight));
+        }
+    }
+
+    private void validateAutomaticBoundInput(Tensor input, Tensor weight) {
+        AutomaticConfiguration configuration = automaticConfiguration;
+        if (input.descriptor().dataType() != configuration.dataType) {
+            throw new IllegalArgumentException(
+                    "linear automatic input data type must equal configured data type: expected="
+                            + configuration.dataType + ", actual="
+                            + input.descriptor().dataType());
+        }
+        Shape inputShape = input.descriptor().shape();
+        if (inputShape.rank() < 1) {
+            throw new IllegalArgumentException(
+                    "linear automatic input rank must be at least one: " + inputShape.rank());
+        }
+        Dimension inputFeatures = inputShape.dimension(inputShape.rank() - 1);
+        if (!(inputFeatures instanceof StaticDimension inputStatic)) {
+            throw new IllegalArgumentException(
+                    "linear automatic input final feature dimension must be static: "
+                            + inputFeatures);
+        }
+        long expected = ((StaticDimension) weight.descriptor().shape().dimension(1)).size();
+        if (inputStatic.size() != expected) {
+            throw new IllegalArgumentException(
+                    "linear automatic input feature dimension must match initialized inFeatures: expected="
+                            + expected + ", actual=" + inputStatic.size());
+        }
+    }
+
+    private void validateAutomaticWeight(Tensor weight) {
+        AutomaticConfiguration configuration = automaticConfiguration;
+        if (weight.descriptor().dataType() != configuration.dataType) {
+            throw new IllegalArgumentException(
+                    "linear automatic weight data type must equal configured data type: expected="
+                            + configuration.dataType + ", actual="
+                            + weight.descriptor().dataType());
+        }
+        Shape weightShape = weight.descriptor().shape();
+        if (weightShape.rank() != 2) {
+            throw new IllegalArgumentException(
+                    "linear automatic weight must have rank two: " + weightShape.rank());
+        }
+        if (!weightShape.isFullyStatic()) {
+            throw new IllegalArgumentException(
+                    "linear automatic weight must have a fully static shape: " + weightShape);
+        }
+        long actualOut = ((StaticDimension) weightShape.dimension(0)).size();
+        if (actualOut != configuration.outFeatures) {
+            throw new IllegalArgumentException(
+                    "linear automatic weight outFeatures must equal configured outFeatures: expected="
+                            + configuration.outFeatures + ", actual=" + actualOut);
+        }
+        long actualIn = ((StaticDimension) weightShape.dimension(1)).size();
+        if (actualIn <= 0) {
+            throw new IllegalArgumentException(
+                    "linear automatic weight must have positive inFeatures: " + actualIn);
+        }
+        validateJavaArrayCount(weightShape, "linear automatic weight");
+    }
+
+    private void validateAutomaticBias(Tensor bias) {
+        DataType biasType = bias.descriptor().dataType();
+        AutomaticConfiguration configuration = automaticConfiguration;
+        if (biasType != configuration.dataType) {
+            throw new IllegalArgumentException(
+                    "linear automatic bias data type must equal configured data type: expected="
+                            + configuration.dataType + ", actual=" + biasType);
+        }
+        Shape biasShape = bias.descriptor().shape();
+        if (biasShape.rank() != 1) {
+            throw new IllegalArgumentException(
+                    "linear bias must have rank one: " + biasShape.rank());
+        }
+        if (!biasShape.isFullyStatic()) {
+            throw new IllegalArgumentException(
+                    "linear bias must have a fully static shape: " + biasShape);
+        }
+        long actualOut = ((StaticDimension) biasShape.dimension(0)).size();
+        if (actualOut != configuration.outFeatures) {
+            throw new IllegalArgumentException(
+                    "linear automatic bias outFeatures must equal configured outFeatures: expected="
+                            + configuration.outFeatures + ", actual=" + actualOut);
+        }
+        validateJavaArrayCount(biasShape, "linear automatic bias");
+    }
+
+    private static void validateJavaArrayCount(Shape shape, String role) {
+        long count = shape.knownElementCount().orElseThrow();
+        if (count > Integer.MAX_VALUE) {
+            throw new IllegalArgumentException(
+                    role + " element count exceeds Java array limit: count=" + count
+                            + ", maximum=" + Integer.MAX_VALUE);
+        }
     }
 
     private static void validateWeight(Tensor weight) {
@@ -206,8 +438,7 @@ public final class Linear extends UnaryTensorModule {
                     "linear weight must have a floating data type: " + weightType);
         }
         if (!weight.descriptor().requiresGrad()) {
-            throw new IllegalArgumentException(
-                    "linear weight must have requiresGrad == true");
+            throw new IllegalArgumentException("linear weight must have requiresGrad == true");
         }
         Shape weightShape = weight.descriptor().shape();
         if (weightShape.rank() != 2) {
@@ -237,8 +468,7 @@ public final class Linear extends UnaryTensorModule {
                     "linear bias must have a floating data type: " + biasType);
         }
         if (!bias.descriptor().requiresGrad()) {
-            throw new IllegalArgumentException(
-                    "linear bias must have requiresGrad == true");
+            throw new IllegalArgumentException("linear bias must have requiresGrad == true");
         }
         Shape biasShape = bias.descriptor().shape();
         if (biasShape.rank() != 1) {
@@ -258,9 +488,19 @@ public final class Linear extends UnaryTensorModule {
         if (!biasShape.dimension(0).equals(weight.descriptor().shape().dimension(0))) {
             throw new IllegalArgumentException(
                     "linear bias dimension must equal weight outFeatures: bias="
-                            + biasShape.dimension(0)
-                            + ", weight="
+                            + biasShape.dimension(0) + ", weight="
                             + weight.descriptor().shape().dimension(0));
         }
+    }
+
+    private record AutomaticConfiguration(
+            long outFeatures,
+            DataType dataType,
+            LinearWeightInitialization weightInitialization,
+            RandomGeneratorFactory<? extends RandomGenerator> randomGeneratorFactory,
+            long seed) {
+    }
+
+    private record AutomaticInput(long inFeatures, Shape weightShape, Shape biasShape) {
     }
 }

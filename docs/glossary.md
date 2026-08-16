@@ -2404,8 +2404,9 @@ requests, higher derivatives, optimizer updates, preparation, and execution rema
 ### Neural-network module, parameter, buffer, and forward context
 
 `extensions/nn` currently provides direct-state and module-tree foundations, typed functional
-Model topology, eager parameter initializers, five concrete layers, three recurrent cells, three
-cell-specific statically packed sequence containers, and narrow unary composition. A
+Model topology, eager parameter initializers, automatic input-width initialization for the one
+existing final `Linear`, five concrete layers, three recurrent cells, three cell-specific
+statically packed sequence containers, and narrow unary composition. A
 **module** is a stateful
 neural-network composition unit that directly declares trainable **parameters** and persistent
 **buffers**, and can permanently own named child modules. Parameters, buffers, and children share
@@ -2426,8 +2427,14 @@ Discovery rejects a malformed repeated module identity without returning a snaps
 `train()` or `eval()` likewise performs a complete iterative identity preflight before assigning
 any mode, so a malformed cycle or shared child cannot expose a partial requested-mode change.
 
-A parameter declaration requires a floating Tensor with `requiresGrad == true` and privately
-captures its exact data type and immutable structural Shape as the permanent replacement schema.
+A normal parameter declaration requires a floating Tensor with `requiresGrad == true` and
+privately captures its exact data type and immutable structural Shape as the permanent replacement
+schema. A concrete input-dependent module may instead reserve a private name and validator before
+its Tensor Shape is known. The reservation occupies the direct namespace and declaration order but
+is not an incomplete `Parameter`; access, parameter discovery, and state export fail until the
+module publishes the complete reserved group. Group publication uses a narrow release/acquire
+completion gate, not general Module thread safety.
+
 The final `Parameter` wrapper is the public capability through which a generic downstream
 consumer can install one replacement without knowing the concrete module or layer type.
 `Parameter.replace(value)` checks non-null, exact data type, structural Shape equality, and
@@ -2454,14 +2461,19 @@ later wrapper replacement does not change an earlier dictionary, while an earlie
 still retains wrappers whose `value()` reads observe the new binding.
 
 Strict `Module.loadStateDictionary(...)` identifies state by path rather than candidate list
-position. It validates the complete target and candidate before installation: missing paths,
-unexpected paths, kind, exact data type, structural Shape, then parameter gradient eligibility.
+position. Private reserved parameter paths participate in the same complete target schema. Load
+validates the complete target and candidate before installation: missing paths, unexpected paths,
+kind, exact data type, structural Shape, then parameter gradient eligibility or the retained
+reservation validator.
 A buffer compares against the target's current data type and Shape but ignores `requiresGrad`
 because its wrapper kind keeps it outside optimizer discovery. Successful load installs the exact
-candidate Tensors in target traversal order through the stable wrappers. An ordinary validation
-failure changes no binding. This atomicity requires caller-coordinated access; it is not locking,
+candidate Tensors in target traversal order through existing or newly prepared stable wrappers. An
+ordinary validation failure changes no binding. This atomicity requires caller-coordinated access;
+it is not locking,
 linearizability, rollback for races, simultaneous visibility to racing readers, or a Java-memory-
-model guarantee. Earlier Tensor references and expressions remain unchanged.
+model guarantee. For a reserved group, successful load prepares and publishes real wrappers from
+the exact candidate Tensors without calling a layer initializer or creating a random generator.
+Earlier Tensor references and expressions remain unchanged.
 
 For a root parameter `weight`, root buffer `step`, child parameter `encoder.scale`, and child
 buffer `encoder.runningMean`, export produces:
@@ -2506,14 +2518,33 @@ it. These initializers create no random Tensor operation and do not accept or cr
 
 The current final `Linear` module owns one rank-two weight `Parameter` in
 `[outFeatures, inFeatures]` orientation and an optional exact rank-one `[outFeatures]` bias
-`Parameter`. Callers may supply the exact parameter Tensors, or construct both from explicit
-feature counts, bias presence, floating data type, and caller-owned random source; that initialized
-path uses fixed Glorot-uniform weight and deterministic zero bias. `Linear.forward(input)` is
-mode-insensitive and delegates to the matching current `Tensor.linear` overload using the current
-bindings. It builds only the visible primitive Tensor-expression chain: it does not evaluate,
-compile, lower, or execute the result. The stable parameter accessors expose the same wrappers as
-module discovery, so a compatible replacement affects a later forward call while an expression
-already constructed from an earlier binding remains unchanged.
+`Parameter`. Callers may supply exact parameter Tensors or construct both immediately from
+explicit feature counts, bias presence, floating data type, and caller-owned random source; that
+eager path uses fixed Glorot-uniform weight and deterministic zero bias.
+
+The same `Linear` type also has one input-width-inferring constructor. The caller supplies
+architectural `outFeatures`, bias presence, exact floating type, one of four closed Glorot or
+Kaiming/ReLU weight policies, a deterministic `RandomGeneratorFactory`, and a seed. Construction
+reserves `weight` then optional `bias` but creates no generator, Tensor, Tensor identifier, or
+`Parameter`. The first compatible forward infers only the positive static final input extent,
+creates weight then optional zero bias, validates and publishes the complete direct group, and
+only afterward constructs that call's ordinary linear expression. This behavior has no separate
+`LazyLinear`, public bind/build/initialize method, or status query.
+
+Prevalidation failure has no generator, sample, Tensor, or identifier effect. A later failed
+attempt publishes no wrapper and can consume draws, allocation, or opaque identifiers; retry uses
+a fresh generator from the same factory and seed. Compatible concurrent first calls serialize the
+layer-local initialization only. Later calls reuse the stable wrappers and may change leading
+batch/time Dimensions while preserving exact type and final feature width. A functional Model
+provides no whole-body transaction: an earlier Linear can remain initialized when later body work
+fails, and an unvisited registered Linear keeps complete discovery/export unavailable.
+
+Every `Linear.forward(input)` is mode-insensitive and delegates to the matching current
+`Tensor.linear` overload using the current bindings. It builds only the visible primitive Tensor-
+expression chain: neither first-forward initialization nor later forward construction numerically
+executes the result. The stable parameter accessors expose the same wrappers as module discovery,
+so a compatible replacement affects a later forward call while an expression already constructed
+from an earlier binding remains unchanged.
 
 The current final `LayerNorm` module is the stateful owner for mandatory affine
 layer-normalization state. It owns equal-Shape `scale` and `bias` parameters over one
@@ -2742,11 +2773,15 @@ strict state loading, parameter replacement, and train/eval propagation are inhe
 `Module`; the structure is sealed while bindings and mode retain their caller-coordinated mutable
 lifecycle. A Model is not thread-safe.
 
-This boundary performs no lazy parameter binding, input-dimension inference, tokenizer or batch
+`Model.define` itself performs no parameter binding, input-descriptor tracing, tokenizer or batch
 preparation, checkpoint persistence, backward definition, automatic differentiation, optimizer
-update, training orchestration, graph capture, compilation, preparation, or execution. Current
-layers retain their eager constructor requirements. See [Current NN typed Model composition
-contract](api/training-api.md#current-nn-typed-model-composition-contract).
+update, training orchestration, graph capture, compilation, preparation, or execution. The
+existing final `Linear` may initialize its own input-dependent parameters when reached by the
+ordinary Java forward traversal, but this is a layer-local contract rather than a general Model
+build/initialize lifecycle or whole-body transaction. See [Current NN typed Model composition
+contract](api/training-api.md#current-nn-typed-model-composition-contract) and [Current NN
+automatic Linear initialization
+contract](api/training-api.md#current-nn-automatic-linear-initialization-contract).
 
 ### Unary Tensor module and Sequential
 

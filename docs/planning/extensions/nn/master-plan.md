@@ -125,13 +125,18 @@ definition does not strand modules under an unreachable partial model. The topol
 the callback and produces descriptive state paths such as `hidden.weight`; Model owns no backward,
 compile, training, or execution method.
 
-Later Draft tasks deliberately separate input-dimension inference from that structural
-foundation. Deferred parameters must define a complete bind/build lifecycle, deterministic
-initialization and failure effects, state-dictionary behavior before and after binding, checkpoint
-load into an unbound model, and concurrency limits before a lazy layer becomes public. Batch,
-time, and input-feature extents are input-dependent and should be inferred. Hidden/output widths,
-embedding size, class count, vocabulary size, and recurrent hidden size remain declared
-architecture or data-schema choices.
+Detailed task 0019 now separates input-dimension inference from that structural foundation. It
+keeps one final public `Linear`, every public `Parameter` fully bound, and future names privately
+reserved in `Module`. One normal Linear constructor omits `inFeatures`; its first forward performs
+complete layer-local initialization before returning the ordinary usable Tensor expression from
+that same call. There is no public lazy type, factory, bind/build/initialize operation, or status
+query. Parameter discovery and state export fail closed while an owned reservation is unbound;
+strict load may instead use a complete candidate dictionary as the binding source. Initialization
+infers only the positive static final input extent, uses an explicit closed weight policy plus a
+deterministic random factory/seed, publishes a layer's state together, and serializes concurrent
+first calls. Arbitrary functional forward code still prevents a whole-model first-forward
+transaction. Batch/time leading extents remain variable; hidden/output widths, embedding size,
+class count, vocabulary size, and recurrent hidden size remain architecture or schema choices.
 
 ## Task list
 
@@ -156,12 +161,12 @@ architecture or data-schema choices.
 | [0016](tasks/0016-static-packed-gru-sequence.md) | Static packed GRU sequence | Complete | 0015 | Reused the proven one-hidden-state static packing and restoration policy for `GruCell` without a shared recurrent abstraction. |
 | [0017](tasks/0017-static-packed-lstm-sequence.md) | Static packed LSTM sequence | Complete | 0014–0015 | Added cell-specific static packing with compact hidden outputs, internal cell-state carrying, and restoration of both final states. |
 | [0018](tasks/0018-typed-functional-model-topology.md) | Typed functional Model topology | Complete | 0010–0017; stable Module ownership | Added typed `Model<I,O>`, functional definition/forward contracts, sealed `Topology.addModule`, atomic descriptive child ownership, and stable state paths without lazy state or training behavior. |
-| 0019 | Deferred parameter binding and lazy Linear | Draft | 0018; exact initialization/state-dictionary decision | Define the honest unbound-to-bound lifecycle, deterministic one-time initialization, failure/coordination rules, checkpoint interaction, and a Linear that infers only `inFeatures` while callers choose `outFeatures`. |
-| 0020 | Lazy Embedding/recurrent inputs and inferred zero states | Draft | 0019; current Embedding and recurrent contracts | Add initialized Embedding policy, infer recurrent input width from the first bound input, and provide zero hidden/cell defaults derived from batch, hidden width, and type while retaining explicit advanced-state overloads. |
+| [0019](tasks/0019-automatic-first-forward-linear-initialization.md) | Automatic first-forward Linear initialization | Complete | 0018; exact initialization/state-dictionary decision | Kept one public Linear type, reserved future state privately, initialized its complete parameter set before constructing the first returned forward expression, failed closed on incomplete discovery/export, and allowed strict dictionary initialization while inferring only `inFeatures`. |
+| 0020 | Automatic recurrent inputs and inferred zero states | Draft | 0019; current Embedding and recurrent contracts | Reassess the proven internal lifecycle for recurrent input widths and provide zero hidden/cell defaults derived from batch, hidden width, and type while retaining explicit advanced-state overloads; Embedding keeps explicit vocabulary and embedding widths. |
 | 0021 | Runtime recurrent scan/control-flow prerequisite program | Draft | 0020; explicit cross-module architecture decision and Model/Compiler/Prepare/Runtime/Engine/backend support | Establish a fixed recurrent body/node plus runtime input-binding and execution contracts before NN exposes a new valid-length recurrent API; specific length values must not specialize Model topology or compiled graph structure. |
 | 0022 | Valid-length recurrent API and Data integration | Draft | 0021; Data 0001–0002 architecture and valid-length contracts | Consume Data-owned runtime valid lengths through the proven scan, derive zero states as selected, and deliberately migrate or retain the current static `long[]` compatibility contracts without presenting a host adapter as the target API. |
 | 0023 | Arbitrary dense validity-mask semantics | Draft | 0022; concrete attention/loss/recurrent consumer | Reassess an explicit Boolean mask only for validity patterns with holes; keep it derived or separately supplied for that consumer, never a second stored representation of ordinary right padding, and never a claim of skipped recurrent work. |
-| 0024 | Typed model/recurrent/data integration checkpoint | Draft | 0019–0022; 0023 only if selected; Checkpoint model-state and Training publication readiness | Validate model state paths, lazy/checkpoint compatibility, variable-batch behavior, recurrent continuation, autograd/training handoff, documentation, and integration without moving persistent checkpoint I/O into NN. |
+| 0024 | Typed model/recurrent/data integration checkpoint | Draft | 0019–0022; 0023 only if selected; Checkpoint model-state and Training publication readiness | Validate model state paths, automatic-initialization/checkpoint compatibility, variable-batch behavior, recurrent continuation, autograd/training handoff, documentation, and integration without moving persistent checkpoint I/O into NN. |
 
 ## Milestones
 
@@ -394,8 +399,18 @@ independent clean documentation context `/root/nn_0018_docs` found no executable
 architecture defect, finalized Javadocs, Training API, glossary, and planning evidence, and passed
 the generated-Javadoc, public-surface, external-use, Markdown, scope, import/mechanism, and
 whitespace gates without repeating stable Java tests. This interleave changes no dependency or
-architecture boundary. NN 0019–0024 remain concise Draft rows without task files; no later NN task
-is Ready or has a detailed task specification.
+architecture boundary. Detailed
+[NN 0019](tasks/0019-automatic-first-forward-linear-initialization.md) is Complete. Its isolated
+implementation context delivered the private reservation lifecycle, unified automatic `Linear`,
+strict-load initialization, and focused tests; the authoritative NN suite passed 31 suites and
+226 tests. Independent clean documentation context `/root/nn_0019_docs` found no executable,
+public-API, architecture, dependency, or scope defect, finalized the six affected production and
+package Javadocs plus the Training API, glossary, and planning evidence, and reused the stable
+Java evidence because it changed no executable source or test. Final Javadoc/rendered-page,
+public/protected-surface, external-use, forbidden-API/import, Markdown, exact fifteen-path,
+frontier/status, newline, whitespace, and diff gates passed. Its bounded model-only scope changes
+neither the interleave, dependency direction, CPU files, nor the global roadmap. NN 0020–0024
+remain concise Draft rows without task files, and no NN task is Ready.
 The proposed Data, Text, Vision, and Checkpoint master plans are also Draft: their modules do not
 exist in the architecture or build, so their first implementation must be a coordinated
 architecture, module-boundary, ADR, settings/build, and architecture-test decision rather than a
@@ -441,13 +456,10 @@ consumer.
 - Reassess a shared recurrent sequence abstraction only when a concrete consumer proves a useful
   type-safe contract. The three current containers share static packing policy, but LSTM still
   carries and restores cell state that a one-hidden-state abstraction must not erase.
-- Before NN 0019 becomes Ready, select the exact deferred-initialization source contract and
-  transactional boundary: the design must not retain an undocumented caller random source,
-  publish an incomplete parameter tree, or make state export/load silently depend on whether a
-  previous forward happened to succeed.
-- Before NN 0019 becomes Ready, decide whether an unbound model rejects state export and whether
-  strict checkpoint load may bind deferred slots from candidate Tensor schemas. Both cases must
-  preserve stable paths and validate the complete tree before installation.
+- After NN 0019, reassess whether a concrete consumer justifies model-wide descriptor tracing or a
+  public state-schema inspection value. The first automatic capability intentionally initializes
+  only the Linear reached by forward traversal or strict dictionary load and exposes no public
+  lifecycle/status API.
 - Before NN 0020 becomes Ready, select the initialized Embedding distribution and padding-row
   policy, if any. Vocabulary size is tokenizer/schema input and must not be inferred from the
   maximum token ID in one batch.
@@ -631,6 +643,26 @@ consumer.
   Backward remains compiler/training work.
 - NN 0018 collects and validates the complete definition before child attachment, then seals the
   topology. It does not call user forward code during definition and does not add lazy state.
+- NN 0019 keeps `Parameter` always bound. `Module` privately reserves future parameter names and
+  validators; no public Parameter wrapper exists until one complete layer-local publication or a
+  complete strict state load succeeds. Parameter discovery and state export reject unbound
+  reservations rather than returning history-dependent partial state.
+- NN 0019 adds one ordinary constructor to the existing final `Linear`; it accepts `outFeatures`,
+  bias presence, exact floating type, one of the four current fan policies, a non-stochastic
+  `RandomGeneratorFactory`, and a seed, but no `inFeatures`. It exposes no `Lazy*` type/factory,
+  public bind/build/initialize operation, or initialization-status query. A fresh generator is
+  created only during each first-forward attempt and never retained; only the positive static
+  final input extent becomes `inFeatures`.
+- Automatic initialization is synchronized and atomic only for one layer. It completes and
+  verifies parameter publication before the same first call constructs and returns its ordinary
+  `Tensor.linear` expression. A failed attempt is retryable and publishes no wrapper, but Tensor
+  IDs are not rolled back. Arbitrary `Model.define` Java bodies make whole-model first-forward
+  preflight and rollback impossible, so a prior layer may remain initialized when later body work
+  fails and an unvisited registered layer may remain uninitialized.
+- Strict state load includes reserved paths in its complete target preflight and may bind an
+  uninitialized automatic Linear from candidate weight/bias Tensors without running an
+  initializer. It retains whole-tree ordinary validate-before-install behavior and makes
+  equivalent eager/automatically initialized dictionaries path/kind/type/Shape compatible.
 - Input-dependent batch, time, and incoming feature extents are inferred by later binding or batch
   metadata. Hidden/output widths, embedding size, class count, vocabulary size, and recurrent
   hidden width remain explicit architecture or schema decisions.
@@ -679,9 +711,10 @@ consumer.
   of generic operation, Shape, provenance, compiler, and execution semantics.
 - Materializing host valid lengths as an eager Tensor before runtime input binding exists could
   freeze batch-specific values into expression construction and misrepresent graph reuse.
-- A lazy layer that declares parameters only after an incidental forward could expose incomplete
-  state paths, make checkpoint behavior history-dependent, consume random draws nondeterministically,
-  or leave a partially bound model after failure. NN 0019 must fix those effects explicitly.
+- An automatically initialized layer could expose incomplete state paths, make checkpoint behavior
+  history-dependent, consume random draws nondeterministically, or leave a partially published
+  layer after failure. NN 0019 must fail complete discovery/export while reserved, use explicit
+  deterministic source configuration, and publish each layer's state together.
 - Retaining caller-owned randomness until an unknown first bind could create hidden lifetime and
   concurrency obligations. The deferred initializer/source contract must make ownership visible.
 - Treating vocabulary size, output classes, hidden width, or embedding width as input-derived

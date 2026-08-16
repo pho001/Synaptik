@@ -11,6 +11,8 @@ import io.github.pho001.synaptik.model.datatype.DataType;
 import io.github.pho001.synaptik.model.shape.Shape;
 import io.github.pho001.synaptik.model.tensor.Tensor;
 import io.github.pho001.synaptik.model.tensor.TensorFactory;
+import io.github.pho001.synaptik.nn.initialization.LinearWeightInitialization;
+import io.github.pho001.synaptik.nn.layers.Linear;
 import java.io.IOException;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Method;
@@ -27,6 +29,8 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
+import java.util.random.RandomGenerator;
+import java.util.random.RandomGeneratorFactory;
 import javax.tools.DiagnosticCollector;
 import javax.tools.JavaCompiler;
 import javax.tools.JavaFileObject;
@@ -37,6 +41,9 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 class ModelTest {
+    private static final RandomGeneratorFactory<RandomGenerator> RANDOM_FACTORY =
+            RandomGeneratorFactory.of("L64X128MixRandom");
+
     @Test
     void exposesExactlyThePlannedPublicAndPackageSurface() throws ReflectiveOperationException {
         Constructor<Model> modelConstructor = Model.class.getDeclaredConstructor();
@@ -198,6 +205,89 @@ class ModelTest {
                 () -> assertTrue(model.stateDictionary().entries().isEmpty()),
                 () -> assertTrue(late.getMessage().contains("sealed")),
                 () -> assertSame(lateCandidate, laterOwner.children().get("late")));
+    }
+
+    @Test
+    void functionalModelInitializesTwoAutomaticLinearLayersAlongExecutedTraversal() {
+        Linear hidden = automaticLinear(4, true, 41L);
+        Linear output = automaticLinear(2, true, 42L);
+        var model = Model.define(topology -> {
+            topology.addModule("hidden", hidden);
+            topology.addModule("output", output);
+            return (Tensor input) -> output.forward(hidden.forward(input).relu());
+        });
+        Tensor input = TensorFactory.zeros(
+                Shape.of(5, 3), DataType.FLOAT32, Optional.empty(), false);
+
+        Tensor result = model.forward(input);
+
+        assertAll(
+                () -> assertEquals(Shape.of(5, 2), result.descriptor().shape()),
+                () -> assertEquals(Shape.of(4, 3), hidden.weight().value().descriptor().shape()),
+                () -> assertEquals(Shape.of(2, 4), output.weight().value().descriptor().shape()),
+                () -> assertEquals(
+                        List.of(
+                                "hidden.weight",
+                                "hidden.bias",
+                                "output.weight",
+                                "output.bias"),
+                        List.copyOf(model.parametersRecursively().keySet())));
+    }
+
+    @Test
+    void unvisitedAutomaticModuleKeepsCompleteDiscoveryAndExportUnavailable() {
+        Linear used = automaticLinear(4, false, 11L);
+        Linear unused = automaticLinear(7, false, 12L);
+        var model = Model.define(topology -> {
+            topology.addModule("used", used);
+            topology.addModule("unused", unused);
+            return (Tensor input) -> used.forward(input);
+        });
+        model.forward(TensorFactory.zeros(
+                Shape.of(2, 3), DataType.FLOAT32, Optional.empty(), false));
+
+        IllegalStateException discovery = assertThrows(
+                IllegalStateException.class, model::parametersRecursively);
+        IllegalStateException export = assertThrows(
+                IllegalStateException.class, model::stateDictionary);
+
+        assertAll(
+                () -> assertTrue(discovery.getMessage().contains("unused.weight")),
+                () -> assertTrue(export.getMessage().contains("unused.weight")),
+                () -> assertEquals(Shape.of(4, 3), used.weight().value().descriptor().shape()),
+                () -> assertThrows(IllegalStateException.class, unused::weight));
+    }
+
+    @Test
+    void laterBodyFailureKeepsEarlierLayerInitializationPublished() {
+        Linear hidden = automaticLinear(4, false, 21L);
+        DeliberateFailure failure = new DeliberateFailure();
+        var model = Model.<Tensor, Tensor>define(topology -> {
+            topology.addModule("hidden", hidden);
+            return input -> {
+                hidden.forward(input);
+                throw failure;
+            };
+        });
+        Tensor input = TensorFactory.zeros(
+                Shape.of(2, 3), DataType.FLOAT32, Optional.empty(), false);
+
+        assertSame(failure, assertThrows(DeliberateFailure.class, () -> model.forward(input)));
+        assertAll(
+                () -> assertEquals(Shape.of(4, 3), hidden.weight().value().descriptor().shape()),
+                () -> assertEquals(
+                        List.of("hidden.weight"),
+                        List.copyOf(model.parametersRecursively().keySet())));
+    }
+
+    private static Linear automaticLinear(long outFeatures, boolean bias, long seed) {
+        return new Linear(
+                outFeatures,
+                bias,
+                DataType.FLOAT32,
+                LinearWeightInitialization.GLOROT_UNIFORM,
+                RANDOM_FACTORY,
+                seed);
     }
 
     @Test

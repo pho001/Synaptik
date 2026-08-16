@@ -11,16 +11,19 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.Consumer;
 
 /**
  * Owner of one module's direct state, exclusively owned child modules, and forward mode.
  *
  * <p>A subclass declares its direct state through {@link #parameter(String, Tensor)} and
  * {@link #buffer(String, Tensor)}, and {@link #child(String, Module)}, then uses retained tensor
- * references while constructing a layer-specific expression. A child is permanently owned by
- * exactly one parent. This foundation deliberately has no universal {@code forward} method:
- * subclasses choose truthful typed signatures, while {@link UnaryTensorModule} names only the
- * narrower one-Tensor-to-one-Tensor case.</p>
+ * references while constructing a layer-specific expression. A concrete input-dependent layer
+ * may instead reserve private future parameter names and publish their complete real wrappers as
+ * one direct group. A child is permanently owned by exactly one parent. This foundation
+ * deliberately has no universal {@code forward} method: subclasses choose truthful typed
+ * signatures, while {@link UnaryTensorModule} names only the narrower one-Tensor-to-one-Tensor
+ * case.</p>
  *
  * <p>Parameters, buffers, and children share one local-name namespace. Direct declaration order
  * and child-registration order determine immutable discovery snapshots. Recursive state uses
@@ -28,16 +31,21 @@ import java.util.Objects;
  * buffers, then its children. Module instances are mutable through {@link #train()},
  * {@link #eval()}, direct buffer replacement, and compatible parameter replacement and are not
  * thread-safe; callers must synchronize concurrent declaration, traversal, ownership, mode,
- * replacement, or forward construction when a consistent view matters. This type provides no
+ * replacement, state loading, or general forward construction when a consistent view matters.
+ * Reserved direct-parameter publication uses one release/acquire completion gate, so a racing
+ * accessor or discovery call observes an unbound failure or the complete direct published set,
+ * never a partial direct set. This narrow guarantee does not make tree operations generally
+ * thread-safe. This type provides no
  * version counter, persistent checkpoint format, optimizer behavior, or execution lifecycle.
  * {@link #loadStateDictionary(StateDictionary)} provides validate-before-install atomicity for
  * ordinary caller-coordinated schema failures, not a lock or a simultaneous snapshot for racing
  * readers.</p>
  */
 public abstract class Module {
-    private final Map<String, Parameter> parameters = new LinkedHashMap<>();
+    private final Map<String, ParameterSlot> parameterDeclarations = new LinkedHashMap<>();
     private final Map<String, Buffer> buffers = new LinkedHashMap<>();
     private final Map<String, Module> children = new LinkedHashMap<>();
+    private volatile boolean parameterReservationsBound = true;
     private Module parent;
     private ForwardMode mode = ForwardMode.TRAINING;
 
@@ -67,8 +75,97 @@ public abstract class Module {
     protected final Parameter parameter(String name, Tensor value) {
         validateAvailableName(name);
         Parameter parameter = new Parameter(name, Objects.requireNonNull(value, "value"));
-        parameters.put(name, parameter);
+        parameterDeclarations.put(name, ParameterSlot.bound(name, parameter));
         return parameter;
+    }
+
+    /**
+     * Reserves one direct parameter name whose complete Tensor is supplied later by the subclass.
+     *
+     * <p>The validator is retained exactly and is called before any wrapper from the reservation
+     * group is published. It must either return normally or throw without an externally visible
+     * side effect. A reservation occupies the shared direct namespace and its declaration-order
+     * position immediately, but it is not an incomplete {@link Parameter}.</p>
+     *
+     * @param name the non-null, non-blank unused local name without {@code .}
+     * @param validator non-null deterministic validator for the eventual exact Tensor binding
+     * @throws NullPointerException if {@code name} or {@code validator} is null
+     * @throws IllegalArgumentException if {@code name} is invalid or unavailable
+     */
+    protected final void reserveParameter(String name, Consumer<Tensor> validator) {
+        validateAvailableName(name);
+        Consumer<Tensor> suppliedValidator = Objects.requireNonNull(validator, "validator");
+        parameterDeclarations.put(name, ParameterSlot.reserved(name, suppliedValidator));
+        parameterReservationsBound = false;
+    }
+
+    /**
+     * Validates and publishes every outstanding direct parameter reservation as one group.
+     *
+     * <p>All values and retained validators are checked and all real {@link Parameter} wrappers
+     * are constructed before any slot changes. Success publishes the complete direct group
+     * through the reservation completion gate; ordinary failure publishes none. This operation
+     * is not recursive and provides no rollback for fatal virtual-machine failure.</p>
+     *
+     * @param values non-null ordered values, one per outstanding reservation in declaration order
+     * @throws NullPointerException if {@code values} or one of its elements is null
+     * @throws IllegalArgumentException if the value count or a reserved schema is invalid
+     */
+    protected final void bindReservedParameters(List<Tensor> values) {
+        Objects.requireNonNull(values, "values");
+        List<ParameterSlot> reservations = outstandingParameterReservations();
+        if (values.size() != reservations.size()) {
+            throw new IllegalArgumentException(
+                    "reserved parameter value count mismatch: expected="
+                            + reservations.size() + ", actual=" + values.size());
+        }
+
+        List<Parameter> prepared = new ArrayList<>(reservations.size());
+        for (int index = 0; index < reservations.size(); index++) {
+            Tensor value = Objects.requireNonNull(values.get(index), "values[" + index + "]");
+            ParameterSlot reservation = reservations.get(index);
+            reservation.validator.accept(value);
+            prepared.add(new Parameter(reservation.name, value));
+        }
+        for (int index = 0; index < reservations.size(); index++) {
+            reservations.get(index).parameter = prepared.get(index);
+        }
+        parameterReservationsBound = true;
+    }
+
+    /**
+     * Reports whether every direct parameter reservation has a published wrapper.
+     *
+     * <p>The completion read has acquire semantics paired with successful group publication. It
+     * is lifecycle support for a concrete module, not a public initialization-status API.</p>
+     *
+     * @return {@code true} when no direct reservation is outstanding and all corresponding
+     *     wrappers are visible to the current thread
+     */
+    protected final boolean parameterReservationsBound() {
+        return parameterReservationsBound;
+    }
+
+    /**
+     * Returns one exact direct parameter wrapper after all direct reservations are complete.
+     *
+     * <p>The completion check has acquire semantics. It therefore returns only a fully published
+     * wrapper set or fails; it never exposes an incomplete placeholder.</p>
+     *
+     * @param name non-null local parameter name
+     * @return the exact published wrapper, never {@code null}
+     * @throws NullPointerException if {@code name} is null
+     * @throws IllegalArgumentException if the name is not a direct parameter declaration
+     * @throws IllegalStateException if any direct parameter reservation is outstanding
+     */
+    protected final Parameter boundParameter(String name) {
+        Objects.requireNonNull(name, "name");
+        requireDirectParameterReservationsBound();
+        ParameterSlot slot = parameterDeclarations.get(name);
+        if (slot == null) {
+            throw new IllegalArgumentException("no direct parameter declared with name: " + name);
+        }
+        return slot.parameter;
     }
 
     /**
@@ -119,11 +216,12 @@ public abstract class Module {
     protected final void replaceParameter(String name, Tensor value) {
         Objects.requireNonNull(name, "name");
         Objects.requireNonNull(value, "value");
-        Parameter parameter = parameters.get(name);
-        if (parameter == null) {
+        ParameterSlot slot = parameterDeclarations.get(name);
+        if (slot == null) {
             throw new IllegalArgumentException("no direct parameter declared with name: " + name);
         }
-        parameter.replace(value);
+        requireDirectParameterReservationsBound();
+        slot.parameter.replace(value);
     }
 
     /**
@@ -297,9 +395,13 @@ public abstract class Module {
      *
      * @return an unmodifiable structural snapshot of direct parameter wrappers; never {@code
      *     null}. A wrapper's {@link Parameter#value()} observes its current binding when read.
+     * @throws IllegalStateException if the first direct parameter reservation is not yet bound
      */
     public final List<Parameter> parameters() {
-        return List.copyOf(parameters.values());
+        requireDirectParameterReservationsBound();
+        return parameterDeclarations.values().stream()
+                .map(slot -> slot.parameter)
+                .toList();
     }
 
     /**
@@ -343,6 +445,7 @@ public abstract class Module {
      * @return an unmodifiable insertion-ordered snapshot from relative parameter path to exact
      *     parameter; never {@code null}
      * @throws IllegalStateException if defensive traversal encounters a repeated module identity
+     *     or the first qualified parameter reservation is not yet bound
      */
     public final Map<String, Parameter> parametersRecursively() {
         Map<String, Parameter> result = new LinkedHashMap<>();
@@ -395,9 +498,10 @@ public abstract class Module {
      * @return non-null immutable ordered dictionary of exact current Tensor references; empty for
      *     a tree with no parameters or buffers
      * @throws IllegalStateException if defensive traversal encounters a repeated module identity
+     *     or the first qualified parameter reservation is not yet bound
      */
     public final StateDictionary stateDictionary() {
-        List<StateBinding> bindings = collectStateBindings();
+        List<StateBinding> bindings = collectStateBindings(false);
         List<StateEntry> entries = new ArrayList<>(bindings.size());
         for (StateBinding binding : bindings) {
             entries.add(new StateEntry(binding.path(), binding.kind(), binding.currentValue()));
@@ -425,6 +529,13 @@ public abstract class Module {
      * Current immutable descriptors make the prevalidated parameter replacements and non-null
      * buffer assignments non-throwing by construction.</p>
      *
+     * <p>A reserved parameter path participates in the same complete target schema. Its retained
+     * validator checks the candidate and a real wrapper is prepared before installation. A
+     * successful load can therefore initialize a reserved group without calling a layer
+     * initializer, creating a random generator, or constructing another Tensor. Until every
+     * reserved group in the owned tree is bound, ordinary discovery and state export fail rather
+     * than return a partial schema.</p>
+     *
      * <p>This mutable operation is not thread-safe or linearizable and provides no Java-memory-
      * model visibility guarantee. Atomicity means complete ordinary validation before sequential
      * installation under external caller coordination; it does not promise a simultaneous view to
@@ -444,7 +555,7 @@ public abstract class Module {
      */
     public final void loadStateDictionary(StateDictionary dictionary) {
         StateDictionary suppliedDictionary = Objects.requireNonNull(dictionary, "dictionary");
-        List<StateBinding> targets = collectStateBindings();
+        List<StateBinding> targets = collectStateBindings(true);
         Map<String, StateEntry> candidates = new LinkedHashMap<>();
         for (StateEntry entry : suppliedDictionary.entries()) {
             candidates.put(entry.path(), entry);
@@ -464,18 +575,38 @@ public abstract class Module {
         }
 
         List<StateInstall> installs = new ArrayList<>(targets.size());
+        List<Module> modulesWithReservations = new ArrayList<>();
+        IdentityHashMap<Module, Boolean> reservationOwners = new IdentityHashMap<>();
         for (StateBinding target : targets) {
             StateEntry candidate = candidates.get(target.path());
-            validateCompatible(target, candidate);
-            installs.add(new StateInstall(target, candidate.value()));
+            if (candidate.kind() != target.kind()) {
+                throw new IllegalArgumentException(
+                        "state kind mismatch at path " + target.path() + ": expected="
+                                + target.kind() + ", actual=" + candidate.kind());
+            }
+            if (target.reserved()) {
+                Parameter prepared = prepareReservedParameter(target, candidate.value());
+                installs.add(new StateInstall(target, candidate.value(), prepared));
+                if (reservationOwners.put(target.owner(), Boolean.TRUE) == null) {
+                    modulesWithReservations.add(target.owner());
+                }
+            } else {
+                validateCompatible(target, candidate);
+                installs.add(new StateInstall(target, candidate.value(), null));
+            }
         }
         for (StateInstall install : installs) {
             StateBinding target = install.target();
-            if (target.kind() == StateKind.PARAMETER) {
+            if (target.reserved()) {
+                target.parameterSlot().parameter = install.preparedParameter();
+            } else if (target.kind() == StateKind.PARAMETER) {
                 target.parameter().replace(install.value());
             } else {
                 target.buffer().replaceValue(install.value());
             }
+        }
+        for (Module module : modulesWithReservations) {
+            module.publishParameterReservationCompletion();
         }
     }
 
@@ -541,7 +672,9 @@ public abstract class Module {
         if (name.contains(".")) {
             throw new IllegalArgumentException("name must not contain '.'");
         }
-        if (parameters.containsKey(name) || buffers.containsKey(name) || children.containsKey(name)) {
+        if (parameterDeclarations.containsKey(name)
+                || buffers.containsKey(name)
+                || children.containsKey(name)) {
             throw new IllegalArgumentException("direct module name is already declared: " + name);
         }
     }
@@ -578,8 +711,11 @@ public abstract class Module {
     }
 
     private void collectParameters(Map<String, Parameter> result) {
-        traverseState((module, pathSegments) -> module.parameters.forEach(
-                (name, parameter) -> result.put(path(pathSegments, name), parameter)));
+        traverseState((module, pathSegments) -> {
+            module.requireParameterReservationsBound(pathSegments);
+            module.parameterDeclarations.forEach((name, slot) ->
+                    result.put(path(pathSegments, name), slot.parameter));
+        });
     }
 
     private void collectBuffers(Map<String, Buffer> result) {
@@ -587,23 +723,28 @@ public abstract class Module {
                 (name, buffer) -> result.put(path(pathSegments, name), buffer)));
     }
 
-    private List<StateBinding> collectStateBindings() {
+    private List<StateBinding> collectStateBindings(boolean includeReservations) {
         List<StateBinding> result = new ArrayList<>();
         traverseState((module, pathSegments) -> {
-            module.parameters.forEach((name, parameter) -> result.add(StateBinding.parameter(
-                    path(pathSegments, name), parameter, parameter.value())));
+            if (!includeReservations) {
+                module.requireParameterReservationsBound(pathSegments);
+            }
+            module.parameterDeclarations.forEach((name, slot) -> {
+                String qualifiedPath = path(pathSegments, name);
+                if (slot.parameter == null) {
+                    result.add(StateBinding.reservedParameter(qualifiedPath, module, slot));
+                } else {
+                    result.add(StateBinding.parameter(
+                            qualifiedPath, module, slot, slot.parameter, slot.parameter.value()));
+                }
+            });
             module.buffers.forEach((name, buffer) -> result.add(StateBinding.buffer(
-                    path(pathSegments, name), buffer, buffer.value())));
+                    path(pathSegments, name), module, buffer, buffer.value())));
         });
         return result;
     }
 
     private static void validateCompatible(StateBinding target, StateEntry candidate) {
-        if (candidate.kind() != target.kind()) {
-            throw new IllegalArgumentException(
-                    "state kind mismatch at path " + target.path() + ": expected="
-                            + target.kind() + ", actual=" + candidate.kind());
-        }
         Tensor expected = target.currentValue();
         Tensor actual = candidate.value();
         if (actual.descriptor().dataType() != expected.descriptor().dataType()) {
@@ -623,6 +764,75 @@ public abstract class Module {
                     "state parameter requiresGrad mismatch at path " + target.path()
                             + ": expected=true, actual=false");
         }
+    }
+
+    private static Parameter prepareReservedParameter(StateBinding target, Tensor value) {
+        try {
+            target.parameterSlot().validator.accept(value);
+            return new Parameter(target.parameterSlot().name, value);
+        } catch (IllegalArgumentException exception) {
+            throw new IllegalArgumentException(
+                    "state parameter mismatch at path " + target.path() + ": "
+                            + exception.getMessage(), exception);
+        }
+    }
+
+    private List<ParameterSlot> outstandingParameterReservations() {
+        List<ParameterSlot> reservations = new ArrayList<>();
+        for (ParameterSlot slot : parameterDeclarations.values()) {
+            if (slot.parameter == null) {
+                reservations.add(slot);
+            }
+        }
+        return reservations;
+    }
+
+    private void requireDirectParameterReservationsBound() {
+        if (parameterReservationsBound) {
+            return;
+        }
+        for (ParameterSlot slot : parameterDeclarations.values()) {
+            if (slot.parameter == null) {
+                throw new IllegalStateException(
+                        "parameter reservation is not bound: " + slot.name);
+            }
+        }
+        for (ParameterSlot slot : parameterDeclarations.values()) {
+            if (slot.validator != null) {
+                throw new IllegalStateException(
+                        "parameter reservation is not bound: " + slot.name);
+            }
+        }
+        throw new IllegalStateException("parameter reservations are not bound");
+    }
+
+    private void requireParameterReservationsBound(List<String> pathSegments) {
+        if (parameterReservationsBound) {
+            return;
+        }
+        for (ParameterSlot slot : parameterDeclarations.values()) {
+            if (slot.parameter == null) {
+                throw new IllegalStateException(
+                        "parameter reservation is not bound: " + path(pathSegments, slot.name));
+            }
+        }
+        for (ParameterSlot slot : parameterDeclarations.values()) {
+            if (slot.validator != null) {
+                throw new IllegalStateException(
+                        "parameter reservation is not bound: " + path(pathSegments, slot.name));
+            }
+        }
+        throw new IllegalStateException("parameter reservations are not bound");
+    }
+
+    private void publishParameterReservationCompletion() {
+        for (ParameterSlot slot : parameterDeclarations.values()) {
+            if (slot.parameter == null) {
+                throw new IllegalStateException(
+                        "parameter reservation is not bound: " + slot.name);
+            }
+        }
+        parameterReservationsBound = true;
     }
 
     private void traverseState(StateVisitor visitor) {
@@ -708,19 +918,58 @@ public abstract class Module {
     private record StateBinding(
             String path,
             StateKind kind,
+            Module owner,
+            ParameterSlot parameterSlot,
             Parameter parameter,
             Buffer buffer,
             Tensor currentValue) {
-        private static StateBinding parameter(String path, Parameter parameter, Tensor value) {
-            return new StateBinding(path, StateKind.PARAMETER, parameter, null, value);
+        private static StateBinding parameter(
+                String path,
+                Module owner,
+                ParameterSlot slot,
+                Parameter parameter,
+                Tensor value) {
+            return new StateBinding(
+                    path, StateKind.PARAMETER, owner, slot, parameter, null, value);
         }
 
-        private static StateBinding buffer(String path, Buffer buffer, Tensor value) {
-            return new StateBinding(path, StateKind.BUFFER, null, buffer, value);
+        private static StateBinding reservedParameter(
+                String path, Module owner, ParameterSlot slot) {
+            return new StateBinding(path, StateKind.PARAMETER, owner, slot, null, null, null);
+        }
+
+        private static StateBinding buffer(
+                String path, Module owner, Buffer buffer, Tensor value) {
+            return new StateBinding(path, StateKind.BUFFER, owner, null, null, buffer, value);
+        }
+
+        private boolean reserved() {
+            return kind == StateKind.PARAMETER && parameter == null;
         }
     }
 
-    private record StateInstall(StateBinding target, Tensor value) {
+    private record StateInstall(
+            StateBinding target, Tensor value, Parameter preparedParameter) {
+    }
+
+    private static final class ParameterSlot {
+        private final String name;
+        private final Consumer<Tensor> validator;
+        private Parameter parameter;
+
+        private ParameterSlot(String name, Consumer<Tensor> validator, Parameter parameter) {
+            this.name = name;
+            this.validator = validator;
+            this.parameter = parameter;
+        }
+
+        private static ParameterSlot bound(String name, Parameter parameter) {
+            return new ParameterSlot(name, null, parameter);
+        }
+
+        private static ParameterSlot reserved(String name, Consumer<Tensor> validator) {
+            return new ParameterSlot(name, validator, null);
+        }
     }
 
     private static final class TraversalFrame {
