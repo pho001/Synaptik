@@ -69,7 +69,7 @@ var model = Model.define(topology -> {
                     64,
                     true,
                     DataType.FLOAT32,
-                    LinearWeightInitialization.GLOROT_UNIFORM,
+                    ParameterInitialization.glorotUniform(),
                     randomFactory,
                     41L));
     Linear output = topology.addModule(
@@ -78,7 +78,7 @@ var model = Model.define(topology -> {
                     10,
                     true,
                     DataType.FLOAT32,
-                    LinearWeightInitialization.GLOROT_UNIFORM,
+                    ParameterInitialization.glorotUniform(),
                     randomFactory,
                     42L));
 
@@ -111,21 +111,36 @@ or status lifecycle. Models inherit Module's mutable state/mode lifecycle and ar
 callers coordinate forward construction with replacement, loading, and mode changes when one
 consistent view matters.
 
-## Current NN automatic Linear initialization contract
+## Current NN automatic parameter initialization contract
+
+`ParameterInitialization` is the common closed initialization-policy value used by automatic
+`Linear`, RNN, GRU, and LSTM layers. Its exact eight factories are `glorotNormal()`,
+`glorotUniform()`, `kaimingReluNormal()`, `kaimingReluUniform()`, `normal(mean,
+standardDeviation)`, `uniform(lowerBoundInclusive, upperBoundExclusive)`, `zeros()`, and `ones()`.
+Configured arguments must be finite; a normal standard deviation is non-negative and uniform
+bounds are strictly increasing. The value owns only that algorithm selection and arguments. It
+does not own a Shape, data type, Tensor, Parameter, random generator, seed, parameter order, gate
+order, fan value, or bias policy. Fan presets derive fan-in and fan-out independently from each
+complete rank-two Shape when applied.
+
+`ParameterInitializers.initialize(shape, type, policy)` accepts exactly zero/one and creates no
+random generator. Its overload with a `RandomGenerator` accepts exactly the other six policies
+and forwards that exact caller-owned source to the corresponding eager initializer. There is no
+public kind, callback, registry, stateful initializer, or default random source.
 
 `Linear` remains one final type. Its supplied-state constructors and explicit
-`inFeatures`/`outFeatures` constructor remain immediately initialized. The additional constructor
-accepts only architectural `outFeatures`, bias presence, exact floating data type, one closed
-`LinearWeightInitialization` policy, a deterministic `RandomGeneratorFactory`, and a seed. It
-creates no generator, Tensor, Tensor identifier, or `Parameter` during construction and exposes no
+`inFeatures`/`outFeatures` constructor remain immediately initialized. The automatic constructor
+accepts only architectural `outFeatures`, bias presence, exact floating data type, one
+`ParameterInitialization`, a deterministic `RandomGeneratorFactory`, and a seed. Construction
+creates no generator, Tensor, Tensor identifier, or `Parameter` and exposes no
 `LazyLinear`, `Linear.lazy`, public `bind`, `build`, `initialize`, or initialization-status API.
 
 The first compatible `forward(input)` on that layer has two phases:
 
 ```text
 validate input and parameter Shapes/counts
-  -> create one generator from the retained factory and seed
-  -> create weight, then optional exact-zero bias
+  -> for a sampling policy, create one generator from the retained factory and seed
+  -> create weight, then optional exact-zero bias; zero/one never invoke the factory
   -> validate and publish the complete direct Parameter group
   -> construct and return this call's ordinary Tensor.linear expression
 ```
@@ -136,12 +151,14 @@ constructors. Parameter Tensor identifiers therefore precede the identifiers of 
 linear expression. Later compatible calls create no generator or parameter Tensor and construct
 only their ordinary expressions.
 
-The automatic path infers one positive static final input extent as `inFeatures`. It does not
-infer output width, class count, vocabulary size, embedding width, recurrent hidden width, bias,
-data type, policy, random algorithm, or seed. Prevalidation failures happen before sampling or
-Tensor creation. A later initializer or allocation failure can consume random draws, memory, or
-opaque Tensor identifiers, but it publishes no wrapper; a retry starts with a fresh generator from
-the same factory and seed. Once a complete group is published, an expression-construction failure
+The automatic path infers one positive static final input extent as `inFeatures`. Weight Shape and
+therefore fan values remain layer-owned. Bias is always exact typed zero regardless of weight
+policy. The path does not infer output width, class count, vocabulary size, embedding width,
+recurrent hidden width, bias, data type, policy, random algorithm, or seed. Prevalidation failures
+happen before sampling or Tensor creation. A later initializer or allocation failure can consume
+random draws, memory, or opaque Tensor identifiers, but it publishes no wrapper; a retry starts
+with a fresh generator from the same factory and seed. Zero/one attempts create no generator and
+never invoke the factory. Once a complete group is published, an expression-construction failure
 does not undo it.
 
 Initialization is synchronized only for concurrent first calls on the same `Linear`. Its direct
@@ -152,6 +169,17 @@ coordination requirements. A Model body is not one transaction: if an earlier la
 and later body work fails, the earlier layer remains initialized. A registered but unvisited
 automatic layer remains uninitialized and makes complete recursive parameter discovery and state
 export fail closed.
+
+The automatic recurrent-cell constructors similarly retain explicit hidden width, bias choice,
+floating parameter type, policy, and seed while reserving `inputWeight`, `hiddenWeight`, and
+optional `bias`. The first compatible represented cell call infers only a positive static input
+width. Sampling policies create one fresh standard `L64X128MixRandom` stream per attempt and draw
+the complete packed input matrix before the complete packed hidden matrix; each Shape derives its
+own fan values. Zero/one policies create no generator. Optional bias is layer-owned typed zero and
+never draws. RNN uses unpacked matrices, GRU owns reset/update/candidate packing, and LSTM owns
+input/forget/candidate/output packing. Strict state loading may bind the complete reserved group
+without initialization. Failure before publication binds nothing and is retryable from the seed;
+successful publication precedes cell-expression construction and is cell-locally synchronized.
 
 ## Current NN unary composition contract
 
@@ -208,8 +236,17 @@ LstmSequenceForwardResult lstmResult =
 Here `input` must have a fully static time-major Shape `[time, batch, inputSize]`,
 `initialHidden` must have Shape `[batch, hiddenSize]`, and the LSTM call additionally requires
 `initialCell` with that same Shape. `lengths` is a Java `long[]` with one value in `[0, time]` per
-original batch row. Each method defensively copies the array before using it and retains neither
-copy. Callers must coordinate any array mutation that could race with that copy.
+original batch row. Each method validates directly from the caller array and, when at least one
+step is represented, clones it immediately before traversal; neither array is retained. Callers
+must coordinate mutation throughout validation and any snapshot.
+
+Each sequence also has an overload that omits lengths and treats every row as valid for the full
+static time extent. Overloads that omit recurrent state create fresh eager typed-zero state with
+Shape `[batch, hiddenSize]`, the cell's parameter type, no name, and `requiresGrad == false`.
+RNN/GRU create one such leaf; LSTM creates distinct hidden and cell leaves. The state is local to
+that call and never retained. When every length is zero, no cell is invoked, an automatic cell
+remains unbound, the output list is empty, and the final-state accessors return the exact explicit
+or freshly derived initial references.
 
 The copied lengths determine an **active batch** at each time step: original batch rows whose
 length exceeds that step, kept in ascending original order. The sequence statically constructs
@@ -241,13 +278,25 @@ returns both `finalHidden()` and `finalCell()` so the caller can continue recurr
 zero-length LSTM row uses the corresponding initial hidden and initial cell rows; an all-zero
 request returns both exact initial-state references.
 
+Every represented step calls the same Java cell and therefore reuses the same exact Parameter
+leaf Tensor identities. Select, gather, gate/cell operations, and restored-state producers are
+fresh for each step, and later states retain temporal ancestry through earlier producers. This is
+static expression provenance: compiler capture can see repeated exact parameter identity fan-out,
+and the existing compiler reverse-mode contract combines contributions for one identity-unique
+target. The sequence API itself neither defines numerical gradients nor exposes training or
+execution.
+
 This is static Tensor-expression construction, not numerical execution. It proves that padded
-logical rows are absent from the constructed cell operands; it does not prove compiler capture,
-gradient support, backend lowering, physical kernel skipping, or execution. Runtime Tensor
+logical rows are absent from the constructed cell operands; it does not prove backend lowering,
+physical kernel skipping, execution, or a public training workflow. Runtime Tensor
 lengths or masks cannot currently choose the number of steps or active-batch Shapes. Applying a
 dense `WHERE` after a full-batch cell would still construct padded cell work. A future dynamic
 form therefore needs a genuine Model recurrent scan or control-flow contract. Current cumulative
 sum and product scans have fixed associative bodies and are not that primitive.
+
+Current sequences are one-directional and expose neither `validLengths` as a Tensor nor a
+bidirectional/stacked recurrent facade. There is no `ModuleFactory`, recurrent scan, or automatic
+initialized `Embedding`; those remain possible future capabilities rather than current API.
 
 ## Current NN parameter update contract
 
@@ -299,7 +348,9 @@ retained layer-specific schema, prepares real wrappers for the entire candidate 
 each complete reserved group without invoking its initializer, creating a generator, copying a
 Tensor, or consuming random draws. An equivalent initialized automatic and eager `Linear` use the
 same `weight`/optional `bias` paths, kinds, exact types, and Shapes, so their state dictionaries are
-compatible when their inferred and explicit feature widths match.
+compatible when their inferred and explicit feature widths match. The same rule covers automatic
+and explicit RNN/GRU/LSTM cells through `inputWeight`, `hiddenWeight`, and optional `bias`; packed
+gate order and exact Shapes remain cell-owned schema.
 
 Ordinary validation failure changes no binding. This validate-before-install guarantee assumes
 caller-coordinated access: module state export and load are not thread-safe, linearizable,

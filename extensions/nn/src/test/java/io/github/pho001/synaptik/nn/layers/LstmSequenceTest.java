@@ -3,6 +3,7 @@ package io.github.pho001.synaptik.nn.layers;
 import static org.junit.jupiter.api.Assertions.assertAll;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -15,6 +16,7 @@ import io.github.pho001.synaptik.model.shape.StaticDimension;
 import io.github.pho001.synaptik.model.tensor.Tensor;
 import io.github.pho001.synaptik.model.tensor.TensorDescriptor;
 import io.github.pho001.synaptik.model.tensor.TensorFactory;
+import io.github.pho001.synaptik.nn.initialization.ParameterInitialization;
 import io.github.pho001.synaptik.nn.module.ForwardMode;
 import io.github.pho001.synaptik.nn.module.Module;
 import io.github.pho001.synaptik.nn.module.Sequential;
@@ -36,6 +38,59 @@ import org.junit.jupiter.api.parallel.ExecutionMode;
 @Execution(ExecutionMode.SAME_THREAD)
 class LstmSequenceTest {
     @Test
+    void defaultStatesPreflightRejectsMixedFinalRowsBeforeStateOrCellEffects() throws Exception {
+        LstmSequence sequence = new LstmSequence(
+                4, false, DataType.FLOAT32, ParameterInitialization.zeros(), 1L);
+        Tensor input = tensor(DataType.FLOAT64, Shape.of(1, 2, 3), false);
+        AtomicLong ids = nextTensorIdState();
+        long before = ids.get();
+
+        assertAll(
+                () -> assertThrows(IllegalArgumentException.class,
+                        () -> sequence.forward(input, new long[] {0, 1})),
+                () -> assertEquals(before, ids.get()),
+                () -> assertThrows(IllegalStateException.class, sequence.cell()::parameters));
+    }
+
+    @Test
+    void standardSequenceDerivesDistinctZeroStatesAndBindsOnlyForRepresentedSteps() {
+        LstmSequence sequence = new LstmSequence(
+                4, false, DataType.FLOAT32, ParameterInitialization.zeros(), 19L);
+        Tensor input = tensor(DataType.FLOAT32, Shape.of(2, 2, 3), false);
+
+        LstmSequenceForwardResult skipped = sequence.forward(input, new long[] {0, 0});
+
+        assertAll(
+                () -> assertTrue(skipped.packedOutputs().isEmpty()),
+                () -> assertEquals(Shape.of(2, 4), skipped.finalHidden().descriptor().shape()),
+                () -> assertEquals(Shape.of(2, 4), skipped.finalCell().descriptor().shape()),
+                () -> assertNotSame(skipped.finalHidden(), skipped.finalCell()),
+                () -> assertNotEquals(skipped.finalHidden().id(), skipped.finalCell().id()),
+                () -> assertFalse(skipped.finalHidden().descriptor().requiresGrad()),
+                () -> assertFalse(skipped.finalCell().descriptor().requiresGrad()),
+                () -> assertTrue(skipped.finalHidden().hostStorage().isPresent()),
+                () -> assertTrue(skipped.finalCell().hostStorage().isPresent()),
+                () -> assertThrows(IllegalStateException.class, sequence.cell()::parameters));
+
+        LstmSequenceForwardResult complete = sequence.forward(input);
+
+        assertAll(
+                () -> assertEquals(2, complete.packedOutputs().size()),
+                () -> assertNotSame(complete.packedOutputs().get(0),
+                        complete.packedOutputs().get(1)),
+                () -> assertNotEquals(complete.packedOutputs().get(0).id(),
+                        complete.packedOutputs().get(1).id()),
+                () -> assertSame(sequence.cell().inputWeight().value(),
+                        inputWeightOf(complete.packedOutputs().get(0))),
+                () -> assertSame(sequence.cell().inputWeight().value(),
+                        inputWeightOf(complete.packedOutputs().get(1))),
+                () -> assertEquals(List.of("inputWeight", "hiddenWeight"),
+                        sequence.cell().parameters().stream().map(value -> value.name()).toList()),
+                () -> assertNotSame(skipped.finalHidden(), complete.finalHidden()),
+                () -> assertNotSame(skipped.finalCell(), complete.finalCell()));
+    }
+
+    @Test
     void exposesExactlyThePlannedDirectModuleAndThreeComponentRecordSurface() throws Exception {
         Set<List<Class<?>>> constructors = Arrays.stream(LstmSequence.class.getDeclaredConstructors())
                 .filter(value -> Modifier.isPublic(value.getModifiers()))
@@ -52,7 +107,10 @@ class LstmSequenceTest {
                 () -> assertSame(Module.class, LstmSequence.class.getSuperclass()),
                 () -> assertFalse(UnaryTensorModule.class.isAssignableFrom(LstmSequence.class)),
                 () -> assertFalse(Sequential.class.isAssignableFrom(LstmSequence.class)),
-                () -> assertEquals(Set.of(List.of(LstmCell.class)), constructors),
+                () -> assertEquals(Set.of(
+                        List.of(LstmCell.class),
+                        List.of(long.class, boolean.class, DataType.class,
+                                ParameterInitialization.class, long.class)), constructors),
                 () -> assertEquals(Set.of("cell", "forward"), methods),
                 () -> assertSame(
                         LstmCell.class, LstmSequence.class.getDeclaredMethod("cell").getReturnType()),
@@ -65,9 +123,21 @@ class LstmSequenceTest {
                                         Tensor.class,
                                         long[].class)
                                 .getReturnType()),
+                () -> assertSame(LstmSequenceForwardResult.class,
+                        LstmSequence.class.getDeclaredMethod(
+                                        "forward", Tensor.class, Tensor.class, Tensor.class)
+                                .getReturnType()),
+                () -> assertSame(LstmSequenceForwardResult.class,
+                        LstmSequence.class.getDeclaredMethod("forward", Tensor.class, long[].class)
+                                .getReturnType()),
+                () -> assertSame(LstmSequenceForwardResult.class,
+                        LstmSequence.class.getDeclaredMethod("forward", Tensor.class)
+                                .getReturnType()),
                 () -> assertEquals(1, LstmSequence.class.getDeclaredFields().length),
                 () -> assertEquals("cell", LstmSequence.class.getDeclaredFields()[0].getName()),
-                () -> assertEquals(0, LstmSequence.class.getDeclaredClasses().length),
+                () -> assertTrue(Arrays.stream(LstmSequence.class.getDeclaredClasses())
+                        .noneMatch(type -> Modifier.isPublic(type.getModifiers())
+                                || Modifier.isProtected(type.getModifiers()))),
                 () -> assertTrue(LstmSequenceForwardResult.class.isRecord()),
                 () -> assertEquals(
                         List.of("packedOutputs", "finalHidden", "finalCell"),

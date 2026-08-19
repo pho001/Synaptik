@@ -3,6 +3,7 @@ package io.github.pho001.synaptik.nn.layers;
 import static org.junit.jupiter.api.Assertions.assertAll;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -15,6 +16,7 @@ import io.github.pho001.synaptik.model.shape.StaticDimension;
 import io.github.pho001.synaptik.model.tensor.Tensor;
 import io.github.pho001.synaptik.model.tensor.TensorDescriptor;
 import io.github.pho001.synaptik.model.tensor.TensorFactory;
+import io.github.pho001.synaptik.nn.initialization.ParameterInitialization;
 import io.github.pho001.synaptik.nn.module.ForwardMode;
 import io.github.pho001.synaptik.nn.module.Module;
 import io.github.pho001.synaptik.nn.module.Sequential;
@@ -36,6 +38,54 @@ import org.junit.jupiter.api.parallel.ExecutionMode;
 @Execution(ExecutionMode.SAME_THREAD)
 class GruSequenceTest {
     @Test
+    void defaultStatePreflightRejectsMixedFinalRowsBeforeStateOrCellEffects() throws Exception {
+        GruSequence sequence = new GruSequence(
+                4, false, DataType.FLOAT32, ParameterInitialization.zeros(), 1L);
+        Tensor input = tensor(DataType.FLOAT64, Shape.of(1, 2, 3), false);
+        AtomicLong ids = nextTensorIdState();
+        long before = ids.get();
+
+        assertAll(
+                () -> assertThrows(IllegalArgumentException.class,
+                        () -> sequence.forward(input, new long[] {0, 1})),
+                () -> assertEquals(before, ids.get()),
+                () -> assertThrows(IllegalStateException.class, sequence.cell()::parameters));
+    }
+
+    @Test
+    void standardSequenceDerivesFreshZeroStateAndBindsOnlyForRepresentedSteps() {
+        GruSequence sequence = new GruSequence(
+                4, false, DataType.FLOAT32, ParameterInitialization.zeros(), 18L);
+        Tensor input = tensor(DataType.FLOAT32, Shape.of(2, 2, 3), false);
+
+        GruSequenceForwardResult skipped = sequence.forward(input, new long[] {0, 0});
+
+        assertAll(
+                () -> assertTrue(skipped.packedOutputs().isEmpty()),
+                () -> assertEquals(Shape.of(2, 4), skipped.finalHidden().descriptor().shape()),
+                () -> assertFalse(skipped.finalHidden().descriptor().requiresGrad()),
+                () -> assertTrue(skipped.finalHidden().provenance().isEmpty()),
+                () -> assertTrue(skipped.finalHidden().hostStorage().isPresent()),
+                () -> assertThrows(IllegalStateException.class, sequence.cell()::parameters));
+
+        GruSequenceForwardResult complete = sequence.forward(input);
+
+        assertAll(
+                () -> assertEquals(2, complete.packedOutputs().size()),
+                () -> assertNotSame(complete.packedOutputs().get(0),
+                        complete.packedOutputs().get(1)),
+                () -> assertNotEquals(complete.packedOutputs().get(0).id(),
+                        complete.packedOutputs().get(1).id()),
+                () -> assertSame(sequence.cell().inputWeight().value(),
+                        inputWeightOf(complete.packedOutputs().get(0))),
+                () -> assertSame(sequence.cell().inputWeight().value(),
+                        inputWeightOf(complete.packedOutputs().get(1))),
+                () -> assertEquals(List.of("inputWeight", "hiddenWeight"),
+                        sequence.cell().parameters().stream().map(value -> value.name()).toList()),
+                () -> assertNotSame(skipped.finalHidden(), complete.finalHidden()));
+    }
+
+    @Test
     void exposesExactlyThePlannedDirectModuleAndRecordSurface() throws Exception {
         Set<List<Class<?>>> constructors = Arrays.stream(GruSequence.class.getDeclaredConstructors())
                 .filter(value -> Modifier.isPublic(value.getModifiers()))
@@ -52,13 +102,25 @@ class GruSequenceTest {
                 () -> assertSame(Module.class, GruSequence.class.getSuperclass()),
                 () -> assertFalse(UnaryTensorModule.class.isAssignableFrom(GruSequence.class)),
                 () -> assertFalse(Sequential.class.isAssignableFrom(GruSequence.class)),
-                () -> assertEquals(Set.of(List.of(GruCell.class)), constructors),
+                () -> assertEquals(Set.of(
+                        List.of(GruCell.class),
+                        List.of(long.class, boolean.class, DataType.class,
+                                ParameterInitialization.class, long.class)), constructors),
                 () -> assertEquals(Set.of("cell", "forward"), methods),
                 () -> assertSame(GruCell.class, GruSequence.class.getDeclaredMethod("cell").getReturnType()),
                 () -> assertSame(
                         GruSequenceForwardResult.class,
                         GruSequence.class
                                 .getDeclaredMethod("forward", Tensor.class, Tensor.class, long[].class)
+                                .getReturnType()),
+                () -> assertSame(GruSequenceForwardResult.class,
+                        GruSequence.class.getDeclaredMethod("forward", Tensor.class, Tensor.class)
+                                .getReturnType()),
+                () -> assertSame(GruSequenceForwardResult.class,
+                        GruSequence.class.getDeclaredMethod("forward", Tensor.class, long[].class)
+                                .getReturnType()),
+                () -> assertSame(GruSequenceForwardResult.class,
+                        GruSequence.class.getDeclaredMethod("forward", Tensor.class)
                                 .getReturnType()),
                 () -> assertEquals(1, GruSequence.class.getDeclaredFields().length),
                 () -> assertEquals("cell", GruSequence.class.getDeclaredFields()[0].getName()),
@@ -67,7 +129,9 @@ class GruSequenceTest {
                         Arrays.stream(components).map(RecordComponent::getName).toList()),
                 () -> assertEquals(List.of(List.class, Tensor.class),
                         Arrays.stream(components).map(RecordComponent::getType).toList()),
-                () -> assertEquals(0, GruSequence.class.getDeclaredClasses().length),
+                () -> assertTrue(Arrays.stream(GruSequence.class.getDeclaredClasses())
+                        .noneMatch(type -> Modifier.isPublic(type.getModifiers())
+                                || Modifier.isProtected(type.getModifiers()))),
                 () -> assertEquals(0, GruSequenceForwardResult.class.getDeclaredClasses().length));
     }
 

@@ -7,12 +7,15 @@ import io.github.pho001.synaptik.model.shape.Shape;
 import io.github.pho001.synaptik.model.shape.ShapeBroadcast;
 import io.github.pho001.synaptik.model.shape.StaticDimension;
 import io.github.pho001.synaptik.model.tensor.Tensor;
+import io.github.pho001.synaptik.nn.initialization.ParameterInitialization;
 import io.github.pho001.synaptik.nn.initialization.ParameterInitializers;
 import io.github.pho001.synaptik.nn.module.Module;
 import io.github.pho001.synaptik.nn.module.Parameter;
+import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.random.RandomGenerator;
+import java.util.random.RandomGeneratorFactory;
 
 /**
  * Constructs one explicit-state application of a vanilla hyperbolic-tangent recurrent
@@ -31,6 +34,14 @@ import java.util.random.RandomGenerator;
  * {@link io.github.pho001.synaptik.nn.module.UnaryTensorModule}, so it cannot participate in
  * {@link io.github.pho001.synaptik.nn.module.Sequential}.</p>
  *
+ * <p>The automatic constructor reserves the complete parameter group without creating a Tensor
+ * or {@link Parameter}. Its first compatible represented step infers only the positive static
+ * final input extent, optionally creates one fresh standard {@code L64X128MixRandom} stream,
+ * initializes input weight then hidden weight and optional zero bias, and publishes the group
+ * before constructing that step. Zero/one policies create no generator. Strict state loading may
+ * bind the reservations instead. A failed initialization is retryable and publishes no partial
+ * group; concurrent compatible first calls serialize only this cell-local initialization.</p>
+ *
  * <p>Each call snapshots current parameter bindings once in declaration order. Compatible
  * replacement affects later calls, while existing expressions retain their earlier exact
  * references. Replacement and forward construction are not thread-safe as one multi-parameter
@@ -39,9 +50,11 @@ import java.util.random.RandomGenerator;
  * values, define gradients, capture a graph, lower operations, or select a backend.</p>
  */
 public final class RnnCell extends Module {
-    private final Parameter inputWeight;
-    private final Parameter hiddenWeight;
-    private final Optional<Parameter> bias;
+
+    private final long hiddenSize;
+    private final DataType parameterType;
+    private final boolean biasConfigured;
+    private final AutomaticConfiguration automaticConfiguration;
 
     /**
      * Creates a no-bias cell from exact caller-supplied projection weights.
@@ -63,9 +76,12 @@ public final class RnnCell extends Module {
         Tensor suppliedInputWeight = Objects.requireNonNull(inputWeight, "inputWeight");
         Tensor suppliedHiddenWeight = Objects.requireNonNull(hiddenWeight, "hiddenWeight");
         validateWeights(suppliedInputWeight, suppliedHiddenWeight);
-        this.inputWeight = parameter("inputWeight", suppliedInputWeight);
-        this.hiddenWeight = parameter("hiddenWeight", suppliedHiddenWeight);
-        this.bias = Optional.empty();
+        this.hiddenSize = extent(suppliedInputWeight.descriptor().shape(), 0);
+        this.parameterType = suppliedInputWeight.descriptor().dataType();
+        this.biasConfigured = false;
+        this.automaticConfiguration = null;
+        parameter("inputWeight", suppliedInputWeight);
+        parameter("hiddenWeight", suppliedHiddenWeight);
     }
 
     /**
@@ -93,9 +109,13 @@ public final class RnnCell extends Module {
         Tensor suppliedBias = Objects.requireNonNull(bias, "bias");
         validateWeights(suppliedInputWeight, suppliedHiddenWeight);
         validateBias(suppliedInputWeight, suppliedBias);
-        this.inputWeight = parameter("inputWeight", suppliedInputWeight);
-        this.hiddenWeight = parameter("hiddenWeight", suppliedHiddenWeight);
-        this.bias = Optional.of(parameter("bias", suppliedBias));
+        this.hiddenSize = extent(suppliedInputWeight.descriptor().shape(), 0);
+        this.parameterType = suppliedInputWeight.descriptor().dataType();
+        this.biasConfigured = true;
+        this.automaticConfiguration = null;
+        parameter("inputWeight", suppliedInputWeight);
+        parameter("hiddenWeight", suppliedHiddenWeight);
+        parameter("bias", suppliedBias);
     }
 
     /**
@@ -164,11 +184,71 @@ public final class RnnCell extends Module {
                 ? ParameterInitializers.zeros(biasShape, parameterType)
                 : null;
 
-        this.inputWeight = parameter("inputWeight", initializedInputWeight);
-        this.hiddenWeight = parameter("hiddenWeight", initializedHiddenWeight);
-        this.bias = bias
-                ? Optional.of(parameter("bias", initializedBias))
-                : Optional.empty();
+        this.hiddenSize = hiddenSize;
+        this.parameterType = parameterType;
+        this.biasConfigured = bias;
+        this.automaticConfiguration = null;
+        parameter("inputWeight", initializedInputWeight);
+        parameter("hiddenWeight", initializedHiddenWeight);
+        if (bias) {
+            parameter("bias", initializedBias);
+        }
+    }
+
+    /**
+     * Creates a cell that infers only its input width on the first compatible forward call.
+     *
+     * <p>Construction retains immutable configuration and reserves {@code inputWeight},
+     * {@code hiddenWeight}, then optional {@code bias}. It creates no random generator, Tensor,
+     * Tensor identifier, Parameter, or recurrent state. The weight policy is applied independently
+     * to the eventual complete {@code [hiddenSize, inputSize]} and
+     * {@code [hiddenSize, hiddenSize]} Shapes. Optional bias is always layer-owned typed zero.</p>
+     *
+     * @param hiddenSize strictly positive recurrent hidden width
+     * @param bias whether the cell will create a complete typed-zero bias after its two weights
+     * @param dataType non-null floating parameter and default-sequence-state type
+     * @param weightInitialization non-null closed policy applied independently to both matrices;
+     *     it owns neither Shape, source, nor seed
+     * @param seed seed for exact {@code L64X128MixRandom} sampling attempts; any Java
+     *     {@code long} value is accepted and zero/one policies do not use it
+     * @throws NullPointerException if {@code dataType} or {@code weightInitialization} is null,
+     *     checked in that order after {@code hiddenSize}
+     * @throws IllegalArgumentException if {@code hiddenSize} is not positive, the type is not
+     *     floating, or a hidden-weight or requested-bias Shape exceeds the Model Java-array limit
+     * @throws ArithmeticException if checked hidden-weight or bias Shape/count arithmetic
+     *     overflows
+     */
+    public RnnCell(
+            long hiddenSize,
+            boolean bias,
+            DataType dataType,
+            ParameterInitialization weightInitialization,
+            long seed) {
+        if (hiddenSize <= 0) {
+            throw new IllegalArgumentException("hiddenSize must be positive: " + hiddenSize);
+        }
+        DataType configuredType = Objects.requireNonNull(dataType, "dataType");
+        ParameterInitialization initialization =
+                Objects.requireNonNull(weightInitialization, "weightInitialization");
+        if (!configuredType.isFloating()) {
+            throw new IllegalArgumentException(
+                    "RNN cell initialization requires floating data type: " + configuredType);
+        }
+        Shape hiddenWeightShape = Shape.of(hiddenSize, hiddenSize);
+        validateJavaArrayLimit(hiddenWeightShape);
+        if (bias) {
+            validateJavaArrayLimit(Shape.of(hiddenSize));
+        }
+
+        this.hiddenSize = hiddenSize;
+        this.parameterType = configuredType;
+        this.biasConfigured = bias;
+        this.automaticConfiguration = new AutomaticConfiguration(initialization, seed);
+        reserveParameter("inputWeight", this::validateAutomaticInputWeight);
+        reserveParameter("hiddenWeight", this::validateAutomaticHiddenWeight);
+        if (bias) {
+            reserveParameter("bias", this::validateAutomaticBias);
+        }
     }
 
     /**
@@ -176,9 +256,11 @@ public final class RnnCell extends Module {
      *
      * @return the exact non-null wrapper declared under {@code inputWeight}; its current value is
      *     shaped {@code [hiddenSize, inputSize]}
+     * @throws IllegalStateException if automatic forward or strict-load initialization has not
+     *     published the complete parameter group
      */
     public Parameter inputWeight() {
-        return inputWeight;
+        return boundParameter("inputWeight");
     }
 
     /**
@@ -186,9 +268,11 @@ public final class RnnCell extends Module {
      *
      * @return the exact non-null wrapper declared under {@code hiddenWeight}; its current value is
      *     shaped {@code [hiddenSize, hiddenSize]}
+     * @throws IllegalStateException if automatic forward or strict-load initialization has not
+     *     published the complete parameter group
      */
     public Parameter hiddenWeight() {
-        return hiddenWeight;
+        return boundParameter("hiddenWeight");
     }
 
     /**
@@ -196,9 +280,11 @@ public final class RnnCell extends Module {
      *
      * @return a non-null empty Optional for a no-bias cell, or an Optional containing the exact
      *     wrapper declared under {@code bias} with Shape {@code [hiddenSize]}
+     * @throws IllegalStateException if bias is configured but automatic forward or strict-load
+     *     initialization has not published the complete parameter group
      */
     public Optional<Parameter> bias() {
-        return bias;
+        return biasConfigured ? Optional.of(boundParameter("bias")) : Optional.empty();
     }
 
     /**
@@ -217,6 +303,14 @@ public final class RnnCell extends Module {
      * compatible. The returned Tensor is both the visible output and next hidden state; the cell
      * does not retain it, so callers explicitly pass it to a later call to express recurrence.</p>
      *
+     * <p>For an unbound automatic cell, all caller-controlled descriptor and Shape checks complete
+     * before initialization. Random policies restart one {@code L64X128MixRandom} stream from the
+     * retained seed for every attempt and use it for input weight then hidden weight; zero/one use
+     * no generator, and bias consumes no draw. Publication precedes formula construction. A later
+     * formula failure retains the published parameters, while a pre-publication failure leaves the
+     * complete group unbound. Tensor identifiers, allocations, and completed draws are not rolled
+     * back.</p>
+     *
      * @param input non-null floating rank-one-or-higher Tensor whose final Dimension is compatible
      *     with {@code inputSize}; not mutated or retained by the cell
      * @param hidden non-null floating rank-one-or-higher current hidden Tensor whose final
@@ -228,15 +322,31 @@ public final class RnnCell extends Module {
      * @throws IllegalArgumentException if numeric promotion, rank, static feature contraction, or
      *     projection broadcast validation fails
      * @throws IllegalStateException if Tensor identifier space is exhausted during valid
-     *     expression construction; an already created prefix is not rolled back
+     *     initialization or expression construction; an already created prefix is not rolled back
+     * @throws RuntimeException if standard random sampling fails during automatic initialization;
+     *     completed draws remain consumed and no parameter wrapper is published
+     * @throws OutOfMemoryError if automatic parameter or expression allocation fails; completed
+     *     effects are not rolled back
      */
     public Tensor forward(Tensor input, Tensor hidden) {
         Tensor suppliedInput = Objects.requireNonNull(input, "input");
         Tensor suppliedHidden = Objects.requireNonNull(hidden, "hidden");
 
-        Tensor currentInputWeight = inputWeight.value();
-        Tensor currentHiddenWeight = hiddenWeight.value();
-        Optional<Tensor> currentBias = bias.map(Parameter::value);
+        if (automaticConfiguration != null && !parameterReservationsBound()) {
+            AutomaticInput automaticInput = validateAutomaticInput(suppliedInput, suppliedHidden);
+            if (!parameterReservationsBound()) {
+                synchronized (this) {
+                    if (!parameterReservationsBound()) {
+                        automaticInput = validateAutomaticInput(suppliedInput, suppliedHidden);
+                        initializeAutomatically(automaticInput);
+                    }
+                }
+            }
+        }
+
+        Tensor currentInputWeight = inputWeight().value();
+        Tensor currentHiddenWeight = hiddenWeight().value();
+        Optional<Tensor> currentBias = bias().map(Parameter::value);
 
         DataType inputProductType = validateProjection(
                 suppliedInput, currentInputWeight, "input");
@@ -256,6 +366,142 @@ public final class RnnCell extends Module {
                 : suppliedInput.linear(currentInputWeight);
         Tensor projectedHidden = suppliedHidden.linear(currentHiddenWeight);
         return projectedInput.add(projectedHidden).tanh();
+    }
+
+    long configuredHiddenSize() {
+        return hiddenSize;
+    }
+
+    DataType configuredDataType() {
+        return parameterType;
+    }
+
+    boolean configuredBias() {
+        return biasConfigured;
+    }
+
+    void validateConfiguredInputSize(long inputSize) {
+        if (inputSize <= 0) {
+            throw new IllegalArgumentException("input feature size must be positive: " + inputSize);
+        }
+        if (parameterReservationsBound()) {
+            Tensor currentInputWeight = inputWeight().value();
+            Tensor currentHiddenWeight = hiddenWeight().value();
+            validateWeights(currentInputWeight, currentHiddenWeight);
+            bias().ifPresent(value -> validateBias(currentInputWeight, value.value()));
+            long expected = extent(currentInputWeight.descriptor().shape(), 1);
+            if (inputSize != expected) {
+                throw new IllegalArgumentException(
+                        "input feature size must equal cell inputSize: input="
+                                + inputSize + ", cell=" + expected);
+            }
+        }
+    }
+
+    private AutomaticInput validateAutomaticInput(Tensor input, Tensor hidden) {
+        Shape inputShape = input.descriptor().shape();
+        if (inputShape.rank() < 1) {
+            throw new IllegalArgumentException("input rank must be at least 1: " + inputShape.rank());
+        }
+        Dimension feature = inputShape.dimension(inputShape.rank() - 1);
+        if (!(feature instanceof StaticDimension staticFeature)) {
+            throw new IllegalArgumentException(
+                    "RNN automatic input final feature dimension must be static: " + feature);
+        }
+        if (staticFeature.size() <= 0) {
+            throw new IllegalArgumentException(
+                    "RNN automatic input feature size must be positive: " + staticFeature.size());
+        }
+        Shape hiddenShape = hidden.descriptor().shape();
+        if (hiddenShape.rank() < 1) {
+            throw new IllegalArgumentException("hidden rank must be at least 1: " + hiddenShape.rank());
+        }
+        Dimension hiddenFeature = hiddenShape.dimension(hiddenShape.rank() - 1);
+        if (hiddenFeature instanceof StaticDimension staticHidden
+                && staticHidden.size() != hiddenSize) {
+            throw new IllegalArgumentException(
+                    "hidden feature dimension must equal hidden size: hidden="
+                            + staticHidden.size() + ", hiddenSize=" + hiddenSize);
+        }
+        DataType inputProjection = DataTypePromotion.promoteNumeric(
+                input.descriptor().dataType(), parameterType);
+        if (biasConfigured) {
+            inputProjection = DataTypePromotion.promoteNumeric(inputProjection, parameterType);
+        }
+        DataType hiddenProjection = DataTypePromotion.promoteNumeric(
+                hidden.descriptor().dataType(), parameterType);
+        DataTypePromotion.promoteNumeric(inputProjection, hiddenProjection);
+        ShapeBroadcast.broadcast(
+                projectionShape(inputShape, Shape.of(hiddenSize, staticFeature.size())),
+                projectionShape(hiddenShape, Shape.of(hiddenSize, hiddenSize)));
+        Shape inputWeightShape = Shape.of(hiddenSize, staticFeature.size());
+        validateJavaArrayLimit(inputWeightShape);
+        return new AutomaticInput(inputWeightShape);
+    }
+
+    private void initializeAutomatically(AutomaticInput input) {
+        ParameterInitialization initialization = automaticConfiguration.initialization;
+        Tensor initializedInputWeight;
+        Tensor initializedHiddenWeight;
+        if (initialization.requiresRandomGenerator()) {
+            RandomGenerator generator = RandomGeneratorFactory.<RandomGenerator>of("L64X128MixRandom")
+                    .create(automaticConfiguration.seed);
+            initializedInputWeight = ParameterInitializers.initialize(
+                    input.inputWeightShape, parameterType, initialization, generator);
+            initializedHiddenWeight = ParameterInitializers.initialize(
+                    Shape.of(hiddenSize, hiddenSize), parameterType, initialization, generator);
+        } else {
+            initializedInputWeight = ParameterInitializers.initialize(
+                    input.inputWeightShape, parameterType, initialization);
+            initializedHiddenWeight = ParameterInitializers.initialize(
+                    Shape.of(hiddenSize, hiddenSize), parameterType, initialization);
+        }
+        if (biasConfigured) {
+            Tensor initializedBias = ParameterInitializers.zeros(Shape.of(hiddenSize), parameterType);
+            bindReservedParameters(List.of(
+                    initializedInputWeight, initializedHiddenWeight, initializedBias));
+        } else {
+            bindReservedParameters(List.of(initializedInputWeight, initializedHiddenWeight));
+        }
+    }
+
+    private void validateAutomaticInputWeight(Tensor weight) {
+        validateInputWeight(weight);
+        if (weight.descriptor().dataType() != parameterType) {
+            throw new IllegalArgumentException("automatic inputWeight data type mismatch");
+        }
+        if (extent(weight.descriptor().shape(), 0) != hiddenSize) {
+            throw new IllegalArgumentException("automatic inputWeight hidden size mismatch");
+        }
+    }
+
+    private void validateAutomaticHiddenWeight(Tensor weight) {
+        validateHiddenWeight(weight);
+        Shape shape = weight.descriptor().shape();
+        if (weight.descriptor().dataType() != parameterType
+                || extent(shape, 0) != hiddenSize || extent(shape, 1) != hiddenSize) {
+            throw new IllegalArgumentException("automatic hiddenWeight schema mismatch");
+        }
+    }
+
+    private void validateAutomaticBias(Tensor value) {
+        validateFloatingAndGradient(value, "bias");
+        Shape shape = value.descriptor().shape();
+        if (shape.rank() != 1 || !shape.isFullyStatic()
+                || value.descriptor().dataType() != parameterType
+                || extent(shape, 0) != hiddenSize) {
+            throw new IllegalArgumentException("automatic bias schema mismatch");
+        }
+    }
+
+    private static long extent(Shape shape, int axis) {
+        return ((StaticDimension) shape.dimension(axis)).size();
+    }
+
+    private record AutomaticConfiguration(ParameterInitialization initialization, long seed) {
+    }
+
+    private record AutomaticInput(Shape inputWeightShape) {
     }
 
     private static void validateWeights(Tensor inputWeight, Tensor hiddenWeight) {
@@ -381,13 +627,16 @@ public final class RnnCell extends Module {
     }
 
     private static Shape projectionShape(Tensor value, Tensor weight) {
-        Shape valueShape = value.descriptor().shape();
+        return projectionShape(value.descriptor().shape(), weight.descriptor().shape());
+    }
+
+    private static Shape projectionShape(Shape valueShape, Shape weightShape) {
         int rank = valueShape.rank();
         Dimension[] resultDimensions = new Dimension[rank];
         for (int axis = 0; axis < rank - 1; axis++) {
             resultDimensions[axis] = valueShape.dimension(axis);
         }
-        resultDimensions[rank - 1] = weight.descriptor().shape().dimension(0);
+        resultDimensions[rank - 1] = weightShape.dimension(0);
         return Shape.ofDimensions(resultDimensions);
     }
 }

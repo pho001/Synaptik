@@ -29,7 +29,7 @@ import org.junit.jupiter.api.parallel.ExecutionMode;
 @Execution(ExecutionMode.SAME_THREAD)
 class ParameterInitializersTest {
     @Test
-    void exposesExactlyEightStaticEntriesWithoutStateOrObjectConstruction()
+    void exposesExactlyTenStaticEntriesWithoutStateOrObjectConstruction()
             throws ReflectiveOperationException {
         Set<Method> expected = Set.of(
                 ParameterInitializers.class.getDeclaredMethod(
@@ -57,7 +57,12 @@ class ParameterInitializersTest {
                 ParameterInitializers.class.getDeclaredMethod(
                         "kaimingReluNormal", Shape.class, DataType.class, RandomGenerator.class),
                 ParameterInitializers.class.getDeclaredMethod(
-                        "kaimingReluUniform", Shape.class, DataType.class, RandomGenerator.class));
+                        "kaimingReluUniform", Shape.class, DataType.class, RandomGenerator.class),
+                ParameterInitializers.class.getDeclaredMethod(
+                        "initialize", Shape.class, DataType.class, ParameterInitialization.class),
+                ParameterInitializers.class.getDeclaredMethod(
+                        "initialize", Shape.class, DataType.class,
+                        ParameterInitialization.class, RandomGenerator.class));
         Set<Method> actual = Arrays.stream(ParameterInitializers.class.getDeclaredMethods())
                 .filter(method -> Modifier.isPublic(method.getModifiers()))
                 .collect(Collectors.toUnmodifiableSet());
@@ -136,6 +141,59 @@ class ParameterInitializersTest {
                 () -> uniform.assertCalls(lower, upper),
                 () -> assertParameterLeaf(normal, shape, DataType.FLOAT32),
                 () -> assertParameterLeaf(bounded, shape, DataType.BFLOAT16));
+    }
+
+    @Test
+    void dispatchesConstantAndRandomPoliciesThroughTheExactOverloads() {
+        Shape shape = Shape.of(2);
+        GaussianSource gaussian = new GaussianSource(-1.0d, 2.0d);
+        BoundedSource uniform = new BoundedSource(-0.5d, 0.75d);
+
+        Tensor zeros = ParameterInitializers.initialize(
+                shape, DataType.FLOAT32, ParameterInitialization.zeros());
+        Tensor ones = ParameterInitializers.initialize(
+                shape, DataType.FLOAT32, ParameterInitialization.ones());
+        Tensor normal = ParameterInitializers.initialize(
+                shape,
+                DataType.FLOAT64,
+                ParameterInitialization.normal(2.0d, 0.5d),
+                gaussian);
+        Tensor bounded = ParameterInitializers.initialize(
+                shape,
+                DataType.FLOAT64,
+                ParameterInitialization.uniform(-2.0d, 3.0d),
+                uniform);
+
+        assertAll(
+                () -> assertArrayEquals(new float[] {0.0f, 0.0f},
+                        heapArray(zeros, float[].class)),
+                () -> assertArrayEquals(new float[] {1.0f, 1.0f},
+                        heapArray(ones, float[].class)),
+                () -> assertArrayEquals(new double[] {1.5d, 3.0d},
+                        heapArray(normal, double[].class)),
+                () -> assertArrayEquals(new double[] {-0.5d, 0.75d},
+                        heapArray(bounded, double[].class)),
+                () -> assertEquals(2, gaussian.calls()),
+                () -> uniform.assertCalls(-2.0d, 3.0d),
+                () -> assertThrows(IllegalArgumentException.class,
+                        () -> ParameterInitializers.initialize(
+                                shape, DataType.FLOAT32,
+                                ParameterInitialization.glorotUniform())),
+                () -> assertThrows(IllegalArgumentException.class,
+                        () -> ParameterInitializers.initialize(
+                                shape, DataType.FLOAT32,
+                                ParameterInitialization.zeros(), gaussian)),
+                () -> assertEquals("shape", assertThrows(NullPointerException.class,
+                        () -> ParameterInitializers.initialize(null, null, null)).getMessage()),
+                () -> assertEquals("dataType", assertThrows(NullPointerException.class,
+                        () -> ParameterInitializers.initialize(shape, null, null)).getMessage()),
+                () -> assertEquals("initialization", assertThrows(NullPointerException.class,
+                        () -> ParameterInitializers.initialize(shape, DataType.FLOAT32, null))
+                                .getMessage()),
+                () -> assertEquals("randomGenerator", assertThrows(NullPointerException.class,
+                        () -> ParameterInitializers.initialize(
+                                shape, DataType.FLOAT32,
+                                ParameterInitialization.glorotUniform(), null)).getMessage()));
     }
 
     @Test

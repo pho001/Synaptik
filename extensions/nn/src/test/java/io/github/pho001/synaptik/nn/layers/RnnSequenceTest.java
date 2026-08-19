@@ -3,6 +3,7 @@ package io.github.pho001.synaptik.nn.layers;
 import static org.junit.jupiter.api.Assertions.assertAll;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -15,6 +16,7 @@ import io.github.pho001.synaptik.model.shape.StaticDimension;
 import io.github.pho001.synaptik.model.tensor.Tensor;
 import io.github.pho001.synaptik.model.tensor.TensorDescriptor;
 import io.github.pho001.synaptik.model.tensor.TensorFactory;
+import io.github.pho001.synaptik.nn.initialization.ParameterInitialization;
 import io.github.pho001.synaptik.nn.module.ForwardMode;
 import io.github.pho001.synaptik.nn.module.Module;
 import io.github.pho001.synaptik.nn.module.Sequential;
@@ -36,6 +38,58 @@ import org.junit.jupiter.api.parallel.ExecutionMode;
 @Execution(ExecutionMode.SAME_THREAD)
 class RnnSequenceTest {
     @Test
+    void defaultStatePreflightRejectsMixedFinalRowsBeforeStateOrCellEffects() throws Exception {
+        RnnSequence sequence = new RnnSequence(
+                4, false, DataType.FLOAT32, ParameterInitialization.zeros(), 1L);
+        Tensor input = tensor(DataType.FLOAT64, Shape.of(1, 2, 3), false);
+        AtomicLong ids = nextTensorIdState();
+        long before = ids.get();
+
+        assertAll(
+                () -> assertThrows(IllegalArgumentException.class,
+                        () -> sequence.forward(input, new long[] {0, 1})),
+                () -> assertEquals(before, ids.get()),
+                () -> assertThrows(IllegalStateException.class, sequence.cell()::parameters));
+    }
+
+    @Test
+    void standardSequenceDerivesFreshZeroStateAndAllValidLengthsWithoutPrematureBinding() {
+        RnnSequence sequence = new RnnSequence(
+                4, false, DataType.FLOAT32, ParameterInitialization.zeros(), 17L);
+        Tensor input = tensor(DataType.FLOAT32, Shape.of(2, 2, 3), false);
+
+        RnnSequenceForwardResult skipped = sequence.forward(input, new long[] {0, 0});
+
+        assertAll(
+                () -> assertTrue(skipped.packedOutputs().isEmpty()),
+                () -> assertEquals(Shape.of(2, 4), skipped.finalHidden().descriptor().shape()),
+                () -> assertSame(DataType.FLOAT32,
+                        skipped.finalHidden().descriptor().dataType()),
+                () -> assertFalse(skipped.finalHidden().descriptor().requiresGrad()),
+                () -> assertTrue(skipped.finalHidden().provenance().isEmpty()),
+                () -> assertTrue(skipped.finalHidden().label().isEmpty()),
+                () -> assertTrue(skipped.finalHidden().hostStorage().isPresent()),
+                () -> assertThrows(IllegalStateException.class, sequence.cell()::parameters));
+
+        RnnSequenceForwardResult complete = sequence.forward(input);
+
+        assertAll(
+                () -> assertEquals(2, complete.packedOutputs().size()),
+                () -> assertNotSame(complete.packedOutputs().get(0),
+                        complete.packedOutputs().get(1)),
+                () -> assertNotEquals(complete.packedOutputs().get(0).id(),
+                        complete.packedOutputs().get(1).id()),
+                () -> assertSame(sequence.cell().inputWeight().value(),
+                        inputWeightOf(complete.packedOutputs().get(0))),
+                () -> assertSame(sequence.cell().inputWeight().value(),
+                        inputWeightOf(complete.packedOutputs().get(1))),
+                () -> assertEquals(Shape.of(2, 4), complete.finalHidden().descriptor().shape()),
+                () -> assertEquals(List.of("inputWeight", "hiddenWeight"),
+                        sequence.cell().parameters().stream().map(value -> value.name()).toList()),
+                () -> assertNotSame(skipped.finalHidden(), complete.finalHidden()));
+    }
+
+    @Test
     void exposesExactlyThePlannedDirectModuleAndRecordSurface() throws Exception {
         Set<List<Class<?>>> constructors = Arrays.stream(RnnSequence.class.getDeclaredConstructors())
                 .filter(value -> Modifier.isPublic(value.getModifiers()))
@@ -52,13 +106,25 @@ class RnnSequenceTest {
                 () -> assertSame(Module.class, RnnSequence.class.getSuperclass()),
                 () -> assertFalse(UnaryTensorModule.class.isAssignableFrom(RnnSequence.class)),
                 () -> assertFalse(Sequential.class.isAssignableFrom(RnnSequence.class)),
-                () -> assertEquals(Set.of(List.of(RnnCell.class)), constructors),
+                () -> assertEquals(Set.of(
+                        List.of(RnnCell.class),
+                        List.of(long.class, boolean.class, DataType.class,
+                                ParameterInitialization.class, long.class)), constructors),
                 () -> assertEquals(Set.of("cell", "forward"), methods),
                 () -> assertSame(RnnCell.class, RnnSequence.class.getDeclaredMethod("cell").getReturnType()),
                 () -> assertSame(
                         RnnSequenceForwardResult.class,
                         RnnSequence.class
                                 .getDeclaredMethod("forward", Tensor.class, Tensor.class, long[].class)
+                                .getReturnType()),
+                () -> assertSame(RnnSequenceForwardResult.class,
+                        RnnSequence.class.getDeclaredMethod("forward", Tensor.class, Tensor.class)
+                                .getReturnType()),
+                () -> assertSame(RnnSequenceForwardResult.class,
+                        RnnSequence.class.getDeclaredMethod("forward", Tensor.class, long[].class)
+                                .getReturnType()),
+                () -> assertSame(RnnSequenceForwardResult.class,
+                        RnnSequence.class.getDeclaredMethod("forward", Tensor.class)
                                 .getReturnType()),
                 () -> assertEquals(1, RnnSequence.class.getDeclaredFields().length),
                 () -> assertEquals("cell", RnnSequence.class.getDeclaredFields()[0].getName()),
@@ -67,7 +133,9 @@ class RnnSequenceTest {
                         Arrays.stream(components).map(RecordComponent::getName).toList()),
                 () -> assertEquals(List.of(List.class, Tensor.class),
                         Arrays.stream(components).map(RecordComponent::getType).toList()),
-                () -> assertEquals(0, RnnSequence.class.getDeclaredClasses().length),
+                () -> assertTrue(Arrays.stream(RnnSequence.class.getDeclaredClasses())
+                        .noneMatch(type -> Modifier.isPublic(type.getModifiers())
+                                || Modifier.isProtected(type.getModifiers()))),
                 () -> assertEquals(0, RnnSequenceForwardResult.class.getDeclaredClasses().length));
     }
 

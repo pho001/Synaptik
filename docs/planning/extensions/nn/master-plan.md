@@ -21,7 +21,8 @@ conveniences built from `modules/model` Tensor semantics.
 - train/eval mode propagation and forward context
 - typed functional model definition with immutable named topology
 - deferred input-dependent parameter binding after its lifecycle is specified exactly
-- explicit parameter-initialization conveniences over caller-owned sources
+- explicit parameter-initialization conveniences over caller-owned sources or exactly documented
+  per-layer seeded standard sources, never a global mutable generator
 - neural-network layers, blocks, and functional conveniences that compose model operations
 
 ## Out of scope
@@ -138,6 +139,29 @@ first calls. Arbitrary functional forward code still prevents a whole-model firs
 transaction. Batch/time leading extents remain variable; hidden/output widths, embedding size,
 class count, vocabulary size, and recurrent hidden size remain architecture or schema choices.
 
+Detailed task 0020 applies that proven private reservation lifecycle uniformly to the three
+existing final recurrent cells and their cell-specific sequence containers. In the same atomic
+change it deliberately replaces the recent Linear-only policy enum with one closed immutable
+`ParameterInitialization` value covering Glorot/Kaiming normal/uniform, configured normal/uniform,
+and zero/one through the existing stateless initializers. The old type is removed without alias;
+Linear and repository-owned consumers migrate while completed task 0019 stays historical evidence.
+An automatic cell constructor omits only `inputSize`; hidden size, bias, floating parameter type,
+general policy, and seed remain explicit. Random high-level recurrent policies use the exact
+deterministic JDK `L64X128MixRandom` algorithm and no caller-supplied factory; zero/one use no RNG,
+while existing eager constructors retain caller-owned `RandomGenerator` control. Matching sequence
+constructors create one standard cell, zero-state overloads derive `[batch, hiddenSize]` from
+static input and cell schema, and overloads without lengths mean every row is valid for the
+complete static time extent. Current caller-cell and explicit-state/length contracts remain
+advanced paths.
+
+One cell instance owns one parameter set across the complete static unroll. Each represented time
+step still invokes ordinary Tensor operations anew, producing fresh Tensor identities/producers
+whose provenance retains the same exact parameter leaves and prior carried state. That is the
+forward ancestry consumed by current compiler exact-identity reverse traversal and contribution
+accumulation; NN adds no backward, tape, compiler dependency, runtime scan, or execution claim.
+Initialized Embedding, a stateless construction factory, and directional recurrence remain the
+separate concise NN 0020A–0020C follow-ups before the cross-module runtime-scan program.
+
 ## Task list
 
 | ID | Task | Status | Depends on | Summary |
@@ -162,11 +186,14 @@ class count, vocabulary size, and recurrent hidden size remain architecture or s
 | [0017](tasks/0017-static-packed-lstm-sequence.md) | Static packed LSTM sequence | Complete | 0014–0015 | Added cell-specific static packing with compact hidden outputs, internal cell-state carrying, and restoration of both final states. |
 | [0018](tasks/0018-typed-functional-model-topology.md) | Typed functional Model topology | Complete | 0010–0017; stable Module ownership | Added typed `Model<I,O>`, functional definition/forward contracts, sealed `Topology.addModule`, atomic descriptive child ownership, and stable state paths without lazy state or training behavior. |
 | [0019](tasks/0019-automatic-first-forward-linear-initialization.md) | Automatic first-forward Linear initialization | Complete | 0018; exact initialization/state-dictionary decision | Kept one public Linear type, reserved future state privately, initialized its complete parameter set before constructing the first returned forward expression, failed closed on incomplete discovery/export, and allowed strict dictionary initialization while inferring only `inFeatures`. |
-| 0020 | Automatic recurrent inputs and inferred zero states | Draft | 0019; current Embedding and recurrent contracts | Reassess the proven internal lifecycle for recurrent input widths and provide zero hidden/cell defaults derived from batch, hidden width, and type while retaining explicit advanced-state overloads; Embedding keeps explicit vocabulary and embedding widths. |
-| 0021 | Runtime recurrent scan/control-flow prerequisite program | Draft | 0020; explicit cross-module architecture decision and Model/Compiler/Prepare/Runtime/Engine/backend support | Establish a fixed recurrent body/node plus runtime input-binding and execution contracts before NN exposes a new valid-length recurrent API; specific length values must not specialize Model topology or compiled graph structure. |
+| [0020](tasks/0020-automatic-recurrent-initialization-and-sequence-defaults.md) | Automatic recurrent initialization and sequence defaults | Complete | 0019; current recurrent cell/sequence and Model provenance contracts | Replaced the recent Linear-only enum with one general closed `ParameterInitialization`; added automatic input-width binding to all three existing final cells with explicit hidden size/type/policy/seed and standard `L64X128MixRandom` only for random policies; added standard-cell sequence constructors plus zero-state/all-valid overloads while preserving caller cells, explicit states, static lengths, and shared-parameter fresh-node unroll provenance. |
+| 0020A | Initialized Embedding | Draft | 0020; current Embedding and tokenizer/schema boundaries | Add initialized Embedding with explicit vocabulary size, embedding size, floating type, `ParameterInitialization`, seed, and the same documented standard PRNG for random policies; never infer vocabulary from token IDs, and select the padding-row initialization/update policy before Ready. |
+| 0020B | Stateless standard ModuleFactory | Draft | 0020–0020A | Provide construction recipes only: `embedding`/`linear` return `Embedding`/`Linear`, while `rnn`/`gru`/`lstm` return the concrete matching Sequence with Cell assembly hidden; every recipe takes explicit per-layer type/`ParameterInitialization`/seed. `ModuleFactory.standard()` carries no mutable configuration, ownership, registry, RNG, or seed management; `Topology.addModule` remains the sole owner, and advanced direct constructors retain caller-controlled random sources/factories. |
+| 0020C | Bidirectional and multidirectional recurrent composition | Draft | 0020; stable static sequence/result contracts | Define type-safe directional RNN/GRU/LSTM composition without a generic recurrent base: directions own independent cells, parameters, and seeds; reverse traversal respects each valid prefix; merge is an explicit `CONCAT`/`SUM` choice or a deliberately narrower first policy; and type-specific results preserve directional final hidden plus LSTM cell states. One cell shares weights only across time within its own direction. |
+| 0021 | Runtime recurrent scan/control-flow prerequisite program | Draft | 0020C; explicit cross-module architecture decision and Model/Compiler/Prepare/Runtime/Engine/backend support | Establish a fixed recurrent body/node plus runtime input-binding and execution contracts before NN exposes a new valid-length recurrent API; specific length values must not specialize Model topology or compiled graph structure, and the design must preserve the selected directional/state contracts. |
 | 0022 | Valid-length recurrent API and Data integration | Draft | 0021; Data 0001–0002 architecture and valid-length contracts | Consume Data-owned runtime valid lengths through the proven scan, derive zero states as selected, and deliberately migrate or retain the current static `long[]` compatibility contracts without presenting a host adapter as the target API. |
 | 0023 | Arbitrary dense validity-mask semantics | Draft | 0022; concrete attention/loss/recurrent consumer | Reassess an explicit Boolean mask only for validity patterns with holes; keep it derived or separately supplied for that consumer, never a second stored representation of ordinary right padding, and never a claim of skipped recurrent work. |
-| 0024 | Typed model/recurrent/data integration checkpoint | Draft | 0019–0022; 0023 only if selected; Checkpoint model-state and Training publication readiness | Validate model state paths, automatic-initialization/checkpoint compatibility, variable-batch behavior, recurrent continuation, autograd/training handoff, documentation, and integration without moving persistent checkpoint I/O into NN. |
+| 0024 | Typed model/recurrent/data integration checkpoint | Draft | 0020–0022; 0023 only if selected; Checkpoint model-state and Training publication readiness | Validate model state paths, automatic-initialization/checkpoint compatibility, variable-batch behavior, recurrent continuation, autograd/training handoff, documentation, and integration without moving persistent checkpoint I/O into NN. |
 
 ## Milestones
 
@@ -180,6 +207,8 @@ class count, vocabulary size, and recurrent hidden size remain architecture or s
 - Recurrent sequence composition only after the cell signatures prove its type boundary
 - Typed functional Model definition with sealed descriptive topology
 - Honest deferred binding for input-dependent parameter dimensions
+- Automatic recurrent binding with explicit per-layer policy/seed and ergonomic explicit-state defaults
+- Type-safe directional recurrence before the runtime recurrent-scan program
 - Data-owned canonical valid lengths after a genuine runtime-scan/input-binding prerequisite
 - Training-extension integration over the stable parameter contract
 
@@ -409,8 +438,22 @@ package Javadocs plus the Training API, glossary, and planning evidence, and reu
 Java evidence because it changed no executable source or test. Final Javadoc/rendered-page,
 public/protected-surface, external-use, forbidden-API/import, Markdown, exact fifteen-path,
 frontier/status, newline, whitespace, and diff gates passed. Its bounded model-only scope changes
-neither the interleave, dependency direction, CPU files, nor the global roadmap. NN 0020–0024
-remain concise Draft rows without task files, and no NN task is Ready.
+neither the interleave, dependency direction, CPU files, nor the global roadmap. Detailed
+[NN 0020](tasks/0020-automatic-recurrent-initialization-and-sequence-defaults.md) is Complete. Its
+clean implementation context `/root/nn_0020_implementation` delivered the common eight-policy
+value and two dispatch routes, migrated Linear, added atomic automatic binding/strict-load support
+to every recurrent cell, and added standard-cell/default-state/all-valid sequence overloads with
+shared-parameter fresh-producer provenance. Focused selections passed, followed by authoritative
+`./gradlew :extensions:nn:clean :extensions:nn:test :extensions:nn:javadoc`: 249 tests, zero skips,
+failures, or errors, and warning-free Javadoc. Independent clean documentation context
+`/root/nn_0020_docs` found no executable, public-API, architecture, dependency, or scope defect;
+finalized the affected Javadocs, package pages, Training API, glossary, task, and master evidence;
+reused unchanged Java-test evidence; and passed final NN Javadoc/rendered-page, public/private
+surface, external-use, legacy-absence, import/dependency, Markdown, exact thirty-one-path,
+frontier/status, newline, no-index, whitespace, and diff gates. No NN task is Ready. NN
+0020A–0020C and 0021–0024 remain concise Draft rows without task files. Concurrent CPU/backend
+planning and global-roadmap changes remained untouched.
+
 The proposed Data, Text, Vision, and Checkpoint master plans are also Draft: their modules do not
 exist in the architecture or build, so their first implementation must be a coordinated
 architecture, module-boundary, ADR, settings/build, and architecture-test decision rather than a
@@ -423,8 +466,13 @@ materializing or binding it as a rank-one non-gradient `INT64` Tensor is deferre
 runtime input lifecycle exists. A dense Boolean validity mask may be derived on demand only for a
 concrete consumer such as attention or loss, while arbitrary masks with holes remain distinct.
 
-The dependency order is now strict. NN 0021 first coordinates the genuine recurrent
-scan/control-flow and runtime input-binding prerequisite across its owning Model, Compiler,
+The dependency order is now strict. NN 0020 first stabilizes one general parameter-initialization
+value, automatic recurrent cells, and static sequence ergonomics. NN 0020A applies that value to
+Embedding after selecting its padding-row/update contract; NN 0020B can then provide only
+stateless standard construction recipes; and NN 0020C selects directional ownership,
+reverse-valid-prefix traversal, merge, and type-specific final-state contracts. NN 0021 then
+coordinates the genuine recurrent scan/control-flow and runtime input-binding prerequisite across
+its owning Model, Compiler,
 Prepare, Runtime, Engine, and backend layers. Specific valid-length values influence runtime
 recurrence behavior and may permit inactive rows/steps to be skipped, but must not change Model
 topology or compiled graph structure. Only then may NN 0022 add the new Data-owned valid-length
@@ -443,8 +491,9 @@ consumer.
 ## Open questions
 
 - Decide whether a concrete future consumer justifies configurable gain, activation, fan mode,
-  convolution fan geometry, or an initializer object abstraction. NN 0004 deliberately fixes only
-  unit-gain Glorot and fan-in/ReLU Kaiming for positive rank-two Linear weights.
+  convolution fan geometry, or another closed algorithm preset. NN 0020 deliberately keeps
+  `ParameterInitialization` closed and its fan-based application on the existing positive
+  rank-two `[fanOut, fanIn]` Shape contract rather than inventing a public convolution `Fan` value.
 - Select a persistent checkpoint codec, schema-version, materialization, and storage boundary only
   when a concrete consumer exists; completed NN 0010 fixes only in-memory state and strict atomic
   validation/load.
@@ -460,9 +509,20 @@ consumer.
   public state-schema inspection value. The first automatic capability intentionally initializes
   only the Linear reached by forward traversal or strict dictionary load and exposes no public
   lifecycle/status API.
-- Before NN 0020 becomes Ready, select the initialized Embedding distribution and padding-row
-  policy, if any. Vocabulary size is tokenizer/schema input and must not be inferred from the
-  maximum token ID in one batch.
+- NN 0020A must apply the common `ParameterInitialization` value and select the padding-row
+  initialization/update policy before it becomes Ready. Vocabulary size and embedding width
+  remain tokenizer/schema and architecture inputs and must not be inferred from the maximum token
+  ID in one batch.
+- NN 0020B must decide the narrow concrete surface of a stateless standard `ModuleFactory` after
+  Embedding initialization is selected. It may provide only concrete construction recipes with
+  explicit per-layer type/`ParameterInitialization`/seed; it must not become an owner, registry,
+  configuration/RNG container, seed manager, or replacement for `Topology.addModule`.
+- NN 0020C must select the first explicit directional merge policy and type-specific result
+  shapes. It must choose `CONCAT`, `SUM`, or a deliberately narrower single first contract rather
+  than hide a default. Forward and reverse directions own independent cells/parameters/seeds;
+  reverse traversal is bounded by each row's valid prefix; LSTM retains directional hidden and
+  cell final states; and no public generic recurrent base is justified merely by shared traversal
+  mechanics.
 - Data/Text/Vision module names, packages, dependencies, and architecture ownership require an
   explicit coordinated architecture decision before their first implementation task. Checkpoint
   and its optional Training adapter require their own explicit downstream architecture decision.
@@ -663,6 +723,39 @@ consumer.
   uninitialized automatic Linear from candidate weight/bias Tensors without running an
   initializer. It retains whole-tree ordinary validate-before-install behavior and makes
   equivalent eager/automatically initialized dictionaries path/kind/type/Shape compatible.
+- NN 0020 intentionally replaces the recent public `LinearWeightInitialization` enum with one
+  closed immutable `ParameterInitialization` value and migrates current Linear callers atomically,
+  without a deprecated alias or recurrent-specific duplicate. Its eight named factories cover
+  the current Glorot/Kaiming entries, configured normal/uniform, and RNG-free zero/one; seed,
+  `DataType`, Shape/fan schema, parameter order, bias, and module state remain layer-owned facts.
+- Generic policy application dispatches through the existing `ParameterInitializers` algorithms.
+  Normal/uniform/zero/one preserve their fully static Shape contract; fan presets retain the
+  complete positive rank-two `[fanOut, fanIn]` boundary. No callback, registry, public
+  convolution-fan abstraction, RNG ownership, or hidden mutable configuration is introduced.
+- NN 0020 extends that same reservation lifecycle to the existing final `RnnCell`, `GruCell`, and
+  `LstmCell`. One selected general policy applies independently to input then hidden complete
+  matrix Shapes; random draws share one generator in that exact order, and optional packed bias
+  remains entirely layer-owned zero.
+- NN 0020 high-level recurrent constructors accept explicit per-cell type/policy/seed and use the
+  exact deterministic JDK `L64X128MixRandom` algorithm internally only for random policies.
+  Zero/one create no RNG; cells retain no factory or generator. Existing explicit-`inputSize`
+  constructors preserve transient caller-owned `RandomGenerator` control for advanced algorithms
+  and lifecycle needs.
+- NN 0020 sequence conveniences derive zero hidden/cell states from static batch extent plus the
+  cell's explicit hidden-size/type schema. An overload without lengths means all rows have the
+  complete static time extent; the derived host array and zero states are per-call values and are
+  never retained. The most-explicit caller-cell/state/length APIs remain available.
+- One cell instance owns and reuses one parameter set across time, but every represented forward
+  call creates fresh Tensor identities/producers. Repeated exact parameter-leaf references and
+  carried-state ancestry form the static-unroll fan-out consumed by existing compiler
+  exact-identity autograd; NN does not own backward construction.
+- An all-zero static length vector invokes no cell. Explicit-state calls retain the existing exact
+  state shortcut; default-state calls return their fresh zero state(s). An automatic cell remains
+  unbound until a later represented step or strict load.
+- NN 0020A, 0020B, and 0020C separate initialized Embedding padding-row/update semantics, a
+  stateless construction recipe facade, and type-safe directionality respectively. Embedding and
+  factory recipes reuse `ParameterInitialization`; `Topology.addModule` remains the sole ownership
+  operation, and no shared recurrent base is selected without a type-safe consumer.
 - Input-dependent batch, time, and incoming feature extents are inferred by later binding or batch
   metadata. Hidden/output widths, embedding size, class count, vocabulary size, and recurrent
   hidden width remain explicit architecture or schema decisions.
@@ -680,8 +773,14 @@ consumer.
 
 - Coupling layer composition to optimizer APIs would reverse the architecture dependency.
 - Letting train/eval mode become backend residency or per-run execution state would blur the lifecycle boundary.
-- Giving NN a default or retained random source would obscure reproducibility, ownership, and
-  concurrent-use policy; initializer tasks must keep those responsibilities with the caller.
+- Giving NN an unspecified, global, seed-managing, or retained mutable random source would obscure
+  reproducibility, ownership, and concurrent-use policy. A high-level task may instead fix an
+  exact deterministic standard algorithm and require an explicit per-layer seed, while advanced
+  constructors retain transient caller-owned sources.
+- A reusable initialization policy could accidentally absorb layer schema, Shape/fan derivation,
+  bias/order rules, seed/RNG ownership, or mutable callbacks. NN 0020 keeps the value closed and
+  algorithm-only, delegates to existing stateless initializers, and leaves those facts with each
+  concrete layer.
 - A public parameter replacement that omits declaration schema could silently change a layer's
   expected type or Shape; NN 0004A freezes only those logical facts and keeps execution/storage
   facts replaceable.
@@ -717,6 +816,12 @@ consumer.
   deterministic source configuration, and publish each layer's state together.
 - Retaining caller-owned randomness until an unknown first bind could create hidden lifetime and
   concurrency obligations. The deferred initializer/source contract must make ownership visible.
+- Reusing one derived Tensor result across recurrent time steps would collapse distinct operation
+  occurrences, while constructing one cell per step would duplicate parameter ownership. Static
+  unroll must reuse one cell/parameter set and invoke fresh Tensor operations per represented step.
+- A directional recurrent facade could accidentally share parameters/seeds between directions,
+  reverse through padded suffixes, erase LSTM cell state, or hide an implicit CONCAT/SUM merge.
+  NN 0020C must select each fact in concrete type-specific contracts before implementation.
 - Treating vocabulary size, output classes, hidden width, or embedding width as input-derived
   would confuse architectural choices with batch facts and may build an invalid model from one
   unrepresentative batch.

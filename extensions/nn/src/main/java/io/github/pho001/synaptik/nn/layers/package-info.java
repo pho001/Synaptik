@@ -25,21 +25,33 @@
  * <p>{@link io.github.pho001.synaptik.nn.layers.RnnSequence},
  * {@link io.github.pho001.synaptik.nn.layers.GruSequence}, and
  * {@link io.github.pho001.synaptik.nn.layers.LstmSequence} each own their matching concrete cell
- * and statically unroll a time-major input from explicit construction-time Java lengths. Every
- * represented step gathers only its stable active batch: the original rows whose copied lengths
- * exceed that step, kept in original order. The RNN and GRU result types expose exact compact
- * next-hidden outputs and restore final hidden rows. The LSTM result exposes the same kind of
+ * and statically unroll a time-major input from static Java lengths. Callers may supply exact
+ * state and lengths, omit lengths to make every row valid for the complete time extent, or omit
+ * state to derive fresh non-gradient typed zero state for the current call. Every represented
+ * step gathers only its stable active batch: the original rows whose validated and, for a
+ * represented traversal, copied lengths exceed that step, kept in original order. Callers
+ * coordinate writes through validation and any snapshot. The RNN and GRU result types expose
+ * exact compact next-hidden outputs and restore final hidden rows. The LSTM result exposes the same kind of
  * compact hidden outputs while carrying compact cell state internally and restoring both final
  * hidden and final cell rows. A zero-length row selects its corresponding initial-state row; an
- * all-zero request returns the corresponding exact initial-state references.</p>
+ * all-zero request returns the corresponding exact initial-state references, invokes no cell,
+ * and therefore does not bind an automatic cell. Derived RNN/GRU state is one fresh eager leaf;
+ * derived LSTM hidden and cell states are two distinct fresh eager leaves. These state leaves use
+ * the cell parameter type, have Shape {@code [batch, hiddenSize]}, require no gradient, have no
+ * name, and are never retained.
+ * Each sequence can own one caller-supplied cell or construct one automatic matching cell from
+ * explicit hidden width, bias, parameter type, initialization policy, and seed.</p>
  *
  * <p>This sequence packing is different from packed gate parameters: it omits padded logical
  * rows from cell expressions, while gate packing places several trainable gate matrices in one
  * parameter Tensor. It is also different from {@code Sequential}, which composes unary modules,
  * and from a runtime recurrent scan, which current Model contracts do not yet provide. Only the
- * defensively copied explicit Java lengths determine padding; numeric zero remains ordinary data.
- * The sequence classes construct Model expressions and make no numerical, gradient, compiler,
- * backend, scheduling, or execution guarantee.</p>
+ * validated and defensively copied explicit Java lengths determine padding; numeric zero remains
+ * ordinary data. Every unroll reuses one cell and the same exact parameter leaf identities while
+ * creating fresh operation producers per represented step and retaining temporal state ancestry.
+ * The Compiler's existing exact-identity fan-out contract can therefore combine repeated
+ * parameter contributions. The sequence classes themselves construct Model expressions and make
+ * no numerical-gradient, public-training-loop, backend, scheduling, or execution guarantee.</p>
  *
  * <p>{@link io.github.pho001.synaptik.nn.layers.Linear} uses the conventional
  * {@code [outFeatures, inFeatures]} weight orientation and delegates each forward call to
@@ -49,8 +61,20 @@
  * parameter set at the start of the first compatible forward before constructing that call's
  * ordinary expression. Existing supplied and eager constructors remain immediately initialized.
  * Only the final input-feature extent is inferred; output width, bias, type, policy, factory, and
- * seed remain explicit. Every form behaves identically in training and evaluation mode, and none
- * numerically executes its constructed expression.</p>
+ * seed remain explicit. Sampling policies create the documented standard generator; zero/one
+ * policies never invoke the retained factory. Every form behaves identically in training and
+ * evaluation mode, and none numerically executes its constructed expression.</p>
+ *
+ * <p>The three recurrent cells also provide automatic constructors that retain an explicit
+ * hidden width, bias choice, floating parameter type, closed initialization policy, and seed.
+ * They infer only the positive static input width at the first represented forward call, then
+ * publish the complete input-weight, hidden-weight, and optional typed-zero-bias group atomically.
+ * Random policies use one fresh standard {@code L64X128MixRandom} stream per attempt, initializing
+ * the complete input matrix before the complete hidden matrix; each Shape independently supplies
+ * fan values. Zero and one policies create no generator, bias never draws, and gate order remains
+ * layer-owned. Strict state loading can bind every reservation without initialization. Failed
+ * attempts bind no partial group, retry from the retained seed, and serialize cell-locally;
+ * accessors remain unavailable until forward or strict load publishes the group.</p>
  *
  * <p>{@link io.github.pho001.synaptik.nn.layers.LayerNorm} owns mandatory equal-Shape scale and
  * bias parameters over one positive-rank fully static normalized Shape, plus one exact

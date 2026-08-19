@@ -20,7 +20,7 @@ import io.github.pho001.synaptik.model.tensor.Tensor;
 import io.github.pho001.synaptik.model.tensor.TensorDescriptor;
 import io.github.pho001.synaptik.model.tensor.TensorFactory;
 import io.github.pho001.synaptik.model.tensor.TensorProvenance;
-import io.github.pho001.synaptik.nn.initialization.LinearWeightInitialization;
+import io.github.pho001.synaptik.nn.initialization.ParameterInitialization;
 import io.github.pho001.synaptik.nn.module.ForwardMode;
 import io.github.pho001.synaptik.nn.module.Parameter;
 import io.github.pho001.synaptik.nn.module.UnaryTensorModule;
@@ -75,7 +75,7 @@ class LinearTest {
                                         long.class,
                                         boolean.class,
                                         DataType.class,
-                                        LinearWeightInitialization.class,
+                                        ParameterInitialization.class,
                                         RandomGeneratorFactory.class,
                                         long.class)),
                         constructors),
@@ -89,14 +89,6 @@ class LinearTest {
                 () -> assertTrue(Arrays.stream(Linear.class.getDeclaredMethods())
                         .filter(method -> Modifier.isPublic(method.getModifiers()))
                         .noneMatch(method -> Modifier.isStatic(method.getModifiers()))),
-                () -> assertArrayEquals(
-                        new LinearWeightInitialization[] {
-                            LinearWeightInitialization.GLOROT_NORMAL,
-                            LinearWeightInitialization.GLOROT_UNIFORM,
-                            LinearWeightInitialization.KAIMING_RELU_NORMAL,
-                            LinearWeightInitialization.KAIMING_RELU_UNIFORM
-                        },
-                        LinearWeightInitialization.values()),
                 () -> assertFalse(Arrays.stream(UnaryTensorModule.class.getSuperclass().getDeclaredMethods())
                         .anyMatch(method -> method.getName().equals("forward"))));
     }
@@ -305,14 +297,14 @@ class LinearTest {
                 4,
                 true,
                 DataType.FLOAT32,
-                LinearWeightInitialization.GLOROT_UNIFORM,
+                ParameterInitialization.glorotUniform(),
                 RandomGeneratorFactory.of("L64X128MixRandom"),
                 41L);
         Linear noBias = new Linear(
                 4,
                 false,
                 DataType.FLOAT32,
-                LinearWeightInitialization.GLOROT_UNIFORM,
+                ParameterInitialization.glorotUniform(),
                 RandomGeneratorFactory.of("L64X128MixRandom"),
                 42L);
         Tensor firstInput = tensor(DataType.FLOAT32, Shape.of(7, 3), false);

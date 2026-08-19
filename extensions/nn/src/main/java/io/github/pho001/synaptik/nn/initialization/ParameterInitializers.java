@@ -36,10 +36,84 @@ import java.util.random.RandomGenerator;
  * convolution fan inference, configurable gain, activation, fan mode, alias, or default source.
  * This eager host-data boundary neither accepts nor creates {@link GraphRngState}, which represents
  * deferred random state in a Tensor expression graph.</p>
+ *
+ * <p>The three-argument {@code initialize} overload accepts exactly zero and one policies and
+ * cannot create or consume a random generator. The four-argument overload accepts exactly the
+ * other six policies and forwards the exact supplied generator. Both are exhaustive dispatch
+ * conveniences over the named initializer methods below; they add no fallback or hidden state.</p>
  */
 public final class ParameterInitializers {
     /** Prevents instances because initialization policy is scoped to one static call. */
     private ParameterInitializers() {
+    }
+
+    /**
+     * Applies an exact constant initialization policy without a random generator.
+     *
+     * @param shape non-null Shape passed unchanged to the selected initializer
+     * @param dataType non-null data type passed unchanged to the selected initializer
+     * @param initialization non-null {@link ParameterInitialization#zeros()} or
+     *     {@link ParameterInitialization#ones()} policy
+     * @return the fresh parameter Tensor returned by the selected existing initializer
+     * @throws NullPointerException if an argument is null, checked in parameter order
+     * @throws IllegalArgumentException if the policy requires a random generator or delegated
+     *     initializer validation fails
+     * @throws ArithmeticException if delegated checked element-count or layout arithmetic
+     *     overflows
+     * @throws IllegalStateException if Tensor identifier space is exhausted
+     * @throws OutOfMemoryError if Model source or destination allocation fails
+     */
+    public static Tensor initialize(
+            Shape shape, DataType dataType, ParameterInitialization initialization) {
+        Objects.requireNonNull(shape, "shape");
+        Objects.requireNonNull(dataType, "dataType");
+        ParameterInitialization policy =
+                Objects.requireNonNull(initialization, "initialization");
+        return switch (policy.kind()) {
+            case ZEROS -> zeros(shape, dataType);
+            case ONES -> ones(shape, dataType);
+            default -> throw new IllegalArgumentException(
+                    "initialization policy requires a random generator: " + policy);
+        };
+    }
+
+    /**
+     * Applies a random initialization policy with the exact caller-owned generator.
+     *
+     * @param shape non-null Shape passed unchanged to the selected initializer
+     * @param dataType non-null data type passed unchanged to the selected initializer
+     * @param initialization non-null random policy
+     * @param randomGenerator non-null transient caller-owned source, never retained
+     * @return the fresh parameter Tensor returned by the selected existing initializer
+     * @throws NullPointerException if an argument is null, checked in parameter order
+     * @throws IllegalArgumentException if the policy is zero/one or delegated validation fails
+     * @throws ArithmeticException if delegated checked element-count or layout arithmetic
+     *     overflows
+     * @throws RuntimeException if the random source throws while sampling; completed calls remain
+     *     consumed and no Tensor is returned
+     * @throws IllegalStateException if Tensor identifier space is exhausted after sampling
+     * @throws OutOfMemoryError if Model source or destination allocation fails
+     */
+    public static Tensor initialize(
+            Shape shape,
+            DataType dataType,
+            ParameterInitialization initialization,
+            RandomGenerator randomGenerator) {
+        Objects.requireNonNull(shape, "shape");
+        Objects.requireNonNull(dataType, "dataType");
+        ParameterInitialization policy =
+                Objects.requireNonNull(initialization, "initialization");
+        RandomGenerator source = Objects.requireNonNull(randomGenerator, "randomGenerator");
+        return switch (policy.kind()) {
+            case GLOROT_NORMAL -> glorotNormal(shape, dataType, source);
+            case GLOROT_UNIFORM -> glorotUniform(shape, dataType, source);
+            case KAIMING_RELU_NORMAL -> kaimingReluNormal(shape, dataType, source);
+            case KAIMING_RELU_UNIFORM -> kaimingReluUniform(shape, dataType, source);
+            case NORMAL -> normal(shape, dataType, policy.first(), policy.second(), source);
+            case UNIFORM -> uniform(shape, dataType, policy.first(), policy.second(), source);
+            case ZEROS, ONES -> throw new IllegalArgumentException(
+                    "initialization policy does not accept a random generator: " + policy);
+        };
     }
 
     /**

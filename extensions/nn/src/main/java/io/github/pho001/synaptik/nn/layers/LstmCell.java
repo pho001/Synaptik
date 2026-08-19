@@ -7,12 +7,15 @@ import io.github.pho001.synaptik.model.shape.Shape;
 import io.github.pho001.synaptik.model.shape.ShapeBroadcast;
 import io.github.pho001.synaptik.model.shape.StaticDimension;
 import io.github.pho001.synaptik.model.tensor.Tensor;
+import io.github.pho001.synaptik.nn.initialization.ParameterInitialization;
 import io.github.pho001.synaptik.nn.initialization.ParameterInitializers;
 import io.github.pho001.synaptik.nn.module.Module;
 import io.github.pho001.synaptik.nn.module.Parameter;
+import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.random.RandomGenerator;
+import java.util.random.RandomGeneratorFactory;
 
 /**
  * Constructs one explicit-state long short-term memory (LSTM) cell application.
@@ -42,11 +45,22 @@ import java.util.random.RandomGenerator;
  * execute work. Its three-input contract makes this a direct {@link Module}, not a
  * {@link io.github.pho001.synaptik.nn.module.UnaryTensorModule} accepted by
  * {@link io.github.pho001.synaptik.nn.module.Sequential}.</p>
+ *
+ * <p>The automatic constructor reserves all packed parameters without creating a Tensor or
+ * {@link Parameter}. The first compatible represented step infers only the positive static final
+ * input extent. A sampling policy creates one fresh {@code L64X128MixRandom} stream and applies
+ * it first to the complete packed input matrix and then to the complete packed hidden matrix;
+ * zero/one policies create no generator. Optional packed bias is always typed zero. The complete
+ * group is published before the step formula is built, or strict state loading may bind it
+ * without initialization. Failed attempts publish no partial group and are retryable.</p>
  */
 public final class LstmCell extends Module {
-    private final Parameter inputWeight;
-    private final Parameter hiddenWeight;
-    private final Optional<Parameter> bias;
+
+    private final long hiddenSize;
+    private final long packedHiddenSize;
+    private final DataType parameterType;
+    private final boolean biasConfigured;
+    private final AutomaticConfiguration automaticConfiguration;
 
     /**
      * Creates a no-bias cell from exact caller-supplied packed projection weights.
@@ -65,9 +79,13 @@ public final class LstmCell extends Module {
         Tensor suppliedInputWeight = Objects.requireNonNull(inputWeight, "inputWeight");
         Tensor suppliedHiddenWeight = Objects.requireNonNull(hiddenWeight, "hiddenWeight");
         validateWeights(suppliedInputWeight, suppliedHiddenWeight);
-        this.inputWeight = parameter("inputWeight", suppliedInputWeight);
-        this.hiddenWeight = parameter("hiddenWeight", suppliedHiddenWeight);
-        this.bias = Optional.empty();
+        this.packedHiddenSize = extent(suppliedInputWeight.descriptor().shape(), 0);
+        this.hiddenSize = packedHiddenSize / 4L;
+        this.parameterType = suppliedInputWeight.descriptor().dataType();
+        this.biasConfigured = false;
+        this.automaticConfiguration = null;
+        parameter("inputWeight", suppliedInputWeight);
+        parameter("hiddenWeight", suppliedHiddenWeight);
     }
 
     /**
@@ -94,9 +112,14 @@ public final class LstmCell extends Module {
         Tensor suppliedBias = Objects.requireNonNull(bias, "bias");
         validateWeights(suppliedInputWeight, suppliedHiddenWeight);
         validateBias(suppliedInputWeight, suppliedBias);
-        this.inputWeight = parameter("inputWeight", suppliedInputWeight);
-        this.hiddenWeight = parameter("hiddenWeight", suppliedHiddenWeight);
-        this.bias = Optional.of(parameter("bias", suppliedBias));
+        this.packedHiddenSize = extent(suppliedInputWeight.descriptor().shape(), 0);
+        this.hiddenSize = packedHiddenSize / 4L;
+        this.parameterType = suppliedInputWeight.descriptor().dataType();
+        this.biasConfigured = true;
+        this.automaticConfiguration = null;
+        parameter("inputWeight", suppliedInputWeight);
+        parameter("hiddenWeight", suppliedHiddenWeight);
+        parameter("bias", suppliedBias);
     }
 
     /**
@@ -161,11 +184,71 @@ public final class LstmCell extends Module {
                 ? ParameterInitializers.zeros(biasShape, parameterType)
                 : null;
 
-        this.inputWeight = parameter("inputWeight", initializedInputWeight);
-        this.hiddenWeight = parameter("hiddenWeight", initializedHiddenWeight);
-        this.bias = bias
-                ? Optional.of(parameter("bias", initializedBias))
-                : Optional.empty();
+        this.hiddenSize = hiddenSize;
+        this.packedHiddenSize = packedHiddenSize;
+        this.parameterType = parameterType;
+        this.biasConfigured = bias;
+        this.automaticConfiguration = null;
+        parameter("inputWeight", initializedInputWeight);
+        parameter("hiddenWeight", initializedHiddenWeight);
+        if (bias) {
+            parameter("bias", initializedBias);
+        }
+    }
+
+    /**
+     * Creates an LSTM cell that infers only its input width on first represented forward use.
+     *
+     * <p>Construction retains immutable configuration and reserves {@code inputWeight},
+     * {@code hiddenWeight}, then optional {@code bias}. It creates no source, Tensor, identifier,
+     * Parameter, or recurrent state. The policy is applied independently to complete packed
+     * Shapes, so fan presets derive their fan values separately for each matrix.</p>
+     *
+     * @param hiddenSize strictly positive hidden and cell-state width
+     * @param bias whether to create a complete packed typed-zero input-side bias
+     * @param dataType non-null floating parameter and default-sequence-state type
+     * @param weightInitialization non-null closed policy applied independently to both packed
+     *     matrices; it owns neither Shape, gate order, source, nor seed
+     * @param seed seed for exact {@code L64X128MixRandom} sampling attempts; any Java
+     *     {@code long} value is accepted and zero/one policies do not use it
+     * @throws NullPointerException if {@code dataType} or {@code weightInitialization} is null,
+     *     checked in that order after {@code hiddenSize}
+     * @throws IllegalArgumentException if {@code hiddenSize} is not positive, the type is not
+     *     floating, or a hidden-weight or requested-bias Shape exceeds the Model Java-array limit
+     * @throws ArithmeticException if {@code 4 * hiddenSize} or checked Shape/count arithmetic
+     *     overflows
+     */
+    public LstmCell(
+            long hiddenSize,
+            boolean bias,
+            DataType dataType,
+            ParameterInitialization weightInitialization,
+            long seed) {
+        if (hiddenSize <= 0) {
+            throw new IllegalArgumentException("hiddenSize must be positive: " + hiddenSize);
+        }
+        DataType configuredType = Objects.requireNonNull(dataType, "dataType");
+        ParameterInitialization initialization =
+                Objects.requireNonNull(weightInitialization, "weightInitialization");
+        if (!configuredType.isFloating()) {
+            throw new IllegalArgumentException(
+                    "LSTM cell initialization requires floating data type: " + configuredType);
+        }
+        long packedSize = Math.multiplyExact(hiddenSize, 4L);
+        validateJavaArrayLimit(Shape.of(packedSize, hiddenSize));
+        if (bias) {
+            validateJavaArrayLimit(Shape.of(packedSize));
+        }
+        this.hiddenSize = hiddenSize;
+        this.packedHiddenSize = packedSize;
+        this.parameterType = configuredType;
+        this.biasConfigured = bias;
+        this.automaticConfiguration = new AutomaticConfiguration(initialization, seed);
+        reserveParameter("inputWeight", this::validateAutomaticInputWeight);
+        reserveParameter("hiddenWeight", this::validateAutomaticHiddenWeight);
+        if (bias) {
+            reserveParameter("bias", this::validateAutomaticBias);
+        }
     }
 
     /**
@@ -173,9 +256,11 @@ public final class LstmCell extends Module {
      *
      * @return the exact non-null wrapper declared under {@code inputWeight}; its current value is
      *     shaped {@code [4 * hiddenSize, inputSize]} in input, forget, candidate, output order
+     * @throws IllegalStateException if automatic forward or strict-load initialization has not
+     *     published the complete parameter group
      */
     public Parameter inputWeight() {
-        return inputWeight;
+        return boundParameter("inputWeight");
     }
 
     /**
@@ -183,9 +268,11 @@ public final class LstmCell extends Module {
      *
      * @return the exact non-null wrapper declared under {@code hiddenWeight}; its current value is
      *     shaped {@code [4 * hiddenSize, hiddenSize]} in input, forget, candidate, output order
+     * @throws IllegalStateException if automatic forward or strict-load initialization has not
+     *     published the complete parameter group
      */
     public Parameter hiddenWeight() {
-        return hiddenWeight;
+        return boundParameter("hiddenWeight");
     }
 
     /**
@@ -193,9 +280,11 @@ public final class LstmCell extends Module {
      *
      * @return a non-null empty Optional for a no-bias cell, or the exact wrapper declared under
      *     {@code bias} whose current value is shaped {@code [4 * hiddenSize]}
+     * @throws IllegalStateException if bias is configured but automatic forward or strict-load
+     *     initialization has not published the complete parameter group
      */
     public Optional<Parameter> bias() {
-        return bias;
+        return biasConfigured ? Optional.of(boundParameter("bias")) : Optional.empty();
     }
 
     /**
@@ -216,6 +305,14 @@ public final class LstmCell extends Module {
      * contains the exact final hidden MUL and cell ADD expressions and is never retained by the
      * module.</p>
      *
+     * <p>For an unbound automatic cell, all caller-controlled descriptor and Shape checks finish
+     * before initialization. Each attempt restarts the retained seed: sampling policies use one
+     * {@code L64X128MixRandom} stream for input weight then hidden weight, zero/one use no
+     * generator, and bias consumes no draw. Complete publication precedes formula construction.
+     * A later formula failure retains the published parameters; a pre-publication failure leaves
+     * every reservation unbound and retryable. Allocations, identifiers, and completed draws are
+     * not rolled back.</p>
+     *
      * @param input non-null floating rank-one-or-higher Tensor whose final Dimension is compatible
      *     with {@code inputSize}; not mutated or retained
      * @param hidden non-null floating rank-one-or-higher current hidden Tensor whose final
@@ -230,15 +327,31 @@ public final class LstmCell extends Module {
      * @throws ArithmeticException if checked packed-bound or Shape arithmetic overflows
      * @throws IllegalStateException if Tensor identifier space is exhausted during valid
      *     construction; an already created prefix is not rolled back
+     * @throws RuntimeException if standard random sampling fails during automatic initialization;
+     *     completed draws remain consumed and no parameter wrapper is published
+     * @throws OutOfMemoryError if automatic parameter or expression allocation fails; completed
+     *     effects are not rolled back
      */
     public LstmCellForwardResult forward(Tensor input, Tensor hidden, Tensor cell) {
         Tensor suppliedInput = Objects.requireNonNull(input, "input");
         Tensor suppliedHidden = Objects.requireNonNull(hidden, "hidden");
         Tensor suppliedCell = Objects.requireNonNull(cell, "cell");
 
-        Tensor currentInputWeight = inputWeight.value();
-        Tensor currentHiddenWeight = hiddenWeight.value();
-        Optional<Tensor> currentBias = bias.map(Parameter::value);
+        if (automaticConfiguration != null && !parameterReservationsBound()) {
+            AutomaticInput automaticInput =
+                    validateAutomaticInput(suppliedInput, suppliedHidden, suppliedCell);
+            synchronized (this) {
+                if (!parameterReservationsBound()) {
+                    automaticInput = validateAutomaticInput(
+                            suppliedInput, suppliedHidden, suppliedCell);
+                    initializeAutomatically(automaticInput);
+                }
+            }
+        }
+
+        Tensor currentInputWeight = inputWeight().value();
+        Tensor currentHiddenWeight = hiddenWeight().value();
+        Optional<Tensor> currentBias = bias().map(Parameter::value);
 
         long hiddenSize = validateWeights(currentInputWeight, currentHiddenWeight);
         currentBias.ifPresent(value -> validateBias(currentInputWeight, value));
@@ -321,6 +434,161 @@ public final class LstmCell extends Module {
                 .add(activatedInputGate.mul(activatedCandidate));
         Tensor nextHidden = activatedOutputGate.mul(nextCell.tanh());
         return new LstmCellForwardResult(nextHidden, nextCell);
+    }
+
+    long configuredHiddenSize() {
+        return hiddenSize;
+    }
+
+    DataType configuredDataType() {
+        return parameterType;
+    }
+
+    boolean configuredBias() {
+        return biasConfigured;
+    }
+
+    void validateConfiguredInputSize(long inputSize) {
+        if (inputSize <= 0) {
+            throw new IllegalArgumentException("input feature size must be positive: " + inputSize);
+        }
+        if (parameterReservationsBound()) {
+            Tensor currentInputWeight = inputWeight().value();
+            Tensor currentHiddenWeight = hiddenWeight().value();
+            validateWeights(currentInputWeight, currentHiddenWeight);
+            bias().ifPresent(value -> validateBias(currentInputWeight, value.value()));
+            long expected = extent(currentInputWeight.descriptor().shape(), 1);
+            if (inputSize != expected) {
+                throw new IllegalArgumentException(
+                        "input feature size must equal cell inputSize: input="
+                                + inputSize + ", cell=" + expected);
+            }
+        }
+    }
+
+    private AutomaticInput validateAutomaticInput(Tensor input, Tensor hidden, Tensor cell) {
+        Shape inputShape = input.descriptor().shape();
+        if (inputShape.rank() < 1) {
+            throw new IllegalArgumentException("input rank must be at least 1: " + inputShape.rank());
+        }
+        Dimension feature = inputShape.dimension(inputShape.rank() - 1);
+        if (!(feature instanceof StaticDimension staticFeature)) {
+            throw new IllegalArgumentException(
+                    "LSTM automatic input final feature dimension must be static: " + feature);
+        }
+        long inputSize = staticFeature.size();
+        if (inputSize <= 0) {
+            throw new IllegalArgumentException(
+                    "LSTM automatic input feature size must be positive: " + inputSize);
+        }
+        validateState(hidden, hiddenSize, "hidden");
+        validateState(cell, hiddenSize, "cell");
+        Shape inputWeightShape = Shape.of(packedHiddenSize, inputSize);
+        Shape hiddenWeightShape = Shape.of(packedHiddenSize, hiddenSize);
+        validateJavaArrayLimit(inputWeightShape);
+        prevalidateFormula(
+                input.descriptor().dataType(), inputShape,
+                hidden.descriptor().dataType(), hidden.descriptor().shape(),
+                cell.descriptor().dataType(), cell.descriptor().shape(),
+                inputWeightShape, hiddenWeightShape);
+        return new AutomaticInput(inputWeightShape);
+    }
+
+    private void prevalidateFormula(
+            DataType inputType,
+            Shape inputShape,
+            DataType hiddenType,
+            Shape hiddenShape,
+            DataType cellType,
+            Shape cellShape,
+            Shape inputWeightShape,
+            Shape hiddenWeightShape) {
+        DataType inputProjectionType = DataTypePromotion.promoteNumeric(inputType, parameterType);
+        if (biasConfigured) {
+            inputProjectionType = DataTypePromotion.promoteNumeric(inputProjectionType, parameterType);
+        }
+        DataType hiddenProjectionType = DataTypePromotion.promoteNumeric(hiddenType, parameterType);
+        Shape inputGateShape = gateShape(projectionShape(inputShape, inputWeightShape), hiddenSize);
+        Shape hiddenGateShape = gateShape(projectionShape(hiddenShape, hiddenWeightShape), hiddenSize);
+        DataType gateType = DataTypePromotion.promoteNumeric(inputProjectionType, hiddenProjectionType);
+        Shape gateShape = ShapeBroadcast.broadcast(inputGateShape, hiddenGateShape);
+        requireFloating(gateType, "gate preactivation");
+        DataType forgetProductType = DataTypePromotion.promoteNumeric(gateType, cellType);
+        Shape forgetProductShape = ShapeBroadcast.broadcast(gateShape, cellShape);
+        DataType inputProductType = DataTypePromotion.promoteNumeric(gateType, gateType);
+        Shape inputProductShape = ShapeBroadcast.broadcast(gateShape, gateShape);
+        DataType nextCellType = DataTypePromotion.promoteNumeric(forgetProductType, inputProductType);
+        Shape nextCellShape = ShapeBroadcast.broadcast(forgetProductShape, inputProductShape);
+        requireFloating(nextCellType, "next cell");
+        DataTypePromotion.promoteNumeric(gateType, nextCellType);
+        ShapeBroadcast.broadcast(gateShape, nextCellShape);
+    }
+
+    private void initializeAutomatically(AutomaticInput input) {
+        ParameterInitialization initialization = automaticConfiguration.initialization;
+        Tensor initializedInputWeight;
+        Tensor initializedHiddenWeight;
+        if (initialization.requiresRandomGenerator()) {
+            RandomGenerator generator = RandomGeneratorFactory.<RandomGenerator>of("L64X128MixRandom")
+                    .create(automaticConfiguration.seed);
+            initializedInputWeight = ParameterInitializers.initialize(
+                    input.inputWeightShape, parameterType, initialization, generator);
+            initializedHiddenWeight = ParameterInitializers.initialize(
+                    Shape.of(packedHiddenSize, hiddenSize), parameterType, initialization, generator);
+        } else {
+            initializedInputWeight = ParameterInitializers.initialize(
+                    input.inputWeightShape, parameterType, initialization);
+            initializedHiddenWeight = ParameterInitializers.initialize(
+                    Shape.of(packedHiddenSize, hiddenSize), parameterType, initialization);
+        }
+        if (biasConfigured) {
+            Tensor initializedBias = ParameterInitializers.zeros(
+                    Shape.of(packedHiddenSize), parameterType);
+            bindReservedParameters(List.of(
+                    initializedInputWeight, initializedHiddenWeight, initializedBias));
+        } else {
+            bindReservedParameters(List.of(initializedInputWeight, initializedHiddenWeight));
+        }
+    }
+
+    private void validateAutomaticInputWeight(Tensor weight) {
+        long actualHiddenSize = validateInputWeight(weight);
+        Shape shape = weight.descriptor().shape();
+        if (weight.descriptor().dataType() != parameterType
+                || actualHiddenSize != hiddenSize
+                || extent(shape, 0) != packedHiddenSize) {
+            throw new IllegalArgumentException("automatic inputWeight schema mismatch");
+        }
+    }
+
+    private void validateAutomaticHiddenWeight(Tensor weight) {
+        validateHiddenWeight(weight);
+        Shape shape = weight.descriptor().shape();
+        if (weight.descriptor().dataType() != parameterType
+                || extent(shape, 0) != packedHiddenSize
+                || extent(shape, 1) != hiddenSize) {
+            throw new IllegalArgumentException("automatic hiddenWeight schema mismatch");
+        }
+    }
+
+    private void validateAutomaticBias(Tensor value) {
+        validateFloatingAndGradient(value, "bias");
+        Shape shape = value.descriptor().shape();
+        if (shape.rank() != 1 || !shape.isFullyStatic()
+                || value.descriptor().dataType() != parameterType
+                || extent(shape, 0) != packedHiddenSize) {
+            throw new IllegalArgumentException("automatic bias schema mismatch");
+        }
+    }
+
+    private static long extent(Shape shape, int axis) {
+        return ((StaticDimension) shape.dimension(axis)).size();
+    }
+
+    private record AutomaticConfiguration(ParameterInitialization initialization, long seed) {
+    }
+
+    private record AutomaticInput(Shape inputWeightShape) {
     }
 
     private static long validateWeights(Tensor inputWeight, Tensor hiddenWeight) {
@@ -470,12 +738,15 @@ public final class LstmCell extends Module {
     }
 
     private static Shape projectionShape(Tensor value, Tensor weight) {
-        Shape valueShape = value.descriptor().shape();
+        return projectionShape(value.descriptor().shape(), weight.descriptor().shape());
+    }
+
+    private static Shape projectionShape(Shape valueShape, Shape weightShape) {
         Dimension[] resultDimensions = new Dimension[valueShape.rank()];
         for (int axis = 0; axis < valueShape.rank() - 1; axis++) {
             resultDimensions[axis] = valueShape.dimension(axis);
         }
-        resultDimensions[valueShape.rank() - 1] = weight.descriptor().shape().dimension(0);
+        resultDimensions[valueShape.rank() - 1] = weightShape.dimension(0);
         return Shape.ofDimensions(resultDimensions);
     }
 

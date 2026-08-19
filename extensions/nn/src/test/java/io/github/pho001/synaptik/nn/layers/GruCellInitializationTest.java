@@ -3,6 +3,7 @@ package io.github.pho001.synaptik.nn.layers;
 import static org.junit.jupiter.api.Assertions.assertAll;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -11,17 +12,146 @@ import io.github.pho001.synaptik.model.datatype.DataType;
 import io.github.pho001.synaptik.model.shape.Shape;
 import io.github.pho001.synaptik.model.tensor.Tensor;
 import io.github.pho001.synaptik.model.tensor.TensorFactory;
+import io.github.pho001.synaptik.nn.initialization.ParameterInitialization;
+import io.github.pho001.synaptik.nn.initialization.ParameterInitializers;
 import java.lang.reflect.Field;
 import java.util.List;
+import java.util.Optional;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.random.RandomGenerator;
+import java.util.random.RandomGeneratorFactory;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.parallel.Execution;
 import org.junit.jupiter.api.parallel.ExecutionMode;
 
 @Execution(ExecutionMode.SAME_THREAD)
 class GruCellInitializationTest {
+    @Test
+    void concurrentCompatibleFirstCallsShareOnePublishedPackedGroup() throws Exception {
+        GruCell cell = new GruCell(
+                3, false, DataType.FLOAT32, ParameterInitialization.zeros(), 1L);
+        Tensor input = TensorFactory.zeros(
+                Shape.of(2, 4), DataType.FLOAT32, Optional.empty(), false);
+        Tensor hidden = TensorFactory.zeros(
+                Shape.of(2, 3), DataType.FLOAT32, Optional.empty(), false);
+        CountDownLatch ready = new CountDownLatch(2);
+        CountDownLatch start = new CountDownLatch(1);
+        ExecutorService executor = Executors.newFixedThreadPool(2);
+        try {
+            Future<Tensor> first = executor.submit(() -> {
+                ready.countDown();
+                start.await();
+                return cell.forward(input, hidden);
+            });
+            Future<Tensor> second = executor.submit(() -> {
+                ready.countDown();
+                start.await();
+                return cell.forward(input, hidden);
+            });
+            ready.await();
+            start.countDown();
+            Tensor firstResult = first.get();
+            Tensor secondResult = second.get();
+
+            assertAll(
+                    () -> assertNotSame(firstResult, secondResult),
+                    () -> assertEquals(List.of("inputWeight", "hiddenWeight"),
+                            cell.parameters().stream().map(value -> value.name()).toList()));
+        } finally {
+            executor.shutdownNow();
+        }
+    }
+
+    @Test
+    void automaticRandomPolicyMatchesTheExactStandardAdvancedPackedStream() {
+        long seed = 72L;
+        ParameterInitialization policy = ParameterInitialization.kaimingReluNormal();
+        RandomGenerator expectedSource = RandomGeneratorFactory.<RandomGenerator>of(
+                "L64X128MixRandom").create(seed);
+        Tensor expectedInput = ParameterInitializers.initialize(
+                Shape.of(9, 4), DataType.FLOAT32, policy, expectedSource);
+        Tensor expectedHidden = ParameterInitializers.initialize(
+                Shape.of(9, 3), DataType.FLOAT32, policy, expectedSource);
+        GruCell cell = new GruCell(3, false, DataType.FLOAT32, policy, seed);
+
+        cell.forward(
+                TensorFactory.zeros(Shape.of(2, 4), DataType.FLOAT32, Optional.empty(), false),
+                TensorFactory.zeros(Shape.of(2, 3), DataType.FLOAT32, Optional.empty(), false));
+
+        assertAll(
+                () -> assertArrayEquals(floatValues(expectedInput),
+                        floatValues(cell.inputWeight().value())),
+                () -> assertArrayEquals(floatValues(expectedHidden),
+                        floatValues(cell.hiddenWeight().value())));
+    }
+
+    @Test
+    void strictLoadBindsExactAutomaticPackedGroupWithoutInitializationEffects()
+            throws ReflectiveOperationException {
+        GruCell donor = new GruCell(4, 3, true, DataType.FLOAT32,
+                new BoundedSource(63, 0.0d));
+        GruCell target = new GruCell(
+                3, true, DataType.FLOAT32, ParameterInitialization.glorotNormal(), 45L);
+        AtomicLong ids = nextTensorIdState();
+        long before = ids.get();
+
+        target.loadStateDictionary(donor.stateDictionary());
+
+        assertAll(
+                () -> assertEquals(before, ids.get()),
+                () -> assertSame(donor.inputWeight().value(), target.inputWeight().value()),
+                () -> assertSame(donor.hiddenWeight().value(), target.hiddenWeight().value()),
+                () -> assertSame(donor.bias().orElseThrow().value(),
+                        target.bias().orElseThrow().value()),
+                () -> assertEquals(donor.stateDictionary(), target.stateDictionary()));
+
+        GruCell incompatible = new GruCell(
+                4, true, DataType.FLOAT32, ParameterInitialization.zeros(), 1L);
+        assertAll(
+                () -> assertThrows(IllegalArgumentException.class,
+                        () -> incompatible.loadStateDictionary(donor.stateDictionary())),
+                () -> assertThrows(IllegalStateException.class, incompatible::parameters));
+    }
+
+    @Test
+    void automaticConstantPolicyPublishesPackedGroupOnFirstForwardOnly()
+            throws ReflectiveOperationException {
+        AtomicLong ids = nextTensorIdState();
+        long beforeConstruction = ids.get();
+        GruCell cell = new GruCell(
+                3, true, DataType.FLOAT32, ParameterInitialization.ones(), 92L);
+
+        assertAll(
+                () -> assertEquals(beforeConstruction, ids.get()),
+                () -> assertThrows(IllegalStateException.class, cell::parameters));
+
+        Tensor input = TensorFactory.zeros(
+                Shape.of(2, 4), DataType.FLOAT32, Optional.empty(), false);
+        Tensor hidden = TensorFactory.zeros(
+                Shape.of(2, 3), DataType.FLOAT32, Optional.empty(), false);
+        long beforeBinding = ids.get();
+        Tensor result = cell.forward(input, hidden);
+
+        assertAll(
+                () -> assertEquals(Shape.of(9, 4), cell.inputWeight().value().descriptor().shape()),
+                () -> assertEquals(Shape.of(9, 3), cell.hiddenWeight().value().descriptor().shape()),
+                () -> assertEquals(Shape.of(9), cell.bias().orElseThrow().value()
+                        .descriptor().shape()),
+                () -> assertEquals(beforeBinding, cell.inputWeight().value().id().value()),
+                () -> assertEquals(beforeBinding + 1, cell.hiddenWeight().value().id().value()),
+                () -> assertEquals(beforeBinding + 2,
+                        cell.bias().orElseThrow().value().id().value()),
+                () -> assertTrue(result.id().value() > beforeBinding + 2),
+                () -> assertAllOne(cell.inputWeight().value()),
+                () -> assertAllOne(cell.hiddenWeight().value()),
+                () -> assertAllZero(cell.bias().orElseThrow().value()));
+    }
+
     @Test
     void initializesPackedWeightsThenZeroBiasForEveryFloatingType()
             throws ReflectiveOperationException {
@@ -197,6 +327,34 @@ class GruCellInitializationTest {
                     new float[java.lang.reflect.Array.getLength(array)], (float[]) array);
             case BFLOAT16 -> assertArrayEquals(
                     new short[java.lang.reflect.Array.getLength(array)], (short[]) array);
+            default -> throw new AssertionError("unexpected data type");
+        }
+    }
+
+    private static float[] floatValues(Tensor tensor) {
+        return (float[]) tensor.hostStorage().orElseThrow().segment()
+                .heapBase().orElseThrow();
+    }
+
+    private static void assertAllOne(Tensor tensor) {
+        Object array = tensor.hostStorage().orElseThrow().segment().heapBase().orElseThrow();
+        switch (tensor.descriptor().dataType()) {
+            case FLOAT64 -> assertArrayEquals(
+                    java.util.Collections.nCopies(
+                                    java.lang.reflect.Array.getLength(array), 1.0d)
+                            .stream().mapToDouble(Double::doubleValue).toArray(),
+                    (double[]) array);
+            case FLOAT32 -> {
+                float[] expected = new float[java.lang.reflect.Array.getLength(array)];
+                java.util.Arrays.fill(expected, 1.0f);
+                assertArrayEquals(expected, (float[]) array);
+            }
+            case BFLOAT16 -> {
+                short[] expected = new short[java.lang.reflect.Array.getLength(array)];
+                java.util.Arrays.fill(expected,
+                        io.github.pho001.synaptik.model.datatype.BFloat16Bits.fromFloat(1.0f));
+                assertArrayEquals(expected, (short[]) array);
+            }
             default -> throw new AssertionError("unexpected data type");
         }
     }

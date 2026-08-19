@@ -11,7 +11,7 @@ import io.github.pho001.synaptik.model.datatype.DataType;
 import io.github.pho001.synaptik.model.shape.Shape;
 import io.github.pho001.synaptik.model.tensor.Tensor;
 import io.github.pho001.synaptik.model.tensor.TensorFactory;
-import io.github.pho001.synaptik.nn.initialization.LinearWeightInitialization;
+import io.github.pho001.synaptik.nn.initialization.ParameterInitialization;
 import io.github.pho001.synaptik.nn.layers.Linear;
 import java.io.IOException;
 import java.lang.reflect.Constructor;
@@ -285,7 +285,7 @@ class ModelTest {
                 outFeatures,
                 bias,
                 DataType.FLOAT32,
-                LinearWeightInitialization.GLOROT_UNIFORM,
+                ParameterInitialization.glorotUniform(),
                 RANDOM_FACTORY,
                 seed);
     }

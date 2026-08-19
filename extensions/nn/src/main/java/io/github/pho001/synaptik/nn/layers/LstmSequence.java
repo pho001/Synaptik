@@ -10,9 +10,11 @@ import io.github.pho001.synaptik.model.shape.StaticDimension;
 import io.github.pho001.synaptik.model.tensor.Tensor;
 import io.github.pho001.synaptik.model.tensor.TensorDescriptor;
 import io.github.pho001.synaptik.model.tensor.TensorFactory;
+import io.github.pho001.synaptik.nn.initialization.ParameterInitialization;
 import io.github.pho001.synaptik.nn.module.Module;
 import io.github.pho001.synaptik.nn.module.Parameter;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
@@ -35,15 +37,21 @@ import java.util.Optional;
  * empty output list and the exact two initial-state references without allocating a Tensor
  * identity or invoking the cell.</p>
  *
- * <p>Lengths are cloned before validation and never retained. They are construction metadata,
- * not runtime Tensor values; runtime-dependent masks or lengths require a future recurrent
- * scan/control-flow contract. Forward is mode-insensitive and retains no input, state, length,
+ * <p>Lengths are validated from the caller array and, when at least one step is represented,
+ * cloned immediately before traversal; no array is retained. They are construction metadata, not
+ * runtime Tensor values; callers must coordinate writes throughout validation and any snapshot.
+ * Runtime-dependent masks or lengths require a future recurrent scan/control-flow contract.
+ * Forward is mode-insensitive and retains no input, state, length,
  * index, or result. Parameter replacement and multi-step construction are not one atomic
  * snapshot, so callers coordinate them when consistent bindings matter.</p>
  *
- * <p>This class creates eager index leaves and storage-free Model expression metadata. It does
- * not evaluate values, define gradients, compile a graph, select a backend, or promise runtime
- * work skipping.</p>
+ * <p>One Java cell and its exact Parameter leaf Tensors are shared across every represented time
+ * step, while every select, gather, gate operation, and restored-state producer is fresh. Both
+ * later states retain temporal ancestry through those fresh producers. This static identity
+ * fan-out is visible to the Compiler, whose existing exact-identity gradient contract combines
+ * repeated contributions. This class itself creates eager index leaves and storage-free Model
+ * expression metadata; it does not evaluate values, define numerical gradients, expose a public
+ * training loop, compile a graph, select a backend, or promise runtime work skipping.</p>
  */
 public final class LstmSequence extends Module {
     private final LstmCell cell;
@@ -61,12 +69,225 @@ public final class LstmSequence extends Module {
     }
 
     /**
+     * Creates a sequence owning one automatic standard LSTM cell.
+     *
+     * <p>Construction creates and owns exactly one unbound cell. It creates no random generator,
+     * Tensor, Parameter, default state, or all-valid length array.</p>
+     *
+     * @param hiddenSize strictly positive hidden and cell-state width
+     * @param bias whether the cell will own a complete packed typed-zero input-side bias
+     * @param dataType non-null floating parameter and default-state type
+     * @param weightInitialization non-null closed policy applied independently to both packed
+     *     matrices by the cell
+     * @param seed seed retained by the cell for random-policy initialization attempts; zero/one
+     *     policies do not use it
+     * @throws NullPointerException if {@code dataType} or {@code weightInitialization} is null
+     * @throws IllegalArgumentException if {@code hiddenSize} is not positive, {@code dataType} is
+     *     not floating, or a configured parameter Shape exceeds the Model Java-array limit
+     * @throws ArithmeticException if {@code 4 * hiddenSize} or checked Shape arithmetic overflows
+     */
+    public LstmSequence(
+            long hiddenSize,
+            boolean bias,
+            DataType dataType,
+            ParameterInitialization weightInitialization,
+            long seed) {
+        this(new LstmCell(hiddenSize, bias, dataType, weightInitialization, seed));
+    }
+
+    /**
      * Returns the stable owned LSTM cell.
      *
      * @return the exact non-null child registered under {@code cell}
      */
     public LstmCell cell() {
         return cell;
+    }
+
+    /**
+     * Builds the complete all-valid sequence from explicit hidden and cell states.
+     *
+     * <p>A fresh private Java array marks every row valid for all {@code time} steps. Both
+     * explicit state references are preserved exactly when {@code time == 0}; no default state is
+     * created.</p>
+     *
+     * @param input non-null floating fully static rank-three input shaped
+     *     {@code [time, batch, inputSize]}; not mutated or retained
+     * @param initialHidden non-null compatible floating fully static hidden state shaped
+     *     {@code [batch, hiddenSize]}; not mutated or retained
+     * @param initialCell non-null compatible floating fully static cell state shaped
+     *     {@code [batch, hiddenSize]}; not mutated or retained
+     * @return the non-null static result with every input time step represented
+     * @throws NullPointerException if {@code input}, {@code initialHidden}, or
+     *     {@code initialCell} is null
+     * @throws IllegalArgumentException if input, either state, current cell schema, promotion, or
+     *     static unroll validation fails
+     * @throws ArithmeticException if checked packed-size, Shape, or layout arithmetic overflows
+     * @throws IllegalStateException if Tensor identifier space is exhausted
+     * @throws RuntimeException if automatic random-policy initialization fails
+     * @throws OutOfMemoryError if an array, eager leaf, Tensor, or expression cannot be allocated
+     */
+    public LstmSequenceForwardResult forward(
+            Tensor input, Tensor initialHidden, Tensor initialCell) {
+        SequenceSchema schema = validateInputAndStatesForDefaults(
+                input, initialHidden, initialCell);
+        return forward(input, initialHidden, initialCell, allValidLengths(schema));
+    }
+
+    /**
+     * Builds a statically packed sequence from fresh typed hidden and cell zero states.
+     *
+     * <p>After complete default-path validation, the method creates two distinct fresh eager
+     * typed-zero leaves shaped {@code [batch, hiddenSize]}, each unnamed and not requiring a
+     * gradient. Neither is retained. An all-zero length array returns those exact leaves as final
+     * hidden and cell state and leaves an automatic cell unbound.</p>
+     *
+     * @param input non-null floating fully static rank-three time-major input; not retained
+     * @param lengths non-null caller-owned valid length per original batch row; validated from the
+     *     caller array, never mutated or retained, and cloned before traversal
+     * @return the non-null packed result whose skipped rows originate from the fresh zero states
+     * @throws NullPointerException if {@code input} or {@code lengths} is null
+     * @throws IllegalArgumentException if input, lengths, current cell schema, promotion, default
+     *     states, or static unroll validation fails
+     * @throws ArithmeticException if checked packed-size, state, Shape, or layout arithmetic
+     *     overflows
+     * @throws IllegalStateException if Tensor identifier space is exhausted
+     * @throws RuntimeException if automatic random-policy initialization fails
+     * @throws OutOfMemoryError if an array, eager leaf, Tensor, or expression cannot be allocated
+     */
+    public LstmSequenceForwardResult forward(Tensor input, long[] lengths) {
+        SequenceSchema schema = validateInputAndLengthsForDefaults(input, lengths);
+        Tensor hidden = zeroState(schema);
+        Tensor cellState = zeroState(schema);
+        return forward(input, hidden, cellState, lengths);
+    }
+
+    /**
+     * Builds an all-valid sequence from fresh typed hidden and cell zero states.
+     *
+     * <p>The method creates one private all-valid length array and two distinct fresh eager
+     * typed-zero non-gradient state leaves. For {@code time == 0}, the result contains no output
+     * and preserves those exact leaves; the automatic cell remains unbound.</p>
+     *
+     * @param input non-null floating fully static rank-three time-major input; not retained
+     * @return the non-null complete static result
+     * @throws NullPointerException if {@code input} is null
+     * @throws IllegalArgumentException if input, current cell schema, promotion, default states,
+     *     or static unroll validation fails
+     * @throws ArithmeticException if checked packed-size, state, Shape, or layout arithmetic
+     *     overflows
+     * @throws IllegalStateException if Tensor identifier space is exhausted
+     * @throws RuntimeException if automatic random-policy initialization fails
+     * @throws OutOfMemoryError if an array, eager leaf, Tensor, or expression cannot be allocated
+     */
+    public LstmSequenceForwardResult forward(Tensor input) {
+        SequenceSchema schema = validateInputForDefaults(input);
+        validateDefaultStateCount(schema.batch, schema.hiddenSize);
+        long[] lengths = allValidLengths(schema);
+        Tensor hidden = zeroState(schema);
+        Tensor cellState = zeroState(schema);
+        return forward(input, hidden, cellState, lengths);
+    }
+
+    private SequenceSchema validateInputForDefaults(Tensor input) {
+        Tensor suppliedInput = Objects.requireNonNull(input, "input");
+        Shape shape = suppliedInput.descriptor().shape();
+        requireFloating(suppliedInput.descriptor().dataType(), "input");
+        requireRank(shape, 3, "input");
+        requireStatic(shape, "input");
+        long time = extent(shape, 0);
+        long batch = extent(shape, 1);
+        long inputSize = extent(shape, 2);
+        cell.validateConfiguredInputSize(inputSize);
+        if (batch > Integer.MAX_VALUE || time > Integer.MAX_VALUE) {
+            throw new IllegalArgumentException("time or batch exceeds Java collection limit");
+        }
+        DataTypePromotion.promoteNumeric(
+                suppliedInput.descriptor().dataType(), cell.configuredDataType());
+        return new SequenceSchema(time, batch, inputSize, cell.configuredHiddenSize());
+    }
+
+    private SequenceSchema validateInputAndStatesForDefaults(
+            Tensor input, Tensor hidden, Tensor cellState) {
+        SequenceSchema schema = validateInputForDefaults(input);
+        validateDefaultState(hidden, "initialHidden", schema);
+        validateDefaultState(cellState, "initialCell", schema);
+        return schema;
+    }
+
+    private void validateDefaultState(Tensor state, String name, SequenceSchema schema) {
+        Tensor suppliedState = Objects.requireNonNull(state, name);
+        Shape shape = suppliedState.descriptor().shape();
+        requireFloating(suppliedState.descriptor().dataType(), name);
+        requireRank(shape, 2, name);
+        requireStatic(shape, name);
+        if (extent(shape, 0) != schema.batch || extent(shape, 1) != schema.hiddenSize) {
+            throw new IllegalArgumentException(name + " shape is incompatible with input/cell schema");
+        }
+        DataTypePromotion.promoteNumeric(
+                suppliedState.descriptor().dataType(), cell.configuredDataType());
+    }
+
+    private SequenceSchema validateInputAndLengthsForDefaults(Tensor input, long[] lengths) {
+        SequenceSchema schema = validateInputForDefaults(input);
+        long[] suppliedLengths = Objects.requireNonNull(lengths, "lengths");
+        if (suppliedLengths.length != schema.batch) {
+            throw new IllegalArgumentException("length count must equal batch extent");
+        }
+        long maximumLength = 0;
+        for (int index = 0; index < suppliedLengths.length; index++) {
+            if (suppliedLengths[index] < 0 || suppliedLengths[index] > schema.time) {
+                throw new IllegalArgumentException("lengths[" + index + "] is outside [0,time]");
+            }
+            maximumLength = Math.max(maximumLength, suppliedLengths[index]);
+        }
+        validateDefaultStateCount(schema.batch, schema.hiddenSize);
+        DataType stateType = cell.configuredDataType();
+        Shape stateShape = Shape.of(schema.batch, schema.hiddenSize);
+        DataType[] outputTypes = prevalidateSteps(
+                suppliedLengths,
+                maximumLength,
+                input.descriptor().dataType(),
+                stateType,
+                stateType,
+                stateType,
+                cell.configuredBias(),
+                schema.inputSize,
+                schema.hiddenSize);
+        prevalidateFinalStacks(
+                suppliedLengths,
+                stateType,
+                stateShape,
+                stateType,
+                stateShape,
+                outputTypes[0],
+                outputTypes[1],
+                schema.hiddenSize,
+                maximumLength);
+        return schema;
+    }
+
+    private static long[] allValidLengths(SequenceSchema schema) {
+        long[] lengths = new long[Math.toIntExact(schema.batch)];
+        Arrays.fill(lengths, schema.time);
+        return lengths;
+    }
+
+    private Tensor zeroState(SequenceSchema schema) {
+        return TensorFactory.zeros(
+                Shape.of(schema.batch, schema.hiddenSize),
+                cell.configuredDataType(), Optional.empty(), false);
+    }
+
+    private static void validateDefaultStateCount(long batch, long hiddenSize) {
+        long count = Math.multiplyExact(batch, hiddenSize);
+        if (count > Integer.MAX_VALUE) {
+            throw new IllegalArgumentException(
+                    "default recurrent state exceeds Java array limit: " + count);
+        }
+    }
+
+    private record SequenceSchema(long time, long batch, long inputSize, long hiddenSize) {
     }
 
     /**
@@ -105,12 +326,8 @@ public final class LstmSequence extends Module {
         Tensor suppliedInput = Objects.requireNonNull(input, "input");
         Tensor suppliedInitialHidden = Objects.requireNonNull(initialHidden, "initialHidden");
         Tensor suppliedInitialCell = Objects.requireNonNull(initialCell, "initialCell");
-        long[] lengthSnapshot = Objects.requireNonNull(lengths, "lengths").clone();
-
-        Tensor inputWeight = cell.inputWeight().value();
-        Tensor hiddenWeight = cell.hiddenWeight().value();
-        Optional<Tensor> bias = cell.bias().map(Parameter::value);
-        long hiddenSize = validateCellSchema(inputWeight, hiddenWeight, bias);
+        long[] suppliedLengths = Objects.requireNonNull(lengths, "lengths");
+        long hiddenSize = cell.configuredHiddenSize();
         Math.multiplyExact(hiddenSize, 2L);
         Math.multiplyExact(hiddenSize, 3L);
         Math.multiplyExact(hiddenSize, 4L);
@@ -130,12 +347,8 @@ public final class LstmSequence extends Module {
 
         long time = extent(inputShape, 0);
         long batch = extent(inputShape, 1);
-        long inputSize = extent(inputWeight.descriptor().shape(), 1);
-        if (extent(inputShape, 2) != inputSize) {
-            throw new IllegalArgumentException(
-                    "input feature size must equal cell inputSize: input="
-                            + extent(inputShape, 2) + ", cell=" + inputSize);
-        }
+        long inputSize = extent(inputShape, 2);
+        cell.validateConfiguredInputSize(inputSize);
         if (extent(hiddenShape, 1) != hiddenSize) {
             throw new IllegalArgumentException(
                     "initialHidden feature size must equal cell hiddenSize: initialHidden="
@@ -156,15 +369,15 @@ public final class LstmSequence extends Module {
                     "input and initialCell batch extents must match: input="
                             + batch + ", initialCell=" + extent(cellShape, 0));
         }
-        if (lengthSnapshot.length != batch) {
+        if (suppliedLengths.length != batch) {
             throw new IllegalArgumentException(
                     "length count must equal batch extent: lengths="
-                            + lengthSnapshot.length + ", batch=" + batch);
+                            + suppliedLengths.length + ", batch=" + batch);
         }
 
         long maximumLength = 0;
-        for (int index = 0; index < lengthSnapshot.length; index++) {
-            long length = lengthSnapshot[index];
+        for (int index = 0; index < suppliedLengths.length; index++) {
+            long length = suppliedLengths[index];
             if (length < 0) {
                 throw new IllegalArgumentException(
                         "lengths[" + index + "] must be non-negative: " + length);
@@ -181,18 +394,17 @@ public final class LstmSequence extends Module {
         }
 
         DataType[] outputTypes = prevalidateSteps(
-                lengthSnapshot,
+                suppliedLengths,
                 maximumLength,
                 suppliedInput.descriptor().dataType(),
                 suppliedInitialHidden.descriptor().dataType(),
                 suppliedInitialCell.descriptor().dataType(),
-                inputWeight,
-                hiddenWeight,
-                bias,
+                cell.configuredDataType(),
+                cell.configuredBias(),
                 inputSize,
                 hiddenSize);
         prevalidateFinalStacks(
-                lengthSnapshot,
+                suppliedLengths,
                 suppliedInitialHidden.descriptor().dataType(),
                 hiddenShape,
                 suppliedInitialCell.descriptor().dataType(),
@@ -207,6 +419,7 @@ public final class LstmSequence extends Module {
                     List.of(), suppliedInitialHidden, suppliedInitialCell);
         }
 
+        long[] lengthSnapshot = suppliedLengths.clone();
         int steps = Math.toIntExact(maximumLength);
         List<Tensor> packedOutputs = new ArrayList<>(steps);
         List<Tensor> carriedCells = new ArrayList<>(steps);
@@ -267,9 +480,8 @@ public final class LstmSequence extends Module {
             DataType inputType,
             DataType initialHiddenType,
             DataType initialCellType,
-            Tensor inputWeight,
-            Tensor hiddenWeight,
-            Optional<Tensor> bias,
+            DataType parameterType,
+            boolean bias,
             long inputSize,
             long hiddenSize) {
         if (maximumLength == 0) {
@@ -282,8 +494,7 @@ public final class LstmSequence extends Module {
                 inputType,
                 initialHiddenType,
                 initialCellType,
-                inputWeight,
-                hiddenWeight,
+                parameterType,
                 bias,
                 inputSize,
                 hiddenSize);
@@ -299,8 +510,7 @@ public final class LstmSequence extends Module {
                 inputType,
                 outputs[0],
                 outputs[1],
-                inputWeight,
-                hiddenWeight,
+                parameterType,
                 bias,
                 inputSize,
                 hiddenSize);
@@ -318,8 +528,7 @@ public final class LstmSequence extends Module {
                         inputType,
                         outputs[0],
                         outputs[1],
-                        inputWeight,
-                        hiddenWeight,
+                        parameterType,
                         bias,
                         inputSize,
                         hiddenSize);
@@ -334,9 +543,8 @@ public final class LstmSequence extends Module {
             DataType inputType,
             DataType hiddenType,
             DataType cellType,
-            Tensor inputWeight,
-            Tensor hiddenWeight,
-            Optional<Tensor> bias,
+            DataType parameterType,
+            boolean bias,
             long inputSize,
             long hiddenSize) {
         if (activeCount <= 0 || activeCount > Integer.MAX_VALUE) {
@@ -349,21 +557,20 @@ public final class LstmSequence extends Module {
         Shape compactCellShape = Shape.of(activeCount, hiddenSize);
 
         DataType inputProductType = DataTypePromotion.promoteNumeric(
-                inputType, inputWeight.descriptor().dataType());
+                inputType, parameterType);
         Shape inputProjectionShape = projectionShape(
-                compactInputShape, inputWeight.descriptor().shape());
+                compactInputShape, Shape.of(packedHiddenSize, inputSize));
         DataType inputProjectionType = inputProductType;
-        if (bias.isPresent()) {
-            Tensor biasValue = bias.orElseThrow();
+        if (bias) {
             inputProjectionType = DataTypePromotion.promoteNumeric(
-                    inputProductType, biasValue.descriptor().dataType());
+                    inputProductType, parameterType);
             inputProjectionShape = ShapeBroadcast.broadcast(
-                    inputProjectionShape, biasValue.descriptor().shape());
+                    inputProjectionShape, Shape.of(packedHiddenSize));
         }
         DataType hiddenProjectionType = DataTypePromotion.promoteNumeric(
-                hiddenType, hiddenWeight.descriptor().dataType());
+                hiddenType, parameterType);
         Shape hiddenProjectionShape = projectionShape(
-                compactHiddenShape, hiddenWeight.descriptor().shape());
+                compactHiddenShape, Shape.of(packedHiddenSize, hiddenSize));
 
         long twiceHiddenSize = Math.multiplyExact(hiddenSize, 2L);
         long thriceHiddenSize = Math.multiplyExact(hiddenSize, 3L);

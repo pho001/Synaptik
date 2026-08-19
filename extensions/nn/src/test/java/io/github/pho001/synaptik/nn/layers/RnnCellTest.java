@@ -21,6 +21,7 @@ import io.github.pho001.synaptik.model.tensor.Tensor;
 import io.github.pho001.synaptik.model.tensor.TensorDescriptor;
 import io.github.pho001.synaptik.model.tensor.TensorFactory;
 import io.github.pho001.synaptik.model.tensor.TensorProvenance;
+import io.github.pho001.synaptik.nn.initialization.ParameterInitialization;
 import io.github.pho001.synaptik.nn.module.ForwardMode;
 import io.github.pho001.synaptik.nn.module.Module;
 import io.github.pho001.synaptik.nn.module.Parameter;
@@ -70,7 +71,9 @@ class RnnCellTest {
                                 long.class,
                                 boolean.class,
                                 DataType.class,
-                                RandomGenerator.class)), constructors),
+                                RandomGenerator.class),
+                        List.of(long.class, boolean.class, DataType.class,
+                                ParameterInitialization.class, long.class)), constructors),
                 () -> assertEquals(
                         Set.of("inputWeight", "hiddenWeight", "bias", "forward"), methods),
                 () -> assertSame(

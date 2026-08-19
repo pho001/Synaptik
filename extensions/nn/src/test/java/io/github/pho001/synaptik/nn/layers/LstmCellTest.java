@@ -23,6 +23,7 @@ import io.github.pho001.synaptik.model.tensor.Tensor;
 import io.github.pho001.synaptik.model.tensor.TensorDescriptor;
 import io.github.pho001.synaptik.model.tensor.TensorFactory;
 import io.github.pho001.synaptik.model.tensor.TensorProvenance;
+import io.github.pho001.synaptik.nn.initialization.ParameterInitialization;
 import io.github.pho001.synaptik.nn.module.Buffer;
 import io.github.pho001.synaptik.nn.module.ForwardMode;
 import io.github.pho001.synaptik.nn.module.Module;
@@ -71,14 +72,16 @@ class LstmCellTest {
                 () -> assertSame(Module.class, LstmCell.class.getSuperclass()),
                 () -> assertFalse(UnaryTensorModule.class.isAssignableFrom(LstmCell.class)),
                 () -> assertFalse(Sequential.class.isAssignableFrom(LstmCell.class)),
-                () -> assertEquals(3, LstmCell.class.getDeclaredConstructors().length),
+                () -> assertEquals(4, LstmCell.class.getDeclaredConstructors().length),
                 () -> assertTrue(Arrays.stream(LstmCell.class.getDeclaredConstructors())
                         .allMatch(constructor -> Modifier.isPublic(constructor.getModifiers()))),
                 () -> assertEquals(Set.of(
                         List.of(Tensor.class, Tensor.class),
                         List.of(Tensor.class, Tensor.class, Tensor.class),
                         List.of(long.class, long.class, boolean.class,
-                                DataType.class, RandomGenerator.class)), constructors),
+                                DataType.class, RandomGenerator.class),
+                        List.of(long.class, boolean.class, DataType.class,
+                                ParameterInitialization.class, long.class)), constructors),
                 () -> assertEquals(Set.of("inputWeight", "hiddenWeight", "bias", "forward"),
                         methods),
                 () -> assertSame(LstmCellForwardResult.class,
@@ -87,9 +90,6 @@ class LstmCellTest {
                                 .getReturnType()),
                 () -> assertTrue(Arrays.stream(LstmCell.class.getDeclaredMethods())
                         .noneMatch(method -> Modifier.isProtected(method.getModifiers()))),
-                () -> assertEquals(Set.of("inputWeight", "hiddenWeight", "bias"),
-                        Arrays.stream(LstmCell.class.getDeclaredFields())
-                                .map(Field::getName).collect(Collectors.toSet())),
                 () -> assertTrue(Arrays.stream(LstmCell.class.getDeclaredFields())
                         .allMatch(field -> Modifier.isPrivate(field.getModifiers())
                                 && Modifier.isFinal(field.getModifiers()))),
@@ -97,7 +97,9 @@ class LstmCellTest {
                         .noneMatch(field -> field.getType() == Tensor.class
                                 || field.getType() == Buffer.class
                                 || RandomGenerator.class.isAssignableFrom(field.getType()))),
-                () -> assertEquals(0, LstmCell.class.getDeclaredClasses().length),
+                () -> assertTrue(Arrays.stream(LstmCell.class.getDeclaredClasses())
+                        .noneMatch(type -> Modifier.isPublic(type.getModifiers())
+                                || Modifier.isProtected(type.getModifiers()))),
                 () -> assertTrue(LstmCellForwardResult.class.isRecord()),
                 () -> assertTrue(Modifier.isPublic(LstmCellForwardResult.class.getModifiers())),
                 () -> assertTrue(Modifier.isFinal(LstmCellForwardResult.class.getModifiers())),

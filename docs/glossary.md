@@ -2404,9 +2404,10 @@ requests, higher derivatives, optimizer updates, preparation, and execution rema
 ### Neural-network module, parameter, buffer, and forward context
 
 `extensions/nn` currently provides direct-state and module-tree foundations, typed functional
-Model topology, eager parameter initializers, automatic input-width initialization for the one
-existing final `Linear`, five concrete layers, three recurrent cells, three cell-specific
-statically packed sequence containers, and narrow unary composition. A
+Model topology, eager parameter initializers, five concrete non-recurrent layers including
+automatic input-width initialization for `Linear`, three recurrent cells with the same automatic
+lifecycle, three cell-specific statically packed sequence containers, and narrow unary
+composition. A
 **module** is a stateful
 neural-network composition unit that directly declares trainable **parameters** and persistent
 **buffers**, and can permanently own named child modules. Parameters, buffers, and children share
@@ -2516,6 +2517,20 @@ default source and never retains, substitutes, synchronizes, resets, splits, ser
 it. These initializers create no random Tensor operation and do not accept or create
 [`GraphRngState`](#graph-rng-state--graphrngstate).
 
+A **parameter-initialization policy** is the current final `ParameterInitialization` value used
+by automatic Linear and recurrent layers. Its exact factories select Glorot normal/uniform,
+Kaiming/ReLU normal/uniform, configured normal, configured continuous uniform, exact zero, or
+exact one. Configured arguments must be finite; standard deviation is non-negative and uniform
+bounds strictly increase. The value owns only an algorithm selection and configured binary64
+arguments. It owns no Shape, fan, data type, Tensor, Parameter, random generator, seed, layer or
+gate order, or bias rule, and exposes no public kind, constructor, callback, registry, or mutable
+state. Fan presets derive their values from each complete rank-two Shape at application time.
+
+The three-argument `ParameterInitializers.initialize` dispatcher accepts exactly zero/one and
+creates no generator. The four-argument dispatcher accepts exactly the six sampling policies and
+forwards the exact caller-owned source. `requiresRandomGenerator()` distinguishes those routes;
+neither route adds a default source or changes the named initializer semantics.
+
 The current final `Linear` module owns one rank-two weight `Parameter` in
 `[outFeatures, inFeatures]` orientation and an optional exact rank-one `[outFeatures]` bias
 `Parameter`. Callers may supply exact parameter Tensors or construct both immediately from
@@ -2523,12 +2538,14 @@ explicit feature counts, bias presence, floating data type, and caller-owned ran
 eager path uses fixed Glorot-uniform weight and deterministic zero bias.
 
 The same `Linear` type also has one input-width-inferring constructor. The caller supplies
-architectural `outFeatures`, bias presence, exact floating type, one of four closed Glorot or
-Kaiming/ReLU weight policies, a deterministic `RandomGeneratorFactory`, and a seed. Construction
+architectural `outFeatures`, bias presence, exact floating type, one common closed
+parameter-initialization policy, a deterministic `RandomGeneratorFactory`, and a seed. Construction
 reserves `weight` then optional `bias` but creates no generator, Tensor, Tensor identifier, or
 `Parameter`. The first compatible forward infers only the positive static final input extent,
 creates weight then optional zero bias, validates and publishes the complete direct group, and
-only afterward constructs that call's ordinary linear expression. This behavior has no separate
+only afterward constructs that call's ordinary linear expression. Sampling policies create one
+generator from the retained factory and seed; exact zero/one never invoke the factory. Bias is
+always layer-owned typed zero. This behavior has no separate
 `LazyLinear`, public bind/build/initialize method, or status query.
 
 Prevalidation failure has no generator, sample, Tensor, or identifier effect. A later failed
@@ -2613,6 +2630,23 @@ numerical randomness, gradients, compilation, backend support, execution, persis
 thread-safety. A caller requests sequential consumption by passing one returned `nextState` to a
 later training call; reusing `start` instead expresses a branch.
 
+An **automatic recurrent cell** is an RNN, GRU, or LSTM cell constructed from explicit hidden
+width, bias choice, floating parameter type, a `ParameterInitialization` policy, and a seed but
+without input width. Construction reserves `inputWeight`, `hiddenWeight`,
+and optional `bias` in that order and creates no generator, Tensor, Parameter, or recurrent state.
+The first compatible represented step infers only a positive static final input extent. A sampling
+policy creates one fresh standard `L64X128MixRandom` stream per attempt and initializes the
+complete input matrix before the complete hidden matrix; each packed or unpacked Shape derives
+its own fan values. Zero/one create no generator. Optional bias is always a complete layer-owned
+typed-zero Tensor and consumes no draw. Gate packing/order remains owned by the concrete cell.
+
+Complete parameter publication precedes that step's formula, while strict state loading can bind
+the reservations without initializing. A failure before publication leaves every reservation
+unbound and retryable from the retained seed; a formula failure afterward retains the published
+group. Compatible simultaneous first calls serialize only cell-local initialization. Accessors,
+recursive discovery, and state export fail closed until either forward or strict load publishes
+the entire group. This is a layer-local lifecycle, not a general module build API.
+
 A **vanilla recurrent neural-network (RNN) cell** is the current final `RnnCell`, which constructs
 one explicit state-transition step. It owns floating, gradient-eligible parameters named
 `inputWeight [hiddenSize, inputSize]`, `hiddenWeight [hiddenSize, hiddenSize]`, and optional shared
@@ -2671,11 +2705,12 @@ different recurrent values: hidden state and **cell state**. Its trainable state
 gate-major in input, forget, candidate, output order:
 `inputWeight [4 * hiddenSize, inputSize]`,
 `hiddenWeight [4 * hiddenSize, hiddenSize]`, and optional input-side-only
-`bias [4 * hiddenSize]`. There is no hidden-side bias. Initialized cells draw the complete input
-matrix and then the complete hidden matrix with Glorot uniform from one caller-owned source; the
-complete optional bias is typed zero across all four gates, including forget, and consumes no
-draw. This packing, bias association, and zero-bias default are the Synaptik checkpoint schema,
-not a promise of direct compatibility with another framework.
+`bias [4 * hiddenSize]`. There is no hidden-side bias. The explicit-size eager constructor draws
+the complete input matrix and then the complete hidden matrix with Glorot uniform from one
+caller-owned source. The automatic constructor instead applies its common policy independently to
+those complete packed Shapes. In both forms the optional bias is typed zero across all four gates,
+including forget, and consumes no draw. This packing, bias association, and zero-bias default are
+the Synaptik checkpoint schema, not a promise of direct compatibility with another framework.
 
 One caller-threaded step is:
 
@@ -2699,11 +2734,11 @@ input contract and two-state result exclude it from `UnaryTensorModule` and `Seq
 
 A **construction-time length** is one element of the Java `long[]` supplied to current
 `RnnSequence.forward`, `GruSequence.forward`, or `LstmSequence.forward`. There is exactly one
-length per original batch row, each in `[0, time]`. Each method clones the array before validation
-and uses only the clone to choose static expression structure; it retains neither array. The
-caller must coordinate mutation that could race with the clone. Construction-time lengths are
-metadata for Java expression construction, not Tensor values, module state, parameters, buffers,
-masks, padding sentinels, or runtime inputs.
+length per original batch row, each in `[0, time]`. Each method validates the caller array and,
+when at least one step is represented, clones it immediately before traversal; it retains neither
+array. The caller must coordinate mutation throughout validation and any snapshot.
+Construction-time lengths are metadata for Java expression construction, not Tensor values,
+module state, parameters, buffers, masks, padding sentinels, or runtime inputs.
 
 An **active batch** at time step `t` is the stable subsequence of original batch rows whose copied
 construction-time length is greater than `t`. Current `RnnSequence`, `GruSequence`, and
@@ -2723,11 +2758,24 @@ both final hidden and final cell rows. A length-zero row takes each final state 
 initial Tensor. When no step is active, every result has an empty output list and retains the
 corresponding exact initial-state references.
 
+Convenience overloads may omit lengths, state, or both. Omitted lengths mean every row is valid
+for the complete static time extent. Omitted RNN/GRU state is one fresh eager typed-zero leaf;
+omitted LSTM state is two distinct such leaves. Each has Shape `[batch, hiddenSize]`, the cell's
+parameter type, no name, and `requiresGrad == false`, and none is retained. An all-zero request
+invokes no cell, leaves an automatic cell unbound, and returns the exact explicit or derived
+initial-state references.
+
+One Java cell and its same exact Parameter leaf Tensor identities serve every represented step;
+the unroll creates fresh select, gather, cell-operation, and restored-state producers at each
+position, and later state retains temporal ancestry. This **static recurrent parameter sharing**
+is exact producer-graph identity fan-out, so the Compiler's existing reverse-mode identity
+contract combines repeated contributions for one target identity. The sequence does not itself
+define numerical gradients, expose training, or execute the graph.
+
 For lengths `[5, 3, 1]`, active original rows are `[0,1,2]`, `[0,1]`, `[0,1]`, `[0]`, and `[0]`.
 Five batched cell calls therefore represent nine logical recurrent rows rather than fifteen dense
 padded rows. This statement describes expression construction: it does not claim numerical
-values, gradients, compiler capture, backend lowering, scheduled work, or runtime kernel
-avoidance.
+values, public training, backend lowering, scheduled work, or runtime kernel avoidance.
 
 This sequence packing is different from GRU/LSTM **gate-parameter packing**, which places gate
 matrices and optional bias intervals in a fixed checkpoint order. It also does not produce a
@@ -2741,6 +2789,10 @@ cell work. Current `CUM_SUM` and `CUM_PROD` instead use one fixed associative op
 prefix and do not carry a cell body, parameters, or caller-selected recurrent state. The current
 static containers therefore do not accept runtime Tensor lengths or masks and do not imply a
 future scan representation.
+
+The current containers are one-directional. They expose no Tensor `validLengths`, bidirectional
+or stacked facade, `ModuleFactory`, or automatic initialized `Embedding`; those names describe
+possible future APIs, not current behavior.
 
 `extensions/nn` composes generic [`Tensor`](#tensor) and operation semantics from
 `modules/model`. [`extensions/training`](#training-graph) consumes nn-declared parameters for
@@ -2776,12 +2828,12 @@ lifecycle. A Model is not thread-safe.
 `Model.define` itself performs no parameter binding, input-descriptor tracing, tokenizer or batch
 preparation, checkpoint persistence, backward definition, automatic differentiation, optimizer
 update, training orchestration, graph capture, compilation, preparation, or execution. The
-existing final `Linear` may initialize its own input-dependent parameters when reached by the
-ordinary Java forward traversal, but this is a layer-local contract rather than a general Model
-build/initialize lifecycle or whole-body transaction. See [Current NN typed Model composition
-contract](api/training-api.md#current-nn-typed-model-composition-contract) and [Current NN
-automatic Linear initialization
-contract](api/training-api.md#current-nn-automatic-linear-initialization-contract).
+existing final `Linear` and recurrent cells may initialize their own input-dependent parameters
+when reached by ordinary Java forward traversal, but this is a layer-local contract rather than a
+general Model build/initialize lifecycle or whole-body transaction. See [Current NN typed Model
+composition contract](api/training-api.md#current-nn-typed-model-composition-contract) and
+[Current NN automatic parameter initialization
+contract](api/training-api.md#current-nn-automatic-parameter-initialization-contract).
 
 ### Unary Tensor module and Sequential
 

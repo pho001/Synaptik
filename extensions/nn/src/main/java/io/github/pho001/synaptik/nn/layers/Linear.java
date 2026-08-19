@@ -5,7 +5,7 @@ import io.github.pho001.synaptik.model.shape.Dimension;
 import io.github.pho001.synaptik.model.shape.Shape;
 import io.github.pho001.synaptik.model.shape.StaticDimension;
 import io.github.pho001.synaptik.model.tensor.Tensor;
-import io.github.pho001.synaptik.nn.initialization.LinearWeightInitialization;
+import io.github.pho001.synaptik.nn.initialization.ParameterInitialization;
 import io.github.pho001.synaptik.nn.initialization.ParameterInitializers;
 import io.github.pho001.synaptik.nn.module.Parameter;
 import io.github.pho001.synaptik.nn.module.UnaryTensorModule;
@@ -32,8 +32,8 @@ import java.util.random.RandomGeneratorFactory;
  * may initialize the reservations instead without invoking the configured random source.</p>
  *
  * <p>Only {@code inFeatures} is inferred. The caller still chooses architectural facts such as
- * {@code outFeatures}, bias presence, data type, initialization policy, random algorithm, and
- * seed. Before successful automatic initialization, parameter access, discovery, and state
+ * {@code outFeatures}, bias presence, data type, initialization policy, random-factory contract,
+ * and seed. Before successful automatic initialization, parameter access, discovery, and state
  * export fail rather than expose partial state. A failed initialization attempt publishes no
  * wrapper and is retryable with a fresh generator from the same factory and seed; consumed random
  * draws, allocations, and opaque Tensor identifiers are not rolled back.</p>
@@ -143,16 +143,20 @@ public final class Linear extends UnaryTensorModule {
      *
      * <p>Construction retains only immutable configuration and reserves {@code weight}, followed
      * by optional {@code bias}. It creates no generator, Tensor, Tensor identifier, or Parameter.
-     * The supplied factory must be deterministic; each failed initialization attempt creates a
-     * fresh generator from the exact factory and seed. The factory object is retained but no
-     * created generator or caller input is retained.</p>
+     * The supplied factory must be deterministic and is retained exactly. A sampling policy
+     * creates one fresh generator from that factory and seed for each attempt; zero and one
+     * policies never invoke the factory or create a generator. No created generator or caller
+     * input is retained.</p>
      *
      * @param outFeatures strictly positive architectural output-feature count
      * @param bias whether the first compatible forward creates a zero bias
      * @param dataType non-null exact floating parameter and accepted input type
-     * @param weightInitialization non-null closed weight policy
-     * @param randomGeneratorFactory non-null deterministic factory retained exactly
-     * @param seed seed passed unchanged to the retained factory for each initialization attempt
+     * @param weightInitialization non-null closed weight policy applied to the complete weight
+     *     Shape; it owns neither Shape, source, nor seed
+     * @param randomGeneratorFactory non-null deterministic factory retained exactly; invoked only
+     *     when the policy requires sampling
+     * @param seed seed passed unchanged to the retained factory for each sampling attempt; any
+     *     Java {@code long} value is accepted
      * @throws NullPointerException if {@code dataType}, {@code weightInitialization}, or
      *     {@code randomGeneratorFactory} is null, checked in that order after
      *     {@code outFeatures}
@@ -163,14 +167,14 @@ public final class Linear extends UnaryTensorModule {
             long outFeatures,
             boolean bias,
             DataType dataType,
-            LinearWeightInitialization weightInitialization,
+            ParameterInitialization weightInitialization,
             RandomGeneratorFactory<? extends RandomGenerator> randomGeneratorFactory,
             long seed) {
         if (outFeatures <= 0) {
             throw new IllegalArgumentException("outFeatures must be positive: " + outFeatures);
         }
         DataType parameterType = Objects.requireNonNull(dataType, "dataType");
-        LinearWeightInitialization initialization =
+        ParameterInitialization initialization =
                 Objects.requireNonNull(weightInitialization, "weightInitialization");
         RandomGeneratorFactory<? extends RandomGenerator> factory =
                 Objects.requireNonNull(randomGeneratorFactory, "randomGeneratorFactory");
@@ -230,9 +234,10 @@ public final class Linear extends UnaryTensorModule {
      * may retain an earlier initialized layer when later user code or another layer fails.</p>
      *
      * <p>The automatic path validates every descriptor/count fact knowable before sampling,
-     * creates one generator from the configured factory and seed, creates weight before optional
-     * zero bias, validates and publishes the complete group, then constructs the ordinary Model
-     * expression. The method does not numerically execute that expression.</p>
+     * creates one generator from the configured factory and seed only for a sampling policy,
+     * creates weight before optional zero bias, validates and publishes the complete group, then
+     * constructs the ordinary Model expression. Zero and one policies do not invoke the retained
+     * factory. The method does not numerically execute that expression.</p>
      *
      * @param input non-null Tensor; the automatic constructor requires the exact configured type,
      *     rank at least one, and a positive static final feature Dimension
@@ -318,17 +323,21 @@ public final class Linear extends UnaryTensorModule {
 
     private void initializeAutomatically(AutomaticInput input) {
         AutomaticConfiguration configuration = automaticConfiguration;
-        RandomGenerator generator = configuration.randomGeneratorFactory.create(configuration.seed);
-        Tensor initializedWeight = switch (configuration.weightInitialization) {
-            case GLOROT_NORMAL -> ParameterInitializers.glorotNormal(
-                    input.weightShape, configuration.dataType, generator);
-            case GLOROT_UNIFORM -> ParameterInitializers.glorotUniform(
-                    input.weightShape, configuration.dataType, generator);
-            case KAIMING_RELU_NORMAL -> ParameterInitializers.kaimingReluNormal(
-                    input.weightShape, configuration.dataType, generator);
-            case KAIMING_RELU_UNIFORM -> ParameterInitializers.kaimingReluUniform(
-                    input.weightShape, configuration.dataType, generator);
-        };
+        Tensor initializedWeight;
+        if (configuration.weightInitialization.requiresRandomGenerator()) {
+            RandomGenerator generator =
+                    configuration.randomGeneratorFactory.create(configuration.seed);
+            initializedWeight = ParameterInitializers.initialize(
+                    input.weightShape,
+                    configuration.dataType,
+                    configuration.weightInitialization,
+                    generator);
+        } else {
+            initializedWeight = ParameterInitializers.initialize(
+                    input.weightShape,
+                    configuration.dataType,
+                    configuration.weightInitialization);
+        }
         if (biasConfigured) {
             Tensor initializedBias = ParameterInitializers.zeros(
                     input.biasShape, configuration.dataType);
@@ -496,7 +505,7 @@ public final class Linear extends UnaryTensorModule {
     private record AutomaticConfiguration(
             long outFeatures,
             DataType dataType,
-            LinearWeightInitialization weightInitialization,
+            ParameterInitialization weightInitialization,
             RandomGeneratorFactory<? extends RandomGenerator> randomGeneratorFactory,
             long seed) {
     }

@@ -23,6 +23,7 @@ import io.github.pho001.synaptik.model.tensor.Tensor;
 import io.github.pho001.synaptik.model.tensor.TensorDescriptor;
 import io.github.pho001.synaptik.model.tensor.TensorFactory;
 import io.github.pho001.synaptik.model.tensor.TensorProvenance;
+import io.github.pho001.synaptik.nn.initialization.ParameterInitialization;
 import io.github.pho001.synaptik.nn.module.Buffer;
 import io.github.pho001.synaptik.nn.module.ForwardMode;
 import io.github.pho001.synaptik.nn.module.Module;
@@ -65,14 +66,16 @@ class GruCellTest {
                 () -> assertSame(Module.class, GruCell.class.getSuperclass()),
                 () -> assertFalse(UnaryTensorModule.class.isAssignableFrom(GruCell.class)),
                 () -> assertFalse(Sequential.class.isAssignableFrom(GruCell.class)),
-                () -> assertEquals(3, GruCell.class.getDeclaredConstructors().length),
+                () -> assertEquals(4, GruCell.class.getDeclaredConstructors().length),
                 () -> assertTrue(Arrays.stream(GruCell.class.getDeclaredConstructors())
                         .allMatch(constructor -> Modifier.isPublic(constructor.getModifiers()))),
                 () -> assertEquals(Set.of(
                         List.of(Tensor.class, Tensor.class),
                         List.of(Tensor.class, Tensor.class, Tensor.class),
                         List.of(long.class, long.class, boolean.class,
-                                DataType.class, RandomGenerator.class)), constructors),
+                                DataType.class, RandomGenerator.class),
+                        List.of(long.class, boolean.class, DataType.class,
+                                ParameterInitialization.class, long.class)), constructors),
                 () -> assertEquals(
                         Set.of("inputWeight", "hiddenWeight", "bias", "forward"), methods),
                 () -> assertSame(Parameter.class,
@@ -88,10 +91,6 @@ class GruCellTest {
                         .filter(method -> Modifier.isPublic(method.getModifiers())).count()),
                 () -> assertTrue(Arrays.stream(GruCell.class.getDeclaredMethods())
                         .noneMatch(method -> Modifier.isProtected(method.getModifiers()))),
-                () -> assertEquals(Set.of("inputWeight", "hiddenWeight", "bias"),
-                        Arrays.stream(GruCell.class.getDeclaredFields())
-                                .map(Field::getName)
-                                .collect(Collectors.toSet())),
                 () -> assertTrue(Arrays.stream(GruCell.class.getDeclaredFields())
                         .allMatch(field -> Modifier.isPrivate(field.getModifiers())
                                 && Modifier.isFinal(field.getModifiers()))),
@@ -99,7 +98,9 @@ class GruCellTest {
                         .noneMatch(field -> field.getType() == Tensor.class
                                 || field.getType() == Buffer.class
                                 || RandomGenerator.class.isAssignableFrom(field.getType()))),
-                () -> assertEquals(0, GruCell.class.getDeclaredClasses().length));
+                () -> assertTrue(Arrays.stream(GruCell.class.getDeclaredClasses())
+                        .noneMatch(type -> Modifier.isPublic(type.getModifiers())
+                                || Modifier.isProtected(type.getModifiers()))));
     }
 
     @Test

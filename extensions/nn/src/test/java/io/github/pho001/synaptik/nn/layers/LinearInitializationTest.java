@@ -14,7 +14,7 @@ import io.github.pho001.synaptik.model.shape.StaticDimension;
 import io.github.pho001.synaptik.model.tensor.Tensor;
 import io.github.pho001.synaptik.model.tensor.TensorDescriptor;
 import io.github.pho001.synaptik.model.tensor.TensorFactory;
-import io.github.pho001.synaptik.nn.initialization.LinearWeightInitialization;
+import io.github.pho001.synaptik.nn.initialization.ParameterInitialization;
 import io.github.pho001.synaptik.nn.initialization.ParameterInitializers;
 import java.lang.reflect.Field;
 import java.util.ArrayList;
@@ -166,7 +166,7 @@ class LinearInitializationTest {
                 4,
                 true,
                 DataType.FLOAT32,
-                LinearWeightInitialization.GLOROT_UNIFORM,
+                ParameterInitialization.glorotUniform(),
                 FACTORY,
                 73L);
 
@@ -192,22 +192,25 @@ class LinearInitializationTest {
     @Test
     void automaticPoliciesMatchExistingInitializersAndLaterForwardsCreateNoParameterTensor() {
         long seed = 91L;
-        for (LinearWeightInitialization initialization : LinearWeightInitialization.values()) {
+        for (ParameterInitialization initialization : List.of(
+                ParameterInitialization.glorotNormal(),
+                ParameterInitialization.glorotUniform(),
+                ParameterInitialization.kaimingReluNormal(),
+                ParameterInitialization.kaimingReluUniform(),
+                ParameterInitialization.normal(0.25d, 0.5d),
+                ParameterInitialization.uniform(-0.5d, 0.75d),
+                ParameterInitialization.zeros(),
+                ParameterInitialization.ones())) {
             Linear layer = new Linear(3, false, DataType.FLOAT64, initialization, FACTORY, seed);
             Tensor firstInput = TensorFactory.create(new TensorDescriptor(
                     DataType.FLOAT64, Shape.of(4, 2), Optional.empty(), false));
             layer.forward(firstInput);
             Tensor actual = layer.weight().value();
-            Tensor expected = switch (initialization) {
-                case GLOROT_NORMAL -> ParameterInitializers.glorotNormal(
-                        Shape.of(3, 2), DataType.FLOAT64, FACTORY.create(seed));
-                case GLOROT_UNIFORM -> ParameterInitializers.glorotUniform(
-                        Shape.of(3, 2), DataType.FLOAT64, FACTORY.create(seed));
-                case KAIMING_RELU_NORMAL -> ParameterInitializers.kaimingReluNormal(
-                        Shape.of(3, 2), DataType.FLOAT64, FACTORY.create(seed));
-                case KAIMING_RELU_UNIFORM -> ParameterInitializers.kaimingReluUniform(
-                        Shape.of(3, 2), DataType.FLOAT64, FACTORY.create(seed));
-            };
+            Tensor expected = initialization.requiresRandomGenerator()
+                    ? ParameterInitializers.initialize(
+                            Shape.of(3, 2), DataType.FLOAT64, initialization, FACTORY.create(seed))
+                    : ParameterInitializers.initialize(
+                            Shape.of(3, 2), DataType.FLOAT64, initialization);
             assertArrayEquals(storage(actual), storage(expected));
 
             Tensor stableWeight = layer.weight().value();
@@ -227,7 +230,7 @@ class LinearInitializationTest {
                 4,
                 false,
                 DataType.FLOAT32,
-                LinearWeightInitialization.KAIMING_RELU_NORMAL,
+                ParameterInitialization.kaimingReluNormal(),
                 FACTORY,
                 13L);
         Tensor wrongType = TensorFactory.create(new TensorDescriptor(
@@ -259,7 +262,7 @@ class LinearInitializationTest {
                 5,
                 true,
                 DataType.FLOAT32,
-                LinearWeightInitialization.GLOROT_NORMAL,
+                ParameterInitialization.glorotNormal(),
                 FACTORY,
                 101L);
         Tensor input = TensorFactory.create(new TensorDescriptor(
@@ -303,7 +306,7 @@ class LinearInitializationTest {
                 5,
                 false,
                 DataType.FLOAT32,
-                LinearWeightInitialization.GLOROT_UNIFORM,
+                ParameterInitialization.glorotUniform(),
                 FACTORY,
                 151L);
         Tensor widthTwo = TensorFactory.create(new TensorDescriptor(
@@ -374,7 +377,7 @@ class LinearInitializationTest {
                                         1,
                                         true,
                                         DataType.FLOAT32,
-                                        LinearWeightInitialization.GLOROT_UNIFORM,
+                                        ParameterInitialization.glorotUniform(),
                                         null,
                                         1L))
                         .getMessage()),
@@ -384,7 +387,7 @@ class LinearInitializationTest {
                                         1,
                                         true,
                                         DataType.INT32,
-                                        LinearWeightInitialization.GLOROT_UNIFORM,
+                                        ParameterInitialization.glorotUniform(),
                                         FACTORY,
                                         1L))
                         .getMessage().contains("floating")),
@@ -394,7 +397,7 @@ class LinearInitializationTest {
                                         1,
                                         true,
                                         DataType.FLOAT32,
-                                        LinearWeightInitialization.GLOROT_UNIFORM,
+                                        ParameterInitialization.glorotUniform(),
                                         RandomGeneratorFactory.of("SecureRandom"),
                                         1L))
                         .getMessage().contains("deterministic")),

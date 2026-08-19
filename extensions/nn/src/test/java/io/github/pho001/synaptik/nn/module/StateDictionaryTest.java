@@ -13,7 +13,7 @@ import io.github.pho001.synaptik.model.datatype.DataType;
 import io.github.pho001.synaptik.model.shape.Shape;
 import io.github.pho001.synaptik.model.tensor.Tensor;
 import io.github.pho001.synaptik.model.tensor.TensorFactory;
-import io.github.pho001.synaptik.nn.initialization.LinearWeightInitialization;
+import io.github.pho001.synaptik.nn.initialization.ParameterInitialization;
 import io.github.pho001.synaptik.nn.layers.Linear;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
@@ -545,7 +545,7 @@ class StateDictionaryTest {
                 4,
                 bias,
                 DataType.FLOAT32,
-                LinearWeightInitialization.GLOROT_UNIFORM,
+                ParameterInitialization.glorotUniform(),
                 factory,
                 7L);
     }

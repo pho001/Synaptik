@@ -3,6 +3,7 @@ package io.github.pho001.synaptik.nn.layers;
 import static org.junit.jupiter.api.Assertions.assertAll;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -11,17 +12,151 @@ import io.github.pho001.synaptik.model.datatype.DataType;
 import io.github.pho001.synaptik.model.shape.Shape;
 import io.github.pho001.synaptik.model.tensor.Tensor;
 import io.github.pho001.synaptik.model.tensor.TensorFactory;
+import io.github.pho001.synaptik.nn.initialization.ParameterInitialization;
+import io.github.pho001.synaptik.nn.initialization.ParameterInitializers;
 import java.lang.reflect.Field;
 import java.util.List;
+import java.util.Optional;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.random.RandomGenerator;
+import java.util.random.RandomGeneratorFactory;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.parallel.Execution;
 import org.junit.jupiter.api.parallel.ExecutionMode;
 
 @Execution(ExecutionMode.SAME_THREAD)
 class LstmCellInitializationTest {
+    @Test
+    void concurrentCompatibleFirstCallsShareOnePublishedPackedGroup() throws Exception {
+        LstmCell cell = new LstmCell(
+                3, false, DataType.FLOAT32, ParameterInitialization.zeros(), 1L);
+        Tensor input = TensorFactory.zeros(
+                Shape.of(2, 4), DataType.FLOAT32, Optional.empty(), false);
+        Tensor hidden = TensorFactory.zeros(
+                Shape.of(2, 3), DataType.FLOAT32, Optional.empty(), false);
+        Tensor state = TensorFactory.zeros(
+                Shape.of(2, 3), DataType.FLOAT32, Optional.empty(), false);
+        CountDownLatch ready = new CountDownLatch(2);
+        CountDownLatch start = new CountDownLatch(1);
+        ExecutorService executor = Executors.newFixedThreadPool(2);
+        try {
+            Future<LstmCellForwardResult> first = executor.submit(() -> {
+                ready.countDown();
+                start.await();
+                return cell.forward(input, hidden, state);
+            });
+            Future<LstmCellForwardResult> second = executor.submit(() -> {
+                ready.countDown();
+                start.await();
+                return cell.forward(input, hidden, state);
+            });
+            ready.await();
+            start.countDown();
+            LstmCellForwardResult firstResult = first.get();
+            LstmCellForwardResult secondResult = second.get();
+
+            assertAll(
+                    () -> assertNotSame(firstResult.nextHidden(), secondResult.nextHidden()),
+                    () -> assertEquals(List.of("inputWeight", "hiddenWeight"),
+                            cell.parameters().stream().map(value -> value.name()).toList()));
+        } finally {
+            executor.shutdownNow();
+        }
+    }
+
+    @Test
+    void automaticRandomPolicyMatchesTheExactStandardAdvancedPackedStream() {
+        long seed = 73L;
+        ParameterInitialization policy = ParameterInitialization.uniform(-0.4d, 0.6d);
+        RandomGenerator expectedSource = RandomGeneratorFactory.<RandomGenerator>of(
+                "L64X128MixRandom").create(seed);
+        Tensor expectedInput = ParameterInitializers.initialize(
+                Shape.of(12, 4), DataType.FLOAT32, policy, expectedSource);
+        Tensor expectedHidden = ParameterInitializers.initialize(
+                Shape.of(12, 3), DataType.FLOAT32, policy, expectedSource);
+        LstmCell cell = new LstmCell(3, false, DataType.FLOAT32, policy, seed);
+
+        cell.forward(
+                TensorFactory.zeros(Shape.of(2, 4), DataType.FLOAT32, Optional.empty(), false),
+                TensorFactory.zeros(Shape.of(2, 3), DataType.FLOAT32, Optional.empty(), false),
+                TensorFactory.zeros(Shape.of(2, 3), DataType.FLOAT32, Optional.empty(), false));
+
+        assertAll(
+                () -> assertArrayEquals(floatValues(expectedInput),
+                        floatValues(cell.inputWeight().value())),
+                () -> assertArrayEquals(floatValues(expectedHidden),
+                        floatValues(cell.hiddenWeight().value())));
+    }
+
+    @Test
+    void strictLoadBindsExactAutomaticPackedGroupWithoutInitializationEffects()
+            throws ReflectiveOperationException {
+        LstmCell donor = new LstmCell(4, 3, true, DataType.FLOAT32,
+                new BoundedSource(84, 0.0d));
+        LstmCell target = new LstmCell(
+                3, true, DataType.FLOAT32, ParameterInitialization.kaimingReluUniform(), 46L);
+        AtomicLong ids = nextTensorIdState();
+        long before = ids.get();
+
+        target.loadStateDictionary(donor.stateDictionary());
+
+        assertAll(
+                () -> assertEquals(before, ids.get()),
+                () -> assertSame(donor.inputWeight().value(), target.inputWeight().value()),
+                () -> assertSame(donor.hiddenWeight().value(), target.hiddenWeight().value()),
+                () -> assertSame(donor.bias().orElseThrow().value(),
+                        target.bias().orElseThrow().value()),
+                () -> assertEquals(donor.stateDictionary(), target.stateDictionary()));
+
+        LstmCell incompatible = new LstmCell(
+                4, true, DataType.FLOAT32, ParameterInitialization.zeros(), 1L);
+        assertAll(
+                () -> assertThrows(IllegalArgumentException.class,
+                        () -> incompatible.loadStateDictionary(donor.stateDictionary())),
+                () -> assertThrows(IllegalStateException.class, incompatible::parameters));
+    }
+
+    @Test
+    void automaticConstantPolicyPublishesPackedGroupBeforeFirstFormula()
+            throws ReflectiveOperationException {
+        AtomicLong ids = nextTensorIdState();
+        long beforeConstruction = ids.get();
+        LstmCell cell = new LstmCell(
+                3, true, DataType.FLOAT32, ParameterInitialization.zeros(), 93L);
+
+        assertAll(
+                () -> assertEquals(beforeConstruction, ids.get()),
+                () -> assertThrows(IllegalStateException.class, cell::parameters));
+
+        Tensor input = TensorFactory.zeros(
+                Shape.of(2, 4), DataType.FLOAT32, Optional.empty(), false);
+        Tensor hidden = TensorFactory.zeros(
+                Shape.of(2, 3), DataType.FLOAT32, Optional.empty(), false);
+        Tensor state = TensorFactory.zeros(
+                Shape.of(2, 3), DataType.FLOAT32, Optional.empty(), false);
+        long beforeBinding = ids.get();
+        LstmCellForwardResult result = cell.forward(input, hidden, state);
+
+        assertAll(
+                () -> assertEquals(Shape.of(12, 4), cell.inputWeight().value().descriptor().shape()),
+                () -> assertEquals(Shape.of(12, 3), cell.hiddenWeight().value().descriptor().shape()),
+                () -> assertEquals(Shape.of(12), cell.bias().orElseThrow().value()
+                        .descriptor().shape()),
+                () -> assertEquals(beforeBinding, cell.inputWeight().value().id().value()),
+                () -> assertEquals(beforeBinding + 1, cell.hiddenWeight().value().id().value()),
+                () -> assertEquals(beforeBinding + 2,
+                        cell.bias().orElseThrow().value().id().value()),
+                () -> assertTrue(result.nextHidden().id().value() > beforeBinding + 2),
+                () -> assertAllZero(cell.inputWeight().value()),
+                () -> assertAllZero(cell.hiddenWeight().value()),
+                () -> assertAllZero(cell.bias().orElseThrow().value()));
+    }
+
     @Test
     void initializesPackedWeightsThenEntireZeroBiasForEveryFloatingType()
             throws ReflectiveOperationException {
@@ -189,6 +324,11 @@ class LstmCellInitializationTest {
                     new short[java.lang.reflect.Array.getLength(array)], (short[]) array);
             default -> throw new AssertionError("unexpected data type");
         }
+    }
+
+    private static float[] floatValues(Tensor tensor) {
+        return (float[]) tensor.hostStorage().orElseThrow().segment()
+                .heapBase().orElseThrow();
     }
 
     private static AtomicLong nextTensorIdState() throws ReflectiveOperationException {

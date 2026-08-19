@@ -10,9 +10,11 @@ import io.github.pho001.synaptik.model.shape.StaticDimension;
 import io.github.pho001.synaptik.model.tensor.Tensor;
 import io.github.pho001.synaptik.model.tensor.TensorDescriptor;
 import io.github.pho001.synaptik.model.tensor.TensorFactory;
+import io.github.pho001.synaptik.nn.initialization.ParameterInitialization;
 import io.github.pho001.synaptik.nn.module.Module;
 import io.github.pho001.synaptik.nn.module.Parameter;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
@@ -33,17 +35,22 @@ import java.util.Optional;
  * hidden Tensor. If every row has length zero, construction returns an empty output list and the
  * exact initial-hidden reference without allocating a Tensor identity.</p>
  *
- * <p>Lengths are cloned before validation and are never retained. They are Java construction
- * metadata, not Tensor values. Callers must coordinate writes that could race with the clone.
+ * <p>Lengths are validated from the caller array and, when at least one step is represented,
+ * cloned immediately before traversal; no array is retained. They are Java construction metadata,
+ * not Tensor values. Callers must coordinate writes throughout validation and any snapshot.
  * Runtime-dependent lengths or masks require a genuine Model recurrent scan/control-flow
  * contract and are not simulated with dense masking. Forward is mode-insensitive and retains no
  * input, state, index, length, or result. Parameter replacement and multi-step construction are
  * not one atomic snapshot; callers must coordinate them when a consistent binding set is
  * required.</p>
  *
- * <p>This class constructs eager index leaves and storage-free Model expression metadata. It does
- * not evaluate values, define gradients, capture or compile a graph, select a backend, or promise
- * that a runtime kernel skips work.</p>
+ * <p>One Java cell and its exact Parameter leaf Tensors are shared across every represented time
+ * step, while every select, gather, cell operation, and restored-state producer is fresh. Later
+ * states retain temporal ancestry through those fresh producers. This static identity fan-out is
+ * visible to the Compiler, whose existing exact-identity gradient contract combines repeated
+ * contributions. This class itself only constructs eager index leaves and storage-free Model
+ * expression metadata; it does not evaluate values, define numerical gradients, expose a public
+ * training loop, capture or compile a graph, select a backend, or promise runtime work skipping.</p>
  */
 public final class GruSequence extends Module {
     private final GruCell cell;
@@ -61,12 +68,203 @@ public final class GruSequence extends Module {
     }
 
     /**
+     * Creates a sequence owning one automatic standard GRU cell.
+     *
+     * <p>Construction creates and owns exactly one unbound cell. It creates no random generator,
+     * Tensor, Parameter, default state, or all-valid length array.</p>
+     *
+     * @param hiddenSize strictly positive hidden width
+     * @param bias whether the cell will own a complete packed typed-zero bias
+     * @param dataType non-null floating parameter and default-state type
+     * @param weightInitialization non-null closed policy applied independently to both packed
+     *     matrices by the cell
+     * @param seed seed retained by the cell for random-policy initialization attempts; zero/one
+     *     policies do not use it
+     * @throws NullPointerException if {@code dataType} or {@code weightInitialization} is null
+     * @throws IllegalArgumentException if {@code hiddenSize} is not positive, {@code dataType} is
+     *     not floating, or a configured parameter Shape exceeds the Model Java-array limit
+     * @throws ArithmeticException if {@code 3 * hiddenSize} or checked Shape arithmetic overflows
+     */
+    public GruSequence(
+            long hiddenSize,
+            boolean bias,
+            DataType dataType,
+            ParameterInitialization weightInitialization,
+            long seed) {
+        this(new GruCell(hiddenSize, bias, dataType, weightInitialization, seed));
+    }
+
+    /**
      * Returns the stable owned cell.
      *
      * @return the exact non-null child registered under {@code cell}
      */
     public GruCell cell() {
         return cell;
+    }
+
+    /**
+     * Builds the complete all-valid sequence from caller-supplied hidden state.
+     *
+     * <p>A fresh private Java array marks every row valid for all {@code time} steps. The explicit
+     * state is preserved exactly when {@code time == 0}; no default state is created.</p>
+     *
+     * @param input non-null floating fully static rank-three input shaped
+     *     {@code [time, batch, inputSize]}; not mutated or retained
+     * @param initialHidden non-null compatible floating fully static state shaped
+     *     {@code [batch, hiddenSize]}; not mutated or retained
+     * @return the non-null static result with every input time step represented
+     * @throws NullPointerException if {@code input} or {@code initialHidden} is null
+     * @throws IllegalArgumentException if input, state, current cell schema, promotion, or static
+     *     unroll validation fails
+     * @throws ArithmeticException if checked packed-size, Shape, or layout arithmetic overflows
+     * @throws IllegalStateException if Tensor identifier space is exhausted
+     * @throws RuntimeException if automatic random-policy initialization fails
+     * @throws OutOfMemoryError if an array, eager leaf, Tensor, or expression cannot be allocated
+     */
+    public GruSequenceForwardResult forward(Tensor input, Tensor initialHidden) {
+        SequenceSchema schema = validateInputAndStateForDefaults(input, initialHidden);
+        return forward(input, initialHidden, allValidLengths(schema));
+    }
+
+    /**
+     * Builds a statically packed sequence from a fresh typed zero hidden state.
+     *
+     * <p>After complete default-path validation, the method creates one fresh eager typed-zero
+     * leaf shaped {@code [batch, hiddenSize]} with no name and no gradient requirement. It is not
+     * retained. An all-zero length array returns that exact leaf as final state and leaves an
+     * automatic cell unbound.</p>
+     *
+     * @param input non-null floating fully static rank-three time-major input; not retained
+     * @param lengths non-null caller-owned valid length per original batch row; validated from the
+     *     caller array, never mutated or retained, and cloned before traversal
+     * @return the non-null packed result whose skipped rows originate from the fresh zero state
+     * @throws NullPointerException if {@code input} or {@code lengths} is null
+     * @throws IllegalArgumentException if input, lengths, current cell schema, promotion, default
+     *     state, or static unroll validation fails
+     * @throws ArithmeticException if checked packed-size, state, Shape, or layout arithmetic
+     *     overflows
+     * @throws IllegalStateException if Tensor identifier space is exhausted
+     * @throws RuntimeException if automatic random-policy initialization fails
+     * @throws OutOfMemoryError if an array, eager leaf, Tensor, or expression cannot be allocated
+     */
+    public GruSequenceForwardResult forward(Tensor input, long[] lengths) {
+        SequenceSchema schema = validateInputAndLengthsForDefaults(input, lengths);
+        return forward(input, zeroState(schema), lengths);
+    }
+
+    /**
+     * Builds an all-valid sequence from a fresh typed zero hidden state.
+     *
+     * <p>The method creates one private all-valid length array and one fresh eager typed-zero
+     * non-gradient state leaf. For {@code time == 0}, the result contains no output and preserves
+     * that exact leaf; the automatic cell remains unbound.</p>
+     *
+     * @param input non-null floating fully static rank-three time-major input; not retained
+     * @return the non-null complete static result
+     * @throws NullPointerException if {@code input} is null
+     * @throws IllegalArgumentException if input, current cell schema, promotion, default state, or
+     *     static unroll validation fails
+     * @throws ArithmeticException if checked packed-size, state, Shape, or layout arithmetic
+     *     overflows
+     * @throws IllegalStateException if Tensor identifier space is exhausted
+     * @throws RuntimeException if automatic random-policy initialization fails
+     * @throws OutOfMemoryError if an array, eager leaf, Tensor, or expression cannot be allocated
+     */
+    public GruSequenceForwardResult forward(Tensor input) {
+        SequenceSchema schema = validateInputForDefaults(input);
+        validateDefaultStateCount(schema.batch, schema.hiddenSize);
+        long[] lengths = allValidLengths(schema);
+        Tensor initialHidden = zeroState(schema);
+        return forward(input, initialHidden, lengths);
+    }
+
+    private SequenceSchema validateInputForDefaults(Tensor input) {
+        Tensor suppliedInput = Objects.requireNonNull(input, "input");
+        Shape shape = suppliedInput.descriptor().shape();
+        requireFloating(suppliedInput.descriptor().dataType(), "input");
+        requireRank(shape, 3, "input");
+        requireStatic(shape, "input");
+        long time = extent(shape, 0);
+        long batch = extent(shape, 1);
+        long inputSize = extent(shape, 2);
+        cell.validateConfiguredInputSize(inputSize);
+        if (batch > Integer.MAX_VALUE || time > Integer.MAX_VALUE) {
+            throw new IllegalArgumentException("time or batch exceeds Java collection limit");
+        }
+        DataTypePromotion.promoteNumeric(
+                suppliedInput.descriptor().dataType(), cell.configuredDataType());
+        return new SequenceSchema(time, batch, inputSize, cell.configuredHiddenSize());
+    }
+
+    private SequenceSchema validateInputAndStateForDefaults(Tensor input, Tensor state) {
+        SequenceSchema schema = validateInputForDefaults(input);
+        Tensor suppliedState = Objects.requireNonNull(state, "initialHidden");
+        Shape stateShape = suppliedState.descriptor().shape();
+        requireFloating(suppliedState.descriptor().dataType(), "initialHidden");
+        requireRank(stateShape, 2, "initialHidden");
+        requireStatic(stateShape, "initialHidden");
+        if (extent(stateShape, 0) != schema.batch
+                || extent(stateShape, 1) != schema.hiddenSize) {
+            throw new IllegalArgumentException("initialHidden shape is incompatible with input/cell schema");
+        }
+        DataTypePromotion.promoteNumeric(
+                suppliedState.descriptor().dataType(), cell.configuredDataType());
+        return schema;
+    }
+
+    private SequenceSchema validateInputAndLengthsForDefaults(Tensor input, long[] lengths) {
+        SequenceSchema schema = validateInputForDefaults(input);
+        long[] suppliedLengths = Objects.requireNonNull(lengths, "lengths");
+        if (suppliedLengths.length != schema.batch) {
+            throw new IllegalArgumentException("length count must equal batch extent");
+        }
+        long maximumLength = 0;
+        for (int index = 0; index < suppliedLengths.length; index++) {
+            if (suppliedLengths[index] < 0 || suppliedLengths[index] > schema.time) {
+                throw new IllegalArgumentException("lengths[" + index + "] is outside [0,time]");
+            }
+            maximumLength = Math.max(maximumLength, suppliedLengths[index]);
+        }
+        validateDefaultStateCount(schema.batch, schema.hiddenSize);
+        DataType stateType = cell.configuredDataType();
+        Shape stateShape = Shape.of(schema.batch, schema.hiddenSize);
+        DataType outputType = prevalidateSteps(
+                suppliedLengths,
+                maximumLength,
+                input.descriptor().dataType(),
+                stateType,
+                stateType,
+                cell.configuredBias(),
+                schema.inputSize,
+                schema.hiddenSize);
+        prevalidateFinalStack(
+                suppliedLengths, stateType, stateShape, outputType,
+                schema.hiddenSize, maximumLength);
+        return schema;
+    }
+
+    private static long[] allValidLengths(SequenceSchema schema) {
+        long[] lengths = new long[Math.toIntExact(schema.batch)];
+        Arrays.fill(lengths, schema.time);
+        return lengths;
+    }
+
+    private Tensor zeroState(SequenceSchema schema) {
+        return TensorFactory.zeros(
+                Shape.of(schema.batch, schema.hiddenSize),
+                cell.configuredDataType(), Optional.empty(), false);
+    }
+
+    private static void validateDefaultStateCount(long batch, long hiddenSize) {
+        long count = Math.multiplyExact(batch, hiddenSize);
+        if (count > Integer.MAX_VALUE) {
+            throw new IllegalArgumentException(
+                    "default hidden state exceeds Java array limit: " + count);
+        }
+    }
+
+    private record SequenceSchema(long time, long batch, long inputSize, long hiddenSize) {
     }
 
     /**
@@ -105,12 +303,8 @@ public final class GruSequence extends Module {
             Tensor input, Tensor initialHidden, long[] lengths) {
         Tensor suppliedInput = Objects.requireNonNull(input, "input");
         Tensor suppliedInitialHidden = Objects.requireNonNull(initialHidden, "initialHidden");
-        long[] lengthSnapshot = Objects.requireNonNull(lengths, "lengths").clone();
-
-        Tensor inputWeight = cell.inputWeight().value();
-        Tensor hiddenWeight = cell.hiddenWeight().value();
-        Optional<Tensor> bias = cell.bias().map(Parameter::value);
-        long hiddenSize = validateCellSchema(inputWeight, hiddenWeight, bias);
+        long[] suppliedLengths = Objects.requireNonNull(lengths, "lengths");
+        long hiddenSize = cell.configuredHiddenSize();
 
         Shape inputShape = suppliedInput.descriptor().shape();
         Shape hiddenShape = suppliedInitialHidden.descriptor().shape();
@@ -123,12 +317,8 @@ public final class GruSequence extends Module {
 
         long time = extent(inputShape, 0);
         long batch = extent(inputShape, 1);
-        long inputSize = extent(inputWeight.descriptor().shape(), 1);
-        if (extent(inputShape, 2) != inputSize) {
-            throw new IllegalArgumentException(
-                    "input feature size must equal cell inputSize: input="
-                            + extent(inputShape, 2) + ", cell=" + inputSize);
-        }
+        long inputSize = extent(inputShape, 2);
+        cell.validateConfiguredInputSize(inputSize);
         if (extent(hiddenShape, 1) != hiddenSize) {
             throw new IllegalArgumentException(
                     "initialHidden feature size must equal cell hiddenSize: initialHidden="
@@ -139,15 +329,15 @@ public final class GruSequence extends Module {
                     "input and initialHidden batch extents must match: input="
                             + batch + ", initialHidden=" + extent(hiddenShape, 0));
         }
-        if (lengthSnapshot.length != batch) {
+        if (suppliedLengths.length != batch) {
             throw new IllegalArgumentException(
                     "length count must equal batch extent: lengths="
-                            + lengthSnapshot.length + ", batch=" + batch);
+                            + suppliedLengths.length + ", batch=" + batch);
         }
 
         long maximumLength = 0;
-        for (int index = 0; index < lengthSnapshot.length; index++) {
-            long length = lengthSnapshot[index];
+        for (int index = 0; index < suppliedLengths.length; index++) {
+            long length = suppliedLengths[index];
             if (length < 0) {
                 throw new IllegalArgumentException(
                         "lengths[" + index + "] must be non-negative: " + length);
@@ -164,17 +354,16 @@ public final class GruSequence extends Module {
         }
 
         DataType outputType = prevalidateSteps(
-                lengthSnapshot,
+                suppliedLengths,
                 maximumLength,
                 suppliedInput.descriptor().dataType(),
                 suppliedInitialHidden.descriptor().dataType(),
-                inputWeight,
-                hiddenWeight,
-                bias,
+                cell.configuredDataType(),
+                cell.configuredBias(),
                 inputSize,
                 hiddenSize);
         prevalidateFinalStack(
-                lengthSnapshot,
+                suppliedLengths,
                 suppliedInitialHidden.descriptor().dataType(),
                 hiddenShape,
                 outputType,
@@ -185,6 +374,7 @@ public final class GruSequence extends Module {
             return new GruSequenceForwardResult(List.of(), suppliedInitialHidden);
         }
 
+        long[] lengthSnapshot = suppliedLengths.clone();
         int steps = Math.toIntExact(maximumLength);
         List<Tensor> packedOutputs = new ArrayList<>(steps);
         int[] exitPositions = new int[lengthSnapshot.length];
@@ -233,19 +423,17 @@ public final class GruSequence extends Module {
             long maximumLength,
             DataType inputType,
             DataType hiddenType,
-            Tensor inputWeight,
-            Tensor hiddenWeight,
-            Optional<Tensor> bias,
+            DataType parameterType,
+            boolean bias,
             long inputSize,
             long hiddenSize) {
         DataType inputProductType = DataTypePromotion.promoteNumeric(
-                inputType, inputWeight.descriptor().dataType());
+                inputType, parameterType);
         DataType inputProjectionType = bias
-                .map(value -> DataTypePromotion.promoteNumeric(
-                        inputProductType, value.descriptor().dataType()))
-                .orElse(inputProductType);
+                ? DataTypePromotion.promoteNumeric(inputProductType, parameterType)
+                : inputProductType;
         DataType hiddenProjectionType = DataTypePromotion.promoteNumeric(
-                hiddenType, hiddenWeight.descriptor().dataType());
+                hiddenType, parameterType);
 
         DataType resetType = DataTypePromotion.promoteNumeric(
                 inputProjectionType, hiddenProjectionType);
