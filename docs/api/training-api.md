@@ -58,33 +58,42 @@ preflight the complete ordered snapshot and permanently attach every child. A ca
 result, name, repeated-identity, cycle, or ownership failure publishes no partial model and leaves
 every previously unowned candidate unattached.
 
-For example, this definition owns two input-width-inferring `Linear` layers under stable
-descriptive names and returns a Tensor-to-Tensor forward body:
+For example, the shared stateless `ModuleFactory.standard()` facade constructs two fresh
+input-width-inferring `Linear` layers. `Topology.addModule` then gives those exact modules stable
+descriptive names and permanent Model ownership:
 
 ```java
+ModuleFactory modules = ModuleFactory.standard();
+
 var model = Model.define(topology -> {
     Linear hidden = topology.addModule(
             "hidden",
-            new Linear(
+            modules.linear(
                     64,
                     true,
                     DataType.FLOAT32,
                     ParameterInitialization.glorotUniform(),
-                    randomFactory,
                     41L));
     Linear output = topology.addModule(
             "output",
-            new Linear(
+            modules.linear(
                     10,
                     true,
                     DataType.FLOAT32,
                     ParameterInitialization.glorotUniform(),
-                    randomFactory,
                     42L));
 
     return (Tensor input) -> output.forward(hidden.forward(input).relu());
 });
 ```
+
+The factory call is construction, not ownership or registration. Every recipe call returns a
+fresh existing concrete type and keeps the architectural width, bias, data type, initialization
+policy, and seed explicit. The factory retains none of those choices and owns no random source or
+module. Its Linear recipe selects the exact deterministic JDK `L64X128MixRandom` factory; direct
+constructors remain available when a caller needs a different deterministic factory, supplied
+state, supplied cells, or explicit recurrent state and lengths. Constructor validation, effects,
+state paths, and forward behavior remain owned by each concrete layer or sequence.
 
 Suppose the input has Shape `[batch, 32]`. The first call initializes `hidden.weight` as `[64, 32]`
 before constructing the hidden linear expression. That expression has final extent 64, so the
@@ -315,9 +324,10 @@ form therefore needs a genuine Model recurrent scan or control-flow contract. Cu
 sum and product scans have fixed associative bodies and are not that primitive.
 
 Current sequences are one-directional and expose neither `validLengths` as a Tensor nor a
-bidirectional/stacked recurrent facade. There is no `ModuleFactory` or recurrent scan; those
-remain possible future capabilities rather than current API. The current initialized `Embedding`
-is eager and does not add either missing lifecycle.
+bidirectional/stacked recurrent facade or recurrent scan. The current `ModuleFactory` only
+constructs a fresh existing RNN, GRU, or LSTM Sequence with its one owned matching automatic Cell;
+it adds no directionality, runtime length, mask, state-carrying, or execution lifecycle. The
+current initialized `Embedding` remains eager.
 
 ## Current NN parameter update contract
 

@@ -1128,8 +1128,22 @@ affine and movement integer bodies. Completed CPU 0007A0B advanced it to schema 
 typed indexing bodies and their proved dense integer-address/general long-address forms. Completed
 CPU 0007A0C advanced it to schema 25 for embedded typed scatter matching, reduction,
 carrier/access, and exact floating-product bodies. Completed CPU 0007A0D advances it to schema 26
-for embedded typed overlap-fold mapping, carrier/access, and sequential-addition bodies. Schema-25
-and earlier artifacts are incompatible misses without migration.
+for embedded typed overlap-fold mapping, carrier/access, and sequential-addition bodies. Completed
+CPU 0007A0E, CPU 0007A0F, and CPU 0007A1 advance the current boundary through schema 29. Schema 29
+adds ordinary numerical SUM/MEAN/PROD identity, exact floating-state shapes, scratch-bearing typed
+entries, and direct exact sum, mean, and product bodies. Schema-28 and earlier artifacts are
+incompatible safe misses without migration.
+
+Completed CPU 0007A1 admits ordinary SUM and PROD for FLOAT64, FLOAT32, BFLOAT16, INT32, and INT64,
+and MEAN for the three floating types, in the same full, single-axis, multi-axis, and empty-axis-list
+forms. Floating SUM uses an exact real sum followed by one result-format ties-to-even rounding;
+MEAN divides that exact sum by the exact domain count before the one rounding; and PROD retains an
+exact significand/exponent product before one rounding. This exact intermediate target does not
+make the output arbitrary precision. Schema 29 canonicalizes numerical NaN results, fixes the
+documented infinity, signed-zero, and empty-domain cases, and gives floating rows disjoint
+run-owned exact-state workspace slices. INT32 and INT64 SUM/PROD remain same-width modular.
+Parallel work owns complete output cells only, so supported worker counts are bit-identical without
+claiming mathematical associativity or cross-backend bit identity.
 
 Cross-type cast, general BFLOAT16 pointwise arithmetic, FLOAT16 execution, relaxed math,
 native/vendor realization, dynamic layouts, Vector API scatter, fold, ordering, scan, or ordinary
@@ -1199,7 +1213,7 @@ decision occurs in the generated loop.
 ### CPU kernel specialization
 
 The implemented backend-private immutable description of every fact allowed to change one
-generated CPU class. The current form includes schema 26, the canonical lowering fingerprint with
+generated CPU class. The current form includes schema 29, the canonical lowering fingerprint with
 typed opcode sequence, exact scalar-immediate bits, exact ordered clamp-bound bits, and selected
 scalar-power realizations, exact/default numerical mode, generated
 scalar/vector compute form, exact preferred FLOAT32, FLOAT64, INT32, INT64, or BOOL species bit
@@ -1229,7 +1243,9 @@ heap-array integer affine/movement bodies with invariant invocation geometry hoi
 loop, schema 24 adds embedded typed indexing bodies with proved dense integer-address and general
 long-address forms, schema 25 adds embedded typed scatter output, matching, reduction,
 carrier/access, and exact-product bodies, and schema 26 adds embedded typed overlap-fold mapping,
-carrier/access, and sequential-addition bodies.
+carrier/access, and sequential-addition bodies. Schema 27 adds stable ordering bodies, schema 28
+adds explicit-state initializer/dropout bodies, and schema 29 adds ordinary numerical aggregate
+identity, exact-state resource shape, scratch-bearing entry shape, and direct SUM/MEAN/PROD bodies.
 Canonical IR separately supplies value kind, data type, ordered semantics/stores, iteration rank,
 axis roles, contiguous-suffix form, and access regime. Their derived compatibility bytes and
 structural identity are order-sensitive.
@@ -1255,12 +1271,12 @@ Keeping the artifact reachable keeps its hidden-class state reachable, without p
 unreferenced class unloads. Direct generator calls produce equal class bytes but distinct hidden
 classes and artifact identities. The current durable generated-kernel artifact store may instead
 reuse compatible class bytes and weakly intern one loaded artifact while it remains live. The
-artifact is not by itself a prepared route. Current schema-24 artifacts execute admitted bounded
+artifact is not by itself a prepared route. Current schema-29 artifacts execute admitted bounded
 pointwise chains, one static affine represented-bit copy, one static
 PAD/TILE/CONCAT/STACK/window-extraction/SLICE_UPDATE movement, one static indexing occurrence,
 one functional-scatter output pass, one overlap-fold pass, one stable ordering/selection pass,
 one explicit-state initializer/dropout pass, one typed cumulative-scan body, or one typed
-ordinary-aggregate body across the implemented carrier patterns. Schema 23 and older artifacts
+ordinary-aggregate body across the implemented carrier patterns. Schema 28 and older artifacts
 are incompatible misses with no migration reader.
 
 ### CPU generated-kernel artifact store
@@ -2809,9 +2825,9 @@ static containers therefore do not accept runtime Tensor lengths or masks and do
 future scan representation.
 
 The current containers are one-directional. They expose no Tensor `validLengths`, bidirectional
-or stacked facade, or `ModuleFactory`; those names describe possible future APIs, not current
-behavior. Current initialized `Embedding` is eager and does not provide any of those sequence or
-factory capabilities.
+or stacked facade, or recurrent scan. The current standard module factory can construct these
+same one-directional containers, but it adds none of those missing sequence or runtime
+capabilities. Current initialized `Embedding` remains eager.
 
 `extensions/nn` composes generic [`Tensor`](#tensor) and operation semantics from
 `modules/model`. [`extensions/training`](#training-graph) consumes nn-declared parameters for
@@ -2853,6 +2869,27 @@ general Model build/initialize lifecycle or whole-body transaction. See [Current
 composition contract](api/training-api.md#current-nn-typed-model-composition-contract) and
 [Current NN automatic parameter initialization
 contract](api/training-api.md#current-nn-automatic-parameter-initialization-contract).
+
+### Standard module factory
+
+The implemented NN **standard module factory** is the final `ModuleFactory` returned by
+`ModuleFactory.standard()`. It is one shared, immutable, instance-field-free construction facade
+for the current initialized `Embedding`, automatic `Linear`, and automatic-cell `RnnSequence`,
+`GruSequence`, and `LstmSequence` families. Each recipe receives the complete per-call size, bias
+where applicable, floating data type, `ParameterInitialization`, and seed, delegates once to the
+matching existing public constructor, and returns one fresh exact concrete module. The Linear
+recipe selects the deterministic JDK `L64X128MixRandom` factory; recurrent and Embedding
+constructors retain their existing standard-source rules.
+
+The factory is not Model topology, ownership, registration, a provider or plugin boundary, a
+registry, a service locator, a configuration container, a random-number-generator owner, or a
+generic Module lifecycle. A top-level result remains unowned until caller code passes it to
+`Topology.addModule(name, module)`. A recurrent Sequence already owns its fresh matching Cell
+under local child name `cell`, so installing that Sequence under `encoder` produces state paths
+such as `encoder.cell.inputWeight` without a factory path segment. Direct constructors remain the
+advanced path for supplied state or cells, caller-selected random sources or deterministic
+factories, and explicit recurrent states or construction-time lengths. Constructor validation,
+effects, state, threading, and forward behavior remain contracts of the concrete returned type.
 
 ### Unary Tensor module and Sequential
 

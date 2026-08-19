@@ -35,5 +35,17 @@
  * compilation, training orchestration, and execution remain outside this package contract.
  * Defined models inherit Module's mutable state/mode lifecycle and caller-coordinated threading
  * rules; only their named structure is sealed.</p>
+ *
+ * <p>{@link io.github.pho001.synaptik.nn.module.ModuleFactory#standard()} is a stateless
+ * construction namespace for the five current standard initialized module families. Each call
+ * requires explicit architectural sizes, bias where applicable, data type, initialization policy,
+ * and seed and returns one fresh exact concrete module. The factory owns and registers nothing;
+ * {@link io.github.pho001.synaptik.nn.module.Topology#addModule(String,
+ * io.github.pho001.synaptik.nn.module.Module)} remains the operation that gives a functional Model
+ * permanent named ownership. Embedding construction is eager, while Linear and recurrent recipes
+ * preserve their existing automatic input-width binding. Direct constructors remain available
+ * for caller-controlled state, cells, random sources, and random factories. This closed facade
+ * has no global configuration, provider, registry, lookup, reflection, or generic Module
+ * lifecycle.</p>
  */
 package io.github.pho001.synaptik.nn.module;

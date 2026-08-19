@@ -61,7 +61,7 @@ conveniences built from `modules/model` Tensor semantics.
 
 ```text
 io.github.pho001.synaptik.nn/
-  module/       public module ownership, named state, typed model topology, and forward-context contracts
+  module/       public module ownership, named state, typed model topology, standard construction recipes, and forward-context contracts
   initialization/ explicit eager parameter-initialization conveniences and policies
   layers/       public stateful neural-network layers
   functional/   stateless NN-oriented conveniences over model operations
@@ -163,7 +163,11 @@ Initialized Embedding, a stateless construction factory, and directional recurre
 separate concise NN 0020A–0020C follow-ups before the cross-module runtime-scan program. Detailed
 [task 0020A](tasks/0020a-initialized-embedding.md) is Complete: it added one eager constructor to
 the existing final `Embedding`, applied the common initialization policy to the complete explicit
-table Shape, and deliberately gave every row ordinary trainable semantics. No NN task is Ready.
+table Shape, and deliberately gave every row ordinary trainable semantics. Detailed
+[task 0020B](tasks/0020b-stateless-standard-module-factory.md) is Complete. It adds one
+instance-field-free final `ModuleFactory` with five concrete standard recipes, explicit per-layer
+type/policy/seed, exact `L64X128MixRandom` selection for automatic Linear, no ownership or
+registry behavior, and unchanged advanced direct constructors. No NN task is Ready.
 
 ## Task list
 
@@ -191,7 +195,7 @@ table Shape, and deliberately gave every row ordinary trainable semantics. No NN
 | [0019](tasks/0019-automatic-first-forward-linear-initialization.md) | Automatic first-forward Linear initialization | Complete | 0018; exact initialization/state-dictionary decision | Kept one public Linear type, reserved future state privately, initialized its complete parameter set before constructing the first returned forward expression, failed closed on incomplete discovery/export, and allowed strict dictionary initialization while inferring only `inFeatures`. |
 | [0020](tasks/0020-automatic-recurrent-initialization-and-sequence-defaults.md) | Automatic recurrent initialization and sequence defaults | Complete | 0019; current recurrent cell/sequence and Model provenance contracts | Replaced the recent Linear-only enum with one general closed `ParameterInitialization`; added automatic input-width binding to all three existing final cells with explicit hidden size/type/policy/seed and standard `L64X128MixRandom` only for random policies; added standard-cell sequence constructors plus zero-state/all-valid overloads while preserving caller cells, explicit states, static lengths, and shared-parameter fresh-node unroll provenance. |
 | [0020A](tasks/0020a-initialized-embedding.md) | Initialized Embedding | Complete | 0020; current Embedding and tokenizer/schema boundaries | Added one eager initialized constructor to the existing final `Embedding` with explicit positive vocabulary size, embedding size, floating type, common `ParameterInitialization`, and seed. Random policies use the documented standard PRNG; zero/one use no RNG. Every table row is an ordinary trainable row: padding identity and valid lengths remain future Text/Data schema, with no padding index or frozen-row contract. |
-| 0020B | Stateless standard ModuleFactory | Draft | 0020–0020A | Provide construction recipes only: `embedding`/`linear` return `Embedding`/`Linear`, while `rnn`/`gru`/`lstm` return the concrete matching Sequence with Cell assembly hidden; every recipe takes explicit per-layer type/`ParameterInitialization`/seed. `ModuleFactory.standard()` carries no mutable configuration, ownership, registry, RNG, or seed management; `Topology.addModule` remains the sole owner, and advanced direct constructors retain caller-controlled random sources/factories. |
+| [0020B](tasks/0020b-stateless-standard-module-factory.md) | Stateless standard ModuleFactory | Complete | 0020–0020A | Added one final instance-field-free standard recipe namespace: `embedding`/`linear` return `Embedding`/`Linear`, while `rnn`/`gru`/`lstm` return the concrete matching Sequence with Cell assembly hidden. Every call creates a fresh module and takes explicit per-layer type/`ParameterInitialization`/seed; standard Linear selects exact `L64X128MixRandom`. `Topology.addModule` remains the sole owner, and advanced direct constructors retain caller-controlled random sources/factories. |
 | 0020C | Bidirectional and multidirectional recurrent composition | Draft | 0020; stable static sequence/result contracts | Define type-safe directional RNN/GRU/LSTM composition without a generic recurrent base: directions own independent cells, parameters, and seeds; reverse traversal respects each valid prefix; merge is an explicit `CONCAT`/`SUM` choice or a deliberately narrower first policy; and type-specific results preserve directional final hidden plus LSTM cell states. One cell shares weights only across time within its own direction. |
 | 0021 | Runtime recurrent scan/control-flow prerequisite program | Draft | 0020C; explicit cross-module architecture decision and Model/Compiler/Prepare/Runtime/Engine/backend support | Establish a fixed recurrent body/node plus runtime input-binding and execution contracts before NN exposes a new valid-length recurrent API; specific length values must not specialize Model topology or compiled graph structure, and the design must preserve the selected directional/state contracts. |
 | 0022 | Valid-length recurrent API and Data integration | Draft | 0021; Data 0001–0002 architecture and valid-length contracts | Consume Data-owned runtime valid lengths through the proven scan, derive zero states as selected, and deliberately migrate or retain the current static `long[]` compatibility contracts without presenting a host adapter as the target API. |
@@ -462,8 +466,15 @@ scope defect; finalized the four affected production/package Javadocs, Training 
 task, and master evidence; reused the unchanged Java-test evidence; and passed final NN Javadoc/
 rendered-page, public/private surface, external-use, forbidden lifecycle/padding/import,
 dependency, Markdown, exact nine-path, status/frontier, newline, no-index, whitespace, and diff
-gates. NN 0020B–0020C and 0021–0024 remain concise Draft rows without task files, and no NN task
-is Ready.
+gates. Detailed
+[NN 0020B](tasks/0020b-stateless-standard-module-factory.md) is Complete. Independent clean
+documentation context `/root/nn_0020b_docs` found no executable, API, architecture, dependency,
+or scope defect; finalized the ModuleFactory and package Javadocs, Training API, glossary, task,
+and master evidence; reused the frozen focused 9/9 and authoritative NN 265/265 test evidence;
+and passed final NN Javadoc/rendered-page, surface, external-use, import/dependency,
+forbidden-mechanism, Markdown, exact seven-path, status/frontier, newline, no-index, whitespace,
+and diff gates. NN 0020C and 0021–0024 remain concise Draft rows without task files, and no NN
+task is Ready.
 Concurrent CPU/backend planning and global-roadmap changes remain outside this NN planning scope.
 
 The proposed Data, Text, Vision, and Checkpoint master plans are also Draft: their modules do not
@@ -527,10 +538,6 @@ consumer.
   Completed NN 0020A deliberately exposes no padding index, row rewrite, or frozen-row promise;
   vocabulary size and embedding width remain explicit schema and architecture inputs and are
   never inferred from the maximum token ID in one batch.
-- NN 0020B must decide the narrow concrete surface of a stateless standard `ModuleFactory` after
-  Embedding initialization is selected. It may provide only concrete construction recipes with
-  explicit per-layer type/`ParameterInitialization`/seed; it must not become an owner, registry,
-  configuration/RNG container, seed manager, or replacement for `Topology.addModule`.
 - NN 0020C must select the first explicit directional merge policy and type-specific result
   shapes. It must choose `CONCAT`, `SUM`, or a deliberately narrower single first contract rather
   than hide a default. Forward and reverse directions own independent cells/parameters/seeds;
@@ -771,6 +778,12 @@ consumer.
   trainable semantics and adds no padding index or frozen-row contract. Embedding and factory
   recipes reuse `ParameterInitialization`; `Topology.addModule` remains the sole ownership
   operation, and no shared recurrent base is selected without a type-safe consumer.
+- NN 0020B selects one final instance-field-free `ModuleFactory` in `nn.module`. `standard()` returns one
+  immutable singleton; `embedding`, `linear`, `rnn`, `gru`, and `lstm` return fresh exact concrete
+  types and accept explicit per-layer schema/policy/seed. Recurrent recipes return the matching
+  Sequence with its owned Cell, standard Linear uses exact `L64X128MixRandom`, and the facade owns
+  no module, topology, configuration, generator, seed sequence, registry, or extension point.
+  Existing direct constructors remain the advanced caller-controlled paths.
 - Input-dependent batch, time, and incoming feature extents are inferred by later binding or batch
   metadata. Hidden/output widths, embedding size, class count, vocabulary size, and recurrent
   hidden width remain explicit architecture or schema decisions.
