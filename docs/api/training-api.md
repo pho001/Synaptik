@@ -113,8 +113,9 @@ consistent view matters.
 
 ## Current NN automatic parameter initialization contract
 
-`ParameterInitialization` is the common closed initialization-policy value used by automatic
-`Linear`, RNN, GRU, and LSTM layers. Its exact eight factories are `glorotNormal()`,
+`ParameterInitialization` is the common closed initialization-policy value used by eager
+initialized `Embedding` and automatic `Linear`, RNN, GRU, and LSTM layers. Its exact eight
+factories are `glorotNormal()`,
 `glorotUniform()`, `kaimingReluNormal()`, `kaimingReluUniform()`, `normal(mean,
 standardDeviation)`, `uniform(lowerBoundInclusive, upperBoundExclusive)`, `zeros()`, and `ones()`.
 Configured arguments must be finite; a normal standard deviation is non-negative and uniform
@@ -180,6 +181,25 @@ never draws. RNN uses unpacked matrices, GRU owns reset/update/candidate packing
 input/forget/candidate/output packing. Strict state loading may bind the complete reserved group
 without initialization. Failure before publication binds nothing and is retryable from the seed;
 successful publication precedes cell-expression construction and is cell-locally synchronized.
+
+`Embedding` instead has no input-dependent parameter dimension, so its initialized constructor is
+eager. It accepts explicit positive vocabulary size and embedding size, exact floating type, one
+common policy, and a seed, then initializes the complete `[vocabularySize, embeddingSize]` table
+before declaring its sole permanent `weight` parameter. The six random policies each use one
+fresh seeded standard `L64X128MixRandom` source and the four-argument dispatcher once. Zero and
+one use the three-argument dispatcher once and never create an RNG. Fan policies use the whole
+rank-two Shape with vocabulary size as fan-out and embedding size as fan-in. Successful
+construction consumes the initializer's one Tensor identifier; a later sampling, allocation, or
+identifier failure does not roll back completed effects but publishes no parameter wrapper or
+layer.
+
+Neither size is inferred from token IDs or a batch. Embedding width remains an architecture
+choice, while a future Text vocabulary supplies vocabulary identity and size explicitly. Every
+table row, including row zero, is ordinary gradient-eligible trainable state. `Embedding` exposes
+no padding index, special or frozen row, automatic row rewrite, optimizer/gradient masking, or
+runtime skipping. Future Text input preparation owns padding-token identity, and future Data input
+preparation owns canonical valid lengths; neither proposed boundary is current tokenizer/Data API
+or changes the NN parameter schema.
 
 ## Current NN unary composition contract
 
@@ -295,8 +315,9 @@ form therefore needs a genuine Model recurrent scan or control-flow contract. Cu
 sum and product scans have fixed associative bodies and are not that primitive.
 
 Current sequences are one-directional and expose neither `validLengths` as a Tensor nor a
-bidirectional/stacked recurrent facade. There is no `ModuleFactory`, recurrent scan, or automatic
-initialized `Embedding`; those remain possible future capabilities rather than current API.
+bidirectional/stacked recurrent facade. There is no `ModuleFactory` or recurrent scan; those
+remain possible future capabilities rather than current API. The current initialized `Embedding`
+is eager and does not add either missing lifecycle.
 
 ## Current NN parameter update contract
 
@@ -351,6 +372,11 @@ same `weight`/optional `bias` paths, kinds, exact types, and Shapes, so their st
 compatible when their inferred and explicit feature widths match. The same rule covers automatic
 and explicit RNN/GRU/LSTM cells through `inputWeight`, `hiddenWeight`, and optional `bias`; packed
 gate order and exact Shapes remain cell-owned schema.
+
+Supplied-table and initialized `Embedding` instances use the same single `weight` path, Parameter
+kind, exact floating type, positive rank-two Shape, and gradient-eligibility schema. Their state
+dictionaries are therefore compatible when those exact table facts match. Loading or replacement
+installs the complete exact candidate table; no row receives padding-specific treatment.
 
 Ordinary validation failure changes no binding. This validate-before-install guarantee assumes
 caller-coordinated access: module state export and load are not thread-safe, linearizable,

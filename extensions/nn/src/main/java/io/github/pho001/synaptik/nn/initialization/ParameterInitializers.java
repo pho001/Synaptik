@@ -31,8 +31,10 @@ import java.util.random.RandomGenerator;
  * resets, splits, serializes, or closes the supplied object.</p>
  *
  * <p>Glorot policies use fixed unit gain, while Kaiming policies use fixed rectified-linear-unit
- * (ReLU) gain and fan-in mode. Fan-based methods accept only a fully static positive rank-two
- * Linear weight shape in {@code [outFeatures, inFeatures]} orientation. They provide no
+ * (ReLU) gain and fan-in mode. Fan-based methods accept any fully static positive rank-two
+ * weight shape in {@code [fanOut, fanIn]} orientation, including Linear
+ * {@code [outFeatures, inFeatures]} and Embedding
+ * {@code [vocabularySize, embeddingSize]} tables. They provide no
  * convolution fan inference, configurable gain, activation, fan mode, alias, or default source.
  * This eager host-data boundary neither accepts nor creates {@link GraphRngState}, which represents
  * deferred random state in a Tensor expression graph.</p>
@@ -240,14 +242,14 @@ public final class ParameterInitializers {
     }
 
     /**
-     * Creates a Glorot unit-gain normal Linear weight.
+     * Creates a Glorot unit-gain normal rank-two weight.
      *
      * <p>For {@code weightShape == [fanOut, fanIn]}, the distribution has mean zero and standard
      * deviation {@code sqrt(2.0 / (fanIn + fanOut))}. Fan addition and division use binary64,
      * avoiding signed-long addition overflow before exactly one Model normal-sampling call.</p>
      *
-     * @param weightShape non-null fully static rank-two shape in
-     *     {@code [outFeatures, inFeatures]} orientation with both extents positive
+     * @param weightShape non-null fully static rank-two shape in {@code [fanOut, fanIn]}
+     *     orientation with both extents positive
      * @param dataType non-null floating result type: FLOAT64, FLOAT32, or BFLOAT16
      * @param randomGenerator non-null transient caller-owned source, never retained
      * @return a non-null fresh dense provenance-free and unlabeled Tensor retaining the exact
@@ -255,7 +257,7 @@ public final class ParameterInitializers {
      * @throws NullPointerException if {@code weightShape}, {@code dataType}, or
      *     {@code randomGenerator} is null, checked in that order
      * @throws IllegalArgumentException if the type is not floating, the Shape is not fully static
-     *     rank two, {@code outFeatures} or {@code inFeatures} is zero, or the positive Shape's
+     *     rank two, {@code fanOut} or {@code fanIn} is zero, or the positive Shape's
      *     element count exceeds the Model Java-array limit, checked in that order
      * @throws RuntimeException if the random source throws while sampling; completed source calls
      *     remain consumed, but no Tensor or identifier is created
@@ -273,15 +275,15 @@ public final class ParameterInitializers {
     }
 
     /**
-     * Creates a Glorot unit-gain uniform Linear weight.
+     * Creates a Glorot unit-gain uniform rank-two weight.
      *
      * <p>For {@code weightShape == [fanOut, fanIn]}, the distribution interval is
      * {@code [-sqrt(6.0 / (fanIn + fanOut)), +sqrt(6.0 / (fanIn + fanOut)))}. Fan addition and
      * division use binary64, avoiding signed-long addition overflow before exactly one Model
      * bounded-uniform sampling call.</p>
      *
-     * @param weightShape non-null fully static rank-two shape in
-     *     {@code [outFeatures, inFeatures]} orientation with both extents positive
+     * @param weightShape non-null fully static rank-two shape in {@code [fanOut, fanIn]}
+     *     orientation with both extents positive
      * @param dataType non-null floating result type: FLOAT64, FLOAT32, or BFLOAT16
      * @param randomGenerator non-null transient caller-owned source, never retained
      * @return a non-null fresh dense provenance-free and unlabeled Tensor retaining the exact
@@ -289,7 +291,7 @@ public final class ParameterInitializers {
      * @throws NullPointerException if {@code weightShape}, {@code dataType}, or
      *     {@code randomGenerator} is null, checked in that order
      * @throws IllegalArgumentException if the type is not floating, the Shape is not fully static
-     *     rank two, {@code outFeatures} or {@code inFeatures} is zero, or the positive Shape's
+     *     rank two, {@code fanOut} or {@code fanIn} is zero, or the positive Shape's
      *     element count exceeds the Model Java-array limit, checked in that order
      * @throws RuntimeException if the random source throws while sampling; completed source calls
      *     remain consumed, but no Tensor or identifier is created
@@ -307,14 +309,14 @@ public final class ParameterInitializers {
     }
 
     /**
-     * Creates a fan-in Kaiming normal Linear weight with fixed ReLU gain.
+     * Creates a fan-in Kaiming normal rank-two weight with fixed ReLU gain.
      *
      * <p>For {@code weightShape == [fanOut, fanIn]}, the distribution has mean zero and standard
      * deviation {@code sqrt(2.0 / fanIn)}. The fan is converted to binary64 before division and
      * exactly one Model normal-sampling call follows validation.</p>
      *
-     * @param weightShape non-null fully static rank-two shape in
-     *     {@code [outFeatures, inFeatures]} orientation with both extents positive
+     * @param weightShape non-null fully static rank-two shape in {@code [fanOut, fanIn]}
+     *     orientation with both extents positive
      * @param dataType non-null floating result type: FLOAT64, FLOAT32, or BFLOAT16
      * @param randomGenerator non-null transient caller-owned source, never retained
      * @return a non-null fresh dense provenance-free and unlabeled Tensor retaining the exact
@@ -322,7 +324,7 @@ public final class ParameterInitializers {
      * @throws NullPointerException if {@code weightShape}, {@code dataType}, or
      *     {@code randomGenerator} is null, checked in that order
      * @throws IllegalArgumentException if the type is not floating, the Shape is not fully static
-     *     rank two, {@code outFeatures} or {@code inFeatures} is zero, or the positive Shape's
+     *     rank two, {@code fanOut} or {@code fanIn} is zero, or the positive Shape's
      *     element count exceeds the Model Java-array limit, checked in that order
      * @throws RuntimeException if the random source throws while sampling; completed source calls
      *     remain consumed, but no Tensor or identifier is created
@@ -339,14 +341,14 @@ public final class ParameterInitializers {
     }
 
     /**
-     * Creates a fan-in Kaiming uniform Linear weight with fixed ReLU gain.
+     * Creates a fan-in Kaiming uniform rank-two weight with fixed ReLU gain.
      *
      * <p>For {@code weightShape == [fanOut, fanIn]}, the distribution interval is
      * {@code [-sqrt(6.0 / fanIn), +sqrt(6.0 / fanIn))}. The fan is converted to binary64 before
      * division and exactly one Model bounded-uniform sampling call follows validation.</p>
      *
-     * @param weightShape non-null fully static rank-two shape in
-     *     {@code [outFeatures, inFeatures]} orientation with both extents positive
+     * @param weightShape non-null fully static rank-two shape in {@code [fanOut, fanIn]}
+     *     orientation with both extents positive
      * @param dataType non-null floating result type: FLOAT64, FLOAT32, or BFLOAT16
      * @param randomGenerator non-null transient caller-owned source, never retained
      * @return a non-null fresh dense provenance-free and unlabeled Tensor retaining the exact
@@ -354,7 +356,7 @@ public final class ParameterInitializers {
      * @throws NullPointerException if {@code weightShape}, {@code dataType}, or
      *     {@code randomGenerator} is null, checked in that order
      * @throws IllegalArgumentException if the type is not floating, the Shape is not fully static
-     *     rank two, {@code outFeatures} or {@code inFeatures} is zero, or the positive Shape's
+     *     rank two, {@code fanOut} or {@code fanIn} is zero, or the positive Shape's
      *     element count exceeds the Model Java-array limit, checked in that order
      * @throws RuntimeException if the random source throws while sampling; completed source calls
      *     remain consumed, but no Tensor or identifier is created

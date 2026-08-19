@@ -571,11 +571,24 @@ bounds enforcement, lowering, backend behavior, and execution remain separately 
 
 The final NN `Embedding` module owns exactly one `Parameter` named `weight`. Its caller-supplied
 table must additionally be gradient-eligible, fully static, rank two, and positive on both axes.
-`forward(indices)` reads that parameter's current Tensor once and calls its Model
-`embedding(indices)` convenience. It is mode-insensitive and adds no initialized constructor,
-padding index, invariant padding row, buffer, or separate operation. A compatible parameter
-replacement affects later calls; an expression already constructed from the old Tensor keeps that
-exact old table.
+Alternatively, its eager initialized constructor accepts explicit positive vocabulary size,
+embedding size, floating type, one `ParameterInitialization`, and a seed. It initializes the
+complete `[vocabularySize, embeddingSize]` table before declaring `weight`: six random policies
+use one fresh seeded standard `L64X128MixRandom` and the random dispatcher once, while zero and one
+use the generator-free dispatcher once. Fan policies interpret vocabulary as fan-out and embedding
+width as fan-in. Successful initialization creates one fresh gradient-eligible Tensor leaf and
+consumes its one Tensor identifier. A later eager failure does not roll back completed draws or
+allocations, but publishes no parameter wrapper or layer.
+
+Neither size is inferred from token IDs or a batch. Every row, including row zero, is ordinary
+trainable state; there is no padding index, special or invariant zero row, frozen-row contract,
+gradient/optimizer masking, or runtime-skipping behavior. Proposed Text input preparation owns
+padding-token identity and proposed Data input preparation owns canonical valid lengths. Those
+future schema facts are not current tokenizer/Data APIs and do not alter Embedding state.
+`forward(indices)` reads the current parameter Tensor once and calls its Model
+`embedding(indices)` convenience. It is mode-insensitive and adds no buffer or separate operation.
+A compatible parameter replacement affects later calls; an expression already constructed from
+the old Tensor keeps that exact old table.
 
 For example, a current FLOAT32 table with Shape `[10, 4]` and INT64 indices with Shape `[2, 3]`
 produce a fresh expression with Shape `[2, 3, 4]`, ordinary `GATHER` at axis zero, and ordered
@@ -2405,9 +2418,9 @@ requests, higher derivatives, optimizer updates, preparation, and execution rema
 
 `extensions/nn` currently provides direct-state and module-tree foundations, typed functional
 Model topology, eager parameter initializers, five concrete non-recurrent layers including
-automatic input-width initialization for `Linear`, three recurrent cells with the same automatic
-lifecycle, three cell-specific statically packed sequence containers, and narrow unary
-composition. A
+eager whole-table initialization for `Embedding` and automatic input-width initialization for
+`Linear`, three recurrent cells with the same automatic lifecycle, three cell-specific statically
+packed sequence containers, and narrow unary composition. A
 **module** is a stateful
 neural-network composition unit that directly declares trainable **parameters** and persistent
 **buffers**, and can permanently own named child modules. Parameters, buffers, and children share
@@ -2506,9 +2519,10 @@ a module may subsequently bind as parameters. Its exact eight entries cover type
 explicit-source normal and continuous-uniform sampling, fixed unit-gain Glorot normal/uniform, and
 fixed fan-in/ReLU Kaiming normal/uniform. Every entry requires a fully static Shape and explicit
 `FLOAT64`, `FLOAT32`, or `BFLOAT16`, and returns a fresh dense host-backed, provenance-free,
-unlabeled leaf with `requiresGrad == true`. Fan-based entries accept only positive rank-two Linear
-weights in `[outFeatures, inFeatures]` orientation. An initializer does not create, name, retain,
-or update a `Parameter`; `Parameter` owns no initialization policy.
+unlabeled leaf with `requiresGrad == true`. Fan-based entries accept a positive rank-two
+`[fanOut, fanIn]` Shape, including Linear `[outFeatures, inFeatures]` weights and Embedding
+`[vocabularySize, embeddingSize]` tables. An initializer does not create, name, retain, or update a
+`Parameter`; `Parameter` owns no initialization policy.
 
 Random initializer entries consume the exact caller-owned `RandomGenerator` eagerly, once per
 logical row-major element through the matching Gaussian or bounded-double method. The caller
@@ -2518,13 +2532,14 @@ it. These initializers create no random Tensor operation and do not accept or cr
 [`GraphRngState`](#graph-rng-state--graphrngstate).
 
 A **parameter-initialization policy** is the current final `ParameterInitialization` value used
-by automatic Linear and recurrent layers. Its exact factories select Glorot normal/uniform,
-Kaiming/ReLU normal/uniform, configured normal, configured continuous uniform, exact zero, or
-exact one. Configured arguments must be finite; standard deviation is non-negative and uniform
-bounds strictly increase. The value owns only an algorithm selection and configured binary64
-arguments. It owns no Shape, fan, data type, Tensor, Parameter, random generator, seed, layer or
-gate order, or bias rule, and exposes no public kind, constructor, callback, registry, or mutable
-state. Fan presets derive their values from each complete rank-two Shape at application time.
+by eager initialized Embedding and automatic Linear and recurrent layers. Its exact factories
+select Glorot normal/uniform, Kaiming/ReLU normal/uniform, configured normal, configured continuous
+uniform, exact zero, or exact one. Configured arguments must be finite; standard deviation is
+non-negative and uniform bounds strictly increase. The value owns only an algorithm selection and
+configured binary64 arguments. It owns no Shape, fan, data type, Tensor, Parameter, random
+generator, seed, layer or gate order, or bias rule, and exposes no public kind, constructor,
+callback, registry, or mutable state. Fan presets derive their values from each complete rank-two
+Shape at application time.
 
 The three-argument `ParameterInitializers.initialize` dispatcher accepts exactly zero/one and
 creates no generator. The four-argument dispatcher accepts exactly the six sampling policies and
@@ -2578,12 +2593,15 @@ parameter replacement affects a later call, while an expression already construc
 bindings remains unchanged; replacement and forward construction provide no joint snapshot or
 thread-safety guarantee.
 
-The current final `Embedding` module owns one caller-supplied, positive fully static rank-two
-floating table `Parameter` named `weight`. It has no initialized constructor or padding-row
-policy. Its mode-insensitive `forward(indices)` reads the current binding once and delegates
-directly to the unchanged Model `Tensor.embedding(indices)` convenience, which owns accepted index
-types, result metadata, ordinary axis-zero Gather provenance, and failures. Each call creates a
-fresh declarative expression; a compatible replacement changes later calls, while an already
+The current final `Embedding` module owns one positive fully static rank-two floating table
+`Parameter` named `weight`. Callers may supply the exact table or initialize it eagerly from
+explicit vocabulary size, embedding size, type, policy, and seed. Initialization completes before
+the one wrapper is registered; it has no reservation or first-forward lifecycle. Every row is
+ordinary trainable state, with no padding index, special/frozen row, or row rewrite. Its
+mode-insensitive `forward(indices)` reads the current binding once and delegates directly to the
+unchanged Model `Tensor.embedding(indices)` convenience, which owns accepted index types, result
+metadata, ordinary axis-zero Gather provenance, and failures. Each call creates a fresh
+declarative expression; a compatible replacement changes later calls, while an already
 constructed expression keeps its prior exact table. The layer adds no buffer, numerical lookup,
 gradient/update rule, compiler behavior, backend support, or execution.
 
@@ -2791,8 +2809,9 @@ static containers therefore do not accept runtime Tensor lengths or masks and do
 future scan representation.
 
 The current containers are one-directional. They expose no Tensor `validLengths`, bidirectional
-or stacked facade, `ModuleFactory`, or automatic initialized `Embedding`; those names describe
-possible future APIs, not current behavior.
+or stacked facade, or `ModuleFactory`; those names describe possible future APIs, not current
+behavior. Current initialized `Embedding` is eager and does not provide any of those sequence or
+factory capabilities.
 
 `extensions/nn` composes generic [`Tensor`](#tensor) and operation semantics from
 `modules/model`. [`extensions/training`](#training-graph) consumes nn-declared parameters for

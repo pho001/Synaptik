@@ -88,15 +88,22 @@
  * surface. Compatible parameter replacement affects later forward calls; already constructed
  * Tensor expressions keep their earlier exact inputs.</p>
  *
- * <p>{@link io.github.pho001.synaptik.nn.layers.Embedding} owns one caller-supplied positive
- * rank-two floating table in {@code [vocabularySize, embeddingSize]} orientation. It delegates
- * each forward call to the current table's
+ * <p>{@link io.github.pho001.synaptik.nn.layers.Embedding} owns one positive rank-two floating
+ * table in {@code [vocabularySize, embeddingSize]} orientation. Callers may supply that table or
+ * initialize it eagerly from explicit sizes, type, policy, and seed. Random policies use one
+ * fresh standard {@code L64X128MixRandom} stream; zero and one create no random source. Fan
+ * policies use the complete table with vocabulary size as fan-out and embedding width as fan-in.
+ * Initialization completes before the sole {@code weight} parameter is declared, so discovery and
+ * state export never observe a partial table. Vocabulary size is not inferred from batch token
+ * identifiers, and embedding width remains an explicit architecture choice. Every row is ordinary
+ * trainable state. The layer delegates each forward call to the current table's
  * {@link io.github.pho001.synaptik.model.tensor.Tensor#embedding(
  * io.github.pho001.synaptik.model.tensor.Tensor)} convenience and is mode-insensitive. Model owns
  * accepted index types, result metadata, ordinary Gather failures, and provenance. The layer adds
- * no table initializer, padding-row policy, numerical lookup, or execution behavior. Compatible
- * table replacement affects later calls, while already constructed expressions retain their
- * earlier exact table.</p>
+ * no lazy lifecycle, padding index, special or frozen row, numerical lookup, or execution behavior.
+ * Padding-token identity and valid-length metadata belong to future Text/Data input preparation;
+ * they do not change this parameter contract. Compatible table replacement affects later calls,
+ * while already constructed expressions retain their earlier exact table.</p>
  *
  * <p>{@link io.github.pho001.synaptik.nn.layers.BatchNorm} owns mandatory rank-one
  * {@code scale}, {@code bias}, {@code runningMean}, and {@code runningVariance} state for one

@@ -12,17 +12,19 @@
  * {@link java.util.random.RandomGenerator} for each call. Their caller selects, configures, seeds,
  * owns, advances, and coordinates access to that exact source; this package neither chooses a
  * default nor retains, substitutes, synchronizes, resets, splits, serializes, or closes it. A
- * high-level recurrent layer may separately create the documented standard
- * {@code L64X128MixRandom} source from its explicit seed and pass that source transiently to this
- * package. This eager boundary is distinct from deferred graph random-number-generator state: it
- * creates no random Tensor expression and neither accepts nor creates
+ * high-level recurrent or eagerly initialized Embedding layer may separately create the
+ * documented standard {@code L64X128MixRandom} source from its explicit seed and pass that source
+ * transiently to this package. This eager boundary is distinct from deferred graph
+ * random-number-generator state: it creates no random Tensor expression and neither accepts nor
+ * creates
  * {@link io.github.pho001.synaptik.model.tensor.GraphRngState}.</p>
  *
  * <p>{@link io.github.pho001.synaptik.nn.initialization.ParameterInitialization} is the closed
- * immutable selection used by automatic dense and recurrent layers. A layer retains only that
- * policy and its own separate seed or caller-supplied generator factory, then dispatches to one
- * existing eager initializer when its complete parameter Shape becomes known. The policy owns no
- * Shape, fan value, data type, Tensor, parameter, random source, seed, layer order, or bias rule.
+ * immutable selection used by automatic dense/recurrent layers and eager initialized Embedding.
+ * A layer supplies that policy and its own separate seed or caller-supplied generator factory,
+ * then dispatches to one existing eager initializer when its complete parameter Shape is known.
+ * The policy owns no Shape, fan value, data type, Tensor, parameter, random source, seed, layer
+ * order, or bias rule.
  * Its zero/one route creates and consumes no random generator. The policy introduces no general
  * initializer object model, registry, callback, or default source.</p>
  */

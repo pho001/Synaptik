@@ -4,9 +4,13 @@ import io.github.pho001.synaptik.model.datatype.DataType;
 import io.github.pho001.synaptik.model.shape.Shape;
 import io.github.pho001.synaptik.model.shape.StaticDimension;
 import io.github.pho001.synaptik.model.tensor.Tensor;
+import io.github.pho001.synaptik.nn.initialization.ParameterInitialization;
+import io.github.pho001.synaptik.nn.initialization.ParameterInitializers;
 import io.github.pho001.synaptik.nn.module.Parameter;
 import io.github.pho001.synaptik.nn.module.UnaryTensorModule;
 import java.util.Objects;
+import java.util.random.RandomGenerator;
+import java.util.random.RandomGeneratorFactory;
 
 /**
  * A stateful embedding lookup with one rank-two floating weight table.
@@ -14,9 +18,11 @@ import java.util.Objects;
  * <p>The table has the exact positive fully static Shape
  * {@code [vocabularySize, embeddingSize]}. Axis zero contains the rows selected by index values,
  * and axis one is appended as the final result Dimension. The table is declared as the sole
- * parameter under local name {@code weight}; callers supply it explicitly because this layer
- * defines no initialization distribution, random-source policy, padding index, or invariant
- * padding row.</p>
+ * parameter under local name {@code weight}. Callers may either supply that table exactly or
+ * request eager whole-table initialization from explicit sizes, floating type, policy, and seed.
+ * The initialized form never infers vocabulary size from indices or a batch, and it does not wait
+ * for a forward call. Every row is ordinary trainable state; this layer defines no padding index,
+ * special row, invariant zero row, or frozen row.</p>
  *
  * <p>{@link #forward(Tensor)} reads the current weight binding once and delegates directly to
  * {@link Tensor#embedding(Tensor)}. Model therefore owns accepted index types, the ordinary
@@ -53,6 +59,81 @@ public final class Embedding extends UnaryTensorModule {
         Tensor suppliedWeight = Objects.requireNonNull(weight, "weight");
         validateWeight(suppliedWeight);
         this.weight = parameter("weight", suppliedWeight);
+    }
+
+    /**
+     * Creates an embedding layer with one eagerly initialized complete weight table.
+     *
+     * <p>Construction validates the explicit schema before initialization, creates exact Shape
+     * {@code [vocabularySize, embeddingSize]}, and dispatches the selected policy once. A random
+     * policy uses one fresh standard {@code L64X128MixRandom} source created from {@code seed};
+     * zero and one create no random source and ignore the seed. Fan policies interpret axis zero
+     * as fan-out and axis one as fan-in, so this table uses {@code vocabularySize} as fan-out and
+     * {@code embeddingSize} as fan-in.</p>
+     *
+     * <p>The returned fresh floating Tensor has {@code requiresGrad == true} and is declared under
+     * local name {@code weight} only after initialization succeeds. Construction is entirely eager
+     * and exposes no reservation, first-forward binding, padding-row rewrite, or frozen row.
+     * Success therefore consumes the initializer's one Tensor identifier and immediately exposes
+     * one complete permanent parameter. If sampling, allocation, or identifier acquisition fails,
+     * completed draws or allocations are not rolled back, but no parameter wrapper is declared and
+     * no layer is returned.</p>
+     *
+     * @param vocabularySize positive number of ordinary trainable table rows
+     * @param embeddingSize positive width of each table row
+     * @param dataType non-null floating table type; exactly FLOAT64, FLOAT32, or BFLOAT16
+     * @param weightInitialization non-null existing policy applied once to the complete table
+     * @param seed seed for the exact standard random source used by a random policy; accepted but
+     *     otherwise ignored by zero and one
+     * @throws NullPointerException if {@code dataType} or {@code weightInitialization} is null,
+     *     checked in that order after both sizes
+     * @throws IllegalArgumentException if a size is not positive, the type is not floating, or
+     *     the complete table exceeds the Java array element limit, checked in that order
+     * @throws ArithmeticException if checked table element-count or delegated layout arithmetic
+     *     overflows
+     * @throws IllegalStateException if Tensor identifier space is exhausted
+     * @throws OutOfMemoryError if delegated eager source or destination allocation fails
+     */
+    public Embedding(
+            long vocabularySize,
+            long embeddingSize,
+            DataType dataType,
+            ParameterInitialization weightInitialization,
+            long seed) {
+        if (vocabularySize <= 0) {
+            throw new IllegalArgumentException(
+                    "vocabularySize must be positive: " + vocabularySize);
+        }
+        if (embeddingSize <= 0) {
+            throw new IllegalArgumentException(
+                    "embeddingSize must be positive: " + embeddingSize);
+        }
+        DataType requestedType = Objects.requireNonNull(dataType, "dataType");
+        ParameterInitialization initialization =
+                Objects.requireNonNull(weightInitialization, "weightInitialization");
+        if (!requestedType.isFloating()) {
+            throw new IllegalArgumentException(
+                    "embedding data type must be floating: " + requestedType);
+        }
+        Shape weightShape = Shape.of(vocabularySize, embeddingSize);
+        long elementCount = weightShape.knownElementCount().orElseThrow();
+        if (elementCount > Integer.MAX_VALUE) {
+            throw new IllegalArgumentException(
+                    "embedding weight element count exceeds Java array limit: count="
+                            + elementCount + ", maximum=" + Integer.MAX_VALUE);
+        }
+
+        Tensor initializedWeight;
+        if (initialization.requiresRandomGenerator()) {
+            RandomGenerator generator =
+                    RandomGeneratorFactory.<RandomGenerator>of("L64X128MixRandom").create(seed);
+            initializedWeight = ParameterInitializers.initialize(
+                    weightShape, requestedType, initialization, generator);
+        } else {
+            initializedWeight = ParameterInitializers.initialize(
+                    weightShape, requestedType, initialization);
+        }
+        this.weight = parameter("weight", initializedWeight);
     }
 
     /**
