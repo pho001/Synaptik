@@ -32,7 +32,8 @@
  * functional-scatter output and contribution bodies, including inline exact floating-product
  * state for scratch-bearing entries. Schema 26 adds carrier-, type-, family-, access-, mapping-,
  * and addition-specialized overlap-fold bodies with dense integer and general long-address forms.
- * Schema 26 is current-only.
+ * Schema 27 adds carrier-, represented-type-, family-, direction-, output-, and access-specialized
+ * stable-ordering bodies with direct two-region merge scratch access. Schema 27 is current-only.
  * Four complete candidate plans, one realized
  * artifact, zero fixed-shape variants, and zero unrolled variants are the current hard budget.
  * With no trusted root, realization remains entirely in memory. With a root, one bounded

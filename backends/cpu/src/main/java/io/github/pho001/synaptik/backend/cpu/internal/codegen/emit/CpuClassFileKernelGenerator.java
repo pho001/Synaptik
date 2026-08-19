@@ -26,11 +26,12 @@ import java.util.Objects;
  * cumulative-scan, and ordinary aggregate forms delegate to their focused emitters after
  * structural specialization checks. Dense heap-array pointwise, affine-copy, movement, and
  * indexing bodies use one-time integer narrowing and hoisted geometry; indexing, functional
- * scatter, overlap-fold, scan, and aggregate emitters embed typed family hot loops.
+ * scatter, overlap-fold, ordering, scan, and aggregate emitters embed typed family hot loops.
  * Functional-scatter classes additionally embed their selected reduction and optional
  * exact-product scratch state. Fold classes embed coordinate mapping and sequential represented
  * addition without a generic carrier bridge. General layouts and segment or mixed carriers retain
- * typed long-address fallbacks.
+ * typed long-address fallbacks. Ordering classes additionally embed stable merge, comparison,
+ * selected-pair ordering, and represented value/index stores over assigned scratch.
  */
 public final class CpuClassFileKernelGenerator {
     /** Creates a stateless generator with no retained route or specialization state. */
@@ -61,7 +62,7 @@ public final class CpuClassFileKernelGenerator {
                                 } else if (kernelIr.familyIdentity().startsWith("random:")) {
                                     new CpuRandomEmitter().emit(code, specialization, kernelIr);
                                 } else if (kernelIr.familyIdentity().startsWith("ordering:")) {
-                                    new CpuOrderingEmitter().emit(code, specialization);
+                                    new CpuOrderingEmitter().emit(code, specialization, kernelIr);
                                 } else if (kernelIr.familyIdentity().startsWith("fold:")) {
                                     new CpuFoldEmitter().emit(code, specialization, kernelIr);
                                 } else if (kernelIr.familyIdentity().startsWith("scatter:")) {

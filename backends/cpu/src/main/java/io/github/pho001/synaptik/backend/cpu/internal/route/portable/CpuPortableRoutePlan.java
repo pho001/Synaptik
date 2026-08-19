@@ -17,8 +17,10 @@ import java.util.Objects;
  * required to embed its typed output/contribution body; concrete indices, geometry, and scratch
  * slices remain outside the plan. Overlap-fold IR similarly retains the structural facts required
  * for a typed embedded output/contribution body while concrete layouts, mappings, and ranges stay
- * cold. Ordinary aggregate IR is encoded for compatibility while its generated entry remains a
- * direct typed body.
+ * cold. Ordering IR retains the family, type, direction, output-order, boundary-access, and
+ * scratch-entry facts needed for a typed embedded stable-merge body while concrete axis/layout
+ * geometry and scratch assignment stay cold. Ordinary aggregate IR is encoded for compatibility
+ * while its generated entry remains a direct typed body.
  *
  * @param portableKernelIr non-null route-independent pointwise, affine, movement, indexing,
  *     functional-scatter, overlap-fold, ordering, random, cumulative-scan, or aggregate IR

@@ -68,8 +68,11 @@
  * The ordering emitter owns a separate logical-slice scalar body. It performs a stable bottom-up
  * merge over two assigned INT64 index regions, compares floating values with NaNs last and
  * directional signed zero, preserves selected represented bits, writes logical-axis INT64
- * indices, and emits both TOP_K outputs from one entry. Parallel orchestration supplies disjoint
- * complete slices and scratch regions; vector sorting and worker submission remain outside it.
+ * indices, and emits both TOP_K outputs from one entry. Family, represented type, direction,
+ * output order, carrier, and dense-integer versus general-long address choices are embedded in
+ * the generated class; no generic ordering execution bridge remains. Parallel orchestration
+ * supplies disjoint complete slices and scratch regions; vector sorting and worker submission
+ * remain outside it.
  *
  * <p>The random emitter owns one allocation-free initializer/dropout bridge. A dedicated
  * {@code [0,0)} prologue writes state exactly once before scalar or parallel element ranges;

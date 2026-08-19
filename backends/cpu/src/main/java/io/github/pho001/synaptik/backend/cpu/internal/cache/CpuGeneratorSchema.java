@@ -33,6 +33,8 @@ package io.github.pho001.synaptik.backend.cpu.internal.cache;
  * scatter output and contribution bodies while retaining the optional exact-product entry.
  * Schema 26 embeds carrier-, type-, family-, access-, mapping-, and addition-specialized overlap
  * fold output and contribution bodies with dense integer and general long-address forms.
+ * Schema 27 embeds carrier-, represented-type-, family-, direction-, output-, and access-
+ * specialized stable ordering bodies with direct two-region merge scratch access.
  * The optional persistent envelope stores this version and has no legacy reader, migration path,
  * or converter.
  */
@@ -53,10 +55,11 @@ public final class CpuGeneratorSchema {
      * schema 24 embeds typed GATHER, GATHER_ELEMENTS, GATHER_ND, and ONE_HOT bodies with proved
      * dense heap-array integer-address forms and typed general long-address forms.
      * Schema 25 embeds typed functional scatter output, matching, and reduction bodies; schema 26
-     * embeds typed overlap-fold output, coordinate-matching, and sequential-addition bodies.
+     * embeds typed overlap-fold output, coordinate-matching, and sequential-addition bodies;
+     * schema 27 embeds typed SORT, ARGSORT, and TOP_K stable-merge and output bodies.
      * Envelopes written for earlier schemas are incompatible misses.
      */
-    public static final int CURRENT_VERSION = 26;
+    public static final int CURRENT_VERSION = 27;
     /** Generated entry name. */ public static final String ENTRY_NAME = "invoke";
     private CpuGeneratorSchema() { }
 

@@ -1,209 +1,772 @@
 package io.github.pho001.synaptik.backend.cpu.internal.codegen.emit;
 
 import io.github.pho001.synaptik.backend.cpu.internal.cache.CpuKernelSpecialization;
+import io.github.pho001.synaptik.backend.cpu.internal.cache.CpuKernelSpecialization.CarrierAccess;
+import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuKernelIr;
 import io.github.pho001.synaptik.model.datatype.DataType;
 import java.lang.classfile.CodeBuilder;
+import java.lang.classfile.Label;
+import java.lang.classfile.Opcode;
+import java.lang.classfile.TypeKind;
 import java.lang.constant.ClassDesc;
 import java.lang.constant.ConstantDescs;
 import java.lang.constant.MethodTypeDesc;
-import java.lang.foreign.MemorySegment;
-import java.lang.foreign.ValueLayout;
 
 /**
- * Emits the direct generated bridge and owns stable primitive-index ordering execution.
+ * Emits carrier-, represented-type-, family-, direction-, output-, and access-specialized stable
+ * ordering bodies directly into generated CPU classes.
  *
- * <p>Each invocation orders complete independent logical-axis slices with a bottom-up stable
- * merge over two assigned INT64 scratch regions. Value comparison is allocation-free per
- * element: floating values use NaN-last order and directional signed zero, integral values use
- * signed order, and BOOL uses canonical byte order. SORT and TOP_K copy the selected represented
- * bits unchanged; ARGSORT and TOP_K write zero-based INT64 logical-axis coordinates. Unsorted
- * TOP_K deterministically reorders only the selected pairs by increasing original index.</p>
+ * <p>Each invocation initializes and stably bottom-up merges logical-axis indices in the two
+ * assigned INT64 scratch regions. Generated comparison keeps every floating NaN after non-NaNs,
+ * preserves directional signed-zero order and left-on-equality stability, and writes exact
+ * represented values and zero-based logical indices. All merge, address, comparison, and output
+ * state is primitive and invocation-local; the emitter retains no generated or run state.</p>
  */
 public final class CpuOrderingEmitter {
-    private static final ClassDesc OWNER = ClassDesc.of(CpuOrderingEmitter.class.getName());
-    private static final DataType[] TYPES = DataType.values();
+    private static final ClassDesc SEGMENT = ClassDesc.of("java.lang.foreign.MemorySegment");
+    private static final ClassDesc VALUE_LAYOUT = ClassDesc.of("java.lang.foreign.ValueLayout");
+    private static final ClassDesc LONG_LAYOUT =
+            ClassDesc.of("java.lang.foreign.ValueLayout$OfLong");
+    private static final ClassDesc DOUBLE_LAYOUT =
+            ClassDesc.of("java.lang.foreign.ValueLayout$OfDouble");
+    private static final ClassDesc FLOAT_LAYOUT =
+            ClassDesc.of("java.lang.foreign.ValueLayout$OfFloat");
+    private static final ClassDesc SHORT_LAYOUT =
+            ClassDesc.of("java.lang.foreign.ValueLayout$OfShort");
+    private static final ClassDesc INT_LAYOUT =
+            ClassDesc.of("java.lang.foreign.ValueLayout$OfInt");
+    private static final ClassDesc BYTE_LAYOUT =
+            ClassDesc.of("java.lang.foreign.ValueLayout$OfByte");
+    private static final ClassDesc FLOAT_CLASS = ClassDesc.of("java.lang.Float");
 
-    /** Creates a stateless ordering emitter; it owns no carrier or workspace lifetime. */
+    /** Creates a stateless ordering emitter that retains no carrier or scratch state. */
     public CpuOrderingEmitter() { }
 
     /**
-     * Emits one two- or three-boundary scalar ordering bridge with exact scratch.
+     * Emits one complete typed stable-ordering body.
      *
-     * @param code non-null Class-File method body receiving the direct ordered carriers,
-     *     workspace segment, packed geometry, and primitive slice bounds
-     * @param specialization non-null selected scalar specialization with two or three boundaries
-     *     and an explicit scratch parameter
+     * @param code non-null generated method body
+     * @param specialization non-null exact scalar carrier and scratch specialization
+     * @param ir non-null instruction-free structural ordering encoding
      * @throws NullPointerException if a required argument is null
-     * @throws IllegalArgumentException if boundary cardinality or the scratch signature is invalid
+     * @throws IllegalArgumentException if the specialization or IR is not an admitted ordering
+     *     form
      */
-    public void emit(CodeBuilder code, CpuKernelSpecialization specialization) {
+    public void emit(CodeBuilder code, CpuKernelSpecialization specialization, CpuKernelIr ir) {
+        Encoding p = Encoding.parse(ir);
         int count = specialization.carrierPattern().size();
-        if ((count != 2 && count != 3) || !specialization.scratchParameter())
-            throw new IllegalArgumentException("ordering requires two or three boundaries and scratch");
-        code.aload(0).aload(1);
-        if (count == 3) code.aload(2); else code.aconst_null();
-        int scratch = count;
-        code.aload(scratch).aload(scratch + 1).lload(scratch + 2).lload(scratch + 4);
-        code.invokestatic(OWNER, "execute", MethodTypeDesc.of(ConstantDescs.CD_void,
-                ConstantDescs.CD_Object, ConstantDescs.CD_Object, ConstantDescs.CD_Object,
-                ClassDesc.of(MemorySegment.class.getName()), ConstantDescs.CD_long.arrayType(),
-                ConstantDescs.CD_long, ConstantDescs.CD_long));
+        if (count != p.boundaryCount || !specialization.scratchParameter()) {
+            throw new IllegalArgumentException("ordering requires exact boundaries and scratch");
+        }
+        boolean ints = specialization.loopAddressing(ir)
+                == CpuKernelSpecialization.LoopAddressing.DENSE_HEAP_ARRAY_INT;
+        emitBody(code, specialization, p, ints);
     }
 
-    /**
-     * Executes complete independent logical-axis slices in {@code [start,end)}.
-     *
-     * <p>The supplied workspace is borrowed for the call. The packed range index selects one
-     * disjoint region, so parallel-scalar calls share neither scratch coordinates nor outputs.
-     * The method mutates only the declared output carriers and its assigned scratch region.</p>
-     *
-     * @param input non-null primitive array or accessible native-order segment containing values
-     * @param firstOutput non-null writable values output for SORT/TOP_K or INT64 index output for
-     *     ARGSORT
-     * @param secondOutput writable INT64 TOP_K index output, or {@code null} otherwise
-     * @param scratch non-null accessible writable run-owned workspace
-     * @param p non-null packed family, type, range, scratch, and boundary layout geometry
-     * @param start inclusive logical-slice ordinal
-     * @param end exclusive logical-slice ordinal
-     * @throws NullPointerException if a required carrier, workspace, or geometry array is null
-     * @throws IllegalArgumentException if a carrier has an unsupported runtime form
-     * @throws IndexOutOfBoundsException if packed geometry does not fit a supplied carrier or
-     *     assigned scratch region
-     * @throws ArithmeticException if exact range or scratch arithmetic overflows
-     * @throws IllegalStateException if a supplied segment is not accessible
-     */
-    public static void execute(Object input, Object firstOutput, Object secondOutput,
-            MemorySegment scratch, long[] p, long start, long end) {
-        int family = (int) p[0]; DataType type = TYPES[(int) p[1]]; int axis = (int) p[2];
-        long k = p[3]; boolean descending = p[4] != 0; boolean sorted = p[5] != 0;
-        int boundaryCount = (int) p[6]; long scratchSliceBytes = p[7]; long rangeIndex = p[8];
-        int[] layout = new int[boundaryCount]; int x = 11;
-        for (int i = 0; i < boundaryCount; i++) {
-            layout[i] = x; int rank = (int) p[x]; x += 2 + 2 * rank;
+    private static void emitBody(CodeBuilder code, CpuKernelSpecialization s, Encoding p,
+            boolean ints) {
+        int scratchParameter = p.boundaryCount;
+        int geometryParameter = scratchParameter + 1;
+        int startParameter = geometryParameter + 1;
+        int endParameter = startParameter + 2;
+        TypeKind indexKind = ints ? TypeKind.INT : TypeKind.LONG;
+        int axis = code.allocateLocal(TypeKind.INT);
+        int slice = code.allocateLocal(indexKind), end = code.allocateLocal(indexKind);
+        int axisExtent = code.allocateLocal(indexKind), outputCount = code.allocateLocal(indexKind);
+        int i = code.allocateLocal(indexKind), width = code.allocateLocal(indexKind);
+        int left = code.allocateLocal(indexKind), middle = code.allocateLocal(indexKind);
+        int right = code.allocateLocal(indexKind), a = code.allocateLocal(indexKind);
+        int b = code.allocateLocal(indexKind), out = code.allocateLocal(indexKind);
+        int position = code.allocateLocal(indexKind);
+        int leftIndex = code.allocateLocal(TypeKind.LONG), rightIndex = code.allocateLocal(TypeKind.LONG);
+        int selectedIndex = code.allocateLocal(TypeKind.LONG);
+        int source = code.allocateLocal(TypeKind.LONG), target = code.allocateLocal(TypeKind.LONG);
+        int swap = code.allocateLocal(TypeKind.LONG), scratchBase = code.allocateLocal(TypeKind.LONG);
+        int regionBytes = code.allocateLocal(TypeKind.LONG);
+        LayoutLocals[] layouts = new LayoutLocals[p.boundaryCount];
+        for (int boundary = 0; boundary < p.boundaryCount; boundary++) {
+            layouts[boundary] = loadLayout(code, geometryParameter, p.layoutOffsets[boundary],
+                    p.ranks[boundary], ints);
         }
-        int rank = (int) p[layout[0]]; long axisExtent = p[layout[0] + 2 + axis];
-        long region = Math.multiplyExact(axisExtent, Long.BYTES);
-        long scratchBase = Math.multiplyExact(rangeIndex, scratchSliceBytes);
-        for (long slice = start; slice < end; slice++) {
-            for (long i = 0; i < axisExtent; i++) scratch.set(ValueLayout.JAVA_LONG,
-                    scratchBase + i * Long.BYTES, i);
-            long source = scratchBase, target = scratchBase + region;
-            for (long width = 1; width < axisExtent; width = Math.multiplyExact(width, 2)) {
-                for (long left = 0; left < axisExtent; left += Math.multiplyExact(width, 2)) {
-                    long middle = Math.min(left + width, axisExtent);
-                    long right = Math.min(left + 2 * width, axisExtent);
-                    long a = left, b = middle, out = left;
-                    while (a < middle && b < right) {
-                        long ia = scratch.get(ValueLayout.JAVA_LONG, source + a * 8);
-                        long ib = scratch.get(ValueLayout.JAVA_LONG, source + b * 8);
-                        if (compare(input, p, layout[0], slice, axis, ia, ib, type, descending) <= 0) {
-                            scratch.set(ValueLayout.JAVA_LONG, target + out++ * 8, ia); a++;
-                        } else { scratch.set(ValueLayout.JAVA_LONG, target + out++ * 8, ib); b++; }
-                    }
-                    while (a < middle) scratch.set(ValueLayout.JAVA_LONG, target + out++ * 8,
-                            scratch.get(ValueLayout.JAVA_LONG, source + a++ * 8));
-                    while (b < right) scratch.set(ValueLayout.JAVA_LONG, target + out++ * 8,
-                            scratch.get(ValueLayout.JAVA_LONG, source + b++ * 8));
-                }
-                long swap = source; source = target; target = swap;
+        int inputAddress = code.allocateLocal(indexKind);
+        int firstOutputAddress = code.allocateLocal(indexKind);
+        int secondOutputAddress = p.topK ? code.allocateLocal(indexKind) : -1;
+        int remainder = code.allocateLocal(indexKind), coordinate = code.allocateLocal(indexKind);
+        int inner = code.allocateLocal(indexKind), outer = code.allocateLocal(indexKind);
+        int within = code.allocateLocal(indexKind);
+        int leftValue = code.allocateLocal(localKind(p.type));
+        int rightValue = code.allocateLocal(localKind(p.type));
+
+        geometry(code, geometryParameter, 2).l2i().istore(axis);
+        for (LayoutLocals layout : layouts) {
+            selectAxisLocal(code, layout.extents, axis, layout.axisExtent, ints);
+            selectAxisLocal(code, layout.strides, axis, layout.axisStride, ints);
+        }
+        if (ints) {
+            code.lload(startParameter).l2i().istore(slice);
+            code.lload(endParameter).l2i().istore(end);
+            selectAxisValue(code, geometryParameter, p.layoutOffsets[0] + 2, p.ranks[0], axis,
+                    true, axisExtent);
+            if (p.topK) geometry(code, geometryParameter, 3).l2i().istore(outputCount);
+            else copy(code, axisExtent, outputCount, true);
+        } else {
+            code.lload(startParameter).lstore(slice);
+            code.lload(endParameter).lstore(end);
+            selectAxisValue(code, geometryParameter, p.layoutOffsets[0] + 2, p.ranks[0], axis,
+                    false, axisExtent);
+            if (p.topK) geometry(code, geometryParameter, 3).lstore(outputCount);
+            else copy(code, axisExtent, outputCount, false);
+        }
+        code.aload(geometryParameter).loadConstant(8).laload()
+                .aload(geometryParameter).loadConstant(7).laload().lmul().lstore(scratchBase);
+        load(code, axisExtent, ints);
+        if (ints) {
+            code.i2l();
+        }
+        code.loadConstant(8L).lmul().lstore(regionBytes);
+        prepareDenseMapping(code, layouts[0], axis, inner, ints);
+
+        var sliceLoop = code.newLabel();
+        var complete = code.newLabel();
+        code.labelBinding(sliceLoop);
+        compare(code, slice, end, ints, Opcode.IF_ICMPGE, Opcode.IFGE, complete);
+        zero(code, i, ints);
+        var initialize = code.newLabel();
+        var initialized = code.newLabel();
+        code.labelBinding(initialize);
+        compare(code, i, axisExtent, ints, Opcode.IF_ICMPGE, Opcode.IFGE, initialized);
+        load(code, i, ints);
+        if (ints) {
+            code.i2l();
+        }
+        code.lstore(selectedIndex);
+        scratchSetAt(code, scratchParameter, scratchBase, i, ints, selectedIndex);
+        increment(code, i, ints);
+        code.branch(Opcode.GOTO, initialize).labelBinding(initialized);
+        code.lload(scratchBase).lstore(source);
+        code.lload(scratchBase).lload(regionBytes).ladd().lstore(target);
+        one(code, width, ints);
+        var pass = code.newLabel();
+        var merged = code.newLabel();
+        code.labelBinding(pass);
+        compare(code, width, axisExtent, ints, Opcode.IF_ICMPGE, Opcode.IFGE, merged);
+        zero(code, left, ints);
+        var group = code.newLabel();
+        var passDone = code.newLabel();
+        code.labelBinding(group);
+        compare(code, left, axisExtent, ints, Opcode.IF_ICMPGE, Opcode.IFGE, passDone);
+        minimum(code, left, width, axisExtent, middle, ints, false);
+        minimum(code, left, width, axisExtent, right, ints, true);
+        copy(code, left, a, ints);
+        copy(code, middle, b, ints);
+        copy(code, left, out, ints);
+        var merge = code.newLabel();
+        var copyLeft = code.newLabel();
+        var copyRight = code.newLabel();
+        var groupDone = code.newLabel();
+        code.labelBinding(merge);
+        compare(code, a, middle, ints, Opcode.IF_ICMPGE, Opcode.IFGE, copyRight);
+        compare(code, b, right, ints, Opcode.IF_ICMPGE, Opcode.IFGE, copyLeft);
+        scratchGetAt(code, scratchParameter, source, a, ints, leftIndex);
+        scratchGetAt(code, scratchParameter, source, b, ints, rightIndex);
+        emitAddress(code, layouts[0], axis, slice, leftIndex, true, inputAddress, remainder, coordinate,
+                inner, outer, within, ints);
+        loadCarrier(code, p.type, s.carrierPattern().getFirst(), 0, inputAddress, ints);
+        storeValue(code, p.type, leftValue);
+        emitAddress(code, layouts[0], axis, slice, rightIndex, true, inputAddress, remainder, coordinate,
+                inner, outer, within, ints);
+        loadCarrier(code, p.type, s.carrierPattern().getFirst(), 0, inputAddress, ints);
+        storeValue(code, p.type, rightValue);
+        var chooseLeft = code.newLabel();
+        var chooseRight = code.newLabel();
+        var advanceMerge = code.newLabel();
+        emitComparison(code, p.type, p.descending, leftValue, rightValue, chooseLeft, chooseRight);
+        code.labelBinding(chooseLeft);
+        scratchSetAt(code, scratchParameter, target, out, ints, leftIndex);
+        increment(code, a, ints);
+        code.branch(Opcode.GOTO, advanceMerge);
+        code.labelBinding(chooseRight);
+        scratchSetAt(code, scratchParameter, target, out, ints, rightIndex);
+        increment(code, b, ints);
+        code.labelBinding(advanceMerge);
+        increment(code, out, ints);
+        code.branch(Opcode.GOTO, merge);
+        code.labelBinding(copyLeft);
+        var copyLeftLoop = code.newLabel();
+        code.labelBinding(copyLeftLoop);
+        compare(code, a, middle, ints, Opcode.IF_ICMPGE, Opcode.IFGE, groupDone);
+        scratchGetAt(code, scratchParameter, source, a, ints, leftIndex);
+        scratchSetAt(code, scratchParameter, target, out, ints, leftIndex);
+        increment(code, a, ints);
+        increment(code, out, ints);
+        code.branch(Opcode.GOTO, copyLeftLoop);
+        code.labelBinding(copyRight);
+        var copyRightLoop = code.newLabel();
+        code.labelBinding(copyRightLoop);
+        compare(code, b, right, ints, Opcode.IF_ICMPGE, Opcode.IFGE, groupDone);
+        scratchGetAt(code, scratchParameter, source, b, ints, rightIndex);
+        scratchSetAt(code, scratchParameter, target, out, ints, rightIndex);
+        increment(code, b, ints);
+        increment(code, out, ints);
+        code.branch(Opcode.GOTO, copyRightLoop);
+        code.labelBinding(groupDone);
+        load(code, width, ints);
+        constantTwo(code, ints);
+        multiply(code, ints);
+        load(code, left, ints);
+        swapAdd(code, ints);
+        store(code, left, ints);
+        code.branch(Opcode.GOTO, group).labelBinding(passDone);
+        code.lload(source).lstore(swap);
+        code.lload(target).lstore(source);
+        code.lload(swap).lstore(target);
+        if (ints) {
+            var doubleWidth = code.newLabel();
+            var widthReady = code.newLabel();
+            code.iload(width).iload(axisExtent).loadConstant(2).idiv()
+                    .branch(Opcode.IF_ICMPLE, doubleWidth);
+            code.iload(axisExtent).istore(width).branch(Opcode.GOTO, widthReady)
+                    .labelBinding(doubleWidth).iload(width).loadConstant(2).imul().istore(width)
+                    .labelBinding(widthReady);
+        } else {
+            code.lload(width).loadConstant(2L).lmul().lstore(width);
+        }
+        code.branch(Opcode.GOTO, pass);
+        code.labelBinding(merged);
+        if (p.topK && !p.sorted) emitIndexOrder(code, scratchParameter, source, outputCount, ints,
+                i, a, selectedIndex, leftIndex);
+        zero(code, position, ints);
+        var output = code.newLabel();
+        var sliceDone = code.newLabel();
+        code.labelBinding(output);
+        compare(code, position, outputCount, ints, Opcode.IF_ICMPGE, Opcode.IFGE, sliceDone);
+        scratchGetAt(code, scratchParameter, source, position, ints, selectedIndex);
+        if (p.argsort) {
+            emitAddress(code, layouts[1], axis, slice, position, false, firstOutputAddress, remainder,
+                    coordinate, inner, outer, within, ints);
+            storeIndex(code, s.carrierPattern().get(1), 1, firstOutputAddress, selectedIndex, ints);
+        } else {
+            emitAddress(code, layouts[0], axis, slice, selectedIndex, true, inputAddress, remainder,
+                    coordinate, inner, outer, within, ints);
+            loadCarrier(code, p.type, s.carrierPattern().getFirst(), 0, inputAddress, ints);
+            storeValue(code, p.type, leftValue);
+            emitAddress(code, layouts[1], axis, slice, position, false, firstOutputAddress, remainder,
+                    coordinate, inner, outer, within, ints);
+            storeCarrier(code, p.type, s.carrierPattern().get(1), 1, firstOutputAddress,
+                    leftValue, ints);
+            if (p.topK) {
+                emitAddress(code, layouts[2], axis, slice, position, false, secondOutputAddress, remainder,
+                        coordinate, inner, outer, within, ints);
+                storeIndex(code, s.carrierPattern().get(2), 2, secondOutputAddress, selectedIndex,
+                        ints);
             }
-            if (family == 2 && !sorted) insertionIndexOrder(scratch, source, k);
-            long outputCount = family == 2 ? k : axisExtent;
-            for (long position = 0; position < outputCount; position++) {
-                long index = scratch.get(ValueLayout.JAVA_LONG, source + position * 8);
-                if (family != 1) copyValue(input, firstOutput, p, layout[0], layout[1], slice,
-                        axis, index, position, type, rank);
-                else writeIndex(firstOutput, address(p, layout[1], slice, axis, position), index);
-                if (family == 2) writeIndex(secondOutput,
-                        address(p, layout[2], slice, axis, position), index);
+        }
+        increment(code, position, ints);
+        code.branch(Opcode.GOTO, output);
+        code.labelBinding(sliceDone);
+        increment(code, slice, ints);
+        code.branch(Opcode.GOTO, sliceLoop).labelBinding(complete);
+    }
+
+    private static void emitIndexOrder(CodeBuilder code, int scratchParameter, int source,
+            int count, boolean ints, int i, int j, int value, int previous) {
+        one(code, i, ints);
+        var outer = code.newLabel();
+        var done = code.newLabel();
+        code.labelBinding(outer);
+        compare(code, i, count, ints, Opcode.IF_ICMPGE, Opcode.IFGE, done);
+        scratchGetAt(code, scratchParameter, source, i, ints, value);
+        copy(code, i, j, ints);
+        var inner = code.newLabel();
+        var ordered = code.newLabel();
+        var insert = code.newLabel();
+        code.labelBinding(inner);
+        zeroCompare(code, j, ints, insert);
+        decrement(code, j, ints);
+        scratchGetAt(code, scratchParameter, source, j, ints, previous);
+        code.lload(previous).lload(value).lcmp().branch(Opcode.IFLE, ordered);
+        increment(code, j, ints);
+        scratchSetAt(code, scratchParameter, source, j, ints, previous);
+        decrement(code, j, ints);
+        code.branch(Opcode.GOTO, inner);
+        code.labelBinding(ordered);
+        increment(code, j, ints);
+        code.labelBinding(insert);
+        scratchSetAt(code, scratchParameter, source, j, ints, value);
+        increment(code, i, ints);
+        code.branch(Opcode.GOTO, outer).labelBinding(done);
+    }
+
+    private static void emitComparison(CodeBuilder code, DataType type, boolean descending,
+            int left, int right, Label chooseLeft, Label chooseRight) {
+        if (type == DataType.FLOAT32 || type == DataType.BFLOAT16) {
+            if (type == DataType.BFLOAT16) {
+                code.iload(left).loadConstant(16).ishl().invokestatic(FLOAT_CLASS, "intBitsToFloat",
+                        MethodTypeDesc.of(ConstantDescs.CD_float, ConstantDescs.CD_int)).fstore(left);
+                code.iload(right).loadConstant(16).ishl().invokestatic(FLOAT_CLASS, "intBitsToFloat",
+                        MethodTypeDesc.of(ConstantDescs.CD_float, ConstantDescs.CD_int)).fstore(right);
+            }
+            Label leftFinite = code.newLabel();
+            Label rightNan = code.newLabel();
+            Label equal = code.newLabel();
+            code.fload(left).fload(left).fcmpl().branch(Opcode.IFEQ, leftFinite);
+            code.fload(right).fload(right).fcmpl().branch(Opcode.IFNE, chooseLeft);
+            code.branch(Opcode.GOTO, chooseRight).labelBinding(leftFinite);
+            code.fload(right).fload(right).fcmpl().branch(Opcode.IFNE, rightNan);
+            code.fload(left).fload(right).fcmpg()
+                    .branch(descending ? Opcode.IFGT : Opcode.IFLT, chooseLeft);
+            code.fload(left).fload(right).fcmpg()
+                    .branch(descending ? Opcode.IFLT : Opcode.IFGT, chooseRight);
+            code.branch(Opcode.GOTO, equal).labelBinding(rightNan)
+                    .branch(Opcode.GOTO, chooseLeft);
+            code.labelBinding(equal);
+            code.fload(left).loadConstant(0.0f).fcmpg().branch(Opcode.IFNE, chooseLeft);
+            code.loadConstant(1.0f).fload(left).fdiv();
+            code.loadConstant(1.0f).fload(right).fdiv();
+            code.fcmpg().branch(descending ? Opcode.IFGE : Opcode.IFLE, chooseLeft);
+            code.branch(Opcode.GOTO, chooseRight);
+            return;
+        }
+        if (type == DataType.FLOAT64) {
+            Label leftFinite = code.newLabel();
+            Label rightNan = code.newLabel();
+            Label equal = code.newLabel();
+            code.dload(left).dload(left).dcmpl().branch(Opcode.IFEQ, leftFinite);
+            code.dload(right).dload(right).dcmpl().branch(Opcode.IFNE, chooseLeft);
+            code.branch(Opcode.GOTO, chooseRight).labelBinding(leftFinite);
+            code.dload(right).dload(right).dcmpl().branch(Opcode.IFNE, rightNan);
+            code.dload(left).dload(right).dcmpg()
+                    .branch(descending ? Opcode.IFGT : Opcode.IFLT, chooseLeft);
+            code.dload(left).dload(right).dcmpg()
+                    .branch(descending ? Opcode.IFLT : Opcode.IFGT, chooseRight);
+            code.branch(Opcode.GOTO, equal).labelBinding(rightNan)
+                    .branch(Opcode.GOTO, chooseLeft);
+            code.labelBinding(equal);
+            code.dload(left).loadConstant(0.0d).dcmpg().branch(Opcode.IFNE, chooseLeft);
+            code.loadConstant(1.0d).dload(left).ddiv();
+            code.loadConstant(1.0d).dload(right).ddiv();
+            code.dcmpg().branch(descending ? Opcode.IFGE : Opcode.IFLE, chooseLeft);
+            code.branch(Opcode.GOTO, chooseRight);
+            return;
+        }
+        loadValue(code, type, left);
+        loadValue(code, type, right);
+        if (type == DataType.INT64) {
+            code.lcmp().branch(descending ? Opcode.IFGE : Opcode.IFLE, chooseLeft);
+        } else {
+            code.branch(descending ? Opcode.IF_ICMPGE : Opcode.IF_ICMPLE, chooseLeft);
+        }
+        code.branch(Opcode.GOTO, chooseRight);
+    }
+
+    private static void emitAddress(CodeBuilder code, LayoutLocals layout, int axis, int slice,
+            int axisIndex, boolean axisIndexLong, int target, int remainder, int coordinate, int inner, int outer,
+            int within, boolean ints) {
+        if (ints) {
+            code.iload(slice).iload(inner).idiv().istore(outer);
+            code.iload(slice).iload(outer).iload(inner).imul().isub().istore(within);
+            code.iload(layout.base).iload(outer).iload(layout.axisExtent).iload(inner).imul().imul()
+                    .iload(within).iadd();
+            if (axisIndexLong) {
+                code.lload(axisIndex).l2i();
+            } else {
+                code.iload(axisIndex);
+            }
+            code.iload(inner).imul().iadd().iadd().istore(target);
+            return;
+        }
+        code.lload(layout.base).lstore(target);
+        code.lload(slice).lstore(remainder);
+        for (int current = layout.extents.length - 1; current >= 0; current--) {
+            var skip = code.newLabel();
+            code.iload(axis).loadConstant(current).branch(Opcode.IF_ICMPEQ, skip);
+            code.lload(remainder).lload(layout.extents[current]).lrem().lstore(coordinate);
+            code.lload(remainder).lload(layout.extents[current]).ldiv().lstore(remainder);
+            code.lload(target).lload(coordinate).lload(layout.strides[current]).lmul().ladd()
+                    .lstore(target);
+            code.labelBinding(skip);
+        }
+        code.lload(target);
+        code.lload(axisIndex);
+        code.lload(layout.axisStride).lmul().ladd().lstore(target);
+    }
+
+    private static void prepareDenseMapping(CodeBuilder code, LayoutLocals layout, int axis,
+            int inner, boolean ints) {
+        if (ints) {
+            code.loadConstant(1).istore(inner);
+            for (int current = 0; current < layout.extents.length; current++) {
+                var skip = code.newLabel();
+                code.loadConstant(current).iload(axis).branch(Opcode.IF_ICMPLE, skip);
+                code.iload(inner).iload(layout.extents[current]).imul().istore(inner);
+                code.labelBinding(skip);
             }
         }
     }
 
-    private static void insertionIndexOrder(MemorySegment scratch, long base, long count) {
-        for (long i = 1; i < count; i++) {
-            long value = scratch.get(ValueLayout.JAVA_LONG, base + i * 8); long j = i;
-            while (j > 0 && scratch.get(ValueLayout.JAVA_LONG, base + (j - 1) * 8) > value) {
-                scratch.set(ValueLayout.JAVA_LONG, base + j * 8,
-                        scratch.get(ValueLayout.JAVA_LONG, base + (j - 1) * 8)); j--;
+    private static LayoutLocals loadLayout(CodeBuilder code, int geometry, int offset, int rank,
+            boolean ints) {
+        TypeKind indexKind = ints ? TypeKind.INT : TypeKind.LONG;
+        int base = code.allocateLocal(indexKind);
+        geometry(code, geometry, offset + 1);
+        if (ints) {
+            code.l2i().istore(base);
+        } else {
+            code.lstore(base);
+        }
+
+        int[] extents = new int[rank];
+        int[] strides = new int[rank];
+        int product = code.allocateLocal(indexKind);
+        int axisExtent = code.allocateLocal(indexKind);
+        int axisStride = code.allocateLocal(indexKind);
+        if (ints) {
+            code.loadConstant(1).istore(product);
+        } else {
+            code.loadConstant(1L).lstore(product);
+        }
+        for (int index = 0; index < rank; index++) {
+            extents[index] = code.allocateLocal(indexKind);
+            geometry(code, geometry, offset + 2 + index);
+            if (ints) {
+                code.l2i().istore(extents[index]);
+                code.iload(product).iload(extents[index]).imul().istore(product);
+            } else {
+                code.lstore(extents[index]);
             }
-            scratch.set(ValueLayout.JAVA_LONG, base + j * 8, value);
         }
-    }
-
-    private static int compare(Object input, long[] p, int layout, long slice, int axis,
-            long left, long right, DataType type, boolean descending) {
-        long a = readBits(input, address(p, layout, slice, axis, left), type);
-        long b = readBits(input, address(p, layout, slice, axis, right), type);
-        int result = switch (type) {
-            case FLOAT64 -> floatingCompare(Double.longBitsToDouble(a), Double.longBitsToDouble(b), descending);
-            case FLOAT32 -> floatingCompare(Float.intBitsToFloat((int) a), Float.intBitsToFloat((int) b), descending);
-            case BFLOAT16 -> floatingCompare(Float.intBitsToFloat(((int) a & 0xffff) << 16),
-                    Float.intBitsToFloat(((int) b & 0xffff) << 16), descending);
-            case INT32 -> Integer.compare((int) a, (int) b);
-            case INT64 -> Long.compare(a, b);
-            case BOOL -> Byte.compare((byte) a, (byte) b);
-        };
-        return descending && type != DataType.FLOAT64 && type != DataType.FLOAT32
-                && type != DataType.BFLOAT16 ? -result : result;
-    }
-
-    private static int floatingCompare(double a, double b, boolean descending) {
-        boolean an = Double.isNaN(a), bn = Double.isNaN(b);
-        if (an || bn) return an == bn ? 0 : an ? 1 : -1;
-        int comparison = Double.compare(a, b);
-        return descending ? -comparison : comparison;
-    }
-
-    private static long address(long[] p, int layout, long slice, int axis, long axisIndex) {
-        int rank = (int) p[layout]; long address = p[layout + 1]; long remainder = slice;
-        for (int current = rank - 1; current >= 0; current--) {
-            long coordinate;
-            if (current == axis) coordinate = axisIndex;
-            else { long extent = p[layout + 2 + current]; coordinate = extent == 0 ? 0 : remainder % extent;
-                if (extent != 0) remainder /= extent; }
-            address += coordinate * p[layout + 2 + rank + current];
+        for (int index = 0; index < rank; index++) {
+            strides[index] = code.allocateLocal(indexKind);
+            geometry(code, geometry, offset + 2 + rank + index);
+            if (ints) {
+                code.l2i().istore(strides[index]);
+            } else {
+                code.lstore(strides[index]);
+            }
         }
-        return address;
+        return new LayoutLocals(base, extents, strides, product, axisExtent, axisStride);
     }
 
-    private static void copyValue(Object input, Object output, long[] p, int inLayout,
-            int outLayout, long slice, int axis, long inputIndex, long outputIndex,
-            DataType type, int rank) {
-        long bits = readBits(input, address(p, inLayout, slice, axis, inputIndex), type);
-        writeBits(output, address(p, outLayout, slice, axis, outputIndex), type, bits);
+    private static void selectAxisValue(CodeBuilder code, int geometry, int first, int rank,
+            int axis, boolean ints, int target) {
+        zero(code, target, ints);
+        Label done = code.newLabel();
+        for (int index = 0; index < rank; index++) {
+            Label next = code.newLabel();
+            code.iload(axis).loadConstant(index).branch(Opcode.IF_ICMPNE, next);
+            geometry(code, geometry, first + index);
+            if (ints) {
+                code.l2i().istore(target);
+            } else {
+                code.lstore(target);
+            }
+            code.branch(Opcode.GOTO, done).labelBinding(next);
+        }
+        code.labelBinding(done);
     }
 
-    private static long readBits(Object carrier, long address, DataType type) {
+    private static void selectAxisLocal(CodeBuilder code, int[] values, int axis, int target,
+            boolean ints) {
+        zero(code, target, ints);
+        Label done = code.newLabel();
+        for (int index = 0; index < values.length; index++) {
+            Label next = code.newLabel();
+            code.iload(axis).loadConstant(index).branch(Opcode.IF_ICMPNE, next);
+            load(code, values[index], ints);
+            store(code, target, ints);
+            code.branch(Opcode.GOTO, done).labelBinding(next);
+        }
+        code.labelBinding(done);
+    }
+
+    private static void minimum(CodeBuilder code, int left, int width, int extent, int target,
+            boolean ints, boolean twice) {
+        load(code, left, ints);
+        load(code, width, ints);
+        if (twice) {
+            constantTwo(code, ints);
+            multiply(code, ints);
+        }
+        add(code, ints);
+        store(code, target, ints);
+        Label withinExtent = code.newLabel();
+        compare(code, target, extent, ints, Opcode.IF_ICMPLE, Opcode.IFLE, withinExtent);
+        copy(code, extent, target, ints);
+        code.labelBinding(withinExtent);
+    }
+
+    private static void scratchGetAt(CodeBuilder code, int scratch, int base, int index,
+            boolean ints, int target) {
+        code.aload(scratch).getstatic(VALUE_LAYOUT, "JAVA_LONG", LONG_LAYOUT).lload(base);
+        load(code, index, ints);
+        if (ints) {
+            code.i2l();
+        }
+        code.loadConstant(8L).lmul().ladd()
+                .invokeinterface(SEGMENT, "get", MethodTypeDesc.of(ConstantDescs.CD_long,
+                        LONG_LAYOUT, ConstantDescs.CD_long))
+                .lstore(target);
+    }
+
+    private static void scratchSetAt(CodeBuilder code, int scratch, int base, int index,
+            boolean ints, int value) {
+        code.aload(scratch).getstatic(VALUE_LAYOUT, "JAVA_LONG", LONG_LAYOUT).lload(base);
+        load(code, index, ints);
+        if (ints) {
+            code.i2l();
+        }
+        code.loadConstant(8L).lmul().ladd().lload(value)
+                .invokeinterface(SEGMENT, "set", MethodTypeDesc.of(ConstantDescs.CD_void,
+                        LONG_LAYOUT, ConstantDescs.CD_long, ConstantDescs.CD_long));
+    }
+
+    private static void storeIndex(CodeBuilder code, CarrierAccess access, int parameter,
+            int address, int value, boolean ints) {
+        storeCarrier(code, DataType.INT64, access, parameter, address, value, ints);
+    }
+
+    private static void loadCarrier(CodeBuilder code, DataType type, CarrierAccess access,
+            int parameter, int address, boolean ints) {
+        if (access != CarrierAccess.MEMORY_SEGMENT) {
+            new CpuCarrierEmitter(code).load(type, access, parameter, address, ints);
+            return;
+        }
+        code.aload(parameter).getstatic(VALUE_LAYOUT, layoutField(type), layoutClass(type));
+        byteOffset(code, type, address, ints);
+        code.invokeinterface(SEGMENT, "get", MethodTypeDesc.of(primitive(type), layoutClass(type),
+                ConstantDescs.CD_long));
+    }
+
+    private static void storeCarrier(CodeBuilder code, DataType type, CarrierAccess access,
+            int parameter, int address, int value, boolean ints) {
+        if (access != CarrierAccess.MEMORY_SEGMENT) {
+            new CpuCarrierEmitter(code).store(type, access, parameter, address, value, ints);
+            return;
+        }
+        code.aload(parameter).getstatic(VALUE_LAYOUT, layoutField(type), layoutClass(type));
+        byteOffset(code, type, address, ints);
+        loadValue(code, type, value);
+        code.invokeinterface(SEGMENT, "set", MethodTypeDesc.of(ConstantDescs.CD_void,
+                layoutClass(type), ConstantDescs.CD_long, primitive(type)));
+    }
+
+    private static void byteOffset(CodeBuilder code, DataType type, int address, boolean ints) {
+        load(code, address, ints);
+        if (ints) {
+            code.i2l();
+        }
+        code.loadConstant((long) type.byteWidth()).lmul();
+    }
+
+    private static String layoutField(DataType type) {
         return switch (type) {
-            case FLOAT64 -> Double.doubleToRawLongBits(carrier instanceof double[] a ? a[Math.toIntExact(address)]
-                    : ((MemorySegment) carrier).get(ValueLayout.JAVA_DOUBLE, address * 8));
-            case FLOAT32 -> Integer.toUnsignedLong(Float.floatToRawIntBits(carrier instanceof float[] a
-                    ? a[Math.toIntExact(address)] : ((MemorySegment) carrier).get(ValueLayout.JAVA_FLOAT, address * 4)));
-            case BFLOAT16 -> Short.toUnsignedLong(carrier instanceof short[] a ? a[Math.toIntExact(address)]
-                    : ((MemorySegment) carrier).get(ValueLayout.JAVA_SHORT, address * 2));
-            case INT32 -> carrier instanceof int[] a ? a[Math.toIntExact(address)]
-                    : ((MemorySegment) carrier).get(ValueLayout.JAVA_INT, address * 4);
-            case INT64 -> carrier instanceof long[] a ? a[Math.toIntExact(address)]
-                    : ((MemorySegment) carrier).get(ValueLayout.JAVA_LONG, address * 8);
-            case BOOL -> carrier instanceof byte[] a ? a[Math.toIntExact(address)]
-                    : ((MemorySegment) carrier).get(ValueLayout.JAVA_BYTE, address);
+            case FLOAT64 -> "JAVA_DOUBLE_UNALIGNED";
+            case FLOAT32 -> "JAVA_FLOAT_UNALIGNED";
+            case BFLOAT16 -> "JAVA_SHORT_UNALIGNED";
+            case INT32 -> "JAVA_INT_UNALIGNED";
+            case INT64 -> "JAVA_LONG_UNALIGNED";
+            case BOOL -> "JAVA_BYTE";
         };
     }
 
-    private static void writeBits(Object carrier, long address, DataType type, long bits) {
-        switch (type) {
-            case FLOAT64 -> { double v = Double.longBitsToDouble(bits); if (carrier instanceof double[] a) a[Math.toIntExact(address)] = v; else ((MemorySegment) carrier).set(ValueLayout.JAVA_DOUBLE, address * 8, v); }
-            case FLOAT32 -> { float v = Float.intBitsToFloat((int) bits); if (carrier instanceof float[] a) a[Math.toIntExact(address)] = v; else ((MemorySegment) carrier).set(ValueLayout.JAVA_FLOAT, address * 4, v); }
-            case BFLOAT16 -> { short v = (short) bits; if (carrier instanceof short[] a) a[Math.toIntExact(address)] = v; else ((MemorySegment) carrier).set(ValueLayout.JAVA_SHORT, address * 2, v); }
-            case INT32 -> { int v = (int) bits; if (carrier instanceof int[] a) a[Math.toIntExact(address)] = v; else ((MemorySegment) carrier).set(ValueLayout.JAVA_INT, address * 4, v); }
-            case INT64 -> writeIndex(carrier, address, bits);
-            case BOOL -> { byte v = (byte) bits; if (carrier instanceof byte[] a) a[Math.toIntExact(address)] = v; else ((MemorySegment) carrier).set(ValueLayout.JAVA_BYTE, address, v); }
+    private static ClassDesc layoutClass(DataType type) {
+        return switch (type) {
+            case FLOAT64 -> DOUBLE_LAYOUT;
+            case FLOAT32 -> FLOAT_LAYOUT;
+            case BFLOAT16 -> SHORT_LAYOUT;
+            case INT32 -> INT_LAYOUT;
+            case INT64 -> LONG_LAYOUT;
+            case BOOL -> BYTE_LAYOUT;
+        };
+    }
+
+    private static ClassDesc primitive(DataType type) {
+        return switch (type) {
+            case FLOAT64 -> ConstantDescs.CD_double;
+            case FLOAT32 -> ConstantDescs.CD_float;
+            case BFLOAT16 -> ConstantDescs.CD_short;
+            case INT32 -> ConstantDescs.CD_int;
+            case INT64 -> ConstantDescs.CD_long;
+            case BOOL -> ConstantDescs.CD_byte;
+        };
+    }
+
+    private static CodeBuilder geometry(CodeBuilder code, int parameter, int index) {
+        return code.aload(parameter).loadConstant(index).laload();
+    }
+
+    private static void compare(CodeBuilder code, int left, int right, boolean ints,
+            Opcode integerOpcode, Opcode longOpcode, Label target) {
+        load(code, left, ints);
+        load(code, right, ints);
+        if (ints) {
+            code.branch(integerOpcode, target);
+        } else {
+            code.lcmp().branch(longOpcode, target);
         }
     }
 
-    private static void writeIndex(Object carrier, long address, long value) {
-        if (carrier instanceof long[] a) a[Math.toIntExact(address)] = value;
-        else ((MemorySegment) carrier).set(ValueLayout.JAVA_LONG, address * 8, value);
+    private static void load(CodeBuilder code, int local, boolean ints) {
+        if (ints) {
+            code.iload(local);
+        } else {
+            code.lload(local);
+        }
+    }
+
+    private static void store(CodeBuilder code, int local, boolean ints) {
+        if (ints) {
+            code.istore(local);
+        } else {
+            code.lstore(local);
+        }
+    }
+
+    private static void copy(CodeBuilder code, int source, int target, boolean ints) {
+        load(code, source, ints);
+        store(code, target, ints);
+    }
+
+    private static void zero(CodeBuilder code, int local, boolean ints) {
+        if (ints) {
+            code.loadConstant(0).istore(local);
+        } else {
+            code.loadConstant(0L).lstore(local);
+        }
+    }
+
+    private static void one(CodeBuilder code, int local, boolean ints) {
+        if (ints) {
+            code.loadConstant(1).istore(local);
+        } else {
+            code.loadConstant(1L).lstore(local);
+        }
+    }
+
+    private static void increment(CodeBuilder code, int local, boolean ints) {
+        if (ints) {
+            code.iinc(local, 1);
+        } else {
+            code.lload(local).loadConstant(1L).ladd().lstore(local);
+        }
+    }
+
+    private static void decrement(CodeBuilder code, int local, boolean ints) {
+        if (ints) {
+            code.iinc(local, -1);
+        } else {
+            code.lload(local).loadConstant(1L).lsub().lstore(local);
+        }
+    }
+
+    private static void zeroCompare(CodeBuilder code, int local, boolean ints, Label target) {
+        load(code, local, ints);
+        if (ints) {
+            code.branch(Opcode.IFLE, target);
+        } else {
+            code.loadConstant(0L).lcmp().branch(Opcode.IFLE, target);
+        }
+    }
+
+    private static void constantTwo(CodeBuilder code, boolean ints) {
+        if (ints) {
+            code.loadConstant(2);
+        } else {
+            code.loadConstant(2L);
+        }
+    }
+
+    private static void multiply(CodeBuilder code, boolean ints) {
+        if (ints) {
+            code.imul();
+        } else {
+            code.lmul();
+        }
+    }
+
+    private static void add(CodeBuilder code, boolean ints) {
+        if (ints) {
+            code.iadd();
+        } else {
+            code.ladd();
+        }
+    }
+
+    private static void swapAdd(CodeBuilder code, boolean ints) {
+        if (ints) {
+            code.iadd();
+        } else {
+            code.ladd();
+        }
+    }
+
+    private static void loadValue(CodeBuilder code, DataType type, int local) {
+        switch (type) {
+            case FLOAT64 -> code.dload(local);
+            case FLOAT32 -> code.fload(local);
+            case INT64 -> code.lload(local);
+            case BFLOAT16, INT32, BOOL -> code.iload(local);
+        }
+    }
+
+    private static void storeValue(CodeBuilder code, DataType type, int local) {
+        switch (type) {
+            case FLOAT64 -> code.dstore(local);
+            case FLOAT32 -> code.fstore(local);
+            case INT64 -> code.lstore(local);
+            case BFLOAT16, INT32, BOOL -> code.istore(local);
+        }
+    }
+
+    private static TypeKind localKind(DataType type) {
+        return switch (type) {
+            case FLOAT64 -> TypeKind.DOUBLE;
+            case FLOAT32 -> TypeKind.FLOAT;
+            case INT64 -> TypeKind.LONG;
+            case BFLOAT16, INT32, BOOL -> TypeKind.INT;
+        };
+    }
+
+    private record LayoutLocals(
+            int base,
+            int[] extents,
+            int[] strides,
+            int extentsProduct,
+            int axisExtent,
+            int axisStride) { }
+
+    private record Encoding(
+            DataType type,
+            boolean descending,
+            boolean sorted,
+            boolean argsort,
+            boolean topK,
+            int boundaryCount,
+            int[] ranks,
+            int[] layoutOffsets) {
+        static Encoding parse(CpuKernelIr ir) {
+            String identity = ir.familyIdentity();
+            if (!identity.startsWith("ordering:") || !ir.instructions().isEmpty()) {
+                throw new IllegalArgumentException("unsupported ordering encoding");
+            }
+            boolean argsort = identity.startsWith("ordering:ARGSORT:");
+            boolean topK = identity.startsWith("ordering:TOP_K:");
+            boolean descending = identity.contains(":descending=true:");
+            boolean sorted = identity.contains(":sorted=true:");
+            int boundaryCount = ir.values().size();
+            if (boundaryCount != (topK ? 3 : 2)) {
+                throw new IllegalArgumentException("ordering boundary count disagrees");
+            }
+            int[] ranks = new int[boundaryCount];
+            int[] offsets = new int[boundaryCount];
+            int offset = 11;
+            for (int index = 0; index < boundaryCount; index++) {
+                ranks[index] = ir.values().get(index).accessPlan().iterationRank();
+                offsets[index] = offset;
+                offset += 2 + 2 * ranks[index];
+            }
+            return new Encoding(ir.values().getFirst().dataType(), descending, sorted, argsort,
+                    topK, boundaryCount, ranks, offsets);
+        }
     }
 }
