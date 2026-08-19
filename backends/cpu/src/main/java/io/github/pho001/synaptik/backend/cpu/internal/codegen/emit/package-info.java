@@ -74,10 +74,12 @@
  * supplies disjoint complete slices and scratch regions; vector sorting and worker submission
  * remain outside it.
  *
- * <p>The random emitter owns one allocation-free initializer/dropout bridge. A dedicated
- * {@code [0,0)} prologue writes state exactly once before scalar or parallel element ranges;
- * each dropout element derives its word from the global logical ordinal and writes one canonical
- * BOOL byte plus its exact FLOAT64/FLOAT32 result.</p>
+ * <p>The random emitter embeds typed initializer and dropout state, mapping, threshold, value,
+ * mask, and loop work without a generic execution bridge. A dedicated {@code [0,0)} prologue
+ * writes state exactly once before scalar or parallel element ranges; each dropout element
+ * derives its word from the global logical ordinal and writes one canonical BOOL byte plus its
+ * exact FLOAT64/FLOAT32 result. Dense arrays use integer address state, while arbitrary layouts
+ * and segment or mixed carriers use typed long addressing.</p>
  *
  * <p>The scan emitter embeds a typed two-boundary body over complete independent slice ordinals.
  * It reconstructs non-axis coordinates once per slice, walks the selected axis sequentially in

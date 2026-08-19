@@ -31,7 +31,9 @@ import java.util.Objects;
  * exact-product scratch state. Fold classes embed coordinate mapping and sequential represented
  * addition without a generic carrier bridge. General layouts and segment or mixed carriers retain
  * typed long-address fallbacks. Ordering classes additionally embed stable merge, comparison,
- * selected-pair ordering, and represented value/index stores over assigned scratch.
+ * selected-pair ordering, and represented value/index stores over assigned scratch. Random
+ * classes embed their typed state prologue, counter mapping, threshold, represented value,
+ * canonical mask, and dense-integer or general-long element loop.
  */
 public final class CpuClassFileKernelGenerator {
     /** Creates a stateless generator with no retained route or specialization state. */

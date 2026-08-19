@@ -51,7 +51,9 @@ occurrence. It uses explicit key/counter state and the versioned CPU-private
 `SYNAPTIK_CPU_SPLITMIX64_COUNTER_V1` mapping. INITIAL_STATE writes key then counter without a draw.
 DROPOUT consumes one draw per row-major logical value ordinal, writes the dropped value, a
 canonical one-byte BOOL keep mask, and the next key/counter state, with identical scalar and
-parallel-scalar results and zero workspace.
+parallel-scalar results and zero workspace. Schema-28 generated entries embed the typed state
+prologue, counter mapping, threshold, value, mask, and element loop. Dense heap arrays use direct
+integer addressing; arbitrary layouts and segment or mixed carriers use typed long addressing.
 The ninth family is exactly one resolved-layout `CUM_SUM` or `CUM_PROD` occurrence. It accepts
 FLOAT64, FLOAT32, BFLOAT16, INT32, and INT64 in inclusive/exclusive and forward/reverse modes.
 Each logical scan slice keeps one sequential typed accumulator; scalar or parallel-scalar
@@ -807,7 +809,7 @@ injectivity, and output/input non-overlap checks still run.
 
 CPU analysis declares each distinct gather input `ValueId` once in semantic first-use order and
 then one separate output; one-hot declares indices and output. Every indexing plan has one unit,
-no materialization, no workspace, one current schema-27 generated class artifact, one prepared
+no materialization, no workspace, one current schema-28 generated class artifact, one prepared
 executable, and one bound invocation. The generated class embeds carrier-, type-, family-, and
 access-specialized output loops rather than delegating through a generic carrier bridge. Proved
 dense heap arrays use integer loop/address state; segment, mixed-carrier, and general-layout forms
@@ -815,7 +817,7 @@ retain typed long-address traversal. The artifact owns only output writing. Comp
 geometry retains layout and coordinate facts without a per-index or per-output table, while the
 bound executable owns run-value validation. Shared Prepare assigns declared buffers opaquely,
 and Runtime sees only the prepared executable and direct carriers. Schema 24 introduced these
-embedded indexing bodies; under current schema 27, schema-26 and earlier artifacts are
+embedded indexing bodies; under current schema 28, schema-27 and earlier artifacts are
 incompatible misses and there is no migration reader.
 
 Current indexing support ends at these four one-node, fully static operations. Functional
@@ -1045,13 +1047,14 @@ TOP_K artifact and one bound invocation perform both stores. The scalar referenc
 independent primitive-index insertion implementation for differential evidence; it is not a
 Runtime fallback.
 
-Current schema 27 embeds the complete carrier-, represented-type-, family-, direction-, output-,
-and access-specialized ordering body. It uses a stable bottom-up merge over the two assigned
+Schema 27 introduced the complete carrier-, represented-type-, family-, direction-, output-,
+and access-specialized ordering body, which current schema 28 retains. It uses a stable bottom-up
+merge over the two assigned
 INT64 scratch regions, selecting the left logical index on equality. Dense heap-array forms use
 cold-proved integer loop and address state. Arbitrary supported layouts and heap, segment, or
 mixed carrier forms use typed long-address access; values and indices are stored without a
-generic `Object` execution bridge or runtime family dispatch. Schema 26 and every earlier
-envelope are incompatible misses and are regenerated under schema 27; no migration reader is
+generic `Object` execution bridge or runtime family dispatch. Schema 27 and every earlier
+envelope are incompatible misses and are regenerated under schema 28; no migration reader is
 provided.
 
 The retained fixed five-fork evidence compares dense FLOAT32 schema-27 generated entries with
@@ -1126,6 +1129,21 @@ from the global ordinal, so scheduling and chunk boundaries cannot alter output,
 The prepared executable owns no mutable generator; separate runs obtain their ordinary isolated
 state through their explicit input and distinct `RunState` resources.
 
+Generation specializes family, represented type, probability or initializer words, each ordered
+carrier role, and dense-versus-general access before invocation. Schema-28 dense heap-array
+entries contain no member references. Segment entries refer only to the predefined native-order
+unaligned primitive layouts and the matching typed `MemorySegment.get` or `set` methods required
+by their roles. Generated work contains no generic `Object` bridge, carrier/type dispatch,
+allocation, random service, route lookup, cache lookup, or Runtime interpretation. The universal
+primitive `long start, long end` signature and `[0,0)` prologue sentinel remain unchanged.
+
+Concrete state words, extents, element count, offsets, stride magnitudes, carrier instances,
+assigned slots, addresses, worker ranges, and run identity remain invocation or lifecycle facts.
+They do not enter class identity. Compatible geometries and state values therefore reuse the same
+structural class, while probability bits, initializer bits, carrier pattern, represented type,
+and emitted access form remain compatibility facts because they can change the descriptor or
+class bytes.
+
 Analysis declares one initializer boundary or five dropout boundaries, one computation unit, one
 generated artifact, and zero workspaces, materializations, random-word buffers, replay buffers,
 or per-thread generators. Cold binding validates carrier type, byte size, alignment, access,
@@ -1135,11 +1153,24 @@ Input/input overlap is allowed because both inputs remain read-only. A later gen
 failure may leave ordinary outputs partially written under the existing execution contract, but
 there is no hidden random state to corrupt.
 
-Schema 19 includes the generator name, constants and mapping, uniform and threshold rules,
+Schema 19 introduced the generator name, constants and mapping, uniform and threshold rules,
 finite-precision scaling order, canonical mask and prologue policies, raw initializer or
 probability bits, ordered boundary roles and carriers, and zero-scratch shape. Concrete layouts,
 slots, carriers, workers, and ranges remain cold when they do not change emitted bytes. There is
-no migration reader for schema 18 artifacts.
+no migration reader for old artifacts. Schema 28 is the first version whose random entries embed
+the direct typed initializer and FLOAT64/FLOAT32 dropout bodies. A schema-27 envelope is an
+incompatible safe miss: cold finalization regenerates and may publish current schema-28 bytes
+after shared slot assignment rather than loading, converting, or aliasing the old bridge class.
+
+Retained observational evidence for the fixed dense heap-array shape `[64,16384]`, probability
+`0.25`, key `0x0123456789abcdef`, and counter `0xfedcba9876543210` used five fresh fixed-heap JVM
+forks on OpenJDK 26.0.1+8-34, macOS 26.5.2 arm64. The FLOAT64 generated/direct fork ratios were
+`0.242432568x`, `0.240238314x`, `0.245355311x`, `0.242999122x`, and `0.241854555x`, with aggregate
+`0.241451022x`. The FLOAT32 ratios were `1.046430134x`, `1.063729192x`, `1.052403558x`,
+`1.060950642x`, and `1.053413773x`, with aggregate `1.058174348x`. Every fixed-case fork and both
+aggregates passed the task-local `<= 1.15x` gate. These results apply only to those exact cases,
+host, JVM, direct bodies, and protocol; they are not a general speedup, other-layout, other-state,
+parallel, native-route, or hardware performance claim and do not select production behavior.
 
 This configuration defines bounded replay only for the same CPU V1 implementation and numerical
 order. It is not a public Model configuration, serialized RNG format, cross-backend or
@@ -1210,10 +1241,10 @@ The entry contains no generic `Object` carrier bridge or runtime data-type/kind 
 Schema 20 records scan kind, represented type, normalized axis role, inclusive/exclusive and
 forward/reverse modes, ordered boundary roles and carrier forms, structural accesses, sequential
 typed-rounding policy, scalar compute shape, and absence of scratch. Schema 22 added the embedded
-typed body and dense heap-array loop-shape compatibility; current schema 27 retains those facts.
+typed body and dense heap-array loop-shape compatibility; current schema 28 retains those facts.
 Concrete extents, offsets, stride magnitudes, assigned slots, carrier objects,
 addresses, worker identity, run identity, and selected range count remain cold when they do not
-change emitted bytes. Schema-26 and earlier artifacts are incompatible misses, and there is no
+change emitted bytes. Schema-27 and earlier artifacts are incompatible misses, and there is no
 migration reader.
 
 Current coverage ends at this one-node static portable family. Numerical ordinary aggregates,
@@ -1289,9 +1320,9 @@ combine state, or run-shared reduction state.
 Schema 21 records kind, represented type, ordinary form, canonical selected-axis membership,
 retention, structural boundary access, first-logical-NaN/signed-zero policy, complete-output-cell
 range meaning, carrier forms, and zero scratch. Schema 22 added embedded typed-body and dense
-heap-array loop-shape compatibility; current schema 27 retains those facts. Concrete Shapes,
+heap-array loop-shape compatibility; current schema 28 retains those facts. Concrete Shapes,
 domain counts, offsets, stride magnitudes, slots, carrier objects, addresses, workers, run
-identity, and selected range count remain cold when they do not change emitted bytes. Schema-26
+identity, and selected range count remain cold when they do not change emitted bytes. Schema-27
 and earlier artifacts are incompatible misses; there is no migration reader.
 
 The local CPU 0007A0 parity probe is evidence for the current generated code shape, not a
@@ -1770,14 +1801,15 @@ above. Scalar
 execution covers every admitted row; parallel-scalar orchestration is available for disjoint
 affine, movement, scatter, fold, ordering, random-element, and whole-scan-slice ranges; and the
 pointwise family retains its exact
-typed value-vector and virtual-mask parity matrix. Generator schema 27 distinguishes pointwise,
+typed value-vector and virtual-mask parity matrix. Generator schema 28 distinguishes pointwise,
 affine, movement, indexing, scatter, fold, ordering, random, scan, and aggregate structures,
 including movement occurrence order,
 unequal-rank access, exact
 padding bits, functional slice-update rank/map identity, scatter reduction/scratch signature and
 embedded typed output/contribution body,
 plus fold family/addition-policy identity and embedded typed mapping/addition body, ordering direction/output-order/output-count/scratch-
-entry identity and embedded typed stable-merge/output body, explicit-state mapping/scaling identity, cumulative kind/axis/mode/typed-rounding
+entry identity and embedded typed stable-merge/output body, explicit-state mapping/scaling
+identity and direct typed state/mapping/threshold/value/mask bodies, cumulative kind/axis/mode/typed-rounding
 identity, ordinary aggregate form/axis/selection/range identity, embedded typed scan/aggregate
 bodies, proved dense heap-array integer pointwise/affine/movement/indexing/scatter/fold loop forms, and the affine
 mapping/write domain and all seven carrier forms. No excluded pointwise or later semantic family,

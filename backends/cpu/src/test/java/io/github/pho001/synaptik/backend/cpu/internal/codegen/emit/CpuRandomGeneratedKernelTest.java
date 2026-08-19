@@ -12,8 +12,9 @@ import io.github.pho001.synaptik.prepare.analysis.PrepareContext;
 import java.lang.foreign.Arena;
 import java.lang.foreign.MemorySegment;
 import java.lang.foreign.ValueLayout;
-import java.nio.file.Files;
-import java.nio.file.Path;
+import java.lang.classfile.*;
+import java.lang.classfile.constantpool.MemberRefEntry;
+import java.lang.classfile.instruction.*;
 import java.util.*;
 import org.junit.jupiter.api.Test;
 
@@ -22,18 +23,26 @@ class CpuRandomGeneratedKernelTest {
     private static final long ORACLE_M1 = 0xbf58476d1ce4e5b9L;
     private static final long ORACLE_M2 = 0x94d049bb133111ebL;
 
-    @Test void computesKeyOffsetOnceBeforeTheGeneratedInvocationElementLoop() throws Exception {
-        String source = Files.readString(Path.of("src/main/java/io/github/pho001/synaptik/backend/"
-                + "cpu/internal/codegen/emit/CpuRandomEmitter.java"));
-        int loop = source.indexOf("for (long logical = start; logical < end; logical++)");
-        assertTrue(loop > 0);
-        String setup = source.substring(source.lastIndexOf("long key =", loop), loop);
-        String body = source.substring(loop, source.indexOf("\n        }", loop));
-        assertAll(() -> assertTrue(setup.contains("long keyOffset = keyOffset(key);")),
-                () -> assertTrue(body.contains(
-                        "wordFromOffset(keyOffset, counter, logical)")),
-                () -> assertFalse(body.contains("keyOffset(key)")),
-                () -> assertFalse(body.contains("word(key, counter, logical)")));
+    @Test void everyCarrierPatternUsesDirectTypedAllocationFreeClassFileBodies() {
+        assertDirectShape(CpuRandomLoweringTest.initialContext(1, 2),
+                List.of(CarrierAccess.LONG_ARRAY), DataType.INT64, true);
+        assertDirectShape(CpuRandomLoweringTest.initialContext(1, 2),
+                List.of(CarrierAccess.MEMORY_SEGMENT), DataType.INT64, false);
+        for (DataType type : List.of(DataType.FLOAT64, DataType.FLOAT32)) {
+            CarrierAccess value = type == DataType.FLOAT64
+                    ? CarrierAccess.DOUBLE_ARRAY : CarrierAccess.FLOAT_ARRAY;
+            for (int pattern = 0; pattern < 32; pattern++) {
+                List<CarrierAccess> carriers = new ArrayList<>();
+                for (int role = 0; role < 5; role++) carriers.add((pattern & 1 << role) == 0
+                        ? switch (role) {
+                            case 0, 2 -> value;
+                            case 1, 4 -> CarrierAccess.LONG_ARRAY;
+                            default -> CarrierAccess.BYTE_ARRAY;
+                        } : CarrierAccess.MEMORY_SEGMENT);
+                assertDirectShape(CpuRandomLoweringTest.dropoutContext(type, Shape.of(4), .25d),
+                        carriers, type, pattern == 0);
+            }
+        }
     }
 
     @Test void exactIndependentCounterVectorsAndUniformHexValues() {
@@ -44,12 +53,59 @@ class CpuRandomGeneratedKernelTest {
         assertVector(0x1234, 7, 0, 0x3e4cf5a0c9489779L, 0x1.f267ad064a448p-3);
     }
 
+    @Test void generatedCounterVectorsHitEveryExactThresholdBoundary() throws Throwable {
+        long[][] vectors = {{0, 0}, {0, 1}, {1, 0}, {-1L, -1L}, {0x1234, 7}};
+        double[] boundaries = {0x1.2086089bfcf34p-2, 0x1.d50ad1a5c8bfap-1,
+                0x1.b9c847f90581ap-1, 0x1.d1753f3395266p-1, 0x1.f267ad064a448p-3};
+        for (int vector = 0; vector < vectors.length; vector++) {
+            for (double probability : new double[]{boundaries[vector],
+                    Math.nextUp(boundaries[vector])}) {
+                var generated = generated(CpuRandomLoweringTest.dropoutContext(DataType.FLOAT64,
+                        Shape.of(1), probability), carriers(DataType.FLOAT64));
+                double[] output = {-1};
+                byte[] mask = {-1};
+                long[] next = {-1, -1};
+                long[] state = vectors[vector].clone();
+                generated.handle.invokeWithArguments(new double[]{2}, state, output, mask, next,
+                        generated.geometry, 0L, 0L);
+                generated.handle.invokeWithArguments(new double[]{2}, state, output, mask, next,
+                        generated.geometry, 0L, 1L);
+                boolean keep = Double.doubleToRawLongBits(probability)
+                        == Double.doubleToRawLongBits(boundaries[vector]);
+                assertAll(() -> assertEquals(keep ? (byte) 1 : (byte) 0, mask[0]),
+                        () -> assertEquals(state[0], next[0]),
+                        () -> assertEquals(state[1] + 1, next[1]));
+            }
+        }
+    }
+
     @Test void generatedInitializerWritesEveryRawWordPair() throws Throwable {
         long[] output = new long[2];
         var invocation = generated(CpuRandomLoweringTest.initialContext(Long.MIN_VALUE, Long.MAX_VALUE),
                 List.of(CarrierAccess.LONG_ARRAY));
         invocation.handle.invokeWithArguments(output, invocation.geometry, 0L, 0L);
         assertArrayEquals(new long[] {Long.MIN_VALUE, Long.MAX_VALUE}, output);
+    }
+
+    @Test void generatedInitializerHonorsGeneralOffsetAndStride() throws Throwable {
+        var base = CpuRandomLoweringTest.initialContext(Long.MIN_VALUE, Long.MAX_VALUE);
+        var values = new ArrayList<>(base.values());
+        var memory = new ArrayList<>(base.memoryRequirements());
+        Shape shape = Shape.of(2);
+        var descriptor = new io.github.pho001.synaptik.model.tensor.TensorDescriptor(
+                DataType.INT64, shape, Optional.of(LayoutDescriptor.of(
+                        shape, new long[]{3}, 1, true)), false);
+        values.set(0, new io.github.pho001.synaptik.model.graph.GraphValue(
+                values.getFirst().id(), descriptor));
+        memory.set(0, new io.github.pho001.synaptik.planning.memory.LogicalMemoryRequirement(
+                values.getFirst().id(), descriptor, Optional.of(base.partition()), List.of(), true));
+        var context = new PrepareContext<>(base.partition(), base.nodes(), values, memory,
+                base.constants(), base.backendInputs());
+        var invocation = generated(context, List.of(CarrierAccess.LONG_ARRAY));
+        long[] output = new long[6];
+        Arrays.fill(output, 7);
+        invocation.handle.invokeWithArguments(output, invocation.geometry, 0L, 0L);
+        assertArrayEquals(new long[]{7, Long.MIN_VALUE, 7, 7, Long.MAX_VALUE, 7}, output);
     }
 
     @Test void generatedFloat64AndFloat32UseExactMaskScaleAndModuloState() throws Throwable {
@@ -124,7 +180,9 @@ class CpuRandomGeneratedKernelTest {
         generated.handle.invokeWithArguments(input, state, output, mask, next,
                 generated.geometry, 0L, 0L);
         generated.handle.invokeWithArguments(input, state, output, mask, next,
-                generated.geometry, 0L, 4L);
+                generated.geometry, 2L, 4L);
+        generated.handle.invokeWithArguments(input, state, output, mask, next,
+                generated.geometry, 0L, 2L);
         int[] inputAddresses = {1, 3, 1, 3};
         int[] outputAddresses = {1, 3, 8, 10};
         int[] maskAddresses = {2, 5, 10, 13};
@@ -175,6 +233,49 @@ class CpuRandomGeneratedKernelTest {
                         () -> assertEquals((byte) 1, readByte(scenario.arguments[3], 0)),
                         () -> assertEquals(9, readLong(scenario.arguments[4], 0)),
                         () -> assertEquals(0, readLong(scenario.arguments[4], 1)));
+            }
+        }
+    }
+
+    @Test void eachDropoutBoundaryRoleIndependentlyUsesItsSelectedCarrier() throws Throwable {
+        try (Arena arena = Arena.ofConfined()) {
+            for (DataType type : List.of(DataType.FLOAT64, DataType.FLOAT32)) {
+                CarrierAccess value = type == DataType.FLOAT64
+                        ? CarrierAccess.DOUBLE_ARRAY : CarrierAccess.FLOAT_ARRAY;
+                List<CarrierAccess> heap = List.of(value, CarrierAccess.LONG_ARRAY, value,
+                        CarrierAccess.BYTE_ARRAY, CarrierAccess.LONG_ARRAY);
+                for (int segmentRole = 0; segmentRole < 5; segmentRole++) {
+                    List<CarrierAccess> selected = new ArrayList<>(heap);
+                    selected.set(segmentRole, CarrierAccess.MEMORY_SEGMENT);
+                    Object input = type == DataType.FLOAT64 ? new double[]{3.25} : new float[]{3.25f};
+                    Object state = new long[]{9, -1};
+                    Object output = type == DataType.FLOAT64 ? new double[1] : new float[1];
+                    Object mask = new byte[1];
+                    Object next = new long[2];
+                    Object[] arguments = {input, state, output, mask, next};
+                    arguments[segmentRole] = switch (segmentRole) {
+                        case 0, 2 -> arena.allocate(type.byteWidth(), type.byteWidth());
+                        case 1, 4 -> arena.allocate(16, 8);
+                        default -> arena.allocate(1, 1);
+                    };
+                    writeValue(arguments[0], type, 3.25);
+                    writeLong(arguments[1], 0, 9);
+                    writeLong(arguments[1], 1, -1);
+                    var generated = generated(CpuRandomLoweringTest.dropoutContext(type,
+                            Shape.of(), 0.0d), selected);
+                    generated.handle.invokeWithArguments(arguments[0], arguments[1], arguments[2],
+                            arguments[3], arguments[4], generated.geometry, 0L, 0L);
+                    generated.handle.invokeWithArguments(arguments[0], arguments[1], arguments[2],
+                            arguments[3], arguments[4], generated.geometry, 0L, 1L);
+                    assertAll("type=" + type + " role=" + segmentRole,
+                            () -> assertEquals(type == DataType.FLOAT64
+                                            ? Double.doubleToRawLongBits(3.25)
+                                            : Float.floatToRawIntBits(3.25f),
+                                    rawValue(arguments[2], type)),
+                            () -> assertEquals((byte) 1, readByte(arguments[3], 0)),
+                            () -> assertEquals(9, readLong(arguments[4], 0)),
+                            () -> assertEquals(0, readLong(arguments[4], 1)));
+                }
             }
         }
     }
@@ -242,10 +343,145 @@ class CpuRandomGeneratedKernelTest {
                 : ((MemorySegment) carrier).get(ValueLayout.JAVA_BYTE, index);
     }
 
+    private static void writeValue(Object carrier, DataType type, double value) {
+        if (type == DataType.FLOAT64) writeDouble(carrier, 0, value);
+        else if (carrier instanceof float[] array) array[0] = (float) value;
+        else ((MemorySegment) carrier).set(ValueLayout.JAVA_FLOAT, 0, (float) value);
+    }
+
+    private static long rawValue(Object carrier, DataType type) {
+        if (type == DataType.FLOAT64) return Double.doubleToRawLongBits(readDouble(carrier, 0));
+        float value = carrier instanceof float[] array ? array[0]
+                : ((MemorySegment) carrier).get(ValueLayout.JAVA_FLOAT, 0);
+        return Float.floatToRawIntBits(value);
+    }
+
     private static List<CarrierAccess> carriers(DataType type) {
         CarrierAccess value = type == DataType.FLOAT64 ? CarrierAccess.DOUBLE_ARRAY : CarrierAccess.FLOAT_ARRAY;
         return List.of(value, CarrierAccess.LONG_ARRAY, value, CarrierAccess.BYTE_ARRAY,
                 CarrierAccess.LONG_ARRAY);
+    }
+
+    private static void assertDirectShape(PrepareContext<CpuPartitionAnalysisInputs> base,
+            List<CarrierAccess> carriers, DataType valueType, boolean dense) {
+        var context = new PrepareContext<>(base.partition(), base.nodes(), base.values(),
+                base.memoryRequirements(), base.constants(),
+                new CpuPartitionAnalysisInputs(false, carriers));
+        var route = new CpuPartitionPreparer().analyze(context).plan().units().getFirst()
+                .portablePlan();
+        byte[] bytes = new CpuClassFileKernelGenerator().generateClassBytes(
+                route.specialization(), route.kernelIr());
+        ClassModel model = ClassFile.of().parse(bytes);
+        var method = model.methods().getFirst();
+        var instructions = method.code().orElseThrow().elementStream()
+                .filter(Instruction.class::isInstance).map(Instruction.class::cast).toList();
+        var invokes = instructions.stream().filter(InvokeInstruction.class::isInstance)
+                .map(InvokeInstruction.class::cast).toList();
+        var references = java.util.stream.StreamSupport.stream(
+                model.constantPool().spliterator(), false)
+                .filter(MemberRefEntry.class::isInstance).map(MemberRefEntry.class::cast).toList();
+        Set<String> actualReferences = references.stream().map(reference ->
+                reference.owner().asInternalName() + "#"
+                        + reference.nameAndType().name().stringValue() + ":"
+                        + reference.type().stringValue()).collect(
+                                java.util.stream.Collectors.toSet());
+        Set<String> expectedReferences = expectedMemberReferences(carriers, valueType);
+        assertAll(
+                () -> assertFalse(method.methodTypeSymbol().descriptorString()
+                        .contains("Ljava/lang/Object;")),
+                () -> assertEquals(dense
+                                ? io.github.pho001.synaptik.backend.cpu.internal.cache
+                                    .CpuKernelSpecialization.LoopAddressing.DENSE_HEAP_ARRAY_INT
+                                : io.github.pho001.synaptik.backend.cpu.internal.cache
+                                    .CpuKernelSpecialization.LoopAddressing.GENERAL_LONG,
+                        route.specialization().loopAddressing(route.kernelIr())),
+                () -> assertTrue(instructions.stream().noneMatch(instruction ->
+                        instruction instanceof TypeCheckInstruction
+                                || instruction instanceof NewObjectInstruction
+                                || instruction instanceof NewPrimitiveArrayInstruction
+                                || instruction instanceof NewReferenceArrayInstruction
+                                || instruction instanceof NewMultiArrayInstruction),
+                        instructions.toString()),
+                () -> assertTrue(references.stream().noneMatch(reference ->
+                        reference.owner().asInternalName().equals(
+                                CpuRandomEmitter.class.getName().replace('.', '/'))
+                                || reference.type().stringValue().contains("Ljava/lang/Object;")),
+                        references.toString()),
+                () -> assertTrue(references.stream().allMatch(reference ->
+                        reference.owner().asInternalName().equals("java/lang/foreign/ValueLayout")
+                                || reference.owner().asInternalName().equals(
+                                    "java/lang/foreign/MemorySegment")), references.toString()),
+                () -> assertEquals(expectedReferences, actualReferences),
+                () -> assertEquals(dense, references.isEmpty(), references.toString()),
+                () -> assertTrue(invokes.stream().allMatch(call ->
+                        call.owner().asInternalName().equals("java/lang/foreign/MemorySegment")
+                                && (call.name().stringValue().equals("get")
+                                    || call.name().stringValue().equals("set"))),
+                        invokes.toString()),
+                () -> assertTrue(instructions.stream().map(Instruction::opcode)
+                        .anyMatch(opcode -> opcode == Opcode.GOTO)));
+    }
+
+    private static Set<String> expectedMemberReferences(List<CarrierAccess> carriers,
+            DataType valueType) {
+        Set<String> expected = new HashSet<>();
+        if (carriers.size() == 1) {
+            if (carriers.getFirst() == CarrierAccess.MEMORY_SEGMENT) {
+                addSegmentReferences(expected, DataType.INT64, false, true);
+            }
+            return expected;
+        }
+        if (carriers.get(0) == CarrierAccess.MEMORY_SEGMENT) {
+            addSegmentReferences(expected, valueType, true, false);
+        }
+        if (carriers.get(1) == CarrierAccess.MEMORY_SEGMENT) {
+            addSegmentReferences(expected, DataType.INT64, true, false);
+        }
+        if (carriers.get(2) == CarrierAccess.MEMORY_SEGMENT) {
+            addSegmentReferences(expected, valueType, false, true);
+        }
+        if (carriers.get(3) == CarrierAccess.MEMORY_SEGMENT) {
+            addSegmentReferences(expected, DataType.BOOL, false, true);
+        }
+        if (carriers.get(4) == CarrierAccess.MEMORY_SEGMENT) {
+            addSegmentReferences(expected, DataType.INT64, false, true);
+        }
+        return expected;
+    }
+
+    private static void addSegmentReferences(Set<String> references, DataType type,
+            boolean read, boolean write) {
+        String layout = switch (type) {
+            case FLOAT64 -> "DOUBLE";
+            case FLOAT32 -> "FLOAT";
+            case INT64 -> "LONG";
+            case BOOL -> "BYTE";
+            default -> throw new IllegalArgumentException("unsupported random segment type");
+        };
+        String primitive = switch (type) {
+            case FLOAT64 -> "D";
+            case FLOAT32 -> "F";
+            case INT64 -> "J";
+            case BOOL -> "B";
+            default -> throw new IllegalArgumentException("unsupported random segment type");
+        };
+        String layoutType = "Ljava/lang/foreign/ValueLayout$Of" + switch (type) {
+            case FLOAT64 -> "Double";
+            case FLOAT32 -> "Float";
+            case INT64 -> "Long";
+            case BOOL -> "Byte";
+            default -> throw new IllegalArgumentException("unsupported random segment type");
+        } + ";";
+        references.add("java/lang/foreign/ValueLayout#JAVA_" + layout
+                + (type == DataType.BOOL ? "" : "_UNALIGNED") + ":" + layoutType);
+        if (read) {
+            references.add("java/lang/foreign/MemorySegment#get:(" + layoutType + "J)"
+                    + primitive);
+        }
+        if (write) {
+            references.add("java/lang/foreign/MemorySegment#set:(" + layoutType + "J"
+                    + primitive + ")V");
+        }
     }
 
     private static Generated generated(PrepareContext<CpuPartitionAnalysisInputs> base,

@@ -217,8 +217,8 @@ created by 0005A. All consume the common analysis above; none creates another ba
 | 0007A0C | [Scatter generated-loop parity](tasks/0007a0c-scatter-generated-loop-parity.md) | Complete | 0007A0B; completed 0006B1 semantics | Embedded typed scatter output/contribution/reduction and exact-product bodies, advanced schema 24 to 25, preserved complete cold validation and general layouts, and passed dense unique SCATTER_ELEMENTS and duplicate-index FLOAT32 SCATTER_ADD independently at `0.979533x` and `0.983230x`. |
 | 0007A0D | [Fold generated-loop parity](tasks/0007a0d-fold-generated-loop-parity.md) | Complete | 0007A0C; completed 0006B2 semantics | Embedded schema-26 carrier-, type-, family-, access-, mapping-, and addition-specialized FOLD_AXIS/FOLD2D loops with dense integer and typed general-long forms; the fixed overlapping FLOAT32 FOLD_AXIS gate passed every fork and aggregate at `0.926451x` while preserving CPU 0006B2 semantics. |
 | 0007A0E | [Ordering generated-loop parity](tasks/0007a0e-ordering-generated-loop-parity.md) | Complete | 0007A0D; completed 0006C semantics | Embedded schema-27 carrier-, represented-type-, family-, direction-, output-, and access-specialized SORT/ARGSORT/TOP_K loops with dense integer and typed general-long forms; stable FLOAT32 SORT and two-output TOP_K passed every fork and aggregate at `1.090165540x` and `0.965951020x` while preserving exact scratch and CPU 0006C semantics. |
-| 0007A0F | Random and dropout generated-loop parity | Draft | 0007A0E; completed 0006D semantics | Replace bridge-only Object/carrier-dispatched DROPOUT work with typed generated state/value/mask bodies; gate dense FLOAT64 and FLOAT32 DROPOUT independently at `<= 1.15x` against the exact CPU-private mapping while preserving replay, counter advancement, three-output binding, and general carriers. |
-| 0007A1 | Portable ordinary numerical aggregate reductions | Draft | 0007A; 0007A0F | Add full, single-axis, and multi-axis SUM/MEAN/PROD with Model-conforming exact floating targets, modular integral SUM/PROD, product special values, deterministic traversal/combination, and explicit accumulator/scratch declarations only after every pre-existing generated family completes its corrective parity sequence. |
+| 0007A0F | [Random and dropout generated-loop parity](tasks/0007a0f-random-and-dropout-generated-loop-parity.md) | Complete | 0007A0E; completed 0006D semantics | Embedded schema-28 typed INITIAL_STATE and FLOAT64/FLOAT32 DROPOUT state/mapping/value/mask bodies with dense integer and general long-address forms; every fixed dense FLOAT64/FLOAT32 fork and aggregate passed `<= 1.15x` while preserving replay, counter advancement, three-output binding, and general carriers. |
+| 0007A1 | Portable ordinary numerical aggregate reductions | Ready | 0007A; 0007A0F | Add full, single-axis, and multi-axis SUM/MEAN/PROD with Model-conforming exact floating targets, modular integral SUM/PROD, product special values, deterministic traversal/combination, and explicit accumulator/scratch declarations only after every pre-existing generated family completes its corrective parity sequence. No detailed task specification exists yet. |
 | 0007A2 | Portable binding-aware sum-to-Shape reduction | Draft | 0007A1 | Add `SUM` with exact `SumToShapeAttrs`, right-aligned bound-Shape validation, leading/aligned reduction geometry, all five numeric types, and truthful resources without dynamic unresolved execution. |
 | 0007B | Portable arg-extrema coverage | Draft | 0007A | Add one-axis ARG_MIN/ARG_MAX with exact floating/integral order, first/last logical tie policy, INT64 indices, and deterministic scalar/parallel behavior. |
 | 0007C | Portable masked reduction coverage | Draft | 0007A1 | Add two-input masked SUM/MEAN with right-aligned mask broadcasting, false-position exclusion before aggregation, selected-count handling, empty-selection results, and truthful resource declarations. |
@@ -304,9 +304,8 @@ is `Complete`. Detailed
 [CPU 0007A0C Scatter generated-loop parity](tasks/0007a0c-scatter-generated-loop-parity.md)
 is `Complete`. Detailed
 [CPU 0007A0D Fold generated-loop parity](tasks/0007a0d-fold-generated-loop-parity.md) is
-`Complete`. Detailed CPU 0007A0E is `Complete`; CPU 0007A0F is the sole next ordered `Draft`
-corrective frontier without a detailed specification. CPU 0007A1
-is held behind 0007A0F, and CPU 0007A2,
+`Complete`. Detailed CPU 0007A0E and CPU 0007A0F are `Complete`. CPU 0007A1 is the sole next
+ordered `Ready` frontier and remains without a detailed task specification. CPU 0007A2,
 CPU 0007B–0007F, and every later CPU task remain `Draft` without detailed specifications. CPU
 0006D is one bounded
 one-node family task because
@@ -335,8 +334,8 @@ geometry loading occur once before the hot loop. Typed general-long forms remain
 mixed carriers, arbitrary layouts, and unproved ranges. Independent review corrected TILE so
 each source coordinate wraps by its own input extent and outer source axes advance only on the
 matching output-axis carry.
-The final remaining bridge-only emitter is CPU 0007A0F's random/dropout body. The completed
-ordering correction and that remaining emitter stay separate because their algorithms and
+CPU 0007A0F completed the final bridge-only random/dropout correction. The ordering and random
+corrections stay separate because their algorithms and
 resource contracts require different fair baselines:
 
 | Task | Current generated-bytecode/source evidence | Required independent parity cases |
@@ -346,7 +345,7 @@ resource contracts require different fair baselines:
 | 0007A0C | Complete: schema-25 classes embed typed SCATTER_ELEMENTS, Gather-compatible SCATTER_ADD, and SCATTER_ND output/contribution/reduction loops plus exact-product scratch state. Dense heap forms use integer state; general forms retain typed long addressing without an `Object` bridge. | Unique SCATTER_ELEMENTS replacement and duplicate-index FLOAT32 SCATTER_ADD passed at `0.979533x` and `0.983230x`. |
 | 0007A0D | Complete: schema-26 classes embed typed FOLD_AXIS/FOLD2D mapping and sequential-addition bodies. Dense heap arrays use integer state; general layouts, segments, and mixed carriers retain typed long addressing without an `Object` bridge. | Fixed overlapping `[127,16] -> [1024]`, window 16, step 8, dense FLOAT32 FOLD_AXIS passed at `0.926451x`; this is the only performance-parity claim. |
 | 0007A0E | Complete: schema-27 classes embed typed stable merge, comparison, selected-pair ordering, and represented output stores. Dense heap forms use integer state; general layouts, segments, and mixed carriers retain typed long addressing without an `Object` bridge. | Stable dense FLOAT32 SORT and two-output TOP_K passed at `1.090165540x` and `0.965951020x`. |
-| 0007A0F | `CpuRandomEmitter.emit` generates one bridge to a five-`Object` `execute`; dropout retains carrier checks and helper calls per value/mask output, while initializer/state prologue and replay are distinct from ordinary movement. | Dense FLOAT64 and FLOAT32 DROPOUT. |
+| 0007A0F | Complete: schema-28 classes embed typed initializer/dropout state, mapping, threshold, represented value, canonical mask, and loop bodies. Dense heap forms use integer state; arbitrary layouts, segments, and mixed carriers retain typed long addressing without an `Object` bridge. | Dense FLOAT64 and FLOAT32 DROPOUT passed every fork and aggregate at `0.241451022x` and `1.058174348x`. |
 
 Each case uses an isolated reproducible minimum five-fork probe with at least five warmup batches,
 nine randomized measurement rounds, adaptive batches of at least 25 ms, fixed heap, deterministic
@@ -361,8 +360,23 @@ accepted corrected ratios are `1.084234x` and `0.895060x`. CPU 0007A0C's accepte
 `0.925827x`, `0.927054x`, and `0.926274x`, with aggregate `0.926451x`. CPU 0007A0E's accepted
 SORT ratios are `1.092722590x`, `1.077727976x`, `1.090165540x`, `1.049603676x`, and
 `1.089690637x`, aggregate `1.090165540x`; its TOP_K ratios are `0.962180009x`, `0.969660236x`,
-`0.936075945x`, `1.018861174x`, and `1.020688132x`, aggregate `0.965951020x`. Draft CPU 0007A0F
-remains a corrective objective, not a current parity claim.
+`0.936075945x`, `1.018861174x`, and `1.020688132x`, aggregate `0.965951020x`. CPU 0007A0F's
+FLOAT64 ratios are `0.242432568x`, `0.240238314x`, `0.245355311x`, `0.242999122x`, and
+`0.241854555x`, aggregate `0.241451022x`; its FLOAT32 ratios are `1.046430134x`, `1.063729192x`,
+`1.052403558x`, `1.060950642x`, and `1.053413773x`, aggregate `1.058174348x`. These observations
+apply only to the fixed cases and recorded host/JVM, not to broader layouts, states, parallel
+orchestration, machines, or a general speedup claim.
+
+CPU 0007A0F implementation context `01a0194d-ff2e-78d3-9815-f0830065185b` and independent review
+orchestration context `01a0196a-0930-7521-972f-84021b85519b` with isolated review context
+`/root/cpu_0007a0f_review` produced the accepted schema-28 result. The focused five-owner command
+passed 50 tests, and the sole authoritative CPU suite passed 53 suites/323 tests with zero
+failures/errors and one expected skip. Review changed tests only, passed 4 direct-generator tests
+and 15 combined generator/random tests, strengthened exact descriptors and all 32 carrier-pattern
+member-reference gates, and regenerated all six representative classes byte-identically. Clean
+documentation context `01a01973-5ecf-75b0-ae50-09aebdd3ddf7` reused those stabilized results,
+finalized Javadocs, the CPU guide, glossary no-change evidence, and planning state, and changed no
+executable Java or tests.
 
 CPU 0007A0E implementation context `01a018ec-ea40-7f21-b2be-1ec07564d0b8` and independent
 review/fix context `01a01905-b866-70f3-89c7-181adcabe2c5` produced the final schema-27 bytes and
@@ -561,8 +575,9 @@ task 0006 and detailed task 0006A are `Complete`, detailed task 0006A1 is `Compl
 task 0006A2 is `Complete`, detailed task 0006B is `Complete`, detailed task 0006B1 is `Complete`,
 detailed task 0006B2, detailed task 0006C, and detailed task 0006D are `Complete`; detailed task
 0007 and detailed 0007A are `Complete`; corrective tasks 0007A0, 0007A0A, and 0007A0B are
-`Complete`; detailed 0007A0C, detailed 0007A0D, and detailed 0007A0E are `Complete`; 0007A0F is
-the sole next ordered `Draft` frontier; tasks 0007A1–0017 remain ordered `Draft` work without later detailed
+`Complete`; detailed 0007A0C, detailed 0007A0D, and detailed 0007A0E are `Complete`; detailed
+0007A0F is `Complete`; CPU 0007A1 is the sole next ordered `Ready` frontier and remains without a
+detailed specification. Tasks 0007A2–0017 remain ordered `Draft` work without later detailed
 specifications.
 CPU 0005C preserves that exact slice and implements cold selection among all four portable
 strategies. It uses the preferred Java 26 FLOAT64 species only for direct contiguous runs and
@@ -723,9 +738,9 @@ change, and whitespace validation without rerunning Java tests. Detailed CPU 000
 detailed CPU 0006A2 is `Complete`, detailed CPU 0006B is `Complete`, detailed CPU 0006B1 and CPU
 0006B2, detailed CPU 0006C, detailed CPU 0006D, and detailed CPU 0007 are `Complete`,
 and detailed CPU 0007A is `Complete`; corrective CPU 0007A0, CPU 0007A0A, and CPU 0007A0B are
-`Complete`; detailed CPU 0007A0C, CPU 0007A0D, and CPU 0007A0E are `Complete`; CPU 0007A0F is the
-sole next ordered `Draft` frontier. CPU 0007A1 onward remains ordered `Draft` work, with 0007A1
-dependent on 0007A0F.
+`Complete`; detailed CPU 0007A0C, CPU 0007A0D, and CPU 0007A0E are `Complete`; detailed CPU
+0007A0F is `Complete`. CPU 0007A1 is the sole next ordered `Ready` frontier and remains without a
+detailed specification; CPU 0007A2 onward remains ordered `Draft` work.
 
 Detailed CPU 0006A1 is Complete. It extends the same movement pipeline with one fully static,
 resolved-layout UNFOLD_AXIS occurrence for all six represented types or one floating UNFOLD2D
@@ -865,7 +880,7 @@ the work at the active frontier.
   Model semantic-family and algorithm/resource boundary: detailed Complete CPU 0007 owns only
   CUM_SUM/CUM_PROD scans. The former ordinary-reduction row is further split at numerical/resource
   and binding-geometry boundaries: detailed Complete 0007A owns full/single-/multi-axis MIN/MAX/ALL/
-  ANY with zero workspace; Draft 0007A1 owns ordinary SUM/MEAN/PROD and its explicit accumulator
+  ANY with zero workspace; Ready 0007A1 owns ordinary SUM/MEAN/PROD and its explicit accumulator
   design; Draft 0007A2 owns binding-aware target-Shape SUM. Draft 0007B owns arg
   extrema; Draft 0007C owns masked reductions; Draft 0007D owns logarithmic/statistical/norm
   reductions; Draft 0007E owns stable softmax/log-softmax; and Draft 0007F owns layer/RMS/batch
@@ -896,8 +911,9 @@ the work at the active frontier.
   Completed CPU 0007A0B embeds typed indexing bodies while preserving the separate complete
   validation pass. Scatter, fold, ordering, and random/dropout remain separate because each has a
   distinct mapping, resource, state, comparison, or accumulation baseline. Detailed CPU 0007A0C,
-  CPU 0007A0D, and CPU 0007A0E are `Complete`; CPU 0007A0F is the sole next ordered `Draft`
-  corrective frontier, and later rows stay ordered `Draft` until they advance.
+  CPU 0007A0D, CPU 0007A0E, and CPU 0007A0F are `Complete`. CPU 0007A1 is the sole next ordered
+  `Ready` frontier without a detailed specification; later rows stay ordered `Draft` until they
+  advance.
 - CPU 0006D selects `SYNAPTIK_CPU_SPLITMIX64_COUNTER_V1`: `mix64` uses shifts 30/27/31 and
   multipliers `0xbf58476d1ce4e5b9`/`0x94d049bb133111eb` after key bias
   `0x9e3779b97f4a7c15`; each draw is `mix64(counter + logicalIndex +

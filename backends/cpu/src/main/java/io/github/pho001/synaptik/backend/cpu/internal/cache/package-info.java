@@ -33,7 +33,9 @@
  * state for scratch-bearing entries. Schema 26 adds carrier-, type-, family-, access-, mapping-,
  * and addition-specialized overlap-fold bodies with dense integer and general long-address forms.
  * Schema 27 adds carrier-, represented-type-, family-, direction-, output-, and access-specialized
- * stable-ordering bodies with direct two-region merge scratch access. Schema 27 is current-only.
+ * stable-ordering bodies with direct two-region merge scratch access. Schema 28 embeds typed
+ * INITIAL_STATE and FLOAT64/FLOAT32 DROPOUT bodies without a generic execution bridge. Schema 28
+ * is current-only.
  * Four complete candidate plans, one realized
  * artifact, zero fixed-shape variants, and zero unrolled variants are the current hard budget.
  * With no trusted root, realization remains entirely in memory. With a root, one bounded
