@@ -6,6 +6,7 @@ import java.lang.foreign.ValueLayout;
 import java.nio.ByteOrder;
 import java.util.List;
 import java.util.Objects;
+import java.math.BigInteger;
 import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuKernelIr;
 import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuAffineCopyIr;
 import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuDataMovementIr;
@@ -36,9 +37,10 @@ import io.github.pho001.synaptik.model.datatype.DataType;
  * reclassifying an exponent. Unary evaluation preserves the specified exceptional-value
  * classifications, widens represented FLOAT32 values where required, and narrows once. It also
  * evaluates already-lowered affine, movement, indexing, functional slice-update,
- * functional-scatter, overlap-fold, stable ordering, explicit-state random, and cumulative-scan
- * mappings for
- * differential tests. The
+ * functional-scatter, overlap-fold, stable ordering, explicit-state random, cumulative-scan, and
+ * ordinary aggregate mappings for differential tests. Numerical aggregate evaluation uses
+ * independent {@link BigInteger} integer/rational conversion rather than generated emitter
+ * rounding logic. The
  * ordering oracle uses an independent primitive-index insertion algorithm while preserving the
  * same Model order and represented output bits. This is an unsupported cold-test/reference
  * contract and is never a Runtime IR interpreter.
@@ -78,7 +80,7 @@ public final class CpuScalarReferenceKernel {
     private CpuScalarReferenceKernel() { }
 
     /**
-     * Independently evaluates one complete ordinary extrema or Boolean reduction.
+     * Independently evaluates one complete ordinary numerical, extrema, or Boolean reduction.
      *
      * <p>This oracle derives logical coordinates directly from Shapes and selected membership;
      * it does not call production aggregate execution, packing, lowering, or coordinate helpers.</p>
@@ -109,6 +111,15 @@ public final class CpuScalarReferenceKernel {
                         : outputCoordinates[geometry.keepDimensions() ? axis : outputAxis++];
             }
             Object accumulator = aggregateIdentity(ir.kind(), ir.dataType());
+            if ((ir.kind() == CpuAggregateIr.Kind.SUM || ir.kind() == CpuAggregateIr.Kind.MEAN
+                    || ir.kind() == CpuAggregateIr.Kind.PROD)
+                    && ir.dataType() != DataType.INT32 && ir.dataType() != DataType.INT64) {
+                accumulator = numericalFloatingReference(ir.kind(), ir.dataType(), arguments.getFirst(),
+                        geometry, inputCoordinates, inputExtents, selected);
+                store(arguments.getLast(), ir.dataType(),
+                        aggregateAddress(geometry.output(), outputCoordinates), accumulator);
+                continue;
+            }
             for (long domain = 0; domain < geometry.domainCount(); domain++) {
                 long remaining = domain;
                 for (int axis = inputCoordinates.length - 1; axis >= 0; axis--) if (selected[axis]) {
@@ -140,8 +151,10 @@ public final class CpuScalarReferenceKernel {
             case FLOAT64 -> minimum ? Double.POSITIVE_INFINITY : Double.NEGATIVE_INFINITY;
             case FLOAT32 -> minimum ? Float.POSITIVE_INFINITY : Float.NEGATIVE_INFINITY;
             case BFLOAT16 -> (short) (minimum ? 0x7f80 : 0xff80);
-            case INT32 -> minimum ? Integer.MAX_VALUE : Integer.MIN_VALUE;
-            case INT64 -> minimum ? Long.MAX_VALUE : Long.MIN_VALUE;
+            case INT32 -> kind == CpuAggregateIr.Kind.SUM ? 0 : kind == CpuAggregateIr.Kind.PROD ? 1
+                    : minimum ? Integer.MAX_VALUE : Integer.MIN_VALUE;
+            case INT64 -> kind == CpuAggregateIr.Kind.SUM ? 0L : kind == CpuAggregateIr.Kind.PROD ? 1L
+                    : minimum ? Long.MAX_VALUE : Long.MIN_VALUE;
             case BOOL -> (byte) (kind == CpuAggregateIr.Kind.ALL ? 1 : 0);
         };
     }
@@ -150,10 +163,14 @@ public final class CpuScalarReferenceKernel {
         if (type == DataType.BOOL) return (byte) (kind == CpuAggregateIr.Kind.ALL
                 ? ((byte) left != 0 && (byte) right != 0 ? 1 : 0)
                 : ((byte) left != 0 || (byte) right != 0 ? 1 : 0));
-        if (type == DataType.INT32) return kind == CpuAggregateIr.Kind.MIN
-                ? Math.min((int) left, (int) right) : Math.max((int) left, (int) right);
-        if (type == DataType.INT64) return kind == CpuAggregateIr.Kind.MIN
-                ? Math.min((long) left, (long) right) : Math.max((long) left, (long) right);
+        if (type == DataType.INT32) return kind == CpuAggregateIr.Kind.SUM
+                ? (int) left + (int) right : kind == CpuAggregateIr.Kind.PROD
+                    ? (int) left * (int) right : kind == CpuAggregateIr.Kind.MIN
+                        ? Math.min((int) left, (int) right) : Math.max((int) left, (int) right);
+        if (type == DataType.INT64) return kind == CpuAggregateIr.Kind.SUM
+                ? (long) left + (long) right : kind == CpuAggregateIr.Kind.PROD
+                    ? (long) left * (long) right : kind == CpuAggregateIr.Kind.MIN
+                        ? Math.min((long) left, (long) right) : Math.max((long) left, (long) right);
         double l = type == DataType.FLOAT64 ? (double) left
                 : type == DataType.FLOAT32 ? (float) left : bfloat((short) left);
         double r = type == DataType.FLOAT64 ? (double) right
@@ -166,6 +183,118 @@ public final class CpuScalarReferenceKernel {
             return !ln ? left : !rn ? right : left;
         }
         return kind == CpuAggregateIr.Kind.MIN ? (r < l ? right : left) : (r > l ? right : left);
+    }
+
+    private static Object numericalFloatingReference(CpuAggregateIr.Kind kind, DataType type,
+            CpuBufferArgument input, CpuAggregateLowering.Geometry geometry,
+            long[] coordinates, long[] extents, boolean[] selected) {
+        int fractionBits = type == DataType.FLOAT64 ? 52 : type == DataType.FLOAT32 ? 23 : 7;
+        int bias = type == DataType.FLOAT64 ? 1023 : 127;
+        int unitExponent = type == DataType.FLOAT64 ? -1074 : type == DataType.FLOAT32 ? -149 : -133;
+        long exponentMask = type == DataType.FLOAT64 ? 0x7ffL : 0xffL;
+        long signMask = type == DataType.FLOAT64 ? Long.MIN_VALUE
+                : type == DataType.FLOAT32 ? 1L << 31 : 1L << 15;
+        long fractionMask = (1L << fractionBits) - 1;
+        BigInteger exact = kind == CpuAggregateIr.Kind.PROD ? BigInteger.ONE : BigInteger.ZERO;
+        long productExponent = 0; boolean negative = false;
+        boolean nan = false, positiveInfinity = false, negativeInfinity = false, zero = false;
+        boolean positiveZero = false, negativeZero = false, nonzero = false;
+        for (long domain = 0; domain < geometry.domainCount(); domain++) {
+            long remaining = domain;
+            for (int axis = coordinates.length - 1; axis >= 0; axis--) if (selected[axis]) {
+                coordinates[axis] = remaining % extents[axis]; remaining /= extents[axis];
+            }
+            Object represented = load(input, type, aggregateAddress(geometry.input(), coordinates));
+            long bits = type == DataType.FLOAT64 ? Double.doubleToRawLongBits((double) represented)
+                    : type == DataType.FLOAT32 ? Integer.toUnsignedLong(
+                            Float.floatToRawIntBits((float) represented))
+                    : Short.toUnsignedLong((short) represented);
+            long fraction = bits & fractionMask;
+            long exponentField = bits >>> fractionBits & exponentMask;
+            boolean sign = (bits & signMask) != 0;
+            if (kind == CpuAggregateIr.Kind.PROD) negative ^= sign;
+            if (exponentField == exponentMask) {
+                if (fraction != 0) nan = true;
+                else if (kind == CpuAggregateIr.Kind.PROD) positiveInfinity = true;
+                else if (sign) negativeInfinity = true; else positiveInfinity = true;
+                continue;
+            }
+            if (exponentField == 0 && fraction == 0) {
+                zero = true; if (sign) negativeZero = true; else positiveZero = true; continue;
+            }
+            nonzero = true;
+            long significand = exponentField == 0 ? fraction : (1L << fractionBits) | fraction;
+            int exponent = exponentField == 0 ? 1 - bias - fractionBits
+                    : Math.toIntExact(exponentField) - bias - fractionBits;
+            if (kind == CpuAggregateIr.Kind.PROD) {
+                exact = exact.multiply(BigInteger.valueOf(significand));
+                productExponent = Math.addExact(productExponent, exponent);
+            } else {
+                BigInteger coefficient = BigInteger.valueOf(significand)
+                        .shiftLeft(exponent - unitExponent);
+                exact = exact.add(sign ? coefficient.negate() : coefficient);
+            }
+        }
+        long canonical = type == DataType.FLOAT64 ? 0x7ff8000000000000L
+                : type == DataType.FLOAT32 ? 0x7fc00000L : 0x7fc0L;
+        long infinity = exponentMask << fractionBits;
+        long result;
+        if (kind == CpuAggregateIr.Kind.PROD) {
+            if (nan || zero && positiveInfinity) result = canonical;
+            else if (positiveInfinity) result = (negative ? signMask : 0) | infinity;
+            else if (zero) result = negative ? signMask : 0;
+            else result = roundRational(exact, productExponent, BigInteger.ONE, negative,
+                    fractionBits, bias, signMask);
+        } else if (nan || positiveInfinity && negativeInfinity
+                || kind == CpuAggregateIr.Kind.MEAN && geometry.domainCount() == 0) result = canonical;
+        else if (positiveInfinity) result = infinity;
+        else if (negativeInfinity) result = signMask | infinity;
+        else if (exact.signum() == 0) result = negativeZero && !positiveZero && !nonzero ? signMask : 0;
+        else result = roundRational(exact.abs(), unitExponent,
+                kind == CpuAggregateIr.Kind.MEAN ? BigInteger.valueOf(geometry.domainCount())
+                        : BigInteger.ONE, exact.signum() < 0, fractionBits, bias, signMask);
+        return switch (type) {
+            case FLOAT64 -> Double.longBitsToDouble(result);
+            case FLOAT32 -> Float.intBitsToFloat((int) result);
+            case BFLOAT16 -> (short) result;
+            default -> throw new AssertionError("non-floating numerical aggregate");
+        };
+    }
+
+    private static long roundRational(BigInteger numerator, long binaryExponent,
+            BigInteger divisor, boolean negative, int fractionBits, int bias, long signMask) {
+        int precision = fractionBits + 1, minimumNormal = 1 - bias, maximumExponent = bias;
+        long exponent = (long) numerator.bitLength() - 1 + binaryExponent
+                - (divisor.bitLength() - 1L);
+        while (compareToPowerOfTwo(numerator, binaryExponent, divisor, exponent) < 0) exponent--;
+        while (compareToPowerOfTwo(numerator, binaryExponent, divisor, exponent + 1) >= 0) exponent++;
+        long sign = negative ? signMask : 0;
+        if (exponent > maximumExponent) return sign | ((long) (2 * bias + 1) << fractionBits);
+        long target = exponent >= minimumNormal ? exponent - (precision - 1L)
+                : minimumNormal - (precision - 1L);
+        BigInteger scaledNumerator = numerator, scaledDivisor = divisor;
+        long scale = binaryExponent - target;
+        if (scale >= 0) scaledNumerator = scaledNumerator.shiftLeft(Math.toIntExact(scale));
+        else scaledDivisor = scaledDivisor.shiftLeft(Math.toIntExact(-scale));
+        BigInteger[] qr = scaledNumerator.divideAndRemainder(scaledDivisor);
+        int comparison = qr[1].shiftLeft(1).compareTo(scaledDivisor);
+        BigInteger rounded = qr[0];
+        if (comparison > 0 || comparison == 0 && rounded.testBit(0)) rounded = rounded.add(BigInteger.ONE);
+        if (exponent >= minimumNormal) {
+            if (rounded.bitLength() > precision) { rounded = rounded.shiftRight(1); exponent++; }
+            if (exponent > maximumExponent) return sign | ((long) (2 * bias + 1) << fractionBits);
+            return sign | (exponent + bias << fractionBits)
+                    | rounded.longValue() & ((1L << fractionBits) - 1);
+        }
+        long value = rounded.longValue();
+        return sign | value;
+    }
+
+    private static int compareToPowerOfTwo(BigInteger numerator, long binaryExponent,
+            BigInteger divisor, long exponent) {
+        long shift = binaryExponent - exponent;
+        return shift >= 0 ? numerator.shiftLeft(Math.toIntExact(shift)).compareTo(divisor)
+                : numerator.compareTo(divisor.shiftLeft(Math.toIntExact(-shift)));
     }
     private static boolean rawNegative(DataType type, Object value) {
         return switch (type) {

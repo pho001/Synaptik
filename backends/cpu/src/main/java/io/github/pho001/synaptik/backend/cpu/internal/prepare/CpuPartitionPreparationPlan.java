@@ -46,7 +46,8 @@ import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuAggregateLower
  * @param loweringManifest non-null optional cold diagnostic text, empty when disabled
  * @param materialization non-null optional selected one-input copy fact
  * @param workspaceDeclaration non-null optional exact workspace declaration; present exactly when
- *     materialization, floating scatter multiplication, or stable ordering requires it
+ *     materialization, floating scatter multiplication, stable ordering, or a nonempty floating
+ *     numerical aggregate requires it
  * @param workspaceUse non-null explicit meaning of the optional workspace
  * @param specializationBudget non-null enforced candidate/artifact/shape/unroll ceiling
  * @param movementGeometry non-null optional compact cold non-affine movement geometry
@@ -59,7 +60,8 @@ import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuAggregateLower
  *     SORT, ARGSORT, or TOP_K plan and paired with exact per-range merge scratch
  * @param randomGeometry non-null optional zero-workspace INITIAL_STATE or DROPOUT geometry
  * @param scanGeometry non-null optional zero-workspace CUM_SUM or CUM_PROD slice geometry
- * @param aggregateGeometry non-null optional zero-workspace MIN/MAX/ALL/ANY output-cell geometry
+ * @param aggregateGeometry non-null optional ordinary numerical/extrema/Boolean output-cell
+ *     geometry; floating numerical rows carry an exact per-range state shape
  */
 public record CpuPartitionPreparationPlan(List<ExecutionUnitPlan> units, Route route,
         ExecutionStrategy executionStrategy,
@@ -186,7 +188,8 @@ public record CpuPartitionPreparationPlan(List<ExecutionUnitPlan> units, Route r
         /** No workspace is declared. */ NONE,
         /** Contiguous pointwise input materialization. */ MATERIALIZATION,
         /** Per-range exact floating scatter-product accumulator slices. */ SCATTER_PRODUCT,
-        /** Per-range two-region stable ordering indices. */ ORDERING_INDICES
+        /** Per-range two-region stable ordering indices. */ ORDERING_INDICES,
+        /** Per-range exact floating aggregate state. */ AGGREGATE_EXACT_STATE
     }
     /**
      * One computation-oriented execution unit.
@@ -381,8 +384,8 @@ public record CpuPartitionPreparationPlan(List<ExecutionUnitPlan> units, Route r
             }
         }
         if (aggregate != aggregateGeometry.isPresent() || aggregate && (bufferDeclarations.size() != 2
-                || materialization.isPresent() || workspaceDeclaration.isPresent()))
-            throw new IllegalArgumentException("aggregate IR and zero-workspace geometry must agree");
+                || materialization.isPresent()))
+            throw new IllegalArgumentException("aggregate IR and workspace geometry must agree");
         if (aggregate) {
             var aggregateIr = (io.github.pho001.synaptik.backend.cpu.internal.ir.CpuAggregateIr)
                     units.getFirst().portablePlan().portableKernelIr();
@@ -421,7 +424,10 @@ public record CpuPartitionPreparationPlan(List<ExecutionUnitPlan> units, Route r
                 : scatterGeometry.filter(g -> g.scratchSliceBytes() > 0).isPresent()
                     ? WorkspaceUse.SCATTER_PRODUCT
                     : orderingGeometry.isPresent()
-                        ? WorkspaceUse.ORDERING_INDICES : WorkspaceUse.NONE;
+                        ? WorkspaceUse.ORDERING_INDICES
+                        : aggregateGeometry.filter(g -> g.scratchSliceBytes() > 0
+                                && g.outputCount() > 0).isPresent()
+                            ? WorkspaceUse.AGGREGATE_EXACT_STATE : WorkspaceUse.NONE;
         if (workspaceUse != expectedUse
                 || workspaceDeclaration.isPresent() != (workspaceUse != WorkspaceUse.NONE)) {
             throw new IllegalArgumentException("workspace purpose and declaration must agree");
@@ -440,6 +446,13 @@ public record CpuPartitionPreparationPlan(List<ExecutionUnitPlan> units, Route r
             if (workspace.requirementId() != 0 || workspace.byteAlignment() != Long.BYTES
                     || workspace.byteSize() != geometry.workspaceBytes(selectedRangeCount))
                 throw new IllegalArgumentException("ordering workspace facts disagree");
+        }
+        if (workspaceUse == WorkspaceUse.AGGREGATE_EXACT_STATE) {
+            var geometry = aggregateGeometry.orElseThrow();
+            var workspace = workspaceDeclaration.orElseThrow();
+            if (workspace.requirementId() != 0 || workspace.byteAlignment() != Long.BYTES
+                    || workspace.byteSize() != geometry.workspaceBytes(selectedRangeCount))
+                throw new IllegalArgumentException("aggregate exact-state workspace facts disagree");
         }
         if (materialization.isPresent()) {
             var copy = materialization.orElseThrow();

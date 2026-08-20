@@ -15,11 +15,19 @@ import java.lang.foreign.MemorySegment;
 import java.lang.foreign.ValueLayout;
 
 /**
- * Emits allocation-free typed scatter output-coordinate writers directly into generated classes.
- * Bounds and replacement uniqueness are validated by cold-bound execution before these entry
- * targets run. Each invocation scans contributions in logical row-major order and writes each owned
- * output coordinate exactly once. Floating multiplication uses only its declared disjoint
- * primitive-limb scratch slice and rounds the exact abstract product once.
+ * Emits allocation-free typed scatter writers directly into generated classes.
+ *
+ * <p>Cold-bound execution validates index bounds and replacement uniqueness before an emitted entry
+ * can run. For replacement, addition, extrema, and integral multiplication, each invocation first
+ * copies the base values in its owned half-open output range and then visits the complete logical
+ * update domain once in row-major order, applying only targets in that range. Disjoint ranges
+ * therefore preserve deterministic update order without atomics or cross-range state.</p>
+ *
+ * <p>Floating multiplication deliberately retains output-owned target grouping. One range reuses
+ * its single declared primitive-limb scratch slice for each owned output, accumulates that target's
+ * complete factor group, and rounds the exact abstract product once. This safe split avoids either
+ * intermediate rounding or output-proportional exact state while preserving the established
+ * resource shape.</p>
  */
 public final class CpuScatterEmitter {
     private static final ClassDesc SEGMENT = ClassDesc.of(MemorySegment.class.getName());
@@ -30,17 +38,29 @@ public final class CpuScatterEmitter {
     private static final ClassDesc DOUBLE_CLASS = ClassDesc.of(Double.class.getName());
     private static final ClassDesc FLOAT_CLASS = ClassDesc.of(Float.class.getName());
     private static final ClassDesc MATH_CLASS = ClassDesc.of(Math.class.getName());
+    private static final ClassDesc DOUBLE_LAYOUT =
+            ClassDesc.of("java.lang.foreign.ValueLayout$OfDouble");
+    private static final ClassDesc FLOAT_LAYOUT =
+            ClassDesc.of("java.lang.foreign.ValueLayout$OfFloat");
+    private static final ClassDesc SHORT_LAYOUT =
+            ClassDesc.of("java.lang.foreign.ValueLayout$OfShort");
+    private static final ClassDesc INT_LAYOUT =
+            ClassDesc.of("java.lang.foreign.ValueLayout$OfInt");
+    private static final ClassDesc BYTE_LAYOUT =
+            ClassDesc.of("java.lang.foreign.ValueLayout$OfByte");
 
-    /** Creates a stateless scatter emitter. */
+    /** Creates a stateless generation-time scatter emitter. */
     public CpuScatterEmitter() {}
 
     /**
      * Emits one carrier-, type-, family-, reduction-, and access-specialized writer for two through
-     * four unique boundaries and optional exact-product scratch.
+     * four unique boundaries and optional exact-product scratch. The supplied builder is mutated;
+     * this method does not execute scatter work or validate runtime values.
      *
-     * @param code non-null generated method body
-     * @param specialization non-null matching scalar scatter specialization
-     * @param ir non-null instruction-free structural scatter encoding matching the specialization
+     * @param code generated method body to mutate; not {@code null}
+     * @param specialization matching scalar scatter specialization; not {@code null}
+     * @param ir instruction-free structural scatter encoding matching the specialization; not
+     *     {@code null}
      * @throws NullPointerException if an argument is {@code null}
      * @throws IllegalArgumentException if the IR is not a supported structural scatter encoding,
      *     or its boundary cardinality does not match the specialization and scatter contract
@@ -75,18 +95,30 @@ public final class CpuScatterEmitter {
             code.labelBinding(complete);
             return;
         }
-        emitTyped(
-                code,
-                specialization,
-                p,
-                ints,
-                geometrySlot,
-                specialization.scratchParameter() ? count : -1);
+        if (specialization.scratchParameter()) {
+            if (ints
+                    && p.family.equals("SCATTER_ELEMENTS")
+                    && p.outputRank == 1
+                    && p.ranks[p.indexBoundary] == 1
+                    && p.ranks[p.updateBoundary] == 1) {
+                emitDenseRankOneGroupedProduct(code, specialization, p, geometrySlot, count);
+            } else {
+                emitTypedGroupedProduct(code, specialization, p, ints, geometrySlot, count);
+            }
+        } else if (p.family.equals("SCATTER_ELEMENTS")
+                && p.outputRank == 2
+                && p.ranks[p.indexBoundary] == 2
+                && p.ranks[p.updateBoundary] == 2) {
+            emitRankTwoElementsCopyThenUpdate(code, specialization, p, ints, geometrySlot);
+        } else {
+            emitTypedCopyThenUpdate(code, specialization, p, ints, geometrySlot);
+        }
     }
 
     private static void emitDenseRankOneZeroBase(
             CodeBuilder code, CpuKernelSpecialization s, ScatterEncoding p) {
         int g = p.ranks.length,
+                start = code.allocateLocal(TypeKind.INT),
                 logical = code.allocateLocal(TypeKind.INT),
                 end = code.allocateLocal(TypeKind.INT),
                 update = code.allocateLocal(TypeKind.INT);
@@ -94,27 +126,43 @@ public final class CpuScatterEmitter {
                 selected = code.allocateLocal(TypeKind.INT);
         int value = code.allocateLocal(localKind(p.dataType)),
                 right = code.allocateLocal(localKind(p.dataType));
-        code.lload(g + 1).l2i().istore(logical);
+        code.lload(g + 1).l2i().istore(start);
+        code.iload(start).istore(logical);
         code.lload(g + 3).l2i().istore(end);
         geometry(code, g, p.layouts[p.updateBoundary] + 2).l2i().istore(updateCount);
         var carriers = new CpuCarrierEmitter(code);
-        var outer = code.newLabel();
-        var done = code.newLabel();
-        var inner = code.newLabel();
-        var write = code.newLabel();
-        code.labelBinding(outer).iload(logical).iload(end).branch(Opcode.IF_ICMPGE, done);
+        var copy = code.newLabel();
+        var copied = code.newLabel();
+        code.labelBinding(copy).iload(logical).iload(end).branch(Opcode.IF_ICMPGE, copied);
         carriers.load(
                 p.dataType, s.carrierPattern().get(p.dataBoundary), p.dataBoundary, logical, true);
         storeValue(code, p.dataType, value);
-        code.loadConstant(0)
-                .istore(update)
-                .labelBinding(inner)
+        carriers.store(
+                p.dataType,
+                s.carrierPattern().get(p.outputBoundary),
+                p.outputBoundary,
+                logical,
+                value,
+                true);
+        code.iinc(logical, 1).branch(Opcode.GOTO, copy).labelBinding(copied);
+        code.loadConstant(0).istore(update);
+        var updates = code.newLabel();
+        var done = code.newLabel();
+        code.labelBinding(updates)
                 .iload(update)
                 .iload(updateCount)
-                .branch(Opcode.IF_ICMPGE, write);
+                .branch(Opcode.IF_ICMPGE, done);
         loadIndex(code, carriers, s, p, update, selected, true);
-        var noMatch = code.newLabel();
-        code.iload(selected).iload(logical).branch(Opcode.IF_ICMPNE, noMatch);
+        var skip = code.newLabel();
+        code.iload(selected).iload(start).branch(Opcode.IF_ICMPLT, skip);
+        code.iload(selected).iload(end).branch(Opcode.IF_ICMPGE, skip);
+        carriers.load(
+                p.dataType,
+                s.carrierPattern().get(p.outputBoundary),
+                p.outputBoundary,
+                selected,
+                true);
+        storeValue(code, p.dataType, value);
         carriers.load(
                 p.dataType,
                 s.carrierPattern().get(p.updateBoundary),
@@ -123,21 +171,20 @@ public final class CpuScatterEmitter {
                 true);
         storeValue(code, p.dataType, right);
         emitReduction(code, p.dataType, p.reduction, value, right);
-        code.labelBinding(noMatch).iinc(update, 1).branch(Opcode.GOTO, inner);
-        code.labelBinding(write);
         carriers.store(
                 p.dataType,
                 s.carrierPattern().get(p.outputBoundary),
                 p.outputBoundary,
-                logical,
+                selected,
                 value,
                 true);
-        code.iinc(logical, 1).branch(Opcode.GOTO, outer).labelBinding(done);
+        code.labelBinding(skip).iinc(update, 1).branch(Opcode.GOTO, updates).labelBinding(done);
     }
 
     private static void emitDenseRankOne(
             CodeBuilder code, CpuKernelSpecialization s, ScatterEncoding p) {
         int g = p.ranks.length,
+                start = code.allocateLocal(TypeKind.INT),
                 logical = code.allocateLocal(TypeKind.INT),
                 end = code.allocateLocal(TypeKind.INT);
         int update = code.allocateLocal(TypeKind.INT),
@@ -151,7 +198,8 @@ public final class CpuScatterEmitter {
         int selected = code.allocateLocal(TypeKind.INT),
                 value = code.allocateLocal(localKind(p.dataType)),
                 right = code.allocateLocal(localKind(p.dataType));
-        code.lload(g + 1).l2i().istore(logical);
+        code.lload(g + 1).l2i().istore(start);
+        code.iload(start).istore(logical);
         code.lload(g + 3).l2i().istore(end);
         geometry(code, g, p.layouts[p.updateBoundary] + 2).l2i().istore(updateCount);
         geometry(code, g, p.layouts[p.dataBoundary] + 1)
@@ -167,11 +215,9 @@ public final class CpuScatterEmitter {
         geometry(code, g, p.layouts[p.indexBoundary] + 1).l2i().istore(indexBase);
         geometry(code, g, p.layouts[p.updateBoundary] + 1).l2i().istore(updateBase);
         var carriers = new CpuCarrierEmitter(code);
-        var outer = code.newLabel();
-        var done = code.newLabel();
-        var inner = code.newLabel();
-        var write = code.newLabel();
-        code.labelBinding(outer).iload(logical).iload(end).branch(Opcode.IF_ICMPGE, done);
+        var copy = code.newLabel();
+        var copied = code.newLabel();
+        code.labelBinding(copy).iload(logical).iload(end).branch(Opcode.IF_ICMPGE, copied);
         carriers.load(
                 p.dataType,
                 s.carrierPattern().get(p.dataBoundary),
@@ -179,24 +225,6 @@ public final class CpuScatterEmitter {
                 dataAddress,
                 true);
         storeValue(code, p.dataType, value);
-        code.loadConstant(0).istore(update);
-        code.labelBinding(inner).iload(update).iload(updateCount).branch(Opcode.IF_ICMPGE, write);
-        code.iload(indexBase).iload(update).iadd().istore(indexAddress);
-        code.iload(updateBase).iload(update).iadd().istore(updateAddress);
-        loadIndex(code, carriers, s, p, indexAddress, selected, true);
-        var noMatch = code.newLabel();
-        code.iload(selected).iload(logical).branch(Opcode.IF_ICMPNE, noMatch);
-        carriers.load(
-                p.dataType,
-                s.carrierPattern().get(p.updateBoundary),
-                p.updateBoundary,
-                updateAddress,
-                true);
-        storeValue(code, p.dataType, right);
-        emitReduction(code, p.dataType, p.reduction, value, right);
-        code.labelBinding(noMatch);
-        code.iinc(update, 1).branch(Opcode.GOTO, inner);
-        code.labelBinding(write);
         carriers.store(
                 p.dataType,
                 s.carrierPattern().get(p.outputBoundary),
@@ -207,11 +235,783 @@ public final class CpuScatterEmitter {
         code.iinc(logical, 1)
                 .iinc(dataAddress, 1)
                 .iinc(outputAddress, 1)
+                .branch(Opcode.GOTO, copy)
+                .labelBinding(copied);
+        code.loadConstant(0).istore(update);
+        var updates = code.newLabel();
+        var done = code.newLabel();
+        code.labelBinding(updates)
+                .iload(update)
+                .iload(updateCount)
+                .branch(Opcode.IF_ICMPGE, done);
+        code.iload(indexBase).iload(update).iadd().istore(indexAddress);
+        code.iload(updateBase).iload(update).iadd().istore(updateAddress);
+        loadIndex(code, carriers, s, p, indexAddress, selected, true);
+        var skip = code.newLabel();
+        code.iload(selected).iload(start).branch(Opcode.IF_ICMPLT, skip);
+        code.iload(selected).iload(end).branch(Opcode.IF_ICMPGE, skip);
+        geometry(code, g, p.layouts[p.outputBoundary] + 1)
+                .l2i()
+                .iload(selected)
+                .iadd()
+                .istore(outputAddress);
+        carriers.load(
+                p.dataType,
+                s.carrierPattern().get(p.outputBoundary),
+                p.outputBoundary,
+                outputAddress,
+                true);
+        storeValue(code, p.dataType, value);
+        carriers.load(
+                p.dataType,
+                s.carrierPattern().get(p.updateBoundary),
+                p.updateBoundary,
+                updateAddress,
+                true);
+        storeValue(code, p.dataType, right);
+        emitReduction(code, p.dataType, p.reduction, value, right);
+        carriers.store(
+                p.dataType,
+                s.carrierPattern().get(p.outputBoundary),
+                p.outputBoundary,
+                outputAddress,
+                value,
+                true);
+        code.labelBinding(skip).iinc(update, 1).branch(Opcode.GOTO, updates).labelBinding(done);
+    }
+
+    private static void emitDenseRankOneGroupedProduct(
+            CodeBuilder code,
+            CpuKernelSpecialization s,
+            ScatterEncoding p,
+            int g,
+            int scratch) {
+        int logical = code.allocateLocal(TypeKind.INT), end = code.allocateLocal(TypeKind.INT);
+        int update = code.allocateLocal(TypeKind.INT), updateCount = code.allocateLocal(TypeKind.INT);
+        int dataAddress = code.allocateLocal(TypeKind.INT), dataStride = code.allocateLocal(TypeKind.INT);
+        int indexAddress = code.allocateLocal(TypeKind.INT), indexBase = code.allocateLocal(TypeKind.INT);
+        int indexStride = code.allocateLocal(TypeKind.INT), updateAddress = code.allocateLocal(TypeKind.INT);
+        int updateBase = code.allocateLocal(TypeKind.INT), updateStride = code.allocateLocal(TypeKind.INT);
+        int outputAddress = code.allocateLocal(TypeKind.INT), outputStride = code.allocateLocal(TypeKind.INT);
+        int selected = code.allocateLocal(TypeKind.INT), found = code.allocateLocal(TypeKind.INT);
+        int value = code.allocateLocal(localKind(p.dataType));
+        int right = code.allocateLocal(localKind(p.dataType));
+        var carriers = new CpuCarrierEmitter(code);
+        var product = new CpuExactProductEmitter(code, p.dataType, scratch, g, 13, 14, true);
+
+        code.lload(g + 1).l2i().istore(logical);
+        code.lload(g + 3).l2i().istore(end);
+        loadGeometryAddress(code, g, p.layouts[p.updateBoundary] + 2, updateCount, true);
+        loadGeometryAddress(code, g, p.layouts[p.dataBoundary] + 3, dataStride, true);
+        loadGeometryAddress(code, g, p.layouts[p.indexBoundary] + 1, indexBase, true);
+        loadGeometryAddress(code, g, p.layouts[p.indexBoundary] + 3, indexStride, true);
+        loadGeometryAddress(code, g, p.layouts[p.updateBoundary] + 1, updateBase, true);
+        loadGeometryAddress(code, g, p.layouts[p.updateBoundary] + 3, updateStride, true);
+        loadGeometryAddress(code, g, p.layouts[p.outputBoundary] + 3, outputStride, true);
+        geometry(code, g, p.layouts[p.dataBoundary] + 1)
+                .l2i()
+                .iload(logical)
+                .iload(dataStride)
+                .imul()
+                .iadd()
+                .istore(dataAddress);
+        geometry(code, g, p.layouts[p.outputBoundary] + 1)
+                .l2i()
+                .iload(logical)
+                .iload(outputStride)
+                .imul()
+                .iadd()
+                .istore(outputAddress);
+
+        var outer = code.newLabel();
+        var done = code.newLabel();
+        compareEnd(code, logical, end, true, done);
+        product.emitScatterReset();
+        code.labelBinding(outer);
+        compareEnd(code, logical, end, true, done);
+        carriers.load(
+                p.dataType,
+                s.carrierPattern().get(p.dataBoundary),
+                p.dataBoundary,
+                dataAddress,
+                true);
+        storeValue(code, p.dataType, value);
+        code.loadConstant(0).istore(found);
+        code.loadConstant(0).istore(update);
+        code.iload(indexBase).istore(indexAddress);
+        code.iload(updateBase).istore(updateAddress);
+        var updates = code.newLabel();
+        var contributionsDone = code.newLabel();
+        code.labelBinding(updates)
+                .iload(update)
+                .iload(updateCount)
+                .branch(Opcode.IF_ICMPGE, contributionsDone);
+        loadIndex(code, carriers, s, p, indexAddress, selected, true);
+        var noMatch = code.newLabel();
+        code.iload(selected).iload(logical).branch(Opcode.IF_ICMPNE, noMatch);
+        carriers.load(
+                p.dataType,
+                s.carrierPattern().get(p.updateBoundary),
+                p.updateBoundary,
+                updateAddress,
+                true);
+        storeValue(code, p.dataType, right);
+        product.emitScatterFactors(value, right, found);
+        code.loadConstant(1).istore(found);
+        code.labelBinding(noMatch)
+                .iinc(update, 1)
+                .iload(indexAddress)
+                .iload(indexStride)
+                .iadd()
+                .istore(indexAddress)
+                .iload(updateAddress)
+                .iload(updateStride)
+                .iadd()
+                .istore(updateAddress)
+                .branch(Opcode.GOTO, updates)
+                .labelBinding(contributionsDone);
+        product.emitFinish(value, found);
+        carriers.store(
+                p.dataType,
+                s.carrierPattern().get(p.outputBoundary),
+                p.outputBoundary,
+                outputAddress,
+                value,
+                true);
+        code.iinc(logical, 1)
+                .iload(dataAddress)
+                .iload(dataStride)
+                .iadd()
+                .istore(dataAddress)
+                .iload(outputAddress)
+                .iload(outputStride)
+                .iadd()
+                .istore(outputAddress)
                 .branch(Opcode.GOTO, outer)
                 .labelBinding(done);
     }
 
-    private static void emitTyped(
+    private static void emitRankTwoElementsCopyThenUpdate(
+            CodeBuilder code,
+            CpuKernelSpecialization s,
+            ScatterEncoding p,
+            boolean ints,
+            int g) {
+        TypeKind addressKind = ints ? TypeKind.INT : TypeKind.LONG;
+        int start = code.allocateLocal(addressKind), logical = code.allocateLocal(addressKind);
+        int end = code.allocateLocal(addressKind), row = code.allocateLocal(addressKind);
+        int column = code.allocateLocal(addressKind), updateRow = code.allocateLocal(addressKind);
+        int updateColumn = code.allocateLocal(addressKind);
+        int outputExtent = code.allocateLocal(addressKind), updateRows = code.allocateLocal(addressKind);
+        int updateColumns = code.allocateLocal(addressKind);
+        int dataBase = code.allocateLocal(addressKind), dataStride0 = code.allocateLocal(addressKind);
+        int dataStride1 = code.allocateLocal(addressKind), outputBase = code.allocateLocal(addressKind);
+        int outputStride0 = code.allocateLocal(addressKind), outputStride1 = code.allocateLocal(addressKind);
+        int indexBase = code.allocateLocal(addressKind), indexStride0 = code.allocateLocal(addressKind);
+        int indexStride1 = code.allocateLocal(addressKind), updateBase = code.allocateLocal(addressKind);
+        int updateStride0 = code.allocateLocal(addressKind), updateStride1 = code.allocateLocal(addressKind);
+        int dataAddress = code.allocateLocal(addressKind), outputAddress = code.allocateLocal(addressKind);
+        int indexAddress = code.allocateLocal(addressKind), updateAddress = code.allocateLocal(addressKind);
+        int selected = code.allocateLocal(addressKind), targetOrdinal = code.allocateLocal(addressKind);
+        int value = code.allocateLocal(localKind(p.dataType)), right = code.allocateLocal(localKind(p.dataType));
+        boolean segmentValues =
+                s.carrierPattern().get(p.dataBoundary)
+                                == CpuKernelSpecialization.CarrierAccess.MEMORY_SEGMENT
+                        || s.carrierPattern().get(p.updateBoundary)
+                                == CpuKernelSpecialization.CarrierAccess.MEMORY_SEGMENT
+                        || s.carrierPattern().get(p.outputBoundary)
+                                == CpuKernelSpecialization.CarrierAccess.MEMORY_SEGMENT;
+        int valueLayout = segmentValues ? code.allocateLocal(TypeKind.REFERENCE) : -1;
+        if (segmentValues) emitPreparedSegmentLayout(code, p.dataType, valueLayout);
+        if (ints) {
+            code.lload(g + 1).l2i().istore(start);
+            code.iload(start).istore(logical);
+            code.lload(g + 3).l2i().istore(end);
+        } else {
+            code.lload(g + 1).lstore(start);
+            code.lload(start).lstore(logical);
+            code.lload(g + 3).lstore(end);
+        }
+        loadGeometryAddress(code, g, 18, row, ints);
+        loadGeometryAddress(code, g, 19, column, ints);
+        loadLayoutFacts(code, g, p.layouts[p.dataBoundary], dataBase, dataStride0, dataStride1, ints);
+        loadLayoutFacts(code, g, p.layouts[p.outputBoundary], outputBase, outputStride0, outputStride1, ints);
+        loadGeometryAddress(code, g, p.layouts[p.outputBoundary] + 3, outputExtent, ints);
+        emitRankTwoAddress(code, dataBase, row, dataStride0, column, dataStride1, dataAddress, ints);
+        emitRankTwoAddress(code, outputBase, row, outputStride0, column, outputStride1, outputAddress, ints);
+        var carriers = new CpuCarrierEmitter(code);
+        var copy = code.newLabel();
+        var copied = code.newLabel();
+        code.labelBinding(copy);
+        compareEnd(code, logical, end, ints, copied);
+        scatterLoad(
+                code,
+                carriers,
+                p.dataType,
+                s.carrierPattern().get(p.dataBoundary),
+                p.dataBoundary,
+                dataAddress,
+                ints,
+                valueLayout);
+        storeValue(code, p.dataType, value);
+        scatterStore(
+                code,
+                carriers,
+                p.dataType,
+                s.carrierPattern().get(p.outputBoundary),
+                p.outputBoundary,
+                outputAddress,
+                value,
+                ints,
+                valueLayout);
+        increment(code, logical, ints);
+        increment(code, column, ints);
+        var copyCarry = code.newLabel();
+        loadAddress(code, column, ints); loadAddress(code, outputExtent, ints);
+        if (ints) code.branch(Opcode.IF_ICMPGE, copyCarry);
+        else code.lcmp().branch(Opcode.IFGE, copyCarry);
+        addLocal(code, dataAddress, dataStride1, ints);
+        addLocal(code, outputAddress, outputStride1, ints);
+        code.branch(Opcode.GOTO, copy).labelBinding(copyCarry);
+        if (ints) code.loadConstant(0).istore(column); else code.loadConstant(0L).lstore(column);
+        increment(code, row, ints);
+        emitRankTwoAddress(code, dataBase, row, dataStride0, column, dataStride1, dataAddress, ints);
+        emitRankTwoAddress(code, outputBase, row, outputStride0, column, outputStride1, outputAddress, ints);
+        code.branch(Opcode.GOTO, copy).labelBinding(copied);
+        loadLayoutFacts(code, g, p.layouts[p.indexBoundary], indexBase, indexStride0, indexStride1, ints);
+        loadLayoutFacts(code, g, p.layouts[p.updateBoundary], updateBase, updateStride0, updateStride1, ints);
+        loadGeometryAddress(code, g, p.layouts[p.updateBoundary] + 2, updateRows, ints);
+        loadGeometryAddress(code, g, p.layouts[p.updateBoundary] + 3, updateColumns, ints);
+        if (ints) {
+            code.loadConstant(0).istore(updateRow).loadConstant(0).istore(updateColumn);
+            code.iload(indexBase).istore(indexAddress).iload(updateBase).istore(updateAddress);
+        } else {
+            code.loadConstant(0L).lstore(updateRow).loadConstant(0L).lstore(updateColumn);
+            code.lload(indexBase).lstore(indexAddress).lload(updateBase).lstore(updateAddress);
+        }
+        var updates = code.newLabel();
+        var done = code.newLabel();
+        code.labelBinding(updates);
+        loadAddress(code, updateRow, ints); loadAddress(code, updateRows, ints);
+        if (ints) code.branch(Opcode.IF_ICMPGE, done); else code.lcmp().branch(Opcode.IFGE, done);
+        loadIndex(code, carriers, s, p, indexAddress, selected, ints);
+        var axisOne = code.newLabel();
+        var targetReady = code.newLabel();
+        geometry(code, g, 6).loadConstant(1L).lcmp().branch(Opcode.IFEQ, axisOne);
+        loadAddress(code, selected, ints); loadAddress(code, outputExtent, ints); multiply(code, ints);
+        loadAddress(code, updateColumn, ints); add(code, ints); storeAddress(code, targetOrdinal, ints);
+        emitRankTwoAddress(code, outputBase, selected, outputStride0, updateColumn, outputStride1, outputAddress, ints);
+        code.branch(Opcode.GOTO, targetReady).labelBinding(axisOne);
+        loadAddress(code, updateRow, ints); loadAddress(code, outputExtent, ints); multiply(code, ints);
+        loadAddress(code, selected, ints); add(code, ints); storeAddress(code, targetOrdinal, ints);
+        emitRankTwoAddress(code, outputBase, updateRow, outputStride0, selected, outputStride1, outputAddress, ints);
+        code.labelBinding(targetReady);
+        var skip = code.newLabel();
+        loadAddress(code, targetOrdinal, ints); loadAddress(code, start, ints);
+        if (ints) code.branch(Opcode.IF_ICMPLT, skip); else code.lcmp().branch(Opcode.IFLT, skip);
+        loadAddress(code, targetOrdinal, ints); loadAddress(code, end, ints);
+        if (ints) code.branch(Opcode.IF_ICMPGE, skip); else code.lcmp().branch(Opcode.IFGE, skip);
+        scatterLoad(
+                code,
+                carriers,
+                p.dataType,
+                s.carrierPattern().get(p.outputBoundary),
+                p.outputBoundary,
+                outputAddress,
+                ints,
+                valueLayout);
+        storeValue(code, p.dataType, value);
+        scatterLoad(
+                code,
+                carriers,
+                p.dataType,
+                s.carrierPattern().get(p.updateBoundary),
+                p.updateBoundary,
+                updateAddress,
+                ints,
+                valueLayout);
+        storeValue(code, p.dataType, right);
+        emitReduction(code, p.dataType, p.reduction, value, right);
+        scatterStore(
+                code,
+                carriers,
+                p.dataType,
+                s.carrierPattern().get(p.outputBoundary),
+                p.outputBoundary,
+                outputAddress,
+                value,
+                ints,
+                valueLayout);
+        code.labelBinding(skip);
+        increment(code, updateColumn, ints);
+        var updateCarry = code.newLabel();
+        loadAddress(code, updateColumn, ints); loadAddress(code, updateColumns, ints);
+        if (ints) code.branch(Opcode.IF_ICMPGE, updateCarry); else code.lcmp().branch(Opcode.IFGE, updateCarry);
+        addLocal(code, indexAddress, indexStride1, ints);
+        addLocal(code, updateAddress, updateStride1, ints);
+        code.branch(Opcode.GOTO, updates).labelBinding(updateCarry);
+        if (ints) code.loadConstant(0).istore(updateColumn); else code.loadConstant(0L).lstore(updateColumn);
+        increment(code, updateRow, ints);
+        emitRankTwoAddress(code, indexBase, updateRow, indexStride0, updateColumn, indexStride1, indexAddress, ints);
+        emitRankTwoAddress(code, updateBase, updateRow, updateStride0, updateColumn, updateStride1, updateAddress, ints);
+        code.branch(Opcode.GOTO, updates).labelBinding(done);
+    }
+
+    private static void loadLayoutFacts(CodeBuilder code, int g, int layout, int base, int stride0,
+            int stride1, boolean ints) {
+        loadGeometryAddress(code, g, layout + 1, base, ints);
+        loadGeometryAddress(code, g, layout + 4, stride0, ints);
+        loadGeometryAddress(code, g, layout + 5, stride1, ints);
+    }
+
+    private static void loadGeometryAddress(CodeBuilder code, int g, int index, int local,
+            boolean ints) {
+        geometry(code, g, index);
+        if (ints) code.l2i().istore(local); else code.lstore(local);
+    }
+
+    private static void emitRankTwoAddress(CodeBuilder code, int base, int row, int stride0,
+            int column, int stride1, int target, boolean ints) {
+        loadAddress(code, base, ints);
+        loadAddress(code, row, ints); loadAddress(code, stride0, ints); multiply(code, ints); add(code, ints);
+        loadAddress(code, column, ints); loadAddress(code, stride1, ints); multiply(code, ints); add(code, ints);
+        storeAddress(code, target, ints);
+    }
+
+    private static void addLocal(CodeBuilder code, int target, int increment, boolean ints) {
+        loadAddress(code, target, ints); loadAddress(code, increment, ints); add(code, ints);
+        storeAddress(code, target, ints);
+    }
+
+    private static void emitPreparedSegmentLayout(CodeBuilder code, DataType type, int local) {
+        String field =
+                switch (type) {
+                    case FLOAT64 -> "JAVA_DOUBLE_UNALIGNED";
+                    case FLOAT32 -> "JAVA_FLOAT_UNALIGNED";
+                    case BFLOAT16 -> "JAVA_SHORT_UNALIGNED";
+                    case INT32 -> "JAVA_INT_UNALIGNED";
+                    case INT64 -> "JAVA_LONG_UNALIGNED";
+                    case BOOL -> "JAVA_BYTE";
+                };
+        ClassDesc layout = scatterLayoutClass(type);
+        code.getstatic(VALUE_LAYOUT, field, layout);
+        code.astore(local);
+    }
+
+    private static void scatterLoad(
+            CodeBuilder code,
+            CpuCarrierEmitter carriers,
+            DataType type,
+            CpuKernelSpecialization.CarrierAccess access,
+            int parameter,
+            int address,
+            boolean ints,
+            int layout) {
+        if (access != CpuKernelSpecialization.CarrierAccess.MEMORY_SEGMENT) {
+            carriers.load(type, access, parameter, address, ints);
+            return;
+        }
+        code.aload(parameter)
+                .aload(layout)
+                .lload(address)
+                .loadConstant((long) type.byteWidth())
+                .lmul()
+                .invokeinterface(
+                        SEGMENT,
+                        "get",
+                        MethodTypeDesc.of(
+                                scatterPrimitive(type), scatterLayoutClass(type), ConstantDescs.CD_long));
+    }
+
+    private static void scatterStore(
+            CodeBuilder code,
+            CpuCarrierEmitter carriers,
+            DataType type,
+            CpuKernelSpecialization.CarrierAccess access,
+            int parameter,
+            int address,
+            int value,
+            boolean ints,
+            int layout) {
+        if (access != CpuKernelSpecialization.CarrierAccess.MEMORY_SEGMENT) {
+            carriers.store(type, access, parameter, address, value, ints);
+            return;
+        }
+        code.aload(parameter)
+                .aload(layout)
+                .lload(address)
+                .loadConstant((long) type.byteWidth())
+                .lmul();
+        loadValue(code, type, value);
+        code.invokeinterface(
+                        SEGMENT,
+                        "set",
+                MethodTypeDesc.of(
+                        ConstantDescs.CD_void,
+                        scatterLayoutClass(type),
+                        ConstantDescs.CD_long,
+                        scatterPrimitive(type)));
+    }
+
+    private static ClassDesc scatterLayoutClass(DataType type) {
+        return switch (type) {
+            case FLOAT64 -> DOUBLE_LAYOUT;
+            case FLOAT32 -> FLOAT_LAYOUT;
+            case BFLOAT16 -> SHORT_LAYOUT;
+            case INT32 -> INT_LAYOUT;
+            case INT64 -> LONG_LAYOUT;
+            case BOOL -> BYTE_LAYOUT;
+        };
+    }
+
+    private static ClassDesc scatterPrimitive(DataType type) {
+        return switch (type) {
+            case FLOAT64 -> ConstantDescs.CD_double;
+            case FLOAT32 -> ConstantDescs.CD_float;
+            case BFLOAT16 -> ConstantDescs.CD_short;
+            case INT32 -> ConstantDescs.CD_int;
+            case INT64 -> ConstantDescs.CD_long;
+            case BOOL -> ConstantDescs.CD_byte;
+        };
+    }
+
+    private static void emitTypedCopyThenUpdate(
+            CodeBuilder code,
+            CpuKernelSpecialization s,
+            ScatterEncoding p,
+            boolean ints,
+            int g) {
+        int targetCoordinate = 16;
+        int copyCoordinate = targetCoordinate + p.outputRank;
+        int updateCoordinate = copyCoordinate + p.outputRank;
+        int start = code.allocateLocal(ints ? TypeKind.INT : TypeKind.LONG);
+        int logical = code.allocateLocal(ints ? TypeKind.INT : TypeKind.LONG);
+        int end = code.allocateLocal(ints ? TypeKind.INT : TypeKind.LONG);
+        int updateOrdinal = code.allocateLocal(ints ? TypeKind.INT : TypeKind.LONG);
+        int updateCount = code.allocateLocal(ints ? TypeKind.INT : TypeKind.LONG);
+        int targetOrdinal = code.allocateLocal(ints ? TypeKind.INT : TypeKind.LONG);
+        int outputAddress = code.allocateLocal(ints ? TypeKind.INT : TypeKind.LONG);
+        int dataAddress = code.allocateLocal(ints ? TypeKind.INT : TypeKind.LONG);
+        int updateAddress = code.allocateLocal(ints ? TypeKind.INT : TypeKind.LONG);
+        int indexAddress = code.allocateLocal(ints ? TypeKind.INT : TypeKind.LONG);
+        int selected = code.allocateLocal(ints ? TypeKind.INT : TypeKind.LONG);
+        int value = code.allocateLocal(localKind(p.dataType));
+        int right = code.allocateLocal(localKind(p.dataType));
+        if (ints) {
+            code.lload(g + 1).l2i().istore(start);
+            code.iload(start).istore(logical);
+            code.lload(g + 3).l2i().istore(end);
+            code.loadConstant(1).istore(updateCount);
+        } else {
+            code.lload(g + 1).lstore(start);
+            code.lload(start).lstore(logical);
+            code.lload(g + 3).lstore(end);
+            code.loadConstant(1L).lstore(updateCount);
+        }
+        for (int axis = 0; axis < p.ranks[p.updateBoundary]; axis++) {
+            loadAddress(code, updateCount, ints);
+            geometry(code, g, p.layouts[p.updateBoundary] + 2 + axis);
+            if (ints) code.l2i();
+            multiply(code, ints);
+            storeAddress(code, updateCount, ints);
+        }
+        var carriers = new CpuCarrierEmitter(code);
+        var copy = code.newLabel();
+        var copied = code.newLabel();
+        code.labelBinding(copy);
+        compareEnd(code, logical, end, ints, copied);
+        address(
+                code,
+                g,
+                p.layouts[p.outputBoundary],
+                copyCoordinate,
+                p.outputRank,
+                outputAddress,
+                ints);
+        address(
+                code,
+                g,
+                p.layouts[p.dataBoundary],
+                copyCoordinate,
+                p.outputRank,
+                dataAddress,
+                ints);
+        carriers.load(
+                p.dataType,
+                s.carrierPattern().get(p.dataBoundary),
+                p.dataBoundary,
+                dataAddress,
+                ints);
+        storeValue(code, p.dataType, value);
+        carriers.store(
+                p.dataType,
+                s.carrierPattern().get(p.outputBoundary),
+                p.outputBoundary,
+                outputAddress,
+                value,
+                ints);
+        advancePacked(code, g, copyCoordinate, p.layouts[p.outputBoundary], p.outputRank);
+        increment(code, logical, ints);
+        code.branch(Opcode.GOTO, copy).labelBinding(copied);
+        for (int axis = 0; axis < p.ranks[p.updateBoundary]; axis++) {
+            code.aload(g).loadConstant(updateCoordinate + axis).loadConstant(0L).lastore();
+        }
+        if (ints) code.loadConstant(0).istore(updateOrdinal);
+        else code.loadConstant(0L).lstore(updateOrdinal);
+        var updates = code.newLabel();
+        var done = code.newLabel();
+        code.labelBinding(updates);
+        compareEnd(code, updateOrdinal, updateCount, ints, done);
+        emitTargetCoordinates(
+                code,
+                carriers,
+                s,
+                p,
+                g,
+                targetCoordinate,
+                updateCoordinate,
+                indexAddress,
+                selected,
+                ints);
+        if (ints) code.loadConstant(0).istore(targetOrdinal);
+        else code.loadConstant(0L).lstore(targetOrdinal);
+        for (int axis = 0; axis < p.outputRank; axis++) {
+            loadAddress(code, targetOrdinal, ints);
+            geometry(code, g, p.layouts[p.outputBoundary] + 2 + axis);
+            if (ints) code.l2i();
+            multiply(code, ints);
+            geometry(code, g, targetCoordinate + axis);
+            if (ints) code.l2i();
+            add(code, ints);
+            storeAddress(code, targetOrdinal, ints);
+        }
+        var skip = code.newLabel();
+        loadAddress(code, targetOrdinal, ints);
+        loadAddress(code, start, ints);
+        if (ints) code.branch(Opcode.IF_ICMPLT, skip);
+        else code.lcmp().branch(Opcode.IFLT, skip);
+        loadAddress(code, targetOrdinal, ints);
+        loadAddress(code, end, ints);
+        if (ints) code.branch(Opcode.IF_ICMPGE, skip);
+        else code.lcmp().branch(Opcode.IFGE, skip);
+        address(
+                code,
+                g,
+                p.layouts[p.outputBoundary],
+                targetCoordinate,
+                p.outputRank,
+                outputAddress,
+                ints);
+        address(
+                code,
+                g,
+                p.layouts[p.updateBoundary],
+                updateCoordinate,
+                p.ranks[p.updateBoundary],
+                updateAddress,
+                ints);
+        carriers.load(
+                p.dataType,
+                s.carrierPattern().get(p.outputBoundary),
+                p.outputBoundary,
+                outputAddress,
+                ints);
+        storeValue(code, p.dataType, value);
+        carriers.load(
+                p.dataType,
+                s.carrierPattern().get(p.updateBoundary),
+                p.updateBoundary,
+                updateAddress,
+                ints);
+        storeValue(code, p.dataType, right);
+        emitReduction(code, p.dataType, p.reduction, value, right);
+        carriers.store(
+                p.dataType,
+                s.carrierPattern().get(p.outputBoundary),
+                p.outputBoundary,
+                outputAddress,
+                value,
+                ints);
+        code.labelBinding(skip);
+        advancePacked(
+                code, g, updateCoordinate, p.layouts[p.updateBoundary], p.ranks[p.updateBoundary]);
+        increment(code, updateOrdinal, ints);
+        code.branch(Opcode.GOTO, updates).labelBinding(done);
+    }
+
+    private static void emitTargetCoordinates(
+            CodeBuilder code,
+            CpuCarrierEmitter carriers,
+            CpuKernelSpecialization s,
+            ScatterEncoding p,
+            int g,
+            int target,
+            int update,
+            int indexAddress,
+            int selected,
+            boolean ints) {
+        if (p.family.equals("SCATTER_ELEMENTS")) {
+            address(
+                    code,
+                    g,
+                    p.layouts[p.indexBoundary],
+                    update,
+                    p.ranks[p.indexBoundary],
+                    indexAddress,
+                    ints);
+            loadIndex(code, carriers, s, p, indexAddress, selected, ints);
+            for (int axis = 0; axis < p.outputRank; axis++) {
+                var selectedAxis = code.newLabel();
+                var complete = code.newLabel();
+                code.aload(g)
+                        .loadConstant(target + axis)
+                        .loadConstant(axis)
+                        .aload(g)
+                        .loadConstant(6)
+                        .laload()
+                        .l2i()
+                        .branch(Opcode.IF_ICMPEQ, selectedAxis);
+                geometry(code, g, update + axis).branch(Opcode.GOTO, complete);
+                code.labelBinding(selectedAxis);
+                loadAddress(code, selected, ints);
+                if (ints) code.i2l();
+                code.labelBinding(complete).lastore();
+            }
+            return;
+        }
+        if (p.family.equals("SCATTER_ADD")) {
+            int indexRank = p.ranks[p.indexBoundary];
+            base(code, g, p.layouts[p.indexBoundary], indexAddress, ints);
+            for (int axis = 0; axis < indexRank; axis++) {
+                loadAddress(code, indexAddress, ints);
+                code.aload(g)
+                        .loadConstant(update)
+                        .aload(g)
+                        .loadConstant(6)
+                        .laload()
+                        .l2i()
+                        .iadd()
+                        .loadConstant(axis)
+                        .iadd()
+                        .laload();
+                if (ints) code.l2i();
+                stride(code, g, p.layouts[p.indexBoundary], indexRank, axis, ints);
+                multiply(code, ints);
+                add(code, ints);
+                storeAddress(code, indexAddress, ints);
+            }
+            loadIndex(code, carriers, s, p, indexAddress, selected, ints);
+            for (int axis = 0; axis < p.outputRank; axis++) {
+                var selectedAxis = code.newLabel();
+                var suffix = code.newLabel();
+                var complete = code.newLabel();
+                code.aload(g)
+                        .loadConstant(target + axis)
+                        .loadConstant(axis)
+                        .aload(g)
+                        .loadConstant(6)
+                        .laload()
+                        .l2i()
+                        .branch(Opcode.IF_ICMPEQ, selectedAxis);
+                code.loadConstant(axis)
+                        .aload(g)
+                        .loadConstant(6)
+                        .laload()
+                        .l2i()
+                        .branch(Opcode.IF_ICMPGT, suffix);
+                geometry(code, g, update + axis).branch(Opcode.GOTO, complete);
+                code.labelBinding(suffix);
+                geometry(code, g, update + indexRank + axis - 1).branch(Opcode.GOTO, complete);
+                code.labelBinding(selectedAxis);
+                loadAddress(code, selected, ints);
+                if (ints) code.i2l();
+                code.labelBinding(complete).lastore();
+            }
+            return;
+        }
+        emitScatterNdTargetCoordinates(
+                code, carriers, s, p, g, target, update, indexAddress, selected, ints);
+    }
+
+    private static void emitScatterNdTargetCoordinates(
+            CodeBuilder code,
+            CpuCarrierEmitter carriers,
+            CpuKernelSpecialization s,
+            ScatterEncoding p,
+            int g,
+            int target,
+            int update,
+            int indexAddress,
+            int selected,
+            boolean ints) {
+        int indexRank = p.ranks[p.indexBoundary];
+        for (int axis = 0; axis < p.outputRank; axis++) {
+            var tuple = code.newLabel();
+            var suffix = code.newLabel();
+            var complete = code.newLabel();
+            code.aload(g)
+                    .loadConstant(target + axis)
+                    .loadConstant(axis)
+                    .aload(g)
+                    .loadConstant(7)
+                    .laload()
+                    .l2i()
+                    .branch(Opcode.IF_ICMPGE, tuple);
+            geometry(code, g, update + axis).branch(Opcode.GOTO, complete);
+            code.labelBinding(tuple)
+                    .loadConstant(axis)
+                    .aload(g)
+                    .loadConstant(7)
+                    .laload()
+                    .l2i()
+                    .aload(g)
+                    .loadConstant(8)
+                    .laload()
+                    .l2i()
+                    .iadd()
+                    .branch(Opcode.IF_ICMPGE, suffix);
+            base(code, g, p.layouts[p.indexBoundary], indexAddress, ints);
+            for (int prefix = 0; prefix < indexRank - 1; prefix++) {
+                loadAddress(code, indexAddress, ints);
+                geometry(code, g, update + prefix);
+                if (ints) code.l2i();
+                stride(code, g, p.layouts[p.indexBoundary], indexRank, prefix, ints);
+                multiply(code, ints);
+                add(code, ints);
+                storeAddress(code, indexAddress, ints);
+            }
+            loadAddress(code, indexAddress, ints);
+            if (ints) {
+                code.loadConstant(axis).aload(g).loadConstant(7).laload().l2i().isub();
+            } else {
+                code.loadConstant((long) axis).aload(g).loadConstant(7).laload().lsub();
+            }
+            stride(code, g, p.layouts[p.indexBoundary], indexRank, indexRank - 1, ints);
+            multiply(code, ints);
+            add(code, ints);
+            storeAddress(code, indexAddress, ints);
+            loadIndex(code, carriers, s, p, indexAddress, selected, ints);
+            loadAddress(code, selected, ints);
+            if (ints) code.i2l();
+            code.branch(Opcode.GOTO, complete).labelBinding(suffix);
+            code.aload(g)
+                    .loadConstant(update + indexRank - 1 + axis)
+                    .aload(g)
+                    .loadConstant(7)
+                    .laload()
+                    .l2i()
+                    .isub()
+                    .aload(g)
+                    .loadConstant(8)
+                    .laload()
+                    .l2i()
+                    .isub()
+                    .laload();
+            code.labelBinding(complete).lastore();
+        }
+    }
+
+    private static void emitTypedGroupedProduct(
             CodeBuilder code,
             CpuKernelSpecialization s,
             ScatterEncoding p,
@@ -232,8 +1032,10 @@ public final class CpuScatterEmitter {
                 match = code.allocateLocal(TypeKind.INT);
         int value = code.allocateLocal(localKind(p.dataType)),
                 right = code.allocateLocal(localKind(p.dataType));
-        ExactProductEmitter product =
-                scratch >= 0 ? new ExactProductEmitter(code, p.dataType, scratch, g) : null;
+        CpuExactProductEmitter product =
+                scratch >= 0
+                        ? new CpuExactProductEmitter(code, p.dataType, scratch, g, 13, 14, true)
+                        : null;
         if (ints) {
             code.lload(g + 1).l2i().istore(logical);
             code.lload(g + 3).l2i().istore(end);
@@ -261,6 +1063,8 @@ public final class CpuScatterEmitter {
         var outer = code.newLabel();
         var done = code.newLabel();
         var updates = code.newLabel();
+        compareEnd(code, logical, end, ints, done);
+        if (product != null) product.emitReset();
         code.labelBinding(outer);
         compareEnd(code, logical, end, ints, done);
         address(
@@ -677,655 +1481,6 @@ public final class CpuScatterEmitter {
                         "intBitsToFloat",
                         MethodTypeDesc.of(ConstantDescs.CD_float, ConstantDescs.CD_int))
                 .fstore(target);
-    }
-
-    /** Emits the complete type-specialized exact product into the generated entry itself. */
-    private static final class ExactProductEmitter {
-        private static final long SIGN = 1, ZERO = 2, INFINITY = 4, NAN = 8;
-        private final CodeBuilder code;
-        private final DataType type;
-        private final int scratch;
-        private final int geometry;
-        private final int offset;
-        private final int bytes;
-        private final int flags;
-        private final int bits;
-        private final int fraction;
-        private final int exponentField;
-        private final int significand;
-        private final int exponent;
-        private final int used;
-        private final int limb;
-        private final int factor;
-        private final int carry;
-        private final int word;
-        private final int low;
-        private final int high;
-        private final int sum;
-        private final int position;
-        private final int top;
-        private final int bitLength;
-        private final int unbiased;
-        private final int shift;
-        private final int quotient;
-        private final int normal;
-        private final int guard;
-        private final int sticky;
-        private final int bitOffset;
-        private final int fullLimbs;
-        private final int remainingBits;
-        private final int result;
-
-        ExactProductEmitter(CodeBuilder code, DataType type, int scratch, int geometry) {
-            if (type != DataType.FLOAT64 && type != DataType.FLOAT32 && type != DataType.BFLOAT16)
-                throw new IllegalArgumentException("exact product requires a floating type");
-            this.code = code;
-            this.type = type;
-            this.scratch = scratch;
-            this.geometry = geometry;
-            offset = code.allocateLocal(TypeKind.LONG);
-            bytes = code.allocateLocal(TypeKind.LONG);
-            flags = code.allocateLocal(TypeKind.LONG);
-            bits = code.allocateLocal(TypeKind.LONG);
-            fraction = code.allocateLocal(TypeKind.LONG);
-            exponentField = code.allocateLocal(TypeKind.LONG);
-            significand = code.allocateLocal(TypeKind.LONG);
-            exponent = code.allocateLocal(TypeKind.LONG);
-            used = code.allocateLocal(TypeKind.INT);
-            limb = code.allocateLocal(TypeKind.INT);
-            factor = code.allocateLocal(TypeKind.LONG);
-            carry = code.allocateLocal(TypeKind.LONG);
-            word = code.allocateLocal(TypeKind.LONG);
-            low = code.allocateLocal(TypeKind.LONG);
-            high = code.allocateLocal(TypeKind.LONG);
-            sum = code.allocateLocal(TypeKind.LONG);
-            position = code.allocateLocal(TypeKind.LONG);
-            top = code.allocateLocal(TypeKind.LONG);
-            bitLength = code.allocateLocal(TypeKind.INT);
-            unbiased = code.allocateLocal(TypeKind.LONG);
-            shift = code.allocateLocal(TypeKind.LONG);
-            quotient = code.allocateLocal(TypeKind.LONG);
-            normal = code.allocateLocal(TypeKind.INT);
-            guard = code.allocateLocal(TypeKind.INT);
-            sticky = code.allocateLocal(TypeKind.INT);
-            bitOffset = code.allocateLocal(TypeKind.INT);
-            fullLimbs = code.allocateLocal(TypeKind.INT);
-            remainingBits = code.allocateLocal(TypeKind.INT);
-            result = code.allocateLocal(TypeKind.LONG);
-            geometry(code, geometry, 13).lstore(offset);
-            geometry(code, geometry, 14).lstore(bytes);
-        }
-
-        void emitFactors(int left, int right, int found) {
-            var initialized = code.newLabel();
-            code.iload(found).branch(Opcode.IFNE, initialized);
-            emitReset();
-            emitFactor(left);
-            code.labelBinding(initialized);
-            emitFactor(right);
-        }
-
-        private void emitReset() {
-            set(0, () -> code.loadConstant(0L));
-            set(8, () -> code.loadConstant(0L));
-            set(16, () -> code.loadConstant(1L));
-            code.lload(offset).loadConstant(24L).ladd().lstore(position);
-            var loop = code.newLabel();
-            var done = code.newLabel();
-            code.labelBinding(loop);
-            code.lload(position).lload(offset).lload(bytes).ladd().lcmp().branch(Opcode.IFGE, done);
-            setAt(position, () -> code.loadConstant(0L));
-            code.lload(position)
-                    .loadConstant(8L)
-                    .ladd()
-                    .lstore(position)
-                    .branch(Opcode.GOTO, loop)
-                    .labelBinding(done);
-            set(24, () -> code.loadConstant(1L));
-        }
-
-        private void emitFactor(int value) {
-            loadBits(value);
-            code.lstore(bits);
-            get(0).lstore(flags);
-            code.lload(bits).loadConstant(signMask()).land().loadConstant(0L).lcmp();
-            var positive = code.newLabel();
-            code.branch(Opcode.IFEQ, positive);
-            code.lload(flags).loadConstant(SIGN).lxor().lstore(flags).labelBinding(positive);
-            code.lload(bits).loadConstant(fractionMask()).land().lstore(fraction);
-            code.lload(bits)
-                    .loadConstant(fractionBits())
-                    .lushr()
-                    .loadConstant(exponentMask())
-                    .land()
-                    .lstore(exponentField);
-            var finite = code.newLabel();
-            code.lload(exponentField)
-                    .loadConstant(exponentMask())
-                    .lcmp()
-                    .branch(Opcode.IFNE, finite);
-            var infinity = code.newLabel();
-            code.lload(fraction).loadConstant(0L).lcmp().branch(Opcode.IFEQ, infinity);
-            code.lload(flags).loadConstant(NAN).lor().lstore(flags);
-            var classified = code.newLabel();
-            code.branch(Opcode.GOTO, classified).labelBinding(infinity);
-            code.lload(flags)
-                    .loadConstant(INFINITY)
-                    .lor()
-                    .lstore(flags)
-                    .branch(Opcode.GOTO, classified)
-                    .labelBinding(finite);
-            var nonzero = code.newLabel();
-            code.lload(exponentField).loadConstant(0L).lcmp().branch(Opcode.IFNE, nonzero);
-            code.lload(fraction).loadConstant(0L).lcmp().branch(Opcode.IFNE, nonzero);
-            code.lload(flags)
-                    .loadConstant(ZERO)
-                    .lor()
-                    .lstore(flags)
-                    .branch(Opcode.GOTO, classified)
-                    .labelBinding(nonzero);
-            var normalFactor = code.newLabel();
-            var factorReady = code.newLabel();
-            code.lload(exponentField).loadConstant(0L).lcmp().branch(Opcode.IFNE, normalFactor);
-            code.lload(fraction).lstore(significand);
-            code.loadConstant((long) (1 - bias() - fractionBits()))
-                    .lstore(exponent)
-                    .branch(Opcode.GOTO, factorReady)
-                    .labelBinding(normalFactor);
-            code.loadConstant(1L << fractionBits()).lload(fraction).lor().lstore(significand);
-            code.lload(exponentField)
-                    .loadConstant((long) (bias() + fractionBits()))
-                    .lsub()
-                    .lstore(exponent)
-                    .labelBinding(factorReady);
-            get(8).lload(exponent).ladd().lstore(exponent);
-            set(8, () -> code.lload(exponent));
-            code.lload(significand).lstore(factor);
-            emitMultiply();
-            code.labelBinding(classified);
-            set(0, () -> code.lload(flags));
-        }
-
-        private void emitMultiply() {
-            get(16).l2i().istore(used);
-            code.loadConstant(0L).lstore(carry);
-            code.loadConstant(0).istore(limb);
-            var loop = code.newLabel();
-            var done = code.newLabel();
-            code.labelBinding(loop).iload(limb).iload(used).branch(Opcode.IF_ICMPGE, done);
-            limbOffset(limb);
-            code.lstore(position);
-            getAt(position).lstore(word);
-            code.lload(word).lload(factor).lmul().lstore(low);
-            code.lload(word)
-                    .lload(factor)
-                    .invokestatic(
-                            MATH_CLASS,
-                            "unsignedMultiplyHigh",
-                            MethodTypeDesc.of(
-                                    ConstantDescs.CD_long,
-                                    ConstantDescs.CD_long,
-                                    ConstantDescs.CD_long))
-                    .lstore(high);
-            code.lload(low).lload(carry).ladd().lstore(sum);
-            code.lload(sum)
-                    .lload(low)
-                    .invokestatic(
-                            LONG_CLASS,
-                            "compareUnsigned",
-                            MethodTypeDesc.of(
-                                    ConstantDescs.CD_int,
-                                    ConstantDescs.CD_long,
-                                    ConstantDescs.CD_long));
-            var noOverflow = code.newLabel();
-            code.branch(Opcode.IFGE, noOverflow);
-            code.lload(high).loadConstant(1L).ladd().lstore(high).labelBinding(noOverflow);
-            setAt(position, () -> code.lload(sum));
-            code.lload(high).lstore(carry);
-            code.iinc(limb, 1).branch(Opcode.GOTO, loop).labelBinding(done);
-            var noCarry = code.newLabel();
-            code.lload(carry).loadConstant(0L).lcmp().branch(Opcode.IFEQ, noCarry);
-            limbOffset(used);
-            code.lstore(position);
-            setAt(position, () -> code.lload(carry));
-            code.iload(used).loadConstant(1).iadd().i2l().lstore(exponent);
-            set(16, () -> code.lload(exponent));
-            code.labelBinding(noCarry);
-        }
-
-        void emitFinish(int value, int found) {
-            var absent = code.newLabel();
-            var store = code.newLabel();
-            code.iload(found).branch(Opcode.IFEQ, absent);
-            get(0).lstore(flags);
-            code.loadConstant(0L).lstore(result);
-            code.lload(flags).loadConstant(SIGN).land().loadConstant(0L).lcmp();
-            var positive = code.newLabel();
-            code.branch(Opcode.IFEQ, positive);
-            code.loadConstant(signBit()).lstore(result).labelBinding(positive);
-            code.lload(flags).loadConstant(NAN).land().loadConstant(0L).lcmp();
-            var checkZeroInfinity = code.newLabel();
-            code.branch(Opcode.IFEQ, checkZeroInfinity);
-            code.lload(result)
-                    .loadConstant(canonicalNan())
-                    .lor()
-                    .lstore(result)
-                    .branch(Opcode.GOTO, store)
-                    .labelBinding(checkZeroInfinity);
-            code.lload(flags)
-                    .loadConstant(ZERO | INFINITY)
-                    .land()
-                    .loadConstant(ZERO | INFINITY)
-                    .lcmp();
-            var checkInfinity = code.newLabel();
-            code.branch(Opcode.IFNE, checkInfinity);
-            code.lload(result)
-                    .loadConstant(canonicalNan())
-                    .lor()
-                    .lstore(result)
-                    .branch(Opcode.GOTO, store)
-                    .labelBinding(checkInfinity);
-            code.lload(flags).loadConstant(INFINITY).land().loadConstant(0L).lcmp();
-            var checkZero = code.newLabel();
-            code.branch(Opcode.IFEQ, checkZero);
-            code.lload(result)
-                    .loadConstant(positiveInfinity())
-                    .lor()
-                    .lstore(result)
-                    .branch(Opcode.GOTO, store)
-                    .labelBinding(checkZero);
-            code.lload(flags)
-                    .loadConstant(ZERO)
-                    .land()
-                    .loadConstant(0L)
-                    .lcmp()
-                    .branch(Opcode.IFNE, store);
-            emitFiniteFinish(store);
-            code.labelBinding(store);
-            storeResult(value);
-            code.labelBinding(absent);
-        }
-
-        private void emitFiniteFinish(java.lang.classfile.Label store) {
-            get(16).l2i().istore(used);
-            limbOffsetMinusOne();
-            code.lstore(position);
-            getAt(position).lstore(top);
-            code.iload(used)
-                    .loadConstant(1)
-                    .isub()
-                    .loadConstant(64)
-                    .imul()
-                    .loadConstant(64)
-                    .lload(top)
-                    .invokestatic(
-                            LONG_CLASS,
-                            "numberOfLeadingZeros",
-                            MethodTypeDesc.of(ConstantDescs.CD_int, ConstantDescs.CD_long))
-                    .isub()
-                    .iadd()
-                    .istore(bitLength);
-            get(8).iload(bitLength).i2l().ladd().loadConstant(1L).lsub().lstore(unbiased);
-            code.lload(unbiased).loadConstant((long) maxExponent()).lcmp();
-            var notOverflow = code.newLabel();
-            code.branch(Opcode.IFLE, notOverflow);
-            code.lload(result)
-                    .loadConstant(positiveInfinity())
-                    .lor()
-                    .lstore(result)
-                    .branch(Opcode.GOTO, store)
-                    .labelBinding(notOverflow);
-            code.lload(unbiased).loadConstant((long) minimumNormal()).lcmp();
-            var subnormal = code.newLabel();
-            var round = code.newLabel();
-            code.branch(Opcode.IFLT, subnormal);
-            code.iload(bitLength).loadConstant(precision()).isub().i2l().lstore(shift);
-            code.loadConstant(1).istore(normal).branch(Opcode.GOTO, round).labelBinding(subnormal);
-            code.loadConstant((long) (minimumNormal() - (precision() - 1)));
-            get(8);
-            code.lsub().lstore(shift);
-            code.loadConstant(0).istore(normal).labelBinding(round);
-            emitRounded();
-            var finishSubnormal = code.newLabel();
-            code.iload(normal).branch(Opcode.IFEQ, finishSubnormal);
-            code.lload(quotient).loadConstant(1L << precision()).lcmp();
-            var normalWidth = code.newLabel();
-            code.branch(Opcode.IFNE, normalWidth);
-            code.lload(quotient).loadConstant(1).lushr().lstore(quotient);
-            code.lload(unbiased).loadConstant(1L).ladd().lstore(unbiased);
-            code.lload(unbiased).loadConstant((long) maxExponent()).lcmp();
-            var roundedNormal = code.newLabel();
-            code.branch(Opcode.IFLE, roundedNormal);
-            code.lload(result)
-                    .loadConstant(positiveInfinity())
-                    .lor()
-                    .lstore(result)
-                    .branch(Opcode.GOTO, store)
-                    .labelBinding(roundedNormal)
-                    .labelBinding(normalWidth);
-            code.lload(unbiased).loadConstant((long) bias()).ladd().lstore(exponentField);
-            code.lload(result)
-                    .lload(exponentField)
-                    .loadConstant(fractionBits())
-                    .lshl()
-                    .lload(quotient)
-                    .loadConstant(fractionMask())
-                    .land()
-                    .lor()
-                    .lor()
-                    .lstore(result)
-                    .branch(Opcode.GOTO, store)
-                    .labelBinding(finishSubnormal);
-            code.lload(quotient).loadConstant(0L).lcmp().branch(Opcode.IFEQ, store);
-            code.lload(quotient).loadConstant(1L << fractionBits()).lcmp();
-            var trueSubnormal = code.newLabel();
-            code.branch(Opcode.IFLT, trueSubnormal);
-            code.lload(result)
-                    .loadConstant(1L << fractionBits())
-                    .lor()
-                    .lstore(result)
-                    .branch(Opcode.GOTO, store)
-                    .labelBinding(trueSubnormal);
-            code.lload(result).lload(quotient).lor().lstore(result).branch(Opcode.GOTO, store);
-        }
-
-        private void emitRounded() {
-            var positiveShift = code.newLabel();
-            var withinProduct = code.newLabel();
-            var quotientReady = code.newLabel();
-            var afterShiftedLow = code.newLabel();
-            code.lload(shift).loadConstant(0L).lcmp().branch(Opcode.IFGT, positiveShift);
-            get(24).lload(shift)
-                    .lneg()
-                    .l2i()
-                    .lshl()
-                    .lstore(quotient)
-                    .branch(Opcode.GOTO, quotientReady)
-                    .labelBinding(positiveShift);
-            code.lload(shift).iload(bitLength).i2l().lcmp().branch(Opcode.IFLE, withinProduct);
-            code.loadConstant(0L)
-                    .lstore(quotient)
-                    .branch(Opcode.GOTO, quotientReady)
-                    .labelBinding(withinProduct);
-            code.lload(shift).iload(bitLength).i2l().lcmp();
-            var belowLength = code.newLabel();
-            code.branch(Opcode.IFLT, belowLength);
-            code.loadConstant(0L)
-                    .lstore(quotient)
-                    .branch(Opcode.GOTO, afterShiftedLow)
-                    .labelBinding(belowLength);
-            code.lload(shift).loadConstant(6).lushr().l2i().istore(limb);
-            code.lload(shift).loadConstant(63L).land().l2i().istore(bitOffset);
-            limbOffset(limb);
-            code.lstore(position);
-            getAt(position).iload(bitOffset).lushr().lstore(quotient);
-            code.iload(bitOffset);
-            var noNextWord = code.newLabel();
-            code.branch(Opcode.IFEQ, noNextWord);
-            code.iload(limb)
-                    .loadConstant(1)
-                    .iadd()
-                    .iload(used)
-                    .branch(Opcode.IF_ICMPGE, noNextWord);
-            code.iinc(limb, 1);
-            limbOffset(limb);
-            code.lstore(position);
-            getAt(position).loadConstant(64).iload(bitOffset).isub().lshl();
-            code.lload(quotient)
-                    .lor()
-                    .lstore(quotient)
-                    .labelBinding(noNextWord)
-                    .labelBinding(afterShiftedLow)
-                    .labelBinding(quotientReady);
-            code.loadConstant(0).istore(guard);
-            code.loadConstant(0).istore(sticky);
-            code.lload(shift).loadConstant(1L).lsub().lstore(position);
-            code.lload(position).loadConstant(0L).lcmp();
-            var guardDone = code.newLabel();
-            code.branch(Opcode.IFLT, guardDone);
-            code.lload(position).loadConstant(6).lushr().l2i().istore(limb);
-            code.iload(limb).iload(used).branch(Opcode.IF_ICMPGE, guardDone);
-            code.lload(position).loadConstant(63L).land().l2i().istore(bitOffset);
-            limbOffset(limb);
-            code.lstore(position);
-            getAt(position)
-                    .iload(bitOffset)
-                    .lushr()
-                    .loadConstant(1L)
-                    .land()
-                    .l2i()
-                    .istore(guard)
-                    .labelBinding(guardDone);
-            code.lload(shift).loadConstant(1L).lsub().lstore(position);
-            code.lload(position).loadConstant(0L).lcmp();
-            var stickyDone = code.newLabel();
-            code.branch(Opcode.IFLE, stickyDone);
-            code.lload(position).loadConstant(6).lushr().l2i().istore(fullLimbs);
-            code.lload(position).loadConstant(63L).land().l2i().istore(remainingBits);
-            code.loadConstant(0).istore(limb);
-            var stickyLoop = code.newLabel();
-            var afterFull = code.newLabel();
-            code.labelBinding(stickyLoop)
-                    .iload(limb)
-                    .iload(fullLimbs)
-                    .branch(Opcode.IF_ICMPGE, afterFull);
-            code.iload(limb).iload(used).branch(Opcode.IF_ICMPGE, afterFull);
-            limbOffset(limb);
-            code.lstore(position);
-            getAt(position).loadConstant(0L).lcmp();
-            var next = code.newLabel();
-            code.branch(Opcode.IFEQ, next);
-            code.loadConstant(1)
-                    .istore(sticky)
-                    .branch(Opcode.GOTO, stickyDone)
-                    .labelBinding(next)
-                    .iinc(limb, 1)
-                    .branch(Opcode.GOTO, stickyLoop)
-                    .labelBinding(afterFull);
-            code.iload(remainingBits).branch(Opcode.IFEQ, stickyDone);
-            code.iload(fullLimbs).iload(used).branch(Opcode.IF_ICMPGE, stickyDone);
-            limbOffset(fullLimbs);
-            code.lstore(position);
-            getAt(position)
-                    .loadConstant(1L)
-                    .iload(remainingBits)
-                    .lshl()
-                    .loadConstant(1L)
-                    .lsub()
-                    .land()
-                    .loadConstant(0L)
-                    .lcmp();
-            code.branch(Opcode.IFEQ, stickyDone);
-            code.loadConstant(1).istore(sticky).labelBinding(stickyDone);
-            code.iload(guard);
-            var rounded = code.newLabel();
-            code.branch(Opcode.IFEQ, rounded);
-            code.iload(sticky);
-            var roundUp = code.newLabel();
-            code.branch(Opcode.IFNE, roundUp);
-            code.lload(quotient)
-                    .loadConstant(1L)
-                    .land()
-                    .loadConstant(0L)
-                    .lcmp()
-                    .branch(Opcode.IFEQ, rounded)
-                    .labelBinding(roundUp);
-            code.lload(quotient).loadConstant(1L).ladd().lstore(quotient).labelBinding(rounded);
-        }
-
-        private void loadBits(int value) {
-            switch (type) {
-                case FLOAT64 ->
-                        code.dload(value)
-                                .invokestatic(
-                                        DOUBLE_CLASS,
-                                        "doubleToRawLongBits",
-                                        MethodTypeDesc.of(
-                                                ConstantDescs.CD_long, ConstantDescs.CD_double));
-                case FLOAT32 ->
-                        code.fload(value)
-                                .invokestatic(
-                                        FLOAT_CLASS,
-                                        "floatToRawIntBits",
-                                        MethodTypeDesc.of(
-                                                ConstantDescs.CD_int, ConstantDescs.CD_float))
-                                .i2l()
-                                .loadConstant(0xffffffffL)
-                                .land();
-                case BFLOAT16 -> code.iload(value).i2l().loadConstant(0xffffL).land();
-                default -> throw new IllegalArgumentException("not a floating product");
-            }
-        }
-
-        private void storeResult(int value) {
-            switch (type) {
-                case FLOAT64 ->
-                        code.lload(result)
-                                .invokestatic(
-                                        DOUBLE_CLASS,
-                                        "longBitsToDouble",
-                                        MethodTypeDesc.of(
-                                                ConstantDescs.CD_double, ConstantDescs.CD_long))
-                                .dstore(value);
-                case FLOAT32 ->
-                        code.lload(result)
-                                .l2i()
-                                .invokestatic(
-                                        FLOAT_CLASS,
-                                        "intBitsToFloat",
-                                        MethodTypeDesc.of(
-                                                ConstantDescs.CD_float, ConstantDescs.CD_int))
-                                .fstore(value);
-                case BFLOAT16 -> code.lload(result).l2i().istore(value);
-                default -> throw new IllegalArgumentException("not a floating product");
-            }
-        }
-
-        private CodeBuilder get(int delta) {
-            segmentOffset(delta);
-            return code.invokeinterface(
-                    SEGMENT,
-                    "get",
-                    MethodTypeDesc.of(ConstantDescs.CD_long, LONG_LAYOUT, ConstantDescs.CD_long));
-        }
-
-        private CodeBuilder getAt(int address) {
-            return code.aload(scratch)
-                    .getstatic(VALUE_LAYOUT, "JAVA_LONG", LONG_LAYOUT)
-                    .lload(address)
-                    .invokeinterface(
-                            SEGMENT,
-                            "get",
-                            MethodTypeDesc.of(
-                                    ConstantDescs.CD_long, LONG_LAYOUT, ConstantDescs.CD_long));
-        }
-
-        private void set(int delta, Runnable value) {
-            segmentOffset(delta);
-            value.run();
-            code.invokeinterface(
-                    SEGMENT,
-                    "set",
-                    MethodTypeDesc.of(
-                            ConstantDescs.CD_void,
-                            LONG_LAYOUT,
-                            ConstantDescs.CD_long,
-                            ConstantDescs.CD_long));
-        }
-
-        private void setAt(int address, Runnable value) {
-            code.aload(scratch).getstatic(VALUE_LAYOUT, "JAVA_LONG", LONG_LAYOUT).lload(address);
-            value.run();
-            code.invokeinterface(
-                    SEGMENT,
-                    "set",
-                    MethodTypeDesc.of(
-                            ConstantDescs.CD_void,
-                            LONG_LAYOUT,
-                            ConstantDescs.CD_long,
-                            ConstantDescs.CD_long));
-        }
-
-        private void segmentOffset(int delta) {
-            code.aload(scratch).getstatic(VALUE_LAYOUT, "JAVA_LONG", LONG_LAYOUT).lload(offset);
-            if (delta != 0) code.loadConstant((long) delta).ladd();
-        }
-
-        private void limbOffset(int index) {
-            code.lload(offset)
-                    .loadConstant(24L)
-                    .ladd()
-                    .iload(index)
-                    .i2l()
-                    .loadConstant(8L)
-                    .lmul()
-                    .ladd();
-        }
-
-        private void limbOffsetMinusOne() {
-            code.lload(offset)
-                    .loadConstant(24L)
-                    .ladd()
-                    .iload(used)
-                    .loadConstant(1)
-                    .isub()
-                    .i2l()
-                    .loadConstant(8L)
-                    .lmul()
-                    .ladd();
-        }
-
-        private long signMask() {
-            return type == DataType.FLOAT64
-                    ? 1L << 63
-                    : type == DataType.FLOAT32 ? 1L << 31 : 1L << 15;
-        }
-
-        private int fractionBits() {
-            return type == DataType.FLOAT64 ? 52 : type == DataType.FLOAT32 ? 23 : 7;
-        }
-
-        private int bias() {
-            return type == DataType.FLOAT64 ? 1023 : 127;
-        }
-
-        private int precision() {
-            return fractionBits() + 1;
-        }
-
-        private int maxExponent() {
-            return type == DataType.FLOAT64 ? 1023 : 127;
-        }
-
-        private int minimumNormal() {
-            return 1 - bias();
-        }
-
-        private long fractionMask() {
-            return (1L << fractionBits()) - 1;
-        }
-
-        private long exponentMask() {
-            return type == DataType.FLOAT64 ? 0x7ffL : 0xffL;
-        }
-
-        private long signBit() {
-            return type == DataType.FLOAT64
-                    ? 1L << 63
-                    : type == DataType.FLOAT32 ? 1L << 31 : 1L << 15;
-        }
-
-        private long canonicalNan() {
-            return type == DataType.FLOAT64
-                    ? 0x7ff8000000000000L
-                    : type == DataType.FLOAT32 ? 0x7fc00000L : 0x7fc0L;
-        }
-
-        private long positiveInfinity() {
-            return type == DataType.FLOAT64
-                    ? 0x7ff0000000000000L
-                    : type == DataType.FLOAT32 ? 0x7f800000L : 0x7f80L;
-        }
     }
 
     private static void address(

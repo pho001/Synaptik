@@ -20,8 +20,39 @@ import java.lang.classfile.ClassFile;
 import java.lang.classfile.Instruction;
 import java.lang.classfile.Opcode;
 import java.lang.classfile.instruction.InvokeInstruction;
+import java.lang.classfile.constantpool.DynamicConstantPoolEntry;
+import java.lang.classfile.constantpool.MemberRefEntry;
+import java.lang.classfile.constantpool.MethodHandleEntry;
 
 class CpuScanGeneratedKernelTest {
+    @Test void bfloatScanArtifactsAreSelfContainedTypedAndFreeOfDynamicConstructs() {
+        for (CumulativeScanKind kind : CumulativeScanKind.values()) {
+            var model = generatedModel(kind, DataType.BFLOAT16);
+            List<MemberRefEntry> members = java.util.stream.StreamSupport.stream(
+                    model.constantPool().spliterator(), false)
+                    .filter(MemberRefEntry.class::isInstance).map(MemberRefEntry.class::cast).toList();
+            assertAll(kind.toString(),
+                    () -> assertEquals("([S[S[JJJ)V",
+                            model.methods().getFirst().methodTypeSymbol().descriptorString()),
+                    () -> assertTrue(members.stream().noneMatch(entry -> entry.owner()
+                            .asInternalName().startsWith("io/github/pho001/synaptik"))),
+                    () -> assertTrue(members.stream().noneMatch(entry -> entry.type().stringValue()
+                            .contains("Ljava/lang/Object;") || entry.owner().asInternalName()
+                                    .startsWith("java/lang/reflect/") || entry.owner()
+                                    .asInternalName().startsWith("java/util/"))),
+                    () -> assertEquals(0, model.constantPool().bootstrapMethodCount()),
+                    () -> assertTrue(java.util.stream.StreamSupport.stream(
+                            model.constantPool().spliterator(), false)
+                            .noneMatch(MethodHandleEntry.class::isInstance)),
+                    () -> assertTrue(java.util.stream.StreamSupport.stream(
+                            model.constantPool().spliterator(), false)
+                            .noneMatch(DynamicConstantPoolEntry.class::isInstance)),
+                    () -> assertTrue(model.methods().stream().flatMap(method -> method.code().stream())
+                            .flatMap(code -> code.elementStream()).noneMatch(
+                                    java.lang.classfile.instruction.NewObjectInstruction.class::isInstance)));
+        }
+    }
+
     @Test void generatedClassContainsTypedScanLoopWithoutGenericDispatchBridge() {
         var base = CpuScanLoweringTest.context(CumulativeScanKind.CUM_SUM, DataType.FLOAT32,
                 Shape.of(1024), 0, false, false);
@@ -70,6 +101,14 @@ class CpuScanGeneratedKernelTest {
         short[] bfloat = (short[]) invoke(CumulativeScanKind.CUM_SUM, DataType.BFLOAT16,
                 false, false, new short[]{one, halfUlp, halfUlp});
         assertArrayEquals(new short[]{one, one, one}, bfloat);
+        short[] oddHalfway = (short[]) invoke(CumulativeScanKind.CUM_SUM, DataType.BFLOAT16,
+                false, false, new short[]{(short) 0x3f81, halfUlp});
+        assertArrayEquals(new short[]{(short) 0x3f81, (short) 0x3f82}, oddHalfway);
+        short[] specialProduct = (short[]) invoke(CumulativeScanKind.CUM_PROD, DataType.BFLOAT16,
+                false, false, new short[]{(short) 0x8000, (short) 0x7f80, (short) 0x7f81});
+        assertEquals(0x8000, Short.toUnsignedInt(specialProduct[0]));
+        assertTrue((Short.toUnsignedInt(specialProduct[1]) & 0x7fc0) == 0x7fc0);
+        assertTrue((Short.toUnsignedInt(specialProduct[2]) & 0x7fc0) == 0x7fc0);
     }
 
     @Test void generatedResultsMatchIndependentReferenceForFiveTypesKindsAndModes() throws Throwable {
@@ -138,5 +177,18 @@ class CpuScanGeneratedKernelTest {
         artifact.entryPoint().invokeWithArguments(input, output, packed, 0L,
                 plan.scanGeometry().orElseThrow().sliceCount());
         return output;
+    }
+
+    private static java.lang.classfile.ClassModel generatedModel(CumulativeScanKind kind,
+            DataType type) {
+        var base = CpuScanLoweringTest.context(kind, type, Shape.of(8), 0, false, false);
+        CarrierAccess carrier = type == DataType.BFLOAT16 ? CarrierAccess.SHORT_ARRAY
+                : CarrierAccess.FLOAT_ARRAY;
+        PrepareContext<CpuPartitionAnalysisInputs> context = new PrepareContext<>(base.partition(),
+                base.nodes(), base.values(), base.memoryRequirements(), Map.of(),
+                new CpuPartitionAnalysisInputs(false, List.of(carrier, carrier)));
+        var route = new CpuPartitionPreparer().analyze(context).plan().units().getFirst().portablePlan();
+        return ClassFile.of().parse(new CpuClassFileKernelGenerator().generateClassBytes(
+                route.specialization(), route.kernelIr()));
     }
 }

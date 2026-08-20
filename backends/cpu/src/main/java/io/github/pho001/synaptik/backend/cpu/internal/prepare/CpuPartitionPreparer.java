@@ -150,7 +150,9 @@ public final class CpuPartitionPreparer implements BackendPartitionPreparer<
                 materialization.map(CpuMaterializationPlan::sourceBoundaryIndex).orElse(-1),
                 powerRealizations(kernelIr), lowered.scatterGeometry()
                         .filter(g -> g.scratchSliceBytes() > 0).isPresent()
-                        || lowered.orderingGeometry().isPresent());
+                        || lowered.orderingGeometry().isPresent()
+                        || lowered.aggregateGeometry().filter(g -> g.scratchSliceBytes() > 0)
+                            .isPresent());
         var selectedPortableIr = materialization.isPresent()
                 ? kernelIr : lowered.portableKernelIr();
         var routePlan = new CpuPortableRoutePlan(selectedPortableIr, specialization);
@@ -175,12 +177,26 @@ public final class CpuPartitionPreparer implements BackendPartitionPreparer<
             workspace = Optional.of(new PreparationResourceRequirement.Workspace(0,
                     geometry.workspaceBytes(selectedRangeCount), Long.BYTES));
         }
+        if (lowered.aggregateGeometry().filter(g -> g.scratchSliceBytes() > 0
+                && g.outputCount() > 0).isPresent()) {
+            var geometry = lowered.aggregateGeometry().orElseThrow();
+            long aggregateBytes = geometry.workspaceBytes(selectedRangeCount);
+            var limit = context.backendInputs().materializationPolicy();
+            if (limit.enabled() && aggregateBytes > limit.maximumAdditionalBytes())
+                throw new IllegalArgumentException(
+                        "aggregate exact-state workspace exceeds the configured byte ceiling");
+            workspace = Optional.of(new PreparationResourceRequirement.Workspace(0,
+                    aggregateBytes, Long.BYTES));
+        }
         var workspaceUse = materialization.isPresent()
                 ? CpuPartitionPreparationPlan.WorkspaceUse.MATERIALIZATION
                 : workspace.isPresent() ? CpuPartitionPreparationPlan.WorkspaceUse.SCATTER_PRODUCT
                 : CpuPartitionPreparationPlan.WorkspaceUse.NONE;
         if (lowered.orderingGeometry().isPresent() && workspace.isPresent())
             workspaceUse = CpuPartitionPreparationPlan.WorkspaceUse.ORDERING_INDICES;
+        if (lowered.aggregateGeometry().filter(g -> g.scratchSliceBytes() > 0
+                && g.outputCount() > 0).isPresent())
+            workspaceUse = CpuPartitionPreparationPlan.WorkspaceUse.AGGREGATE_EXACT_STATE;
         var plan = new CpuPartitionPreparationPlan(
                 List.of(new CpuPartitionPreparationPlan.ExecutionUnitPlan(
                         routePlan, lowered.fusionReason())),

@@ -59,12 +59,13 @@ FLOAT64, FLOAT32, BFLOAT16, INT32, and INT64 in inclusive/exclusive and forward/
 Each logical scan slice keeps one sequential typed accumulator; scalar or parallel-scalar
 execution may distribute only whole independent slices. The family declares one input and one
 distinct output, with zero workspace or materialization.
-The tenth family is exactly one resolved-layout ordinary `MIN`, `MAX`, `ALL`, or `ANY`
-occurrence. Numeric extrema accept FLOAT64, FLOAT32, BFLOAT16, INT32, or INT64 and preserve the
-represented type; Boolean folds accept and produce only canonical BOOL. Exact full, single-axis,
-and multi-axis forms share one output-cell geometry, including an empty multi-axis selection as a
-one-value point domain. Scalar or parallel-scalar execution distributes only whole output cells
-and declares zero workspace, materialization, partial state, or combine state.
+The tenth family is exactly one resolved-layout ordinary aggregate occurrence. `SUM`, `PROD`,
+`MIN`, and `MAX` accept FLOAT64, FLOAT32, BFLOAT16, INT32, or INT64; `MEAN` accepts the three
+floating types; and Boolean `ALL` and `ANY` accept canonical BOOL. Exact full, single-axis, and
+multi-axis forms share one output-cell geometry, including an empty multi-axis selection as a
+one-value point domain. Scalar or parallel-scalar execution distributes only whole output cells.
+Floating SUM, MEAN, and PROD use declared run-owned exact-state workspace; every other row uses
+zero workspace. No row uses input materialization, partial reductions, or a combine step.
 
 Generated scalar and Java 26 Vector API entries accept primitive `start` and `end` bounds.
 Compatible concrete extents bind on the cold path and share identical class bytes and one
@@ -647,7 +648,7 @@ affine load/store, gather, scatter, masked tail, or speed claim.
 Lifecycle ownership remains unchanged. CPU analysis validates and composes the chain, chooses the
 scalar orchestration, and declares exactly the source and final result. Shared Prepare assigns
 those two slots without interpreting the affine plan. CPU finalization validates both assignments
-before current schema-25 artifact access and constructs one immutable executable. Cold binding validates
+before current schema-33 artifact access and constructs one immutable executable. Cold binding validates
 the exact data type, carrier, byte size, alignment, accessibility, output writability, canonical
 BOOL input bytes, and source/result non-overlap. Runtime then invokes only the prepared direct
 carriers, address table, and `start`/`end` bounds; it receives no operation, graph node, Shape,
@@ -698,7 +699,7 @@ callback, or per-element allocation in generated code.
 
 Movement uses scalar compute and either single-thread or deterministic parallel orchestration.
 Parallel chunks are safe because output injectivity proves disjoint writes. Vector preference
-falls back to scalar for this family. CPU finalization realizes current schema-25 generated artifacts;
+falls back to scalar for this family. CPU finalization realizes current schema-33 generated artifacts;
 cold binding validates complete input/output spans and rejects every output/input overlap before
 execution. The scalar reference consumes the same movement IR and compact geometry for
 differential tests, not as a Runtime fallback.
@@ -707,9 +708,12 @@ Dense heap-array affine and movement entries use a cold-proved integer loop/addr
 entry descriptor remains shape-polymorphic and accepts `long start, long end`; it narrows those
 bounds, carrier bases, and compact movement geometry once before entering the loop. Dense affine
 copies then advance direct source/result array indexes. PAD, TILE, CONCAT, STACK, UNFOLD_AXIS,
-UNFOLD2D, and SLICE_UPDATE retain family-specific integer coordinate/address state. Segment,
-mixed-carrier, arbitrary-layout, non-unit/zero-stride, large-range, and otherwise unproved cases
-retain the typed general-long form.
+UNFOLD2D, and SLICE_UPDATE retain family-specific integer coordinate/address state. Schema 33 also
+lets PAD, CONCAT, UNFOLD_AXIS, and UNFOLD2D use bounded primitive geometry and address/coordinate
+cursors when cold invocation checks prove every geometry value, range, and transition, regardless
+of heap, segment, or mixed carrier choice. The original typed general-long form remains the
+fallback whenever those checks cannot prove the bounded form. Target schema-33 classes embed this
+work directly and contain no hidden Synaptik runtime call.
 
 TILE wraps each source coordinate by its own input-axis extent. An outer source coordinate advances
 only when the matching output axis carries; repeating the final axis therefore does not
@@ -726,6 +730,13 @@ The probe used Java 26.0.1 on macOS 26.5.2 aarch64, fixed one-gibibyte initial a
 five warmup batches, nine randomized measurement rounds, adaptive batches of at least 25 ms, and
 exact verification. These local measurements validate the selected cases; they do not select a
 production route or promise parity for every mapping or machine.
+
+CPU 0007A1E applied the schema-33 bounded form to four fixed general-address cases. The worst of
+five generated/direct fork ratios was `0.823098645x` for PAD, `1.143960287x` for CONCAT,
+`0.896544010x` for UNFOLD_AXIS, and `0.825152484x` for UNFOLD2D; every fork passed the unchanged
+`<= 1.15x` gate. These results cover only the retained cases and environment. The unchanged
+20-row diagnostic probe still exits nonzero because twelve or thirteen deferred non-target rows
+exceed the gate in each fork, so this evidence is not a full-probe performance pass.
 
 ### Current static window extraction
 
@@ -809,7 +820,7 @@ injectivity, and output/input non-overlap checks still run.
 
 CPU analysis declares each distinct gather input `ValueId` once in semantic first-use order and
 then one separate output; one-hot declares indices and output. Every indexing plan has one unit,
-no materialization, no workspace, one current schema-28 generated class artifact, one prepared
+no materialization, no workspace, one current schema-33 generated class artifact, one prepared
 executable, and one bound invocation. The generated class embeds carrier-, type-, family-, and
 access-specialized output loops rather than delegating through a generic carrier bridge. Proved
 dense heap arrays use integer loop/address state; segment, mixed-carrier, and general-layout forms
@@ -817,8 +828,8 @@ retain typed long-address traversal. The artifact owns only output writing. Comp
 geometry retains layout and coordinate facts without a per-index or per-output table, while the
 bound executable owns run-value validation. Shared Prepare assigns declared buffers opaquely,
 and Runtime sees only the prepared executable and direct carriers. Schema 24 introduced these
-embedded indexing bodies; under current schema 28, schema-27 and earlier artifacts are
-incompatible misses and there is no migration reader.
+embedded indexing bodies; current schema 33 retains them, while older artifacts are incompatible
+misses and there is no migration reader.
 
 Current indexing support ends at these four one-node, fully static operations. Functional
 scatter, fold accumulation, ordering/top-K, and explicit-state random work have separate current
@@ -907,20 +918,36 @@ cases, and any validation failure leaves the output bytes unchanged. `SCATTER_AD
 duplicates and has no uniqueness pass.
 
 The generated class embeds the selected scatter family, represented type, reduction, carrier
-accesses, contribution matching, and output store. For each owned output coordinate it reads the
-base through the data layout, scans logical contributions in row-major order, and writes that
-output once. Cold-proved dense rank-one heap-array forms narrow universal bounds and bases once
-and retain integer loop and address state. Segment, mixed-carrier, arbitrary-layout, large-range,
-and otherwise unproved forms retain typed general long-address traversal. Neither form contains a
-generic `Object` execution bridge or repeats bounds and uniqueness validation inside generated
-work. A scalar call owns the complete selected range; parallel-scalar chunks own disjoint output
-ranges, share only read-only inputs, and use no atomics or merge step. Resolved inputs may use
+accesses, target mapping, and output store. For `NONE`, `ADD`, `MIN`, `MAX`, and integral `MUL`,
+each invocation first copies the base values in its owned half-open output range, then traverses
+the complete logical update-scalar domain once in row-major order. It derives each target's logical
+output ordinal and applies the update only when that ordinal belongs to the range. A range of
+length `R` with `U` update scalars therefore performs `O(R + U)` generated work; `W` disjoint
+worker ranges perform `O(outputCount + W * U)` total work. Each worker still writes only its own
+output coordinates, so duplicate reductions retain canonical update order without atomics, locks,
+cross-range partials, or a merge step.
+
+Cold-proved dense rank-one heap-array forms narrow universal bounds and bases once and retain
+integer loop and address state. Segment, mixed-carrier, arbitrary-layout, large-range, and
+otherwise unproved forms retain typed general long-address traversal. Both forms use the same
+copy-then-update ownership rule. Neither contains a generic `Object` execution bridge or repeats
+bounds and uniqueness validation inside generated work. A raw generated replacement entry is
+deterministically last-assignment-wins if a caller bypasses the required uniqueness validator;
+that is a Class-File test invariant, not supported public behavior. Resolved inputs may use
 non-negative offsets and strides, including broadcast-zero strides; output layout must be writable
 and injective. Heap carriers are
 `double[]`, `float[]`, raw BFLOAT16 `short[]`, `int[]`, `long[]`, and canonical BOOL `byte[]`;
 native-order `MemorySegment` and compatible mixed patterns are also supported. Exact repeated
 input values deduplicate to one boundary, and input/input overlap is allowed. Output overlap with
 any input is rejected.
+
+Floating `MUL` is the deliberate algorithmic exception. Copy-then-update would either round an
+intermediate product or require exact state for every interleaved target, but the established
+resource contract provides only one exact accumulator slice per range. A floating-product range
+therefore remains output-owned: for each owned output coordinate it scans the complete update
+domain, groups that target's factors, finishes one once-rounded product, and reuses the same slice.
+This is approximately `O(R * U)` work and is retained as a correctness/resource boundary, not
+presented as whole-family linear complexity.
 
 Only a floating `MUL` plan with non-empty output and contribution domains declares workspace. One
 run-owned `CpuContiguousWorkspace` contains a checked, eight-byte-aligned fixed-capacity primitive-
@@ -930,19 +957,24 @@ sign/exponent/significand state, primitive-limb multiplication, and final ties-t
 It uses no `BigInteger`, generic scatter helper, or per-factor/per-output allocation. Every other
 scatter row declares no workspace, and scatter never selects input materialization. Schema 16
 introduced scatter family, reduction, structural access/type/carrier facts, semantic occurrence
-mapping, and the optional scratch entry. Current schema 25 additionally records the embedded
-family/type/reduction/carrier/access body; schema 24 and every earlier envelope are incompatible
-misses with no migration reader. Concrete axes, batch/tuple values, extents, layout magnitudes,
-ranges, workspace sizes and offsets, resource identities, and validation results remain cold
-compatible facts.
+mapping, and the optional scratch entry. Schema 25 added the embedded
+family/type/reduction/carrier/access body. Current schema 31 adds the range-owned copy-then-update
+loop shape for scratch-free rows while retaining grouped floating-product bytecode and the same
+scratch signature. Schema-30 and every earlier envelope are incompatible misses with no migration
+reader. Concrete axes, batch/tuple values, extents, layout magnitudes, ranges, workspace sizes and
+offsets, resource identities, and validation results remain cold compatible facts.
 
-The CPU 0007A0C local parity probe measured only two dense rank-one FLOAT32 heap-array cases under
-the retained five-fork protocol: unique `SCATTER_ELEMENTS + NONE` reached a generated/direct
-median-of-fork-medians ratio of `0.979533`, and duplicate-index `SCATTER_ADD` reached `0.983230`.
-Both are below the task's `1.15x` acceptance limit. These results are local evidence for those two
-unchanged class shapes, not a universal performance claim. General layouts, segment and mixed
-carriers, other families/types/reductions/index widths, and exact floating-product entries have
-semantic, resource, and generated-Class-File coverage but no timing threshold in this task.
+The CPU 0007A1B local parity probe used five isolated JVM forks and six fixed adverse-ratio cases.
+The final generated/direct median-of-fork-medians ratios were `1.034` for dense Elements `NONE`,
+`1.022` for dense Elements `ADD`, `1.017` for dense Gather-compatible Scatter Add, `1.012` for
+dense Scatter-ND `NONE`, `0.563` for a general mixed-carrier Elements `ADD`, and `0.850` for the
+grouped exact floating product. All 30 individual ratios and all six aggregates were at most
+`1.15`. Compared with preserved schema-30 class bytes, the five scratch-free generated medians
+improved by `1795.9x`, `1966.0x`, `1925.0x`, `1388.1x`, and `6652.7x`; the unchanged-resource
+exact-product split improved by `2.09x` and was exempt from the scratch-free `4x` gate. These are
+writer-only results for the recorded Java 26/macOS arm64 cases and protocol. They exclude cold
+validation, generation, class loading, preparation, binding, and allocation, and they are neither
+a universal speed claim nor a production selection input.
 
 This coverage changes only the CPU-private portable route. It does not change Model semantics,
 Compiler capture or gradients, shared Prepare or Runtime contracts, public Tensor/API behavior,
@@ -990,7 +1022,7 @@ parallel orchestration calls the same scalar body over disjoint output ranges. F
 API body, atomics, partial sums, cross-range merge, hidden scratch, or input-domain parallelism.
 CPU analysis and finalization keep concrete axes, windows, extents, layouts, carriers, and ranges
 cold. Schema 17 introduced the fold family, represented type, boundary access/rank structure,
-carrier pattern, execution mode, and canonical sequential-addition policy. Current schema 26
+carrier pattern, execution mode, and canonical sequential-addition policy. Current schema 31
 embeds typed mapping, carrier access, and sequential addition; every older schema is an
 incompatible miss with no migration reader.
 
@@ -1048,13 +1080,13 @@ independent primitive-index insertion implementation for differential evidence; 
 Runtime fallback.
 
 Schema 27 introduced the complete carrier-, represented-type-, family-, direction-, output-,
-and access-specialized ordering body, which current schema 28 retains. It uses a stable bottom-up
+and access-specialized ordering body, which current schema 33 retains. It uses a stable bottom-up
 merge over the two assigned
 INT64 scratch regions, selecting the left logical index on equality. Dense heap-array forms use
 cold-proved integer loop and address state. Arbitrary supported layouts and heap, segment, or
 mixed carrier forms use typed long-address access; values and indices are stored without a
 generic `Object` execution bridge or runtime family dispatch. Schema 27 and every earlier
-envelope are incompatible misses and are regenerated under schema 28; no migration reader is
+envelope are incompatible misses and are regenerated under schema 33; no migration reader is
 provided.
 
 The retained fixed five-fork evidence compares dense FLOAT32 schema-27 generated entries with
@@ -1159,7 +1191,7 @@ probability bits, ordered boundary roles and carriers, and zero-scratch shape. C
 slots, carriers, workers, and ranges remain cold when they do not change emitted bytes. There is
 no migration reader for old artifacts. Schema 28 is the first version whose random entries embed
 the direct typed initializer and FLOAT64/FLOAT32 dropout bodies. A schema-27 envelope is an
-incompatible safe miss: cold finalization regenerates and may publish current schema-28 bytes
+incompatible safe miss: cold finalization regenerates and may publish current schema-33 bytes
 after shared slot assignment rather than loading, converting, or aliasing the old bridge class.
 
 Retained observational evidence for the fixed dense heap-array shape `[64,16384]`, probability
@@ -1241,27 +1273,31 @@ The entry contains no generic `Object` carrier bridge or runtime data-type/kind 
 Schema 20 records scan kind, represented type, normalized axis role, inclusive/exclusive and
 forward/reverse modes, ordered boundary roles and carrier forms, structural accesses, sequential
 typed-rounding policy, scalar compute shape, and absence of scratch. Schema 22 added the embedded
-typed body and dense heap-array loop-shape compatibility; current schema 28 retains those facts.
+typed body and dense heap-array loop-shape compatibility. Schema 30 additionally emits
+BFLOAT16 conversion, arithmetic, and round-to-nearest-ties-to-even steps directly in the generated
+body. It widens each represented operand to FLOAT32, performs one typed add or multiply, and rounds
+back after every visited value without calling a Synaptik-owned runtime member.
 Concrete extents, offsets, stride magnitudes, assigned slots, carrier objects,
 addresses, worker identity, run identity, and selected range count remain cold when they do not
-change emitted bytes. Schema-27 and earlier artifacts are incompatible misses, and there is no
-migration reader.
+change emitted bytes. Schema-30 and earlier artifacts are incompatible safe misses under the
+current-only cache policy, and there is no migration reader.
 
-Current coverage ends at this one-node static portable family. Numerical ordinary aggregates,
-arg-extrema, masked, logarithmic, statistical, and norm reductions remain Draft CPU
-0007A1–0007D work. Stable
+Current coverage ends at this one-node static portable family. Ordinary numerical aggregates are
+the separate current family below. Arg-extrema, masked, logarithmic, statistical, and norm
+reductions remain Draft CPU 0007B–0007D work. Stable
 `SOFTMAX`/`LOG_SOFTMAX` and normalization remain Draft CPU 0007E–0007F work. Multi-node scan
 fusion, partial scans, cross-worker prefix combination, vector or native scan bodies, dynamic
 Shape/layout binding, in-place/overlapping execution, public scan configuration, and a shared
 Runtime scan primitive are not implemented.
 
-### Current ordinary extrema and Boolean reduction family
+### Current ordinary aggregate reduction family
 
 The portable ordinary-aggregate family accepts exactly one fully static, resolved-layout
-`MIN`, `MAX`, `ALL`, or `ANY` occurrence. `MIN` and `MAX` accept FLOAT64, FLOAT32, BFLOAT16,
-INT32, and INT64 and produce that same represented type. `ALL` and `ANY` accept and produce only
-canonical one-byte BOOL. No promotion, truth conversion, numerical sum/product, target-Shape
-reduction, or other reduction kind is implied.
+`SUM`, `MEAN`, `PROD`, `MIN`, `MAX`, `ALL`, or `ANY` occurrence. `SUM`, `PROD`, `MIN`, and `MAX`
+accept FLOAT64, FLOAT32, BFLOAT16, INT32, and INT64 and preserve that represented type. `MEAN`
+accepts only FLOAT64, FLOAT32, and BFLOAT16. `ALL` and `ANY` accept and produce only canonical
+one-byte BOOL. Integral MEAN, `SUM_TO_SHAPE`, masked reductions, arg extrema, and later reduction
+families fail closed before route selection.
 
 The accepted attribute forms determine selected axes as follows:
 
@@ -1272,12 +1308,11 @@ The accepted attribute forms determine selected axes as follows:
 | Distinct normalized axis list | Axis membership, independent of list order | Selected axes removed, or retained with extent one |
 | Empty normalized axis list | One value at the corresponding input position | Input Shape, regardless of retention |
 
-Each existing output cell owns its complete selected domain. Selected zero extents materialize
-the kind's identity independently for every such cell: positive infinity for floating `MIN`,
-negative infinity for floating `MAX`, the corresponding signed integer extreme, canonical true
-for `ALL`, or canonical false for `ANY`. A zero extent on an unselected axis instead makes the
-output empty, so there is no cell on which to write an identity and no generated call or worker
-submission.
+Each existing output cell owns its complete selected domain. A selected zero extent materializes
+the kind's empty-domain result independently for every such cell: positive zero for SUM, positive
+one for PROD, canonical positive quiet NaN for floating MEAN, the extrema identity, canonical true
+for ALL, or canonical false for ANY. A zero extent on an unselected axis instead makes the output
+empty, so there is no cell on which to write a result and no generated call or worker submission.
 
 For a compact example, reduce this INT32 input of Shape `[2, 3]` along axis `1`:
 
@@ -1302,28 +1337,63 @@ not a Model, cross-backend, or future-schema payload promise. BFLOAT16 values wi
 comparison, and the selected output copies the original 16 represented bits without arithmetic
 or rounding.
 
-Analysis declares exactly `[input, output]`, one computation unit, one generated artifact, and no
-workspace or materialization. Cold binding accepts the matching heap primitive arrays,
+Floating SUM uses the exact real sum of all finite selected values and rounds that value once to
+BFLOAT16, FLOAT32, or FLOAT64 with round-to-nearest, ties-to-even. MEAN divides the exact sum by
+the exact positive domain count before that single rounding; it does not first produce a rounded
+SUM. PROD retains an exact integer significand and power-of-two exponent for all finite nonzero
+factors, then rounds the exact product once with the same rule. "Exact" describes the internal
+real-number target, not an arbitrary-precision output: the observable result remains the input
+format.
+
+Schema 29 makes special values deterministic for these numerical rows. Any NaN produces the
+format's canonical positive quiet NaN. For SUM and nonempty MEAN, opposite-signed infinities also
+produce that NaN; one infinity sign produces that infinity. Exact finite overflow rounds to signed
+infinity. Empty SUM is positive zero, and a nonempty exact-zero SUM or MEAN is negative zero only
+when every selected operand is negative zero. Empty MEAN is canonical NaN. For PROD, NaN wins;
+zero together with infinity produces canonical NaN; otherwise infinity or zero uses the XOR of
+all factor sign bits, and empty PROD is positive one. Subnormal inputs participate exactly, and
+normal, subnormal, overflow, underflow, and underflow-to-signed-zero results all use the one final
+ties-to-even conversion.
+
+INT32 and INT64 SUM and PROD use same-width two's-complement modular arithmetic. Overflow wraps
+modulo 2^32 or 2^64; no widening, saturation, floating accumulator, or boxed state is involved.
+
+Analysis declares exactly `[input, output]`, one computation unit, and one generated artifact.
+Floating SUM, MEAN, and PROD also declare one eight-byte-aligned CPU-private workspace before
+shared slot assignment. It contains one disjoint exact-state slice for each simultaneously
+executable output-cell range; zero output cells require no workspace. The workspace is allocated
+and released with the run, not retained by the immutable prepared executable. Integral numerical,
+extrema, and Boolean rows declare no workspace, and no aggregate row selects materialization.
+Cold binding accepts the matching heap primitive arrays,
 native-order `MemorySegment` carriers, and compatible mixed boundaries for arbitrary supported
 non-negative resolved input layouts and injective output layouts. It validates canonical BOOL
-input and rejects complete physical input/output overlap before coordinate-pack mutation, output
+input and rejects complete physical input/output overlap. Scratch-bearing rows additionally
+validate workspace presence, exact size, alignment, accessibility, and complete physical
+non-overlap with input and output. All checks finish before coordinate-pack mutation, output
 initialization, a generated call, or worker submission. Empty output performs no generated work.
 
-The generated entry embeds a typed aggregate fold selected from structural aggregate facts.
+The generated entry embeds a typed aggregate body selected from structural aggregate facts.
 Primitive `start` and `end` values bound a contiguous range of flattened output-cell ordinals.
-Full dense heap-array reductions use a direct integer-address linear fold. Other supported forms
-retain a typed long-address fallback that decodes output and selected-domain coordinates only
-where arbitrary rank or strides require it. Every range receives invocation-private primitive
-coordinate state, while the prepared recipe retains no mutable accumulator, partial buffer,
-combine state, or run-shared reduction state.
+Full and eligible trailing-axis dense heap-array reductions use direct integer-address loops.
+Other supported forms retain a typed long-address body that decodes output and selected-domain
+coordinates only where arbitrary rank or strides require it. Floating numerical entries receive
+their range's already assigned workspace slice and emit direct primitive-limb operations; they do
+not call a numerical helper or runtime operation dispatcher. Every range receives invocation-
+private coordinate and accumulator state, while the prepared recipe retains no mutable
+accumulator, partial buffer, combine state, or run-shared reduction state.
 
 Schema 21 records kind, represented type, ordinary form, canonical selected-axis membership,
 retention, structural boundary access, first-logical-NaN/signed-zero policy, complete-output-cell
 range meaning, carrier forms, and zero scratch. Schema 22 added embedded typed-body and dense
-heap-array loop-shape compatibility; current schema 28 retains those facts. Concrete Shapes,
-domain counts, offsets, stride magnitudes, slots, carrier objects, addresses, workers, run
-identity, and selected range count remain cold when they do not change emitted bytes. Schema-27
-and earlier artifacts are incompatible misses; there is no migration reader.
+heap-array loop-shape compatibility. Schema 29 added numerical kind/type/form identity,
+domain cardinality, exact-state limb and slice shape, scratch-bearing entry shape, and direct
+SUM/MEAN/PROD bodies. Schema 30 additionally emits FLOAT64, FLOAT32, BFLOAT16, INT32, and
+INT64 MIN/MAX selection and canonical BOOL ALL/ANY combination directly. Floating selection keeps
+the first logical NaN bits and the established signed-zero choice, BFLOAT16 compares widened values
+but copies the selected 16-bit representation, and integral comparison remains signed. Concrete
+offsets, stride magnitudes, slots, carrier objects, addresses, workers, run identity, and selected
+range count remain cold when they do not change emitted bytes or resource shape. Schema-29 and
+earlier artifacts are incompatible safe misses; there is no migration reader or partial reuse.
 
 The local CPU 0007A0 parity probe is evidence for the current generated code shape, not a
 hardware-universal speed guarantee or production selector. On Java 26.0.1, macOS 26.5.2,
@@ -1333,20 +1403,28 @@ preferred-species FLOAT64 Vector ADD, 0.854 for scalar FLOAT64 ADD -> GELU_EXACT
 for dense FLOAT64 full MIN, and 0.998 for inclusive forward FLOAT32 CUM_SUM. The probe used five
 fresh JVM forks and kept timing outside ordinary unit tests.
 
-Current coverage ends at this one-node static family. Ordinary `SUM`, `MEAN`, and `PROD` remain
-Draft CPU 0007A1 work; binding-aware `SUM_TO_SHAPE` remains Draft CPU 0007A2 work. Arg extrema,
+The numerical implementation partitions only output cells. It never divides one reduction domain,
+so scalar and every supported worker count visit each cell's inputs in the same logical row-major
+order and produce bit-identical results. This is a deterministic CPU result guarantee, not a claim
+that floating output arithmetic is mathematically associative or that another backend uses the
+same NaN policy.
+
+Current coverage ends at this one-node static family. Binding-aware `SUM_TO_SHAPE` remains Draft
+CPU 0007A2 work. Arg extrema,
 masked and advanced reductions, softmax, normalization, multi-node reduction fusion,
 within-domain parallelism, partial/combine trees, vector/native reduction bodies, dynamic
-Shape/layout binding, in-place overlap, tuning, and performance claims remain outside this
-increment.
+Shape/layout binding, in-place overlap, tuning, and broader performance guarantees remain outside
+this increment. The task's fixed generated/direct measurements are acceptance evidence for its
+thirteen selected dense cases, not a route selector or universal speed promise.
 
 ### Unary numerical closure
 
 Every unary occurrence remains one Model node and one CPU instruction. FLOAT64 scalar emission
-uses primitive arithmetic, `Math`, `StrictMath`, or the shared pure error-function and activation
-helpers. Where the JDK lacks a FLOAT32 overload, scalar emission widens the represented binary32
-input exactly, performs the selected binary64 calculation, and narrows once. This is a private
-realization of a same-typed request, not a cross-type Model cast.
+uses primitive arithmetic and permitted JDK primitive `Math` or `StrictMath` calls. Schema 30
+embeds the selected ERF, sigmoid, exact and tanh-approximation GELU, and SiLU formulas directly in
+the generated class. Where the JDK lacks a FLOAT32 overload, scalar emission widens the represented
+binary32 input exactly, performs the selected binary64 calculation, and narrows once. This is a
+private realization of a same-typed request, not a cross-type Model cast.
 
 FLOAT32 `RSQRT` applies that rule to the complete `1.0d / StrictMath.sqrt(input)` expression: it
 widens the input before the square root, performs the reciprocal in FLOAT64, and narrows only the
@@ -1408,6 +1486,25 @@ and owns only pure multi-instruction formulas such as reciprocal, ERF, and GELU.
 loop, carrier, route, or opcode selection. `CpuClassFileKernelGenerator` still owns class and loop
 construction, local allocation, boundary loads/stores, scalar tails, byte verification, and hidden
 class definition. Generated hot code contains no opcode, type, carrier, route, or shape dispatch.
+
+The schema-30 self-containment audit is deliberately bounded to 28 representative generated
+classes: ten scalar activation classes, four vector ERF/GELU classes, two BFLOAT16 scan classes,
+ten numeric MIN/MAX classes, and two BOOL ALL/ANY classes. Scalar activation, scan, and aggregate
+artifacts contain no Synaptik-owned call. Their remaining formula calls are the required primitive
+JDK operations: `Math.abs`, `Math.sqrt`, `Math.copySign`, integral `Math.min`/`Math.max`,
+`StrictMath.exp`, `StrictMath.tanh`, and primitive-wrapper raw-bit conversion or NaN
+classification. The four vector artifacts reference only typed `CpuVectorMath.erf` or
+`CpuVectorMath.gelu`, once per emitted vector instruction per chunk; their scalar tails contain no
+Synaptik-owned call. None of the 28 classes contains a method handle, `invokedynamic`, dynamic
+constant, or bootstrap-method entry. This is evidence for that audited matrix, not a claim about
+every possible current or future generated kernel.
+
+The matching 24-case direct-primitive-Java probe covered both precisions of all five changed
+activations, both BFLOAT16 scan operations, numeric MIN/MAX for every supported represented type,
+and BOOL ALL/ANY. All 120 isolated-fork results and all 24 aggregate ratios passed the `<= 1.15x`
+gate on the recorded Java 26/macOS arm64 environment. The maximum fork ratio was `1.117147x` and
+the maximum aggregate ratio was `1.111438x`, both for BOOL ANY. These measurements compare only
+the fixed audited cases and do not select production behavior or establish a general speedup.
 
 ### Floating division, extrema, clamp, and power realization
 
@@ -1799,9 +1896,10 @@ overlap-fold, stable ordering, explicit-state random, cumulative-scan, and ordin
 families described
 above. Scalar
 execution covers every admitted row; parallel-scalar orchestration is available for disjoint
-affine, movement, scatter, fold, ordering, random-element, and whole-scan-slice ranges; and the
+affine, movement, scatter, fold, ordering, random-element, whole-scan-slice, and whole-aggregate-
+output-cell ranges; and the
 pointwise family retains its exact
-typed value-vector and virtual-mask parity matrix. Generator schema 28 distinguishes pointwise,
+typed value-vector and virtual-mask parity matrix. Generator schema 33 distinguishes pointwise,
 affine, movement, indexing, scatter, fold, ordering, random, scan, and aggregate structures,
 including movement occurrence order,
 unequal-rank access, exact
@@ -1811,7 +1909,9 @@ plus fold family/addition-policy identity and embedded typed mapping/addition bo
 entry identity and embedded typed stable-merge/output body, explicit-state mapping/scaling
 identity and direct typed state/mapping/threshold/value/mask bodies, cumulative kind/axis/mode/typed-rounding
 identity, ordinary aggregate form/axis/selection/range identity, embedded typed scan/aggregate
-bodies, proved dense heap-array integer pointwise/affine/movement/indexing/scatter/fold loop forms, and the affine
+bodies, schema-29 exact floating aggregate state and direct numerical bodies, schema-30 direct
+covered scalar activation/BFLOAT16 scan/extrema/Boolean formulas, proved dense heap-array integer
+pointwise/affine/movement/indexing/scatter/fold loop forms, and the affine
 mapping/write domain and all seven carrier forms. No excluded pointwise or later semantic family,
 general BFLOAT16 pointwise or dropout numerical operation,
 cross-type CAST, dynamic layout, vector affine/scatter/fold/ordering execution, native fallback, backend-conformance

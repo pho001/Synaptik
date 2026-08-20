@@ -57,9 +57,11 @@ import java.util.Optional;
  * For cumulative scans, binding rejects complete input/output physical overlap before creating
  * calls or submitting workers. Each selected range owns complete independent logical slices;
  * one slice is never divided, and every range receives invocation-private coordinate state.
- * For ordinary aggregate execution, binding validates the complete input/output spans and every
- * canonical Boolean input before mutation. Parallel ranges own disjoint complete output cells;
- * no range splits, partially reduces, or combines a selected domain.
+ * For ordinary aggregate execution, binding validates complete input/output spans, every canonical
+ * Boolean input, and any exact-state workspace size, alignment, accessibility, and physical
+ * non-overlap before mutation. Floating numerical parallel ranges receive disjoint workspace
+ * slices. All ranges own disjoint complete output cells; no range splits, partially reduces, or
+ * combines a selected domain.
  */
 public final class CpuPreparedExecutable extends PreparedExecutable {
     private final CpuGeneratedKernel artifact;
@@ -571,8 +573,10 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
             throw new IllegalArgumentException("affine, movement, indexing, scatter, and fold geometry are exclusive");
         }
         boolean scatterScratch=this.scatterGeometry.filter(g->g.scratchSliceBytes()>0).isPresent();
+        boolean aggregateScratch=this.aggregateGeometry.filter(g -> g.scratchSliceBytes() > 0
+                && g.outputCount() > 0).isPresent();
         if (workspaceSelection.isPresent() != (materialization.isPresent() || scatterScratch
-                || this.orderingGeometry.isPresent())) {
+                || aggregateScratch || this.orderingGeometry.isPresent())) {
             throw new IllegalArgumentException("workspace selection purpose is inconsistent");
         }
         int materializedPosition = materialization
@@ -679,13 +683,16 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
     @Override protected boolean acceptsWorkspaceRepresentation(int index,
             WorkspaceRepresentation representation) {
         if (index != 0 || materialization.isEmpty() && scatterGeometry.isEmpty()
-                    && orderingGeometry.isEmpty()
+                    && orderingGeometry.isEmpty() && aggregateGeometry.isEmpty()
                 || !(representation instanceof CpuContiguousWorkspace workspace)
                 || !workspace.isAccessible()) return false;
         long bytes=materialization.map(CpuMaterializationPlan::byteCount)
-                .orElseGet(()->scatterGeometry.map(g -> g.workspaceBytes(selectedRangeCount))
-                        .orElseGet(() -> orderingGeometry.orElseThrow()
-                                .workspaceBytes(selectedRangeCount)));
+                .orElseGet(()->scatterGeometry.filter(g -> g.scratchSliceBytes() > 0)
+                        .map(g -> g.workspaceBytes(selectedRangeCount))
+                        .orElseGet(() -> aggregateGeometry.filter(g -> g.scratchSliceBytes() > 0)
+                            .map(g -> g.workspaceBytes(selectedRangeCount))
+                            .orElseGet(() -> orderingGeometry.orElseThrow()
+                                .workspaceBytes(selectedRangeCount))));
         long alignment=materialization.map(CpuMaterializationPlan::byteAlignment).orElse(8L);
         return workspace.byteSize() == bytes && workspace.byteAlignment() == alignment
                 && workspace.writableSegment().address() % alignment == 0;
@@ -695,6 +702,8 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
             BufferRepresentation[] buffers, WorkspaceRepresentation[] workspaces) {
         boolean hasWorkspace=materialization.isPresent()
                 || scatterGeometry.filter(g->g.scratchSliceBytes()>0).isPresent()
+                || aggregateGeometry.filter(g -> g.scratchSliceBytes() > 0
+                    && g.outputCount() > 0).isPresent()
                 || orderingGeometry.isPresent();
         if (workspaces.length != (hasWorkspace ? 1 : 0)) {
             throw new IllegalArgumentException("workspace count disagrees with prepared use");
@@ -777,6 +786,14 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
         if (workerGroup != null && hasWorkspace && !workerGroup.workersCanAccess(
                 ((CpuContiguousWorkspace) workspaces[0]).writableSegment()))
             throw new IllegalArgumentException("scratch is not accessible to every CPU worker");
+        if (aggregateGeometry.filter(g -> g.scratchSliceBytes() > 0
+                && g.outputCount() > 0).isPresent()) {
+            MemorySegment aggregateScratch = scratch(workspaces);
+            for (CpuBufferArgument argument : arguments)
+                if (argument instanceof CpuBufferArgument.Segment segment
+                        && aggregateScratch.asOverlappingSlice(segment.segment()).isPresent())
+                    throw new IllegalArgumentException("aggregate scratch must not overlap a buffer");
+        }
         long length = end - start;
         KernelCall prologue = randomGeometry.isPresent() ? callFor(artifact.entryPoint(), arguments,
                 null, geometry(arguments, 0, 0, 0), 0, 0) : null;
@@ -784,7 +801,7 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
                 Math.toIntExact(1 + (length - 1) / minimumElementsPerWorker));
         if (chunkCount <= 1) {
             KernelCall call = length == 0 ? null : callFor(artifact.entryPoint(), arguments,
-                    artifact.specialization().scratchParameter() ? scratch(workspaces) : null,
+                    artifact.specialization().scratchParameter() ? scratch(workspaces, 0) : null,
                     geometry(arguments, start, end, 0), start, end);
             return new Invocation(state, copyCall, validation, scatterValidation, prologue, call, null);
         }
@@ -795,7 +812,7 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
         for (int index = 0; index < chunkCount; index++) {
             long chunkEnd = chunkStart + quotient + (index < remainder ? 1 : 0);
             KernelCall call = callFor(artifact.entryPoint(), arguments,
-                    artifact.specialization().scratchParameter() ? scratch(workspaces) : null,
+                    artifact.specialization().scratchParameter() ? scratch(workspaces, index) : null,
                     geometry(arguments, chunkStart, chunkEnd, index), chunkStart, chunkEnd);
             calls[index] = call::invoke;
             chunkStart = chunkEnd;
@@ -869,7 +886,7 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
                 int width = artifact.specialization().boundaryDataTypes().get(index).byteWidth();
                 bases[index] = arguments.get(index).byteOffset() / width;
             }
-            return aggregateGeometry.orElseThrow().pack(bases);
+            return aggregateGeometry.orElseThrow().pack(bases, 0);
         }
         if (scanGeometry.isPresent()) {
             long[] bases = new long[2];
@@ -1034,6 +1051,16 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
     private static MemorySegment scratch(WorkspaceRepresentation[] workspaces) {
         return workspaces.length == 0 ? null
                 : ((CpuContiguousWorkspace) workspaces[0]).writableSegment();
+    }
+
+    private MemorySegment scratch(WorkspaceRepresentation[] workspaces, int rangeIndex) {
+        MemorySegment whole = scratch(workspaces);
+        if (whole != null && aggregateGeometry.filter(g -> g.scratchSliceBytes() > 0
+                && g.outputCount() > 0).isPresent()) {
+            long bytes = aggregateGeometry.orElseThrow().scratchSliceBytes();
+            return whole.asSlice(Math.multiplyExact((long) rangeIndex, bytes), bytes);
+        }
+        return whole;
     }
 
     private static void invokeVoid(MethodHandle target, long start, long end) throws Throwable {

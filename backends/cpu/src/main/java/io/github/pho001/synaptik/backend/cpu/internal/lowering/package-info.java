@@ -73,10 +73,12 @@
  * injective output, and declares exactly those two buffers with no workspace, materialization,
  * partial scan, or combine state.</p>
  *
- * <p>Ordinary aggregate lowering admits exactly one static resolved-layout MIN, MAX, ALL, or ANY
- * occurrence. It canonicalizes selected-axis membership, derives full/single-/multi-axis output
- * and domain geometry, proves a distinct injective output, and declares two buffers with no
- * workspace, materialization, partial value, or combine state.</p>
+ * <p>Ordinary aggregate lowering admits exactly one static resolved-layout SUM, MEAN, PROD, MIN,
+ * MAX, ALL, or ANY occurrence from the closed type matrix. It canonicalizes selected-axis
+ * membership, derives full/single-/multi-axis output and domain geometry, proves a distinct
+ * injective output, and derives exact numerical state/resource bounds. Floating numerical rows
+ * declare run-owned per-range workspace; all other rows are workspace-free, and no row uses
+ * materialization, a partial value, or combine state.</p>
  *
  * <p>Lowering runs on the preparation cold path; no lowering object or Model operation reaches the
  * generated execution loop.

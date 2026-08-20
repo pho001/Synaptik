@@ -34,8 +34,17 @@
  * and addition-specialized overlap-fold bodies with dense integer and general long-address forms.
  * Schema 27 adds carrier-, represented-type-, family-, direction-, output-, and access-specialized
  * stable-ordering bodies with direct two-region merge scratch access. Schema 28 embeds typed
- * INITIAL_STATE and FLOAT64/FLOAT32 DROPOUT bodies without a generic execution bridge. Schema 28
- * is current-only.
+ * INITIAL_STATE and FLOAT64/FLOAT32 DROPOUT bodies without a generic execution bridge. Schema 29
+ * adds ordinary numerical aggregate identity, exact floating-state shapes, scratch-bearing entry
+ * shape, and direct exact SUM/MEAN/PROD bodies. Schema 30 embeds the remaining covered scalar
+ * activation, BFLOAT16 scan, and extrema/Boolean aggregate formulas without a Synaptik runtime
+ * member reference; the vector chunk boundary remains intentional. Schema 31 adds range-owned
+ * copy-then-update scatter bodies for scratch-free forms while retaining grouped exact floating
+ * products and their existing scratch shape. Schema 32 hoists each required native-order typed
+ * segment layout into one generated invocation local before repeated scalar access. Schema 33
+ * adds cold-proved bounded primitive geometry and cursor loops for PAD, CONCAT, UNFOLD_AXIS, and
+ * UNFOLD2D while retaining their typed general-long fallback. Schema 33 is current-only;
+ * schema-32 and earlier envelopes are incompatible misses.
  * Four complete candidate plans, one realized
  * artifact, zero fixed-shape variants, and zero unrolled variants are the current hard budget.
  * With no trusted root, realization remains entirely in memory. With a root, one bounded

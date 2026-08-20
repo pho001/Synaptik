@@ -18,15 +18,17 @@ import java.lang.foreign.ValueLayout;
  *
  * <p>Each range contains whole logical slices only. Within a slice, execution visits the selected
  * axis sequentially in forward or reverse order and applies inclusive or exclusive placement.
- * FLOAT64 and FLOAT32 retain same-format results, BFLOAT16 widens to FLOAT32 and rounds back after
- * every operation, and INT32/INT64 wrap at their represented width. The body allocates no
+ * FLOAT64 and FLOAT32 retain same-format results, BFLOAT16 directly emits widening to FLOAT32,
+ * one typed operation, and round-to-nearest-ties-to-even conversion after every value, and
+ * INT32/INT64 wrap at their represented width. The generated BFLOAT16 body calls no Synaptik
+ * runtime helper. The body allocates no
  * per-slice or per-element object and owns no worker, workspace, or persistent accumulator.
  * Dense rank-one heap-array scans use one-time integer base narrowing and a direct typed loop;
  * other resolved layouts use typed long addresses and decode non-axis coordinates once per
  * slice.</p>
  */
 public final class CpuScanEmitter {
-    private static final ClassDesc OWNER = ClassDesc.of(CpuScanEmitter.class.getName());
+    private static final ClassDesc FLOAT = ClassDesc.of(Float.class.getName());
     private static final DataType[] TYPES = DataType.values();
     /** Creates a stateless emitter with no retained specialization or invocation state. */
     public CpuScanEmitter() { }
@@ -187,11 +189,40 @@ public final class CpuScanEmitter {
             case FLOAT32 -> { if (product) code.fmul(); else code.fadd(); }
             case INT64 -> { if (product) code.lmul(); else code.ladd(); }
             case INT32 -> { if (product) code.imul(); else code.iadd(); }
-            case BFLOAT16 -> code.invokestatic(OWNER, product ? "multiplyBfloat" : "addBfloat",
-                    MethodTypeDesc.of(ConstantDescs.CD_int, ConstantDescs.CD_int, ConstantDescs.CD_int));
+            case BFLOAT16 -> emitBfloatApply(code, product);
             case BOOL -> throw new AssertionError();
         }
         store(code, type, accumulator);
+    }
+
+    private static void emitBfloatApply(CodeBuilder code, boolean product) {
+        int right = code.allocateLocal(TypeKind.INT), left = code.allocateLocal(TypeKind.INT);
+        code.istore(right).istore(left);
+        code.iload(left).loadConstant(16).ishl().invokestatic(FLOAT, "intBitsToFloat",
+                MethodTypeDesc.of(ConstantDescs.CD_float, ConstantDescs.CD_int));
+        code.iload(right).loadConstant(16).ishl().invokestatic(FLOAT, "intBitsToFloat",
+                MethodTypeDesc.of(ConstantDescs.CD_float, ConstantDescs.CD_int));
+        if (product) code.fmul(); else code.fadd();
+        code.invokestatic(FLOAT, "floatToRawIntBits", MethodTypeDesc.of(ConstantDescs.CD_int,
+                ConstantDescs.CD_float));
+        int bits = code.allocateLocal(TypeKind.INT); code.istore(bits);
+        var ordinary = code.newLabel(); var noRound = code.newLabel(); var round = code.newLabel();
+        var done = code.newLabel();
+        code.iload(bits).loadConstant(0x7f800000).iand().loadConstant(0x7f800000)
+                .branch(Opcode.IF_ICMPNE, ordinary);
+        code.iload(bits).loadConstant(0x7fffff).iand().branch(Opcode.IFEQ, ordinary);
+        code.iload(bits).loadConstant(16).iushr().loadConstant(0x40).ior()
+                .branch(Opcode.GOTO, done);
+        code.labelBinding(ordinary);
+        int upper = code.allocateLocal(TypeKind.INT), lower = code.allocateLocal(TypeKind.INT);
+        code.iload(bits).loadConstant(16).iushr().istore(upper);
+        code.iload(bits).loadConstant(0xffff).iand().istore(lower);
+        code.iload(lower).loadConstant(0x8000).branch(Opcode.IF_ICMPGT, round);
+        code.iload(lower).loadConstant(0x8000).branch(Opcode.IF_ICMPNE, noRound);
+        code.iload(upper).loadConstant(1).iand().branch(Opcode.IFEQ, noRound);
+        code.labelBinding(round).iinc(upper, 1);
+        code.labelBinding(noRound).iload(upper);
+        code.labelBinding(done).loadConstant(0xffff).iand();
     }
 
     /**

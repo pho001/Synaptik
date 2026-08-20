@@ -29,12 +29,40 @@ import jdk.incubator.vector.FloatVector;
 import io.github.pho001.synaptik.backend.cpu.internal.memory.CpuContiguousWorkspace;
 import io.github.pho001.synaptik.backend.cpu.internal.executable.CpuWorkerGroup;
 import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuAccessPlan;
+import java.lang.classfile.ClassFile;
+import java.lang.classfile.constantpool.MemberRefEntry;
 
 class CpuFusedGeneratedKernelTest {
     private static final ValueLayout.OfDouble DOUBLE =
             ValueLayout.JAVA_DOUBLE_UNALIGNED.withOrder(ByteOrder.nativeOrder());
     private static final ValueLayout.OfFloat FLOAT =
             ValueLayout.JAVA_FLOAT_UNALIGNED.withOrder(ByteOrder.nativeOrder());
+
+    @Test void fusedVectorArtifactKeepsOnlyChunkLevelVectorMathProjectReference() {
+        int lanes = DoubleVector.SPECIES_PREFERRED.length();
+        Shape shape = Shape.of(lanes + 1);
+        var dense = descriptor(shape, LayoutDescriptor.contiguous(shape));
+        var scalar = descriptor(Shape.scalar(), LayoutDescriptor.contiguous(Shape.scalar()));
+        var analysis = CpuPartitionPreparerTest.analyze(dense, dense, scalar, dense,
+                new CpuPartitionAnalysisInputs(false,
+                        CpuPartitionAnalysisInputs.DEFAULT.carrierPattern(),
+                        new PortableExecutionConfig(ComputePreference.VECTOR_IF_ELIGIBLE, 1, 1, 1)));
+        var route = analysis.plan().units().getFirst().portablePlan();
+        var model = ClassFile.of().parse(new CpuClassFileKernelGenerator().generateClassBytes(
+                route.specialization(), route.kernelIr()));
+        List<MemberRefEntry> projectMembers = java.util.stream.StreamSupport.stream(
+                model.constantPool().spliterator(), false).filter(MemberRefEntry.class::isInstance)
+                .map(MemberRefEntry.class::cast).filter(entry -> entry.owner().asInternalName()
+                        .startsWith("io/github/pho001/synaptik")).toList();
+        assertAll(
+                () -> assertFalse(projectMembers.isEmpty()),
+                () -> assertTrue(projectMembers.stream().allMatch(entry -> entry.owner()
+                        .asInternalName().equals("io/github/pho001/synaptik/backend/cpu/internal/"
+                                + "codegen/emit/CpuVectorMath"))),
+                () -> assertTrue(projectMembers.stream().allMatch(entry -> entry.type().stringValue()
+                        .contains("Ljdk/incubator/vector/DoubleVector;")
+                        && !entry.type().stringValue().contains("(D)D"))));
+    }
 
     @Test void executesArbitraryHalfOpenBoundsWithoutMaterializedIntermediates() throws Throwable {
         var route = CpuPartitionPreparerTest.analyze(Shape.of(5)).plan().units().getFirst().portablePlan();

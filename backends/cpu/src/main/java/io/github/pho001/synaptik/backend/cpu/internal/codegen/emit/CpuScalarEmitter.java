@@ -2,7 +2,6 @@ package io.github.pho001.synaptik.backend.cpu.internal.codegen.emit;
 
 import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuKernelIr;
 import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuPointwiseOpcode;
-import io.github.pho001.synaptik.backend.cpu.internal.reference.CpuScalarReferenceKernel;
 import io.github.pho001.synaptik.model.datatype.DataType;
 import java.lang.classfile.CodeBuilder;
 import java.lang.classfile.Opcode;
@@ -14,15 +13,40 @@ import java.lang.constant.MethodTypeDesc;
 /**
  * Package-private family-grouped exact/default scalar semantic emitter.
  *
- * <p>Unary FLOAT64 emission uses primitive operations, {@link Math}, {@link StrictMath}, or the
- * shared pure activation helpers according to the selected opcode. FLOAT32 widens one represented
- * value to {@code double} where the JDK lacks a float overload and narrows the result once. The
- * FLOAT32 reciprocal-square-root path performs both the square root and reciprocal after that
- * widening, then narrows only their combined result. The emitter consumes typed IR only and makes
- * no capability, route, or numerical-policy decision.</p>
+ * <p>Unary FLOAT64 emission uses primitive operations and permitted {@link Math} or
+ * {@link StrictMath} calls. The ERF, sigmoid, exact and tanh-approximation GELU, and SiLU formulas
+ * are emitted directly into the generated class rather than invoked through a Synaptik runtime
+ * helper. FLOAT32 widens one represented value to {@code double} where the selected formula or JDK
+ * operation requires it and narrows the result once. The FLOAT32 reciprocal-square-root path
+ * performs both the square root and reciprocal after that widening, then narrows only their
+ * combined result. The emitter consumes typed IR only and makes no capability, route, or
+ * numerical-policy decision.</p>
  */
 final class CpuScalarEmitter {
-    private static final ClassDesc REFERENCE = ClassDesc.of(CpuScalarReferenceKernel.class.getName());
+    private static final double[] ERF_T = {9.60497373987051638749E0,
+            9.00260197203842689217E1, 2.23200534594684319226E3,
+            7.00332514112805075473E3, 5.55923013010394962768E4};
+    private static final double[] ERF_U = {3.35617141647503099647E1,
+            5.21357949780152679795E2, 4.59432382970980127987E3,
+            2.26290000613890934246E4, 4.92673942608635921086E4};
+    private static final double[] ERFC_P = {2.46196981473530512524E-10,
+            5.64189564831068821977E-1, 7.46321056442269912687E0,
+            4.86371970985681366614E1, 1.96520832956077098242E2,
+            5.26445194995477358631E2, 9.34528527171957607540E2,
+            1.02755188689515710272E3, 5.57535335369399327526E2};
+    private static final double[] ERFC_Q = {1.32281951154744992508E1,
+            8.67072140885989742329E1, 3.54937778887819891062E2,
+            9.75708501743205489753E2, 1.82390916687909736289E3,
+            2.24633760818710981792E3, 1.65666309194161350182E3,
+            5.57535340817727675546E2};
+    private static final double[] ERFC_R = {5.64189583547755073984E-1,
+            1.27536670759978104416E0, 5.01905042251180477414E0,
+            6.16021097993053585195E0, 7.40974269950448939160E0,
+            2.97886665372100240670E0};
+    private static final double[] ERFC_S = {2.26052863220117276590E0,
+            9.39603524938001434673E0, 1.20489539808096656605E1,
+            1.70814450747565897222E1, 9.60896809063285878198E0,
+            3.36907645100081516050E0};
     private static final ClassDesc STRICT_MATH = ClassDesc.of(StrictMath.class.getName());
     private static final ClassDesc MATH = ClassDesc.of(Math.class.getName());
     private static final ClassDesc INTEGER = ClassDesc.of(Integer.class.getName());
@@ -216,13 +240,11 @@ final class CpuScalarEmitter {
                     MethodTypeDesc.of(primitive, primitive));
             return;
         }
-        String helper = switch (opcode) {
-            case ERF -> "erf"; case SIGMOID -> "sigmoid"; case GELU_EXACT -> "gelu";
-            case GELU_TANH_APPROXIMATION -> "geluTanhApproximation"; case SILU -> "silu";
-            default -> null;
-        };
-        if (helper != null) {
-            invokeDoubleUnary(type, REFERENCE, helper);
+        if (opcode == CpuPointwiseOpcode.ERF || opcode == CpuPointwiseOpcode.SIGMOID
+                || opcode == CpuPointwiseOpcode.GELU_EXACT
+                || opcode == CpuPointwiseOpcode.GELU_TANH_APPROXIMATION
+                || opcode == CpuPointwiseOpcode.SILU) {
+            emitActivation(opcode, type);
             return;
         }
         String method = switch (opcode) {
@@ -231,6 +253,137 @@ final class CpuScalarEmitter {
             default -> throw new AssertionError(opcode);
         };
         invokeDoubleUnary(type, STRICT_MATH, method);
+    }
+
+    private void emitActivation(CpuPointwiseOpcode opcode, DataType type) {
+        if (type == DataType.FLOAT32) code.f2d();
+        int value = code.allocateLocal(TypeKind.DOUBLE);
+        code.dstore(value);
+        switch (opcode) {
+            case ERF -> { code.dload(value); emitErf(); }
+            case SIGMOID -> emitSigmoid(value);
+            case GELU_EXACT -> emitGelu(value);
+            case GELU_TANH_APPROXIMATION -> emitGeluTanhApproximation(value);
+            case SILU -> emitSilu(value);
+            default -> throw new AssertionError(opcode);
+        }
+        if (type == DataType.FLOAT32) code.d2f();
+    }
+
+    private void emitSigmoid(int value) {
+        var negative = code.newLabel(); var done = code.newLabel();
+        code.dload(value).loadConstant(0.0d).dcmpl().branch(Opcode.IFLT, negative);
+        code.loadConstant(1.0d).loadConstant(1.0d).dload(value).dneg();
+        invokeStrictExp(); code.dadd().ddiv().branch(Opcode.GOTO, done);
+        code.labelBinding(negative);
+        int exponential = code.allocateLocal(TypeKind.DOUBLE);
+        code.dload(value); invokeStrictExp(); code.dstore(exponential);
+        code.dload(exponential).loadConstant(1.0d).dload(exponential).dadd().ddiv();
+        code.labelBinding(done);
+    }
+
+    private void emitGelu(int value) {
+        var finite = code.newLabel(); var done = code.newLabel();
+        code.dload(value).loadConstant(Double.NEGATIVE_INFINITY).dcmpl()
+                .branch(Opcode.IFNE, finite);
+        code.loadConstant(-0.0d).branch(Opcode.GOTO, done).labelBinding(finite);
+        code.loadConstant(0.5d).dload(value).dmul().loadConstant(1.0d);
+        code.dload(value).loadConstant(2.0d);
+        code.invokestatic(MATH, "sqrt", MethodTypeDesc.of(ConstantDescs.CD_double,
+                ConstantDescs.CD_double));
+        code.ddiv(); emitErf(); code.dadd().dmul();
+        code.labelBinding(done);
+    }
+
+    private void emitGeluTanhApproximation(int value) {
+        var finite = code.newLabel(); var done = code.newLabel();
+        code.dload(value).loadConstant(Double.NEGATIVE_INFINITY).dcmpl()
+                .branch(Opcode.IFNE, finite);
+        code.loadConstant(-0.0d).branch(Opcode.GOTO, done).labelBinding(finite);
+        int cube = code.allocateLocal(TypeKind.DOUBLE);
+        code.dload(value).dload(value).dmul().dload(value).dmul().dstore(cube);
+        code.loadConstant(0.5d).dload(value).dmul().loadConstant(1.0d);
+        code.loadConstant(2.0d).loadConstant(Math.PI).ddiv();
+        code.invokestatic(MATH, "sqrt", MethodTypeDesc.of(ConstantDescs.CD_double,
+                ConstantDescs.CD_double));
+        code.dload(value).loadConstant(0.044715d).dload(cube).dmul().dadd().dmul();
+        code.invokestatic(STRICT_MATH, "tanh", MethodTypeDesc.of(ConstantDescs.CD_double,
+                ConstantDescs.CD_double));
+        code.dadd().dmul();
+        code.labelBinding(done);
+    }
+
+    private void emitSilu(int value) {
+        var finite = code.newLabel(); var negative = code.newLabel(); var done = code.newLabel();
+        code.dload(value).loadConstant(Double.NEGATIVE_INFINITY).dcmpl()
+                .branch(Opcode.IFNE, finite);
+        code.loadConstant(-0.0d).branch(Opcode.GOTO, done).labelBinding(finite);
+        code.dload(value).loadConstant(0.0d).dcmpl().branch(Opcode.IFLT, negative);
+        code.dload(value).loadConstant(1.0d).dload(value).dneg(); invokeStrictExp();
+        code.dadd().ddiv().branch(Opcode.GOTO, done).labelBinding(negative);
+        int exponential = code.allocateLocal(TypeKind.DOUBLE);
+        code.dload(value); invokeStrictExp(); code.dstore(exponential);
+        code.dload(value).dload(exponential).dmul().loadConstant(1.0d)
+                .dload(exponential).dadd().ddiv();
+        code.labelBinding(done);
+    }
+
+    private void emitErf() {
+        int value = code.allocateLocal(TypeKind.DOUBLE); code.dstore(value);
+        var notNan = code.newLabel(); var notZero = code.newLabel();
+        var notPositiveInfinity = code.newLabel(); var notNegativeInfinity = code.newLabel();
+        var large = code.newLabel(); var afterMagnitude = code.newLabel(); var done = code.newLabel();
+        code.dload(value).invokestatic(DOUBLE, "isNaN", MethodTypeDesc.of(
+                ConstantDescs.CD_boolean, ConstantDescs.CD_double)).branch(Opcode.IFEQ, notNan);
+        code.loadConstant(Double.NaN).branch(Opcode.GOTO, done).labelBinding(notNan);
+        code.dload(value).loadConstant(0.0d).dcmpl().branch(Opcode.IFNE, notZero);
+        code.dload(value).branch(Opcode.GOTO, done).labelBinding(notZero);
+        code.dload(value).loadConstant(Double.POSITIVE_INFINITY).dcmpl()
+                .branch(Opcode.IFNE, notPositiveInfinity);
+        code.loadConstant(1.0d).branch(Opcode.GOTO, done).labelBinding(notPositiveInfinity);
+        code.dload(value).loadConstant(Double.NEGATIVE_INFINITY).dcmpl()
+                .branch(Opcode.IFNE, notNegativeInfinity);
+        code.loadConstant(-1.0d).branch(Opcode.GOTO, done).labelBinding(notNegativeInfinity);
+        int x = code.allocateLocal(TypeKind.DOUBLE);
+        code.dload(value).invokestatic(MATH, "abs", MethodTypeDesc.of(
+                ConstantDescs.CD_double, ConstantDescs.CD_double)).dstore(x);
+        code.dload(x).loadConstant(1.0d).dcmpg().branch(Opcode.IFGT, large);
+        int z = code.allocateLocal(TypeKind.DOUBLE);
+        code.dload(x).dload(x).dmul().dstore(z);
+        code.dload(x); emitPolevl(z, ERF_T); code.dmul(); emitP1evl(z, ERF_U); code.ddiv();
+        code.branch(Opcode.GOTO, afterMagnitude).labelBinding(large);
+        code.dload(x).dneg().dload(x).dmul();
+        code.invokestatic(MATH, "exp", MethodTypeDesc.of(ConstantDescs.CD_double,
+                ConstantDescs.CD_double));
+        code.dload(x).loadConstant(8.0d).dcmpg();
+        var far = code.newLabel(); var ratio = code.newLabel();
+        code.branch(Opcode.IFGE, far); emitPolevl(x, ERFC_P); emitP1evl(x, ERFC_Q); code.ddiv()
+                .branch(Opcode.GOTO, ratio).labelBinding(far);
+        emitPolevl(x, ERFC_R); emitP1evl(x, ERFC_S); code.ddiv();
+        int erfc = code.allocateLocal(TypeKind.DOUBLE);
+        code.labelBinding(ratio).dmul().dstore(erfc);
+        code.loadConstant(1.0d).dload(erfc).dsub();
+        code.labelBinding(afterMagnitude).dload(value);
+        code.invokestatic(MATH, "copySign", MethodTypeDesc.of(ConstantDescs.CD_double,
+                ConstantDescs.CD_double, ConstantDescs.CD_double));
+        code.labelBinding(done);
+    }
+
+    private void emitPolevl(int x, double[] coefficients) {
+        code.loadConstant(coefficients[0]);
+        for (int index = 1; index < coefficients.length; index++)
+            code.dload(x).dmul().loadConstant(coefficients[index]).dadd();
+    }
+
+    private void emitP1evl(int x, double[] coefficients) {
+        code.dload(x).loadConstant(coefficients[0]).dadd();
+        for (int index = 1; index < coefficients.length; index++)
+            code.dload(x).dmul().loadConstant(coefficients[index]).dadd();
+    }
+
+    private void invokeStrictExp() {
+        code.invokestatic(STRICT_MATH, "exp", MethodTypeDesc.of(ConstantDescs.CD_double,
+                ConstantDescs.CD_double));
     }
 
     private void invokeDoubleUnary(DataType type, ClassDesc owner, String method) {

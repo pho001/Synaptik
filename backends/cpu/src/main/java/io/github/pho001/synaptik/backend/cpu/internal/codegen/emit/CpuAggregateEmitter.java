@@ -7,9 +7,7 @@ import io.github.pho001.synaptik.model.datatype.DataType;
 import java.lang.classfile.CodeBuilder;
 import java.lang.classfile.Opcode;
 import java.lang.classfile.TypeKind;
-import java.lang.constant.ClassDesc;
 import java.lang.constant.ConstantDescs;
-import java.lang.constant.MethodTypeDesc;
 import java.lang.foreign.MemorySegment;
 import java.lang.foreign.ValueLayout;
 
@@ -17,14 +15,15 @@ import java.lang.foreign.ValueLayout;
  * Emits typed ordinary aggregate folds directly into generated CPU entries.
  *
  * <p>The static body reduces complete output cells only. It traverses every selected domain in
- * logical input row-major order, selects the first represented NaN, applies explicit signed-zero
- * extrema rules, and allocates no per-cell or per-element object. Full dense heap-array
+ * logical input row-major order. Numerical floating rows update an exact primitive-limb state and
+ * round once; extrema retain first-NaN and signed-zero selection. Extrema and Boolean combination
+ * are emitted directly, so the generated per-element body calls no Synaptik runtime helper. The
+ * body allocates no per-cell or per-element object. Dense heap-array
  * reductions use one typed integer-address fold; other forms embed a typed long-address fallback
  * that decodes output and selected-domain coordinates without runtime type, kind, form, or
  * carrier dispatch.</p>
  */
 public final class CpuAggregateEmitter {
-    private static final ClassDesc OWNER = ClassDesc.of(CpuAggregateEmitter.class.getName());
     private static final DataType[] TYPES = DataType.values();
     /** Creates a stateless typed-body emitter. */
     public CpuAggregateEmitter() { }
@@ -33,111 +32,223 @@ public final class CpuAggregateEmitter {
      * Emits a typed aggregate body whose hot loops contain no runtime semantic dispatch.
      *
      * @param code non-null Class-File method builder mutated with the generated fold
-     * @param specialization non-null two-boundary, scratch-free carrier/type specialization
+     * @param specialization non-null two-boundary carrier/type specialization, scratch-bearing
+     *     exactly for floating numerical aggregates
      * @param ir non-null canonical aggregate IR supplying kind, form, axes, rank, and access facts
      * @throws NullPointerException if an argument is {@code null}
      * @throws IllegalArgumentException if the specialization has another boundary shape
      */
     public void emit(CodeBuilder code, CpuKernelSpecialization specialization, CpuKernelIr ir) {
-        if (specialization.carrierPattern().size() != 2 || specialization.scratchParameter())
-            throw new IllegalArgumentException("aggregate requires two boundaries and no scratch");
+        if (specialization.carrierPattern().size() != 2)
+            throw new IllegalArgumentException("aggregate requires two boundaries");
         String identity = ir.familyIdentity();
         DataType type = specialization.boundaryDataTypes().getFirst();
         int kind = identity.startsWith("aggregate:MIN:") ? 0
                 : identity.startsWith("aggregate:MAX:") ? 1
-                : identity.startsWith("aggregate:ALL:") ? 2 : 3;
+                : identity.startsWith("aggregate:ALL:") ? 2
+                : identity.startsWith("aggregate:ANY:") ? 3
+                : identity.startsWith("aggregate:SUM:") ? 4
+                : identity.startsWith("aggregate:MEAN:") ? 5 : 6;
+        boolean exactFloating = kind >= 4 && (type == DataType.FLOAT64
+                || type == DataType.FLOAT32 || type == DataType.BFLOAT16);
+        int exactLimbs = exactFloating ? identityNumber(identity, ":limbs=") : 0;
+        if (specialization.scratchParameter() != exactFloating)
+            throw new IllegalArgumentException("aggregate scratch shape disagrees with numerical kind");
+        int geometrySlot = exactFloating ? 3 : 2;
+        int startSlot = exactFloating ? 4 : 3;
+        int endSlot = exactFloating ? 6 : 5;
         int inRank = ir.values().getFirst().accessPlan().iterationRank();
         int outRank = ir.values().getLast().accessPlan().iterationRank();
         boolean fullDenseArrays = identity.contains(":FULL:")
                 && specialization.carrierPattern().stream().noneMatch(
                     access -> access == CpuKernelSpecialization.CarrierAccess.MEMORY_SEGMENT)
                 && ir.values().getFirst().accessPlan().regime() == CpuAccessPlan.Regime.DENSE_LINEAR;
-        if (fullDenseArrays) emitFullDense(code, specialization, type, kind, inRank);
-        else emitGeneral(code, specialization, type, kind, identity, inRank, outRank);
+        boolean denseTrailingArrays = !identity.contains(":FULL:")
+                && specialization.carrierPattern().stream().noneMatch(
+                    access -> access == CpuKernelSpecialization.CarrierAccess.MEMORY_SEGMENT)
+                && ir.values().getFirst().accessPlan().regime() == CpuAccessPlan.Regime.DENSE_LINEAR
+                && ir.values().getLast().accessPlan().regime() == CpuAccessPlan.Regime.DENSE_LINEAR
+                && selectedSuffix(identity, inRank);
+        if (fullDenseArrays) emitFullDense(code, specialization, type, kind, inRank,
+                exactFloating, exactLimbs, geometrySlot, startSlot, endSlot);
+        else if (denseTrailingArrays) emitDenseCells(code, specialization, type, kind, inRank,
+                outRank, exactFloating, exactLimbs, geometrySlot, startSlot, endSlot);
+        else emitGeneral(code, specialization, type, kind, identity, inRank, outRank,
+                exactFloating, exactLimbs, geometrySlot, startSlot, endSlot);
+    }
+
+    private static boolean selectedSuffix(String identity, int rank) {
+        boolean[] axes = selectedAxes(identity, rank); boolean selected = false;
+        for (boolean axis : axes) { if (axis) selected = true; else if (selected) return false; }
+        return selected;
+    }
+
+    private static void emitDenseCells(CodeBuilder code, CpuKernelSpecialization specialization,
+            DataType type, int kind, int inRank, int outRank, boolean exactFloating,
+            int exactLimbs, int geometrySlot, int startSlot, int endSlot) {
+        int inputLayout = 11 + 2 * inRank + outRank;
+        int outputLayout = inputLayout + 2 + 2 * inRank;
+        int inputBase = code.allocateLocal(TypeKind.INT), outputBase = code.allocateLocal(TypeKind.INT);
+        code.aload(geometrySlot).loadConstant(inputLayout + 1).laload().l2i().istore(inputBase);
+        code.aload(geometrySlot).loadConstant(outputLayout + 1).laload().l2i().istore(outputBase);
+        int cell = code.allocateLocal(TypeKind.INT); code.lload(startSlot).l2i().istore(cell);
+        var done = code.newLabel(); var cells = code.newLabel();
+        code.iload(cell).lload(endSlot).l2i().branch(Opcode.IF_ICMPGE, done).labelBinding(cells);
+        int accumulator = code.allocateLocal(localKind(type));
+        CpuExactSumEmitter exactSum = exactFloating && kind != 6
+                ? new CpuExactSumEmitter(code, type, kind == 5, 2, geometrySlot, exactLimbs) : null;
+        CpuExactProductEmitter exactProduct = exactFloating && kind == 6
+                ? new CpuExactProductEmitter(code, type, 2, geometrySlot, 10, 9, true) : null;
+        if (exactFloating) { emitFloatingZero(code, type); store(code, type, accumulator); }
+        if (exactSum != null) exactSum.emitReset();
+        else if (exactProduct != null) exactProduct.emitReset();
+        else { emitIdentity(code, type, kind); store(code, type, accumulator); }
+        int domain = code.allocateLocal(TypeKind.INT); code.loadConstant(0).istore(domain);
+        var write = code.newLabel();
+        code.aload(geometrySlot).loadConstant(7).laload().loadConstant(0L).lcmp()
+                .branch(Opcode.IFEQ, write);
+        var domains = code.newLabel(); code.labelBinding(domains);
+        int address = code.allocateLocal(TypeKind.INT);
+        code.iload(inputBase).iload(cell).aload(geometrySlot).loadConstant(7).laload().l2i()
+                .imul().iadd().iload(domain).iadd().istore(address);
+        int value = code.allocateLocal(localKind(type)); var carriers = new CpuCarrierEmitter(code);
+        carriers.load(type, specialization.carrierPattern().getFirst(), 0, address, true);
+        store(code, type, value);
+        if (exactSum != null) exactSum.emitFactor(value);
+        else if (exactProduct != null) exactProduct.emitFactor(value);
+        else emitApply(code, type, kind, accumulator, value);
+        if (type == DataType.BOOL) { load(code, type, accumulator);
+            code.branch(kind == 2 ? Opcode.IFEQ : Opcode.IFNE, write); }
+        code.iinc(domain, 1); code.iload(domain).aload(geometrySlot).loadConstant(7).laload().l2i()
+                .branch(Opcode.IF_ICMPLT, domains).labelBinding(write);
+        if (exactSum != null) exactSum.emitFinish(accumulator);
+        else if (exactProduct != null) { int found = code.allocateLocal(TypeKind.INT);
+            code.loadConstant(1).istore(found); exactProduct.emitFinish(accumulator, found); }
+        int output = code.allocateLocal(TypeKind.INT); code.iload(outputBase).iload(cell).iadd()
+                .istore(output);
+        carriers.store(type, specialization.carrierPattern().getLast(), 1, output, accumulator, true);
+        code.iinc(cell, 1); code.iload(cell).lload(endSlot).l2i().branch(Opcode.IF_ICMPLT, cells)
+                .labelBinding(done);
     }
 
     private static void emitFullDense(CodeBuilder code, CpuKernelSpecialization specialization,
-            DataType type, int kind, int inRank) {
+            DataType type, int kind, int inRank, boolean exactFloating, int exactLimbs,
+            int geometrySlot, int startSlot, int endSlot) {
         var done = code.newLabel();
-        code.lload(3).lload(5).lcmp().branch(Opcode.IFGE, done);
-        int inputLayout = 8 + 2 * inRank;
+        code.lload(startSlot).lload(endSlot).lcmp().branch(Opcode.IFGE, done);
+        int inputLayout = 11 + 2 * inRank;
         int outputLayout = inputLayout + 2 + 2 * inRank;
         int input = code.allocateLocal(TypeKind.INT), output = code.allocateLocal(TypeKind.INT);
-        code.aload(2).loadConstant(inputLayout + 1).laload().l2i().istore(input);
-        code.aload(2).loadConstant(outputLayout + 1).laload().l2i().istore(output);
+        code.aload(geometrySlot).loadConstant(inputLayout + 1).laload().l2i().istore(input);
+        code.aload(geometrySlot).loadConstant(outputLayout + 1).laload().l2i().istore(output);
         int accumulator = code.allocateLocal(localKind(type));
-        emitIdentity(code, type, kind); store(code, type, accumulator);
+        CpuExactSumEmitter exactSum = exactFloating && kind != 6
+                ? new CpuExactSumEmitter(code, type, kind == 5, 2, geometrySlot, exactLimbs) : null;
+        CpuExactProductEmitter exactProduct = exactFloating && kind == 6
+                ? new CpuExactProductEmitter(code, type, 2, geometrySlot, 10, 9, true) : null;
+        if (exactFloating) { emitFloatingZero(code, type); store(code, type, accumulator); }
+        if (exactSum != null) exactSum.emitReset();
+        else if (exactProduct != null) exactProduct.emitReset();
+        else { emitIdentity(code, type, kind); store(code, type, accumulator); }
         int domain = code.allocateLocal(TypeKind.INT); code.loadConstant(0).istore(domain);
         var store = code.newLabel();
-        code.aload(2).loadConstant(7).laload().loadConstant(0L).lcmp().branch(Opcode.IFEQ, store);
+        code.aload(geometrySlot).loadConstant(7).laload().loadConstant(0L).lcmp()
+                .branch(Opcode.IFEQ, store);
         var loop = code.newLabel(); code.labelBinding(loop);
         int address = code.allocateLocal(TypeKind.INT);
         code.iload(input).iload(domain).iadd().istore(address);
         int value = code.allocateLocal(localKind(type));
         var carriers = new CpuCarrierEmitter(code);
         carriers.load(type, specialization.carrierPattern().getFirst(), 0, address, true);
-        store(code, type, value); emitApply(code, type, kind, accumulator, value);
+        store(code, type, value);
+        if (exactSum != null) exactSum.emitFactor(value);
+        else if (exactProduct != null) exactProduct.emitFactor(value);
+        else emitApply(code, type, kind, accumulator, value);
         if (type == DataType.BOOL) {
             load(code, type, accumulator);
             code.branch(kind == 2 ? Opcode.IFEQ : Opcode.IFNE, store);
         }
-        code.iinc(domain, 1); code.iload(domain).aload(2).loadConstant(7).laload().l2i()
+        code.iinc(domain, 1); code.iload(domain).aload(geometrySlot).loadConstant(7).laload().l2i()
                 .branch(Opcode.IF_ICMPLT, loop);
         code.labelBinding(store);
+        if (exactSum != null) exactSum.emitFinish(accumulator);
+        else if (exactProduct != null) {
+            int found = code.allocateLocal(TypeKind.INT); code.loadConstant(1).istore(found);
+            exactProduct.emitFinish(accumulator, found);
+        }
         carriers.store(type, specialization.carrierPattern().getLast(), 1, output, accumulator, true);
         code.labelBinding(done);
     }
 
     private static void emitGeneral(CodeBuilder code, CpuKernelSpecialization specialization,
-            DataType type, int kind, String identity, int inRank, int outRank) {
+            DataType type, int kind, String identity, int inRank, int outRank,
+            boolean exactFloating, int exactLimbs, int geometrySlot, int startSlot, int endSlot) {
         boolean keep = identity.contains(":keep=true:");
         boolean[] selectedAxes = selectedAxes(identity, inRank);
-        int selected = 8, inputCoordinates = selected + inRank;
+        int selected = 11, inputCoordinates = selected + inRank;
         int outputCoordinates = inputCoordinates + inRank;
         int inputLayout = outputCoordinates + outRank;
         int outputLayout = inputLayout + 2 + 2 * inRank;
         int cell = code.allocateLocal(TypeKind.LONG);
-        code.lload(3).lstore(cell);
+        code.lload(startSlot).lstore(cell);
         var done = code.newLabel();
-        code.lload(cell).lload(5).lcmp().branch(Opcode.IFGE, done);
+        code.lload(cell).lload(endSlot).lcmp().branch(Opcode.IFGE, done);
         var cells = code.newLabel(); code.labelBinding(cells);
-        decode(code, cell, outputCoordinates, outputLayout, outRank);
+        decode(code, geometrySlot, cell, outputCoordinates, outputLayout, outRank);
         int outAxis = 0;
         for (int axis = 0; axis < inRank; axis++) {
-            code.aload(2).loadConstant(inputCoordinates + axis);
+            code.aload(geometrySlot).loadConstant(inputCoordinates + axis);
             if (selectedAxes[axis]) code.loadConstant(0L);
-            else code.aload(2).loadConstant(outputCoordinates + (keep ? axis : outAxis++)).laload();
+            else code.aload(geometrySlot).loadConstant(
+                    outputCoordinates + (keep ? axis : outAxis++)).laload();
             code.lastore();
         }
         int accumulator = code.allocateLocal(localKind(type));
-        emitIdentity(code, type, kind); store(code, type, accumulator);
+        CpuExactSumEmitter exactSum = exactFloating && kind != 6
+                ? new CpuExactSumEmitter(code, type, kind == 5, 2, geometrySlot, exactLimbs) : null;
+        CpuExactProductEmitter exactProduct = exactFloating && kind == 6
+                ? new CpuExactProductEmitter(code, type, 2, geometrySlot, 10, 9, true) : null;
+        if (exactFloating) { emitFloatingZero(code, type); store(code, type, accumulator); }
+        if (exactSum != null) exactSum.emitReset();
+        else if (exactProduct != null) exactProduct.emitReset();
+        else { emitIdentity(code, type, kind); store(code, type, accumulator); }
         int domain = code.allocateLocal(TypeKind.LONG); code.loadConstant(0L).lstore(domain);
         var write = code.newLabel();
-        code.aload(2).loadConstant(7).laload().loadConstant(0L).lcmp().branch(Opcode.IFEQ, write);
+        code.aload(geometrySlot).loadConstant(7).laload().loadConstant(0L).lcmp()
+                .branch(Opcode.IFEQ, write);
         var domains = code.newLabel(); code.labelBinding(domains);
         int remaining = code.allocateLocal(TypeKind.LONG); code.lload(domain).lstore(remaining);
         for (int axis = inRank - 1; axis >= 0; axis--) if (selectedAxes[axis]) {
-            code.aload(2).loadConstant(inputCoordinates + axis).lload(remaining)
-                    .aload(2).loadConstant(inputLayout + 2 + axis).laload().lrem().lastore();
-            code.lload(remaining).aload(2).loadConstant(inputLayout + 2 + axis).laload()
+            code.aload(geometrySlot).loadConstant(inputCoordinates + axis).lload(remaining)
+                    .aload(geometrySlot).loadConstant(inputLayout + 2 + axis).laload().lrem().lastore();
+            code.lload(remaining).aload(geometrySlot).loadConstant(inputLayout + 2 + axis).laload()
                     .ldiv().lstore(remaining);
         }
-        int inputAddress = address(code, inRank, inputCoordinates, inputLayout);
+        int inputAddress = address(code, geometrySlot, inRank, inputCoordinates, inputLayout);
         int value = code.allocateLocal(localKind(type));
         var carriers = new CpuCarrierEmitter(code);
         carriers.load(type, specialization.carrierPattern().getFirst(), 0, inputAddress);
-        store(code, type, value); emitApply(code, type, kind, accumulator, value);
+        store(code, type, value);
+        if (exactSum != null) exactSum.emitFactor(value);
+        else if (exactProduct != null) exactProduct.emitFactor(value);
+        else emitApply(code, type, kind, accumulator, value);
         if (type == DataType.BOOL) {
             load(code, type, accumulator);
             code.branch(kind == 2 ? Opcode.IFEQ : Opcode.IFNE, write);
         }
         code.lload(domain).loadConstant(1L).ladd().lstore(domain);
-        code.lload(domain).aload(2).loadConstant(7).laload().lcmp().branch(Opcode.IFLT, domains);
+        code.lload(domain).aload(geometrySlot).loadConstant(7).laload().lcmp()
+                .branch(Opcode.IFLT, domains);
         code.labelBinding(write);
-        int outputAddress = address(code, outRank, outputCoordinates, outputLayout);
+        if (exactSum != null) exactSum.emitFinish(accumulator);
+        else if (exactProduct != null) {
+            int found = code.allocateLocal(TypeKind.INT); code.loadConstant(1).istore(found);
+            exactProduct.emitFinish(accumulator, found);
+        }
+        int outputAddress = address(code, geometrySlot, outRank, outputCoordinates, outputLayout);
         carriers.store(type, specialization.carrierPattern().getLast(), 1, outputAddress, accumulator);
         code.lload(cell).loadConstant(1L).ladd().lstore(cell);
-        code.lload(cell).lload(5).lcmp().branch(Opcode.IFLT, cells);
+        code.lload(cell).lload(endSlot).lcmp().branch(Opcode.IFLT, cells);
         code.labelBinding(done);
     }
 
@@ -149,22 +260,30 @@ public final class CpuAggregateEmitter {
         return result;
     }
 
-    private static void decode(CodeBuilder code, int logical, int coordinates, int layout, int rank) {
+    private static int identityNumber(String identity, String marker) {
+        int start = identity.indexOf(marker) + marker.length();
+        int end = identity.indexOf(':', start);
+        return Integer.parseInt(identity.substring(start, end));
+    }
+
+    private static void decode(CodeBuilder code, int geometry, int logical, int coordinates,
+            int layout, int rank) {
         int remaining = code.allocateLocal(TypeKind.LONG); code.lload(logical).lstore(remaining);
         for (int axis = rank - 1; axis >= 0; axis--) {
-            code.aload(2).loadConstant(coordinates + axis).lload(remaining)
-                    .aload(2).loadConstant(layout + 2 + axis).laload().lrem().lastore();
-            code.lload(remaining).aload(2).loadConstant(layout + 2 + axis).laload()
+            code.aload(geometry).loadConstant(coordinates + axis).lload(remaining)
+                    .aload(geometry).loadConstant(layout + 2 + axis).laload().lrem().lastore();
+            code.lload(remaining).aload(geometry).loadConstant(layout + 2 + axis).laload()
                     .ldiv().lstore(remaining);
         }
     }
 
-    private static int address(CodeBuilder code, int rank, int coordinates, int layout) {
+    private static int address(CodeBuilder code, int geometry, int rank, int coordinates, int layout) {
         int address = code.allocateLocal(TypeKind.LONG);
-        code.aload(2).loadConstant(layout + 1).laload().lstore(address);
+        code.aload(geometry).loadConstant(layout + 1).laload().lstore(address);
         for (int axis = 0; axis < rank; axis++) code.lload(address)
-                .aload(2).loadConstant(coordinates + axis).laload()
-                .aload(2).loadConstant(layout + 2 + rank + axis).laload().lmul().ladd().lstore(address);
+                .aload(geometry).loadConstant(coordinates + axis).laload()
+                .aload(geometry).loadConstant(layout + 2 + rank + axis).laload().lmul().ladd()
+                .lstore(address);
         return address;
     }
 
@@ -172,6 +291,10 @@ public final class CpuAggregateEmitter {
         case FLOAT64 -> TypeKind.DOUBLE; case FLOAT32 -> TypeKind.FLOAT;
         case INT64 -> TypeKind.LONG; case BFLOAT16, INT32, BOOL -> TypeKind.INT;
     }; }
+    private static void emitFloatingZero(CodeBuilder code, DataType type) { switch (type) {
+        case FLOAT64 -> code.loadConstant(0.0d); case FLOAT32 -> code.loadConstant(0.0f);
+        case BFLOAT16 -> code.loadConstant(0); default -> throw new IllegalArgumentException();
+    } }
     private static void store(CodeBuilder code, DataType type, int local) { switch (type) {
         case FLOAT64 -> code.dstore(local); case FLOAT32 -> code.fstore(local);
         case INT64 -> code.lstore(local); case BFLOAT16, INT32, BOOL -> code.istore(local);
@@ -184,27 +307,150 @@ public final class CpuAggregateEmitter {
         case FLOAT64 -> code.loadConstant(kind == 0 ? Double.POSITIVE_INFINITY : Double.NEGATIVE_INFINITY);
         case FLOAT32 -> code.loadConstant(kind == 0 ? Float.POSITIVE_INFINITY : Float.NEGATIVE_INFINITY);
         case BFLOAT16 -> code.loadConstant(kind == 0 ? 0x7f80 : 0xff80);
-        case INT32 -> code.loadConstant(kind == 0 ? Integer.MAX_VALUE : Integer.MIN_VALUE);
-        case INT64 -> code.loadConstant(kind == 0 ? Long.MAX_VALUE : Long.MIN_VALUE);
+        case INT32 -> code.loadConstant(kind == 4 ? 0 : kind == 6 ? 1
+                : kind == 0 ? Integer.MAX_VALUE : Integer.MIN_VALUE);
+        case INT64 -> code.loadConstant(kind == 4 ? 0L : kind == 6 ? 1L
+                : kind == 0 ? Long.MAX_VALUE : Long.MIN_VALUE);
         case BOOL -> code.loadConstant(kind == 2 ? 1 : 0);
     } }
     private static void emitApply(CodeBuilder code, DataType type, int kind,
             int accumulator, int value) {
-        load(code, type, accumulator); load(code, type, value);
-        String name = switch (type) {
-            case FLOAT64 -> kind == 0 ? "minDouble" : "maxDouble";
-            case FLOAT32 -> kind == 0 ? "minFloat" : "maxFloat";
-            case BFLOAT16 -> kind == 0 ? "minBfloat" : "maxBfloat";
-            case INT32 -> kind == 0 ? "minInt" : "maxInt";
-            case INT64 -> kind == 0 ? "minLong" : "maxLong";
-            case BOOL -> kind == 2 ? "all" : "any";
-        };
-        ClassDesc primitive = switch (type) {
-            case FLOAT64 -> ConstantDescs.CD_double; case FLOAT32 -> ConstantDescs.CD_float;
-            case INT64 -> ConstantDescs.CD_long; default -> ConstantDescs.CD_int;
-        };
-        code.invokestatic(OWNER, name, MethodTypeDesc.of(primitive, primitive, primitive));
-        store(code, type, accumulator);
+        if ((type == DataType.INT32 || type == DataType.INT64) && (kind == 4 || kind == 6)) {
+            load(code, type, accumulator); load(code, type, value);
+            if (type == DataType.INT32) {
+                if (kind == 4) code.iadd(); else code.imul();
+            } else if (kind == 4) code.ladd(); else code.lmul();
+            store(code, type, accumulator);
+            return;
+        }
+        switch (type) {
+            case FLOAT64 -> emitFloatingSelection(code, true, kind == 0, accumulator, value);
+            case FLOAT32 -> emitFloatingSelection(code, false, kind == 0, accumulator, value);
+            case BFLOAT16 -> emitBfloatSelection(code, kind == 0, accumulator, value);
+            case INT32 -> emitIntSelection(code, kind == 0, accumulator, value);
+            case INT64 -> emitLongSelection(code, kind == 0, accumulator, value);
+            case BOOL -> emitBooleanCombination(code, kind == 2, accumulator, value);
+        }
+    }
+
+    private static void emitIntSelection(CodeBuilder code, boolean minimum, int left, int right) {
+        code.iload(left).iload(right).invokestatic(ClassDescHolder.MATH,
+                minimum ? "min" : "max", java.lang.constant.MethodTypeDesc.of(
+                        ConstantDescs.CD_int, ConstantDescs.CD_int, ConstantDescs.CD_int))
+                .istore(left);
+    }
+
+    private static void emitLongSelection(CodeBuilder code, boolean minimum, int left, int right) {
+        code.lload(left).lload(right).invokestatic(ClassDescHolder.MATH,
+                minimum ? "min" : "max", java.lang.constant.MethodTypeDesc.of(
+                        ConstantDescs.CD_long, ConstantDescs.CD_long, ConstantDescs.CD_long))
+                .lstore(left);
+    }
+
+    private static void emitBooleanCombination(CodeBuilder code, boolean all, int left, int right) {
+        var falseResult = code.newLabel(); var trueResult = code.newLabel(); var done = code.newLabel();
+        if (all) {
+            code.iload(left).branch(Opcode.IFEQ, falseResult);
+            code.iload(right).branch(Opcode.IFEQ, falseResult);
+            code.labelBinding(trueResult).loadConstant(1).branch(Opcode.GOTO, done);
+            code.labelBinding(falseResult).loadConstant(0);
+        } else {
+            code.iload(left).branch(Opcode.IFNE, trueResult);
+            code.iload(right).branch(Opcode.IFNE, trueResult);
+            code.loadConstant(0).branch(Opcode.GOTO, done);
+            code.labelBinding(trueResult).loadConstant(1);
+        }
+        code.labelBinding(done).istore(left);
+    }
+
+    private static void emitFloatingSelection(CodeBuilder code, boolean binary64,
+            boolean minimum, int left, int right) {
+        var leftNumber = code.newLabel(); var rightNumber = code.newLabel();
+        var ordinary = code.newLabel(); var chooseRight = code.newLabel(); var chooseLeft = code.newLabel();
+        var done = code.newLabel();
+        if (binary64) {
+            code.dload(left).invokestatic(ClassDescHolder.DOUBLE, "isNaN",
+                    java.lang.constant.MethodTypeDesc.of(ConstantDescs.CD_boolean,
+                            ConstantDescs.CD_double)).branch(Opcode.IFEQ, leftNumber);
+            code.dload(left).branch(Opcode.GOTO, done).labelBinding(leftNumber);
+            code.dload(right).invokestatic(ClassDescHolder.DOUBLE, "isNaN",
+                    java.lang.constant.MethodTypeDesc.of(ConstantDescs.CD_boolean,
+                            ConstantDescs.CD_double)).branch(Opcode.IFEQ, rightNumber);
+            code.dload(right).branch(Opcode.GOTO, done).labelBinding(rightNumber);
+            code.dload(left).loadConstant(0.0d).dcmpl().branch(Opcode.IFNE, ordinary);
+            code.dload(right).loadConstant(0.0d).dcmpl().branch(Opcode.IFNE, ordinary);
+            code.dload(left).invokestatic(ClassDescHolder.DOUBLE, "doubleToRawLongBits",
+                    java.lang.constant.MethodTypeDesc.of(ConstantDescs.CD_long,
+                            ConstantDescs.CD_double)).loadConstant(0L).lcmp()
+                    .branch(minimum ? Opcode.IFLT : Opcode.IFGE, chooseLeft);
+            code.branch(Opcode.GOTO, chooseRight).labelBinding(ordinary);
+            code.dload(right).dload(left).dcmpg().branch(
+                    minimum ? Opcode.IFLT : Opcode.IFGT, chooseRight);
+            code.labelBinding(chooseLeft).dload(left).branch(Opcode.GOTO, done);
+            code.labelBinding(chooseRight).dload(right);
+            code.labelBinding(done).dstore(left);
+        } else {
+            code.fload(left).invokestatic(ClassDescHolder.FLOAT, "isNaN",
+                    java.lang.constant.MethodTypeDesc.of(ConstantDescs.CD_boolean,
+                            ConstantDescs.CD_float)).branch(Opcode.IFEQ, leftNumber);
+            code.fload(left).branch(Opcode.GOTO, done).labelBinding(leftNumber);
+            code.fload(right).invokestatic(ClassDescHolder.FLOAT, "isNaN",
+                    java.lang.constant.MethodTypeDesc.of(ConstantDescs.CD_boolean,
+                            ConstantDescs.CD_float)).branch(Opcode.IFEQ, rightNumber);
+            code.fload(right).branch(Opcode.GOTO, done).labelBinding(rightNumber);
+            code.fload(left).loadConstant(0.0f).fcmpl().branch(Opcode.IFNE, ordinary);
+            code.fload(right).loadConstant(0.0f).fcmpl().branch(Opcode.IFNE, ordinary);
+            code.fload(left).invokestatic(ClassDescHolder.FLOAT, "floatToRawIntBits",
+                    java.lang.constant.MethodTypeDesc.of(ConstantDescs.CD_int,
+                            ConstantDescs.CD_float)).branch(minimum ? Opcode.IFLT : Opcode.IFGE,
+                            chooseLeft);
+            code.branch(Opcode.GOTO, chooseRight).labelBinding(ordinary);
+            code.fload(right).fload(left).fcmpg().branch(
+                    minimum ? Opcode.IFLT : Opcode.IFGT, chooseRight);
+            code.labelBinding(chooseLeft).fload(left).branch(Opcode.GOTO, done);
+            code.labelBinding(chooseRight).fload(right);
+            code.labelBinding(done).fstore(left);
+        }
+    }
+
+    private static void emitBfloatSelection(CodeBuilder code, boolean minimum, int left, int right) {
+        var leftNumber = code.newLabel(); var rightNumber = code.newLabel();
+        var ordinary = code.newLabel(); var chooseRight = code.newLabel(); var chooseLeft = code.newLabel();
+        var done = code.newLabel();
+        code.iload(left).loadConstant(0xffff).iand().istore(left);
+        code.iload(right).loadConstant(0xffff).iand().istore(right);
+        code.iload(left).loadConstant(0x7f80).iand().loadConstant(0x7f80)
+                .branch(Opcode.IF_ICMPNE, leftNumber);
+        code.iload(left).loadConstant(0x7f).iand().branch(Opcode.IFEQ, leftNumber);
+        code.iload(left).branch(Opcode.GOTO, done).labelBinding(leftNumber);
+        code.iload(right).loadConstant(0x7f80).iand().loadConstant(0x7f80)
+                .branch(Opcode.IF_ICMPNE, rightNumber);
+        code.iload(right).loadConstant(0x7f).iand().branch(Opcode.IFEQ, rightNumber);
+        code.iload(right).branch(Opcode.GOTO, done).labelBinding(rightNumber);
+        code.iload(left).loadConstant(0x7fff).iand().branch(Opcode.IFNE, ordinary);
+        code.iload(right).loadConstant(0x7fff).iand().branch(Opcode.IFNE, ordinary);
+        code.iload(left).i2s().branch(minimum ? Opcode.IFLT : Opcode.IFGE, chooseLeft);
+        code.branch(Opcode.GOTO, chooseRight).labelBinding(ordinary);
+        code.iload(right).loadConstant(16).ishl().invokestatic(ClassDescHolder.FLOAT,
+                "intBitsToFloat", java.lang.constant.MethodTypeDesc.of(ConstantDescs.CD_float,
+                        ConstantDescs.CD_int));
+        code.iload(left).loadConstant(16).ishl().invokestatic(ClassDescHolder.FLOAT,
+                "intBitsToFloat", java.lang.constant.MethodTypeDesc.of(ConstantDescs.CD_float,
+                        ConstantDescs.CD_int));
+        code.fcmpg().branch(minimum ? Opcode.IFLT : Opcode.IFGT, chooseRight);
+        code.labelBinding(chooseLeft).iload(left).branch(Opcode.GOTO, done);
+        code.labelBinding(chooseRight).iload(right);
+        code.labelBinding(done).istore(left);
+    }
+
+    private static final class ClassDescHolder {
+        private static final java.lang.constant.ClassDesc DOUBLE =
+                java.lang.constant.ClassDesc.of(Double.class.getName());
+        private static final java.lang.constant.ClassDesc FLOAT =
+                java.lang.constant.ClassDesc.of(Float.class.getName());
+        private static final java.lang.constant.ClassDesc MATH =
+                java.lang.constant.ClassDesc.of(Math.class.getName());
+        private ClassDescHolder() { }
     }
 
     /**
@@ -354,7 +600,7 @@ public final class CpuAggregateEmitter {
     public static void execute(Object input, Object output, long[] packed, long start, long end) {
         int kind = (int) packed[0]; DataType type = TYPES[(int) packed[1]];
         boolean keep = packed[3] != 0; int inRank = (int) packed[4], outRank = (int) packed[5];
-        long domainCount = packed[7]; int selected = 8;
+        long domainCount = packed[7]; int selected = 11;
         int inputCoordinates = selected + inRank;
         int outputCoordinates = inputCoordinates + inRank;
         int inputLayout = outputCoordinates + outRank;

@@ -1240,6 +1240,64 @@ class CpuPreparedExecutableTest {
         } finally { workers.close(); }
     }
 
+    @Test void exactFloatingAggregateUsesDisjointRunOwnedSlicesAndResetsOnConcurrentReuse()
+            throws InterruptedException {
+        var base = CpuAggregateLoweringTest.context(AggregateReductionKind.SUM, DataType.FLOAT64,
+                Shape.of(8,3), new AxisReductionAttrs(1,false), Shape.of(8));
+        var config = new PortableExecutionConfig(ComputePreference.SCALAR, 4, 4, 1);
+        var context = new io.github.pho001.synaptik.prepare.analysis.PrepareContext<>(
+                base.partition(), base.nodes(), base.values(), base.memoryRequirements(),
+                base.constants(), new CpuPartitionAnalysisInputs(false,
+                        List.of(CarrierAccess.DOUBLE_ARRAY, CarrierAccess.DOUBLE_ARRAY), config));
+        var analysis = new CpuPartitionPreparer().analyze(context);
+        var declaration = analysis.plan().workspaceDeclaration().orElseThrow();
+        assertEquals(analysis.plan().aggregateGeometry().orElseThrow().workspaceBytes(4),
+                declaration.byteSize());
+        var workers = new CpuWorkerGroup(4);
+        try {
+            var executable = CpuPartitionFinalizerTest.finalizeExecutable(analysis,
+                    Optional.empty(), Optional.of(workers));
+            double[] input = new double[24];
+            for (int cell = 0; cell < 8; cell++) {
+                input[cell * 3] = 0x1p53; input[cell * 3 + 1] = cell + 1;
+                input[cell * 3 + 2] = -0x1p53;
+            }
+            double[] output = new double[8]; java.util.Arrays.fill(output, -7);
+            var workspace = CpuContiguousWorkspace.allocate(declaration.byteSize(),
+                    declaration.byteAlignment());
+            var run = state(executable, List.of(borrow(input, 0, input.length),
+                    borrow(output, 0, output.length)), List.of(workspace));
+            try {
+                var bound = executable.bind(run); bound.execute();
+                assertArrayEquals(new double[]{1,2,3,4,5,6,7,8}, output);
+                java.util.Arrays.fill(output, -9); bound.execute();
+                assertArrayEquals(new double[]{1,2,3,4,5,6,7,8}, output);
+            } finally { run.close(); }
+
+            double[] firstOutput = new double[8], secondOutput = new double[8];
+            var firstRun = state(executable, List.of(borrow(input, 0, input.length),
+                    borrow(firstOutput, 0, firstOutput.length)), List.of(
+                        CpuContiguousWorkspace.allocate(declaration.byteSize(),
+                                declaration.byteAlignment())));
+            var secondRun = state(executable, List.of(borrow(input, 0, input.length),
+                    borrow(secondOutput, 0, secondOutput.length)), List.of(
+                        CpuContiguousWorkspace.allocate(declaration.byteSize(),
+                                declaration.byteAlignment())));
+            try {
+                var firstBound = executable.bind(firstRun);
+                var secondBound = executable.bind(secondRun);
+                Thread first = Thread.ofVirtual().start(firstBound::execute);
+                Thread second = Thread.ofVirtual().start(secondBound::execute);
+                first.join(); second.join();
+                assertAll(
+                        () -> assertArrayEquals(new double[]{1,2,3,4,5,6,7,8}, firstOutput),
+                        () -> assertArrayEquals(new double[]{1,2,3,4,5,6,7,8}, secondOutput));
+            } finally {
+                firstRun.close(); secondRun.close();
+            }
+        } finally { workers.close(); }
+    }
+
     @Test void scatterNdRejectsFirstLaterDuplicateTupleEvenWithEmptySuffix() {
         var executable=scatterExecutable(new Operation(ScatterNdKind.SCATTER_ND,
                         new ScatterNdAttrs(0,ScatterReduction.NONE)),

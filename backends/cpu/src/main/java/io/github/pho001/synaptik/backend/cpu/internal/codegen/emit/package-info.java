@@ -16,7 +16,8 @@
  * power and direct scalar power are also scalar-compute only. FLOAT32 reciprocal square root
  * widens before both {@code StrictMath.sqrt} and the reciprocal and narrows their combined result
  * once. Direct FLOAT32 power widens the represented base and exponent exactly, invokes
- * {@code StrictMath.pow}, and narrows once. Segment access uses native byte order. Dense,
+ * {@code StrictMath.pow}, and narrows once. Scalar segment access initializes each required
+ * native-order typed layout once per generated invocation and reuses its typed local. Dense,
  * scalar-broadcast, last-axis, and block/outer regimes admit
  * unmasked complete vectors followed by the existing scalar body for every remainder. Proved
  * dense arrays compute one integer vector bound, execute one vector loop, and then one scalar
@@ -33,8 +34,10 @@
  * A separate movement emitter consumes compact cold geometry for one static PAD, TILE, CONCAT,
  * STACK, window-extraction, or functional SLICE_UPDATE occurrence and emits a direct
  * represented-bit scalar loop. Proved dense heap-array movement bodies hoist their primitive
- * geometry into integer locals and retain the universal long entry bounds; general layouts and
- * segment or mixed carriers keep the long-address body. Slice update walks the output once,
+ * geometry into integer locals and retain the universal long entry bounds. PAD, CONCAT,
+ * UNFOLD_AXIS, and UNFOLD2D additionally admit a cold-proved bounded primitive geometry/cursor
+ * body independently of heap, segment, or mixed carrier choice; geometry or cursor transitions
+ * that cannot be bounded retain the typed general-long body. Slice update walks the output once,
  * selecting update values at
  * signed-sequence positions and base values elsewhere. It uses coordinate and sequence-cursor
  * carry/reset state for arbitrary ranges, performs no per-element division or modulo, and
@@ -46,16 +49,18 @@
  * typed long-address traversal. The writers perform no bounds branch, allocation, or generic
  * {@code Object} bridge and own neither validation nor worker submission.
  * The functional-scatter emitter receives the same direct carriers only after complete bounds
- * validation and, for replacement forms, complete target-uniqueness validation. It owns one
- * output-domain scalar pass for SCATTER_ELEMENTS, Gather-compatible SCATTER_ADD, or SCATTER_ND.
- * Each range reads the functional base, scans logical updates in row-major order, and writes its
- * disjoint output coordinates once. Proved dense rank-one heap-array forms narrow bounds and
+ * validation and, for replacement forms, complete target-uniqueness validation. For
+ * SCATTER_ELEMENTS, Gather-compatible SCATTER_ADD, or SCATTER_ND without floating multiplication,
+ * each range first copies its disjoint base-output interval and then traverses all logical updates
+ * once in row-major order, filtering targets to that interval. Proved dense rank-one heap-array
+ * forms narrow bounds and
  * bases once and retain integer loop and address state; segment, mixed-carrier, arbitrary-layout,
  * and otherwise unproved forms retain typed long-address traversal. Family, represented type,
  * reduction, carrier, and access choices are embedded in the generated class rather than selected
  * through a generic execution bridge. Floating multiplication alone receives one assigned scratch
- * slice and embeds the type-specialized exact-product state machine that rounds the abstract
- * unchanged-format product once; other reductions receive no scratch parameter. The emitter
+ * slice and retains output-owned grouping so the type-specialized exact-product state machine can
+ * consume one complete target group and round the abstract unchanged-format product once; other
+ * reductions receive no scratch parameter. The emitter
  * neither validates indices, mutates inputs, nor submits workers.
  * The fold emitter owns a separate output-domain scalar body. It initializes each owned output
  * from represented positive zero, scans logical input occurrences in canonical row-major order,
@@ -89,11 +94,20 @@
  * arbitrary layouts and segment carriers retain typed long-address traversal. Parallel
  * orchestration never splits a slice.</p>
  *
- * <p>The aggregate emitter embeds a typed scalar fold. It owns complete output cells, walks
- * selected coordinates in canonical logical row-major order, preserves the first NaN bits and
- * signed-zero extrema, emits canonical Boolean identities and results, and allocates no object
- * per output cell or selected element. Full dense heap-array reductions use a direct integer fold;
- * all other current forms retain a typed general-layout fallback.</p>
+ * <p>The aggregate emitter embeds typed scalar bodies for numerical, extrema, and Boolean rows.
+ * It owns complete output cells, walks selected coordinates in canonical logical row-major order,
+ * emits direct exact floating sum/product limb state and one final rounding, preserves extrema
+ * first-NaN bits and signed-zero selection, emits canonical Boolean results, and allocates no
+ * object per output cell or selected element. Proved dense heap-array reductions use direct
+ * integer-address loops; all other current forms retain typed general long-address bodies.</p>
+ *
+ * <p>Covered scalar activation formulas, BFLOAT16 scan arithmetic and rounding, and aggregate
+ * extrema/Boolean combination are emitted directly. Those per-element bodies therefore have no
+ * runtime reference to another Synaptik class. The selected bounded movement classes likewise
+ * contain their primitive geometry, cursor, carrier access, and represented-bit store work
+ * directly. The separate {@code CpuVectorMath} call remains
+ * limited to one call per emitted vector instruction per vector chunk; scalar tails use the same
+ * direct scalar formulas as scalar-only artifacts.</p>
  *
  * <p>Generation and verification are cold-path operations. Only the resolved static entry handle
  * executes on the Runtime hot path. Parallel plans reuse that direct scalar or vector entry for

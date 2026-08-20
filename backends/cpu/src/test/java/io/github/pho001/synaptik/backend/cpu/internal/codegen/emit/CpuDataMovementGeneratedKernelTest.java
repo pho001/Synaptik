@@ -23,10 +23,70 @@ import java.nio.charset.StandardCharsets;
 import java.lang.classfile.ClassFile;
 import java.lang.classfile.Instruction;
 import java.lang.classfile.Opcode;
+import java.lang.classfile.instruction.BranchInstruction;
+import java.lang.classfile.instruction.LabelTarget;
 import java.util.*;
 import org.junit.jupiter.api.Test;
 
 class CpuDataMovementGeneratedKernelTest {
+    @Test void targetGeneralMovementUsesBoundedHotCursorsAndRetainsLongFallback() {
+        var window = new Window2dAttrs(2, 2, 1, 1, 1, 1, 1, 1, false);
+        var cases = List.of(
+                withCarrierPattern(context(new Operation(PadKind.PAD,
+                                new PadAttrs(List.of(1L, 1L), List.of(1L, 1L),
+                                        ScalarValue.bfloat16Bits((short) 0x7fc1))),
+                                List.of(0), List.of(CpuNonAffineMovementLoweringTest.descriptor(
+                                        DataType.BFLOAT16, Shape.of(2, 2))),
+                                CpuNonAffineMovementLoweringTest.descriptor(
+                                        DataType.BFLOAT16, Shape.of(4, 4))),
+                        List.of(CarrierAccess.MEMORY_SEGMENT, CarrierAccess.SHORT_ARRAY)),
+                withCarrierPattern(context(new Operation(TensorCompositionKind.CONCAT,
+                                new CompositionAxisAttrs(0)), List.of(0, 1, 0, 2),
+                                List.of(
+                                        CpuNonAffineMovementLoweringTest.descriptor(
+                                                DataType.INT32, Shape.of(2, 3)),
+                                        CpuNonAffineMovementLoweringTest.descriptor(
+                                                DataType.INT32, Shape.of(2, 3)),
+                                        CpuNonAffineMovementLoweringTest.descriptor(
+                                                DataType.INT32, Shape.of(2, 3))),
+                                CpuNonAffineMovementLoweringTest.descriptor(
+                                        DataType.INT32, Shape.of(8, 3))),
+                        List.of(CarrierAccess.MEMORY_SEGMENT, CarrierAccess.INT_ARRAY,
+                                CarrierAccess.MEMORY_SEGMENT, CarrierAccess.INT_ARRAY)),
+                withCarrierPattern(context(new Operation(WindowTransformKind.UNFOLD_AXIS,
+                                new UnfoldAxisAttrs(1, 2, 1)), List.of(0),
+                                List.of(CpuNonAffineMovementLoweringTest.descriptor(
+                                        DataType.FLOAT32, Shape.of(2, 4))),
+                                CpuNonAffineMovementLoweringTest.descriptor(
+                                        DataType.FLOAT32, Shape.of(2, 3, 2))),
+                        List.of(CarrierAccess.MEMORY_SEGMENT, CarrierAccess.FLOAT_ARRAY)),
+                withCarrierPattern(context(new Operation(WindowTransformKind.UNFOLD2D,
+                                new Unfold2dAttrs(window, ScalarValue.float64(-0.0))), List.of(0),
+                                List.of(CpuNonAffineMovementLoweringTest.descriptor(
+                                        DataType.FLOAT64, Shape.of(1, 1, 3, 3))),
+                                CpuNonAffineMovementLoweringTest.descriptor(
+                                        DataType.FLOAT64, Shape.of(1, 4, 16))),
+                        List.of(CarrierAccess.DOUBLE_ARRAY, CarrierAccess.MEMORY_SEGMENT)));
+        var generator = new CpuClassFileKernelGenerator();
+        for (var movement : cases) {
+            var plan = new CpuPartitionPreparer().analyze(movement).plan();
+            var route = plan.units().getFirst().portablePlan();
+            var code = ClassFile.of().parse(generator.generateClassBytes(
+                    route.specialization(), route.kernelIr())).methods().getFirst()
+                    .code().orElseThrow();
+            int geometryLength = plan.movementGeometry().orElseThrow()
+                    .pack(new long[plan.carrierPattern().size()], 0, plan.elementCount()).length;
+            assertAll(route.kernelIr().familyIdentity(),
+                    () -> assertEquals(CpuKernelSpecialization.LoopAddressing.GENERAL_LONG,
+                            route.specialization().loopAddressing(route.kernelIr())),
+                    () -> assertTrue(opcodeCount(code, Opcode.L2I) >= geometryLength + 2L),
+                    () -> assertTrue(hasBackwardCursorLoopWithoutGeometryLoads(code)),
+                    () -> assertTrue(opcodeCount(code, Opcode.LALOAD) > geometryLength),
+                    () -> assertTrue(opcodeCount(code, Opcode.LADD) > 0),
+                    () -> assertTrue(opcodeCount(code, Opcode.LMUL) > 0));
+        }
+    }
+
     @Test void everyDenseFamilyHoistsGeometryIntoIntegerLocalsAndKeepsGeneralLongFallback() {
         var window = new Window2dAttrs(1, 1, 1, 1, 0, 0, 1, 1, false);
         var cases = List.of(
@@ -629,6 +689,32 @@ class CpuDataMovementGeneratedKernelTest {
         return code.elementStream().filter(Instruction.class::isInstance)
                 .map(Instruction.class::cast).filter(instruction -> instruction.opcode() == opcode)
                 .count();
+    }
+
+    private static boolean hasBackwardCursorLoopWithoutGeometryLoads(
+            java.lang.classfile.CodeModel code) {
+        var elements = code.elementStream().toList();
+        var labels = new IdentityHashMap<java.lang.classfile.Label, Integer>();
+        for (int index = 0; index < elements.size(); index++) {
+            if (elements.get(index) instanceof LabelTarget target) {
+                labels.put(target.label(), index);
+            }
+        }
+        for (int index = 0; index < elements.size(); index++) {
+            if (!(elements.get(index) instanceof BranchInstruction branch)) continue;
+            Integer target = labels.get(branch.target());
+            if (target == null || target >= index) continue;
+            boolean cursor = false;
+            boolean geometryLoad = false;
+            for (int body = target; body <= index; body++) {
+                if (elements.get(body) instanceof Instruction instruction) {
+                    cursor |= instruction.opcode() == Opcode.IINC;
+                    geometryLoad |= instruction.opcode() == Opcode.LALOAD;
+                }
+            }
+            if (cursor && !geometryLoad) return true;
+        }
+        return false;
     }
 
     private static void assertAllPaddingBits(Object values, ScalarValue padding) {

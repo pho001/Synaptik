@@ -21,8 +21,102 @@ import java.nio.ByteOrder;
 import java.lang.classfile.ClassFile;
 import java.lang.classfile.Instruction;
 import java.lang.classfile.Opcode;
+import java.lang.classfile.constantpool.DynamicConstantPoolEntry;
+import java.lang.classfile.constantpool.MemberRefEntry;
+import java.lang.classfile.constantpool.MethodHandleEntry;
 
 class CpuPointwiseGeneratedKernelTest {
+    private static final List<CpuPointwiseOpcode> SELF_CONTAINED_ACTIVATIONS = List.of(
+            CpuPointwiseOpcode.ERF, CpuPointwiseOpcode.SIGMOID, CpuPointwiseOpcode.GELU_EXACT,
+            CpuPointwiseOpcode.GELU_TANH_APPROXIMATION, CpuPointwiseOpcode.SILU);
+
+    @Test void coveredScalarActivationArtifactsAreSelfContainedTypedAndFreeOfDynamicConstructs() {
+        var generator = new CpuClassFileKernelGenerator();
+        for (DataType type : List.of(DataType.FLOAT64, DataType.FLOAT32)) {
+            for (CpuPointwiseOpcode opcode : SELF_CONTAINED_ACTIVATIONS) {
+                CpuKernelIr ir = ir(new Case(opcode, type));
+                List<DataType> types = ir.values().stream().map(CpuKernelIr.Value::dataType).toList();
+                var specialization = new CpuKernelSpecialization(
+                        CpuLoweringFingerprint.fromHex(ir.structuralKey()),
+                        CpuKernelSpecialization.NumericalMode.EXACT_DEFAULT,
+                        CpuPartitionPreparationPlan.ExecutionStrategy.SCALAR, types,
+                        types.stream().map(CpuPointwiseGeneratedKernelTest::heapCarrier).toList(),
+                        0, -1);
+                byte[] bytes = generator.generateClassBytes(specialization, ir);
+                var model = ClassFile.of().parse(bytes);
+                String primitive = type == DataType.FLOAT64 ? "[D" : "[F";
+                assertAll(opcode + " " + type,
+                        () -> assertEquals("(" + primitive + primitive + "[JJJ)V",
+                                model.methods().getFirst().methodTypeSymbol().descriptorString()),
+                        () -> assertGeneratedClassShape(model, false));
+            }
+        }
+    }
+
+    @Test void vectorActivationReferencesOnlyChunkLevelVectorMathAndKeepsScalarTailDirect() {
+        var generator = new CpuClassFileKernelGenerator();
+        for (DataType type : List.of(DataType.FLOAT64, DataType.FLOAT32)) {
+            for (CpuPointwiseOpcode opcode : List.of(CpuPointwiseOpcode.ERF,
+                    CpuPointwiseOpcode.GELU_EXACT)) {
+                CpuKernelIr ir = ir(new Case(opcode, type));
+                List<DataType> types = ir.values().stream().map(CpuKernelIr.Value::dataType).toList();
+                var specialization = new CpuKernelSpecialization(
+                        CpuLoweringFingerprint.fromHex(ir.structuralKey()),
+                        CpuKernelSpecialization.NumericalMode.EXACT_DEFAULT,
+                        CpuPartitionPreparationPlan.ExecutionStrategy.VECTOR, types,
+                        types.stream().map(CpuPointwiseGeneratedKernelTest::heapCarrier).toList(),
+                        vectorSpeciesBits(type), -1);
+                var model = ClassFile.of().parse(generator.generateClassBytes(specialization, ir));
+                List<MemberRefEntry> projectMembers = java.util.stream.StreamSupport.stream(
+                        model.constantPool().spliterator(), false)
+                        .filter(MemberRefEntry.class::isInstance).map(MemberRefEntry.class::cast)
+                        .filter(entry -> entry.owner().asInternalName()
+                                .startsWith("io/github/pho001/synaptik")).toList();
+                String vectorDescriptor = type == DataType.FLOAT64
+                        ? "Ljdk/incubator/vector/DoubleVector;"
+                        : "Ljdk/incubator/vector/FloatVector;";
+                assertAll(opcode + " " + type,
+                        () -> assertFalse(projectMembers.isEmpty()),
+                        () -> assertTrue(projectMembers.stream().allMatch(entry -> entry.owner()
+                                .asInternalName().equals("io/github/pho001/synaptik/backend/cpu/"
+                                        + "internal/codegen/emit/CpuVectorMath"))),
+                        () -> assertTrue(projectMembers.stream().allMatch(entry -> entry.type()
+                                .stringValue().equals("(" + vectorDescriptor + ")"
+                                        + vectorDescriptor))),
+                        () -> assertGeneratedClassShape(model, true));
+            }
+        }
+    }
+
+    @Test void coveredActivationsPreserveRawBitsAcrossExceptionalAndFiniteInputs() throws Throwable {
+        long[] doubleBits = {0L, Long.MIN_VALUE, 1L, Long.MIN_VALUE | 1L,
+                0x7ff0000000000000L, 0xfff0000000000000L, 0x7ff0000000000042L,
+                0xfff8000000000042L, 0x7fefffffffffffffL, 0xffefffffffffffffL,
+                Double.doubleToRawLongBits(1.0), Double.doubleToRawLongBits(-1.0)};
+        int[] floatBits = {0, Integer.MIN_VALUE, 1, Integer.MIN_VALUE | 1,
+                0x7f800000, 0xff800000, 0x7f800042, 0xffc00042, 0x7f7fffff,
+                0xff7fffff, Float.floatToRawIntBits(1.0f), Float.floatToRawIntBits(-1.0f)};
+        for (CpuPointwiseOpcode opcode : SELF_CONTAINED_ACTIVATIONS) {
+            double[] doubles = Arrays.stream(doubleBits).mapToDouble(Double::longBitsToDouble).toArray();
+            double[] expectedDoubles = referenceUnary(opcode, doubles);
+            double[] actualDoubles = (double[]) invokeUnary(opcode, DataType.FLOAT64, doubles);
+            assertArrayEquals(Arrays.stream(expectedDoubles).mapToLong(Double::doubleToRawLongBits)
+                    .toArray(), Arrays.stream(actualDoubles).mapToLong(Double::doubleToRawLongBits)
+                    .toArray(), opcode + " FLOAT64 raw bits");
+            float[] floats = new float[floatBits.length];
+            for (int index = 0; index < floats.length; index++)
+                floats[index] = Float.intBitsToFloat(floatBits[index]);
+            float[] expectedFloats = referenceUnary(opcode, floats);
+            float[] actualFloats = (float[]) invokeUnary(opcode, DataType.FLOAT32, floats);
+            int[] expectedBits = new int[floats.length], actualBits = new int[floats.length];
+            for (int index = 0; index < floats.length; index++) {
+                expectedBits[index] = Float.floatToRawIntBits(expectedFloats[index]);
+                actualBits[index] = Float.floatToRawIntBits(actualFloats[index]);
+            }
+            assertArrayEquals(expectedBits, actualBits, opcode + " FLOAT32 raw bits");
+        }
+    }
+
     @Test void denseHeapArrayScalarAndVectorBodiesUseOnlyEntryNarrowingAndOneSpeciesLoad() {
         CpuKernelIr ir = ir(new Case(CpuPointwiseOpcode.ADD, DataType.FLOAT64));
         List<DataType> types = ir.values().stream().map(CpuKernelIr.Value::dataType).toList();
@@ -588,6 +682,72 @@ class CpuPointwiseGeneratedKernelTest {
         var generator = new CpuClassFileKernelGenerator();
         return generator.defineClassBytes(specialization,
                 generator.generateClassBytes(specialization, ir));
+    }
+
+    private static Object invokeUnary(CpuPointwiseOpcode opcode, DataType type, Object input)
+            throws Throwable {
+        CpuKernelIr ir = ir(new Case(opcode, type));
+        int count = java.lang.reflect.Array.getLength(input);
+        List<DataType> types = ir.values().stream().map(CpuKernelIr.Value::dataType).toList();
+        Object output = array(type, count, false);
+        var call = new ArrayList<Object>(); call.add(input); call.add(output);
+        call.add(geometry(types.size(), count)); call.add(0L); call.add((long) count);
+        artifact(ir, types, types.stream().map(CpuPointwiseGeneratedKernelTest::heapCarrier).toList())
+                .entryPoint().invokeWithArguments(call);
+        return output;
+    }
+
+    private static double[] referenceUnary(CpuPointwiseOpcode opcode, double[] input) {
+        double[] result = new double[input.length];
+        for (int index = 0; index < input.length; index++) result[index] = switch (opcode) {
+            case ERF -> CpuScalarReferenceKernel.erf(input[index]);
+            case SIGMOID -> CpuScalarReferenceKernel.sigmoid(input[index]);
+            case GELU_EXACT -> CpuScalarReferenceKernel.gelu(input[index]);
+            case GELU_TANH_APPROXIMATION -> CpuScalarReferenceKernel.geluTanhApproximation(input[index]);
+            case SILU -> CpuScalarReferenceKernel.silu(input[index]);
+            default -> throw new AssertionError(opcode);
+        };
+        return result;
+    }
+
+    private static float[] referenceUnary(CpuPointwiseOpcode opcode, float[] input) {
+        float[] result = new float[input.length];
+        for (int index = 0; index < input.length; index++) result[index] = (float) switch (opcode) {
+            case ERF -> CpuScalarReferenceKernel.erf(input[index]);
+            case SIGMOID -> CpuScalarReferenceKernel.sigmoid(input[index]);
+            case GELU_EXACT -> CpuScalarReferenceKernel.gelu(input[index]);
+            case GELU_TANH_APPROXIMATION -> CpuScalarReferenceKernel.geluTanhApproximation(input[index]);
+            case SILU -> CpuScalarReferenceKernel.silu(input[index]);
+            default -> throw new AssertionError(opcode);
+        };
+        return result;
+    }
+
+    private static void assertGeneratedClassShape(java.lang.classfile.ClassModel model,
+            boolean allowVectorMath) {
+        List<MemberRefEntry> members = java.util.stream.StreamSupport.stream(
+                model.constantPool().spliterator(), false).filter(MemberRefEntry.class::isInstance)
+                .map(MemberRefEntry.class::cast).toList();
+        assertAll(
+                () -> assertEquals(0, model.constantPool().bootstrapMethodCount()),
+                () -> assertTrue(java.util.stream.StreamSupport.stream(
+                        model.constantPool().spliterator(), false)
+                        .noneMatch(MethodHandleEntry.class::isInstance)),
+                () -> assertTrue(java.util.stream.StreamSupport.stream(
+                        model.constantPool().spliterator(), false)
+                        .noneMatch(DynamicConstantPoolEntry.class::isInstance)),
+                () -> assertTrue(members.stream().filter(entry -> entry.owner().asInternalName()
+                        .startsWith("io/github/pho001/synaptik")).allMatch(entry -> allowVectorMath
+                                && entry.owner().asInternalName().endsWith("/CpuVectorMath"))),
+                () -> assertTrue(model.methods().stream().noneMatch(method -> method
+                        .methodTypeSymbol().descriptorString().contains("Ljava/lang/Object;"))),
+                () -> assertTrue(members.stream().noneMatch(entry -> entry.type().stringValue()
+                        .contains("Ljava/lang/Object;") || entry.owner().asInternalName()
+                                .startsWith("java/lang/reflect/") || entry.owner().asInternalName()
+                                .startsWith("java/util/"))),
+                () -> assertTrue(model.methods().stream().flatMap(method -> method.code().stream())
+                        .flatMap(code -> code.elementStream()).noneMatch(
+                                java.lang.classfile.instruction.NewObjectInstruction.class::isInstance)));
     }
 
     private static CpuGeneratedKernel vectorArtifact(CpuKernelIr ir, List<DataType> types,

@@ -19,6 +19,7 @@ import io.github.pho001.synaptik.model.operation.index.*;
 import io.github.pho001.synaptik.model.operation.layout.*;
 import io.github.pho001.synaptik.model.operation.ordering.*;
 import io.github.pho001.synaptik.model.operation.scan.*;
+import io.github.pho001.synaptik.model.operation.reduction.*;
 import io.github.pho001.synaptik.model.shape.Shape;
 import io.github.pho001.synaptik.model.shape.DynamicDimension;
 import io.github.pho001.synaptik.model.shape.StaticDimension;
@@ -29,6 +30,26 @@ import java.util.Optional;
 import org.junit.jupiter.api.Test;
 
 class CpuCapabilityProviderTest {
+    @Test void reportsClosedOrdinaryNumericalAggregateMatrix() {
+        var provider = new CpuCapabilityProvider();
+        for (DataType type : List.of(DataType.FLOAT64, DataType.FLOAT32, DataType.BFLOAT16,
+                DataType.INT32, DataType.INT64)) for (AggregateReductionKind kind : List.of(
+                        AggregateReductionKind.SUM, AggregateReductionKind.PROD))
+            assertTrue(provider.supports(query(kind, new AxisReductionAttrs(1, false),
+                    List.of(descriptor(type, Shape.of(2, 3))), descriptor(type, Shape.of(2)))));
+        for (DataType type : List.of(DataType.FLOAT64, DataType.FLOAT32, DataType.BFLOAT16))
+            assertTrue(provider.supports(query(AggregateReductionKind.MEAN,
+                    new MultiAxisReductionAttrs(List.of(1), false),
+                    List.of(descriptor(type, Shape.of(2, 3))), descriptor(type, Shape.of(2)))));
+        var integralMean = query(AggregateReductionKind.MEAN, NoOperationAttrs.INSTANCE,
+                List.of(descriptor(DataType.INT32, Shape.of(2))),
+                descriptor(DataType.INT32, Shape.scalar()));
+        var booleanSum = query(AggregateReductionKind.SUM, NoOperationAttrs.INSTANCE,
+                List.of(descriptor(DataType.BOOL, Shape.of(2))),
+                descriptor(DataType.BOOL, Shape.scalar()));
+        assertAll(() -> assertFalse(provider.supports(integralMean)),
+                () -> assertFalse(provider.supports(booleanSum)));
+    }
     @Test void reportsOnlyExactStaticResolvedCumulativeScanMatrix() {
         var provider = new CpuCapabilityProvider();
         for (DataType type : List.of(DataType.FLOAT64, DataType.FLOAT32, DataType.BFLOAT16,

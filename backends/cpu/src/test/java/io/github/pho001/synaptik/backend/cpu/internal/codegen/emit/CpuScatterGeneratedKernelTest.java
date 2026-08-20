@@ -231,6 +231,61 @@ class CpuScatterGeneratedKernelTest {
     }
 
     @Test
+    void generatedShapeCopiesBeforeOneUpdateBodyAndKeepsDenseExactProductGrouped() {
+        var addition =
+                code(
+                        context(
+                                new Operation(
+                                        AxisScatterKind.SCATTER_ELEMENTS,
+                                        new ScatterElementsAttrs(0, ScatterReduction.ADD)),
+                                List.of(
+                                        desc(DataType.FLOAT32, Shape.of(64)),
+                                        desc(DataType.INT32, Shape.of(8)),
+                                        desc(DataType.FLOAT32, Shape.of(8))),
+                                desc(DataType.FLOAT32, Shape.of(64))));
+        var product =
+                code(
+                        context(
+                                new Operation(
+                                        AxisScatterKind.SCATTER_ELEMENTS,
+                                        new ScatterElementsAttrs(0, ScatterReduction.MUL)),
+                                List.of(
+                                        desc(DataType.FLOAT32, Shape.of(64)),
+                                        desc(DataType.INT32, Shape.of(8)),
+                                        desc(DataType.FLOAT32, Shape.of(8))),
+                                desc(DataType.FLOAT32, Shape.of(64))));
+        List<Opcode> additionOpcodes = opcodes(addition);
+        List<Opcode> productOpcodes = opcodes(product);
+        assertAll(
+                () ->
+                        assertTrue(
+                                additionOpcodes.indexOf(Opcode.FALOAD)
+                                        < additionOpcodes.indexOf(Opcode.FASTORE)),
+                () ->
+                        assertTrue(
+                                additionOpcodes.indexOf(Opcode.FASTORE)
+                                        < additionOpcodes.indexOf(Opcode.IALOAD)),
+                () -> assertEquals(1, opcodeCount(product, Opcode.IALOAD)),
+                () -> assertEquals(0, opcodeCount(product, Opcode.LASTORE)),
+                () -> assertTrue(opcodeCount(product, Opcode.FASTORE) > 0),
+                () ->
+                        assertTrue(
+                                invokes(product).stream()
+                                        .filter(
+                                                call ->
+                                                        call.owner()
+                                                                .asInternalName()
+                                                                .equals(
+                                                                        "java/lang/foreign/MemorySegment"))
+                                        .allMatch(
+                                                call ->
+                                                        Set.of("get", "set")
+                                                                .contains(
+                                                                        call.name()
+                                                                                .stringValue()))));
+    }
+
+    @Test
     void executesElementsReplacementFixedAddAndNdReduction() throws Throwable {
         long[] replacement = {-1, -1, -1, -1, -1, -1};
         invoke(
@@ -643,6 +698,42 @@ class CpuScatterGeneratedKernelTest {
     }
 
     @Test
+    void rawReplacementEntryIsLastWinsButWritesOnlyItsOwnedRange() throws Throwable {
+        var operation =
+                new Operation(
+                        AxisScatterKind.SCATTER_ELEMENTS,
+                        new ScatterElementsAttrs(0, ScatterReduction.NONE));
+        var inputs =
+                List.of(
+                        desc(DataType.INT32, Shape.of(4)),
+                        desc(DataType.INT32, Shape.of(3)),
+                        desc(DataType.INT32, Shape.of(3)));
+        var plan =
+                new CpuPartitionPreparer()
+                        .analyze(context(operation, inputs, desc(DataType.INT32, Shape.of(4))))
+                        .plan();
+        var route = plan.units().getFirst().portablePlan();
+        var generator = new CpuClassFileKernelGenerator();
+        var artifact =
+                generator.defineClassBytes(
+                        route.specialization(),
+                        generator.generateClassBytes(route.specialization(), route.kernelIr()));
+        int[] output = {-7, -7, -7, -7};
+        var arguments =
+                new ArrayList<Object>(
+                        List.of(
+                                new int[] {1, 2, 3, 4},
+                                new int[] {1, 1, 3},
+                                new int[] {10, 20, 30},
+                                output));
+        arguments.add(plan.scatterGeometry().orElseThrow().pack(new long[4], 1, 3, 0));
+        arguments.add(1L);
+        arguments.add(3L);
+        artifact.entryPoint().invokeWithArguments(arguments);
+        assertArrayEquals(new int[] {-7, 20, 3, -7}, output);
+    }
+
+    @Test
     void executesArbitraryResolvedLayoutsAcrossMixedHeapAndNativeCarriers() throws Throwable {
         Shape dataShape = Shape.of(2, 3), updateShape = Shape.of(2, 2);
         var data = desc(DataType.INT64, dataShape, new long[] {5, 1}, 2);
@@ -965,6 +1056,14 @@ class CpuScatterGeneratedKernelTest {
                 .map(Instruction.class::cast)
                 .filter(value -> value.opcode() == opcode)
                 .count();
+    }
+
+    private static List<Opcode> opcodes(java.lang.classfile.CodeModel code) {
+        return code.elementStream()
+                .filter(Instruction.class::isInstance)
+                .map(Instruction.class::cast)
+                .map(Instruction::opcode)
+                .toList();
     }
 
     private static PrepareContext<CpuPartitionAnalysisInputs> context(

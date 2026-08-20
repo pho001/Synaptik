@@ -22,9 +22,11 @@
  * occurrence across FLOAT64, FLOAT32, BFLOAT16, INT32, and INT64 in every inclusive/exclusive
  * and forward/reverse mode. It keeps sequential typed accumulation within a logical slice,
  * parallelizes only across whole slices, and declares no workspace or materialization.
- * Ordinary aggregate coverage adds exact full, single-axis, and multi-axis MIN/MAX over five
- * numeric represented types plus ALL/ANY over canonical BOOL. It parallelizes only across whole
- * output cells and declares no workspace, partial, combine, or materialization resource.
+ * Ordinary aggregate coverage adds exact full, single-axis, and multi-axis SUM/PROD/MIN/MAX over
+ * five numeric represented types, floating-only MEAN, and ALL/ANY over canonical BOOL. It
+ * parallelizes only across whole output cells. Floating SUM/MEAN/PROD declare run-owned exact-state
+ * workspace; all other rows are workspace-free, and no row uses partial/combine state or
+ * materialization.
  * The provider exposes no route, carrier, preparation, or execution API.
  *
  * <p>The {@code internal} namespace contains unsupported implementation contracts for complete-

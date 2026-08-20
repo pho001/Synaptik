@@ -94,8 +94,9 @@ import java.util.Objects;
  * lowering and binding remain responsible for exact sequential per-slice realization, carrier
  * compatibility, and complete physical non-overlap.</p>
  *
- * <p>A distinct one-node ordinary aggregate matrix admits MIN and MAX for FLOAT64, FLOAT32,
- * BFLOAT16, INT32, and INT64, plus ALL and ANY for canonical BOOL. Exact parameterless full,
+ * <p>A distinct one-node ordinary aggregate matrix admits SUM, PROD, MIN, and MAX for FLOAT64,
+ * FLOAT32, BFLOAT16, INT32, and INT64; MEAN for the three floating types; and ALL and ANY for
+ * canonical BOOL. Exact parameterless full,
  * single-axis, and multi-axis attributes are supported with fully static Model-derived output
  * Shapes, resolved non-negative layouts, and an injective output. Lowering and binding retain
  * responsibility for canonical selected-axis membership, complete-domain traversal, exact
@@ -155,7 +156,7 @@ public final class CpuCapabilityProvider implements BackendCapabilityProvider {
      * NaN-last/signed-zero order, logical INT64 indices, and represented-bit value copies.
      * Cumulative scans additionally require a non-scalar input, the same five-type numeric input
      * and output descriptor, a valid normalized axis, and an injective output layout.
-     * Ordinary aggregates additionally require the exact five-type extrema or BOOL fold matrix,
+     * Ordinary aggregates additionally require the exact numerical, extrema, or BOOL fold matrix,
      * one exact ordinary attribute form, the Model-derived output Shape, and an injective output.
      * Cross-type casts, dynamic
      * or unresolved geometry, negative-step extraction slices, non-injective
@@ -284,15 +285,21 @@ public final class CpuCapabilityProvider implements BackendCapabilityProvider {
 
     private static boolean supportsAggregate(OperationCapabilityQuery query,
             TensorDescriptor output, AggregateReductionKind kind) {
-        if (query.inputs().size() != 1 || kind != AggregateReductionKind.MIN
+        if (query.inputs().size() != 1 || kind != AggregateReductionKind.SUM
+                && kind != AggregateReductionKind.MEAN && kind != AggregateReductionKind.PROD
+                && kind != AggregateReductionKind.MIN
                 && kind != AggregateReductionKind.MAX && kind != AggregateReductionKind.ALL
                 && kind != AggregateReductionKind.ANY) return false;
         TensorDescriptor input = query.inputs().getFirst();
         boolean bool = kind == AggregateReductionKind.ALL || kind == AggregateReductionKind.ANY;
+        boolean mean = kind == AggregateReductionKind.MEAN;
         boolean numeric = input.dataType() == DataType.FLOAT64 || input.dataType() == DataType.FLOAT32
                 || input.dataType() == DataType.BFLOAT16 || input.dataType() == DataType.INT32
                 || input.dataType() == DataType.INT64;
         if (bool != (input.dataType() == DataType.BOOL) || !bool && !numeric
+                || mean && input.dataType() != DataType.FLOAT64
+                    && input.dataType() != DataType.FLOAT32
+                    && input.dataType() != DataType.BFLOAT16
                 || output.dataType() != input.dataType()) return false;
         Object attrs = query.operation().attrs(); int rank = input.shape().rank();
         boolean keep; int[] axes;

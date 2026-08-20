@@ -17,6 +17,9 @@ import io.github.pho001.synaptik.model.layout.LayoutDescriptor;
 import io.github.pho001.synaptik.model.operation.NoOperationAttrs;
 import io.github.pho001.synaptik.model.operation.Operation;
 import io.github.pho001.synaptik.model.operation.OperationKind;
+import io.github.pho001.synaptik.model.operation.reduction.AggregateReductionKind;
+import io.github.pho001.synaptik.model.operation.reduction.AxisReductionAttrs;
+import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuAggregateLoweringTest;
 import io.github.pho001.synaptik.model.operation.layout.CompositionAxisAttrs;
 import io.github.pho001.synaptik.model.operation.layout.TensorCompositionKind;
 import io.github.pho001.synaptik.model.operation.layout.TileAttrs;
@@ -58,6 +61,25 @@ import jdk.incubator.vector.LongVector;
 import jdk.incubator.vector.ByteVector;
 
 public class CpuPartitionPreparerTest {
+    @Test void floatingNumericalAggregateDeclaresExactRunOwnedStateBeforeAssignment() {
+        var base = CpuAggregateLoweringTest.context(AggregateReductionKind.SUM, DataType.FLOAT64,
+                Shape.of(2, 3), new AxisReductionAttrs(1, false), Shape.of(2));
+        var config = new PortableExecutionConfig(ComputePreference.SCALAR, 2, 2, 1);
+        var context = new PrepareContext<>(base.partition(), base.nodes(), base.values(),
+                base.memoryRequirements(), base.constants(), new CpuPartitionAnalysisInputs(false,
+                        List.of(CarrierAccess.DOUBLE_ARRAY, CarrierAccess.DOUBLE_ARRAY), config));
+        var analysis = new CpuPartitionPreparer().analyze(context);
+        var plan = analysis.plan(); var geometry = plan.aggregateGeometry().orElseThrow();
+        assertAll(
+                () -> assertEquals(3, analysis.requirements().size()),
+                () -> assertEquals(CpuPartitionPreparationPlan.WorkspaceUse.AGGREGATE_EXACT_STATE,
+                        plan.workspaceUse()),
+                () -> assertEquals(geometry.workspaceBytes(2),
+                        plan.workspaceDeclaration().orElseThrow().byteSize()),
+                () -> assertEquals(8, plan.workspaceDeclaration().orElseThrow().byteAlignment()),
+                () -> assertTrue(plan.units().getFirst().portablePlan().specialization()
+                        .scratchParameter()));
+    }
     @Test void randomPlansDeclareExactBoundariesScalarStrategyAndZeroWorkspace() {
         var initial = new CpuPartitionPreparer().analyze(
                 CpuRandomLoweringTest.initialContext(1, 2)).plan();
@@ -72,7 +94,7 @@ public class CpuPartitionPreparerTest {
                 () -> assertTrue(initial.workspaceDeclaration().isEmpty()),
                 () -> assertTrue(dropout.workspaceDeclaration().isEmpty()),
                 () -> assertTrue(dropout.randomGeometry().isPresent()),
-                () -> assertEquals(28, io.github.pho001.synaptik.backend.cpu.internal.cache
+                () -> assertEquals(33, io.github.pho001.synaptik.backend.cpu.internal.cache
                         .CpuGeneratorSchema.CURRENT_VERSION));
     }
     @Test void foldDeclaresExactlyTwoBuffersOneArtifactAndNoWorkspaceOrMaterialization() {

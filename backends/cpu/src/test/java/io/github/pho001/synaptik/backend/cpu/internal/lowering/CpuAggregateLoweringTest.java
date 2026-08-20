@@ -55,6 +55,31 @@ public class CpuAggregateLoweringTest {
                 () -> assertEquals(1, scalar.aggregateGeometry().orElseThrow().domainCount()));
     }
 
+    @Test void derivesExactNumericalStateShapesAndStructuralIdentity() {
+        var sum = lower(AggregateReductionKind.SUM, DataType.FLOAT64, Shape.of(3),
+                NoOperationAttrs.INSTANCE, Shape.scalar());
+        var mean = lower(AggregateReductionKind.MEAN, DataType.BFLOAT16, Shape.of(65),
+                NoOperationAttrs.INSTANCE, Shape.scalar());
+        var product = lower(AggregateReductionKind.PROD, DataType.FLOAT32, Shape.of(3),
+                NoOperationAttrs.INSTANCE, Shape.scalar());
+        var integral = lower(AggregateReductionKind.PROD, DataType.INT64, Shape.of(3),
+                NoOperationAttrs.INSTANCE, Shape.scalar());
+        var sumGeometry = sum.aggregateGeometry().orElseThrow();
+        var meanGeometry = mean.aggregateGeometry().orElseThrow();
+        var productGeometry = product.aggregateGeometry().orElseThrow();
+        assertAll(
+                () -> assertEquals(33, sumGeometry.stateLimbCount()),
+                () -> assertEquals(272, sumGeometry.scratchSliceBytes()),
+                () -> assertEquals(5, meanGeometry.stateLimbCount()),
+                () -> assertEquals(48, meanGeometry.scratchSliceBytes()),
+                () -> assertEquals(2, productGeometry.stateLimbCount()),
+                () -> assertEquals(40, productGeometry.scratchSliceBytes()),
+                () -> assertEquals(0, integral.aggregateGeometry().orElseThrow().stateLimbCount()),
+                () -> assertTrue(((CpuAggregateIr) sum.portableKernelIr()).encodedKernelIr()
+                        .familyIdentity().contains(
+                        ":domain=3:limbs=33:slice=272:")));
+    }
+
     @Test void capabilityIsExactAndAcceptsBoundedInjectiveNonDenseOutput() {
         Shape inputShape = Shape.of(2,3), outputShape = Shape.of(2,1);
         var input = CpuScatterLoweringTest.desc(DataType.FLOAT64, inputShape);
@@ -65,7 +90,7 @@ public class CpuAggregateLoweringTest {
         assertAll(() -> assertTrue(new CpuCapabilityProvider().supports(query)),
                 () -> assertDoesNotThrow(() -> new CpuPartitionLowering().lower(
                         CpuScatterLoweringTest.context(operation, List.of(0), List.of(input), output))),
-                () -> assertFalse(new CpuCapabilityProvider().supports(new OperationCapabilityQuery(
+                () -> assertTrue(new CpuCapabilityProvider().supports(new OperationCapabilityQuery(
                         new Operation(AggregateReductionKind.SUM, NoOperationAttrs.INSTANCE),
                         List.of(input), List.of(CpuScatterLoweringTest.desc(DataType.FLOAT64,
                             Shape.scalar()))))));

@@ -37,6 +37,18 @@ package io.github.pho001.synaptik.backend.cpu.internal.cache;
  * specialized stable ordering bodies with direct two-region merge scratch access.
  * Schema 28 embeds typed explicit-state initializer and FLOAT64/FLOAT32 dropout state, mapping,
  * threshold, value, canonical-mask, and loop bodies without a generic execution bridge.
+ * Schema 29 adds ordinary numerical aggregate identity, exact floating-state shapes, typed
+ * scratch-bearing entries, and direct exact sum, mean, and product limb bodies.
+ * Schema 30 makes covered scalar activation, BFLOAT16 scan arithmetic, and extrema/Boolean
+ * aggregate combination bodies self-contained with respect to Synaptik runtime members while
+ * retaining the intentional chunk-level vector-math boundary.
+ * Schema 31 replaces scratch-free scatter's output-per-update grouping with range-owned base copy
+ * followed by one canonical update traversal, while retaining grouped exact floating-product
+ * bodies and their existing scratch shape.
+ * Schema 32 hoists each required native-order typed segment layout into one invocation-local
+ * reference before repeated scalar carrier access.
+ * Schema 33 adds cold-proved bounded movement geometry and invocation-local cursor loops for PAD,
+ * CONCAT, UNFOLD_AXIS, and UNFOLD2D while retaining the typed general-long fallback.
  * The optional persistent envelope stores this version and has no legacy reader, migration path,
  * or converter.
  */
@@ -59,10 +71,15 @@ public final class CpuGeneratorSchema {
      * Schema 25 embeds typed functional scatter output, matching, and reduction bodies; schema 26
      * embeds typed overlap-fold output, coordinate-matching, and sequential-addition bodies;
      * schema 27 embeds typed SORT, ARGSORT, and TOP_K stable-merge and output bodies; schema 28
-     * embeds typed INITIAL_STATE and FLOAT64/FLOAT32 DROPOUT bodies.
+     * embeds typed INITIAL_STATE and FLOAT64/FLOAT32 DROPOUT bodies; schema 29 adds exact ordinary
+     * numerical aggregates and their run-owned state shape; schema 30 directly embeds the
+     * remaining scalar activation, BFLOAT16 scan, and extrema/Boolean aggregate formulas; schema
+     * 31 adds range-owned copy-then-update scatter bodies and retains grouped floating products;
+     * schema 32 hoists required native-order typed segment layouts into invocation locals; schema
+     * 33 adds cold-proved bounded cursor loops for selected general-address movement families.
      * Envelopes written for earlier schemas are incompatible misses.
      */
-    public static final int CURRENT_VERSION = 28;
+    public static final int CURRENT_VERSION = 33;
     /** Generated entry name. */ public static final String ENTRY_NAME = "invoke";
     private CpuGeneratorSchema() { }
 

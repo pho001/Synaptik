@@ -38,9 +38,10 @@
  * INT32, and INT64. It shares neither the generated packed-coordinate walk nor the emitter.</p>
  *
  * <p>The ordinary aggregate oracle independently maps full, single-axis, and multi-axis logical
- * coordinates and applies exact identities, first-NaN bits, signed-zero extrema, signed integral
- * order, and canonical Boolean folds. It calls no production aggregate body, packer, or lowering
- * coordinate helper.</p>
+ * coordinates and applies exact numerical sum/product state with independent integer/rational
+ * ties-to-even conversion, modular integral arithmetic, exact identities, first-NaN bits,
+ * signed-zero extrema, signed integral order, and canonical Boolean folds. It calls no production
+ * aggregate body, emitter rounding helper, packer, or lowering coordinate helper.</p>
  *
  * <p>Reference evaluation is outside the generated Runtime hot path and owns no buffers, slots, or
  * artifact lifecycle.

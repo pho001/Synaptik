@@ -24,11 +24,12 @@ import java.util.Objects;
 import java.util.Optional;
 
 /**
- * Lowers one fully static ordinary MIN, MAX, ALL, or ANY occurrence.
+ * Lowers one fully static supported ordinary aggregate occurrence.
  *
  * <p>The lowerer canonicalizes selected-axis membership, derives complete output-cell and
  * selected-domain geometry, and declares exactly one input and one distinct injective output.
- * It selects no workspace, materialization, partial reduction, or combine state.</p>
+ * Floating SUM, MEAN, and PROD derive exact fixed-width state; other rows select no workspace.
+ * No row creates a partial reduction or combine state.</p>
  */
 public final class CpuAggregateLowering {
     private final CpuCapabilityProvider capabilities = new CpuCapabilityProvider();
@@ -38,7 +39,7 @@ public final class CpuAggregateLowering {
     /**
      * Lowers one supported occurrence into a two-boundary output-cell unit.
      * @param context non-null complete one-node CPU projection, borrowed for this cold call
-     * @return immutable aggregate lowering with exact output-cell extent and zero workspace
+     * @return immutable aggregate lowering with exact output-cell and optional state geometry
      * @throws NullPointerException if {@code context} is {@code null}
      * @throws IllegalArgumentException if the occurrence, descriptors, layouts, axes, or output
      *     injectivity are outside the exact supported matrix
@@ -97,11 +98,21 @@ public final class CpuAggregateLowering {
         AggregateReductionKind modelKind = (AggregateReductionKind) node.operation().kind();
         CpuAggregateIr.Kind kind = CpuAggregateIr.Kind.valueOf(modelKind.name());
         DataType type = input.descriptor().dataType();
+        boolean exactFloating = (kind == CpuAggregateIr.Kind.SUM
+                || kind == CpuAggregateIr.Kind.MEAN || kind == CpuAggregateIr.Kind.PROD)
+                && (type == DataType.FLOAT64 || type == DataType.FLOAT32
+                    || type == DataType.BFLOAT16);
+        int stateLimbCount = exactFloating ? stateLimbCount(kind, type, domainCount) : 0;
+        long scratchSliceBytes = exactFloating ? Math.addExact(
+                kind == CpuAggregateIr.Kind.PROD ? 24L : 8L,
+                Math.multiplyExact(8L, stateLimbCount)) : 0;
         var ir = new CpuAggregateIr(kind, type, form, selected, keep, inputBinding.plan(),
-                outputBinding.plan(), CpuAggregateIr.FIRST_LOGICAL_NAN_AND_SIGNED_ZERO,
-                CpuAggregateIr.COMPLETE_OUTPUT_CELLS, CpuAggregateIr.ZERO_WORKSPACE);
+                outputBinding.plan(), domainCount, stateLimbCount, scratchSliceBytes,
+                CpuAggregateIr.FIRST_LOGICAL_NAN_AND_SIGNED_ZERO,
+                CpuAggregateIr.COMPLETE_OUTPUT_CELLS, exactFloating
+                    ? CpuAggregateIr.EXACT_FLOATING_STATE : CpuAggregateIr.ZERO_WORKSPACE);
         var geometry = new Geometry(kind, type, form, selected, keep, inputLayout, outputLayout,
-                outputCount, domainCount);
+                outputCount, domainCount, stateLimbCount, scratchSliceBytes);
         return new CpuPartitionLowering.LoweredPartition(ir, List.of(inputId, outputId),
                 List.of(inputBinding, outputBinding), List.of(
                     input.descriptor().layout().orElseThrow().referencedElementSpan(),
@@ -110,6 +121,24 @@ public final class CpuAggregateLowering {
                 "legal: one fully static ordinary extrema or Boolean reduction", new long[0],
                 Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(),
                 Optional.empty(), Optional.empty(), Optional.empty(), Optional.of(geometry));
+    }
+
+    private static int stateLimbCount(CpuAggregateIr.Kind kind, DataType type, long domainCount) {
+        int precision = type == DataType.FLOAT64 ? 53 : type == DataType.FLOAT32 ? 24 : 8;
+        if (kind == CpuAggregateIr.Kind.PROD) {
+            int maximumExponentMagnitude = type == DataType.FLOAT64 ? 1074
+                    : type == DataType.FLOAT32 ? 149 : 133;
+            Math.multiplyExact((long) maximumExponentMagnitude, Math.max(1L, domainCount));
+            long bits = Math.multiplyExact((long) precision, Math.max(1L, domainCount));
+            return Math.toIntExact(Math.max(1L, Math.addExact(bits, 63L) / 64L));
+        }
+        int emin = type == DataType.FLOAT64 ? -1074 : type == DataType.FLOAT32 ? -149 : -133;
+        int emax = type == DataType.FLOAT64 ? 1023 : 127;
+        int cardinalityBits = domainCount <= 1 ? 0
+                : 64 - Long.numberOfLeadingZeros(domainCount - 1);
+        long signedBits = Math.addExact((long) emax + 1L - emin,
+                Math.addExact(cardinalityBits, 1L));
+        return Math.toIntExact(Math.addExact(signedBits, 63L) / 64L);
     }
 
     private static GraphValue require(Map<ValueId, GraphValue> values, ValueId id) {
@@ -243,10 +272,12 @@ public final class CpuAggregateLowering {
      * @param output non-null resolved output layout
      * @param outputCount non-negative number of independent output cells
      * @param domainCount non-negative number of values in every selected domain
+     * @param stateLimbCount exact floating numerical limb count, otherwise zero
+     * @param scratchSliceBytes exact bytes per floating numerical worker slice, otherwise zero
      */
     public record Geometry(CpuAggregateIr.Kind kind, DataType dataType, CpuAggregateIr.Form form,
             int[] selectedAxes, boolean keepDimensions, Layout input, Layout output,
-            long outputCount, long domainCount) {
+            long outputCount, long domainCount, int stateLimbCount, long scratchSliceBytes) {
         /**
          * Validates and snapshots the cold geometry.
          *
@@ -284,9 +315,35 @@ public final class CpuAggregateLowering {
             if (expectedDomain != 0) for (int axis : selectedAxes)
                 expectedDomain = Math.multiplyExact(expectedDomain, input.extents[axis]);
             long[] expectedOutput = outputExtents(input.extents, membership, keepDimensions, form);
+            boolean exactFloating = (kind == CpuAggregateIr.Kind.SUM
+                    || kind == CpuAggregateIr.Kind.MEAN || kind == CpuAggregateIr.Kind.PROD)
+                    && (dataType == DataType.FLOAT64 || dataType == DataType.FLOAT32
+                        || dataType == DataType.BFLOAT16);
+            int expectedLimbs = exactFloating ? CpuAggregateLowering.stateLimbCount(
+                    kind, dataType, domainCount) : 0;
+            long expectedSlice = exactFloating ? Math.addExact(
+                    kind == CpuAggregateIr.Kind.PROD ? 24L : 8L,
+                    Math.multiplyExact(8L, expectedLimbs)) : 0;
             if (!Arrays.equals(expectedOutput, output.extents)
-                    || outputCount != elementCount(output.extents) || domainCount != expectedDomain)
+                    || outputCount != elementCount(output.extents) || domainCount != expectedDomain
+                    || stateLimbCount != expectedLimbs || scratchSliceBytes != expectedSlice)
                 throw new IllegalArgumentException("aggregate geometry counts or Shapes disagree");
+        }
+
+        /**
+         * Returns the exact run-owned workspace needed by the simultaneously selected ranges.
+         * Empty outputs require no state even though their floating numerical code shape retains
+         * a nonzero slice size.
+         *
+         * @param rangeCount positive maximum number of simultaneously executing worker ranges
+         * @return checked byte count for one slice per used range, never negative
+         * @throws IllegalArgumentException if {@code rangeCount} is not positive
+         * @throws ArithmeticException if the exact byte count overflows {@code long}
+         */
+        public long workspaceBytes(int rangeCount) {
+            if (rangeCount <= 0) throw new IllegalArgumentException("rangeCount must be positive");
+            return Math.multiplyExact(scratchSliceBytes,
+                    Math.min((long) rangeCount, outputCount));
         }
         /**
          * Returns canonical selected-axis membership without exposing retained geometry state.
@@ -298,25 +355,39 @@ public final class CpuAggregateLowering {
         /**
          * Packs direct bases and invocation-private coordinate state.
          * @param bases exact input and output element bases; read but not retained
+         * @param rangeIndex non-negative worker-range ordinal used to derive its scratch slice
          * @return new mutable invocation-owned primitive geometry
          * @throws NullPointerException if {@code bases} is {@code null}
          * @throws IllegalArgumentException if exactly two bases are not supplied
          * @throws ArithmeticException if a base plus offset overflows
          */
-        public long[] pack(long[] bases) {
+        public long[] pack(long[] bases, int rangeIndex) {
             Objects.requireNonNull(bases, "bases");
-            if (bases.length != 2) throw new IllegalArgumentException("aggregate requires two carrier bases");
+            if (bases.length != 2 || rangeIndex < 0)
+                throw new IllegalArgumentException("aggregate requires two bases and a range index");
             int inRank = input.extents.length, outRank = output.extents.length;
-            long[] packed = new long[8 + inRank + inRank + outRank
+            long[] packed = new long[11 + inRank + inRank + outRank
                     + 2 + 2 * inRank + 2 + 2 * outRank];
             packed[0] = kind.ordinal(); packed[1] = dataType.ordinal(); packed[2] = form.ordinal();
             packed[3] = keepDimensions ? 1 : 0; packed[4] = inRank; packed[5] = outRank;
             packed[6] = outputCount; packed[7] = domainCount;
-            for (int axis : selectedAxes) packed[8 + axis] = 1;
-            int x = 8 + inRank + inRank + outRank;
+            packed[8] = stateLimbCount; packed[9] = scratchSliceBytes;
+            packed[10] = Math.multiplyExact(rangeIndex, scratchSliceBytes);
+            for (int axis : selectedAxes) packed[11 + axis] = 1;
+            int x = 11 + inRank + inRank + outRank;
             x = packLayout(packed, x, input, bases[0]); packLayout(packed, x, output, bases[1]);
             return packed;
         }
+        /**
+         * Packs direct boundary bases for the first selected worker range.
+         *
+         * @param bases exact input and output element bases; read but not retained
+         * @return new mutable invocation-owned primitive geometry with scratch offset zero
+         * @throws NullPointerException if {@code bases} is {@code null}
+         * @throws IllegalArgumentException if exactly two bases are not supplied
+         * @throws ArithmeticException if a base plus layout offset overflows
+         */
+        public long[] pack(long[] bases) { return pack(bases, 0); }
         private static int packLayout(long[] target, int x, Layout layout, long base) {
             target[x++] = layout.extents.length; target[x++] = Math.addExact(base, layout.offset);
             for (long extent : layout.extents) target[x++] = extent;

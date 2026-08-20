@@ -56,6 +56,11 @@ public final class CpuClassFileKernelGenerator {
                 .withVersion(ClassFile.JAVA_26_VERSION, 0).withFlags(AccessFlag.FINAL)
                 .withMethod(CpuGeneratorSchema.ENTRY_NAME, type, AccessFlag.STATIC.mask(), method ->
                         method.withCode(code -> {
+                            if (usesSharedCarrierLayouts(kernelIr)) {
+                                CpuCarrierEmitter.prepareSegmentLayouts(code,
+                                        specialization.boundaryDataTypes(),
+                                        specialization.carrierPattern());
+                            }
                             if (kernelIr.instructions().isEmpty()) {
                                 if (kernelIr.familyIdentity().startsWith("aggregate:")) {
                                     new CpuAggregateEmitter().emit(code, specialization, kernelIr);
@@ -133,6 +138,13 @@ public final class CpuClassFileKernelGenerator {
                         })));
         verify(specialization, bytes);
         return bytes;
+    }
+
+    private static boolean usesSharedCarrierLayouts(CpuKernelIr kernelIr) {
+        if (!kernelIr.instructions().isEmpty()) return true;
+        String family = kernelIr.familyIdentity();
+        return !family.startsWith("fold:") && !family.startsWith("ordering:")
+                && !family.startsWith("random:");
     }
 
     /**

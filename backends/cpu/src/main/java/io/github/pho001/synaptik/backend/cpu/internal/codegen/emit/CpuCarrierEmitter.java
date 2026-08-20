@@ -5,6 +5,7 @@ import java.lang.classfile.CodeBuilder;
 import java.lang.classfile.TypeKind;
 import java.lang.constant.ClassDesc;
 import java.lang.constant.MethodTypeDesc;
+import java.util.List;
 import io.github.pho001.synaptik.model.datatype.DataType;
 
 /**
@@ -18,6 +19,7 @@ import io.github.pho001.synaptik.model.datatype.DataType;
  * storage. Carrier choice and access geometry are already validated before emission.</p>
  */
 final class CpuCarrierEmitter {
+    private static final int LAYOUT_LOCAL_COUNT = 6;
     private static final ClassDesc SEGMENT = ClassDesc.of("java.lang.foreign.MemorySegment");
     private static final ClassDesc VALUE_LAYOUT = ClassDesc.of("java.lang.foreign.ValueLayout");
     private static final ClassDesc DOUBLE_LAYOUT = ClassDesc.of("java.lang.foreign.ValueLayout$OfDouble");
@@ -35,13 +37,55 @@ final class CpuCarrierEmitter {
     private static final ClassDesc VECTOR_SPECIES = ClassDesc.of("jdk.incubator.vector.VectorSpecies");
     private static final ClassDesc VECTOR_MASK = ClassDesc.of("jdk.incubator.vector.VectorMask");
     private final CodeBuilder code;
+    private final int layoutLocalBase;
     private int speciesLocal = -1;
     /**
      * Creates an emitter bound to one non-null generated method body.
      *
      * @param code non-null Class-File API code builder retained for generation only
      */
-    CpuCarrierEmitter(CodeBuilder code) { this.code = code; }
+    CpuCarrierEmitter(CodeBuilder code) {
+        this.code = code;
+        this.layoutLocalBase = firstGeneratedLocal(code);
+    }
+
+    /**
+     * Reserves the fixed typed-layout local block and initializes every layout required by a
+     * segment boundary once at generated-entry invocation setup.
+     *
+     * <p>The fixed block lets independently focused family emitters construct carrier emitters
+     * without sharing mutable generation state. Array-only specializations reserve the same local
+     * indexes but emit no layout construction or native-order lookup.</p>
+     *
+     * @param code non-null Class-File API code builder positioned at the start of the entry body
+     * @param boundaryTypes non-null ordered exact boundary data types
+     * @param carrierPattern non-null ordered exact carrier forms matching {@code boundaryTypes}
+     * @throws IllegalArgumentException if the boundary lists disagree or the layout block is not
+     *     the first generated-local allocation
+     */
+    static void prepareSegmentLayouts(CodeBuilder code, List<DataType> boundaryTypes,
+            List<CarrierAccess> carrierPattern) {
+        if (boundaryTypes.size() != carrierPattern.size()) {
+            throw new IllegalArgumentException("boundary types and carriers must have equal size");
+        }
+        int base = firstGeneratedLocal(code);
+        for (int offset = 0; offset < LAYOUT_LOCAL_COUNT; offset++) {
+            if (code.allocateLocal(TypeKind.REFERENCE) != base + offset) {
+                throw new IllegalArgumentException(
+                        "segment-layout locals must be the first generated locals");
+            }
+        }
+        boolean[] required = new boolean[LAYOUT_LOCAL_COUNT];
+        for (int boundary = 0; boundary < boundaryTypes.size(); boundary++) {
+            if (carrierPattern.get(boundary) == CarrierAccess.MEMORY_SEGMENT) {
+                required[layoutLocalOffset(boundaryTypes.get(boundary))] = true;
+            }
+        }
+        for (DataType type : DataType.values()) {
+            int offset = layoutLocalOffset(type);
+            if (required[offset]) emitLayout(code, type).astore(base + offset);
+        }
+    }
 
     /**
      * Emits and retains one preferred-species local for all vector accesses in this method.
@@ -292,6 +336,10 @@ final class CpuCarrierEmitter {
     }
 
     private void layout(DataType type) {
+        code.aload(layoutLocalBase + layoutLocalOffset(type));
+    }
+
+    private static CodeBuilder emitLayout(CodeBuilder code, DataType type) {
         String field = switch (type) {
             case FLOAT64 -> "JAVA_DOUBLE_UNALIGNED"; case FLOAT32 -> "JAVA_FLOAT_UNALIGNED";
             case BFLOAT16 -> "JAVA_SHORT_UNALIGNED";
@@ -300,10 +348,37 @@ final class CpuCarrierEmitter {
         };
         ClassDesc layout = layoutClass(type);
         code.getstatic(VALUE_LAYOUT, field, layout);
-        if (type == DataType.BOOL) return;
+        if (type == DataType.BOOL) return code;
         code.invokestatic(BYTE_ORDER, "nativeOrder", MethodTypeDesc.of(BYTE_ORDER));
         code.invokeinterface(VALUE_LAYOUT, "withOrder", MethodTypeDesc.of(VALUE_LAYOUT, BYTE_ORDER));
-        code.checkcast(layout);
+        return code.checkcast(layout);
+    }
+
+    private static int firstGeneratedLocal(CodeBuilder code) {
+        int parameter = 0;
+        int lastSlot = -1;
+        while (true) {
+            try {
+                lastSlot = code.parameterSlot(parameter++);
+            } catch (IndexOutOfBoundsException exhausted) {
+                break;
+            }
+        }
+        // Every generated entry ends with the primitive long end bound.
+        if (lastSlot < 0) throw new IllegalArgumentException(
+                "generated entries must declare primitive range parameters");
+        return lastSlot + TypeKind.LONG.slotSize();
+    }
+
+    private static int layoutLocalOffset(DataType type) {
+        return switch (type) {
+            case FLOAT64 -> 0;
+            case FLOAT32 -> 1;
+            case BFLOAT16 -> 2;
+            case INT32 -> 3;
+            case INT64 -> 4;
+            case BOOL -> 5;
+        };
     }
 
     private void loadLocal(DataType type, int local) {
