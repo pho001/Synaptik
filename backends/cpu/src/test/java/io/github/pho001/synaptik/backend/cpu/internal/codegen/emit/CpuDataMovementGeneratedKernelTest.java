@@ -29,6 +29,53 @@ import java.util.*;
 import org.junit.jupiter.api.Test;
 
 class CpuDataMovementGeneratedKernelTest {
+    @Test void canonicalBoolStackUsesOccurrenceMajorDirectLoopsAndRetainsLongFallback()
+            throws Throwable {
+        var stack = withCarrierPattern(context(new Operation(TensorCompositionKind.STACK,
+                        new CompositionAxisAttrs(0)), List.of(0, 1, 0, 2), List.of(
+                                CpuNonAffineMovementLoweringTest.descriptor(
+                                        DataType.BOOL, Shape.of(2, 3)),
+                                CpuNonAffineMovementLoweringTest.descriptor(
+                                        DataType.BOOL, Shape.of(2, 3)),
+                                CpuNonAffineMovementLoweringTest.descriptor(
+                                        DataType.BOOL, Shape.of(2, 3))),
+                        CpuNonAffineMovementLoweringTest.descriptor(
+                                DataType.BOOL, Shape.of(4, 2, 3))),
+                List.of(CarrierAccess.BYTE_ARRAY, CarrierAccess.MEMORY_SEGMENT,
+                        CarrierAccess.BYTE_ARRAY, CarrierAccess.BYTE_ARRAY));
+        var plan = new CpuPartitionPreparer().analyze(stack).plan();
+        var route = plan.units().getFirst().portablePlan();
+        var code = ClassFile.of().parse(new CpuClassFileKernelGenerator().generateClassBytes(
+                route.specialization(), route.kernelIr())).methods().getFirst()
+                .code().orElseThrow();
+        byte[] first = {0, 1, 0, 1, 0, 1};
+        byte[] second = {1, 1, 0, 0, 1, 0};
+        byte[] third = {0, 0, 1, 1, 0, 0};
+        byte[] output = new byte[24];
+        byte[] full = new byte[24];
+        Arrays.fill(output, (byte) -1);
+        List<Object> fullCarriers = List.of(first, MemorySegment.ofArray(second), third, full);
+        List<Object> carriers = List.of(first, MemorySegment.ofArray(second), third, output);
+        invoke(stack, fullCarriers, 0, 24);
+        invoke(stack, carriers, 0, 0);
+        invoke(stack, carriers, 0, 7);
+        invoke(stack, carriers, 7, 19);
+        invoke(stack, carriers, 19, 24);
+        assertAll(
+                () -> assertArrayEquals(new byte[]{
+                        0, 1, 0, 1, 0, 1,
+                        1, 1, 0, 0, 1, 0,
+                        0, 1, 0, 1, 0, 1,
+                        0, 0, 1, 1, 0, 0}, output),
+                () -> assertArrayEquals(full, output),
+                () -> assertEquals(CpuKernelSpecialization.LoopAddressing.GENERAL_LONG,
+                        route.specialization().loopAddressing(route.kernelIr())),
+                () -> assertTrue(hasBackwardLoopWithoutGeometryLoadsContaining(code,
+                        Opcode.BALOAD, Opcode.BASTORE)),
+                () -> assertTrue(opcodeCount(code, Opcode.LALOAD) > 0),
+                () -> assertTrue(opcodeCount(code, Opcode.LMUL) > 0));
+    }
+
     @Test void targetGeneralMovementUsesBoundedHotCursorsAndRetainsLongFallback() {
         var window = new Window2dAttrs(2, 2, 1, 1, 1, 1, 1, 1, false);
         var cases = List.of(
@@ -713,6 +760,30 @@ class CpuDataMovementGeneratedKernelTest {
                 }
             }
             if (cursor && !geometryLoad) return true;
+        }
+        return false;
+    }
+
+    private static boolean hasBackwardLoopWithoutGeometryLoadsContaining(
+            java.lang.classfile.CodeModel code, Opcode... required) {
+        var elements = code.elementStream().toList();
+        var labels = new IdentityHashMap<java.lang.classfile.Label, Integer>();
+        for (int index = 0; index < elements.size(); index++) {
+            if (elements.get(index) instanceof LabelTarget target) labels.put(target.label(), index);
+        }
+        for (int index = 0; index < elements.size(); index++) {
+            if (!(elements.get(index) instanceof BranchInstruction branch)) continue;
+            Integer target = labels.get(branch.target());
+            if (target == null || target >= index) continue;
+            var found = java.util.EnumSet.noneOf(Opcode.class);
+            boolean geometryLoad = false;
+            for (int body = target; body <= index; body++) {
+                if (elements.get(body) instanceof Instruction instruction) {
+                    found.add(instruction.opcode());
+                    geometryLoad |= instruction.opcode() == Opcode.LALOAD;
+                }
+            }
+            if (!geometryLoad && Arrays.stream(required).allMatch(found::contains)) return true;
         }
         return false;
     }

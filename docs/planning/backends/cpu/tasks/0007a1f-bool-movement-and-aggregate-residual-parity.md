@@ -2,7 +2,7 @@
 
 ## Status
 
-Ready
+Complete
 
 ## Goal
 
@@ -208,8 +208,8 @@ integration suites remain deferred to CPU 0009 or CI because no shared contract 
 
 ## Follow-up tasks
 
-- CPU 0007A1G remains Draft for `F-FOLD2D` and `R-DROPOUT-GENERAL`; create its detailed
-  specification only after this task completes.
+- [CPU 0007A1G](0007a1g-fold-and-dropout-residual-parity.md) is the sole detailed `Ready` task for
+  `F-FOLD2D` and `R-DROPOUT-GENERAL`.
 - Other residual target groups remain Draft until the ordered evidence supports a bounded owner
   cluster.
 - CPU 0007A1C resumes its unchanged closure only after all residual corrections complete.
@@ -263,16 +263,91 @@ Do not commit or push.
 
 ## Validation evidence
 
-Planning/documentation context `01a01e40-883b-79c3-9bf1-e4ede5e5d05c` verified the A1E
-`VERIFIED,20` result, all five target
-baseline ratios above, one-entry generated member inventory, forbidden-reference report, final
-disassembly, and the direct comparator/source ownership for both rows. No A1F executable Java,
-test, schema, probe, guide, glossary, architecture, API, or build change has been made.
+Implementation evidence is retained at
+`/private/tmp/synaptik-cpu-0007a1f-OsajC4ko`. Implementation context
+`01a01e62-9d2d-7ff1-a02c-3c3fc0bd664b` ran the exact seven-owner focused Gradle command in this
+task and the authoritative uncached `./gradlew :backends:cpu:test --rerun-tasks`; both completed
+with `BUILD SUCCESSFUL`. No executable Java changed afterward. The unchanged A1C sources compiled
+against final production classes, their before/after SHA-256 manifests match, and exact semantic
+verification reports `VERIFIED,20`.
+
+All five isolated forks passed for every required target and control:
+
+| Row | Fork 1 | Fork 2 | Fork 3 | Fork 4 | Fork 5 | Median of fork medians | Worst fork |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| `M-STACK` | `0.933040078x` | `0.878074544x` | `0.869558736x` | `0.932181070x` | `0.986374612x` | `0.932181070x` | `0.986374612x` |
+| `X-ANY-SINGLE` | `0.307561645x` | `0.306641529x` | `0.304177560x` | `0.306305081x` | `0.307136502x` | `0.306641529x` | `0.307561645x` |
+| `P-VECTOR-SEGMENT` | `0.973187118x` | `0.993918738x` | `0.968807230x` | `0.961917957x` | `0.978440665x` | `0.973187118x` | `0.993918738x` |
+| `P-INTEGRAL-MIXED` | `0.317426099x` | `0.317541461x` | `0.313788337x` | `0.316096824x` | `0.314939159x` | `0.316096824x` | `0.317541461x` |
+| `O-ARGSORT` | `0.849541316x` | `0.868323844x` | `0.862000991x` | `0.860249631x` | `0.856880990x` | `0.860249631x` | `0.868323844x` |
+
+Every full 20-row process exited nonzero because ten to twelve explicitly deferred rows exceeded
+`1.15x`; no required row failed. This is not a full 20-row performance pass.
+
+The retained Class-File assessment reports one typed static entry and zero fields for each target.
+The proved `M-STACK` branch emits the frozen occurrence order with direct `byte[]` and
+`MemorySegment` reads and primitive byte stores. Its sole `NEW` instruction belongs to the retained
+general-long fallback's exceptional failure path. The proved `X-ANY-SINGLE` branch performs every
+selected-domain `MemorySegment.get`, combines with `IOR`, has no accumulator early exit, and
+canonicalizes once at output. Neither proved branch contains allocation, boxing, reflection,
+`invokedynamic`, or a Synaptik-owned runtime reference. Both retain typed general-long fallbacks.
+
+Exactly nine implementation-owned CPU paths changed: the two emitters, schema, two target
+Class-File tests, and four existing schema-assertion tests. Schema advanced exactly once from 33
+to 34; older envelopes are incompatible safe misses with no migration or dual-schema path.
+Generated classes, complete `javap -c -p` and `javap -v -p`, semantic and forbidden-reference
+reports, summaries, raw fork output, environment, commands, and SHA-256 manifests are retained in
+the evidence directory.
+
+Clean documentation context `01a01e83-bb41-7513-8b8a-9a17a0c15c3d` independently reviewed the
+implementation, tests, retained evidence, affected emitter/schema/package Javadocs, CPU guide,
+glossary, A1C–A1F, master plan, and roadmap. It changed no executable behavior and did not rerun
+successful Java tests, frozen semantics, or performance forks. It finalized schema-34 package
+documentation, the bounded current guide/glossary descriptions, this evidence/status record, and
+the sole detailed Ready A1G plan. Final documentation validation is recorded below.
+
+`./gradlew :backends:cpu:javadoc` completed with `BUILD SUCCESSFUL` and only the two expected
+incubating-Vector warnings. Local Markdown targets and balanced fences passed for all seven
+changed Markdown documents; the new A1G links introduce no fragment anchors. Final-newline,
+whitespace, schema-34/current-text, exact evidence-path, frozen-hash, status synchronization,
+sole-Ready, A2-blocking, and 19-path combined-scope checks passed. `git diff --check` and
+`git diff --cached --check` passed, and the staged diff is empty. `git status --short` was
+inspected; only the A1F implementation and focused documentation/planning paths remain dirty.
 
 ## Implementation notes
 
-Empty until implemented.
+- `CpuDataMovementEmitter` cold-proves the frozen axis-zero canonical-BOOL STACK geometry before
+  using one direct primitive loop per semantic occurrence. Repeated mapping position `0` remains a
+  repeated copy; mixed input carriers and byte-array output are embedded in the generated entry.
+- `CpuAggregateEmitter` cold-proves the rank-two canonical-BOOL ANY geometry before using direct
+  primitive output-cell/domain loops. It deliberately preserves all 256 logical reads and applies
+  canonicalization only after `IOR` accumulation.
+- Geometry outside either narrow proof continues through the existing typed general-long body.
+- Schema 34 is current-only. Schema-33 and earlier artifacts are incompatible safe misses.
 
 ## Completion summary
 
-Empty until implemented.
+- Completed changes: added the two narrow cold-proved direct canonical-BOOL forms with retained
+  typed fallbacks, advanced generated compatibility to schema 34, added structural tests, and
+  finalized Javadocs, guide, glossary, evidence, and planning state.
+- Files changed or created: nine implementation-owned CPU paths; three affected package-summary
+  Javadocs; CPU backend guide; glossary; A1F, A1C follow-up record, CPU master plan, roadmap; and
+  the new A1G task specification.
+- Tests and validation: reused the successful focused and authoritative CPU test evidence;
+  frozen semantics passed `VERIFIED,20`; all 25 required fork ratios and five aggregates passed;
+  target Class-File, forbidden-reference, schema, frozen-source, and exact-scope gates passed.
+  The separate documentation checks and CPU Javadoc passed as recorded above.
+- Documentation-agent review: clean context `01a01e83-bb41-7513-8b8a-9a17a0c15c3d` finalized
+  affected Javadocs/package summaries, bounded guide/glossary text, task evidence/status, master
+  plan, roadmap, and A1G without executable changes or duplicate Java/performance runs.
+- Documentation impact: the guide and glossary now describe schema-34 STACK/ANY forms as narrow
+  cold-proved paths with typed fallbacks and bounded retained evidence, not universal support or
+  performance claims.
+- Javadoc review: emitter/schema type documentation was accurate; package summaries required the
+  schema-34 and narrow-form updates. Prepare package documentation required only the current
+  artifact-version correction.
+- Unresolved issues: A1C and A1D remain `Review needed`; deferred rows keep the full probe nonzero.
+- Follow-up required: implement sole Ready CPU 0007A1G, then plan later residual owner clusters in
+  evidence-backed order. CPU 0007A2 remains blocked until A1C closes.
+
+Status: Complete

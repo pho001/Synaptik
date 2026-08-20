@@ -35,8 +35,9 @@
  * STACK, window-extraction, or functional SLICE_UPDATE occurrence and emits a direct
  * represented-bit scalar loop. Proved dense heap-array movement bodies hoist their primitive
  * geometry into integer locals and retain the universal long entry bounds. PAD, CONCAT,
- * UNFOLD_AXIS, and UNFOLD2D additionally admit a cold-proved bounded primitive geometry/cursor
- * body independently of heap, segment, or mixed carrier choice; geometry or cursor transitions
+ * UNFOLD_AXIS, UNFOLD2D, and canonical-BOOL axis-zero STACK additionally admit a cold-proved
+ * bounded primitive geometry/cursor body independently of heap, segment, or mixed carrier choice;
+ * geometry or cursor transitions
  * that cannot be bounded retain the typed general-long body. Slice update walks the output once,
  * selecting update values at
  * signed-sequence positions and base values elsewhere. It uses coordinate and sequence-cursor
@@ -99,7 +100,9 @@
  * emits direct exact floating sum/product limb state and one final rounding, preserves extrema
  * first-NaN bits and signed-zero selection, emits canonical Boolean results, and allocates no
  * object per output cell or selected element. Proved dense heap-array reductions use direct
- * integer-address loops; all other current forms retain typed general long-address bodies.</p>
+ * integer-address loops. A cold-proved rank-two canonical-BOOL ANY form with one zero-stride
+ * selected axis uses a direct primitive fold that preserves every logical visit; other current
+ * forms retain typed general long-address bodies.</p>
  *
  * <p>Covered scalar activation formulas, BFLOAT16 scan arithmetic and rounding, and aggregate
  * extrema/Boolean combination are emitted directly. Those per-element bodies therefore have no

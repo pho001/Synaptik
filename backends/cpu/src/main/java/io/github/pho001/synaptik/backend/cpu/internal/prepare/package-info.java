@@ -38,12 +38,12 @@
  * logical ranges after complete cold overlap validation.
  * Cumulative-scan plans declare input then output, retain the independent slice count as their
  * execution domain, and select scalar or whole-slice parallel-scalar orchestration. They declare
- * no workspace or materialization, and finalization realizes one current schema-33 artifact that
+ * no workspace or materialization, and finalization realizes one current schema-34 artifact that
  * embeds the typed scan body introduced by schema 22 while retaining the scan compatibility
  * identity introduced by schema 20.
  * Ordinary aggregate plans likewise declare input then output and select scalar or complete-
  * output-cell parallel-scalar orchestration. They retain canonical selected-axis membership and
- * realize one current schema-33 artifact. Floating numerical rows declare exact run-owned
+ * realize one current schema-34 artifact. Floating numerical rows declare exact run-owned
  * per-range state before assignment; integral numerical, extrema, and Boolean rows declare no
  * workspace. No aggregate plan selects materialization or partial/combine state.
  *

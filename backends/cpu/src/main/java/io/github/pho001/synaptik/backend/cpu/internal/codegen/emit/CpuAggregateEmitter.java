@@ -21,7 +21,10 @@ import java.lang.foreign.ValueLayout;
  * body allocates no per-cell or per-element object. Dense heap-array
  * reductions use one typed integer-address fold; other forms embed a typed long-address fallback
  * that decodes output and selected-domain coordinates without runtime type, kind, form, or
- * carrier dispatch.</p>
+ * carrier dispatch. A cold-proved rank-two canonical-BOOL ANY form with one zero-stride selected
+ * axis uses direct primitive cell and domain loops while retaining every logical selected-domain
+ * visit and canonicalizing the final byte; unproved geometry retains the typed long-address
+ * body.</p>
  */
 public final class CpuAggregateEmitter {
     private static final DataType[] TYPES = DataType.values();
@@ -69,12 +72,127 @@ public final class CpuAggregateEmitter {
                 && ir.values().getFirst().accessPlan().regime() == CpuAccessPlan.Regime.DENSE_LINEAR
                 && ir.values().getLast().accessPlan().regime() == CpuAccessPlan.Regime.DENSE_LINEAR
                 && selectedSuffix(identity, inRank);
-        if (fullDenseArrays) emitFullDense(code, specialization, type, kind, inRank,
+        boolean zeroStrideAny = kind == 3 && type == DataType.BOOL && inRank == 2 && outRank == 1
+                && java.util.Arrays.equals(selectedAxes(identity, inRank),
+                        new boolean[]{false, true})
+                && specialization.carrierPattern().getFirst()
+                        == CpuKernelSpecialization.CarrierAccess.MEMORY_SEGMENT
+                && specialization.carrierPattern().getLast()
+                        == CpuKernelSpecialization.CarrierAccess.BYTE_ARRAY;
+        if (zeroStrideAny) emitZeroStrideAnyOrGeneral(code, specialization, identity, inRank,
+                outRank, geometrySlot, startSlot, endSlot);
+        else if (fullDenseArrays) emitFullDense(code, specialization, type, kind, inRank,
                 exactFloating, exactLimbs, geometrySlot, startSlot, endSlot);
         else if (denseTrailingArrays) emitDenseCells(code, specialization, type, kind, inRank,
                 outRank, exactFloating, exactLimbs, geometrySlot, startSlot, endSlot);
         else emitGeneral(code, specialization, type, kind, identity, inRank, outRank,
                 exactFloating, exactLimbs, geometrySlot, startSlot, endSlot);
+    }
+
+    private static void emitZeroStrideAnyOrGeneral(CodeBuilder code,
+            CpuKernelSpecialization specialization, String identity, int inRank, int outRank,
+            int geometrySlot, int startSlot, int endSlot) {
+        int inputLayout = 11 + 2 * inRank + outRank;
+        int outputLayout = inputLayout + 2 + 2 * inRank;
+        var fallback = code.newLabel();
+        var done = code.newLabel();
+        code.lload(startSlot).loadConstant(0L).lcmp().branch(Opcode.IFLT, fallback);
+        code.lload(startSlot).loadConstant((long) Integer.MAX_VALUE).lcmp()
+                .branch(Opcode.IFGT, fallback);
+        code.lload(endSlot).lload(startSlot).lcmp().branch(Opcode.IFLT, fallback);
+        code.lload(endSlot).loadConstant((long) Integer.MAX_VALUE).lcmp()
+                .branch(Opcode.IFGT, fallback);
+        code.aload(geometrySlot).loadConstant(7).laload().loadConstant(0L).lcmp()
+                .branch(Opcode.IFLT, fallback);
+        code.aload(geometrySlot).loadConstant(7).laload()
+                .loadConstant((long) Integer.MAX_VALUE).lcmp().branch(Opcode.IFGT, fallback);
+        code.aload(geometrySlot).loadConstant(inputLayout).laload().loadConstant(2L).lcmp()
+                .branch(Opcode.IFNE, fallback);
+        code.aload(geometrySlot).loadConstant(outputLayout).laload().loadConstant(1L).lcmp()
+                .branch(Opcode.IFNE, fallback);
+        code.aload(geometrySlot).loadConstant(inputLayout + 3).laload()
+                .aload(geometrySlot).loadConstant(7).laload().lcmp()
+                .branch(Opcode.IFNE, fallback);
+        code.aload(geometrySlot).loadConstant(inputLayout + 2).laload()
+                .aload(geometrySlot).loadConstant(outputLayout + 2).laload().lcmp()
+                .branch(Opcode.IFNE, fallback);
+        code.aload(geometrySlot).loadConstant(inputLayout + 5).laload().loadConstant(0L).lcmp()
+                .branch(Opcode.IFNE, fallback);
+        for (int index : new int[]{inputLayout + 1, inputLayout + 2, inputLayout + 4,
+                outputLayout + 1, outputLayout + 2, outputLayout + 3}) {
+            code.aload(geometrySlot).loadConstant(index).laload().loadConstant(0L).lcmp()
+                    .branch(Opcode.IFLT, fallback);
+            code.aload(geometrySlot).loadConstant(index).laload()
+                    .loadConstant((long) Integer.MAX_VALUE).lcmp().branch(Opcode.IFGT, fallback);
+        }
+        code.aload(geometrySlot).loadConstant(inputLayout + 1).laload()
+                .aload(geometrySlot).loadConstant(inputLayout + 2).laload()
+                .aload(geometrySlot).loadConstant(inputLayout + 4).laload().lmul().ladd()
+                .loadConstant(1L << 31).lcmp().branch(Opcode.IFGT, fallback);
+        code.aload(geometrySlot).loadConstant(outputLayout + 1).laload()
+                .aload(geometrySlot).loadConstant(outputLayout + 2).laload()
+                .aload(geometrySlot).loadConstant(outputLayout + 3).laload().lmul().ladd()
+                .loadConstant(1L << 31).lcmp().branch(Opcode.IFGT, fallback);
+        emitZeroStrideAny(code, specialization, geometrySlot, startSlot, endSlot,
+                inputLayout, outputLayout);
+        code.branch(Opcode.GOTO, done);
+        code.labelBinding(fallback);
+        emitGeneral(code, specialization, DataType.BOOL, 3, identity, inRank, outRank,
+                false, 0, geometrySlot, startSlot, endSlot);
+        code.labelBinding(done);
+    }
+
+    private static void emitZeroStrideAny(CodeBuilder code,
+            CpuKernelSpecialization specialization, int geometrySlot, int startSlot, int endSlot,
+            int inputLayout, int outputLayout) {
+        int inputBase = code.allocateLocal(TypeKind.INT);
+        int inputStride = code.allocateLocal(TypeKind.INT);
+        int outputBase = code.allocateLocal(TypeKind.INT);
+        int outputStride = code.allocateLocal(TypeKind.INT);
+        int domainCount = code.allocateLocal(TypeKind.INT);
+        int cell = code.allocateLocal(TypeKind.INT);
+        int end = code.allocateLocal(TypeKind.INT);
+        code.aload(geometrySlot).loadConstant(inputLayout + 1).laload().l2i().istore(inputBase);
+        code.aload(geometrySlot).loadConstant(inputLayout + 4).laload().l2i().istore(inputStride);
+        code.aload(geometrySlot).loadConstant(outputLayout + 1).laload().l2i().istore(outputBase);
+        code.aload(geometrySlot).loadConstant(outputLayout + 3).laload().l2i().istore(outputStride);
+        code.aload(geometrySlot).loadConstant(7).laload().l2i().istore(domainCount);
+        code.lload(startSlot).l2i().istore(cell);
+        code.lload(endSlot).l2i().istore(end);
+        var carriers = new CpuCarrierEmitter(code);
+        var cells = code.newLabel();
+        var finished = code.newLabel();
+        code.labelBinding(cells);
+        code.iload(cell).iload(end).branch(Opcode.IF_ICMPGE, finished);
+        int inputAddress = code.allocateLocal(TypeKind.LONG);
+        int outputAddress = code.allocateLocal(TypeKind.INT);
+        code.iload(inputBase).i2l().iload(cell).i2l().iload(inputStride).i2l().lmul().ladd()
+                .lstore(inputAddress);
+        code.iload(outputBase).iload(cell).iload(outputStride).imul().iadd()
+                .istore(outputAddress);
+        int accumulator = code.allocateLocal(TypeKind.INT);
+        int domain = code.allocateLocal(TypeKind.INT);
+        code.loadConstant(0).istore(accumulator).loadConstant(0).istore(domain);
+        var domains = code.newLabel();
+        var write = code.newLabel();
+        code.iload(domainCount).branch(Opcode.IFEQ, write);
+        code.labelBinding(domains);
+        carriers.load(DataType.BOOL, specialization.carrierPattern().getFirst(), 0,
+                inputAddress);
+        code.iload(accumulator).ior().istore(accumulator);
+        code.iinc(domain, 1).iload(domain).iload(domainCount)
+                .branch(Opcode.IF_ICMPLT, domains);
+        code.labelBinding(write);
+        var canonical = code.newLabel();
+        var stored = code.newLabel();
+        code.iload(accumulator).branch(Opcode.IFNE, canonical);
+        code.loadConstant(0).istore(accumulator).branch(Opcode.GOTO, stored);
+        code.labelBinding(canonical).loadConstant(1).istore(accumulator);
+        code.labelBinding(stored);
+        carriers.store(DataType.BOOL, specialization.carrierPattern().getLast(), 1,
+                outputAddress, accumulator, true);
+        code.iinc(cell, 1).branch(Opcode.GOTO, cells);
+        code.labelBinding(finished);
     }
 
     private static boolean selectedSuffix(String identity, int rank) {

@@ -1131,10 +1131,10 @@ carrier/access, and exact floating-product bodies. Completed CPU 0007A0D advance
 for embedded typed overlap-fold mapping, carrier/access, and sequential-addition bodies. Completed
 CPU 0007A0E, CPU 0007A0F, and CPU 0007A1 advance the current boundary through schema 29. Schema 29
 adds ordinary numerical SUM/MEAN/PROD identity, exact floating-state shapes, scratch-bearing typed
-entries, and direct exact sum, mean, and product bodies. CPU 0007A1A–0007A1E advance the current
-boundary through schema 33: covered scalar bodies become self-contained, scratch-free scatter
+entries, and direct exact sum, mean, and product bodies. CPU 0007A1A–0007A1F advance the current
+boundary through schema 34: covered scalar bodies become self-contained, scratch-free scatter
 uses range-owned copy-then-update work, segment layouts become invocation locals, and selected
-movement families gain cold-proved bounded primitive cursor forms. Schema-32 and earlier artifacts
+movement and Boolean-aggregate forms gain cold-proved direct primitive loops. Schema-33 and earlier artifacts
 are incompatible safe misses without migration.
 
 Completed CPU 0007A1 admits ordinary SUM and PROD for FLOAT64, FLOAT32, BFLOAT16, INT32, and INT64,
@@ -1197,9 +1197,10 @@ emits generation-time-selected primitive access state machines, direct array or 
 `MemorySegment` vector access, unmasked complete vectors, and scalar remainders. Current schema-26
 dense heap-array pointwise, affine, movement, indexing, eligible scatter, and overlap-fold entries narrow universal
 `long` bounds, bases, and applicable geometry once to integer locals, while unproved arrays,
-segments, and general layouts retain long address state. Schema 33 additionally admits bounded
-primitive geometry/cursor loops for PAD, CONCAT, UNFOLD_AXIS, and UNFOLD2D when cold invocation
-checks prove their complete geometry and transitions, independently of carrier kind. Indexing, functional-scatter,
+segments, and general layouts retain long address state. Schema 34 additionally admits bounded
+primitive geometry/cursor loops for PAD, CONCAT, UNFOLD_AXIS, UNFOLD2D, and canonical-BOOL
+axis-zero STACK, plus a rank-two canonical-BOOL ANY fold with one zero-stride selected axis, when
+cold invocation checks prove the required geometry and transitions. Indexing, functional-scatter,
 overlap-fold, scan, and ordinary-aggregate entries embed typed family bodies rather than a generic
 static `Object` carrier bridge. Scratch-bearing scatter entries also embed their exact-product
 state. Parallel
@@ -1218,7 +1219,7 @@ decision occurs in the generated loop.
 ### CPU kernel specialization
 
 The implemented backend-private immutable description of every fact allowed to change one
-generated CPU class. The current form includes schema 33, the canonical lowering fingerprint with
+generated CPU class. The current form includes schema 34, the canonical lowering fingerprint with
 typed opcode sequence, exact scalar-immediate bits, exact ordered clamp-bound bits, and selected
 scalar-power realizations, exact/default numerical mode, generated
 scalar/vector compute form, exact preferred FLOAT32, FLOAT64, INT32, INT64, or BOOL species bit
@@ -1253,7 +1254,8 @@ adds explicit-state initializer/dropout bodies, and schema 29 adds ordinary nume
 identity, exact-state resource shape, scratch-bearing entry shape, and direct SUM/MEAN/PROD bodies.
 Schema 30 makes selected scalar bodies self-contained, schema 31 changes scratch-free scatter to
 range-owned copy-then-update work, schema 32 hoists segment layouts into invocation locals, and
-schema 33 adds cold-proved bounded cursor loops for selected general-address movement families.
+schema 33 adds cold-proved bounded cursor loops for selected general-address movement families,
+and schema 34 adds the direct canonical-BOOL STACK and zero-stride ANY forms.
 Canonical IR separately supplies value kind, data type, ordered semantics/stores, iteration rank,
 axis roles, contiguous-suffix form, and access regime. Their derived compatibility bytes and
 structural identity are order-sensitive.
@@ -1279,12 +1281,12 @@ Keeping the artifact reachable keeps its hidden-class state reachable, without p
 unreferenced class unloads. Direct generator calls produce equal class bytes but distinct hidden
 classes and artifact identities. The current durable generated-kernel artifact store may instead
 reuse compatible class bytes and weakly intern one loaded artifact while it remains live. The
-artifact is not by itself a prepared route. Current schema-33 artifacts execute admitted bounded
+artifact is not by itself a prepared route. Current schema-34 artifacts execute admitted bounded
 pointwise chains, one static affine represented-bit copy, one static
 PAD/TILE/CONCAT/STACK/window-extraction/SLICE_UPDATE movement, one static indexing occurrence,
 one functional-scatter output pass, one overlap-fold pass, one stable ordering/selection pass,
 one explicit-state initializer/dropout pass, one typed cumulative-scan body, or one typed
-ordinary-aggregate body across the implemented carrier patterns. Schema 32 and older artifacts
+ordinary-aggregate body across the implemented carrier patterns. Schema 33 and older artifacts
 are incompatible misses with no migration reader.
 
 ### CPU generated-kernel artifact store
@@ -1629,10 +1631,12 @@ repeats, segment prefixes, axis-window facts, NCHW spatial geometry, signed slic
 steps, and arbitrary-range initial state. Generated scalar loops advance that state directly;
 they retain no per-output-element table and perform no per-element division or modulo. Parallel-scalar
 orchestration is permitted over disjoint output ranges, while vector preference falls back to
-scalar. PAD, CONCAT, UNFOLD_AXIS, and UNFOLD2D use bounded primitive geometry/address/coordinate
+scalar. PAD, CONCAT, UNFOLD_AXIS, UNFOLD2D, and canonical-BOOL axis-zero STACK use bounded
+primitive geometry/address/coordinate
 cursors when cold invocation checks prove every value, range, and transition; otherwise they
 retain the typed general-long fallback. Carrier kind alone does not choose between these forms,
-and the generated target classes contain no hidden Synaptik runtime call. UNFOLD_AXIS copies all
+and the generated target classes contain no hidden Synaptik runtime call. The STACK form copies
+semantic occurrences in order, including repeated input occurrences. UNFOLD_AXIS copies all
 six represented types; UNFOLD2D copies only FLOAT64, FLOAT32, and
 BFLOAT16 with direct positive-zero or exact matching typed padding. SLICE_UPDATE copies base
 values and replaces selected positions from update for both current attribute forms and all six

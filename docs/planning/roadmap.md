@@ -302,8 +302,10 @@ is `Complete` at schema 33. Frozen semantics passed all 20 rows, and `M-PAD`, `M
 `M-UNFOLD-AXIS`, `M-UNFOLD2D`, plus all three controls passed every one of five forks at
 `<= 1.15x`; the unchanged full probe still exited nonzero on deferred diagnostic rows.
 [CPU 0007A1F BOOL movement and aggregate residual parity](backends/cpu/tasks/0007a1f-bool-movement-and-aggregate-residual-parity.md)
-is the sole next `Ready` frontier for `M-STACK` and `X-ANY-SINGLE`. CPU 0007A1G and other residual
-owners remain Draft pending evidence, and CPU 0007A2 remains blocked behind unchanged closure.
+is `Complete` at schema 34. Frozen semantics remained `VERIFIED,20`; both targets and all three
+controls passed every one of five forks, while deferred rows kept the full probe nonzero. Detailed
+[CPU 0007A1G fold and dropout residual parity](backends/cpu/tasks/0007a1g-fold-and-dropout-residual-parity.md)
+is the sole next `Ready` frontier. Other residual owners remain Draft, and CPU 0007A2 remains blocked.
 CPU 0007A1A advances current-only generated compatibility to schema 30. Its retained, checksummed
 28-class audit proves no Synaptik-owned call in the selected scalar activation, BFLOAT16 scan, and
 MIN/MAX/ALL/ANY aggregate artifacts; the selected vector ERF/GELU artifacts reference only typed
@@ -316,7 +318,7 @@ the full CPU suite passed 340 cases with one expected assumption skip. Clean doc
 `01a01b11-b773-7e33-b4d1-94fa62aeeb2b` finalized the Javadocs, CPU guide, evidence, and synchronized
 planning without changing executable Java or rerunning the stable Java suites. Schema-29
 artifacts are incompatible safe misses. Detailed CPU 0007A1B and CPU 0007A1E are Complete; CPU
-0007A1C and CPU 0007A1D remain `Review needed`, and CPU 0007A1F is the next and sole Ready frontier.
+0007A1C and CPU 0007A1D remain `Review needed`, CPU 0007A1F is `Complete`, and CPU 0007A1G is the next and sole Ready frontier.
 CPU 0007A0F implementation context `01a0194d-ff2e-78d3-9815-f0830065185b`, independent review
 orchestration context `01a0196a-0930-7521-972f-84021b85519b` with isolated review context
 `/root/cpu_0007a0f_review`, and clean documentation context
@@ -384,7 +386,7 @@ whitespace gates passed. Detailed CPU 0007A and corrective CPU 0007A0/0007A0A ar
 detailed CPU 0007A0B, detailed CPU 0007A0C, detailed CPU 0007A0D, and detailed CPU 0007A0E are
 `Complete`; detailed CPU 0007A0F, CPU 0007A1, CPU 0007A1A, and CPU 0007A1B are `Complete`; CPU
 0007A1C and CPU 0007A1D are `Review needed`, detailed CPU 0007A1E is `Complete`, and detailed CPU
-0007A1F is the sole next `Ready` frontier. Later work remains ordered `Draft` without detailed
+0007A1F is `Complete`, and detailed CPU 0007A1G is the sole next `Ready` frontier. Later work remains ordered `Draft` without detailed
 specifications.
 CPU 0006B1 implementation context `019ff230-109c-73a3-933f-611ee7f6143d` and independent
 audit/fix context `019ff248-a9e4-7150-8fbb-db2730d7cc1b` produced the final focused
@@ -423,7 +425,7 @@ detailed CPU 0006B1, CPU 0006B2, CPU 0006C, CPU 0006D, CPU 0007, and detailed CP
 `Complete`; corrective CPU 0007A0, CPU 0007A0A, CPU 0007A0B, CPU 0007A0C, and detailed CPU
 0007A0D, CPU 0007A0E, CPU 0007A0F, CPU 0007A1, CPU 0007A1A, and CPU 0007A1B are `Complete`. CPU
 0007A1C and CPU 0007A1D are `Review needed`; detailed CPU 0007A1E is `Complete`, and detailed CPU
-0007A1F is the sole next `Ready` frontier. CPU 0007A1G and CPU 0007A2–0017 remain ordered `Draft`
+0007A1F is `Complete`, and detailed CPU 0007A1G is the sole next `Ready` frontier. CPU 0007A2–0017 remain ordered `Draft`
 work without later detailed specifications.
 CPU 0003
 implements a
@@ -812,8 +814,8 @@ Detailed CPU 0007 and detailed CPU 0007A are `Complete`; corrective CPU 0007A0 a
 and CPU 0007A0B and detailed CPU 0007A0C, CPU 0007A0D, and CPU 0007A0E are `Complete`; detailed
 CPU 0007A0F and detailed CPU 0007A1 are `Complete`.
 Detailed CPU 0007A1A and CPU 0007A1B are `Complete`; CPU 0007A1C and CPU 0007A1D are
-`Review needed`; detailed CPU 0007A1E is `Complete`, and detailed CPU 0007A1F is the sole next
-`Ready` frontier. CPU 0007A1G, CPU 0007A2–0017, and the refined Config, Prepare, Metal, and tuning
+`Review needed`; detailed CPU 0007A1E and CPU 0007A1F are `Complete`, and detailed CPU 0007A1G is
+the sole next `Ready` frontier. CPU 0007A2–0017 and the refined Config, Prepare, Metal, and tuning
 rows remain `Draft` without later detailed specifications.
 Completed OpenBLAS history and every completed project area remain unchanged.
 
@@ -836,7 +838,7 @@ is `Complete`. Detailed CPU 0007A0E, CPU 0007A0F, and CPU 0007A1 are `Complete`.
 is `Complete`; detailed
 [CPU 0007A1B scatter algorithmic parity](backends/cpu/tasks/0007a1b-scatter-algorithmic-parity.md)
 is `Complete`; CPU 0007A1C and CPU 0007A1D are `Review needed`; detailed CPU 0007A1E is
-`Complete`; and detailed CPU 0007A1F is the sole next `Ready` CPU frontier.
+`Complete`; detailed CPU 0007A1F is `Complete`; and detailed CPU 0007A1G is the sole next `Ready` CPU frontier.
 CPU 0006A delivers one exact static resolved-layout PAD, TILE, CONCAT, or STACK occurrence with
 ordered one-through-sixteen composition inputs, first-occurrence unique declarations, compact
 cold movement geometry, all-six-type represented-bit scalar/parallel-scalar generation, one

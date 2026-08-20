@@ -224,8 +224,8 @@ created by 0005A. All consume the common analysis above; none creates another ba
 | 0007A1C | [Generated/direct evidence closure](tasks/0007a1c-generated-direct-evidence-closure.md) | Review needed | 0007A1B; completed generated-family inventory through 0007A1 | Frozen semantics passed all 20 rows, but the first isolated fork failed 17 ratios and triggered the explicit more-than-two-owner stop. No production owner changed; forks two through five and downstream gates remain intentionally open. |
 | 0007A1D | [Native-order segment layout hoisting](tasks/0007a1d-native-order-segment-layout-hoisting.md) | Review needed | 0007A1C first-fork evidence | Retains schema-32 invocation-local typed segment layouts and passing semantic/Java/Class-File evidence, but all 13 required performance targets failed the final fork; forks 2–5 and aggregates remain open. |
 | 0007A1E | [Movement general-address-loop parity](tasks/0007a1e-movement-general-address-loop-parity.md) | Complete | 0007A1D stable schema-32 prerequisite and failed fork | Added schema-33 cold-proved bounded primitive geometry/cursor loops for PAD, CONCAT, UNFOLD_AXIS, and UNFOLD2D with typed general-long fallback; all four targets and three controls passed every fork at `<= 1.15x`. |
-| 0007A1F | [BOOL movement and aggregate residual parity](tasks/0007a1f-bool-movement-and-aggregate-residual-parity.md) | Ready | 0007A1E | Correct `M-STACK` and `X-ANY-SINGLE` through no more than the movement and aggregate code-shaping owners while preserving frozen BOOL semantics and resources. |
-| 0007A1G | Fold and dropout residual parity | Draft | 0007A1F | Correct `F-FOLD2D` and `R-DROPOUT-GENERAL` through no more than the fold and random code-shaping owners; create the detailed specification only after 0007A1F completes. |
+| 0007A1F | [BOOL movement and aggregate residual parity](tasks/0007a1f-bool-movement-and-aggregate-residual-parity.md) | Complete | 0007A1E | Added schema-34 cold-proved occurrence-major canonical-BOOL STACK copies and full-visit zero-stride ANY folds with typed general-long fallbacks; both targets and all three controls passed every fork at `<= 1.15x`. |
+| 0007A1G | [Fold and dropout residual parity](tasks/0007a1g-fold-and-dropout-residual-parity.md) | Ready | 0007A1F | Correct `F-FOLD2D` and `R-DROPOUT-GENERAL` through no more than the fold and random code-shaping owners while preserving exact direct-clean-Java algorithm/dataflow equivalence. |
 | 0007A2 | Portable binding-aware sum-to-Shape reduction | Draft | 0007A1C; 0007A1D–0007A1G | Add `SUM` with exact `SumToShapeAttrs`, right-aligned bound-Shape validation, leading/aligned reduction geometry, all five numeric types, and truthful resources without dynamic unresolved execution. |
 | 0007B | Portable arg-extrema coverage | Draft | 0007A | Add one-axis ARG_MIN/ARG_MAX with exact floating/integral order, first/last logical tie policy, INT64 indices, and deterministic scalar/parallel behavior. |
 | 0007C | Portable masked reduction coverage | Draft | 0007A1 | Add two-input masked SUM/MEAN with right-aligned mask broadcasting, false-position exclusion before aggregation, selected-count handling, empty-selection results, and truthful resource declarations. |
@@ -321,7 +321,7 @@ is `Complete`. Detailed
 `Complete`. Detailed CPU 0007A1C remains `Review needed`. Detailed CPU 0007A1D is also
 `Review needed`: schema 32 and its Java/semantic/Class-File gates are stable, but all 13 required
 performance targets failed the final fork. Detailed CPU 0007A1E is `Complete`; detailed CPU
-0007A1F is the sole next ordered `Ready` frontier. CPU 0007A1G, CPU 0007A2, CPU 0007B–0007F, and
+0007A1F is `Complete`; detailed CPU 0007A1G is the sole next ordered `Ready` frontier. CPU 0007A2, CPU 0007B–0007F, and
 every later CPU task remain `Draft` without later detailed specifications. CPU
 0006D is one bounded
 one-node family task because
@@ -358,9 +358,10 @@ diagnostic version with native-order/with-order construction removed entirely st
 targets above `1.15x`. CPU 0007A1E is Complete at schema 33: frozen semantics passed all 20 rows,
 and its four movement targets plus three controls passed every one of five forks at `<= 1.15x`.
 The unchanged full probe still exited nonzero because deferred rows failed, so A1C remains open.
-Detailed Ready CPU 0007A1F now owns `M-STACK` and `X-ANY-SINGLE`; Draft CPU 0007A1G owns
-`F-FOLD2D` and `R-DROPOUT-GENERAL`. Other residual targets remain Draft until new evidence supports
-another bounded owner cluster, and CPU 0007A2 remains blocked behind closure.
+CPU 0007A1F is Complete at schema 34: frozen semantics remained `VERIFIED,20`, both targets and
+three controls passed all five forks, and the full probe remained nonzero only for deferred rows.
+Detailed Ready CPU 0007A1G now owns `F-FOLD2D` and `R-DROPOUT-GENERAL`. Other residual targets
+remain Draft until new evidence supports another bounded owner cluster, and CPU 0007A2 remains blocked.
 
 CPU 0007A0 is a corrective insertion based on the completed local audit under
 `/tmp/synaptik-bytecode-benchmark`. The audit measured the large dense generated scalar ADD at
@@ -628,7 +629,7 @@ detailed task 0006B2, detailed task 0006C, and detailed task 0006D are `Complete
 `Complete`; detailed 0007A0C, detailed 0007A0D, and detailed 0007A0E are `Complete`; detailed
 0007A0F is `Complete`; detailed CPU 0007A1, CPU 0007A1A, and CPU 0007A1B are `Complete`. CPU
 0007A1C and CPU 0007A1D are `Review needed`; detailed CPU 0007A1E is `Complete`, and detailed CPU
-0007A1F is the sole next `Ready` frontier. CPU 0007A1G and CPU 0007A2–0017 remain ordered `Draft`
+0007A1F is `Complete`, and detailed CPU 0007A1G is the sole next `Ready` frontier. CPU 0007A2–0017 remain ordered `Draft`
 work without later detailed specifications.
 CPU 0005C preserves that exact slice and implements cold selection among all four portable
 strategies. It uses the preferred Java 26 FLOAT64 species only for direct contiguous runs and
@@ -792,7 +793,7 @@ and detailed CPU 0007A is `Complete`; corrective CPU 0007A0, CPU 0007A0A, and CP
 `Complete`; detailed CPU 0007A0C, CPU 0007A0D, and CPU 0007A0E are `Complete`; detailed CPU
 0007A0F is `Complete`. Detailed CPU 0007A1, CPU 0007A1A, and CPU 0007A1B are `Complete`; CPU
 0007A1C and CPU 0007A1D are `Review needed`, detailed CPU 0007A1E is `Complete`, detailed CPU
-0007A1F is the sole next `Ready` frontier, and later work remains ordered `Draft`.
+0007A1F is `Complete`, detailed CPU 0007A1G is the sole next `Ready` frontier, and later work remains ordered `Draft`.
 
 Detailed CPU 0006A1 is Complete. It extends the same movement pipeline with one fully static,
 resolved-layout UNFOLD_AXIS occurrence for all six represented types or one floating UNFOLD2D
@@ -938,7 +939,7 @@ the work at the active frontier.
   target-Shape SUM. Draft 0007B owns arg
   extrema; Draft 0007C owns masked reductions; Draft 0007D owns logarithmic/statistical/norm
   reductions; Draft 0007E owns stable softmax/log-softmax; and Draft 0007F owns layer/RMS/batch
-  normalization. CPU 0007A1F is the latest detailed specification and sole `Ready` task.
+  normalization. CPU 0007A1G is the latest detailed specification and sole `Ready` task.
 - CPU 0007 is first because the closed cumulative-scan family is independently executable and
   has no aggregate-combination dependency. Partitioning only across complete logical scan slices
   preserves one sequential typed accumulation order, requires no partial/combine workspace, and
@@ -976,9 +977,9 @@ the work at the active frontier.
   triggered the explicit more-than-two-owner stop. No production owner changed. Evidence-driven
   CPU 0007A1D retained schema-32 invocation-local segment layouts but failed all 13 target ratios;
   it remains incomplete. Complete CPU 0007A1E owns the four-row movement general-address-loop
-  cluster. CPU 0007A1F and CPU 0007A1G retain the BOOL movement/aggregate and fold/dropout groups,
-  respectively, while other residual owners remain Draft until supported by new evidence. CPU
-  0007A1E is Complete and 0007A1F alone has a detailed `Ready` specification. This insertion is ordered corrective work
+  cluster. Complete CPU 0007A1F owns the BOOL movement/aggregate group, and Ready CPU 0007A1G
+  owns the fold/dropout group, while other residual owners remain Draft until supported by new
+  evidence. CPU 0007A1G alone has a detailed `Ready` specification. This insertion is ordered corrective work
   and does not change architecture authority. CPU 0007A2 and later rows stay ordered `Draft`.
 - CPU 0006D selects `SYNAPTIK_CPU_SPLITMIX64_COUNTER_V1`: `mix64` uses shifts 30/27/31 and
   multipliers `0xbf58476d1ce4e5b9`/`0x94d049bb133111eb` after key bias

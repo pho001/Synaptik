@@ -49,6 +49,8 @@ package io.github.pho001.synaptik.backend.cpu.internal.cache;
  * reference before repeated scalar carrier access.
  * Schema 33 adds cold-proved bounded movement geometry and invocation-local cursor loops for PAD,
  * CONCAT, UNFOLD_AXIS, and UNFOLD2D while retaining the typed general-long fallback.
+ * Schema 34 adds the cold-proved occurrence-major canonical-BOOL STACK copy and zero-stride ANY
+ * fold while retaining their typed general-long fallbacks.
  * The optional persistent envelope stores this version and has no legacy reader, migration path,
  * or converter.
  */
@@ -76,10 +78,11 @@ public final class CpuGeneratorSchema {
      * remaining scalar activation, BFLOAT16 scan, and extrema/Boolean aggregate formulas; schema
      * 31 adds range-owned copy-then-update scatter bodies and retains grouped floating products;
      * schema 32 hoists required native-order typed segment layouts into invocation locals; schema
-     * 33 adds cold-proved bounded cursor loops for selected general-address movement families.
+     * 33 adds cold-proved bounded cursor loops for selected general-address movement families;
+     * schema 34 adds direct canonical-BOOL STACK occurrence copies and zero-stride ANY folds.
      * Envelopes written for earlier schemas are incompatible misses.
      */
-    public static final int CURRENT_VERSION = 33;
+    public static final int CURRENT_VERSION = 34;
     /** Generated entry name. */ public static final String ENTRY_NAME = "invoke";
     private CpuGeneratorSchema() { }
 

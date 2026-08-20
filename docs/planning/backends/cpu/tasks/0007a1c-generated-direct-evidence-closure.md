@@ -339,11 +339,11 @@ may change; otherwise stop and replan.
 
 - CPU 0007A1D retains the stable schema-32 invocation-local segment-layout implementation but is
   Incomplete because every one of its 13 required performance targets failed the final fork.
-- Detailed Ready CPU 0007A1E owns the next single-owner cluster: `M-PAD`, `M-CONCAT`,
-  `M-UNFOLD-AXIS`, and `M-UNFOLD2D` in `CpuDataMovementEmitter`.
-- CPU 0007A1F and CPU 0007A1G remain ordered Draft correction groups without detailed
-  specifications until their preceding correction completes. Other residual targets remain Draft
-  until new evidence supports the next bounded owner cluster.
+- CPU 0007A1E and CPU 0007A1F are Complete. Their retained evidence closes the movement
+  general-address group and the canonical-BOOL STACK/ANY group without closing this full task.
+- Detailed Ready [CPU 0007A1G](0007a1g-fold-and-dropout-residual-parity.md) owns the next bounded
+  `F-FOLD2D` and `R-DROPOUT-GENERAL` cluster. Other residual targets remain Draft until new
+  evidence supports the next bounded owner cluster.
 - CPU 0007A2 remains Draft and blocked until all corrections close the frozen failures and CPU
   0007A1C can become Complete.
 - CPU 0009 remains the later repository-wide portable conformance checkpoint.
@@ -515,9 +515,9 @@ only the four-row `CpuDataMovementEmitter` cluster as detailed Ready CPU 0007A1E
 - Glossary impact: no reusable term or definition changed; no edit is warranted.
 - Unresolved issues: 17 frozen performance rows remain above threshold; the post-fork schema
   artifact is malformed; all intentionally stopped gates remain open.
-- Follow-up required: CPU 0007A1E is now Complete. Execute Ready CPU 0007A1F, then the later
+- Follow-up required: CPU 0007A1E and CPU 0007A1F are Complete. Execute Ready CPU 0007A1G, then the later
   evidence-backed residual tasks in strict order; only after every frozen failure closes may the
   unchanged closure protocol resume and 0007A1C completion be reconsidered.
 
 Status: Incomplete
-Follow-up required: CPU 0007A1F and later ordered corrections must close all remaining frozen performance failures before CPU 0007A2.
+Follow-up required: CPU 0007A1G and later ordered corrections must close all remaining frozen performance failures before CPU 0007A2.

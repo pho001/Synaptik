@@ -23,17 +23,66 @@ import io.github.pho001.synaptik.prepare.analysis.PrepareContext;
 import java.util.List;
 import java.util.Map;
 import java.lang.foreign.Arena;
+import java.lang.foreign.MemorySegment;
 import java.lang.foreign.ValueLayout;
 import org.junit.jupiter.api.Test;
 import java.lang.classfile.ClassFile;
 import java.lang.classfile.Instruction;
 import java.lang.classfile.Opcode;
 import java.lang.classfile.instruction.InvokeInstruction;
+import java.lang.classfile.instruction.BranchInstruction;
+import java.lang.classfile.instruction.LabelTarget;
 import java.lang.classfile.constantpool.DynamicConstantPoolEntry;
 import java.lang.classfile.constantpool.MemberRefEntry;
 import java.lang.classfile.constantpool.MethodHandleEntry;
 
 class CpuAggregateGeneratedKernelTest {
+    @Test void zeroStrideAnyVisitsTheFullDomainInOneDirectPrimitiveLoopAndRetainsFallback()
+            throws Throwable {
+        Shape inputShape = Shape.of(6, 5), outputShape = Shape.of(6);
+        var inputDescriptor = CpuIndexingLoweringTest.descriptor(DataType.BOOL, inputShape,
+                LayoutDescriptor.of(inputShape, new long[]{1, 0}, 0, true));
+        var outputDescriptor = CpuIndexingLoweringTest.descriptor(DataType.BOOL, outputShape,
+                LayoutDescriptor.of(outputShape, new long[]{2}, 1, true));
+        var base = CpuScatterLoweringTest.context(new Operation(AggregateReductionKind.ANY,
+                new AxisReductionAttrs(1, false)), List.of(0), List.of(inputDescriptor),
+                outputDescriptor);
+        PrepareContext<CpuPartitionAnalysisInputs> context = new PrepareContext<>(base.partition(),
+                base.nodes(), base.values(), base.memoryRequirements(), Map.of(),
+                new CpuPartitionAnalysisInputs(false, List.of(CarrierAccess.MEMORY_SEGMENT,
+                        CarrierAccess.BYTE_ARRAY)));
+        var plan = new CpuPartitionPreparer().analyze(context).plan();
+        var route = plan.units().getFirst().portablePlan();
+        var generator = new CpuClassFileKernelGenerator();
+        byte[] bytes = generator.generateClassBytes(route.specialization(), route.kernelIr());
+        var model = ClassFile.of().parse(bytes);
+        var code = model.methods().getFirst().code().orElseThrow();
+        var artifact = generator.defineClassBytes(route.specialization(), bytes);
+        byte[] physical = {1, 0, 1, 0, 0, 1};
+        byte[] full = new byte[13], ranged = new byte[13];
+        java.util.Arrays.fill(full, (byte) -1);
+        java.util.Arrays.fill(ranged, (byte) -1);
+        long[] geometry = plan.aggregateGeometry().orElseThrow().pack(new long[2]);
+        artifact.entryPoint().invokeWithArguments(MemorySegment.ofArray(physical), full,
+                geometry, 0L, 6L);
+        artifact.entryPoint().invokeWithArguments(MemorySegment.ofArray(physical), ranged,
+                geometry, 0L, 0L);
+        artifact.entryPoint().invokeWithArguments(MemorySegment.ofArray(physical), ranged,
+                geometry, 0L, 2L);
+        artifact.entryPoint().invokeWithArguments(MemorySegment.ofArray(physical), ranged,
+                geometry, 2L, 5L);
+        artifact.entryPoint().invokeWithArguments(MemorySegment.ofArray(physical), ranged,
+                geometry, 5L, 6L);
+        assertAll(
+                () -> assertArrayEquals(new byte[]{
+                        -1, 1, -1, 0, -1, 1, -1, 0, -1, 0, -1, 1, -1}, full),
+                () -> assertArrayEquals(full, ranged),
+                () -> assertTrue(hasDirectFullVisitLoop(code)),
+                () -> assertTrue(opcodeCount(code, Opcode.LALOAD) > 0),
+                () -> assertEquals(0, model.fields().size()),
+                () -> assertEquals(1, model.methods().size()));
+    }
+
     @Test void extremaAndBooleanArtifactsAreSelfContainedTypedAndFreeOfDynamicConstructs() {
         for (DataType type : List.of(DataType.FLOAT64, DataType.FLOAT32, DataType.BFLOAT16,
                 DataType.INT32, DataType.INT64)) {
@@ -554,5 +603,40 @@ class CpuAggregateGeneratedKernelTest {
                 () -> assertTrue(model.methods().stream().flatMap(method -> method.code().stream())
                         .flatMap(code -> code.elementStream()).noneMatch(
                                 java.lang.classfile.instruction.NewObjectInstruction.class::isInstance)));
+    }
+
+    private static long opcodeCount(java.lang.classfile.CodeModel code, Opcode opcode) {
+        return code.elementStream().filter(Instruction.class::isInstance)
+                .map(Instruction.class::cast).filter(instruction -> instruction.opcode() == opcode)
+                .count();
+    }
+
+    private static boolean hasDirectFullVisitLoop(java.lang.classfile.CodeModel code) {
+        var elements = code.elementStream().toList();
+        var labels = new java.util.IdentityHashMap<java.lang.classfile.Label, Integer>();
+        for (int index = 0; index < elements.size(); index++) {
+            if (elements.get(index) instanceof LabelTarget target) labels.put(target.label(), index);
+        }
+        for (int index = 0; index < elements.size(); index++) {
+            if (!(elements.get(index) instanceof BranchInstruction branch)) continue;
+            Integer target = labels.get(branch.target());
+            if (target == null || target >= index) continue;
+            boolean get = false, or = false, geometryLoad = false, accumulatorExit = false;
+            for (int body = target; body <= index; body++) {
+                Object element = elements.get(body);
+                if (element instanceof InvokeInstruction invoke) {
+                    get |= invoke.owner().asInternalName().equals("java/lang/foreign/MemorySegment")
+                            && invoke.name().stringValue().equals("get");
+                }
+                if (element instanceof Instruction instruction) {
+                    or |= instruction.opcode() == Opcode.IOR;
+                    geometryLoad |= instruction.opcode() == Opcode.LALOAD;
+                    accumulatorExit |= instruction.opcode() == Opcode.IFNE
+                            || instruction.opcode() == Opcode.IFEQ;
+                }
+            }
+            if (get && or && !geometryLoad && !accumulatorExit) return true;
+        }
+        return false;
     }
 }

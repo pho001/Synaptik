@@ -22,7 +22,10 @@ import java.util.Arrays;
  * proved bounded PAD, CONCAT, UNFOLD_AXIS, and UNFOLD2D forms narrow and hoist geometry into
  * invocation-local integer state independently of carrier kind. Their repeated bodies advance
  * primitive address or coordinate cursors, while geometry that cannot be bounded retains the
- * typed long-address loop. Emitted hot loops contain no Model interpretation, reflection, map
+ * typed long-address loop. A proved canonical-BOOL axis-zero STACK copies each encounter-order
+ * occurrence with one direct primitive address loop, including repeated input occurrences;
+ * unproved STACK geometry retains the same typed long-address fallback. Emitted hot loops contain
+ * no Model interpretation, reflection, map
  * lookup, per-element allocation, division, or modulo.</p>
  */
 final class CpuDataMovementEmitter {
@@ -46,12 +49,131 @@ final class CpuDataMovementEmitter {
             emitDenseArrayInt(code, specialization, ir, parsed);
             return;
         }
+        if (parsed.family.equals("STACK")) {
+            emitStackDirectOrGeneralLong(code, specialization, ir, parsed);
+            return;
+        }
         if (parsed.family.equals("PAD") || parsed.family.equals("CONCAT")
                 || parsed.family.equals("UNFOLD_AXIS") || parsed.family.equals("UNFOLD2D")) {
             emitBoundedTargetOrGeneralLong(code, specialization, ir, parsed);
             return;
         }
         emitGeneralLong(code, specialization, ir, parsed);
+    }
+
+    private static void emitStackDirectOrGeneralLong(CodeBuilder code,
+            CpuKernelSpecialization specialization, CpuKernelIr ir, Parsed parsed) {
+        int uniqueInputs = ir.values().size() - 1;
+        int rank = parsed.rank;
+        int inputRank = ir.values().getFirst().accessPlan().iterationRank();
+        if (ir.values().getFirst().dataType() != DataType.BOOL || rank < 1
+                || inputRank != rank - 1
+                || specialization.carrierPattern().get(uniqueInputs) != CarrierAccess.BYTE_ARRAY) {
+            emitGeneralLong(code, specialization, ir, parsed);
+            return;
+        }
+        for (int input = 0; input < uniqueInputs; input++) {
+            CarrierAccess carrier = specialization.carrierPattern().get(input);
+            if (carrier != CarrierAccess.BYTE_ARRAY && carrier != CarrierAccess.MEMORY_SEGMENT) {
+                emitGeneralLong(code, specialization, ir, parsed);
+                return;
+            }
+        }
+        int geometrySlot = uniqueInputs + 1;
+        int startSlot = geometrySlot + 1;
+        int endSlot = startSlot + 2;
+        int inputBases = 3 * rank + 1;
+        int inputStrides = inputBases + uniqueInputs;
+        int variant = inputStrides + uniqueInputs * inputRank;
+        var fallback = code.newLabel();
+        var done = code.newLabel();
+        code.lload(startSlot).loadConstant(0L).lcmp().branch(Opcode.IFNE, fallback);
+        code.lload(endSlot).loadConstant(0L).lcmp().branch(Opcode.IFLT, fallback);
+        code.lload(endSlot).loadConstant((long) Integer.MAX_VALUE).lcmp()
+                .branch(Opcode.IFGT, fallback);
+        geometry(code, geometrySlot, variant).loadConstant(0L).lcmp()
+                .branch(Opcode.IFNE, fallback);
+        geometry(code, geometrySlot, 0).loadConstant((long) parsed.mapping.length).lcmp()
+                .branch(Opcode.IFNE, fallback);
+        for (int axis = 0; axis < rank; axis++) {
+            geometry(code, geometrySlot, axis).loadConstant(0L).lcmp()
+                    .branch(Opcode.IFLT, fallback);
+            geometry(code, geometrySlot, axis).loadConstant((long) Integer.MAX_VALUE).lcmp()
+                    .branch(Opcode.IFGT, fallback);
+            geometry(code, geometrySlot, rank + axis).loadConstant(0L).lcmp()
+                    .branch(Opcode.IFNE, fallback);
+        }
+        geometry(code, geometrySlot, 3 * rank).loadConstant(1L).lcmp()
+                .branch(Opcode.IFNE, fallback);
+        for (int axis = rank - 2; axis >= 0; axis--) {
+            geometry(code, geometrySlot, 2 * rank + 1 + axis);
+            geometry(code, geometrySlot, axis + 1);
+            geometry(code, geometrySlot, 2 * rank + 2 + axis);
+            code.lmul().lcmp().branch(Opcode.IFNE, fallback);
+        }
+        geometry(code, geometrySlot, 2 * rank).loadConstant(0L).lcmp()
+                .branch(Opcode.IFLT, fallback);
+        geometry(code, geometrySlot, 2 * rank).lload(endSlot).ladd()
+                .loadConstant(1L << 31).lcmp().branch(Opcode.IFGT, fallback);
+        geometry(code, geometrySlot, 2 * rank + 1);
+        geometry(code, geometrySlot, 0);
+        code.lmul().lload(endSlot).lcmp().branch(Opcode.IFNE, fallback);
+        for (int input = 0; input < uniqueInputs; input++) {
+            geometry(code, geometrySlot, inputBases + input).loadConstant(0L).lcmp()
+                    .branch(Opcode.IFLT, fallback);
+            geometry(code, geometrySlot, inputBases + input);
+            geometry(code, geometrySlot, 2 * rank + 1);
+            code.ladd().loadConstant(1L << 31).lcmp().branch(Opcode.IFGT, fallback);
+            for (int axis = 0; axis < inputRank; axis++) {
+                geometry(code, geometrySlot, inputStrides + input * inputRank + axis);
+                geometry(code, geometrySlot, 2 * rank + 2 + axis);
+                code.lcmp().branch(Opcode.IFNE, fallback);
+            }
+        }
+        emitFullDenseAxisZeroStack(code, specialization, parsed, geometrySlot, inputBases,
+                uniqueInputs, rank);
+        code.branch(Opcode.GOTO, done);
+        code.labelBinding(fallback);
+        emitGeneralLong(code, specialization, ir, parsed);
+        code.labelBinding(done);
+    }
+
+    private static void emitFullDenseAxisZeroStack(CodeBuilder code,
+            CpuKernelSpecialization specialization, Parsed parsed, int geometrySlot,
+            int inputBases, int outputSlot, int rank) {
+        int count = code.allocateLocal(TypeKind.INT);
+        geometry(code, geometrySlot, 2 * rank + 1).l2i().istore(count);
+        int outputBase = code.allocateLocal(TypeKind.INT);
+        geometry(code, geometrySlot, 2 * rank).l2i().istore(outputBase);
+        var carriers = new CpuCarrierEmitter(code);
+        for (int occurrence = 0; occurrence < parsed.mapping.length; occurrence++) {
+            int boundary = parsed.mapping[occurrence];
+            boolean segment = specialization.carrierPattern().get(boundary)
+                    == CarrierAccess.MEMORY_SEGMENT;
+            int inputAddress = code.allocateLocal(segment ? TypeKind.LONG : TypeKind.INT);
+            int outputAddress = code.allocateLocal(TypeKind.INT);
+            int ordinal = code.allocateLocal(TypeKind.INT);
+            int value = code.allocateLocal(TypeKind.INT);
+            if (segment) geometry(code, geometrySlot, inputBases + boundary).lstore(inputAddress);
+            else geometry(code, geometrySlot, inputBases + boundary).l2i().istore(inputAddress);
+            code.iload(outputBase).iload(count).loadConstant(occurrence).imul().iadd()
+                    .istore(outputAddress);
+            code.loadConstant(0).istore(ordinal);
+            var loop = code.newLabel();
+            var finished = code.newLabel();
+            code.labelBinding(loop);
+            code.iload(ordinal).iload(count).branch(Opcode.IF_ICMPGE, finished);
+            carriers.load(DataType.BOOL, specialization.carrierPattern().get(boundary), boundary,
+                    inputAddress, !segment);
+            code.istore(value);
+            carriers.store(DataType.BOOL, CarrierAccess.BYTE_ARRAY, outputSlot, outputAddress,
+                    value, true);
+            if (segment) code.lload(inputAddress).loadConstant(1L).ladd().lstore(inputAddress);
+            else code.iinc(inputAddress, 1);
+            code.iinc(outputAddress, 1).iinc(ordinal, 1)
+                    .branch(Opcode.GOTO, loop);
+            code.labelBinding(finished);
+        }
     }
 
     private static void emitGeneralLong(CodeBuilder code,
