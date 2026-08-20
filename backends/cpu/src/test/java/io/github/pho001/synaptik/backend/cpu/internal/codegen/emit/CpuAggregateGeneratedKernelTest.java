@@ -37,6 +37,183 @@ import java.lang.classfile.constantpool.MemberRefEntry;
 import java.lang.classfile.constantpool.MethodHandleEntry;
 
 class CpuAggregateGeneratedKernelTest {
+    @Test void frozenNumericalResidualShapesPreserveExactSemanticsAndDisjointRanges()
+            throws Throwable {
+        Shape meanInputShape = Shape.of(128, 2048), meanOutputShape = Shape.of(128);
+        var meanInputDescriptor = CpuIndexingLoweringTest.descriptor(DataType.FLOAT32,
+                meanInputShape, LayoutDescriptor.of(meanInputShape,
+                        new long[]{4096, 2}, 3, true));
+        var meanOutputDescriptor = CpuIndexingLoweringTest.descriptor(DataType.FLOAT32,
+                meanOutputShape, LayoutDescriptor.of(meanOutputShape, new long[]{2}, 3, true));
+        var meanBase = CpuScatterLoweringTest.context(new Operation(AggregateReductionKind.MEAN,
+                new AxisReductionAttrs(1, false)), List.of(0), List.of(meanInputDescriptor),
+                meanOutputDescriptor);
+        PrepareContext<CpuPartitionAnalysisInputs> meanContext = new PrepareContext<>(
+                meanBase.partition(), meanBase.nodes(), meanBase.values(),
+                meanBase.memoryRequirements(), Map.of(), new CpuPartitionAnalysisInputs(false,
+                        List.of(CarrierAccess.MEMORY_SEGMENT, CarrierAccess.FLOAT_ARRAY)));
+        var meanPlan = new CpuPartitionPreparer().analyze(meanContext).plan();
+        var meanRoute = meanPlan.units().getFirst().portablePlan();
+        var generator = new CpuClassFileKernelGenerator();
+        var meanArtifact = generator.defineClassBytes(meanRoute.specialization(),
+                generator.generateClassBytes(meanRoute.specialization(), meanRoute.kernelIr()));
+
+        Shape productInputShape = Shape.of(4, 16_384, 4);
+        Shape productOutputShape = Shape.of(1, 16_384, 1);
+        var productInputDescriptor = CpuIndexingLoweringTest.descriptor(DataType.BFLOAT16,
+                productInputShape, LayoutDescriptor.contiguous(productInputShape));
+        var productOutputDescriptor = CpuIndexingLoweringTest.descriptor(DataType.BFLOAT16,
+                productOutputShape, LayoutDescriptor.of(productOutputShape,
+                        new long[]{32_768, 2, 2}, 3, true));
+        var productBase = CpuScatterLoweringTest.context(new Operation(AggregateReductionKind.PROD,
+                new MultiAxisReductionAttrs(List.of(0, 2), true)), List.of(0),
+                List.of(productInputDescriptor), productOutputDescriptor);
+        PrepareContext<CpuPartitionAnalysisInputs> productContext = new PrepareContext<>(
+                productBase.partition(), productBase.nodes(), productBase.values(),
+                productBase.memoryRequirements(), Map.of(), new CpuPartitionAnalysisInputs(false,
+                        List.of(CarrierAccess.SHORT_ARRAY, CarrierAccess.MEMORY_SEGMENT)));
+        var productPlan = new CpuPartitionPreparer().analyze(productContext).plan();
+        var productRoute = productPlan.units().getFirst().portablePlan();
+        var productArtifact = generator.defineClassBytes(productRoute.specialization(),
+                generator.generateClassBytes(productRoute.specialization(),
+                        productRoute.kernelIr()));
+
+        try (var arena = Arena.ofConfined()) {
+            int meanPhysicalCount = 3 + 2 * 128 * 2048;
+            MemorySegment meanInput = arena.allocate((long) meanPhysicalCount * Float.BYTES,
+                    Float.BYTES);
+            for (int cell = 0; cell < 128; cell++) for (int factor = 0; factor < 2048; factor++) {
+                int logical = cell * 2048 + factor;
+                float value = 1.0f + ((logical % 17) - 8) * 0x1p-12f;
+                if (cell == 1) value = -0.0f;
+                else if (cell == 2 && factor == 0) value = Float.POSITIVE_INFINITY;
+                else if (cell == 3 && factor < 2)
+                    value = factor == 0 ? Float.POSITIVE_INFINITY : Float.NEGATIVE_INFINITY;
+                else if (cell == 4 && factor == 0) value = Float.intBitsToFloat(0xff80_0042);
+                meanInput.set(ValueLayout.JAVA_FLOAT_UNALIGNED,
+                        (long) (3 + 2 * logical) * Float.BYTES, value);
+            }
+            float[] meanExpected = new float[3 + 2 * 128], meanActual = new float[3 + 2 * 128];
+            java.util.Arrays.fill(meanExpected, Float.intBitsToFloat(0x7fc0_005a));
+            java.util.Arrays.fill(meanActual, Float.intBitsToFloat(0x7fc0_005a));
+            CpuScalarReferenceKernel.execute((CpuAggregateIr) meanRoute.portableKernelIr(),
+                    meanPlan.aggregateGeometry().orElseThrow(), List.of(
+                            new CpuBufferArgument.Segment(DataType.FLOAT32, meanInput,
+                                    meanInput.byteSize(), true),
+                            new CpuBufferArgument.Floats(meanExpected, 0,
+                                    (long) meanExpected.length * Float.BYTES, false)));
+            long meanBytes = meanPlan.aggregateGeometry().orElseThrow().workspaceBytes(1);
+            MemorySegment meanOwner = arena.allocate(meanBytes + 16, 8).fill((byte) 0x5a);
+            MemorySegment meanScratch = meanOwner.asSlice(8, meanBytes);
+            long[] meanGeometry = meanPlan.aggregateGeometry().orElseThrow().pack(new long[2]);
+            meanArtifact.entryPoint().invokeWithArguments(meanInput, meanActual, meanScratch,
+                    meanGeometry, 0L, 0L);
+            meanArtifact.entryPoint().invokeWithArguments(meanInput, meanActual, meanScratch,
+                    meanGeometry, 0L, 29L);
+            meanArtifact.entryPoint().invokeWithArguments(meanInput, meanActual, meanScratch,
+                    meanGeometry, 29L, 91L);
+            meanArtifact.entryPoint().invokeWithArguments(meanInput, meanActual, meanScratch,
+                    meanGeometry, 91L, 128L);
+
+            short[] productInput = new short[4 * 16_384 * 4];
+            java.util.Arrays.fill(productInput, (short) 0x3f80);
+            productInput[4] = (short) 0xbf80;
+            productInput[8] = (short) 0x8000;
+            productInput[12] = (short) 0x7f80;
+            productInput[(3 * 16_384) * 4 + 12] = 0;
+            productInput[16] = (short) 0xff81;
+            int productPhysicalCount = 3 + 2 * 16_384;
+            MemorySegment productExpected = arena.allocate(
+                    (long) productPhysicalCount * Short.BYTES, Short.BYTES).fill((byte) 0x5a);
+            MemorySegment productActual = arena.allocate(
+                    (long) productPhysicalCount * Short.BYTES, Short.BYTES).fill((byte) 0x5a);
+            CpuScalarReferenceKernel.execute((CpuAggregateIr) productRoute.portableKernelIr(),
+                    productPlan.aggregateGeometry().orElseThrow(), List.of(
+                            new CpuBufferArgument.Shorts(productInput, 0,
+                                    (long) productInput.length * Short.BYTES, true),
+                            new CpuBufferArgument.Segment(DataType.BFLOAT16, productExpected,
+                                    productExpected.byteSize(), false)));
+            long productBytes = productPlan.aggregateGeometry().orElseThrow().workspaceBytes(1);
+            MemorySegment productOwner = arena.allocate(productBytes + 16, 8).fill((byte) 0x5a);
+            MemorySegment productScratch = productOwner.asSlice(8, productBytes);
+            long[] productGeometry = productPlan.aggregateGeometry().orElseThrow()
+                    .pack(new long[2]);
+            productArtifact.entryPoint().invokeWithArguments(productInput, productActual,
+                    productScratch, productGeometry, 0L, 0L);
+            productArtifact.entryPoint().invokeWithArguments(productInput, productActual,
+                    productScratch, productGeometry, 0L, 4097L);
+            productArtifact.entryPoint().invokeWithArguments(productInput, productActual,
+                    productScratch, productGeometry, 4097L, 12_001L);
+            productArtifact.entryPoint().invokeWithArguments(productInput, productActual,
+                    productScratch, productGeometry, 12_001L, 16_384L);
+
+            int[] expectedMeanBits = new int[meanExpected.length];
+            int[] actualMeanBits = new int[meanActual.length];
+            for (int index = 0; index < meanExpected.length; index++) {
+                expectedMeanBits[index] = Float.floatToRawIntBits(meanExpected[index]);
+                actualMeanBits[index] = Float.floatToRawIntBits(meanActual[index]);
+            }
+            assertAll(
+                    () -> assertArrayEquals(expectedMeanBits, actualMeanBits),
+                    () -> assertEquals(-1L, productExpected.mismatch(productActual)),
+                    () -> assertEquals((byte) 0x5a,
+                            meanOwner.get(ValueLayout.JAVA_BYTE, 0)),
+                    () -> assertEquals((byte) 0x5a,
+                            meanOwner.get(ValueLayout.JAVA_BYTE, meanBytes + 15)),
+                    () -> assertEquals((byte) 0x5a,
+                            productOwner.get(ValueLayout.JAVA_BYTE, 0)),
+                    () -> assertEquals((byte) 0x5a,
+                            productOwner.get(ValueLayout.JAVA_BYTE, productBytes + 15)));
+        }
+    }
+
+    @Test void frozenNumericalResidualArtifactsHaveProvedPrimitiveLoopsAndTypedFallbacks() {
+        Shape meanInputShape = Shape.of(128, 2048), meanOutputShape = Shape.of(128);
+        var meanInputDescriptor = CpuIndexingLoweringTest.descriptor(DataType.FLOAT32,
+                meanInputShape, LayoutDescriptor.of(meanInputShape,
+                        new long[]{4096, 2}, 3, true));
+        var meanOutputDescriptor = CpuIndexingLoweringTest.descriptor(DataType.FLOAT32,
+                meanOutputShape, LayoutDescriptor.of(meanOutputShape, new long[]{2}, 3, true));
+        var meanBase = CpuScatterLoweringTest.context(new Operation(AggregateReductionKind.MEAN,
+                new AxisReductionAttrs(1, false)), List.of(0), List.of(meanInputDescriptor),
+                meanOutputDescriptor);
+        PrepareContext<CpuPartitionAnalysisInputs> meanContext = new PrepareContext<>(
+                meanBase.partition(), meanBase.nodes(), meanBase.values(),
+                meanBase.memoryRequirements(), Map.of(), new CpuPartitionAnalysisInputs(false,
+                        List.of(CarrierAccess.MEMORY_SEGMENT, CarrierAccess.FLOAT_ARRAY)));
+        var meanRoute = new CpuPartitionPreparer().analyze(meanContext).plan().units().getFirst()
+                .portablePlan();
+
+        Shape productInputShape = Shape.of(4, 16_384, 4);
+        Shape productOutputShape = Shape.of(1, 16_384, 1);
+        var productInputDescriptor = CpuIndexingLoweringTest.descriptor(DataType.BFLOAT16,
+                productInputShape, LayoutDescriptor.contiguous(productInputShape));
+        var productOutputDescriptor = CpuIndexingLoweringTest.descriptor(DataType.BFLOAT16,
+                productOutputShape, LayoutDescriptor.of(productOutputShape,
+                        new long[]{32_768, 2, 2}, 3, true));
+        var productBase = CpuScatterLoweringTest.context(new Operation(AggregateReductionKind.PROD,
+                new MultiAxisReductionAttrs(List.of(0, 2), true)), List.of(0),
+                List.of(productInputDescriptor), productOutputDescriptor);
+        PrepareContext<CpuPartitionAnalysisInputs> productContext = new PrepareContext<>(
+                productBase.partition(), productBase.nodes(), productBase.values(),
+                productBase.memoryRequirements(), Map.of(), new CpuPartitionAnalysisInputs(false,
+                        List.of(CarrierAccess.SHORT_ARRAY, CarrierAccess.MEMORY_SEGMENT)));
+        var productRoute = new CpuPartitionPreparer().analyze(productContext).plan().units()
+                .getFirst().portablePlan();
+
+        var generator = new CpuClassFileKernelGenerator();
+        var meanModel = ClassFile.of().parse(generator.generateClassBytes(
+                meanRoute.specialization(), meanRoute.kernelIr()));
+        var productModel = ClassFile.of().parse(generator.generateClassBytes(
+                productRoute.specialization(), productRoute.kernelIr()));
+        assertBoundedNumericalArtifact(meanModel,
+                "(Ljava/lang/foreign/MemorySegment;[FLjava/lang/foreign/MemorySegment;[JJJ)V",
+                true);
+        assertBoundedNumericalArtifact(productModel,
+                "([SLjava/lang/foreign/MemorySegment;Ljava/lang/foreign/MemorySegment;[JJJ)V",
+                false);
+    }
+
     @Test void zeroStrideAnyVisitsTheFullDomainInOneDirectPrimitiveLoopAndRetainsFallback()
             throws Throwable {
         Shape inputShape = Shape.of(6, 5), outputShape = Shape.of(6);
@@ -609,6 +786,71 @@ class CpuAggregateGeneratedKernelTest {
         return code.elementStream().filter(Instruction.class::isInstance)
                 .map(Instruction.class::cast).filter(instruction -> instruction.opcode() == opcode)
                 .count();
+    }
+
+    private static void assertBoundedNumericalArtifact(java.lang.classfile.ClassModel model,
+            String descriptor, boolean segmentInput) {
+        var method = model.methods().getFirst();
+        var code = method.code().orElseThrow();
+        List<MemberRefEntry> members = java.util.stream.StreamSupport.stream(
+                model.constantPool().spliterator(), false).filter(MemberRefEntry.class::isInstance)
+                .map(MemberRefEntry.class::cast).toList();
+        assertAll(
+                () -> assertEquals(0, model.fields().size()),
+                () -> assertEquals(1, model.methods().size()),
+                () -> assertEquals(descriptor, method.methodTypeSymbol().descriptorString()),
+                () -> assertTrue(hasBoundedInputLoop(code, segmentInput)),
+                () -> assertTrue(opcodeCount(code, Opcode.LALOAD) > 0),
+                () -> assertTrue(opcodeCount(code, Opcode.LDIV) > 0),
+                () -> assertTrue(opcodeCount(code, Opcode.LREM) > 0),
+                () -> assertTrue(members.stream().noneMatch(entry -> entry.owner().asInternalName()
+                        .startsWith("io/github/pho001/synaptik"))),
+                () -> assertTrue(members.stream().noneMatch(entry -> entry.type().stringValue()
+                        .contains("Ljava/lang/Object;") || entry.owner().asInternalName()
+                                .startsWith("java/lang/reflect/") || entry.owner().asInternalName()
+                                .startsWith("java/util/"))),
+                () -> assertEquals(0, model.constantPool().bootstrapMethodCount()),
+                () -> assertTrue(java.util.stream.StreamSupport.stream(
+                        model.constantPool().spliterator(), false)
+                        .noneMatch(MethodHandleEntry.class::isInstance)),
+                () -> assertTrue(java.util.stream.StreamSupport.stream(
+                        model.constantPool().spliterator(), false)
+                        .noneMatch(DynamicConstantPoolEntry.class::isInstance)),
+                () -> assertTrue(code.elementStream().noneMatch(
+                        java.lang.classfile.instruction.NewObjectInstruction.class::isInstance)));
+    }
+
+    private static boolean hasBoundedInputLoop(java.lang.classfile.CodeModel code,
+            boolean segmentInput) {
+        var elements = code.elementStream().toList();
+        var labels = new java.util.IdentityHashMap<java.lang.classfile.Label, Integer>();
+        for (int index = 0; index < elements.size(); index++) {
+            if (elements.get(index) instanceof LabelTarget target) labels.put(target.label(), index);
+        }
+        for (int index = 0; index < elements.size(); index++) {
+            if (!(elements.get(index) instanceof BranchInstruction branch)) continue;
+            Integer target = labels.get(branch.target());
+            if (target == null || target >= index) continue;
+            boolean inputLoad = false, genericAddressing = false;
+            for (int body = target; body <= index; body++) {
+                Object element = elements.get(body);
+                if (element instanceof InvokeInstruction invoke) {
+                    inputLoad |= segmentInput
+                            && invoke.owner().asInternalName().equals(
+                                    "java/lang/foreign/MemorySegment")
+                            && invoke.name().stringValue().equals("get")
+                            && invoke.type().stringValue().endsWith(")F");
+                }
+                if (element instanceof Instruction instruction) {
+                    inputLoad |= !segmentInput && instruction.opcode() == Opcode.SALOAD;
+                    genericAddressing |= instruction.opcode() == Opcode.LALOAD
+                            || instruction.opcode() == Opcode.LDIV
+                            || instruction.opcode() == Opcode.LREM;
+                }
+            }
+            if (inputLoad && !genericAddressing) return true;
+        }
+        return false;
     }
 
     private static boolean hasDirectFullVisitLoop(java.lang.classfile.CodeModel code) {

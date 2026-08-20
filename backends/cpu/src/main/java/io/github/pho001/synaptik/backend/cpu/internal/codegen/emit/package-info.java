@@ -108,8 +108,11 @@
  * first-NaN bits and signed-zero selection, emits canonical Boolean results, and allocates no
  * object per output cell or selected element. Proved dense heap-array reductions use direct
  * integer-address loops. A cold-proved rank-two canonical-BOOL ANY form with one zero-stride
- * selected axis uses a direct primitive fold that preserves every logical visit; other current
- * forms retain typed general long-address bodies.</p>
+ * selected axis uses a direct primitive fold that preserves every logical visit. Runtime-guarded
+ * forms for the frozen FLOAT32 axis-one MEAN and BFLOAT16 axes-zero-and-two PROD shapes use
+ * primitive cell/factor cursors while preserving exact state transitions, final run-owned
+ * workspace state, logical factor order, arbitrary output-cell subranges, and one final result
+ * rounding. Other current forms retain typed general long-address bodies.</p>
  *
  * <p>Covered scalar activation formulas, BFLOAT16 scan arithmetic and rounding, and aggregate
  * extrema/Boolean combination are emitted directly. Those per-element bodies therefore have no

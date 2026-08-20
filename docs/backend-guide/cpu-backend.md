@@ -652,7 +652,7 @@ affine load/store, gather, scatter, masked tail, or speed claim.
 Lifecycle ownership remains unchanged. CPU analysis validates and composes the chain, chooses the
 scalar orchestration, and declares exactly the source and final result. Shared Prepare assigns
 those two slots without interpreting the affine plan. CPU finalization validates both assignments
-before current schema-35 artifact access and constructs one immutable executable. Cold binding validates
+before current schema-36 artifact access and constructs one immutable executable. Cold binding validates
 the exact data type, carrier, byte size, alignment, accessibility, output writability, canonical
 BOOL input bytes, and source/result non-overlap. Runtime then invokes only the prepared direct
 carriers, address table, and `start`/`end` bounds; it receives no operation, graph node, Shape,
@@ -703,7 +703,7 @@ callback, or per-element allocation in generated code.
 
 Movement uses scalar compute and either single-thread or deterministic parallel orchestration.
 Parallel chunks are safe because output injectivity proves disjoint writes. Vector preference
-falls back to scalar for this family. CPU finalization realizes current schema-35 generated artifacts;
+falls back to scalar for this family. CPU finalization realizes current schema-36 generated artifacts;
 cold binding validates complete input/output spans and rejects every output/input overlap before
 execution. The scalar reference consumes the same movement IR and compact geometry for
 differential tests, not as a Runtime fallback.
@@ -716,7 +716,7 @@ UNFOLD2D, and SLICE_UPDATE retain family-specific integer coordinate/address sta
 lets PAD, CONCAT, UNFOLD_AXIS, UNFOLD2D, and canonical-BOOL axis-zero STACK use bounded primitive geometry and address/coordinate
 cursors when cold invocation checks prove every geometry value, range, and transition, regardless
 of heap, segment, or mixed carrier choice. The original typed general-long form remains the
-fallback whenever those checks cannot prove the bounded form. Target schema-35 classes embed this
+fallback whenever those checks cannot prove the bounded form. Target schema-36 classes embed this
 work directly and contain no hidden Synaptik runtime call.
 
 TILE wraps each source coordinate by its own input-axis extent. An outer source coordinate advances
@@ -831,7 +831,7 @@ injectivity, and output/input non-overlap checks still run.
 
 CPU analysis declares each distinct gather input `ValueId` once in semantic first-use order and
 then one separate output; one-hot declares indices and output. Every indexing plan has one unit,
-no materialization, no workspace, one current schema-35 generated class artifact, one prepared
+no materialization, no workspace, one current schema-36 generated class artifact, one prepared
 executable, and one bound invocation. The generated class embeds carrier-, type-, family-, and
 access-specialized output loops rather than delegating through a generic carrier bridge. Proved
 dense heap arrays use integer loop/address state; segment, mixed-carrier, and general-layout forms
@@ -839,7 +839,7 @@ retain typed long-address traversal. The artifact owns only output writing. Comp
 geometry retains layout and coordinate facts without a per-index or per-output table, while the
 bound executable owns run-value validation. Shared Prepare assigns declared buffers opaquely,
 and Runtime sees only the prepared executable and direct carriers. Schema 24 introduced these
-embedded indexing bodies; current schema 35 retains them, while older artifacts are incompatible
+embedded indexing bodies; current schema 36 retains them, while older artifacts are incompatible
 misses and there is no migration reader.
 
 Current indexing support ends at these four one-node, fully static operations. Functional
@@ -1104,13 +1104,13 @@ independent primitive-index insertion implementation for differential evidence; 
 Runtime fallback.
 
 Schema 27 introduced the complete carrier-, represented-type-, family-, direction-, output-,
-and access-specialized ordering body, which current schema 35 retains. It uses a stable bottom-up
+and access-specialized ordering body, which current schema 36 retains. It uses a stable bottom-up
 merge over the two assigned
 INT64 scratch regions, selecting the left logical index on equality. Dense heap-array forms use
 cold-proved integer loop and address state. Arbitrary supported layouts and heap, segment, or
 mixed carrier forms use typed long-address access; values and indices are stored without a
 generic `Object` execution bridge or runtime family dispatch. Schema 27 and every earlier
-envelope are incompatible misses and are regenerated under schema 35; no migration reader is
+envelope are incompatible misses and are regenerated under schema 36; no migration reader is
 provided.
 
 The retained fixed five-fork evidence compares dense FLOAT32 schema-27 generated entries with
@@ -1215,7 +1215,7 @@ probability bits, ordered boundary roles and carriers, and zero-scratch shape. C
 slots, carriers, workers, and ranges remain cold when they do not change emitted bytes. There is
 no migration reader for old artifacts. Schema 28 is the first version whose random entries embed
 the direct typed initializer and FLOAT64/FLOAT32 dropout bodies. A schema-27 envelope is an
-incompatible safe miss: cold finalization regenerates and may publish current schema-35 bytes
+incompatible safe miss: cold finalization regenerates and may publish current schema-36 bytes
 after shared slot assignment rather than loading, converting, or aliasing the old bridge class.
 
 Retained observational evidence for the fixed dense heap-array shape `[64,16384]`, probability
@@ -1439,6 +1439,22 @@ not short-circuit repeated reads; unproved geometry retains the typed general-lo
 five-fork generated/direct ratios were `0.307561645x`, `0.306641529x`, `0.304177560x`,
 `0.306305081x`, and `0.307136502x`. This is evidence only for the retained shape and environment,
 not every ANY reduction.
+
+Schema 36 adds two runtime-guarded numerical forms without changing aggregate resources or
+semantics. The frozen FLOAT32 MEAN form reduces axis one of Shape `[128, 2048]`; each output cell
+visits exactly 2,048 factors, keeps the exact five-limb state in primitive locals, writes the
+identical final state to its assigned 48-byte run-owned workspace slice, and performs the exact
+division by `2^11` during extraction and ties-to-even rounding. The frozen BFLOAT16 PROD form
+reduces axes `[0, 2]` of Shape `[4, 16384, 4]`; it preserves the exact product-state transitions
+and four-by-four logical factor order while using primitive geometry cursors. Both forms accept
+arbitrary legal output-cell subranges, and a failed complete geometry/carrier guard enters the
+existing typed general-long body.
+
+The five-fork generated/direct ratios for the MEAN form have median `0.973095585x` and maximum
+`0.995106956x`; the PROD form has median `1.022472818x` and maximum `1.084500356x`. The same five
+processes retained passing vector-segment, integral-mixed, and ARGSORT controls. Every process
+remained nonzero only because seven explicitly deferred diagnostic rows exceeded the gate, so
+this evidence closes the two fixed numerical rows rather than the complete twenty-row corpus.
 
 The local CPU 0007A0 parity probe is evidence for the current generated code shape, not a
 hardware-universal speed guarantee or production selector. On Java 26.0.1, macOS 26.5.2,
@@ -1944,7 +1960,7 @@ execution covers every admitted row; parallel-scalar orchestration is available 
 affine, movement, scatter, fold, ordering, random-element, whole-scan-slice, and whole-aggregate-
 output-cell ranges; and the
 pointwise family retains its exact typed value-vector and virtual-mask parity matrix. Generator
-schema 35 distinguishes pointwise,
+schema 36 distinguishes pointwise,
 affine, movement, indexing, scatter, fold, ordering, random, scan, and aggregate structures,
 including movement occurrence order,
 unequal-rank access, exact
@@ -1957,8 +1973,9 @@ identity, ordinary aggregate form/axis/selection/range identity, embedded typed 
 bodies, schema-29 exact floating aggregate state and direct numerical bodies, schema-30 direct
 covered scalar activation/BFLOAT16 scan/extrema/Boolean formulas, proved dense heap-array integer
 pointwise/affine/movement/indexing/scatter/fold loop forms, and the affine
-mapping/write domain and all seven carrier forms. Schema 35 adds only the guarded frozen-shape
-FOLD2D and dropout forms described above, with typed general-long fallbacks. No excluded pointwise
+mapping/write domain and all seven carrier forms. Schema 35 adds the guarded frozen-shape FOLD2D
+and dropout forms described above. Schema 36 adds the guarded FLOAT32 MEAN and BFLOAT16 PROD forms,
+with exact run-owned state and typed general-long fallbacks preserved. No excluded pointwise
 or later semantic family,
 general BFLOAT16 pointwise or dropout numerical operation,
 cross-type CAST, dynamic layout, vector affine/scatter/fold/ordering execution, native fallback, backend-conformance
