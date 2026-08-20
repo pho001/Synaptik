@@ -30,6 +30,13 @@ remain distinct compile-time state.
 
 The model does not know backend support, device residency, kernel selection, backend-specific storage, prepared execution, or runtime state. `Operation` expresses semantics and never exposes `supportedBackends()`. Runtime device storage belongs outside this module.
 
+The planned fixed recurrent scan follows this same flat Model boundary. Model owns the fixed
+`RNN_TANH`, `GRU_RESET_AFTER`, and `LSTM` meanings, one `FORWARD` or `REVERSE` attribute, ordered
+ordinary Tensor inputs, fully static descriptor rules, canonical dense output and final-state
+wrappers, and the future Tensor receiver methods. It owns no callback body, nested graph, region,
+captured free variable, runtime length inspection, hidden state, or execution loop. The exact
+surface remains planned until Model task 0025E is implemented.
+
 ### `modules/config`
 
 Owns immutable declarative compile, prepare, run, publication, planning-cost, and model-autotuning
@@ -48,6 +55,10 @@ Planning may interpret a backend-neutral cost model to choose `BackendId` owners
 interprets route names, vector species or lanes, unroll factors, thread counts, chunks, tiles, or
 other backend parameter vocabulary.
 
+The planned fixed recurrent scan enters Planning through the unchanged ordinary operation
+capability query. Planning selects an owner but does not interpret cell variant, direction,
+valid-length values, active rows, loop bounds, or a recurrent execution route.
+
 See [Partition Scoring](partition-scoring.md).
 
 ### `modules/compiler`
@@ -59,6 +70,12 @@ optimization, publication binding, planning orchestration, compile diagnostics, 
 `CompileArtifacts`.
 
 Its output is immutable compile-time state. It does not create physical buffers, backend executables, runtime workspaces, prepared schedules, or `PreparedExecution`, and it has no concrete backend dependencies.
+
+For the planned fixed recurrent scan, Compiler must capture exactly one ordinary flat node,
+perform descriptor inference and validation, and add the exact signatures to its closed forward
+inventory. Until a separate backpropagation-through-time (BPTT) design is adopted, every
+backward-capable request reaching that family fails before any gradient Tensor is constructed.
+Compiler does not unroll the recurrence into `time` nodes and does not create a body graph.
 
 ### `modules/runtime`
 
@@ -77,6 +94,11 @@ the graph for tuning, or access or mutate tuning caches. Runtime profiling is pa
 translated into typed trace data; it cannot change settings. The hot path does not use
 `Operation` or `CompiledNode`.
 
+For the planned fixed recurrent scan, Runtime receives only ordinary caller-input
+representations, one reusable prepared executable recipe, cold-bound direct references, and an
+isolated `RunState`. It does not inspect the valid-length value, interpret direction or
+recurrence, choose loop bounds, or compact active rows.
+
 ### `modules/prepare`
 
 Owns shared preparation orchestration and validation: `PrepareContext`,
@@ -86,11 +108,21 @@ prepared memory validation, and prepared schedule validation.
 
 Prepare bridges compile artifacts to runtime contracts, but shared prepare code does not contain concrete CPU, Metal, or CUDA lowering, kernel selection, executable implementations, or backend-specific storage. Those belong to concrete backend modules.
 
+The planned fixed recurrent scan needs no shared loop-body contract. Prepare projects one
+ordinary static-Shape partition occurrence, accepts the backend's opaque one-time recurrent-loop
+analysis and exact resource declarations, assigns slots, and supplies those assignments for
+finalization through the existing staged lifecycle.
+
 ### `modules/engine`
 
 Owns the public lifecycle facade and composition root. It wires the compiler, prepare validators and orchestration, runtime, trace sinks, and explicitly registered concrete backends.
 
 Engine does not own kernels, backend internals, graph optimization passes, a runtime service locator, or reflective plugin discovery as the core backend mechanism. Concrete backends never depend on engine.
+
+For a future runnable recurrent scan, Engine owns the checked typed mapping from the logical input
+Tensors, including `INT64[batch]` valid lengths, to ordered Runtime caller-input representations
+and from publication positions to typed outputs. A length value never causes graph capture,
+specialization, or preparation to repeat.
 
 ## Concrete backend modules
 
@@ -108,6 +140,13 @@ Concrete backend logic belongs in the backend that implements it:
   those kernels.
 - MPSGraph and custom Metal kernels, Metal storage, and native bridges belong to `backends/metal`.
 - CUDA lowering, kernels, storage, and native integration belong to `backends/cuda`.
+
+A backend that implements fixed recurrent scan advertises only the exact variant, floating type,
+fully static Shape, and direction combinations it executes. Analysis lowers one ordinary node to
+one bounded recurrent-loop plan and declares all resources before slot assignment; finalization
+constructs the reusable executable. Before output mutation, execution validates every length in
+`[0, time]`. Invalid coordinates perform no recurrent dot products, gates, or state update, but
+the first capability makes no active-row-compaction or packed-memory promise.
 
 Concrete backends also own typed, version-controlled, tested candidate generators beside their
 routes, compatible workload-cache lookup during preparation, and safe heuristic fallback. Shared
@@ -132,6 +171,12 @@ propagation belongs here rather than in an optimizer.
 own autograd construction, optimizer algorithms, training-step orchestration, backend storage,
 kernel selection, or concrete backend dependencies.
 
+The existing static RNN, GRU, LSTM, and bidirectional containers retain their snapshotted Java
+`long[]`, static unroll, compact per-step output, and final-state contracts. NN does not own the
+fixed scan operation or its prepared loop, and no existing container is silently redirected to
+it. Runtime-length API and compatibility migration remain a later NN decision after the complete
+Model, Compiler, Engine, and concrete-backend path is executable.
+
 ### `extensions/training`
 
 Owns training concepts and optimizer algorithms such as `Optimizer`, `Sgd`, `Adam`, `AdamW`,
@@ -143,6 +188,10 @@ The dependency direction is `modules/model -> extensions/nn -> extensions/traini
 must not depend on concrete backend modules. A fused Adam route on Metal, for example, is a Metal
 backend prepare/kernel concern rather than a `MetalOptimizerBridge` in training. See [Training
 Graph](training-graph.md).
+
+Training does not own fixed recurrent execution, valid-length handling, or backpropagation through
+time. Compiler owns the later BPTT decision and gradient construction; Training remains the
+consumer of published gradients and owner of optimizer orchestration.
 
 ### `extensions/onnx`
 

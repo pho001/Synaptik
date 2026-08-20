@@ -19,6 +19,7 @@ Decision records are retrospective summaries of rules present in the architectur
 - [ADR 0009: Compiler-owned pre-capture Tensor-expression autograd](decisions/0009-compiler-owned-pre-capture-tensor-expression-autograd.md)
 - [ADR 0010: Staged backend preparation](decisions/0010-staged-backend-preparation.md)
 - [ADR 0011: Per-run Runtime resource ownership and cold binding](decisions/0011-per-run-runtime-resource-ownership.md)
+- [ADR 0012: Fixed recurrent scan without graph regions](decisions/0012-fixed-recurrent-scan-without-regions.md)
 
 ## Design notes
 

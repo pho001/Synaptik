@@ -23,6 +23,7 @@ Focused architecture documentation:
 - [Runtime / Prepare / Backend boundary](runtime-prepare-backend-boundary.md)
 - [ADR 0010: Staged backend preparation](../design/decisions/0010-staged-backend-preparation.md)
 - [ADR 0011: Per-run Runtime resource ownership and cold binding](../design/decisions/0011-per-run-runtime-resource-ownership.md)
+- [ADR 0012: Fixed recurrent scan without graph regions](../design/decisions/0012-fixed-recurrent-scan-without-regions.md)
 
 ## Status
 

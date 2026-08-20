@@ -151,6 +151,50 @@ analysis. A future fact may remain run-dynamic only when an explicit prepared co
 it without changing the selected route, declared resources, or slot assignment. The current
 repository has no such run-dynamic fact contract.
 
+## Planned fixed recurrent scan handoff
+
+The fixed recurrent scan is the first planned use of an ordinary caller input whose values alter
+bounded backend control flow while its Shape and the complete resource geometry stay static. The
+valid-length Tensor is fully static rank-one `INT64[batch]`; only its per-run values vary. It does
+not make `time`, `batch`, feature dimensions, parameter Shapes, output Shapes, route selection, or
+slot requirements dynamic.
+
+```text
+Planning: one ordinary operation capability query and owner
+  -> Prepare: one static partition projection
+  -> backend analysis: one recurrent-loop plan plus exact resources
+  -> shared assignment
+  -> backend finalization: one reusable PreparedExecutable
+  -> Engine: typed logical input/publication binding
+  -> Runtime: invoke one cold-bound action
+```
+
+Planning does not interpret variant, direction, valid lengths, active rows, loop parameters, or a
+backend route. Shared Prepare adds no body, region, loop, or callback contract. Backend analysis
+may retain the fixed transition and loop geometry in its opaque plan, but it must declare every
+shared resource before assignment and must not create one executable body per time step.
+Finalization constructs one reusable executable for the compatible static descriptors.
+
+Engine, not Runtime, owns typed mapping of logical caller inputs to the ordered Runtime
+representations and typed output publication. Runtime sees only its existing prepared recipes,
+slots, representations, cold-bound invocations, schedules, and isolated `RunState`. Runtime does
+not inspect the length Tensor, select loop bounds, compact active rows, dispatch an operation, or
+interpret recurrence.
+
+The concrete backend validates the entire length vector and representation-specific access
+preconditions before mutating any output representation. Each value must be in `[0, time]`.
+Execution then writes original-time-aligned hidden outputs, exact positive zero for every padded
+coordinate, and explicit final hidden and LSTM cell states. It traverses only valid prefixes in
+`FORWARD` or `REVERSE` order and performs no recurrent arithmetic for invalid coordinates.
+Branch-based skipping satisfies the first contract; physical active-row compaction, packed
+batches, and stronger memory-work claims remain deferred.
+
+No current shared contract changes merely to name this operation. If implementation later proves
+that a selected backend cannot preserve static route and resource decisions across compatible
+valid-length values, it must expose the exact gap for a new architecture decision instead of
+adding speculative control-flow state to Prepare or Runtime. See
+[ADR 0012](../design/decisions/0012-fixed-recurrent-scan-without-regions.md).
+
 ## What prepare creates
 
 The complete architecture prepare lifecycle creates:

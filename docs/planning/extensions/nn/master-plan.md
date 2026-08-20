@@ -203,8 +203,9 @@ configurable merge, and another `ModuleFactory` recipe remain outside it.
 | [0020A](tasks/0020a-initialized-embedding.md) | Initialized Embedding | Complete | 0020; current Embedding and tokenizer/schema boundaries | Added one eager initialized constructor to the existing final `Embedding` with explicit positive vocabulary size, embedding size, floating type, common `ParameterInitialization`, and seed. Random policies use the documented standard PRNG; zero/one use no RNG. Every table row is an ordinary trainable row: padding identity and valid lengths remain future Text/Data schema, with no padding index or frozen-row contract. |
 | [0020B](tasks/0020b-stateless-standard-module-factory.md) | Stateless standard ModuleFactory | Complete | 0020–0020A | Added one final instance-field-free standard recipe namespace: `embedding`/`linear` return `Embedding`/`Linear`, while `rnn`/`gru`/`lstm` return the concrete matching Sequence with Cell assembly hidden. Every call creates a fresh module and takes explicit per-layer type/`ParameterInitialization`/seed; standard Linear selects exact `L64X128MixRandom`. `Topology.addModule` remains the sole owner, and advanced direct constructors retain caller-controlled random sources/factories. |
 | [0020C](tasks/0020c-bidirectional-static-recurrent-composition.md) | Type-safe bidirectional static recurrent composition | Complete | 0020–0020B; stable static sequence/result and Model gather/composition contracts | Added separate concrete RNN/GRU/LSTM containers with independent `forward`/`backward` cells, parameter trees, and seeds; reversed only each valid prefix with `GATHER_ND`; realigned backward outputs to original time/batch order; merged exact forward then backward hidden features by fixed final-axis `CONCAT`; and returned type-specific directional final hidden plus LSTM cell states. One cell shares weights only across time within its own direction. |
-| 0021 | Runtime recurrent scan/control-flow prerequisite program | Draft | 0020C; explicit cross-module architecture decision and Model/Compiler/Prepare/Runtime/Engine/backend support | Establish a fixed recurrent body/node plus runtime input-binding and execution contracts before NN exposes a new valid-length recurrent API; specific length values must not specialize Model topology or compiled graph structure, and the design must preserve the selected directional/state contracts. |
-| 0022 | Valid-length recurrent API and Data integration | Draft | 0021; Data 0001–0002 architecture and valid-length contracts | Consume Data-owned runtime valid lengths through the proven scan, derive zero states as selected, and deliberately migrate or retain the current static `long[]` compatibility contracts without presenting a host adapter as the target API. |
+| [0021A](tasks/0021a-fixed-recurrent-scan-architecture-decision.md) | Fixed recurrent-scan architecture decision | Complete | 0020C; current flat Model/Compiler graph, Prepare, Runtime, and Engine contracts | Accepted one fixed first-class recurrent operation family as an ordinary flat multi-output Model node, explicitly rejected a user-defined body/region abstraction at this frontier, and fixed its inputs, outputs, static-Shape boundary, lifecycle ownership, failure, differentiation, execution, performance, and migration contracts before any API is published. |
+| 0021B | Fixed recurrent-scan implementation program | Draft | 0021A; Model 0025E; Compiler 0006A; Engine 0001–0002; truthful concrete-backend coverage | Implement the decided operation in owner order through Model semantics, Compiler forward adoption with backpropagation-through-time fail-closed initially, ordinary Planning/Prepare/Runtime handoff, Engine caller-input binding, and backend execution; specific valid-length values must not change Model topology or compiled graph structure. |
+| 0022 | Valid-length recurrent API and Data integration | Draft | 0021B; Data 0001–0002 architecture and valid-length contracts | Consume Data-owned runtime valid lengths through the proven scan, derive zero states as selected, and deliberately migrate or retain the current static `long[]` compatibility contracts without presenting a host adapter as the target API. |
 | 0023 | Arbitrary dense validity-mask semantics | Draft | 0022; concrete attention/loss/recurrent consumer | Reassess an explicit Boolean mask only for validity patterns with holes; keep it derived or separately supplied for that consumer, never a second stored representation of ordinary right padding, and never a claim of skipped recurrent work. |
 | 0024 | Typed model/recurrent/data integration checkpoint | Draft | 0020–0022; 0023 only if selected; Checkpoint model-state and Training publication readiness | Validate model state paths, automatic-initialization/checkpoint compatibility, variable-batch behavior, recurrent continuation, autograd/training handoff, documentation, and integration without moving persistent checkpoint I/O into NN. |
 
@@ -484,8 +485,11 @@ and diff gates. Detailed
 earlier broad directional row to the two distinct traversal orders of one
 static time axis and fixed concrete family APIs, independent child/state/seed ownership,
 valid-prefix reverse coordinates, original-time alignment, ordered `CONCAT`, directional final
-states, validation/effect/Tensor-ID order, and bounded graph-construction costs. NN 0021–0024
-remain concise Draft rows without task files.
+states, validation/effect/Tensor-ID order, and bounded graph-construction costs. Detailed
+[NN 0021A](tasks/0021a-fixed-recurrent-scan-architecture-decision.md) is `Complete`. It is
+architecture/documentation-only and does not authorize Model, Compiler, Engine,
+Runtime, backend, or NN API implementation. NN 0021B–0024 remain concise Draft rows without later
+task files.
 The first full NN run exposed one stale `ModelTest` assertion that the named-child primitive was
 not protected. The coordinator authorized that exact existing surface assertion as task 0020C's
 seventeenth path because protected visibility is already required for the direct layer subclass;
@@ -498,7 +502,8 @@ affected Javadocs, package documentation, Training API, glossary, task, and mast
 reused the frozen Java-test evidence; and passed final warning-free NN Javadoc/generated-page,
 public/protected surface, reflection, external-use, import/dependency, forbidden-mechanism,
 Markdown, exact seventeen-path, status/frontier, newline, no-index, whitespace, and diff gates.
-NN 0021–0024 remain Draft rows without task specifications, and no NN task is Ready or In progress.
+NN 0021A is Complete with accepted ADR 0012 and synchronized architecture evidence. NN
+0021B–0024 remain Draft without task specifications, and no NN task is Ready or In progress.
 Concurrent CPU/backend planning and global-roadmap changes remain outside this NN planning scope.
 
 The proposed Data, Text, Vision, and Checkpoint master plans are also Draft: their modules do not
@@ -519,15 +524,18 @@ value eagerly to one explicit complete Embedding table and selects no padding in
 row: every row is ordinary trainable state. NN 0020B can then provide only
 stateless standard construction recipes; and completed NN 0020C fixed independent directional
 ownership, reverse-valid-prefix traversal, forward-first final-axis `CONCAT`, and type-specific
-final-state contracts. NN 0021 then
-coordinates the genuine recurrent scan/control-flow and runtime input-binding prerequisite across
-its owning Model, Compiler,
-Prepare, Runtime, Engine, and backend layers. Specific valid-length values influence runtime
-recurrence behavior and may permit inactive rows/steps to be skipped, but must not change Model
-topology or compiled graph structure. Only then may NN 0022 add the new Data-owned valid-length
-recurrent API. Current static `long[]` sequence containers remain truthful compatibility/legacy
-contracts until that deliberate migration; no new host-static adapter is the target API. Dense
-masking alone still constructs full recurrent cell work and cannot satisfy the skipping goal.
+final-state contracts. NN 0021A first resolves the architecture question without inventing a
+region system: the selected direction is one fixed first-class recurrent operation family whose
+mathematical transition is part of the operation semantics and whose occurrence is one ordinary
+flat multi-output producer/node. NN 0021B then coordinates implementation through its owning
+Model, Compiler, Engine, and concrete-backend layers while reusing the current ordinary Planning,
+Prepare, and Runtime contracts unless implementation evidence proves a separate gap. Specific
+valid-length values influence runtime recurrence behavior and may permit inactive rows/steps to
+be skipped, but must not change Model topology or compiled graph structure. Only then may NN 0022
+add the new Data-owned valid-length recurrent API. Current static `long[]` sequence containers
+remain truthful compatibility/legacy contracts until that deliberate migration; no new host-
+static adapter is the target API. Dense masking alone still constructs full recurrent cell work
+and cannot satisfy the skipping goal.
 
 The ordered follow-up sequence is deliberate. `Embedding` is another mode-insensitive
 parameter-only wrapper. `BatchNorm` follows it as the first layer that must coordinate parameters,

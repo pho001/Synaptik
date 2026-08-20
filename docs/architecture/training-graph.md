@@ -80,6 +80,26 @@ explicit create-graph or derivative-order request, rules for every operation use
 formulas, and a graph representation that distinguishes derivative order from forward/backward
 phase. No such extension may add mutable gradient state to Tensor.
 
+## Fixed recurrent scan and the initial BPTT boundary
+
+The planned fixed recurrent scan is an ordinary flat multi-output forward occurrence, not a
+nested training graph. Model task 0025E will own only its fixed forward meanings and canonical
+outputs. Compiler task 0006A must adopt forward capture, inference, validation, and the exact
+closed operation inventory while rejecting every backward-capable request that reaches the scan
+before constructing any gradient Tensor.
+
+Backpropagation through time (BPTT) therefore remains unsupported even though output gradient
+eligibility is derived from differentiable floating inputs, states, and parameters. The runtime
+`INT64[batch]` valid-length input is always non-differentiable and never contributes a gradient.
+The fail-closed rule avoids a partially constructed backward expression and prevents a backend
+from becoming the owner of global autograd.
+
+This decision selects no saved-gate outputs, tape, checkpointing policy, recomputation policy,
+backward operation, derivative formula, or physical saved-state representation. A later Compiler
+architecture and implementation task must choose those contracts after the forward executable
+path is stable. Until then, `FORWARD_ONLY` is the only compile mode that may adopt the planned
+family. See [ADR 0012](../design/decisions/0012-fixed-recurrent-scan-without-regions.md).
+
 ## Optimizer as a backend-agnostic step
 
 `extensions/nn` owns the model-module side of a training step: modules declare their trainable

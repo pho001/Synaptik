@@ -96,6 +96,7 @@ cross-package/public orchestration boundary from a concrete consumer.
 | 0005D | [Attention, convolution, pooling, and loss gradient completion](tasks/0005d-attention-convolution-pooling-and-loss-gradient-completion.md) | Complete | 0005B, 0005C | Verified the implemented MATMUL/linear chain and completed the representable structured-ML inventory: two-output attention with canonical weights, grouped convolution, pooling, and every current loss role/reduction mode; one-output attention and dynamic/zero-depth index loss fail closed. |
 | 0005E | [First-order gradient coverage closure checkpoint](tasks/0005e-first-order-gradient-coverage-closure-checkpoint.md) | Complete | 0005A, 0005B, 0005C, 0005D | Added one package-private coverage checker; closed all current 37 kind families, 107 constants, 128 signature variants, legal output slots, and ordered input roles as differentiable, intentionally non-differentiable, or explicitly fail-closed; and proved bounded transitive and connected nested-pass formula closure at the first-order capability checkpoint. |
 | 0006 | [Explicit functional gradient requests and higher-order differentiation](tasks/0006-explicit-functional-gradient-requests-and-higher-order-differentiation.md) | Complete | 0005E and the stable public compile/artifact boundary from 0005 | Added one public immutable one/two-stage functional request, explicit/default cotangent seeds, ERROR/ZERO disconnected behavior, ordered `GradientPublicationBinding` values, and compiler-owned derivative-order metadata over the closed first-order formula matrix without Tensor gradient lifecycle state or another compile facade. |
+| 0006A | Fixed recurrent-scan forward adoption and explicit BPTT boundary | Draft | accepted NN 0021A architecture decision; Model 0025E; 0006 | Capture the ordinary flat multi-output recurrent node, infer and validate its fixed static descriptors and runtime-length role, preserve normal publication/planning, update the closed operation inventory, and fail backward-capable compilation closed until a later explicit backpropagation-through-time task is selected. |
 | 0007 | Exact constant identities and permission-aware algebra | Draft | 0006; Config 0006 before any relaxed rule | Reassess remaining graph-level exact constant/algebra identities and any explicitly permitted relaxed rewrites without changing completed 0001–0006 history: preserve current guarded scalar `POW(+1) -> input`, require complete exceptional-value/constant-sidecar/output/publication/phase/autograd/descriptor proof before an exact `POW(0)` typed shape-correct one-splat, and never infer Tensor constants from storage or factory history. |
 
 Tasks 0005A–0005D partition the complete current model operation inventory without claiming that
@@ -130,12 +131,15 @@ higher-order path without implementing higher-order requests before 0006.
   for task 0006.
 - Explicit functional and bounded higher-order gradients — Complete through
   [task 0006](tasks/0006-explicit-functional-gradient-requests-and-higher-order-differentiation.md).
+- Fixed recurrent-scan forward adoption and explicit BPTT boundary — future Draft task 0006A,
+  after the accepted NN 0021A decision and Model 0025E.
 
 ## Current status
 
 Complete through task 0006. Tasks 0001–0006 are Complete with recorded source, tests,
-documentation, and validation. Draft task 0007 records later work without a detailed
-specification. Compiler 0004, 0004A, and 0004B are Complete with
+documentation, and validation. Draft tasks 0006A and 0007 record later work without detailed
+specifications; 0006A follows the accepted NN 0021A architecture decision and depends on Model
+0025E. Compiler 0004, 0004A, and 0004B are Complete with
 recorded source, tests, documentation, and validation.
 [Compiler 0004B](tasks/0004b-shared-algebra-cotangent-normalization-and-local-derivative-rules.md)
 adds the closed mixed-floating cotangent
@@ -251,7 +255,9 @@ higher-order work. The sequence first resolves elementwise/activation derivative
 formula foundations, then reductions/scans/softmax/statistics/normalization, then dynamic layout/
 window/indexing/scatter/ordering/stochastic families, then structured attention/convolution/
 pooling/loss families, and finally one source-backed coverage checkpoint. Tasks 0005A–0005E are
-Complete. Detailed task 0006 is also Complete; no later compiler task is specified.
+Complete. Detailed task 0006 is also Complete. Task 0006A is a concise Draft row for the later
+fixed recurrent-scan forward adoption and fail-closed BPTT boundary; it has no detailed task
+specification.
 
 This reordering preserves completed history. Tasks 0003, 0003A, and 0003B were correctly completed
 for a forward-only immutable graph. Compiler 0004 reused their existing exact rules only where
@@ -261,8 +267,9 @@ changed candidate through task 0002. It adds no new algebra.
 
 Config 0004 remains Draft because these compiler transformations require no planning-cost
 classification. Trace 0003 and later remain Draft because no stable emission schema is selected.
-Compiler introduces no prepared or executable state. The post-0006 frontier reassessment advances
-only Runtime 0001; Prepare remains Draft.
+Compiler introduces no prepared or executable state. The historical post-0006 frontier
+reassessment advanced only Runtime 0001. The later NN 0021A architecture decision now precedes
+Draft Compiler 0006A; it does not reopen Prepare or move recurrent execution into Compiler.
 
 ## Open questions
 
@@ -467,5 +474,6 @@ implementation/documentation handoff. Detailed 0005D and
 [0005E](tasks/0005e-first-order-gradient-coverage-closure-checkpoint.md) are Complete. Detailed
 [0006](tasks/0006-explicit-functional-gradient-requests-and-higher-order-differentiation.md) is
 Complete with the approved forward/gradient publication-binding terminology correction;
-Draft 0007 is the concise later row for remaining exact identities and permission-aware algebra.
-It has no detailed task specification.
+Draft 0006A is the concise later row for recurrent-scan forward adoption and the explicit
+fail-closed BPTT boundary, while Draft 0007 retains remaining exact identities and permission-aware
+algebra. Neither has a detailed task specification.

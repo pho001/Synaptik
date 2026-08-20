@@ -113,6 +113,43 @@ checked dynamically. It creates backend-owned typed objects with direct referenc
 path. Execution therefore needs no map lookup, reflection, string dispatch, graph inspection,
 service lookup, or repeated unsafe cast.
 
+## Planned fixed recurrent scan through the lifecycle
+
+The fixed recurrent scan is a planned ordinary Model operation whose runtime `INT64[batch]`
+valid-length values may change while every Shape remains fully static. It is not implemented yet.
+The architecture reads left to right as follows:
+
+```text
+one flat multi-output TensorProducer
+  -> one flat CompiledNode
+  -> one ordinary capability and ownership decision
+  -> one backend analysis and exact resource declaration
+  -> one finalized reusable PreparedExecutable
+  -> one cold-bound invocation per RunState
+  -> one backend-internal bounded recurrent loop
+```
+
+Model fixes `RNN_TANH`, `GRU_RESET_AFTER`, and `LSTM`, `FORWARD` or `REVERSE`, ordered inputs and
+outputs, static descriptor rules, and dense original-time-aligned zero-filled padded results.
+Compiler adopts the occurrence as one node and initially fails every backward-capable request that
+reaches it before constructing a gradient Tensor. Planning treats it as one ordinary capability
+query. Shared Prepare projects its static facts and assigns the resources declared by backend
+analysis; it does not receive a loop body. Engine cold-binds the typed logical inputs, including
+the runtime length Tensor, to Runtime caller-input representations. Runtime invokes the prepared
+bound action and never interprets direction, length values, active rows, recurrence, or graph
+state.
+
+The concrete backend validates the complete length vector before mutating any output
+representation. It traverses only each row's valid prefix, writes exact positive zero at padded
+coordinates, returns explicit final hidden and LSTM cell states, and skips recurrent arithmetic
+for invalid coordinates. `REVERSE` traverses `L[b]-1 .. 0`, not the padded suffix. A zero-length
+row returns its initial states semantically; a zero-time input requires all lengths to be zero.
+
+One occurrence and one prepared transition remain constant in graph size as `time` grows. A
+backend-internal row/time loop does not create nested graph identity. Physical active-row
+compaction and backpropagation through time (BPTT) remain later owner-specific decisions. See
+[ADR 0012](../design/decisions/0012-fixed-recurrent-scan-without-regions.md).
+
 ## State scenario
 
 Suppose one compiled graph is prepared once for CPU and then run concurrently twice with different
