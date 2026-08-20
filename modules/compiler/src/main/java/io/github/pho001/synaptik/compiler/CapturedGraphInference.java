@@ -24,6 +24,7 @@ import io.github.pho001.synaptik.model.operation.normalization.*;
 import io.github.pho001.synaptik.model.operation.ordering.*;
 import io.github.pho001.synaptik.model.operation.pooling.Pool2dKind;
 import io.github.pho001.synaptik.model.operation.random.*;
+import io.github.pho001.synaptik.model.operation.recurrent.RecurrentScanKind;
 import io.github.pho001.synaptik.model.operation.reduction.AggregateReductionKind;
 import io.github.pho001.synaptik.model.operation.scan.CumulativeScanKind;
 import io.github.pho001.synaptik.model.tensor.TensorDescriptor;
@@ -177,6 +178,9 @@ final class CapturedGraphInference {
                 || kind instanceof Conv2dKind || kind instanceof Pool2dKind || kind instanceof LossKind
                 || kind instanceof GraphRngKind || kind instanceof DropoutKind) {
             return StructuredOperationInference.infer(operation, inputs, outputCount);
+        }
+        if (kind instanceof RecurrentScanKind) {
+            return RecurrentScanInference.infer(operation, inputs, outputCount);
         }
         throw new IllegalArgumentException(context + "unsupported operation kind");
     }

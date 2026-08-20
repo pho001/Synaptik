@@ -13,6 +13,7 @@ validation, exact graph transformation, compiler-owned autograd, and planning or
 - [Module boundaries](../../../architecture/module-boundaries.md)
 - [Dependency rules](../../../architecture/dependency-rules.md)
 - [ADR 0009](../../../design/decisions/0009-compiler-owned-pre-capture-tensor-expression-autograd.md)
+- [ADR 0012](../../../design/decisions/0012-fixed-recurrent-scan-without-regions.md)
 
 ## Scope
 
@@ -21,6 +22,7 @@ validation, exact graph transformation, compiler-owned autograd, and planning or
 - canonicalization and exact graph optimization
 - compiler-owned pre-capture Tensor-expression autograd
 - combined forward/backward graph construction
+- fixed recurrent-scan forward-only capture, inference, validation, and ordinary Planning handoff
 - complete valid backend-neutral graph-transformation candidates for later bounded model tuning
 - publication, planning, logical memory orchestration, and diagnostics
 
@@ -47,6 +49,8 @@ validation, exact graph transformation, compiler-owned autograd, and planning or
   backward-capable modes.
 - Compiler owns graph-candidate semantics and validity; tuning may measure bounded complete
   candidates but does not construct or reinterpret them.
+- Each fixed recurrent-scan producer remains one identity-distinct ordinary flat compiled node;
+  backward-capable requests remain fail-closed until a later explicit BPTT decision.
 
 ## Allowed dependencies
 
@@ -69,7 +73,9 @@ io.github.pho001.synaptik.compiler/
           folding, DCE/CSE orchestration, named Tensor-expression gradient rules, reverse
           accumulation, combined-graph gradient result roles, the current narrow public
           artifact/cross-package Planning boundary justified by Compiler 0005, and the bounded
-          public functional request/result/order contracts selected by Compiler 0006
+          public functional request/result/order contracts selected by Compiler 0006; dedicated
+          package-private recurrent inference remains in this package beside the other family
+          inference owners
 ```
 
 The root package remains one cohesive internal compiler-front-end boundary. It must not become a
@@ -96,7 +102,7 @@ cross-package/public orchestration boundary from a concrete consumer.
 | 0005D | [Attention, convolution, pooling, and loss gradient completion](tasks/0005d-attention-convolution-pooling-and-loss-gradient-completion.md) | Complete | 0005B, 0005C | Verified the implemented MATMUL/linear chain and completed the representable structured-ML inventory: two-output attention with canonical weights, grouped convolution, pooling, and every current loss role/reduction mode; one-output attention and dynamic/zero-depth index loss fail closed. |
 | 0005E | [First-order gradient coverage closure checkpoint](tasks/0005e-first-order-gradient-coverage-closure-checkpoint.md) | Complete | 0005A, 0005B, 0005C, 0005D | Added one package-private coverage checker; closed all current 37 kind families, 107 constants, 128 signature variants, legal output slots, and ordered input roles as differentiable, intentionally non-differentiable, or explicitly fail-closed; and proved bounded transitive and connected nested-pass formula closure at the first-order capability checkpoint. |
 | 0006 | [Explicit functional gradient requests and higher-order differentiation](tasks/0006-explicit-functional-gradient-requests-and-higher-order-differentiation.md) | Complete | 0005E and the stable public compile/artifact boundary from 0005 | Added one public immutable one/two-stage functional request, explicit/default cotangent seeds, ERROR/ZERO disconnected behavior, ordered `GradientPublicationBinding` values, and compiler-owned derivative-order metadata over the closed first-order formula matrix without Tensor gradient lifecycle state or another compile facade. |
-| 0006A | Fixed recurrent-scan forward adoption and explicit BPTT boundary | Draft | accepted NN 0021A architecture decision; Model 0025E; 0006 | Capture the ordinary flat multi-output recurrent node, infer and validate its fixed static descriptors and runtime-length role, preserve normal publication/planning, update the closed operation inventory, and fail backward-capable compilation closed until a later explicit backpropagation-through-time task is selected. |
+| 0006A | [Fixed recurrent-scan forward adoption and explicit BPTT boundary](tasks/0006a-fixed-recurrent-scan-forward-adoption-and-bptt-boundary.md) | Complete | accepted ADR 0012 and NN 0021A architecture decision; Model 0025E–0025F; 0001–0006 | Adopted each fixed RNN/GRU/LSTM producer as one identity-distinct ordinary flat forward node, independently inferred/final-validated exact static descriptors, preserved whole multi-output identity through optimization and ordinary publication/Planning handoff, and rejected every backward-capable forward inventory containing recurrence before derivative allocation while the exact three gradient signatures remain deferred. |
 | 0007 | Exact constant identities and permission-aware algebra | Draft | 0006; Config 0006 before any relaxed rule | Reassess remaining graph-level exact constant/algebra identities and any explicitly permitted relaxed rewrites without changing completed 0001–0006 history: preserve current guarded scalar `POW(+1) -> input`, require complete exceptional-value/constant-sidecar/output/publication/phase/autograd/descriptor proof before an exact `POW(0)` typed shape-correct one-splat, and never infer Tensor constants from storage or factory history. |
 
 Tasks 0005A–0005D partition the complete current model operation inventory without claiming that
@@ -131,15 +137,22 @@ higher-order path without implementing higher-order requests before 0006.
   for task 0006.
 - Explicit functional and bounded higher-order gradients — Complete through
   [task 0006](tasks/0006-explicit-functional-gradient-requests-and-higher-order-differentiation.md).
-- Fixed recurrent-scan forward adoption and explicit BPTT boundary — future Draft task 0006A,
-  after the accepted NN 0021A decision and Model 0025E.
+- Fixed recurrent-scan forward adoption and explicit BPTT boundary — Complete
+  [task 0006A](tasks/0006a-fixed-recurrent-scan-forward-adoption-and-bptt-boundary.md), after the
+  accepted ADR 0012/NN 0021A decision and completed Model 0025E–0025F prerequisites.
 
 ## Current status
 
-Complete through task 0006. Tasks 0001–0006 are Complete with recorded source, tests,
-documentation, and validation. Draft tasks 0006A and 0007 record later work without detailed
-specifications; 0006A follows the accepted NN 0021A architecture decision and depends on Model
-0025E. Compiler 0004, 0004A, and 0004B are Complete with
+Complete through task 0006A. Tasks 0001–0006A are Complete with recorded source, tests,
+documentation, and validation. Detailed
+[task 0006A](tasks/0006a-fixed-recurrent-scan-forward-adoption-and-bptt-boundary.md) is Complete
+after accepted ADR 0012/NN 0021A and completed Model 0025E–0025F. It uses the existing ordinary
+`CompiledNode`, a dedicated package-private recurrent inference
+helper, a recurrent CSE identity exclusion, and an allocation-free complete-forward-inventory
+autograd guard. Compiler 0007 remains Draft without a detailed specification. The repository
+roadmap separately records the concurrent CPU execution frontier; this Compiler planning state
+does not authorize implementation ahead of that coordinator-owned order. Compiler 0004, 0004A,
+and 0004B are Complete with
 recorded source, tests, documentation, and validation.
 [Compiler 0004B](tasks/0004b-shared-algebra-cotangent-normalization-and-local-derivative-rules.md)
 adds the closed mixed-floating cotangent
@@ -255,9 +268,11 @@ higher-order work. The sequence first resolves elementwise/activation derivative
 formula foundations, then reductions/scans/softmax/statistics/normalization, then dynamic layout/
 window/indexing/scatter/ordering/stochastic families, then structured attention/convolution/
 pooling/loss families, and finally one source-backed coverage checkpoint. Tasks 0005A–0005E are
-Complete. Detailed task 0006 is also Complete. Task 0006A is a concise Draft row for the later
-fixed recurrent-scan forward adoption and fail-closed BPTT boundary; it has no detailed task
-specification.
+Complete. Detailed task 0006 is also Complete. Detailed task 0006A is Complete for the bounded
+fixed recurrent-scan forward adoption and fail-closed BPTT boundary. Its forward inference
+inventory adopts the exact three Model signatures, while the existing 128-row first-order
+gradient inventory and its exact three-signature deferred partition remain unchanged until a
+later explicit BPTT task.
 
 This reordering preserves completed history. Tasks 0003, 0003A, and 0003B were correctly completed
 for a forward-only immutable graph. Compiler 0004 reused their existing exact rules only where
@@ -268,11 +283,17 @@ changed candidate through task 0002. It adds no new algebra.
 Config 0004 remains Draft because these compiler transformations require no planning-cost
 classification. Trace 0003 and later remain Draft because no stable emission schema is selected.
 Compiler introduces no prepared or executable state. The historical post-0006 frontier
-reassessment advanced only Runtime 0001. The later NN 0021A architecture decision now precedes
-Draft Compiler 0006A; it does not reopen Prepare or move recurrent execution into Compiler.
+reassessment advanced only Runtime 0001. The later NN 0021A architecture decision and corrected
+Model 0025F namespace now precede Complete Compiler 0006A; it does not reopen Prepare or move
+recurrent execution into Compiler.
 
 ## Open questions
 
+- No blocking question remains for task 0006A. The existing ordinary `CompiledNode` is the
+  selected recurrent representation; forward inference adopts the exact three Model signatures,
+  recurrent occurrences remain identity-distinct through CSE, and every backward-capable forward
+  inventory containing recurrence rejects before derivative allocation. BPTT remains a later
+  explicit decision.
 - No blocking question remains for task 0006. Its detailed specification fixes the bounded public
   one/two-stage functional request, exact forward/stage-one references, aligned seeds, ERROR/ZERO
   disconnected policy, result ordering, and compiler-owned derivative-order sidecar. A public
@@ -287,6 +308,14 @@ Draft Compiler 0006A; it does not reopen Prepare or move recurrent execution int
 
 ## Decisions made
 
+- Compiler 0006A uses no recurrent IR. Generic identity-based capture emits one ordinary flat
+  multi-output node, a dedicated inference helper independently derives its static descriptors,
+  CSE excludes recurrent occurrences, and existing publication/Planning orchestration carries the
+  exact operation and ordered descriptors without capability advertisement.
+- Forward inference and first-order gradient coverage are intentionally different closed
+  inventories after 0006A: forward verification adopts RNN, GRU, and LSTM, while the 128-row
+  gradient inventory continues to exclude the exact three recurrent signatures and allocation-
+  free autograd preflight rejects any backward-capable complete forward inventory containing one.
 - Legacy code is read-only capability and formula evidence. Its mutable `Tensor.gradient`,
   `ThreadLocal` compilation scope, Tensor-owned derivative dispatch, and mutable graph cloning are
   rejected.
@@ -416,6 +445,11 @@ Draft Compiler 0006A; it does not reopen Prepare or move recurrent execution int
 
 ## Risks
 
+- Treating forward recurrent inference adoption as BPTT coverage or moving the exact three
+  recurrent signatures into `FirstOrderGradientCoverage` before derivative and saved-state policy
+  exists.
+- Letting generic CSE merge structurally equal recurrent producers and thereby erase their
+  identity-distinct occurrence boundary.
 - Treating pre-capture Tensor expressions as graph-local IR.
 - Leaving the six obsolete untracked prototypes under the compiler production source root, where
   Gradle would compile unauthorized code, or adapting their contents instead of deleting them.
@@ -474,6 +508,11 @@ implementation/documentation handoff. Detailed 0005D and
 [0005E](tasks/0005e-first-order-gradient-coverage-closure-checkpoint.md) are Complete. Detailed
 [0006](tasks/0006-explicit-functional-gradient-requests-and-higher-order-differentiation.md) is
 Complete with the approved forward/gradient publication-binding terminology correction;
-Draft 0006A is the concise later row for recurrent-scan forward adoption and the explicit
-fail-closed BPTT boundary, while Draft 0007 retains remaining exact identities and permission-aware
-algebra. Neither has a detailed task specification.
+detailed
+[0006A](tasks/0006a-fixed-recurrent-scan-forward-adoption-and-bptt-boundary.md) is Complete through
+its exact eighteen-path implementation and independent documentation pass. Its recurrent-scan
+forward adoption and explicit fail-closed BPTT boundary passed the recorded focused, Model-
+boundary, full Compiler, Javadoc, rendered-documentation, surface, inventory, scope, and hygiene
+gates. Draft 0007 retains
+remaining exact identities and permission-aware algebra without a detailed task specification;
+no BPTT task specification exists.

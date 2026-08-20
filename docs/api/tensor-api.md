@@ -437,8 +437,10 @@ time-major recurrent meanings. `RecurrentDirection` is each occurrence's exact `
 biased or bias-free `rnn`, `gru`, and `lstm` methods. Each accepts an explicit time-major input,
 fully static floating descriptors, and one ordinary non-gradient `INT64[batch]` valid-length
 Tensor, then constructs two or three canonical outputs from one flat producer. Model validates
-descriptors but never reads length or data values; Compiler adoption, BPTT, Engine binding,
-runtime validation, and backend execution remain future.
+descriptors but never reads length or data values. Current package-private Compiler forward-only
+inference adopts and independently revalidates the family. Both backward-capable modes remain
+allocation-free fail-closed until backpropagation through time (BPTT) is implemented; Engine
+binding, runtime validation, capability advertisement, and backend execution remain future.
 `SoftmaxKind.SOFTMAX`, `SoftmaxKind.LOG_SOFTMAX`, and `SoftmaxAttrs` provide distinct
 shape-preserving probability and log-probability normalization semantics. The attributes carry
 one already normalized non-negative axis. Public `Tensor.softmax` and `Tensor.logSoftmax`
@@ -4153,14 +4155,15 @@ may consume earlier output IDs without returning a partial result, following the
 multi-output factory contract.
 
 Current generic graph capture can translate the shared producer to one flat node with the same
-ordered inputs and outputs. Current Compiler inference still rejects `RecurrentScanKind` as an
-unsupported operation before planning, and current autograd preflight rejects it before creating
-derivative Tensors. No capability provider advertises the family and no Compiler, Engine,
-Runtime, backend, execution, numerical-algorithm, or backpropagation-through-time behavior is
-available yet. [`RnnSequence`, `GruSequence`, and `LstmSequence`](training-api.md#current-nn-recurrent-composition-contract)
+ordered inputs and outputs. Current package-private Compiler forward-only inference independently
+revalidates the fully static descriptor contract, while both backward-capable modes reject a
+complete forward inventory containing recurrence before derivative Tensor allocation. No
+capability provider advertises the family, and no Engine, Runtime, backend, execution, numerical-
+algorithm, or backpropagation-through-time behavior is available yet.
+[`RnnSequence`, `GruSequence`, and `LstmSequence`](training-api.md#current-nn-recurrent-composition-contract)
 remain the ordinary NN-facing APIs and retain construction-time Java `long[]` lengths, static
 unrolling, and compact outputs. A later runtime-length NN API may call the low-level namespace
-only after Compiler and backend adoption.
+only after backend adoption and the complete executable path are available.
 
 ### Softmax expressions
 

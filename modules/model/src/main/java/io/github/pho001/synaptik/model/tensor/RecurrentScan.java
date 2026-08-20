@@ -27,8 +27,9 @@ import java.util.Optional;
  * output ordering, operation construction, and public result assembly. It never reads Tensor
  * storage or valid-length values, unrolls a transition, captures a body or region, constructs a
  * gradient, selects a backend, or executes recurrence. The existing NN sequence APIs still use
- * construction-time Java {@code long[]} lengths and static unrolling. Current Compiler inference
- * and autograd inventories remain fail-closed for the resulting operation family.</p>
+ * construction-time Java {@code long[]} lengths and static unrolling. Current package-private
+ * Compiler forward-only inference adopts the resulting operation family; both backward-capable
+ * modes remain allocation-free fail-closed until backpropagation through time is implemented.</p>
  */
 public final class RecurrentScan {
     private RecurrentScan() {

@@ -7,6 +7,7 @@ import io.github.pho001.synaptik.model.graph.GraphValue;
 import io.github.pho001.synaptik.model.graph.NodeId;
 import io.github.pho001.synaptik.model.graph.ValueId;
 import io.github.pho001.synaptik.model.operation.Operation;
+import io.github.pho001.synaptik.model.operation.recurrent.RecurrentScanKind;
 import io.github.pho001.synaptik.model.tensor.TensorDescriptor;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -24,7 +25,8 @@ import java.util.Set;
  * already-remapped inputs including repetitions, and every ordered output descriptor. A merge
  * remaps every output slot as one indivisible occurrence. {@code FORWARD} and {@code BACKWARD}
  * occurrences never compare equal, and graph-output producers are never candidates or
- * representatives.</p>
+ * representatives. Fixed recurrent-scan occurrences are also excluded because each Model
+ * producer is an identity-distinct occurrence even when its immutable structure is equal.</p>
  */
 final class ForwardCommonSubexpressionElimination {
     private ForwardCommonSubexpressionElimination() {}
@@ -100,7 +102,8 @@ final class ForwardCommonSubexpressionElimination {
             List<ValueId> remappedInputs = remap(node.inputs(), valueRemapping);
             List<TensorDescriptor> outputDescriptors = descriptors(
                     node.outputs(), originalValues);
-            boolean eligible = node.outputs().stream().noneMatch(graphOutputs::contains);
+            boolean eligible = !(node.operation().kind() instanceof RecurrentScanKind)
+                    && node.outputs().stream().noneMatch(graphOutputs::contains);
             ExpressionKey key = eligible
                     ? new ExpressionKey(
                             phase,

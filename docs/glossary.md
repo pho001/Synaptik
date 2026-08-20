@@ -2875,12 +2875,20 @@ semantics. The namespace is not a layer, module, execution service, registry, or
 body.
 
 Model construction validates only the length Tensor descriptor and never reads its scalar values.
+Current package-private Compiler forward inference independently revalidates the fully static
+descriptor contract and preserves each producer as one identity-distinct ordinary flat node with
+all output slots. Recurrent occurrences are not common-subexpression-elimination candidates. The
+existing publication and Planning path may carry that node through an ordinary capability query,
+but no current production capability provider advertises support.
+
 The fixed future execution meaning traverses each row's valid prefix in the selected direction,
 keeps dense outputs aligned to original time, writes positive zero at padded positions, and
 returns the explicit final states. A zero-length row returns its initial states semantically; a
-zero-time input has empty output and will require all runtime lengths to be zero. Current Compiler
-inference and autograd fail closed for the family, no capability provider advertises it, and no
-Engine, Runtime, backend, or BPTT implementation executes it.
+zero-time input has empty output and will require all runtime lengths to be zero. Every current
+backward-capable Compiler mode rejects a complete forward inventory containing recurrence before
+constructing a seed or derivative Tensor. The supported first-order gradient inventory therefore
+remains unchanged, and no Engine, Runtime, backend, or backpropagation-through-time (BPTT)
+implementation executes or differentiates the family.
 
 This differs from a [`cumulative scan`](#cumulative-scan), whose fixed associative addition or
 multiplication combines prefixes of one input and carries no recurrent state or parameters. It
@@ -2892,8 +2900,8 @@ runtime execution. Bidirectional composition fixes exactly forward-then-backward
 CONCAT; it is not a generic multidirectional abstraction. The standard module factory constructs
 only the one-directional containers and adds no bidirectional recipe or runtime capability.
 Ordinary NN callers use `RnnSequence`, `GruSequence`, or `LstmSequence`; a later runtime-length
-NN API may delegate to `RecurrentScan` only after Compiler and backend adoption. Current
-initialized `Embedding` remains eager.
+NN API may delegate to `RecurrentScan` only after backend adoption and the complete executable
+path are available. Current initialized `Embedding` remains eager.
 
 `extensions/nn` composes generic [`Tensor`](#tensor) and operation semantics from
 `modules/model`. [`extensions/training`](#training-graph) consumes nn-declared parameters for

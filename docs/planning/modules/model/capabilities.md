@@ -807,15 +807,17 @@ reverse traversal, and explicit final-state semantics for future execution. It v
 descriptors and never reads runtime valid-length values. Zero time and zero batch are valid
 metadata cases; runtime bounds remain an execution-layer obligation.
 
-This is not an executable capability advertisement. Current Compiler inference and closed
-autograd reject the family, no Planning capability provider advertises it, and no Engine,
-Runtime, concrete backend, NN runtime-length facade, or BPTT implementation adopts it. Compiler
-0006A and later execution tasks own those boundaries. Existing static NN sequence containers and
-their Java `long[]` lengths, static unrolling, and compact-output contracts remain unchanged. The
+This is not an executable capability advertisement. Current package-private Compiler forward-only
+inference adopts and independently revalidates the family, while both backward-capable modes
+reject it before derivative Tensor allocation. No Planning capability provider advertises it, and
+no Engine, Runtime, concrete backend, NN runtime-length facade, or backpropagation-through-time
+(BPTT) implementation adopts it. Later execution and BPTT tasks own those boundaries. Existing
+static NN sequence containers and their Java `long[]` lengths, static unrolling, and compact-
+output contracts remain unchanged. The
 namespace is an advanced low-level expression seam, not a layer, module, execution service,
 registry, or general scan-body abstraction; ordinary NN callers use `RnnSequence`, `GruSequence`,
-or `LstmSequence`, and later NN runtime-length work may delegate only after Compiler and backend
-adoption.
+or `LstmSequence`, and later NN runtime-length work may delegate only after backend adoption and
+the complete executable path are available.
 
 ## Adjoint expressibility and missing public primitives
 

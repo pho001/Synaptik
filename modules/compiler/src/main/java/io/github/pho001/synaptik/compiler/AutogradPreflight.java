@@ -65,6 +65,7 @@ import io.github.pho001.synaptik.model.operation.pooling.Pool2dKind;
 import io.github.pho001.synaptik.model.operation.random.DropoutAttrs;
 import io.github.pho001.synaptik.model.operation.random.DropoutKind;
 import io.github.pho001.synaptik.model.operation.random.GraphRngKind;
+import io.github.pho001.synaptik.model.operation.recurrent.RecurrentScanKind;
 import io.github.pho001.synaptik.model.operation.reduction.AggregateReductionKind;
 import io.github.pho001.synaptik.model.operation.reduction.AxisReductionAttrs;
 import io.github.pho001.synaptik.model.operation.reduction.MaskedReductionAttrs;
@@ -170,7 +171,9 @@ import java.util.Set;
  * <p>This owner selects rules and rejects unsupported operation, input/output signature,
  * attribute, role, data-type, Shape, and policy combinations. A known rejection occurs before the
  * seed, a derivative constant, a matching {@code ARGSORT}, or another formula Tensor is
- * constructed, so it consumes no derivative {@code TensorId}. The guarantee ends after a
+ * constructed, so it consumes no derivative {@code TensorId}. Fixed recurrent-scan occurrences
+ * are rejected from the complete original forward inventory before stage, seed, or formula
+ * validation because backpropagation through time is not implemented. The guarantee ends after a
  * successful plan is returned: later public Tensor construction, capture, inference, validation,
  * or optimization may consume IDs before failing. This owner neither reads Tensor payloads,
  * captures a graph, allocates storage, binds a dynamic Dimension, lowers work, nor executes
@@ -206,6 +209,7 @@ final class AutogradPreflight {
         }
 
         Inventory original = inventory(forwardOutputs);
+        rejectRecurrentScan(original);
         FunctionalGradientRequest.Stage firstRequest = request.stages().getFirst();
         List<Tensor> firstOutputs = new ArrayList<>(firstRequest.outputs().size());
         IdentityHashMap<Tensor, Integer> outputPositions = new IdentityHashMap<>();
@@ -1929,6 +1933,23 @@ final class AutogradPreflight {
             }
         }
         return -1;
+    }
+
+    private static void rejectRecurrentScan(Inventory original) {
+        for (int producerIndex = 0;
+                producerIndex < original.producerPostorder().size();
+                producerIndex++) {
+            TensorProducer producer = original.producerPostorder().get(producerIndex);
+            if (producer.operation().kind() instanceof RecurrentScanKind) {
+                throw new IllegalArgumentException(
+                        "producerPostorder[" + producerIndex + "] "
+                                + producer.operation().kind().getClass().getName() + "."
+                                + producer.operation().kind().name() + " attrs="
+                                + producer.operation().attrs().getClass().getName()
+                                + ": fixed recurrent scan is forward-only until "
+                                + "backpropagation through time is implemented");
+            }
+        }
     }
 
     private static Inventory inventory(List<Tensor> roots) {

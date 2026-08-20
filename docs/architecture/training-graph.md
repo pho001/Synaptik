@@ -84,10 +84,10 @@ phase. No such extension may add mutable gradient state to Tensor.
 
 The current Model fixed recurrent scan is an ordinary flat multi-output forward occurrence, not
 a nested training graph. Model task 0025E owns only its fixed forward meanings, descriptor
-construction, and canonical outputs. Generic capture already preserves one producer as one node,
-but current Compiler inference rejects the unknown kind. Compiler task 0006A must adopt forward
-inference, validation, and the exact closed operation inventory while preserving rejection of
-every backward-capable request before any gradient Tensor is constructed.
+construction, and canonical outputs. Generic capture preserves one producer as one node, and
+current Compiler forward-only inference independently revalidates its fully static descriptors.
+Both backward-capable modes reject any complete forward inventory containing recurrence before
+any derivative Tensor is allocated.
 
 Backpropagation through time (BPTT) therefore remains unsupported even though output gradient
 eligibility is derived from differentiable floating inputs, states, and parameters. The runtime
@@ -98,8 +98,8 @@ from becoming the owner of global autograd.
 This decision selects no saved-gate outputs, tape, checkpointing policy, recomputation policy,
 backward operation, derivative formula, or physical saved-state representation. A later Compiler
 architecture and implementation task must choose those contracts after the forward executable
-path is stable. Current `FORWARD_ONLY` compilation also rejects the family at inference; after
-Compiler 0006A, it is the only compile mode expected to adopt it until BPTT is designed. See
+path is stable. Current `FORWARD_ONLY` compilation is the only compile mode that adopts the family
+until BPTT is designed. See
 [ADR 0012](../design/decisions/0012-fixed-recurrent-scan-without-regions.md).
 
 ## Optimizer as a backend-agnostic step

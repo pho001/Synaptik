@@ -124,10 +124,11 @@ and promotion, operand roles, ranks, axes, Shape and attribute relationships, ou
 resolved-or-unresolved layout, and gradient-eligibility metadata. The first unequal expected and
 stored descriptor fails with node, operation-kind, output-position, and value context.
 
-The pass covers every current production operation-kind enum and accepted attributes variant in
-five cohesive families: elementwise, reduction/normalization/ordering, indexing,
-layout/composition/window, and structured numeric/loss/RNG-state operations. Dispatch is closed
-and typed. An unrecognized custom `OperationKind` fails rather than bypassing validation.
+The pass covers every current forward operation-kind enum and accepted attributes variant in six
+cohesive families: elementwise, reduction/normalization/ordering, indexing,
+layout/composition/window, structured numeric/loss/RNG-state operations, and fixed recurrent
+scan. Dispatch is closed and typed. An unrecognized custom `OperationKind` fails rather than
+bypassing validation.
 
 Some model operations determine an exact output descriptor while leaving a Shape relationship
 undecidable. The compiler represents such a relationship as a package-private
@@ -235,8 +236,10 @@ Exact common-subexpression elimination (CSE) compares graph phase, complete immu
 value, ordered remapped inputs, and every ordered output descriptor. It merges a whole
 multi-output occurrence slot by slot within `FORWARD` or within `BACKWARD`, never across phases.
 A producer containing a graph output may neither merge nor serve as a representative, so
-requested boundaries remain distinct. Each changed candidate is immediately revalidated through
-the verification pass; an unchanged helper result is not redundantly revalidated.
+requested boundaries remain distinct. Fixed recurrent-scan occurrences are also ineligible
+because their Model producer identity defines a distinct occurrence even when all structural
+facts compare equal. Each changed candidate is immediately revalidated through the verification
+pass; an unchanged helper result is not redundantly revalidated.
 
 These are internal graph transformations, not a public compiler surface. They do not rewrite
 casts, broader arithmetic, algebra, or views; construct autograd; derive publication, planning, or
@@ -266,9 +269,10 @@ Compiler task 0005E closed that matrix against the production Model inventory at
 37 operation-kind enum families, 107 constants, and 128 complete
 kind/attributes/input-range/output-range fingerprints. The checkpoint includes both
 `SLICE_UPDATE` attributes variants. Model 0025E subsequently added one recurrent family, three
-constants, and three exact signatures without Compiler adoption. The current complete Model
+constants, and three exact signatures. Compiler forward verification now adopts those signatures,
+but the first-order gradient inventory intentionally does not. The current complete Model
 inventory is therefore 38 families, 110 constants, and 131 signatures, while the supported
-Compiler inventory remains the exact original 128 signatures.
+first-order Compiler inventory remains the exact original 128 signatures.
 
 Package-private `GraphCompiler.compile` takes `CompileMode`, ordered forward outputs, an optional
 public `FunctionalGradientRequest`, explicit forward constant ingress, and
@@ -1024,16 +1028,23 @@ expressions through the advanced low-level static `RecurrentScan.rnn`, `gru`, an
 namespace. Each occurrence has one `FORWARD` or `REVERSE` attribute, fully static time-major
 descriptors, one ordinary non-gradient `INT64[batch]` valid-length input, and two or three outputs
 from one exact flat producer. Generic capture preserves that producer as one `CompiledNode`, with
-every declared output position and ordered input edge. This structural fact and the public Model
-construction namespace are not Compiler adoption: current `CapturedGraphInference` rejects
-`RecurrentScanKind` as an unsupported operation kind before planning or capability selection.
-Current autograd preflight likewise rejects each of the exact three deferred recurrent signatures
-with the unknown/unclassified reason before constructing any derivative Tensor or allocating an
-ID. The inventory boundary names those three signatures explicitly rather than broadly filtering
-the family, and proves their disjoint union with the 128 supported signatures is the complete
-131-signature Model inventory. Compiler task 0006A owns forward inference, final validation, and
-inventory adoption; later explicit work owns backpropagation through time. No current capability
-provider, public compiler API, executable, or backend route supports the family.
+every declared output position and ordered input edge.
+Current package-private Compiler forward adoption independently revalidates the complete static
+descriptor contract for all three kinds, both directions, and biased or bias-free cardinalities.
+It preserves one identity-distinct ordinary node per Model producer, excludes recurrent
+occurrences from common-subexpression elimination, and retains every declared sibling output
+slot when any slot remains live. Existing publication and Planning orchestration carries the
+exact operation and ordered descriptors through one ordinary `OperationCapabilityQuery` without
+interpreting recurrence.
+
+Backward-capable modes instead reject the first recurrent occurrence in deterministic complete
+forward-producer postorder immediately after allocation-free inventory construction. This happens
+before seed validation or any derivative Tensor is created. The first-order coverage boundary
+still classifies each of the exact three deferred recurrent signatures with the
+unknown/unclassified reason; their disjoint union with the unchanged 128 supported signatures is
+the complete 131-signature Model inventory. No current capability provider, public compiler API,
+prepared executable, backend route, runtime length read, or backpropagation-through-time (BPTT)
+implementation supports the family.
 `Tensor.softmax` and `Tensor.logSoftmax` accept floating input and one positive or negative axis.
 Every result retains the exact input Shape, data type, and gradient eligibility, leaves layout
 unresolved, and records the requested first-class SOFTMAX or LOG_SOFTMAX kind with exact one-input

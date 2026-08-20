@@ -332,16 +332,17 @@ Operation-family subpackages are introduced only when a focused operation task d
   target-relative slice placement before Complete Compiler 0005C adopts the retained obligations
 - Completed fixed recurrent-scan semantic prerequisite: task 0025E adds the exact Model-owned
   fixed flat metadata selected by NN 0021A, without a user-defined body/region abstraction or an
-  execution claim. Compiler 0006A remains the downstream Draft forward-adoption owner.
+  execution claim. Compiler 0006A is now Complete for forward adoption; recurrent execution,
+  capability advertisement, and backpropagation through time remain deferred.
 - Immediate recurrent-scan API correction: Complete task 0025F keeps the complete 0025E semantic and
   producer contract but removes its six domain-heavy Tensor receiver methods in favor of one
-  focused public stateless `model.tensor.RecurrentScan` namespace. It must complete before
-  Compiler 0006A; it does not redirect current NN static sequence APIs. A coordinator-authorized
-  test-only correction makes the Compiler checkpoint distinguish its exact supported inventory
-  from the three recurrent signatures deferred until 0006A, without changing Compiler
-  production behavior. The final documentation pass also corrected the one current-tense Training
-  API receiver claim omitted from the initial seven-document scope; both additions were
-  coordinator-authorized, and the exact completed scope is 29 paths.
+  focused public stateless `model.tensor.RecurrentScan` namespace. It completed before Compiler
+  0006A and does not redirect current NN static sequence APIs. Its coordinator-authorized
+  test-only correction made the Compiler checkpoint distinguish its exact supported inventory
+  from the three recurrent signatures then deferred from Compiler forward adoption, without
+  changing Compiler production behavior. The final documentation pass also corrected the one
+  current-tense Training API receiver claim omitted from the initial seven-document scope; both
+  additions were coordinator-authorized, and the exact completed scope is 29 paths.
 - Future mixed-precision semantic foundation: task 0026 remains Draft without a detailed
   specification. It must complete before any backend advertises FLOAT16, but it does not block
   current CPU generated-artifact caching, current-type portable analysis/finalization, or
@@ -1909,12 +1910,12 @@ Task 0025B and
 are Complete. Task 0025D and Model 0025E are Complete detailed Model specifications; 0025E
 implements the fixed flat recurrent-scan metadata selected by completed NN 0021A. Detailed
 [Compiler 0005C](../compiler/tasks/0005c-layout-window-indexing-scatter-ordering-and-stochastic-gradient-completion.md)
-and Compiler 0005D–0006 are Complete; Compiler 0006A remains Draft without a detailed
-specification and remains the downstream owner of forward Compiler adoption. Detailed
+and Compiler 0005D–0006A are Complete. Compiler 0006A adopted forward inference while recurrent
+autograd, execution, and capability advertisement remain deferred. Detailed
 [Model 0025F](tasks/0025f-recurrent-scan-expression-namespace-correction.md) is Complete as the
-immediate API-placement correction before Compiler 0006A. Its
-coordinator-authorized Compiler boundary-test correction preserves the unsupported recurrent
-inference/autograd state while reconciling the complete Model inventory. Its coordinator-authorized
+immediate API-placement correction that preceded Compiler 0006A. At 0025F completion, its
+coordinator-authorized Compiler boundary-test correction preserved the then-unsupported recurrent
+inference and autograd state while reconciling the complete Model inventory. Its coordinator-authorized
 Training API scope correction removes the final stale receiver claim. The exact completed scope is
 29 paths. Model 0026 remains Draft without a detailed specification, and no Model task is Ready.
 The legacy branch must be consulted read-only for capability and test evidence when preparing each

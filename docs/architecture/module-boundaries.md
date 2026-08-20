@@ -38,9 +38,10 @@ wrappers, and exactly six public static biased or bias-free constructors on the 
 `Tensor` has no recurrent receiver alias. This advanced low-level namespace is not an NN layer or
 module, execution service, registry, or general scan-body abstraction. It owns no callback body,
 nested graph, region, captured free variable, runtime length inspection, hidden state, or
-execution loop. Compiler adoption and every executable route remain future work. Current NN
-`RnnSequence`, `GruSequence`, and `LstmSequence` containers retain construction-time Java
-`long[]` lengths and static unrolling; later NN delegation requires Compiler and backend adoption.
+execution loop. Current Compiler forward-only inference adopts the family, but every executable
+route remains future work. Current NN `RnnSequence`, `GruSequence`, and `LstmSequence` containers
+retain construction-time Java `long[]` lengths and static unrolling; later NN delegation requires
+backend adoption and a complete executable path.
 
 ### `modules/config`
 
@@ -77,11 +78,10 @@ optimization, publication binding, planning orchestration, compile diagnostics, 
 
 Its output is immutable compile-time state. It does not create physical buffers, backend executables, runtime workspaces, prepared schedules, or `PreparedExecution`, and it has no concrete backend dependencies.
 
-Compiler can structurally capture a current Model scan producer as exactly one ordinary flat
-node, but current inference rejects `RecurrentScanKind` as unsupported before planning. Its
-closed autograd inventory rejects every backward-capable request reaching the family before any
-gradient Tensor is constructed. Compiler task 0006A owns forward inference, validation, and
-closed-inventory adoption; a later explicit backpropagation-through-time (BPTT) decision owns
+Compiler captures each current Model scan producer as exactly one ordinary flat node and current
+forward-only inference independently revalidates its fully static descriptors. Both backward-
+capable modes reject any complete forward inventory containing recurrence before any derivative
+Tensor is allocated. A later explicit backpropagation-through-time (BPTT) decision owns
 derivatives. Compiler must not unroll the recurrence into `time` nodes or create a body graph.
 
 ### `modules/runtime`

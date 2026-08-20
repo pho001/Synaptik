@@ -117,8 +117,8 @@ service lookup, or repeated unsafe cast.
 
 The fixed recurrent scan is a current ordinary Model expression whose `INT64[batch]`
 valid-length values are modeled as ordinary inputs while every Shape remains fully static. Model
-construction is implemented; Compiler adoption, public execution, and backend realization are
-not. The complete planned lifecycle reads left to right as follows:
+construction and forward-only Compiler adoption are implemented; public execution and backend
+realization are not. The complete lifecycle reads left to right as follows:
 
 ```text
 one flat multi-output TensorProducer
@@ -132,10 +132,11 @@ one flat multi-output TensorProducer
 
 Current Model fixes `RNN_TANH`, `GRU_RESET_AFTER`, and `LSTM`, `FORWARD` or `REVERSE`, ordered inputs and
 outputs, static descriptor rules, and dense original-time-aligned zero-filled padded results.
-Generic capture already preserves the occurrence as one node, but current Compiler inference
-rejects its kind as unsupported and current autograd rejects it before derivative Tensor
-construction. Later Compiler, Planning, Prepare, Engine, Runtime, and backend work owns the
-remaining arrows. Planning will treat it as one ordinary capability query. Shared Prepare will
+Generic capture preserves the occurrence as one node, and current Compiler forward-only inference
+independently revalidates its fully static descriptors. Both backward-capable modes reject a
+complete forward inventory containing recurrence before derivative Tensor allocation. Later
+Planning, Prepare, Engine, Runtime, and backend work owns the remaining execution arrows. Planning
+will treat the node as one ordinary capability query. Shared Prepare will
 project its static facts and assign backend-declared resources without receiving a loop body.
 Engine will cold-bind the typed logical inputs, including the runtime length Tensor, and Runtime
 will invoke the prepared bound action without interpreting recurrence.

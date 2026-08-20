@@ -370,10 +370,11 @@ construction with an ordinary `INT64[batch]` `validLengths` Tensor. The advanced
 `RecurrentScan.rnn`, `gru`, and `lstm` namespace has exactly six biased or bias-free methods with
 explicit time-major input first. Each creates one flat multi-output producer with dense time-major
 output and explicit final states. The namespace is not an NN layer or module and does not read
-length values, statically unroll a cell, own parameters, or execute. Current Compiler inference
-rejects the family, current autograd rejects it before derivative Tensor construction, and no
-Engine or backend route exists; runtime length binding and BPTT are therefore not current training
-capabilities.
+length values, statically unroll a cell, own parameters, or execute. Current package-private
+Compiler forward-only inference adopts the family, while both backward-capable modes reject it
+before derivative Tensor allocation. No Engine or backend route exists; runtime length binding,
+capability advertisement, execution, and backpropagation through time (BPTT) are therefore not
+current training capabilities.
 
 The Model scan does not silently replace these NN containers. Current `RnnSequence`,
 `GruSequence`, `LstmSequence`, and their bidirectional counterparts still accept Java `long[]`
