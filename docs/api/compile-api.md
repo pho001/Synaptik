@@ -1016,6 +1016,17 @@ Dynamic validation, canonicalization, product-adjoint construction from prefix a
 gradient boundary policy, saved-value lifetime, numerical lowering, backend support, and execution
 remain planned. In particular, the current compiler API exposes no callable compilation path that
 turns either scan kind into executable work.
+The current Model also exposes fixed `RNN_TANH`, `GRU_RESET_AFTER`, and `LSTM` recurrent-scan
+expressions with one `FORWARD` or `REVERSE` attribute, fully static time-major descriptors, one
+ordinary non-gradient `INT64[batch]` valid-length input, and two or three outputs from one exact
+flat producer. Generic capture preserves that producer as one `CompiledNode`, with every declared
+output position and ordered input edge. This structural fact is not Compiler adoption: current
+`CapturedGraphInference` rejects `RecurrentScanKind` as an unsupported operation kind before
+planning or capability selection. Current autograd preflight likewise rejects the kind through
+its closed inventory before constructing any derivative Tensor. Compiler task 0006A owns forward
+inference, final validation, and inventory adoption; later explicit work owns backpropagation
+through time. No current capability provider, public compiler API, executable, or backend route
+supports the family.
 `Tensor.softmax` and `Tensor.logSoftmax` accept floating input and one positive or negative axis.
 Every result retains the exact input Shape, data type, and gradient eligibility, leaves layout
 unresolved, and records the requested first-class SOFTMAX or LOG_SOFTMAX kind with exact one-input

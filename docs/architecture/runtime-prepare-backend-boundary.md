@@ -153,11 +153,12 @@ repository has no such run-dynamic fact contract.
 
 ## Planned fixed recurrent scan handoff
 
-The fixed recurrent scan is the first planned use of an ordinary caller input whose values alter
-bounded backend control flow while its Shape and the complete resource geometry stay static. The
-valid-length Tensor is fully static rank-one `INT64[batch]`; only its per-run values vary. It does
-not make `time`, `batch`, feature dimensions, parameter Shapes, output Shapes, route selection, or
-slot requirements dynamic.
+Model now represents the fixed recurrent scan and its valid-length Tensor as ordinary expression
+metadata. The future executable path is the first planned use of an ordinary caller input whose
+values alter bounded backend control flow while its Shape and the complete resource geometry stay
+static. The valid-length Tensor is fully static rank-one `INT64[batch]`; only its per-run values
+vary. Model does not read those values. They do not make `time`, `batch`, feature dimensions,
+parameter Shapes, output Shapes, route selection, or slot requirements dynamic.
 
 ```text
 Planning: one ordinary operation capability query and owner
@@ -189,7 +190,8 @@ coordinate, and explicit final hidden and LSTM cell states. It traverses only va
 Branch-based skipping satisfies the first contract; physical active-row compaction, packed
 batches, and stronger memory-work claims remain deferred.
 
-No current shared contract changes merely to name this operation. If implementation later proves
+No current shared contract changes merely to name this operation, and no current capability
+provider advertises or executes it. If implementation later proves
 that a selected backend cannot preserve static route and resource decisions across compatible
 valid-length values, it must expose the exact gap for a new architecture decision instead of
 adding speculative control-flow state to Prepare or Runtime. See

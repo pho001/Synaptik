@@ -199,7 +199,9 @@ ownership rule, or loop condition. `Tensor`, `TensorProducer`, `Operation`, `Com
 `CompiledGraphModel` retain their current flat meanings. A general control-flow or graph-region
 system remains forbidden until another explicit architecture update.
 
-### Fixed family and planned Model surface
+<a id="fixed-family-and-planned-model-surface"></a>
+
+### Fixed family and current Model surface
 
 The exact semantic variants are:
 
@@ -220,9 +222,9 @@ update, and candidate gate order, applies reset after the recurrent candidate pr
 uses input, forget, candidate, and output gate order, explicit hidden and cell states, the current
 fixed sigmoid/tanh equations, and one optional packed input-side bias.
 
-Model must later publish exactly one direction enum, a two-output recurrent result, a three-output
-LSTM result, and the following six receiver methods in the existing Tensor package. This is a
-planned contract, not a current Java or runnable API:
+Model publishes exactly one direction enum, a two-output recurrent result, a three-output LSTM
+result, and the following six receiver methods in the existing Tensor package. This is current
+Java expression-construction API, not a runnable Compiler, Engine, Runtime, or backend API:
 
 ```java
 RecurrentScanResult rnnScan(
@@ -363,7 +365,7 @@ serialized by this decision.
 Owner boundaries are exact:
 
 - Model owns operation kind and attributes, fixed semantics, descriptor-visible validation,
-  result metadata, canonical multi-output provenance, and the planned Tensor surface.
+  result metadata, canonical multi-output provenance, and the current Tensor surface.
 - Compiler captures one ordinary flat node, owns inference and final validation, adopts the
   operation in its exact closed inventory, and initially rejects every backward-capable request
   that reaches the family before constructing any gradient Tensor.

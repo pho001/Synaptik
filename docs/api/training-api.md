@@ -365,15 +365,23 @@ constructed provenance only. They do not prove backend lowering, physical kernel
 fusion, kernel count, execution cost, or a public training workflow, and different Java length
 values specialize different Tensor-expression topology.
 
-Runtime Tensor lengths or masks still cannot choose the number of steps or active-batch Shapes.
-Applying a dense `WHERE` after a full-batch cell would still construct padded cell work. A future
-dynamic form therefore needs a genuine Model recurrent scan or control-flow contract. Current
-cumulative sum and product scans have fixed associative bodies and are not that primitive.
-Current APIs expose no Tensor `validLengths`, arbitrary mask with holes, stacked or
-multidimensional recurrent facade, arbitrary direction collection, configurable merge, or
-runtime scan. The current `ModuleFactory` constructs only the existing one-directional RNN, GRU,
-and LSTM Sequences; the concrete bidirectional constructors already expose their two seeds and no
-factory recipe is current. The initialized `Embedding` remains eager.
+Current Model now provides fixed RNN-tanh, reset-after GRU, and LSTM recurrent-scan expression
+construction with an ordinary `INT64[batch]` `validLengths` Tensor. Those six Tensor receiver
+overloads create one flat multi-output producer with dense time-major output and explicit final
+states. They do not read length values, statically unroll a cell, own parameters, or execute.
+Current Compiler inference rejects the family, current autograd rejects it before derivative
+Tensor construction, and no Engine or backend route exists; runtime length binding and BPTT are
+therefore not current training capabilities.
+
+The Model scan does not silently replace these NN containers. Current `RnnSequence`,
+`GruSequence`, `LstmSequence`, and their bidirectional counterparts still accept Java `long[]`
+construction-time lengths, specialize expression topology, and return compact per-step outputs.
+They expose no Tensor-length overload, arbitrary mask with holes, stacked or multidimensional
+recurrent facade, arbitrary direction collection, or configurable merge. The current
+`ModuleFactory` constructs only the existing one-directional RNN, GRU, and LSTM Sequences; the
+concrete bidirectional constructors already expose their two seeds and no factory recipe is
+current. Later NN work must choose any runtime-length convenience or migration only after the
+complete Model-to-execution path exists. The initialized `Embedding` remains eager.
 
 ## Current NN parameter update contract
 

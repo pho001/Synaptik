@@ -42,6 +42,8 @@ import io.github.pho001.synaptik.model.operation.pooling.AveragePool2dAttrs;
 import io.github.pho001.synaptik.model.operation.pooling.MaxPool2dAttrs;
 import io.github.pho001.synaptik.model.operation.random.DropoutKind;
 import io.github.pho001.synaptik.model.operation.random.GraphRngKind;
+import io.github.pho001.synaptik.model.operation.recurrent.RecurrentDirection;
+import io.github.pho001.synaptik.model.operation.recurrent.RecurrentScanKind;
 import io.github.pho001.synaptik.model.operation.reduction.AggregateReductionKind;
 import io.github.pho001.synaptik.model.operation.reduction.ArgExtremaTiePolicy;
 import io.github.pho001.synaptik.model.operation.scan.CumulativeScanKind;
@@ -228,7 +230,7 @@ import java.util.Optional;
  * {@link TileKind}, {@link TensorCompositionKind}, {@link WindowTransformKind},
  * {@link ScalarElementwiseKind}, {@link UnaryElementwiseKind},
  * {@link FloatingClassificationKind}, {@link MatmulKind},
- * {@link ScaledDotProductAttentionKind}, {@link OrderingKind},
+ * {@link ScaledDotProductAttentionKind}, {@link RecurrentScanKind}, {@link OrderingKind},
  * {@link DropoutKind}, or {@link GraphRngKind}.
  * Gradient eligibility does not promise that a gradient rule exists.
  * The tensor owns no publication, device, runtime-residency, or prepared-execution state and
@@ -1000,6 +1002,230 @@ public final class Tensor {
      */
     public Tensor linear(Tensor weight, Tensor bias) {
         return TensorLinearExpressions.apply(this, weight, bias);
+    }
+
+    /**
+     * Constructs a bias-free fixed tanh-RNN scan over this time-major input.
+     *
+     * <p>This receiver must be a fully static floating Tensor shaped
+     * {@code [time, batch, inputSize]}. The operation consumes exact ordered inputs
+     * {@code [this, validLengths, initialHidden, inputWeight, hiddenWeight]} and retains
+     * {@code direction} as its complete immutable attributes. Valid lengths are ordinary runtime
+     * input metadata: Model checks only a non-gradient {@code INT64[batch]} descriptor and never
+     * reads values. The fixed transition is
+     * {@code tanh((x @ W^T) + (h @ U^T))}.</p>
+     *
+     * <p>The returned canonical producer slots are dense original-time-aligned
+     * {@code [time, batch, hiddenSize]} outputs and {@code [batch, hiddenSize]} final hidden
+     * state. Reverse consumes only the valid prefix in decreasing time. Padded coordinates
+     * semantically contain positive zero, and a zero-length row preserves its initial state.
+     * Construction creates metadata only and does not compile, execute, validate runtime length
+     * bounds, or provide backpropagation through time (BPTT).</p>
+     *
+     * @param validLengths non-null non-gradient fully static {@code INT64[batch]} Tensor
+     * @param initialHidden non-null exact-typed {@code [batch, hiddenSize]} initial state
+     * @param inputWeight non-null exact-typed {@code [hiddenSize, inputSize]} input weight
+     * @param hiddenWeight non-null exact-typed {@code [hiddenSize, hiddenSize]} recurrent weight
+     * @param direction non-null forward or reverse valid-prefix traversal direction
+     * @return fresh non-null dense-output/final-hidden wrappers sharing one exact producer
+     * @throws NullPointerException if an argument is null, checked in declaration order
+     * @throws IllegalArgumentException if a type, gradient flag, rank, static Shape, positive-size,
+     *     or exact extent requirement fails
+     * @throws IllegalStateException if Tensor identifier space is exhausted
+     */
+    public RecurrentScanResult rnnScan(
+            Tensor validLengths,
+            Tensor initialHidden,
+            Tensor inputWeight,
+            Tensor hiddenWeight,
+            RecurrentDirection direction) {
+        return TensorRecurrentScanExpressions.rnnScan(
+                this, validLengths, initialHidden, inputWeight, hiddenWeight, direction);
+    }
+
+    /**
+     * Constructs a biased fixed tanh-RNN scan over this time-major input.
+     *
+     * <p>This is the explicit-bias variant of
+     * {@link #rnnScan(Tensor, Tensor, Tensor, Tensor, RecurrentDirection)}. Its ordered inputs are
+     * {@code [this, validLengths, initialHidden, inputWeight, hiddenWeight, bias]}; the exact
+     * {@code [hiddenSize]} bias is added only to the input projection. All floating roles have
+     * one exact type, and output gradient eligibility is their request-flag OR. Valid lengths
+     * never contribute to that flag or undergo a value read.</p>
+     *
+     * @param validLengths non-null non-gradient fully static {@code INT64[batch]} Tensor
+     * @param initialHidden non-null exact-typed {@code [batch, hiddenSize]} initial state
+     * @param inputWeight non-null exact-typed {@code [hiddenSize, inputSize]} input weight
+     * @param hiddenWeight non-null exact-typed {@code [hiddenSize, hiddenSize]} recurrent weight
+     * @param bias non-null exact-typed input-side bias shaped {@code [hiddenSize]}
+     * @param direction non-null forward or reverse valid-prefix traversal direction
+     * @return fresh non-null dense-output/final-hidden wrappers sharing one exact producer
+     * @throws NullPointerException if an argument is null, checked in declaration order
+     * @throws IllegalArgumentException if a type, gradient flag, rank, static Shape, positive-size,
+     *     or exact extent requirement fails
+     * @throws IllegalStateException if Tensor identifier space is exhausted
+     */
+    public RecurrentScanResult rnnScan(
+            Tensor validLengths,
+            Tensor initialHidden,
+            Tensor inputWeight,
+            Tensor hiddenWeight,
+            Tensor bias,
+            RecurrentDirection direction) {
+        return TensorRecurrentScanExpressions.rnnScan(
+                this, validLengths, initialHidden, inputWeight, hiddenWeight, bias, direction);
+    }
+
+    /**
+     * Constructs a bias-free reset-after GRU scan over this time-major input.
+     *
+     * <p>Input and recurrent weights are packed in reset, update, candidate order with Shapes
+     * {@code [3 * hiddenSize, inputSize]} and {@code [3 * hiddenSize, hiddenSize]}. The reset gate
+     * multiplies the recurrent candidate projection after that projection, and the fixed update is
+     * {@code candidate + update * (hidden - candidate)}. Ordered inputs are
+     * {@code [this, validLengths, initialHidden, inputWeight, hiddenWeight]}.</p>
+     *
+     * <p>The result contains canonical dense-output and final-hidden slots of one flat producer.
+     * Runtime valid-length values, reverse-prefix traversal, zero padding, and zero-length state
+     * preservation are semantic metadata only; current compiler and execution inventories do not
+     * support this family.</p>
+     *
+     * @param validLengths non-null non-gradient fully static {@code INT64[batch]} Tensor
+     * @param initialHidden non-null exact-typed {@code [batch, hiddenSize]} initial state
+     * @param inputWeight non-null exact-typed packed input weight
+     * @param hiddenWeight non-null exact-typed packed recurrent weight
+     * @param direction non-null forward or reverse valid-prefix traversal direction
+     * @return fresh non-null dense-output/final-hidden wrappers sharing one exact producer
+     * @throws NullPointerException if an argument is null, checked in declaration order
+     * @throws IllegalArgumentException if a type, gradient flag, rank, static Shape, checked packed
+     *     extent, positive-size, or exact extent requirement fails
+     * @throws IllegalStateException if Tensor identifier space is exhausted
+     */
+    public RecurrentScanResult gruScan(
+            Tensor validLengths,
+            Tensor initialHidden,
+            Tensor inputWeight,
+            Tensor hiddenWeight,
+            RecurrentDirection direction) {
+        return TensorRecurrentScanExpressions.gruScan(
+                this, validLengths, initialHidden, inputWeight, hiddenWeight, direction);
+    }
+
+    /**
+     * Constructs a biased reset-after GRU scan over this time-major input.
+     *
+     * <p>This variant adds the exact packed {@code [3 * hiddenSize]} bias only to the input
+     * projection and records ordered inputs
+     * {@code [this, validLengths, initialHidden, inputWeight, hiddenWeight, bias]}. It otherwise
+     * retains the reset-after equations, dense output, final-state, valid-prefix, type, gradient,
+     * provenance, and non-execution boundaries of the bias-free overload.</p>
+     *
+     * @param validLengths non-null non-gradient fully static {@code INT64[batch]} Tensor
+     * @param initialHidden non-null exact-typed {@code [batch, hiddenSize]} initial state
+     * @param inputWeight non-null exact-typed packed input weight
+     * @param hiddenWeight non-null exact-typed packed recurrent weight
+     * @param bias non-null exact-typed input-side packed bias
+     * @param direction non-null forward or reverse valid-prefix traversal direction
+     * @return fresh non-null dense-output/final-hidden wrappers sharing one exact producer
+     * @throws NullPointerException if an argument is null, checked in declaration order
+     * @throws IllegalArgumentException if a type, gradient flag, rank, static Shape, checked packed
+     *     extent, positive-size, or exact extent requirement fails
+     * @throws IllegalStateException if Tensor identifier space is exhausted
+     */
+    public RecurrentScanResult gruScan(
+            Tensor validLengths,
+            Tensor initialHidden,
+            Tensor inputWeight,
+            Tensor hiddenWeight,
+            Tensor bias,
+            RecurrentDirection direction) {
+        return TensorRecurrentScanExpressions.gruScan(
+                this, validLengths, initialHidden, inputWeight, hiddenWeight, bias, direction);
+    }
+
+    /**
+     * Constructs a bias-free fixed LSTM scan over this time-major input.
+     *
+     * <p>Input and recurrent weights are packed in input, forget, candidate, output gate order
+     * with Shapes {@code [4 * hiddenSize, inputSize]} and
+     * {@code [4 * hiddenSize, hiddenSize]}. The fixed transition computes
+     * {@code c' = f * c + i * g} and {@code h' = o * tanh(c')}. Ordered inputs are
+     * {@code [this, validLengths, initialHidden, initialCell, inputWeight, hiddenWeight]}.</p>
+     *
+     * <p>The result exposes all canonical producer slots in order: dense original-time-aligned
+     * output, final hidden, and final cell. A zero-length row preserves both explicit initial
+     * states; a zero-time input produces empty dense metadata. Construction never reads length
+     * values and supplies no compilation, execution, saved-gate, or BPTT behavior.</p>
+     *
+     * @param validLengths non-null non-gradient fully static {@code INT64[batch]} Tensor
+     * @param initialHidden non-null exact-typed {@code [batch, hiddenSize]} initial hidden state
+     * @param initialCell non-null exact-typed {@code [batch, hiddenSize]} initial cell state
+     * @param inputWeight non-null exact-typed packed input weight
+     * @param hiddenWeight non-null exact-typed packed recurrent weight
+     * @param direction non-null forward or reverse valid-prefix traversal direction
+     * @return fresh non-null dense-output/final-hidden/final-cell wrappers from one exact producer
+     * @throws NullPointerException if an argument is null, checked in declaration order
+     * @throws IllegalArgumentException if a type, gradient flag, rank, static Shape, checked packed
+     *     extent, positive-size, or exact extent requirement fails
+     * @throws IllegalStateException if Tensor identifier space is exhausted
+     */
+    public LstmRecurrentScanResult lstmScan(
+            Tensor validLengths,
+            Tensor initialHidden,
+            Tensor initialCell,
+            Tensor inputWeight,
+            Tensor hiddenWeight,
+            RecurrentDirection direction) {
+        return TensorRecurrentScanExpressions.lstmScan(
+                this,
+                validLengths,
+                initialHidden,
+                initialCell,
+                inputWeight,
+                hiddenWeight,
+                direction);
+    }
+
+    /**
+     * Constructs a biased fixed LSTM scan over this time-major input.
+     *
+     * <p>This variant adds the exact packed {@code [4 * hiddenSize]} bias only to the input
+     * projection and records ordered inputs
+     * {@code [this, validLengths, initialHidden, initialCell, inputWeight, hiddenWeight, bias]}.
+     * It otherwise retains the fixed LSTM equations, dense zero-padded output, explicit final
+     * states, exact type/Shape rules, shared provenance, and non-execution boundaries of the
+     * bias-free overload.</p>
+     *
+     * @param validLengths non-null non-gradient fully static {@code INT64[batch]} Tensor
+     * @param initialHidden non-null exact-typed {@code [batch, hiddenSize]} initial hidden state
+     * @param initialCell non-null exact-typed {@code [batch, hiddenSize]} initial cell state
+     * @param inputWeight non-null exact-typed packed input weight
+     * @param hiddenWeight non-null exact-typed packed recurrent weight
+     * @param bias non-null exact-typed input-side packed bias
+     * @param direction non-null forward or reverse valid-prefix traversal direction
+     * @return fresh non-null dense-output/final-hidden/final-cell wrappers from one exact producer
+     * @throws NullPointerException if an argument is null, checked in declaration order
+     * @throws IllegalArgumentException if a type, gradient flag, rank, static Shape, checked packed
+     *     extent, positive-size, or exact extent requirement fails
+     * @throws IllegalStateException if Tensor identifier space is exhausted
+     */
+    public LstmRecurrentScanResult lstmScan(
+            Tensor validLengths,
+            Tensor initialHidden,
+            Tensor initialCell,
+            Tensor inputWeight,
+            Tensor hiddenWeight,
+            Tensor bias,
+            RecurrentDirection direction) {
+        return TensorRecurrentScanExpressions.lstmScan(
+                this,
+                validLengths,
+                initialHidden,
+                initialCell,
+                inputWeight,
+                hiddenWeight,
+                bias,
+                direction);
     }
 
     /**

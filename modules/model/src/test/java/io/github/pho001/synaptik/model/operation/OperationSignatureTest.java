@@ -64,6 +64,8 @@ import io.github.pho001.synaptik.model.operation.random.DropoutAttrs;
 import io.github.pho001.synaptik.model.operation.random.DropoutKind;
 import io.github.pho001.synaptik.model.operation.random.GraphRngKind;
 import io.github.pho001.synaptik.model.operation.random.GraphRngStateAttrs;
+import io.github.pho001.synaptik.model.operation.recurrent.RecurrentDirection;
+import io.github.pho001.synaptik.model.operation.recurrent.RecurrentScanKind;
 import io.github.pho001.synaptik.model.operation.reduction.AggregateReductionKind;
 import io.github.pho001.synaptik.model.operation.reduction.ArgExtremaAttrs;
 import io.github.pho001.synaptik.model.operation.reduction.AxisReductionAttrs;
@@ -297,6 +299,15 @@ public final class OperationSignatureTest {
                 AggregateReductionKind.STANDARD_DEVIATION);
         assertFamily(
                 List.of(fixed(CumulativeScanAttrs.class, 1)), CumulativeScanKind.values());
+        assertKinds(
+                List.of(OperationSignature.inputRange(
+                        RecurrentDirection.class, 5, 6, 2)),
+                RecurrentScanKind.RNN_TANH,
+                RecurrentScanKind.GRU_RESET_AFTER);
+        assertKinds(
+                List.of(OperationSignature.inputRange(
+                        RecurrentDirection.class, 6, 7, 3)),
+                RecurrentScanKind.LSTM);
     }
 
     @Test

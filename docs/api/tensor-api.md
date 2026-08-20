@@ -431,6 +431,12 @@ short form and a complete overload retaining caller-selected exclusive and rever
 methods accept floating and integral input, normalize one axis, retain the exact input Shape, data
 type, and gradient eligibility, leave layout unresolved, and record exact one-input provenance.
 They do not inspect or accumulate values.
+`RecurrentScanKind` provides the separate fixed `RNN_TANH`, `GRU_RESET_AFTER`, and `LSTM`
+time-major recurrent meanings. `RecurrentDirection` is each occurrence's exact `FORWARD` or
+`REVERSE` attribute. Six receiver methods accept fully static floating descriptors plus one
+ordinary non-gradient `INT64[batch]` valid-length Tensor and construct two or three canonical
+outputs from one flat producer. Model validates descriptors but never reads length or data values;
+Compiler adoption, BPTT, Engine binding, runtime validation, and backend execution remain future.
 `SoftmaxKind.SOFTMAX`, `SoftmaxKind.LOG_SOFTMAX`, and `SoftmaxAttrs` provide distinct
 shape-preserving probability and log-probability normalization semantics. The attributes carry
 one already normalized non-negative axis. Public `Tensor.softmax` and `Tensor.logSoftmax`
@@ -4061,6 +4067,93 @@ Failure behavior is local and deterministic:
   invalid. These validation failures consume no Tensor identity.
 - Exhausted factory identity space fails only after descriptor, operation, and provenance
   metadata have been constructed.
+
+### Fixed recurrent-scan expressions
+
+The six current recurrent receiver methods construct one fixed time-major scan occurrence:
+
+| Family | Bias-free receiver form | Biased receiver form | Ordered outputs |
+|---|---|---|---|
+| RNN tanh | `rnnScan(validLengths, initialHidden, inputWeight, hiddenWeight, direction)` | `rnnScan(validLengths, initialHidden, inputWeight, hiddenWeight, bias, direction)` | `[outputs, finalHidden]` |
+| Reset-after GRU | `gruScan(validLengths, initialHidden, inputWeight, hiddenWeight, direction)` | `gruScan(validLengths, initialHidden, inputWeight, hiddenWeight, bias, direction)` | `[outputs, finalHidden]` |
+| LSTM | `lstmScan(validLengths, initialHidden, initialCell, inputWeight, hiddenWeight, direction)` | `lstmScan(validLengths, initialHidden, initialCell, inputWeight, hiddenWeight, bias, direction)` | `[outputs, finalHidden, finalCell]` |
+
+The receiver is `input [time, batch, inputSize]`. Every Shape is fully static; `inputSize` and
+`hiddenSize` must be positive, while `time` and `batch` may be zero. `validLengths` is exactly
+non-gradient `INT64[batch]`. Initial hidden and cell states are `[batch, hiddenSize]`. For gate
+count `G`, input weight is `[G * hiddenSize, inputSize]`, hidden weight is
+`[G * hiddenSize, hiddenSize]`, and optional bias is `[G * hiddenSize]`; `G` is one, three, or four
+for RNN, GRU, or LSTM respectively. The receiver, states, weights, and optional bias use one exact
+common `FLOAT64`, `FLOAT32`, or `BFLOAT16` data type.
+
+The fixed transition equations match the current NN cells. With `X = x @ transpose(inputWeight)`
+plus the optional input-side bias and `H = h @ transpose(hiddenWeight)`:
+
+```text
+RNN_TANH:
+  nextHidden = tanh(X + H)
+
+GRU_RESET_AFTER, packed reset/update/candidate order:
+  r = sigmoid(X_r + H_r)
+  z = sigmoid(X_z + H_z)
+  n = tanh(X_n + r * H_n)
+  nextHidden = n + z * (h - n)
+
+LSTM, packed input/forget/candidate/output (IFGO) order:
+  i = sigmoid(X_i + H_i)
+  f = sigmoid(X_f + H_f)
+  g = tanh(X_g + H_g)
+  o = sigmoid(X_o + H_o)
+  nextCell = f * cell + i * g
+  nextHidden = o * tanh(nextCell)
+```
+
+There is no hidden-side bias, configurable activation, gate order, peephole, projection,
+recurrent dropout, arbitrary cell body, callback, nested graph, or region. `RecurrentScanKind`
+has closed signatures: RNN and GRU accept five or six inputs and produce exactly two outputs;
+LSTM accepts six or seven inputs and produces exactly three. The exact attribute class is
+`RecurrentDirection`, whose only values are `FORWARD` and `REVERSE`.
+
+Provenance retains the following exact input order:
+
+```text
+RNN/GRU without bias: [input, validLengths, initialHidden, inputWeight, hiddenWeight]
+RNN/GRU with bias:    [input, validLengths, initialHidden, inputWeight, hiddenWeight, bias]
+LSTM without bias:   [input, validLengths, initialHidden, initialCell, inputWeight, hiddenWeight]
+LSTM with bias:      [input, validLengths, initialHidden, initialCell, inputWeight, hiddenWeight, bias]
+```
+
+One call creates one fresh identity-distinct flat `TensorProducer`. `RecurrentScanResult` exposes
+the producer's canonical wrappers at positions zero and one; `LstmRecurrentScanResult` exposes
+positions zero through two. The dense output descriptor is `[time, batch, hiddenSize]`; final
+state descriptors are `[batch, hiddenSize]`. Their layouts are unresolved, they are unlabeled and
+storage-free, and their `requiresGrad` value is the OR of the floating input, state, weight, and
+optional-bias roles. Valid lengths never contribute to gradient eligibility. No projection,
+gate, mask, step, padding, or zero-fill intermediate Tensor is constructed.
+
+`FORWARD` and `REVERSE` are semantic requests for future execution. For original batch row `b`
+with runtime length `L[b]`, forward traversal will consume coordinates `0 .. L[b]-1`; reverse
+traversal will consume `L[b]-1 .. 0`, reversing only the valid prefix. Both directions return
+dense outputs aligned to original time positions, with exact positive zero at `t >= L[b]`, plus
+explicit final states. A zero-length row returns its initial states semantically. A zero-time
+input has an empty dense output and will require every runtime length to be zero. These are fixed
+operation semantics, not values computed by Model construction.
+
+Construction never reads `validLengths` storage, so it cannot validate scalar bounds or infer
+active rows. It validates nulls in declaration order, then direction, floating input and static
+rank-three Shape, positive input width, the valid-length descriptor, state descriptors, packed
+weight extents, optional bias, and exact common data type before allocating output identities.
+Descriptor or arithmetic-overflow failures therefore consume no Tensor ID. Identifier exhaustion
+may consume earlier output IDs without returning a partial result, following the shared canonical
+multi-output factory contract.
+
+Current generic graph capture can translate the shared producer to one flat node with the same
+ordered inputs and outputs. Current Compiler inference still rejects `RecurrentScanKind` as an
+unsupported operation before planning, and current autograd preflight rejects it before creating
+derivative Tensors. No capability provider advertises the family and no Compiler, Engine,
+Runtime, backend, execution, numerical-algorithm, or backpropagation-through-time behavior is
+available yet. [`RnnSequence`, `GruSequence`, and `LstmSequence`](training-api.md#current-nn-recurrent-composition-contract)
+remain distinct NN-owned static Java-unrolled compact-output APIs.
 
 ### Softmax expressions
 

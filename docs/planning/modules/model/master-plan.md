@@ -109,6 +109,10 @@ io.github.pho001.synaptik.model.operation.reduction
 io.github.pho001.synaptik.model.operation.scan
   Typed shape-preserving ordered scan meanings and immutable scan parameters.
 
+io.github.pho001.synaptik.model.operation.recurrent
+  Fixed time-major RNN-tanh, reset-after GRU, and LSTM scan meanings with one immutable direction;
+  no user-defined body, graph region, execution state, or backend behavior.
+
 io.github.pho001.synaptik.model.operation.normalization
   Typed shape-preserving normalization meanings and immutable normalization parameters.
 
@@ -287,7 +291,7 @@ Operation-family subpackages are introduced only when a focused operation task d
 | 0025B | [Binding-aware expansion](tasks/0025b-binding-aware-expansion.md) | Complete | 0002, 0017C, 0017D1, 0018M, 0023A, 0025A; prerequisite for Compiler 0005B | Broadened existing EXPAND construction to retain unresolved source-one-or-source-equal obligations with exact target Shape and unresolved layout, without another public or semantic spelling. |
 | 0025C | [Portable functional-scatter reduction semantics](tasks/0025c-portable-functional-scatter-reduction-semantics.md) | Complete | 0018G–0018J, 0018U–0018U1, 0025A; prerequisite for Compiler 0005C | Fixed the represented-value grouping, duplicate, empty-update, floating special-value, modular integral, and signed-extrema meaning of configurable scatter MUL/MIN/MAX without execution or derivative policy. |
 | 0025D | [Dynamic-extent slice extraction and symbolic slice placement](tasks/0025d-dynamic-extent-slice-extraction-and-symbolic-slice-placement.md) | Complete | 0002, 0018M, 0018R, 0023C, 0025C; prerequisite for Compiler 0005C | Added exactly `sliceByLength(long[], long[], int[], long[])` for finite extraction across unresolved selected extents and `sliceUpdate(Tensor, Shape)` for target-relative symbolic placement, reusing existing slice kinds and attributes without compiler behavior. |
-| 0025E | Fixed recurrent-scan semantic family and Tensor expressions | Draft | accepted NN 0021A architecture decision; 0018K–0018L; current recurrent cell equations | Add the fixed RNN-tanh, reset-after GRU, and LSTM forward/reverse recurrent-scan meanings, rank-one runtime `INT64` valid-length input, dense time-major output plus typed final states, and exact shared multi-output Tensor provenance without a user-defined body/region abstraction or execution claim. |
+| 0025E | [Fixed recurrent-scan semantic family and Tensor expressions](tasks/0025e-fixed-recurrent-scan-semantic-family-and-tensor-expressions.md) | Complete | accepted NN 0021A architecture decision; 0018K–0018L, 0018N, 0019, 0025; current recurrent cell equations | Added the fixed RNN-tanh, reset-after GRU, and LSTM forward/reverse recurrent-scan meanings, rank-one runtime `INT64` valid-length input, dense time-major output plus typed final states, and exact shared multi-output Tensor provenance without a user-defined body/region abstraction or execution claim. |
 | 0026 | IEEE FLOAT16 and mixed-precision semantic contracts | Draft | 0001, 0018N, completed operation-family semantics; required before any backend advertises FLOAT16 | Preserve BFLOAT16, add distinct true IEEE-754 binary16 `FLOAT16`, and audit affected families for explicit input, accumulation/intermediate, and output types without adding backend support. |
 
 ## Milestones
@@ -323,9 +327,9 @@ Operation-family subpackages are introduced only when a focused operation task d
 - Compiler-gradient dynamic-slice prerequisite: task 0025D, Complete after reopening Model only for
   finite length-defined extraction across unresolved selected extents and exact-Shape
   target-relative slice placement before Complete Compiler 0005C adopts the retained obligations
-- Future fixed recurrent-scan semantic prerequisite: task 0025E remains Draft without a detailed
-  specification. It follows the accepted NN 0021A architecture decision and must not introduce a
-  user-defined body/region abstraction or claim execution support.
+- Completed fixed recurrent-scan semantic prerequisite: task 0025E adds the exact Model-owned
+  fixed flat metadata selected by NN 0021A, without a user-defined body/region abstraction or an
+  execution claim. Compiler 0006A remains the downstream Draft forward-adoption owner.
 - Future mixed-precision semantic foundation: task 0026 remains Draft without a detailed
   specification. It must complete before any backend advertises FLOAT16, but it does not block
   current CPU generated-artifact caching, current-type portable analysis/finalization, or
@@ -353,9 +357,10 @@ EXPAND construction for unresolved source-one-or-source-equal compatibility so C
 [Compiler 0005B](../compiler/tasks/0005b-reduction-scan-softmax-statistics-and-normalization-gradient-completion.md)
 could adopt that obligation; it added no public method, kind, attributes, Shape/constraint type,
 binding implementation, or compiler behavior.
-Future task 0025E remains Draft without a detailed specification and follows the accepted NN
-0021A architecture decision. It will own only the fixed recurrent-scan Model semantics and Tensor
-surface selected there, not Compiler, Runtime, Engine, or backend execution. Future task 0026 also
+Completed [task 0025E](tasks/0025e-fixed-recurrent-scan-semantic-family-and-tensor-expressions.md)
+follows the accepted NN 0021A architecture decision. It
+owns only the fixed recurrent-scan Model semantics and Tensor surface selected there, not
+Compiler, Runtime, Engine, or backend execution. Future task 0026 also
 remains Draft without a detailed specification and does not reopen the completed historical
 capability milestone. It is an explicit prerequisite only for backend FLOAT16 claims; CPU tasks
 that preserve the current six-type contract and fail closed for FLOAT16 may proceed in their
@@ -1865,10 +1870,11 @@ The compiler selected derivative ties, endpoints, discontinuities, raw-domain be
 activation infinity handling without changing the model's represented-value forward contracts.
 Task 0025B and
 [Compiler 0005B](../compiler/tasks/0005b-reduction-scan-softmax-statistics-and-normalization-gradient-completion.md)
-are Complete. Task 0025D is the latest Complete detailed Model specification. Model 0025E remains
-Draft without a detailed specification after completed NN 0021A. Detailed
+are Complete. Task 0025D and Model 0025E are Complete detailed Model specifications; 0025E
+implements the fixed flat recurrent-scan metadata selected by completed NN 0021A. Detailed
 [Compiler 0005C](../compiler/tasks/0005c-layout-window-indexing-scatter-ordering-and-stochastic-gradient-completion.md)
 and Compiler 0005D–0006 are Complete; Compiler 0006A remains Draft without a detailed
-specification, and no implementation task in this sequence is Ready.
+specification and remains the downstream owner of forward Compiler adoption. Model 0026 remains
+Draft without a detailed specification and is the next Model frontier.
 The legacy branch must be consulted read-only for capability and test evidence when preparing each
 applicable capability task.

@@ -115,9 +115,10 @@ service lookup, or repeated unsafe cast.
 
 ## Planned fixed recurrent scan through the lifecycle
 
-The fixed recurrent scan is a planned ordinary Model operation whose runtime `INT64[batch]`
-valid-length values may change while every Shape remains fully static. It is not implemented yet.
-The architecture reads left to right as follows:
+The fixed recurrent scan is a current ordinary Model expression whose `INT64[batch]`
+valid-length values are modeled as ordinary inputs while every Shape remains fully static. Model
+construction is implemented; Compiler adoption, public execution, and backend realization are
+not. The complete planned lifecycle reads left to right as follows:
 
 ```text
 one flat multi-output TensorProducer
@@ -129,15 +130,15 @@ one flat multi-output TensorProducer
   -> one backend-internal bounded recurrent loop
 ```
 
-Model fixes `RNN_TANH`, `GRU_RESET_AFTER`, and `LSTM`, `FORWARD` or `REVERSE`, ordered inputs and
+Current Model fixes `RNN_TANH`, `GRU_RESET_AFTER`, and `LSTM`, `FORWARD` or `REVERSE`, ordered inputs and
 outputs, static descriptor rules, and dense original-time-aligned zero-filled padded results.
-Compiler adopts the occurrence as one node and initially fails every backward-capable request that
-reaches it before constructing a gradient Tensor. Planning treats it as one ordinary capability
-query. Shared Prepare projects its static facts and assigns the resources declared by backend
-analysis; it does not receive a loop body. Engine cold-binds the typed logical inputs, including
-the runtime length Tensor, to Runtime caller-input representations. Runtime invokes the prepared
-bound action and never interprets direction, length values, active rows, recurrence, or graph
-state.
+Generic capture already preserves the occurrence as one node, but current Compiler inference
+rejects its kind as unsupported and current autograd rejects it before derivative Tensor
+construction. Later Compiler, Planning, Prepare, Engine, Runtime, and backend work owns the
+remaining arrows. Planning will treat it as one ordinary capability query. Shared Prepare will
+project its static facts and assign backend-declared resources without receiving a loop body.
+Engine will cold-bind the typed logical inputs, including the runtime length Tensor, and Runtime
+will invoke the prepared bound action without interpreting recurrence.
 
 The concrete backend validates the complete length vector before mutating any output
 representation. It traverses only each row's valid prefix, writes exact positive zero at padded

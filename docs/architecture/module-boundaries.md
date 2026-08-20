@@ -30,12 +30,12 @@ remain distinct compile-time state.
 
 The model does not know backend support, device residency, kernel selection, backend-specific storage, prepared execution, or runtime state. `Operation` expresses semantics and never exposes `supportedBackends()`. Runtime device storage belongs outside this module.
 
-The planned fixed recurrent scan follows this same flat Model boundary. Model owns the fixed
+The current Model fixed recurrent scan follows this same flat boundary. Model owns the fixed
 `RNN_TANH`, `GRU_RESET_AFTER`, and `LSTM` meanings, one `FORWARD` or `REVERSE` attribute, ordered
 ordinary Tensor inputs, fully static descriptor rules, canonical dense output and final-state
-wrappers, and the future Tensor receiver methods. It owns no callback body, nested graph, region,
-captured free variable, runtime length inspection, hidden state, or execution loop. The exact
-surface remains planned until Model task 0025E is implemented.
+wrappers, and six Tensor receiver methods. It owns no callback body, nested graph, region,
+captured free variable, runtime length inspection, hidden state, or execution loop. Compiler
+adoption and every executable route remain future work.
 
 ### `modules/config`
 
@@ -55,9 +55,10 @@ Planning may interpret a backend-neutral cost model to choose `BackendId` owners
 interprets route names, vector species or lanes, unroll factors, thread counts, chunks, tiles, or
 other backend parameter vocabulary.
 
-The planned fixed recurrent scan enters Planning through the unchanged ordinary operation
-capability query. Planning selects an owner but does not interpret cell variant, direction,
-valid-length values, active rows, loop bounds, or a recurrent execution route.
+When the fixed recurrent scan becomes executable, it enters Planning through the unchanged
+ordinary operation capability query. Planning selects an owner but does not interpret cell
+variant, direction, valid-length values, active rows, loop bounds, or a recurrent execution
+route. No current capability provider advertises the Model family.
 
 See [Partition Scoring](partition-scoring.md).
 
@@ -71,11 +72,12 @@ optimization, publication binding, planning orchestration, compile diagnostics, 
 
 Its output is immutable compile-time state. It does not create physical buffers, backend executables, runtime workspaces, prepared schedules, or `PreparedExecution`, and it has no concrete backend dependencies.
 
-For the planned fixed recurrent scan, Compiler must capture exactly one ordinary flat node,
-perform descriptor inference and validation, and add the exact signatures to its closed forward
-inventory. Until a separate backpropagation-through-time (BPTT) design is adopted, every
-backward-capable request reaching that family fails before any gradient Tensor is constructed.
-Compiler does not unroll the recurrence into `time` nodes and does not create a body graph.
+Compiler can structurally capture a current Model scan producer as exactly one ordinary flat
+node, but current inference rejects `RecurrentScanKind` as unsupported before planning. Its
+closed autograd inventory rejects every backward-capable request reaching the family before any
+gradient Tensor is constructed. Compiler task 0006A owns forward inference, validation, and
+closed-inventory adoption; a later explicit backpropagation-through-time (BPTT) decision owns
+derivatives. Compiler must not unroll the recurrence into `time` nodes or create a body graph.
 
 ### `modules/runtime`
 
@@ -94,7 +96,7 @@ the graph for tuning, or access or mutate tuning caches. Runtime profiling is pa
 translated into typed trace data; it cannot change settings. The hot path does not use
 `Operation` or `CompiledNode`.
 
-For the planned fixed recurrent scan, Runtime receives only ordinary caller-input
+For a future executable fixed recurrent scan, Runtime receives only ordinary caller-input
 representations, one reusable prepared executable recipe, cold-bound direct references, and an
 isolated `RunState`. It does not inspect the valid-length value, interpret direction or
 recurrence, choose loop bounds, or compact active rows.
@@ -108,7 +110,7 @@ prepared memory validation, and prepared schedule validation.
 
 Prepare bridges compile artifacts to runtime contracts, but shared prepare code does not contain concrete CPU, Metal, or CUDA lowering, kernel selection, executable implementations, or backend-specific storage. Those belong to concrete backend modules.
 
-The planned fixed recurrent scan needs no shared loop-body contract. Prepare projects one
+The future executable fixed recurrent scan needs no shared loop-body contract. Prepare projects one
 ordinary static-Shape partition occurrence, accepts the backend's opaque one-time recurrent-loop
 analysis and exact resource declarations, assigns slots, and supplies those assignments for
 finalization through the existing staged lifecycle.

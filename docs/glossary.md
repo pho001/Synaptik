@@ -2840,21 +2840,31 @@ This sequence packing is different from GRU/LSTM **gate-parameter packing**, whi
 matrices and optional bias intervals in a fixed checkpoint order. It also does not produce a
 dense padded output and does not infer padding from zero-valued data.
 
-A **recurrent scan** would invoke a caller-selected cell body while carrying state according to
-runtime-dependent control flow. No such Model primitive is current. Runtime Tensor lengths or
-masks would need that genuine contract because their values would decide the number of steps and
-active-batch Shapes; applying a dense `WHERE` after a full-batch cell would still construct padded
-cell work. Current `CUM_SUM` and `CUM_PROD` instead use one fixed associative operation over every
-prefix and do not carry a cell body, parameters, or caller-selected recurrent state. The current
-static containers therefore do not accept runtime Tensor lengths or masks and do not imply a
-future scan representation.
+A **fixed recurrent scan** is the current Model-owned `RNN_TANH`, `GRU_RESET_AFTER`, or `LSTM`
+expression family. It consumes a fully static time-major input, explicit initial states and packed
+parameters, one ordinary non-gradient `INT64[batch]` **valid-length Tensor**, and exact `FORWARD`
+or `REVERSE` direction. RNN and GRU produce dense output plus final hidden state; LSTM additionally
+produces final cell state. One call creates one flat identity-distinct multi-output producer, not a
+callback, caller-selected cell body, nested graph, region, or static per-step unroll.
 
-The current static containers expose no Tensor `validLengths`, arbitrary mask with holes, stacked
-or multidimensional recurrent facade, arbitrary direction collection, configurable merge, or
-recurrent scan. Bidirectional composition fixes exactly forward-then-backward final-axis CONCAT;
-it is not a generic multidirectional abstraction. The standard module factory constructs only the
-one-directional containers and adds no bidirectional recipe or runtime capability. Current
-initialized `Embedding` remains eager.
+Model construction validates only the length Tensor descriptor and never reads its scalar values.
+The fixed future execution meaning traverses each row's valid prefix in the selected direction,
+keeps dense outputs aligned to original time, writes positive zero at padded positions, and
+returns the explicit final states. A zero-length row returns its initial states semantically; a
+zero-time input has empty output and will require all runtime lengths to be zero. Current Compiler
+inference and autograd fail closed for the family, no capability provider advertises it, and no
+Engine, Runtime, backend, or BPTT implementation executes it.
+
+This differs from a [`cumulative scan`](#cumulative-scan), whose fixed associative addition or
+multiplication combines prefixes of one input and carries no recurrent state or parameters. It
+also differs from current NN static recurrent containers: they accept construction-time Java
+`long[]` lengths, specialize expression topology, and return compact per-step outputs. Those
+containers expose no Tensor `validLengths`, arbitrary mask with holes, stacked or
+multidimensional recurrent facade, arbitrary direction collection, configurable merge, or
+runtime execution. Bidirectional composition fixes exactly forward-then-backward final-axis
+CONCAT; it is not a generic multidirectional abstraction. The standard module factory constructs
+only the one-directional containers and adds no bidirectional recipe or runtime capability.
+Current initialized `Embedding` remains eager.
 
 `extensions/nn` composes generic [`Tensor`](#tensor) and operation semantics from
 `modules/model`. [`extensions/training`](#training-graph) consumes nn-declared parameters for

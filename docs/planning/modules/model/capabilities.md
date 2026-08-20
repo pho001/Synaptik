@@ -786,6 +786,29 @@ policies, not backend algorithm designs.
 Model records the selected meaning. Compiler owns differentiability rules and backward graph
 construction; backends may use different algorithms only when they satisfy that meaning.
 
+## Fixed recurrent-scan metadata
+
+Completed [task 0025E](tasks/0025e-fixed-recurrent-scan-semantic-family-and-tensor-expressions.md)
+adds Model-owned expression metadata for exactly `RNN_TANH`, `GRU_RESET_AFTER`, and `LSTM`, with
+exact `FORWARD` or `REVERSE` direction. The six Tensor receiver overloads cover biased and
+unbiased forms. They require fully static time-major input, state, and packed-weight Shapes plus
+one ordinary non-gradient `INT64[batch]` valid-length descriptor. RNN and GRU expose dense output
+and final hidden state; LSTM also exposes final cell state. Each call creates one identity-distinct
+flat producer and canonical ordered wrappers, with no per-step intermediate graph.
+
+The fixed equations and packing match the current NN cells: RNN uses one tanh transition; GRU is
+reset-after in reset/update/candidate order; LSTM uses input/forget/candidate/output order. Model
+records dense original-time-aligned results, positive-zero padding, valid-prefix forward or
+reverse traversal, and explicit final-state semantics for future execution. It validates only
+descriptors and never reads runtime valid-length values. Zero time and zero batch are valid
+metadata cases; runtime bounds remain an execution-layer obligation.
+
+This is not an executable capability advertisement. Current Compiler inference and closed
+autograd reject the family, no Planning capability provider advertises it, and no Engine,
+Runtime, concrete backend, NN runtime-length facade, or BPTT implementation adopts it. Compiler
+0006A and later execution tasks own those boundaries. Existing static NN sequence containers and
+their compact-output contracts remain unchanged.
+
 ## Adjoint expressibility and missing public primitives
 
 The [task-0023 planning audit](adjoint-expressibility-audit.md) covers every current public

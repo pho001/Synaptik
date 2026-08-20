@@ -82,11 +82,12 @@ phase. No such extension may add mutable gradient state to Tensor.
 
 ## Fixed recurrent scan and the initial BPTT boundary
 
-The planned fixed recurrent scan is an ordinary flat multi-output forward occurrence, not a
-nested training graph. Model task 0025E will own only its fixed forward meanings and canonical
-outputs. Compiler task 0006A must adopt forward capture, inference, validation, and the exact
-closed operation inventory while rejecting every backward-capable request that reaches the scan
-before constructing any gradient Tensor.
+The current Model fixed recurrent scan is an ordinary flat multi-output forward occurrence, not
+a nested training graph. Model task 0025E owns only its fixed forward meanings, descriptor
+construction, and canonical outputs. Generic capture already preserves one producer as one node,
+but current Compiler inference rejects the unknown kind. Compiler task 0006A must adopt forward
+inference, validation, and the exact closed operation inventory while preserving rejection of
+every backward-capable request before any gradient Tensor is constructed.
 
 Backpropagation through time (BPTT) therefore remains unsupported even though output gradient
 eligibility is derived from differentiable floating inputs, states, and parameters. The runtime
@@ -97,8 +98,9 @@ from becoming the owner of global autograd.
 This decision selects no saved-gate outputs, tape, checkpointing policy, recomputation policy,
 backward operation, derivative formula, or physical saved-state representation. A later Compiler
 architecture and implementation task must choose those contracts after the forward executable
-path is stable. Until then, `FORWARD_ONLY` is the only compile mode that may adopt the planned
-family. See [ADR 0012](../design/decisions/0012-fixed-recurrent-scan-without-regions.md).
+path is stable. Current `FORWARD_ONLY` compilation also rejects the family at inference; after
+Compiler 0006A, it is the only compile mode expected to adopt it until BPTT is designed. See
+[ADR 0012](../design/decisions/0012-fixed-recurrent-scan-without-regions.md).
 
 ## Optimizer as a backend-agnostic step
 
