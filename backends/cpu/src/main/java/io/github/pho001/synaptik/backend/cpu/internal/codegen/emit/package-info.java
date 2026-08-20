@@ -69,8 +69,12 @@
  * addition, and writes each output coordinate once without scratch or atomics. Family, type,
  * carrier, access, coordinate mapping, and addition choices are embedded in the generated class;
  * proved dense heap arrays retain integer coordinate/address state, while segment, mixed-carrier,
- * and general-layout forms retain typed long state. No generic {@code Object} execution bridge is
- * present in generated fold work.
+ * and general-layout forms normally retain typed long state. One guarded frozen mixed-carrier
+ * FLOAT32 FOLD2D geometry instead uses a direct output-cell, kernel-position, then column loop
+ * after complete cold proof. It preserves {@code +0.0f} initialization, canonical occurrence
+ * order, sequential additions, one output store, arbitrary legal subranges, and the typed
+ * general-long fallback. No generic {@code Object} execution bridge is present in generated fold
+ * work.
  * The ordering emitter owns a separate logical-slice scalar body. It performs a stable bottom-up
  * merge over two assigned INT64 index regions, compares floating values with NaNs last and
  * directional signed zero, preserves selected represented bits, writes logical-axis INT64
@@ -85,7 +89,10 @@
  * writes state exactly once before scalar or parallel element ranges; each dropout element
  * derives its word from the global logical ordinal and writes one canonical BOOL byte plus its
  * exact FLOAT64/FLOAT32 result. Dense arrays use integer address state, while arbitrary layouts
- * and segment or mixed carriers use typed long addressing.</p>
+ * and segment or mixed carriers normally use typed long addressing. One guarded frozen rank-one
+ * {@code 1 << 20} FLOAT32 mixed-carrier form uses primitive integer cursors while preserving the
+ * exact V1 state/mapping/threshold/mask/value order, its {@code [0,0)} state prologue, arbitrary
+ * legal subranges, and the typed general-long fallback.</p>
  *
  * <p>The scan emitter embeds a typed two-boundary body over complete independent slice ordinals.
  * It reconstructs non-axis coordinates once per slice, walks the selected axis sequentially in

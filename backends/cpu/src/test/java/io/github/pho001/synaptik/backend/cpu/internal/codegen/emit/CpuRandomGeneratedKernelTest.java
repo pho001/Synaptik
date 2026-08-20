@@ -200,6 +200,64 @@ class CpuRandomGeneratedKernelTest {
                 () -> assertEquals(-50, next[0]));
     }
 
+    @Test void boundedMixedDropoutPreservesPartialRangesStateAndTypedFallback() throws Throwable {
+        int count = 1 << 20;
+        var context = CpuRandomLoweringTest.dropoutContext(DataType.FLOAT32, Shape.of(count), .25,
+                List.of(LayoutDescriptor.of(Shape.of(count), new long[]{2}, 3, true),
+                        LayoutDescriptor.of(Shape.of(2), new long[]{1}, 0, true),
+                        LayoutDescriptor.of(Shape.of(count), new long[]{2}, 4, true),
+                        LayoutDescriptor.of(Shape.of(count), new long[]{2}, 4, true),
+                        LayoutDescriptor.of(Shape.of(2), new long[]{1}, 0, true)));
+        List<CarrierAccess> carriers = List.of(CarrierAccess.MEMORY_SEGMENT,
+                CarrierAccess.LONG_ARRAY, CarrierAccess.FLOAT_ARRAY,
+                CarrierAccess.MEMORY_SEGMENT, CarrierAccess.LONG_ARRAY);
+        var invocation = generated(context, carriers);
+        float[] input = new float[count * 2 + 3];
+        float[] output = new float[count * 2 + 4];
+        byte[] mask = new byte[count * 2 + 4];
+        Arrays.fill(output, -19.0f);
+        Arrays.fill(mask, (byte) -19);
+        for (int logical = 7; logical < 29; logical++) input[3 + logical * 2] = logical * .125f;
+        long[] state = {0x1234, 7};
+        long[] next = {-1, -1};
+        invocation.handle.invokeWithArguments(MemorySegment.ofArray(input), state, output,
+                MemorySegment.ofArray(mask), next, invocation.geometry, 0L, 0L);
+        for (long[] range : List.of(new long[]{7, 18}, new long[]{18, 29})) {
+            invocation.handle.invokeWithArguments(MemorySegment.ofArray(input), state, output,
+                    MemorySegment.ofArray(mask), next, invocation.geometry, range[0], range[1]);
+        }
+        for (int logical = 7; logical < 29; logical++) {
+            boolean keep = oracleUniform(oracleWord(state[0], state[1], logical)) >= .25;
+            assertEquals(keep ? (byte) 1 : (byte) 0, mask[4 + logical * 2]);
+            assertEquals(Float.floatToRawIntBits(keep
+                            ? (float) (((double) input[3 + logical * 2]) / .75d) : 0.0f),
+                    Float.floatToRawIntBits(output[4 + logical * 2]));
+        }
+        assertAll(() -> assertArrayEquals(new long[]{state[0], state[1] + count}, next),
+                () -> assertEquals(-19.0f, output[3]),
+                () -> assertEquals((byte) -19, mask[3]));
+
+        var route = new CpuPartitionPreparer().analyze(new PrepareContext<>(context.partition(),
+                context.nodes(), context.values(), context.memoryRequirements(), context.constants(),
+                new CpuPartitionAnalysisInputs(false, carriers))).plan().units().getFirst()
+                .portablePlan();
+        byte[] bytes = new CpuClassFileKernelGenerator().generateClassBytes(
+                route.specialization(), route.kernelIr());
+        var instructions = ClassFile.of().parse(bytes).methods().getFirst().code().orElseThrow()
+                .elementStream().filter(Instruction.class::isInstance)
+                .map(Instruction.class::cast).toList();
+        assertAll(
+                () -> assertTrue(instructions.stream().map(Instruction::opcode)
+                        .anyMatch(opcode -> opcode == Opcode.IINC)),
+                () -> assertTrue(instructions.stream().map(Instruction::opcode)
+                        .anyMatch(opcode -> opcode == Opcode.LREM)),
+                () -> assertTrue(instructions.stream().noneMatch(instruction ->
+                        instruction instanceof NewObjectInstruction
+                                || instruction instanceof NewPrimitiveArrayInstruction
+                                || instruction instanceof NewReferenceArrayInstruction
+                                || instruction instanceof NewMultiArrayInstruction)));
+    }
+
     @Test void scalarShapeWrapsCounterAcrossHeapNativeAndMixedCarriers() throws Throwable {
         var base = CpuRandomLoweringTest.dropoutContext(DataType.FLOAT64, Shape.of(), 0.0d);
         try (Arena arena = Arena.ofConfined()) {

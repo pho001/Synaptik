@@ -208,10 +208,10 @@ integration suites remain deferred to CPU 0009 or CI because no shared contract 
 
 ## Follow-up tasks
 
-- [CPU 0007A1G](0007a1g-fold-and-dropout-residual-parity.md) is the sole detailed `Ready` task for
-  `F-FOLD2D` and `R-DROPOUT-GENERAL`.
-- Other residual target groups remain Draft until the ordered evidence supports a bounded owner
-  cluster.
+- [CPU 0007A1G](0007a1g-fold-and-dropout-residual-parity.md) is Complete for `F-FOLD2D` and
+  `R-DROPOUT-GENERAL`.
+- [CPU 0007A1H](0007a1h-numerical-aggregate-residual-parity.md) is the sole detailed `Ready` task
+  for `N-MEAN-GENERAL` and `N-PROD-MULTI`. Other residual groups remain Draft and unassigned.
 - CPU 0007A1C resumes its unchanged closure only after all residual corrections complete.
 - CPU 0007A2 remains blocked until CPU 0007A1C is Complete.
 
@@ -304,7 +304,7 @@ implementation, tests, retained evidence, affected emitter/schema/package Javado
 glossary, A1C–A1F, master plan, and roadmap. It changed no executable behavior and did not rerun
 successful Java tests, frozen semantics, or performance forks. It finalized schema-34 package
 documentation, the bounded current guide/glossary descriptions, this evidence/status record, and
-the sole detailed Ready A1G plan. Final documentation validation is recorded below.
+the then-current sole detailed Ready A1G plan. Final documentation validation is recorded below.
 
 `./gradlew :backends:cpu:javadoc` completed with `BUILD SUCCESSFUL` and only the two expected
 incubating-Vector warnings. Local Markdown targets and balanced fences passed for all seven
@@ -347,7 +347,7 @@ inspected; only the A1F implementation and focused documentation/planning paths 
   schema-34 and narrow-form updates. Prepare package documentation required only the current
   artifact-version correction.
 - Unresolved issues: A1C and A1D remain `Review needed`; deferred rows keep the full probe nonzero.
-- Follow-up required: implement sole Ready CPU 0007A1G, then plan later residual owner clusters in
-  evidence-backed order. CPU 0007A2 remains blocked until A1C closes.
+- Follow-up required: CPU 0007A1G is Complete; implement sole Ready CPU 0007A1H, then plan later
+  residual owner clusters in evidence-backed order. CPU 0007A2 remains blocked until A1C closes.
 
 Status: Complete

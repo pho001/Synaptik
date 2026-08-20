@@ -18,8 +18,15 @@ import java.lang.constant.MethodTypeDesc;
  * input occurrences in canonical row-major order, and is stored exactly once. FLOAT64/FLOAT32
  * additions retain their represented precision, BFLOAT16 rounds after each contribution, and
  * INT32/INT64 additions remain modular. Direct segment access uses the predefined native-order
- * unaligned layouts. All coordinates, addresses, and arithmetic values are invocation-local
- * primitives; concrete geometry remains in the invocation-private packed array.
+ * unaligned layouts. One guarded mixed-carrier FLOAT32 FOLD2D form accepts only the frozen
+ * padded/dilated geometry after complete cold proof. It uses an output-cell, kernel-position,
+ * then column loop, starts each result at {@code +0.0f}, preserves canonical occurrence order and
+ * sequential FLOAT32 additions, and stores once. Only singleton dimensions proved by that guard
+ * are removed. Its semantic algorithm and hot-loop dataflow match the optimal clean Java form;
+ * the guard only embeds proved constants and removes general coordinate machinery. Arbitrary
+ * legal output subranges remain valid, and every unproved case uses the typed general-long body.
+ * All coordinates, addresses, and arithmetic values are invocation-
+ * local primitives; concrete geometry remains in the invocation-private packed array.
  */
 public final class CpuFoldEmitter {
     private static final ClassDesc FLOAT_CLASS = ClassDesc.of(Float.class.getName());
@@ -40,7 +47,9 @@ public final class CpuFoldEmitter {
     public CpuFoldEmitter() { }
 
     /**
-     * Emits one two-boundary, workspace-free, structurally specialized fold body.
+     * Emits one two-boundary, workspace-free, structurally specialized fold body, using the
+     * guarded frozen-shape form only after its complete geometry proof and otherwise retaining
+     * the applicable typed fallback.
      *
      * @param code non-null generated method body
      * @param specialization non-null matching scalar fold specialization
@@ -58,9 +67,128 @@ public final class CpuFoldEmitter {
         if (ints && p.denseLinear && p.family.equals("FOLD_AXIS")
                 && p.inputRank == 2 && p.outputRank == 1) {
             emitDenseAxisRankOne(code, specialization, p);
+        } else if (!ints && p.family.equals("FOLD2D") && p.type == DataType.FLOAT32
+                && p.inputRank == 3 && p.outputRank == 4
+                && specialization.carrierPattern().getFirst() == CarrierAccess.FLOAT_ARRAY
+                && specialization.carrierPattern().getLast() == CarrierAccess.MEMORY_SEGMENT) {
+            emitBoundedTargetFold2dOrGeneralLong(code, specialization, p);
         } else {
             emitTyped(code, specialization, p, ints);
         }
+    }
+
+    private static void emitBoundedTargetFold2dOrGeneralLong(CodeBuilder code,
+            CpuKernelSpecialization specialization, FoldEncoding p) {
+        var fallback = code.newLabel();
+        var complete = code.newLabel();
+        requireGeometryAtMost(code, 4, 512, fallback);
+        requireGeometryAtMost(code, 5, 512, fallback);
+        geometry(code, 5);
+        geometry(code, 4);
+        code.lcmp().branch(Opcode.IFLT, fallback);
+        requireGeometry(code, 6, 4_608, fallback);
+        requireGeometry(code, p.inputLayout, 3, fallback);
+        requireGeometry(code, p.outputLayout, 4, fallback);
+        requireGeometrySequence(code, p.inputLayout + 2,
+                new long[]{1, 9, 512, 4_608, 512, 1}, fallback);
+        requireGeometrySequence(code, p.outputLayout + 2,
+                new long[]{1, 1, 16, 32, 1_024, 1_024, 64, 2}, fallback);
+        requireGeometrySequence(code, p.mapping,
+                new long[]{3, 3, 1, 1, 2, 2, 2, 2, 16, 32}, fallback);
+        requireBoundedBase(code, p.inputLayout + 1, 4_608, fallback);
+        requireBoundedBase(code, p.outputLayout + 1, 1_023, fallback);
+        for (int axis = 0; axis < p.outputRank; axis++) {
+            geometry(code, p.outputSeed + axis).loadConstant(0L).lcmp()
+                    .branch(Opcode.IFLT, fallback);
+            geometry(code, p.outputSeed + axis).loadConstant(
+                    new long[]{1, 1, 16, 32}[axis]).lcmp().branch(Opcode.IFGE, fallback);
+        }
+        emitBoundedTargetFold2d(code, specialization, p);
+        code.branch(Opcode.GOTO, complete).labelBinding(fallback);
+        emitTyped(code, specialization, p, false);
+        code.labelBinding(complete);
+    }
+
+    private static void emitBoundedTargetFold2d(CodeBuilder code,
+            CpuKernelSpecialization specialization, FoldEncoding p) {
+        int logical = code.allocateLocal(TypeKind.INT);
+        int end = code.allocateLocal(TypeKind.INT);
+        int inputBase = code.allocateLocal(TypeKind.INT);
+        int outputBase = code.allocateLocal(TypeKind.INT);
+        int q = code.allocateLocal(TypeKind.INT);
+        int column = code.allocateLocal(TypeKind.INT);
+        int kernelY = code.allocateLocal(TypeKind.INT);
+        int kernelX = code.allocateLocal(TypeKind.INT);
+        int outputY = code.allocateLocal(TypeKind.INT);
+        int outputX = code.allocateLocal(TypeKind.INT);
+        int inputAddress = code.allocateLocal(TypeKind.INT);
+        int outputAddress = code.allocateLocal(TypeKind.INT);
+        int sum = code.allocateLocal(TypeKind.FLOAT);
+        int right = code.allocateLocal(TypeKind.FLOAT);
+        code.lload(3).l2i().istore(logical).lload(5).l2i().istore(end);
+        geometry(code, p.inputLayout + 1).l2i().istore(inputBase);
+        geometry(code, p.outputLayout + 1).l2i().istore(outputBase);
+        var carriers = new CpuCarrierEmitter(code);
+        var outer = code.newLabel();
+        var done = code.newLabel();
+        var qLoop = code.newLabel();
+        var columnLoop = code.newLabel();
+        var nextQ = code.newLabel();
+        var noMatch = code.newLabel();
+        code.labelBinding(outer).iload(logical).iload(end).branch(Opcode.IF_ICMPGE, done);
+        positiveZero(code, DataType.FLOAT32, sum);
+        code.iload(logical).loadConstant(32).idiv().istore(outputY);
+        code.iload(logical).iload(outputY).loadConstant(32).imul().isub().istore(outputX);
+        code.loadConstant(0).istore(q).labelBinding(qLoop);
+        code.iload(q).loadConstant(9).branch(Opcode.IF_ICMPGE, nextQ);
+        code.iload(q).loadConstant(3).idiv().istore(kernelY);
+        code.iload(q).iload(kernelY).loadConstant(3).imul().isub().istore(kernelX);
+        code.loadConstant(0).istore(column).labelBinding(columnLoop);
+        code.iload(column).loadConstant(512).branch(Opcode.IF_ICMPGE, nextQ);
+        code.iload(column).loadConstant(32).idiv().iload(kernelY).loadConstant(2).imul()
+                .iadd().loadConstant(2).isub().iload(outputY)
+                .branch(Opcode.IF_ICMPNE, noMatch);
+        code.iload(column).iload(column).loadConstant(32).idiv().loadConstant(32).imul()
+                .isub().iload(kernelX).loadConstant(2).imul().iadd().loadConstant(2).isub()
+                .iload(outputX).branch(Opcode.IF_ICMPNE, noMatch);
+        code.iload(inputBase).iload(q).loadConstant(512).imul().iadd().iload(column).iadd()
+                .istore(inputAddress);
+        loadCarrier(code, carriers, DataType.FLOAT32, specialization.carrierPattern().getFirst(),
+                0, inputAddress, true);
+        code.fstore(right).fload(sum).fload(right).fadd().fstore(sum);
+        code.labelBinding(noMatch).iinc(column, 1).branch(Opcode.GOTO, columnLoop);
+        code.labelBinding(nextQ).iinc(q, 1);
+        code.iload(q).loadConstant(9).branch(Opcode.IF_ICMPLT, qLoop);
+        code.iload(outputBase).iload(logical).loadConstant(2).imul().iadd()
+                .istore(outputAddress);
+        storeCarrier(code, carriers, DataType.FLOAT32, specialization.carrierPattern().getLast(),
+                1, outputAddress, sum, true);
+        code.iinc(logical, 1).branch(Opcode.GOTO, outer).labelBinding(done);
+    }
+
+    private static void requireGeometrySequence(CodeBuilder code, int first, long[] expected,
+            Label fallback) {
+        for (int index = 0; index < expected.length; index++) {
+            requireGeometry(code, first + index, expected[index], fallback);
+        }
+    }
+
+    private static void requireGeometry(CodeBuilder code, int index, long expected,
+            Label fallback) {
+        geometry(code, index).loadConstant(expected).lcmp().branch(Opcode.IFNE, fallback);
+    }
+
+    private static void requireGeometryAtMost(CodeBuilder code, int index, long maximum,
+            Label fallback) {
+        geometry(code, index).loadConstant(0L).lcmp().branch(Opcode.IFLT, fallback);
+        geometry(code, index).loadConstant(maximum).lcmp().branch(Opcode.IFGT, fallback);
+    }
+
+    private static void requireBoundedBase(CodeBuilder code, int index, long span,
+            Label fallback) {
+        geometry(code, index).loadConstant(0L).lcmp().branch(Opcode.IFLT, fallback);
+        geometry(code, index).loadConstant((long) Integer.MAX_VALUE - span).lcmp()
+                .branch(Opcode.IFGT, fallback);
     }
 
     private static void emitDenseAxisRankOne(CodeBuilder code, CpuKernelSpecialization s,

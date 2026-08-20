@@ -339,11 +339,12 @@ may change; otherwise stop and replan.
 
 - CPU 0007A1D retains the stable schema-32 invocation-local segment-layout implementation but is
   Incomplete because every one of its 13 required performance targets failed the final fork.
-- CPU 0007A1E and CPU 0007A1F are Complete. Their retained evidence closes the movement
-  general-address group and the canonical-BOOL STACK/ANY group without closing this full task.
-- Detailed Ready [CPU 0007A1G](0007a1g-fold-and-dropout-residual-parity.md) owns the next bounded
-  `F-FOLD2D` and `R-DROPOUT-GENERAL` cluster. Other residual targets remain Draft until new
-  evidence supports the next bounded owner cluster.
+- CPU 0007A1E, CPU 0007A1F, and CPU 0007A1G are Complete. Their retained evidence closes the
+  movement general-address, canonical-BOOL STACK/ANY, and FOLD2D/dropout groups without closing
+  this full task.
+- Detailed Ready [CPU 0007A1H](0007a1h-numerical-aggregate-residual-parity.md) owns the next
+  bounded `N-MEAN-GENERAL` and `N-PROD-MULTI` cluster through `CpuAggregateEmitter`. Other
+  residual targets remain Draft and unassigned.
 - CPU 0007A2 remains Draft and blocked until all corrections close the frozen failures and CPU
   0007A1C can become Complete.
 - CPU 0009 remains the later repository-wide portable conformance checkpoint.
@@ -513,11 +514,12 @@ only the four-row `CpuDataMovementEmitter` cluster as detailed Ready CPU 0007A1E
 - Javadoc review: affected package/type Javadocs still describe schema-31 behavior and unchanged
   execution contracts; no edit or Javadoc generation is warranted.
 - Glossary impact: no reusable term or definition changed; no edit is warranted.
-- Unresolved issues: 17 frozen performance rows remain above threshold; the post-fork schema
-  artifact is malformed; all intentionally stopped gates remain open.
-- Follow-up required: CPU 0007A1E and CPU 0007A1F are Complete. Execute Ready CPU 0007A1G, then the later
-  evidence-backed residual tasks in strict order; only after every frozen failure closes may the
-  unchanged closure protocol resume and 0007A1C completion be reconsidered.
+- Unresolved issues: the final A1G evidence retains nine persistent deferred performance rows;
+  `M-CONCAT` has one anomalous `1.158060743x` fork but four passing A1G forks and completed A1E
+  evidence. All original closure gates intentionally stopped by this task remain open.
+- Follow-up required: CPU 0007A1E–CPU 0007A1G are Complete. Execute Ready CPU 0007A1H, then only
+  later evidence-backed residual tasks in strict order; after every persistent frozen failure
+  closes, resume the unchanged closure protocol and reconsider 0007A1C completion.
 
 Status: Incomplete
-Follow-up required: CPU 0007A1G and later ordered corrections must close all remaining frozen performance failures before CPU 0007A2.
+Follow-up required: CPU 0007A1H and later ordered corrections must close all persistent frozen performance failures before CPU 0007A2.

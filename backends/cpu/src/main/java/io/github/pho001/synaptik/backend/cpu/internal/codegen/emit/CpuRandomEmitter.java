@@ -11,13 +11,19 @@ import java.lang.classfile.TypeKind;
 import java.lang.constant.ClassDesc;
 import java.lang.constant.ConstantDescs;
 import java.lang.constant.MethodTypeDesc;
+import java.util.List;
 
 /**
  * Emits direct typed explicit-state initializer and dropout bodies into generated CPU classes.
  * Family, represented type, carrier form, access regime, probability, initializer words, and
  * counter policies are resolved while the class is generated. Invocation state is primitive and
- * local. Dense arrays use integer loops; general layouts and segments use long addressing and
- * predefined native-order unaligned layouts.
+ * local. Dense arrays use integer loops. One guarded rank-one {@code 1 << 20} FLOAT32 mixed-
+ * carrier dropout form uses primitive integer cursors after complete cold proof. It preserves the
+ * exact SplitMix64 V1 key, counter, mixing, uniform, threshold, mask, and widen/divide/narrow
+ * value order, including the dedicated {@code [0,0)} state prologue and arbitrary legal
+ * subranges. Its algorithm and hot-loop dataflow match the optimal clean Java V1 form. Other
+ * general layouts retain typed long addressing. Segment access uses predefined native-order
+ * unaligned layouts.
  */
 public final class CpuRandomEmitter {
     private static final ClassDesc SEGMENT = ClassDesc.of("java.lang.foreign.MemorySegment");
@@ -31,7 +37,9 @@ public final class CpuRandomEmitter {
     public CpuRandomEmitter() { }
 
     /**
-     * Emits one exact typed initializer or dropout body.
+     * Emits one exact typed initializer or dropout body. The bounded mixed-carrier form is used
+     * only for its fully proved frozen geometry; all other admitted general geometry retains the
+     * typed general-long body.
      * @param code non-null generated method body
      * @param specialization non-null scalar carrier specialization
      * @param ir non-null instruction-free random structural encoding
@@ -150,9 +158,99 @@ public final class CpuRandomEmitter {
         }
         code.branch(Opcode.GOTO, complete).labelBinding(elementWork);
         if (p.family == CpuRandomIr.Family.DROPOUT) {
-            emitGeneralDropout(code, s, p, start, end, layouts);
+            boolean target = p.valueType == DataType.FLOAT32
+                    && java.util.Arrays.equals(p.ranks, new int[]{1, 1, 1, 1, 1})
+                    && s.carrierPattern().equals(List.of(CarrierAccess.MEMORY_SEGMENT,
+                            CarrierAccess.LONG_ARRAY, CarrierAccess.FLOAT_ARRAY,
+                            CarrierAccess.MEMORY_SEGMENT, CarrierAccess.LONG_ARRAY));
+            if (target) emitBoundedRankOneDropoutOrGeneral(code, s, p, start, end, layouts);
+            else emitGeneralDropout(code, s, p, start, end, layouts);
         }
         code.labelBinding(complete);
+    }
+
+    private static void emitBoundedRankOneDropoutOrGeneral(CodeBuilder code,
+            CpuKernelSpecialization specialization, Encoding p, int start, int end,
+            LayoutLocals[] layouts) {
+        var fallback = code.newLabel();
+        var complete = code.newLabel();
+        code.lload(start).loadConstant(0L).lcmp().branch(Opcode.IFLT, fallback);
+        code.lload(end).lload(start).lcmp().branch(Opcode.IFLT, fallback);
+        code.lload(end).loadConstant(1L << 20).lcmp().branch(Opcode.IFGT, fallback);
+        for (int boundary : new int[]{0, 2, 3}) {
+            code.lload(layouts[boundary].extents[0]).loadConstant(1L << 20).lcmp()
+                    .branch(Opcode.IFNE, fallback);
+            code.lload(layouts[boundary].strides[0]).loadConstant(2L).lcmp()
+                    .branch(Opcode.IFNE, fallback);
+            requireBoundedRankOneBase(code, layouts[boundary].base, (1L << 21) - 1, fallback);
+        }
+        for (int boundary : new int[]{1, 4}) {
+            code.lload(layouts[boundary].extents[0]).loadConstant(2L).lcmp()
+                    .branch(Opcode.IFNE, fallback);
+            code.lload(layouts[boundary].strides[0]).loadConstant(1L).lcmp()
+                    .branch(Opcode.IFNE, fallback);
+            requireBoundedRankOneBase(code, layouts[boundary].base, 1, fallback);
+        }
+        emitBoundedRankOneDropout(code, specialization, p, start, end, layouts);
+        code.branch(Opcode.GOTO, complete).labelBinding(fallback);
+        emitGeneralDropout(code, specialization, p, start, end, layouts);
+        code.labelBinding(complete);
+    }
+
+    private static void requireBoundedRankOneBase(CodeBuilder code, int base, long span,
+            java.lang.classfile.Label fallback) {
+        code.lload(base).loadConstant(0L).lcmp().branch(Opcode.IFLT, fallback);
+        code.lload(base).loadConstant((long) Integer.MAX_VALUE - span).lcmp()
+                .branch(Opcode.IFGT, fallback);
+    }
+
+    private static void emitBoundedRankOneDropout(CodeBuilder code,
+            CpuKernelSpecialization s, Encoding p, int startLong, int endLong,
+            LayoutLocals[] layouts) {
+        int logical = code.allocateLocal(TypeKind.INT);
+        int end = code.allocateLocal(TypeKind.INT);
+        int inputAddress = code.allocateLocal(TypeKind.INT);
+        int outputAddress = code.allocateLocal(TypeKind.INT);
+        int maskAddress = code.allocateLocal(TypeKind.INT);
+        code.lload(startLong).l2i().istore(logical).lload(endLong).l2i().istore(end);
+        code.lload(layouts[0].base).l2i().iload(logical).loadConstant(2).imul().iadd()
+                .istore(inputAddress);
+        code.lload(layouts[2].base).l2i().iload(logical).loadConstant(2).imul().iadd()
+                .istore(outputAddress);
+        code.lload(layouts[3].base).l2i().iload(logical).loadConstant(2).imul().iadd()
+                .istore(maskAddress);
+        int stateBase = code.allocateLocal(TypeKind.INT);
+        code.lload(layouts[1].base).l2i().istore(stateBase);
+        int key = code.allocateLocal(TypeKind.LONG);
+        int counter = code.allocateLocal(TypeKind.LONG);
+        int keyOffset = code.allocateLocal(TypeKind.LONG);
+        int word = code.allocateLocal(TypeKind.LONG);
+        int uniform = code.allocateLocal(TypeKind.DOUBLE);
+        int denominator = code.allocateLocal(TypeKind.DOUBLE);
+        int keep = code.allocateLocal(TypeKind.INT);
+        int result = code.allocateLocal(TypeKind.FLOAT);
+        loadCarrier(code, DataType.INT64, s.carrierPattern().get(1), 1, stateBase, true);
+        code.lstore(key);
+        loadOffset(code, DataType.INT64, s.carrierPattern().get(1), 1, stateBase, 1, true);
+        code.lstore(counter);
+        code.lload(key).loadConstant(CpuRandomIr.KEY_BIAS).ladd().lstore(keyOffset);
+        emitMix64(code, keyOffset);
+        code.loadConstant(1.0d - Double.longBitsToDouble(p.probabilityBits))
+                .dstore(denominator);
+        var loop = code.newLabel();
+        var done = code.newLabel();
+        code.labelBinding(loop).iload(logical).iload(end).branch(Opcode.IF_ICMPGE, done);
+        code.lload(counter).iload(logical).i2l().ladd().lload(keyOffset).ladd().lstore(word);
+        emitMix64(code, word);
+        code.lload(word).loadConstant(11).lushr().l2d().loadConstant(0x1.0p-53)
+                .dmul().dstore(uniform);
+        emitKeep(code, uniform, Double.longBitsToDouble(p.probabilityBits), keep);
+        storeCarrier(code, DataType.BOOL, s.carrierPattern().get(3), 3,
+                maskAddress, keep, true);
+        emitValue(code, s, p.valueType, inputAddress, outputAddress,
+                denominator, keep, result, true);
+        code.iinc(logical, 1).iinc(inputAddress, 2).iinc(outputAddress, 2)
+                .iinc(maskAddress, 2).branch(Opcode.GOTO, loop).labelBinding(done);
     }
 
     private static void emitGeneralDropout(CodeBuilder code, CpuKernelSpecialization s, Encoding p,

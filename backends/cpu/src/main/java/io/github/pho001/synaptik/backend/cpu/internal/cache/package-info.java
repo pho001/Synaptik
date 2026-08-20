@@ -45,8 +45,10 @@
  * adds cold-proved bounded primitive geometry and cursor loops for PAD, CONCAT, UNFOLD_AXIS, and
  * UNFOLD2D while retaining their typed general-long fallback. Schema 34 adds cold-proved direct
  * canonical-BOOL axis-zero STACK occurrence copies and rank-two zero-stride ANY folds while
- * retaining typed fallbacks. Schema 34 is current-only; schema-33 and earlier envelopes are
- * incompatible misses.
+ * retaining typed fallbacks. Schema 35 adds guarded bounded forms for the frozen mixed-carrier
+ * padded/dilated FLOAT32 FOLD2D and rank-one FLOAT32 dropout shapes while preserving arbitrary
+ * legal subranges and typed general-long fallbacks. Schema 35 is current-only; schema-34 and
+ * earlier envelopes are incompatible misses.
  * Four complete candidate plans, one realized
  * artifact, zero fixed-shape variants, and zero unrolled variants are the current hard budget.
  * With no trusted root, realization remains entirely in memory. With a root, one bounded

@@ -2,7 +2,7 @@
 
 ## Status
 
-Ready
+Complete
 
 ## Goal
 
@@ -54,6 +54,20 @@ aggregate. Both remain reproducible bounded residuals rather than one-fork anoma
 the fixed mixed-carrier general-long padded/dilated overlapping FLOAT32 case. Dropout is the fixed
 1,048,576-element mixed general-long FLOAT32 case with exact V1 state, value, and mask work.
 
+### Accepted A1G results
+
+| Row | Fork 1 | Fork 2 | Fork 3 | Fork 4 | Fork 5 | Median | Worst fork | Verdict |
+|---|---:|---:|---:|---:|---:|---:|---:|---|
+| `F-FOLD2D` | `0.234704046x` | `0.231469222x` | `0.233527780x` | `0.232217638x` | `0.231026459x` | `0.232217638x` | `0.234704046x` | PASS |
+| `R-DROPOUT-GENERAL` | `1.052637855x` | `1.053737922x` | `1.056324388x` | `1.048828706x` | `1.050161298x` | `1.052637855x` | `1.056324388x` | PASS |
+| `P-VECTOR-SEGMENT` | `0.972062342x` | `0.961146655x` | `0.983583863x` | `0.979836134x` | `0.974884851x` | `0.974884851x` | `0.983583863x` | PASS |
+| `P-INTEGRAL-MIXED` | `0.316515333x` | `0.315026507x` | `0.314328088x` | `0.313621556x` | `0.314718409x` | `0.314718409x` | `0.316515333x` | PASS |
+| `O-ARGSORT` | `0.862641168x` | `0.877979349x` | `0.903613277x` | `0.885096605x` | `0.857920056x` | `0.877979349x` | `0.903613277x` | PASS |
+
+All five full probe processes exited nonzero only because nine or ten deferred diagnostic rows
+still exceeded the gate. These accepted results close the two A1G targets and three controls;
+they are not a full 20-row performance pass.
+
 ## Out of scope
 
 - Changing or refreezing the A1C sources, cases, comparators, dimensions, threshold, warmup,
@@ -101,6 +115,8 @@ Existing packages used:
   emitters, Class-File tests, and package documentation.
 - `io.github.pho001.synaptik.backend.cpu.internal.cache` — current-only schema and cache package
   documentation if emitted bytes change.
+- `io.github.pho001.synaptik.backend.cpu.internal.prepare` — existing fold/random/aggregate
+  declaration and current-artifact lifecycle summary.
 
 Packages added or changed:
 
@@ -114,35 +130,48 @@ Type placement:
 
 ## Affected files
 
-Expected production and contract paths:
+Changed production and contract paths:
 
 - `backends/cpu/src/main/java/io/github/pho001/synaptik/backend/cpu/internal/codegen/emit/CpuFoldEmitter.java`
 - `backends/cpu/src/main/java/io/github/pho001/synaptik/backend/cpu/internal/codegen/emit/CpuRandomEmitter.java`
 - `backends/cpu/src/main/java/io/github/pho001/synaptik/backend/cpu/internal/cache/CpuGeneratorSchema.java`
 - `backends/cpu/src/main/java/io/github/pho001/synaptik/backend/cpu/internal/codegen/emit/package-info.java`
 - `backends/cpu/src/main/java/io/github/pho001/synaptik/backend/cpu/internal/cache/package-info.java`
+- `backends/cpu/src/main/java/io/github/pho001/synaptik/backend/cpu/internal/prepare/package-info.java`
 
-Expected tests and schema propagation:
+Changed tests and schema propagation:
 
 - `backends/cpu/src/test/java/io/github/pho001/synaptik/backend/cpu/internal/codegen/emit/CpuFoldGeneratedKernelTest.java`
 - `backends/cpu/src/test/java/io/github/pho001/synaptik/backend/cpu/internal/codegen/emit/CpuRandomGeneratedKernelTest.java`
-- `backends/cpu/src/test/java/io/github/pho001/synaptik/backend/cpu/internal/codegen/emit/CpuGeneratedDirectEvidenceClosureTest.java`
-- the existing four schema-assertion owners changed by CPU 0007A1F, only if schema advances.
+- `backends/cpu/src/test/java/io/github/pho001/synaptik/backend/cpu/internal/cache/CpuGeneratedKernelArtifactStoreTest.java`
+- `backends/cpu/src/test/java/io/github/pho001/synaptik/backend/cpu/internal/cache/CpuKernelSpecializationTest.java`
+- `backends/cpu/src/test/java/io/github/pho001/synaptik/backend/cpu/internal/prepare/CpuPartitionPreparerTest.java`
+- `backends/cpu/src/test/java/io/github/pho001/synaptik/backend/cpu/internal/prepare/CpuPartitionFinalizerTest.java`
 
-Planning paths are this task, CPU 0007A1C, CPU master plan, and roadmap. A1D–A1F historical
-evidence changes only if a direct status cross-reference becomes inaccurate. The CPU guide,
-glossary, and prepare package summary change only when current contract text requires it.
+Changed documentation and planning paths:
+
+- `docs/backend-guide/cpu-backend.md`
+- `docs/glossary.md`
+- `docs/planning/backends/cpu/tasks/0007a1c-generated-direct-evidence-closure.md`
+- `docs/planning/backends/cpu/tasks/0007a1f-bool-movement-and-aggregate-residual-parity.md`
+- this task
+- `docs/planning/backends/cpu/tasks/0007a1h-numerical-aggregate-residual-parity.md`
+- `docs/planning/backends/cpu/master-plan.md`
+- `docs/planning/roadmap.md`
+
+No A1D or A1E historical task file changed. A1F changed only to replace its now-stale next-task
+cross-reference. The implementation retained the existing closure test unchanged because the
+frozen external evidence supplied the required complete structural report.
 
 ## Maximum scope
 
-This task may modify at most 20 repository paths:
+The completed change uses the permitted maximum of 20 repository paths:
 
 - 2 production algorithm-shaping owners;
-- 3 schema/package-contract paths;
-- 7 test paths: two target Class-File tests, the frozen closure test, and four existing schema
-  assertion owners; and
-- 8 documentation/planning paths: this task, A1C, optional A1D–A1F cross-reference corrections,
-  CPU master plan, roadmap, and guide/glossary only when current contract text changes.
+- 4 schema/package-contract paths;
+- 6 test paths: two target Class-File tests and four schema-assertion owners; and
+- 8 documentation/planning paths: this task, A1C, the A1F cross-reference, A1H, CPU master plan,
+  roadmap, guide, and glossary.
 
 If a third production owner, IR/lowering/resource change, another module, another benchmark case,
 or an architecture decision is needed, stop and report the conflict.
@@ -221,8 +250,9 @@ shared contract may change.
 
 ## Follow-up tasks
 
-- Other residual target groups remain Draft until A1G evidence supports the next bounded owner
-  cluster.
+- CPU 0007A1H is the sole next `Ready` task. It owns persistent `N-MEAN-GENERAL` and
+  `N-PROD-MULTI` residuals through one code-shaping owner, `CpuAggregateEmitter`.
+- Other residual target groups remain Draft and unassigned.
 - CPU 0007A1C resumes its unchanged closure only after all residual corrections complete.
 - CPU 0007A2 remains blocked until CPU 0007A1C is Complete.
 
@@ -275,15 +305,58 @@ controls pass every required gate. Do not commit or push.
 
 ## Validation evidence
 
-Planning/documentation context `01a01e83-bb41-7513-8b8a-9a17a0c15c3d` verified the A1F
-`VERIFIED,20` result, all five target residual ratios above, generated-class inventory and hashes,
-final disassembly, and the frozen direct comparator/owner mapping for both rows. No A1G executable
-Java, test, schema, probe, architecture, API, or build change has been made.
+Implementation context `01a01ee5-da54-7090-831b-769bf2fa87a7` retained complete evidence under
+`/private/tmp/synaptik-cpu-0007a1g-sLBHbIpI`. Frozen sources remained byte-identical and exact
+semantics reported `VERIFIED,20`. The focused owners passed, and the authoritative uncached CPU
+module run passed 350 tests with zero failures or errors. Twenty generated Class-Files, complete
+`javap -c -p` and `javap -v -p` output, member/forbidden-reference checks, clean-Java equivalence,
+schema compatibility, five raw forks, summaries, commands, and SHA-256 manifests are retained.
+The evidence manifest reverified without mismatch during the documentation pass.
+
+The independent documentation pass ran `./gradlew :backends:cpu:javadoc` successfully with only
+the expected incubating Vector API warnings. Focused Markdown file/link/anchor/fence/final-newline,
+status/frontier, schema, exact 20-path, frozen-hash, and staged-state checks passed. Final
+`git diff --check` and `git diff --cached --check` passed, and the staged path inventory remained
+empty. Java tests and performance forks were not rerun because this pass changed no executable
+Java behavior or tests.
 
 ## Implementation notes
 
-Empty until implemented.
+- `F-FOLD2D` uses a complete cold guard for the frozen FLOAT32 mixed-carrier padded/dilated shape.
+  Its proved branch follows output cell -> kernel position `q` -> column order, initializes with
+  `+0.0f`, performs canonical sequential FLOAT32 additions, stores once, and removes singleton
+  dimensions only under the guard. Its typed general-long body remains in the same class.
+- `R-DROPOUT-GENERAL` uses a complete cold guard for the frozen rank-one `1 << 20` FLOAT32 mixed-
+  carrier shape. Its proved branch uses primitive integer cursors while retaining exact SplitMix64
+  V1 key/counter/mix/uniform/threshold/mask/value order, `[0,0)` state handling, and arbitrary
+  subranges. Its typed general-long body remains in the same class.
+- Schema advanced exactly once from 34 to 35. Older envelopes remain incompatible safe misses.
+- Both target classes are field-free final classes with exactly one typed static `invoke`; the
+  retained reports find no constructor, bridge, `Object` descriptor, allocation, reflection,
+  dynamic dispatch, method handle, `invokedynamic`, dynamic constant, bootstrap, Synaptik runtime,
+  or emitter reference.
+- The unusually low fold ratio reflects the same frozen direct comparator algorithm with cold-
+  proved constants and removed singleton/general coordinate machinery. It does not establish a
+  broader algorithm or performance claim.
 
 ## Completion summary
 
-Empty until implemented.
+Completed changes:
+
+- finalized schema-35 Javadocs and cache/codegen/prepare package summaries;
+- documented the two guarded generated forms and their typed general-long fallbacks in the CPU
+  guide and glossary;
+- recorded exact A1G semantic, Class-File, schema, Java-test, and five-fork evidence;
+- synchronized A1G as Complete while leaving A1C and A1D `Review needed`/Incomplete and A1E/A1F
+  Complete; and
+- specified A1H as the sole next Ready residual task. The one-fork `M-CONCAT` value
+  `1.158061861x` does not reopen completed A1E because its other four A1G forks and completed A1E
+  five-fork evidence do not establish a persistent failure.
+
+No architecture, ADR, public API, capability, conformance, integration, dependency, resource,
+Prepare/Runtime contract, or build change was needed. Cache, codegen, and prepare summaries were
+updated only where schema-35 or guarded-form wording was stale; other relevant packages and
+Javadocs remain accurate. Java tests and performance forks were not rerun because this independent
+pass changed no executable Java behavior or tests.
+
+Status: Complete

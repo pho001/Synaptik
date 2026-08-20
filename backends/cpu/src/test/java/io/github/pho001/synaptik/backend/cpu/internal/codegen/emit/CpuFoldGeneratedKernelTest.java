@@ -101,6 +101,46 @@ class CpuFoldGeneratedKernelTest {
         assertArrayEquals(new float[]{1,1,1,1,1,1,1,1,1}, ceilOutput);
     }
 
+    @Test void boundedPaddedDilatedFloatFoldPreservesPartialRangesAndTypedFallback()
+            throws Throwable {
+        var context = boundedFoldContext();
+        float[] input = new float[4_608];
+        for (int index = 0; index < input.length; index++) {
+            input[index] = (index % 29 - 14) * 0.03125f;
+        }
+        float[] expected = new float[1_027];
+        float[] actual = new float[1_027];
+        Arrays.fill(expected, -17.0f);
+        Arrays.fill(actual, -17.0f);
+        var lowered = new CpuPartitionLowering().lower(context);
+        for (long[] range : List.of(new long[]{7, 173}, new long[]{173, 389})) {
+            CpuScalarReferenceKernel.execute((CpuFoldIr) lowered.portableKernelIr(),
+                    lowered.foldGeometry().orElseThrow(),
+                    List.of(argument(DataType.FLOAT32, input, true),
+                            argument(DataType.FLOAT32, expected, false)), range[0], range[1]);
+            invoke(context, input, MemorySegment.ofArray(actual), range[0], range[1]);
+        }
+        assertArrayEquals(expected, actual);
+
+        var route = new CpuPartitionPreparer().analyze(context).plan().units().getFirst()
+                .portablePlan();
+        byte[] bytes = new CpuClassFileKernelGenerator().generateClassBytes(
+                route.specialization(), route.kernelIr());
+        var instructions = ClassFile.of().parse(bytes).methods().getFirst().code().orElseThrow()
+                .elementStream().filter(Instruction.class::isInstance)
+                .map(Instruction.class::cast).toList();
+        assertAll(
+                () -> assertTrue(instructions.stream().map(Instruction::opcode)
+                        .anyMatch(opcode -> opcode == Opcode.IINC)),
+                () -> assertTrue(instructions.stream().map(Instruction::opcode)
+                        .anyMatch(opcode -> opcode == Opcode.LDIV)),
+                () -> assertTrue(instructions.stream().noneMatch(instruction ->
+                        instruction instanceof NewObjectInstruction
+                                || instruction instanceof NewPrimitiveArrayInstruction
+                                || instruction instanceof NewReferenceArrayInstruction
+                                || instruction instanceof NewMultiArrayInstruction)));
+    }
+
     @Test void supportsEveryRepresentedAxisTypeBfloatStepRoundingAndPartialRanges()
             throws Throwable {
         int[] intOutput = {9, 9, 9, 9, 9};
@@ -312,6 +352,22 @@ class CpuFoldGeneratedKernelTest {
         var base = CpuFoldLoweringTest.context(operation, type, input, output);
         CarrierAccess carrier = heap(type);
         return carriers(base, carrier, carrier);
+    }
+
+    private static PrepareContext<CpuPartitionAnalysisInputs> boundedFoldContext() {
+        Shape inputShape = Shape.of(1, 9, 512);
+        Shape outputShape = Shape.of(1, 1, 16, 32);
+        var input = new TensorDescriptor(DataType.FLOAT32, inputShape,
+                Optional.of(LayoutDescriptor.of(inputShape, new long[]{4_608, 512, 1}, 0, true)),
+                false);
+        var output = new TensorDescriptor(DataType.FLOAT32, outputShape,
+                Optional.of(LayoutDescriptor.of(outputShape,
+                        new long[]{1_024, 1_024, 64, 2}, 3, true)), false);
+        var base = CpuScatterLoweringTest.context(new Operation(WindowTransformKind.FOLD2D,
+                        new Fold2dAttrs(outputShape,
+                                new Window2dAttrs(3, 3, 1, 1, 2, 2, 2, 2, false))),
+                List.of(0), List.of(input), output);
+        return carriers(base, CarrierAccess.FLOAT_ARRAY, CarrierAccess.MEMORY_SEGMENT);
     }
 
     private static PrepareContext<CpuPartitionAnalysisInputs> carriers(
