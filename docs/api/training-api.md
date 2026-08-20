@@ -249,9 +249,10 @@ next-hidden Tensor. The long short-term memory (LSTM) cell accepts input, hidden
 state and returns both next states. None retains caller-threaded recurrent state, and none fits the
 one-input contract of `UnaryTensorModule` or `Sequential`.
 
-`RnnSequence`, `GruSequence`, and `LstmSequence` are intentionally cell-specific containers. Each
-permanently owns one exact matching cell and shares the same static packing policy without
-claiming that the different cell-state signatures are interchangeable. Their calls are:
+`RnnSequence`, `GruSequence`, and `LstmSequence` are intentionally cell-specific one-directional
+containers. Each permanently owns one exact matching cell and shares the same static packing
+policy without claiming that the different cell-state signatures are interchangeable. Their
+calls are:
 
 ```java
 RnnSequenceForwardResult rnnResult =
@@ -307,6 +308,47 @@ returns both `finalHidden()` and `finalCell()` so the caller can continue recurr
 zero-length LSTM row uses the corresponding initial hidden and initial cell rows; an all-zero
 request returns both exact initial-state references.
 
+The matching `BidirectionalRnnSequence`, `BidirectionalGruSequence`, and
+`BidirectionalLstmSequence` containers add exactly the two traversal orders of that same static
+time axis. Each permanently owns identity-distinct cells under `forward` and `backward`, so state
+paths begin, for example, with `forward.inputWeight` and `backward.inputWeight`. The cells have
+equal hidden width and exact parameter type but independent wrappers, parameter Tensor identities,
+automatic reservations, and seeds. Supplied cells may differ in bias presence. No parameter or
+recurrent state is shared between directions; each cell shares only its own parameters across
+time.
+
+For example, this GRU request uses input Shape `[3, 3, inputSize]`, lengths `[3, 1, 2]`, hidden
+width 64, and fresh default states:
+
+```java
+BidirectionalGruSequence encoder = new BidirectionalGruSequence(
+        64,
+        true,
+        DataType.FLOAT32,
+        ParameterInitialization.glorotUniform(),
+        41L,
+        42L);
+
+BidirectionalGruSequenceForwardResult encoded =
+        encoder.forward(input, new long[] {3, 1, 2});
+```
+
+Forward traversal visits original times from zero upward. Backward traversal reverses each row's
+valid prefix separately: its first compact input uses coordinates `(2,0)`, `(0,1)`, and `(1,2)`,
+not a reversal of the complete padded time axis. Later backward hidden outputs are gathered back
+to their original time and ascending active-row order. The three `packedOutputs()` Shapes are
+`[3, 128]`, `[2, 128]`, and `[1, 128]`; each final axis contains the exact forward features first
+and aligned backward features second. `forwardFinalHidden()` is the forward state after each
+row's last valid element, while `backwardFinalHidden()` is the backward state after original time
+zero. A zero-length row instead keeps its corresponding directional initial-state row.
+
+RNN and GRU bidirectional results expose the merged compact hidden-output list plus separate
+forward and backward final hidden states. The LSTM counterpart merges only hidden outputs and
+returns four continuation values in forward-hidden, forward-cell, backward-hidden, backward-cell
+order. Omitting explicit state creates distinct typed-zero leaves in that same direction/state
+order. An all-zero request invokes neither cell, leaves automatic cells unbound, and returns the
+exact explicit or derived initial references.
+
 Every represented step calls the same Java cell and therefore reuses the same exact Parameter
 leaf Tensor identities. Select, gather, gate/cell operations, and restored-state producers are
 fresh for each step, and later states retain temporal ancestry through earlier producers. This is
@@ -315,19 +357,23 @@ and the existing compiler reverse-mode contract combines contributions for one i
 target. The sequence API itself neither defines numerical gradients nor exposes training or
 execution.
 
-This is static Tensor-expression construction, not numerical execution. It proves that padded
-logical rows are absent from the constructed cell operands; it does not prove backend lowering,
-physical kernel skipping, execution, or a public training workflow. Runtime Tensor
-lengths or masks cannot currently choose the number of steps or active-batch Shapes. Applying a
-dense `WHERE` after a full-batch cell would still construct padded cell work. A future dynamic
-form therefore needs a genuine Model recurrent scan or control-flow contract. Current cumulative
-sum and product scans have fixed associative bodies and are not that primitive.
+This is static Tensor-expression construction, not numerical execution. For one direction,
+`T = max(lengths)` produces `T` batched cell calls representing `S = sum(lengths)` compact logical
+rows. A bidirectional container constructs `2T` batched calls representing `2S` logical rows,
+plus bounded reverse-alignment expressions per represented time. These counts describe the
+constructed provenance only. They do not prove backend lowering, physical kernel skipping,
+fusion, kernel count, execution cost, or a public training workflow, and different Java length
+values specialize different Tensor-expression topology.
 
-Current sequences are one-directional and expose neither `validLengths` as a Tensor nor a
-bidirectional/stacked recurrent facade or recurrent scan. The current `ModuleFactory` only
-constructs a fresh existing RNN, GRU, or LSTM Sequence with its one owned matching automatic Cell;
-it adds no directionality, runtime length, mask, state-carrying, or execution lifecycle. The
-current initialized `Embedding` remains eager.
+Runtime Tensor lengths or masks still cannot choose the number of steps or active-batch Shapes.
+Applying a dense `WHERE` after a full-batch cell would still construct padded cell work. A future
+dynamic form therefore needs a genuine Model recurrent scan or control-flow contract. Current
+cumulative sum and product scans have fixed associative bodies and are not that primitive.
+Current APIs expose no Tensor `validLengths`, arbitrary mask with holes, stacked or
+multidimensional recurrent facade, arbitrary direction collection, configurable merge, or
+runtime scan. The current `ModuleFactory` constructs only the existing one-directional RNN, GRU,
+and LSTM Sequences; the concrete bidirectional constructors already expose their two seeds and no
+factory recipe is current. The initialized `Embedding` remains eager.
 
 ## Current NN parameter update contract
 

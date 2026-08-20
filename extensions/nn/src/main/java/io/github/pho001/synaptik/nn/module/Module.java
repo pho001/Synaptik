@@ -342,8 +342,12 @@ public abstract class Module {
      * <p>Every null, local-name, collision, repeated-identity, cycle, and existing-ownership
      * check completes for the full supplied snapshot before this module's child map or any
      * candidate's parent link changes. The supplied map and its entries are not retained. This
-     * package-private construction primitive is not thread-safe and provides no rollback for
-     * concurrent races or fatal virtual-machine failure.</p>
+     * protected construction primitive exists for subclasses whose complete structure needs
+     * several descriptive child names installed atomically; it is not a public child-mutation or
+     * reparenting API. Success establishes permanent exclusive ownership in map encounter order.
+     * The method is not thread-safe and provides no rollback for concurrent races or fatal
+     * virtual-machine failure. Subclasses must call it only while establishing their structure,
+     * before publishing the owning module for concurrent use.</p>
      *
      * @param children non-null encounter-ordered mapping from valid available local names to
      *     non-null, identity-distinct modules available for permanent ownership
@@ -353,7 +357,7 @@ public abstract class Module {
      *     or an ancestor
      * @throws IllegalStateException if a candidate is already owned by a module
      */
-    final void registerNamedChildren(Map<String, ? extends Module> children) {
+    protected final void registerNamedChildren(Map<String, ? extends Module> children) {
         Objects.requireNonNull(children, "children");
         Map<String, Module> snapshot = new LinkedHashMap<>();
         int entryIndex = 0;

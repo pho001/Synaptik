@@ -87,7 +87,7 @@ class ModelTest {
                 () -> assertEquals(Set.of("addModule"), topologyPublicMethods),
                 () -> assertTrue(Modifier.isPublic(addModule.getModifiers())),
                 () -> assertFalse(Modifier.isPublic(namedRegistration.getModifiers())),
-                () -> assertFalse(Modifier.isProtected(namedRegistration.getModifiers())),
+                () -> assertTrue(Modifier.isProtected(namedRegistration.getModifiers())),
                 () -> assertTrue(Modifier.isFinal(namedRegistration.getModifiers())),
                 () -> assertSame(void.class, namedRegistration.getReturnType()),
                 () -> assertFalse(Arrays.stream(Model.class.getMethods())

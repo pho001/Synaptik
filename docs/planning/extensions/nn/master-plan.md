@@ -167,7 +167,13 @@ table Shape, and deliberately gave every row ordinary trainable semantics. Detai
 [task 0020B](tasks/0020b-stateless-standard-module-factory.md) is Complete. It adds one
 instance-field-free final `ModuleFactory` with five concrete standard recipes, explicit per-layer
 type/policy/seed, exact `L64X128MixRandom` selection for automatic Linear, no ownership or
-registry behavior, and unchanged advanced direct constructors. No NN task is Ready.
+registry behavior, and unchanged advanced direct constructors. Detailed
+[task 0020C](tasks/0020c-bidirectional-static-recurrent-composition.md) is Complete. It added
+separate concrete RNN, GRU, and LSTM bidirectional static
+sequences; direct `forward`/`backward` child ownership; valid-prefix-only reverse `GATHER_ND`;
+original-time alignment; fixed forward-first final-axis `CONCAT`; and type-specific directional
+final states. Arbitrary multidirectional/stacked recurrence, a generic recurrent base,
+configurable merge, and another `ModuleFactory` recipe remain outside it.
 
 ## Task list
 
@@ -196,7 +202,7 @@ registry behavior, and unchanged advanced direct constructors. No NN task is Rea
 | [0020](tasks/0020-automatic-recurrent-initialization-and-sequence-defaults.md) | Automatic recurrent initialization and sequence defaults | Complete | 0019; current recurrent cell/sequence and Model provenance contracts | Replaced the recent Linear-only enum with one general closed `ParameterInitialization`; added automatic input-width binding to all three existing final cells with explicit hidden size/type/policy/seed and standard `L64X128MixRandom` only for random policies; added standard-cell sequence constructors plus zero-state/all-valid overloads while preserving caller cells, explicit states, static lengths, and shared-parameter fresh-node unroll provenance. |
 | [0020A](tasks/0020a-initialized-embedding.md) | Initialized Embedding | Complete | 0020; current Embedding and tokenizer/schema boundaries | Added one eager initialized constructor to the existing final `Embedding` with explicit positive vocabulary size, embedding size, floating type, common `ParameterInitialization`, and seed. Random policies use the documented standard PRNG; zero/one use no RNG. Every table row is an ordinary trainable row: padding identity and valid lengths remain future Text/Data schema, with no padding index or frozen-row contract. |
 | [0020B](tasks/0020b-stateless-standard-module-factory.md) | Stateless standard ModuleFactory | Complete | 0020–0020A | Added one final instance-field-free standard recipe namespace: `embedding`/`linear` return `Embedding`/`Linear`, while `rnn`/`gru`/`lstm` return the concrete matching Sequence with Cell assembly hidden. Every call creates a fresh module and takes explicit per-layer type/`ParameterInitialization`/seed; standard Linear selects exact `L64X128MixRandom`. `Topology.addModule` remains the sole owner, and advanced direct constructors retain caller-controlled random sources/factories. |
-| 0020C | Bidirectional and multidirectional recurrent composition | Draft | 0020; stable static sequence/result contracts | Define type-safe directional RNN/GRU/LSTM composition without a generic recurrent base: directions own independent cells, parameters, and seeds; reverse traversal respects each valid prefix; merge is an explicit `CONCAT`/`SUM` choice or a deliberately narrower first policy; and type-specific results preserve directional final hidden plus LSTM cell states. One cell shares weights only across time within its own direction. |
+| [0020C](tasks/0020c-bidirectional-static-recurrent-composition.md) | Type-safe bidirectional static recurrent composition | Complete | 0020–0020B; stable static sequence/result and Model gather/composition contracts | Added separate concrete RNN/GRU/LSTM containers with independent `forward`/`backward` cells, parameter trees, and seeds; reversed only each valid prefix with `GATHER_ND`; realigned backward outputs to original time/batch order; merged exact forward then backward hidden features by fixed final-axis `CONCAT`; and returned type-specific directional final hidden plus LSTM cell states. One cell shares weights only across time within its own direction. |
 | 0021 | Runtime recurrent scan/control-flow prerequisite program | Draft | 0020C; explicit cross-module architecture decision and Model/Compiler/Prepare/Runtime/Engine/backend support | Establish a fixed recurrent body/node plus runtime input-binding and execution contracts before NN exposes a new valid-length recurrent API; specific length values must not specialize Model topology or compiled graph structure, and the design must preserve the selected directional/state contracts. |
 | 0022 | Valid-length recurrent API and Data integration | Draft | 0021; Data 0001–0002 architecture and valid-length contracts | Consume Data-owned runtime valid lengths through the proven scan, derive zero states as selected, and deliberately migrate or retain the current static `long[]` compatibility contracts without presenting a host adapter as the target API. |
 | 0023 | Arbitrary dense validity-mask semantics | Draft | 0022; concrete attention/loss/recurrent consumer | Reassess an explicit Boolean mask only for validity patterns with holes; keep it derived or separately supplied for that consumer, never a second stored representation of ordinary right padding, and never a claim of skipped recurrent work. |
@@ -473,8 +479,26 @@ or scope defect; finalized the ModuleFactory and package Javadocs, Training API,
 and master evidence; reused the frozen focused 9/9 and authoritative NN 265/265 test evidence;
 and passed final NN Javadoc/rendered-page, surface, external-use, import/dependency,
 forbidden-mechanism, Markdown, exact seven-path, status/frontier, newline, no-index, whitespace,
-and diff gates. NN 0020C and 0021–0024 remain concise Draft rows without task files, and no NN
-task is Ready.
+and diff gates. Detailed
+[NN 0020C](tasks/0020c-bidirectional-static-recurrent-composition.md) is Complete. It narrowed the
+earlier broad directional row to the two distinct traversal orders of one
+static time axis and fixed concrete family APIs, independent child/state/seed ownership,
+valid-prefix reverse coordinates, original-time alignment, ordered `CONCAT`, directional final
+states, validation/effect/Tensor-ID order, and bounded graph-construction costs. NN 0021–0024
+remain concise Draft rows without task files.
+The first full NN run exposed one stale `ModelTest` assertion that the named-child primitive was
+not protected. The coordinator authorized that exact existing surface assertion as task 0020C's
+seventeenth path because protected visibility is already required for the direct layer subclass;
+no unrelated Model behavior or test changes are authorized.
+Clean implementation context `/root/nn_0020c_implementation` froze the executable diff after the
+corrected focused selection passed 36/36 and the replacement authoritative NN suite passed
+280/280. Independent clean documentation context `/root/nn_0020c_docs` found no executable, API,
+ownership, provenance, performance, architecture, dependency, or scope blocker; finalized all
+affected Javadocs, package documentation, Training API, glossary, task, and master evidence;
+reused the frozen Java-test evidence; and passed final warning-free NN Javadoc/generated-page,
+public/protected surface, reflection, external-use, import/dependency, forbidden-mechanism,
+Markdown, exact seventeen-path, status/frontier, newline, no-index, whitespace, and diff gates.
+NN 0021–0024 remain Draft rows without task specifications, and no NN task is Ready or In progress.
 Concurrent CPU/backend planning and global-roadmap changes remain outside this NN planning scope.
 
 The proposed Data, Text, Vision, and Checkpoint master plans are also Draft: their modules do not
@@ -493,8 +517,9 @@ The dependency order is now strict. NN 0020 first stabilizes one general paramet
 value, automatic recurrent cells, and static sequence ergonomics. Completed NN 0020A applies that
 value eagerly to one explicit complete Embedding table and selects no padding index or special
 row: every row is ordinary trainable state. NN 0020B can then provide only
-stateless standard construction recipes; and NN 0020C selects directional ownership,
-reverse-valid-prefix traversal, merge, and type-specific final-state contracts. NN 0021 then
+stateless standard construction recipes; and completed NN 0020C fixed independent directional
+ownership, reverse-valid-prefix traversal, forward-first final-axis `CONCAT`, and type-specific
+final-state contracts. NN 0021 then
 coordinates the genuine recurrent scan/control-flow and runtime input-binding prerequisite across
 its owning Model, Compiler,
 Prepare, Runtime, Engine, and backend layers. Specific valid-length values influence runtime
@@ -538,12 +563,6 @@ consumer.
   Completed NN 0020A deliberately exposes no padding index, row rewrite, or frozen-row promise;
   vocabulary size and embedding width remain explicit schema and architecture inputs and are
   never inferred from the maximum token ID in one batch.
-- NN 0020C must select the first explicit directional merge policy and type-specific result
-  shapes. It must choose `CONCAT`, `SUM`, or a deliberately narrower single first contract rather
-  than hide a default. Forward and reverse directions own independent cells/parameters/seeds;
-  reverse traversal is bounded by each row's valid prefix; LSTM retains directional hidden and
-  cell final states; and no public generic recurrent base is justified merely by shared traversal
-  mechanics.
 - Data/Text/Vision module names, packages, dependencies, and architecture ownership require an
   explicit coordinated architecture decision before their first implementation task. Checkpoint
   and its optional Training adapter require their own explicit downstream architecture decision.
@@ -784,6 +803,18 @@ consumer.
   Sequence with its owned Cell, standard Linear uses exact `L64X128MixRandom`, and the facade owns
   no module, topology, configuration, generator, seed sequence, registry, or extension point.
   Existing direct constructors remain the advanced caller-controlled paths.
+- NN 0020C narrows directional recurrence to separate concrete RNN, GRU, and LSTM containers for
+  the two distinct traversal orders of one static time axis. Each owns identity-distinct direct
+  children named `forward` and `backward`; their parameter subtrees, automatic reservations, and
+  seeds remain independent, while each cell shares its own parameters only across time.
+- NN 0020C reverses only each sample's valid prefix with one compact `GATHER_ND` input per reverse
+  depth, flattens reverse-depth outputs, and uses one axis `GATHER` per original time to restore
+  original batch/time order. It fixes forward-first final-axis `CONCAT` as the only merge and
+  returns separate directional hidden states plus separate directional LSTM cell states.
+- NN 0020C adds no generic recurrent base, arbitrary direction collection, `SUM`/configurable
+  merge, runtime scan, Tensor lengths, dense mask, hidden state, or `ModuleFactory` recipe. Its
+  static graph represents `2 * sum(lengths)` logical compact row applications through
+  `2 * max(lengths)` batched cell calls and avoids per-logical-row alignment expressions.
 - Input-dependent batch, time, and incoming feature extents are inferred by later binding or batch
   metadata. Hidden/output widths, embedding size, class count, vocabulary size, and recurrent
   hidden width remain explicit architecture or schema decisions.
@@ -849,7 +880,8 @@ consumer.
   unroll must reuse one cell/parameter set and invoke fresh Tensor operations per represented step.
 - A directional recurrent facade could accidentally share parameters/seeds between directions,
   reverse through padded suffixes, erase LSTM cell state, or hide an implicit CONCAT/SUM merge.
-  NN 0020C must select each fact in concrete type-specific contracts before implementation.
+  NN 0020C fixes each fact in concrete type-specific contracts and must preserve those selections
+  during implementation.
 - Treating vocabulary size, output classes, hidden width, or embedding width as input-derived
   would confuse architectural choices with batch facts and may build an invalid model from one
   unrepresentative batch.

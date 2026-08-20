@@ -42,6 +42,21 @@
  * Each sequence can own one caller-supplied cell or construct one automatic matching cell from
  * explicit hidden width, bias, parameter type, initialization policy, and seed.</p>
  *
+ * <p>{@link io.github.pho001.synaptik.nn.layers.BidirectionalRnnSequence},
+ * {@link io.github.pho001.synaptik.nn.layers.BidirectionalGruSequence}, and
+ * {@link io.github.pho001.synaptik.nn.layers.BidirectionalLstmSequence} each own two independent
+ * matching cells under stable {@code forward} and {@code backward} paths. Forward traversal uses
+ * the ordinary valid-prefix order. Backward traversal starts at each row's last valid coordinate,
+ * never visits its right-padded suffix, and realigns compact hidden outputs to original time and
+ * batch order. Every visible output concatenates the exact forward hidden features before the
+ * exact backward hidden features on the final axis. Directional final hidden states remain
+ * separate, and the LSTM result also keeps both directional final cell states separate. These
+ * static containers do not define arbitrary directions, stacked recurrence, runtime lengths, a
+ * recurrent scan, configurable merge, or numerical execution behavior. Their Java lengths
+ * specialize the constructed Tensor-expression topology: compact construction omits padded rows
+ * from cell operands, but it does not promise graph reuse for other lengths, backend support,
+ * fused kernels, or runtime physical-work skipping.</p>
+ *
  * <p>This sequence packing is different from packed gate parameters: it omits padded logical
  * rows from cell expressions, while gate packing places several trainable gate matrices in one
  * parameter Tensor. It is also different from {@code Sequential}, which composes unary modules,

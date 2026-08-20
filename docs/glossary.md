@@ -2436,7 +2436,8 @@ requests, higher derivatives, optimizer updates, preparation, and execution rema
 Model topology, eager parameter initializers, five concrete non-recurrent layers including
 eager whole-table initialization for `Embedding` and automatic input-width initialization for
 `Linear`, three recurrent cells with the same automatic lifecycle, three cell-specific statically
-packed sequence containers, and narrow unary composition. A
+packed one-directional sequence containers, three matching concrete bidirectional static
+containers, and narrow unary composition. A
 **module** is a stateful
 neural-network composition unit that directly declares trainable **parameters** and persistent
 **buffers**, and can permanently own named child modules. Parameters, buffers, and children share
@@ -2766,23 +2767,24 @@ differs from vanilla RNN and GRU cells, whose visible output and next hidden sta
 and which carry no separate cell state. `LstmCell` extends `Module` directly; its three-Tensor
 input contract and two-state result exclude it from `UnaryTensorModule` and `Sequential`.
 
-A **construction-time length** is one element of the Java `long[]` supplied to current
-`RnnSequence.forward`, `GruSequence.forward`, or `LstmSequence.forward`. There is exactly one
-length per original batch row, each in `[0, time]`. Each method validates the caller array and,
-when at least one step is represented, clones it immediately before traversal; it retains neither
-array. The caller must coordinate mutation throughout validation and any snapshot.
+A **construction-time length** is one element of the Java `long[]` supplied to a current static
+one-directional or bidirectional recurrent sequence. There is exactly one length per original
+batch row, each in `[0, time]`. Each method validates the caller array and, when at least one step
+is represented, clones it immediately before traversal; it retains neither array. The caller must
+coordinate mutation throughout validation and any snapshot.
 Construction-time lengths are metadata for Java expression construction, not Tensor values,
 module state, parameters, buffers, masks, padding sentinels, or runtime inputs.
 
-An **active batch** at time step `t` is the stable subsequence of original batch rows whose copied
-construction-time length is greater than `t`. Current `RnnSequence`, `GruSequence`, and
-`LstmSequence` keep those rows in ascending original order without sorting. Each gathers only
-that subsequence for the step input and carried state, then invokes its owned concrete cell once
-on the compact batch. Numeric values do not participate in this decision: zero is ordinary active
-data whenever its row's length exceeds the step.
+An **active batch** at depth `t` is the stable subsequence of original batch rows whose copied
+construction-time length is greater than `t`. Current static one-directional and bidirectional
+containers keep those rows in ascending original order without sorting. A forward traversal uses
+original time `t`; a backward traversal uses reverse depth `t` and a row-specific original input
+coordinate. Each direction invokes its owned concrete cell once on the compact batch. Numeric
+values do not participate in this decision: zero is ordinary active data whenever its row's
+length exceeds the step.
 
-A **static packed recurrent sequence** is one of the current final `RnnSequence`, `GruSequence`,
-or `LstmSequence` containers. Each owns one exact matching cell, accepts fully static time-major
+A **static packed recurrent sequence** is one of the current final one-directional `RnnSequence`,
+`GruSequence`, or `LstmSequence` containers. Each owns one exact matching cell, accepts fully static time-major
 input `[time, batch, inputSize]`, explicit initial state shaped `[batch, hiddenSize]`, and
 construction-time lengths, then statically unrolls through ordinary Model SELECT, eager INT64
 index, GATHER, cell, and STACK expressions. RNN and GRU expose one exact compact next-hidden
@@ -2791,6 +2793,29 @@ exposes the same compact hidden outputs while carrying compact cell state intern
 both final hidden and final cell rows. A length-zero row takes each final state from the matching
 initial Tensor. When no step is active, every result has an empty output list and retains the
 corresponding exact initial-state references.
+
+A **bidirectional static packed recurrent sequence** is one of the current final
+`BidirectionalRnnSequence`, `BidirectionalGruSequence`, or `BidirectionalLstmSequence`
+containers. It owns two identity-distinct matching cells under stable child names `forward` and
+`backward`. Their parameter wrappers, Tensor identities, automatic reservations, and seeds are
+independent; each cell shares only its own parameters across time. Both cells have equal hidden
+width and exact parameter type, while supplied cells may use different bias presence.
+
+Forward depth `t` consumes original input time `t`. Reverse depth `d` uses one compact Gather-ND
+coordinate `[length[b] - 1 - d, b]` for each active original row `b`, so it reverses only that
+row's valid prefix and never visits right padding. Reverse hidden outputs are flattened and
+gathered back into original time and ascending active-row order. Visible output `t` then uses one
+fixed final-axis concatenation with exact forward hidden features first and aligned backward
+hidden features second. RNN and GRU results retain separate forward and backward final hidden
+states. LSTM merges only hidden outputs and retains forward hidden/cell followed by backward
+hidden/cell final states. A length-zero row keeps its matching initial-state rows; an all-zero
+request invokes neither cell and returns the exact explicit or freshly derived initial references.
+
+For lengths `[3, 1, 2]`, the first reverse coordinates are `[(2,0), (0,1), (1,2)]`, while the
+visible compact extents by original time are `3`, `2`, and `1`. If hidden width is 64, the merged
+output Shapes are `[3, 128]`, `[2, 128]`, and `[1, 128]`. This is construction-time Tensor
+provenance, not a claim that a runtime executes a particular kernel count or skips physical work.
+Different Java lengths specialize different expression topology.
 
 Convenience overloads may omit lengths, state, or both. Omitted lengths mean every row is valid
 for the complete static time extent. Omitted RNN/GRU state is one fresh eager typed-zero leaf;
@@ -2824,10 +2849,12 @@ prefix and do not carry a cell body, parameters, or caller-selected recurrent st
 static containers therefore do not accept runtime Tensor lengths or masks and do not imply a
 future scan representation.
 
-The current containers are one-directional. They expose no Tensor `validLengths`, bidirectional
-or stacked facade, or recurrent scan. The current standard module factory can construct these
-same one-directional containers, but it adds none of those missing sequence or runtime
-capabilities. Current initialized `Embedding` remains eager.
+The current static containers expose no Tensor `validLengths`, arbitrary mask with holes, stacked
+or multidimensional recurrent facade, arbitrary direction collection, configurable merge, or
+recurrent scan. Bidirectional composition fixes exactly forward-then-backward final-axis CONCAT;
+it is not a generic multidirectional abstraction. The standard module factory constructs only the
+one-directional containers and adds no bidirectional recipe or runtime capability. Current
+initialized `Embedding` remains eager.
 
 `extensions/nn` composes generic [`Tensor`](#tensor) and operation semantics from
 `modules/model`. [`extensions/training`](#training-graph) consumes nn-declared parameters for
@@ -2890,6 +2917,8 @@ such as `encoder.cell.inputWeight` without a factory path segment. Direct constr
 advanced path for supplied state or cells, caller-selected random sources or deterministic
 factories, and explicit recurrent states or construction-time lengths. Constructor validation,
 effects, state, threading, and forward behavior remain contracts of the concrete returned type.
+The factory has no bidirectional recipe; callers use the concrete bidirectional constructors,
+which keep both directional seeds visible.
 
 ### Unary Tensor module and Sequential
 

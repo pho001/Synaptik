@@ -9,12 +9,33 @@ import io.github.pho001.synaptik.model.tensor.Tensor;
 import io.github.pho001.synaptik.model.tensor.TensorFactory;
 import java.lang.reflect.Field;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
 
 class ModuleTreeTest {
+    @Test
+    void protectedNamedRegistrationValidatesWholeSnapshotBeforeInstallingEitherChild() {
+        NamedOwner owner = new NamedOwner();
+        TreeModule first = new TreeModule();
+        TreeModule second = new TreeModule();
+        TreeModule existingOwner = new TreeModule();
+        existingOwner.attach("taken", second);
+
+        assertThrows(IllegalStateException.class, () -> owner.attachPair(first, second));
+        assertTrue(owner.children().isEmpty());
+        assertTrue(first.children().isEmpty());
+
+        NamedOwner valid = new NamedOwner();
+        TreeModule backward = new TreeModule();
+        valid.attachPair(first, backward);
+        assertEquals(List.of("forward", "backward"), List.copyOf(valid.children().keySet()));
+        assertSame(first, valid.children().get("forward"));
+        assertSame(backward, valid.children().get("backward"));
+    }
+
     @Test
     void exposesDirectAndRecursiveSnapshotsInSpecifiedOrderWithDotPaths() {
         StateModule layer1 = new StateModule("weight", "runningMean");
@@ -228,6 +249,15 @@ class ModuleTreeTest {
 
         private void replaceDirectBuffer(String name, Tensor value) {
             replaceBuffer(name, value);
+        }
+    }
+
+    private static final class NamedOwner extends Module {
+        private void attachPair(Module forward, Module backward) {
+            Map<String, Module> children = new LinkedHashMap<>();
+            children.put("forward", forward);
+            children.put("backward", backward);
+            registerNamedChildren(children);
         }
     }
 
