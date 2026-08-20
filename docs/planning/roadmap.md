@@ -48,12 +48,10 @@ its optional Training Checkpoint adapter require the separate downstream decisio
 [Checkpoint master plan](extensions/checkpoint/master-plan.md). None advances ahead of the active
 CPU frontier merely because its master plan exists.
 
-NN 0001–0017 were completed through the bounded user-authorized interleaves recorded in the
-[NN master plan](extensions/nn/master-plan.md). The newly detailed
-[NN 0018 Typed functional Model topology](extensions/nn/tasks/0018-typed-functional-model-topology.md)
-is the sole next `Ready` NN task for planning purposes. It remains model-only and
-architecture-compatible, but this planning update does not itself authorize its execution ahead
-of CPU. Later NN 0019–0024 stay Draft without detailed task files.
+NN 0001–0021A were completed through the bounded user-authorized interleaves recorded in the
+[NN master plan](extensions/nn/master-plan.md). NN 0021B–0025A remain Draft without detailed task
+files, and no NN task is Ready or In progress. Their existence does not authorize execution ahead
+of the active CPU frontier.
 
 The future sequence-padding program uses one valid sequence length per row as the sole canonical
 metadata for ordinary right padding. Data initially owns an immutable validated host value;
@@ -65,6 +63,34 @@ new NN valid-length API. Specific lengths may change runtime recurrence and skip
 Model topology or compiled graph structure. Current Java `long[]` recurrent containers remain
 compatibility/legacy contracts until deliberate migration; dense masking alone does not skip cell
 work, and arbitrary masks with holes remain a distinct future capability.
+
+The future channels-first convolution expansion is an owner-ordered Draft program rather than a
+public generic `ConvNd`. Model 0025G adds NCW Conv1d as visible singleton-height composition over
+the existing NCHW `CONV2D`, so it reuses current Conv2d inference and gradients without another
+operation kind. Model 0025H adds first-class grouped NCDHW `CONV3D`, because current operations
+cannot express it with graph size independent of spatial extents. Compiler 0006B adopts Conv3d
+forward inference and initially fails backward closed; Compiler 0006C separately proves adjoint
+expressibility before closing gradients or selecting the smallest Model prerequisite. CPU 0008
+owns Conv2d execution, CPU 0008E validates Conv1d through that path and adds Conv3d execution, and
+Engine 0004 proves the same typed input/publication lifecycle for all three ranks. Only afterward
+does NN 0025 add separate `Conv1d`, `Conv2d`, and `Conv3d` layers and `ModuleFactory` recipes, with
+NN 0025A as the end-to-end user-capability checkpoint.
+
+No new Planning, Prepare, or Runtime task is selected: all three forms have static descriptor
+Shapes for one prepared execution and flow as ordinary flat nodes or visible ordinary
+composition. Planning continues to select only backend ownership, Prepare projects and finalizes
+the existing node facts and exact resources, and Runtime executes the prepared schedule without
+interpreting convolution. A later implementation must stop and record concrete evidence before
+adding a shared-contract row if Conv3d reveals a real gap.
+
+The initial layer geometry is rank-specific positive stride/dilation plus non-negative symmetric
+padding and positive groups. Asymmetric padding remains explicit preceding `PAD` composition or a
+later semantic decision. NN infers only `inChannels` on first forward; output channels, kernel
+geometry, groups, bias presence, data type, initialization, and seed remain explicit. Grouped fan
+initialization uses checked kernel volume with per-group fan-in and fan-out. Shared Model,
+Compiler, or CPU helpers remain private and are introduced only after two implemented ranks prove
+a common responsibility. No row authorizes transposed, deformable, causal-specialized,
+quantized, sparse, dynamic-rank, or arbitrary-rank convolution.
 
 Image decoding stays outside Data in the proposed
 [Vision extension](extensions/vision/master-plan.md). Vision owns explicit decoder selection,
@@ -84,13 +110,13 @@ remain code/config-defined; compiled, prepared, Runtime, backend, and device art
 ## Current frontier
 
 The compiler project area is Complete through
-[Compiler 0006 Explicit functional gradient requests and higher-order differentiation](modules/compiler/tasks/0006-explicit-functional-gradient-requests-and-higher-order-differentiation.md)
-with a bounded functional one/two-stage request, ordered
-`GradientPublicationBinding` values, derivative-order metadata, and the final
-`ForwardPublicationBinding` terminology correction. Its focused correction command passed 35
-tests, and the single final affected-module command passed Model 127 suites/1,031 tests plus
-Compiler 31 suites/208 tests with no skips, failures, or errors. No later compiler task has a
-detailed specification.
+[Compiler 0006A Fixed recurrent-scan forward adoption and explicit BPTT boundary](modules/compiler/tasks/0006a-fixed-recurrent-scan-forward-adoption-and-bptt-boundary.md).
+The preceding Compiler 0006 supplies the bounded functional one/two-stage request, ordered
+`GradientPublicationBinding` values, derivative-order metadata, and final
+`ForwardPublicationBinding` terminology. Compiler 0006A adopts fixed recurrent forward nodes and
+keeps backpropagation through time fail-closed. Draft Compiler 0006B–0006C plan Conv3d forward and
+gradient adoption, while Compiler 0007 remains the later exact-algebra row. None has a detailed
+specification or changes the active CPU frontier.
 
 The completed Runtime implementation frontier is
 [Runtime 0010 Prepared runner and dynamic execution](modules/runtime/tasks/0010-prepared-runner-and-dynamic-execution.md).
@@ -1250,9 +1276,12 @@ the complete current model operation inventory before higher-order work:
 | [0005D Attention, convolution, pooling, and loss gradient completion](modules/compiler/tasks/0005d-attention-convolution-pooling-and-loss-gradient-completion.md) | Complete | 0005B, 0005C | Verified the implemented MATMUL/linear chain and completed two-output attention, grouped convolution, pooling, and every representable current loss role/reduction mode; one-output attention and dynamic/zero-depth index loss fail closed. |
 | [0005E First-order gradient coverage closure checkpoint](modules/compiler/tasks/0005e-first-order-gradient-coverage-closure-checkpoint.md) | Complete | 0005A, 0005B, 0005C, 0005D | Added one package-private checker; closed all current 37 kind families, 107 constants, 128 signature variants, legal output slots, and ordered input roles; and proved fail-closed/Tensor-ID plus bounded transitive and connected nested-pass formula closure at the first-order checkpoint. |
 | [0006 Explicit functional gradient requests and higher-order differentiation](modules/compiler/tasks/0006-explicit-functional-gradient-requests-and-higher-order-differentiation.md) | Complete | 0005E and the stable public compile/artifact boundary from 0005 | Added one immutable one/two-stage functional request, explicit/default seeds, ERROR/ZERO disconnected behavior, ordered `GradientPublicationBinding` values, and compiler-owned derivative-order metadata over the closed formula matrix without Tensor gradient state or another compile facade. |
+| [0006A Fixed recurrent-scan forward adoption and explicit BPTT boundary](modules/compiler/tasks/0006a-fixed-recurrent-scan-forward-adoption-and-bptt-boundary.md) | Complete | Model 0025E–0025F; 0001–0006 | Adopted all fixed recurrent forward variants as ordinary flat nodes and rejected backward-capable recurrence before derivative allocation. |
+| 0006B Conv3d forward adoption and explicit gradient boundary | Draft | Model 0025H; 0001–0006A | Adopt first-class Conv3d forward inference and final validation while keeping its backward boundary explicit and fail-closed. |
+| 0006C Conv3d adjoint expressibility and gradient closure | Draft | 0006B; proven public Tensor algebra or a separately selected Model prerequisite | Close Conv3d gradients only after group, geometry, overlap, symbolic-Shape, and higher-order expressibility are proved. |
 
-Compiler 0005A–0005E, Model prerequisites 0025C–0025D, and detailed Compiler 0006 are Complete.
-No later compiler task has a detailed specification. Family tasks
+Compiler 0005A–0006A and their Model prerequisites are Complete. Compiler 0006B–0006C and 0007
+remain Draft without detailed specifications. Family tasks
 must not claim that every operation role has a gradient: BOOL, index, random-number-generator
 (RNG) state, mask, and configuration roles remain intentionally non-differentiable where
 applicable. Each compiler task must explicitly choose its required tie, subgradient,
@@ -2363,7 +2392,11 @@ authorized Compile API status correction.
 | 125 | [0025B Binding-aware expansion](modules/model/tasks/0025b-binding-aware-expansion.md) | Complete |
 | 126 | [0025C Portable functional-scatter reduction semantics](modules/model/tasks/0025c-portable-functional-scatter-reduction-semantics.md) | Complete |
 | 127 | [0025D Dynamic-extent slice extraction and symbolic slice placement](modules/model/tasks/0025d-dynamic-extent-slice-extraction-and-symbolic-slice-placement.md) | Complete |
-| 128 | 0026 IEEE FLOAT16 and mixed-precision semantic contracts | Draft (future interleave; no detailed specification) |
+| 128 | [0025E Fixed recurrent-scan semantic family and Tensor expressions](modules/model/tasks/0025e-fixed-recurrent-scan-semantic-family-and-tensor-expressions.md) | Complete |
+| 129 | [0025F Recurrent-scan expression namespace correction](modules/model/tasks/0025f-recurrent-scan-expression-namespace-correction.md) | Complete |
+| 130 | 0025G NCW Conv1d composition | Draft (convolution program; no detailed specification) |
+| 131 | 0025H NCDHW Conv3d semantics and Tensor expressions | Draft (convolution program; no detailed specification) |
+| 132 | 0026 IEEE FLOAT16 and mixed-precision semantic contracts | Draft (future interleave; no detailed specification) |
 
 Task dependencies in the model master plan remain hard prerequisites. The table order is the default execution order even when a later task has no explicit dependency on an earlier task.
 

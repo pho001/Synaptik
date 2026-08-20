@@ -52,7 +52,7 @@ Provide the public lifecycle facade and explicit composition root for compiler, 
 | 0001 | Explicit engine composition and lifecycle facade | Draft | CPU reference backend; Compiler/Prepare/Runtime contracts | Compose explicitly registered backends and expose the compile, prepare, and run lifecycle without discovery or inward dependencies. |
 | 0002 | Typed input binding and published output access | Draft | 0001; Runtime publication/result-access extension; Prepare source/publication mapping | Map caller Tensor/host inputs and logical publications to Runtime coordinates, preserve aliases and ownership, and expose typed result values without leaking backend representations. |
 | 0003 | Explicit host materialization boundary | Draft | 0002; concrete-backend host-transfer routes | Materialize selected current Tensor/state values through prepared execution and publication into bounded caller-owned host payloads; add no backend access to NN, Training, or Checkpoint. |
-| 0004 | Engine lifecycle capability checkpoint | Draft | 0001–0003 | Validate composition, typed input/output ownership, host materialization, cleanup, concurrency, architecture tests, and documentation before persistence adapters depend on Engine. |
+| 0004 | Engine lifecycle capability checkpoint | Draft | 0001–0003; Compiler 0006B; CPU 0008E | Validate composition, typed input/output ownership, host materialization, cleanup, concurrency, architecture tests, documentation, and representative NCW Conv1d composition plus NCHW Conv2d and NCDHW Conv3d forward execution before persistence adapters or NN convolution integration depend on Engine. |
 
 
 ## Milestones
@@ -66,6 +66,13 @@ Provide the public lifecycle facade and explicit composition root for compiler, 
 Draft. Model/training checkpoint persistence depends on the future task 0003 boundary because the
 current Runtime `RunResult` privately retains representations and exposes no value or storage
 access. A checkpoint plan must not bypass that gap by reading backend storage from NN or Training.
+
+The dimensional-convolution program adds no Engine operation switch or convolution-specific
+binding API. Task 0004 will exercise representative rank-one composition and first-class rank-two
+and rank-three convolution through the same typed logical-input, Prepare, Runtime, and publication
+mapping established by tasks 0001–0003. This is the execution-readiness gate for the later NN
+layer integration checkpoint; it does not move shape inference, lowering, or kernel selection into
+Engine.
 
 This module is not yet planned in detail. Detailed task specifications will be created when it becomes the current or next implementation frontier.
 

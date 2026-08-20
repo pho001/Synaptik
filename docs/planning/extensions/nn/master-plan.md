@@ -208,6 +208,8 @@ configurable merge, and another `ModuleFactory` recipe remain outside it.
 | 0022 | Valid-length recurrent API and Data integration | Draft | 0021B; Data 0001–0002 architecture and valid-length contracts | Consume Data-owned runtime valid lengths through the proven scan, derive zero states as selected, and deliberately migrate or retain the current static `long[]` compatibility contracts without presenting a host adapter as the target API. |
 | 0023 | Arbitrary dense validity-mask semantics | Draft | 0022; concrete attention/loss/recurrent consumer | Reassess an explicit Boolean mask only for validity patterns with holes; keep it derived or separately supplied for that consumer, never a second stored representation of ordinary right padding, and never a claim of skipped recurrent work. |
 | 0024 | Typed model/recurrent/data integration checkpoint | Draft | 0020–0022; 0023 only if selected; Checkpoint model-state and Training publication readiness | Validate model state paths, automatic-initialization/checkpoint compatibility, variable-batch behavior, recurrent continuation, autograd/training handoff, documentation, and integration without moving persistent checkpoint I/O into NN. |
+| 0025 | Channels-first Conv1d, Conv2d, and Conv3d layers | Draft | 0020B; Model 0025G–0025H; Compiler 0006B; CPU 0008 and 0008E; Engine 0001–0004 | Add separate final public `Conv1d`, `Conv2d`, and `Conv3d` unary modules plus stateless `ModuleFactory` recipes. Each infers only `inChannels` on first forward, while output channels, rank-specific kernel/stride/symmetric-padding/dilation geometry, groups, bias presence, floating data type, `ParameterInitialization`, and seed remain explicit. Preserve atomic reserved-state publication and strict dictionary binding; add no public `ConvNd`. |
+| 0025A | Dimensional-convolution user-capability checkpoint | Draft | 0025; Compiler 0006C when training coverage is claimed; Engine 0004; CPU 0008E | Validate construction, state dictionaries, forward-only execution for all three channels-first ranks, grouped/bias geometry, cleanup/publication, and documentation through integration tests. Record Conv3d training as supported only if Compiler 0006C has closed its gradient inventory; otherwise verify the explicit fail-closed boundary. |
 
 ## Milestones
 
@@ -506,6 +508,12 @@ NN 0021A is Complete with accepted ADR 0012 and synchronized architecture eviden
 0021B–0024 remain Draft without task specifications, and no NN task is Ready or In progress.
 Concurrent CPU/backend planning and global-roadmap changes remain outside this NN planning scope.
 
+NN 0025–0025A are additional concise Draft rows for the user-approved dimensional-convolution
+program and have no detailed task specifications. Their numeric placement does not authorize
+skipping recurrent tasks 0021B–0024: a later out-of-order execution would require an explicit
+recorded exception after Model, Compiler, CPU, and Engine prerequisites are complete and file
+isolation is rechecked. Until then the sole active global work remains the CPU frontier.
+
 The proposed Data, Text, Vision, and Checkpoint master plans are also Draft: their modules do not
 exist in the architecture or build, so their first implementation must be a coordinated
 architecture, module-boundary, ADR, settings/build, and architecture-test decision rather than a
@@ -547,10 +555,10 @@ consumer.
 
 ## Open questions
 
-- Decide whether a concrete future consumer justifies configurable gain, activation, fan mode,
-  convolution fan geometry, or another closed algorithm preset. NN 0020 deliberately keeps
-  `ParameterInitialization` closed and its fan-based application on the existing positive
-  rank-two `[fanOut, fanIn]` Shape contract rather than inventing a public convolution `Fan` value.
+- Decide whether a concrete future consumer justifies configurable gain, activation, fan mode, or
+  another closed algorithm preset. Planned NN 0025 is now the concrete convolution consumer: it
+  will keep `ParameterInitialization` closed, derive group-aware convolution fan values privately,
+  and add no public convolution `Fan` value.
 - Select a persistent checkpoint codec, schema-version, materialization, and storage boundary only
   when a concrete consumer exists; completed NN 0010 fixes only in-memory state and strict atomic
   validation/load.
@@ -780,6 +788,32 @@ consumer.
   Normal/uniform/zero/one preserve their fully static Shape contract; fan presets retain the
   complete positive rank-two `[fanOut, fanIn]` boundary. No callback, registry, public
   convolution-fan abstraction, RNG ownership, or hidden mutable configuration is introduced.
+- Planned NN 0025 keeps three separate public dimensional layer types because NCW, NCHW, and
+  NCDHW have different rank-specific geometry and diagnostics. It adds no public `ConvNd`, array-
+  ranked layer, generic layer registry, or dynamic-rank configuration. Shared package-private
+  binding, validation, and initialization code is extracted only where the three concrete
+  implementations prove the same responsibility.
+- A standard convolution weight has Shape `[outChannels, inChannels/groups, spatialKernel...]`.
+  For fan-based initialization, NN 0025 will derive `kernelVolume` by checked multiplication,
+  `fanIn = (inChannels/groups) * kernelVolume`, and
+  `fanOut = (outChannels/groups) * kernelVolume`. Kaiming uses that `fanIn`; Glorot uses both.
+  Configured normal/uniform and zero/one keep their existing policy meanings. Optional bias is
+  initialized to zero and is not governed by the weight policy. Random policies use one fresh
+  exact `L64X128MixRandom` source from the explicit layer seed and retain no generator.
+- Automatic convolution construction reserves `weight` and optional `bias`, infers only a
+  positive static input-channel extent from the first NCW/NCHW/NCDHW forward, validates both input
+  and output channels against positive `groups`, creates the complete parameter set before the
+  first returned expression, and publishes it atomically. Strict state loading may bind that
+  complete reserved set after verifying rank-specific kernel geometry, groups, output channels,
+  type, and bias schema; partial discovery/export continues to fail closed.
+- The first intrinsic layer geometry matches the Model contracts: independent positive stride and
+  dilation per spatial axis plus non-negative symmetric padding per axis. Asymmetric padding is
+  expressed by an explicit preceding Model `PAD` operation or waits for a separate semantic and
+  API decision; NN does not hide pre-padding inside a nominal symmetric convolution contract.
+- Planned `Conv1d` delegates through Model 0025G's explicit singleton-height Conv2d composition,
+  while `Conv2d` uses the existing first-class operation and `Conv3d` uses planned first-class
+  `CONV3D`. This sharing is visible in Model provenance and does not collapse the separate public
+  NN layer types.
 - NN 0020 extends that same reservation lifecycle to the existing final `RnnCell`, `GruCell`, and
   `LstmCell`. One selected general policy applies independently to input then hidden complete
   matrix Shapes; random draws share one generator in that exact order, and optional packed bias
@@ -848,6 +882,11 @@ consumer.
   bias/order rules, seed/RNG ownership, or mutable callbacks. NN 0020 keeps the value closed and
   algorithm-only, delegates to existing stateless initializers, and leaves those facts with each
   concrete layer.
+- A dimensional-convolution family could hide rank/order mistakes behind arrays, apply dense fan
+  formulas to grouped connectivity, publish partially inferred state, or turn a private code-
+  sharing helper into a public generic abstraction. NN 0025 must keep NCW/NCHW/NCDHW validation
+  explicit, use the selected group-aware fan formulas, retain atomic reservation semantics, and
+  expose only the three concrete layer types and recipes.
 - A public parameter replacement that omits declaration schema could silently change a layer's
   expected type or Shape; NN 0004A freezes only those logical facts and keeps execution/storage
   facts replaceable.
