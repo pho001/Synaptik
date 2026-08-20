@@ -87,7 +87,7 @@ class TensorTest {
         Set<String> publicMethods = declaredPublicMethods.stream()
                 .map(method -> method.getName())
                 .collect(Collectors.toSet());
-        assertEquals(208, declaredPublicMethods.size());
+        assertEquals(202, declaredPublicMethods.size());
         assertEquals(
                 Set.of("id", "descriptor", "label", "hostStorage", "replaceHostStorage",
                         "clearHostStorage", "provenance", "toString", "add", "sub", "mul",
@@ -100,7 +100,6 @@ class TensorTest {
                         "logicalAnd", "logicalOr", "logicalNot", "where", "cast", "sum",
                         "mean", "prod", "sumToShape", "all", "any", "argMin", "argMax", "cumSum", "cumProd", "softmax", "matmul", "linear",
                         "scaledDotProductAttention", "scaledDotProductAttentionWithWeights",
-                        "rnnScan", "gruScan", "lstmScan",
                         "conv2d", "maxPool2d", "averagePool2d",
                         "sort", "argsort", "topK",
                         "logSoftmax", "meanSquaredError", "categoricalCrossEntropyWithLogits", "layerNorm", "rmsNorm", "batchNormInference", "batchNormTraining", "logSumExp", "variance", "standardDeviation", "l1Norm",

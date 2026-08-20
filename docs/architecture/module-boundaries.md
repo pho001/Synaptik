@@ -33,9 +33,14 @@ The model does not know backend support, device residency, kernel selection, bac
 The current Model fixed recurrent scan follows this same flat boundary. Model owns the fixed
 `RNN_TANH`, `GRU_RESET_AFTER`, and `LSTM` meanings, one `FORWARD` or `REVERSE` attribute, ordered
 ordinary Tensor inputs, fully static descriptor rules, canonical dense output and final-state
-wrappers, and six Tensor receiver methods. It owns no callback body, nested graph, region,
-captured free variable, runtime length inspection, hidden state, or execution loop. Compiler
-adoption and every executable route remain future work.
+wrappers, and exactly six public static biased or bias-free constructors on the final field-free
+`model.tensor.RecurrentScan` namespace. The time-major input is an explicit first argument;
+`Tensor` has no recurrent receiver alias. This advanced low-level namespace is not an NN layer or
+module, execution service, registry, or general scan-body abstraction. It owns no callback body,
+nested graph, region, captured free variable, runtime length inspection, hidden state, or
+execution loop. Compiler adoption and every executable route remain future work. Current NN
+`RnnSequence`, `GruSequence`, and `LstmSequence` containers retain construction-time Java
+`long[]` lengths and static unrolling; later NN delegation requires Compiler and backend adoption.
 
 ### `modules/config`
 

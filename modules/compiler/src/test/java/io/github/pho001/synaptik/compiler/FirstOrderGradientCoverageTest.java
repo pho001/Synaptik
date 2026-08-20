@@ -29,6 +29,8 @@ import io.github.pho001.synaptik.model.operation.pooling.MaxPool2dAttrs;
 import io.github.pho001.synaptik.model.operation.random.DropoutKind;
 import io.github.pho001.synaptik.model.operation.random.GraphRngKind;
 import io.github.pho001.synaptik.model.operation.reduction.AggregateReductionKind;
+import io.github.pho001.synaptik.model.operation.recurrent.RecurrentDirection;
+import io.github.pho001.synaptik.model.operation.recurrent.RecurrentScanKind;
 import io.github.pho001.synaptik.model.operation.scan.CumulativeScanKind;
 import io.github.pho001.synaptik.model.shape.Shape;
 import io.github.pho001.synaptik.model.tensor.BatchNormTrainingResult;
@@ -62,7 +64,8 @@ final class FirstOrderGradientCoverageTest {
             "io/github/pho001/synaptik/model/operation/";
 
     @Test
-    void equalsTheCompleteCompiledProductionModelInventory() throws Exception {
+    void supportedAndDeferredInventoriesPartitionCompleteProductionModelInventory()
+            throws Exception {
         Set<Class<? extends OperationKind>> families = discoverKindFamilies();
         Set<FirstOrderGradientCoverage.SignatureFingerprint> discovered = new HashSet<>();
         Set<OperationKind> kinds = new HashSet<>();
@@ -84,16 +87,63 @@ final class FirstOrderGradientCoverageTest {
             }
         }
 
-        Set<FirstOrderGradientCoverage.SignatureFingerprint> expected =
+        Set<FirstOrderGradientCoverage.SignatureFingerprint> supported =
                 new HashSet<>(FirstOrderGradientCoverage.signatures());
         assertEquals(
                 FirstOrderGradientCoverage.signatures().size(),
-                expected.size(),
+                supported.size(),
                 "checker inventory contains a duplicate exact row");
-        assertEquals(expected, discovered);
-        assertEquals(37, families.size());
-        assertEquals(107, kinds.size());
-        assertEquals(128, discovered.size());
+
+        Set<FirstOrderGradientCoverage.SignatureFingerprint> deferred =
+                deferredRecurrentSignatures();
+        Set<FirstOrderGradientCoverage.SignatureFingerprint> overlap =
+                new HashSet<>(supported);
+        overlap.retainAll(deferred);
+        assertTrue(overlap.isEmpty(), "deferred recurrent signatures became compiler-supported");
+
+        Set<FirstOrderGradientCoverage.SignatureFingerprint> complete =
+                new HashSet<>(supported);
+        complete.addAll(deferred);
+        assertEquals(discovered, complete);
+        assertEquals(38, families.size());
+        assertEquals(110, kinds.size());
+        assertEquals(131, discovered.size());
+    }
+
+    @Test
+    void failsClosedForEveryDeferredRecurrentSignatureWithoutAllocation() throws Exception {
+        long before = nextTensorId();
+        for (FirstOrderGradientCoverage.SignatureFingerprint signature
+                : deferredRecurrentSignatures()) {
+            for (int inputCount : boundaryCounts(
+                    signature.minimumInputs(), signature.maximumInputs())) {
+                for (int outputIndex = 0;
+                        outputIndex < signature.minimumOutputs();
+                        outputIndex++) {
+                    assertDeferredRecurrentFailClosed(FirstOrderGradientCoverage.classify(
+                            signature.kind(),
+                            signature.attributesType(),
+                            inputCount,
+                            signature.minimumOutputs(),
+                            outputIndex,
+                            -1,
+                            null,
+                            DataType.FLOAT32));
+                    for (int inputIndex = 0; inputIndex < inputCount; inputIndex++) {
+                        assertDeferredRecurrentFailClosed(FirstOrderGradientCoverage.classify(
+                                signature.kind(),
+                                signature.attributesType(),
+                                inputCount,
+                                signature.minimumOutputs(),
+                                outputIndex,
+                                inputIndex,
+                                DataType.FLOAT32,
+                                DataType.FLOAT32));
+                    }
+                }
+            }
+        }
+        assertEquals(before, nextTensorId());
     }
 
     @Test
@@ -622,6 +672,33 @@ final class FirstOrderGradientCoverageTest {
         assertEquals(FirstOrderGradientCoverage.Disposition.FC, decision.disposition());
         assertNull(decision.owner());
         assertFalse(decision.reason().isBlank());
+    }
+
+    private static void assertDeferredRecurrentFailClosed(
+            FirstOrderGradientCoverage.Decision decision) {
+        assertFailClosed(decision);
+        assertEquals(
+                "unknown or unclassified operation kind/attributes pairing",
+                decision.reason());
+    }
+
+    private static Set<FirstOrderGradientCoverage.SignatureFingerprint>
+            deferredRecurrentSignatures() {
+        return Set.of(
+                recurrentSignature(RecurrentScanKind.RNN_TANH, 5, 6, 2),
+                recurrentSignature(RecurrentScanKind.GRU_RESET_AFTER, 5, 6, 2),
+                recurrentSignature(RecurrentScanKind.LSTM, 6, 7, 3));
+    }
+
+    private static FirstOrderGradientCoverage.SignatureFingerprint recurrentSignature(
+            RecurrentScanKind kind, int minimumInputs, int maximumInputs, int outputCount) {
+        return new FirstOrderGradientCoverage.SignatureFingerprint(
+                kind,
+                RecurrentDirection.class,
+                minimumInputs,
+                maximumInputs,
+                outputCount,
+                outputCount);
     }
 
     private static List<Integer> boundaryCounts(int minimum, int maximum) {

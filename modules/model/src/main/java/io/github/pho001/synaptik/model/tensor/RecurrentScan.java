@@ -12,19 +12,38 @@ import java.util.Objects;
 import java.util.Optional;
 
 /**
- * Constructs locally validated fixed recurrent-scan expression metadata.
+ * Advanced low-level static namespace for locally validated fixed recurrent-scan expressions.
  *
- * <p>This field-free helper owns the family-specific static descriptor checks, exact input and
+ * <p>The six {@link #rnn}-, {@link #gru}-, and {@link #lstm}-family overloads construct the
+ * bias-free or explicitly biased fixed recurrent meanings from a time-major {@code input}, an
+ * ordinary runtime valid-length Tensor, explicit initial states, packed weights, and one
+ * direction. Every successful call creates one fresh flat multi-output producer and returns its
+ * canonical output wrappers in the appropriate typed result record. The namespace is not a
+ * neural-network layer or module, execution service, registry, or general scan-body API; ordinary
+ * neural-network composition continues to use the NN {@code RnnSequence}, {@code GruSequence},
+ * and {@code LstmSequence} types.</p>
+ *
+ * <p>This field-free namespace owns family-specific static descriptor checks, exact input and
  * output ordering, operation construction, and public result assembly. It never reads Tensor
  * storage or valid-length values, unrolls a transition, captures a body or region, constructs a
- * gradient, selects a backend, or executes recurrence.</p>
+ * gradient, selects a backend, or executes recurrence. The existing NN sequence APIs still use
+ * construction-time Java {@code long[]} lengths and static unrolling. Current Compiler inference
+ * and autograd inventories remain fail-closed for the resulting operation family.</p>
  */
-final class TensorRecurrentScanExpressions {
-    private TensorRecurrentScanExpressions() {
+public final class RecurrentScan {
+    private RecurrentScan() {
     }
 
     /**
      * Creates one bias-free fixed tanh-RNN scan.
+     *
+     * <p>The occurrence records ordered inputs
+     * {@code [input, validLengths, initialHidden, inputWeight, hiddenWeight]} and the transition
+     * {@code nextHidden = tanh((x @ inputWeight^T) + (hidden @ hiddenWeight^T))}. Its canonical
+     * results are dense original-time-aligned {@code [time, batch, hiddenSize]} output and
+     * {@code [batch, hiddenSize]} final hidden state. Direction selects traversal of each valid
+     * prefix; padded positions are semantically positive zero and a zero-length row preserves its
+     * initial state. Construction records that meaning without reading or executing values.</p>
      *
      * @param input non-null time-major floating input shaped {@code [time, batch, inputSize]}
      * @param validLengths non-null non-gradient INT64 vector shaped {@code [batch]}
@@ -37,7 +56,7 @@ final class TensorRecurrentScanExpressions {
      * @throws IllegalArgumentException if a descriptor-visible recurrent requirement fails
      * @throws IllegalStateException if Tensor identifier space is exhausted
      */
-    static RecurrentScanResult rnnScan(
+    public static RecurrentScanResult rnn(
             Tensor input,
             Tensor validLengths,
             Tensor initialHidden,
@@ -67,6 +86,11 @@ final class TensorRecurrentScanExpressions {
     /**
      * Creates one biased fixed tanh-RNN scan.
      *
+     * <p>This variant records ordered inputs
+     * {@code [input, validLengths, initialHidden, inputWeight, hiddenWeight, bias]}. It adds the
+     * exact bias only to the input projection and otherwise retains the bias-free transition,
+     * dense output, final-state, traversal, padding, provenance, and non-execution contracts.</p>
+     *
      * @param input non-null time-major floating input shaped {@code [time, batch, inputSize]}
      * @param validLengths non-null non-gradient INT64 vector shaped {@code [batch]}
      * @param initialHidden non-null common-typed state shaped {@code [batch, hiddenSize]}
@@ -79,7 +103,7 @@ final class TensorRecurrentScanExpressions {
      * @throws IllegalArgumentException if a descriptor-visible recurrent requirement fails
      * @throws IllegalStateException if Tensor identifier space is exhausted
      */
-    static RecurrentScanResult rnnScan(
+    public static RecurrentScanResult rnn(
             Tensor input,
             Tensor validLengths,
             Tensor initialHidden,
@@ -111,6 +135,14 @@ final class TensorRecurrentScanExpressions {
     /**
      * Creates one bias-free reset-after GRU scan with reset/update/candidate gate packing.
      *
+     * <p>The occurrence records ordered inputs
+     * {@code [input, validLengths, initialHidden, inputWeight, hiddenWeight]}. With packed reset,
+     * update, and candidate intervals, reset is applied after the recurrent candidate projection
+     * and the fixed update is
+     * {@code candidate + update * (hidden - candidate)}. Canonical results are dense
+     * original-time-aligned output and final hidden state with the shared traversal, padding, and
+     * non-execution contracts.</p>
+     *
      * @param input non-null time-major floating input shaped {@code [time, batch, inputSize]}
      * @param validLengths non-null non-gradient INT64 vector shaped {@code [batch]}
      * @param initialHidden non-null common-typed state shaped {@code [batch, hiddenSize]}
@@ -124,7 +156,7 @@ final class TensorRecurrentScanExpressions {
      * @throws IllegalArgumentException if a descriptor-visible recurrent requirement fails
      * @throws IllegalStateException if Tensor identifier space is exhausted
      */
-    static RecurrentScanResult gruScan(
+    public static RecurrentScanResult gru(
             Tensor input,
             Tensor validLengths,
             Tensor initialHidden,
@@ -154,6 +186,12 @@ final class TensorRecurrentScanExpressions {
     /**
      * Creates one biased reset-after GRU scan with reset/update/candidate gate packing.
      *
+     * <p>This variant records ordered inputs
+     * {@code [input, validLengths, initialHidden, inputWeight, hiddenWeight, bias]}. It adds the
+     * exact packed bias only to the input projection and otherwise retains the bias-free
+     * reset-after equations, dense output, final-state, traversal, padding, provenance, and
+     * non-execution contracts.</p>
+     *
      * @param input non-null time-major floating input shaped {@code [time, batch, inputSize]}
      * @param validLengths non-null non-gradient INT64 vector shaped {@code [batch]}
      * @param initialHidden non-null common-typed state shaped {@code [batch, hiddenSize]}
@@ -168,7 +206,7 @@ final class TensorRecurrentScanExpressions {
      * @throws IllegalArgumentException if a descriptor-visible recurrent requirement fails
      * @throws IllegalStateException if Tensor identifier space is exhausted
      */
-    static RecurrentScanResult gruScan(
+    public static RecurrentScanResult gru(
             Tensor input,
             Tensor validLengths,
             Tensor initialHidden,
@@ -200,6 +238,15 @@ final class TensorRecurrentScanExpressions {
     /**
      * Creates one bias-free LSTM scan with input/forget/candidate/output gate packing.
      *
+     * <p>The occurrence records ordered inputs
+     * {@code [input, validLengths, initialHidden, initialCell, inputWeight, hiddenWeight]}. With
+     * packed input, forget, candidate, and output intervals, the fixed transition computes
+     * {@code nextCell = forget * cell + inputGate * candidate} and
+     * {@code nextHidden = outputGate * tanh(nextCell)}. Canonical results are dense
+     * original-time-aligned output, final hidden state, and final cell state; zero-length rows
+     * preserve both initial states. Construction records traversal and positive-zero padding
+     * meaning without reading or executing values.</p>
+     *
      * @param input non-null time-major floating input shaped {@code [time, batch, inputSize]}
      * @param validLengths non-null non-gradient INT64 vector shaped {@code [batch]}
      * @param initialHidden non-null common-typed hidden state shaped {@code [batch, hiddenSize]}
@@ -214,7 +261,7 @@ final class TensorRecurrentScanExpressions {
      * @throws IllegalArgumentException if a descriptor-visible recurrent requirement fails
      * @throws IllegalStateException if Tensor identifier space is exhausted
      */
-    static LstmRecurrentScanResult lstmScan(
+    public static LstmRecurrentScanResult lstm(
             Tensor input,
             Tensor validLengths,
             Tensor initialHidden,
@@ -246,6 +293,12 @@ final class TensorRecurrentScanExpressions {
     /**
      * Creates one biased LSTM scan with input/forget/candidate/output gate packing.
      *
+     * <p>This variant records ordered inputs
+     * {@code [input, validLengths, initialHidden, initialCell, inputWeight, hiddenWeight, bias]}.
+     * It adds the exact packed bias only to the input projection and otherwise retains the
+     * bias-free LSTM equations, dense output, explicit final states, traversal, padding,
+     * provenance, and non-execution contracts.</p>
+     *
      * @param input non-null time-major floating input shaped {@code [time, batch, inputSize]}
      * @param validLengths non-null non-gradient INT64 vector shaped {@code [batch]}
      * @param initialHidden non-null common-typed hidden state shaped {@code [batch, hiddenSize]}
@@ -261,7 +314,7 @@ final class TensorRecurrentScanExpressions {
      * @throws IllegalArgumentException if a descriptor-visible recurrent requirement fails
      * @throws IllegalStateException if Tensor identifier space is exhausted
      */
-    static LstmRecurrentScanResult lstmScan(
+    public static LstmRecurrentScanResult lstm(
             Tensor input,
             Tensor validLengths,
             Tensor initialHidden,

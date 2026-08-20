@@ -24,35 +24,48 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import org.junit.jupiter.api.Test;
 
-public final class TensorRecurrentScanExpressionTest {
+public final class RecurrentScanExpressionTest {
     @Test
-    void exposesExactlySixReceiverMethodsAndTwoExactResultRecords() throws Exception {
-        assertTensorMethod("rnnScan", RecurrentScanResult.class,
+    void exposesExactlySixStaticNamespaceMethodsAndNoTensorReceiverAliases() throws Exception {
+        assertNamespaceMethod("rnn", RecurrentScanResult.class,
+                Tensor.class,
                 Tensor.class, Tensor.class, Tensor.class, Tensor.class,
                 RecurrentDirection.class);
-        assertTensorMethod("rnnScan", RecurrentScanResult.class,
+        assertNamespaceMethod("rnn", RecurrentScanResult.class,
+                Tensor.class,
                 Tensor.class, Tensor.class, Tensor.class, Tensor.class, Tensor.class,
                 RecurrentDirection.class);
-        assertTensorMethod("gruScan", RecurrentScanResult.class,
+        assertNamespaceMethod("gru", RecurrentScanResult.class,
+                Tensor.class,
                 Tensor.class, Tensor.class, Tensor.class, Tensor.class,
                 RecurrentDirection.class);
-        assertTensorMethod("gruScan", RecurrentScanResult.class,
+        assertNamespaceMethod("gru", RecurrentScanResult.class,
+                Tensor.class,
                 Tensor.class, Tensor.class, Tensor.class, Tensor.class, Tensor.class,
                 RecurrentDirection.class);
-        assertTensorMethod("lstmScan", LstmRecurrentScanResult.class,
+        assertNamespaceMethod("lstm", LstmRecurrentScanResult.class,
+                Tensor.class,
                 Tensor.class, Tensor.class, Tensor.class, Tensor.class, Tensor.class,
                 RecurrentDirection.class);
-        assertTensorMethod("lstmScan", LstmRecurrentScanResult.class,
+        assertNamespaceMethod("lstm", LstmRecurrentScanResult.class,
+                Tensor.class,
                 Tensor.class, Tensor.class, Tensor.class, Tensor.class, Tensor.class, Tensor.class,
                 RecurrentDirection.class);
 
-        List<Method> scanMethods = Arrays.stream(Tensor.class.getDeclaredMethods())
-                .filter(method -> Set.of("rnnScan", "gruScan", "lstmScan")
+        List<Method> publicNamespaceMethods = Arrays.stream(RecurrentScan.class.getDeclaredMethods())
+                .filter(method -> Modifier.isPublic(method.getModifiers()))
+                .toList();
+        List<Method> recurrentTensorMethods = Arrays.stream(Tensor.class.getDeclaredMethods())
+                .filter(method -> Set.of("rnnScan", "gruScan", "lstmScan", "rnn", "gru", "lstm")
                         .contains(method.getName()))
                 .toList();
         assertAll(
-                () -> assertEquals(6, scanMethods.size()),
-                () -> assertEquals(208, Arrays.stream(Tensor.class.getDeclaredMethods())
+                () -> assertEquals(6, publicNamespaceMethods.size()),
+                () -> assertEquals(Set.of("rnn", "gru", "lstm"),
+                        publicNamespaceMethods.stream().map(Method::getName).collect(
+                                java.util.stream.Collectors.toSet())),
+                () -> assertTrue(recurrentTensorMethods.isEmpty()),
+                () -> assertEquals(202, Arrays.stream(Tensor.class.getDeclaredMethods())
                         .filter(method -> Modifier.isPublic(method.getModifiers())).count()),
                 () -> assertRecord(
                         RecurrentScanResult.class,
@@ -60,18 +73,20 @@ public final class TensorRecurrentScanExpressionTest {
                 () -> assertRecord(
                         LstmRecurrentScanResult.class,
                         List.of("outputs", "finalHidden", "finalCell")),
-                () -> assertTrue(Modifier.isFinal(TensorRecurrentScanExpressions.class
-                        .getModifiers())),
-                () -> assertFalse(Modifier.isPublic(TensorRecurrentScanExpressions.class
-                        .getModifiers())),
-                () -> assertEquals(0, TensorRecurrentScanExpressions.class.getDeclaredFields()
-                        .length),
-                () -> assertEquals(0, TensorRecurrentScanExpressions.class.getDeclaredClasses()
-                        .length),
-                () -> assertEquals(1, TensorRecurrentScanExpressions.class
-                        .getDeclaredConstructors().length),
-                () -> assertTrue(Modifier.isPrivate(TensorRecurrentScanExpressions.class
-                        .getDeclaredConstructors()[0].getModifiers())));
+                () -> assertTrue(Modifier.isPublic(RecurrentScan.class.getModifiers())),
+                () -> assertTrue(Modifier.isFinal(RecurrentScan.class.getModifiers())),
+                () -> assertSame(Object.class, RecurrentScan.class.getSuperclass()),
+                () -> assertEquals(0, RecurrentScan.class.getInterfaces().length),
+                () -> assertEquals(0, RecurrentScan.class.getDeclaredFields().length),
+                () -> assertEquals(0, RecurrentScan.class.getDeclaredClasses().length),
+                () -> assertEquals(1, RecurrentScan.class.getDeclaredConstructors().length),
+                () -> assertEquals(0, RecurrentScan.class.getDeclaredConstructors()[0]
+                        .getParameterCount()),
+                () -> assertTrue(Modifier.isPrivate(RecurrentScan.class
+                        .getDeclaredConstructors()[0].getModifiers())),
+                () -> assertThrows(ClassNotFoundException.class,
+                        () -> Class.forName(
+                                "io.github.pho001.synaptik.model.tensor.TensorRecurrentScanExpressions")));
     }
 
     @Test
@@ -79,39 +94,43 @@ public final class TensorRecurrentScanExpressionTest {
         Fixtures f = fixtures(DataType.FLOAT32, 5, 2, 4, 3, false);
         for (RecurrentDirection direction : RecurrentDirection.values()) {
             assertOccurrence(
-                    f.input.rnnScan(f.lengths, f.hidden, f.rnnInputWeight, f.rnnHiddenWeight,
+                    RecurrentScan.rnn(f.input, f.lengths, f.hidden, f.rnnInputWeight,
+                            f.rnnHiddenWeight,
                             direction),
                     RecurrentScanKind.RNN_TANH,
                     direction,
                     List.of(f.input, f.lengths, f.hidden, f.rnnInputWeight, f.rnnHiddenWeight));
             assertOccurrence(
-                    f.input.rnnScan(f.lengths, f.hidden, f.rnnInputWeight, f.rnnHiddenWeight,
+                    RecurrentScan.rnn(f.input, f.lengths, f.hidden, f.rnnInputWeight,
+                            f.rnnHiddenWeight,
                             f.rnnBias, direction),
                     RecurrentScanKind.RNN_TANH,
                     direction,
                     List.of(f.input, f.lengths, f.hidden, f.rnnInputWeight, f.rnnHiddenWeight,
                             f.rnnBias));
             assertOccurrence(
-                    f.input.gruScan(f.lengths, f.hidden, f.gruInputWeight, f.gruHiddenWeight,
+                    RecurrentScan.gru(f.input, f.lengths, f.hidden, f.gruInputWeight,
+                            f.gruHiddenWeight,
                             direction),
                     RecurrentScanKind.GRU_RESET_AFTER,
                     direction,
                     List.of(f.input, f.lengths, f.hidden, f.gruInputWeight, f.gruHiddenWeight));
             assertOccurrence(
-                    f.input.gruScan(f.lengths, f.hidden, f.gruInputWeight, f.gruHiddenWeight,
+                    RecurrentScan.gru(f.input, f.lengths, f.hidden, f.gruInputWeight,
+                            f.gruHiddenWeight,
                             f.gruBias, direction),
                     RecurrentScanKind.GRU_RESET_AFTER,
                     direction,
                     List.of(f.input, f.lengths, f.hidden, f.gruInputWeight, f.gruHiddenWeight,
                             f.gruBias));
             assertLstmOccurrence(
-                    f.input.lstmScan(f.lengths, f.hidden, f.cell, f.lstmInputWeight,
+                    RecurrentScan.lstm(f.input, f.lengths, f.hidden, f.cell, f.lstmInputWeight,
                             f.lstmHiddenWeight, direction),
                     direction,
                     List.of(f.input, f.lengths, f.hidden, f.cell, f.lstmInputWeight,
                             f.lstmHiddenWeight));
             assertLstmOccurrence(
-                    f.input.lstmScan(f.lengths, f.hidden, f.cell, f.lstmInputWeight,
+                    RecurrentScan.lstm(f.input, f.lengths, f.hidden, f.cell, f.lstmInputWeight,
                             f.lstmHiddenWeight, f.lstmBias, direction),
                     direction,
                     List.of(f.input, f.lengths, f.hidden, f.cell, f.lstmInputWeight,
@@ -122,8 +141,8 @@ public final class TensorRecurrentScanExpressionTest {
     @Test
     void derivesStaticDescriptorsAndCanonicalSharedProducerSlots() {
         Fixtures f = fixtures(DataType.FLOAT64, 5, 2, 4, 3, true);
-        LstmRecurrentScanResult result = f.input.lstmScan(
-                f.lengths, f.hidden, f.cell, f.lstmInputWeight, f.lstmHiddenWeight,
+        LstmRecurrentScanResult result = RecurrentScan.lstm(
+                f.input, f.lengths, f.hidden, f.cell, f.lstmInputWeight, f.lstmHiddenWeight,
                 f.lstmBias, RecurrentDirection.REVERSE);
         TensorProducer producer = result.outputs().provenance().orElseThrow().producer();
         assertAll(
@@ -155,11 +174,11 @@ public final class TensorRecurrentScanExpressionTest {
     @Test
     void createsIdentityDistinctFlatOccurrencesWithoutIntermediateTensors() {
         Fixtures f = fixtures(DataType.BFLOAT16, 3, 1, 2, 2, false);
-        RecurrentScanResult first = f.input.gruScan(
-                f.lengths, f.hidden, f.gruInputWeight, f.gruHiddenWeight,
+        RecurrentScanResult first = RecurrentScan.gru(
+                f.input, f.lengths, f.hidden, f.gruInputWeight, f.gruHiddenWeight,
                 RecurrentDirection.FORWARD);
-        RecurrentScanResult second = f.input.gruScan(
-                f.lengths, f.hidden, f.gruInputWeight, f.gruHiddenWeight,
+        RecurrentScanResult second = RecurrentScan.gru(
+                f.input, f.lengths, f.hidden, f.gruInputWeight, f.gruHiddenWeight,
                 RecurrentDirection.FORWARD);
         TensorProducer firstProducer = first.outputs().provenance().orElseThrow().producer();
         TensorProducer secondProducer = second.outputs().provenance().orElseThrow().producer();
@@ -178,12 +197,12 @@ public final class TensorRecurrentScanExpressionTest {
     @Test
     void acceptsZeroTimeAndZeroBatchAndDoesNotRequireLengthStorage() {
         Fixtures zeroTime = fixtures(DataType.FLOAT32, 0, 2, 4, 3, false);
-        RecurrentScanResult timeResult = zeroTime.input.rnnScan(
-                zeroTime.lengths, zeroTime.hidden, zeroTime.rnnInputWeight,
+        RecurrentScanResult timeResult = RecurrentScan.rnn(
+                zeroTime.input, zeroTime.lengths, zeroTime.hidden, zeroTime.rnnInputWeight,
                 zeroTime.rnnHiddenWeight, RecurrentDirection.REVERSE);
         Fixtures zeroBatch = fixtures(DataType.FLOAT32, 4, 0, 2, 3, false);
-        LstmRecurrentScanResult batchResult = zeroBatch.input.lstmScan(
-                zeroBatch.lengths, zeroBatch.hidden, zeroBatch.cell,
+        LstmRecurrentScanResult batchResult = RecurrentScan.lstm(
+                zeroBatch.input, zeroBatch.lengths, zeroBatch.hidden, zeroBatch.cell,
                 zeroBatch.lstmInputWeight, zeroBatch.lstmHiddenWeight,
                 RecurrentDirection.FORWARD);
         assertAll(
@@ -202,12 +221,12 @@ public final class TensorRecurrentScanExpressionTest {
     @Test
     void combinesGradientRequestsFromFloatingRolesOnly() {
         Fixtures none = fixtures(DataType.FLOAT32, 2, 2, 3, 4, false);
-        LstmRecurrentScanResult falseResult = none.input.lstmScan(
-                none.lengths, none.hidden, none.cell, none.lstmInputWeight,
+        LstmRecurrentScanResult falseResult = RecurrentScan.lstm(
+                none.input, none.lengths, none.hidden, none.cell, none.lstmInputWeight,
                 none.lstmHiddenWeight, none.lstmBias, RecurrentDirection.FORWARD);
         Tensor gradBias = tensor(DataType.FLOAT32, Shape.of(16), true);
-        LstmRecurrentScanResult trueResult = none.input.lstmScan(
-                none.lengths, none.hidden, none.cell, none.lstmInputWeight,
+        LstmRecurrentScanResult trueResult = RecurrentScan.lstm(
+                none.input, none.lengths, none.hidden, none.cell, none.lstmInputWeight,
                 none.lstmHiddenWeight, gradBias, RecurrentDirection.FORWARD);
         assertAll(
                 () -> assertFalse(falseResult.outputs().descriptor().requiresGrad()),
@@ -223,21 +242,22 @@ public final class TensorRecurrentScanExpressionTest {
         Fixtures f = fixtures(DataType.FLOAT32, 2, 2, 3, 4, false);
         assertAll(
                 () -> assertEquals("input", assertThrows(NullPointerException.class,
-                        () -> TensorRecurrentScanExpressions.rnnScan(
+                        () -> RecurrentScan.rnn(
                                 null, null, null, null, null, null)).getMessage()),
                 () -> assertEquals("validLengths", assertThrows(NullPointerException.class,
-                        () -> TensorRecurrentScanExpressions.rnnScan(
+                        () -> RecurrentScan.rnn(
                                 f.input, null, null, null, null, null)).getMessage()),
                 () -> assertEquals("initialCell", assertThrows(NullPointerException.class,
-                        () -> TensorRecurrentScanExpressions.lstmScan(
+                        () -> RecurrentScan.lstm(
                                 f.input, f.lengths, f.hidden, null, null, null, null)).getMessage()),
                 () -> assertEquals("bias", assertThrows(NullPointerException.class,
-                        () -> TensorRecurrentScanExpressions.gruScan(
+                        () -> RecurrentScan.gru(
                                 f.input, f.lengths, f.hidden, f.gruInputWeight,
                                 f.gruHiddenWeight, null, null)).getMessage()),
                 () -> assertEquals("direction", assertThrows(NullPointerException.class,
-                        () -> f.input.rnnScan(f.lengths, f.hidden, f.rnnInputWeight,
-                                f.rnnHiddenWeight, (RecurrentDirection) null)).getMessage()));
+                        () -> RecurrentScan.rnn(f.input, f.lengths, f.hidden,
+                                f.rnnInputWeight, f.rnnHiddenWeight,
+                                (RecurrentDirection) null)).getMessage()));
     }
 
     @Test
@@ -301,13 +321,13 @@ public final class TensorRecurrentScanExpressionTest {
         long before = next.get();
         assertAll(
                 () -> assertTrue(assertThrows(IllegalArgumentException.class,
-                        () -> f.input.lstmScan(f.lengths, f.hidden,
+                        () -> RecurrentScan.lstm(f.input, f.lengths, f.hidden,
                                 wrongCell,
                                 f.lstmInputWeight, f.lstmHiddenWeight,
                                 RecurrentDirection.FORWARD)).getMessage().contains(
                                         "initialCell hiddenSize extent mismatch")),
                 () -> assertTrue(assertThrows(IllegalArgumentException.class,
-                        () -> f.input.gruScan(f.lengths, hugeHidden,
+                        () -> RecurrentScan.gru(f.input, f.lengths, hugeHidden,
                                 f.gruInputWeight, f.gruHiddenWeight,
                                 RecurrentDirection.FORWARD)).getMessage().contains(
                                         "packed gate extent overflow")),
@@ -325,7 +345,7 @@ public final class TensorRecurrentScanExpressionTest {
             next.set(Long.MAX_VALUE);
             maximumClaimed.set(false);
             IllegalStateException failure = assertThrows(IllegalStateException.class,
-                    () -> f.input.rnnScan(f.lengths, f.hidden, f.rnnInputWeight,
+                    () -> RecurrentScan.rnn(f.input, f.lengths, f.hidden, f.rnnInputWeight,
                             f.rnnHiddenWeight, RecurrentDirection.FORWARD));
             assertAll(
                     () -> assertEquals("tensor identifier space exhausted", failure.getMessage()),
@@ -400,18 +420,19 @@ public final class TensorRecurrentScanExpressionTest {
             Tensor inputWeight,
             Tensor hiddenWeight) {
         assertTrue(assertThrows(IllegalArgumentException.class,
-                () -> input.rnnScan(lengths, hidden, inputWeight, hiddenWeight,
+                () -> RecurrentScan.rnn(input, lengths, hidden, inputWeight, hiddenWeight,
                         RecurrentDirection.FORWARD)).getMessage().contains(message));
     }
 
-    private static void assertTensorMethod(
+    private static void assertNamespaceMethod(
             String name, Class<?> returnType, Class<?>... parameters) throws Exception {
-        Method method = Tensor.class.getDeclaredMethod(name, parameters);
+        Method method = RecurrentScan.class.getDeclaredMethod(name, parameters);
         assertAll(
                 () -> assertSame(returnType, method.getReturnType()),
                 () -> assertTrue(Modifier.isPublic(method.getModifiers())),
-                () -> assertFalse(Modifier.isStatic(method.getModifiers())),
+                () -> assertTrue(Modifier.isStatic(method.getModifiers())),
                 () -> assertFalse(Modifier.isSynchronized(method.getModifiers())),
+                () -> assertFalse(Modifier.isNative(method.getModifiers())),
                 () -> assertFalse(method.isVarArgs()));
     }
 

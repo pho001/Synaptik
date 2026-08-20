@@ -223,33 +223,23 @@ uses input, forget, candidate, and output gate order, explicit hidden and cell s
 fixed sigmoid/tanh equations, and one optional packed input-side bias.
 
 Model publishes exactly one direction enum, a two-output recurrent result, a three-output LSTM
-result, and the following six receiver methods in the existing Tensor package. This is current
-Java expression-construction API, not a runnable Compiler, Engine, Runtime, or backend API:
+result, and one public final field-free `model.tensor.RecurrentScan` static namespace in the
+existing Tensor package. The namespace has exactly the following six biased or bias-free
+constructors, with the time-major input explicit and first. This is advanced low-level Java
+expression-construction API, not a layer, module, execution service, registry, general scan body,
+or runnable Compiler, Engine, Runtime, or backend API:
 
 ```java
-RecurrentScanResult rnnScan(
+RecurrentScanResult RecurrentScan.rnn(
+        Tensor input,
         Tensor validLengths,
         Tensor initialHidden,
         Tensor inputWeight,
         Tensor hiddenWeight,
         RecurrentDirection direction)
 
-RecurrentScanResult rnnScan(
-        Tensor validLengths,
-        Tensor initialHidden,
-        Tensor inputWeight,
-        Tensor hiddenWeight,
-        Tensor bias,
-        RecurrentDirection direction)
-
-RecurrentScanResult gruScan(
-        Tensor validLengths,
-        Tensor initialHidden,
-        Tensor inputWeight,
-        Tensor hiddenWeight,
-        RecurrentDirection direction)
-
-RecurrentScanResult gruScan(
+RecurrentScanResult RecurrentScan.rnn(
+        Tensor input,
         Tensor validLengths,
         Tensor initialHidden,
         Tensor inputWeight,
@@ -257,7 +247,25 @@ RecurrentScanResult gruScan(
         Tensor bias,
         RecurrentDirection direction)
 
-LstmRecurrentScanResult lstmScan(
+RecurrentScanResult RecurrentScan.gru(
+        Tensor input,
+        Tensor validLengths,
+        Tensor initialHidden,
+        Tensor inputWeight,
+        Tensor hiddenWeight,
+        RecurrentDirection direction)
+
+RecurrentScanResult RecurrentScan.gru(
+        Tensor input,
+        Tensor validLengths,
+        Tensor initialHidden,
+        Tensor inputWeight,
+        Tensor hiddenWeight,
+        Tensor bias,
+        RecurrentDirection direction)
+
+LstmRecurrentScanResult RecurrentScan.lstm(
+        Tensor input,
         Tensor validLengths,
         Tensor initialHidden,
         Tensor initialCell,
@@ -265,7 +273,8 @@ LstmRecurrentScanResult lstmScan(
         Tensor hiddenWeight,
         RecurrentDirection direction)
 
-LstmRecurrentScanResult lstmScan(
+LstmRecurrentScanResult RecurrentScan.lstm(
+        Tensor input,
         Tensor validLengths,
         Tensor initialHidden,
         Tensor initialCell,
@@ -275,9 +284,18 @@ LstmRecurrentScanResult lstmScan(
         RecurrentDirection direction)
 ```
 
-The receiver is the time-major input Tensor. `RecurrentScanResult` exposes exactly `outputs` and
+`Tensor` has no recurrent receiver method. `RecurrentScanResult` exposes exactly `outputs` and
 `finalHidden`; `LstmRecurrentScanResult` exposes exactly `outputs`, `finalHidden`, and
-`finalCell`. These are canonical wrappers from one exact shared producer in that order.
+`finalCell`. These typed Tensor-output carriers remain in `model.tensor`, while
+`RecurrentScanKind` and `RecurrentDirection` remain operation semantics. Every component is the
+canonical wrapper from one exact shared producer in the order shown below.
+
+Ordinary neural-network callers continue to use `RnnSequence`, `GruSequence`, and
+`LstmSequence`, whose current Java `long[]` lengths select static unrolling and compact outputs.
+A later NN runtime-length API may delegate to this namespace only after Compiler and backend
+adoption. `Tensor.linear` remains unchanged because a linear projection is a natural one-input,
+one-output last-axis contraction; the NN `Linear` module owns parameter state, while
+`Tensor.linear` is its stateless Model operation composition.
 
 Operation input order is fixed:
 
@@ -365,7 +383,8 @@ serialized by this decision.
 Owner boundaries are exact:
 
 - Model owns operation kind and attributes, fixed semantics, descriptor-visible validation,
-  result metadata, canonical multi-output provenance, and the current Tensor surface.
+  result metadata, canonical multi-output provenance, and the current focused
+  `model.tensor.RecurrentScan` expression surface.
 - Compiler captures one ordinary flat node, owns inference and final validation, adopts the
   operation in its exact closed inventory, and initially rejects every backward-capable request
   that reaches the family before constructing any gradient Tensor.

@@ -66,7 +66,9 @@ io.github.pho001.synaptik.model.layout
 io.github.pho001.synaptik.model.tensor
   Public Tensor state, TensorId, TensorDescriptor, TensorFactory, eager initialization helpers,
   immutable expression-producer identity, canonical producer output wrappers, and indexed
-  provenance.
+  provenance. Focused stateless public namespaces may own domain-heavy Tensor expression
+  construction when keeping the package-private canonical-output seam local avoids widening the
+  factory and the protocol does not belong on every Tensor receiver.
 
 io.github.pho001.synaptik.model.storage
   Host-visible storage contracts and implementations.
@@ -292,6 +294,7 @@ Operation-family subpackages are introduced only when a focused operation task d
 | 0025C | [Portable functional-scatter reduction semantics](tasks/0025c-portable-functional-scatter-reduction-semantics.md) | Complete | 0018G–0018J, 0018U–0018U1, 0025A; prerequisite for Compiler 0005C | Fixed the represented-value grouping, duplicate, empty-update, floating special-value, modular integral, and signed-extrema meaning of configurable scatter MUL/MIN/MAX without execution or derivative policy. |
 | 0025D | [Dynamic-extent slice extraction and symbolic slice placement](tasks/0025d-dynamic-extent-slice-extraction-and-symbolic-slice-placement.md) | Complete | 0002, 0018M, 0018R, 0023C, 0025C; prerequisite for Compiler 0005C | Added exactly `sliceByLength(long[], long[], int[], long[])` for finite extraction across unresolved selected extents and `sliceUpdate(Tensor, Shape)` for target-relative symbolic placement, reusing existing slice kinds and attributes without compiler behavior. |
 | 0025E | [Fixed recurrent-scan semantic family and Tensor expressions](tasks/0025e-fixed-recurrent-scan-semantic-family-and-tensor-expressions.md) | Complete | accepted NN 0021A architecture decision; 0018K–0018L, 0018N, 0019, 0025; current recurrent cell equations | Added the fixed RNN-tanh, reset-after GRU, and LSTM forward/reverse recurrent-scan meanings, rank-one runtime `INT64` valid-length input, dense time-major output plus typed final states, and exact shared multi-output Tensor provenance without a user-defined body/region abstraction or execution claim. |
+| 0025F | [Recurrent-scan expression namespace correction](tasks/0025f-recurrent-scan-expression-namespace-correction.md) | Complete | 0025E; before Compiler 0006A | Moved the six newly introduced fixed-scan constructors off the Tensor receiver surface into public stateless `model.tensor.RecurrentScan.rnn/gru/lstm` overloads, preserving exact semantics, validation, IDs, canonical outputs, and fail-closed Compiler behavior without aliases or downstream adoption; corrected the directly affected Compiler inventory boundary test without adding production support. |
 | 0026 | IEEE FLOAT16 and mixed-precision semantic contracts | Draft | 0001, 0018N, completed operation-family semantics; required before any backend advertises FLOAT16 | Preserve BFLOAT16, add distinct true IEEE-754 binary16 `FLOAT16`, and audit affected families for explicit input, accumulation/intermediate, and output types without adding backend support. |
 
 ## Milestones
@@ -330,6 +333,15 @@ Operation-family subpackages are introduced only when a focused operation task d
 - Completed fixed recurrent-scan semantic prerequisite: task 0025E adds the exact Model-owned
   fixed flat metadata selected by NN 0021A, without a user-defined body/region abstraction or an
   execution claim. Compiler 0006A remains the downstream Draft forward-adoption owner.
+- Immediate recurrent-scan API correction: Complete task 0025F keeps the complete 0025E semantic and
+  producer contract but removes its six domain-heavy Tensor receiver methods in favor of one
+  focused public stateless `model.tensor.RecurrentScan` namespace. It must complete before
+  Compiler 0006A; it does not redirect current NN static sequence APIs. A coordinator-authorized
+  test-only correction makes the Compiler checkpoint distinguish its exact supported inventory
+  from the three recurrent signatures deferred until 0006A, without changing Compiler
+  production behavior. The final documentation pass also corrected the one current-tense Training
+  API receiver claim omitted from the initial seven-document scope; both additions were
+  coordinator-authorized, and the exact completed scope is 29 paths.
 - Future mixed-precision semantic foundation: task 0026 remains Draft without a detailed
   specification. It must complete before any backend advertises FLOAT16, but it does not block
   current CPU generated-artifact caching, current-type portable analysis/finalization, or
@@ -338,6 +350,12 @@ Operation-family subpackages are introduced only when a focused operation task d
 Each listed checkpoint runs the full repository test suite, affected architecture tests, final
 Javadoc and documentation validation, and the cross-task checks deferred by the preceding tasks.
 Individual single-module tasks use the task-level validation defined in the planning guide.
+
+Task 0025F is an explicit user-authorized immediate correction while CPU remains the active global
+project area. Its exact Model production/tests and architecture/API/Model-documentation paths do
+not overlap current CPU/backend implementation paths, Data planning, or the global roadmap. It
+integrates by completing and stabilizing the Model Java surface before Draft Compiler 0006A is
+specified or executed; it does not authorize any other out-of-order Model work.
 
 ## Current status
 
@@ -359,12 +377,19 @@ could adopt that obligation; it added no public method, kind, attributes, Shape/
 binding implementation, or compiler behavior.
 Completed [task 0025E](tasks/0025e-fixed-recurrent-scan-semantic-family-and-tensor-expressions.md)
 follows the accepted NN 0021A architecture decision. It
-owns only the fixed recurrent-scan Model semantics and Tensor surface selected there, not
-Compiler, Runtime, Engine, or backend execution. Future task 0026 also
-remains Draft without a detailed specification and does not reopen the completed historical
-capability milestone. It is an explicit prerequisite only for backend FLOAT16 claims; CPU tasks
-that preserve the current six-type contract and fail closed for FLOAT16 may proceed in their
-existing order.
+owns only the fixed recurrent-scan Model semantics and expression construction selected there,
+not Compiler, Runtime, Engine, or backend execution. Immediate
+[task 0025F](tasks/0025f-recurrent-scan-expression-namespace-correction.md) is Complete. It
+corrects only the newly introduced Java entry placement: ordinary users continue to
+use `RnnSequence`, `GruSequence`, and `LstmSequence`, while the low-level fixed-scan seam moves from
+six Tensor receiver methods to static `RecurrentScan.rnn`, `gru`, and `lstm` overloads in the same
+tensor package. Exact operation inputs/outputs, validation/effects, canonical producer
+provenance, result records, fixed semantics, and current Compiler fail-closed behavior remain
+unchanged. There is no active or Ready Model task. Future task 0026 remains Draft without a
+detailed specification and does not reopen the
+completed historical capability milestone. It is an explicit prerequisite only for backend
+FLOAT16 claims; CPU tasks that preserve the current six-type contract and fail closed for FLOAT16
+may proceed in their existing order.
 Tasks 0014A through 0015H remain complete with the post-0014B vertical-slice reassessment
 recorded. The broad former task 0016 is decomposed into 0016A–0016J. Tasks 0016A through 0016E are
 complete. Tasks 0016F, 0016F1, 0016G, 0016H, 0016I, and 0016J are also complete. The broad former
@@ -573,6 +598,17 @@ Tensor expressions from the still-planned compiler capture lifecycle.
 
 - The implementation must follow the current architecture contract.
 - Legacy code is capability evidence only; new implementation is written from scratch.
+- The immediate post-0025E API review selects one focused correction before Compiler 0006A. The
+  fixed recurrent scan remains a low-level Model expression seam, but six state/parameter-heavy,
+  multi-output methods do not belong on every Tensor receiver. Task 0025F replaces them atomically
+  with public final, field-free `model.tensor.RecurrentScan` and exact static `rnn`, `gru`, and
+  `lstm` biased/unbiased overloads. `input` is explicit first, result carriers stay in
+  `model.tensor`, semantic enums stay in `model.operation.recurrent`, the package-private derived-
+  output factory seam is not widened, and no compatibility alias is retained because the API has
+  no downstream adoption or stabilized release contract. Static NN sequences and
+  `Tensor.linear(...)` remain unchanged. The directly affected Compiler inventory test names the
+  exact supported and three deferred recurrent signature sets and proves their union equals the
+  complete Model inventory; this is a bounded test-only correction, not Compiler 0006A adoption.
 - ADR 0009 reopens the model queue for exactly one compiler-enabling prerequisite. Task 0025
   changes the completed 0018L producer contract only by retaining the canonical exact wrapper for
   every output slot and exposing the smallest indexed retrieval surface. It adds no derivative
@@ -1874,7 +1910,12 @@ are Complete. Task 0025D and Model 0025E are Complete detailed Model specificati
 implements the fixed flat recurrent-scan metadata selected by completed NN 0021A. Detailed
 [Compiler 0005C](../compiler/tasks/0005c-layout-window-indexing-scatter-ordering-and-stochastic-gradient-completion.md)
 and Compiler 0005D–0006 are Complete; Compiler 0006A remains Draft without a detailed
-specification and remains the downstream owner of forward Compiler adoption. Model 0026 remains
-Draft without a detailed specification and is the next Model frontier.
+specification and remains the downstream owner of forward Compiler adoption. Detailed
+[Model 0025F](tasks/0025f-recurrent-scan-expression-namespace-correction.md) is Complete as the
+immediate API-placement correction before Compiler 0006A. Its
+coordinator-authorized Compiler boundary-test correction preserves the unsupported recurrent
+inference/autograd state while reconciling the complete Model inventory. Its coordinator-authorized
+Training API scope correction removes the final stale receiver claim. The exact completed scope is
+29 paths. Model 0026 remains Draft without a detailed specification, and no Model task is Ready.
 The legacy branch must be consulted read-only for capability and test evidence when preparing each
 applicable capability task.

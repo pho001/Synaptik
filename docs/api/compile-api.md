@@ -262,10 +262,13 @@ layout, Gather/scatter, ordering/top-K, and explicit-state dropout first-order m
 Compiler task 0005D is Complete and adds the current two-output attention, grouped convolution,
 pooling, and loss first-order matrix without adding a public gradient API or backward-only
 operation vocabulary.
-Compiler task 0005E closes that current matrix against the compiled production Model inventory:
+Compiler task 0005E closed that matrix against the production Model inventory at its checkpoint:
 37 operation-kind enum families, 107 constants, and 128 complete
 kind/attributes/input-range/output-range fingerprints. The checkpoint includes both
-`SLICE_UPDATE` attributes variants. It does not add a formula or change Model semantics.
+`SLICE_UPDATE` attributes variants. Model 0025E subsequently added one recurrent family, three
+constants, and three exact signatures without Compiler adoption. The current complete Model
+inventory is therefore 38 families, 110 constants, and 131 signatures, while the supported
+Compiler inventory remains the exact original 128 signatures.
 
 Package-private `GraphCompiler.compile` takes `CompileMode`, ordered forward outputs, an optional
 public `FunctionalGradientRequest`, explicit forward constant ingress, and
@@ -584,7 +587,7 @@ is intentionally explicit:
 | Classification | Current deferred or rejected families |
 |---|---|
 | Structured fail-closed boundaries | One-output attention lacks canonical same-occurrence weights and is rejected; index-target categorical cross-entropy rejects a dynamic or zero class depth |
-| Current source-backed closure | The closed inventory matches all 37 compiled production kind families, 107 constants, and 128 signature fingerprints; every legal output/input role has a `D`, `ND`, or `FC` disposition, and generated formula edges remain inside the same classified Tensor algebra |
+| Current source-backed closure | The supported closed inventory contains exactly 128 signature fingerprints; the boundary test adds the three explicitly deferred RNN, GRU, and LSTM signatures and proves that the disjoint 131-signature union equals the complete 38-family, 110-constant Model inventory. Every supported legal output/input role has a `D`, `ND`, or `FC` disposition, and generated formula edges remain inside the same classified Tensor algebra. Every deferred recurrent boundary role fails closed with the unknown/unclassified reason and allocates no Tensor ID. |
 | Non-differentiable roles and outputs | Comparisons, BOOL logic/classification, `ALL`, `ANY`, arg-extrema results, batch-training saved auxiliary roots, one-hot and other index roles, ordering indices, dropout masks, padding constants, select coordinates, and graph RNG state |
 
 Unknown/custom kinds, wrong attribute classes or cardinalities, missing canonical outputs, and
@@ -1017,16 +1020,20 @@ gradient boundary policy, saved-value lifetime, numerical lowering, backend supp
 remain planned. In particular, the current compiler API exposes no callable compilation path that
 turns either scan kind into executable work.
 The current Model also exposes fixed `RNN_TANH`, `GRU_RESET_AFTER`, and `LSTM` recurrent-scan
-expressions with one `FORWARD` or `REVERSE` attribute, fully static time-major descriptors, one
-ordinary non-gradient `INT64[batch]` valid-length input, and two or three outputs from one exact
-flat producer. Generic capture preserves that producer as one `CompiledNode`, with every declared
-output position and ordered input edge. This structural fact is not Compiler adoption: current
-`CapturedGraphInference` rejects `RecurrentScanKind` as an unsupported operation kind before
-planning or capability selection. Current autograd preflight likewise rejects the kind through
-its closed inventory before constructing any derivative Tensor. Compiler task 0006A owns forward
-inference, final validation, and inventory adoption; later explicit work owns backpropagation
-through time. No current capability provider, public compiler API, executable, or backend route
-supports the family.
+expressions through the advanced low-level static `RecurrentScan.rnn`, `gru`, and `lstm`
+namespace. Each occurrence has one `FORWARD` or `REVERSE` attribute, fully static time-major
+descriptors, one ordinary non-gradient `INT64[batch]` valid-length input, and two or three outputs
+from one exact flat producer. Generic capture preserves that producer as one `CompiledNode`, with
+every declared output position and ordered input edge. This structural fact and the public Model
+construction namespace are not Compiler adoption: current `CapturedGraphInference` rejects
+`RecurrentScanKind` as an unsupported operation kind before planning or capability selection.
+Current autograd preflight likewise rejects each of the exact three deferred recurrent signatures
+with the unknown/unclassified reason before constructing any derivative Tensor or allocating an
+ID. The inventory boundary names those three signatures explicitly rather than broadly filtering
+the family, and proves their disjoint union with the 128 supported signatures is the complete
+131-signature Model inventory. Compiler task 0006A owns forward inference, final validation, and
+inventory adoption; later explicit work owns backpropagation through time. No current capability
+provider, public compiler API, executable, or backend route supports the family.
 `Tensor.softmax` and `Tensor.logSoftmax` accept floating input and one positive or negative axis.
 Every result retains the exact input Shape, data type, and gradient eligibility, leaves layout
 unresolved, and records the requested first-class SOFTMAX or LOG_SOFTMAX kind with exact one-input

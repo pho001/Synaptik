@@ -2394,14 +2394,17 @@ floating SORT and TOP_K values, explicit-state dropout values, exact two-output 
 grouped convolution, maximum and average pooling, MSE, dense categorical loss, and positive-
 static-depth index categorical logits.
 
-The current source-backed closure checkpoint matches the compiled production Model inventory:
-37 operation-kind enum families, 107 constants, and 128 exact signature fingerprints, including
-both `SLICE_UPDATE` attributes variants. Each legal output/input role is conditionally
-differentiable, intentionally non-differentiable, or fail-closed. A conditionally differentiable
-role becomes usable only after occurrence-local preflight proves its exact Shape, data type,
-cardinality, canonical-auxiliary, normalization, and formula-construction prerequisites. The
-successful decision also selects one existing compiler formula family, keeping preflight and
-formula dispatch aligned.
+The current source-backed supported closure contains 128 exact signature fingerprints, including
+both `SLICE_UPDATE` attributes variants. Model's later recurrent family brings the complete
+production inventory to 38 operation-kind enum families, 110 constants, and 131 fingerprints.
+The Compiler boundary names the exact three deferred RNN, GRU, and LSTM signatures, proves their
+disjoint union with the 128 supported signatures equals that complete inventory, and rejects every
+deferred boundary role with the exact unknown/unclassified reason without allocating a Tensor ID.
+Each supported legal output/input role is conditionally differentiable, intentionally
+non-differentiable, or fail-closed. A conditionally differentiable role becomes usable only after
+occurrence-local preflight proves its exact Shape, data type, cardinality, canonical-auxiliary,
+normalization, and formula-construction prerequisites. The successful decision also selects one
+existing compiler formula family, keeping preflight and formula dispatch aligned.
 
 Mixed-floating binary, WHERE-branch, and MATMUL contributions use ordinary
 [cotangent normalization](#cotangent-normalization). Ordinary MEAN derives its denominator by
@@ -2859,6 +2862,14 @@ or `REVERSE` direction. RNN and GRU produce dense output plus final hidden state
 produces final cell state. One call creates one flat identity-distinct multi-output producer, not a
 callback, caller-selected cell body, nested graph, region, or static per-step unroll.
 
+The public final field-free `model.tensor.RecurrentScan` type is the advanced low-level static
+expression namespace for the family. Exactly six biased or bias-free `rnn`, `gru`, and `lstm`
+methods accept the time-major input explicitly as their first argument; `Tensor` has no recurrent
+receiver alias. `RecurrentScanResult` and `LstmRecurrentScanResult` remain typed Tensor-output
+carriers in `model.tensor`, while `RecurrentScanKind` and `RecurrentDirection` remain operation
+semantics. The namespace is not a layer, module, execution service, registry, or general scan
+body.
+
 Model construction validates only the length Tensor descriptor and never reads its scalar values.
 The fixed future execution meaning traverses each row's valid prefix in the selected direction,
 keeps dense outputs aligned to original time, writes positive zero at padded positions, and
@@ -2876,7 +2887,9 @@ multidimensional recurrent facade, arbitrary direction collection, configurable 
 runtime execution. Bidirectional composition fixes exactly forward-then-backward final-axis
 CONCAT; it is not a generic multidirectional abstraction. The standard module factory constructs
 only the one-directional containers and adds no bidirectional recipe or runtime capability.
-Current initialized `Embedding` remains eager.
+Ordinary NN callers use `RnnSequence`, `GruSequence`, or `LstmSequence`; a later runtime-length
+NN API may delegate to `RecurrentScan` only after Compiler and backend adoption. Current
+initialized `Embedding` remains eager.
 
 `extensions/nn` composes generic [`Tensor`](#tensor) and operation semantics from
 `modules/model`. [`extensions/training`](#training-graph) consumes nn-declared parameters for
@@ -3302,6 +3315,12 @@ construction to this convenience. The visible floating PERMUTE/MATMUL/ADD primit
 differentiable by current package-private compiler autograd when each primitive satisfies its
 closed rule guards. See
 [Linear-projection convenience](api/tensor-api.md#linear-projection-convenience).
+
+The receiver placement is unchanged because linear projection is a natural one-input,
+one-output last-axis contraction. `Tensor.linear` owns only the stateless Model operation
+composition; NN `Linear`, not the Tensor convenience, owns weight and optional-bias state. The
+multi-input, multi-output recurrent domain protocol instead uses the focused static
+`RecurrentScan` namespace.
 
 ### Masked reduction
 

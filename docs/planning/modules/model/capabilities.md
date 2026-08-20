@@ -790,11 +790,15 @@ construction; backends may use different algorithms only when they satisfy that 
 
 Completed [task 0025E](tasks/0025e-fixed-recurrent-scan-semantic-family-and-tensor-expressions.md)
 adds Model-owned expression metadata for exactly `RNN_TANH`, `GRU_RESET_AFTER`, and `LSTM`, with
-exact `FORWARD` or `REVERSE` direction. The six Tensor receiver overloads cover biased and
-unbiased forms. They require fully static time-major input, state, and packed-weight Shapes plus
-one ordinary non-gradient `INT64[batch]` valid-length descriptor. RNN and GRU expose dense output
-and final hidden state; LSTM also exposes final cell state. Each call creates one identity-distinct
-flat producer and canonical ordered wrappers, with no per-step intermediate graph.
+exact `FORWARD` or `REVERSE` direction. Completed
+[task 0025F](tasks/0025f-recurrent-scan-expression-namespace-correction.md) corrects only the
+public placement: final field-free `model.tensor.RecurrentScan` exposes exactly six static biased
+or bias-free `rnn`, `gru`, and `lstm` methods with explicit input first, and `Tensor` has no
+recurrent receiver method. They require fully static time-major input, state, and packed-weight
+Shapes plus one ordinary non-gradient `INT64[batch]` valid-length descriptor. RNN and GRU expose
+dense output and final hidden state; LSTM also exposes final cell state. Each call creates one
+identity-distinct flat producer and canonical ordered wrappers, with no per-step intermediate
+graph.
 
 The fixed equations and packing match the current NN cells: RNN uses one tanh transition; GRU is
 reset-after in reset/update/candidate order; LSTM uses input/forget/candidate/output order. Model
@@ -807,7 +811,11 @@ This is not an executable capability advertisement. Current Compiler inference a
 autograd reject the family, no Planning capability provider advertises it, and no Engine,
 Runtime, concrete backend, NN runtime-length facade, or BPTT implementation adopts it. Compiler
 0006A and later execution tasks own those boundaries. Existing static NN sequence containers and
-their compact-output contracts remain unchanged.
+their Java `long[]` lengths, static unrolling, and compact-output contracts remain unchanged. The
+namespace is an advanced low-level expression seam, not a layer, module, execution service,
+registry, or general scan-body abstraction; ordinary NN callers use `RnnSequence`, `GruSequence`,
+or `LstmSequence`, and later NN runtime-length work may delegate only after Compiler and backend
+adoption.
 
 ## Adjoint expressibility and missing public primitives
 

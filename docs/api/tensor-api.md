@@ -433,10 +433,12 @@ type, and gradient eligibility, leave layout unresolved, and record exact one-in
 They do not inspect or accumulate values.
 `RecurrentScanKind` provides the separate fixed `RNN_TANH`, `GRU_RESET_AFTER`, and `LSTM`
 time-major recurrent meanings. `RecurrentDirection` is each occurrence's exact `FORWARD` or
-`REVERSE` attribute. Six receiver methods accept fully static floating descriptors plus one
-ordinary non-gradient `INT64[batch]` valid-length Tensor and construct two or three canonical
-outputs from one flat producer. Model validates descriptors but never reads length or data values;
-Compiler adoption, BPTT, Engine binding, runtime validation, and backend execution remain future.
+`REVERSE` attribute. The public final field-free `RecurrentScan` namespace has exactly six static
+biased or bias-free `rnn`, `gru`, and `lstm` methods. Each accepts an explicit time-major input,
+fully static floating descriptors, and one ordinary non-gradient `INT64[batch]` valid-length
+Tensor, then constructs two or three canonical outputs from one flat producer. Model validates
+descriptors but never reads length or data values; Compiler adoption, BPTT, Engine binding,
+runtime validation, and backend execution remain future.
 `SoftmaxKind.SOFTMAX`, `SoftmaxKind.LOG_SOFTMAX`, and `SoftmaxAttrs` provide distinct
 shape-preserving probability and log-probability normalization semantics. The attributes carry
 one already normalized non-negative axis. Public `Tensor.softmax` and `Tensor.logSoftmax`
@@ -4070,20 +4072,23 @@ Failure behavior is local and deterministic:
 
 ### Fixed recurrent-scan expressions
 
-The six current recurrent receiver methods construct one fixed time-major scan occurrence:
+The public final field-free `model.tensor.RecurrentScan` type is an advanced low-level static
+Tensor-expression namespace. Its exactly six methods construct one fixed time-major scan
+occurrence; they are not NN layers or modules, an execution service, a registry, or a general
+user-defined scan-body API. `Tensor` has no recurrent receiver method.
 
-| Family | Bias-free receiver form | Biased receiver form | Ordered outputs |
+| Family | Bias-free static form | Biased static form | Ordered outputs |
 |---|---|---|---|
-| RNN tanh | `rnnScan(validLengths, initialHidden, inputWeight, hiddenWeight, direction)` | `rnnScan(validLengths, initialHidden, inputWeight, hiddenWeight, bias, direction)` | `[outputs, finalHidden]` |
-| Reset-after GRU | `gruScan(validLengths, initialHidden, inputWeight, hiddenWeight, direction)` | `gruScan(validLengths, initialHidden, inputWeight, hiddenWeight, bias, direction)` | `[outputs, finalHidden]` |
-| LSTM | `lstmScan(validLengths, initialHidden, initialCell, inputWeight, hiddenWeight, direction)` | `lstmScan(validLengths, initialHidden, initialCell, inputWeight, hiddenWeight, bias, direction)` | `[outputs, finalHidden, finalCell]` |
+| RNN tanh | `RecurrentScan.rnn(input, validLengths, initialHidden, inputWeight, hiddenWeight, direction)` | `RecurrentScan.rnn(input, validLengths, initialHidden, inputWeight, hiddenWeight, bias, direction)` | `[outputs, finalHidden]` |
+| Reset-after GRU | `RecurrentScan.gru(input, validLengths, initialHidden, inputWeight, hiddenWeight, direction)` | `RecurrentScan.gru(input, validLengths, initialHidden, inputWeight, hiddenWeight, bias, direction)` | `[outputs, finalHidden]` |
+| LSTM | `RecurrentScan.lstm(input, validLengths, initialHidden, initialCell, inputWeight, hiddenWeight, direction)` | `RecurrentScan.lstm(input, validLengths, initialHidden, initialCell, inputWeight, hiddenWeight, bias, direction)` | `[outputs, finalHidden, finalCell]` |
 
-The receiver is `input [time, batch, inputSize]`. Every Shape is fully static; `inputSize` and
+The explicit first argument is `input [time, batch, inputSize]`. Every Shape is fully static; `inputSize` and
 `hiddenSize` must be positive, while `time` and `batch` may be zero. `validLengths` is exactly
 non-gradient `INT64[batch]`. Initial hidden and cell states are `[batch, hiddenSize]`. For gate
 count `G`, input weight is `[G * hiddenSize, inputSize]`, hidden weight is
 `[G * hiddenSize, hiddenSize]`, and optional bias is `[G * hiddenSize]`; `G` is one, three, or four
-for RNN, GRU, or LSTM respectively. The receiver, states, weights, and optional bias use one exact
+for RNN, GRU, or LSTM respectively. The input, states, weights, and optional bias use one exact
 common `FLOAT64`, `FLOAT32`, or `BFLOAT16` data type.
 
 The fixed transition equations match the current NN cells. With `X = x @ transpose(inputWeight)`
@@ -4153,7 +4158,9 @@ unsupported operation before planning, and current autograd preflight rejects it
 derivative Tensors. No capability provider advertises the family and no Compiler, Engine,
 Runtime, backend, execution, numerical-algorithm, or backpropagation-through-time behavior is
 available yet. [`RnnSequence`, `GruSequence`, and `LstmSequence`](training-api.md#current-nn-recurrent-composition-contract)
-remain distinct NN-owned static Java-unrolled compact-output APIs.
+remain the ordinary NN-facing APIs and retain construction-time Java `long[]` lengths, static
+unrolling, and compact outputs. A later runtime-length NN API may call the low-level namespace
+only after Compiler and backend adoption.
 
 ### Softmax expressions
 
@@ -7511,6 +7518,12 @@ used by a linear projection without introducing a LINEAR operation. Weight has S
 input.linear(weight)       = input.matmul(weight.transpose())
 input.linear(weight, bias) = input.matmul(weight.transpose()).add(bias)
 ```
+
+These receiver conveniences remain on `Tensor` because the input naturally owns a single-output
+last-axis contraction. They own no parameters: the NN `Linear` module is the separate stateful
+owner of weight and optional bias, while `Tensor.linear` is its stateless Model operation
+composition. This differs from recurrent scan's multi-input, multi-output domain protocol, which
+uses the focused static `RecurrentScan` namespace.
 
 Input rank must be at least one. Its final Dimension is `inFeatures`; every preceding input
 Dimension is retained in order, and the exact weight axis-zero `outFeatures` Dimension becomes

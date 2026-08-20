@@ -84,7 +84,7 @@ runtime control flow
   = concrete-backend prepared loop implementing that operation
 ```
 
-### Exact family and planned surface
+### Exact family and current surface
 
 The exact variants are `RNN_TANH`, `GRU_RESET_AFTER`, and `LSTM`. Each has one immutable
 `FORWARD` or `REVERSE` direction. The fixed equations and parameter packing match the current NN
@@ -93,13 +93,19 @@ gate order and `candidate + update * (hidden - candidate)`; and LSTM with input,
 candidate, output gate order and explicit hidden/cell states. Each family has one optional packed
 input-side bias.
 
-Model task 0025E must publish exactly one direction enum, `RecurrentScanResult` with `outputs` and
-`finalHidden`, `LstmRecurrentScanResult` with `outputs`, `finalHidden`, and `finalCell`, and six
-Tensor receiver methods: bias-free and biased `rnnScan`, `gruScan`, and `lstmScan`. These names
-and signatures are planned architecture, not current runnable Java. The complete exact planned
-signatures are recorded in the [architecture contract](../../../ARCHITECTURE.md#fixed-family-and-planned-model-surface).
+Model task 0025E originally published exactly one direction enum, `RecurrentScanResult` with
+`outputs` and `finalHidden`, `LstmRecurrentScanResult` with `outputs`, `finalHidden`, and
+`finalCell`, and six provisional Tensor receiver methods. Task 0025F immediately corrects only
+that API placement: the result carriers and operation semantics remain unchanged, while public
+final field-free `model.tensor.RecurrentScan` exposes exactly six static biased or bias-free
+`rnn`, `gru`, and `lstm` methods with explicit time-major `input` first. This amendment preserves
+the historical 0025E sequence rather than presenting the corrected placement as its original
+decision. The complete exact current signatures are recorded in the
+[architecture contract](../../../ARCHITECTURE.md#fixed-family-and-planned-model-surface).
 
-The receiver is the time-major input Tensor. Operation input order is:
+The namespace is advanced low-level Model expression construction. It is not a layer, module,
+execution service, registry, or general scan-body abstraction, and `Tensor` has no recurrent
+receiver alias. Operation input order is:
 
 ```text
 RNN/GRU without bias:
@@ -170,7 +176,7 @@ not serialized by this decision.
 ### Layer ownership
 
 - Model owns fixed semantics, kind/attributes, descriptor-visible validation, result metadata,
-  canonical provenance, and the planned Tensor surface.
+  canonical provenance, and the focused static expression namespace.
 - Compiler owns one-node capture, inference, final validation, and forward inventory adoption. It
   rejects every backward-capable request reaching the family before constructing any gradient
   Tensor until BPTT is separately designed.
@@ -245,16 +251,18 @@ output versus current compact per-step lists. Any bidirectional migration preser
 parameters, valid-prefix-only reverse traversal, forward-first feature concatenation, original-
 time alignment, and typed final states.
 
-Model 0025E owns the semantic family and Tensor surface. Compiler 0006A owns forward adoption and
-the initial fail-closed BPTT boundary. A later concrete-backend task owns truthful execution.
+Model 0025E owns the semantic family and its original provisional receiver surface; Model 0025F
+corrects that surface to `RecurrentScan.rnn/gru/lstm` without changing the semantics. Compiler
+0006A owns forward adoption and the initial fail-closed BPTT boundary. A later concrete-backend
+task owns truthful execution.
 Engine 0001–0002 own lifecycle composition and typed caller/output binding. NN 0021B coordinates
 the executable owner sequence; NN 0022 owns Data-facing runtime-length API and compatibility.
 Dynamic Shapes, arbitrary masks with holes, active-row compaction, BPTT, and general regions stay
 separate.
 
-The decision changes no module dependency or source inventory. Existing architecture tests must
-pass but require no source update. No production API or executable behavior is introduced by this
-ADR.
+The placement correction changes no module dependency. Existing architecture tests must pass but
+require no source update. This ADR documents the public Model construction boundary; it introduces
+no Compiler, backend, Runtime, or execution behavior.
 
 ## Related documentation
 
@@ -268,3 +276,4 @@ ADR.
 - [ADR 0010: Staged backend preparation](0010-staged-backend-preparation.md)
 - [ADR 0011: Per-run Runtime resource ownership](0011-per-run-runtime-resource-ownership.md)
 - [NN task 0021A](../../planning/extensions/nn/tasks/0021a-fixed-recurrent-scan-architecture-decision.md)
+- [Model task 0025F](../../planning/modules/model/tasks/0025f-recurrent-scan-expression-namespace-correction.md)

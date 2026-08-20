@@ -366,12 +366,14 @@ fusion, kernel count, execution cost, or a public training workflow, and differe
 values specialize different Tensor-expression topology.
 
 Current Model now provides fixed RNN-tanh, reset-after GRU, and LSTM recurrent-scan expression
-construction with an ordinary `INT64[batch]` `validLengths` Tensor. Those six Tensor receiver
-overloads create one flat multi-output producer with dense time-major output and explicit final
-states. They do not read length values, statically unroll a cell, own parameters, or execute.
-Current Compiler inference rejects the family, current autograd rejects it before derivative
-Tensor construction, and no Engine or backend route exists; runtime length binding and BPTT are
-therefore not current training capabilities.
+construction with an ordinary `INT64[batch]` `validLengths` Tensor. The advanced low-level static
+`RecurrentScan.rnn`, `gru`, and `lstm` namespace has exactly six biased or bias-free methods with
+explicit time-major input first. Each creates one flat multi-output producer with dense time-major
+output and explicit final states. The namespace is not an NN layer or module and does not read
+length values, statically unroll a cell, own parameters, or execute. Current Compiler inference
+rejects the family, current autograd rejects it before derivative Tensor construction, and no
+Engine or backend route exists; runtime length binding and BPTT are therefore not current training
+capabilities.
 
 The Model scan does not silently replace these NN containers. Current `RnnSequence`,
 `GruSequence`, `LstmSequence`, and their bidirectional counterparts still accept Java `long[]`

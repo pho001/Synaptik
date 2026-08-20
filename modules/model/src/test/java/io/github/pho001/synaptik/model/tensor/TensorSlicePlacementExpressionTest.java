@@ -125,7 +125,7 @@ class TensorSlicePlacementExpressionTest {
                 () -> assertTrue(Modifier.isPrivate(createTargetRelativeUpdate.getModifiers())),
                 () -> assertSame(Tensor.class, createSliceUpdate.getReturnType()),
                 () -> assertSame(Tensor.class, createTargetRelativeUpdate.getReturnType()),
-                () -> assertEquals(208, publicTensorMethods),
+                () -> assertEquals(202, publicTensorMethods),
                 () -> assertEquals(2, publicMethodsNamed("sliceUpdate")),
                 () -> assertEquals(1, publicMethodsNamed("cropToShape")),
                 () -> assertEquals(0, publicMethodsNamed("updateSlice")),
