@@ -75,6 +75,11 @@ package io.github.pho001.synaptik.backend.cpu.internal.cache;
  * mapping. The proved body uses ordinal shifts and masks with direct typed loads/stores for any
  * legal half-open range; every unproved mapping, carrier, layout, or range retains the typed
  * general-long fallback.
+ * Schema 40 adds one completely guarded frozen FLOAT32 pointwise body for the
+ * {@code [512,512]} mixed-carrier {@code DIV -> SIGMOID -> MUL} topology. The proved loop derives
+ * row and column from an integer ordinal, uses direct unaligned segment loads and strided heap
+ * stores, preserves the stable binary64-exponential/sign-branch/one-final-narrowing sigmoid, and
+ * retains the typed general-long state machine for every failed proof.
  * The optional persistent envelope stores this version and has no legacy reader, migration path,
  * or converter.
  */
@@ -115,10 +120,12 @@ public final class CpuGeneratorSchema {
      * one completely guarded fixed {@code [1024,1024]} axis-one exclusive reverse INT64
      * cumulative-product segment-cursor body with direct unaligned long access and arbitrary
      * legal complete-slice subranges, while retaining the typed general-long fallback; schema 39
-     * adds the guarded frozen raw-BFLOAT16 affine PERMUTE/SLICE cursor body.
+     * adds the guarded frozen raw-BFLOAT16 affine PERMUTE/SLICE cursor body; schema 40 adds the
+     * guarded frozen FLOAT32 mixed-carrier pointwise ordinal loop while retaining the typed
+     * general-long fallback.
      * Envelopes written for earlier schemas are incompatible misses.
      */
-    public static final int CURRENT_VERSION = 39;
+    public static final int CURRENT_VERSION = 40;
     /** Generated entry name. */ public static final String ENTRY_NAME = "invoke";
     private CpuGeneratorSchema() { }
 

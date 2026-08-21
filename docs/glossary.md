@@ -1180,6 +1180,18 @@ This correction adds no route, resource, materialization, public API, or Runtime
 accepted evidence closes only `A-GENERAL`; `P-SCALAR-GENERAL`, `S-GENERAL-MIN`, and
 `X-MIN-MULTI` remain in the broader comparison.
 
+Completed CPU 0007A1L advances the current boundary to schema 40. It adds one completely guarded
+FLOAT32 pointwise body for the frozen `[512,512]` mixed-carrier `DIV -> SIGMOID -> MUL` chain.
+For arbitrary legal half-open ranges, the proved loop derives row and column directly from the
+integer ordinal, reads two dense `MemorySegment` inputs and one last-axis-broadcast `float[]`, and
+writes the offset, two-strided `float[]` output. It preserves FLOAT32 division and multiplication
+around the stable sigmoid, including its sign branch, binary64 `StrictMath.exp` work, and one
+final narrowing. Complete topology, carrier, geometry, range, start-address, and sentinel guards
+precede the body; the same generated method retains the unchanged typed general-long fallback for
+every failed proof. This correction adds no route, resource, materialization, public API, or
+Runtime choice. Its accepted evidence closes only `P-SCALAR-GENERAL`; `S-GENERAL-MIN` and
+`X-MIN-MULTI` remain in the broader comparison.
+
 Completed CPU 0007A1 admits ordinary SUM and PROD for FLOAT64, FLOAT32, BFLOAT16, INT32, and INT64,
 and MEAN for the three floating types, in the same full, single-axis, multi-axis, and empty-axis-list
 forms. Floating SUM uses an exact real sum followed by one result-format ties-to-even rounding;
@@ -1282,7 +1294,7 @@ decision occurs in the generated loop.
 ### CPU kernel specialization
 
 The implemented backend-private immutable description of every fact allowed to change one
-generated CPU class. The current form includes schema 39, the canonical lowering fingerprint with
+generated CPU class. The current form includes schema 40, the canonical lowering fingerprint with
 typed opcode sequence, exact scalar-immediate bits, exact ordered clamp-bound bits, and selected
 scalar-power realizations, exact/default numerical mode, generated
 scalar/vector compute form, exact preferred FLOAT32, FLOAT64, INT32, INT64, or BOOL species bit
@@ -1322,8 +1334,9 @@ schema 34 adds the direct canonical-BOOL STACK and zero-stride ANY forms, schema
 guarded frozen-shape FOLD2D and dropout forms, schema 36 adds guarded exact-state FLOAT32 MEAN and
 BFLOAT16 PROD cursor forms, schema 37 adds guarded FLOAT64 GATHER and FLOAT32 GATHER_ND cursor
 forms, schema 38 adds the completely guarded fixed reverse INT64 cumulative-product segment-
-cursor form, and schema 39 adds the guarded raw-BFLOAT16 affine PERMUTE/SLICE cursor form while
-retaining typed general-long fallbacks.
+cursor form, schema 39 adds the guarded raw-BFLOAT16 affine PERMUTE/SLICE cursor form, and schema
+40 adds the guarded frozen FLOAT32 mixed-carrier pointwise ordinal loop while retaining typed
+general-long fallbacks.
 Canonical IR separately supplies value kind, data type, ordered semantics/stores, iteration rank,
 axis roles, contiguous-suffix form, and access regime. Their derived compatibility bytes and
 structural identity are order-sensitive.
@@ -1352,13 +1365,13 @@ Keeping the artifact reachable keeps its hidden-class state reachable, without p
 unreferenced class unloads. Direct generator calls produce equal class bytes but distinct hidden
 classes and artifact identities. The current durable generated-kernel artifact store may instead
 reuse compatible class bytes and weakly intern one loaded artifact while it remains live. The
-artifact is not by itself a prepared route. Current schema-39 artifacts execute admitted bounded
+artifact is not by itself a prepared route. Current schema-40 artifacts execute admitted bounded
 pointwise chains, one static affine represented-bit copy, one static
 PAD/TILE/CONCAT/STACK/window-extraction/SLICE_UPDATE movement, one static indexing occurrence,
 one functional-scatter output pass, one overlap-fold pass, one stable ordering/selection pass,
 one explicit-state initializer/dropout pass, one typed cumulative-scan body, or one typed
-ordinary-aggregate body across the implemented carrier patterns. The current-only schema-39
-boundary treats schema 38 and earlier as safe incompatible misses with no migration reader.
+ordinary-aggregate body across the implemented carrier patterns. The current-only schema-40
+boundary treats schema 39 and earlier as safe incompatible misses with no migration reader.
 
 ### CPU generated-kernel artifact store
 
@@ -1733,7 +1746,7 @@ output does not skip a non-empty validation domain; after successful validation 
 generated entry and submits no worker work.
 
 CPU analysis declares unique inputs in semantic first-use order followed by one output. It selects
-one execution unit, no materialization, no workspace, and one current schema-39 artifact whose
+one execution unit, no materialization, no workspace, and one current schema-40 artifact whose
 generated class embeds carrier-, type-, family-, and access-specialized scalar or parallel-scalar
 output writers. Proved dense heap arrays use integer loop/address state; general layouts and
 segment or mixed carriers retain typed long-address traversal. Guarded frozen GATHER and GATHER_ND
@@ -4795,7 +4808,7 @@ finite steps including legal length-one `Long.MIN_VALUE`, handles scalar and emp
 supports arbitrary disjoint scalar or parallel-scalar ranges across heap, segment, and mixed
 carriers. Output/input physical overlap is rejected; exact same-value base/update inputs may share
 one deduplicated boundary. Schema 15 introduced the slice-update family/rank/map structure, and
-current schema 39 retains it;
+current schema 40 retains it;
 concrete placement remains cold. Functional scatter and overlap fold are separate current CPU
 portable families.
 

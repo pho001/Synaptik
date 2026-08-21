@@ -2,7 +2,7 @@
 
 ## Status
 
-Ready
+Complete
 
 ## Goal
 
@@ -184,8 +184,8 @@ suites remain deferred to CPU 0009 or CI because no shared contract may change.
 
 ## Follow-up tasks
 
-- `S-GENERAL-MIN` and `X-MIN-MULTI` remain Draft and unassigned until accepted A1L evidence
-  selects the next bounded owner-cohesive task.
+- Detailed [CPU 0007A1M scatter-MIN residual parity](0007a1m-scatter-min-residual-parity.md) is
+  the sole next Ready task and owns `S-GENERAL-MIN`. `X-MIN-MULTI` remains Draft and unassigned.
 - Resume CPU 0007A1C closure only after both remaining persistent rows close.
 - CPU 0007A2 remains Draft and blocked behind CPU 0007A1C and all corrective residual work.
 
@@ -241,12 +241,75 @@ Do not commit, push, or stage.
 
 ## Validation evidence
 
-Empty until implemented.
+- Implementation context `01a02438-4fe2-7b40-b70e-2664d29a4095` produced the immutable evidence
+  bundle at `/private/tmp/synaptik-cpu-0007a1l-PY33M3lJ` from repository base
+  `d51dcfc8c00a1886596dd95545f99d1dc607c7fb`. The complete manifests, checksums, frozen-source and
+  probe preservation reports, XML summaries, five raw fork outputs and summary, generated target
+  class, complete `javap -c` and `javap -v`, direct oracle, schema transition, implementation
+  patch, context, commands, environment, and unchanged-owner reports were independently reviewed.
+- Frozen semantics passed exactly (`VERIFIED,20`). The focused invocation passed 62 tests in six
+  suites. The one and only full CPU rerun passed 356 of 357 tests in 54 suites with zero failures
+  or errors and one expected skip. No Java suite, semantic probe, timing fork, benchmark, or
+  generated-class corpus was rerun by the documentation context.
+- Five accepted isolated forks measured `P-SCALAR-GENERAL` at `1.006810905x`, `1.005707592x`,
+  `1.006301612x`, `1.004126974x`, and `1.006512287x`; median `1.006301612x`. All three controls
+  passed every fork and median. Every accepted full fork leaves exactly `S-GENERAL-MIN` and
+  `X-MIN-MULTI`; no rejected sample occurred in this final run.
+- Complete target disassembly proves a final, field-free class with one typed static
+  `invoke(MemorySegment, float[], MemorySegment, float[], long[], long, long)`. Complete guards
+  precede the ordinal loop; its address body has shifts and masks but no integer or long division
+  or remainder, performs direct `JAVA_FLOAT_UNALIGNED` loads and a strided `float[]` store, and
+  preserves FLOAT32 division/multiplication around the sign-branch binary64
+  `StrictMath.exp` sigmoid with one final narrowing. The unchanged typed general-long body begins
+  at the failed-guard target in the same method.
+- Documentation context `/root/doc_0007a1l` independently finalized affected internal Javadocs,
+  package summaries, the CPU guide, glossary, and synchronized planning without changing
+  executable Java or tests. It ran CPU Javadoc exactly once after edits and passed Markdown,
+  schema/current-only wording, status/order, exact-scope, frozen-evidence, implementation-path
+  preservation, staging, and whitespace checks recorded in the completion summary.
 
 ## Implementation notes
 
-Empty until implemented.
+- `CpuClassFileKernelGenerator` recognizes only the exact frozen scalar general pointwise IR:
+  FLOAT32 `[512,512]`, `DIV -> SIGMOID -> MUL`, ordered carriers `MemorySegment`, `float[]`,
+  `MemorySegment`, `float[]`, dense first/third inputs, a last-axis-broadcast second input, and one
+  offset two-strided output. `CpuLoopEmitter` admits the direct body only after the complete
+  24-value geometry, ordered range, start coordinate/address, extent, stride, and sentinel proof.
+- The proved loop narrows the bounded ordinal and end once, derives row/column with shift/mask
+  operations, and performs direct typed carrier access. It preserves the existing stable sigmoid:
+  FLOAT32 division, sign branch, binary64 `StrictMath.exp`, one final FLOAT32 narrowing, then
+  FLOAT32 multiplication. Every legal half-open range is supported; empty ranges return without
+  work, and every failed proof retains the unchanged typed general-long state machine.
+- Generated compatibility advances exactly once to schema 40. Schema 39 and older envelopes are
+  incompatible safe misses; no migration, alias, converter, or dual-schema reuse was added.
+- Architecture/current-plan/ADR/architecture-test conclusion: the bounded CPU-private generated
+  body changes no architecture rule, module boundary, dependency direction, or shared contract,
+  so no architecture contract, explanatory architecture page, ADR, or architecture test changes.
+- API/capability/lifecycle conclusion: public APIs and capability reporting, IR/lowering,
+  materialization and resource declarations, route selection, Prepare/Runtime ownership, and
+  unproved forms are unchanged. Backend conformance and integration tests therefore need no edit.
+- Build/documentation conclusion: no dependency, Gradle/toolchain, shared-module, native/vector,
+  example, or public API documentation change is required. The CPU guide and glossary record only
+  the bounded current schema-40 behavior; affected internal Javadocs preserve its exact guard,
+  numerical, range, addressing, and fallback boundaries.
 
 ## Completion summary
 
-Empty until implemented.
+- Completed changes: added the completely guarded frozen pointwise ordinal body at schema 40,
+  retained the typed fallback, synchronized schema assertions, and finalized directly affected
+  Javadocs, package summaries, CPU guide, glossary, and planning records.
+- Files changed or created: ten implementation-owned production/test paths plus eight
+  documentation/Javadoc/planning paths, for 18 combined paths. No executable Java or test changed
+  in the documentation pass.
+- Tests and validation: reused `VERIFIED,20`, six suites/62 focused tests, 54 suites/357 CPU tests
+  with 356 passes and one expected skip, complete Class-File inspection, and five accepted target
+  and control forks. The documentation pass ran CPU Javadoc exactly once and passed all required
+  documentation, scope, preservation, staging, and whitespace checks.
+- Documentation impact: internal generator/loop/schema/cache/code-generation/prepare Javadocs,
+  CPU guide, glossary, this task, A1C, CPU master plan, roadmap, and the sole next detailed task
+  are synchronized. No new public API or architecture term was introduced.
+- Unresolved issues: exactly `S-GENERAL-MIN` and `X-MIN-MULTI` remain.
+- Follow-up required: execute Ready CPU 0007A1M, then plan only the remaining evidence-supported
+  owner-cohesive `X-MIN-MULTI` correction. CPU 0007A2 remains Draft and blocked until A1C closes.
+
+Status: Complete

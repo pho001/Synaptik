@@ -549,6 +549,20 @@ claim.
 This remains the existing connected straight-line one-through-eight unit. General partition-DAG
 decomposition and bounded vertical or horizontal fusion remain Draft CPU 0008A work.
 
+Schema 40 adds one bounded body inside the existing scalar pointwise artifact for the frozen
+FLOAT32 `[512,512]` `DIV -> SIGMOID -> MUL` chain. Its ordered carriers are `MemorySegment`,
+`float[]`, `MemorySegment`, and `float[]`: the first and third inputs are dense, the second input
+broadcasts across the last axis, and the output starts at offset 3 with strides `[1024,2]`.
+Complete topology, carrier, geometry-length, ordered-range, start-coordinate/address, extent,
+stride, and sentinel guards admit any legal half-open range. The proved loop derives row and
+column from the integer ordinal, performs direct unaligned segment loads and the strided heap
+store, and preserves FLOAT32 division and multiplication around the stable sigmoid. That sigmoid
+uses its sign branch and binary64 `StrictMath.exp` work before one final narrowing to FLOAT32.
+Every failed proof enters the unchanged typed general-long state machine in the same artifact.
+This form changes no pointwise semantics, capability, lowering, declaration, materialization,
+workspace, route, finalization, Runtime binding, or public API, and its retained timing evidence
+supports only this frozen case and environment.
+
 For example, a three-occurrence chain can add two FLOAT32 inputs, negate the virtual result, and
 compare it with a third FLOAT32 input. Lowering derives the three external reads in first-use
 order and appends the BOOL comparison result as the only materialized output:
@@ -657,7 +671,7 @@ affine load/store, gather, scatter, masked tail, or speed claim.
 Lifecycle ownership remains unchanged. CPU analysis validates and composes the chain, chooses the
 scalar orchestration, and declares exactly the source and final result. Shared Prepare assigns
 those two slots without interpreting the affine plan. CPU finalization validates both assignments
-before current schema-39 artifact access and constructs one immutable executable. Cold binding validates
+before current schema-40 artifact access and constructs one immutable executable. Cold binding validates
 the exact data type, carrier, byte size, alignment, accessibility, output writability, canonical
 BOOL input bytes, and source/result non-overlap. Runtime then invokes only the prepared direct
 carriers, address table, and `start`/`end` bounds; it receives no operation, graph node, Shape,
@@ -719,7 +733,7 @@ callback, or per-element allocation in generated code.
 
 Movement uses scalar compute and either single-thread or deterministic parallel orchestration.
 Parallel chunks are safe because output injectivity proves disjoint writes. Vector preference
-falls back to scalar for this family. CPU finalization realizes current schema-39 generated artifacts;
+falls back to scalar for this family. CPU finalization realizes current schema-40 generated artifacts;
 cold binding validates complete input/output spans and rejects every output/input overlap before
 execution. The scalar reference consumes the same movement IR and compact geometry for
 differential tests, not as a Runtime fallback.
@@ -847,7 +861,7 @@ injectivity, and output/input non-overlap checks still run.
 
 CPU analysis declares each distinct gather input `ValueId` once in semantic first-use order and
 then one separate output; one-hot declares indices and output. Every indexing plan has one unit,
-no materialization, no workspace, one current schema-39 generated class artifact, one prepared
+no materialization, no workspace, one current schema-40 generated class artifact, one prepared
 executable, and one bound invocation. The generated class embeds carrier-, type-, family-, and
 access-specialized output loops rather than delegating through a generic carrier bridge. Proved
 dense heap arrays use integer loop/address state; segment, mixed-carrier, and general-layout forms
@@ -1132,7 +1146,7 @@ independent primitive-index insertion implementation for differential evidence; 
 Runtime fallback.
 
 Schema 27 introduced the complete carrier-, represented-type-, family-, direction-, output-,
-and access-specialized ordering body, which current schema 39 retains. It uses a stable bottom-up
+and access-specialized ordering body, which current schema 40 retains. It uses a stable bottom-up
 merge over the two assigned
 INT64 scratch regions, selecting the left logical index on equality. Dense heap-array forms use
 cold-proved integer loop and address state. Arbitrary supported layouts and heap, segment, or
@@ -1243,7 +1257,7 @@ probability bits, ordered boundary roles and carriers, and zero-scratch shape. C
 slots, carriers, workers, and ranges remain cold when they do not change emitted bytes. There is
 no migration reader for old artifacts. Schema 28 is the first version whose random entries embed
 the direct typed initializer and FLOAT64/FLOAT32 dropout bodies. A schema-27 envelope is an
-incompatible safe miss: cold finalization regenerates and may publish current schema-39 bytes
+incompatible safe miss: cold finalization regenerates and may publish current schema-40 bytes
 after shared slot assignment rather than loading, converting, or aliasing the old bridge class.
 
 Retained observational evidence for the fixed dense heap-array shape `[64,16384]`, probability
@@ -2006,7 +2020,7 @@ execution covers every admitted row; parallel-scalar orchestration is available 
 affine, movement, scatter, fold, ordering, random-element, whole-scan-slice, and whole-aggregate-
 output-cell ranges; and the
 pointwise family retains its exact typed value-vector and virtual-mask parity matrix. Generator
-schema 39 distinguishes pointwise,
+schema 40 distinguishes pointwise,
 affine, movement, indexing, scatter, fold, ordering, random, scan, and aggregate structures,
 including movement occurrence order,
 unequal-rank access, exact
@@ -2028,7 +2042,10 @@ typed general-long fallbacks. Schema 38 adds the completely guarded fixed `[1024
 exclusive reverse INT64 product segment-cursor form described above, with direct unaligned long
 access, arbitrary legal complete-slice subranges, unchanged zero resources, and a typed general-
 long fallback. Schema 39 adds the guarded raw-BFLOAT16 affine PERMUTE/SLICE form described above,
-with arbitrary legal half-open ranges and the unchanged typed general-long fallback. No excluded pointwise
+with arbitrary legal half-open ranges and the unchanged typed general-long fallback. Schema 40
+adds the completely guarded frozen FLOAT32 mixed-carrier pointwise ordinal loop described above,
+including arbitrary legal half-open ranges, stable binary64 exponential/sign/final-narrowing
+semantics, and the unchanged typed general-long fallback. No excluded pointwise
 or later semantic family,
 general BFLOAT16 pointwise or dropout numerical operation,
 cross-type CAST, dynamic layout, vector affine/scatter/fold/ordering execution, native fallback, backend-conformance

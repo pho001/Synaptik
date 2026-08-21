@@ -30,6 +30,76 @@ class CpuPointwiseGeneratedKernelTest {
             CpuPointwiseOpcode.ERF, CpuPointwiseOpcode.SIGMOID, CpuPointwiseOpcode.GELU_EXACT,
             CpuPointwiseOpcode.GELU_TANH_APPROXIMATION, CpuPointwiseOpcode.SILU);
 
+    @Test void guardedFrozenScalarGeneralMatchesDirectRangesAndRetainsFallback()
+            throws Throwable {
+        CpuKernelIr ir = frozenScalarGeneralIr();
+        var specialization = new CpuKernelSpecialization(
+                CpuLoweringFingerprint.fromHex(ir.structuralKey()),
+                CpuKernelSpecialization.NumericalMode.EXACT_DEFAULT,
+                CpuPartitionPreparationPlan.ExecutionStrategy.SCALAR,
+                List.of(DataType.FLOAT32, DataType.FLOAT32, DataType.FLOAT32, DataType.FLOAT32),
+                List.of(CpuKernelSpecialization.CarrierAccess.MEMORY_SEGMENT,
+                        CpuKernelSpecialization.CarrierAccess.FLOAT_ARRAY,
+                        CpuKernelSpecialization.CarrierAccess.MEMORY_SEGMENT,
+                        CpuKernelSpecialization.CarrierAccess.FLOAT_ARRAY), 0, -1);
+        var generator = new CpuClassFileKernelGenerator();
+        byte[] bytes = generator.generateClassBytes(specialization, ir);
+        var artifact = generator.defineClassBytes(specialization, bytes);
+        int count = 512 * 512;
+        float[] left = new float[count], multiplier = new float[count], bias = new float[512];
+        float[] output = new float[count * 2 + 7], expected = new float[output.length];
+        float canary = Float.intBitsToFloat(0x7fc12345);
+        Arrays.fill(output, canary);
+        Arrays.fill(expected, canary);
+        for (int index = 0; index < count; index++) {
+            left[index] = (index % 97 - 48) * .03125f;
+            multiplier[index] = (index % 31 - 15) * .0625f;
+        }
+        for (int column = 0; column < bias.length; column++)
+            bias[column] = .75f + (column % 7) * .125f;
+        float[] immutableLeft = left.clone(), immutableMultiplier = multiplier.clone();
+        for (long[] range : List.of(new long[]{0, 1}, new long[]{510, 514},
+                new long[]{12_345, 12_389}, new long[]{count - 2L, count})) {
+            artifact.entryPoint().invokeExact(java.lang.foreign.MemorySegment.ofArray(left), bias,
+                    java.lang.foreign.MemorySegment.ofArray(multiplier), output,
+                    frozenScalarGeneralGeometry(range[0]), range[0], range[1]);
+            frozenScalarGeneralReference(left, bias, multiplier, expected, range[0], range[1]);
+        }
+        long fallbackStart = 32_768L, fallbackEnd = fallbackStart + 5;
+        long[] fallbackGeometry = frozenScalarGeneralGeometry(fallbackStart);
+        fallbackGeometry[20] = 1;
+        artifact.entryPoint().invokeExact(java.lang.foreign.MemorySegment.ofArray(left), bias,
+                java.lang.foreign.MemorySegment.ofArray(multiplier), output, fallbackGeometry,
+                fallbackStart, fallbackEnd);
+        frozenScalarGeneralReference(left, bias, multiplier, expected,
+                fallbackStart, fallbackEnd);
+        assertArrayEquals(expected, output);
+        assertArrayEquals(immutableLeft, left);
+        assertArrayEquals(immutableMultiplier, multiplier);
+
+        var model = ClassFile.of().parse(bytes);
+        var code = model.methods().getFirst().code().orElseThrow();
+        List<MemberRefEntry> members = java.util.stream.StreamSupport.stream(
+                model.constantPool().spliterator(), false).filter(MemberRefEntry.class::isInstance)
+                .map(MemberRefEntry.class::cast).toList();
+        assertAll(
+                () -> assertEquals(1, model.methods().size()),
+                () -> assertTrue(model.fields().isEmpty()),
+                () -> assertEquals("(Ljava/lang/foreign/MemorySegment;[FLjava/lang/foreign/"
+                                + "MemorySegment;[F[JJJ)V",
+                        model.methods().getFirst().methodTypeSymbol().descriptorString()),
+                () -> assertEquals(0, instructionCount(code, Opcode.IDIV)),
+                () -> assertEquals(0, instructionCount(code, Opcode.IREM)),
+                () -> assertEquals(0, instructionCount(code, Opcode.LDIV)),
+                () -> assertEquals(0, instructionCount(code, Opcode.LREM)),
+                () -> assertTrue(instructionCount(code, Opcode.ISHR) >= 1),
+                () -> assertTrue(instructionCount(code, Opcode.IAND) >= 2),
+                () -> assertTrue(members.stream().anyMatch(member -> member.owner().asInternalName()
+                        .equals("java/lang/StrictMath")
+                        && member.name().stringValue().equals("exp"))),
+                () -> assertGeneratedClassShape(model, false));
+    }
+
     @Test void coveredScalarActivationArtifactsAreSelfContainedTypedAndFreeOfDynamicConstructs() {
         var generator = new CpuClassFileKernelGenerator();
         for (DataType type : List.of(DataType.FLOAT64, DataType.FLOAT32)) {
@@ -936,6 +1006,59 @@ class CpuPointwiseGeneratedKernelTest {
                 List.of(new CpuKernelIr.Instruction(CpuPointwiseOpcode.SCALAR_POW,
                         List.of(0), 1, exponent, realization)), new CpuKernelIr.Loop("start", "end"),
                 List.of(new CpuKernelIr.Store(1, 0)));
+    }
+
+    private static CpuKernelIr frozenScalarGeneralIr() {
+        var dense = new CpuAccessPlan(CpuAccessPlan.AccessKind.READ,
+                CpuAccessPlan.Regime.DENSE_LINEAR, 2,
+                List.of(CpuAccessPlan.AxisRole.CONTIGUOUS,
+                        CpuAccessPlan.AxisRole.CONTIGUOUS), 2);
+        var bias = new CpuAccessPlan(CpuAccessPlan.AccessKind.READ,
+                CpuAccessPlan.Regime.LAST_AXIS_BIAS, 2,
+                List.of(CpuAccessPlan.AxisRole.BROADCAST,
+                        CpuAccessPlan.AxisRole.CONTIGUOUS), 1);
+        var output = new CpuAccessPlan(CpuAccessPlan.AccessKind.WRITE,
+                CpuAccessPlan.Regime.GENERAL_ODOMETER, 2,
+                List.of(CpuAccessPlan.AxisRole.STRIDED,
+                        CpuAccessPlan.AxisRole.STRIDED), 0);
+        return new CpuKernelIr(List.of(
+                new CpuKernelIr.Value(0, DataType.FLOAT32, CpuKernelIr.Value.Kind.INPUT, dense),
+                new CpuKernelIr.Value(1, DataType.FLOAT32, CpuKernelIr.Value.Kind.INPUT, bias),
+                new CpuKernelIr.Value(2, DataType.FLOAT32, CpuKernelIr.Value.Kind.INPUT, dense),
+                new CpuKernelIr.Value(3, DataType.FLOAT32, CpuKernelIr.Value.Kind.VIRTUAL, output),
+                new CpuKernelIr.Value(4, DataType.FLOAT32, CpuKernelIr.Value.Kind.VIRTUAL, output),
+                new CpuKernelIr.Value(5, DataType.FLOAT32, CpuKernelIr.Value.Kind.OUTPUT, output)),
+                List.of(new CpuKernelIr.Instruction(CpuPointwiseOpcode.DIV, List.of(0, 1), 3),
+                        new CpuKernelIr.Instruction(CpuPointwiseOpcode.SIGMOID, List.of(3), 4),
+                        new CpuKernelIr.Instruction(CpuPointwiseOpcode.MUL, List.of(4, 2), 5)),
+                new CpuKernelIr.Loop("start", "end"), List.of(new CpuKernelIr.Store(5, 0)));
+    }
+
+    private static long[] frozenScalarGeneralGeometry(long start) {
+        long row = start >>> 9;
+        long column = start & 511;
+        return new long[]{512, 512, row, column, start, column, start,
+                3 + row * 1_024 + column * 2,
+                512, 1, 0, 1, 512, 1, 1_024, 2,
+                start, column, start, 0, 262_144, 512, 262_144, 1};
+    }
+
+    private static void frozenScalarGeneralReference(float[] left, float[] bias,
+            float[] multiplier, float[] output, long start, long end) {
+        for (int ordinal = Math.toIntExact(start); ordinal < Math.toIntExact(end); ordinal++) {
+            float quotient = left[ordinal] / bias[ordinal & 511];
+            float sigmoid = (float) (quotient >= 0
+                    ? 1d / (1d + Math.exp(-(double) quotient))
+                    : Math.exp((double) quotient) / (1d + Math.exp((double) quotient)));
+            output[3 + (ordinal >>> 9) * 1_024 + (ordinal & 511) * 2] =
+                    sigmoid * multiplier[ordinal];
+        }
+    }
+
+    private static long instructionCount(java.lang.classfile.CodeModel code, Opcode opcode) {
+        return code.elementStream().filter(Instruction.class::isInstance)
+                .map(Instruction.class::cast).filter(instruction -> instruction.opcode() == opcode)
+                .count();
     }
 
     private static CpuKernelIr divisionIr(DataType type, boolean scalar, long scalarBits) {

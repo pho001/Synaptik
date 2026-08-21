@@ -342,10 +342,10 @@ may change; otherwise stop and replan.
 - CPU 0007A1E, CPU 0007A1F, and CPU 0007A1G are Complete. Their retained evidence closes the
   movement general-address, canonical-BOOL STACK/ANY, and FOLD2D/dropout groups without closing
   this full task.
-- CPU 0007A1H through CPU 0007A1K are Complete and close the bounded numerical-aggregate,
-  indexing, cumulative-scan, and affine-copy clusters. Detailed Ready
-  [CPU 0007A1L](0007a1l-pointwise-general-loop-residual-parity.md) is the sole next task and owns
-  persistent `P-SCALAR-GENERAL`. `S-GENERAL-MIN` and `X-MIN-MULTI` remain Draft and unassigned.
+- CPU 0007A1H through CPU 0007A1L are Complete and close the bounded numerical-aggregate,
+  indexing, cumulative-scan, affine-copy, and pointwise-general clusters. Detailed Ready
+  [CPU 0007A1M](0007a1m-scatter-min-residual-parity.md) is the sole next task and owns persistent
+  `S-GENERAL-MIN`. `X-MIN-MULTI` remains Draft and unassigned.
 - CPU 0007A2 remains Draft and blocked until all corrections close the frozen failures and CPU
   0007A1C can become Complete.
 - CPU 0009 remains the later repository-wide portable conformance checkpoint.
@@ -495,6 +495,10 @@ only the four-row `CpuDataMovementEmitter` cluster as detailed Ready CPU 0007A1E
   all three controls pass. One complete sample was rejected because an unrelated `M-CONCAT` fork
   exceeded the gate and contributes no accepted evidence. Exactly `P-SCALAR-GENERAL`,
   `S-GENERAL-MIN`, and `X-MIN-MULTI` remain, and CPU 0007A1L is the sole next Ready owner cluster.
+- CPU 0007A1L subsequently closes `P-SCALAR-GENERAL` at schema 40. Frozen semantics remain
+  `VERIFIED,20`; the pointwise row and all three controls pass every accepted fork and median,
+  leaving exactly `S-GENERAL-MIN` and `X-MIN-MULTI`. CPU 0007A1M is the sole next Ready owner
+  cluster.
 - Architecture and ADR no-change conclusion: no production owner, lifecycle, module boundary,
   dependency direction, backend ownership, Prepare/Runtime handoff, route, resource, capability,
   or semantic contract changed, so `ARCHITECTURE.md`, focused architecture pages, and ADRs remain
@@ -521,7 +525,8 @@ only the four-row `CpuDataMovementEmitter` cluster as detailed Ready CPU 0007A1E
   `VERIFIED,20`, passes 48 focused tests and 354 uncached CPU tests, and closes both indexing rows
   plus all three controls across five forks. Fresh A1J evidence closes the scan row, and fresh
   A1K evidence passes 47 focused tests and 355 of 356 CPU tests and closes the affine-copy row;
-  both retain five accepted target/control forks. A1C remains incomplete because three rows fail.
+  all retain five accepted target/control forks. Fresh A1L evidence closes the pointwise row at
+  median `1.006301612x`; A1C remains incomplete because two rows fail.
 - Documentation-agent review: mandatory clean documentation/planning context `/root`; General and
   Planning profiles were primary, with Backend Guide, API/Javadoc, and Example profiles applied to
   the no-change review.
@@ -533,12 +538,12 @@ only the four-row `CpuDataMovementEmitter` cluster as detailed Ready CPU 0007A1E
   final CPU Javadoc passes.
 - Glossary impact: existing CPU portable-route, specialization, and artifact definitions advance
   to schema 39; no new reusable term was introduced.
-- Unresolved issues: fresh accepted A1K evidence leaves exactly three persistent rows:
-  `P-SCALAR-GENERAL`, `S-GENERAL-MIN`, and `X-MIN-MULTI`. All
+- Unresolved issues: fresh accepted A1L evidence leaves exactly two persistent rows:
+  `S-GENERAL-MIN` and `X-MIN-MULTI`. All
   original closure gates intentionally stopped by this task remain open until those rows close.
-- Follow-up required: CPU 0007A1E–CPU 0007A1K are Complete. Execute Ready CPU 0007A1L, then only
+- Follow-up required: CPU 0007A1E–CPU 0007A1L are Complete. Execute Ready CPU 0007A1M, then only
   later evidence-backed residual tasks in strict order; after every persistent frozen failure
   closes, resume the unchanged closure protocol and reconsider 0007A1C completion.
 
 Status: Incomplete
-Follow-up required: CPU 0007A1L and later ordered corrections must close the three persistent frozen performance failures before CPU 0007A2.
+Follow-up required: CPU 0007A1M and the later ordered X-MIN-MULTI correction must close the two persistent frozen performance failures before CPU 0007A2.

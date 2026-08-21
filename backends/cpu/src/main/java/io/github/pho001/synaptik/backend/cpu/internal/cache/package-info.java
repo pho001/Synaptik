@@ -58,9 +58,12 @@
  * retaining the typed general fallback. Schema 39 adds one geometry-, range-, and sentinel-
  * guarded raw-BFLOAT16 affine cursor body for the frozen segment-to-short-array PERMUTE/SLICE
  * mapping. Its ordinal shifts and masks feed direct typed loads/stores for arbitrary legal
- * half-open ranges, while failed guards retain the typed general-long fallback. Schema 39 is
- * current-only; schema-38 and earlier
- * envelopes are incompatible misses.
+ * half-open ranges, while failed guards retain the typed general-long fallback. Schema 40 adds
+ * the completely guarded frozen {@code [512,512]} FLOAT32 mixed-carrier
+ * {@code DIV -> SIGMOID -> MUL} pointwise ordinal loop. It preserves the stable sigmoid's
+ * binary64 exponential work, sign branch, and one final narrowing, and retains the same typed
+ * general-long fallback. Schema 40 is current-only; schema-39 and earlier envelopes are
+ * incompatible misses.
  * Four complete candidate plans, one realized artifact, zero additional fixed-shape variants,
  * and zero additional unrolled variants are the current planner-visible hard budget. A guarded
  * method body may still emit a fixed-trip straight-line sequence inside that one artifact when

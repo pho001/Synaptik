@@ -2,6 +2,7 @@ package io.github.pho001.synaptik.backend.cpu.internal.codegen.emit;
 
 import io.github.pho001.synaptik.backend.cpu.internal.cache.CpuGeneratorSchema;
 import io.github.pho001.synaptik.backend.cpu.internal.cache.CpuKernelSpecialization;
+import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuAccessPlan;
 import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuKernelIr;
 import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuPointwiseOpcode;
 import io.github.pho001.synaptik.model.datatype.DataType;
@@ -33,9 +34,21 @@ import java.util.Objects;
  * typed long-address fallbacks. Ordering classes additionally embed stable merge, comparison,
  * selected-pair ordering, and represented value/index stores over assigned scratch. Random
  * classes embed their typed state prologue, counter mapping, threshold, represented value,
- * canonical mask, and dense-integer or general-long element loop.
+ * canonical mask, and dense-integer or general-long element loop. One completely guarded
+ * pointwise form replaces the frozen {@code [512,512]} FLOAT32 mixed-carrier
+ * {@code DIV -> SIGMOID -> MUL} general odometer with direct ordinal-derived row/column
+ * addresses. Its scalar body preserves FLOAT32 division and multiplication around the stable
+ * sign-branch sigmoid, performs {@link StrictMath#exp(double)} work in binary64, and narrows the
+ * sigmoid result to FLOAT32 exactly once before multiplication. Complete topology, carrier,
+ * geometry, ordered-range, start-address, and sentinel guards precede the narrowed loop; every
+ * failed proof enters the unchanged typed general-long state machine.
  */
 public final class CpuClassFileKernelGenerator {
+    private static final ClassDesc STRICT_MATH = ClassDesc.of(StrictMath.class.getName());
+    private static final ClassDesc SEGMENT = ClassDesc.of("java.lang.foreign.MemorySegment");
+    private static final ClassDesc VALUE_LAYOUT = ClassDesc.of("java.lang.foreign.ValueLayout");
+    private static final ClassDesc FLOAT_LAYOUT =
+            ClassDesc.of("java.lang.foreign.ValueLayout$OfFloat");
     /** Creates a stateless generator with no retained route or specialization state. */
     public CpuClassFileKernelGenerator() { }
 
@@ -133,6 +146,10 @@ public final class CpuClassFileKernelGenerator {
                             } else if (specialization.loopAddressing(kernelIr)
                                     == CpuKernelSpecialization.LoopAddressing.DENSE_HEAP_ARRAY_INT)
                                 loops.emitDenseArrayInt(plans, scalarBody);
+                            else if (isGuardedScalarGeneral(specialization, kernelIr))
+                                loops.emitGuardedScalarGeneral(plans,
+                                        state -> emitGuardedScalarGeneralBody(code, carriers,
+                                                state, scalarLocals), scalarBody);
                             else loops.emit(plans, scalarBody);
                             code.return_();
                         })));
@@ -236,6 +253,85 @@ public final class CpuClassFileKernelGenerator {
             }
             return false;
         });
+    }
+
+    private static boolean isGuardedScalarGeneral(CpuKernelSpecialization specialization,
+            CpuKernelIr ir) {
+        if (specialization.executionStrategy().compute()
+                    != io.github.pho001.synaptik.backend.cpu.internal.prepare
+                            .CpuPartitionPreparationPlan.ExecutionStrategy.Compute.SCALAR
+                || specialization.loopAddressing(ir)
+                    != CpuKernelSpecialization.LoopAddressing.GENERAL_LONG
+                || !specialization.carrierPattern().equals(List.of(
+                        CpuKernelSpecialization.CarrierAccess.MEMORY_SEGMENT,
+                        CpuKernelSpecialization.CarrierAccess.FLOAT_ARRAY,
+                        CpuKernelSpecialization.CarrierAccess.MEMORY_SEGMENT,
+                        CpuKernelSpecialization.CarrierAccess.FLOAT_ARRAY))
+                || ir.values().size() != 6 || ir.instructions().size() != 3
+                || ir.stores().size() != 1) return false;
+        CpuAccessPlan denseRead = new CpuAccessPlan(CpuAccessPlan.AccessKind.READ,
+                CpuAccessPlan.Regime.DENSE_LINEAR, 2,
+                List.of(CpuAccessPlan.AxisRole.CONTIGUOUS,
+                        CpuAccessPlan.AxisRole.CONTIGUOUS), 2);
+        CpuAccessPlan biasRead = new CpuAccessPlan(CpuAccessPlan.AccessKind.READ,
+                CpuAccessPlan.Regime.LAST_AXIS_BIAS, 2,
+                List.of(CpuAccessPlan.AxisRole.BROADCAST,
+                        CpuAccessPlan.AxisRole.CONTIGUOUS), 1);
+        CpuAccessPlan generalWrite = new CpuAccessPlan(CpuAccessPlan.AccessKind.WRITE,
+                CpuAccessPlan.Regime.GENERAL_ODOMETER, 2,
+                List.of(CpuAccessPlan.AxisRole.STRIDED,
+                        CpuAccessPlan.AxisRole.STRIDED), 0);
+        List<CpuKernelIr.Value> expectedValues = List.of(
+                new CpuKernelIr.Value(0, DataType.FLOAT32, CpuKernelIr.Value.Kind.INPUT, denseRead),
+                new CpuKernelIr.Value(1, DataType.FLOAT32, CpuKernelIr.Value.Kind.INPUT, biasRead),
+                new CpuKernelIr.Value(2, DataType.FLOAT32, CpuKernelIr.Value.Kind.INPUT, denseRead),
+                new CpuKernelIr.Value(3, DataType.FLOAT32, CpuKernelIr.Value.Kind.VIRTUAL,
+                        generalWrite),
+                new CpuKernelIr.Value(4, DataType.FLOAT32, CpuKernelIr.Value.Kind.VIRTUAL,
+                        generalWrite),
+                new CpuKernelIr.Value(5, DataType.FLOAT32, CpuKernelIr.Value.Kind.OUTPUT,
+                        generalWrite));
+        return ir.familyIdentity().equals("pointwise") && ir.values().equals(expectedValues)
+                && ir.instructions().equals(List.of(
+                        new CpuKernelIr.Instruction(CpuPointwiseOpcode.DIV, List.of(0, 1), 3),
+                        new CpuKernelIr.Instruction(CpuPointwiseOpcode.SIGMOID, List.of(3), 4),
+                        new CpuKernelIr.Instruction(CpuPointwiseOpcode.MUL, List.of(4, 2), 5)))
+                && ir.stores().equals(List.of(new CpuKernelIr.Store(5, 0)));
+    }
+
+    private static void emitGuardedScalarGeneralBody(java.lang.classfile.CodeBuilder code,
+            CpuCarrierEmitter carriers, CpuLoopEmitter.State state, int[] locals) {
+        emitGuardedFloatSegmentLoad(code, 0, state.addresses()[0]);
+        carriers.load(DataType.FLOAT32, CpuKernelSpecialization.CarrierAccess.FLOAT_ARRAY,
+                1, state.addresses()[1]);
+        code.fdiv().fstore(locals[3]);
+        var negative = code.newLabel();
+        var sigmoid = code.newLabel();
+        code.fload(locals[3]).loadConstant(0.0f).fcmpl().branch(
+                java.lang.classfile.Opcode.IFLT, negative);
+        code.loadConstant(1.0d).loadConstant(1.0d).fload(locals[3]).f2d().dneg()
+                .invokestatic(STRICT_MATH, "exp", MethodTypeDesc.of(
+                        TypeKind.DOUBLE.upperBound(), TypeKind.DOUBLE.upperBound()))
+                .dadd().ddiv().branch(java.lang.classfile.Opcode.GOTO, sigmoid);
+        code.labelBinding(negative);
+        int exponential = code.allocateLocal(TypeKind.DOUBLE);
+        code.fload(locals[3]).f2d().invokestatic(STRICT_MATH, "exp", MethodTypeDesc.of(
+                TypeKind.DOUBLE.upperBound(), TypeKind.DOUBLE.upperBound()))
+                .dstore(exponential);
+        code.dload(exponential).loadConstant(1.0d).dload(exponential).dadd().ddiv();
+        code.labelBinding(sigmoid);
+        code.d2f().fstore(locals[4]);
+        code.aload(3).lload(state.addresses()[3]).l2i().fload(locals[4]);
+        emitGuardedFloatSegmentLoad(code, 2, state.addresses()[2]);
+        code.fmul().fastore();
+    }
+
+    private static void emitGuardedFloatSegmentLoad(java.lang.classfile.CodeBuilder code,
+            int parameter, int address) {
+        code.aload(parameter).getstatic(VALUE_LAYOUT, "JAVA_FLOAT_UNALIGNED", FLOAT_LAYOUT)
+                .lload(address).loadConstant(4L).lmul()
+                .invokeinterface(SEGMENT, "get", MethodTypeDesc.of(
+                        TypeKind.FLOAT.upperBound(), FLOAT_LAYOUT, TypeKind.LONG.upperBound()));
     }
 
     private static void store(java.lang.classfile.CodeBuilder code, DataType type, int local) {

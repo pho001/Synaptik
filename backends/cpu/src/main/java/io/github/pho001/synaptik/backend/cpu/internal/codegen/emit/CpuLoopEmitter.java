@@ -7,7 +7,14 @@ import java.lang.classfile.TypeKind;
 import java.util.List;
 import java.util.function.Consumer;
 
-/** Emits generation-time-selected primitive state machines for normalized access regimes. */
+/**
+ * Emits generation-time-selected primitive state machines for normalized access regimes.
+ * Besides the universal long-address and dense-array forms, it owns one completely guarded
+ * frozen {@code [512,512]} pointwise body whose power-of-two geometry permits direct
+ * ordinal-derived addresses for its two dense reads, last-axis broadcast read, and offset
+ * two-strided output. The method retains the typed universal general-long state machine whenever
+ * its complete runtime proof fails.
+ */
 final class CpuLoopEmitter {
     /**
      * Generation-local element-address slots supplied to the fused body emitter.
@@ -77,6 +84,111 @@ final class CpuLoopEmitter {
                 states[value], value, rank, boundaryCount, geometrySlot);
         code.branch(Opcode.GOTO, loop);
         code.labelBinding(done);
+    }
+
+    /**
+     * Emits the frozen mixed-carrier {@code [512,512]} pointwise loop when its complete runtime
+     * geometry, addresses, and sentinels agree, otherwise emits the unchanged universal
+     * general-long state machine.
+     * Every legal non-empty subrange is narrowed once to an integer ordinal; empty ranges return
+     * without inspecting geometry because neither realization performs work for them.
+     *
+     * @param plans non-null ordered dense, last-axis-broadcast, dense, and general-output plans
+     * @param body non-null proved scalar body receiving four long element-address locals
+     * @param fallbackBody non-null unchanged scalar body used by the universal state machine
+     */
+    void emitGuardedScalarGeneral(List<CpuAccessPlan> plans, Consumer<State> body,
+            Consumer<State> fallbackBody) {
+        int boundaryCount = plans.size();
+        int geometrySlot = boundaryCount;
+        int startSlot = boundaryCount + 1;
+        int endSlot = boundaryCount + 3;
+        var fallback = code.newLabel();
+        var done = code.newLabel();
+        code.lload(startSlot).loadConstant(0L).lcmp().branch(Opcode.IFLT, fallback);
+        code.lload(startSlot).lload(endSlot).lcmp().branch(Opcode.IFGT, fallback);
+        code.lload(endSlot).loadConstant(262_144L).lcmp().branch(Opcode.IFGT, fallback);
+        code.lload(startSlot).lload(endSlot).lcmp().branch(Opcode.IFEQ, done);
+        code.aload(geometrySlot).arraylength().loadConstant(24)
+                .branch(Opcode.IF_ICMPNE, fallback);
+        guardConstant(geometrySlot, 0, 512L, fallback);
+        guardConstant(geometrySlot, 1, 512L, fallback);
+        guardStartRow(geometrySlot, 2, startSlot, fallback);
+        guardStartColumn(geometrySlot, 3, startSlot, fallback);
+        guardStart(geometrySlot, 4, startSlot, fallback);
+        guardStartColumn(geometrySlot, 5, startSlot, fallback);
+        guardStart(geometrySlot, 6, startSlot, fallback);
+        guardOutputAddress(geometrySlot, 7, startSlot, fallback);
+        long[] fixed = {512L, 1L, 0L, 1L, 512L, 1L, 1_024L, 2L};
+        for (int index = 0; index < fixed.length; index++)
+            guardConstant(geometrySlot, 8 + index, fixed[index], fallback);
+        guardStart(geometrySlot, 16, startSlot, fallback);
+        guardStartColumn(geometrySlot, 17, startSlot, fallback);
+        guardStart(geometrySlot, 18, startSlot, fallback);
+        guardConstant(geometrySlot, 19, 0L, fallback);
+        guardConstant(geometrySlot, 20, 262_144L, fallback);
+        guardConstant(geometrySlot, 21, 512L, fallback);
+        guardConstant(geometrySlot, 22, 262_144L, fallback);
+        guardConstant(geometrySlot, 23, 1L, fallback);
+        emitScalarGeneralOrdinals(startSlot, endSlot, done, body);
+        code.branch(Opcode.GOTO, done);
+        code.labelBinding(fallback);
+        emit(plans, fallbackBody);
+        code.labelBinding(done);
+    }
+
+    private void emitScalarGeneralOrdinals(int startSlot, int endSlot,
+            java.lang.classfile.Label done, Consumer<State> body) {
+        int ordinal = code.allocateLocal(TypeKind.INT);
+        int end = code.allocateLocal(TypeKind.INT);
+        int[] addresses = new int[4];
+        for (int index = 0; index < addresses.length; index++)
+            addresses[index] = code.allocateLocal(TypeKind.LONG);
+        code.lload(startSlot).l2i().istore(ordinal);
+        code.lload(endSlot).l2i().istore(end);
+        var loop = code.newLabel();
+        code.labelBinding(loop);
+        code.iload(ordinal).iload(end).branch(Opcode.IF_ICMPGE, done);
+        code.iload(ordinal).i2l().lstore(addresses[0]);
+        code.iload(ordinal).loadConstant(511).iand().i2l().lstore(addresses[1]);
+        code.iload(ordinal).i2l().lstore(addresses[2]);
+        code.loadConstant(3).iload(ordinal).loadConstant(9).ishr().loadConstant(1_024)
+                .imul().iadd().iload(ordinal).loadConstant(511).iand().loadConstant(2)
+                .imul().iadd().i2l().lstore(addresses[3]);
+        body.accept(new State(addresses, false));
+        code.iinc(ordinal, 1).branch(Opcode.GOTO, loop);
+    }
+
+    private void guardConstant(int geometrySlot, int index, long expected,
+            java.lang.classfile.Label fallback) {
+        loadGeometry(geometrySlot, index).loadConstant(expected).lcmp()
+                .branch(Opcode.IFNE, fallback);
+    }
+
+    private void guardStart(int geometrySlot, int index, int startSlot,
+            java.lang.classfile.Label fallback) {
+        loadGeometry(geometrySlot, index).lload(startSlot).lcmp()
+                .branch(Opcode.IFNE, fallback);
+    }
+
+    private void guardStartRow(int geometrySlot, int index, int startSlot,
+            java.lang.classfile.Label fallback) {
+        loadGeometry(geometrySlot, index).lload(startSlot).loadConstant(9).lshr().lcmp()
+                .branch(Opcode.IFNE, fallback);
+    }
+
+    private void guardStartColumn(int geometrySlot, int index, int startSlot,
+            java.lang.classfile.Label fallback) {
+        loadGeometry(geometrySlot, index).lload(startSlot).loadConstant(511L).land().lcmp()
+                .branch(Opcode.IFNE, fallback);
+    }
+
+    private void guardOutputAddress(int geometrySlot, int index, int startSlot,
+            java.lang.classfile.Label fallback) {
+        loadGeometry(geometrySlot, index).loadConstant(3L)
+                .lload(startSlot).loadConstant(9).lshr().loadConstant(1_024L).lmul().ladd()
+                .lload(startSlot).loadConstant(511L).land().loadConstant(2L).lmul().ladd()
+                .lcmp().branch(Opcode.IFNE, fallback);
     }
 
     /**
