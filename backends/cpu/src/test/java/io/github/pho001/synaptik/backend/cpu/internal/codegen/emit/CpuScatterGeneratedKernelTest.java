@@ -340,6 +340,80 @@ class CpuScatterGeneratedKernelTest {
     }
 
     @Test
+    void guardedGeneralScatterNdMinMatchesDirectSplitRangesAndRetainsFallback() throws Throwable {
+        int rows = 16_384;
+        int width = 16;
+        int tuples = 4_096;
+        int elements = rows * width;
+        Shape dataShape = Shape.of(rows, width);
+        Shape indexShape = Shape.of(tuples, 1);
+        Shape updateShape = Shape.of(tuples, width);
+        var context = context(
+                new Operation(
+                        ScatterNdKind.SCATTER_ND,
+                        new ScatterNdAttrs(0, ScatterReduction.MIN)),
+                List.of(
+                        desc(DataType.INT64, dataShape, new long[] {32, 2}, 3),
+                        desc(DataType.INT64, indexShape),
+                        desc(DataType.INT64, updateShape)),
+                desc(DataType.INT64, dataShape, new long[] {32, 2}, 4),
+                List.of(
+                        CarrierAccess.MEMORY_SEGMENT,
+                        CarrierAccess.LONG_ARRAY,
+                        CarrierAccess.LONG_ARRAY,
+                        CarrierAccess.MEMORY_SEGMENT));
+        var plan = new CpuPartitionPreparer().analyze(context).plan();
+        var route = plan.units().getFirst().portablePlan();
+        var generator = new CpuClassFileKernelGenerator();
+        byte[] bytes = generator.generateClassBytes(route.specialization(), route.kernelIr());
+        var model = ClassFile.of().parse(bytes);
+        var body = model.methods().getFirst().code().orElseThrow();
+        assertAll(
+                () -> assertTrue(opcodeCount(body, Opcode.ISHL) > 0),
+                () -> assertTrue(opcodeCount(body, Opcode.LALOAD) > 0),
+                () -> assertFalse(opcodes(body).contains(Opcode.IDIV)),
+                () -> assertFalse(opcodes(body).contains(Opcode.IREM)),
+                () -> assertFalse(opcodes(body).contains(Opcode.LDIV)),
+                () -> assertFalse(opcodes(body).contains(Opcode.LREM)),
+                () -> assertTrue(invokes(body).stream().anyMatch(call ->
+                        call.owner().asInternalName().equals("java/lang/Math")
+                                && call.name().stringValue().equals("min")
+                                && call.type().stringValue().equals("(JJ)J"))));
+
+        var artifact = generator.defineClassBytes(route.specialization(), bytes);
+        long[] indices = new long[tuples];
+        long[] updates = new long[tuples * width];
+        try (Arena arena = Arena.ofConfined()) {
+            MemorySegment data = arena.allocate((long) (elements * 2 + 7) * Long.BYTES, Long.BYTES);
+            MemorySegment output = arena.allocate((long) (elements * 2 + 9) * Long.BYTES, Long.BYTES);
+            for (int ordinal = 0; ordinal < elements; ordinal++)
+                data.set(ValueLayout.JAVA_LONG_UNALIGNED,
+                        (long) (3 + 2 * ordinal) * Long.BYTES, ordinal * 17L - 9L);
+            for (int tuple = 0; tuple < tuples; tuple++) {
+                indices[tuple] = (tuple & 7) == 0 ? 17 : (tuple * 61L + 17) & (rows - 1);
+                for (int column = 0; column < width; column++)
+                    updates[tuple * width + column] = tuple * 13L + column * 7L - 10_000L;
+            }
+            long split = 100_003L;
+            invokeRange(artifact.entryPoint(), plan, List.of(data, indices, updates, output), 0, split);
+            invokeRange(
+                    artifact.entryPoint(), plan, List.of(data, indices, updates, output), split,
+                    elements);
+            long[] expected = new long[elements];
+            for (int ordinal = 0; ordinal < elements; ordinal++) expected[ordinal] = ordinal * 17L - 9L;
+            for (int tuple = 0; tuple < tuples; tuple++) {
+                int base = Math.toIntExact(indices[tuple]) * width;
+                for (int column = 0; column < width; column++)
+                    expected[base + column] = Math.min(
+                            expected[base + column], updates[tuple * width + column]);
+            }
+            for (int ordinal = 0; ordinal < elements; ordinal++)
+                assertEquals(expected[ordinal], output.get(ValueLayout.JAVA_LONG_UNALIGNED,
+                        (long) (4 + 2 * ordinal) * Long.BYTES), "ordinal " + ordinal);
+        }
+    }
+
+    @Test
     void coversAllRepresentedReplacementTypesAndBothIndexCarriers() throws Throwable {
         for (DataType type : DataType.values())
             for (DataType indexType : List.of(DataType.INT32, DataType.INT64)) {
@@ -837,6 +911,22 @@ class CpuScatterGeneratedKernelTest {
         return plan;
     }
 
+    private static void invokeRange(
+            java.lang.invoke.MethodHandle entry,
+            CpuPartitionPreparationPlan plan,
+            List<Object> carriers,
+            long start,
+            long end)
+            throws Throwable {
+        long[] geometry = plan.scatterGeometry().orElseThrow()
+                .pack(new long[carriers.size()], start, end, 0);
+        var args = new ArrayList<Object>(carriers);
+        args.add(geometry);
+        args.add(start);
+        args.add(end);
+        entry.invokeWithArguments(args);
+    }
+
     private static java.lang.classfile.CodeModel code(
             PrepareContext<CpuPartitionAnalysisInputs> context) {
         return generatedModel(context).methods().getFirst().code().orElseThrow();
@@ -1083,6 +1173,21 @@ class CpuScatterGeneratedKernelTest {
         for (var input : inputs)
             carriers.add(segments ? CarrierAccess.MEMORY_SEGMENT : heap(input.dataType()));
         carriers.add(segments ? CarrierAccess.MEMORY_SEGMENT : heap(output.dataType()));
+        return new PrepareContext<>(
+                base.partition(),
+                base.nodes(),
+                base.values(),
+                base.memoryRequirements(),
+                Map.of(),
+                new CpuPartitionAnalysisInputs(false, carriers));
+    }
+
+    private static PrepareContext<CpuPartitionAnalysisInputs> context(
+            Operation operation,
+            List<io.github.pho001.synaptik.model.tensor.TensorDescriptor> inputs,
+            io.github.pho001.synaptik.model.tensor.TensorDescriptor output,
+            List<CarrierAccess> carriers) {
+        var base = CpuScatterLoweringTest.context(operation, List.of(0, 1, 2), inputs, output);
         return new PrepareContext<>(
                 base.partition(),
                 base.nodes(),

@@ -231,8 +231,9 @@ created by 0005A. All consume the common analysis above; none creates another ba
 | 0007A1J | [Cumulative scan residual parity](tasks/0007a1j-cumulative-scan-residual-parity.md) | Complete | 0007A1I | Added the schema-38 completely guarded fixed reverse exclusive INT64 product segment-cursor body with arbitrary legal complete-slice ranges and typed fallback; target and controls passed every accepted fork and median at `<= 1.15x`. |
 | 0007A1K | [Affine-copy residual parity](tasks/0007a1k-affine-copy-residual-parity.md) | Complete | 0007A1J | Added the schema-39 completely guarded raw-BFLOAT16 `A-GENERAL` body through sole owner `CpuAffineCopyEmitter`, preserving composed PERMUTE/SLICE mapping, arbitrary legal ranges, zero workspace, and typed fallback; target and controls passed every accepted fork and median at `<= 1.15x`. |
 | 0007A1L | [Pointwise general-loop residual parity](tasks/0007a1l-pointwise-general-loop-residual-parity.md) | Complete | 0007A1K | Added the schema-40 completely guarded frozen FLOAT32 mixed-carrier `P-SCALAR-GENERAL` ordinal loop with arbitrary legal ranges and unchanged typed fallback; exact semantics and all target/control five-fork gates passed. |
-| 0007A1M | [Scatter MIN residual parity](tasks/0007a1m-scatter-min-residual-parity.md) | Ready | 0007A1L | Correct persistent `S-GENERAL-MIN` through sole owner `CpuScatterEmitter` while preserving INT64 SCATTER_ND + MIN, duplicate tuples, non-scalar suffix, mixed general layouts, range-owned copy-then-update, arbitrary legal ranges, and zero workspace. |
-| 0007A2 | Portable binding-aware sum-to-Shape reduction | Draft | 0007A1C; 0007A1D–0007A1M and the later X-MIN-MULTI correction | Add `SUM` with exact `SumToShapeAttrs`, right-aligned bound-Shape validation, leading/aligned reduction geometry, all five numeric types, and truthful resources without dynamic unresolved execution. |
+| 0007A1M | [Scatter MIN residual parity](tasks/0007a1m-scatter-min-residual-parity.md) | Complete | 0007A1L | Added the schema-41 completely guarded frozen INT64 `SCATTER_ND + MIN` direct copy and tuple/suffix loops through sole owner `CpuScatterEmitter`; target and controls passed every fork and median, leaving only `X-MIN-MULTI`. |
+| 0007A1N | [Multi-axis MIN residual parity](tasks/0007a1n-multi-axis-min-residual-parity.md) | Ready | 0007A1M | Correct the final persistent `X-MIN-MULTI` row through sole owner `CpuAggregateEmitter` while preserving BFLOAT16 multi-axis MIN, kept Dimensions, first-NaN/signed-zero selection, canonical selected-domain order, arbitrary legal ranges, zero workspace, and typed fallback. |
+| 0007A2 | Portable binding-aware sum-to-Shape reduction | Draft | 0007A1C; 0007A1D–0007A1N | Add `SUM` with exact `SumToShapeAttrs`, right-aligned bound-Shape validation, leading/aligned reduction geometry, all five numeric types, and truthful resources without dynamic unresolved execution. |
 | 0007B | Portable arg-extrema coverage | Draft | 0007A | Add one-axis ARG_MIN/ARG_MAX with exact floating/integral order, first/last logical tie policy, INT64 indices, and deterministic scalar/parallel behavior. |
 | 0007C | Portable masked reduction coverage | Draft | 0007A1 | Add two-input masked SUM/MEAN with right-aligned mask broadcasting, false-position exclusion before aggregation, selected-count handling, empty-selection results, and truthful resource declarations. |
 | 0007D | Portable logarithmic, statistical, and norm reduction coverage | Draft | 0007A1 | Add LOG_SUM_EXP, VARIANCE, STANDARD_DEVIATION, L1_NORM, and L2_NORM with stable exact/default finite-precision algorithms, correction validity, special values, deterministic combination, and declared scratch where required. |
@@ -244,7 +245,7 @@ created by 0005A. All consume the common analysis above; none creates another ba
 | 0008C | Bounded fusion profitability and typed decision facts | Draft | 0008A–0008B | Rank only complete legal fused and split candidates with bounded safe no-measurement heuristics by default. Retain typed cold accepted, rejected, and selected decision facts, including legality rejection separately from profitability rejection, for later Trace backend payload translation and tuning inspection without exposing a public registry or moving selection into Runtime. |
 | 0008D | Bounded multi-input materialization and representation reuse | Draft | 0008C | Extend portable pointwise computation-unit representation planning to cost-select at most two distinct external read-boundary materializations, including both operands of eligible binary work. Cover FLOAT64, FLOAT32, INT32, INT64, and BOOL where the operation already has CPU execution; gate BFLOAT16 on later pointwise numerical support. Enumerate only bounded single/pair variants of legal fused/split topologies, deduplicate repeated boundaries, reuse one selected copy across compatible uses, and give every complete topology/representation candidate a stable typed CPU-private identity with materialized-boundary, layout/access, reuse, workspace, strategy, and topology facts sufficient for later opaque Prepare/tuning compatibility. Re-rank candidates through 0008C's no-measurement profitability facts, preserve direct access as the uncertainty- and tie-winning fallback, perform no measurement or tuning-cache work, and leave DAG split materialization plus native packing/reorder to their existing owners. |
 | 0008E | Portable channels-first dimensional convolution closure | Draft | Model 0025G–0025H; Compiler 0006B; 0008–0008D | Validate NCW Conv1d end to end through its existing Conv2d composition and add truthful grouped NCDHW Conv3d analysis, lowering, exact buffer/workspace declarations, scalar generated execution, and bounded parallel strategy. Reuse private geometry, access, epilogue, or kernel components only where the implemented rank-two and rank-three routes prove a common responsibility; add no public/backend-generic `ConvNd`, dynamic rank, or speculative universal convolution IR. |
-| 0009 | Portable generated-coverage closure checkpoint | Draft | 0001–0008E, explicitly including 0005A–0005J, corrective 0007A0A–0007A1M and any later residual corrections selected before 0007A2, 0007A–0007F including 0007A1/0007A2, and 0008A–0008E; complete current selected Model semantic inventory | Prove the bytecode/Vector portable route is the truthful supported semantic baseline and fallback, including completed per-family generated/direct corrective evidence, safe general DAG decomposition, bounded recognition/fusion, deterministic split fallback, bounded single/dual-input materialization with representation reuse, dimensional-convolution execution, and typed cold decision evidence. Classify metadata-only work, prove unsupported work fails closed, and close capability/conformance before native peer-route expansion. |
+| 0009 | Portable generated-coverage closure checkpoint | Draft | 0001–0008E, explicitly including 0005A–0005J, corrective 0007A0A–0007A1N and any later residual corrections selected before 0007A2, 0007A–0007F including 0007A1/0007A2, and 0008A–0008E; complete current selected Model semantic inventory | Prove the bytecode/Vector portable route is the truthful supported semantic baseline and fallback, including completed per-family generated/direct corrective evidence, safe general DAG decomposition, bounded recognition/fusion, deterministic split fallback, bounded single/dual-input materialization with representation reuse, dimensional-convolution execution, and typed cold decision evidence. Classify metadata-only work, prove unsupported work fails closed, and close capability/conformance before native peer-route expansion. |
 | 0010 | Narrow OpenBLAS BLAS-compatible native route | Draft | 0005A; 0009; completed OpenBLAS provider | Add only `route.nativeblas.openblas` for eligible BLAS-compatible linear algebra, preserving portable alternatives and using shared lowering, representations, exact filtering, materialization accounting, and whole-plan transition cost; never treat OpenBLAS as universal or preferred. |
 | 0011 | Intel oneMKL BLAS and VML peer routes | Draft | 0005A; 0009; concrete Intel CPU use case and supported oneMKL ABI evidence | Add distinct `route.nativeblas.mkl` BLAS and `route.nativeops.mkl` VML leaves over shared analysis, without duplicating graph interpretation, fusion, access planning, or lifecycle ownership. |
 | 0012 | Intel oneDNN partition peer routes | Draft | 0005A; 0009; stable common CPU lowering; concrete DNN/ML use case and supported oneDNN ABI evidence | Add `route.nativeops.onednn` as a distinct eligible partition route over common lowering/IR and whole-plan cost, without collapsing it into oneMKL or portable code generation. |
@@ -327,12 +328,12 @@ is `Complete`. Detailed
 [CPU 0007A1B Scatter algorithmic parity](tasks/0007a1b-scatter-algorithmic-parity.md) is
 `Complete`. Detailed CPU 0007A1C remains `Review needed`. Detailed CPU 0007A1D is also
 `Review needed`: schema 32 and its Java/semantic/Class-File gates are stable, but all 13 required
-performance targets failed the final fork. Detailed CPU 0007A1E through CPU 0007A1L are
-`Complete`; detailed CPU 0007A1M is the sole next ordered `Ready` frontier. CPU 0007A2, CPU
+performance targets failed the final fork. Detailed CPU 0007A1E through CPU 0007A1M are
+`Complete`; detailed CPU 0007A1N is the sole next ordered `Ready` frontier. CPU 0007A2, CPU
 0007B–0007F, and
 every later CPU task remain `Draft` without later detailed specifications. This includes new CPU
 0008E, which extends the later Conv2d-heavy-family foundation to Conv3d and validates Conv1d
-through the explicit Conv2d composition; it is not an authorization to bypass CPU 0007A1M or the
+through the explicit Conv2d composition; it is not an authorization to bypass CPU 0007A1N or the
 ordered 0007A2–0008D work. CPU
 0006D is one bounded
 one-node family task because
@@ -381,9 +382,11 @@ and all controls passed five forks, leaving exactly five persistent rows. CPU 00
 at schema 38: `C-SCAN-GENERAL` and all controls passed every accepted fork and median, leaving
 four rows. CPU 0007A1K is Complete at schema 39: `A-GENERAL` and all controls passed every
 accepted fork and median. CPU 0007A1L is Complete at schema 40: `P-SCALAR-GENERAL` and all
-controls passed every accepted fork and median. Exactly `S-GENERAL-MIN` and `X-MIN-MULTI`
-remain. Detailed Ready CPU 0007A1M owns `S-GENERAL-MIN`; `X-MIN-MULTI` remains Draft and
-unassigned, and CPU 0007A2 remains blocked.
+controls passed every accepted fork and median. CPU 0007A1M is Complete at schema 41: frozen
+semantics remain `VERIFIED,20`; `S-GENERAL-MIN` passed five accepted forks at `0.984900063x`,
+`0.988888234x`, `0.983823803x`, `0.978065816x`, and `0.992400680x`, with median
+`0.984900063x`, and all controls passed. Exactly `X-MIN-MULTI` remains. Detailed Ready CPU
+0007A1N owns that final residual, and CPU 0007A2 remains blocked.
 
 CPU 0007A0 is a corrective insertion based on the completed local audit under
 `/tmp/synaptik-bytecode-benchmark`. The audit measured the large dense generated scalar ADD at
@@ -651,7 +654,7 @@ detailed task 0006B2, detailed task 0006C, and detailed task 0006D are `Complete
 `Complete`; detailed 0007A0C, detailed 0007A0D, and detailed 0007A0E are `Complete`; detailed
 0007A0F is `Complete`; detailed CPU 0007A1, CPU 0007A1A, and CPU 0007A1B are `Complete`. CPU
 0007A1C and CPU 0007A1D are `Review needed`; detailed CPU 0007A1E is `Complete`, and detailed CPU
-0007A1F through CPU 0007A1L are `Complete`, and detailed CPU 0007A1M is the sole next `Ready`
+0007A1F through CPU 0007A1M are `Complete`, and detailed CPU 0007A1N is the sole next `Ready`
 frontier. CPU 0007A2–0017 remain ordered `Draft`
 work without later detailed specifications.
 CPU 0005C preserves that exact slice and implements cold selection among all four portable
@@ -818,7 +821,7 @@ and detailed CPU 0007A is `Complete`; corrective CPU 0007A0, CPU 0007A0A, and CP
 `Complete`; detailed CPU 0007A0C, CPU 0007A0D, and CPU 0007A0E are `Complete`; detailed CPU
 0007A0F is `Complete`. Detailed CPU 0007A1, CPU 0007A1A, and CPU 0007A1B are `Complete`; CPU
 0007A1C and CPU 0007A1D are `Review needed`, detailed CPU 0007A1E is `Complete`, detailed CPU
-0007A1F through CPU 0007A1L are `Complete`, detailed CPU 0007A1M is the sole next `Ready`
+0007A1F through CPU 0007A1M are `Complete`, detailed CPU 0007A1N is the sole next `Ready`
 frontier,
 and later work remains ordered `Draft`.
 
@@ -962,12 +965,12 @@ the work at the active frontier.
   and binding-geometry boundaries: detailed Complete 0007A owns full/single-/multi-axis MIN/MAX/ALL/
   ANY with zero workspace; Complete 0007A1 delivers ordinary SUM/MEAN/PROD and its
   explicit accumulator design. Complete corrective 0007A1A and 0007A1B, incomplete 0007A1C and
-  0007A1D, and corrective 0007A1E–0007A1M plus the later X-MIN-MULTI correction precede Draft
+  0007A1D, and corrective 0007A1E–0007A1N precede Draft
   0007A2, which owns binding-aware
   target-Shape SUM. Draft 0007B owns arg
   extrema; Draft 0007C owns masked reductions; Draft 0007D owns logarithmic/statistical/norm
   reductions; Draft 0007E owns stable softmax/log-softmax; and Draft 0007F owns layer/RMS/batch
-  normalization. CPU 0007A1M is the latest detailed specification and sole `Ready` task.
+  normalization. CPU 0007A1N is the latest detailed specification and sole `Ready` task.
 - CPU 0007 is first because the closed cumulative-scan family is independently executable and
   has no aggregate-combination dependency. Partitioning only across complete logical scan slices
   preserves one sequential typed accumulation order, requires no partial/combine workspace, and
@@ -1008,9 +1011,9 @@ the work at the active frontier.
   cluster. Complete CPU 0007A1F owns the BOOL movement/aggregate group, Complete CPU 0007A1G owns
   the fold/dropout group, Complete CPU 0007A1H owns the numerical aggregate group, Complete CPU
   0007A1I owns the indexing group, Complete CPU 0007A1J owns the scan row, Complete CPU 0007A1K
-  owns the affine-copy row, Complete CPU 0007A1L owns the pointwise general row, and Ready CPU
-  0007A1M owns the scatter-MIN row, while the final multi-axis MIN residual remains Draft until
-  supported by new evidence. CPU 0007A1M alone has a detailed `Ready`
+  owns the affine-copy row, Complete CPU 0007A1L owns the pointwise general row, Complete CPU
+  0007A1M owns the scatter-MIN row, and Ready CPU 0007A1N owns the final evidence-supported
+  multi-axis MIN residual. CPU 0007A1N alone has a detailed `Ready`
   specification. This insertion is ordered corrective work
   and does not change architecture authority. CPU 0007A2 and later rows stay ordered `Draft`.
 - CPU 0006D selects `SYNAPTIK_CPU_SPLITMIX64_COUNTER_V1`: `mix64` uses shifts 30/27/31 and

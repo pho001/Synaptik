@@ -499,6 +499,12 @@ only the four-row `CpuDataMovementEmitter` cluster as detailed Ready CPU 0007A1E
   `VERIFIED,20`; the pointwise row and all three controls pass every accepted fork and median,
   leaving exactly `S-GENERAL-MIN` and `X-MIN-MULTI`. CPU 0007A1M is the sole next Ready owner
   cluster.
+- CPU 0007A1M subsequently closes `S-GENERAL-MIN` at schema 41. Frozen semantics remain
+  `VERIFIED,20`; the scatter row passes five accepted forks at `0.984900063x`, `0.988888234x`,
+  `0.983823803x`, `0.978065816x`, and `0.992400680x`, with median `0.984900063x`, and all three
+  controls pass. The unchanged full probe now leaves only `X-MIN-MULTI`, so CPU 0007A1N is the
+  sole next Ready owner cluster. A1C remains incomplete until that residual and the original
+  closure gates are reconciled.
 - Architecture and ADR no-change conclusion: no production owner, lifecycle, module boundary,
   dependency direction, backend ownership, Prepare/Runtime handoff, route, resource, capability,
   or semantic contract changed, so `ARCHITECTURE.md`, focused architecture pages, and ADRs remain
@@ -526,24 +532,26 @@ only the four-row `CpuDataMovementEmitter` cluster as detailed Ready CPU 0007A1E
   plus all three controls across five forks. Fresh A1J evidence closes the scan row, and fresh
   A1K evidence passes 47 focused tests and 355 of 356 CPU tests and closes the affine-copy row;
   all retain five accepted target/control forks. Fresh A1L evidence closes the pointwise row at
-  median `1.006301612x`; A1C remains incomplete because two rows fail.
+  median `1.006301612x`; fresh A1M evidence revalidates `VERIFIED,20`, passes 59 focused and 358
+  full CPU tests with one expected skip, and closes the scatter row at median `0.984900063x`.
+  A1C remains incomplete because `X-MIN-MULTI` still fails all five accepted forks.
 - Documentation-agent review: mandatory clean documentation/planning context `/root`; General and
   Planning profiles were primary, with Backend Guide, API/Javadoc, and Example profiles applied to
   the no-change review.
 - Documentation impact: this task, CPU master plan, roadmap, and the immediate detailed corrective
-  task are synchronized. The CPU backend guide and glossary receive accepted schema-39 affine
-  behavior and evidence, not incomplete residual claims.
-- Javadoc review: the A1K documentation pass finalized affected affine/schema/cache/prepare
-  Javadocs for schema 39 and retained the typed general fallback and zero-resource boundaries;
-  final CPU Javadoc passes.
+  task are synchronized. The CPU backend guide and glossary receive accepted schema-41 scatter
+  behavior and evidence, while retaining the incomplete broader closure boundary.
+- Javadoc review: the A1M documentation pass finalized affected scatter/schema/cache/prepare
+  Javadocs for schema 41 and retained complete guards, arbitrary legal ranges, zero workspace, and
+  the typed general fallback; final CPU Javadoc passes.
 - Glossary impact: existing CPU portable-route, specialization, and artifact definitions advance
-  to schema 39; no new reusable term was introduced.
-- Unresolved issues: fresh accepted A1L evidence leaves exactly two persistent rows:
-  `S-GENERAL-MIN` and `X-MIN-MULTI`. All
-  original closure gates intentionally stopped by this task remain open until those rows close.
-- Follow-up required: CPU 0007A1E–CPU 0007A1L are Complete. Execute Ready CPU 0007A1M, then only
-  later evidence-backed residual tasks in strict order; after every persistent frozen failure
-  closes, resume the unchanged closure protocol and reconsider 0007A1C completion.
+  to schema 41; no new reusable term was introduced.
+- Unresolved issues: fresh accepted A1M evidence leaves exactly one persistent row,
+  `X-MIN-MULTI`. Original closure gates intentionally stopped by this task remain open until that
+  row closes and the evidence is reconciled.
+- Follow-up required: CPU 0007A1E–CPU 0007A1M are Complete. Execute Ready CPU 0007A1N; after the
+  final persistent frozen failure closes, resume the unchanged closure protocol and reconsider
+  0007A1C completion.
 
 Status: Incomplete
-Follow-up required: CPU 0007A1M and the later ordered X-MIN-MULTI correction must close the two persistent frozen performance failures before CPU 0007A2.
+Follow-up required: CPU 0007A1N must close X-MIN-MULTI and the original closure evidence must be reconciled before CPU 0007A2.

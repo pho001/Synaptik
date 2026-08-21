@@ -62,8 +62,9 @@
  * the completely guarded frozen {@code [512,512]} FLOAT32 mixed-carrier
  * {@code DIV -> SIGMOID -> MUL} pointwise ordinal loop. It preserves the stable sigmoid's
  * binary64 exponential work, sign branch, and one final narrowing, and retains the same typed
- * general-long fallback. Schema 40 is current-only; schema-39 and earlier envelopes are
- * incompatible misses.
+ * general-long fallback. Schema 41 adds the guarded frozen INT64 SCATTER_ND MIN direct
+ * copy-then-update loops while retaining the same fallback. Schema 41 is current-only;
+ * schema-40 and earlier envelopes are incompatible misses.
  * Four complete candidate plans, one realized artifact, zero additional fixed-shape variants,
  * and zero additional unrolled variants are the current planner-visible hard budget. A guarded
  * method body may still emit a fixed-trip straight-line sequence inside that one artifact when

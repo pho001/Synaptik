@@ -2,7 +2,7 @@
 
 ## Status
 
-Ready
+Complete
 
 ## Goal
 
@@ -181,8 +181,8 @@ suites remain deferred to CPU 0009 or CI because no shared contract may change.
 
 ## Follow-up tasks
 
-- `X-MIN-MULTI` remains Draft and unassigned until accepted A1M evidence selects its exact bounded
-  owner-cohesive correction.
+- [CPU 0007A1N](0007a1n-multi-axis-min-residual-parity.md) is the sole next `Ready` task and owns
+  the retained `X-MIN-MULTI` residual through the aggregate code-shaping boundary.
 - Resume CPU 0007A1C closure only after the final persistent row closes.
 - CPU 0007A2 remains Draft and blocked behind CPU 0007A1C and all corrective residual work.
 
@@ -237,12 +237,83 @@ Do not commit, push, or stage.
 
 ## Validation evidence
 
-Empty until implemented.
+- Implementation context `01a0252d-3ccd-7b42-bb52-8ba5c46b4de8` produced the immutable evidence
+  bundle at `/private/tmp/synaptik-cpu-0007a1m-7rhBZfwg` from repository base
+  `ba34acb330ac77d835a5ceecd197ad78fe976724`. The documentation context verified the bundle's
+  SHA-256 manifest, complete reports, five raw fork outputs, generated classes, full `javap -c`
+  and `javap -v`, frozen sources, XML, implementation patch, context, environment, and unchanged-
+  owner inventory.
+- Frozen inputs and compiled probe classes are byte-identical and exact semantics pass as
+  `VERIFIED,20`. The implementation-focused command passed 59 tests in six suites. The one and
+  only full CPU run passed 358 tests in 54 suites with zero failures or errors and one expected
+  opt-in persistence-evidence skip. No Java test, semantics probe, timing fork, benchmark, or full
+  build was rerun by the documentation context because it changed no executable Java behavior.
+- Five fresh accepted forks measured `S-GENERAL-MIN` at `0.984900063x`, `0.988888234x`,
+  `0.983823803x`, `0.978065816x`, and `0.992400680x`; median `0.984900063x`. The three required
+  controls and the already-closed `P-SCALAR-GENERAL` row passed every fork and median. Every full
+  probe leaves only `X-MIN-MULTI`, at `8.975696234x`, `8.989556087x`, `8.984536082x`,
+  `9.118772524x`, and `9.076912061x`; no rejected sample occurred.
+- Complete target inspection proves a final, field-free generated class with one typed static
+  `invoke(MemorySegment,long[],long[],MemorySegment,long[],long,long)`. Guards cover the exact
+  carrier, 50-value geometry, ordered range, start/end, start coordinates, offsets, strides,
+  types, and sentinels. The proved path performs a direct linear copy followed by 4,096 tuple and
+  16-column suffix loops, loads one index per tuple, filters targets to the owned interval, and
+  applies signed `Math.min(long,long)` in encounter order. It has no division/remainder,
+  allocation, reflection, dynamic constant/invocation, generic `Object` dispatch, collections,
+  boxing, sorting/grouping, atomics, or Synaptik hot call; the unchanged typed general-long body
+  begins at the failed-guard target in the same method.
+- Documentation context `01a02555-44df-7991-adb3-2593b5bc0f97` applied the General, API/Javadoc, Backend Guide, and Planning
+  profiles, finalized directly affected internal Javadocs/package summaries, the CPU guide,
+  glossary, task evidence, A1C, master plan, roadmap, and the sole next detailed task. It ran CPU
+  Javadoc exactly once after final Java documentation edits and passed the recorded Markdown,
+  scope, status, staging, and whitespace gates.
 
 ## Implementation notes
 
-Empty until implemented.
+- `CpuScatterEmitter` recognizes only the frozen INT64 `SCATTER_ND + MIN` structure and admits the
+  direct path only after complete runtime geometry and range proof. It preserves the existing
+  range-owned copy-then-update algorithm, duplicate encounter order, arbitrary legal half-open
+  ranges, direct typed carriers, signed long selection, and zero workspace. Every unproved form
+  retains the unchanged typed general-long implementation.
+- Generated compatibility advances exactly once from schema 40 to schema 41. Schema 40 and older
+  envelopes are incompatible safe misses; no migration, alias, converter, or dual-schema reuse
+  was added.
+- Architecture/current-plan/ADR/architecture-test conclusion: the bounded CPU-private generated
+  body changes no architecture rule, module boundary, dependency direction, or shared contract,
+  so no architecture contract, focused architecture page, ADR, or architecture test changes.
+- API/capability/lifecycle conclusion: public APIs, capability reporting, scatter IR/lowering,
+  validation, resources, materialization, orchestration, route selection, Prepare/Runtime
+  ownership, and unproved forms are unchanged. Backend conformance and integration tests require
+  no edit.
+- Build/documentation conclusion: no dependency, Gradle/toolchain, shared-module, native/vector,
+  example, or public API documentation change is required. The CPU guide and glossary advance
+  existing generated-kernel terms to the bounded schema-41 behavior; no new reusable term was
+  introduced.
 
 ## Completion summary
 
-Empty until implemented.
+- Completed changes: added the completely guarded frozen INT64 `SCATTER_ND + MIN` direct
+  copy-then-update body at schema 41, retained the typed fallback, synchronized schema assertions,
+  and finalized directly affected internal Javadocs, package summaries, CPU guide, glossary, and
+  planning records.
+- Files changed or created: ten implementation-owned production/test paths plus the CPU guide,
+  glossary, this task, CPU 0007A1C, CPU master plan, roadmap, and new CPU 0007A1N task, for 17
+  combined repository paths. No executable Java or test changed in the documentation pass.
+- Tests and validation: reused `VERIFIED,20`, six suites/59 focused tests, 54 suites/358 CPU tests
+  with one expected skip, deterministic generated-class/Class-File evidence, and five accepted
+  target/control forks. The documentation pass ran CPU Javadoc exactly once and passed all
+  required documentation, scope, status, staging, and whitespace checks.
+- Documentation-agent review: clean documentation context `01a02555-44df-7991-adb3-2593b5bc0f97` independently verified source,
+  tests, retained evidence, Javadocs, guide/glossary impact, and planning synchronization.
+- Documentation impact: internal emitter/schema/cache/code-generation/prepare Javadocs, CPU guide,
+  glossary, this task, A1C, CPU master plan, roadmap, and the sole next detailed task are
+  synchronized. No public API or architecture documentation changed.
+- Javadoc review: affected internal Javadocs now state the complete guard, direct loop, arbitrary-
+  range, schema compatibility, zero-resource, and typed-fallback boundaries.
+- Glossary impact: existing CPU portable-route, specialization, and artifact entries advance to
+  schema 41; no new reusable term was introduced.
+- Unresolved issues: only `X-MIN-MULTI` remains above the frozen parity gate.
+- Follow-up required: execute Ready CPU 0007A1N. CPU 0007A1C remains incomplete and CPU 0007A2
+  remains Draft/blocked until that final residual closes.
+
+Status: Complete

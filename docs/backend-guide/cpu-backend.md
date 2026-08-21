@@ -671,7 +671,7 @@ affine load/store, gather, scatter, masked tail, or speed claim.
 Lifecycle ownership remains unchanged. CPU analysis validates and composes the chain, chooses the
 scalar orchestration, and declares exactly the source and final result. Shared Prepare assigns
 those two slots without interpreting the affine plan. CPU finalization validates both assignments
-before current schema-40 artifact access and constructs one immutable executable. Cold binding validates
+before current schema-41 artifact access and constructs one immutable executable. Cold binding validates
 the exact data type, carrier, byte size, alignment, accessibility, output writability, canonical
 BOOL input bytes, and source/result non-overlap. Runtime then invokes only the prepared direct
 carriers, address table, and `start`/`end` bounds; it receives no operation, graph node, Shape,
@@ -733,7 +733,7 @@ callback, or per-element allocation in generated code.
 
 Movement uses scalar compute and either single-thread or deterministic parallel orchestration.
 Parallel chunks are safe because output injectivity proves disjoint writes. Vector preference
-falls back to scalar for this family. CPU finalization realizes current schema-40 generated artifacts;
+falls back to scalar for this family. CPU finalization realizes current schema-41 generated artifacts;
 cold binding validates complete input/output spans and rejects every output/input overlap before
 execution. The scalar reference consumes the same movement IR and compact geometry for
 differential tests, not as a Runtime fallback.
@@ -861,7 +861,7 @@ injectivity, and output/input non-overlap checks still run.
 
 CPU analysis declares each distinct gather input `ValueId` once in semantic first-use order and
 then one separate output; one-hot declares indices and output. Every indexing plan has one unit,
-no materialization, no workspace, one current schema-40 generated class artifact, one prepared
+no materialization, no workspace, one current schema-41 generated class artifact, one prepared
 executable, and one bound invocation. The generated class embeds carrier-, type-, family-, and
 access-specialized output loops rather than delegating through a generic carrier bridge. Proved
 dense heap arrays use integer loop/address state; segment, mixed-carrier, and general-layout forms
@@ -1013,9 +1013,15 @@ introduced scatter family, reduction, structural access/type/carrier facts, sema
 mapping, and the optional scratch entry. Schema 25 added the embedded
 family/type/reduction/carrier/access body. Schema 31 adds the range-owned copy-then-update
 loop shape for scratch-free rows while retaining grouped floating-product bytecode and the same
-scratch signature. Schema-30 and every earlier envelope are incompatible misses with no migration
-reader. Concrete axes, batch/tuple values, extents, layout magnitudes, ranges, workspace sizes and
-offsets, resource identities, and validation results remain cold compatible facts.
+scratch signature. Schema 41 adds one completely guarded direct body for the frozen INT64
+`SCATTER_ND + MIN` geometry with `[16384,16]` data/result, `[4096,1]` indices, and `[4096,16]`
+updates. After complete cold guards, it copies the owned output interval linearly, loads each
+tuple index once, visits its 16-element suffix, filters targets to the owned interval, and applies
+signed `long` minimum in encounter order. It preserves duplicate tuples, arbitrary legal
+half-open ranges, zero workspace, and the typed general-long fallback. Schema-40 and every earlier
+envelope are incompatible misses with no migration reader. Concrete axes, batch/tuple values,
+extents, layout magnitudes, ranges, workspace sizes and offsets, resource identities, and
+validation results remain cold compatible facts.
 
 The CPU 0007A1B local parity probe used five isolated JVM forks and six fixed adverse-ratio cases.
 The final generated/direct median-of-fork-medians ratios were `1.034` for dense Elements `NONE`,
@@ -1034,6 +1040,13 @@ Compiler capture or gradients, shared Prepare or Runtime contracts, public Tenso
 native or vendor routes, Vector API scatter execution, dynamic or symbolic layout handling,
 multi-node fusion, backend conformance, Engine composition, universal backend
 support, or performance guarantees.
+
+The fixed CPU 0007A1M evidence covers only that guarded INT64 case on the recorded OpenJDK 26.0.1
+macOS arm64 environment. Its five generated/direct ratios are `0.984900063x`, `0.988888234x`,
+`0.983823803x`, `0.978065816x`, and `0.992400680x`, with median `0.984900063x`. These values are
+acceptance evidence for the generated shape, not a universal scatter-performance claim or a
+production tuning input. The broader frozen comparison still has one unresolved row,
+`X-MIN-MULTI`.
 
 ### Current overlap fold family
 
@@ -1146,7 +1159,7 @@ independent primitive-index insertion implementation for differential evidence; 
 Runtime fallback.
 
 Schema 27 introduced the complete carrier-, represented-type-, family-, direction-, output-,
-and access-specialized ordering body, which current schema 40 retains. It uses a stable bottom-up
+and access-specialized ordering body, which current schema 41 retains. It uses a stable bottom-up
 merge over the two assigned
 INT64 scratch regions, selecting the left logical index on equality. Dense heap-array forms use
 cold-proved integer loop and address state. Arbitrary supported layouts and heap, segment, or
@@ -1257,7 +1270,7 @@ probability bits, ordered boundary roles and carriers, and zero-scratch shape. C
 slots, carriers, workers, and ranges remain cold when they do not change emitted bytes. There is
 no migration reader for old artifacts. Schema 28 is the first version whose random entries embed
 the direct typed initializer and FLOAT64/FLOAT32 dropout bodies. A schema-27 envelope is an
-incompatible safe miss: cold finalization regenerates and may publish current schema-40 bytes
+incompatible safe miss: cold finalization regenerates and may publish current schema-41 bytes
 after shared slot assignment rather than loading, converting, or aliasing the old bridge class.
 
 Retained observational evidence for the fixed dense heap-array shape `[64,16384]`, probability
@@ -2020,7 +2033,7 @@ execution covers every admitted row; parallel-scalar orchestration is available 
 affine, movement, scatter, fold, ordering, random-element, whole-scan-slice, and whole-aggregate-
 output-cell ranges; and the
 pointwise family retains its exact typed value-vector and virtual-mask parity matrix. Generator
-schema 40 distinguishes pointwise,
+schema 41 distinguishes pointwise,
 affine, movement, indexing, scatter, fold, ordering, random, scan, and aggregate structures,
 including movement occurrence order,
 unequal-rank access, exact
@@ -2045,8 +2058,10 @@ long fallback. Schema 39 adds the guarded raw-BFLOAT16 affine PERMUTE/SLICE form
 with arbitrary legal half-open ranges and the unchanged typed general-long fallback. Schema 40
 adds the completely guarded frozen FLOAT32 mixed-carrier pointwise ordinal loop described above,
 including arbitrary legal half-open ranges, stable binary64 exponential/sign/final-narrowing
-semantics, and the unchanged typed general-long fallback. No excluded pointwise
-or later semantic family,
+semantics, and the unchanged typed general-long fallback. No excluded pointwise form is enabled
+by that bounded body. Schema 41 adds the guarded frozen INT64 `SCATTER_ND + MIN` direct copy and
+tuple/suffix loops with arbitrary legal subranges, duplicate encounter order, zero workspace, and
+the unchanged typed general-long fallback. No excluded scatter form or later semantic family,
 general BFLOAT16 pointwise or dropout numerical operation,
 cross-type CAST, dynamic layout, vector affine/scatter/fold/ordering execution, native fallback, backend-conformance
 result, public Engine integration, hardware-intrinsic guarantee, or performance result is

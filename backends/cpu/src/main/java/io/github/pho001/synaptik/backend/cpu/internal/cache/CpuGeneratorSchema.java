@@ -80,6 +80,11 @@ package io.github.pho001.synaptik.backend.cpu.internal.cache;
  * row and column from an integer ordinal, uses direct unaligned segment loads and strided heap
  * stores, preserves the stable binary64-exponential/sign-branch/one-final-narrowing sigmoid, and
  * retains the typed general-long state machine for every failed proof.
+ * Schema 41 adds one completely guarded frozen INT64 {@code SCATTER_ND + MIN} body for the
+ * {@code [16384,16]} output and {@code [4096,16]} update geometry. The proved body emits the
+ * direct primitive linear copy and tuple/suffix update loops, preserves duplicate encounter
+ * order and arbitrary legal output subranges, and retains the typed general-long implementation
+ * for every failed proof.
  * The optional persistent envelope stores this version and has no legacy reader, migration path,
  * or converter.
  */
@@ -122,10 +127,11 @@ public final class CpuGeneratorSchema {
      * legal complete-slice subranges, while retaining the typed general-long fallback; schema 39
      * adds the guarded frozen raw-BFLOAT16 affine PERMUTE/SLICE cursor body; schema 40 adds the
      * guarded frozen FLOAT32 mixed-carrier pointwise ordinal loop while retaining the typed
-     * general-long fallback.
+     * general-long fallback; schema 41 adds the guarded frozen INT64 SCATTER_ND MIN direct
+     * copy-then-update loops with the same typed fallback.
      * Envelopes written for earlier schemas are incompatible misses.
      */
-    public static final int CURRENT_VERSION = 40;
+    public static final int CURRENT_VERSION = 41;
     /** Generated entry name. */ public static final String ENTRY_NAME = "invoke";
     private CpuGeneratorSchema() { }
 

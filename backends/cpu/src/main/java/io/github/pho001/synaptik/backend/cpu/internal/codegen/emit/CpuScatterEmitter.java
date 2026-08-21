@@ -23,6 +23,11 @@ import java.lang.foreign.ValueLayout;
  * update domain once in row-major order, applying only targets in that range. Disjoint ranges
  * therefore preserve deterministic update order without atomics or cross-range state.</p>
  *
+ * <p>One completely guarded INT64 {@code SCATTER_ND + MIN} form preserves that same algorithm
+ * while using its proved {@code [16384,16]} output and {@code [4096,16]} update geometry to emit
+ * the direct primitive copy and tuple/suffix loops. A failed carrier, geometry, layout, range,
+ * start-address, or sentinel proof enters the unchanged typed general-long implementation.</p>
+ *
  * <p>Floating multiplication deliberately retains output-owned target grouping. One range reuses
  * its single declared primitive-limb scratch slice for each owned output, accumulates that target's
  * complete factor group, and rounds the exact abstract product once. This safe split avoids either
@@ -110,9 +115,195 @@ public final class CpuScatterEmitter {
                 && p.ranks[p.indexBoundary] == 2
                 && p.ranks[p.updateBoundary] == 2) {
             emitRankTwoElementsCopyThenUpdate(code, specialization, p, ints, geometrySlot);
+        } else if (isGuardedScatterNdMin(specialization, p, ints)) {
+            emitGuardedScatterNdMin(code, specialization, p, geometrySlot);
         } else {
             emitTypedCopyThenUpdate(code, specialization, p, ints, geometrySlot);
         }
+    }
+
+    private static boolean isGuardedScatterNdMin(
+            CpuKernelSpecialization specialization, ScatterEncoding p, boolean ints) {
+        return !ints
+                && p.family.equals("SCATTER_ND")
+                && p.reduction == ScatterReduction.MIN
+                && p.dataType == DataType.INT64
+                && p.indexType == DataType.INT64
+                && p.outputRank == 2
+                && java.util.Arrays.equals(p.boundaryMap, new int[] {0, 1, 2})
+                && java.util.Arrays.equals(p.ranks, new int[] {2, 2, 2, 2})
+                && specialization.carrierPattern()
+                        .equals(
+                                java.util.List.of(
+                                        CpuKernelSpecialization.CarrierAccess.MEMORY_SEGMENT,
+                                        CpuKernelSpecialization.CarrierAccess.LONG_ARRAY,
+                                        CpuKernelSpecialization.CarrierAccess.LONG_ARRAY,
+                                        CpuKernelSpecialization.CarrierAccess.MEMORY_SEGMENT));
+    }
+
+    private static void emitGuardedScatterNdMin(
+            CodeBuilder code, CpuKernelSpecialization specialization, ScatterEncoding p, int g) {
+        int startSlot = g + 1;
+        int endSlot = g + 3;
+        var fallback = code.newLabel();
+        var complete = code.newLabel();
+        code.lload(startSlot).loadConstant(0L).lcmp().branch(Opcode.IFLT, fallback);
+        code.lload(startSlot).lload(endSlot).lcmp().branch(Opcode.IFGT, fallback);
+        code.lload(endSlot).loadConstant(262_144L).lcmp().branch(Opcode.IFGT, fallback);
+        code.lload(startSlot).lload(endSlot).lcmp().branch(Opcode.IFEQ, complete);
+        code.aload(g).arraylength().loadConstant(50).branch(Opcode.IF_ICMPNE, fallback);
+
+        long[] fixed = {
+            2L, 4L, 4L, 0L, 1L, 2L, -1L, 0L, 1L,
+            2L, 2L, 0L, 0L, 4_096L
+        };
+        for (int index = 0; index < 9; index++)
+            guardGeometryConstant(code, g, index, fixed[index], fallback);
+        guardGeometryParameter(code, g, 9, startSlot, fallback);
+        guardGeometryParameter(code, g, 10, endSlot, fallback);
+        for (int index = 11; index <= 15; index++)
+            guardGeometryConstant(code, g, index, fixed[index - 2], fallback);
+        guardGeometryStartRow(code, g, 16, startSlot, fallback);
+        guardGeometryStartColumn(code, g, 17, startSlot, fallback);
+        guardGeometryStartRow(code, g, 18, startSlot, fallback);
+        guardGeometryStartColumn(code, g, 19, startSlot, fallback);
+
+        long[] suffix = {
+            0L, 0L,
+            2L, 3L, 16_384L, 16L, 32L, 2L,
+            2L, 0L, 4_096L, 1L, 1L, 1L,
+            2L, 0L, 4_096L, 16L, 16L, 1L,
+            2L, 4L, 16_384L, 16L, 32L, 2L,
+            4L, 4L, 4L, 4L
+        };
+        for (int index = 0; index < suffix.length; index++)
+            guardGeometryConstant(code, g, 20 + index, suffix[index], fallback);
+
+        emitScatterNdMinDirectLoops(code, startSlot, endSlot, complete);
+        code.branch(Opcode.GOTO, complete).labelBinding(fallback);
+        emitTypedCopyThenUpdate(code, specialization, p, false, g);
+        code.labelBinding(complete);
+    }
+
+    private static void emitScatterNdMinDirectLoops(
+            CodeBuilder code, int startSlot, int endSlot, java.lang.classfile.Label complete) {
+        int layout = code.allocateLocal(TypeKind.REFERENCE);
+        int start = code.allocateLocal(TypeKind.INT);
+        int ordinal = code.allocateLocal(TypeKind.INT);
+        int end = code.allocateLocal(TypeKind.INT);
+        int tuple = code.allocateLocal(TypeKind.INT);
+        int column = code.allocateLocal(TypeKind.INT);
+        int rowBase = code.allocateLocal(TypeKind.INT);
+        int updateBase = code.allocateLocal(TypeKind.INT);
+        int target = code.allocateLocal(TypeKind.INT);
+        int dataAddress = code.allocateLocal(TypeKind.LONG);
+        int outputAddress = code.allocateLocal(TypeKind.LONG);
+        int value = code.allocateLocal(TypeKind.LONG);
+        int right = code.allocateLocal(TypeKind.LONG);
+        emitPreparedSegmentLayout(code, DataType.INT64, layout);
+        code.lload(startSlot).l2i().istore(start);
+        code.iload(start).istore(ordinal);
+        code.lload(endSlot).l2i().istore(end);
+
+        var carriers = new CpuCarrierEmitter(code);
+        var copy = code.newLabel();
+        var copied = code.newLabel();
+        code.labelBinding(copy).iload(ordinal).iload(end).branch(Opcode.IF_ICMPGE, copied);
+        code.loadConstant(3).iload(ordinal).loadConstant(2).imul().iadd().i2l()
+                .lstore(dataAddress);
+        code.loadConstant(4).iload(ordinal).loadConstant(2).imul().iadd().i2l()
+                .lstore(outputAddress);
+        scatterLoad(
+                code, carriers, DataType.INT64,
+                CpuKernelSpecialization.CarrierAccess.MEMORY_SEGMENT,
+                0, dataAddress, false, layout);
+        code.lstore(value);
+        scatterStore(
+                code, carriers, DataType.INT64,
+                CpuKernelSpecialization.CarrierAccess.MEMORY_SEGMENT,
+                3, outputAddress, value, false, layout);
+        code.iinc(ordinal, 1).branch(Opcode.GOTO, copy).labelBinding(copied);
+
+        code.loadConstant(0).istore(tuple);
+        var tuples = code.newLabel();
+        var done = code.newLabel();
+        code.labelBinding(tuples).iload(tuple).loadConstant(4_096)
+                .branch(Opcode.IF_ICMPGE, done);
+        code.aload(1).iload(tuple).laload().l2i().loadConstant(4).ishl().istore(rowBase);
+        code.iload(tuple).loadConstant(4).ishl().istore(updateBase);
+        code.loadConstant(0).istore(column);
+        var columns = code.newLabel();
+        var nextTuple = code.newLabel();
+        code.labelBinding(columns).iload(column).loadConstant(16)
+                .branch(Opcode.IF_ICMPGE, nextTuple);
+        code.iload(rowBase).iload(column).iadd().istore(target);
+        var skip = code.newLabel();
+        code.iload(target).iload(start).branch(Opcode.IF_ICMPLT, skip);
+        code.iload(target).iload(end).branch(Opcode.IF_ICMPGE, skip);
+        code.loadConstant(4).iload(target).loadConstant(2).imul().iadd().i2l()
+                .lstore(outputAddress);
+        scatterLoad(
+                code, carriers, DataType.INT64,
+                CpuKernelSpecialization.CarrierAccess.MEMORY_SEGMENT,
+                3, outputAddress, false, layout);
+        code.lstore(value);
+        code.aload(2).iload(updateBase).iload(column).iadd().laload().lstore(right);
+        code.lload(value).lload(right)
+                .invokestatic(
+                        MATH_CLASS,
+                        "min",
+                        MethodTypeDesc.of(
+                                ConstantDescs.CD_long,
+                                ConstantDescs.CD_long,
+                                ConstantDescs.CD_long))
+                .lstore(value);
+        scatterStore(
+                code, carriers, DataType.INT64,
+                CpuKernelSpecialization.CarrierAccess.MEMORY_SEGMENT,
+                3, outputAddress, value, false, layout);
+        code.labelBinding(skip).iinc(column, 1).branch(Opcode.GOTO, columns)
+                .labelBinding(nextTuple).iinc(tuple, 1).branch(Opcode.GOTO, tuples)
+                .labelBinding(done).branch(Opcode.GOTO, complete);
+    }
+
+    private static void guardGeometryConstant(
+            CodeBuilder code,
+            int geometrySlot,
+            int index,
+            long expected,
+            java.lang.classfile.Label fallback) {
+        geometry(code, geometrySlot, index).loadConstant(expected).lcmp()
+                .branch(Opcode.IFNE, fallback);
+    }
+
+    private static void guardGeometryParameter(
+            CodeBuilder code,
+            int geometrySlot,
+            int index,
+            int parameterSlot,
+            java.lang.classfile.Label fallback) {
+        geometry(code, geometrySlot, index).lload(parameterSlot).lcmp()
+                .branch(Opcode.IFNE, fallback);
+    }
+
+    private static void guardGeometryStartRow(
+            CodeBuilder code,
+            int geometrySlot,
+            int index,
+            int startSlot,
+            java.lang.classfile.Label fallback) {
+        geometry(code, geometrySlot, index).lload(startSlot).loadConstant(4).lshr().lcmp()
+                .branch(Opcode.IFNE, fallback);
+    }
+
+    private static void guardGeometryStartColumn(
+            CodeBuilder code,
+            int geometrySlot,
+            int index,
+            int startSlot,
+            java.lang.classfile.Label fallback) {
+        geometry(code, geometrySlot, index).lload(startSlot).loadConstant(15L).land().lcmp()
+                .branch(Opcode.IFNE, fallback);
     }
 
     private static void emitDenseRankOneZeroBase(
