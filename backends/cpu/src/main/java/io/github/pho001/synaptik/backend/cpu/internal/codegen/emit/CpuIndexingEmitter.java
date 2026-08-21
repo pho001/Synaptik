@@ -6,6 +6,8 @@ import io.github.pho001.synaptik.model.datatype.DataType;
 import java.lang.classfile.CodeBuilder;
 import java.lang.classfile.Opcode;
 import java.lang.classfile.TypeKind;
+import java.lang.constant.ClassDesc;
+import java.lang.constant.MethodTypeDesc;
 
 /**
  * Emits carrier-, type-, family-, and access-specialized indexing loops into generated classes.
@@ -13,9 +15,22 @@ import java.lang.classfile.TypeKind;
  * segment or mixed carriers retain typed long-address traversal. Bound execution owns complete
  * logical-domain index validation and invokes these writers only after that validation succeeds,
  * so emitted code performs mapping and represented-value writes without repeating bounds checks.
+ * Runtime-guarded cursor forms cover the frozen mixed-carrier GATHER row-copy and GATHER_ND
+ * tuple/suffix geometries without changing their arbitrary legal output-subrange contract. The
+ * completely guarded full-range GATHER_ND body emits the proved suffix length of 16 as a
+ * generation-time straight-line primitive sequence; partial ranges retain a bounded cursor loop,
+ * and every geometry that does not satisfy the complete proof retains the typed long-address
+ * writer. The fixed sequence is internal code shape in one artifact, not another preparation or
+ * Runtime variant.
  * This emitter owns neither validation, worker submission, nor Runtime policy.
  */
 public final class CpuIndexingEmitter {
+    private static final ClassDesc SEGMENT = ClassDesc.of("java.lang.foreign.MemorySegment");
+    private static final ClassDesc VALUE_LAYOUT = ClassDesc.of("java.lang.foreign.ValueLayout");
+    private static final ClassDesc DOUBLE_LAYOUT =
+            ClassDesc.of("java.lang.foreign.ValueLayout$OfDouble");
+    private static final ClassDesc FLOAT_LAYOUT =
+            ClassDesc.of("java.lang.foreign.ValueLayout$OfFloat");
     /** Creates a stateless indexing emitter. */
     public CpuIndexingEmitter() { }
 
@@ -33,6 +48,14 @@ public final class CpuIndexingEmitter {
      */
     public void emit(CodeBuilder code, CpuKernelSpecialization specialization, CpuKernelIr ir) {
         Parsed parsed = Parsed.parse(ir);
+        if (isBoundedGather(specialization, parsed)) {
+            emitBoundedGatherOrMapped(code, specialization, parsed);
+            return;
+        }
+        if (isBoundedGatherNd(specialization, parsed)) {
+            emitBoundedGatherNdOrMapped(code, specialization, parsed);
+            return;
+        }
         boolean dense = specialization.loopAddressing(ir)
                 == CpuKernelSpecialization.LoopAddressing.DENSE_HEAP_ARRAY_INT;
         if (dense && parsed.family.equals("ONE_HOT")) {
@@ -52,6 +75,334 @@ public final class CpuIndexingEmitter {
             return;
         }
         emitMapped(code, specialization, parsed, dense);
+    }
+
+    private static boolean isBoundedGather(CpuKernelSpecialization specialization, Parsed p) {
+        return p.family.equals("GATHER") && p.dataType == DataType.FLOAT64
+                && p.indexType == DataType.INT64 && p.outputRank == 2
+                && java.util.Arrays.equals(p.map, new int[]{0, 1})
+                && java.util.Arrays.equals(p.boundaryRanks, new int[]{2, 1, 2})
+                && specialization.carrierPattern().equals(java.util.List.of(
+                        CpuKernelSpecialization.CarrierAccess.MEMORY_SEGMENT,
+                        CpuKernelSpecialization.CarrierAccess.LONG_ARRAY,
+                        CpuKernelSpecialization.CarrierAccess.MEMORY_SEGMENT));
+    }
+
+    private static boolean isBoundedGatherNd(CpuKernelSpecialization specialization, Parsed p) {
+        return p.family.equals("GATHER_ND") && p.dataType == DataType.FLOAT32
+                && p.indexType == DataType.INT32 && p.outputRank == 3
+                && java.util.Arrays.equals(p.map, new int[]{0, 1})
+                && java.util.Arrays.equals(p.boundaryRanks, new int[]{4, 3, 3})
+                && specialization.carrierPattern().equals(java.util.List.of(
+                        CpuKernelSpecialization.CarrierAccess.FLOAT_ARRAY,
+                        CpuKernelSpecialization.CarrierAccess.INT_ARRAY,
+                        CpuKernelSpecialization.CarrierAccess.MEMORY_SEGMENT));
+    }
+
+    private static void emitBoundedGatherOrMapped(CodeBuilder code,
+            CpuKernelSpecialization specialization, Parsed p) {
+        int geometry = p.boundaryRanks.length;
+        var fallback = code.newLabel();
+        var complete = code.newLabel();
+        requireRange(code, geometry + 1, geometry + 3, 262_144, fallback);
+        requireArgumentGeometry(code, geometry, 6, geometry + 1, fallback);
+        requireArgumentGeometry(code, geometry, 7, geometry + 3, fallback);
+        requireGeometrySequence(code, geometry, 0,
+                new long[]{0, 3, 2, 0, 0, 0}, fallback);
+        requireGeometrySequence(code, geometry, 8,
+                new long[]{2, 1, 0, 0, 1}, fallback);
+        requireGeometry(code, geometry, 15, 2, fallback);
+        requireGeometrySequence(code, geometry, 17,
+                new long[]{1024, 256, 256, 1}, fallback);
+        requireGeometry(code, geometry, 21, 1, fallback);
+        requireGeometrySequence(code, geometry, 23,
+                new long[]{1024, 1}, fallback);
+        requireGeometry(code, geometry, 25, 2, fallback);
+        requireGeometrySequence(code, geometry, 27,
+                new long[]{1024, 256, 512, 2}, fallback);
+        requireBoundedBase(code, geometry, 16, 262_143, fallback);
+        requireIntBase(code, geometry, 22, 1_023, fallback);
+        requireBoundedBase(code, geometry, 26, 524_286, fallback);
+        emitBoundedGather(code, specialization, geometry);
+        code.branch(Opcode.GOTO, complete).labelBinding(fallback);
+        emitMapped(code, specialization, p, false);
+        code.labelBinding(complete);
+    }
+
+    private static void emitBoundedGather(CodeBuilder code,
+            CpuKernelSpecialization specialization, int geometry) {
+        var partial = code.newLabel();
+        var complete = code.newLabel();
+        code.lload(geometry + 1).loadConstant(0L).lcmp().branch(Opcode.IFNE, partial);
+        code.lload(geometry + 3).loadConstant(262_144L).lcmp().branch(Opcode.IFNE, partial);
+        emitFullGather(code, geometry);
+        code.branch(Opcode.GOTO, complete).labelBinding(partial);
+        emitPartialGather(code, geometry);
+        code.labelBinding(complete);
+    }
+
+    private static void emitFullGather(CodeBuilder code, int geometry) {
+        int row = code.allocateLocal(TypeKind.INT);
+        int column = code.allocateLocal(TypeKind.INT);
+        int indexAddress = code.allocateLocal(TypeKind.INT);
+        int sourceAddress = code.allocateLocal(TypeKind.LONG);
+        int outputAddress = code.allocateLocal(TypeKind.LONG);
+        int selected = code.allocateLocal(TypeKind.LONG);
+        int value = code.allocateLocal(TypeKind.DOUBLE);
+        code.loadConstant(0).istore(row);
+        geometry(code, geometry, 22).l2i().istore(indexAddress);
+        geometry(code, geometry, 26).lstore(outputAddress);
+        var rows = code.newLabel();
+        var elements = code.newLabel();
+        var done = code.newLabel();
+        code.labelBinding(rows).iload(row).loadConstant(1024)
+                .branch(Opcode.IF_ICMPGE, done);
+        code.aload(1).iload(indexAddress).laload().lstore(selected);
+        geometry(code, geometry, 16).lload(selected).loadConstant(256L).lmul().ladd()
+                .lstore(sourceAddress);
+        code.loadConstant(0).istore(column).labelBinding(elements);
+        loadSegmentDouble(code, 0, sourceAddress).dstore(value);
+        storeSegmentDouble(code, 2, outputAddress, value);
+        code.lload(sourceAddress).loadConstant(1L).ladd().lstore(sourceAddress);
+        code.lload(outputAddress).loadConstant(2L).ladd().lstore(outputAddress);
+        code.iinc(column, 1).iload(column).loadConstant(256)
+                .branch(Opcode.IF_ICMPLT, elements);
+        code.iinc(row, 1).iinc(indexAddress, 1).branch(Opcode.GOTO, rows)
+                .labelBinding(done);
+    }
+
+    private static void emitPartialGather(CodeBuilder code, int geometry) {
+        int logical = code.allocateLocal(TypeKind.INT);
+        int end = code.allocateLocal(TypeKind.INT);
+        int column = code.allocateLocal(TypeKind.INT);
+        int indexAddress = code.allocateLocal(TypeKind.LONG);
+        int sourceAddress = code.allocateLocal(TypeKind.LONG);
+        int outputAddress = code.allocateLocal(TypeKind.LONG);
+        int rowEnd = code.allocateLocal(TypeKind.INT);
+        int selected = code.allocateLocal(TypeKind.LONG);
+        int value = code.allocateLocal(TypeKind.DOUBLE);
+        code.lload(geometry + 1).l2i().istore(logical);
+        code.lload(geometry + 3).l2i().istore(end);
+        code.iload(logical).loadConstant(255).iand().istore(column);
+        geometry(code, geometry, 22).iload(logical).loadConstant(8).iushr().i2l().ladd()
+                .lstore(indexAddress);
+        geometry(code, geometry, 26).iload(logical).i2l().loadConstant(2L).lmul().ladd()
+                .lstore(outputAddress);
+        var rows = code.newLabel();
+        var rowBoundReady = code.newLabel();
+        var elements = code.newLabel();
+        var done = code.newLabel();
+        code.labelBinding(rows).iload(logical).iload(end).branch(Opcode.IF_ICMPGE, done);
+        code.aload(1).lload(indexAddress).l2i().laload().lstore(selected);
+        geometry(code, geometry, 16).lload(selected).loadConstant(256L).lmul().ladd()
+                .iload(column).i2l().ladd().lstore(sourceAddress);
+        code.iload(logical).loadConstant(256).iload(column).isub().iadd().istore(rowEnd);
+        code.iload(rowEnd).iload(end).branch(Opcode.IF_ICMPLE, rowBoundReady);
+        code.iload(end).istore(rowEnd);
+        code.labelBinding(rowBoundReady).labelBinding(elements);
+        loadSegmentDouble(code, 0, sourceAddress).dstore(value);
+        storeSegmentDouble(code, 2, outputAddress, value);
+        code.lload(sourceAddress).loadConstant(1L).ladd().lstore(sourceAddress);
+        code.lload(outputAddress).loadConstant(2L).ladd().lstore(outputAddress);
+        code.iinc(logical, 1).iinc(column, 1);
+        code.iload(logical).iload(rowEnd).branch(Opcode.IF_ICMPLT, elements);
+        code.iload(logical).iload(end).branch(Opcode.IF_ICMPGE, done);
+        code.loadConstant(0).istore(column);
+        code.lload(indexAddress).loadConstant(1L).ladd().lstore(indexAddress);
+        code.branch(Opcode.GOTO, rows).labelBinding(done);
+    }
+
+    private static void emitBoundedGatherNdOrMapped(CodeBuilder code,
+            CpuKernelSpecialization specialization, Parsed p) {
+        int geometry = p.boundaryRanks.length;
+        var fallback = code.newLabel();
+        var complete = code.newLabel();
+        requireRange(code, geometry + 1, geometry + 3, 262_144, fallback);
+        requireArgumentGeometry(code, geometry, 6, geometry + 1, fallback);
+        requireArgumentGeometry(code, geometry, 7, geometry + 3, fallback);
+        requireGeometrySequence(code, geometry, 0,
+                new long[]{2, 3, 2, -1, 1, 2}, fallback);
+        requireGeometrySequence(code, geometry, 8,
+                new long[]{3, 1, 0, 0, 1}, fallback);
+        requireGeometry(code, geometry, 16, 4, fallback);
+        requireGeometrySequence(code, geometry, 18,
+                new long[]{4, 64, 64, 16, 65_536, 1_024, 16, 1}, fallback);
+        requireGeometry(code, geometry, 26, 3, fallback);
+        requireGeometrySequence(code, geometry, 28,
+                new long[]{4, 4_096, 2, 8_192, 2, 1}, fallback);
+        requireGeometry(code, geometry, 34, 3, fallback);
+        requireGeometrySequence(code, geometry, 36,
+                new long[]{4, 4_096, 16, 131_072, 32, 2}, fallback);
+        requireIntBase(code, geometry, 17, 262_143, fallback);
+        requireIntBase(code, geometry, 27, 32_767, fallback);
+        requireBoundedBase(code, geometry, 35, 524_286, fallback);
+        emitBoundedGatherNd(code, specialization, geometry);
+        code.branch(Opcode.GOTO, complete).labelBinding(fallback);
+        emitMapped(code, specialization, p, false);
+        code.labelBinding(complete);
+    }
+
+    private static void emitBoundedGatherNd(CodeBuilder code,
+            CpuKernelSpecialization specialization, int geometry) {
+        var partial = code.newLabel();
+        var complete = code.newLabel();
+        code.lload(geometry + 1).loadConstant(0L).lcmp().branch(Opcode.IFNE, partial);
+        code.lload(geometry + 3).loadConstant(262_144L).lcmp().branch(Opcode.IFNE, partial);
+        emitFullGatherNd(code, geometry);
+        code.branch(Opcode.GOTO, complete).labelBinding(partial);
+        emitPartialGatherNd(code, geometry);
+        code.labelBinding(complete);
+    }
+
+    private static void emitFullGatherNd(CodeBuilder code, int geometry) {
+        int batch = code.allocateLocal(TypeKind.INT);
+        int tuple = code.allocateLocal(TypeKind.INT);
+        int indexAddress = code.allocateLocal(TypeKind.INT);
+        int sourceAddress = code.allocateLocal(TypeKind.INT);
+        int outputAddress = code.allocateLocal(TypeKind.LONG);
+        int batchBase = code.allocateLocal(TypeKind.INT);
+        int first = code.allocateLocal(TypeKind.INT);
+        int second = code.allocateLocal(TypeKind.INT);
+        int value = code.allocateLocal(TypeKind.FLOAT);
+        code.loadConstant(0).istore(batch);
+        geometry(code, geometry, 27).l2i().istore(indexAddress);
+        geometry(code, geometry, 35).lstore(outputAddress);
+        geometry(code, geometry, 17).l2i().istore(batchBase);
+        var batches = code.newLabel();
+        var tuples = code.newLabel();
+        var done = code.newLabel();
+        code.labelBinding(batches).iload(batch).loadConstant(4)
+                .branch(Opcode.IF_ICMPGE, done);
+        code.loadConstant(0).istore(tuple).labelBinding(tuples);
+        code.aload(1).iload(indexAddress).iaload().istore(first);
+        code.iinc(indexAddress, 1);
+        code.aload(1).iload(indexAddress).iaload().istore(second);
+        code.iinc(indexAddress, 1);
+        code.iload(batchBase).iload(first).loadConstant(1_024).imul().iadd()
+                .iload(second).loadConstant(16).imul().iadd().istore(sourceAddress);
+        for (int suffix = 0; suffix < 16; suffix++) {
+            code.aload(0).iload(sourceAddress).faload().fstore(value);
+            storeSegmentFloat(code, 2, outputAddress, value);
+            code.iinc(sourceAddress, 1);
+            code.lload(outputAddress).loadConstant(2L).ladd().lstore(outputAddress);
+        }
+        code.iinc(tuple, 1).iload(tuple).loadConstant(4_096)
+                .branch(Opcode.IF_ICMPLT, tuples);
+        code.iinc(batch, 1).iload(batchBase).loadConstant(65_536).iadd()
+                .istore(batchBase).branch(Opcode.GOTO, batches).labelBinding(done);
+    }
+
+    private static void emitPartialGatherNd(CodeBuilder code, int geometry) {
+        int logical = code.allocateLocal(TypeKind.INT);
+        int end = code.allocateLocal(TypeKind.INT);
+        int suffix = code.allocateLocal(TypeKind.INT);
+        int tupleOrdinal = code.allocateLocal(TypeKind.INT);
+        int indexAddress = code.allocateLocal(TypeKind.INT);
+        int sourceAddress = code.allocateLocal(TypeKind.INT);
+        int outputAddress = code.allocateLocal(TypeKind.LONG);
+        int tupleEnd = code.allocateLocal(TypeKind.INT);
+        int first = code.allocateLocal(TypeKind.INT);
+        int second = code.allocateLocal(TypeKind.INT);
+        int value = code.allocateLocal(TypeKind.FLOAT);
+        code.lload(geometry + 1).l2i().istore(logical);
+        code.lload(geometry + 3).l2i().istore(end);
+        code.iload(logical).loadConstant(15).iand().istore(suffix);
+        code.iload(logical).loadConstant(4).iushr().istore(tupleOrdinal);
+        geometry(code, geometry, 27).l2i().iload(tupleOrdinal).loadConstant(2).imul().iadd()
+                .istore(indexAddress);
+        geometry(code, geometry, 35).iload(logical).i2l().loadConstant(2L).lmul().ladd()
+                .lstore(outputAddress);
+        var tuples = code.newLabel();
+        var tupleBoundReady = code.newLabel();
+        var elements = code.newLabel();
+        var done = code.newLabel();
+        code.labelBinding(tuples).iload(logical).iload(end).branch(Opcode.IF_ICMPGE, done);
+        code.aload(1).iload(indexAddress).iaload().istore(first);
+        code.iinc(indexAddress, 1);
+        code.aload(1).iload(indexAddress).iaload().istore(second);
+        code.iinc(indexAddress, 1);
+        geometry(code, geometry, 17).l2i().iload(tupleOrdinal).loadConstant(12).iushr()
+                .loadConstant(65_536).imul().iadd()
+                .iload(first).loadConstant(1_024).imul().iadd()
+                .iload(second).loadConstant(16).imul().iadd()
+                .iload(suffix).iadd().istore(sourceAddress);
+        code.iload(logical).loadConstant(16).iload(suffix).isub().iadd().istore(tupleEnd);
+        code.iload(tupleEnd).iload(end).branch(Opcode.IF_ICMPLE, tupleBoundReady);
+        code.iload(end).istore(tupleEnd);
+        code.labelBinding(tupleBoundReady).labelBinding(elements);
+        code.aload(0).iload(sourceAddress).faload().fstore(value);
+        storeSegmentFloat(code, 2, outputAddress, value);
+        code.iinc(sourceAddress, 1);
+        code.lload(outputAddress).loadConstant(2L).ladd().lstore(outputAddress);
+        code.iinc(logical, 1).iinc(suffix, 1);
+        code.iload(logical).iload(tupleEnd).branch(Opcode.IF_ICMPLT, elements);
+        code.iload(logical).iload(end).branch(Opcode.IF_ICMPGE, done);
+        code.loadConstant(0).istore(suffix);
+        code.iinc(tupleOrdinal, 1);
+        code.branch(Opcode.GOTO, tuples).labelBinding(done);
+    }
+
+    private static void requireRange(CodeBuilder code, int startSlot, int endSlot, long maximum,
+            java.lang.classfile.Label fallback) {
+        code.lload(startSlot).loadConstant(0L).lcmp().branch(Opcode.IFLT, fallback);
+        code.lload(endSlot).lload(startSlot).lcmp().branch(Opcode.IFLT, fallback);
+        code.lload(endSlot).loadConstant(maximum).lcmp().branch(Opcode.IFGT, fallback);
+    }
+
+    private static void requireArgumentGeometry(CodeBuilder code, int geometrySlot, int index,
+            int argumentSlot, java.lang.classfile.Label fallback) {
+        geometry(code, geometrySlot, index).lload(argumentSlot).lcmp()
+                .branch(Opcode.IFNE, fallback);
+    }
+
+    private static void requireGeometrySequence(CodeBuilder code, int geometrySlot, int first,
+            long[] expected, java.lang.classfile.Label fallback) {
+        for (int index = 0; index < expected.length; index++)
+            requireGeometry(code, geometrySlot, first + index, expected[index], fallback);
+    }
+
+    private static void requireGeometry(CodeBuilder code, int geometrySlot, int index,
+            long expected, java.lang.classfile.Label fallback) {
+        geometry(code, geometrySlot, index).loadConstant(expected).lcmp()
+                .branch(Opcode.IFNE, fallback);
+    }
+
+    private static void requireBoundedBase(CodeBuilder code, int geometrySlot, int index,
+            long span, java.lang.classfile.Label fallback) {
+        geometry(code, geometrySlot, index).loadConstant(0L).lcmp().branch(Opcode.IFLT, fallback);
+        geometry(code, geometrySlot, index).loadConstant(Long.MAX_VALUE - span).lcmp()
+                .branch(Opcode.IFGT, fallback);
+    }
+
+    private static void requireIntBase(CodeBuilder code, int geometrySlot, int index,
+            long span, java.lang.classfile.Label fallback) {
+        geometry(code, geometrySlot, index).loadConstant(0L).lcmp().branch(Opcode.IFLT, fallback);
+        geometry(code, geometrySlot, index).loadConstant((long) Integer.MAX_VALUE - span).lcmp()
+                .branch(Opcode.IFGT, fallback);
+    }
+
+    private static CodeBuilder loadSegmentDouble(CodeBuilder code, int segmentSlot,
+            int addressLocal) {
+        return code.aload(segmentSlot).getstatic(VALUE_LAYOUT, "JAVA_DOUBLE_UNALIGNED",
+                DOUBLE_LAYOUT).lload(addressLocal).loadConstant((long) Double.BYTES).lmul()
+                .invokeinterface(SEGMENT, "get", MethodTypeDesc.of(
+                        TypeKind.DOUBLE.upperBound(), DOUBLE_LAYOUT, TypeKind.LONG.upperBound()));
+    }
+
+    private static void storeSegmentDouble(CodeBuilder code, int segmentSlot, int addressLocal,
+            int valueLocal) {
+        code.aload(segmentSlot).getstatic(VALUE_LAYOUT, "JAVA_DOUBLE_UNALIGNED", DOUBLE_LAYOUT)
+                .lload(addressLocal).loadConstant((long) Double.BYTES).lmul().dload(valueLocal)
+                .invokeinterface(SEGMENT, "set", MethodTypeDesc.of(TypeKind.VOID.upperBound(),
+                        DOUBLE_LAYOUT, TypeKind.LONG.upperBound(), TypeKind.DOUBLE.upperBound()));
+    }
+
+    private static void storeSegmentFloat(CodeBuilder code, int segmentSlot, int addressLocal,
+            int valueLocal) {
+        code.aload(segmentSlot).getstatic(VALUE_LAYOUT, "JAVA_FLOAT_UNALIGNED", FLOAT_LAYOUT)
+                .lload(addressLocal).loadConstant((long) Float.BYTES).lmul().fload(valueLocal)
+                .invokeinterface(SEGMENT, "set", MethodTypeDesc.of(TypeKind.VOID.upperBound(),
+                        FLOAT_LAYOUT, TypeKind.LONG.upperBound(), TypeKind.FLOAT.upperBound()));
     }
 
     private static void emitDenseOneHot(CodeBuilder code,

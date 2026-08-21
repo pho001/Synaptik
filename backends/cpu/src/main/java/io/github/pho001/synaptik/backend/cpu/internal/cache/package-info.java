@@ -50,9 +50,14 @@
  * legal subranges and typed general-long fallbacks. Schema 36 additionally guards the frozen
  * mixed-carrier FLOAT32 axis-one MEAN and BFLOAT16 axes-zero-and-two PROD shapes, preserving
  * their exact run-owned state, arbitrary output-cell subranges, and typed general-long fallbacks.
- * Schema 36 is current-only; schema-35 and earlier envelopes are incompatible misses.
- * Four complete candidate plans, one realized
- * artifact, zero fixed-shape variants, and zero unrolled variants are the current hard budget.
+ * Schema 37 adds guarded primitive cursor loops for the frozen mixed-carrier FLOAT64 GATHER and
+ * FLOAT32 GATHER_ND forms while retaining arbitrary legal subranges and typed general fallbacks.
+ * Schema 37 is current-only; schema-36 and earlier envelopes are incompatible misses.
+ * Four complete candidate plans, one realized artifact, zero additional fixed-shape variants,
+ * and zero additional unrolled variants are the current planner-visible hard budget. A guarded
+ * method body may still emit a fixed-trip straight-line sequence inside that one artifact when
+ * its cold geometry proof and schema record the code shape; this does not add another candidate,
+ * specialization identity, artifact, or Runtime selection.
  * With no trusted root, realization remains entirely in memory. With a root, one bounded
  * current-schema envelope may supply class bytes after compatibility, integrity, size, class
  * shape, and entry-descriptor verification; every absence or failure falls back safely to

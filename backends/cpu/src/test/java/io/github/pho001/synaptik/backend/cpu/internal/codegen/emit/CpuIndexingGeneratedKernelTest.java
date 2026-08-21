@@ -11,6 +11,7 @@ import io.github.pho001.synaptik.model.layout.LayoutDescriptor;
 import io.github.pho001.synaptik.model.shape.Shape;
 import io.github.pho001.synaptik.prepare.analysis.PrepareContext;
 import java.lang.foreign.MemorySegment;
+import java.lang.foreign.ValueLayout;
 import java.lang.classfile.ClassFile;
 import java.lang.classfile.Instruction;
 import java.lang.classfile.Opcode;
@@ -175,17 +176,126 @@ class CpuIndexingGeneratedKernelTest {
         assertArrayEquals(new long[]{20,21,0,1,110,111,100,101}, ndOutputBits);
     }
 
+    @Test void guardedGatherCursorHonorsArbitrarySubrangesAndRetainsGeneralFallback()
+            throws Throwable {
+        int width = 256;
+        int count = 1024 * width;
+        var data = MemorySegment.ofArray(new double[1024 * width]);
+        long[] indices = new long[1024];
+        indices[0] = 17;
+        indices[1] = 23;
+        var output = MemorySegment.ofArray(new double[count * 2 + 7]);
+        data.set(ValueLayout.JAVA_DOUBLE_UNALIGNED, (17L * width + 255) * Double.BYTES, 11.0);
+        data.set(ValueLayout.JAVA_DOUBLE_UNALIGNED, (23L * width) * Double.BYTES, 22.0);
+        data.set(ValueLayout.JAVA_DOUBLE_UNALIGNED, (23L * width + 1) * Double.BYTES, 33.0);
+        Shape dataShape = Shape.of(1024, width);
+        Shape indexShape = Shape.of(1024);
+        Shape outputShape = Shape.of(1024, width);
+        var exact = context(new Operation(AxisGatherKind.GATHER, new IndexAxisAttrs(0)),
+                List.of(0, 1), List.of(desc(DataType.FLOAT64, dataShape),
+                        desc(DataType.INT64, indexShape)),
+                CpuIndexingLoweringTest.descriptor(DataType.FLOAT64, outputShape,
+                        LayoutDescriptor.of(outputShape, new long[]{width * 2L, 2}, 3, true)),
+                List.of(CarrierAccess.MEMORY_SEGMENT, CarrierAccess.LONG_ARRAY,
+                        CarrierAccess.MEMORY_SEGMENT));
+        invoke(exact, List.of(data, indices, output), new long[3], 255, 258);
+        assertAll(
+                () -> assertEquals(11.0, output.get(ValueLayout.JAVA_DOUBLE_UNALIGNED,
+                        (3L + 2L * 255) * Double.BYTES)),
+                () -> assertEquals(22.0, output.get(ValueLayout.JAVA_DOUBLE_UNALIGNED,
+                        (3L + 2L * 256) * Double.BYTES)),
+                () -> assertEquals(33.0, output.get(ValueLayout.JAVA_DOUBLE_UNALIGNED,
+                        (3L + 2L * 257) * Double.BYTES)),
+                () -> assertEquals(0.0, output.get(ValueLayout.JAVA_DOUBLE_UNALIGNED,
+                        (3L + 2L * 254) * Double.BYTES)),
+                () -> assertEquals(0.0, output.get(ValueLayout.JAVA_DOUBLE_UNALIGNED,
+                        (3L + 2L * 258) * Double.BYTES)));
+
+        Shape smallDataShape = Shape.of(3, 2);
+        Shape smallIndexShape = Shape.of(2);
+        Shape smallOutputShape = Shape.of(2, 2);
+        var fallbackOutput = MemorySegment.ofArray(new double[4]);
+        var fallback = context(new Operation(AxisGatherKind.GATHER, new IndexAxisAttrs(0)),
+                List.of(0, 1), List.of(desc(DataType.FLOAT64, smallDataShape),
+                        desc(DataType.INT64, smallIndexShape)), desc(DataType.FLOAT64,
+                        smallOutputShape), List.of(CarrierAccess.MEMORY_SEGMENT,
+                        CarrierAccess.LONG_ARRAY, CarrierAccess.MEMORY_SEGMENT));
+        invoke(fallback, List.of(MemorySegment.ofArray(new double[]{10, 11, 20, 21, 30, 31}),
+                new long[]{2, 0}, fallbackOutput));
+        assertArrayEquals(new double[]{30, 31, 10, 11}, fallbackOutput.toArray(
+                ValueLayout.JAVA_DOUBLE));
+    }
+
+    @Test void guardedGatherNdCursorHonorsTupleBoundarySubrangesAndRetainsGeneralFallback()
+            throws Throwable {
+        int tuples = 4096;
+        int suffix = 16;
+        int count = 4 * tuples * suffix;
+        float[] data = new float[4 * 64 * 64 * suffix];
+        int[] indices = new int[4 * tuples * 2];
+        indices[0] = 3;
+        indices[1] = 7;
+        indices[2] = 5;
+        indices[3] = 11;
+        data[(3 * 64 + 7) * suffix + 15] = 11.0f;
+        data[(5 * 64 + 11) * suffix] = 22.0f;
+        data[(5 * 64 + 11) * suffix + 1] = 33.0f;
+        var output = MemorySegment.ofArray(new float[count * 2 + 9]);
+        Shape dataShape = Shape.of(4, 64, 64, suffix);
+        Shape indexShape = Shape.of(4, tuples, 2);
+        Shape outputShape = Shape.of(4, tuples, suffix);
+        var exact = context(new Operation(GatherNdKind.GATHER_ND, new GatherNdAttrs(1)),
+                List.of(0, 1), List.of(desc(DataType.FLOAT32, dataShape),
+                        desc(DataType.INT32, indexShape)),
+                CpuIndexingLoweringTest.descriptor(DataType.FLOAT32, outputShape,
+                        LayoutDescriptor.of(outputShape,
+                                new long[]{tuples * suffix * 2L, suffix * 2L, 2}, 4, true)),
+                List.of(CarrierAccess.FLOAT_ARRAY, CarrierAccess.INT_ARRAY,
+                        CarrierAccess.MEMORY_SEGMENT));
+        invoke(exact, List.of(data, indices, output), new long[3], 15, 18);
+        assertAll(
+                () -> assertEquals(11.0f, output.get(ValueLayout.JAVA_FLOAT_UNALIGNED,
+                        (4L + 2L * 15) * Float.BYTES)),
+                () -> assertEquals(22.0f, output.get(ValueLayout.JAVA_FLOAT_UNALIGNED,
+                        (4L + 2L * 16) * Float.BYTES)),
+                () -> assertEquals(33.0f, output.get(ValueLayout.JAVA_FLOAT_UNALIGNED,
+                        (4L + 2L * 17) * Float.BYTES)),
+                () -> assertEquals(0.0f, output.get(ValueLayout.JAVA_FLOAT_UNALIGNED,
+                        (4L + 2L * 14) * Float.BYTES)),
+                () -> assertEquals(0.0f, output.get(ValueLayout.JAVA_FLOAT_UNALIGNED,
+                        (4L + 2L * 18) * Float.BYTES)));
+
+        Shape smallDataShape = Shape.of(1, 2, 2, 2);
+        Shape smallIndexShape = Shape.of(1, 2, 2);
+        Shape smallOutputShape = Shape.of(1, 2, 2);
+        var fallbackOutput = MemorySegment.ofArray(new float[4]);
+        var fallback = context(new Operation(GatherNdKind.GATHER_ND, new GatherNdAttrs(1)),
+                List.of(0, 1), List.of(desc(DataType.FLOAT32, smallDataShape),
+                        desc(DataType.INT32, smallIndexShape)), desc(DataType.FLOAT32,
+                        smallOutputShape), List.of(CarrierAccess.FLOAT_ARRAY,
+                        CarrierAccess.INT_ARRAY, CarrierAccess.MEMORY_SEGMENT));
+        invoke(fallback, List.of(new float[]{10, 11, 20, 21, 30, 31, 40, 41},
+                new int[]{1, 0, 0, 1}, fallbackOutput));
+        assertArrayEquals(new float[]{30, 31, 20, 21}, fallbackOutput.toArray(
+                ValueLayout.JAVA_FLOAT));
+    }
+
     private static void invoke(PrepareContext<CpuPartitionAnalysisInputs> context,
             List<Object> carriers) throws Throwable {
+        var plan = new CpuPartitionPreparer().analyze(context).plan();
+        invoke(context, carriers, new long[carriers.size()], 0, plan.elementCount());
+    }
+
+    private static void invoke(PrepareContext<CpuPartitionAnalysisInputs> context,
+            List<Object> carriers, long[] bases, long start, long end) throws Throwable {
         var plan = new CpuPartitionPreparer().analyze(context).plan();
         var route = plan.units().getFirst().portablePlan();
         var generator = new CpuClassFileKernelGenerator();
         byte[] bytes = generator.generateClassBytes(route.specialization(), route.kernelIr());
         var artifact = generator.defineClassBytes(route.specialization(), bytes);
-        long[] bases = new long[carriers.size()];
-        long[] geometry = plan.indexingGeometry().orElseThrow().pack(bases, 0, plan.elementCount());
-        var args = new ArrayList<Object>(carriers); args.add(geometry); args.add(0L);
-        args.add(plan.elementCount()); artifact.entryPoint().invokeWithArguments(args);
+        long[] geometry = plan.indexingGeometry().orElseThrow().pack(bases, start, end);
+        var args = new ArrayList<Object>(carriers); args.add(geometry); args.add(start);
+        args.add(end); artifact.entryPoint().invokeWithArguments(args);
     }
     private static java.lang.classfile.CodeModel code(
             PrepareContext<CpuPartitionAnalysisInputs> context) {

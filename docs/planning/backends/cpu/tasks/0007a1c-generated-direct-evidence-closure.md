@@ -342,10 +342,10 @@ may change; otherwise stop and replan.
 - CPU 0007A1E, CPU 0007A1F, and CPU 0007A1G are Complete. Their retained evidence closes the
   movement general-address, canonical-BOOL STACK/ANY, and FOLD2D/dropout groups without closing
   this full task.
-- CPU 0007A1H is Complete and closes the bounded `N-MEAN-GENERAL` and `N-PROD-MULTI` cluster.
-  Detailed Ready [CPU 0007A1I](0007a1i-indexing-residual-parity.md) is the sole next task and owns
-  persistent `I-GATHER` and `I-GATHER-ND` through `CpuIndexingEmitter`. Other residual targets
-  remain Draft and unassigned.
+- CPU 0007A1H and CPU 0007A1I are Complete and close the bounded numerical-aggregate and indexing
+  clusters. Detailed Ready [CPU 0007A1J](0007a1j-cumulative-scan-residual-parity.md) is the sole
+  next task and owns persistent `C-SCAN-GENERAL` through `CpuScanEmitter`. The other four
+  persistent targets remain Draft and unassigned.
 - CPU 0007A2 remains Draft and blocked until all corrections close the frozen failures and CPU
   0007A1C can become Complete.
 - CPU 0009 remains the later repository-wide portable conformance checkpoint.
@@ -481,6 +481,10 @@ only the four-row `CpuDataMovementEmitter` cluster as detailed Ready CPU 0007A1E
   shape in CPU 0007A1D. That implementation is retained as a stable prerequisite but did not close
   parity. The next correction is CPU 0007A1E's four-row movement general-address-loop cluster;
   BOOL movement/aggregate and fold/dropout remain later ordered groups.
+- CPU 0007A1I subsequently closes both indexing rows at schema 37. Frozen semantics remain
+  `VERIFIED,20`; `I-GATHER` and `I-GATHER-ND` pass all five forks with medians `0.853338331x` and
+  `0.745954874x`, and all three controls pass. Exactly five rows remain persistent in the fresh
+  accepted evidence. CPU 0007A1J is the sole next Ready owner cluster.
 - Architecture and ADR no-change conclusion: no production owner, lifecycle, module boundary,
   dependency direction, backend ownership, Prepare/Runtime handoff, route, resource, capability,
   or semantic contract changed, so `ARCHITECTURE.md`, focused architecture pages, and ADRs remain
@@ -502,25 +506,25 @@ only the four-row `CpuDataMovementEmitter` cluster as detailed Ready CPU 0007A1E
 - Files changed or created by the implementation result: new
   `CpuGeneratedDirectEvidenceClosureTest.java`; this task and synchronized planning records are
   finalized by the documentation pass. No production Java changed in context 0007A1C.
-- Tests and validation: frozen semantics passed 20/20; fork 1 produced three passing and 17 failing
-  ratios. Frozen source, ledger, and all 20 generated-class SHA-256 manifests reverified. Forks
-  two through five and all downstream executable/documentation gates were not run because the stop
-  rule fired.
+- Tests and validation: original A1C semantics passed 20/20 and its first fork produced three
+  passing and 17 failing ratios before the owner stop. Fresh A1I evidence preserves
+  `VERIFIED,20`, passes 48 focused tests and 354 uncached CPU tests, and closes both indexing rows
+  plus all three controls across five forks. A1C remains incomplete because five rows still fail.
 - Documentation-agent review: mandatory clean documentation/planning context `/root`; General and
   Planning profiles were primary, with Backend Guide, API/Javadoc, and Example profiles applied to
   the no-change review.
-- Documentation impact: task, CPU master plan, roadmap, and the immediate detailed corrective task
-  require synchronization. The CPU backend guide remains accurate and receives no incomplete
-  benchmark claim.
+- Documentation impact: this task, CPU master plan, roadmap, and the immediate detailed corrective
+  task are synchronized. The CPU backend guide and glossary receive only accepted schema-37
+  indexing behavior and evidence, not incomplete residual claims.
 - Javadoc review: affected package/type Javadocs still describe schema-31 behavior and unchanged
   execution contracts; no edit or Javadoc generation is warranted.
 - Glossary impact: no reusable term or definition changed; no edit is warranted.
-- Unresolved issues: the final A1G evidence retains nine persistent deferred performance rows;
-  `M-CONCAT` has one anomalous `1.158060743x` fork but four passing A1G forks and completed A1E
-  evidence. All original closure gates intentionally stopped by this task remain open.
-- Follow-up required: CPU 0007A1E–CPU 0007A1H are Complete. Execute Ready CPU 0007A1I, then only
+- Unresolved issues: fresh accepted A1I evidence leaves exactly five persistent rows:
+  `P-SCALAR-GENERAL`, `A-GENERAL`, `S-GENERAL-MIN`, `C-SCAN-GENERAL`, and `X-MIN-MULTI`. All
+  original closure gates intentionally stopped by this task remain open until those rows close.
+- Follow-up required: CPU 0007A1E–CPU 0007A1I are Complete. Execute Ready CPU 0007A1J, then only
   later evidence-backed residual tasks in strict order; after every persistent frozen failure
   closes, resume the unchanged closure protocol and reconsider 0007A1C completion.
 
 Status: Incomplete
-Follow-up required: CPU 0007A1I and later ordered corrections must close all persistent frozen performance failures before CPU 0007A2.
+Follow-up required: CPU 0007A1J and later ordered corrections must close the five persistent frozen performance failures before CPU 0007A2.

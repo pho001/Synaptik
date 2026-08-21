@@ -227,8 +227,9 @@ created by 0005A. All consume the common analysis above; none creates another ba
 | 0007A1F | [BOOL movement and aggregate residual parity](tasks/0007a1f-bool-movement-and-aggregate-residual-parity.md) | Complete | 0007A1E | Added schema-34 cold-proved occurrence-major canonical-BOOL STACK copies and full-visit zero-stride ANY folds with typed general-long fallbacks; both targets and all three controls passed every fork at `<= 1.15x`. |
 | 0007A1G | [Fold and dropout residual parity](tasks/0007a1g-fold-and-dropout-residual-parity.md) | Complete | 0007A1F | Added schema-35 guarded bounded forms for the frozen mixed-carrier padded/dilated FLOAT32 FOLD2D and rank-one FLOAT32 dropout shapes with exact clean-Java algorithm/dataflow equivalence and typed general-long fallbacks; both targets and all three controls passed every fork at `<= 1.15x`. |
 | 0007A1H | [Numerical aggregate residual parity](tasks/0007a1h-numerical-aggregate-residual-parity.md) | Complete | 0007A1G | Added schema-36 guarded exact-state forms for frozen FLOAT32 axis-one MEAN and BFLOAT16 axes-zero/two PROD with typed fallbacks; both targets and all three controls passed every fork and median at `<= 1.15x`. |
-| 0007A1I | [Indexing residual parity](tasks/0007a1i-indexing-residual-parity.md) | Ready | 0007A1H | Correct persistent `I-GATHER` and `I-GATHER-ND` through the sole code-shaping owner `CpuIndexingEmitter`, preserving complete validation-before-write, mixed carriers, arbitrary legal output subranges, and typed general fallbacks. |
-| 0007A2 | Portable binding-aware sum-to-Shape reduction | Draft | 0007A1C; 0007A1D–0007A1I | Add `SUM` with exact `SumToShapeAttrs`, right-aligned bound-Shape validation, leading/aligned reduction geometry, all five numeric types, and truthful resources without dynamic unresolved execution. |
+| 0007A1I | [Indexing residual parity](tasks/0007a1i-indexing-residual-parity.md) | Complete | 0007A1H | Added schema-37 guarded primitive cursor forms for frozen mixed-carrier FLOAT64 GATHER and FLOAT32 GATHER_ND, including one fixed 16-element full-range suffix body inside the existing artifact; both targets and all controls passed every fork and median at `<= 1.15x`. |
+| 0007A1J | [Cumulative scan residual parity](tasks/0007a1j-cumulative-scan-residual-parity.md) | Ready | 0007A1I | Correct persistent `C-SCAN-GENERAL` through sole owner `CpuScanEmitter`, preserving exclusive reverse INT64 modular-product order, mixed segments, arbitrary legal complete-slice ranges, zero workspace, and typed fallback. |
+| 0007A2 | Portable binding-aware sum-to-Shape reduction | Draft | 0007A1C; 0007A1D–0007A1J | Add `SUM` with exact `SumToShapeAttrs`, right-aligned bound-Shape validation, leading/aligned reduction geometry, all five numeric types, and truthful resources without dynamic unresolved execution. |
 | 0007B | Portable arg-extrema coverage | Draft | 0007A | Add one-axis ARG_MIN/ARG_MAX with exact floating/integral order, first/last logical tie policy, INT64 indices, and deterministic scalar/parallel behavior. |
 | 0007C | Portable masked reduction coverage | Draft | 0007A1 | Add two-input masked SUM/MEAN with right-aligned mask broadcasting, false-position exclusion before aggregation, selected-count handling, empty-selection results, and truthful resource declarations. |
 | 0007D | Portable logarithmic, statistical, and norm reduction coverage | Draft | 0007A1 | Add LOG_SUM_EXP, VARIANCE, STANDARD_DEVIATION, L1_NORM, and L2_NORM with stable exact/default finite-precision algorithms, correction validity, special values, deterministic combination, and declared scratch where required. |
@@ -324,11 +325,11 @@ is `Complete`. Detailed
 `Complete`. Detailed CPU 0007A1C remains `Review needed`. Detailed CPU 0007A1D is also
 `Review needed`: schema 32 and its Java/semantic/Class-File gates are stable, but all 13 required
 performance targets failed the final fork. Detailed CPU 0007A1E is `Complete`; detailed CPU
-0007A1F, CPU 0007A1G, and CPU 0007A1H are `Complete`; detailed CPU 0007A1I is the sole next
-ordered `Ready` frontier. CPU 0007A2, CPU 0007B–0007F, and
+0007A1F through CPU 0007A1I are `Complete`; detailed CPU 0007A1J is the sole next ordered
+`Ready` frontier. CPU 0007A2, CPU 0007B–0007F, and
 every later CPU task remain `Draft` without later detailed specifications. This includes new CPU
 0008E, which extends the later Conv2d-heavy-family foundation to Conv3d and validates Conv1d
-through the explicit Conv2d composition; it is not an authorization to bypass CPU 0007A1I or the
+through the explicit Conv2d composition; it is not an authorization to bypass CPU 0007A1J or the
 ordered 0007A2–0008D work. CPU
 0006D is one bounded
 one-node family task because
@@ -372,9 +373,10 @@ targets and three controls passed all five forks, and the full probe stayed nonz
 or ten deferred diagnostic rows. CPU 0007A1H is Complete at schema 36: exact semantics remained
 `VERIFIED,20`; its guarded FLOAT32 axis-one MEAN and BFLOAT16 axes-zero/two PROD targets plus all
 three controls passed every fork and median at `<= 1.15x`; and the full probe stayed nonzero only
-for seven explicitly deferred rows. Detailed Ready CPU 0007A1I now owns persistent `I-GATHER`
-and `I-GATHER-ND` through `CpuIndexingEmitter`. Other residual targets remain Draft and
-unassigned, and CPU 0007A2 remains blocked.
+for seven explicitly deferred rows. CPU 0007A1I is Complete at schema 37: both indexing targets
+and all controls passed five forks, leaving exactly five persistent rows. Detailed Ready CPU
+0007A1J now owns `C-SCAN-GENERAL` through `CpuScanEmitter`; the other four residual targets remain
+Draft and unassigned, and CPU 0007A2 remains blocked.
 
 CPU 0007A0 is a corrective insertion based on the completed local audit under
 `/tmp/synaptik-bytecode-benchmark`. The audit measured the large dense generated scalar ADD at
@@ -642,8 +644,8 @@ detailed task 0006B2, detailed task 0006C, and detailed task 0006D are `Complete
 `Complete`; detailed 0007A0C, detailed 0007A0D, and detailed 0007A0E are `Complete`; detailed
 0007A0F is `Complete`; detailed CPU 0007A1, CPU 0007A1A, and CPU 0007A1B are `Complete`. CPU
 0007A1C and CPU 0007A1D are `Review needed`; detailed CPU 0007A1E is `Complete`, and detailed CPU
-0007A1F, CPU 0007A1G, and CPU 0007A1H are `Complete`, and detailed CPU 0007A1I is the sole next
-`Ready` frontier. CPU 0007A2–0017 remain ordered `Draft`
+0007A1F through CPU 0007A1I are `Complete`, and detailed CPU 0007A1J is the sole next `Ready`
+frontier. CPU 0007A2–0017 remain ordered `Draft`
 work without later detailed specifications.
 CPU 0005C preserves that exact slice and implements cold selection among all four portable
 strategies. It uses the preferred Java 26 FLOAT64 species only for direct contiguous runs and
@@ -664,8 +666,10 @@ Detailed CPU 0005D is Complete. CPU analysis can now compare direct access with 
 eligible contiguous input copy, append exact workspace ID `0` before assignment, and retain the
 original source separately from the adjusted generated consumer pattern. Finalization resolves
 every assignment before one artifact lookup; execution copies once before consumer work. The
-specialization budget is four complete candidates, one realized artifact, zero fixed-shape
-variants, and zero unrolled variants. Optional explicit-root persistence uses one bounded verified
+specialization budget is four complete candidates, one realized artifact, zero additional
+planner-visible fixed-shape variants, and zero additional planner-visible unrolled variants.
+Generation-time fixed-trip code within that one guarded artifact does not create another variant.
+Optional explicit-root persistence uses one bounded verified
 current-schema envelope. The recorded six-fixture Oracle JDK 26.0.1 evidence verdict is
 `KEEP_DISABLED`, so default persistence remains off. Class bytes, JVM JIT machine code/profile,
 and the future workload tuning cache remain distinct.
@@ -807,8 +811,8 @@ and detailed CPU 0007A is `Complete`; corrective CPU 0007A0, CPU 0007A0A, and CP
 `Complete`; detailed CPU 0007A0C, CPU 0007A0D, and CPU 0007A0E are `Complete`; detailed CPU
 0007A0F is `Complete`. Detailed CPU 0007A1, CPU 0007A1A, and CPU 0007A1B are `Complete`; CPU
 0007A1C and CPU 0007A1D are `Review needed`, detailed CPU 0007A1E is `Complete`, detailed CPU
-0007A1F, CPU 0007A1G, and CPU 0007A1H are `Complete`, detailed CPU 0007A1I is the sole next
-`Ready` frontier,
+0007A1F through CPU 0007A1I are `Complete`, detailed CPU 0007A1J is the sole next `Ready`
+frontier,
 and later work remains ordered `Draft`.
 
 Detailed CPU 0006A1 is Complete. It extends the same movement pipeline with one fully static,
@@ -951,11 +955,11 @@ the work at the active frontier.
   and binding-geometry boundaries: detailed Complete 0007A owns full/single-/multi-axis MIN/MAX/ALL/
   ANY with zero workspace; Complete 0007A1 delivers ordinary SUM/MEAN/PROD and its
   explicit accumulator design. Complete corrective 0007A1A and 0007A1B, incomplete 0007A1C and
-  0007A1D, and corrective 0007A1E–0007A1I precede Draft 0007A2, which owns binding-aware
+  0007A1D, and corrective 0007A1E–0007A1J precede Draft 0007A2, which owns binding-aware
   target-Shape SUM. Draft 0007B owns arg
   extrema; Draft 0007C owns masked reductions; Draft 0007D owns logarithmic/statistical/norm
   reductions; Draft 0007E owns stable softmax/log-softmax; and Draft 0007F owns layer/RMS/batch
-  normalization. CPU 0007A1I is the latest detailed specification and sole `Ready` task.
+  normalization. CPU 0007A1J is the latest detailed specification and sole `Ready` task.
 - CPU 0007 is first because the closed cumulative-scan family is independently executable and
   has no aggregate-combination dependency. Partitioning only across complete logical scan slices
   preserves one sequential typed accumulation order, requires no partial/combine workspace, and
@@ -994,9 +998,10 @@ the work at the active frontier.
   CPU 0007A1D retained schema-32 invocation-local segment layouts but failed all 13 target ratios;
   it remains incomplete. Complete CPU 0007A1E owns the four-row movement general-address-loop
   cluster. Complete CPU 0007A1F owns the BOOL movement/aggregate group, Complete CPU 0007A1G owns
-  the fold/dropout group, Complete CPU 0007A1H owns the numerical aggregate group, and Ready CPU
-  0007A1I owns the indexing group, while other residual owners remain Draft until supported by
-  new evidence. CPU 0007A1I alone has a detailed `Ready` specification. This insertion is ordered corrective work
+  the fold/dropout group, Complete CPU 0007A1H owns the numerical aggregate group, Complete CPU
+  0007A1I owns the indexing group, and Ready CPU 0007A1J owns the scan row, while other residual
+  owners remain Draft until supported by new evidence. CPU 0007A1J alone has a detailed `Ready`
+  specification. This insertion is ordered corrective work
   and does not change architecture authority. CPU 0007A2 and later rows stay ordered `Draft`.
 - CPU 0006D selects `SYNAPTIK_CPU_SPLITMIX64_COUNTER_V1`: `mix64` uses shifts 30/27/31 and
   multipliers `0xbf58476d1ce4e5b9`/`0x94d049bb133111eb` after key bias
@@ -1109,8 +1114,10 @@ the work at the active frontier.
 - A default generated class is specialized to one canonical computation topology plus structural
   access regime, fusion form, types, selected route/strategy/configuration, numerical/determinism
   policy, and compatibility facts. Compatible concrete extents, element count, offsets, carriers,
-  addresses, slots, graph identities, and run identity are cold-bound and excluded. Fixed-shape or
-  unrolled variants require explicit later evidence and consume a bounded specialization budget.
+  addresses, slots, graph identities, and run identity are cold-bound and excluded. Additional
+  fixed-shape or unrolled preparation variants require explicit later evidence and consume a
+  bounded specialization budget; fixed-trip code emitted inside one guarded artifact is not a
+  separate variant.
 - Cold binding resolves observable heap primitive carriers, exact `MemorySegment` values whose
   matching carrier is unavailable, and mixed signatures into direct typed entry-point arguments. Generated
   hot code performs no heap-base discovery, generic type check, route choice, cache lookup, or

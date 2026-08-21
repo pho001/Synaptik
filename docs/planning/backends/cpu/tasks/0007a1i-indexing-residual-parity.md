@@ -2,7 +2,7 @@
 
 ## Status
 
-Ready
+Complete
 
 ## Goal
 
@@ -11,7 +11,7 @@ through their sole code-shaping owner, `CpuIndexingEmitter`. Preserve the frozen
 semantics, complete validation-before-write behavior, mixed carriers, arbitrary legal output
 subranges, typed general fallbacks, and direct-clean-Java algorithm/dataflow equivalence.
 
-This is the sole next bounded corrective task after completed CPU 0007A1H.
+This was the sole next bounded corrective task after completed CPU 0007A1H.
 
 ## Frozen source evidence
 
@@ -26,6 +26,21 @@ CPU 0007A1H retained the unchanged CPU 0007A1C sources and five isolated forks u
 Both rows fail every fork and their aggregate. They form one persistent indexing-owner cluster,
 not a one-fork anomaly.
 
+## Accepted A1I results
+
+| Row | Fork 1 | Fork 2 | Fork 3 | Fork 4 | Fork 5 | Median | Worst fork | Verdict |
+|---|---:|---:|---:|---:|---:|---:|---:|---|
+| `I-GATHER` | `0.853338331x` | `0.851617604x` | `0.874533105x` | `0.847429053x` | `0.856840663x` | `0.853338331x` | `0.874533105x` | PASS |
+| `I-GATHER-ND` | `0.772532795x` | `0.745954874x` | `0.733345077x` | `0.734642354x` | `0.764566936x` | `0.745954874x` | `0.772532795x` | PASS |
+| `P-VECTOR-SEGMENT` | `0.961167038x` | `0.966641711x` | `0.996243322x` | `0.998655161x` | `0.983858301x` | `0.983858301x` | `0.998655161x` | PASS |
+| `P-INTEGRAL-MIXED` | `0.315333488x` | `0.318740794x` | `0.317664647x` | `0.316313589x` | `0.313898621x` | `0.316313589x` | `0.318740794x` | PASS |
+| `O-ARGSORT` | `0.874891306x` | `0.881392400x` | `0.865168513x` | `0.870481402x` | `0.894715398x` | `0.874891306x` | `0.894715398x` | PASS |
+
+All five full probe processes exited nonzero only because the same five deferred diagnostic rows
+exceeded the gate: `P-SCALAR-GENERAL`, `A-GENERAL`, `S-GENERAL-MIN`, `C-SCAN-GENERAL`, and
+`X-MIN-MULTI`. The accepted result closes the two A1I targets and three controls; it is not a full
+twenty-row performance pass.
+
 ## Scope
 
 - Inspect the frozen `GATHER` and `GATHER_ND` target classes and the equivalent clean Java
@@ -33,7 +48,7 @@ not a one-fork anomaly.
 - Add only fully runtime-guarded proved branches to `CpuIndexingEmitter`; retain the current typed
   general paths as fallbacks when any proof condition is absent.
 - Preserve all validation and failure behavior before the first destination write, including
-  negative-index normalization, bounds checks, Shape/axis/batch-dimension rules, carrier
+  negative-index rejection, bounds checks, Shape/axis/batch-dimension rules, carrier
   combinations, alias safety, and arbitrary legal output-cell subranges.
 - Keep generated target classes field-free with one typed static `invoke` and no allocation,
   reflection, dynamic construct, generic bridge, or Synaptik runtime reference.
@@ -64,6 +79,21 @@ not a one-fork anomaly.
 - Generated code must match the specialized clean Java oracle in semantic algorithm, loop/dataflow
   shape, and avoidable-overhead profile.
 
+## Package impact
+
+Existing packages used:
+
+- `io.github.pho001.synaptik.backend.cpu.internal.codegen.emit` — sole indexing code-shaping owner
+  and its generated-kernel test.
+- `io.github.pho001.synaptik.backend.cpu.internal.cache` — generator-schema compatibility.
+- `io.github.pho001.synaptik.backend.cpu.internal.prepare` — current-schema finalization wording
+  and existing schema assertion owners.
+
+Packages added or changed: None.
+
+Type placement remains unchanged. `CpuIndexingEmitter` owns only CPU-private generated indexing
+body shape; no public or shared type was added.
+
 ## Affected files
 
 Expected implementation paths are `CpuIndexingEmitter`, `CpuGeneratorSchema` if bytes change, the
@@ -74,6 +104,14 @@ guide, glossary, this task, CPU 0007A1C, CPU master plan, and roadmap.
 
 If another production owner, module, benchmark case, shared contract, or architecture decision is
 needed, stop and report the conflict.
+
+## Maximum scope
+
+The completed implementation uses exactly nine Java/test paths: one algorithm-shaping owner, the
+schema owner, two package summaries, the indexing owner test, and four existing schema-assertion
+tests. Documentation/planning is limited to the CPU guide, glossary, A1I, A1C, CPU master plan,
+roadmap, and one detailed next-frontier task. No second production owner, IR/lowering/resource
+change, module, public API, or build path is authorized.
 
 ## Acceptance criteria
 
@@ -113,10 +151,12 @@ Do not repeat a successful Java suite in that pass unless executable Java behavi
 
 ## Follow-up tasks
 
-- Select at most one later bounded owner cluster from fresh accepted evidence; do not pre-authorize
-  or execute it in this task.
+- Detailed Ready [CPU 0007A1J](0007a1j-cumulative-scan-residual-parity.md) is the sole next task.
+  It owns only persistent `C-SCAN-GENERAL` through `CpuScanEmitter`.
+- The other four persistent rows remain Draft and unassigned.
 - Resume CPU 0007A1C closure only after all persistent frozen failures close.
-- CPU 0007A2 remains Draft and blocked behind CPU 0007A1C and all corrective residual work.
+- CPU 0007A2 remains Draft and blocked behind CPU 0007A1C and all corrective residual work,
+  including CPU 0007A1J.
 
 ## Implementation prompt
 
@@ -128,6 +168,79 @@ fully guarded proved `I-GATHER` and `I-GATHER-ND` branches in `CpuIndexingEmitte
 fallbacks, validate proportionately, retain complete evidence, and request a distinct clean
 documentation pass. Do not commit, push, or stage.
 
+## Local decisions
+
+- Schema advances exactly once from 36 to 37 because both target generated classes change.
+- The guarded full GATHER_ND body emits its proved suffix length of 16 as a generation-time
+  straight-line primitive sequence. This is code shape inside the one selected artifact, not a
+  separate fixed-shape/unrolled planner variant, cache identity, route, or Runtime choice.
+- `C-SCAN-GENERAL` is selected next because it is a single-owner, zero-workspace scan cluster with
+  completed semantic and generated-body dependencies. The larger scatter ratio does not outweigh
+  scatter's separate copy/update/reduction ownership concerns.
+
+## Known limitations
+
+- Ratios apply only to the frozen cases, Java 26.0.1, recorded host, and protocol. They do not
+  establish universal indexing performance or select production settings.
+- Five persistent rows remain, so CPU 0007A1C remains incomplete and CPU 0007A2 remains blocked.
+
+## Validation evidence
+
+Implementation context `01a02320-8da5-70f0-a651-c90b1a327498` retained the complete bundle at
+`/private/tmp/synaptik-cpu-0007a1i-jNhVIZ7F`. Frozen source checksums verify, exact semantics report
+`VERIFIED,20`, the focused six-owner command passed 48 tests, and the authoritative uncached
+`./gradlew :backends:cpu:test --rerun-tasks` run passed 354 tests with zero failures, errors, or
+skips. CPU Javadoc passed in the implementation context.
+
+All two targets and three controls passed every required fork and cross-fork median at
+`<= 1.15x`. Exactly five deferred rows remained in every fork. Both target generated classes are
+field-free final classes with exactly one typed static `invoke`, no constructor or bridge, and no
+allocation, reflection, dynamic construct, generic `Object` descriptor, Synaptik-runtime
+reference, division, or remainder finding. Complete `javap -c -p`, `javap -v -p`, classes, raw
+forks, structural and hot-loop reports, immutable inputs, environment, commands, validation
+summary, implementation patch, inventory, and SHA-256 manifests are retained.
+
+Clean documentation context `01a02345-628c-78d1-8e94-db62730b207e` selected the General,
+API/Javadoc, Backend Guide, and Planning profiles. It independently reviewed the implementation,
+tests, generated Javadoc, complete evidence bundle, guide, glossary, and planning contracts. It
+changed no executable Java or test and reused the accepted Java/timing evidence. Final CPU
+Javadoc, Markdown/link/anchor/fence/final-newline, schema/status/frontier, exact-path, staging,
+inventory/checksum, and whitespace results are recorded with the final evidence bundle.
+
+## Implementation notes
+
+- The guarded FLOAT64 GATHER form uses primitive row/column and source/output cursors for the
+  frozen mixed segment/array/segment geometry and preserves arbitrary legal partial ranges.
+- The guarded FLOAT32 GATHER_ND form loads each tuple pair once per suffix block. Its full-range
+  body emits 16 adjacent primitive load/store cursor steps; partial ranges use a bounded suffix
+  cursor loop. Every failed proof enters the existing typed general-long fallback.
+- Complete validation remains outside and before generated output work. Capabilities, semantics,
+  resources, lowering, routes, Prepare/Runtime behavior, public API, dependencies, and build are
+  unchanged.
+
 ## Completion summary
 
-Empty until implemented.
+- Completed changes: added schema-37 guarded primitive cursor bodies for the two frozen indexing
+  rows, preserved validation-before-write and typed fallbacks, finalized affected Javadocs and
+  package summaries, documented bounded evidence and the variant-budget distinction, and
+  synchronized A1I/A1C/master/roadmap status.
+- Files changed or created by the documentation pass: `CpuGeneratorSchema.java`,
+  `CpuIndexingEmitter.java`, cache and prepare `package-info.java`, CPU backend guide, glossary,
+  this task, A1C, CPU master plan, roadmap, and new A1J. No executable Java behavior or test was
+  changed by the documentation pass.
+- Tests and validation: reused the implementation context's 48 focused tests, 354-test uncached
+  CPU suite, `VERIFIED,20`, Class-File, and five-fork evidence; ran documentation-only validation
+  after the final edits.
+- Documentation-agent review: clean context `01a02345-628c-78d1-8e94-db62730b207e`.
+- Documentation impact: CPU-private generated indexing/schema behavior, package contracts, guide,
+  glossary, and planning evidence only.
+- Javadoc review: affected type/member and package Javadocs remain meaningful and distinguish the
+  fixed emitted suffix body from planner-visible variants; CPU Javadoc passes.
+- Glossary impact: current schema/artifact/indexing definitions advance to schema 37; no new
+  reusable term was introduced.
+- Unresolved issues: five deferred performance rows remain; A1C and A1D remain `Review needed`/
+  Incomplete, and this task does not close the twenty-row comparison.
+- Follow-up required: execute Ready CPU 0007A1J, then select only evidence-backed residual owner
+  clusters; resume A1C only after all five rows close. CPU 0007A2 remains blocked.
+
+Status: Complete

@@ -60,6 +60,12 @@ package io.github.pho001.synaptik.backend.cpu.internal.cache;
  * MEAN with domain {@code 2048} and BFLOAT16 axes-zero-and-two PROD shapes. The guarded forms
  * preserve the existing run-owned state, arbitrary legal output-cell subranges, and typed
  * general-long fallbacks.
+ * Schema 37 adds guarded primitive cursor loops for the frozen mixed-carrier FLOAT64 GATHER and
+ * FLOAT32 GATHER_ND geometries. These forms hoist index tuple reads outside contiguous suffix
+ * writes; the completely guarded GATHER_ND body emits its fixed suffix length of 16 as one
+ * generation-time straight-line sequence inside the existing artifact rather than as another
+ * planner-visible unrolled variant. Both forms accept arbitrary legal output subranges and retain
+ * the typed general-long fallbacks.
  * The optional persistent envelope stores this version and has no legacy reader, migration path,
  * or converter.
  */
@@ -93,10 +99,13 @@ public final class CpuGeneratorSchema {
      * FLOAT32 FOLD2D and rank-one explicit-state FLOAT32 dropout shapes while retaining their
      * typed general-long fallbacks; schema 36 adds guarded exact-state cursor forms for the
      * frozen mixed-carrier FLOAT32 axis-one MEAN and BFLOAT16 axes-zero-and-two PROD shapes while
-     * preserving exact run-owned state and typed general-long fallbacks.
+     * preserving exact run-owned state and typed general-long fallbacks; schema 37 adds guarded
+     * primitive cursor loops for the frozen mixed-carrier FLOAT64 GATHER and FLOAT32 GATHER_ND
+     * geometries, including one guarded generation-time fixed 16-element GATHER_ND suffix body,
+     * while retaining arbitrary legal subranges and typed general-long fallbacks.
      * Envelopes written for earlier schemas are incompatible misses.
      */
-    public static final int CURRENT_VERSION = 36;
+    public static final int CURRENT_VERSION = 37;
     /** Generated entry name. */ public static final String ENTRY_NAME = "invoke";
     private CpuGeneratorSchema() { }
 
