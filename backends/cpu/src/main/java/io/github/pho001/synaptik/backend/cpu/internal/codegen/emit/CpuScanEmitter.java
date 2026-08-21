@@ -23,12 +23,19 @@ import java.lang.foreign.ValueLayout;
  * INT32/INT64 wrap at their represented width. The generated BFLOAT16 body calls no Synaptik
  * runtime helper. The body allocates no
  * per-slice or per-element object and owns no worker, workspace, or persistent accumulator.
- * Dense rank-one heap-array scans use one-time integer base narrowing and a direct typed loop;
- * other resolved layouts use typed long addresses and decode non-axis coordinates once per
- * slice.</p>
+ * Dense rank-one heap-array scans use one-time integer base narrowing and a direct typed loop.
+ * One completely guarded fixed {@code [1024,1024]} axis-one exclusive reverse INT64 product form
+ * over two {@link MemorySegment} carriers uses direct {@link ValueLayout#JAVA_LONG_UNALIGNED}
+ * access and descending invocation-local element cursors for arbitrary legal complete-slice
+ * subranges. Every unproved geometry uses the typed general body, which decodes non-axis
+ * coordinates once per slice. Neither form requests workspace or materialization.</p>
  */
 public final class CpuScanEmitter {
     private static final ClassDesc FLOAT = ClassDesc.of(Float.class.getName());
+    private static final ClassDesc SEGMENT = ClassDesc.of(MemorySegment.class.getName());
+    private static final ClassDesc VALUE_LAYOUT = ClassDesc.of(ValueLayout.class.getName());
+    private static final ClassDesc LONG_LAYOUT =
+            ClassDesc.of("java.lang.foreign.ValueLayout$OfLong");
     private static final DataType[] TYPES = DataType.values();
     /** Creates a stateless emitter with no retained specialization or invocation state. */
     public CpuScanEmitter() { }
@@ -62,7 +69,94 @@ public final class CpuScanEmitter {
                     == CpuAccessPlan.Regime.DENSE_LINEAR);
         if (denseRankOneArrays) emitDenseRankOne(code, specialization, type, product,
                 exclusive, reverse);
+        else if (provedReverseInt64ProductSegments(specialization, type, product, exclusive,
+                reverse, rank, axis)) emitGuardedReverseInt64ProductSegments(code, specialization,
+                        type, product, exclusive, reverse, rank, axis);
         else emitGeneral(code, specialization, type, product, exclusive, reverse, rank, axis);
+    }
+
+    private static boolean provedReverseInt64ProductSegments(
+            CpuKernelSpecialization specialization, DataType type, boolean product,
+            boolean exclusive, boolean reverse, int rank, int axis) {
+        return type == DataType.INT64 && product && exclusive && reverse && rank == 2 && axis == 1
+                && specialization.carrierPattern().stream().allMatch(
+                        access -> access == CpuKernelSpecialization.CarrierAccess.MEMORY_SEGMENT);
+    }
+
+    private static void emitGuardedReverseInt64ProductSegments(CodeBuilder code,
+            CpuKernelSpecialization specialization, DataType type, boolean product,
+            boolean exclusive, boolean reverse, int rank, int axis) {
+        var fallback = code.newLabel();
+        var done = code.newLabel();
+        guardPackedLong(code, fallback, 0, 1); // CUM_PROD
+        guardPackedLong(code, fallback, 1, DataType.INT64.ordinal());
+        guardPackedLong(code, fallback, 2, 2);
+        guardPackedLong(code, fallback, 3, 1);
+        guardPackedLong(code, fallback, 4, 1);
+        guardPackedLong(code, fallback, 5, 1);
+        guardPackedLong(code, fallback, 6, 1024);
+        guardPackedLong(code, fallback, 7, 1024);
+        guardPackedLong(code, fallback, 10, 2);
+        guardPackedLong(code, fallback, 12, 1024);
+        guardPackedLong(code, fallback, 13, 1024);
+        guardPackedLong(code, fallback, 14, 2048);
+        guardPackedLong(code, fallback, 15, 2);
+        guardPackedLong(code, fallback, 16, 2);
+        guardPackedLong(code, fallback, 18, 1024);
+        guardPackedLong(code, fallback, 19, 1024);
+        guardPackedLong(code, fallback, 20, 2048);
+        guardPackedLong(code, fallback, 21, 2);
+        code.lload(3).loadConstant(0L).lcmp().branch(Opcode.IFLT, fallback);
+        code.lload(5).loadConstant(1024L).lcmp().branch(Opcode.IFGT, fallback);
+        code.lload(3).lload(5).lcmp().branch(Opcode.IFGT, fallback);
+        emitReverseInt64ProductSegmentCursors(code, done);
+        code.branch(Opcode.GOTO, done);
+        code.labelBinding(fallback);
+        emitGeneral(code, specialization, type, product, exclusive, reverse, rank, axis);
+        code.labelBinding(done);
+    }
+
+    private static void guardPackedLong(CodeBuilder code, java.lang.classfile.Label fallback,
+            int index, long expected) {
+        code.aload(2).loadConstant(index).laload().loadConstant(expected).lcmp()
+                .branch(Opcode.IFNE, fallback);
+    }
+
+    private static void emitReverseInt64ProductSegmentCursors(CodeBuilder code,
+            java.lang.classfile.Label done) {
+        int slice = code.allocateLocal(TypeKind.LONG);
+        code.lload(3).lstore(slice);
+        code.lload(slice).lload(5).lcmp().branch(Opcode.IFGE, done);
+        int inputAddress = code.allocateLocal(TypeKind.LONG);
+        int outputAddress = code.allocateLocal(TypeKind.LONG);
+        int accumulator = code.allocateLocal(TypeKind.LONG);
+        int value = code.allocateLocal(TypeKind.LONG);
+        int remaining = code.allocateLocal(TypeKind.INT);
+        var slices = code.newLabel();
+        var elements = code.newLabel();
+        code.labelBinding(slices);
+        code.aload(2).loadConstant(11).laload().lload(slice).loadConstant(2048L).lmul()
+                .ladd().loadConstant(2046L).ladd().lstore(inputAddress);
+        code.aload(2).loadConstant(17).laload().lload(slice).loadConstant(2048L).lmul()
+                .ladd().loadConstant(2046L).ladd().lstore(outputAddress);
+        code.loadConstant(1L).lstore(accumulator);
+        code.loadConstant(1024).istore(remaining);
+        code.labelBinding(elements);
+        code.aload(1).getstatic(VALUE_LAYOUT, "JAVA_LONG_UNALIGNED", LONG_LAYOUT)
+                .lload(outputAddress).loadConstant(8L).lmul().lload(accumulator)
+                .invokeinterface(SEGMENT, "set", MethodTypeDesc.of(ConstantDescs.CD_void,
+                        LONG_LAYOUT, ConstantDescs.CD_long, ConstantDescs.CD_long));
+        code.aload(0).getstatic(VALUE_LAYOUT, "JAVA_LONG_UNALIGNED", LONG_LAYOUT)
+                .lload(inputAddress).loadConstant(8L).lmul()
+                .invokeinterface(SEGMENT, "get", MethodTypeDesc.of(ConstantDescs.CD_long,
+                        LONG_LAYOUT, ConstantDescs.CD_long));
+        code.lstore(value);
+        code.lload(accumulator).lload(value).lmul().lstore(accumulator);
+        code.lload(inputAddress).loadConstant(2L).lsub().lstore(inputAddress);
+        code.lload(outputAddress).loadConstant(2L).lsub().lstore(outputAddress);
+        code.iinc(remaining, -1).iload(remaining).branch(Opcode.IFGT, elements);
+        code.lload(slice).loadConstant(1L).ladd().lstore(slice);
+        code.lload(slice).lload(5).lcmp().branch(Opcode.IFLT, slices);
     }
 
     private static int integerAfter(String value, String marker) {

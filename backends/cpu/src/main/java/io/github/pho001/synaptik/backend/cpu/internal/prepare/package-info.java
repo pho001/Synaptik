@@ -17,7 +17,7 @@
  * never benchmark; optional persistence only performs bounded verified lookup/store work.
  * Indexing plans declare unique inputs followed by one output, select scalar or parallel-scalar
  * output execution, declare no workspace, and retain compact validation/write geometry. Their
- * one generated artifact contains only the output-writing pass. Current schema 37 may select
+ * one generated artifact contains only the output-writing pass. Current schema 38 may select
  * guarded primitive cursor bodies for the frozen GATHER and GATHER_ND geometries while retaining
  * the same declarations, arbitrary legal subranges, and typed fallback inside that artifact.
  * Functional-scatter plans likewise declare unique inputs followed by one output and select
@@ -29,24 +29,27 @@
  * Fold plans declare exactly one input and one output buffer, select scalar or parallel-scalar
  * disjoint output ranges, retain compact geometry, and declare no workspace or materialization.
  * Schema 17 introduced their generated compatibility; finalization realizes the current
- * schema-37 artifact, including only guarded cold-proved forms admitted by that artifact.
+ * schema-38 artifact, including only guarded cold-proved forms admitted by that artifact.
  * Ordering plans declare one input followed by one SORT/ARGSORT output or ordered TOP_K values
  * and INT64-index outputs. They select scalar or complete-slice parallel-scalar execution and
  * declare one exact run-owned workspace with disjoint two-region INT64 merge scratch per selected
  * range. Finalization verifies all three TOP_K bindings, the workspace assignment, and the
- * current schema-37 signature before realizing one multi-store artifact; schema 18 introduced
+ * current schema-38 signature before realizing one multi-store artifact; schema 18 introduced
  * the ordering-family compatibility facts.
  * Explicit-state random plans declare one initializer output or five dropout buffers in exact
  * boundary order and no workspace. Parallel dropout reuses one scalar artifact over disjoint
  * logical ranges after complete cold overlap validation.
  * Cumulative-scan plans declare input then output, retain the independent slice count as their
  * execution domain, and select scalar or whole-slice parallel-scalar orchestration. They declare
- * no workspace or materialization, and finalization realizes one current schema-37 artifact that
- * embeds the typed scan body introduced by schema 22 while retaining the scan compatibility
- * identity introduced by schema 20.
+ * no workspace or materialization, and finalization realizes one current schema-38 artifact that
+ * embeds the typed scan body introduced by schema 22, may use the completely guarded fixed
+ * {@code [1024,1024]} axis-one exclusive reverse INT64 product segment-cursor form for arbitrary
+ * legal complete-slice subranges, and retains the scan compatibility identity introduced by
+ * schema 20. The guarded form changes neither the two-buffer declaration nor the zero-workspace,
+ * zero-materialization contract, and every unproved geometry uses the typed general fallback.
  * Ordinary aggregate plans likewise declare input then output and select scalar or complete-
  * output-cell parallel-scalar orchestration. They retain canonical selected-axis membership and
- * realize one current schema-37 artifact. Floating numerical rows declare exact run-owned
+ * realize one current schema-38 artifact. Floating numerical rows declare exact run-owned
  * per-range state before assignment; integral numerical, extrema, and Boolean rows declare no
  * workspace. Guarded numerical aggregate bodies change neither the declared workspace size nor
  * its range slicing and retain the typed general fallback. No aggregate plan selects

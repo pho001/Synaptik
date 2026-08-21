@@ -66,6 +66,10 @@ package io.github.pho001.synaptik.backend.cpu.internal.cache;
  * generation-time straight-line sequence inside the existing artifact rather than as another
  * planner-visible unrolled variant. Both forms accept arbitrary legal output subranges and retain
  * the typed general-long fallbacks.
+ * Schema 38 adds one completely guarded fixed {@code [1024,1024]} axis-one exclusive reverse
+ * INT64 cumulative-product body over two {@code MemorySegment} carriers. The proved body uses
+ * direct unaligned long access and descending element cursors for arbitrary legal complete-slice
+ * subranges; every unproved geometry retains the typed general-long fallback.
  * The optional persistent envelope stores this version and has no legacy reader, migration path,
  * or converter.
  */
@@ -102,10 +106,13 @@ public final class CpuGeneratorSchema {
      * preserving exact run-owned state and typed general-long fallbacks; schema 37 adds guarded
      * primitive cursor loops for the frozen mixed-carrier FLOAT64 GATHER and FLOAT32 GATHER_ND
      * geometries, including one guarded generation-time fixed 16-element GATHER_ND suffix body,
-     * while retaining arbitrary legal subranges and typed general-long fallbacks.
+     * while retaining arbitrary legal subranges and typed general-long fallbacks; schema 38 adds
+     * one completely guarded fixed {@code [1024,1024]} axis-one exclusive reverse INT64
+     * cumulative-product segment-cursor body with direct unaligned long access and arbitrary
+     * legal complete-slice subranges, while retaining the typed general-long fallback.
      * Envelopes written for earlier schemas are incompatible misses.
      */
-    public static final int CURRENT_VERSION = 37;
+    public static final int CURRENT_VERSION = 38;
     /** Generated entry name. */ public static final String ENTRY_NAME = "invoke";
     private CpuGeneratorSchema() { }
 

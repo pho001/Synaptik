@@ -4,15 +4,23 @@ import static org.junit.jupiter.api.Assertions.*;
 import io.github.pho001.synaptik.backend.cpu.internal.cache.CpuKernelSpecialization.CarrierAccess;
 import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuScanLoweringTest;
 import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuPartitionLowering;
+import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuIndexingLoweringTest;
+import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuScatterLoweringTest;
 import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuScanIr;
 import io.github.pho001.synaptik.backend.cpu.internal.memory.CpuBufferArgument;
 import io.github.pho001.synaptik.backend.cpu.internal.reference.CpuScalarReferenceKernel;
 import io.github.pho001.synaptik.backend.cpu.internal.prepare.CpuPartitionAnalysisInputs;
 import io.github.pho001.synaptik.backend.cpu.internal.prepare.CpuPartitionPreparer;
 import io.github.pho001.synaptik.model.datatype.DataType;
+import io.github.pho001.synaptik.model.layout.LayoutDescriptor;
+import io.github.pho001.synaptik.model.operation.Operation;
+import io.github.pho001.synaptik.model.operation.scan.CumulativeScanAttrs;
 import io.github.pho001.synaptik.model.operation.scan.CumulativeScanKind;
 import io.github.pho001.synaptik.model.shape.Shape;
 import io.github.pho001.synaptik.prepare.analysis.PrepareContext;
+import java.lang.foreign.Arena;
+import java.lang.foreign.MemorySegment;
+import java.lang.foreign.ValueLayout;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
@@ -123,6 +131,82 @@ class CpuScanGeneratedKernelTest {
                 compare(kind, DataType.INT64, exclusive, reverse,
                         new long[]{1,-2,Long.MAX_VALUE,4,0,7});
             }
+    }
+
+    @Test void guardedReverseInt64ProductUsesCursorsForExactGeometryAndFallbackOtherwise()
+            throws Throwable {
+        Shape shape = Shape.of(1024, 1024);
+        var inputLayout = LayoutDescriptor.of(shape, new long[] {2048, 2}, 3, true);
+        var outputLayout = LayoutDescriptor.of(shape, new long[] {2048, 2}, 4, true);
+        var context = CpuScatterLoweringTest.context(new Operation(CumulativeScanKind.CUM_PROD,
+                        new CumulativeScanAttrs(1, true, true)), List.of(0),
+                List.of(CpuIndexingLoweringTest.descriptor(
+                        DataType.INT64, shape, inputLayout)),
+                CpuIndexingLoweringTest.descriptor(DataType.INT64, shape, outputLayout));
+        PrepareContext<CpuPartitionAnalysisInputs> prepared = new PrepareContext<>(
+                context.partition(), context.nodes(), context.values(), context.memoryRequirements(),
+                Map.of(), new CpuPartitionAnalysisInputs(false,
+                        List.of(CarrierAccess.MEMORY_SEGMENT, CarrierAccess.MEMORY_SEGMENT)));
+        var plan = new CpuPartitionPreparer().analyze(prepared).plan();
+        var route = plan.units().getFirst().portablePlan();
+        var generator = new CpuClassFileKernelGenerator();
+        byte[] bytes = generator.generateClassBytes(route.specialization(), route.kernelIr());
+        var artifact = generator.defineClassBytes(route.specialization(), bytes);
+        var instructions = ClassFile.of().parse(bytes).methods().getFirst().code().orElseThrow()
+                .elementStream().filter(Instruction.class::isInstance)
+                .map(Instruction.class::cast).toList();
+        assertAll(
+                () -> assertEquals(1, instructions.stream()
+                        .filter(instruction -> instruction.opcode() == Opcode.LDIV).count()),
+                () -> assertEquals(1, instructions.stream()
+                        .filter(instruction -> instruction.opcode() == Opcode.LREM).count()));
+
+        try (Arena arena = Arena.ofConfined()) {
+            long capacity = (2L * 1024 * 1024 + 4096) * Long.BYTES;
+            MemorySegment input = arena.allocate(capacity, Long.BYTES);
+            MemorySegment output = arena.allocate(capacity, Long.BYTES);
+            MemorySegment snapshot = arena.allocate(capacity, Long.BYTES);
+            output.fill((byte) 0x5a);
+            for (int row : List.of(13, 14, 31)) for (int column = 0; column < 1024; column++) {
+                long address = 3L + row * 2048L + column * 2L;
+                input.set(ValueLayout.JAVA_LONG_UNALIGNED, address * Long.BYTES,
+                        (long) ((row + column) % 5 - 2));
+            }
+            snapshot.copyFrom(input);
+            long[] geometry = plan.scanGeometry().orElseThrow().pack(new long[2]);
+            artifact.entryPoint().invokeExact(input, output, geometry, 13L, 15L);
+            for (int row = 13; row < 15; row++) {
+                long expected = 1;
+                for (int column = 1023; column >= 0; column--) {
+                    long address = 4L + row * 2048L + column * 2L;
+                    assertEquals(expected,
+                            output.get(ValueLayout.JAVA_LONG_UNALIGNED, address * Long.BYTES));
+                    long inputAddress = 3L + row * 2048L + column * 2L;
+                    expected *= input.get(ValueLayout.JAVA_LONG_UNALIGNED,
+                            inputAddress * Long.BYTES);
+                }
+            }
+            assertEquals(0x5a5a5a5a5a5a5a5aL, output.get(ValueLayout.JAVA_LONG_UNALIGNED,
+                    (4L + 12L * 2048L) * Long.BYTES));
+            assertEquals(0x5a5a5a5a5a5a5a5aL, output.get(ValueLayout.JAVA_LONG_UNALIGNED,
+                    (4L + 15L * 2048L) * Long.BYTES));
+            assertEquals(-1, input.mismatch(snapshot));
+
+            output.fill((byte) 0x5a);
+            geometry = plan.scanGeometry().orElseThrow().pack(new long[2]);
+            geometry[20] = 2049;
+            artifact.entryPoint().invokeExact(input, output, geometry, 31L, 32L);
+            long expected = 1;
+            for (int column = 1023; column >= 0; column--) {
+                long address = 4L + 31L * 2049L + column * 2L;
+                assertEquals(expected,
+                        output.get(ValueLayout.JAVA_LONG_UNALIGNED, address * Long.BYTES));
+                long inputAddress = 3L + 31L * 2048L + column * 2L;
+                expected *= input.get(ValueLayout.JAVA_LONG_UNALIGNED,
+                        inputAddress * Long.BYTES);
+            }
+            assertEquals(-1, input.mismatch(snapshot));
+        }
     }
 
     private static void compare(CumulativeScanKind kind, DataType type, boolean exclusive,

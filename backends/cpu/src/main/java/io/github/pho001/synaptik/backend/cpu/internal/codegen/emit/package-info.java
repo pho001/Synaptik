@@ -98,7 +98,13 @@
  * It reconstructs non-axis coordinates once per slice, walks the selected axis sequentially in
  * the requested direction, applies inclusive or exclusive placement, and retains same-type
  * FLOAT64/FLOAT32 or modular INT32/INT64 accumulators. BFLOAT16 widens to FLOAT32 and rounds back
- * after every visited value. Dense rank-one heap arrays use a direct integer-address loop;
+ * after every visited value. One completely runtime-guarded fixed {@code [1024,1024]} axis-one
+ * exclusive reverse INT64 product form over two {@code MemorySegment} carriers uses direct
+ * {@code JAVA_LONG_UNALIGNED} access and descending element cursors for arbitrary legal complete-
+ * slice subranges. Its store-before-load order preserves exclusive placement and its same-width
+ * multiplication preserves modular INT64 arithmetic; every unproved geometry retains the typed
+ * general-long body.
+ * Dense rank-one heap arrays use a direct integer-address loop;
  * arbitrary layouts and segment carriers retain typed long-address traversal. Parallel
  * orchestration never splits a slice.</p>
  *

@@ -52,7 +52,11 @@
  * their exact run-owned state, arbitrary output-cell subranges, and typed general-long fallbacks.
  * Schema 37 adds guarded primitive cursor loops for the frozen mixed-carrier FLOAT64 GATHER and
  * FLOAT32 GATHER_ND forms while retaining arbitrary legal subranges and typed general fallbacks.
- * Schema 37 is current-only; schema-36 and earlier envelopes are incompatible misses.
+ * Schema 38 adds one completely guarded fixed {@code [1024,1024]} axis-one exclusive reverse
+ * INT64 cumulative-product body over two {@code MemorySegment} carriers. It uses direct unaligned
+ * long access and descending element cursors for arbitrary legal complete-slice subranges while
+ * retaining the typed general fallback. Schema 38 is current-only; schema-37 and earlier
+ * envelopes are incompatible misses.
  * Four complete candidate plans, one realized artifact, zero additional fixed-shape variants,
  * and zero additional unrolled variants are the current planner-visible hard budget. A guarded
  * method body may still emit a fixed-trip straight-line sequence inside that one artifact when

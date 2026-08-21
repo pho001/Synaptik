@@ -342,10 +342,11 @@ may change; otherwise stop and replan.
 - CPU 0007A1E, CPU 0007A1F, and CPU 0007A1G are Complete. Their retained evidence closes the
   movement general-address, canonical-BOOL STACK/ANY, and FOLD2D/dropout groups without closing
   this full task.
-- CPU 0007A1H and CPU 0007A1I are Complete and close the bounded numerical-aggregate and indexing
-  clusters. Detailed Ready [CPU 0007A1J](0007a1j-cumulative-scan-residual-parity.md) is the sole
-  next task and owns persistent `C-SCAN-GENERAL` through `CpuScanEmitter`. The other four
-  persistent targets remain Draft and unassigned.
+- CPU 0007A1H through CPU 0007A1J are Complete and close the bounded numerical-aggregate,
+  indexing, and cumulative-scan clusters. Detailed Ready
+  [CPU 0007A1K](0007a1k-affine-copy-residual-parity.md) is the sole next task and owns persistent
+  `A-GENERAL` through `CpuAffineCopyEmitter`. The other three persistent targets remain Draft and
+  unassigned.
 - CPU 0007A2 remains Draft and blocked until all corrections close the frozen failures and CPU
   0007A1C can become Complete.
 - CPU 0009 remains the later repository-wide portable conformance checkpoint.
@@ -485,6 +486,11 @@ only the four-row `CpuDataMovementEmitter` cluster as detailed Ready CPU 0007A1E
   `VERIFIED,20`; `I-GATHER` and `I-GATHER-ND` pass all five forks with medians `0.853338331x` and
   `0.745954874x`, and all three controls pass. Exactly five rows remain persistent in the fresh
   accepted evidence. CPU 0007A1J is the sole next Ready owner cluster.
+- CPU 0007A1J subsequently closes `C-SCAN-GENERAL` at schema 38. Frozen semantics remain
+  `VERIFIED,20`; the scan row passes all five accepted forks with median `0.978732901x`, and all
+  three controls pass. Two complete samples were rejected because one unrelated row exceeded the
+  gate in one fork; their data is retained but does not contribute accepted evidence. Exactly four
+  rows remain persistent, and CPU 0007A1K is the sole next Ready owner cluster.
 - Architecture and ADR no-change conclusion: no production owner, lifecycle, module boundary,
   dependency direction, backend ownership, Prepare/Runtime handoff, route, resource, capability,
   or semantic contract changed, so `ARCHITECTURE.md`, focused architecture pages, and ADRs remain
@@ -509,22 +515,25 @@ only the four-row `CpuDataMovementEmitter` cluster as detailed Ready CPU 0007A1E
 - Tests and validation: original A1C semantics passed 20/20 and its first fork produced three
   passing and 17 failing ratios before the owner stop. Fresh A1I evidence preserves
   `VERIFIED,20`, passes 48 focused tests and 354 uncached CPU tests, and closes both indexing rows
-  plus all three controls across five forks. A1C remains incomplete because five rows still fail.
+  plus all three controls across five forks. Fresh A1J evidence closes the scan row and all three
+  controls across five accepted forks. A1C remains incomplete because four rows still fail.
 - Documentation-agent review: mandatory clean documentation/planning context `/root`; General and
   Planning profiles were primary, with Backend Guide, API/Javadoc, and Example profiles applied to
   the no-change review.
 - Documentation impact: this task, CPU master plan, roadmap, and the immediate detailed corrective
-  task are synchronized. The CPU backend guide and glossary receive only accepted schema-37
-  indexing behavior and evidence, not incomplete residual claims.
-- Javadoc review: affected package/type Javadocs still describe schema-31 behavior and unchanged
-  execution contracts; no edit or Javadoc generation is warranted.
-- Glossary impact: no reusable term or definition changed; no edit is warranted.
-- Unresolved issues: fresh accepted A1I evidence leaves exactly five persistent rows:
-  `P-SCALAR-GENERAL`, `A-GENERAL`, `S-GENERAL-MIN`, `C-SCAN-GENERAL`, and `X-MIN-MULTI`. All
+  task are synchronized. The CPU backend guide and glossary receive accepted schema-38 scan
+  behavior and evidence, not incomplete residual claims.
+- Javadoc review: the A1J documentation pass finalized affected scan/schema/cache/prepare Javadocs
+  for schema 38 and retained the typed general fallback and zero-resource boundaries; final CPU
+  Javadoc passes.
+- Glossary impact: existing CPU portable-route, specialization, and artifact definitions advance
+  to schema 38; no new reusable term was introduced.
+- Unresolved issues: fresh accepted A1J evidence leaves exactly four persistent rows:
+  `P-SCALAR-GENERAL`, `A-GENERAL`, `S-GENERAL-MIN`, and `X-MIN-MULTI`. All
   original closure gates intentionally stopped by this task remain open until those rows close.
-- Follow-up required: CPU 0007A1E–CPU 0007A1I are Complete. Execute Ready CPU 0007A1J, then only
+- Follow-up required: CPU 0007A1E–CPU 0007A1J are Complete. Execute Ready CPU 0007A1K, then only
   later evidence-backed residual tasks in strict order; after every persistent frozen failure
   closes, resume the unchanged closure protocol and reconsider 0007A1C completion.
 
 Status: Incomplete
-Follow-up required: CPU 0007A1J and later ordered corrections must close the five persistent frozen performance failures before CPU 0007A2.
+Follow-up required: CPU 0007A1K and later ordered corrections must close the four persistent frozen performance failures before CPU 0007A2.
