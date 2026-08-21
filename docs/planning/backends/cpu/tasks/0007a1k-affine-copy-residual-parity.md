@@ -2,7 +2,7 @@
 
 ## Status
 
-Ready
+Complete
 
 ## Goal
 
@@ -168,8 +168,9 @@ to CPU 0009 or CI because no shared contract may change.
 
 ## Follow-up tasks
 
-- The remaining `P-SCALAR-GENERAL`, `S-GENERAL-MIN`, and `X-MIN-MULTI` rows remain Draft and
-  unassigned until accepted evidence selects one bounded owner cluster.
+- Detailed [CPU 0007A1L pointwise general-loop residual parity](0007a1l-pointwise-general-loop-residual-parity.md)
+  is the sole next Ready task and owns `P-SCALAR-GENERAL`. `S-GENERAL-MIN` and
+  `X-MIN-MULTI` remain Draft and unassigned.
 - Resume CPU 0007A1C closure only after every persistent row closes.
 - CPU 0007A2 remains Draft and blocked behind CPU 0007A1C and all corrective residual work.
 
@@ -223,12 +224,71 @@ Do not commit, push, or stage.
 
 ## Validation evidence
 
-Empty until implemented.
+- Implementation context `01a023f7-d9da-72f0-ad8b-29f962a1c3f5` produced the immutable evidence
+  bundle at `/private/tmp/synaptik-cpu-0007a1k-tSVmcoQh` from unchanged HEAD
+  `d2ca569db1fa22b307f691209ad69af9d1ecbcca`. Its manifest, final reports, accepted and rejected
+  fork evidence, generated classes, complete `javap -c` and `javap -v`, XML summaries,
+  `implementation.patch`, inventories, checksums, and context record were independently reviewed.
+- Frozen semantics passed exactly (`VERIFIED,20`). The focused matrix passed 47 tests in six
+  suites; the authoritative CPU run passed 355 of 356 tests in 54 suites with zero failures or
+  errors and one expected skip.
+- Five accepted isolated forks measured `A-GENERAL` at `0.652072452x`, `0.653888342x`,
+  `0.654943789x`, `0.660072122x`, and `0.651079970x`; median `0.653888342x`. All three controls
+  passed every fork and median. One complete sample was rejected because its fourth-fork
+  `M-CONCAT` ratio was `1.186794092x`; none of that sample contributes accepted evidence.
+- The accepted full summaries leave exactly `P-SCALAR-GENERAL`, `S-GENERAL-MIN`, and
+  `X-MIN-MULTI`. Their accepted medians are respectively `2.638802714x`, `23.472493883x`, and
+  `9.072969478x`.
+- Complete disassembly proves a final, field-free generated class with one typed static
+  `invoke(MemorySegment, short[], long[], long, long)`. The guarded body checks the complete
+  packed geometry, ordered range, and sentinel address pairs, derives coordinates with integer
+  shifts/masks, and performs direct `JAVA_SHORT_UNALIGNED` loads and `short[]` stores. The
+  unchanged typed general-long body remains the failed-guard fallback.
+- Documentation context `01a0241d-9eba-7df1-b1ca-59c96a79cb93` independently finalized the
+  affected Javadocs, guide, glossary, and synchronized planning without changing executable Java
+  or tests or rerunning stable Java, semantic, timing, or benchmark commands.
 
 ## Implementation notes
 
-Empty until implemented.
+- `CpuAffineCopyEmitter` recognizes only the frozen BFLOAT16 represented-bit `MemorySegment` to
+  `short[]` PERMUTE/SLICE form: source Shape `[256,32,32]`, result Shape `[32,256,32]`, source
+  offset `5`, source strides `[2048,64,2]`, result strides `[64,2048,2]`, and identity slice axis
+  zero `[0,32)`. Every legal half-open output range is supported after complete runtime guards.
+- The proved loop uses ordinal shifts/masks and direct typed carrier access. It performs no
+  BFLOAT16 numerical interpretation, conversion, canonicalization, allocation, helper dispatch,
+  or per-element geometry lookup. All other affine-copy forms retain the existing typed
+  general-long implementation.
+- Generated compatibility advances exactly once to schema 39. Schema 38 and older envelopes are
+  incompatible safe misses; no migration or dual-schema reuse was added.
+- Architecture/current-plan/ADR/architecture-test conclusion: the bounded private generated body
+  changes no architecture rule, module boundary, dependency direction, or shared contract, so no
+  architecture document, ADR, or architecture test changes.
+- API/capability/lifecycle conclusion: public APIs and capabilities, IR/lowering, resource and
+  materialization declarations, route selection, Prepare/Runtime ownership, and generic forms are
+  unchanged. Backend conformance, integration, native, and vector routes therefore need no edit.
+- Build/documentation conclusion: no dependency, Gradle, toolchain, shared-module, example, or
+  unrelated documentation change is required. The CPU guide and glossary record only the bounded
+  supported schema-39 facts; affected internal Javadocs retain the exact fallback and ownership
+  boundaries.
 
 ## Completion summary
 
-Empty until implemented.
+- Completed changes: added the completely guarded frozen affine-copy body at schema 39, retained
+  the typed fallback, synchronized schema assertions, and finalized directly affected Javadocs,
+  CPU guide, glossary, and planning records.
+- Files changed or created: ten implementation-owned production/test paths plus seven
+  documentation/planning paths, for 17 combined paths. No executable Java or test changed in the
+  documentation pass.
+- Tests and validation: reused `VERIFIED,20`, six suites/47 focused tests, 54 suites/356 CPU tests
+  with 355 passes and one expected skip, complete Class-File inspection, five accepted target and
+  control forks, and the retained rejected sample. The documentation pass ran CPU Javadoc once,
+  inspected affected generated pages, and passed Markdown, schema/status/dependency, scope,
+  preservation, staging, HEAD, and whitespace checks.
+- Documentation impact: internal emitter/schema/cache/prepare Javadocs, CPU guide, glossary, this
+  task, A1C, CPU master plan, roadmap, and the sole next detailed task are synchronized. No new
+  reusable glossary term or public API was introduced.
+- Unresolved issues: exactly `P-SCALAR-GENERAL`, `S-GENERAL-MIN`, and `X-MIN-MULTI` remain.
+- Follow-up required: execute Ready CPU 0007A1L, then plan only the next evidence-supported
+  owner-cohesive residual correction. CPU 0007A2 remains Draft and blocked until A1C closes.
+
+Status: Complete

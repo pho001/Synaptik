@@ -248,4 +248,28 @@ public class CpuAffineLayoutLoweringTest {
                 base.memoryRequirements(), Map.of(), new CpuPartitionAnalysisInputs(false, carriers,
                 CpuPartitionAnalysisInputs.DEFAULT.portableExecution()));
     }
+
+    /** Returns the frozen mixed-carrier BFLOAT16 PERMUTE/SLICE parity context. */
+    public static PrepareContext<CpuPartitionAnalysisInputs> frozenBfloat16PermuteSlice() {
+        int a = 256, b = 32, c = 32;
+        Shape sourceShape = Shape.of(a, b, c);
+        Shape resultShape = Shape.of(b, a, c);
+        var source = descriptor(DataType.BFLOAT16, sourceShape,
+                LayoutDescriptor.of(sourceShape,
+                        new long[]{b * c * 2L, c * 2L, 2}, 5, true));
+        var intermediate = descriptor(DataType.BFLOAT16, resultShape,
+                LayoutDescriptor.of(resultShape,
+                        new long[]{c * 2L, b * c * 2L, 2}, 5, true));
+        var base = context(List.of(
+                new Operation(AxisTransformKind.PERMUTE,
+                        new PermutationAttrs(List.of(1, 0, 2))),
+                new Operation(SliceKind.SLICE,
+                        new SliceAttrs(List.of(0L), List.of((long) b),
+                                List.of(0), List.of(1L)))),
+                List.of(source, intermediate, intermediate));
+        return new PrepareContext<>(base.partition(), base.nodes(), base.values(),
+                base.memoryRequirements(), Map.of(), new CpuPartitionAnalysisInputs(false,
+                List.of(CarrierAccess.MEMORY_SEGMENT, CarrierAccess.SHORT_ARRAY),
+                CpuPartitionAnalysisInputs.DEFAULT.portableExecution()));
+    }
 }

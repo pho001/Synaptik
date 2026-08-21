@@ -70,6 +70,11 @@ package io.github.pho001.synaptik.backend.cpu.internal.cache;
  * INT64 cumulative-product body over two {@code MemorySegment} carriers. The proved body uses
  * direct unaligned long access and descending element cursors for arbitrary legal complete-slice
  * subranges; every unproved geometry retains the typed general-long fallback.
+ * Schema 39 adds one fully geometry-, range-, and sentinel-guarded raw-BFLOAT16
+ * segment-to-short-array affine cursor body for the frozen {@code [256,32,32]} PERMUTE/SLICE
+ * mapping. The proved body uses ordinal shifts and masks with direct typed loads/stores for any
+ * legal half-open range; every unproved mapping, carrier, layout, or range retains the typed
+ * general-long fallback.
  * The optional persistent envelope stores this version and has no legacy reader, migration path,
  * or converter.
  */
@@ -109,10 +114,11 @@ public final class CpuGeneratorSchema {
      * while retaining arbitrary legal subranges and typed general-long fallbacks; schema 38 adds
      * one completely guarded fixed {@code [1024,1024]} axis-one exclusive reverse INT64
      * cumulative-product segment-cursor body with direct unaligned long access and arbitrary
-     * legal complete-slice subranges, while retaining the typed general-long fallback.
+     * legal complete-slice subranges, while retaining the typed general-long fallback; schema 39
+     * adds the guarded frozen raw-BFLOAT16 affine PERMUTE/SLICE cursor body.
      * Envelopes written for earlier schemas are incompatible misses.
      */
-    public static final int CURRENT_VERSION = 38;
+    public static final int CURRENT_VERSION = 39;
     /** Generated entry name. */ public static final String ENTRY_NAME = "invoke";
     private CpuGeneratorSchema() { }
 

@@ -55,7 +55,11 @@
  * Schema 38 adds one completely guarded fixed {@code [1024,1024]} axis-one exclusive reverse
  * INT64 cumulative-product body over two {@code MemorySegment} carriers. It uses direct unaligned
  * long access and descending element cursors for arbitrary legal complete-slice subranges while
- * retaining the typed general fallback. Schema 38 is current-only; schema-37 and earlier
+ * retaining the typed general fallback. Schema 39 adds one geometry-, range-, and sentinel-
+ * guarded raw-BFLOAT16 affine cursor body for the frozen segment-to-short-array PERMUTE/SLICE
+ * mapping. Its ordinal shifts and masks feed direct typed loads/stores for arbitrary legal
+ * half-open ranges, while failed guards retain the typed general-long fallback. Schema 39 is
+ * current-only; schema-38 and earlier
  * envelopes are incompatible misses.
  * Four complete candidate plans, one realized artifact, zero additional fixed-shape variants,
  * and zero additional unrolled variants are the current planner-visible hard budget. A guarded

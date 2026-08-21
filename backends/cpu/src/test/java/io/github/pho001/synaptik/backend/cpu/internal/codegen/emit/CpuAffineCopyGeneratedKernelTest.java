@@ -18,9 +18,86 @@ import java.nio.charset.StandardCharsets;
 import java.lang.classfile.ClassFile;
 import java.lang.classfile.Instruction;
 import java.lang.classfile.Opcode;
+import java.lang.classfile.constantpool.DynamicConstantPoolEntry;
+import java.lang.classfile.constantpool.MemberRefEntry;
+import java.lang.classfile.constantpool.MethodHandleEntry;
+import java.lang.classfile.instruction.InvokeInstruction;
+import java.lang.reflect.AccessFlag;
 import org.junit.jupiter.api.Test;
 
 class CpuAffineCopyGeneratedKernelTest {
+    @Test void guardedFrozenBfloat16PermuteSlicePreservesRangesAndRetainsFallback()
+            throws Throwable {
+        var analysis = new CpuPartitionPreparer().analyze(
+                CpuAffineLayoutLoweringTest.frozenBfloat16PermuteSlice());
+        var route = analysis.plan().units().getFirst().portablePlan();
+        var generator = new CpuClassFileKernelGenerator();
+        byte[] bytes = generator.generateClassBytes(route.specialization(), route.kernelIr());
+        var artifact = generator.defineClassBytes(route.specialization(), bytes);
+        long[] geometry = analysis.plan().affineAddressPairs();
+        int count = 256 * 32 * 32;
+        short canary = (short) 0x55aa;
+        short[] input = new short[count * 2 + 16];
+        for (int index = 0; index < count; index++)
+            input[5 + 2 * index] = (short) (0x7f00 ^ index);
+        short[] immutableInput = input.clone();
+        short[] output = new short[input.length];
+        Arrays.fill(output, canary);
+        for (long[] range : List.of(new long[]{0, 1}, new long[]{30, 34},
+                new long[]{8_190, 8_194}, new long[]{count - 2L, count}))
+            artifact.entryPoint().invokeWithArguments(MemorySegment.ofArray(input), output,
+                    geometry, range[0], range[1]);
+        assertFrozenRanges(output, immutableInput, canary,
+                List.of(new long[]{0, 1}, new long[]{30, 34},
+                        new long[]{8_190, 8_194}, new long[]{count - 2L, count}));
+
+        long[] fallbackGeometry = geometry.clone();
+        fallbackGeometry[62]++;
+        short[] fallback = new short[input.length];
+        Arrays.fill(fallback, canary);
+        artifact.entryPoint().invokeWithArguments(MemorySegment.ofArray(input), fallback,
+                fallbackGeometry, 8_192L, 8_194L);
+        assertFrozenRanges(fallback, immutableInput, canary,
+                List.of(new long[]{8_192, 8_194}));
+        assertArrayEquals(immutableInput, input);
+
+        var model = ClassFile.of().parse(bytes);
+        var method = model.methods().getFirst();
+        var code = method.code().orElseThrow();
+        var invokes = code.elementStream().filter(InvokeInstruction.class::isInstance)
+                .map(InvokeInstruction.class::cast).toList();
+        var constantPool = java.util.stream.StreamSupport.stream(
+                model.constantPool().spliterator(), false).toList();
+        assertAll(
+                () -> assertTrue(model.flags().has(AccessFlag.FINAL)),
+                () -> assertTrue(model.fields().isEmpty()),
+                () -> assertEquals(1, model.methods().size()),
+                () -> assertTrue(method.flags().has(AccessFlag.STATIC)),
+                () -> assertEquals("(Ljava/lang/foreign/MemorySegment;[S[JJJ)V",
+                        method.methodTypeSymbol().descriptorString()),
+                () -> assertEquals(0, opcodeCount(code, Opcode.IDIV)),
+                () -> assertEquals(0, opcodeCount(code, Opcode.IREM)),
+                () -> assertEquals(0, opcodeCount(code, Opcode.LDIV)),
+                () -> assertEquals(0, opcodeCount(code, Opcode.LREM)),
+                () -> assertEquals(0, opcodeCount(code, Opcode.NEW)),
+                () -> assertEquals(0, opcodeCount(code, Opcode.ANEWARRAY)),
+                () -> assertEquals(0, opcodeCount(code, Opcode.NEWARRAY)),
+                () -> assertEquals(0, opcodeCount(code, Opcode.MULTIANEWARRAY)),
+                () -> assertEquals(0, model.constantPool().bootstrapMethodCount()),
+                () -> assertTrue(constantPool.stream()
+                        .noneMatch(MethodHandleEntry.class::isInstance)),
+                () -> assertTrue(constantPool.stream()
+                        .noneMatch(DynamicConstantPoolEntry.class::isInstance)),
+                () -> assertTrue(constantPool.stream().filter(MemberRefEntry.class::isInstance)
+                        .map(MemberRefEntry.class::cast).noneMatch(member -> member.owner()
+                                .asInternalName().startsWith(
+                                        "io/github/pho001/synaptik"))),
+                () -> assertTrue(opcodeCount(code, Opcode.LALOAD) >= 14),
+                () -> assertEquals(2, invokes.stream().filter(invoke -> invoke.owner()
+                        .asInternalName().equals("java/lang/foreign/MemorySegment")
+                        && invoke.name().stringValue().equals("get")).count()));
+    }
+
     @Test void denseArrayBodyNarrowsOnceAndGeneralBodyRetainsLongAddressPairs() {
         var denseAnalysis = new CpuPartitionPreparer().analyze(CpuAffineLayoutLoweringTest.contiguous(
                 DataType.FLOAT64, List.of(CarrierAccess.DOUBLE_ARRAY,
@@ -174,6 +251,22 @@ class CpuAffineCopyGeneratedKernelTest {
             case INT32 -> assertEquals(((int[]) expected)[expectedIndex], ((int[]) actual)[actualIndex]);
             case INT64 -> assertEquals(((long[]) expected)[expectedIndex], ((long[]) actual)[actualIndex]);
             case BOOL -> assertEquals(((byte[]) expected)[expectedIndex], ((byte[]) actual)[actualIndex]);
+        }
+    }
+
+    private static void assertFrozenRanges(short[] actual, short[] source, short canary,
+            List<long[]> ranges) {
+        int count = 256 * 32 * 32;
+        for (int ordinal = 0; ordinal < count; ordinal++) {
+            boolean selected = false;
+            for (long[] range : ranges)
+                if (ordinal >= range[0] && ordinal < range[1]) selected = true;
+            int x = ordinal >>> 13;
+            int y = (ordinal >>> 5) & 255;
+            int z = ordinal & 31;
+            int address = 5 + x * 64 + y * 2_048 + z * 2;
+            assertEquals(selected ? source[address] : canary, actual[address],
+                    "ordinal " + ordinal + " address " + address);
         }
     }
     private static long opcodeCount(java.lang.classfile.CodeModel code,
