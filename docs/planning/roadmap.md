@@ -248,8 +248,8 @@ Detailed
 is `Complete`. The former ordinary-aggregate row is split because extrema and
 BOOL folds share zero-workspace output-domain geometry, while ordinary SUM/MEAN/PROD require a
 separate exact floating numerical/resource design and binding-aware target-Shape SUM requires
-right-aligned bound-Shape geometry. Complete CPU 0007A1, corrective CPU 0007A1A–0007A1M,
-detailed Ready CPU 0007A1N, and any later evidence-selected residual corrections, and
+right-aligned bound-Shape geometry. Complete CPU 0007A1, corrective CPU 0007A1A–0007A1N,
+any later evidence-selected residual corrections, and
 Draft CPU 0007A2 and CPU 0007B–0007F retain those
 numerical aggregates, target-Shape SUM, arg-extrema, masked, advanced statistical/norm, stable
 softmax/log-softmax, and layer/RMS/batch-normalization boundaries. A completed local
@@ -313,7 +313,8 @@ aggregate ratios passed `<= 1.15`; the five scratch-free generated medians impro
 one existing opt-in skip. Documentation context `01a01b5c-abf0-7f81-902f-e6d47d585503`
 finalized Javadocs, the CPU guide, evidence, and planning without changing executable Java.
 Detailed [CPU 0007A1C generated/direct evidence closure](backends/cpu/tasks/0007a1c-generated-direct-evidence-closure.md)
-is `Review needed`. Its frozen semantic comparison passed all 20 rows, but the first isolated fork
+remains `Review needed` after accumulated evidence reconciliation. Its initial frozen semantic comparison
+passed all 20 rows, but the first isolated fork
 failed 17 ratios; only `P-VECTOR-SEGMENT`, `P-INTEGRAL-MIXED`, and `O-ARGSORT` passed. The explicit
 more-than-two-code-shaping-owners stop fired before any production edit, forks two through five,
 aggregate ratios, exhaustive member reports, Java suites, or Javadoc. At that A1C stop, source
@@ -359,10 +360,17 @@ three controls passed every accepted fork and median, leaving exactly `S-GENERAL
 [CPU 0007A1M scatter MIN residual parity](backends/cpu/tasks/0007a1m-scatter-min-residual-parity.md)
 is `Complete` at schema 41. Frozen semantics remained `VERIFIED,20`; `S-GENERAL-MIN` passed
 five accepted forks at `0.984900063x`, `0.988888234x`, `0.983823803x`, `0.978065816x`, and
-`0.992400680x`, with median `0.984900063x`, and all controls passed. Only `X-MIN-MULTI`
-remains. Detailed
+`0.992400680x`, with median `0.984900063x`, and all controls passed. Detailed
 [CPU 0007A1N multi-axis MIN residual parity](backends/cpu/tasks/0007a1n-multi-axis-min-residual-parity.md)
-is the sole next `Ready` frontier, and CPU 0007A2 remains blocked. The isolated `M-CONCAT` A1G
+is `Complete` at schema 42. Frozen sources and probe classes remain byte-identical, semantics are
+`VERIFIED,20`, and all twenty rows plus their medians pass five accepted forks at `<= 1.15x`.
+`X-MIN-MULTI` measured `0.818775794x`, `0.811182115x`, `0.811942840x`, `0.810720356x`, and
+`0.810918826x`, with median `0.811182115x`. One whole sample was retained and rejected because
+unrelated `M-CONCAT` measured `2.537201532x`. Complete generated/decompiled structural evidence,
+schema-42 compatibility, focused/full CPU validation, documentation, and scope evidence close the
+performance and generated-class gates. A1C remains Incomplete because its frozen ledger labels
+non-INITIAL_STATE, non-view pointwise rows as `STRUCTURAL_ONLY`, contrary to the original limit.
+CPU 0007A2 remains Draft/blocked and has no detailed specification to qualify as Ready. The isolated `M-CONCAT` A1G
 fork at `1.158061861x` does not reopen completed A1E because
 the other four A1G forks and completed A1E five-fork evidence pass.
 CPU 0007A1A advances current-only generated compatibility to schema 30. Its retained, checksummed
@@ -377,8 +385,8 @@ the full CPU suite passed 340 cases with one expected assumption skip. Clean doc
 `01a01b11-b773-7e33-b4d1-94fa62aeeb2b` finalized the Javadocs, CPU guide, evidence, and synchronized
 planning without changing executable Java or rerunning the stable Java suites. Schema-29
 artifacts are incompatible safe misses. Detailed CPU 0007A1B and CPU 0007A1E are Complete; CPU
-0007A1C and CPU 0007A1D remain `Review needed`, CPU 0007A1F through CPU 0007A1M are `Complete`,
-and CPU 0007A1N is the next and sole Ready frontier.
+0007A1C and CPU 0007A1D remain `Review needed`, and CPU 0007A1F through CPU 0007A1N are
+`Complete`. No CPU task is Ready; CPU 0007A2 remains Draft/blocked without a detailed specification.
 CPU 0007A0F implementation context `01a0194d-ff2e-78d3-9815-f0830065185b`, independent review
 orchestration context `01a0196a-0930-7521-972f-84021b85519b` with isolated review context
 `/root/cpu_0007a0f_review`, and clean documentation context
@@ -445,9 +453,8 @@ rendered-page, Markdown, exact 37-path, schema/status/package, concurrent-scope-
 whitespace gates passed. Detailed CPU 0007A and corrective CPU 0007A0/0007A0A are `Complete`;
 detailed CPU 0007A0B, detailed CPU 0007A0C, detailed CPU 0007A0D, and detailed CPU 0007A0E are
 `Complete`; detailed CPU 0007A0F, CPU 0007A1, CPU 0007A1A, and CPU 0007A1B are `Complete`; CPU
-0007A1C and CPU 0007A1D are `Review needed`, detailed CPU 0007A1E is `Complete`, and detailed CPU
-0007A1F through CPU 0007A1M are `Complete`, and detailed CPU 0007A1N is the sole next `Ready`
-frontier. Later work remains ordered `Draft` without detailed
+0007A1C and CPU 0007A1D are `Review needed`, and detailed CPU 0007A1E through CPU
+0007A1N are `Complete`; there is no Ready CPU task. Later work remains ordered `Draft` without detailed
 specifications.
 CPU 0006B1 implementation context `019ff230-109c-73a3-933f-611ee7f6143d` and independent
 audit/fix context `019ff248-a9e4-7150-8fbb-db2730d7cc1b` produced the final focused
@@ -485,9 +492,8 @@ division and exact scalar-power realization is `Complete`; detailed CPU 0005G an
 detailed CPU 0006B1, CPU 0006B2, CPU 0006C, CPU 0006D, CPU 0007, and detailed CPU 0007A are
 `Complete`; corrective CPU 0007A0, CPU 0007A0A, CPU 0007A0B, CPU 0007A0C, and detailed CPU
 0007A0D, CPU 0007A0E, CPU 0007A0F, CPU 0007A1, CPU 0007A1A, and CPU 0007A1B are `Complete`. CPU
-0007A1C and CPU 0007A1D are `Review needed`; detailed CPU 0007A1E is `Complete`, and detailed CPU
-0007A1F through CPU 0007A1M are `Complete`, and detailed CPU 0007A1N is the sole next `Ready`
-frontier. CPU 0007A2–0017 remain ordered `Draft`
+0007A1C and CPU 0007A1D are `Review needed`, and detailed CPU 0007A1E through CPU
+0007A1N are `Complete`. CPU 0007A2–0017 remain ordered `Draft`
 work without later detailed specifications.
 CPU 0003
 implements a
@@ -877,8 +883,7 @@ Detailed CPU 0007 and detailed CPU 0007A are `Complete`; corrective CPU 0007A0 a
 and CPU 0007A0B and detailed CPU 0007A0C, CPU 0007A0D, and CPU 0007A0E are `Complete`; detailed
 CPU 0007A0F and detailed CPU 0007A1 are `Complete`.
 Detailed CPU 0007A1A and CPU 0007A1B are `Complete`; CPU 0007A1C and CPU 0007A1D are
-`Review needed`; detailed CPU 0007A1E through CPU 0007A1M are `Complete`, and detailed CPU
-0007A1N is the sole next `Ready` frontier. CPU 0007A2–0017 and the refined Config, Prepare,
+`Review needed`; detailed CPU 0007A1E through CPU 0007A1N are `Complete`. CPU 0007A2–0017 and the refined Config, Prepare,
 Metal, and tuning
 rows remain `Draft` without later detailed specifications.
 Completed OpenBLAS history and every completed project area remain unchanged.
@@ -901,9 +906,9 @@ is `Complete`. Detailed CPU 0007A0E, CPU 0007A0F, and CPU 0007A1 are `Complete`.
 [CPU 0007A1A generated scalar-body self-containment](backends/cpu/tasks/0007a1a-generated-scalar-body-self-containment.md)
 is `Complete`; detailed
 [CPU 0007A1B scatter algorithmic parity](backends/cpu/tasks/0007a1b-scatter-algorithmic-parity.md)
-is `Complete`; CPU 0007A1C and CPU 0007A1D are `Review needed`; detailed CPU 0007A1E is
-`Complete`; detailed CPU 0007A1F through CPU 0007A1M are `Complete`; and detailed CPU 0007A1N is
-the sole next `Ready` CPU frontier.
+is `Complete`; CPU 0007A1C and CPU 0007A1D are `Review needed`; detailed CPU 0007A1E
+through CPU 0007A1N are `Complete`. There is no Ready CPU task because CPU 0007A2 remains Draft
+without a detailed specification.
 CPU 0006A delivers one exact static resolved-layout PAD, TILE, CONCAT, or STACK occurrence with
 ordered one-through-sixteen composition inputs, first-occurrence unique declarations, compact
 cold movement geometry, all-six-type represented-bit scalar/parallel-scalar generation, one

@@ -671,7 +671,7 @@ affine load/store, gather, scatter, masked tail, or speed claim.
 Lifecycle ownership remains unchanged. CPU analysis validates and composes the chain, chooses the
 scalar orchestration, and declares exactly the source and final result. Shared Prepare assigns
 those two slots without interpreting the affine plan. CPU finalization validates both assignments
-before current schema-41 artifact access and constructs one immutable executable. Cold binding validates
+before current schema-42 artifact access and constructs one immutable executable. Cold binding validates
 the exact data type, carrier, byte size, alignment, accessibility, output writability, canonical
 BOOL input bytes, and source/result non-overlap. Runtime then invokes only the prepared direct
 carriers, address table, and `start`/`end` bounds; it receives no operation, graph node, Shape,
@@ -733,7 +733,7 @@ callback, or per-element allocation in generated code.
 
 Movement uses scalar compute and either single-thread or deterministic parallel orchestration.
 Parallel chunks are safe because output injectivity proves disjoint writes. Vector preference
-falls back to scalar for this family. CPU finalization realizes current schema-41 generated artifacts;
+falls back to scalar for this family. CPU finalization realizes current schema-42 generated artifacts;
 cold binding validates complete input/output spans and rejects every output/input overlap before
 execution. The scalar reference consumes the same movement IR and compact geometry for
 differential tests, not as a Runtime fallback.
@@ -861,7 +861,7 @@ injectivity, and output/input non-overlap checks still run.
 
 CPU analysis declares each distinct gather input `ValueId` once in semantic first-use order and
 then one separate output; one-hot declares indices and output. Every indexing plan has one unit,
-no materialization, no workspace, one current schema-41 generated class artifact, one prepared
+no materialization, no workspace, one current schema-42 generated class artifact, one prepared
 executable, and one bound invocation. The generated class embeds carrier-, type-, family-, and
 access-specialized output loops rather than delegating through a generic carrier bridge. Proved
 dense heap arrays use integer loop/address state; segment, mixed-carrier, and general-layout forms
@@ -1159,7 +1159,7 @@ independent primitive-index insertion implementation for differential evidence; 
 Runtime fallback.
 
 Schema 27 introduced the complete carrier-, represented-type-, family-, direction-, output-,
-and access-specialized ordering body, which current schema 41 retains. It uses a stable bottom-up
+and access-specialized ordering body, which current schema 42 retains. It uses a stable bottom-up
 merge over the two assigned
 INT64 scratch regions, selecting the left logical index on equality. Dense heap-array forms use
 cold-proved integer loop and address state. Arbitrary supported layouts and heap, segment, or
@@ -1270,7 +1270,7 @@ probability bits, ordered boundary roles and carriers, and zero-scratch shape. C
 slots, carriers, workers, and ranges remain cold when they do not change emitted bytes. There is
 no migration reader for old artifacts. Schema 28 is the first version whose random entries embed
 the direct typed initializer and FLOAT64/FLOAT32 dropout bodies. A schema-27 envelope is an
-incompatible safe miss: cold finalization regenerates and may publish current schema-41 bytes
+incompatible safe miss: cold finalization regenerates and may publish current schema-42 bytes
 after shared slot assignment rather than loading, converting, or aliasing the old bridge class.
 
 Retained observational evidence for the fixed dense heap-array shape `[64,16384]`, probability
@@ -1528,6 +1528,23 @@ The five-fork generated/direct ratios for the MEAN form have median `0.973095585
 processes retained passing vector-segment, integral-mixed, and ARGSORT controls. Every process
 remained nonzero only because seven explicitly deferred diagnostic rows exceeded the gate, so
 this evidence closes the two fixed numerical rows rather than the complete twenty-row corpus.
+
+Schema 42 adds one completely guarded BFLOAT16 `MIN` form for dense input Shape `[64,64,64]`,
+selected axes `[0,2]`, kept output Shape `[1,64,1]`, a `MemorySegment` input, and an offset,
+two-strided `short[]` output. Complete carrier, geometry, ordered-range, start-address, and sentinel
+guards precede every specialized write. Each owned output-cell ordinal uses the direct primitive
+axis-0-then-axis-2 traversal for 4,096 canonical visits, retains the first raw BFLOAT16 NaN,
+chooses negative zero when both zero signs occur, otherwise selects the smaller represented value,
+and writes its raw 16 bits once. Arbitrary legal complete-output-cell subranges are supported with
+no workspace, materialization, partial/combine state, or selected-domain buffer; failed proofs use
+the unchanged typed general-long body.
+
+In the retained fixed environment, its five generated/direct ratios are `0.818775794x`,
+`0.811182115x`, `0.811942840x`, `0.810720356x`, and `0.810918826x`, with median
+`0.811182115x`. All twenty frozen rows and their medians passed five accepted forks at
+`<= 1.15x`; one unrelated `M-CONCAT` whole sample at `2.537201532x` was retained and rejected.
+This closes that bounded comparison and is neither a universal aggregate-performance claim nor a
+production selection input.
 
 The local CPU 0007A0 parity probe is evidence for the current generated code shape, not a
 hardware-universal speed guarantee or production selector. On Java 26.0.1, macOS 26.5.2,
@@ -2033,7 +2050,7 @@ execution covers every admitted row; parallel-scalar orchestration is available 
 affine, movement, scatter, fold, ordering, random-element, whole-scan-slice, and whole-aggregate-
 output-cell ranges; and the
 pointwise family retains its exact typed value-vector and virtual-mask parity matrix. Generator
-schema 41 distinguishes pointwise,
+schema 42 distinguishes pointwise,
 affine, movement, indexing, scatter, fold, ordering, random, scan, and aggregate structures,
 including movement occurrence order,
 unequal-rank access, exact
@@ -2061,7 +2078,10 @@ including arbitrary legal half-open ranges, stable binary64 exponential/sign/fin
 semantics, and the unchanged typed general-long fallback. No excluded pointwise form is enabled
 by that bounded body. Schema 41 adds the guarded frozen INT64 `SCATTER_ND + MIN` direct copy and
 tuple/suffix loops with arbitrary legal subranges, duplicate encounter order, zero workspace, and
-the unchanged typed general-long fallback. No excluded scatter form or later semantic family,
+the unchanged typed general-long fallback. Schema 42 adds the completely guarded frozen BFLOAT16
+axes-zero-and-two MIN traversal described above, with arbitrary legal complete-output-cell ranges,
+raw first-NaN and negative-zero selection, zero workspace/materialization, and the unchanged typed
+general-long fallback. No excluded aggregate/scatter form or later semantic family,
 general BFLOAT16 pointwise or dropout numerical operation,
 cross-type CAST, dynamic layout, vector affine/scatter/fold/ordering execution, native fallback, backend-conformance
 result, public Engine integration, hardware-intrinsic guarantee, or performance result is

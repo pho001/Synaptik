@@ -85,6 +85,11 @@ package io.github.pho001.synaptik.backend.cpu.internal.cache;
  * direct primitive linear copy and tuple/suffix update loops, preserves duplicate encounter
  * order and arbitrary legal output subranges, and retains the typed general-long implementation
  * for every failed proof.
+ * Schema 42 adds one completely guarded frozen BFLOAT16 axes-zero-and-two MIN body for input
+ * {@code [64,64,64]} and kept output {@code [1,64,1]}. The proved body follows the direct
+ * primitive nested-loop oracle, preserves canonical factor order, first represented NaN and
+ * negative-zero selection, accepts arbitrary legal complete-output-cell subranges, and retains
+ * the typed general-long implementation for every failed proof.
  * The optional persistent envelope stores this version and has no legacy reader, migration path,
  * or converter.
  */
@@ -128,10 +133,11 @@ public final class CpuGeneratorSchema {
      * adds the guarded frozen raw-BFLOAT16 affine PERMUTE/SLICE cursor body; schema 40 adds the
      * guarded frozen FLOAT32 mixed-carrier pointwise ordinal loop while retaining the typed
      * general-long fallback; schema 41 adds the guarded frozen INT64 SCATTER_ND MIN direct
-     * copy-then-update loops with the same typed fallback.
+     * copy-then-update loops with the same typed fallback; schema 42 adds the guarded frozen
+     * BFLOAT16 axes-zero-and-two MIN primitive nested loops with the same typed fallback.
      * Envelopes written for earlier schemas are incompatible misses.
      */
-    public static final int CURRENT_VERSION = 41;
+    public static final int CURRENT_VERSION = 42;
     /** Generated entry name. */ public static final String ENTRY_NAME = "invoke";
     private CpuGeneratorSchema() { }
 

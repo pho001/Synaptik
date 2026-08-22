@@ -1,6 +1,7 @@
 package io.github.pho001.synaptik.backend.cpu.internal.codegen.emit;
 
 import io.github.pho001.synaptik.backend.cpu.internal.cache.CpuKernelSpecialization;
+import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuAggregateIr;
 import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuKernelIr;
 import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuAccessPlan;
 import io.github.pho001.synaptik.model.datatype.DataType;
@@ -31,7 +32,17 @@ import java.lang.foreign.ValueLayout;
  * extraction and ties-to-even rounding. The PROD form preserves the existing exact-product state
  * transitions while replacing general coordinate reconstruction with primitive geometry cursors.
  * Both forms preserve logical factor order and arbitrary legal output-cell subranges; every
- * unproved geometry retains the typed long-address body.</p>
+ * unproved geometry retains the typed long-address body. A third completely guarded form covers
+ * the frozen BFLOAT16 {@code [64,64,64]} axes-zero-and-two MIN geometry with kept output
+ * {@code [1,64,1]}, a {@link MemorySegment} input, and an offset, two-strided {@code short[]}
+ * output. Complete geometry, carrier, ordered-range, start-address, and sentinel guards precede
+ * every specialized write. For each arbitrary legal complete-output-cell subrange, the body
+ * initializes from the first represented factor, then visits axis 0 outside axis 2 in canonical
+ * selected-domain order using the direct clean-Java-equivalent primitive traversal. It retains
+ * the first raw BFLOAT16 NaN, chooses negative zero when both zero signs occur, otherwise keeps
+ * the smaller represented value, and writes the selected raw 16-bit result once. This guarded
+ * body uses no workspace, materialization, partial/combine state, or selected-domain buffer;
+ * every failed proof enters the unchanged typed general-long body.</p>
  */
 public final class CpuAggregateEmitter {
     private static final DataType[] TYPES = DataType.values();
@@ -102,11 +113,21 @@ public final class CpuAggregateEmitter {
                         == CpuKernelSpecialization.CarrierAccess.SHORT_ARRAY
                 && specialization.carrierPattern().getLast()
                         == CpuKernelSpecialization.CarrierAccess.MEMORY_SEGMENT;
+        boolean boundedMinimum = kind == 0 && type == DataType.BFLOAT16
+                && inRank == 3 && outRank == 3
+                && identity.contains(":MULTI_AXIS:axes=[0, 2]:keep=true:")
+                && identity.contains(":domain=4096:limbs=0:slice=0:")
+                && specialization.carrierPattern().getFirst()
+                        == CpuKernelSpecialization.CarrierAccess.MEMORY_SEGMENT
+                && specialization.carrierPattern().getLast()
+                        == CpuKernelSpecialization.CarrierAccess.SHORT_ARRAY;
         if (zeroStrideAny) emitZeroStrideAnyOrGeneral(code, specialization, identity, inRank,
                 outRank, geometrySlot, startSlot, endSlot);
         else if (boundedMean) emitBoundedMeanOrGeneral(code, specialization, identity,
                 geometrySlot, startSlot, endSlot);
         else if (boundedProduct) emitBoundedProductOrGeneral(code, specialization, identity,
+                geometrySlot, startSlot, endSlot);
+        else if (boundedMinimum) emitBoundedMinimumOrGeneral(code, specialization, identity,
                 geometrySlot, startSlot, endSlot);
         else if (fullDenseArrays) emitFullDense(code, specialization, type, kind, inRank,
                 exactFloating, exactLimbs, geometrySlot, startSlot, endSlot);
@@ -114,6 +135,115 @@ public final class CpuAggregateEmitter {
                 outRank, exactFloating, exactLimbs, geometrySlot, startSlot, endSlot);
         else emitGeneral(code, specialization, type, kind, identity, inRank, outRank,
                 exactFloating, exactLimbs, geometrySlot, startSlot, endSlot);
+    }
+
+    private static void emitBoundedMinimumOrGeneral(CodeBuilder code,
+            CpuKernelSpecialization specialization, String identity, int geometrySlot,
+            int startSlot, int endSlot) {
+        int inputCoordinates = 14, outputCoordinates = 17;
+        int inputLayout = 20, outputLayout = 28;
+        var fallback = code.newLabel(); var complete = code.newLabel();
+        requireRange(code, startSlot, endSlot, 64, fallback);
+        requireGeometrySequence(code, geometrySlot, 0, new long[]{
+                CpuAggregateIr.Kind.MIN.ordinal(), DataType.BFLOAT16.ordinal(),
+                CpuAggregateIr.Form.MULTI_AXIS.ordinal()}, fallback);
+        requireGeometrySequence(code, geometrySlot, 3,
+                new long[]{1, 3, 3, 64, 4096, 0, 0, 0}, fallback);
+        requireGeometrySequence(code, geometrySlot, 11, new long[]{1, 0, 1}, fallback);
+        requireGeometrySequence(code, geometrySlot, inputCoordinates,
+                new long[]{0, 0, 0}, fallback);
+        requireGeometrySequence(code, geometrySlot, outputCoordinates,
+                new long[]{0, 0, 0}, fallback);
+        requireGeometry(code, geometrySlot, inputLayout, 3, fallback);
+        requireGeometrySequence(code, geometrySlot, inputLayout + 1,
+                new long[]{0, 64, 64, 64, 4096, 64, 1}, fallback);
+        requireGeometry(code, geometrySlot, outputLayout, 3, fallback);
+        requireGeometrySequence(code, geometrySlot, outputLayout + 1,
+                new long[]{3, 1, 64, 1, 128, 2, 2}, fallback);
+        emitBoundedMinimum(code, specialization, startSlot, endSlot);
+        code.branch(Opcode.GOTO, complete).labelBinding(fallback);
+        emitGeneral(code, specialization, DataType.BFLOAT16, 0, identity, 3, 3,
+                false, 0, geometrySlot, startSlot, endSlot);
+        code.labelBinding(complete);
+    }
+
+    private static void emitBoundedMinimum(CodeBuilder code,
+            CpuKernelSpecialization specialization, int startSlot, int endSlot) {
+        int cell = code.allocateLocal(TypeKind.INT), end = code.allocateLocal(TypeKind.INT);
+        int rowBase = code.allocateLocal(TypeKind.LONG);
+        int inputAddress = code.allocateLocal(TypeKind.LONG);
+        int outputAddress = code.allocateLocal(TypeKind.INT);
+        int outer = code.allocateLocal(TypeKind.INT), inner = code.allocateLocal(TypeKind.INT);
+        int accumulator = code.allocateLocal(TypeKind.INT), value = code.allocateLocal(TypeKind.INT);
+        int leftValue = code.allocateLocal(TypeKind.FLOAT);
+        int rightValue = code.allocateLocal(TypeKind.FLOAT);
+        code.lload(startSlot).l2i().istore(cell).lload(endSlot).l2i().istore(end);
+        var carriers = new CpuCarrierEmitter(code);
+        var cells = code.newLabel(); var done = code.newLabel();
+        var factors = code.newLabel(); var write = code.newLabel();
+        code.labelBinding(cells).iload(cell).iload(end).branch(Opcode.IF_ICMPGE, done);
+        code.iload(cell).i2l().loadConstant(64L).lmul().lstore(rowBase);
+        code.lload(rowBase).lstore(inputAddress);
+        emitDirectBfloatSegmentLoad(code, inputAddress, accumulator);
+        code.lload(inputAddress).loadConstant(1L).ladd().lstore(inputAddress);
+        code.loadConstant(0).istore(outer).loadConstant(1).istore(inner);
+        code.labelBinding(factors);
+        emitDirectBfloatSegmentLoad(code, inputAddress, value);
+        emitDirectBfloatMinimum(code, accumulator, value, leftValue, rightValue);
+        code.lload(inputAddress).loadConstant(1L).ladd().lstore(inputAddress);
+        code.iinc(inner, 1).iload(inner).loadConstant(64)
+                .branch(Opcode.IF_ICMPLT, factors);
+        code.iinc(outer, 1);
+        code.iload(outer).loadConstant(64).branch(Opcode.IF_ICMPGE, write);
+        code.lload(rowBase).iload(outer).i2l().loadConstant(4096L).lmul().ladd()
+                .lstore(inputAddress);
+        code.loadConstant(0).istore(inner).branch(Opcode.GOTO, factors);
+        code.labelBinding(write);
+        code.loadConstant(3).iload(cell).loadConstant(2).imul().iadd().istore(outputAddress);
+        carriers.store(DataType.BFLOAT16, specialization.carrierPattern().getLast(), 1,
+                outputAddress, accumulator, true);
+        code.iinc(cell, 1).branch(Opcode.GOTO, cells);
+        code.labelBinding(done);
+    }
+
+    private static void emitDirectBfloatSegmentLoad(CodeBuilder code, int address, int result) {
+        code.aload(0).getstatic(ClassDescHolder.VALUE_LAYOUT, "JAVA_SHORT_UNALIGNED",
+                ClassDescHolder.SHORT_LAYOUT).lload(address).loadConstant(2L).lmul()
+                .invokeinterface(ClassDescHolder.SEGMENT, "get",
+                        java.lang.constant.MethodTypeDesc.of(ConstantDescs.CD_short,
+                                ClassDescHolder.SHORT_LAYOUT, ConstantDescs.CD_long))
+                .istore(result);
+    }
+
+    private static void emitDirectBfloatMinimum(CodeBuilder code, int left, int right,
+            int leftValue, int rightValue) {
+        code.iload(left).loadConstant(0xffff).iand().loadConstant(16).ishl()
+                .invokestatic(ClassDescHolder.FLOAT, "intBitsToFloat",
+                        java.lang.constant.MethodTypeDesc.of(ConstantDescs.CD_float,
+                                ConstantDescs.CD_int))
+                .fstore(leftValue);
+        code.iload(right).loadConstant(0xffff).iand().loadConstant(16).ishl()
+                .invokestatic(ClassDescHolder.FLOAT, "intBitsToFloat",
+                        java.lang.constant.MethodTypeDesc.of(ConstantDescs.CD_float,
+                                ConstantDescs.CD_int))
+                .fstore(rightValue);
+        var leftNumber = code.newLabel(); var rightNumber = code.newLabel();
+        var ordinary = code.newLabel(); var chooseRight = code.newLabel(); var done = code.newLabel();
+        code.fload(leftValue).invokestatic(ClassDescHolder.FLOAT, "isNaN",
+                java.lang.constant.MethodTypeDesc.of(ConstantDescs.CD_boolean,
+                        ConstantDescs.CD_float)).branch(Opcode.IFEQ, leftNumber)
+                .branch(Opcode.GOTO, done).labelBinding(leftNumber);
+        code.fload(rightValue).invokestatic(ClassDescHolder.FLOAT, "isNaN",
+                java.lang.constant.MethodTypeDesc.of(ConstantDescs.CD_boolean,
+                        ConstantDescs.CD_float)).branch(Opcode.IFEQ, rightNumber);
+        code.iload(right).istore(left).branch(Opcode.GOTO, done).labelBinding(rightNumber);
+        code.fload(leftValue).loadConstant(0.0f).fcmpl().branch(Opcode.IFNE, ordinary);
+        code.fload(rightValue).loadConstant(0.0f).fcmpl().branch(Opcode.IFNE, ordinary);
+        code.iload(left).iload(right).ior().i2s().istore(left).branch(Opcode.GOTO, done)
+                .labelBinding(ordinary);
+        code.fload(rightValue).fload(leftValue).fcmpg().branch(Opcode.IFLT, chooseRight)
+                .branch(Opcode.GOTO, done).labelBinding(chooseRight);
+        code.iload(right).istore(left).labelBinding(done);
     }
 
     private static void emitBoundedMeanOrGeneral(CodeBuilder code,
@@ -1129,6 +1259,8 @@ public final class CpuAggregateEmitter {
                 java.lang.constant.ClassDesc.of(ValueLayout.class.getName());
         private static final java.lang.constant.ClassDesc LONG_LAYOUT =
                 java.lang.constant.ClassDesc.of("java.lang.foreign.ValueLayout$OfLong");
+        private static final java.lang.constant.ClassDesc SHORT_LAYOUT =
+                java.lang.constant.ClassDesc.of("java.lang.foreign.ValueLayout$OfShort");
         private ClassDescHolder() { }
     }
 

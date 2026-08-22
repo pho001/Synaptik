@@ -2,7 +2,7 @@
 
 ## Status
 
-Ready
+Complete
 
 ## Goal
 
@@ -172,7 +172,8 @@ shared contract may change.
 
 ## Dependencies
 
-- CPU 0007A1C supplies the immutable twenty-row corpus and remains incomplete.
+- CPU 0007A1C supplies the immutable twenty-row corpus and remains Incomplete after final
+  reconciliation because its frozen ledger violates the original structural-only limit.
 - CPU 0007A and CPU 0007A1A supply ordinary extrema semantics and the self-contained typed
   aggregate selection body.
 - CPU 0007A1D supplies stable invocation-local segment layout handling.
@@ -235,12 +236,83 @@ probe pass every gate. Do not commit, push, or stage.
 
 ## Validation evidence
 
-Empty until implemented.
+- Implementation context `01a02611-1b99-7890-b618-6d7b659b1853` produced the retained evidence
+  bundle at `/private/tmp/synaptik-cpu-0007a1n-26FYzb9w` from repository base
+  `47569dbedcf3474d36378fcf2a5d9ec4c66ac95a`. The documentation context verified the bundle's
+  checksum manifest before relying on its reports, immutable inputs, generated classes, complete
+  disassembly, raw samples, XML, and implementation patch.
+- The frozen `ClosureCases.java`, `ClosureProbe.java`, and `ExactClosure.java` sources and all 14
+  compiled probe classes are byte-identical to A1M. Exact semantic verification reports
+  `VERIFIED,20`. The focused implementation command passed 62 tests in six suites. The one
+  authoritative CPU run passed 360 tests in 54 suites with zero failures or errors and one
+  expected opt-in persistence-evidence skip. No Java test, semantic probe, performance fork,
+  generation benchmark, or decompilation command was rerun by the documentation context.
+- Five fresh accepted sequential JVM forks were forks 1, 2, 3, 5, and 6. `X-MIN-MULTI` measured
+  `0.818775794x`, `0.811182115x`, `0.811942840x`, `0.810720356x`, and `0.810918826x`, with median
+  `0.811182115x`. Every one of the twenty rows and every cross-fork median was at most `1.15x`.
+  Fork 4 was rejected as one whole sample because unrelated `M-CONCAT` measured `2.537201532x`;
+  its raw output and generated classes remain retained and were excluded from accepted ratios.
+- All twenty generated classes are byte-identical across final semantic verification, the five
+  accepted forks, and the rejected fork. Complete `javap -c` and `javap -v` output is retained for
+  all twenty classes. The target is final and field-free with exactly one static
+  `invoke(MemorySegment, short[], long[], long, long)` method. Its guards cover the ordered range
+  and all 36 required geometry values before the first specialized store. The proved offsets
+  `394..625` contain the direct output-cell/axis-0/axis-2 traversal, direct unaligned short loads,
+  raw first-NaN and negative-zero MIN selection, and one raw short store after 4,096 visits. They
+  contain no division, remainder, allocation, generic dispatch, or Synaptik helper call. Failed
+  guards branch to offset 628, the unchanged typed general-long realization.
+- Generated compatibility advances exactly once from schema 41 to schema 42. Schema-41 and older
+  envelopes are incompatible safe misses, and the retained negative persistence case regenerates
+  a schema-42 envelope without migration, aliasing, or dual-schema reuse.
+- CPU Javadoc and the final static documentation, planning, schema, scope, staging, checksum, and
+  whitespace checks are recorded in the completion summary after the documentation pass.
 
 ## Implementation notes
 
-Empty until implemented.
+- `CpuAggregateEmitter` is the only changed production algorithm/code-shaping owner. It recognizes
+  only BFLOAT16 `MIN`, input Shape `[64,64,64]`, axes `[0,2]`, kept output `[1,64,1]`, domain
+  4,096, `MemorySegment` input, offset two-strided `short[]` output, and the complete retained
+  geometry. Range and all geometry/address sentinels are checked before the specialized body can
+  write.
+- One range ordinal owns one middle-axis output cell. Axis 0 is the outer selected loop and axis 2
+  the inner loop. The accumulator starts from the first represented factor, preserves the first
+  raw BFLOAT16 NaN, chooses negative zero when both zero signs occur, otherwise selects the smaller
+  represented value, and stores its raw 16 bits once. The body uses no workspace, materialization,
+  partial/combine state, selected-domain buffer, or reordered visits.
+- Every unproved aggregate kind, type, form, axes, rank, carrier pattern, extent, layout, range, or
+  address retains the existing typed general-long body in the same generated method.
+- Architecture/current-plan/ADR conclusion: the bounded CPU-private emitted body changes no
+  architecture authority, module boundary, dependency direction, or shared contract, so
+  `ARCHITECTURE.md`, focused architecture pages, ADRs, and architecture tests require no edit.
+- API/lifecycle/test/build conclusion: public APIs, capabilities, aggregate IR/lowering,
+  validation ownership, resources, materialization policy, route selection, Prepare/Runtime
+  ownership, conformance/integration coverage, Gradle/toolchain configuration, examples, and
+  other modules are unchanged. Existing focused aggregate and full CPU coverage supplied the
+  executable evidence; no test or build source required documentation-pass edits.
 
 ## Completion summary
 
-Empty until implemented.
+- Completed changes: added the completely guarded frozen BFLOAT16 multi-axis MIN primitive body,
+  retained the typed general-long fallback, advanced current-only generated compatibility to
+  schema 42, synchronized schema assertions, and finalized affected internal Javadocs, the CPU
+  guide, glossary, task evidence, A1C closure, CPU master plan, and roadmap.
+- Files changed or created: ten implementation-owned production/test paths plus the CPU backend
+  guide, glossary, this task, CPU 0007A1C, CPU master plan, and roadmap, for 16 repository paths.
+  No executable Java or test changed in the documentation pass.
+- Validation: retained `VERIFIED,20`, six suites/62 focused tests, 54 suites/360 CPU tests with one
+  expected skip, deterministic generated-Class-File evidence, complete disassembly, five accepted
+  twenty-row forks, and one retained rejected whole sample. The documentation pass ran CPU
+  Javadoc exactly once and passed the required static checks.
+- Documentation impact: affected emitter/schema/cache/code-generation/prepare Javadocs, the CPU
+  backend guide, glossary, this task, A1C, master plan, and roadmap are synchronized to schema 42.
+  No public API, architecture contract, ADR, example, or other-module documentation changed.
+- Planning result: A1N is Complete, but A1C remains Incomplete because its immutable ledger labels
+  non-INITIAL_STATE, non-view pointwise rows `STRUCTURAL_ONLY:covered-by-emitted-category`, contrary
+  to A1C's original structural-only limit. CPU 0007A2 therefore remains Draft/blocked; no CPU task
+  is Ready in this pass.
+- Unresolved issues: none for CPU 0007A1N. A1C requires an evidence-authorized ledger correction
+  or replacement and a fresh closure audit before CPU 0007A2 planning can advance.
+- Follow-up: reconcile the A1C ledger in a separate evidence-authorized task; only after A1C closes
+  should a detailed CPU 0007A2 specification be created and considered for Ready.
+
+Status: Complete

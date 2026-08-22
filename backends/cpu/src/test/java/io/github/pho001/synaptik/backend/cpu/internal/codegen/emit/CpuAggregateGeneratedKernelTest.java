@@ -35,8 +35,133 @@ import java.lang.classfile.instruction.LabelTarget;
 import java.lang.classfile.constantpool.DynamicConstantPoolEntry;
 import java.lang.classfile.constantpool.MemberRefEntry;
 import java.lang.classfile.constantpool.MethodHandleEntry;
+import java.lang.reflect.AccessFlag;
 
 class CpuAggregateGeneratedKernelTest {
+    @Test void frozenMultiAxisMinimumPreservesRawSemanticsRangesAndGuardedFallback()
+            throws Throwable {
+        Shape inputShape = Shape.of(64, 64, 64), outputShape = Shape.of(1, 64, 1);
+        var inputDescriptor = CpuIndexingLoweringTest.descriptor(DataType.BFLOAT16, inputShape,
+                LayoutDescriptor.contiguous(inputShape));
+        var outputDescriptor = CpuIndexingLoweringTest.descriptor(DataType.BFLOAT16, outputShape,
+                LayoutDescriptor.of(outputShape, new long[]{128, 2, 2}, 3, true));
+        var base = CpuScatterLoweringTest.context(new Operation(AggregateReductionKind.MIN,
+                new MultiAxisReductionAttrs(List.of(0, 2), true)), List.of(0),
+                List.of(inputDescriptor), outputDescriptor);
+        PrepareContext<CpuPartitionAnalysisInputs> context = new PrepareContext<>(base.partition(),
+                base.nodes(), base.values(), base.memoryRequirements(), Map.of(),
+                new CpuPartitionAnalysisInputs(false, List.of(CarrierAccess.MEMORY_SEGMENT,
+                        CarrierAccess.SHORT_ARRAY)));
+        var plan = new CpuPartitionPreparer().analyze(context).plan();
+        var route = plan.units().getFirst().portablePlan();
+        var generator = new CpuClassFileKernelGenerator();
+        byte[] bytes = generator.generateClassBytes(route.specialization(), route.kernelIr());
+        var artifact = generator.defineClassBytes(route.specialization(), bytes);
+
+        short[] physical = new short[64 * 64 * 64];
+        java.util.Arrays.fill(physical, (short) 0x4000);
+        physical[multiAxisIndex(0, 0, 0)] = (short) 0x7fc1;
+        physical[multiAxisIndex(2, 0, 5)] = (short) 0xffc2;
+        physical[multiAxisIndex(0, 1, 0)] = 0;
+        physical[multiAxisIndex(1, 1, 7)] = (short) 0x8000;
+        physical[multiAxisIndex(0, 2, 0)] = (short) 0x4040;
+        physical[multiAxisIndex(63, 2, 63)] = (short) 0xbf80;
+        short[] immutableInput = physical.clone();
+        short[] expected = new short[64 * 2 + 7];
+        short[] full = new short[expected.length], ranged = new short[expected.length];
+        short[] fallback = new short[expected.length];
+        java.util.Arrays.fill(expected, (short) 0x55aa);
+        java.util.Arrays.fill(full, (short) 0x55aa);
+        java.util.Arrays.fill(ranged, (short) 0x55aa);
+        java.util.Arrays.fill(fallback, (short) 0x55aa);
+        for (int cell = 0; cell < 64; cell++) {
+            int accumulator = Short.toUnsignedInt(physical[multiAxisIndex(0, cell, 0)]);
+            for (int outer = 0; outer < 64; outer++) for (int inner = 0; inner < 64; inner++) {
+                if (outer != 0 || inner != 0) accumulator = CpuAggregateEmitter.minBfloat(
+                        accumulator, Short.toUnsignedInt(physical[multiAxisIndex(
+                                outer, cell, inner)]));
+            }
+            expected[3 + 2 * cell] = (short) accumulator;
+        }
+        long[] geometry = plan.aggregateGeometry().orElseThrow().pack(new long[2]);
+        MemorySegment input = MemorySegment.ofArray(physical);
+        artifact.entryPoint().invokeWithArguments(input, full, geometry, 0L, 64L);
+        long[] provedGeometry = geometry.clone();
+        artifact.entryPoint().invokeWithArguments(input, ranged, geometry, 0L, 0L);
+        artifact.entryPoint().invokeWithArguments(input, ranged, geometry, 0L, 7L);
+        artifact.entryPoint().invokeWithArguments(input, ranged, geometry, 7L, 39L);
+        artifact.entryPoint().invokeWithArguments(input, ranged, geometry, 39L, 64L);
+        long[] failedSentinelProof = geometry.clone();
+        failedSentinelProof[14] = 1;
+        artifact.entryPoint().invokeWithArguments(input, fallback, failedSentinelProof, 0L, 64L);
+
+        assertAll(
+                () -> assertArrayEquals(expected, full),
+                () -> assertArrayEquals(expected, ranged),
+                () -> assertArrayEquals(expected, fallback),
+                () -> assertArrayEquals(immutableInput, physical),
+                () -> assertArrayEquals(new long[6], java.util.Arrays.copyOfRange(
+                        provedGeometry, 14, 20)),
+                () -> assertEquals((short) 0x7fc1, full[3]),
+                () -> assertEquals((short) 0x8000, full[5]),
+                () -> assertEquals((short) 0xbf80, full[7]));
+    }
+
+    @Test void frozenMultiAxisMinimumArtifactHasDirectPrimitiveLoopsAndTypedFallback() {
+        Shape inputShape = Shape.of(64, 64, 64), outputShape = Shape.of(1, 64, 1);
+        var inputDescriptor = CpuIndexingLoweringTest.descriptor(DataType.BFLOAT16, inputShape,
+                LayoutDescriptor.contiguous(inputShape));
+        var outputDescriptor = CpuIndexingLoweringTest.descriptor(DataType.BFLOAT16, outputShape,
+                LayoutDescriptor.of(outputShape, new long[]{128, 2, 2}, 3, true));
+        var base = CpuScatterLoweringTest.context(new Operation(AggregateReductionKind.MIN,
+                new MultiAxisReductionAttrs(List.of(0, 2), true)), List.of(0),
+                List.of(inputDescriptor), outputDescriptor);
+        PrepareContext<CpuPartitionAnalysisInputs> context = new PrepareContext<>(base.partition(),
+                base.nodes(), base.values(), base.memoryRequirements(), Map.of(),
+                new CpuPartitionAnalysisInputs(false, List.of(CarrierAccess.MEMORY_SEGMENT,
+                        CarrierAccess.SHORT_ARRAY)));
+        var route = new CpuPartitionPreparer().analyze(context).plan().units().getFirst()
+                .portablePlan();
+        var model = ClassFile.of().parse(new CpuClassFileKernelGenerator().generateClassBytes(
+                route.specialization(), route.kernelIr()));
+        var method = model.methods().getFirst();
+        var code = method.code().orElseThrow();
+        List<MemberRefEntry> members = java.util.stream.StreamSupport.stream(
+                model.constantPool().spliterator(), false).filter(MemberRefEntry.class::isInstance)
+                .map(MemberRefEntry.class::cast).toList();
+        assertAll(
+                () -> assertTrue(model.flags().has(AccessFlag.FINAL)),
+                () -> assertEquals(0, model.fields().size()),
+                () -> assertEquals(1, model.methods().size()),
+                () -> assertEquals("invoke", method.methodName().stringValue()),
+                () -> assertTrue(method.flags().has(AccessFlag.STATIC)),
+                () -> assertEquals("(Ljava/lang/foreign/MemorySegment;[S[JJJ)V",
+                        method.methodTypeSymbol().descriptorString()),
+                () -> assertTrue(hasBoundedBfloatMinimumLoop(code)),
+                () -> assertTrue(opcodeCount(code, Opcode.LALOAD) > 0),
+                () -> assertTrue(opcodeCount(code, Opcode.LDIV) > 0),
+                () -> assertTrue(opcodeCount(code, Opcode.LREM) > 0),
+                () -> assertTrue(members.stream().noneMatch(entry -> entry.owner().asInternalName()
+                        .startsWith("io/github/pho001/synaptik"))),
+                () -> assertTrue(members.stream().noneMatch(entry -> entry.type().stringValue()
+                        .contains("Ljava/lang/Object;") || entry.owner().asInternalName()
+                                .startsWith("java/lang/reflect/") || entry.owner().asInternalName()
+                                .startsWith("java/util/"))),
+                () -> assertEquals(0, model.constantPool().bootstrapMethodCount()),
+                () -> assertTrue(java.util.stream.StreamSupport.stream(
+                        model.constantPool().spliterator(), false)
+                        .noneMatch(MethodHandleEntry.class::isInstance)),
+                () -> assertTrue(java.util.stream.StreamSupport.stream(
+                        model.constantPool().spliterator(), false)
+                        .noneMatch(DynamicConstantPoolEntry.class::isInstance)),
+                () -> assertTrue(code.elementStream().noneMatch(
+                        java.lang.classfile.instruction.NewObjectInstruction.class::isInstance)));
+    }
+
+    private static int multiAxisIndex(int outer, int cell, int inner) {
+        return (outer * 64 + cell) * 64 + inner;
+    }
+
     @Test void frozenNumericalResidualShapesPreserveExactSemanticsAndDisjointRanges()
             throws Throwable {
         Shape meanInputShape = Shape.of(128, 2048), meanOutputShape = Shape.of(128);
@@ -849,6 +974,37 @@ class CpuAggregateGeneratedKernelTest {
                 }
             }
             if (inputLoad && !genericAddressing) return true;
+        }
+        return false;
+    }
+
+    private static boolean hasBoundedBfloatMinimumLoop(java.lang.classfile.CodeModel code) {
+        var elements = code.elementStream().toList();
+        var labels = new java.util.IdentityHashMap<java.lang.classfile.Label, Integer>();
+        for (int index = 0; index < elements.size(); index++) {
+            if (elements.get(index) instanceof LabelTarget target) labels.put(target.label(), index);
+        }
+        for (int index = 0; index < elements.size(); index++) {
+            if (!(elements.get(index) instanceof BranchInstruction branch)) continue;
+            Integer target = labels.get(branch.target());
+            if (target == null || target >= index) continue;
+            boolean inputLoad = false, comparison = false, genericAddressing = false;
+            for (int body = target; body <= index; body++) {
+                Object element = elements.get(body);
+                if (element instanceof InvokeInstruction invoke) {
+                    inputLoad |= invoke.owner().asInternalName().equals(
+                            "java/lang/foreign/MemorySegment")
+                            && invoke.name().stringValue().equals("get")
+                            && invoke.type().stringValue().endsWith(")S");
+                }
+                if (element instanceof Instruction instruction) {
+                    comparison |= instruction.opcode() == Opcode.FCMPG;
+                    genericAddressing |= instruction.opcode() == Opcode.LALOAD
+                            || instruction.opcode() == Opcode.LDIV
+                            || instruction.opcode() == Opcode.LREM;
+                }
+            }
+            if (inputLoad && comparison && !genericAddressing) return true;
         }
         return false;
     }

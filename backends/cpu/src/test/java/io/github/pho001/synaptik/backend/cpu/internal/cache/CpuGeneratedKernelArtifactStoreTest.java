@@ -40,7 +40,7 @@ class CpuGeneratedKernelArtifactStoreTest {
                 route.specialization(), route.kernelIr());
         var hit = hitResult.artifact();
         assertAll(
-                () -> assertEquals(41, CpuGeneratorSchema.CURRENT_VERSION),
+                () -> assertEquals(42, CpuGeneratorSchema.CURRENT_VERSION),
                 () -> assertTrue(Files.exists(root.resolve("legacy-v1.class"))),
                 () -> assertArrayEquals(memoryOnly.classBytes(), persisted.classBytes()),
                 () -> assertTrue(Files.size(current) > persisted.classBytes().length),
@@ -92,15 +92,15 @@ class CpuGeneratedKernelArtifactStoreTest {
         byte[] truncated = Arrays.copyOf(valid, valid.length - 1);
         byte[] wrongChecksum = valid.clone();
         wrongChecksum[wrongChecksum.length - 1] ^= 1;
-        byte[] schema40 = valid.clone();
-        java.nio.ByteBuffer.wrap(schema40).putInt(4, 40);
+        byte[] schema41 = valid.clone();
+        java.nio.ByteBuffer.wrap(schema41).putInt(4, 41);
         byte[] malformedClass = envelope(route.specialization().structuralKey(),
                 route.specialization().compatibilityBytes(), new byte[] {1, 2, 3, 4});
         byte[] wrongMetadata = envelope(route.specialization().structuralKey(),
                 new byte[] {9}, seed.artifact().classBytes());
         byte[] wrongKey = envelope("0".repeat(64),
                 route.specialization().compatibilityBytes(), seed.artifact().classBytes());
-        for (byte[] invalid : List.of(trailing, truncated, wrongChecksum, schema40,
+        for (byte[] invalid : List.of(trailing, truncated, wrongChecksum, schema41,
                 malformedClass, wrongMetadata, wrongKey,
                 invalidLengthEnvelope(route.specialization().structuralKey(),
                         CpuGeneratedKernelArtifactStore.MAX_METADATA_BYTES + 1, false),
@@ -115,7 +115,7 @@ class CpuGeneratedKernelArtifactStoreTest {
                             recovered.source()),
                     () -> assertArrayEquals(seed.artifact().classBytes(),
                             recovered.artifact().classBytes()),
-                    () -> assertEquals(41, java.nio.ByteBuffer.wrap(Files.readAllBytes(file))
+                    () -> assertEquals(42, java.nio.ByteBuffer.wrap(Files.readAllBytes(file))
                             .getInt(4)),
                     () -> assertTrue(Files.size(file) <=
                             CpuGeneratedKernelArtifactStore.MAX_ENVELOPE_BYTES));
