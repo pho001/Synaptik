@@ -19,6 +19,7 @@ import io.github.pho001.synaptik.model.operation.Operation;
 import io.github.pho001.synaptik.model.operation.OperationKind;
 import io.github.pho001.synaptik.model.operation.reduction.AggregateReductionKind;
 import io.github.pho001.synaptik.model.operation.reduction.AxisReductionAttrs;
+import io.github.pho001.synaptik.model.operation.reduction.SumToShapeAttrs;
 import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuAggregateLoweringTest;
 import io.github.pho001.synaptik.model.operation.layout.CompositionAxisAttrs;
 import io.github.pho001.synaptik.model.operation.layout.TensorCompositionKind;
@@ -61,6 +62,43 @@ import jdk.incubator.vector.LongVector;
 import jdk.incubator.vector.ByteVector;
 
 public class CpuPartitionPreparerTest {
+    @Test void sumToShapeDeclaresWorkspaceOnlyForPositiveOutputFloatingReduction() {
+        var reducedBase = CpuAggregateLoweringTest.context(AggregateReductionKind.SUM,
+                DataType.FLOAT32, Shape.of(2,3,4), new SumToShapeAttrs(Shape.of(3,1)),
+                Shape.of(3,1));
+        var copyBase = CpuAggregateLoweringTest.context(AggregateReductionKind.SUM,
+                DataType.FLOAT32, Shape.of(3,4), new SumToShapeAttrs(Shape.of(3,4)),
+                Shape.of(3,4));
+        var zeroBase = CpuAggregateLoweringTest.context(AggregateReductionKind.SUM,
+                DataType.FLOAT32, Shape.of(2,0,4), new SumToShapeAttrs(Shape.of(0,4)),
+                Shape.of(0,4));
+        var reduced = analyzeAggregate(reducedBase, DataType.FLOAT32);
+        var copy = analyzeAggregate(copyBase, DataType.FLOAT32);
+        var zero = analyzeAggregate(zeroBase, DataType.FLOAT32);
+        assertAll(
+                () -> assertEquals(2, reduced.bufferDeclarations().size()),
+                () -> assertTrue(reduced.materialization().isEmpty()),
+                () -> assertEquals(CpuPartitionPreparationPlan.WorkspaceUse.AGGREGATE_EXACT_STATE,
+                        reduced.workspaceUse()),
+                () -> assertTrue(reduced.units().getFirst().portablePlan().specialization()
+                        .scratchParameter()),
+                () -> assertTrue(copy.workspaceDeclaration().isEmpty()),
+                () -> assertFalse(copy.units().getFirst().portablePlan().specialization()
+                        .scratchParameter()),
+                () -> assertTrue(zero.workspaceDeclaration().isEmpty()),
+                () -> assertEquals(0, zero.elementCount()));
+    }
+
+    private static CpuPartitionPreparationPlan analyzeAggregate(
+            PrepareContext<CpuPartitionAnalysisInputs> base, DataType type) {
+        CarrierAccess carrier = type == DataType.FLOAT32 ? CarrierAccess.FLOAT_ARRAY
+                : CarrierAccess.MEMORY_SEGMENT;
+        var context = new PrepareContext<>(base.partition(), base.nodes(), base.values(),
+                base.memoryRequirements(), base.constants(), new CpuPartitionAnalysisInputs(false,
+                        List.of(carrier, carrier)));
+        return new CpuPartitionPreparer().analyze(context).plan();
+    }
+
     @Test void floatingNumericalAggregateDeclaresExactRunOwnedStateBeforeAssignment() {
         var base = CpuAggregateLoweringTest.context(AggregateReductionKind.SUM, DataType.FLOAT64,
                 Shape.of(2, 3), new AxisReductionAttrs(1, false), Shape.of(2));
@@ -94,7 +132,7 @@ public class CpuPartitionPreparerTest {
                 () -> assertTrue(initial.workspaceDeclaration().isEmpty()),
                 () -> assertTrue(dropout.workspaceDeclaration().isEmpty()),
                 () -> assertTrue(dropout.randomGeometry().isPresent()),
-                () -> assertEquals(42, io.github.pho001.synaptik.backend.cpu.internal.cache
+                () -> assertEquals(43, io.github.pho001.synaptik.backend.cpu.internal.cache
                         .CpuGeneratorSchema.CURRENT_VERSION));
     }
     @Test void foldDeclaresExactlyTwoBuffersOneArtifactAndNoWorkspaceOrMaterialization() {

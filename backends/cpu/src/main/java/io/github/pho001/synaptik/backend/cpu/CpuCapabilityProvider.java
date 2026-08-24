@@ -45,6 +45,7 @@ import io.github.pho001.synaptik.model.operation.scan.CumulativeScanKind;
 import io.github.pho001.synaptik.model.operation.reduction.AggregateReductionKind;
 import io.github.pho001.synaptik.model.operation.reduction.AxisReductionAttrs;
 import io.github.pho001.synaptik.model.operation.reduction.MultiAxisReductionAttrs;
+import io.github.pho001.synaptik.model.operation.reduction.SumToShapeAttrs;
 import io.github.pho001.synaptik.model.shape.Shape;
 import io.github.pho001.synaptik.planning.capability.BackendCapabilityProvider;
 import io.github.pho001.synaptik.planning.capability.OperationCapabilityQuery;
@@ -100,7 +101,9 @@ import java.util.Objects;
  * single-axis, and multi-axis attributes are supported with fully static Model-derived output
  * Shapes, resolved non-negative layouts, and an injective output. Lowering and binding retain
  * responsibility for canonical selected-axis membership, complete-domain traversal, exact
- * carriers, and complete physical non-overlap.</p>
+ * carriers, and complete physical non-overlap. SUM additionally admits exact
+ * {@code SumToShapeAttrs}: fully bound target coordinates are right-aligned with the source,
+ * leading axes and unequal target-one axes reduce, and equal aligned axes are preserved.</p>
  *
  * <p>The movement route also admits exactly one fully static, resolved-layout
  * {@code SLICE_UPDATE} occurrence with ordered {@code [base, update]} inputs. Both normalized
@@ -157,7 +160,9 @@ public final class CpuCapabilityProvider implements BackendCapabilityProvider {
      * Cumulative scans additionally require a non-scalar input, the same five-type numeric input
      * and output descriptor, a valid normalized axis, and an injective output layout.
      * Ordinary aggregates additionally require the exact numerical, extrema, or BOOL fold matrix,
-     * one exact ordinary attribute form, the Model-derived output Shape, and an injective output.
+     * one exact ordinary attribute form or SUM-to-Shape form, the Model-derived output Shape,
+     * and an injective output. SUM-to-Shape requires fully bound right-aligned pairs that are
+     * equal or have target extent one.
      * Cross-type casts, dynamic
      * or unresolved geometry, negative-step extraction slices, non-injective
      * movement outputs, and all rows outside the implemented matrix return {@code false} without
@@ -302,6 +307,20 @@ public final class CpuCapabilityProvider implements BackendCapabilityProvider {
                     && input.dataType() != DataType.BFLOAT16
                 || output.dataType() != input.dataType()) return false;
         Object attrs = query.operation().attrs(); int rank = input.shape().rank();
+        if (attrs instanceof SumToShapeAttrs sumTo) {
+            if (kind != AggregateReductionKind.SUM
+                    || !sumTo.targetShape().equals(output.shape())) return false;
+            long[] source = input.shape().toLongArray();
+            long[] target = sumTo.targetShape().toLongArray();
+            if (target.length > source.length) return false;
+            int leading = source.length - target.length;
+            for (int targetAxis = 0; targetAxis < target.length; targetAxis++) {
+                long sourceExtent = source[leading + targetAxis];
+                long targetExtent = target[targetAxis];
+                if (sourceExtent != targetExtent && targetExtent != 1) return false;
+            }
+            return injective(target, output.layout().orElseThrow().strides());
+        }
         boolean keep; int[] axes;
         if (attrs == NoOperationAttrs.INSTANCE) { keep = false; axes = new int[rank];
             for (int axis = 0; axis < rank; axis++) axes[axis] = axis;

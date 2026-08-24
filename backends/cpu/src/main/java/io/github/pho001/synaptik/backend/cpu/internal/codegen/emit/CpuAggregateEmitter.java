@@ -42,7 +42,11 @@ import java.lang.foreign.ValueLayout;
  * the first raw BFLOAT16 NaN, chooses negative zero when both zero signs occur, otherwise keeps
  * the smaller represented value, and writes the selected raw 16-bit result once. This guarded
  * body uses no workspace, materialization, partial/combine state, or selected-domain buffer;
- * every failed proof enters the unchanged typed general-long body.</p>
+ * every failed proof enters the unchanged typed general-long body. Binding-aware SUM-to-Shape
+ * adds a direct represented-bit copy when no axis reduces, a typed right-aligned cursor fallback,
+ * and a guarded primitive nested loop for the dense {@code [64,128,256] -> [128,1]} evidence
+ * geometry. Floating reductions continue to delegate emitted state transitions and final
+ * conversion solely to {@link CpuExactSumEmitter}.</p>
  */
 public final class CpuAggregateEmitter {
     private static final DataType[] TYPES = DataType.values();
@@ -71,7 +75,8 @@ public final class CpuAggregateEmitter {
                 : identity.startsWith("aggregate:ANY:") ? 3
                 : identity.startsWith("aggregate:SUM:") ? 4
                 : identity.startsWith("aggregate:MEAN:") ? 5 : 6;
-        boolean exactFloating = kind >= 4 && (type == DataType.FLOAT64
+        boolean sumToShapeCopy = identity.contains(":SUM_TO_SHAPE:axes=[]:");
+        boolean exactFloating = !sumToShapeCopy && kind >= 4 && (type == DataType.FLOAT64
                 || type == DataType.FLOAT32 || type == DataType.BFLOAT16);
         int exactLimbs = exactFloating ? identityNumber(identity, ":limbs=") : 0;
         if (specialization.scratchParameter() != exactFloating)
@@ -121,7 +126,16 @@ public final class CpuAggregateEmitter {
                         == CpuKernelSpecialization.CarrierAccess.MEMORY_SEGMENT
                 && specialization.carrierPattern().getLast()
                         == CpuKernelSpecialization.CarrierAccess.SHORT_ARRAY;
-        if (zeroStrideAny) emitZeroStrideAnyOrGeneral(code, specialization, identity, inRank,
+        boolean boundedSumToShape = identity.contains(":SUM_TO_SHAPE:axes=[0, 2]:keep=false:")
+                && identity.contains(":source=[64, 128, 256]:target=[128, 1]:domain=16384:")
+                && inRank == 3 && outRank == 2
+                && specialization.carrierPattern().stream().noneMatch(
+                    access -> access == CpuKernelSpecialization.CarrierAccess.MEMORY_SEGMENT);
+        if (sumToShapeCopy) emitSumToShapeCopy(code, specialization, type, ir, inRank, outRank,
+                geometrySlot, startSlot, endSlot);
+        else if (boundedSumToShape) emitBoundedSumToShape(code, specialization, type,
+                exactFloating, exactLimbs, geometrySlot, startSlot, endSlot, 19, 27);
+        else if (zeroStrideAny) emitZeroStrideAnyOrGeneral(code, specialization, identity, inRank,
                 outRank, geometrySlot, startSlot, endSlot);
         else if (boundedMean) emitBoundedMeanOrGeneral(code, specialization, identity,
                 geometrySlot, startSlot, endSlot);
@@ -135,6 +149,172 @@ public final class CpuAggregateEmitter {
                 outRank, exactFloating, exactLimbs, geometrySlot, startSlot, endSlot);
         else emitGeneral(code, specialization, type, kind, identity, inRank, outRank,
                 exactFloating, exactLimbs, geometrySlot, startSlot, endSlot);
+    }
+
+    private static void emitBoundedSumToShape(CodeBuilder code,
+            CpuKernelSpecialization specialization, DataType type, boolean exactFloating,
+            int exactLimbs, int geometrySlot, int startSlot, int endSlot,
+            int inputLayout, int outputLayout) {
+        if (!exactFloating) {
+            emitBoundedIntegralSumToShape(code, specialization, type, geometrySlot,
+                    startSlot, endSlot, inputLayout, outputLayout);
+            return;
+        }
+        int cell = code.allocateLocal(TypeKind.INT), end = code.allocateLocal(TypeKind.INT);
+        int inputBase = code.allocateLocal(TypeKind.INT), outputBase = code.allocateLocal(TypeKind.INT);
+        int rowBase = code.allocateLocal(TypeKind.INT);
+        int outer = code.allocateLocal(TypeKind.INT), inner = code.allocateLocal(TypeKind.INT);
+        int accumulator = code.allocateLocal(localKind(type));
+        int value = code.allocateLocal(localKind(type));
+        code.lload(startSlot).l2i().istore(cell).lload(endSlot).l2i().istore(end);
+        geometry(code, geometrySlot, inputLayout + 1).l2i().istore(inputBase);
+        geometry(code, geometrySlot, outputLayout + 1).l2i().istore(outputBase);
+        CpuExactSumEmitter exact = exactFloating
+                ? new CpuExactSumEmitter(code, type, false, 2, geometrySlot, exactLimbs) : null;
+        var carriers = new CpuCarrierEmitter(code);
+        var cells = code.newLabel(); var done = code.newLabel();
+        var outerLoop = code.newLabel(); var innerLoop = code.newLabel();
+        code.labelBinding(cells).iload(cell).iload(end).branch(Opcode.IF_ICMPGE, done);
+        if (exact != null) {
+            emitFloatingZero(code, type); store(code, type, accumulator); exact.emitReset();
+        } else {
+            emitIdentity(code, type, 4); store(code, type, accumulator);
+        }
+        code.loadConstant(0).istore(outer).labelBinding(outerLoop);
+        code.iload(inputBase).iload(outer).loadConstant(32_768).imul()
+                .iload(cell).loadConstant(256).imul().iadd().iadd().istore(rowBase);
+        code.loadConstant(0).istore(inner).labelBinding(innerLoop);
+        emitDenseArrayLoad(code, type, rowBase, inner, value);
+        if (exact != null) exact.emitFactor(value);
+        else emitApply(code, type, 4, accumulator, value);
+        code.iinc(inner, 1).iload(inner).loadConstant(256)
+                .branch(Opcode.IF_ICMPLT, innerLoop);
+        code.iinc(outer, 1).iload(outer).loadConstant(64)
+                .branch(Opcode.IF_ICMPLT, outerLoop);
+        if (exact != null) exact.emitFinish(accumulator);
+        int output = code.allocateLocal(TypeKind.INT);
+        code.iload(outputBase).iload(cell).iadd().istore(output);
+        carriers.store(type, specialization.carrierPattern().getLast(), 1, output, accumulator,
+                true);
+        code.iinc(cell, 1).branch(Opcode.GOTO, cells).labelBinding(done);
+    }
+
+    private static void emitBoundedIntegralSumToShape(CodeBuilder code,
+            CpuKernelSpecialization specialization, DataType type, int geometrySlot,
+            int startSlot, int endSlot, int inputLayout, int outputLayout) {
+        int cell = code.allocateLocal(TypeKind.INT), end = code.allocateLocal(TypeKind.INT);
+        int inputBase = code.allocateLocal(TypeKind.INT), outputBase = code.allocateLocal(TypeKind.INT);
+        int rowBase = code.allocateLocal(TypeKind.INT), outer = code.allocateLocal(TypeKind.INT);
+        int inner = code.allocateLocal(TypeKind.INT);
+        int accumulator = code.allocateLocal(localKind(type));
+        code.lload(startSlot).l2i().istore(cell).lload(endSlot).l2i().istore(end);
+        geometry(code, geometrySlot, inputLayout + 1).l2i().istore(inputBase);
+        geometry(code, geometrySlot, outputLayout + 1).l2i().istore(outputBase);
+        var cells = code.newLabel(); var done = code.newLabel();
+        var outerLoop = code.newLabel(); var outerDone = code.newLabel();
+        var innerLoop = code.newLabel(); var innerDone = code.newLabel();
+        code.labelBinding(cells).iload(cell).iload(end).branch(Opcode.IF_ICMPGE, done);
+        emitIdentity(code, type, 4); store(code, type, accumulator);
+        code.loadConstant(0).istore(outer).labelBinding(outerLoop);
+        code.iload(outer).loadConstant(64).branch(Opcode.IF_ICMPGE, outerDone);
+        code.iload(inputBase).iload(outer).loadConstant(32_768).imul()
+                .iload(cell).loadConstant(256).imul().iadd().iadd().istore(rowBase);
+        code.loadConstant(0).istore(inner).labelBinding(innerLoop);
+        code.iload(inner).loadConstant(256).branch(Opcode.IF_ICMPGE, innerDone);
+        emitDenseArrayAdd(code, type, rowBase, inner, 0, accumulator);
+        code.iinc(inner, 1).branch(Opcode.GOTO, innerLoop).labelBinding(innerDone);
+        code.iinc(outer, 1).branch(Opcode.GOTO, outerLoop).labelBinding(outerDone);
+        int output = code.allocateLocal(TypeKind.INT);
+        code.iload(outputBase).iload(cell).iadd().istore(output);
+        new CpuCarrierEmitter(code).store(type, specialization.carrierPattern().getLast(), 1,
+                output, accumulator, true);
+        code.iinc(cell, 1).branch(Opcode.GOTO, cells).labelBinding(done);
+    }
+
+    private static void emitDenseArrayAdd(CodeBuilder code, DataType type, int base, int index,
+            int displacement, int accumulator) {
+        load(code, type, accumulator);
+        code.aload(0).iload(base).iload(index).iadd();
+        if (displacement != 0) code.loadConstant(displacement).iadd();
+        if (type == DataType.INT32) code.iaload().iadd().istore(accumulator);
+        else if (type == DataType.INT64) code.laload().ladd().lstore(accumulator);
+        else throw new IllegalArgumentException("integral SUM-to-Shape type required");
+    }
+
+    private static void emitDenseArrayLoad(CodeBuilder code, DataType type, int base, int index,
+            int value) {
+        emitDenseArrayLoad(code, type, base, index, 0, value);
+    }
+
+    private static void emitDenseArrayLoad(CodeBuilder code, DataType type, int base, int index,
+            int displacement, int value) {
+        code.aload(0).iload(base).iload(index).iadd();
+        if (displacement != 0) code.loadConstant(displacement).iadd();
+        switch (type) {
+            case FLOAT64 -> code.daload().dstore(value);
+            case FLOAT32 -> code.faload().fstore(value);
+            case BFLOAT16 -> code.saload().istore(value);
+            case INT32 -> code.iaload().istore(value);
+            case INT64 -> code.laload().lstore(value);
+            default -> throw new IllegalArgumentException("unsupported SUM-to-Shape data type");
+        }
+    }
+
+    private static void emitSumToShapeCopy(CodeBuilder code,
+            CpuKernelSpecialization specialization, DataType type, CpuKernelIr ir,
+            int inRank, int outRank, int geometrySlot, int startSlot, int endSlot) {
+        boolean denseArrays = specialization.carrierPattern().stream().noneMatch(
+                access -> access == CpuKernelSpecialization.CarrierAccess.MEMORY_SEGMENT)
+                && ir.values().stream().allMatch(value -> value.accessPlan().regime()
+                    == CpuAccessPlan.Regime.DENSE_LINEAR);
+        int inputCoordinates = 11 + inRank;
+        int outputCoordinates = inputCoordinates + inRank;
+        int inputLayout = outputCoordinates + outRank;
+        int outputLayout = inputLayout + 2 + 2 * inRank;
+        int cell = code.allocateLocal(denseArrays ? TypeKind.INT : TypeKind.LONG);
+        if (denseArrays) code.lload(startSlot).l2i().istore(cell);
+        else code.lload(startSlot).lstore(cell);
+        var done = code.newLabel(); var cells = code.newLabel();
+        if (denseArrays) code.iload(cell).lload(endSlot).l2i().branch(Opcode.IF_ICMPGE, done);
+        else code.lload(cell).lload(endSlot).lcmp().branch(Opcode.IFGE, done);
+        code.labelBinding(cells);
+        int inputAddress;
+        int outputAddress;
+        if (denseArrays) {
+            inputAddress = code.allocateLocal(TypeKind.INT);
+            outputAddress = code.allocateLocal(TypeKind.INT);
+            code.aload(geometrySlot).loadConstant(inputLayout + 1).laload().l2i()
+                    .iload(cell).iadd().istore(inputAddress);
+            code.aload(geometrySlot).loadConstant(outputLayout + 1).laload().l2i()
+                    .iload(cell).iadd().istore(outputAddress);
+        } else {
+            decode(code, geometrySlot, cell, outputCoordinates, outputLayout, outRank);
+            int leading = inRank - outRank;
+            for (int axis = 0; axis < inRank; axis++) {
+                code.aload(geometrySlot).loadConstant(inputCoordinates + axis);
+                if (axis < leading) code.loadConstant(0L);
+                else code.aload(geometrySlot).loadConstant(outputCoordinates + axis - leading)
+                        .laload();
+                code.lastore();
+            }
+            inputAddress = address(code, geometrySlot, inRank, inputCoordinates, inputLayout);
+            outputAddress = address(code, geometrySlot, outRank, outputCoordinates, outputLayout);
+        }
+        int value = code.allocateLocal(localKind(type));
+        var carriers = new CpuCarrierEmitter(code);
+        carriers.load(type, specialization.carrierPattern().getFirst(), 0, inputAddress,
+                denseArrays);
+        store(code, type, value);
+        carriers.store(type, specialization.carrierPattern().getLast(), 1, outputAddress, value,
+                denseArrays);
+        if (denseArrays) {
+            code.iinc(cell, 1).iload(cell).lload(endSlot).l2i()
+                    .branch(Opcode.IF_ICMPLT, cells);
+        } else {
+            code.lload(cell).loadConstant(1L).ladd().lstore(cell);
+            code.lload(cell).lload(endSlot).lcmp().branch(Opcode.IFLT, cells);
+        }
+        code.labelBinding(done);
     }
 
     private static void emitBoundedMinimumOrGeneral(CodeBuilder code,
@@ -985,6 +1165,7 @@ public final class CpuAggregateEmitter {
             DataType type, int kind, String identity, int inRank, int outRank,
             boolean exactFloating, int exactLimbs, int geometrySlot, int startSlot, int endSlot) {
         boolean keep = identity.contains(":keep=true:");
+        boolean sumToShape = identity.contains(":SUM_TO_SHAPE:");
         boolean[] selectedAxes = selectedAxes(identity, inRank);
         int selected = 11, inputCoordinates = selected + inRank;
         int outputCoordinates = inputCoordinates + inRank;
@@ -994,12 +1175,16 @@ public final class CpuAggregateEmitter {
         code.lload(startSlot).lstore(cell);
         var done = code.newLabel();
         code.lload(cell).lload(endSlot).lcmp().branch(Opcode.IFGE, done);
+        if (sumToShape) decode(code, geometrySlot, cell, outputCoordinates, outputLayout, outRank);
         var cells = code.newLabel(); code.labelBinding(cells);
-        decode(code, geometrySlot, cell, outputCoordinates, outputLayout, outRank);
+        if (!sumToShape) decode(code, geometrySlot, cell, outputCoordinates, outputLayout, outRank);
         int outAxis = 0;
+        int leading = inRank - outRank;
         for (int axis = 0; axis < inRank; axis++) {
             code.aload(geometrySlot).loadConstant(inputCoordinates + axis);
             if (selectedAxes[axis]) code.loadConstant(0L);
+            else if (sumToShape) code.aload(geometrySlot).loadConstant(
+                    outputCoordinates + axis - leading).laload();
             else code.aload(geometrySlot).loadConstant(
                     outputCoordinates + (keep ? axis : outAxis++)).laload();
             code.lastore();
@@ -1018,12 +1203,15 @@ public final class CpuAggregateEmitter {
         code.aload(geometrySlot).loadConstant(7).laload().loadConstant(0L).lcmp()
                 .branch(Opcode.IFEQ, write);
         var domains = code.newLabel(); code.labelBinding(domains);
-        int remaining = code.allocateLocal(TypeKind.LONG); code.lload(domain).lstore(remaining);
-        for (int axis = inRank - 1; axis >= 0; axis--) if (selectedAxes[axis]) {
-            code.aload(geometrySlot).loadConstant(inputCoordinates + axis).lload(remaining)
-                    .aload(geometrySlot).loadConstant(inputLayout + 2 + axis).laload().lrem().lastore();
-            code.lload(remaining).aload(geometrySlot).loadConstant(inputLayout + 2 + axis).laload()
-                    .ldiv().lstore(remaining);
+        if (!sumToShape) {
+            int remaining = code.allocateLocal(TypeKind.LONG); code.lload(domain).lstore(remaining);
+            for (int axis = inRank - 1; axis >= 0; axis--) if (selectedAxes[axis]) {
+                code.aload(geometrySlot).loadConstant(inputCoordinates + axis).lload(remaining)
+                        .aload(geometrySlot).loadConstant(inputLayout + 2 + axis).laload().lrem()
+                        .lastore();
+                code.lload(remaining).aload(geometrySlot).loadConstant(inputLayout + 2 + axis)
+                        .laload().ldiv().lstore(remaining);
+            }
         }
         int inputAddress = address(code, geometrySlot, inRank, inputCoordinates, inputLayout);
         int value = code.allocateLocal(localKind(type));
@@ -1038,8 +1226,18 @@ public final class CpuAggregateEmitter {
             code.branch(kind == 2 ? Opcode.IFEQ : Opcode.IFNE, write);
         }
         code.lload(domain).loadConstant(1L).ladd().lstore(domain);
-        code.lload(domain).aload(geometrySlot).loadConstant(7).laload().lcmp()
-                .branch(Opcode.IFLT, domains);
+        if (sumToShape) {
+            var advance = code.newLabel();
+            code.lload(domain).aload(geometrySlot).loadConstant(7).laload().lcmp()
+                    .branch(Opcode.IFLT, advance).branch(Opcode.GOTO, write)
+                    .labelBinding(advance);
+            incrementCoordinates(code, geometrySlot, inputCoordinates, inputLayout, inRank,
+                    selectedAxes);
+            code.branch(Opcode.GOTO, domains);
+        } else {
+            code.lload(domain).aload(geometrySlot).loadConstant(7).laload().lcmp()
+                    .branch(Opcode.IFLT, domains);
+        }
         code.labelBinding(write);
         if (exactSum != null) exactSum.emitFinish(accumulator);
         else if (exactProduct != null) {
@@ -1049,8 +1247,30 @@ public final class CpuAggregateEmitter {
         int outputAddress = address(code, geometrySlot, outRank, outputCoordinates, outputLayout);
         carriers.store(type, specialization.carrierPattern().getLast(), 1, outputAddress, accumulator);
         code.lload(cell).loadConstant(1L).ladd().lstore(cell);
-        code.lload(cell).lload(endSlot).lcmp().branch(Opcode.IFLT, cells);
+        if (sumToShape) {
+            code.lload(cell).lload(endSlot).lcmp().branch(Opcode.IFGE, done);
+            boolean[] everyOutputAxis = new boolean[outRank];
+            java.util.Arrays.fill(everyOutputAxis, true);
+            incrementCoordinates(code, geometrySlot, outputCoordinates, outputLayout, outRank,
+                    everyOutputAxis);
+            code.branch(Opcode.GOTO, cells);
+        } else code.lload(cell).lload(endSlot).lcmp().branch(Opcode.IFLT, cells);
         code.labelBinding(done);
+    }
+
+    private static void incrementCoordinates(CodeBuilder code, int geometrySlot,
+            int coordinates, int layout, int rank, boolean[] selectedAxes) {
+        var complete = code.newLabel();
+        for (int axis = rank - 1; axis >= 0; axis--) if (selectedAxes[axis]) {
+            code.aload(geometrySlot).loadConstant(coordinates + axis)
+                    .aload(geometrySlot).loadConstant(coordinates + axis).laload()
+                    .loadConstant(1L).ladd().lastore();
+            code.aload(geometrySlot).loadConstant(coordinates + axis).laload()
+                    .aload(geometrySlot).loadConstant(layout + 2 + axis).laload().lcmp()
+                    .branch(Opcode.IFLT, complete);
+            code.aload(geometrySlot).loadConstant(coordinates + axis).loadConstant(0L).lastore();
+        }
+        code.labelBinding(complete);
     }
 
     private static boolean[] selectedAxes(String identity, int rank) {

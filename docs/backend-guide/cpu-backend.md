@@ -65,13 +65,16 @@ execution may distribute only whole independent slices. The family declares one 
 distinct output, with zero workspace or materialization. Schema 38 adds one completely
 guarded fixed `[1024,1024]` axis-one exclusive reverse INT64 product body over segment carriers;
 all other admitted scan geometries retain their existing typed bodies.
-The tenth family is exactly one resolved-layout ordinary aggregate occurrence. `SUM`, `PROD`,
+The tenth family is exactly one resolved-layout ordinary or binding-aware aggregate occurrence. `SUM`, `PROD`,
 `MIN`, and `MAX` accept FLOAT64, FLOAT32, BFLOAT16, INT32, or INT64; `MEAN` accepts the three
 floating types; and Boolean `ALL` and `ANY` accept canonical BOOL. Exact full, single-axis, and
 multi-axis forms share one output-cell geometry, including an empty multi-axis selection as a
 one-value point domain. Scalar or parallel-scalar execution distributes only whole output cells.
 Floating SUM, MEAN, and PROD use declared run-owned exact-state workspace; every other row uses
 zero workspace. No row uses input materialization, partial reductions, or a combine step.
+Binding-aware SUM-to-Shape adds fully bound right-aligned SUM over the same five numeric types;
+it uses exact floating or modular integral arithmetic when axes reduce and raw represented copying
+when none does.
 
 Generated scalar and Java 26 Vector API entries accept primitive `start` and `end` bounds.
 Compatible concrete extents bind on the cold path and share identical class bytes and one
@@ -1400,14 +1403,14 @@ fusion, partial scans, cross-worker prefix combination, vector or native scan bo
 Shape/layout binding, in-place/overlapping execution, public scan configuration, and a shared
 Runtime scan primitive are not implemented.
 
-### Current ordinary aggregate reduction family
+### Current aggregate reduction family
 
 The portable ordinary-aggregate family accepts exactly one fully static, resolved-layout
 `SUM`, `MEAN`, `PROD`, `MIN`, `MAX`, `ALL`, or `ANY` occurrence. `SUM`, `PROD`, `MIN`, and `MAX`
 accept FLOAT64, FLOAT32, BFLOAT16, INT32, and INT64 and preserve that represented type. `MEAN`
 accepts only FLOAT64, FLOAT32, and BFLOAT16. `ALL` and `ANY` accept and produce only canonical
-one-byte BOOL. Integral MEAN, `SUM_TO_SHAPE`, masked reductions, arg extrema, and later reduction
-families fail closed before route selection.
+one-byte BOOL. Integral MEAN, masked reductions, arg extrema, and later reduction families fail
+closed before route selection.
 
 The accepted attribute forms determine selected axes as follows:
 
@@ -1417,6 +1420,21 @@ The accepted attribute forms determine selected axes as follows:
 | One normalized axis | That axis | Axis removed, or retained with extent one |
 | Distinct normalized axis list | Axis membership, independent of list order | Selected axes removed, or retained with extent one |
 | Empty normalized axis list | One value at the corresponding input position | Input Shape, regardless of retention |
+
+Binding-aware SUM-to-Shape is a fourth SUM attribute form, not another semantic kind or backend
+route. CPU accepts it only when source, target, and output Shapes are fully static, both layouts
+are resolved, output Shape equals the exact target, and output type equals input type. The target
+is right-aligned with the source. Every unmatched leading source axis reduces and disappears; an
+aligned unequal pair is valid only when the target extent is one, in which case that source axis
+reduces while the target position remains; equal extents preserve the coordinate. Equality has
+precedence, so source-one/target-one is preserved. CPU does not bind unresolved Dimensions.
+
+For source Shape `[2, 3, 4]` and target Shape `[3, 1]`, source axis zero and aligned source axis
+two reduce. Each output cell keeps its axis-one coordinate and sums `2 * 4` values. Source Shape
+`[1, 3, 1]` to the identical target selects no reduction axis and copies each represented value
+to the required distinct output. That copy preserves every floating bit, including NaN payload,
+sign, signaling state, and signed zero; it does not classify or round the value as a one-element
+SUM.
 
 Each existing output cell owns its complete selected domain. A selected zero extent materializes
 the kind's empty-domain result independently for every such cell: positive zero for SUM, positive
@@ -1481,6 +1499,9 @@ input and rejects complete physical input/output overlap. Scratch-bearing rows a
 validate workspace presence, exact size, alignment, accessibility, and complete physical
 non-overlap with input and output. All checks finish before coordinate-pack mutation, output
 initialization, a generated call, or worker submission. Empty output performs no generated work.
+The same checks apply to SUM-to-Shape, including complete input/output physical-overlap rejection
+for its raw-copy form. A selected empty floating domain with existing output cells still owns its
+exact-state slices; integral reductions and every raw copy use no workspace.
 
 The generated entry embeds a typed aggregate body selected from structural aggregate facts.
 Primitive `start` and `end` values bound a contiguous range of flattened output-cell ordinals.
@@ -1546,6 +1567,22 @@ In the retained fixed environment, its five generated/direct ratios are `0.81877
 This closes that bounded comparison and is neither a universal aggregate-performance claim nor a
 production selection input.
 
+Schema 43 adds fully bound SUM-to-Shape identity and generated execution. Its typed general body
+uses long-address right-aligned target mapping for every supported heap-array, native-order
+`MemorySegment`, or mixed carrier combination, including nonzero offsets, positive or zero input
+strides, arbitrary injective output layouts, and arbitrary valid half-open output-cell ranges.
+The generated raw-copy body handles the no-reduction form directly. The cold-guarded dense
+`[64,128,256]` to `[128,1]` form uses direct primitive nested loops for all five numeric types;
+its integral body has the same pre-tested one-accumulator algorithm, hot-loop work, and dataflow
+shape as the optimal clean-Java implementation. Floating reductions reuse the exact SUM emitter
+and one final round-to-nearest, ties-to-even result conversion; INT32 and INT64 addition remains
+same-width modular arithmetic. Failed dense-form guards retain the direct typed general body.
+
+The schema-43 entry partitions only complete output cells, never a selected domain, so scalar and
+parallel-scalar execution remain bit-identical and one immutable prepared executable may be reused
+with distinct run-owned state. Schema-42 envelopes are current-incompatible safe misses; the A1O
+schema-42 ledger remains explicitly historical evidence rather than a current-schema claim.
+
 The local CPU 0007A0 parity probe is evidence for the current generated code shape, not a
 hardware-universal speed guarantee or production selector. On Java 26.0.1, macOS 26.5.2,
 aarch64, with 128-bit preferred `DoubleVector` species and 1,048,576-element cases, the
@@ -1560,13 +1597,13 @@ order and produce bit-identical results. This is a deterministic CPU result guar
 that floating output arithmetic is mathematically associative or that another backend uses the
 same NaN policy.
 
-Current coverage ends at this one-node static family. Binding-aware `SUM_TO_SHAPE` remains Draft
-CPU 0007A2 work. Arg extrema,
+Current coverage ends at this one-node static family. Arg extrema,
 masked and advanced reductions, softmax, normalization, multi-node reduction fusion,
 within-domain parallelism, partial/combine trees, vector/native reduction bodies, dynamic
 Shape/layout binding, in-place overlap, tuning, and broader performance guarantees remain outside
 this increment. The task's fixed generated/direct measurements are acceptance evidence for its
-thirteen selected dense cases, not a route selector or universal speed promise.
+selected dense cases, not a route selector or universal speed promise. No claim extends to
+dynamic binding, a Vector API reduction body, native execution, or fusion.
 
 ### Unary numerical closure
 
@@ -2043,14 +2080,13 @@ architecture capability checkpoint then passed, and the provider milestone is co
 
 The current CPU foundation provides the bounded fully static pointwise matrix, static
 resolved-layout affine family, and one-node static movement, indexing, functional-scatter,
-overlap-fold, stable ordering, explicit-state random, cumulative-scan, and ordinary-aggregate
-families described
-above. Scalar
+overlap-fold, stable ordering, explicit-state random, cumulative-scan, and aggregate families
+described above. Scalar
 execution covers every admitted row; parallel-scalar orchestration is available for disjoint
 affine, movement, scatter, fold, ordering, random-element, whole-scan-slice, and whole-aggregate-
 output-cell ranges; and the
 pointwise family retains its exact typed value-vector and virtual-mask parity matrix. Generator
-schema 42 distinguishes pointwise,
+schema 43 distinguishes pointwise,
 affine, movement, indexing, scatter, fold, ordering, random, scan, and aggregate structures,
 including movement occurrence order,
 unequal-rank access, exact
@@ -2081,7 +2117,9 @@ tuple/suffix loops with arbitrary legal subranges, duplicate encounter order, ze
 the unchanged typed general-long fallback. Schema 42 adds the completely guarded frozen BFLOAT16
 axes-zero-and-two MIN traversal described above, with arbitrary legal complete-output-cell ranges,
 raw first-NaN and negative-zero selection, zero workspace/materialization, and the unchanged typed
-general-long fallback. No excluded aggregate/scatter form or later semantic family,
+general-long fallback. Schema 43 adds the bound SUM-to-Shape mapping, exact-state reduction,
+modular integral, represented-copy, and guarded dense forms described above. No excluded
+aggregate/scatter form or later semantic family,
 general BFLOAT16 pointwise or dropout numerical operation,
 cross-type CAST, dynamic layout, vector affine/scatter/fold/ordering execution, native fallback, backend-conformance
 result, public Engine integration, hardware-intrinsic guarantee, or performance result is

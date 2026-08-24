@@ -49,11 +49,12 @@
  * invocation-private coordinate array per range and partitions only the independent slice
  * domain, so one slice and its sequential accumulator never cross worker boundaries.</p>
  *
- * <p>Ordinary aggregate binding validates complete input/output overlap, all logical canonical
+ * <p>Aggregate binding validates complete input/output overlap, all logical canonical
  * Boolean input bytes, and any exact-state workspace's size, alignment, accessibility, and buffer
  * non-overlap before mutation. It packs invocation-private coordinates, assigns disjoint
  * workspace slices to floating numerical ranges, and partitions only complete output cells;
- * selected domains are never split or combined.</p>
+ * selected domains are never split or combined. Bound SUM-to-Shape uses the same lifecycle and
+ * rejects overlap even when its no-reduction form performs a raw represented-bit copy.</p>
  *
  * <p>Runtime retains run-level lifecycle ownership; CPU memory representations retain physical
  * allocation and release ownership. Composition owns and closes the worker group; finalizers,

@@ -12,6 +12,7 @@ import io.github.pho001.synaptik.model.operation.OperationAttrs;
 import io.github.pho001.synaptik.model.operation.reduction.AggregateReductionKind;
 import io.github.pho001.synaptik.model.operation.reduction.AxisReductionAttrs;
 import io.github.pho001.synaptik.model.operation.reduction.MultiAxisReductionAttrs;
+import io.github.pho001.synaptik.model.operation.reduction.SumToShapeAttrs;
 import io.github.pho001.synaptik.model.shape.Shape;
 import io.github.pho001.synaptik.planning.capability.OperationCapabilityQuery;
 import io.github.pho001.synaptik.prepare.analysis.PrepareContext;
@@ -19,6 +20,57 @@ import java.util.List;
 import org.junit.jupiter.api.Test;
 
 public class CpuAggregateLoweringTest {
+    @Test void derivesRightAlignedSumToShapeGeometryAndCopyResources() {
+        var combined = lower(AggregateReductionKind.SUM, DataType.FLOAT64, Shape.of(2,3,4),
+                new SumToShapeAttrs(Shape.of(3,1)), Shape.of(3,1));
+        var copy = lower(AggregateReductionKind.SUM, DataType.FLOAT32, Shape.of(2,3),
+                new SumToShapeAttrs(Shape.of(2,3)), Shape.of(2,3));
+        var empty = lower(AggregateReductionKind.SUM, DataType.INT64, Shape.of(0,3,4),
+                new SumToShapeAttrs(Shape.of(3,1)), Shape.of(3,1));
+        assertAll(
+                () -> assertEquals(CpuAggregateIr.Form.SUM_TO_SHAPE,
+                        combined.aggregateGeometry().orElseThrow().form()),
+                () -> assertArrayEquals(new int[]{0,2},
+                        combined.aggregateGeometry().orElseThrow().selectedAxes()),
+                () -> assertEquals(8, combined.aggregateGeometry().orElseThrow().domainCount()),
+                () -> assertEquals(3, combined.elementCount()),
+                () -> assertArrayEquals(new int[0],
+                        copy.aggregateGeometry().orElseThrow().selectedAxes()),
+                () -> assertEquals(0, copy.aggregateGeometry().orElseThrow().scratchSliceBytes()),
+                () -> assertEquals(0, empty.aggregateGeometry().orElseThrow().domainCount()));
+    }
+
+    @Test void sumToShapeCoversLeadingAlignedScalarEqualityAndZeroGeometry() {
+        var leading = lower(AggregateReductionKind.SUM, DataType.INT32, Shape.of(2,3),
+                new SumToShapeAttrs(Shape.of(3)), Shape.of(3));
+        var aligned = lower(AggregateReductionKind.SUM, DataType.INT64, Shape.of(2,3),
+                new SumToShapeAttrs(Shape.of(2,1)), Shape.of(2,1));
+        var scalar = lower(AggregateReductionKind.SUM, DataType.FLOAT64, Shape.scalar(),
+                new SumToShapeAttrs(Shape.scalar()), Shape.scalar());
+        var preservedOne = lower(AggregateReductionKind.SUM, DataType.FLOAT32, Shape.of(1,3),
+                new SumToShapeAttrs(Shape.of(1,3)), Shape.of(1,3));
+        var selectedZero = lower(AggregateReductionKind.SUM, DataType.FLOAT32, Shape.of(2,0,4),
+                new SumToShapeAttrs(Shape.of(1,4)), Shape.of(1,4));
+        var unselectedZero = lower(AggregateReductionKind.SUM, DataType.FLOAT32, Shape.of(2,0,4),
+                new SumToShapeAttrs(Shape.of(0,4)), Shape.of(0,4));
+        assertAll(
+                () -> assertArrayEquals(new int[]{0}, leading.aggregateGeometry().orElseThrow()
+                        .selectedAxes()),
+                () -> assertArrayEquals(new int[]{1}, aligned.aggregateGeometry().orElseThrow()
+                        .selectedAxes()),
+                () -> assertArrayEquals(new int[0], scalar.aggregateGeometry().orElseThrow()
+                        .selectedAxes()),
+                () -> assertArrayEquals(new int[0], preservedOne.aggregateGeometry().orElseThrow()
+                        .selectedAxes()),
+                () -> assertEquals(0, selectedZero.aggregateGeometry().orElseThrow().domainCount()),
+                () -> assertTrue(selectedZero.aggregateGeometry().orElseThrow()
+                        .scratchSliceBytes() > 0),
+                () -> assertEquals(0, unselectedZero.elementCount()),
+                () -> assertThrows(IllegalArgumentException.class, () -> lower(
+                        AggregateReductionKind.SUM, DataType.FLOAT32, Shape.of(2,3),
+                        new SumToShapeAttrs(Shape.of(2)), Shape.of(2))));
+    }
+
     @Test void derivesFullSingleAndCanonicalMultiAxisOutputDomains() {
         var full = lower(AggregateReductionKind.MIN, DataType.FLOAT64, Shape.of(2,3,4),
                 NoOperationAttrs.INSTANCE, Shape.scalar());

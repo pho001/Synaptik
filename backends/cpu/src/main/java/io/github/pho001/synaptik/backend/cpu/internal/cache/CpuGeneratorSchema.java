@@ -90,6 +90,8 @@ package io.github.pho001.synaptik.backend.cpu.internal.cache;
  * primitive nested-loop oracle, preserves canonical factor order, first represented NaN and
  * negative-zero selection, accepts arbitrary legal complete-output-cell subranges, and retains
  * the typed general-long implementation for every failed proof.
+ * Schema 43 adds binding-aware SUM-to-Shape alignment identity, selected leading/aligned-axis
+ * traversal, direct represented-bit no-reduction copies, and their exact resource/entry shapes.
  * The optional persistent envelope stores this version and has no legacy reader, migration path,
  * or converter.
  */
@@ -134,10 +136,12 @@ public final class CpuGeneratorSchema {
      * guarded frozen FLOAT32 mixed-carrier pointwise ordinal loop while retaining the typed
      * general-long fallback; schema 41 adds the guarded frozen INT64 SCATTER_ND MIN direct
      * copy-then-update loops with the same typed fallback; schema 42 adds the guarded frozen
-     * BFLOAT16 axes-zero-and-two MIN primitive nested loops with the same typed fallback.
+     * BFLOAT16 axes-zero-and-two MIN primitive nested loops with the same typed fallback; schema
+     * 43 adds right-aligned SUM-to-Shape identity, represented-copy entries, reduction cursors,
+     * and guarded dense primitive nested loops.
      * Envelopes written for earlier schemas are incompatible misses.
      */
-    public static final int CURRENT_VERSION = 42;
+    public static final int CURRENT_VERSION = 43;
     /** Generated entry name. */ public static final String ENTRY_NAME = "invoke";
     private CpuGeneratorSchema() { }
 

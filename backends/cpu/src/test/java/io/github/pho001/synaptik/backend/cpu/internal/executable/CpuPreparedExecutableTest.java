@@ -40,6 +40,7 @@ import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuAggregateLower
 import io.github.pho001.synaptik.model.operation.scan.CumulativeScanKind;
 import io.github.pho001.synaptik.model.operation.reduction.AggregateReductionKind;
 import io.github.pho001.synaptik.model.operation.reduction.AxisReductionAttrs;
+import io.github.pho001.synaptik.model.operation.reduction.SumToShapeAttrs;
 import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuOrderingLoweringTest;
 import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuRandomLoweringTest;
 import io.github.pho001.synaptik.backend.cpu.internal.prepare.CpuPartitionPreparer;
@@ -1204,9 +1205,9 @@ class CpuPreparedExecutableTest {
         } finally { workers.close(); }
     }
 
-    @Test void aggregateRejectsCompleteOverlapBeforeWritesAndParallelizesWholeOutputCells() {
-        var base = CpuAggregateLoweringTest.context(AggregateReductionKind.MAX, DataType.INT32,
-                Shape.of(8,3), new AxisReductionAttrs(1,false), Shape.of(8));
+    @Test void sumToShapeRejectsCompleteOverlapBeforeWritesAndParallelizesWholeOutputCells() {
+        var base = CpuAggregateLoweringTest.context(AggregateReductionKind.SUM, DataType.INT32,
+                Shape.of(2,8,3), new SumToShapeAttrs(Shape.of(8,1)), Shape.of(8,1));
         var config = new PortableExecutionConfig(ComputePreference.SCALAR, 4, 2, 1);
         var context = new io.github.pho001.synaptik.prepare.analysis.PrepareContext<>(
                 base.partition(), base.nodes(), base.values(), base.memoryRequirements(),
@@ -1220,30 +1221,32 @@ class CpuPreparedExecutableTest {
         try {
             var executable = CpuPartitionFinalizerTest.finalizeExecutable(analysis,
                     Optional.empty(), Optional.of(workers));
-            int[] input = new int[24];
+            int[] input = new int[48];
             for (int cell = 0; cell < 8; cell++) {
                 input[cell * 3] = cell; input[cell * 3 + 1] = -cell; input[cell * 3 + 2] = cell + 10;
+                int second = (8 + cell) * 3;
+                input[second] = 1; input[second + 1] = 2; input[second + 2] = 3;
             }
             int[] output = new int[8]; java.util.Arrays.fill(output, -7);
             var run = state(executable, List.of(borrow(input), borrow(output)));
             try {
                 executable.bind(run).execute();
-                assertArrayEquals(new int[]{10,11,12,13,14,15,16,17}, output);
+                assertArrayEquals(new int[]{16,17,18,19,20,21,22,23}, output);
             } finally { run.close(); }
-            int[] shared = new int[32]; java.util.Arrays.fill(shared, 9);
-            var overlap = state(executable, List.of(borrow(shared,0,24), borrow(shared,3,8)));
+            int[] shared = new int[56]; java.util.Arrays.fill(shared, 9);
+            var overlap = state(executable, List.of(borrow(shared,0,48), borrow(shared,3,8)));
             try {
                 assertThrows(IllegalArgumentException.class, () -> executable.bind(overlap));
-                int[] untouched = new int[32]; java.util.Arrays.fill(untouched, 9);
+                int[] untouched = new int[56]; java.util.Arrays.fill(untouched, 9);
                 assertArrayEquals(untouched, shared);
             } finally { overlap.close(); }
         } finally { workers.close(); }
     }
 
-    @Test void exactFloatingAggregateUsesDisjointRunOwnedSlicesAndResetsOnConcurrentReuse()
+    @Test void exactFloatingSumToShapeUsesDisjointRunOwnedSlicesAndResetsOnConcurrentReuse()
             throws InterruptedException {
         var base = CpuAggregateLoweringTest.context(AggregateReductionKind.SUM, DataType.FLOAT64,
-                Shape.of(8,3), new AxisReductionAttrs(1,false), Shape.of(8));
+                Shape.of(2,8,3), new SumToShapeAttrs(Shape.of(8,1)), Shape.of(8,1));
         var config = new PortableExecutionConfig(ComputePreference.SCALAR, 4, 4, 1);
         var context = new io.github.pho001.synaptik.prepare.analysis.PrepareContext<>(
                 base.partition(), base.nodes(), base.values(), base.memoryRequirements(),
@@ -1257,7 +1260,7 @@ class CpuPreparedExecutableTest {
         try {
             var executable = CpuPartitionFinalizerTest.finalizeExecutable(analysis,
                     Optional.empty(), Optional.of(workers));
-            double[] input = new double[24];
+            double[] input = new double[48];
             for (int cell = 0; cell < 8; cell++) {
                 input[cell * 3] = 0x1p53; input[cell * 3 + 1] = cell + 1;
                 input[cell * 3 + 2] = -0x1p53;

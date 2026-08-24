@@ -38,7 +38,8 @@ import io.github.pho001.synaptik.model.datatype.DataType;
  * classifications, widens represented FLOAT32 values where required, and narrows once. It also
  * evaluates already-lowered affine, movement, indexing, functional slice-update,
  * functional-scatter, overlap-fold, stable ordering, explicit-state random, cumulative-scan, and
- * ordinary aggregate mappings for differential tests. Numerical aggregate evaluation uses
+ * ordinary and right-aligned SUM-to-Shape aggregate mappings for differential tests. Numerical
+ * aggregate evaluation uses
  * independent {@link BigInteger} integer/rational conversion rather than generated emitter
  * rounding logic. The
  * ordering oracle uses an independent primitive-index insertion algorithm while preserving the
@@ -80,7 +81,9 @@ public final class CpuScalarReferenceKernel {
     private CpuScalarReferenceKernel() { }
 
     /**
-     * Independently evaluates one complete ordinary numerical, extrema, or Boolean reduction.
+     * Independently evaluates one complete ordinary numerical, extrema, Boolean, or bound
+     * SUM-to-Shape reduction. A SUM-to-Shape occurrence with no selected axis copies the exact
+     * represented input value without numerical classification.
      *
      * <p>This oracle derives logical coordinates directly from Shapes and selected membership;
      * it does not call production aggregate execution, packing, lowering, or coordinate helpers.</p>
@@ -106,9 +109,20 @@ public final class CpuScalarReferenceKernel {
         for (long cell = 0; cell < geometry.outputCount(); cell++) {
             decodeReference(cell, outputExtents, outputCoordinates);
             int outputAxis = 0;
+            int leading = inputCoordinates.length - outputCoordinates.length;
             for (int axis = 0; axis < inputCoordinates.length; axis++) {
                 inputCoordinates[axis] = selected[axis] ? 0
-                        : outputCoordinates[geometry.keepDimensions() ? axis : outputAxis++];
+                        : outputCoordinates[geometry.form() == CpuAggregateIr.Form.SUM_TO_SHAPE
+                            ? axis - leading
+                            : geometry.keepDimensions() ? axis : outputAxis++];
+            }
+            if (geometry.form() == CpuAggregateIr.Form.SUM_TO_SHAPE
+                    && geometry.selectedAxes().length == 0) {
+                Object represented = load(arguments.getFirst(), ir.dataType(),
+                        aggregateAddress(geometry.input(), inputCoordinates));
+                store(arguments.getLast(), ir.dataType(),
+                        aggregateAddress(geometry.output(), outputCoordinates), represented);
+                continue;
             }
             Object accumulator = aggregateIdentity(ir.kind(), ir.dataType());
             if ((ir.kind() == CpuAggregateIr.Kind.SUM || ir.kind() == CpuAggregateIr.Kind.MEAN

@@ -2,7 +2,7 @@
 
 ## Status
 
-Review needed
+Complete
 
 ## Goal
 
@@ -344,8 +344,11 @@ may change; otherwise stop and replan.
   accumulated evidence closes every frozen performance row, but the original ledger gate remains
   open because rows other than INITIAL_STATE and computation-free views retain explicit
   `STRUCTURAL_ONLY:covered-by-emitted-category` classifications.
-- CPU 0007A2 remains Draft and blocked while A1C is Incomplete. No detailed CPU 0007A2 task
-  specification exists to qualify as Ready in any case.
+- [CPU 0007A1O](0007a1o-pointwise-ledger-evidence-reconciliation.md) is Complete. Its bounded
+  replacement ledger, pointwise equivalence-category evidence, stable regression test, and final
+  re-audit close this task's last original gate.
+- Planning CPU 0007A2 is the next follow-up. It remains Draft without a detailed specification,
+  and there is no Ready CPU task after this closure.
 - CPU 0009 remains the later repository-wide portable conformance checkpoint.
 
 ## Architecture impact
@@ -515,13 +518,9 @@ only the four-row `CpuDataMovementEmitter` cluster as detailed Ready CPU 0007A1E
   schema policy, documentation pass, and repository scope are satisfied. A1C itself changed no
   production owner and remained at schema 31; each separately planned correction advanced its
   schema once, ending at current schema 42.
-- One original acceptance gate remains unsatisfied. The immutable 79-line operation/family/form
-  ledger labels many pointwise operations, including `SUB`, `POW`, and `NEG`, with the performance
-  category `STRUCTURAL_ONLY:covered-by-emitted-category`. A1C permits structural-only results only
-  for fixed two-word INITIAL_STATE and computation-free views. The later twenty-row results prove
-  their selected equivalence categories but do not rewrite those ledger rows. The documentation
-  pass cannot modify retained evidence, so A1C remains Incomplete rather than interpreting the
-  contradictory labels as a pass.
+- The immutable original ledger's extra structural-only labels remain recorded as historical
+  evidence. A1O does not rewrite them; its versioned, checksummed, automatically validated
+  replacement closes that final accounting gate with current generated/direct evidence.
 - Architecture and ADR no-change conclusion: no production owner, lifecycle, module boundary,
   dependency direction, backend ownership, Prepare/Runtime handoff, route, resource, capability,
   or semantic contract changed, so `ARCHITECTURE.md`, focused architecture pages, and ADRs remain
@@ -534,30 +533,66 @@ only the four-row `CpuDataMovementEmitter` cluster as detailed Ready CPU 0007A1E
   not a supported backend claim or reusable term. The CPU guide and glossary therefore remain
   unchanged. Current package/type Javadocs still describe schema-31 behavior and unchanged
   execution contracts; Javadoc was not rerun because no Javadoc changed.
+- CPU 0007A1O subsequently preserves that immutable original ledger and supplies a versioned,
+  repository-tested replacement. Implementation context `01a032f9-66c9-73f1-8960-8c39c97c830d`
+  and initial audit context `01a032f1-a956-7ca0-9a18-4ce3f585208b` retained evidence at
+  `/private/tmp/synaptik-cpu-0007a1o-IPbQzuJi`. The original verifies at the required SHA-256 and
+  79 physical lines; the replacement preserves 48 pointwise plus 30 non-pointwise rows, assigns
+  fresh evidence to exactly 40 pointwise representatives, and leaves only `INITIAL_STATE`
+  structural-only.
+- Mandatory clean documentation-focused context `01a0331e-335a-7573-a8b4-7ad481d464d8`
+  independently reviewed the final test/resource, retained corpus, actual XML, final diff, and
+  governing General and Planning profiles before closing A1C and A1O.
+- A1O reports `VERIFIED,44`, five accepted 44-case fixed-heap forks, worst fork
+  `1.071655171x`, worst median `1.056510985x` (both `P-IS_NAN`), deterministic bytes for all 44
+  classes, four controls byte-identical to A1N, complete `javap -c/-v`, `AUDITED,44`, and a
+  verified 384-entry manifest. Its truthfulness audit classifies all 48 pointwise rows as 36
+  no-operation-branch, five formula-conditional, and seven value-selection cases. The stable test
+  fixes exact formula, branch, type/result, realization, value-flow, carrier/access/range, store,
+  forbidden-hot-path, provenance, inventory, checksum, and schema expectations.
+- The focused A1O command passed 23 tests. The final CPU XML contains 55 suites and 361 tests: 360
+  passed, one expected opt-in persistence test skipped, and zero failures/errors. No executable
+  Java changed afterward. Current schema remains 42, production bytes are unchanged, staging is
+  empty, and the final worktree contains exactly the six A1O paths.
+- Final original-gate reconciliation: the checksummed original plus tested replacement closes the
+  complete ledger inventory and structural-only limit; A1N closes all twenty fixed semantic and
+  performance rows; retained/fresh evidence and manifests close provenance; deterministic
+  Class-File, complete disassembly, descriptors, members, forbidden constructs, and scratch gates
+  close generated shape; accumulated evidence spans every required carrier/type/access/range/
+  vector/scratch axis; each production correction retained its two-owner/schema boundary; A1O
+  changes no production/schema/contract; and the mandatory documentation pass closes planning,
+  link, scope, status, staging, and whitespace gates. Every original acceptance criterion now
+  passes.
+- Final documentation no-change conclusion: this closure adds test evidence only. Production and
+  public/semantic contracts are unchanged, so architecture/ADRs/architecture tests, public/API
+  Javadocs, glossary, guides/examples, capability, conformance/integration, build, and other-module
+  documentation require no change. CPU Javadoc and Java suites were not rerun by the final
+  documentation context. A1D remains `Review needed`; this closure does not waive its historical
+  failed local 13-target performance criterion.
 
 ## Completion summary
 
-- Completed changes: froze the operation/family/form ledger and twenty-case corpus, retained the
-  stable closure test, diagnosed the original failures, and closed every frozen performance row
-  through ordered bounded corrections ending with CPU 0007A1N at schema 42.
-- Files changed or created for the final correction: ten A1N implementation-owned production/test
-  paths plus the CPU backend guide, glossary, A1N, this task, CPU master plan, and roadmap. The
-  documentation pass changed no executable Java or test.
-- Validation: final retained evidence reports `VERIFIED,20`, 62 focused tests, 360 full CPU tests
-  with one expected skip, five accepted twenty-row forks with every ratio and median at most
-  `1.15x`, one retained rejected whole sample, deterministic bytes for all twenty generated
-  classes, and complete disassembly/structural evidence. CPU Javadoc ran exactly once in the final
-  documentation pass, followed by the required static checks.
-- Documentation impact: affected internal Javadocs, CPU guide, glossary, A1N, this closure record,
-  CPU master plan, and roadmap are synchronized to schema 42 and the completed evidence boundary.
-  No architecture contract, ADR, public API, capability, example, build, conformance/integration,
-  or other-module documentation changed.
-- Unresolved issue: the frozen ledger's extra `STRUCTURAL_ONLY:covered-by-emitted-category` rows
-  violate A1C's original structural-only limit. A1D's narrower historical task status also remains
-  `Review needed` and is not rewritten as if its failed local criterion had passed.
-- Follow-up required: in a separate evidence-authorized task, reconcile or replace the frozen
-  ledger so every non-INITIAL_STATE, non-view row names accepted retained/new performance evidence
-  without a structural-only classification, then re-audit A1C. CPU 0007A2 remains Draft/blocked.
+- Completed changes: froze the original ledger and twenty-case corpus, diagnosed and corrected the
+  bounded generated-code defects through A1N, preserved the historical evidence, and used A1O's
+  tested replacement to close the final pointwise evidence-accounting gap.
+- Files changed or created in the final A1O closure: the ledger test/resource plus A1O, this task,
+  CPU master plan, and roadmap; exactly six worktree paths. The documentation pass changed no
+  executable Java or test.
+- Tests and validation: accumulated `VERIFIED,20` and accepted twenty-row A1N evidence plus A1O
+  `VERIFIED,44`, `AUDITED,44`, five accepted 44-case forks, deterministic/control checks, complete
+  disassembly, the 384-entry checksum manifest, 23 focused tests, and final 55-suite/361-test CPU
+  XML with 360 passes and one expected skip. Final documentation/static checks passed.
+- Documentation-agent review: the mandatory clean documentation-focused A1O finalization reviewed
+  the final diff, test/resource, retained evidence, XML, architecture/planning contracts, and
+  Planning profile, then finalized only the four permitted planning paths.
+- Documentation impact: A1C and A1O are Complete; CPU master plan and roadmap now identify Draft
+  CPU 0007A2 planning as the next follow-up and show no Ready CPU task.
+- Architecture/API/Javadoc/glossary/guide/capability/build/conformance/integration/other-module
+  impact: no change because A1O adds test evidence only and changes no production/public/semantic
+  contract.
+- Unresolved issues: None for A1C. CPU 0007A1D independently remains `Review needed` because its
+  own historical local performance criterion failed.
+- Follow-up required: plan CPU 0007A2 in a later change; its detailed specification is not created
+  within A1O's fully occupied six-path scope.
 
-Status: Incomplete
-Follow-up required: Reconcile the frozen ledger's extra structural-only rows before closing CPU 0007A1C or advancing CPU 0007A2.
+Status: Complete

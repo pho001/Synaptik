@@ -11,6 +11,7 @@ import io.github.pho001.synaptik.model.operation.NoOperationAttrs;
 import io.github.pho001.synaptik.model.operation.reduction.AggregateReductionKind;
 import io.github.pho001.synaptik.model.operation.reduction.AxisReductionAttrs;
 import io.github.pho001.synaptik.model.operation.reduction.MultiAxisReductionAttrs;
+import io.github.pho001.synaptik.model.operation.reduction.SumToShapeAttrs;
 import io.github.pho001.synaptik.planning.capability.OperationCapabilityQuery;
 import io.github.pho001.synaptik.prepare.analysis.BackendAnalysisInputs;
 import io.github.pho001.synaptik.prepare.analysis.PrepareContext;
@@ -24,10 +25,12 @@ import java.util.Objects;
 import java.util.Optional;
 
 /**
- * Lowers one fully static supported ordinary aggregate occurrence.
+ * Lowers one fully static supported ordinary aggregate or binding-aware SUM-to-Shape occurrence.
  *
  * <p>The lowerer canonicalizes selected-axis membership, derives complete output-cell and
  * selected-domain geometry, and declares exactly one input and one distinct injective output.
+ * SUM-to-Shape derives leading and unequal target-one axes from exact right alignment while
+ * preserving equal aligned extents before considering target-one reduction.
  * Floating SUM, MEAN, and PROD derive exact fixed-width state; other rows select no workspace.
  * No row creates a partial reduction or combine state.</p>
  */
@@ -37,7 +40,9 @@ public final class CpuAggregateLowering {
     public CpuAggregateLowering() { }
 
     /**
-     * Lowers one supported occurrence into a two-boundary output-cell unit.
+     * Lowers one supported occurrence into a two-boundary output-cell unit. A SUM-to-Shape
+     * occurrence must already have fully static source, target, and result Shapes; this method
+     * validates their exact right-aligned relationship and performs no runtime binding.
      * @param context non-null complete one-node CPU projection, borrowed for this cold call
      * @return immutable aggregate lowering with exact output-cell and optional state geometry
      * @throws NullPointerException if {@code context} is {@code null}
@@ -67,7 +72,23 @@ public final class CpuAggregateLowering {
 
         Object attrs = node.operation().attrs();
         CpuAggregateIr.Form form; boolean keep; int[] selected;
-        if (attrs == NoOperationAttrs.INSTANCE) {
+        if (attrs instanceof SumToShapeAttrs sumTo) {
+            form = CpuAggregateIr.Form.SUM_TO_SHAPE; keep = false;
+            long[] source = inputLayout.extents, target = sumTo.targetShape().toLongArray();
+            if (!Arrays.equals(target, outputLayout.extents) || target.length > source.length)
+                throw new IllegalArgumentException("sum-to-Shape target and output must agree");
+            int leading = source.length - target.length;
+            var axes = new ArrayList<Integer>();
+            for (int axis = 0; axis < leading; axis++) axes.add(axis);
+            for (int targetAxis = 0; targetAxis < target.length; targetAxis++) {
+                int inputAxis = leading + targetAxis;
+                if (source[inputAxis] == target[targetAxis]) continue;
+                if (target[targetAxis] != 1) throw new IllegalArgumentException(
+                        "sum-to-Shape aligned extents must be equal or target one");
+                axes.add(inputAxis);
+            }
+            selected = axes.stream().mapToInt(Integer::intValue).toArray();
+        } else if (attrs == NoOperationAttrs.INSTANCE) {
             form = CpuAggregateIr.Form.FULL; keep = false;
             selected = new int[inputLayout.extents.length];
             for (int axis = 0; axis < selected.length; axis++) selected[axis] = axis;
@@ -85,7 +106,8 @@ public final class CpuAggregateLowering {
                 throw new IllegalArgumentException("aggregate axes must be normalized and distinct");
             membership[axis] = true;
         }
-        long[] expected = outputExtents(inputLayout.extents, membership, keep, form);
+        long[] expected = form == CpuAggregateIr.Form.SUM_TO_SHAPE
+                ? outputLayout.extents : outputExtents(inputLayout.extents, membership, keep, form);
         if (!Arrays.equals(expected, outputLayout.extents))
             throw new IllegalArgumentException("aggregate output Shape disagrees with Model semantics");
         long outputCount = elementCount(outputLayout.extents);
@@ -98,7 +120,8 @@ public final class CpuAggregateLowering {
         AggregateReductionKind modelKind = (AggregateReductionKind) node.operation().kind();
         CpuAggregateIr.Kind kind = CpuAggregateIr.Kind.valueOf(modelKind.name());
         DataType type = input.descriptor().dataType();
-        boolean exactFloating = (kind == CpuAggregateIr.Kind.SUM
+        boolean actualReduction = form != CpuAggregateIr.Form.SUM_TO_SHAPE || selected.length != 0;
+        boolean exactFloating = actualReduction && (kind == CpuAggregateIr.Kind.SUM
                 || kind == CpuAggregateIr.Kind.MEAN || kind == CpuAggregateIr.Kind.PROD)
                 && (type == DataType.FLOAT64 || type == DataType.FLOAT32
                     || type == DataType.BFLOAT16);
@@ -107,7 +130,11 @@ public final class CpuAggregateLowering {
                 kind == CpuAggregateIr.Kind.PROD ? 24L : 8L,
                 Math.multiplyExact(8L, stateLimbCount)) : 0;
         var ir = new CpuAggregateIr(kind, type, form, selected, keep, inputBinding.plan(),
-                outputBinding.plan(), domainCount, stateLimbCount, scratchSliceBytes,
+                outputBinding.plan(), form == CpuAggregateIr.Form.SUM_TO_SHAPE
+                    ? inputLayout.extents : new long[0],
+                form == CpuAggregateIr.Form.SUM_TO_SHAPE
+                    ? outputLayout.extents : new long[0],
+                domainCount, stateLimbCount, scratchSliceBytes,
                 CpuAggregateIr.FIRST_LOGICAL_NAN_AND_SIGNED_ZERO,
                 CpuAggregateIr.COMPLETE_OUTPUT_CELLS, exactFloating
                     ? CpuAggregateIr.EXACT_FLOATING_STATE : CpuAggregateIr.ZERO_WORKSPACE);
@@ -314,8 +341,12 @@ public final class CpuAggregateLowering {
             for (int axis : selectedAxes) if (input.extents[axis] == 0) { expectedDomain = 0; break; }
             if (expectedDomain != 0) for (int axis : selectedAxes)
                 expectedDomain = Math.multiplyExact(expectedDomain, input.extents[axis]);
-            long[] expectedOutput = outputExtents(input.extents, membership, keepDimensions, form);
-            boolean exactFloating = (kind == CpuAggregateIr.Kind.SUM
+            long[] expectedOutput = form == CpuAggregateIr.Form.SUM_TO_SHAPE
+                    ? sumToShapeOutput(input.extents, output.extents, membership)
+                    : outputExtents(input.extents, membership, keepDimensions, form);
+            boolean actualReduction = form != CpuAggregateIr.Form.SUM_TO_SHAPE
+                    || selectedAxes.length != 0;
+            boolean exactFloating = actualReduction && (kind == CpuAggregateIr.Kind.SUM
                     || kind == CpuAggregateIr.Kind.MEAN || kind == CpuAggregateIr.Kind.PROD)
                     && (dataType == DataType.FLOAT64 || dataType == DataType.FLOAT32
                         || dataType == DataType.BFLOAT16);
@@ -328,6 +359,27 @@ public final class CpuAggregateLowering {
                     || outputCount != elementCount(output.extents) || domainCount != expectedDomain
                     || stateLimbCount != expectedLimbs || scratchSliceBytes != expectedSlice)
                 throw new IllegalArgumentException("aggregate geometry counts or Shapes disagree");
+        }
+
+        private static long[] sumToShapeOutput(long[] input, long[] output,
+                boolean[] selected) {
+            if (output.length > input.length) throw new IllegalArgumentException(
+                    "sum-to-Shape target rank exceeds source rank");
+            int leading = input.length - output.length;
+            for (int axis = 0; axis < input.length; axis++) {
+                boolean expectedSelected;
+                if (axis < leading) expectedSelected = true;
+                else {
+                    long sourceExtent = input[axis], targetExtent = output[axis - leading];
+                    if (sourceExtent == targetExtent) expectedSelected = false;
+                    else if (targetExtent == 1) expectedSelected = true;
+                    else throw new IllegalArgumentException(
+                            "sum-to-Shape aligned extents must be equal or target one");
+                }
+                if (selected[axis] != expectedSelected) throw new IllegalArgumentException(
+                        "sum-to-Shape selected axes disagree with alignment");
+            }
+            return output.clone();
         }
 
         /**

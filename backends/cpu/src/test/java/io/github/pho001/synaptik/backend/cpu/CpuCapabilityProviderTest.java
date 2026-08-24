@@ -30,6 +30,35 @@ import java.util.Optional;
 import org.junit.jupiter.api.Test;
 
 class CpuCapabilityProviderTest {
+    @Test void reportsOnlyExactBoundSumToShapeMatrix() {
+        var provider = new CpuCapabilityProvider();
+        for (DataType type : List.of(DataType.FLOAT64, DataType.FLOAT32, DataType.BFLOAT16,
+                DataType.INT32, DataType.INT64)) {
+            assertTrue(provider.supports(query(AggregateReductionKind.SUM,
+                    new SumToShapeAttrs(Shape.of(3, 1)),
+                    List.of(descriptor(type, Shape.of(2, 3, 4))),
+                    descriptor(type, Shape.of(3, 1)))));
+        }
+        assertAll(
+                () -> assertThrows(IllegalArgumentException.class, () -> query(
+                        AggregateReductionKind.PROD,
+                        new SumToShapeAttrs(Shape.of(3, 1)),
+                        List.of(descriptor(DataType.FLOAT32, Shape.of(2, 3, 4))),
+                        descriptor(DataType.FLOAT32, Shape.of(3, 1)))),
+                () -> assertFalse(provider.supports(query(AggregateReductionKind.SUM,
+                        new SumToShapeAttrs(Shape.of(3, 2)),
+                        List.of(descriptor(DataType.FLOAT32, Shape.of(2, 3, 4))),
+                        descriptor(DataType.FLOAT32, Shape.of(3, 2))))),
+                () -> assertFalse(provider.supports(query(AggregateReductionKind.SUM,
+                        new SumToShapeAttrs(Shape.of(1, 2, 3, 4)),
+                        List.of(descriptor(DataType.FLOAT32, Shape.of(2, 3, 4))),
+                        descriptor(DataType.FLOAT32, Shape.of(1, 2, 3, 4))))),
+                () -> assertFalse(provider.supports(query(AggregateReductionKind.SUM,
+                        new SumToShapeAttrs(Shape.of(3, 1)),
+                        List.of(descriptor(DataType.BOOL, Shape.of(2, 3, 4))),
+                        descriptor(DataType.BOOL, Shape.of(3, 1))))));
+    }
+
     @Test void reportsClosedOrdinaryNumericalAggregateMatrix() {
         var provider = new CpuCapabilityProvider();
         for (DataType type : List.of(DataType.FLOAT64, DataType.FLOAT32, DataType.BFLOAT16,

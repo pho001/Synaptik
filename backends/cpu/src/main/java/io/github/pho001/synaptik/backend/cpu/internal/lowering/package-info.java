@@ -80,6 +80,13 @@
  * declare run-owned per-range workspace; all other rows are workspace-free, and no row uses
  * materialization, a partial value, or combine state.</p>
  *
+ * <p>Binding-aware SUM-to-Shape lowering extends that aggregate family for exactly one fully
+ * static resolved-layout numeric SUM. It proves right-aligned source/target compatibility,
+ * derives leading and unequal target-one selected axes, preserves equal aligned axes, and records
+ * exact bound geometry. A form with no selected axis is a distinct-output represented-bit copy;
+ * floating reductions retain exact-state workspace, while integral reductions and copies remain
+ * workspace-free.</p>
+ *
  * <p>Lowering runs on the preparation cold path; no lowering object or Model operation reaches the
  * generated execution loop.
  */

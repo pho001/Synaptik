@@ -65,8 +65,11 @@
  * general-long fallback. Schema 41 adds the guarded frozen INT64 SCATTER_ND MIN direct
  * copy-then-update loops while retaining the same fallback. Schema 42 adds the guarded frozen
  * BFLOAT16 axes-zero-and-two MIN primitive nested loops, preserving canonical factor order,
- * first-NaN and signed-zero selection, and the same typed fallback. Schema 42 is current-only;
- * schema-41 and earlier envelopes are incompatible misses.
+ * first-NaN and signed-zero selection, and the same typed fallback. Schema 43 adds bound
+ * SUM-to-Shape alignment, reduced-versus-represented-copy identity, exact source/target geometry,
+ * and direct generated mapping and SUM bodies. Schema 43 is current-only; schema-42 and earlier
+ * envelopes are incompatible misses, while schema-42 evidence remains valid only as explicitly
+ * identified historical evidence.
  * Four complete candidate plans, one realized artifact, zero additional fixed-shape variants,
  * and zero additional unrolled variants are the current planner-visible hard budget. A guarded
  * method body may still emit a fixed-trip straight-line sequence inside that one artifact when

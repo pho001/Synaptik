@@ -454,8 +454,12 @@ target-one-or-input-equal obligation for later binding validation.
 The operation uses the existing `AggregateReductionKind.SUM` with
 `SumToShapeAttrs(targetShape)`; it is not a new operation kind. The fresh result retains exact
 input type and gradient eligibility, the exact target Shape, unresolved layout, and ordered
-one-input/output-index-zero provenance. It does not bind dimensions, resolve axes, read values,
-capture a graph, build a gradient, lower, or execute.
+one-input/output-index-zero provenance. Model construction does not bind dimensions, resolve axes,
+read values, capture a graph, build a gradient, lower, or execute. The current CPU portable route
+separately executes exactly the fully bound, fully static, resolved-layout form over the five
+numeric types: it proves the same right-aligned obligation, uses exact floating or modular integral
+SUM for reduced axes, and copies represented bits when no axis reduces. CPU schema 43 adds no
+dynamic binding, vector/native reduction, or fusion capability.
 
 Sum-to-Shape differs from reshape, which changes coordinate interpretation while preserving
 element count; from ordinary fixed-axis SUM, whose axes are known when the expression is built;

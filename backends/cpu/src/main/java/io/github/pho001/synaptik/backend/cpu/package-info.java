@@ -26,7 +26,10 @@
  * five numeric represented types, floating-only MEAN, and ALL/ANY over canonical BOOL. It
  * parallelizes only across whole output cells. Floating SUM/MEAN/PROD declare run-owned exact-state
  * workspace; all other rows are workspace-free, and no row uses partial/combine state or
- * materialization.
+ * materialization. Binding-aware SUM-to-Shape additionally accepts one fully bound static
+ * right-aligned target over the five numeric types. It reduces leading and unequal target-one
+ * axes, copies represented bits when no axis reduces, and retains the same output-cell ownership
+ * and exact floating or modular integral SUM semantics.
  * The provider exposes no route, carrier, preparation, or execution API.
  *
  * <p>The {@code internal} namespace contains unsupported implementation contracts for complete-

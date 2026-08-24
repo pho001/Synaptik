@@ -16,6 +16,7 @@ import io.github.pho001.synaptik.model.operation.OperationAttrs;
 import io.github.pho001.synaptik.model.operation.reduction.AggregateReductionKind;
 import io.github.pho001.synaptik.model.operation.reduction.AxisReductionAttrs;
 import io.github.pho001.synaptik.model.operation.reduction.MultiAxisReductionAttrs;
+import io.github.pho001.synaptik.model.operation.reduction.SumToShapeAttrs;
 import io.github.pho001.synaptik.model.shape.Shape;
 import io.github.pho001.synaptik.model.layout.LayoutDescriptor;
 import io.github.pho001.synaptik.model.operation.Operation;
@@ -38,6 +39,167 @@ import java.lang.classfile.constantpool.MethodHandleEntry;
 import java.lang.reflect.AccessFlag;
 
 class CpuAggregateGeneratedKernelTest {
+    @Test void sumToShapeGeneratedBodiesCoverFiveTypesAndRepresentedCopy() throws Throwable {
+        Shape source = Shape.of(2,3,4), target = Shape.of(3,1);
+        var attrs = new SumToShapeAttrs(target);
+        compare(AggregateReductionKind.SUM, DataType.FLOAT64, source, attrs, target,
+                new double[]{1,-1,2,-2,3,-3,4,-4,5,-5,6,-6,7,-7,8,-8,9,-9,10,-10,11,-11,12,-12});
+        compare(AggregateReductionKind.SUM, DataType.FLOAT32, source, attrs, target,
+                new float[]{1,-1,2,-2,3,-3,4,-4,5,-5,6,-6,7,-7,8,-8,9,-9,10,-10,11,-11,12,-12});
+        short[] bfloat = new short[24];
+        for (int i = 0; i < bfloat.length; i++) bfloat[i] = (short) ((i & 1) == 0 ? 0x3f80 : 0xbf80);
+        compare(AggregateReductionKind.SUM, DataType.BFLOAT16, source, attrs, target, bfloat);
+        compare(AggregateReductionKind.SUM, DataType.INT32, source, attrs, target,
+                java.util.stream.IntStream.range(0,24).map(i -> i * 1_000_000_003).toArray());
+        long[] longs = new long[24];
+        for (int i = 0; i < longs.length; i++) longs[i] = Long.MAX_VALUE - i;
+        compare(AggregateReductionKind.SUM, DataType.INT64, source, attrs, target, longs);
+
+        float[] represented = {Float.intBitsToFloat(0x7fa12345), -0.0f,
+                Float.intBitsToFloat(0xffc54321), Float.MIN_VALUE};
+        compare(AggregateReductionKind.SUM, DataType.FLOAT32, Shape.of(4),
+                new SumToShapeAttrs(Shape.of(4)), Shape.of(4), represented);
+    }
+
+    @Test void sumToShapeGeneralMixedCarriersLayoutsAndRangesMatchIndependentReference()
+            throws Throwable {
+        Shape source = Shape.of(2,3,4), target = Shape.of(3,1);
+        var inputDescriptor = CpuIndexingLoweringTest.descriptor(DataType.BFLOAT16, source,
+                LayoutDescriptor.of(source, new long[]{16,5,1}, 2, true));
+        var outputDescriptor = CpuIndexingLoweringTest.descriptor(DataType.BFLOAT16, target,
+                LayoutDescriptor.of(target, new long[]{3,0}, 1, true));
+        var operation = new Operation(AggregateReductionKind.SUM, new SumToShapeAttrs(target));
+        var base = CpuScatterLoweringTest.context(operation, List.of(0),
+                List.of(inputDescriptor), outputDescriptor);
+        PrepareContext<CpuPartitionAnalysisInputs> context = new PrepareContext<>(base.partition(),
+                base.nodes(), base.values(), base.memoryRequirements(), Map.of(),
+                new CpuPartitionAnalysisInputs(false, List.of(CarrierAccess.MEMORY_SEGMENT,
+                        CarrierAccess.SHORT_ARRAY)));
+        var plan = new CpuPartitionPreparer().analyze(context).plan();
+        var route = plan.units().getFirst().portablePlan();
+        var generator = new CpuClassFileKernelGenerator();
+        byte[] firstBytes = generator.generateClassBytes(route.specialization(), route.kernelIr());
+        byte[] secondBytes = generator.generateClassBytes(route.specialization(), route.kernelIr());
+        var artifact = generator.defineClassBytes(route.specialization(), firstBytes);
+        short[] physical = new short[32];
+        for (int i = 0; i < physical.length; i++) physical[i] = (short) ((i & 1) == 0
+                ? 0x3f80 : 0xbf80);
+        MemorySegment input = MemorySegment.ofArray(physical);
+        short[] expected = new short[10], actual = new short[10];
+        java.util.Arrays.fill(expected, (short) 0x55aa);
+        java.util.Arrays.fill(actual, (short) 0x55aa);
+        CpuScalarReferenceKernel.execute((CpuAggregateIr) plan.units().getFirst().portablePlan()
+                .portableKernelIr(), plan.aggregateGeometry().orElseThrow(), List.of(
+                    new CpuBufferArgument.Segment(DataType.BFLOAT16, input, input.byteSize(), true),
+                    new CpuBufferArgument.Shorts(expected, 0, expected.length * 2L, false)));
+        try (var arena = Arena.ofConfined()) {
+            var scratch = arena.allocate(plan.aggregateGeometry().orElseThrow().workspaceBytes(1), 8);
+            long[] geometry = plan.aggregateGeometry().orElseThrow().pack(new long[2]);
+            artifact.entryPoint().invokeWithArguments(input, actual, scratch, geometry, 0L, 1L);
+            artifact.entryPoint().invokeWithArguments(input, actual, scratch, geometry, 1L, 1L);
+            artifact.entryPoint().invokeWithArguments(input, actual, scratch, geometry, 1L, 3L);
+        }
+        assertAll(() -> assertArrayEquals(expected, actual),
+                () -> assertArrayEquals(firstBytes, secondBytes),
+                () -> assertEquals("(Ljava/lang/foreign/MemorySegment;[SLjava/lang/foreign/MemorySegment;[JJJ)V",
+                        route.specialization().entryType().descriptorString()));
+    }
+
+    @Test void sumToShapeGeneralCopyPreservesRawFloatingBitsWithOffsetsAndRanges()
+            throws Throwable {
+        Shape shape = Shape.of(4);
+        var inputDescriptor = CpuIndexingLoweringTest.descriptor(DataType.FLOAT32, shape,
+                LayoutDescriptor.of(shape, new long[]{2}, 1, true));
+        var outputDescriptor = CpuIndexingLoweringTest.descriptor(DataType.FLOAT32, shape,
+                LayoutDescriptor.of(shape, new long[]{2}, 2, true));
+        var operation = new Operation(AggregateReductionKind.SUM, new SumToShapeAttrs(shape));
+        var base = CpuScatterLoweringTest.context(operation, List.of(0),
+                List.of(inputDescriptor), outputDescriptor);
+        var context = new PrepareContext<>(base.partition(), base.nodes(), base.values(),
+                base.memoryRequirements(), Map.of(), new CpuPartitionAnalysisInputs(false,
+                        List.of(CarrierAccess.MEMORY_SEGMENT, CarrierAccess.FLOAT_ARRAY)));
+        var plan = new CpuPartitionPreparer().analyze(context).plan();
+        var route = plan.units().getFirst().portablePlan();
+        var generator = new CpuClassFileKernelGenerator();
+        var artifact = generator.defineClassBytes(route.specialization(),
+                generator.generateClassBytes(route.specialization(), route.kernelIr()));
+        float[] physical = new float[9];
+        int[] bits = {0x7fa12345, 0x80000000, 0xffa54321, 0x00000001};
+        for (int i = 0; i < bits.length; i++) physical[1 + 2 * i] = Float.intBitsToFloat(bits[i]);
+        float[] output = new float[11];
+        java.util.Arrays.fill(output, Float.intBitsToFloat(0x7fc00001));
+        long[] geometry = plan.aggregateGeometry().orElseThrow().pack(new long[2]);
+        artifact.entryPoint().invokeWithArguments(MemorySegment.ofArray(physical), output,
+                geometry, 0L, 2L);
+        artifact.entryPoint().invokeWithArguments(MemorySegment.ofArray(physical), output,
+                geometry, 2L, 2L);
+        artifact.entryPoint().invokeWithArguments(MemorySegment.ofArray(physical), output,
+                geometry, 2L, 4L);
+        for (int i = 0; i < bits.length; i++)
+            assertEquals(bits[i], Float.floatToRawIntBits(output[2 + 2 * i]));
+    }
+
+
+    @Test void sumToShapeEvidenceMatrixHasTypedDeterministicSelfContainedClassFiles() {
+        var f64 = sumToShapeRoute(DataType.FLOAT64, Shape.of(64,128,256), Shape.of(128,1),
+                List.of(CarrierAccess.DOUBLE_ARRAY, CarrierAccess.DOUBLE_ARRAY));
+        var bf16 = sumToShapeRoute(DataType.BFLOAT16, Shape.of(2,3,4), Shape.of(3,1),
+                List.of(CarrierAccess.MEMORY_SEGMENT, CarrierAccess.SHORT_ARRAY));
+        var i64 = sumToShapeRoute(DataType.INT64, Shape.of(8,16), Shape.of(8,1),
+                List.of(CarrierAccess.LONG_ARRAY, CarrierAccess.LONG_ARRAY));
+        var copy = sumToShapeRoute(DataType.FLOAT32, Shape.of(32,32), Shape.of(32,32),
+                List.of(CarrierAccess.FLOAT_ARRAY, CarrierAccess.FLOAT_ARRAY));
+        var generator = new CpuClassFileKernelGenerator();
+        var routes = List.of(f64, bf16, i64, copy);
+        var descriptors = List.of("([D[DLjava/lang/foreign/MemorySegment;[JJJ)V",
+                "(Ljava/lang/foreign/MemorySegment;[SLjava/lang/foreign/MemorySegment;[JJJ)V",
+                "([J[J[JJJ)V", "([F[F[JJJ)V");
+        for (int index = 0; index < routes.size(); index++) {
+            int current = index;
+            var route = routes.get(index);
+            byte[] first = generator.generateClassBytes(route.specialization(), route.kernelIr());
+            byte[] second = generator.generateClassBytes(route.specialization(), route.kernelIr());
+            var model = ClassFile.of().parse(first);
+            var method = model.methods().getFirst();
+            List<MemberRefEntry> members = java.util.stream.StreamSupport.stream(
+                    model.constantPool().spliterator(), false).filter(MemberRefEntry.class::isInstance)
+                    .map(MemberRefEntry.class::cast).toList();
+            assertAll(
+                    () -> assertArrayEquals(first, second),
+                    () -> assertEquals(descriptors.get(current),
+                            method.methodTypeSymbol().descriptorString()),
+                    () -> assertEquals(0, model.fields().size()),
+                    () -> assertEquals(1, model.methods().size()),
+                    () -> assertTrue(method.flags().has(AccessFlag.STATIC)),
+                    () -> assertTrue(members.stream().noneMatch(entry -> entry.owner()
+                            .asInternalName().startsWith("io/github/pho001/synaptik"))),
+                    () -> assertTrue(members.stream().noneMatch(entry -> entry.type().stringValue()
+                            .contains("Ljava/lang/Object;") || entry.owner().asInternalName()
+                                    .startsWith("java/lang/reflect/") || entry.owner()
+                                    .asInternalName().startsWith("java/util/"))),
+                    () -> assertTrue(model.constantPool().bootstrapMethodCount() == 0),
+                    () -> assertTrue(method.code().orElseThrow().elementStream().noneMatch(
+                            java.lang.classfile.instruction.NewObjectInstruction.class::isInstance)));
+        }
+        assertAll(() -> assertNotEquals(f64.specialization().structuralKey(),
+                        copy.specialization().structuralKey()),
+                () -> assertTrue(f64.specialization().scratchParameter()),
+                () -> assertFalse(i64.specialization().scratchParameter()),
+                () -> assertFalse(copy.specialization().scratchParameter()));
+    }
+
+    private static io.github.pho001.synaptik.backend.cpu.internal.route.portable.CpuPortableRoutePlan
+            sumToShapeRoute(DataType type, Shape source, Shape target,
+                    List<CarrierAccess> carriers) {
+        var base = CpuAggregateLoweringTest.context(AggregateReductionKind.SUM, type, source,
+                new SumToShapeAttrs(target), target);
+        var context = new PrepareContext<>(base.partition(), base.nodes(), base.values(),
+                base.memoryRequirements(), Map.of(), new CpuPartitionAnalysisInputs(false, carriers));
+        return new CpuPartitionPreparer().analyze(context).plan().units().getFirst().portablePlan();
+    }
+
+
+
     @Test void frozenMultiAxisMinimumPreservesRawSemanticsRangesAndGuardedFallback()
             throws Throwable {
         Shape inputShape = Shape.of(64, 64, 64), outputShape = Shape.of(1, 64, 1);
@@ -636,6 +798,28 @@ class CpuAggregateGeneratedKernelTest {
             }
         }
     }
+
+    @Test void sumToShapeAdversarialDomainsReuseExactOracleAndIntegralModularRules()
+            throws Throwable {
+        int[] counts = {0, 1, 2, 3, 5, 7, 9, 17};
+        for (DataType type : List.of(DataType.FLOAT64, DataType.FLOAT32, DataType.BFLOAT16)) {
+            for (int count : counts) {
+                Shape source = Shape.of(1, count), target = Shape.of(1, 1);
+                compare(AggregateReductionKind.SUM, type, source,
+                        new SumToShapeAttrs(target), target,
+                        adversarialFloatingValues(type, count));
+            }
+        }
+        compare(AggregateReductionKind.SUM, DataType.INT32, Shape.of(1,3),
+                new SumToShapeAttrs(Shape.of(1,1)), Shape.of(1,1),
+                new int[]{Integer.MAX_VALUE, Integer.MAX_VALUE, 2});
+        compare(AggregateReductionKind.SUM, DataType.INT64, Shape.of(1,3),
+                new SumToShapeAttrs(Shape.of(1,1)), Shape.of(1,1),
+                new long[]{Long.MAX_VALUE, Long.MAX_VALUE, 2});
+        compare(AggregateReductionKind.SUM, DataType.INT64, Shape.of(1,0),
+                new SumToShapeAttrs(Shape.of(1,1)), Shape.of(1,1), new long[0]);
+    }
+
 
     @Test void generatedResultsMatchIndependentReferenceIncludingEmptyAxisPointForm() throws Throwable {
         compare(AggregateReductionKind.SUM, DataType.FLOAT64, Shape.of(2,3),

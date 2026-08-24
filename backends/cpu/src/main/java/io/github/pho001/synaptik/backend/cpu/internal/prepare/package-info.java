@@ -70,7 +70,10 @@
  * declaration, complete-output-cell ranges, and scalar or parallel-scalar orchestration. Guarded
  * aggregate bodies change neither declared workspace size nor range slicing and retain the typed
  * general fallback. No aggregate plan selects
- * materialization or partial/combine state.
+ * materialization or partial/combine state. Schema 43 extends the same aggregate lifecycle with
+ * fully bound SUM-to-Shape geometry, direct general and guarded dense mapping bodies, and a raw
+ * represented-copy mode. It preserves output-cell-only orchestration; floating reductions reuse
+ * exact per-range state, while integral reductions and copies declare zero workspace.
  *
  * <p>All work in this package is cold-path work. Runtime collaborates only through the resulting
  * prepared executable and never receives the canonical kernel intermediate representation.

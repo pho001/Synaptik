@@ -136,7 +136,11 @@
  * rounding. A completely guarded frozen BFLOAT16 axes-zero-and-two MIN form uses the same
  * primitive nested-loop algorithm as its direct Java oracle, selects the first represented NaN
  * and negative zero, and stores one raw result per owned output cell. Other current forms retain
- * typed general long-address bodies.</p>
+ * typed general long-address bodies. Bound SUM-to-Shape uses the same aggregate artifact family:
+ * its general body maps target coordinates by right alignment, and its guarded dense
+ * {@code [64,128,256]} to {@code [128,1]} form uses the same pre-tested one-accumulator nested
+ * loop work as the optimal clean-Java oracle. A no-reduction occurrence instead copies the raw
+ * represented value without numerical classification.</p>
  *
  * <p>Covered scalar activation formulas, BFLOAT16 scan arithmetic and rounding, and aggregate
  * extrema/Boolean combination are emitted directly. Those per-element bodies therefore have no

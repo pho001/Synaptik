@@ -6,6 +6,27 @@ import java.util.List;
 import org.junit.jupiter.api.Test;
 
 class CpuAggregateIrTest {
+    @Test void sumToShapeIdentityDistinguishesReductionFromRepresentedCopy() {
+        var read = plan(CpuAccessPlan.AccessKind.READ, 3);
+        var write = plan(CpuAccessPlan.AccessKind.WRITE, 2);
+        var reduction = new CpuAggregateIr(CpuAggregateIr.Kind.SUM, DataType.FLOAT32,
+                CpuAggregateIr.Form.SUM_TO_SHAPE, new int[]{0, 2}, false, read, write,
+                new long[]{2, 3, 4}, new long[]{3, 1}, 8, 5, 48,
+                CpuAggregateIr.FIRST_LOGICAL_NAN_AND_SIGNED_ZERO,
+                CpuAggregateIr.COMPLETE_OUTPUT_CELLS, CpuAggregateIr.EXACT_FLOATING_STATE);
+        var copy = new CpuAggregateIr(CpuAggregateIr.Kind.SUM, DataType.FLOAT32,
+                CpuAggregateIr.Form.SUM_TO_SHAPE, new int[0], false,
+                plan(CpuAccessPlan.AccessKind.READ, 2), write,
+                new long[]{3, 1}, new long[]{3, 1}, 1, 0, 0,
+                CpuAggregateIr.FIRST_LOGICAL_NAN_AND_SIGNED_ZERO,
+                CpuAggregateIr.COMPLETE_OUTPUT_CELLS, CpuAggregateIr.ZERO_WORKSPACE);
+        assertAll(() -> assertNotEquals(reduction.structuralKey(), copy.structuralKey()),
+                () -> assertTrue(reduction.encodedKernelIr().familyIdentity()
+                        .contains("SUM_TO_SHAPE:axes=[0, 2]")),
+                () -> assertFalse(copy.encodedKernelIr().familyIdentity()
+                        .contains("workspace=1")));
+    }
+
     @Test void canonicalIdentityIncludesKindFormMembershipRetentionAndPolicies() {
         var read = plan(CpuAccessPlan.AccessKind.READ, 3);
         var write = plan(CpuAccessPlan.AccessKind.WRITE, 1);
