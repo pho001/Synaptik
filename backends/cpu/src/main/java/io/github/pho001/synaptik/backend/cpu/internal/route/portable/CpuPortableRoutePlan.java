@@ -87,9 +87,11 @@ public record CpuPortableRoutePlan(CpuPortableKernelIr portableKernelIr,
             return ordering.encodedKernelIr();
         if (source instanceof io.github.pho001.synaptik.backend.cpu.internal.ir.CpuRandomIr random)
             return random.encodedKernelIr();
-        return source instanceof io.github.pho001.synaptik.backend.cpu.internal.ir.CpuScanIr scan
-                ? scan.encodedKernelIr()
-                : ((io.github.pho001.synaptik.backend.cpu.internal.ir.CpuAggregateIr) source)
-                    .encodedKernelIr();
+        if (source instanceof io.github.pho001.synaptik.backend.cpu.internal.ir.CpuScanIr scan)
+            return scan.encodedKernelIr();
+        if (source instanceof io.github.pho001.synaptik.backend.cpu.internal.ir.CpuArgExtremaIr argExtrema)
+            return argExtrema.encodedKernelIr();
+        return ((io.github.pho001.synaptik.backend.cpu.internal.ir.CpuAggregateIr) source)
+                .encodedKernelIr();
     }
 }

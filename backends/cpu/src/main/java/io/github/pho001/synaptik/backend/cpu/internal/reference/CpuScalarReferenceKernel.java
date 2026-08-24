@@ -24,7 +24,9 @@ import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuRandomLowering
 import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuScanIr;
 import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuScanLowering;
 import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuAggregateIr;
+import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuArgExtremaIr;
 import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuAggregateLowering;
+import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuArgExtremaLowering;
 import io.github.pho001.synaptik.model.operation.index.ScatterReduction;
 import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuPointwiseOpcode;
 import io.github.pho001.synaptik.model.datatype.DataType;
@@ -316,6 +318,96 @@ public final class CpuScalarReferenceKernel {
             case FLOAT32 -> Float.floatToRawIntBits((float) value) < 0;
             case BFLOAT16 -> (short) value < 0;
             default -> false;
+        };
+    }
+
+    /**
+     * Independently evaluates complete arg-extrema output cells in logical coordinate order.
+     *
+     * @param ir non-null arg-extrema semantics
+     * @param geometry non-null matching one-axis layout geometry
+     * @param arguments non-null numeric input and writable INT64 output carriers
+     * @throws NullPointerException if a required reference is {@code null}
+     * @throws IllegalArgumentException if IR, geometry, or carrier facts disagree
+     * @throws ArithmeticException if logical-to-physical address arithmetic overflows
+     */
+    public static void execute(CpuArgExtremaIr ir, CpuArgExtremaLowering.Geometry geometry,
+            List<CpuBufferArgument> arguments) {
+        Objects.requireNonNull(ir, "ir");
+        Objects.requireNonNull(geometry, "geometry");
+        arguments = List.copyOf(arguments);
+        if (arguments.size() != 2 || ir.kind() != geometry.kind()
+                || ir.inputType() != geometry.inputType() || ir.axis() != geometry.axis()
+                || ir.keepDimensions() != geometry.keepDimensions()
+                || ir.tiePolicy() != geometry.tiePolicy()) {
+            throw new IllegalArgumentException("arg-extrema reference facts disagree");
+        }
+        long[] inputExtents = geometry.input().extents();
+        long[] inputStrides = geometry.input().strides();
+        long[] outputExtents = geometry.output().extents();
+        long[] outputStrides = geometry.output().strides();
+        long[] inputCoordinates = new long[inputExtents.length];
+        long[] outputCoordinates = new long[outputExtents.length];
+        for (long cell = 0; cell < geometry.outputCount(); cell++) {
+            long remaining = cell;
+            for (int outputAxis = outputExtents.length - 1; outputAxis >= 0; outputAxis--) {
+                long coordinate = remaining % outputExtents[outputAxis];
+                remaining /= outputExtents[outputAxis];
+                outputCoordinates[outputAxis] = coordinate;
+                int inputAxis = geometry.keepDimensions() ? outputAxis
+                        : outputAxis < geometry.axis() ? outputAxis : outputAxis + 1;
+                if (inputAxis != geometry.axis()) inputCoordinates[inputAxis] = coordinate;
+            }
+            long bestIndex = 0;
+            inputCoordinates[geometry.axis()] = 0;
+            Object best = load(arguments.getFirst(), ir.inputType(),
+                    address(geometry.input().offset(), inputStrides, inputCoordinates));
+            for (long candidateIndex = 1; candidateIndex < geometry.axisExtent(); candidateIndex++) {
+                inputCoordinates[geometry.axis()] = candidateIndex;
+                Object candidate = load(arguments.getFirst(), ir.inputType(),
+                        address(geometry.input().offset(), inputStrides, inputCoordinates));
+                int comparison = argCompare(ir.inputType(), candidate, best);
+                boolean candidateNaN = floatingNaN(ir.inputType(), candidate);
+                boolean bestNaN = floatingNaN(ir.inputType(), best);
+                boolean better = candidateNaN && !bestNaN
+                        || !candidateNaN && !bestNaN
+                            && (ir.kind() == CpuArgExtremaIr.Kind.ARG_MIN
+                                ? comparison < 0 : comparison > 0)
+                        || comparison == 0
+                            && ir.tiePolicy() == io.github.pho001.synaptik.model.operation.reduction
+                                .ArgExtremaTiePolicy.LAST_INDEX;
+                if (better) { best = candidate; bestIndex = candidateIndex; }
+            }
+            store(arguments.getLast(), DataType.INT64,
+                    address(geometry.output().offset(), outputStrides, outputCoordinates), bestIndex);
+        }
+    }
+
+    private static long address(long offset, long[] strides, long[] coordinates) {
+        long result = offset;
+        for (int axis = 0; axis < strides.length; axis++) result = Math.addExact(result,
+                Math.multiplyExact(strides[axis], coordinates[axis]));
+        return result;
+    }
+
+    private static int argCompare(DataType type, Object left, Object right) {
+        return switch (type) {
+            case FLOAT64 -> Double.compare((double) left, (double) right);
+            case FLOAT32 -> Float.compare((float) left, (float) right);
+            case BFLOAT16 -> Float.compare(bfloat((short) left), bfloat((short) right));
+            case INT32 -> Integer.compare((int) left, (int) right);
+            case INT64 -> Long.compare((long) left, (long) right);
+            case BOOL -> throw new AssertionError();
+        };
+    }
+
+    private static boolean floatingNaN(DataType type, Object value) {
+        return switch (type) {
+            case FLOAT64 -> Double.isNaN((double) value);
+            case FLOAT32 -> Float.isNaN((float) value);
+            case BFLOAT16 -> Float.isNaN(bfloat((short) value));
+            case INT32, INT64 -> false;
+            case BOOL -> throw new AssertionError();
         };
     }
 

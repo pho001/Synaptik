@@ -37,8 +37,10 @@ import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuScatterLowerin
 import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuFoldLoweringTest;
 import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuScanLoweringTest;
 import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuAggregateLoweringTest;
+import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuArgExtremaLoweringTest;
 import io.github.pho001.synaptik.model.operation.scan.CumulativeScanKind;
 import io.github.pho001.synaptik.model.operation.reduction.AggregateReductionKind;
+import io.github.pho001.synaptik.model.operation.reduction.ArgExtremaTiePolicy;
 import io.github.pho001.synaptik.model.operation.reduction.AxisReductionAttrs;
 import io.github.pho001.synaptik.model.operation.reduction.SumToShapeAttrs;
 import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuOrderingLoweringTest;
@@ -64,6 +66,8 @@ class CpuPreparedExecutableTest {
             ValueLayout.JAVA_FLOAT_UNALIGNED.withOrder(ByteOrder.nativeOrder());
     private static final ValueLayout.OfInt INT =
             ValueLayout.JAVA_INT_UNALIGNED.withOrder(ByteOrder.nativeOrder());
+    private static final ValueLayout.OfLong LONG =
+            ValueLayout.JAVA_LONG_UNALIGNED.withOrder(ByteOrder.nativeOrder());
 
     @Test void zeroInputInitializerExecutesItsSinglePrologueWithNoWorkspace() {
         var base = CpuRandomLoweringTest.initialContext(Long.MIN_VALUE, Long.MAX_VALUE);
@@ -1301,6 +1305,60 @@ class CpuPreparedExecutableTest {
         } finally { workers.close(); }
     }
 
+    @Test void parallelArgExtremaUsesMixedCarriersRejectsOverlapAndSupportsConcurrentReuse()
+            throws InterruptedException {
+        var workers = new CpuWorkerGroup(4);
+        try {
+            var executable = argExecutable(AggregateReductionKind.ARG_MAX, DataType.FLOAT32,
+                    Shape.of(8, 3), 1, true, ArgExtremaTiePolicy.LAST_INDEX,
+                    List.of(CarrierAccess.FLOAT_ARRAY, CarrierAccess.MEMORY_SEGMENT), workers);
+            float[] input = new float[24];
+            for (int cell = 0; cell < 8; cell++) {
+                input[cell * 3] = -0.0f;
+                input[cell * 3 + 1] = Float.intBitsToFloat(0x7f800001 + cell);
+                input[cell * 3 + 2] = Float.intBitsToFloat(0x7fc00100 + cell);
+            }
+            try (var arena = Arena.ofShared()) {
+                MemorySegment first = arena.allocate(64, 8), second = arena.allocate(64, 8);
+                var firstRun = state(executable, List.of(borrow(input, 0, input.length),
+                        borrowed(DataType.INT64, 8, first)));
+                var secondRun = state(executable, List.of(borrow(input, 0, input.length),
+                        borrowed(DataType.INT64, 8, second)));
+                try {
+                    Thread a = Thread.ofVirtual().start(executable.bind(firstRun)::execute);
+                    Thread b = Thread.ofVirtual().start(executable.bind(secondRun)::execute);
+                    a.join(); b.join();
+                    for (int index = 0; index < 8; index++) {
+                        assertEquals(2, first.getAtIndex(LONG, index));
+                        assertEquals(2, second.getAtIndex(LONG, index));
+                    }
+                    assertTrue(workers.isOpen());
+                } finally { firstRun.close(); secondRun.close(); }
+            }
+
+            var overlapExecutable = argExecutable(AggregateReductionKind.ARG_MIN, DataType.INT64,
+                    Shape.of(2, 3), 1, false, ArgExtremaTiePolicy.FIRST_INDEX,
+                    List.of(CarrierAccess.LONG_ARRAY, CarrierAccess.LONG_ARRAY), workers);
+            long[] shared = {3, 2, 1, 7, 8, 9, 55};
+            long[] unchanged = shared.clone();
+            var overlap = state(overlapExecutable,
+                    List.of(borrow(shared, 0, 6), borrow(shared, 1, 2)));
+            try {
+                assertThrows(IllegalArgumentException.class,
+                        () -> overlapExecutable.bind(overlap));
+                assertArrayEquals(unchanged, shared);
+            } finally { overlap.close(); }
+
+            var zero = argExecutable(AggregateReductionKind.ARG_MIN, DataType.INT32,
+                    Shape.of(0, 3), 1, false, ArgExtremaTiePolicy.FIRST_INDEX,
+                    List.of(CarrierAccess.INT_ARRAY, CarrierAccess.LONG_ARRAY), workers);
+            var zeroRun = state(zero, List.of(borrow(new int[0]), borrow(new long[0])));
+            try { assertDoesNotThrow(() -> zero.bind(zeroRun).execute()); }
+            finally { zeroRun.close(); }
+            assertTrue(workers.isOpen());
+        } finally { workers.close(); }
+    }
+
     @Test void scatterNdRejectsFirstLaterDuplicateTupleEvenWithEmptySuffix() {
         var executable=scatterExecutable(new Operation(ScatterNdKind.SCATTER_ND,
                         new ScatterNdAttrs(0,ScatterReduction.NONE)),
@@ -1504,6 +1562,19 @@ class CpuPreparedExecutableTest {
                 base.constants(), new CpuPartitionAnalysisInputs(false, carriers));
         return CpuPartitionFinalizerTest.finalizeExecutable(
                 new CpuPartitionPreparer().analyze(context), Optional.empty());
+    }
+
+    private static CpuPreparedExecutable argExecutable(AggregateReductionKind kind, DataType type,
+            Shape shape, int axis, boolean keep, ArgExtremaTiePolicy tie,
+            List<CarrierAccess> carriers, CpuWorkerGroup workers) {
+        var base = CpuArgExtremaLoweringTest.context(kind, type, shape, axis, keep, tie);
+        var config = new PortableExecutionConfig(ComputePreference.SCALAR, 4, 2, 1);
+        var context = new io.github.pho001.synaptik.prepare.analysis.PrepareContext<>(
+                base.partition(), base.nodes(), base.values(), base.memoryRequirements(),
+                base.constants(), new CpuPartitionAnalysisInputs(false, carriers, config));
+        return CpuPartitionFinalizerTest.finalizeExecutable(
+                new CpuPartitionPreparer().analyze(context), Optional.empty(),
+                Optional.of(workers));
     }
 
     private static CpuBorrowedBuffer borrow(double[] carrier, int elementOffset) {

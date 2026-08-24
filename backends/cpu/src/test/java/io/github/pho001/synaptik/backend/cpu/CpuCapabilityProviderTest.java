@@ -30,6 +30,41 @@ import java.util.Optional;
 import org.junit.jupiter.api.Test;
 
 class CpuCapabilityProviderTest {
+    @Test void reportsOnlyExactStaticResolvedArgExtremaMatrix() {
+        var provider = new CpuCapabilityProvider();
+        for (DataType type : List.of(DataType.FLOAT64, DataType.FLOAT32, DataType.BFLOAT16,
+                DataType.INT32, DataType.INT64)) {
+            for (AggregateReductionKind kind : List.of(AggregateReductionKind.ARG_MIN,
+                    AggregateReductionKind.ARG_MAX)) {
+                for (ArgExtremaTiePolicy tie : ArgExtremaTiePolicy.values()) {
+                    assertTrue(provider.supports(query(kind, new ArgExtremaAttrs(1, false, tie),
+                            List.of(descriptor(type, Shape.of(2, 3))),
+                            descriptor(DataType.INT64, Shape.of(2)))));
+                    assertTrue(provider.supports(query(kind, new ArgExtremaAttrs(1, true, tie),
+                            List.of(descriptor(type, Shape.of(2, 3))),
+                            descriptor(DataType.INT64, Shape.of(2, 1)))));
+                }
+            }
+        }
+        assertAll(
+                () -> assertFalse(provider.supports(query(AggregateReductionKind.ARG_MIN,
+                        new ArgExtremaAttrs(1, false, ArgExtremaTiePolicy.FIRST_INDEX),
+                        List.of(descriptor(DataType.BOOL, Shape.of(2, 3))),
+                        descriptor(DataType.INT64, Shape.of(2))))),
+                () -> assertFalse(provider.supports(query(AggregateReductionKind.ARG_MAX,
+                        new ArgExtremaAttrs(1, false, ArgExtremaTiePolicy.FIRST_INDEX),
+                        List.of(descriptor(DataType.FLOAT32, Shape.of(2, 0))),
+                        descriptor(DataType.INT64, Shape.of(2))))),
+                () -> assertFalse(provider.supports(query(AggregateReductionKind.ARG_MAX,
+                        new ArgExtremaAttrs(1, false, ArgExtremaTiePolicy.FIRST_INDEX),
+                        List.of(descriptor(DataType.FLOAT32, Shape.of(2, 3))),
+                        descriptor(DataType.INT32, Shape.of(2))))),
+                () -> assertFalse(provider.supports(query(AggregateReductionKind.ARG_MAX,
+                        new ArgExtremaAttrs(1, true, ArgExtremaTiePolicy.FIRST_INDEX),
+                        List.of(descriptor(DataType.FLOAT32, Shape.of(2, 3))),
+                        descriptor(DataType.INT64, Shape.of(2))))));
+    }
+
     @Test void reportsOnlyExactBoundSumToShapeMatrix() {
         var provider = new CpuCapabilityProvider();
         for (DataType type : List.of(DataType.FLOAT64, DataType.FLOAT32, DataType.BFLOAT16,

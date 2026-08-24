@@ -56,6 +56,11 @@
  * selected domains are never split or combined. Bound SUM-to-Shape uses the same lifecycle and
  * rejects overlap even when its no-reduction form performs a raw represented-bit copy.</p>
  *
+ * <p>Arg-extrema binding independently validates complete numeric-input and INT64-output spans,
+ * rejects physical overlap before mutation or submission, and packs invocation-private affine
+ * geometry. Scalar and parallel-scalar execution partition only complete output cells; every
+ * generated call traverses the full selected axis and stores one logical coordinate.</p>
+ *
  * <p>Runtime retains run-level lifecycle ownership; CPU memory representations retain physical
  * allocation and release ownership. Composition owns and closes the worker group; finalizers,
  * prepared executables, and bound invocations only borrow it.

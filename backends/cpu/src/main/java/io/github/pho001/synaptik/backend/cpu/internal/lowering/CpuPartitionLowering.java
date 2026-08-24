@@ -58,6 +58,7 @@ public final class CpuPartitionLowering {
     private final CpuRandomLowering randomLowering = new CpuRandomLowering();
     private final CpuScanLowering scanLowering = new CpuScanLowering();
     private final CpuAggregateLowering aggregateLowering = new CpuAggregateLowering();
+    private final CpuArgExtremaLowering argExtremaLowering = new CpuArgExtremaLowering();
 
     /** Creates a stateless lowering boundary with the current CPU capability and power analysis. */
     public CpuPartitionLowering() { }
@@ -84,6 +85,10 @@ public final class CpuPartitionLowering {
         if (context.nodes().size() == 1) {
             Object kind = context.nodes().getFirst().operation().kind();
             if (kind instanceof io.github.pho001.synaptik.model.operation.reduction.AggregateReductionKind) {
+                if (kind == io.github.pho001.synaptik.model.operation.reduction.AggregateReductionKind.ARG_MIN
+                        || kind == io.github.pho001.synaptik.model.operation.reduction.AggregateReductionKind.ARG_MAX) {
+                    return argExtremaLowering.lower(context);
+                }
                 return aggregateLowering.lower(context);
             }
             if (kind instanceof io.github.pho001.synaptik.model.operation.scan.CumulativeScanKind) {
@@ -477,6 +482,7 @@ public final class CpuPartitionLowering {
      * @param scanGeometry compact cold cumulative-scan geometry, present only for CUM_SUM or
      *     CUM_PROD
      * @param aggregateGeometry compact cold ordinary extrema/Boolean output-cell geometry
+     * @param argExtremaGeometry compact cold one-axis logical-index geometry
      */
     public record LoweredPartition(CpuPortableKernelIr portableKernelIr, List<ValueId> boundaryValues,
             List<CpuAccessPlan.Binding> accessBindings, List<Long> referencedElementSpans,
@@ -489,7 +495,52 @@ public final class CpuPartitionLowering {
             Optional<CpuOrderingLowering.Geometry> orderingGeometry,
             Optional<CpuRandomLowering.Geometry> randomGeometry,
             Optional<CpuScanLowering.Geometry> scanGeometry,
-            Optional<CpuAggregateLowering.Geometry> aggregateGeometry) {
+            Optional<CpuAggregateLowering.Geometry> aggregateGeometry,
+            Optional<CpuArgExtremaLowering.Geometry> argExtremaGeometry) {
+
+        /**
+         * Creates an existing-family lowering with optional aggregate geometry and no
+         * arg-extrema geometry.
+         *
+         * @param portableKernelIr non-null existing portable representation
+         * @param boundaryValues non-null ordered materialized boundaries; copied defensively
+         * @param accessBindings non-null ordered cold access bindings; copied defensively
+         * @param referencedElementSpans non-null exact declaration spans; copied defensively
+         * @param boundaryDataTypes non-null exact boundary types; copied defensively
+         * @param virtualValues non-null unmaterialized internal values; copied defensively
+         * @param extents non-null iteration extents; copied defensively
+         * @param elementCount checked non-negative iteration count
+         * @param fusionReason non-null lowering explanation
+         * @param affineAddressPairs non-null affine addresses, empty otherwise; copied defensively
+         * @param movementGeometry non-null optional movement geometry
+         * @param indexingGeometry non-null optional indexing geometry
+         * @param scatterGeometry non-null optional scatter geometry
+         * @param foldGeometry non-null optional fold geometry
+         * @param orderingGeometry non-null optional ordering geometry
+         * @param randomGeometry non-null optional random geometry
+         * @param scanGeometry non-null optional cumulative-scan geometry
+         * @param aggregateGeometry non-null optional ordinary aggregate geometry
+         * @throws NullPointerException if a required component or element is {@code null}
+         * @throws IllegalArgumentException if boundary collections or family geometry disagree
+         */
+        public LoweredPartition(CpuPortableKernelIr portableKernelIr, List<ValueId> boundaryValues,
+                List<CpuAccessPlan.Binding> accessBindings, List<Long> referencedElementSpans,
+                List<DataType> boundaryDataTypes, List<ValueId> virtualValues, long[] extents,
+                long elementCount, String fusionReason, long[] affineAddressPairs,
+                Optional<CpuNonAffineMovementLowering.Geometry> movementGeometry,
+                Optional<CpuIndexingLowering.Geometry> indexingGeometry,
+                Optional<CpuScatterLowering.Geometry> scatterGeometry,
+                Optional<CpuFoldLowering.Geometry> foldGeometry,
+                Optional<CpuOrderingLowering.Geometry> orderingGeometry,
+                Optional<CpuRandomLowering.Geometry> randomGeometry,
+                Optional<CpuScanLowering.Geometry> scanGeometry,
+                Optional<CpuAggregateLowering.Geometry> aggregateGeometry) {
+            this(portableKernelIr, boundaryValues, accessBindings, referencedElementSpans,
+                    boundaryDataTypes, virtualValues, extents, elementCount, fusionReason,
+                    affineAddressPairs, movementGeometry, indexingGeometry, scatterGeometry,
+                    foldGeometry, orderingGeometry, randomGeometry, scanGeometry,
+                    aggregateGeometry, Optional.empty());
+        }
 
         /**
          * Creates an existing-family lowering with optional scan geometry and no aggregate
@@ -529,7 +580,8 @@ public final class CpuPartitionLowering {
             this(portableKernelIr, boundaryValues, accessBindings, referencedElementSpans,
                     boundaryDataTypes, virtualValues, extents, elementCount, fusionReason,
                     affineAddressPairs, movementGeometry, indexingGeometry, scatterGeometry,
-                    foldGeometry, orderingGeometry, randomGeometry, scanGeometry, Optional.empty());
+                    foldGeometry, orderingGeometry, randomGeometry, scanGeometry, Optional.empty(),
+                    Optional.empty());
         }
 
         /**
@@ -568,7 +620,8 @@ public final class CpuPartitionLowering {
             this(portableKernelIr, boundaryValues, accessBindings, referencedElementSpans,
                     boundaryDataTypes, virtualValues, extents, elementCount, fusionReason,
                     affineAddressPairs, movementGeometry, indexingGeometry, scatterGeometry,
-                    foldGeometry, orderingGeometry, randomGeometry, Optional.empty(), Optional.empty());
+                    foldGeometry, orderingGeometry, randomGeometry, Optional.empty(), Optional.empty(),
+                    Optional.empty());
         }
 
         /**
@@ -605,7 +658,8 @@ public final class CpuPartitionLowering {
             this(portableKernelIr, boundaryValues, accessBindings, referencedElementSpans,
                     boundaryDataTypes, virtualValues, extents, elementCount, fusionReason,
                     affineAddressPairs, movementGeometry, indexingGeometry, scatterGeometry,
-                    foldGeometry, orderingGeometry, Optional.empty(), Optional.empty(), Optional.empty());
+                    foldGeometry, orderingGeometry, Optional.empty(), Optional.empty(), Optional.empty(),
+                    Optional.empty());
         }
         /**
          * Creates a pointwise or affine lowering without movement geometry.
@@ -632,7 +686,8 @@ public final class CpuPartitionLowering {
             this(portableKernelIr, boundaryValues, accessBindings, referencedElementSpans,
                     boundaryDataTypes, virtualValues, extents, elementCount, fusionReason,
                     affineAddressPairs, Optional.empty(), Optional.empty(), Optional.empty(),
-                    Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty());
+                    Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(),
+                    Optional.empty());
         }
 
         /**
@@ -659,7 +714,8 @@ public final class CpuPartitionLowering {
             this(portableKernelIr, boundaryValues, accessBindings, referencedElementSpans,
                     boundaryDataTypes, virtualValues, extents, elementCount, fusionReason,
                     affineAddressPairs, movementGeometry, Optional.empty(), Optional.empty(),
-                    Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty());
+                    Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(),
+                    Optional.empty());
         }
 
         /**
@@ -690,7 +746,8 @@ public final class CpuPartitionLowering {
             this(portableKernelIr, boundaryValues, accessBindings, referencedElementSpans,
                     boundaryDataTypes, virtualValues, extents, elementCount, fusionReason,
                     affineAddressPairs, movementGeometry, indexingGeometry, Optional.empty(),
-                    Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty());
+                    Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(),
+                    Optional.empty());
         }
         /**
          * Validates matching boundary facts and snapshots every mutable collection or array.
@@ -732,6 +789,7 @@ public final class CpuPartitionLowering {
             randomGeometry = Objects.requireNonNull(randomGeometry, "randomGeometry");
             scanGeometry = Objects.requireNonNull(scanGeometry, "scanGeometry");
             aggregateGeometry = Objects.requireNonNull(aggregateGeometry, "aggregateGeometry");
+            argExtremaGeometry = Objects.requireNonNull(argExtremaGeometry, "argExtremaGeometry");
             Objects.requireNonNull(fusionReason, "fusionReason");
             int size = boundaryValues.size();
             if (size < 1 || accessBindings.size() != size || referencedElementSpans.size() != size
@@ -776,6 +834,8 @@ public final class CpuPartitionLowering {
                                                 ? random.encodedKernelIr()
                                                 : portableKernelIr instanceof io.github.pho001.synaptik.backend.cpu.internal.ir.CpuScanIr scan
                                                     ? scan.encodedKernelIr()
+                                                    : portableKernelIr instanceof io.github.pho001.synaptik.backend.cpu.internal.ir.CpuArgExtremaIr argExtrema
+                                                        ? argExtrema.encodedKernelIr()
                                                     : ((io.github.pho001.synaptik.backend.cpu.internal.ir.CpuAggregateIr)
                                                         portableKernelIr).encodedKernelIr();
         }

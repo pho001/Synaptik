@@ -194,8 +194,10 @@ gradient eligibility and one-input provenance; aggregate `ALL`/`ANY` remain type
 elementwise `AND`/`OR`. Axis-only `Tensor.argMin` and `Tensor.argMax` accept floating or integral
 input and produce fixed non-differentiable INT64 expressions with explicit first- or last-index
 policy. Their shared ordering prefers NaN, orders signed zero and infinities deterministically,
-uses signed integral order, and rejects a statically empty selected axis. Numerical or truth
-evaluation, lowering, backend support, and execution remain planned. Current package-private
+uses signed integral order, and rejects a statically empty selected axis. The current CPU portable
+route executes the fully static resolved-layout one-axis subset with complete output-cell ranges,
+typed array/segment carriers, and zero workspace or materialization. Other backend forms remain
+planned. Current package-private
 compiler autograd supports the floating SUM/MEAN/PROD/MIN/MAX, masked SUM/MEAN, SUM_TO_SHAPE,
 LOG_SUM_EXP, VARIANCE, STANDARD_DEVIATION, L1_NORM, and L2_NORM roles described under
 [pre-capture Tensor-expression autograd](#pre-capture-tensor-expression-autograd); BOOL and
@@ -434,7 +436,12 @@ produce exact INT64 with false gradient eligibility. They use shared `ArgExtrema
 explicit first/last tie policy is intrinsic to both semantics; neither has a full form. A
 statically empty selected axis is invalid, while an unselected zero axis and an unbound selected
 extent are structurally accepted. Expression construction records all these meanings but performs
-no value aggregation or selection, gradient work, compiler capture, lowering, or execution. See
+no value aggregation or selection, gradient work, compiler capture, lowering, or execution. The
+current CPU portable route separately supports exactly one fully static resolved-layout
+occurrence across FLOAT64, FLOAT32, BFLOAT16, INT32, and INT64, returning logical INT64 axis
+coordinates through scalar or complete-output-cell parallel-scalar execution. It supports legal
+array, `MemorySegment`, and mixed carriers and arbitrary legal non-negative layouts, while using
+zero workspace and materialization. See
 [Numeric aggregate expressions](api/tensor-api.md#numeric-aggregate-expressions), [Aggregate
 reduction semantic kinds and attributes](api/tensor-api.md#aggregate-reduction-semantic-kinds-and-attributes),
 [Boolean aggregate expressions](api/tensor-api.md#boolean-aggregate-expressions), [Arg-extrema
@@ -502,7 +509,10 @@ semantic value supplies no default. Public `Tensor.argMin` and `Tensor.argMax` c
 overloads supply `FIRST_INDEX` explicitly, while complete overloads retain a caller policy.
 Integral candidates use signed order. Floating candidates prefer NaN to non-NaN, treat multiple
 NaNs as ties, order negative zero below positive zero, and order infinities normally. These
-semantics define the requested index without choosing an algorithm or executing a reduction.
+semantics define the requested index independently of physical layout. The current CPU portable
+implementation traverses increasing logical coordinates and applies the policy in direct typed
+generated loops; that implementation does not make the policy a storage-order or backend-route
+contract.
 
 ### Stable full ordering
 
@@ -1228,6 +1238,15 @@ documented infinity, signed-zero, and empty-domain cases, and gives floating row
 run-owned exact-state workspace slices. INT32 and INT64 SUM/PROD remain same-width modular.
 Parallel work owns complete output cells only, so supported worker counts are bit-identical without
 claiming mathematical associativity or cross-backend bit identity.
+
+Completed CPU 0007B adds exactly one fully static resolved-layout one-axis `ARG_MIN` or `ARG_MAX`
+occurrence across FLOAT64, FLOAT32, BFLOAT16, INT32, and INT64. It writes logical INT64 axis
+coordinates, preserves keep/remove-Dimension Shape, FIRST/LAST ties, preferred NaN, negative-zero-
+before-positive-zero, and signed integral ordering, and supports scalar or complete-output-cell
+parallel-scalar execution over legal array, `MemorySegment`, and mixed carriers. Schema 44 adds
+the separate mixed-type arg-extrema identity plus direct unit-stride, guarded stride-two, and
+arbitrary-stride generated loops. The family declares no workspace or materialization and makes
+no gradient, fusion, vector/native, dynamic-layout, compiler, Model, or broader-backend claim.
 
 Cross-type cast, general BFLOAT16 pointwise arithmetic, FLOAT16 execution, relaxed math,
 native/vendor realization, dynamic layouts, Vector API scatter, fold, ordering, scan, or ordinary

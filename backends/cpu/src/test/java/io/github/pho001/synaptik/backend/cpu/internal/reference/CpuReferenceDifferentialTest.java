@@ -16,6 +16,8 @@ import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuRandomLowering
 import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuRandomIr;
 import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuScanIr;
 import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuScanLoweringTest;
+import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuArgExtremaLoweringTest;
+import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuArgExtremaIr;
 import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuScatterLoweringTest;
 import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuScatterIr;
 import io.github.pho001.synaptik.model.operation.Operation;
@@ -40,6 +42,21 @@ class CpuReferenceDifferentialTest {
     private static final long RANDOM_KEY_BIAS = 0x9e3779b97f4a7c15L;
     private static final long RANDOM_M1 = 0xbf58476d1ce4e5b9L;
     private static final long RANDOM_M2 = 0x94d049bb133111ebL;
+
+    @Test void independentArgExtremaReferencePreservesNaNTiesAndLogicalCoordinates() {
+        var lowered = new CpuPartitionLowering().lower(CpuArgExtremaLoweringTest.context(
+                io.github.pho001.synaptik.model.operation.reduction.AggregateReductionKind.ARG_MIN,
+                DataType.FLOAT64, Shape.of(2, 4), 1, false,
+                io.github.pho001.synaptik.model.operation.reduction.ArgExtremaTiePolicy.LAST_INDEX));
+        double[] input = {3, Double.longBitsToDouble(0x7ff0000000000001L), 1, Double.NaN,
+                -0.0, 0.0, -0.0, 2};
+        long[] output = {-1, -1};
+        CpuScalarReferenceKernel.execute((CpuArgExtremaIr) lowered.portableKernelIr(),
+                lowered.argExtremaGeometry().orElseThrow(), List.of(
+                        new CpuBufferArgument.Doubles(input, 0, input.length * 8L, true),
+                        new CpuBufferArgument.Longs(output, 0, output.length * 8L, false)));
+        assertArrayEquals(new long[] {3, 2}, output);
+    }
 
     @Test void independentScanReferenceCoversKindsModesTypesAndSlices() {
         for (DataType type : List.of(DataType.FLOAT64, DataType.FLOAT32, DataType.BFLOAT16,

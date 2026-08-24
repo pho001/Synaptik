@@ -6,6 +6,7 @@ import io.github.pho001.synaptik.backend.cpu.internal.executable.CpuPreparedExec
 import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuNonAffineMovementLoweringTest;
 import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuScatterLoweringTest;
 import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuFoldLoweringTest;
+import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuArgExtremaLoweringTest;
 import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuOrderingLoweringTest;
 import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuRandomLoweringTest;
 import io.github.pho001.synaptik.backend.cpu.internal.cache.CpuKernelSpecialization.CarrierAccess;
@@ -232,7 +233,7 @@ public class CpuPartitionFinalizerTest {
             assertAll(() -> assertEquals(2, executable.bufferSelectionCount()),
                     () -> assertEquals(2, executable.memoryPlan().buffers().size()),
                     () -> assertTrue(executable.memoryPlan().workspaces().isEmpty()),
-                    () -> assertEquals(43, io.github.pho001.synaptik.backend.cpu.internal.cache
+                    () -> assertEquals(44, io.github.pho001.synaptik.backend.cpu.internal.cache
                             .CpuGeneratorSchema.CURRENT_VERSION),
                     () -> assertEquals(1, files.filter(path -> path.getFileName().toString()
                             .endsWith(".artifact")).count()));
@@ -256,6 +257,30 @@ public class CpuPartitionFinalizerTest {
                 () -> assertEquals(1, executable.memoryPlan().workspaces().size()),
                 () -> assertEquals(80, executable.memoryPlan().workspaces().getFirst().byteSize()),
                 () -> assertTrue(executable.artifact().specialization().scratchParameter()));
+    }
+
+    @Test void argExtremaFinalizesExactlyTwoBuffersNoWorkspaceAndOneSchema44Artifact()
+            throws Exception {
+        var base = CpuArgExtremaLoweringTest.context(
+                io.github.pho001.synaptik.model.operation.reduction.AggregateReductionKind.ARG_MIN,
+                DataType.FLOAT64, Shape.of(2, 3), 1, false,
+                io.github.pho001.synaptik.model.operation.reduction.ArgExtremaTiePolicy.FIRST_INDEX);
+        var context = new io.github.pho001.synaptik.prepare.analysis.PrepareContext<>(
+                base.partition(), base.nodes(), base.values(), base.memoryRequirements(),
+                base.constants(), new CpuPartitionAnalysisInputs(false,
+                        List.of(CarrierAccess.DOUBLE_ARRAY, CarrierAccess.LONG_ARRAY)));
+        var analysis = new CpuPartitionPreparer().analyze(context);
+        Path artifactRoot = root.resolve("arg-extrema");
+        var executable = finalizeExecutable(analysis, Optional.of(artifactRoot));
+        try (var files = Files.list(artifactRoot)) {
+            assertAll(() -> assertEquals(2, executable.bufferSelectionCount()),
+                    () -> assertEquals(2, executable.memoryPlan().buffers().size()),
+                    () -> assertTrue(executable.memoryPlan().workspaces().isEmpty()),
+                    () -> assertEquals(44, io.github.pho001.synaptik.backend.cpu.internal.cache
+                            .CpuGeneratorSchema.CURRENT_VERSION),
+                    () -> assertEquals(1, files.filter(path -> path.getFileName().toString()
+                            .endsWith(".artifact")).count()));
+        }
     }
 
     private static void finalizeWithMalformedWorkspace(

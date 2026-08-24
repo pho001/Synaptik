@@ -67,9 +67,11 @@
  * BFLOAT16 axes-zero-and-two MIN primitive nested loops, preserving canonical factor order,
  * first-NaN and signed-zero selection, and the same typed fallback. Schema 43 adds bound
  * SUM-to-Shape alignment, reduced-versus-represented-copy identity, exact source/target geometry,
- * and direct generated mapping and SUM bodies. Schema 43 is current-only; schema-42 and earlier
- * envelopes are incompatible misses, while schema-42 evidence remains valid only as explicitly
- * identified historical evidence.
+ * and direct generated mapping and SUM bodies. Schema 44 adds the distinct typed arg-extrema
+ * family, its mixed numeric-input/INT64-output signature, structural selection facts, and direct
+ * logical-coordinate body. Schema 44 is current-only; schema-43 and earlier envelopes are
+ * incompatible misses, while schema-42 evidence remains valid only as explicitly identified
+ * historical evidence.
  * Four complete candidate plans, one realized artifact, zero additional fixed-shape variants,
  * and zero additional unrolled variants are the current planner-visible hard budget. A guarded
  * method body may still emit a fixed-trip straight-line sequence inside that one artifact when

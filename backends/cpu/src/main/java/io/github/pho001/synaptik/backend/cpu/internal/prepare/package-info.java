@@ -74,6 +74,9 @@
  * fully bound SUM-to-Shape geometry, direct general and guarded dense mapping bodies, and a raw
  * represented-copy mode. It preserves output-cell-only orchestration; floating reductions reuse
  * exact per-range state, while integral reductions and copies declare zero workspace.
+ * Arg-extrema plans remain separate from aggregate plans. They declare one numeric input and one
+ * INT64 output, retain complete-output-cell geometry, select scalar or parallel-scalar ownership,
+ * and realize one schema-44 workspace-free artifact without materialization or combine state.
  *
  * <p>All work in this package is cold-path work. Runtime collaborates only through the resulting
  * prepared executable and never receives the canonical kernel intermediate representation.

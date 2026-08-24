@@ -138,10 +138,12 @@ public final class CpuGeneratorSchema {
      * copy-then-update loops with the same typed fallback; schema 42 adds the guarded frozen
      * BFLOAT16 axes-zero-and-two MIN primitive nested loops with the same typed fallback; schema
      * 43 adds right-aligned SUM-to-Shape identity, represented-copy entries, reduction cursors,
-     * and guarded dense primitive nested loops.
+     * and guarded dense primitive nested loops; schema 44 adds one-axis ARG_MIN/ARG_MAX direct
+     * typed loops, including guarded unit-stride and stride-two forms with arbitrary-stride
+     * fallback.
      * Envelopes written for earlier schemas are incompatible misses.
      */
-    public static final int CURRENT_VERSION = 43;
+    public static final int CURRENT_VERSION = 44;
     /** Generated entry name. */ public static final String ENTRY_NAME = "invoke";
     private CpuGeneratorSchema() { }
 

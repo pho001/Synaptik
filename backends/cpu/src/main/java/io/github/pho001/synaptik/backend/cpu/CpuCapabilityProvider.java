@@ -43,6 +43,7 @@ import io.github.pho001.synaptik.model.operation.random.GraphRngStateAttrs;
 import io.github.pho001.synaptik.model.operation.scan.CumulativeScanAttrs;
 import io.github.pho001.synaptik.model.operation.scan.CumulativeScanKind;
 import io.github.pho001.synaptik.model.operation.reduction.AggregateReductionKind;
+import io.github.pho001.synaptik.model.operation.reduction.ArgExtremaAttrs;
 import io.github.pho001.synaptik.model.operation.reduction.AxisReductionAttrs;
 import io.github.pho001.synaptik.model.operation.reduction.MultiAxisReductionAttrs;
 import io.github.pho001.synaptik.model.operation.reduction.SumToShapeAttrs;
@@ -105,6 +106,12 @@ import java.util.Objects;
  * {@code SumToShapeAttrs}: fully bound target coordinates are right-aligned with the source,
  * leading axes and unequal target-one axes reduce, and equal aligned axes are preserved.</p>
  *
+ * <p>A separate one-node arg-extrema matrix admits ARG_MIN and ARG_MAX for the five numeric
+ * input types with an exact non-gradient INT64 output. It requires one valid normalized axis,
+ * positive selected extent, exact keep/remove-Dimension output Shape, resolved non-negative
+ * layouts, and an injective output. Tie policy and logical-coordinate semantics remain Model
+ * facts; lowering and binding own complete output-cell realization and physical non-overlap.</p>
+ *
  * <p>The movement route also admits exactly one fully static, resolved-layout
  * {@code SLICE_UPDATE} occurrence with ordered {@code [base, update]} inputs. Both normalized
  * signed finite-coordinate {@link SliceAttrs} and target-relative {@link CropToShapeAttrs}
@@ -163,6 +170,9 @@ public final class CpuCapabilityProvider implements BackendCapabilityProvider {
      * one exact ordinary attribute form or SUM-to-Shape form, the Model-derived output Shape,
      * and an injective output. SUM-to-Shape requires fully bound right-aligned pairs that are
      * equal or have target extent one.
+     * Arg extrema additionally requires a five-type numeric input, exact non-gradient INT64
+     * output, valid normalized axis with positive selected extent, exact keep/remove-Dimension
+     * Shape, and injective output layout.
      * Cross-type casts, dynamic
      * or unresolved geometry, negative-step extraction slices, non-injective
      * movement outputs, and all rows outside the implemented matrix return {@code false} without
@@ -290,6 +300,9 @@ public final class CpuCapabilityProvider implements BackendCapabilityProvider {
 
     private static boolean supportsAggregate(OperationCapabilityQuery query,
             TensorDescriptor output, AggregateReductionKind kind) {
+        if (kind == AggregateReductionKind.ARG_MIN || kind == AggregateReductionKind.ARG_MAX) {
+            return supportsArgExtrema(query, output);
+        }
         if (query.inputs().size() != 1 || kind != AggregateReductionKind.SUM
                 && kind != AggregateReductionKind.MEAN && kind != AggregateReductionKind.PROD
                 && kind != AggregateReductionKind.MIN
@@ -341,6 +354,31 @@ public final class CpuCapabilityProvider implements BackendCapabilityProvider {
         if (!java.util.Arrays.equals(output.shape().toLongArray(),
                 expected.stream().mapToLong(Long::longValue).toArray())) return false;
         return injective(output.shape().toLongArray(), output.layout().orElseThrow().strides());
+    }
+
+    private static boolean supportsArgExtrema(OperationCapabilityQuery query,
+            TensorDescriptor output) {
+        if (query.inputs().size() != 1
+                || !(query.operation().attrs() instanceof ArgExtremaAttrs attrs)) return false;
+        TensorDescriptor input = query.inputs().getFirst();
+        DataType type = input.dataType();
+        if ((type != DataType.FLOAT64 && type != DataType.FLOAT32
+                && type != DataType.BFLOAT16 && type != DataType.INT32
+                && type != DataType.INT64)
+                || output.dataType() != DataType.INT64 || output.requiresGrad()) return false;
+        int rank = input.shape().rank();
+        int axis = attrs.axis();
+        if (axis < 0 || axis >= rank) return false;
+        long[] source = input.shape().toLongArray();
+        if (source[axis] == 0) return false;
+        long[] expected = new long[attrs.keepDimensions() ? rank : rank - 1];
+        for (int inputAxis = 0, outputAxis = 0; inputAxis < rank; inputAxis++) {
+            if (inputAxis == axis) {
+                if (attrs.keepDimensions()) expected[outputAxis++] = 1;
+            } else expected[outputAxis++] = source[inputAxis];
+        }
+        return java.util.Arrays.equals(expected, output.shape().toLongArray())
+                && injective(expected, output.layout().orElseThrow().strides());
     }
 
     private static boolean supportsScan(OperationCapabilityQuery query, TensorDescriptor output) {

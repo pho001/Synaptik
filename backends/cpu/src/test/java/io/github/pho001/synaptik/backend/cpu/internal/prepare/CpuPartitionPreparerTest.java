@@ -9,6 +9,7 @@ import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuIndexingLoweri
 import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuScatterLoweringTest;
 import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuFoldLoweringTest;
 import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuRandomLoweringTest;
+import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuArgExtremaLoweringTest;
 import io.github.pho001.synaptik.model.graph.CompiledNode;
 import io.github.pho001.synaptik.model.graph.GraphValue;
 import io.github.pho001.synaptik.model.graph.NodeId;
@@ -62,6 +63,25 @@ import jdk.incubator.vector.LongVector;
 import jdk.incubator.vector.ByteVector;
 
 public class CpuPartitionPreparerTest {
+    @Test void argExtremaDeclaresTwoMixedTypeBoundariesAndZeroResources() {
+        var base = CpuArgExtremaLoweringTest.context(
+                io.github.pho001.synaptik.model.operation.reduction.AggregateReductionKind.ARG_MAX,
+                DataType.FLOAT32, Shape.of(16, 4), 1, true,
+                io.github.pho001.synaptik.model.operation.reduction.ArgExtremaTiePolicy.LAST_INDEX);
+        var context = new PrepareContext<>(base.partition(), base.nodes(), base.values(),
+                base.memoryRequirements(), base.constants(), new CpuPartitionAnalysisInputs(false,
+                        List.of(CarrierAccess.FLOAT_ARRAY, CarrierAccess.LONG_ARRAY)));
+        var plan = new CpuPartitionPreparer().analyze(context).plan();
+        assertAll(() -> assertEquals(2, plan.bufferDeclarations().size()),
+                () -> assertEquals(List.of(DataType.FLOAT32, DataType.INT64),
+                        plan.units().getFirst().portablePlan().specialization().boundaryDataTypes()),
+                () -> assertTrue(plan.workspaceDeclaration().isEmpty()),
+                () -> assertTrue(plan.materialization().isEmpty()),
+                () -> assertTrue(plan.argExtremaGeometry().isPresent()),
+                () -> assertFalse(plan.units().getFirst().portablePlan().specialization()
+                        .scratchParameter()));
+    }
+
     @Test void sumToShapeDeclaresWorkspaceOnlyForPositiveOutputFloatingReduction() {
         var reducedBase = CpuAggregateLoweringTest.context(AggregateReductionKind.SUM,
                 DataType.FLOAT32, Shape.of(2,3,4), new SumToShapeAttrs(Shape.of(3,1)),
@@ -132,7 +152,7 @@ public class CpuPartitionPreparerTest {
                 () -> assertTrue(initial.workspaceDeclaration().isEmpty()),
                 () -> assertTrue(dropout.workspaceDeclaration().isEmpty()),
                 () -> assertTrue(dropout.randomGeometry().isPresent()),
-                () -> assertEquals(43, io.github.pho001.synaptik.backend.cpu.internal.cache
+                () -> assertEquals(44, io.github.pho001.synaptik.backend.cpu.internal.cache
                         .CpuGeneratorSchema.CURRENT_VERSION));
     }
     @Test void foldDeclaresExactlyTwoBuffersOneArtifactAndNoWorkspaceOrMaterialization() {

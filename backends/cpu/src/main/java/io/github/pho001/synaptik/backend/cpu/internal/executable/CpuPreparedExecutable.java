@@ -12,6 +12,7 @@ import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuOrderingLoweri
 import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuRandomLowering;
 import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuScanLowering;
 import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuAggregateLowering;
+import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuArgExtremaLowering;
 import io.github.pho001.synaptik.backend.cpu.internal.memory.CpuBufferArgument;
 import io.github.pho001.synaptik.backend.cpu.internal.memory.CpuBufferRepresentation;
 import io.github.pho001.synaptik.backend.cpu.internal.memory.CpuContiguousWorkspace;
@@ -85,6 +86,7 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
     private final Optional<CpuRandomLowering.Geometry> randomGeometry;
     private final Optional<CpuScanLowering.Geometry> scanGeometry;
     private final Optional<CpuAggregateLowering.Geometry> aggregateGeometry;
+    private final Optional<CpuArgExtremaLowering.Geometry> argExtremaGeometry;
 
     /**
      * Creates a direct derived-boundary recipe for one exact half-open logical range.
@@ -127,7 +129,7 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
                 start, end, selectedRangeCount, minimumElementsPerWorker, workerGroup,
                 materialization, workspaceSelection, affineAddressPairs, movementGeometry,
                 indexingGeometry, scatterGeometry, foldGeometry, orderingGeometry,
-                Optional.empty(), Optional.empty(), Optional.empty());
+                Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty());
     }
 
     /**
@@ -485,6 +487,7 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
      * @param randomGeometry non-null optional explicit-state initializer/dropout geometry
      * @param scanGeometry non-null optional cumulative-scan slice/layout geometry
      * @param aggregateGeometry non-null optional ordinary aggregate output/domain geometry
+     * @param argExtremaGeometry non-null optional one-axis logical-index output/domain geometry
      * @throws NullPointerException if a required reference or list element is null
      * @throws IllegalArgumentException if memory, boundary, carrier, range, worker, geometry,
      *     workspace, or specialization facts disagree
@@ -503,7 +506,8 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
             Optional<CpuOrderingLowering.Geometry> orderingGeometry,
             Optional<CpuRandomLowering.Geometry> randomGeometry,
             Optional<CpuScanLowering.Geometry> scanGeometry,
-            Optional<CpuAggregateLowering.Geometry> aggregateGeometry) {
+            Optional<CpuAggregateLowering.Geometry> aggregateGeometry,
+            Optional<CpuArgExtremaLowering.Geometry> argExtremaGeometry) {
         super(memoryPlan, selections, workspaceSelection.map(List::of).orElseGet(List::of),
                 accesses(selections.size(), randomGeometry.map(g -> g.family()
                         == io.github.pho001.synaptik.backend.cpu.internal.ir.CpuRandomIr.Family.DROPOUT
@@ -529,7 +533,10 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
         this.randomGeometry = Objects.requireNonNull(randomGeometry, "randomGeometry");
         this.scanGeometry = Objects.requireNonNull(scanGeometry, "scanGeometry");
         this.aggregateGeometry = Objects.requireNonNull(aggregateGeometry, "aggregateGeometry");
-        long count = this.aggregateGeometry.isPresent()
+        this.argExtremaGeometry = Objects.requireNonNull(argExtremaGeometry, "argExtremaGeometry");
+        long count = this.argExtremaGeometry.isPresent()
+                ? this.argExtremaGeometry.orElseThrow().outputCount()
+                : this.aggregateGeometry.isPresent()
                 ? this.aggregateGeometry.orElseThrow().outputCount()
                 : this.scanGeometry.isPresent()
                 ? this.scanGeometry.orElseThrow().sliceCount()
@@ -568,7 +575,7 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
                 +(this.indexingGeometry.isPresent()?1:0)+(this.scatterGeometry.isPresent()?1:0)
                 +(this.foldGeometry.isPresent()?1:0)+(this.orderingGeometry.isPresent()?1:0)
                 +(this.randomGeometry.isPresent()?1:0)+(this.scanGeometry.isPresent()?1:0)
-                +(this.aggregateGeometry.isPresent()?1:0);
+                +(this.aggregateGeometry.isPresent()?1:0)+(this.argExtremaGeometry.isPresent()?1:0);
         if (geometryCount>1) {
             throw new IllegalArgumentException("affine, movement, indexing, scatter, and fold geometry are exclusive");
         }
@@ -606,6 +613,7 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
                 || scatterGeometry.isPresent() || foldGeometry.isPresent() || orderingGeometry.isPresent()
                 || randomGeometry.isPresent()
                 || scanGeometry.isPresent() || aggregateGeometry.isPresent()
+                || argExtremaGeometry.isPresent()
                 ? bindings.getLast() : bindings.getFirst());
     }
     /**
@@ -619,7 +627,7 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
         if (movementGeometry.isPresent() || indexingGeometry.isPresent()
                 || scatterGeometry.isPresent() || foldGeometry.isPresent() || orderingGeometry.isPresent()
                 || randomGeometry.isPresent() || scanGeometry.isPresent()
-                || aggregateGeometry.isPresent()) {
+                || aggregateGeometry.isPresent() || argExtremaGeometry.isPresent()) {
             var result = new ArrayList<CpuAccessPlan.Binding>(bindings);
             if (orderingGeometry.isEmpty() && randomGeometry.isEmpty())
                 result.set(result.size() - 1, ranged(result.getLast()));
@@ -645,7 +653,7 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
                 minimumElementsPerWorker, workerGroup, materialization,
                 workspaceSelection, affineCopy ? affineAddressPairs : null, movementGeometry,
                 indexingGeometry, scatterGeometry, foldGeometry, orderingGeometry, randomGeometry,
-                scanGeometry, aggregateGeometry);
+                scanGeometry, aggregateGeometry, argExtremaGeometry);
     }
 
     private CpuAccessPlan.Binding ranged(CpuAccessPlan.Binding source) {
@@ -741,7 +749,7 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
                     : movementGeometry.isPresent() || indexingGeometry.isPresent()
                             || scatterGeometry.isPresent() || foldGeometry.isPresent()
                             || orderingGeometry.isPresent() || scanGeometry.isPresent()
-                            || aggregateGeometry.isPresent()
+                            || aggregateGeometry.isPresent() || argExtremaGeometry.isPresent()
                         ? overlaps(arguments.get(input), inputBinding,
                             arguments.get(firstOutputIndex), bindings.get(firstOutputIndex))
                         : overlaps(arguments.get(input), ranged(inputBinding),
@@ -880,6 +888,14 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
 
     private long[] geometry(List<CpuBufferArgument> arguments, long rangeStart, long rangeEnd,
             int rangeIndex) {
+        if (argExtremaGeometry.isPresent()) {
+            long[] bases = new long[2];
+            for (int index = 0; index < 2; index++) {
+                int width = artifact.specialization().boundaryDataTypes().get(index).byteWidth();
+                bases[index] = arguments.get(index).byteOffset() / width;
+            }
+            return argExtremaGeometry.orElseThrow().pack(bases);
+        }
         if (aggregateGeometry.isPresent()) {
             long[] bases = new long[2];
             for (int index = 0; index < 2; index++) {

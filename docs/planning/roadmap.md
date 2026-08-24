@@ -251,8 +251,9 @@ separate exact floating numerical/resource design and binding-aware target-Shape
 right-aligned bound-Shape geometry. Complete CPU 0007A1, corrective CPU 0007A1A–0007A1O,
 any later evidence-selected residual corrections, and Complete
 [CPU 0007A2](backends/cpu/tasks/0007a2-portable-binding-aware-sum-to-shape-reduction.md) own
-their respective prerequisites, while Draft CPU 0007B–0007F retain those
-numerical aggregates, target-Shape SUM, arg-extrema, masked, advanced statistical/norm, stable
+their respective prerequisites. Detailed Complete
+[CPU 0007B](backends/cpu/tasks/0007b-portable-arg-extrema-coverage.md) owns arg extrema, while
+Draft CPU 0007C–0007F retain masked, advanced statistical/norm, stable
 softmax/log-softmax, and layer/RMS/batch-normalization boundaries. A completed local
 bytecode/performance audit then inserted detailed
 [CPU 0007A0 generated hot-path parity correction](backends/cpu/tasks/0007a0-generated-hot-path-parity-correction.md)
@@ -375,9 +376,17 @@ is `Complete`. It preserves the original ledger, adds a versioned repository-val
 replacement, supplies compatible generated/direct evidence for every pointwise equivalence group,
 and closes A1C without changing production bytes or schema 42. Detailed
 [CPU 0007A2](backends/cpu/tasks/0007a2-portable-binding-aware-sum-to-shape-reduction.md) is
-`In progress`; no CPU task is `Ready`. Its corrected 37-path scope permits the A1O ledger
+`Complete`. Detailed
+[CPU 0007B](backends/cpu/tasks/0007b-portable-arg-extrema-coverage.md) is `Complete`. CPU 0007C is
+the next ordered `Draft` task and has no detailed specification. A2's corrected 37-path scope
+permits the A1O ledger
 integration test to distinguish historical schema-42 evidence from exact current schema 43 while
 preserving the ledger resource and A1O history unchanged. The
+0007B retained evidence reports `VERIFIED,6`, 384 CPU tests with zero failures or errors and one
+expected skip, and all 30 fork plus all six aggregate generated/direct ratios at `<= 1.15x`; the
+maximum observed fork ratio is `1.038305072x`. Its 40-path final scope advances the CPU-private
+generator to schema 44 with exactly three new production types and no public API, architecture,
+dependency, build, conformance, or integration change. The
 isolated `M-CONCAT` A1G
 fork at `1.158061861x` does not reopen completed A1E because
 the other four A1G forks and completed A1E five-fork evidence pass.
@@ -405,8 +414,8 @@ the full CPU suite passed 340 cases with one expected assumption skip. Clean doc
 planning without changing executable Java or rerunning the stable Java suites. Schema-29
 artifacts are incompatible safe misses. Detailed CPU 0007A1B and CPU 0007A1E are Complete; CPU
 0007A1C is `Complete`, CPU 0007A1D remains `Review needed`, and CPU 0007A1F through CPU 0007A1O
-are `Complete`. Detailed CPU 0007A2 is `Complete`; CPU 0007B is the next ordered Draft planning
-follow-up, and no CPU task is Ready.
+are `Complete`. Detailed CPU 0007A2 and detailed CPU 0007B are `Complete`; CPU 0007C is the next
+ordered Draft task and has no detailed specification.
 CPU 0007A0F implementation context `01a0194d-ff2e-78d3-9815-f0830065185b`, independent review
 orchestration context `01a0196a-0930-7521-972f-84021b85519b` with isolated review context
 `/root/cpu_0007a0f_review`, and clean documentation context
@@ -474,9 +483,8 @@ whitespace gates passed. Detailed CPU 0007A and corrective CPU 0007A0/0007A0A ar
 detailed CPU 0007A0B, detailed CPU 0007A0C, detailed CPU 0007A0D, and detailed CPU 0007A0E are
 `Complete`; detailed CPU 0007A0F, CPU 0007A1, CPU 0007A1A, and CPU 0007A1B are `Complete`.
 CPU 0007A1C is `Complete`, CPU 0007A1D remains `Review needed`, and detailed CPU 0007A1E through
-CPU 0007A1O and CPU 0007A2 are `Complete`; no CPU task is Ready. CPU 0007B is the next ordered
-`Draft` planning follow-up, and CPU 0007B and later work remain ordered `Draft` without detailed
-specifications.
+CPU 0007A1O, CPU 0007A2, and detailed CPU 0007B are `Complete`. CPU 0007C is the next ordered
+`Draft` task; it and later work remain without detailed specifications.
 CPU 0006B1 implementation context `019ff230-109c-73a3-933f-611ee7f6143d` and independent
 audit/fix context `019ff248-a9e4-7150-8fbb-db2730d7cc1b` produced the final focused
 12-suite/103-test and CPU 38-suite/230-test evidence; the latter has one expected existing skip
@@ -514,8 +522,8 @@ detailed CPU 0006B1, CPU 0006B2, CPU 0006C, CPU 0006D, CPU 0007, and detailed CP
 `Complete`; corrective CPU 0007A0, CPU 0007A0A, CPU 0007A0B, CPU 0007A0C, and detailed CPU
 0007A0D, CPU 0007A0E, CPU 0007A0F, CPU 0007A1, CPU 0007A1A, and CPU 0007A1B are `Complete`.
 CPU 0007A1C is `Complete`, CPU 0007A1D remains `Review needed`, and detailed CPU 0007A1E through
-CPU 0007A1O and CPU 0007A2 are `Complete`; no CPU task is `Ready`. CPU 0007B–0017 remain
-ordered `Draft` work without later detailed specifications.
+CPU 0007A1O, CPU 0007A2, and detailed CPU 0007B are `Complete`. CPU 0007C is the next ordered
+`Draft` task; CPU 0007C–0017 remain without later detailed specifications.
 CPU 0003
 implements a
 model-independent filesystem store beneath an explicit
@@ -733,8 +741,9 @@ workspace. Detailed Complete CPU 0007A next owns ordinary full/single-/multi-axi
 through output-cell-only parallelism and zero workspace. Complete CPU 0007A1 implements ordinary
 SUM/MEAN/PROD numerical/resource policy. Complete corrective CPU 0007A1A–0007A1O precedes
 Complete [CPU 0007A2](backends/cpu/tasks/0007a2-portable-binding-aware-sum-to-shape-reduction.md),
-which owns binding-aware target-Shape SUM, and
-Draft CPU 0007B–0007F own arg extrema, masked reductions, advanced logarithmic/statistical/norm
+which owns binding-aware target-Shape SUM. Detailed Complete
+[CPU 0007B](backends/cpu/tasks/0007b-portable-arg-extrema-coverage.md) owns arg extrema, and Draft
+CPU 0007C–0007F own masked reductions, advanced logarithmic/statistical/norm
 reductions, stable multi-pass softmax/log-softmax, and layer/RMS/batch normalization in dependency
 order. Draft CPU 0008 already owns heavy portable linear algebra,
 convolution, pooling, attention, and loss families; its initial bounded epilogue direction is
@@ -904,8 +913,8 @@ Detailed CPU 0007 and detailed CPU 0007A are `Complete`; corrective CPU 0007A0 a
 and CPU 0007A0B and detailed CPU 0007A0C, CPU 0007A0D, and CPU 0007A0E are `Complete`; detailed
 CPU 0007A0F and detailed CPU 0007A1 are `Complete`.
 Detailed CPU 0007A1A through CPU 0007A1C are `Complete`; CPU 0007A1D remains `Review needed`;
-detailed CPU 0007A1E through CPU 0007A1O and CPU 0007A2 are `Complete`; no CPU task is `Ready`.
-CPU 0007B–0017 and the refined Config, Prepare,
+detailed CPU 0007A1E through CPU 0007A1O, CPU 0007A2, and detailed CPU 0007B are `Complete`. CPU
+0007C is the next ordered `Draft` task; CPU 0007C–0017 and the refined Config, Prepare,
 Metal, and tuning
 rows remain `Draft` without later detailed specifications.
 Completed OpenBLAS history and every completed project area remain unchanged.
@@ -929,9 +938,8 @@ is `Complete`. Detailed CPU 0007A0E, CPU 0007A0F, and CPU 0007A1 are `Complete`.
 is `Complete`; detailed
 [CPU 0007A1B scatter algorithmic parity](backends/cpu/tasks/0007a1b-scatter-algorithmic-parity.md)
 is `Complete`; CPU 0007A1C is `Complete`; CPU 0007A1D remains `Review needed`; detailed CPU 0007A1E
-through CPU 0007A1O and detailed CPU 0007A2 are `Complete`; no CPU task is Ready. CPU 0007B is
-the next ordered Draft planning follow-up, and CPU 0007B and later work remain Draft without
-detailed specifications.
+through CPU 0007A1O, detailed CPU 0007A2, and detailed CPU 0007B are `Complete`. CPU 0007C is the
+next ordered Draft task; it and later work remain without detailed specifications.
 CPU 0006A delivers one exact static resolved-layout PAD, TILE, CONCAT, or STACK occurrence with
 ordered one-through-sixteen composition inputs, first-occurrence unique declarations, compact
 cold movement geometry, all-six-type represented-bit scalar/parallel-scalar generation, one

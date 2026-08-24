@@ -72,6 +72,11 @@
  * state, while integral reductions and no-reduction represented copies are workspace-free.
  * Concrete layout magnitudes, carriers, slots, workers, and run identities remain cold.</p>
  *
+ * <p>The separate arg-extrema representation records ARG_MIN or ARG_MAX, one numeric input type,
+ * the normalized selected-axis role, keep/remove-Dimension form, first/last tie selection, and
+ * structural numeric-read/INT64-write access. Concrete layout magnitudes and output-cell counts
+ * remain cold; no aggregate partial or combine state is shared with this family.</p>
+ *
  * <p>Lowering creates these cold immutable models. Portable code generation and the scalar
  * reference realization may consume their established semantics, but Runtime never receives or
  * interprets them.

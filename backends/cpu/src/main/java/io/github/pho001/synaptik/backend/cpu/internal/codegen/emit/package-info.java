@@ -142,6 +142,12 @@
  * loop work as the optimal clean-Java oracle. A no-reduction occurrence instead copies the raw
  * represented value without numerical classification.</p>
  *
+ * <p>The separate arg-extrema emitter owns a complete-output-cell scalar body. It decodes each
+ * output coordinate once, traverses the selected axis in increasing logical order, classifies
+ * floating NaNs from raw bits, preserves negative-zero ordering, applies first/last tie policy,
+ * and performs one direct INT64 coordinate store. Heap, segment, mixed, dense, general, and
+ * zero-stride-read forms use the same typed primitive algorithm without a Synaptik hot helper.</p>
+ *
  * <p>Covered scalar activation formulas, BFLOAT16 scan arithmetic and rounding, and aggregate
  * extrema/Boolean combination are emitted directly. Those per-element bodies therefore have no
  * runtime reference to another Synaptik class. The selected bounded movement classes likewise

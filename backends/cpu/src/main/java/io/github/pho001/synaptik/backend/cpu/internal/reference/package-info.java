@@ -43,6 +43,11 @@
  * signed-zero extrema, signed integral order, and canonical Boolean folds. It calls no production
  * aggregate body, emitter rounding helper, packer, or lowering coordinate helper.</p>
  *
+ * <p>The arg-extrema oracle independently reconstructs logical output and selected-axis
+ * coordinates for all five numeric input types. It applies NaN preference, negative-before-
+ * positive zero ordering, signed integral order, and first/last equal-value selection without
+ * calling the generated emitter or its packed-coordinate traversal.</p>
+ *
  * <p>Reference evaluation is outside the generated Runtime hot path and owns no buffers, slots, or
  * artifact lifecycle.
  */

@@ -87,6 +87,11 @@
  * floating reductions retain exact-state workspace, while integral reductions and copies remain
  * workspace-free.</p>
  *
+ * <p>Arg-extrema lowering is a distinct two-boundary family for one static resolved-layout
+ * ARG_MIN or ARG_MAX occurrence. It consumes the normalized axis unchanged, derives complete
+ * output-cell geometry for arbitrary legal input layouts and an injective INT64 output, and
+ * declares no workspace, materialization, partial result, or combine state.</p>
+ *
  * <p>Lowering runs on the preparation cold path; no lowering object or Model operation reaches the
  * generated execution loop.
  */

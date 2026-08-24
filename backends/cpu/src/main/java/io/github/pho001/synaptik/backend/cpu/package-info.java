@@ -30,6 +30,10 @@
  * right-aligned target over the five numeric types. It reduces leading and unequal target-one
  * axes, copies represented bits when no axis reduces, and retains the same output-cell ownership
  * and exact floating or modular integral SUM semantics.
+ * Arg-extrema coverage accepts exactly one fully static resolved-layout {@code ARG_MIN} or
+ * {@code ARG_MAX} occurrence over the five numeric types, producing logical selected-axis
+ * coordinates as INT64 with first- or last-index tie selection, NaN preference, and signed-zero
+ * ordering. It owns complete output cells and uses no workspace or materialization.
  * The provider exposes no route, carrier, preparation, or execution API.
  *
  * <p>The {@code internal} namespace contains unsupported implementation contracts for complete-
