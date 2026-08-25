@@ -92,6 +92,12 @@
  * output-cell geometry for arbitrary legal input layouts and an injective INT64 output, and
  * declares no workspace, materialization, partial result, or combine state.</p>
  *
+ * <p>Masked-reduction lowering is a distinct three-boundary family for one static resolved-layout,
+ * axis-removing FLOAT64, FLOAT32, or BFLOAT16 SUM/MEAN occurrence. It derives directional
+ * right-aligned canonical-BOOL mask addressing without materialization, complete output-cell
+ * ranges, exact selected-axis and state bounds, and one exact-state slice per simultaneously used
+ * range. Selected count remains a generated primitive local; no domain is split or combined.</p>
+ *
  * <p>Lowering runs on the preparation cold path; no lowering object or Model operation reaches the
  * generated execution loop.
  */

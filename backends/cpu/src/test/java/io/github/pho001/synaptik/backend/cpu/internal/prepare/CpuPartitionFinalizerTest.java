@@ -7,6 +7,7 @@ import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuNonAffineMovem
 import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuScatterLoweringTest;
 import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuFoldLoweringTest;
 import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuArgExtremaLoweringTest;
+import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuMaskedReductionLoweringTest;
 import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuOrderingLoweringTest;
 import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuRandomLoweringTest;
 import io.github.pho001.synaptik.backend.cpu.internal.cache.CpuKernelSpecialization.CarrierAccess;
@@ -47,6 +48,30 @@ import java.nio.file.Files;
 
 public class CpuPartitionFinalizerTest {
     @TempDir Path root;
+
+    @Test void maskedReductionFinalizesThreeBuffersExactWorkspaceAndOneSchema45Artifact()
+            throws Exception {
+        var base = CpuMaskedReductionLoweringTest.context(
+                io.github.pho001.synaptik.model.operation.reduction.AggregateReductionKind.SUM,
+                DataType.FLOAT64, Shape.of(2, 4), Shape.of(4), 1);
+        var context = new io.github.pho001.synaptik.prepare.analysis.PrepareContext<>(
+                base.partition(), base.nodes(), base.values(), base.memoryRequirements(),
+                base.constants(), new CpuPartitionAnalysisInputs(false,
+                        List.of(CarrierAccess.DOUBLE_ARRAY, CarrierAccess.BYTE_ARRAY,
+                                CarrierAccess.DOUBLE_ARRAY)));
+        var analysis = new CpuPartitionPreparer().analyze(context);
+        Path artifactRoot = root.resolve("masked-reduction");
+        var executable = finalizeExecutable(analysis, Optional.of(artifactRoot));
+        try (var files = Files.list(artifactRoot)) {
+            assertAll(() -> assertEquals(3, executable.bufferSelectionCount()),
+                    () -> assertEquals(3, executable.memoryPlan().buffers().size()),
+                    () -> assertEquals(1, executable.memoryPlan().workspaces().size()),
+                    () -> assertEquals(45, io.github.pho001.synaptik.backend.cpu.internal.cache
+                            .CpuGeneratorSchema.CURRENT_VERSION),
+                    () -> assertEquals(1, files.filter(path -> path.getFileName().toString()
+                            .endsWith(".artifact")).count()));
+        }
+    }
 
     @Test void finalizesZeroInputInitializerWithOneBufferAndNoWorkspace() {
         var analysis = new CpuPartitionPreparer().analyze(
@@ -233,7 +258,7 @@ public class CpuPartitionFinalizerTest {
             assertAll(() -> assertEquals(2, executable.bufferSelectionCount()),
                     () -> assertEquals(2, executable.memoryPlan().buffers().size()),
                     () -> assertTrue(executable.memoryPlan().workspaces().isEmpty()),
-                    () -> assertEquals(44, io.github.pho001.synaptik.backend.cpu.internal.cache
+                    () -> assertEquals(45, io.github.pho001.synaptik.backend.cpu.internal.cache
                             .CpuGeneratorSchema.CURRENT_VERSION),
                     () -> assertEquals(1, files.filter(path -> path.getFileName().toString()
                             .endsWith(".artifact")).count()));
@@ -259,7 +284,7 @@ public class CpuPartitionFinalizerTest {
                 () -> assertTrue(executable.artifact().specialization().scratchParameter()));
     }
 
-    @Test void argExtremaFinalizesExactlyTwoBuffersNoWorkspaceAndOneSchema44Artifact()
+    @Test void argExtremaFinalizesExactlyTwoBuffersNoWorkspaceAndOneCurrentArtifact()
             throws Exception {
         var base = CpuArgExtremaLoweringTest.context(
                 io.github.pho001.synaptik.model.operation.reduction.AggregateReductionKind.ARG_MIN,
@@ -276,7 +301,7 @@ public class CpuPartitionFinalizerTest {
             assertAll(() -> assertEquals(2, executable.bufferSelectionCount()),
                     () -> assertEquals(2, executable.memoryPlan().buffers().size()),
                     () -> assertTrue(executable.memoryPlan().workspaces().isEmpty()),
-                    () -> assertEquals(44, io.github.pho001.synaptik.backend.cpu.internal.cache
+                    () -> assertEquals(45, io.github.pho001.synaptik.backend.cpu.internal.cache
                             .CpuGeneratorSchema.CURRENT_VERSION),
                     () -> assertEquals(1, files.filter(path -> path.getFileName().toString()
                             .endsWith(".artifact")).count()));

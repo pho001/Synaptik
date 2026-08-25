@@ -38,6 +38,10 @@
  * input and one INT64 output. Its generated body embeds kind, type, axis role, keep/remove form,
  * tie policy, carrier accesses, and structural ranks; resolved layout magnitudes stay in cold
  * invocation geometry.
+ * A masked SUM/MEAN specialization is scalar and has typed data, canonical-BOOL mask, and output
+ * boundaries followed by one exact-state scratch segment. Its generated body embeds the mask
+ * topology, early false branch, selected-count work, and exact finalization; concrete layout
+ * magnitudes, range count, carriers, scratch identity, and per-range slice offsets stay cold.
  *
  * <p>The plan is immutable cold-path state; route dispatch never occurs inside the generated loop.
  */

@@ -42,6 +42,9 @@ import jdk.incubator.vector.ByteVector;
  * workspace or materialization, and may parallelize only across complete independent slices.
  * One-node ordinary aggregates likewise remain scalar compute, declare exactly input and output
  * with no workspace or materialization, and may parallelize only across complete output cells.
+ * One-node masked SUM/MEAN plans declare ordered data, mask, and output buffers plus one exact
+ * floating-state workspace sliced by the simultaneously used complete-output-cell ranges. They
+ * never materialize the mask or declare selected-count, partial, or combine state.
  */
 public final class CpuPartitionPreparer implements BackendPartitionPreparer<
         CpuPartitionAnalysisInputs, CpuPartitionPreparationPlan> {
@@ -65,8 +68,8 @@ public final class CpuPartitionPreparer implements BackendPartitionPreparer<
      * @return one immutable analysis with one unit, a cold-selected portable strategy, one exact
      *     declaration per derived boundary, and at most one workspace declaration; affine and
      *     fold, cumulative-scan, and ordinary-aggregate plans have no workspace, while ordering
-     *     has exact per-range scratch and TOP_K has ordered values then INT64-index outputs; never
-     *     {@code null}
+     *     and masked floating reduction have exact per-range scratch and TOP_K has ordered values
+     *     then INT64-index outputs; never {@code null}
      * @throws NullPointerException if {@code context} is {@code null}
      * @throws IllegalArgumentException if complete-partition lowering rejects the occurrence or
      *     declared resource geometry is invalid
@@ -102,7 +105,9 @@ public final class CpuPartitionPreparer implements BackendPartitionPreparer<
                 instanceof io.github.pho001.synaptik.backend.cpu.internal.ir.CpuAggregateIr;
         boolean argExtrema = lowered.portableKernelIr()
                 instanceof io.github.pho001.synaptik.backend.cpu.internal.ir.CpuArgExtremaIr;
-        Optional<CpuMaterializationPlan> materialization = movement || indexing || scatter || fold || ordering || random || scan || aggregate || argExtrema ? Optional.empty()
+        boolean maskedReduction = lowered.portableKernelIr()
+                instanceof io.github.pho001.synaptik.backend.cpu.internal.ir.CpuMaskedReductionIr;
+        Optional<CpuMaterializationPlan> materialization = movement || indexing || scatter || fold || ordering || random || scan || aggregate || argExtrema || maskedReduction ? Optional.empty()
                 : selectMaterialization(lowered, context.backendInputs().materializationPolicy());
         var declarations = new ArrayList<PreparationResourceRequirement.Buffer>(lowered.boundaryValues().size());
         for (int i = 0; i < lowered.boundaryValues().size(); i++) declarations.add(
@@ -125,7 +130,7 @@ public final class CpuPartitionPreparer implements BackendPartitionPreparer<
         DataType vectorType = vectorLaneType(kernelIr);
         int lanes = speciesLanes(vectorType);
         int speciesBits = speciesBits(vectorType);
-        boolean vectorEligible = !affineCopy && !indexing && !scatter && !fold && !ordering && !random && !scan && !aggregate && !argExtrema && config.computePreference()
+        boolean vectorEligible = !affineCopy && !indexing && !scatter && !fold && !ordering && !random && !scan && !aggregate && !argExtrema && !maskedReduction && config.computePreference()
                         == CpuPartitionAnalysisInputs.PortableExecutionConfig.ComputePreference.VECTOR_IF_ELIGIBLE
                 && vectorType != null && lanes > 1 && lowered.elementCount() >= lanes
                 && vectorTopologyEligible(kernelIr, vectorType)
@@ -154,7 +159,8 @@ public final class CpuPartitionPreparer implements BackendPartitionPreparer<
                         .filter(g -> g.scratchSliceBytes() > 0).isPresent()
                         || lowered.orderingGeometry().isPresent()
                         || lowered.aggregateGeometry().filter(g -> g.scratchSliceBytes() > 0)
-                            .isPresent());
+                            .isPresent()
+                        || lowered.maskedReductionGeometry().isPresent());
         var selectedPortableIr = materialization.isPresent()
                 ? kernelIr : lowered.portableKernelIr();
         var routePlan = new CpuPortableRoutePlan(selectedPortableIr, specialization);
@@ -190,6 +196,16 @@ public final class CpuPartitionPreparer implements BackendPartitionPreparer<
             workspace = Optional.of(new PreparationResourceRequirement.Workspace(0,
                     aggregateBytes, Long.BYTES));
         }
+        if (lowered.maskedReductionGeometry().filter(g -> g.outputCount() > 0).isPresent()) {
+            var geometry = lowered.maskedReductionGeometry().orElseThrow();
+            long maskedBytes = geometry.workspaceBytes(selectedRangeCount);
+            var limit = context.backendInputs().materializationPolicy();
+            if (limit.enabled() && maskedBytes > limit.maximumAdditionalBytes())
+                throw new IllegalArgumentException(
+                        "masked-reduction exact-state workspace exceeds the configured byte ceiling");
+            workspace = Optional.of(new PreparationResourceRequirement.Workspace(0,
+                    maskedBytes, Long.BYTES));
+        }
         var workspaceUse = materialization.isPresent()
                 ? CpuPartitionPreparationPlan.WorkspaceUse.MATERIALIZATION
                 : workspace.isPresent() ? CpuPartitionPreparationPlan.WorkspaceUse.SCATTER_PRODUCT
@@ -198,6 +214,8 @@ public final class CpuPartitionPreparer implements BackendPartitionPreparer<
             workspaceUse = CpuPartitionPreparationPlan.WorkspaceUse.ORDERING_INDICES;
         if (lowered.aggregateGeometry().filter(g -> g.scratchSliceBytes() > 0
                 && g.outputCount() > 0).isPresent())
+            workspaceUse = CpuPartitionPreparationPlan.WorkspaceUse.AGGREGATE_EXACT_STATE;
+        if (lowered.maskedReductionGeometry().filter(g -> g.outputCount() > 0).isPresent())
             workspaceUse = CpuPartitionPreparationPlan.WorkspaceUse.AGGREGATE_EXACT_STATE;
         var plan = new CpuPartitionPreparationPlan(
                 List.of(new CpuPartitionPreparationPlan.ExecutionUnitPlan(
@@ -213,7 +231,8 @@ public final class CpuPartitionPreparer implements BackendPartitionPreparer<
                 materialization, workspace, workspaceUse, budget,
                 lowered.movementGeometry(), lowered.indexingGeometry(), lowered.scatterGeometry(),
                 lowered.foldGeometry(), lowered.orderingGeometry(), lowered.randomGeometry(),
-                lowered.scanGeometry(), lowered.aggregateGeometry(), lowered.argExtremaGeometry());
+                lowered.scanGeometry(), lowered.aggregateGeometry(), lowered.argExtremaGeometry(),
+                lowered.maskedReductionGeometry());
         var requirements = new ArrayList<PreparationResourceRequirement>(declarations);
         plan.workspaceDeclaration().ifPresent(requirements::add);
         return new BackendPartitionAnalysis<>(context.partition(), plan, requirements);

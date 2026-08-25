@@ -38,6 +38,7 @@ import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuFoldLoweringTe
 import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuScanLoweringTest;
 import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuAggregateLoweringTest;
 import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuArgExtremaLoweringTest;
+import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuMaskedReductionLoweringTest;
 import io.github.pho001.synaptik.model.operation.scan.CumulativeScanKind;
 import io.github.pho001.synaptik.model.operation.reduction.AggregateReductionKind;
 import io.github.pho001.synaptik.model.operation.reduction.ArgExtremaTiePolicy;
@@ -68,6 +69,68 @@ class CpuPreparedExecutableTest {
             ValueLayout.JAVA_INT_UNALIGNED.withOrder(ByteOrder.nativeOrder());
     private static final ValueLayout.OfLong LONG =
             ValueLayout.JAVA_LONG_UNALIGNED.withOrder(ByteOrder.nativeOrder());
+
+    @Test void maskedReductionParallelRangesAreDeterministicAndColdFailuresPrecedeWrites() {
+        var base = CpuMaskedReductionLoweringTest.context(AggregateReductionKind.MEAN,
+                DataType.FLOAT64, Shape.of(8, 4), Shape.of(4), 1);
+        var config = new PortableExecutionConfig(ComputePreference.SCALAR, 4, 4, 1);
+        var context = new io.github.pho001.synaptik.prepare.analysis.PrepareContext<>(
+                base.partition(), base.nodes(), base.values(), base.memoryRequirements(),
+                base.constants(), new CpuPartitionAnalysisInputs(false,
+                        List.of(CarrierAccess.DOUBLE_ARRAY, CarrierAccess.BYTE_ARRAY,
+                                CarrierAccess.DOUBLE_ARRAY), config));
+        var analysis = new CpuPartitionPreparer().analyze(context);
+        var declaration = analysis.plan().workspaceDeclaration().orElseThrow();
+        var workers = new CpuWorkerGroup(4);
+        try {
+            var executable = CpuPartitionFinalizerTest.finalizeExecutable(analysis,
+                    Optional.empty(), Optional.of(workers));
+            double[] data = new double[32];
+            for (int row = 0; row < 8; row++) {
+                data[row * 4] = 0x1p53;
+                data[row * 4 + 1] = row + 1;
+                data[row * 4 + 2] = -0x1p53;
+                data[row * 4 + 3] = Double.NaN;
+            }
+            byte[] mask = {1, 1, 1, 0};
+            double[] output = new double[10]; java.util.Arrays.fill(output, -77);
+            var run = state(executable, List.of(borrow(data, 0, data.length), borrow(mask),
+                    borrow(output, 1, 8)), List.of(CpuContiguousWorkspace.allocate(
+                            declaration.byteSize(), declaration.byteAlignment())));
+            try {
+                var bound = executable.bind(run);
+                bound.execute();
+                for (int row = 0; row < 8; row++) assertEquals((row + 1) / 3.0,
+                        output[row + 1]);
+                assertEquals(-77, output[0]); assertEquals(-77, output[9]);
+                double[] first = output.clone();
+                bound.execute();
+                assertArrayEquals(first, output);
+            } finally { run.close(); }
+
+            byte[] invalidMask = {1, 2, 1, 0};
+            double[] untouched = new double[10]; java.util.Arrays.fill(untouched, -31);
+            var invalid = state(executable, List.of(borrow(data, 0, data.length),
+                    borrow(invalidMask), borrow(untouched, 1, 8)), List.of(
+                            CpuContiguousWorkspace.allocate(declaration.byteSize(),
+                                    declaration.byteAlignment())));
+            try {
+                assertThrows(IllegalArgumentException.class, () -> executable.bind(invalid));
+                double[] expected = new double[10]; java.util.Arrays.fill(expected, -31);
+                assertArrayEquals(expected, untouched);
+            } finally { invalid.close(); }
+
+            double[] shared = new double[40]; java.util.Arrays.fill(shared, 19);
+            double[] unchanged = shared.clone();
+            var overlap = state(executable, List.of(borrow(shared, 0, 32), borrow(mask),
+                    borrow(shared, 3, 8)), List.of(CpuContiguousWorkspace.allocate(
+                            declaration.byteSize(), declaration.byteAlignment())));
+            try {
+                assertThrows(IllegalArgumentException.class, () -> executable.bind(overlap));
+                assertArrayEquals(unchanged, shared);
+            } finally { overlap.close(); }
+        } finally { workers.close(); }
+    }
 
     @Test void zeroInputInitializerExecutesItsSinglePrologueWithNoWorkspace() {
         var base = CpuRandomLoweringTest.initialContext(Long.MIN_VALUE, Long.MAX_VALUE);

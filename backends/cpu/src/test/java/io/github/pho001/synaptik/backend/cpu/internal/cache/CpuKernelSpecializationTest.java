@@ -260,7 +260,7 @@ class CpuKernelSpecializationTest {
                                 otherExtents.kernelIr())),
                 () -> assertNotEquals(axisZero.specialization(), otherFamily.specialization()),
                 () -> assertNotEquals(axisZero.specialization(), otherCarrier.specialization()),
-                () -> assertEquals(44, CpuGeneratorSchema.CURRENT_VERSION),
+                () -> assertEquals(45, CpuGeneratorSchema.CURRENT_VERSION),
                 () -> assertEquals(-1, axisZero.specialization().materializedSourcePosition()));
     }
 

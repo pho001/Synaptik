@@ -91,6 +91,8 @@ public record CpuPortableRoutePlan(CpuPortableKernelIr portableKernelIr,
             return scan.encodedKernelIr();
         if (source instanceof io.github.pho001.synaptik.backend.cpu.internal.ir.CpuArgExtremaIr argExtrema)
             return argExtrema.encodedKernelIr();
+        if (source instanceof io.github.pho001.synaptik.backend.cpu.internal.ir.CpuMaskedReductionIr masked)
+            return masked.encodedKernelIr();
         return ((io.github.pho001.synaptik.backend.cpu.internal.ir.CpuAggregateIr) source)
                 .encodedKernelIr();
     }

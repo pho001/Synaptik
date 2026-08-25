@@ -67,6 +67,7 @@ public final class CpuClassFileKernelGenerator {
         MethodTypeDesc type = MethodTypeDesc.ofDescriptor(specialization.entryType().descriptorString());
         int entryFlags = AccessFlag.STATIC.mask()
                 | (kernelIr.familyIdentity().startsWith("arg-extrema:")
+                    || kernelIr.familyIdentity().startsWith("masked-reduction:")
                         ? AccessFlag.PUBLIC.mask() : 0);
         byte[] bytes = ClassFile.of().build(owner, classBuilder -> classBuilder
                 .withVersion(ClassFile.JAVA_26_VERSION, 0).withFlags(AccessFlag.FINAL)
@@ -78,7 +79,9 @@ public final class CpuClassFileKernelGenerator {
                                         specialization.carrierPattern());
                             }
                             if (kernelIr.instructions().isEmpty()) {
-                                if (kernelIr.familyIdentity().startsWith("arg-extrema:")) {
+                                if (kernelIr.familyIdentity().startsWith("masked-reduction:")) {
+                                    new CpuMaskedReductionEmitter().emit(code, specialization, kernelIr);
+                                } else if (kernelIr.familyIdentity().startsWith("arg-extrema:")) {
                                     new CpuArgExtremaEmitter().emit(code, specialization, kernelIr);
                                 } else if (kernelIr.familyIdentity().startsWith("aggregate:")) {
                                     new CpuAggregateEmitter().emit(code, specialization, kernelIr);
@@ -367,18 +370,19 @@ public final class CpuClassFileKernelGenerator {
             boolean scan = kernelIr.familyIdentity().startsWith("scan:");
             boolean aggregate = kernelIr.familyIdentity().startsWith("aggregate:");
             boolean argExtrema = kernelIr.familyIdentity().startsWith("arg-extrema:");
+            boolean maskedReduction = kernelIr.familyIdentity().startsWith("masked-reduction:");
             boolean scatter = kernelIr.familyIdentity().startsWith("scatter:");
             boolean fold = kernelIr.familyIdentity().startsWith("fold:");
             boolean ordering = kernelIr.familyIdentity().startsWith("ordering:");
             boolean movement = kernelIr.familyIdentity().startsWith("movement:");
             boolean affine = kernelIr.familyIdentity().startsWith("affine:");
-            if ((!movement && !affine && !indexing && !scatter && !fold && !ordering && !random && !scan && !aggregate && !argExtrema)
+            if ((!movement && !affine && !indexing && !scatter && !fold && !ordering && !random && !scan && !aggregate && !argExtrema && !maskedReduction)
                     || affine && kernelIr.values().size() != 2
                     || movement && (kernelIr.values().size() < 2 || kernelIr.values().size() > 17)
-                    || !ordering && !random && !scan && !aggregate && !argExtrema && kernelIr.values().subList(0, kernelIr.values().size() - 1).stream()
+                    || !ordering && !random && !scan && !aggregate && !argExtrema && !maskedReduction && kernelIr.values().subList(0, kernelIr.values().size() - 1).stream()
                         .anyMatch(value -> value.kind() != CpuKernelIr.Value.Kind.INPUT)
                     || kernelIr.values().getLast().kind() != CpuKernelIr.Value.Kind.OUTPUT
-                    || !indexing && !scatter && !fold && !ordering && !random && !scan && !aggregate && !argExtrema
+                    || !indexing && !scatter && !fold && !ordering && !random && !scan && !aggregate && !argExtrema && !maskedReduction
                         && kernelIr.values().stream().map(CpuKernelIr.Value::dataType).distinct().count() != 1
                     || random && kernelIr.values().size() != 1 && kernelIr.values().size() != 5
                     || specialization.executionStrategy().compute()

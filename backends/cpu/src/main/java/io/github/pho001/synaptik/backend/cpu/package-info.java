@@ -34,6 +34,12 @@
  * {@code ARG_MAX} occurrence over the five numeric types, producing logical selected-axis
  * coordinates as INT64 with first- or last-index tie selection, NaN preference, and signed-zero
  * ordering. It owns complete output cells and uses no workspace or materialization.
+ * Masked-reduction coverage accepts exactly one fully static resolved-layout, axis-removing
+ * {@code SUM} or {@code MEAN} over FLOAT64, FLOAT32, or BFLOAT16 data and a canonical BOOL mask.
+ * The mask broadcasts directionally and right-aligned exactly to the data Shape; false positions
+ * are excluded before data loading or classification. Scalar or parallel-scalar execution owns
+ * complete output cells, keeps an exact selected count, and uses one run-owned exact-state slice
+ * per simultaneously used range without mask materialization, partial state, or combination.
  * The provider exposes no route, carrier, preparation, or execution API.
  *
  * <p>The {@code internal} namespace contains unsupported implementation contracts for complete-

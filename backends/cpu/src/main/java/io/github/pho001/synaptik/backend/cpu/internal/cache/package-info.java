@@ -69,9 +69,11 @@
  * SUM-to-Shape alignment, reduced-versus-represented-copy identity, exact source/target geometry,
  * and direct generated mapping and SUM bodies. Schema 44 adds the distinct typed arg-extrema
  * family, its mixed numeric-input/INT64-output signature, structural selection facts, and direct
- * logical-coordinate body. Schema 44 is current-only; schema-43 and earlier envelopes are
- * incompatible misses, while schema-42 evidence remains valid only as explicitly identified
- * historical evidence.
+ * logical-coordinate body. Schema 45 adds directional right-aligned masked SUM/MEAN identity,
+ * its three typed boundaries, mask broadcast topology, early mask branch, selected-count work,
+ * and exact-state entry shape. Schema 45 is current-only; schema-44 and earlier envelopes are
+ * incompatible misses. Retained schema-42 performance and ledger material is historical evidence,
+ * not a current-schema artifact claim.
  * Four complete candidate plans, one realized artifact, zero additional fixed-shape variants,
  * and zero additional unrolled variants are the current planner-visible hard budget. A guarded
  * method body may still emit a fixed-trip straight-line sequence inside that one artifact when

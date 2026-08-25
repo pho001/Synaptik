@@ -30,6 +30,40 @@ import java.util.Optional;
 import org.junit.jupiter.api.Test;
 
 class CpuCapabilityProviderTest {
+    @Test void reportsOnlyExactDirectionalMaskedSumAndMeanMatrix() {
+        var provider = new CpuCapabilityProvider();
+        for (DataType type : List.of(DataType.FLOAT64, DataType.FLOAT32, DataType.BFLOAT16)) {
+            for (AggregateReductionKind kind : List.of(AggregateReductionKind.SUM,
+                    AggregateReductionKind.MEAN)) {
+                assertTrue(provider.supports(query(kind, new MaskedReductionAttrs(1),
+                        List.of(descriptor(type, Shape.of(2, 3, 4)),
+                                descriptor(DataType.BOOL, Shape.of(3, 1))),
+                        descriptor(type, Shape.of(2, 4)))));
+            }
+        }
+        assertAll(
+                () -> assertFalse(provider.supports(query(AggregateReductionKind.SUM,
+                        new MaskedReductionAttrs(1), List.of(
+                                descriptor(DataType.INT32, Shape.of(2, 3)),
+                                descriptor(DataType.BOOL, Shape.of(3))),
+                        descriptor(DataType.INT32, Shape.of(2))))),
+                () -> assertFalse(provider.supports(query(AggregateReductionKind.SUM,
+                        new MaskedReductionAttrs(1), List.of(
+                                descriptor(DataType.FLOAT32, Shape.of(2, 3, 4)),
+                                descriptor(DataType.BOOL, Shape.of(2, 3))),
+                        descriptor(DataType.FLOAT32, Shape.of(2, 4))))),
+                () -> assertFalse(provider.supports(query(AggregateReductionKind.SUM,
+                        new MaskedReductionAttrs(1), List.of(
+                                descriptor(DataType.FLOAT32, Shape.of(2, 3)),
+                                descriptor(DataType.FLOAT32, Shape.of(3))),
+                        descriptor(DataType.FLOAT32, Shape.of(2))))),
+                () -> assertThrows(IllegalArgumentException.class, () -> query(AggregateReductionKind.PROD,
+                        new MaskedReductionAttrs(1), List.of(
+                                descriptor(DataType.FLOAT32, Shape.of(2, 3)),
+                                descriptor(DataType.BOOL, Shape.of(3))),
+                        descriptor(DataType.FLOAT32, Shape.of(2)))));
+    }
+
     @Test void reportsOnlyExactStaticResolvedArgExtremaMatrix() {
         var provider = new CpuCapabilityProvider();
         for (DataType type : List.of(DataType.FLOAT64, DataType.FLOAT32, DataType.BFLOAT16,

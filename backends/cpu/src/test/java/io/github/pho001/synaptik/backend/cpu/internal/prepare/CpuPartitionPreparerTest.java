@@ -10,6 +10,7 @@ import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuScatterLowerin
 import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuFoldLoweringTest;
 import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuRandomLoweringTest;
 import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuArgExtremaLoweringTest;
+import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuMaskedReductionLoweringTest;
 import io.github.pho001.synaptik.model.graph.CompiledNode;
 import io.github.pho001.synaptik.model.graph.GraphValue;
 import io.github.pho001.synaptik.model.graph.NodeId;
@@ -63,6 +64,33 @@ import jdk.incubator.vector.LongVector;
 import jdk.incubator.vector.ByteVector;
 
 public class CpuPartitionPreparerTest {
+    @Test void maskedReductionDeclaresThreeBuffersAndOnlyPerRangeExactState() {
+        var base = CpuMaskedReductionLoweringTest.context(AggregateReductionKind.MEAN,
+                DataType.FLOAT32, Shape.of(8, 3), Shape.of(3), 1);
+        var config = new PortableExecutionConfig(ComputePreference.SCALAR, 4, 4, 1);
+        var context = new PrepareContext<>(base.partition(), base.nodes(), base.values(),
+                base.memoryRequirements(), base.constants(), new CpuPartitionAnalysisInputs(false,
+                        List.of(CarrierAccess.FLOAT_ARRAY, CarrierAccess.BYTE_ARRAY,
+                                CarrierAccess.FLOAT_ARRAY), config));
+        var analysis = new CpuPartitionPreparer().analyze(context);
+        var plan = analysis.plan();
+        var geometry = plan.maskedReductionGeometry().orElseThrow();
+        assertAll(
+                () -> assertEquals(4, analysis.requirements().size()),
+                () -> assertEquals(3, plan.bufferDeclarations().size()),
+                () -> assertEquals(4, plan.selectedRangeCount()),
+                () -> assertEquals(CpuPartitionPreparationPlan.ExecutionStrategy.PARALLEL_SCALAR,
+                        plan.executionStrategy()),
+                () -> assertEquals(CpuPartitionPreparationPlan.WorkspaceUse.AGGREGATE_EXACT_STATE,
+                        plan.workspaceUse()),
+                () -> assertEquals(geometry.workspaceBytes(4),
+                        plan.workspaceDeclaration().orElseThrow().byteSize()),
+                () -> assertEquals(8, plan.workspaceDeclaration().orElseThrow().byteAlignment()),
+                () -> assertTrue(plan.materialization().isEmpty()),
+                () -> assertTrue(plan.units().getFirst().portablePlan().specialization()
+                        .scratchParameter()));
+    }
+
     @Test void argExtremaDeclaresTwoMixedTypeBoundariesAndZeroResources() {
         var base = CpuArgExtremaLoweringTest.context(
                 io.github.pho001.synaptik.model.operation.reduction.AggregateReductionKind.ARG_MAX,
@@ -152,7 +180,7 @@ public class CpuPartitionPreparerTest {
                 () -> assertTrue(initial.workspaceDeclaration().isEmpty()),
                 () -> assertTrue(dropout.workspaceDeclaration().isEmpty()),
                 () -> assertTrue(dropout.randomGeometry().isPresent()),
-                () -> assertEquals(44, io.github.pho001.synaptik.backend.cpu.internal.cache
+                () -> assertEquals(45, io.github.pho001.synaptik.backend.cpu.internal.cache
                         .CpuGeneratorSchema.CURRENT_VERSION));
     }
     @Test void foldDeclaresExactlyTwoBuffersOneArtifactAndNoWorkspaceOrMaterialization() {

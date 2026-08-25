@@ -77,6 +77,12 @@
  * structural numeric-read/INT64-write access. Concrete layout magnitudes and output-cell counts
  * remain cold; no aggregate partial or combine state is shared with this family.</p>
  *
+ * <p>The separate masked-reduction representation records SUM or MEAN, FLOAT64/FLOAT32/BFLOAT16
+ * data and output, one removed normalized axis, directional right-aligned mask topology, three
+ * structural accesses, and exact-state limb and slice shape. Concrete extents that do not alter
+ * emitted bytes, offsets, stride magnitudes, carriers, ranges, selected counts, and workspace
+ * slots remain cold; no mask copy, partial state, or combine state belongs to the identity.</p>
+ *
  * <p>Lowering creates these cold immutable models. Portable code generation and the scalar
  * reference realization may consume their established semantics, but Runtime never receives or
  * interprets them.

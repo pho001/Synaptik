@@ -46,6 +46,7 @@ import io.github.pho001.synaptik.model.operation.reduction.AggregateReductionKin
 import io.github.pho001.synaptik.model.operation.reduction.ArgExtremaAttrs;
 import io.github.pho001.synaptik.model.operation.reduction.AxisReductionAttrs;
 import io.github.pho001.synaptik.model.operation.reduction.MultiAxisReductionAttrs;
+import io.github.pho001.synaptik.model.operation.reduction.MaskedReductionAttrs;
 import io.github.pho001.synaptik.model.operation.reduction.SumToShapeAttrs;
 import io.github.pho001.synaptik.model.shape.Shape;
 import io.github.pho001.synaptik.planning.capability.BackendCapabilityProvider;
@@ -303,6 +304,9 @@ public final class CpuCapabilityProvider implements BackendCapabilityProvider {
         if (kind == AggregateReductionKind.ARG_MIN || kind == AggregateReductionKind.ARG_MAX) {
             return supportsArgExtrema(query, output);
         }
+        if (query.operation().attrs() instanceof MaskedReductionAttrs masked) {
+            return supportsMaskedReduction(query, output, kind, masked);
+        }
         if (query.inputs().size() != 1 || kind != AggregateReductionKind.SUM
                 && kind != AggregateReductionKind.MEAN && kind != AggregateReductionKind.PROD
                 && kind != AggregateReductionKind.MIN
@@ -354,6 +358,29 @@ public final class CpuCapabilityProvider implements BackendCapabilityProvider {
         if (!java.util.Arrays.equals(output.shape().toLongArray(),
                 expected.stream().mapToLong(Long::longValue).toArray())) return false;
         return injective(output.shape().toLongArray(), output.layout().orElseThrow().strides());
+    }
+
+    private static boolean supportsMaskedReduction(OperationCapabilityQuery query,
+            TensorDescriptor output, AggregateReductionKind kind, MaskedReductionAttrs attrs) {
+        if ((kind != AggregateReductionKind.SUM && kind != AggregateReductionKind.MEAN)
+                || query.inputs().size() != 2) return false;
+        TensorDescriptor data = query.inputs().get(0), mask = query.inputs().get(1);
+        DataType type = data.dataType();
+        if ((type != DataType.FLOAT64 && type != DataType.FLOAT32
+                && type != DataType.BFLOAT16) || output.dataType() != type
+                || mask.dataType() != DataType.BOOL || mask.requiresGrad()
+                || output.requiresGrad() != data.requiresGrad()
+                || attrs.axis() < 0 || attrs.axis() >= data.shape().rank()
+                || !ShapeBroadcast.broadcast(data.shape(), mask.shape()).equals(data.shape())) {
+            return false;
+        }
+        long[] source = data.shape().toLongArray();
+        long[] expected = new long[source.length - 1];
+        for (int inputAxis = 0, outputAxis = 0; inputAxis < source.length; inputAxis++) {
+            if (inputAxis != attrs.axis()) expected[outputAxis++] = source[inputAxis];
+        }
+        return java.util.Arrays.equals(expected, output.shape().toLongArray())
+                && injective(expected, output.layout().orElseThrow().strides());
     }
 
     private static boolean supportsArgExtrema(OperationCapabilityQuery query,

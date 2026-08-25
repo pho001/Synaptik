@@ -105,7 +105,7 @@ public final class CpuArgExtremaLowering {
                 outputCount, "legal: one static resolved-layout one-axis arg-extrema occurrence",
                 new long[0], Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(),
                 Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(),
-                Optional.of(geometry));
+                Optional.of(geometry), Optional.empty());
     }
 
     private static GraphValue require(Map<ValueId, GraphValue> values, ValueId id) {

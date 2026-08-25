@@ -48,6 +48,12 @@
  * positive zero ordering, signed integral order, and first/last equal-value selection without
  * calling the generated emitter or its packed-coordinate traversal.</p>
  *
+ * <p>The masked-reduction oracle independently derives directional right-aligned mask coordinates,
+ * reads the canonical mask before the corresponding data value, and applies separate exact
+ * integer/rational arithmetic and represented ties-to-even conversion to selected FLOAT64,
+ * FLOAT32, or BFLOAT16 values. It calls no production lowering, packer, exact-sum emitter, or
+ * generated execution helper.</p>
+ *
  * <p>Reference evaluation is outside the generated Runtime hot path and owns no buffers, slots, or
  * artifact lifecycle.
  */

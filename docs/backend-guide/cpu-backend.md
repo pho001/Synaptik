@@ -3,7 +3,7 @@
 ## Outcome and status
 
 This guide defines the CPU integration boundary and helps contributors avoid treating CPU routes
-as separate backends. The current CPU module accepts eleven bounded, fully static portable families.
+as separate backends. The current CPU module accepts twelve bounded, fully static portable families.
 A pointwise partition is one supported occurrence or one connected straight-line chain of at most
 eight occurrences. A static affine partition is one connected one-input/one-output chain of at
 most eight resolved-layout view occurrences. Either family lowers to one computation unit, one
@@ -80,6 +80,13 @@ It accepts FLOAT64, FLOAT32, BFLOAT16, INT32, or INT64 and writes a zero-based l
 coordinate as INT64. The normalized axis, keep/remove-Dimension form, FIRST/LAST tie policy, NaN
 preference, signed-zero order, and signed integral order come from the Model contract. Scalar or
 parallel-scalar execution owns complete output cells and uses no workspace or materialization.
+The twelfth family is exactly one resolved-layout, axis-removing masked `SUM` or `MEAN`
+occurrence. Data and output are the same FLOAT64, FLOAT32, or BFLOAT16 type; the second input is a
+canonical BOOL mask whose ordinary right-aligned broadcast must equal the data Shape exactly.
+False positions are excluded before their data is loaded or classified. Scalar or parallel-scalar
+execution owns complete output cells, keeps an exact true-position count, and uses one run-owned
+exact-state slice per simultaneously used range. It declares three buffers and no mask
+materialization, selected-count workspace, partial result, or combine state.
 
 Generated scalar and Java 26 Vector API entries accept primitive `start` and `end` bounds.
 Compatible concrete extents bind on the cold path and share identical class bytes and one
@@ -679,7 +686,7 @@ affine load/store, gather, scatter, masked tail, or speed claim.
 Lifecycle ownership remains unchanged. CPU analysis validates and composes the chain, chooses the
 scalar orchestration, and declares exactly the source and final result. Shared Prepare assigns
 those two slots without interpreting the affine plan. CPU finalization validates both assignments
-before current schema-42 artifact access and constructs one immutable executable. Cold binding validates
+before current schema-45 artifact access and constructs one immutable executable. Cold binding validates
 the exact data type, carrier, byte size, alignment, accessibility, output writability, canonical
 BOOL input bytes, and source/result non-overlap. Runtime then invokes only the prepared direct
 carriers, address table, and `start`/`end` bounds; it receives no operation, graph node, Shape,
@@ -741,7 +748,7 @@ callback, or per-element allocation in generated code.
 
 Movement uses scalar compute and either single-thread or deterministic parallel orchestration.
 Parallel chunks are safe because output injectivity proves disjoint writes. Vector preference
-falls back to scalar for this family. CPU finalization realizes current schema-42 generated artifacts;
+falls back to scalar for this family. CPU finalization realizes current schema-45 generated artifacts;
 cold binding validates complete input/output spans and rejects every output/input overlap before
 execution. The scalar reference consumes the same movement IR and compact geometry for
 differential tests, not as a Runtime fallback.
@@ -869,7 +876,7 @@ injectivity, and output/input non-overlap checks still run.
 
 CPU analysis declares each distinct gather input `ValueId` once in semantic first-use order and
 then one separate output; one-hot declares indices and output. Every indexing plan has one unit,
-no materialization, no workspace, one current schema-42 generated class artifact, one prepared
+no materialization, no workspace, one current schema-45 generated class artifact, one prepared
 executable, and one bound invocation. The generated class embeds carrier-, type-, family-, and
 access-specialized output loops rather than delegating through a generic carrier bridge. Proved
 dense heap arrays use integer loop/address state; segment, mixed-carrier, and general-layout forms
@@ -1167,7 +1174,7 @@ independent primitive-index insertion implementation for differential evidence; 
 Runtime fallback.
 
 Schema 27 introduced the complete carrier-, represented-type-, family-, direction-, output-,
-and access-specialized ordering body, which current schema 42 retains. It uses a stable bottom-up
+and access-specialized ordering body, which current schema 45 retains. It uses a stable bottom-up
 merge over the two assigned
 INT64 scratch regions, selecting the left logical index on equality. Dense heap-array forms use
 cold-proved integer loop and address state. Arbitrary supported layouts and heap, segment, or
@@ -1278,7 +1285,7 @@ probability bits, ordered boundary roles and carriers, and zero-scratch shape. C
 slots, carriers, workers, and ranges remain cold when they do not change emitted bytes. There is
 no migration reader for old artifacts. Schema 28 is the first version whose random entries embed
 the direct typed initializer and FLOAT64/FLOAT32 dropout bodies. A schema-27 envelope is an
-incompatible safe miss: cold finalization regenerates and may publish current schema-42 bytes
+incompatible safe miss: cold finalization regenerates and may publish current schema-45 bytes
 after shared slot assignment rather than loading, converting, or aliasing the old bridge class.
 
 Retained observational evidence for the fixed dense heap-array shape `[64,16384]`, probability
@@ -1400,9 +1407,9 @@ accepts only the recorded case and code shape; it is not a universal scan-perfor
 production tuning input. Two earlier five-fork samples were rejected in full because an unrelated
 row exceeded the fixed gate in one fork, so neither rejected sample contributes accepted ratios.
 
-Current coverage ends at this one-node static portable family. Ordinary aggregates and arg
-extrema are the separate current families below. Masked, logarithmic, statistical, and norm
-reductions remain Draft CPU 0007C–0007D work. Stable
+Current coverage ends at this one-node static portable family. Ordinary aggregates, arg extrema,
+and masked reductions are the separate current families below. Logarithmic, statistical, and norm
+reductions remain Draft CPU 0007D work. Stable
 `SOFTMAX`/`LOG_SOFTMAX` and normalization remain Draft CPU 0007E–0007F work. Multi-node scan
 fusion, partial scans, cross-worker prefix combination, vector or native scan bodies, dynamic
 Shape/layout binding, in-place/overlapping execution, public scan configuration, and a shared
@@ -1414,8 +1421,9 @@ The portable ordinary-aggregate family accepts exactly one fully static, resolve
 `SUM`, `MEAN`, `PROD`, `MIN`, `MAX`, `ALL`, or `ANY` occurrence. `SUM`, `PROD`, `MIN`, and `MAX`
 accept FLOAT64, FLOAT32, BFLOAT16, INT32, and INT64 and preserve that represented type. `MEAN`
 accepts only FLOAT64, FLOAT32, and BFLOAT16. `ALL` and `ANY` accept and produce only canonical
-one-byte BOOL. Integral MEAN, masked reductions, arg extrema, and later reduction families fail
-closed before route selection.
+one-byte BOOL. Integral MEAN, the distinct masked and arg-extrema forms, and later reduction
+families fail closed through this ordinary-family path before their focused lowerers are
+considered.
 
 The accepted attribute forms determine selected axes as follows:
 
@@ -1602,8 +1610,8 @@ order and produce bit-identical results. This is a deterministic CPU result guar
 that floating output arithmetic is mathematically associative or that another backend uses the
 same NaN policy.
 
-Current coverage ends at this one-node static family. Arg extrema are the separate current family
-below. Masked and advanced reductions, softmax, normalization, multi-node reduction fusion,
+Current coverage ends at this one-node static family. Arg extrema and masked reductions are the
+separate current families below. Advanced reductions, softmax, normalization, multi-node reduction fusion,
 within-domain parallelism, partial/combine trees, vector/native reduction bodies, dynamic
 Shape/layout binding, in-place overlap, tuning, and broader performance guarantees remain outside
 this increment. The task's fixed generated/direct measurements are acceptance evidence for its
@@ -1675,6 +1683,78 @@ Current coverage does not include multi-axis or runtime-axis arg extrema, values
 masked arg extrema, selected-domain vectorization, partial/combine execution, fusion, gradients,
 compiler or Model changes, dynamic Shapes/layouts, native routes, or another backend. Those forms
 remain fail-closed.
+
+### Current masked-reduction family
+
+The portable masked-reduction family accepts exactly one fully static, resolved-layout,
+axis-removing `SUM` or `MEAN` occurrence. Its ordered boundaries are `[data, mask, output]`.
+Data and output have the same FLOAT64, FLOAT32, or BFLOAT16 type, and the mask is canonical
+one-byte BOOL. CPU consumes one already normalized non-negative axis and validates that removing
+it produces the exact output Shape. Scalar data, keep-Dimension, full- or multi-axis forms,
+integral data, non-BOOL masks, unresolved Shapes or layouts, and any other masked operation remain
+fail-closed.
+
+Mask mapping uses one directional condition:
+
+```text
+rightAlignedBroadcast(dataShape, maskShape) == dataShape
+```
+
+A scalar mask, an equal Shape, omitted leading mask dimensions, and aligned extent-one mask
+dimensions are accepted. An omitted or singleton mask dimension always uses coordinate zero; an
+equal aligned dimension uses the data coordinate. A lower-rank mask therefore addresses trailing
+data dimensions. For data Shape `[batch, time, features]`, mask Shape `[batch, time]` does not in
+general address batch and time; the caller supplies `[batch, time, 1]` when that is the intended
+alignment. CPU computes the mapping directly from resolved layouts and never materializes the
+mask.
+
+For each output cell, generated code tests the mask byte before loading, classifying, or adding
+the corresponding data value. A false position therefore contributes neither finite data, NaN,
+infinity, nor a signed zero. Selected values retain ordinary floating SUM/MEAN semantics: the
+finite values form an exact real sum, MEAN divides it by the exact number of true positions, and
+the result is rounded once to the output type with round-to-nearest, ties-to-even. Selected NaN or
+opposite infinities produce the CPU's canonical quiet NaN; one selected infinity sign is
+preserved. A nonempty exact zero is negative only when every selected value is negative zero.
+
+A zero selected count produces positive zero for `SUM` and the type-specific canonical quiet NaN
+for `MEAN`. The same rule covers an all-false mask and a statically empty selected axis. A zero
+extent on an unselected axis instead produces no output cells and therefore no generated call,
+worker submission, read, write, or workspace use.
+
+Analysis declares exactly three buffer requirements—data read, mask read, and output write—and,
+when output cells exist, one eight-byte-aligned `AGGREGATE_EXACT_STATE` workspace. Its size is one
+existing exact-state slice per simultaneously used output-cell range. The selected count is a
+primitive invocation local, not a declared resource. Data and mask are both read-only and may
+physically overlap; cold binding rejects output overlap with either input and scratch overlap with
+every buffer. It also validates carrier type, accessibility, alignment, complete referenced
+spans, output injectivity, and every mask byte before the first output write or worker submission.
+
+Scalar and parallel-scalar execution divide only the flattened output-cell domain into disjoint
+half-open ranges. Each range owns complete selected-axis domains and one private exact-state
+slice; no selected domain is split and no partial result is combined. The immutable executable
+borrows caller buffers and the worker group, while each run owns its workspace.
+
+Schema 45 adds the focused masked-reduction intermediate representation, directional broadcast
+topology, three-boundary descriptor, early mask branch, selected-count work, and exact-state entry
+shape. Generated classes are final, field-free, constructor-free, and expose one public static
+typed entry. Complete `javap -c -p` and `javap -v -p` inspection of the six retained classes
+confirmed the mask load and false branch precede the data load, and the reviewed forbidden-member
+scan found no Synaptik helper call, allocation, boxing, reflection, generic descriptor, semantic
+dispatch, or collection/map/string lookup in generated hot work.
+
+The task froze FLOAT64, FLOAT32, and BFLOAT16 `SUM` and `MEAN` over data Shape `[128, 2048]`, axis
+one, with full-Shape or trailing `[2048]` masks. Five isolated fixed-heap forks compared each
+generated class with an optimal clean primitive Java implementation that used the same traversal,
+early mask branch, exact-state algorithm, selected-count work, address work, and stores. Every
+individual and median-of-five ratio passed the task-local `<= 1.15x` gate; the largest observed
+fork ratio was `0.980505473x`. This is retained evidence for those exact classes, host, JVM, and
+protocol. It is not a universal performance promise, production tuning input, vector/native
+claim, or evidence for another Shape or backend.
+
+Current coverage does not include other masked operations, vector or native execution,
+selected-domain splitting, materialization, fusion, dynamic Shapes/layouts, new Model or Compiler
+semantics, gradients, or broader backend conformance. Those forms remain fail-closed or belong to
+their existing owners.
 
 ### Unary numerical closure
 
@@ -2151,15 +2231,17 @@ architecture capability checkpoint then passed, and the provider milestone is co
 
 The current CPU foundation provides the bounded fully static pointwise matrix, static
 resolved-layout affine family, and one-node static movement, indexing, functional-scatter,
-overlap-fold, stable ordering, explicit-state random, cumulative-scan, aggregate, and arg-extrema
+overlap-fold, stable ordering, explicit-state random, cumulative-scan, aggregate, arg-extrema, and
+masked-reduction
 families
 described above. Scalar
 execution covers every admitted row; parallel-scalar orchestration is available for disjoint
 affine, movement, scatter, fold, ordering, random-element, whole-scan-slice, whole-aggregate-
-output-cell, and whole-arg-extrema-output-cell ranges; and the
+output-cell, whole-arg-extrema-output-cell, and whole-masked-reduction-output-cell ranges; and the
 pointwise family retains its exact typed value-vector and virtual-mask parity matrix. Generator
-schema 44 distinguishes pointwise,
-affine, movement, indexing, scatter, fold, ordering, random, scan, aggregate, and arg-extrema
+schema 45 distinguishes pointwise,
+affine, movement, indexing, scatter, fold, ordering, random, scan, aggregate, arg-extrema, and
+masked-reduction
 structures,
 including movement occurrence order,
 unequal-rank access, exact
@@ -2193,7 +2275,11 @@ raw first-NaN and negative-zero selection, zero workspace/materialization, and t
 general-long fallback. Schema 43 adds the bound SUM-to-Shape mapping, exact-state reduction,
 modular integral, represented-copy, and guarded dense forms described above. Schema 44 adds the
 separate mixed-input/output arg-extrema identity and direct typed unit-stride, guarded stride-two,
-and arbitrary-stride bodies described above. No excluded
+and arbitrary-stride bodies described above. Schema 45 adds the directional right-aligned mask
+topology, three typed boundaries, early false exclusion, invocation-local selected count, and
+direct exact-state SUM/MEAN bodies described above. Retained schema-42 ledger and performance
+material is explicitly historical; schema 45 is the only current compatible artifact envelope.
+No excluded
 aggregate/scatter form or later semantic family,
 general BFLOAT16 pointwise or dropout numerical operation,
 cross-type CAST, dynamic layout, vector affine/scatter/fold/ordering execution, native fallback, backend-conformance

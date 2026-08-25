@@ -27,6 +27,8 @@ import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuAggregateIr;
 import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuArgExtremaIr;
 import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuAggregateLowering;
 import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuArgExtremaLowering;
+import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuMaskedReductionIr;
+import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuMaskedReductionLowering;
 import io.github.pho001.synaptik.model.operation.index.ScatterReduction;
 import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuPointwiseOpcode;
 import io.github.pho001.synaptik.model.datatype.DataType;
@@ -318,6 +320,130 @@ public final class CpuScalarReferenceKernel {
             case FLOAT32 -> Float.floatToRawIntBits((float) value) < 0;
             case BFLOAT16 -> (short) value < 0;
             default -> false;
+        };
+    }
+
+    /**
+     * Independently evaluates complete directional masked SUM/MEAN output cells.
+     *
+     * <p>The oracle derives right-aligned broadcast coordinates itself, reads the mask before the
+     * corresponding data value, and uses independent {@link BigInteger} rational arithmetic for
+     * the selected represented values.</p>
+     *
+     * @param ir non-null masked-reduction semantics
+     * @param geometry non-null matching resolved data/mask/output layouts
+     * @param arguments non-null ordered data, mask, and writable output carriers
+     * @throws NullPointerException if a required reference is {@code null}
+     * @throws IllegalArgumentException if IR, geometry, or boundary facts disagree
+     */
+    public static void execute(CpuMaskedReductionIr ir,
+            CpuMaskedReductionLowering.Geometry geometry,
+            List<CpuBufferArgument> arguments) {
+        Objects.requireNonNull(ir, "ir"); Objects.requireNonNull(geometry, "geometry");
+        arguments = List.copyOf(arguments);
+        if (arguments.size() != 3 || ir.kind() != geometry.kind()
+                || ir.dataType() != geometry.dataType() || ir.axis() != geometry.axis()) {
+            throw new IllegalArgumentException("masked-reduction reference facts disagree");
+        }
+        long[] dataExtents = geometry.data().extents();
+        long[] maskExtents = geometry.mask().extents();
+        long[] outputExtents = geometry.output().extents();
+        long[] dataCoordinates = new long[dataExtents.length];
+        long[] maskCoordinates = new long[maskExtents.length];
+        long[] outputCoordinates = new long[outputExtents.length];
+        int omitted = dataExtents.length - maskExtents.length;
+        for (long cell = 0; cell < geometry.outputCount(); cell++) {
+            decodeReference(cell, outputExtents, outputCoordinates);
+            for (int dataAxis = 0, outputAxis = 0; dataAxis < dataExtents.length; dataAxis++) {
+                dataCoordinates[dataAxis] = dataAxis == geometry.axis()
+                        ? 0 : outputCoordinates[outputAxis++];
+            }
+            var selected = new java.util.ArrayList<Object>();
+            for (long coordinate = 0; coordinate < geometry.maximumDomainCount(); coordinate++) {
+                dataCoordinates[geometry.axis()] = coordinate;
+                for (int maskAxis = 0; maskAxis < maskExtents.length; maskAxis++) {
+                    int dataAxis = omitted + maskAxis;
+                    maskCoordinates[maskAxis] = maskExtents[maskAxis] == 1
+                            ? 0 : dataCoordinates[dataAxis];
+                }
+                byte mask = (byte) load(arguments.get(1), DataType.BOOL,
+                        maskedAddress(geometry.mask(), maskCoordinates));
+                if (mask == 0) continue;
+                selected.add(load(arguments.get(0), ir.dataType(),
+                        maskedAddress(geometry.data(), dataCoordinates)));
+            }
+            Object result = maskedFloatingReference(ir.kind(), ir.dataType(), selected);
+            store(arguments.get(2), ir.dataType(),
+                    maskedAddress(geometry.output(), outputCoordinates), result);
+        }
+    }
+
+    private static long maskedAddress(CpuMaskedReductionLowering.Layout layout,
+            long[] coordinates) {
+        long result = layout.offset(); long[] strides = layout.strides();
+        for (int axis = 0; axis < coordinates.length; axis++) result = Math.addExact(result,
+                Math.multiplyExact(coordinates[axis], strides[axis]));
+        return result;
+    }
+
+    private static Object maskedFloatingReference(CpuMaskedReductionIr.Kind kind, DataType type,
+            List<Object> selected) {
+        int fractionBits = type == DataType.FLOAT64 ? 52 : type == DataType.FLOAT32 ? 23 : 7;
+        int bias = type == DataType.FLOAT64 ? 1023 : 127;
+        int unitExponent = type == DataType.FLOAT64 ? -1074
+                : type == DataType.FLOAT32 ? -149 : -133;
+        long exponentMask = type == DataType.FLOAT64 ? 0x7ffL : 0xffL;
+        long signMask = type == DataType.FLOAT64 ? Long.MIN_VALUE
+                : type == DataType.FLOAT32 ? 1L << 31 : 1L << 15;
+        long fractionMask = (1L << fractionBits) - 1;
+        BigInteger exact = BigInteger.ZERO;
+        boolean nan = false, positiveInfinity = false, negativeInfinity = false;
+        boolean positiveZero = false, negativeZero = false, nonzero = false;
+        for (Object represented : selected) {
+            long bits = type == DataType.FLOAT64 ? Double.doubleToRawLongBits((double) represented)
+                    : type == DataType.FLOAT32 ? Integer.toUnsignedLong(
+                            Float.floatToRawIntBits((float) represented))
+                    : Short.toUnsignedLong((short) represented);
+            long fraction = bits & fractionMask;
+            long exponentField = bits >>> fractionBits & exponentMask;
+            boolean negative = (bits & signMask) != 0;
+            if (exponentField == exponentMask) {
+                if (fraction != 0) nan = true;
+                else if (negative) negativeInfinity = true; else positiveInfinity = true;
+                continue;
+            }
+            if (exponentField == 0 && fraction == 0) {
+                if (negative) negativeZero = true; else positiveZero = true;
+                continue;
+            }
+            nonzero = true;
+            long significand = exponentField == 0 ? fraction : (1L << fractionBits) | fraction;
+            int exponent = exponentField == 0 ? 1 - bias - fractionBits
+                    : Math.toIntExact(exponentField) - bias - fractionBits;
+            BigInteger coefficient = BigInteger.valueOf(significand)
+                    .shiftLeft(exponent - unitExponent);
+            exact = exact.add(negative ? coefficient.negate() : coefficient);
+        }
+        long canonical = type == DataType.FLOAT64 ? 0x7ff8000000000000L
+                : type == DataType.FLOAT32 ? 0x7fc00000L : 0x7fc0L;
+        long infinity = exponentMask << fractionBits;
+        long result;
+        if (nan || positiveInfinity && negativeInfinity
+                || kind == CpuMaskedReductionIr.Kind.MEAN && selected.isEmpty()) {
+            result = canonical;
+        } else if (positiveInfinity) result = infinity;
+        else if (negativeInfinity) result = signMask | infinity;
+        else if (exact.signum() == 0) result = !selected.isEmpty() && negativeZero
+                && !positiveZero && !nonzero ? signMask : 0;
+        else result = roundRational(exact.abs(), unitExponent,
+                kind == CpuMaskedReductionIr.Kind.MEAN
+                        ? BigInteger.valueOf(selected.size()) : BigInteger.ONE,
+                exact.signum() < 0, fractionBits, bias, signMask);
+        return switch (type) {
+            case FLOAT64 -> Double.longBitsToDouble(result);
+            case FLOAT32 -> Float.intBitsToFloat((int) result);
+            case BFLOAT16 -> (short) result;
+            default -> throw new AssertionError("masked reduction requires floating data");
         };
     }
 

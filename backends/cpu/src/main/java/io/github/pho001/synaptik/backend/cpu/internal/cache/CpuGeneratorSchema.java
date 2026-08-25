@@ -92,6 +92,9 @@ package io.github.pho001.synaptik.backend.cpu.internal.cache;
  * the typed general-long implementation for every failed proof.
  * Schema 43 adds binding-aware SUM-to-Shape alignment identity, selected leading/aligned-axis
  * traversal, direct represented-bit no-reduction copies, and their exact resource/entry shapes.
+ * Schema 44 adds one-axis ARG_MIN/ARG_MAX direct typed loops. Schema 45 adds directional
+ * right-aligned masked SUM/MEAN identity, three typed boundaries, early canonical-mask branching,
+ * invocation-local selected counts, and exact-state generated entries.
  * The optional persistent envelope stores this version and has no legacy reader, migration path,
  * or converter.
  */
@@ -140,10 +143,11 @@ public final class CpuGeneratorSchema {
      * 43 adds right-aligned SUM-to-Shape identity, represented-copy entries, reduction cursors,
      * and guarded dense primitive nested loops; schema 44 adds one-axis ARG_MIN/ARG_MAX direct
      * typed loops, including guarded unit-stride and stride-two forms with arbitrary-stride
-     * fallback.
+     * fallback; schema 45 adds direct typed masked SUM/MEAN output-cell bodies with directional
+     * mask broadcasting, early false exclusion, runtime selected counts, and exact-state scratch.
      * Envelopes written for earlier schemas are incompatible misses.
      */
-    public static final int CURRENT_VERSION = 44;
+    public static final int CURRENT_VERSION = 45;
     /** Generated entry name. */ public static final String ENTRY_NAME = "invoke";
     private CpuGeneratorSchema() { }
 

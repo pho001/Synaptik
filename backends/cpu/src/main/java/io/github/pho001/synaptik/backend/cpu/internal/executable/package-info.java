@@ -61,6 +61,12 @@
  * geometry. Scalar and parallel-scalar execution partition only complete output cells; every
  * generated call traverses the full selected axis and stores one logical coordinate.</p>
  *
+ * <p>Masked-reduction binding validates ordered data, canonical-BOOL mask, output, and exact-state
+ * workspace spans before mutation or worker submission. Read-only data and mask may overlap, but
+ * the output must not overlap either input and scratch must not overlap any buffer. Each scalar
+ * or parallel-scalar range owns complete output cells and one private exact-state slice; selected
+ * count remains invocation-local and no selected domain is split or combined.</p>
+ *
  * <p>Runtime retains run-level lifecycle ownership; CPU memory representations retain physical
  * allocation and release ownership. Composition owns and closes the worker group; finalizers,
  * prepared executables, and bound invocations only borrow it.

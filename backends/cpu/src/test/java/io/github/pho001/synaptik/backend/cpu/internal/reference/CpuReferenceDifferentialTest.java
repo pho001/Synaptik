@@ -17,6 +17,8 @@ import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuRandomIr;
 import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuScanIr;
 import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuScanLoweringTest;
 import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuArgExtremaLoweringTest;
+import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuMaskedReductionLoweringTest;
+import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuMaskedReductionIr;
 import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuArgExtremaIr;
 import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuScatterLoweringTest;
 import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuScatterIr;
@@ -42,6 +44,44 @@ class CpuReferenceDifferentialTest {
     private static final long RANDOM_KEY_BIAS = 0x9e3779b97f4a7c15L;
     private static final long RANDOM_M1 = 0xbf58476d1ce4e5b9L;
     private static final long RANDOM_M2 = 0x94d049bb133111ebL;
+
+    @Test void independentMaskedReferenceCoversKindsTypesBroadcastAndSelectedSpecialValues() {
+        for (DataType type : List.of(DataType.FLOAT64, DataType.FLOAT32, DataType.BFLOAT16)) {
+            for (var kind : List.of(
+                    io.github.pho001.synaptik.model.operation.reduction.AggregateReductionKind.SUM,
+                    io.github.pho001.synaptik.model.operation.reduction.AggregateReductionKind.MEAN)) {
+                var lowered = new CpuPartitionLowering().lower(
+                        CpuMaskedReductionLoweringTest.context(kind, type, Shape.of(2, 4),
+                                Shape.of(4), 1));
+                Object data = type == DataType.FLOAT64
+                        ? new double[] {0x1p53, 1, -0x1p53, Double.NaN,
+                                -0.0, -0.0, 7, Double.POSITIVE_INFINITY}
+                        : type == DataType.FLOAT32
+                        ? new float[] {0x1p24f, 1, -0x1p24f, Float.NaN,
+                                -0.0f, -0.0f, 7, Float.POSITIVE_INFINITY}
+                        : new short[] {(short) 0x4b80, (short) 0x3f80, (short) 0xcb80,
+                                (short) 0x7f81, (short) 0x8000, (short) 0x8000,
+                                (short) 0x40e0, (short) 0x7f80};
+                byte[] mask = {1, 1, 1, 0};
+                Object output = represented(type, 9, 9);
+                CpuScalarReferenceKernel.execute((CpuMaskedReductionIr) lowered.portableKernelIr(),
+                        lowered.maskedReductionGeometry().orElseThrow(), List.of(
+                                argument(type, data, true),
+                                new CpuBufferArgument.Bytes(mask, 0, mask.length, true),
+                                argument(type, output, false)));
+                if (type == DataType.FLOAT64) {
+                    double expected = kind == io.github.pho001.synaptik.model.operation.reduction
+                            .AggregateReductionKind.SUM ? 1.0 : 1.0 / 3.0;
+                    assertArrayEquals(new double[] {expected,
+                            kind == io.github.pho001.synaptik.model.operation.reduction
+                                    .AggregateReductionKind.SUM ? 7.0 : 7.0 / 3.0},
+                            (double[]) output);
+                } else {
+                    assertNotNull(output);
+                }
+            }
+        }
+    }
 
     @Test void independentArgExtremaReferencePreservesNaNTiesAndLogicalCoordinates() {
         var lowered = new CpuPartitionLowering().lower(CpuArgExtremaLoweringTest.context(

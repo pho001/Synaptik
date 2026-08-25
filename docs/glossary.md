@@ -1216,7 +1216,7 @@ body. The change preserves duplicate tuples, arbitrary legal half-open ranges, z
 and existing validation and preparation ownership. Its accepted five-fork evidence closes only
 `S-GENERAL-MIN`; `X-MIN-MULTI` remains in the broader comparison.
 
-Completed CPU 0007A1N advances the current boundary to schema 42. It adds one completely guarded
+Completed CPU 0007A1N historically advanced the boundary to schema 42. It adds one completely guarded
 BFLOAT16 ordinary `MIN` body for dense input Shape `[64,64,64]`, selected axes `[0,2]`, kept output
 Shape `[1,64,1]`, a `MemorySegment` input, and an offset, two-strided `short[]` output. Complete
 carrier, geometry, ordered-range, start-address, and sentinel guards precede specialized writes.
@@ -1247,6 +1247,15 @@ parallel-scalar execution over legal array, `MemorySegment`, and mixed carriers.
 the separate mixed-type arg-extrema identity plus direct unit-stride, guarded stride-two, and
 arbitrary-stride generated loops. The family declares no workspace or materialization and makes
 no gradient, fusion, vector/native, dynamic-layout, compiler, Model, or broader-backend claim.
+
+Completed CPU 0007C adds exactly one fully static resolved-layout, axis-removing masked `SUM` or
+`MEAN` occurrence over FLOAT64, FLOAT32, or BFLOAT16 data and a canonical BOOL mask. Directional
+right-aligned broadcast must equal the data Shape. Generated code branches on the mask before
+loading data, counts selected positions exactly, and reuses the ordinary exact floating state and
+one final rounding. Three ordered buffers plus one per-range exact-state workspace are declared;
+scalar or parallel-scalar ranges own complete output cells without mask materialization,
+partial/combine state, or selected-count workspace. Schema 45 is current. Retained schema-42
+ledger and performance results are historical evidence only.
 
 Cross-type cast, general BFLOAT16 pointwise arithmetic, FLOAT16 execution, relaxed math,
 native/vendor realization, dynamic layouts, Vector API scatter, fold, ordering, scan, or ordinary
@@ -1339,7 +1348,7 @@ decision occurs in the generated loop.
 ### CPU kernel specialization
 
 The implemented backend-private immutable description of every fact allowed to change one
-generated CPU class. The current form includes schema 42, the canonical lowering fingerprint with
+generated CPU class. The current form uses schema 45 and includes the canonical lowering fingerprint with
 typed opcode sequence, exact scalar-immediate bits, exact ordered clamp-bound bits, and selected
 scalar-power realizations, exact/default numerical mode, generated
 scalar/vector compute form, exact preferred FLOAT32, FLOAT64, INT32, INT64, or BOOL species bit
@@ -1412,13 +1421,15 @@ Keeping the artifact reachable keeps its hidden-class state reachable, without p
 unreferenced class unloads. Direct generator calls produce equal class bytes but distinct hidden
 classes and artifact identities. The current durable generated-kernel artifact store may instead
 reuse compatible class bytes and weakly intern one loaded artifact while it remains live. The
-artifact is not by itself a prepared route. Current schema-42 artifacts execute admitted bounded
+artifact is not by itself a prepared route. Current schema-45 artifacts execute admitted bounded
 pointwise chains, one static affine represented-bit copy, one static
 PAD/TILE/CONCAT/STACK/window-extraction/SLICE_UPDATE movement, one static indexing occurrence,
 one functional-scatter output pass, one overlap-fold pass, one stable ordering/selection pass,
-one explicit-state initializer/dropout pass, one typed cumulative-scan body, or one typed
-ordinary-aggregate body across the implemented carrier patterns. The current-only schema-42
-boundary treats schema 41 and earlier as safe incompatible misses with no migration reader.
+one explicit-state initializer/dropout pass, one typed cumulative-scan body, one typed
+ordinary-aggregate body, one typed arg-extrema body, or one typed masked-reduction body across the
+implemented carrier patterns. The current-only schema-45 boundary treats schema 44 and earlier as
+safe incompatible misses with no migration reader. Retained schema-42 ledger and performance
+material is historical evidence rather than a current artifact claim.
 
 ### CPU generated-kernel artifact store
 
@@ -1793,7 +1804,7 @@ output does not skip a non-empty validation domain; after successful validation 
 generated entry and submits no worker work.
 
 CPU analysis declares unique inputs in semantic first-use order followed by one output. It selects
-one execution unit, no materialization, no workspace, and one current schema-42 artifact whose
+one execution unit, no materialization, no workspace, and one current schema-45 artifact whose
 generated class embeds carrier-, type-, family-, and access-specialized scalar or parallel-scalar
 output writers. Proved dense heap arrays use integer loop/address state; general layouts and
 segment or mixed carriers retain typed long-address traversal. Guarded frozen GATHER and GATHER_ND
@@ -3487,8 +3498,17 @@ normalized reduction axis, preserve input type and gradient eligibility, and rec
 `[input, mask]` provenance. Callers make other axis intent visible with rank-edit or Shape
 expressions before the reduction. A static zero-sized reduction axis produces zero sum slices and
 NaN mean slices; runtime zero-sized or all-false dynamic slices follow the same semantics. Storage
-alignment, value selection, counting, aggregation, division, backend behavior, and numerical
-execution remain planned. Current package-private compiler autograd supports masked floating SUM
+alignment, value selection, counting, aggregation, division, and numerical execution are owned by
+concrete backends rather than this Model contract. The current CPU portable route implements the
+fully static resolved-layout FLOAT64/FLOAT32/BFLOAT16 subset. It declares ordered data, mask, and
+output buffers plus one per-range exact-state workspace; branches on the canonical mask before
+loading data; keeps the exact selected count in invocation-local primitive state; and assigns
+complete output cells to scalar or parallel-scalar ranges without mask materialization, partial
+state, or combination. Zero selections produce positive zero for CPU SUM and the type-specific
+canonical quiet NaN for CPU MEAN. This CPU subset does not broaden the Model contract to dynamic
+layouts, vector/native execution, or a universal performance guarantee.
+
+Current package-private compiler autograd supports masked floating SUM
 and MEAN. Both restore the reduced axis and expand the cotangent. SUM routes it with the original
 mask and an exact typed zero. MEAN constructs the true count with ordinary WHERE and SUM, divides
 the restored cotangent, then applies a final ordinary WHERE. Its explicit all-false-slice
@@ -4855,7 +4875,7 @@ finite steps including legal length-one `Long.MIN_VALUE`, handles scalar and emp
 supports arbitrary disjoint scalar or parallel-scalar ranges across heap, segment, and mixed
 carriers. Output/input physical overlap is rejected; exact same-value base/update inputs may share
 one deduplicated boundary. Schema 15 introduced the slice-update family/rank/map structure, and
-current schema 42 retains it;
+current schema 45 retains it;
 concrete placement remains cold. Functional scatter and overlap fold are separate current CPU
 portable families.
 

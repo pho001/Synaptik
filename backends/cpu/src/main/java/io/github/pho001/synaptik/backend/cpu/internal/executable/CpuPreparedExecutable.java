@@ -13,6 +13,7 @@ import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuRandomLowering
 import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuScanLowering;
 import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuAggregateLowering;
 import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuArgExtremaLowering;
+import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuMaskedReductionLowering;
 import io.github.pho001.synaptik.backend.cpu.internal.memory.CpuBufferArgument;
 import io.github.pho001.synaptik.backend.cpu.internal.memory.CpuBufferRepresentation;
 import io.github.pho001.synaptik.backend.cpu.internal.memory.CpuContiguousWorkspace;
@@ -63,6 +64,10 @@ import java.util.Optional;
  * non-overlap before mutation. Floating numerical parallel ranges receive disjoint workspace
  * slices. All ranges own disjoint complete output cells; no range splits, partially reduces, or
  * combines a selected domain.
+ * Masked SUM/MEAN binding additionally validates the complete canonical Boolean mask before any
+ * output write or worker submission, permits only physical input/input aliasing, and rejects the
+ * output against both inputs and the exact-state workspace. Every call receives one already-sliced
+ * private exact state region and retains its selected count in primitive invocation-local state.
  */
 public final class CpuPreparedExecutable extends PreparedExecutable {
     private final CpuGeneratedKernel artifact;
@@ -87,6 +92,7 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
     private final Optional<CpuScanLowering.Geometry> scanGeometry;
     private final Optional<CpuAggregateLowering.Geometry> aggregateGeometry;
     private final Optional<CpuArgExtremaLowering.Geometry> argExtremaGeometry;
+    private final Optional<CpuMaskedReductionLowering.Geometry> maskedReductionGeometry;
 
     /**
      * Creates a direct derived-boundary recipe for one exact half-open logical range.
@@ -129,7 +135,8 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
                 start, end, selectedRangeCount, minimumElementsPerWorker, workerGroup,
                 materialization, workspaceSelection, affineAddressPairs, movementGeometry,
                 indexingGeometry, scatterGeometry, foldGeometry, orderingGeometry,
-                Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty());
+                Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(),
+                Optional.empty());
     }
 
     /**
@@ -488,6 +495,8 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
      * @param scanGeometry non-null optional cumulative-scan slice/layout geometry
      * @param aggregateGeometry non-null optional ordinary aggregate output/domain geometry
      * @param argExtremaGeometry non-null optional one-axis logical-index output/domain geometry
+     * @param maskedReductionGeometry non-null optional axis-removing directional masked SUM/MEAN
+     *     broadcast, output-cell, and exact-state geometry
      * @throws NullPointerException if a required reference or list element is null
      * @throws IllegalArgumentException if memory, boundary, carrier, range, worker, geometry,
      *     workspace, or specialization facts disagree
@@ -507,7 +516,8 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
             Optional<CpuRandomLowering.Geometry> randomGeometry,
             Optional<CpuScanLowering.Geometry> scanGeometry,
             Optional<CpuAggregateLowering.Geometry> aggregateGeometry,
-            Optional<CpuArgExtremaLowering.Geometry> argExtremaGeometry) {
+            Optional<CpuArgExtremaLowering.Geometry> argExtremaGeometry,
+            Optional<CpuMaskedReductionLowering.Geometry> maskedReductionGeometry) {
         super(memoryPlan, selections, workspaceSelection.map(List::of).orElseGet(List::of),
                 accesses(selections.size(), randomGeometry.map(g -> g.family()
                         == io.github.pho001.synaptik.backend.cpu.internal.ir.CpuRandomIr.Family.DROPOUT
@@ -534,7 +544,11 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
         this.scanGeometry = Objects.requireNonNull(scanGeometry, "scanGeometry");
         this.aggregateGeometry = Objects.requireNonNull(aggregateGeometry, "aggregateGeometry");
         this.argExtremaGeometry = Objects.requireNonNull(argExtremaGeometry, "argExtremaGeometry");
-        long count = this.argExtremaGeometry.isPresent()
+        this.maskedReductionGeometry = Objects.requireNonNull(maskedReductionGeometry,
+                "maskedReductionGeometry");
+        long count = this.maskedReductionGeometry.isPresent()
+                ? this.maskedReductionGeometry.orElseThrow().outputCount()
+                : this.argExtremaGeometry.isPresent()
                 ? this.argExtremaGeometry.orElseThrow().outputCount()
                 : this.aggregateGeometry.isPresent()
                 ? this.aggregateGeometry.orElseThrow().outputCount()
@@ -576,14 +590,17 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
                 +(this.foldGeometry.isPresent()?1:0)+(this.orderingGeometry.isPresent()?1:0)
                 +(this.randomGeometry.isPresent()?1:0)+(this.scanGeometry.isPresent()?1:0)
                 +(this.aggregateGeometry.isPresent()?1:0)+(this.argExtremaGeometry.isPresent()?1:0);
+        geometryCount += this.maskedReductionGeometry.isPresent() ? 1 : 0;
         if (geometryCount>1) {
             throw new IllegalArgumentException("affine, movement, indexing, scatter, and fold geometry are exclusive");
         }
         boolean scatterScratch=this.scatterGeometry.filter(g->g.scratchSliceBytes()>0).isPresent();
         boolean aggregateScratch=this.aggregateGeometry.filter(g -> g.scratchSliceBytes() > 0
                 && g.outputCount() > 0).isPresent();
+        boolean maskedScratch=this.maskedReductionGeometry.filter(g -> g.outputCount() > 0)
+                .isPresent();
         if (workspaceSelection.isPresent() != (materialization.isPresent() || scatterScratch
-                || aggregateScratch || this.orderingGeometry.isPresent())) {
+                || aggregateScratch || maskedScratch || this.orderingGeometry.isPresent())) {
             throw new IllegalArgumentException("workspace selection purpose is inconsistent");
         }
         int materializedPosition = materialization
@@ -613,7 +630,7 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
                 || scatterGeometry.isPresent() || foldGeometry.isPresent() || orderingGeometry.isPresent()
                 || randomGeometry.isPresent()
                 || scanGeometry.isPresent() || aggregateGeometry.isPresent()
-                || argExtremaGeometry.isPresent()
+                || argExtremaGeometry.isPresent() || maskedReductionGeometry.isPresent()
                 ? bindings.getLast() : bindings.getFirst());
     }
     /**
@@ -627,7 +644,8 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
         if (movementGeometry.isPresent() || indexingGeometry.isPresent()
                 || scatterGeometry.isPresent() || foldGeometry.isPresent() || orderingGeometry.isPresent()
                 || randomGeometry.isPresent() || scanGeometry.isPresent()
-                || aggregateGeometry.isPresent() || argExtremaGeometry.isPresent()) {
+                || aggregateGeometry.isPresent() || argExtremaGeometry.isPresent()
+                || maskedReductionGeometry.isPresent()) {
             var result = new ArrayList<CpuAccessPlan.Binding>(bindings);
             if (orderingGeometry.isEmpty() && randomGeometry.isEmpty())
                 result.set(result.size() - 1, ranged(result.getLast()));
@@ -653,7 +671,7 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
                 minimumElementsPerWorker, workerGroup, materialization,
                 workspaceSelection, affineCopy ? affineAddressPairs : null, movementGeometry,
                 indexingGeometry, scatterGeometry, foldGeometry, orderingGeometry, randomGeometry,
-                scanGeometry, aggregateGeometry, argExtremaGeometry);
+                scanGeometry, aggregateGeometry, argExtremaGeometry, maskedReductionGeometry);
     }
 
     private CpuAccessPlan.Binding ranged(CpuAccessPlan.Binding source) {
@@ -692,15 +710,18 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
             WorkspaceRepresentation representation) {
         if (index != 0 || materialization.isEmpty() && scatterGeometry.isEmpty()
                     && orderingGeometry.isEmpty() && aggregateGeometry.isEmpty()
+                    && maskedReductionGeometry.isEmpty()
                 || !(representation instanceof CpuContiguousWorkspace workspace)
                 || !workspace.isAccessible()) return false;
         long bytes=materialization.map(CpuMaterializationPlan::byteCount)
                 .orElseGet(()->scatterGeometry.filter(g -> g.scratchSliceBytes() > 0)
                         .map(g -> g.workspaceBytes(selectedRangeCount))
                         .orElseGet(() -> aggregateGeometry.filter(g -> g.scratchSliceBytes() > 0)
+                        .map(g -> g.workspaceBytes(selectedRangeCount))
+                        .orElseGet(() -> maskedReductionGeometry
                             .map(g -> g.workspaceBytes(selectedRangeCount))
                             .orElseGet(() -> orderingGeometry.orElseThrow()
-                                .workspaceBytes(selectedRangeCount))));
+                                .workspaceBytes(selectedRangeCount)))));
         long alignment=materialization.map(CpuMaterializationPlan::byteAlignment).orElse(8L);
         return workspace.byteSize() == bytes && workspace.byteAlignment() == alignment
                 && workspace.writableSegment().address() % alignment == 0;
@@ -712,6 +733,7 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
                 || scatterGeometry.filter(g->g.scratchSliceBytes()>0).isPresent()
                 || aggregateGeometry.filter(g -> g.scratchSliceBytes() > 0
                     && g.outputCount() > 0).isPresent()
+                || maskedReductionGeometry.filter(g -> g.outputCount() > 0).isPresent()
                 || orderingGeometry.isPresent();
         if (workspaces.length != (hasWorkspace ? 1 : 0)) {
             throw new IllegalArgumentException("workspace count disagrees with prepared use");
@@ -750,6 +772,7 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
                             || scatterGeometry.isPresent() || foldGeometry.isPresent()
                             || orderingGeometry.isPresent() || scanGeometry.isPresent()
                             || aggregateGeometry.isPresent() || argExtremaGeometry.isPresent()
+                            || maskedReductionGeometry.isPresent()
                         ? overlaps(arguments.get(input), inputBinding,
                             arguments.get(firstOutputIndex), bindings.get(firstOutputIndex))
                         : overlaps(arguments.get(input), ranged(inputBinding),
@@ -801,6 +824,14 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
                 if (argument instanceof CpuBufferArgument.Segment segment
                         && aggregateScratch.asOverlappingSlice(segment.segment()).isPresent())
                     throw new IllegalArgumentException("aggregate scratch must not overlap a buffer");
+        }
+        if (maskedReductionGeometry.filter(g -> g.outputCount() > 0).isPresent()) {
+            MemorySegment maskedScratch = scratch(workspaces);
+            for (CpuBufferArgument argument : arguments)
+                if (argument instanceof CpuBufferArgument.Segment segment
+                        && maskedScratch.asOverlappingSlice(segment.segment()).isPresent())
+                    throw new IllegalArgumentException(
+                            "masked-reduction scratch must not overlap a buffer");
         }
         long length = end - start;
         KernelCall prologue = randomGeometry.isPresent() ? callFor(artifact.entryPoint(), arguments,
@@ -888,6 +919,15 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
 
     private long[] geometry(List<CpuBufferArgument> arguments, long rangeStart, long rangeEnd,
             int rangeIndex) {
+        if (maskedReductionGeometry.isPresent()) {
+            long[] bases = new long[3];
+            for (int index = 0; index < 3; index++) {
+                int width = artifact.specialization().boundaryDataTypes().get(index).byteWidth();
+                bases[index] = arguments.get(index).byteOffset() / width;
+            }
+            // The worker call already receives its private slice of the run-owned workspace.
+            return maskedReductionGeometry.orElseThrow().pack(bases, 0);
+        }
         if (argExtremaGeometry.isPresent()) {
             long[] bases = new long[2];
             for (int index = 0; index < 2; index++) {
@@ -1076,6 +1116,10 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
             long bytes = aggregateGeometry.orElseThrow().scratchSliceBytes();
             return whole.asSlice(Math.multiplyExact((long) rangeIndex, bytes), bytes);
         }
+        if (whole != null && maskedReductionGeometry.filter(g -> g.outputCount() > 0).isPresent()) {
+            long bytes = maskedReductionGeometry.orElseThrow().scratchSliceBytes();
+            return whole.asSlice(Math.multiplyExact((long) rangeIndex, bytes), bytes);
+        }
         return whole;
     }
 
@@ -1146,6 +1190,7 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
             }
             CpuAccessPlan.Binding binding = movementGeometry.isPresent() || indexingGeometry.isPresent()
                     || scatterGeometry.isPresent() || aggregateGeometry.isPresent()
+                    || maskedReductionGeometry.isPresent()
                     ? bindings.get(index) : ranged(bindings.get(index));
             long[] extents = binding.extents().stream().mapToLong(Long::longValue).toArray();
             long[] strides = binding.effectiveStrides().stream().mapToLong(Long::longValue).toArray();
