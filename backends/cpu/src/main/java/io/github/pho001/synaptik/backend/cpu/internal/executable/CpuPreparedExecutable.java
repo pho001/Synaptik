@@ -17,6 +17,7 @@ import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuMaskedReductio
 import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuAdvancedReductionLowering;
 import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuSoftmaxLowering;
 import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuTrailingNormalizationLowering;
+import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuBatchNormInferenceLowering;
 import io.github.pho001.synaptik.backend.cpu.internal.memory.CpuBufferArgument;
 import io.github.pho001.synaptik.backend.cpu.internal.memory.CpuBufferRepresentation;
 import io.github.pho001.synaptik.backend.cpu.internal.memory.CpuContiguousWorkspace;
@@ -103,6 +104,7 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
     private final Optional<CpuAdvancedReductionLowering.Geometry> advancedReductionGeometry;
     private final Optional<CpuSoftmaxLowering.Geometry> softmaxGeometry;
     private final Optional<CpuTrailingNormalizationLowering.Geometry> trailingNormalizationGeometry;
+    private final Optional<CpuBatchNormInferenceLowering.Geometry> batchNormInferenceGeometry;
 
     /**
      * Creates a direct derived-boundary recipe for one exact half-open logical range.
@@ -602,6 +604,76 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
             Optional<CpuAdvancedReductionLowering.Geometry> advancedReductionGeometry,
             Optional<CpuSoftmaxLowering.Geometry> softmaxGeometry,
             Optional<CpuTrailingNormalizationLowering.Geometry> trailingNormalizationGeometry) {
+        this(memoryPlan, selections, artifact, bindings, carrierPattern, generatedCarrierPattern,
+                start, end, selectedRangeCount, minimumElementsPerWorker, workerGroup,
+                materialization, workspaceSelection, affineAddressPairs, movementGeometry,
+                indexingGeometry, scatterGeometry, foldGeometry, orderingGeometry, randomGeometry,
+                scanGeometry, aggregateGeometry, argExtremaGeometry, maskedReductionGeometry,
+                advancedReductionGeometry, softmaxGeometry, trailingNormalizationGeometry,
+                Optional.empty());
+    }
+
+    /**
+     * Creates the complete direct recipe including optional batch-normalization inference.
+     *
+     * <p>Exactly one specialized-family geometry may be present. Batch-normalization inference
+     * retains unique inputs in first-occurrence order followed by output, owns no carrier or
+     * workspace, and interprets {@code start}/{@code end} in the selected channel or flattened
+     * non-channel execution domain.</p>
+     *
+     * @param memoryPlan exact immutable prepared memory plan
+     * @param selections ordered unique inputs followed by output selections
+     * @param artifact verified generated artifact retained strongly by this recipe
+     * @param bindings complete boundary geometry; copied defensively
+     * @param carrierPattern Runtime carrier forms; copied defensively
+     * @param generatedCarrierPattern generated-entry carrier forms; copied defensively
+     * @param start inclusive selected execution-domain bound
+     * @param end exclusive selected execution-domain bound
+     * @param selectedRangeCount positive selected maximum simultaneous range count
+     * @param minimumElementsPerWorker positive minimum work items per worker chunk
+     * @param workerGroup borrowed open worker group for parallel execution, otherwise {@code null}
+     * @param materialization non-null optional pointwise materialization
+     * @param workspaceSelection non-null optional route workspace
+     * @param affineAddressPairs affine copy pairs, or {@code null}
+     * @param movementGeometry non-null optional movement geometry
+     * @param indexingGeometry non-null optional indexing geometry
+     * @param scatterGeometry non-null optional scatter geometry
+     * @param foldGeometry non-null optional fold geometry
+     * @param orderingGeometry non-null optional ordering geometry
+     * @param randomGeometry non-null optional random geometry
+     * @param scanGeometry non-null optional scan geometry
+     * @param aggregateGeometry non-null optional aggregate geometry
+     * @param argExtremaGeometry non-null optional arg-extrema geometry
+     * @param maskedReductionGeometry non-null optional masked-reduction geometry
+     * @param advancedReductionGeometry non-null optional advanced-reduction geometry
+     * @param softmaxGeometry non-null optional softmax geometry
+     * @param trailingNormalizationGeometry non-null optional trailing-normalization geometry
+     * @param batchNormInferenceGeometry non-null optional batch-normalization inference geometry
+     * @throws NullPointerException if a required reference or list element is null
+     * @throws IllegalArgumentException if memory, boundary, carrier, range, worker, route,
+     *     workspace, or specialization facts disagree
+     * @throws ArithmeticException if exact range, span, or geometry validation overflows
+     */
+    public CpuPreparedExecutable(PreparedMemoryPlan memoryPlan, List<BufferSelection> selections,
+            CpuGeneratedKernel artifact, List<CpuAccessPlan.Binding> bindings,
+            List<CarrierAccess> carrierPattern, List<CarrierAccess> generatedCarrierPattern,
+            long start, long end, int selectedRangeCount, long minimumElementsPerWorker,
+            CpuWorkerGroup workerGroup, Optional<CpuMaterializationPlan> materialization,
+            Optional<WorkspaceSelection> workspaceSelection, long[] affineAddressPairs,
+            Optional<CpuNonAffineMovementLowering.Geometry> movementGeometry,
+            Optional<CpuIndexingLowering.Geometry> indexingGeometry,
+            Optional<CpuScatterLowering.Geometry> scatterGeometry,
+            Optional<CpuFoldLowering.Geometry> foldGeometry,
+            Optional<CpuOrderingLowering.Geometry> orderingGeometry,
+            Optional<CpuRandomLowering.Geometry> randomGeometry,
+            Optional<CpuScanLowering.Geometry> scanGeometry,
+            Optional<CpuAggregateLowering.Geometry> aggregateGeometry,
+            Optional<CpuArgExtremaLowering.Geometry> argExtremaGeometry,
+            Optional<CpuMaskedReductionLowering.Geometry> maskedReductionGeometry,
+            Optional<CpuAdvancedReductionLowering.Geometry> advancedReductionGeometry,
+            Optional<CpuSoftmaxLowering.Geometry> softmaxGeometry,
+            Optional<CpuTrailingNormalizationLowering.Geometry> trailingNormalizationGeometry,
+            Optional<CpuBatchNormInferenceLowering.Geometry> batchNormInferenceGeometry) {
         super(memoryPlan, selections, workspaceSelection.map(List::of).orElseGet(List::of),
                 accesses(selections.size(), randomGeometry.map(g -> g.family()
                         == io.github.pho001.synaptik.backend.cpu.internal.ir.CpuRandomIr.Family.DROPOUT
@@ -635,7 +707,11 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
         this.softmaxGeometry = Objects.requireNonNull(softmaxGeometry, "softmaxGeometry");
         this.trailingNormalizationGeometry = Objects.requireNonNull(trailingNormalizationGeometry,
                 "trailingNormalizationGeometry");
-        long count = this.trailingNormalizationGeometry.isPresent()
+        this.batchNormInferenceGeometry = Objects.requireNonNull(batchNormInferenceGeometry,
+                "batchNormInferenceGeometry");
+        long count = this.batchNormInferenceGeometry.isPresent()
+                ? this.batchNormInferenceGeometry.orElseThrow().rangeItemCount()
+                : this.trailingNormalizationGeometry.isPresent()
                 ? (this.trailingNormalizationGeometry.orElseThrow().normalizedCount() == 0 ? 0
                     : this.trailingNormalizationGeometry.orElseThrow().leadingCount())
                 : this.softmaxGeometry.isPresent()
@@ -690,6 +766,7 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
         geometryCount += this.advancedReductionGeometry.isPresent() ? 1 : 0;
         geometryCount += this.softmaxGeometry.isPresent() ? 1 : 0;
         geometryCount += this.trailingNormalizationGeometry.isPresent() ? 1 : 0;
+        geometryCount += this.batchNormInferenceGeometry.isPresent() ? 1 : 0;
         if (geometryCount>1) {
             throw new IllegalArgumentException("affine, movement, indexing, scatter, and fold geometry are exclusive");
         }
@@ -731,7 +808,8 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
      * @return a new immutable ranged binding
      */
     public CpuAccessPlan.Binding binding() {
-        if (softmaxGeometry.isPresent() || trailingNormalizationGeometry.isPresent()) return bindings.getLast();
+        if (softmaxGeometry.isPresent() || trailingNormalizationGeometry.isPresent()
+                || batchNormInferenceGeometry.isPresent()) return bindings.getLast();
         return ranged(movementGeometry.isPresent() || indexingGeometry.isPresent()
                 || scatterGeometry.isPresent() || foldGeometry.isPresent() || orderingGeometry.isPresent()
                 || randomGeometry.isPresent()
@@ -748,7 +826,8 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
      * @return a new immutable list in boundary order with route-appropriate ranges
      */
     public List<CpuAccessPlan.Binding> accessBindings() {
-        if (softmaxGeometry.isPresent() || trailingNormalizationGeometry.isPresent()) return bindings;
+        if (softmaxGeometry.isPresent() || trailingNormalizationGeometry.isPresent()
+                || batchNormInferenceGeometry.isPresent()) return bindings;
         if (movementGeometry.isPresent() || indexingGeometry.isPresent()
                 || scatterGeometry.isPresent() || foldGeometry.isPresent() || orderingGeometry.isPresent()
                 || randomGeometry.isPresent() || scanGeometry.isPresent()
@@ -780,7 +859,8 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
                 workspaceSelection, affineCopy ? affineAddressPairs : null, movementGeometry,
                 indexingGeometry, scatterGeometry, foldGeometry, orderingGeometry, randomGeometry,
                 scanGeometry, aggregateGeometry, argExtremaGeometry, maskedReductionGeometry,
-                advancedReductionGeometry, softmaxGeometry, trailingNormalizationGeometry);
+                advancedReductionGeometry, softmaxGeometry, trailingNormalizationGeometry,
+                batchNormInferenceGeometry);
     }
 
     private CpuAccessPlan.Binding ranged(CpuAccessPlan.Binding source) {
@@ -893,6 +973,7 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
                             || maskedReductionGeometry.isPresent()
                             || advancedReductionGeometry.isPresent() || softmaxGeometry.isPresent()
                             || trailingNormalizationGeometry.isPresent()
+                            || batchNormInferenceGeometry.isPresent()
                         ? overlaps(arguments.get(input), inputBinding,
                             arguments.get(firstOutputIndex), bindings.get(firstOutputIndex))
                         : overlaps(arguments.get(input), ranged(inputBinding),
@@ -1060,6 +1141,14 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
 
     private long[] geometry(List<CpuBufferArgument> arguments, long rangeStart, long rangeEnd,
             int rangeIndex) {
+        if (batchNormInferenceGeometry.isPresent()) {
+            long[] bases = new long[arguments.size()];
+            for (int index = 0; index < bases.length; index++) {
+                int width = artifact.specialization().boundaryDataTypes().get(index).byteWidth();
+                bases[index] = arguments.get(index).byteOffset() / width;
+            }
+            return batchNormInferenceGeometry.orElseThrow().pack(bases);
+        }
         if (trailingNormalizationGeometry.isPresent()) {
             long[] bases = new long[arguments.size()];
             for (int index = 0; index < bases.length; index++) {

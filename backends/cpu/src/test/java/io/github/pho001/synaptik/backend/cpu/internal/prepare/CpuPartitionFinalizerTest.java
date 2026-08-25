@@ -67,7 +67,7 @@ public class CpuPartitionFinalizerTest {
         try (var files = Files.list(artifactRoot)) {
             assertAll(() -> assertEquals(2, executable.bufferSelectionCount()),
                     () -> assertTrue(executable.memoryPlan().workspaces().isEmpty()),
-                    () -> assertEquals(48, io.github.pho001.synaptik.backend.cpu.internal.cache
+                    () -> assertEquals(49, io.github.pho001.synaptik.backend.cpu.internal.cache
                             .CpuGeneratorSchema.CURRENT_VERSION),
                     () -> assertEquals(1, files.filter(path -> path.getFileName().toString()
                             .endsWith(".artifact")).count()));
@@ -91,7 +91,7 @@ public class CpuPartitionFinalizerTest {
             assertAll(() -> assertEquals(3, executable.bufferSelectionCount()),
                     () -> assertEquals(3, executable.memoryPlan().buffers().size()),
                     () -> assertEquals(1, executable.memoryPlan().workspaces().size()),
-                    () -> assertEquals(48, io.github.pho001.synaptik.backend.cpu.internal.cache
+                    () -> assertEquals(49, io.github.pho001.synaptik.backend.cpu.internal.cache
                             .CpuGeneratorSchema.CURRENT_VERSION),
                     () -> assertEquals(1, files.filter(path -> path.getFileName().toString()
                             .endsWith(".artifact")).count()));
@@ -283,7 +283,7 @@ public class CpuPartitionFinalizerTest {
             assertAll(() -> assertEquals(2, executable.bufferSelectionCount()),
                     () -> assertEquals(2, executable.memoryPlan().buffers().size()),
                     () -> assertTrue(executable.memoryPlan().workspaces().isEmpty()),
-                    () -> assertEquals(48, io.github.pho001.synaptik.backend.cpu.internal.cache
+                    () -> assertEquals(49, io.github.pho001.synaptik.backend.cpu.internal.cache
                             .CpuGeneratorSchema.CURRENT_VERSION),
                     () -> assertEquals(1, files.filter(path -> path.getFileName().toString()
                             .endsWith(".artifact")).count()));
@@ -326,7 +326,7 @@ public class CpuPartitionFinalizerTest {
             assertAll(() -> assertEquals(2, executable.bufferSelectionCount()),
                     () -> assertEquals(2, executable.memoryPlan().buffers().size()),
                     () -> assertTrue(executable.memoryPlan().workspaces().isEmpty()),
-                    () -> assertEquals(48, io.github.pho001.synaptik.backend.cpu.internal.cache
+                    () -> assertEquals(49, io.github.pho001.synaptik.backend.cpu.internal.cache
                             .CpuGeneratorSchema.CURRENT_VERSION),
                     () -> assertEquals(1, files.filter(path -> path.getFileName().toString()
                             .endsWith(".artifact")).count()));

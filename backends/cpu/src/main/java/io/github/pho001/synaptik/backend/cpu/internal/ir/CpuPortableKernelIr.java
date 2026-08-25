@@ -5,7 +5,8 @@ package io.github.pho001.synaptik.backend.cpu.internal.ir;
  *
  * <p>The permitted implementations distinguish the pointwise instruction form from the static
  * affine copy, movement, indexing, functional-scatter, overlap-fold, ordering, explicit-state
- * random, cumulative-scan, aggregate, softmax, and trailing-normalization forms. Every form exposes only
+ * random, cumulative-scan, aggregate, softmax, trailing-normalization, and batch-normalization
+ * inference forms. Every form exposes only
  * deterministic code-shaping identity; graph
  * identifiers, concrete extents, slots, carriers, addresses, and run state remain cold facts
  * outside this role.</p>
@@ -13,7 +14,8 @@ package io.github.pho001.synaptik.backend.cpu.internal.ir;
 public sealed interface CpuPortableKernelIr permits CpuKernelIr, CpuAffineCopyIr,
         CpuDataMovementIr, CpuIndexingIr, CpuScatterIr, CpuFoldIr, CpuOrderingIr, CpuRandomIr,
         CpuScanIr, CpuAggregateIr, CpuArgExtremaIr, CpuMaskedReductionIr,
-        CpuAdvancedReductionIr, CpuSoftmaxIr, CpuTrailingNormalizationIr {
+        CpuAdvancedReductionIr, CpuSoftmaxIr, CpuTrailingNormalizationIr,
+        CpuBatchNormInferenceIr {
     /**
      * Returns the deterministic structural key used for generated-code compatibility.
      *

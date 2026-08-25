@@ -102,6 +102,8 @@ package io.github.pho001.synaptik.backend.cpu.internal.cache;
  * or converter. Schema 47 adds first-class stable softmax/log-softmax. Schema 48 adds the four
  * trailing Layer/RMS forms, ordered mixed-type boundaries, exact typed epsilon identity,
  * complete-slice pass shape, Layer-only exact-state scratch, and frozen typed segment layouts.
+ * Schema 49 adds first-class five-input batch-normalization inference, arbitrary channel-axis
+ * geometry, direct running-variance arithmetic, and selected channel/non-channel range identity.
  */
 public final class CpuGeneratorSchema {
     /**
@@ -154,10 +156,15 @@ public final class CpuGeneratorSchema {
      * complete-output-cell bodies plus their ordered-axis, correction, pass, and resource identity.
      * Schema 47 adds direct typed SOFTMAX and LOG_SOFTMAX complete-slice bodies, including their
      * operation kind, selected axis, finite-input contract, pass structure, and exact layout
-     * identity.
+     * identity. Schema 48 adds the four trailing Layer/RMS forms, ordered floating promotion,
+     * exact epsilon, unique-boundary mapping, normalized geometry, pass/resource identity, and
+     * direct typed bodies. Schema 49 adds first-class batch-normalization inference with five
+     * ordered input types, ordered promotion result, exact epsilon bits, arbitrary channel axis,
+     * unique-boundary map, channel/non-channel range form, zero-resource identity, and direct
+     * running-variance body.
      * Envelopes written for earlier schemas are incompatible misses.
      */
-    public static final int CURRENT_VERSION = 48;
+    public static final int CURRENT_VERSION = 49;
     /** Generated entry name. */ public static final String ENTRY_NAME = "invoke";
     private CpuGeneratorSchema() { }
 

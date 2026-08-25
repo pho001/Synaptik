@@ -33,6 +33,34 @@ import java.util.Optional;
 import org.junit.jupiter.api.Test;
 
 class CpuCapabilityProviderTest {
+    @Test void reportsOnlyExactBatchNormalizationInferenceOccurrences() {
+        var provider = new CpuCapabilityProvider();
+        Shape input = Shape.of(2, 3, 4), channel = Shape.of(3);
+        var inputs = List.of(descriptor(DataType.BFLOAT16, input),
+                descriptor(DataType.FLOAT32, channel), descriptor(DataType.BFLOAT16, channel),
+                descriptor(DataType.FLOAT64, channel), descriptor(DataType.FLOAT32, channel));
+        assertAll(
+                () -> assertTrue(provider.supports(query(BatchNormKind.BATCH_NORM_INFERENCE,
+                        new BatchNormInferenceAttrs(1, ScalarValue.float64(1e-5)), inputs,
+                        descriptor(DataType.FLOAT64, input)))),
+                () -> assertFalse(provider.supports(query(BatchNormKind.BATCH_NORM_INFERENCE,
+                        new BatchNormInferenceAttrs(1, ScalarValue.float32(1e-5f)), inputs,
+                        descriptor(DataType.FLOAT64, input)))),
+                () -> assertThrows(IllegalArgumentException.class, () -> query(
+                        BatchNormKind.BATCH_NORM_INFERENCE,
+                        new BatchNormInferenceAttrs(1, ScalarValue.float64(1e-5)),
+                        inputs.subList(0, 4), descriptor(DataType.FLOAT64, input))),
+                () -> assertFalse(provider.supports(query(BatchNormKind.BATCH_NORM_INFERENCE,
+                        new BatchNormInferenceAttrs(1, ScalarValue.float64(1e-5)),
+                        List.of(inputs.get(0), inputs.get(1), inputs.get(2), inputs.get(3),
+                                descriptor(DataType.FLOAT32, Shape.of(4))),
+                        descriptor(DataType.FLOAT64, input)))),
+                () -> assertThrows(IllegalArgumentException.class, () -> query(
+                        BatchNormKind.BATCH_NORM_TRAINING,
+                        new BatchNormInferenceAttrs(1, ScalarValue.float64(1e-5)), inputs,
+                        descriptor(DataType.FLOAT64, input))));
+    }
+
     @Test void reportsOnlyExactTrailingLayerAndRmsFormsWithOrderedPromotion() {
         var provider = new CpuCapabilityProvider(); Shape input = Shape.of(2, 3);
         Shape normalized = Shape.of(3);

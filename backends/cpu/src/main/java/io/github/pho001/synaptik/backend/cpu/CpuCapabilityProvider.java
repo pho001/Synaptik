@@ -49,6 +49,8 @@ import io.github.pho001.synaptik.model.operation.normalization.LayerNormAttrs;
 import io.github.pho001.synaptik.model.operation.normalization.LayerNormKind;
 import io.github.pho001.synaptik.model.operation.normalization.RmsNormAttrs;
 import io.github.pho001.synaptik.model.operation.normalization.RmsNormKind;
+import io.github.pho001.synaptik.model.operation.normalization.BatchNormInferenceAttrs;
+import io.github.pho001.synaptik.model.operation.normalization.BatchNormKind;
 import io.github.pho001.synaptik.model.operation.reduction.AggregateReductionKind;
 import io.github.pho001.synaptik.model.operation.reduction.ArgExtremaAttrs;
 import io.github.pho001.synaptik.model.operation.reduction.AxisReductionAttrs;
@@ -238,6 +240,8 @@ public final class CpuCapabilityProvider implements BackendCapabilityProvider {
             if (kind instanceof SoftmaxKind) return supportsSoftmax(query, output);
             if (kind instanceof LayerNormKind || kind instanceof RmsNormKind)
                 return supportsTrailingNormalization(query, output);
+            if (kind == BatchNormKind.BATCH_NORM_INFERENCE)
+                return supportsBatchNormInference(query, output);
             if (kind instanceof CumulativeScanKind) return supportsScan(query, output);
             if (kind == GraphRngKind.INITIAL_STATE) return supportsInitialState(query);
             if (kind == DropoutKind.DROPOUT) return supportsDropout(query);
@@ -394,6 +398,33 @@ public final class CpuCapabilityProvider implements BackendCapabilityProvider {
                 && output.requiresGrad() == gradient && out.storageOffset() >= 0
                 && java.util.Arrays.stream(out.strides()).allMatch(value -> value >= 0)
                 && injective(inputShape, out.strides());
+    }
+
+    private static boolean supportsBatchNormInference(OperationCapabilityQuery query,
+            TensorDescriptor output) {
+        if (!(query.operation().attrs() instanceof BatchNormInferenceAttrs attrs)
+                || query.inputs().size() != 5 || query.outputs().size() != 1) return false;
+        TensorDescriptor input = query.inputs().getFirst();
+        int rank = input.shape().rank();
+        if (rank < 2 || attrs.channelAxis() < 0 || attrs.channelAxis() >= rank
+                || !normalizationFloating(input.dataType())
+                || !input.shape().equals(output.shape())) return false;
+        long channel = input.shape().toLongArray()[attrs.channelAxis()];
+        DataType result = input.dataType();
+        boolean gradient = input.requiresGrad();
+        for (int position = 1; position < 5; position++) {
+            TensorDescriptor operand = query.inputs().get(position);
+            if (!normalizationFloating(operand.dataType()) || operand.shape().rank() != 1
+                    || operand.shape().toLongArray()[0] != channel) return false;
+            result = io.github.pho001.synaptik.model.datatype.DataTypePromotion.promoteFloating(
+                    result, operand.dataType());
+            gradient |= operand.requiresGrad();
+        }
+        LayoutDescriptor out = output.layout().orElseThrow();
+        return output.dataType() == result && attrs.epsilon().dataType() == result
+                && output.requiresGrad() == gradient && out.storageOffset() >= 0
+                && java.util.Arrays.stream(out.strides()).allMatch(value -> value >= 0)
+                && injective(input.shape().toLongArray(), out.strides());
     }
 
     private static boolean supportsAggregate(OperationCapabilityQuery query,

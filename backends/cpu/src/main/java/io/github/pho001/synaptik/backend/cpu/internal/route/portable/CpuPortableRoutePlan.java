@@ -103,6 +103,8 @@ public record CpuPortableRoutePlan(CpuPortableKernelIr portableKernelIr,
             return softmax.encodedKernelIr();
         if (source instanceof io.github.pho001.synaptik.backend.cpu.internal.ir.CpuTrailingNormalizationIr normalization)
             return normalization.encodedKernelIr();
+        if (source instanceof io.github.pho001.synaptik.backend.cpu.internal.ir.CpuBatchNormInferenceIr batch)
+            return batch.encodedKernelIr();
         return ((io.github.pho001.synaptik.backend.cpu.internal.ir.CpuAggregateIr) source)
                 .encodedKernelIr();
     }

@@ -1409,6 +1409,10 @@ adds the guarded frozen FLOAT32 mixed-carrier pointwise ordinal loop, schema 41 
 frozen INT64 `SCATTER_ND + MIN` direct copy and tuple/suffix loops, and schema 42 adds the guarded
 frozen BFLOAT16 axes-zero-and-two MIN primitive traversal while retaining typed general-long
 fallbacks.
+Schema 43 adds SUM-to-Shape, schema 44 arg-extrema, schema 45 directional masked reduction,
+schema 46 advanced logarithmic/statistical/norm reduction, schema 47 stable softmax/log-softmax,
+schema 48 trailing Layer/RMS normalization, and schema 49 batch-normalization inference identity,
+range-form, ordered-type, exact-epsilon, carrier/access, and direct-body compatibility facts.
 Canonical IR separately supplies value kind, data type, ordered semantics/stores, iteration rank,
 axis roles, contiguous-suffix form, and access regime. Their derived compatibility bytes and
 structural identity are order-sensitive.
@@ -1437,14 +1441,15 @@ Keeping the artifact reachable keeps its hidden-class state reachable, without p
 unreferenced class unloads. Direct generator calls produce equal class bytes but distinct hidden
 classes and artifact identities. The current durable generated-kernel artifact store may instead
 reuse compatible class bytes and weakly intern one loaded artifact while it remains live. The
-artifact is not by itself a prepared route. Current schema-47 artifacts execute admitted bounded
+artifact is not by itself a prepared route. Current schema-49 artifacts execute admitted bounded
 pointwise chains, one static affine represented-bit copy, one static
 PAD/TILE/CONCAT/STACK/window-extraction/SLICE_UPDATE movement, one static indexing occurrence,
 one functional-scatter output pass, one overlap-fold pass, one stable ordering/selection pass,
 one explicit-state initializer/dropout pass, one typed cumulative-scan body, one typed
 ordinary-aggregate body, one typed arg-extrema body, one typed masked-reduction body, one typed
-advanced-reduction body, or one typed stable-softmax body across the implemented carrier patterns.
-The current-only schema-47 boundary treats schema 46 and earlier as
+advanced-reduction body, one typed stable-softmax body, one typed trailing-normalization body, or
+one typed batch-normalization inference body across the implemented carrier patterns.
+The current-only schema-49 boundary treats schema 48 and earlier as
 safe incompatible misses with no migration reader. Retained schema-42 ledger and performance
 material is historical evidence rather than a current artifact claim.
 
@@ -4892,7 +4897,7 @@ finite steps including legal length-one `Long.MIN_VALUE`, handles scalar and emp
 supports arbitrary disjoint scalar or parallel-scalar ranges across heap, segment, and mixed
 carriers. Output/input physical overlap is rejected; exact same-value base/update inputs may share
 one deduplicated boundary. Schema 15 introduced the slice-update family/rank/map structure, and
-current schema 48 retains it;
+current schema 49 retains it;
 concrete placement remains cold. Functional scatter and overlap fold are separate current CPU
 portable families.
 
@@ -5041,8 +5046,14 @@ training/evaluation mode, saved statistic, auxiliary output, or hidden state.
 
 Current `Tensor.batchNormInference` constructs metadata and provenance only. Current
 package-private compiler autograd constructs contributions for all five floating Tensor inputs,
-aligning each channel vector to the input Shape. Legal decomposition, backend preparation, and
-runtime execution remain planned in their owning layers.
+aligning each channel vector to the input Shape. The current CPU portable route executes one
+explicit inference occurrence for fully static resolved layouts with arbitrary channel axis,
+ordered BFLOAT16/FLOAT32/FLOAT64 promotion, exact typed epsilon, direct running-variance use,
+zero workspace/materialization, and deterministic channel or flattened non-channel ranges. It
+accepts typed heap arrays, native-order segments, and mixed carriers; input/input aliasing is
+allowed while output/input overlap is rejected before writes. This CPU realization does not add
+training, fusion, vector/native execution, dynamic Shapes, autotuning, or a cross-backend bitwise
+promise. Batch-normalization training lowering and execution remain planned.
 
 **Batch-normalization training** reduces every non-channel axis to calculate batch mean and
 variance. Forward normalization uses biased population variance, while the explicit next running

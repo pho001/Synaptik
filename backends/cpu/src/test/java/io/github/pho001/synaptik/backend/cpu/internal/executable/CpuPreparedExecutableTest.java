@@ -41,6 +41,7 @@ import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuArgExtremaLowe
 import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuMaskedReductionLoweringTest;
 import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuSoftmaxLoweringTest;
 import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuTrailingNormalizationLoweringTest;
+import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuBatchNormInferenceLoweringTest;
 import io.github.pho001.synaptik.model.operation.scan.CumulativeScanKind;
 import io.github.pho001.synaptik.model.operation.normalization.SoftmaxKind;
 import io.github.pho001.synaptik.model.operation.reduction.AggregateReductionKind;
@@ -73,6 +74,66 @@ class CpuPreparedExecutableTest {
             ValueLayout.JAVA_INT_UNALIGNED.withOrder(ByteOrder.nativeOrder());
     private static final ValueLayout.OfLong LONG =
             ValueLayout.JAVA_LONG_UNALIGNED.withOrder(ByteOrder.nativeOrder());
+
+    @Test void batchNormalizationExecutesDirectParallelRangesAndValidatesOverlapFirst() {
+        var base = CpuBatchNormInferenceLoweringTest.context(
+                java.util.Collections.nCopies(5, DataType.FLOAT32), Shape.of(8, 3, 4), 1,
+                List.of(0, 1, 2, 3, 4));
+        var config = new PortableExecutionConfig(ComputePreference.SCALAR, 4, 4, 1);
+        var context = new io.github.pho001.synaptik.prepare.analysis.PrepareContext<>(
+                base.partition(), base.nodes(), base.values(), base.memoryRequirements(),
+                base.constants(), new CpuPartitionAnalysisInputs(false,
+                        java.util.Collections.nCopies(6, CarrierAccess.FLOAT_ARRAY), config));
+        var analysis = new CpuPartitionPreparer().analyze(context);
+        assertAll(() -> assertEquals(4, analysis.plan().selectedRangeCount()),
+                () -> assertTrue(analysis.plan().workspaceDeclaration().isEmpty()),
+                () -> assertTrue(analysis.plan().materialization().isEmpty()));
+        try (var workers = new CpuWorkerGroup(4)) {
+            var executable = CpuPartitionFinalizerTest.finalizeExecutable(analysis,
+                    Optional.empty(), Optional.of(workers));
+            float[] input = new float[96];
+            for (int index = 0; index < input.length; index++) input[index] = index * .125f - 4f;
+            float[] scale = {.5f, 1.25f, -2f}, bias = {.125f, -.5f, 2f};
+            float[] mean = {-1f, .25f, 3f}, variance = {4f, .5f, -2f};
+            float[] output = new float[98]; java.util.Arrays.fill(output, -77f);
+            var run = state(executable, List.of(borrow(input, 0, 96), borrow(scale, 0, 3),
+                    borrow(bias, 0, 3), borrow(mean, 0, 3), borrow(variance, 0, 3),
+                    borrow(output, 1, 96)));
+            try {
+                var bound = executable.bind(run); bound.execute();
+                for (int index = 0; index < input.length; index++) {
+                    int channel = index / 4 % 3;
+                    float centered = input[index] - mean[channel];
+                    float denominator = (float) Math.sqrt(variance[channel] + 1e-5f);
+                    float expected = centered / denominator * scale[channel] + bias[channel];
+                    assertEquals(Float.floatToRawIntBits(expected),
+                            Float.floatToRawIntBits(output[index + 1]), "index " + index);
+                }
+                assertEquals(-77f, output[0]); assertEquals(-77f, output[97]);
+                float[] first = output.clone(); bound.execute(); assertArrayEquals(first, output);
+            } finally { run.close(); }
+
+            float[] sharedInputOutput = new float[110];
+            java.util.Arrays.fill(sharedInputOutput, 19f);
+            float[] unchanged = sharedInputOutput.clone();
+            var overlap = state(executable, List.of(borrow(sharedInputOutput, 0, 96),
+                    borrow(scale, 0, 3), borrow(bias, 0, 3), borrow(mean, 0, 3),
+                    borrow(variance, 0, 3), borrow(sharedInputOutput, 5, 96)));
+            try {
+                assertThrows(IllegalArgumentException.class, () -> executable.bind(overlap));
+                assertArrayEquals(unchanged, sharedInputOutput);
+            } finally { overlap.close(); }
+
+            float[] sharedVectors = {2f, 3f, 4f};
+            float[] aliasOutput = new float[96];
+            var inputAlias = state(executable, List.of(borrow(input, 0, 96),
+                    borrow(sharedVectors, 0, 3), borrow(sharedVectors, 0, 3),
+                    borrow(sharedVectors, 0, 3), borrow(sharedVectors, 0, 3),
+                    borrow(aliasOutput, 0, 96)));
+            try { assertDoesNotThrow(() -> executable.bind(inputAlias).execute()); }
+            finally { inputAlias.close(); }
+        }
+    }
 
     @Test void layerNormalizationUsesPrivateRangeScratchAndRejectsOverlapBeforeWrites() {
         var base = CpuTrailingNormalizationLoweringTest.context(true, false, DataType.FLOAT64,

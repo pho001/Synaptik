@@ -117,7 +117,9 @@ public final class CpuPartitionPreparer implements BackendPartitionPreparer<
                 instanceof io.github.pho001.synaptik.backend.cpu.internal.ir.CpuSoftmaxIr;
         boolean trailingNormalization = lowered.portableKernelIr()
                 instanceof io.github.pho001.synaptik.backend.cpu.internal.ir.CpuTrailingNormalizationIr;
-        Optional<CpuMaterializationPlan> materialization = movement || indexing || scatter || fold || ordering || random || scan || aggregate || argExtrema || maskedReduction || advancedReduction || softmax || trailingNormalization ? Optional.empty()
+        boolean batchNormalization = lowered.portableKernelIr()
+                instanceof io.github.pho001.synaptik.backend.cpu.internal.ir.CpuBatchNormInferenceIr;
+        Optional<CpuMaterializationPlan> materialization = movement || indexing || scatter || fold || ordering || random || scan || aggregate || argExtrema || maskedReduction || advancedReduction || softmax || trailingNormalization || batchNormalization ? Optional.empty()
                 : selectMaterialization(lowered, context.backendInputs().materializationPolicy());
         var declarations = new ArrayList<PreparationResourceRequirement.Buffer>(lowered.boundaryValues().size());
         for (int i = 0; i < lowered.boundaryValues().size(); i++) declarations.add(
@@ -140,16 +142,55 @@ public final class CpuPartitionPreparer implements BackendPartitionPreparer<
         DataType vectorType = vectorLaneType(kernelIr);
         int lanes = speciesLanes(vectorType);
         int speciesBits = speciesBits(vectorType);
-        boolean vectorEligible = !affineCopy && !indexing && !scatter && !fold && !ordering && !random && !scan && !aggregate && !argExtrema && !maskedReduction && !advancedReduction && !softmax && !trailingNormalization && config.computePreference()
+        boolean vectorEligible = !affineCopy && !indexing && !scatter && !fold && !ordering && !random && !scan && !aggregate && !argExtrema && !maskedReduction && !advancedReduction && !softmax && !trailingNormalization && !batchNormalization && config.computePreference()
                         == CpuPartitionAnalysisInputs.PortableExecutionConfig.ComputePreference.VECTOR_IF_ELIGIBLE
                 && vectorType != null && lanes > 1 && lowered.elementCount() >= lanes
                 && vectorTopologyEligible(kernelIr, vectorType)
                 && bindings.stream().allMatch(binding -> vectorEligible(binding, lanes));
         int usableParallelism = Math.min(config.configuredMaximumParallelism(),
                 config.availableParallelism());
-        int selectedRangeCount = lowered.elementCount() == 0 ? 1 : Math.min(usableParallelism,
-                Math.toIntExact(Math.min(Integer.MAX_VALUE,
-                        ceilDiv(lowered.elementCount(), config.minimumElementsPerWorker()))));
+        long iterationCount = lowered.elementCount();
+        long minimumRangeItemsPerWorker = config.minimumElementsPerWorker();
+        long[] selectedExtents = lowered.extents();
+        var selectedPortableIr = lowered.portableKernelIr();
+        var selectedBatchGeometry = lowered.batchNormInferenceGeometry();
+        int selectedRangeCount;
+        if (batchNormalization) {
+            var geometry = lowered.batchNormInferenceGeometry().orElseThrow();
+            var form = usableParallelism >= 2 && geometry.channelCount() < geometry.nonChannelCount()
+                    ? io.github.pho001.synaptik.backend.cpu.internal.ir.CpuBatchNormInferenceIr.RangeForm.NON_CHANNEL_RANGE
+                    : io.github.pho001.synaptik.backend.cpu.internal.ir.CpuBatchNormInferenceIr.RangeForm.CHANNEL_RANGE;
+            geometry = geometry.withRangeForm(form);
+            iterationCount = geometry.rangeItemCount();
+            minimumRangeItemsPerWorker = iterationCount == 0 ? 1 : Math.max(1,
+                    ceilDiv(config.minimumElementsPerWorker(),
+                            geometry.coordinatesPerRangeItem()));
+            selectedRangeCount = iterationCount == 0 ? 1 : Math.min(usableParallelism,
+                    Math.toIntExact(Math.min(Integer.MAX_VALUE,
+                            ceilDiv(iterationCount, minimumRangeItemsPerWorker))));
+            if (selectedRangeCount < 2
+                    && form != io.github.pho001.synaptik.backend.cpu.internal.ir.CpuBatchNormInferenceIr.RangeForm.CHANNEL_RANGE) {
+                geometry = geometry.withRangeForm(
+                        io.github.pho001.synaptik.backend.cpu.internal.ir.CpuBatchNormInferenceIr.RangeForm.CHANNEL_RANGE);
+                iterationCount = geometry.rangeItemCount();
+                minimumRangeItemsPerWorker = iterationCount == 0 ? 1 : Math.max(1,
+                        ceilDiv(config.minimumElementsPerWorker(),
+                                geometry.coordinatesPerRangeItem()));
+                selectedRangeCount = iterationCount == 0 ? 1 : Math.min(usableParallelism,
+                        Math.toIntExact(Math.min(Integer.MAX_VALUE,
+                                ceilDiv(iterationCount, minimumRangeItemsPerWorker))));
+            }
+            selectedBatchGeometry = Optional.of(geometry);
+            selectedPortableIr = ((io.github.pho001.synaptik.backend.cpu.internal.ir.CpuBatchNormInferenceIr)
+                    lowered.portableKernelIr()).withRangeForm(geometry.rangeForm());
+            kernelIr = ((io.github.pho001.synaptik.backend.cpu.internal.ir.CpuBatchNormInferenceIr)
+                    selectedPortableIr).encodedKernelIr();
+            selectedExtents = new long[] {iterationCount};
+        } else {
+            selectedRangeCount = iterationCount == 0 ? 1 : Math.min(usableParallelism,
+                    Math.toIntExact(Math.min(Integer.MAX_VALUE,
+                            ceilDiv(iterationCount, minimumRangeItemsPerWorker))));
+        }
         boolean parallel = selectedRangeCount >= 2;
         var strategy = vectorEligible
                 ? (parallel ? CpuPartitionPreparationPlan.ExecutionStrategy.PARALLEL_VECTOR
@@ -175,8 +216,7 @@ public final class CpuPartitionPreparer implements BackendPartitionPreparer<
                             .isPresent()
                         || lowered.trailingNormalizationGeometry()
                             .filter(g -> g.scratchSliceBytes() > 0).isPresent());
-        var selectedPortableIr = materialization.isPresent()
-                ? kernelIr : lowered.portableKernelIr();
+        selectedPortableIr = materialization.isPresent() ? kernelIr : selectedPortableIr;
         var routePlan = new CpuPortableRoutePlan(selectedPortableIr, specialization);
         String manifest = "unit=0;fusion=" + lowered.fusionReason()
                 + ";access=" + bindings.stream()
@@ -266,8 +306,8 @@ public final class CpuPartitionPreparer implements BackendPartitionPreparer<
                 strategy,
                 declarations, lowered.boundaryValues(), bindings,
                 requestedCarriers, carriers,
-                lowered.extents(), lowered.elementCount(), lowered.affineAddressPairs(),
-                selectedRangeCount, config.minimumElementsPerWorker(),
+                selectedExtents, iterationCount, lowered.affineAddressPairs(),
+                selectedRangeCount, minimumRangeItemsPerWorker,
                 vectorEligible ? speciesBits : 0,
                 context.backendInputs().loweringManifestEnabled() ? manifest : "",
                 materialization, workspace, workspaceUse, budget,
@@ -275,7 +315,8 @@ public final class CpuPartitionPreparer implements BackendPartitionPreparer<
                 lowered.foldGeometry(), lowered.orderingGeometry(), lowered.randomGeometry(),
                 lowered.scanGeometry(), lowered.aggregateGeometry(), lowered.argExtremaGeometry(),
                 lowered.maskedReductionGeometry(), lowered.advancedReductionGeometry(),
-                lowered.softmaxGeometry(), lowered.trailingNormalizationGeometry());
+                lowered.softmaxGeometry(), lowered.trailingNormalizationGeometry(),
+                selectedBatchGeometry);
 
         var requirements = new ArrayList<PreparationResourceRequirement>(declarations);
         plan.workspaceDeclaration().ifPresent(requirements::add);

@@ -67,6 +67,8 @@ public final class CpuPartitionLowering {
     private final CpuSoftmaxLowering softmaxLowering = new CpuSoftmaxLowering();
     private final CpuTrailingNormalizationLowering trailingNormalizationLowering =
             new CpuTrailingNormalizationLowering();
+    private final CpuBatchNormInferenceLowering batchNormInferenceLowering =
+            new CpuBatchNormInferenceLowering();
 
     /** Creates a stateless lowering boundary with the current CPU capability and power analysis. */
     public CpuPartitionLowering() { }
@@ -98,6 +100,10 @@ public final class CpuPartitionLowering {
             if (kind instanceof io.github.pho001.synaptik.model.operation.normalization.LayerNormKind
                     || kind instanceof io.github.pho001.synaptik.model.operation.normalization.RmsNormKind) {
                 return trailingNormalizationLowering.lower(context);
+            }
+            if (kind == io.github.pho001.synaptik.model.operation.normalization.BatchNormKind
+                    .BATCH_NORM_INFERENCE) {
+                return batchNormInferenceLowering.lower(context);
             }
             if (kind instanceof io.github.pho001.synaptik.model.operation.reduction.AggregateReductionKind) {
                 if (kind == io.github.pho001.synaptik.model.operation.reduction.AggregateReductionKind.LOG_SUM_EXP
@@ -513,6 +519,8 @@ public final class CpuPartitionLowering {
      * @param advancedReductionGeometry compact cold logarithmic/statistical/norm geometry
      * @param softmaxGeometry compact cold shape-preserving normalization geometry
      * @param trailingNormalizationGeometry compact cold Layer/RMS trailing-slice geometry
+     * @param batchNormInferenceGeometry compact cold zero-workspace arbitrary-axis inference
+     *     geometry
      */
     public record LoweredPartition(CpuPortableKernelIr portableKernelIr, List<ValueId> boundaryValues,
             List<CpuAccessPlan.Binding> accessBindings, List<Long> referencedElementSpans,
@@ -530,7 +538,65 @@ public final class CpuPartitionLowering {
             Optional<CpuMaskedReductionLowering.Geometry> maskedReductionGeometry,
             Optional<CpuAdvancedReductionLowering.Geometry> advancedReductionGeometry,
             Optional<CpuSoftmaxLowering.Geometry> softmaxGeometry,
-            Optional<CpuTrailingNormalizationLowering.Geometry> trailingNormalizationGeometry) {
+            Optional<CpuTrailingNormalizationLowering.Geometry> trailingNormalizationGeometry,
+            Optional<CpuBatchNormInferenceLowering.Geometry> batchNormInferenceGeometry) {
+
+        /**
+         * Creates an existing-family lowering with no batch-normalization geometry.
+         *
+         * <p>Parameters have the ownership, nullability, and cardinality contracts of the
+         * corresponding record components.</p>
+         *
+         * @param portableKernelIr route-independent family identity
+         * @param boundaryValues ordered materialized boundaries
+         * @param accessBindings ordered cold bindings
+         * @param referencedElementSpans exact declaration spans
+         * @param boundaryDataTypes exact boundary types
+         * @param virtualValues internal unmaterialized values
+         * @param extents iteration extents
+         * @param elementCount logical work-item count
+         * @param fusionReason lowering explanation
+         * @param affineAddressPairs affine addresses, or empty
+         * @param movementGeometry optional movement geometry
+         * @param indexingGeometry optional indexing geometry
+         * @param scatterGeometry optional scatter geometry
+         * @param foldGeometry optional fold geometry
+         * @param orderingGeometry optional ordering geometry
+         * @param randomGeometry optional explicit-state random geometry
+         * @param scanGeometry optional cumulative-scan geometry
+         * @param aggregateGeometry optional ordinary-aggregate geometry
+         * @param argExtremaGeometry optional arg-extrema geometry
+         * @param maskedReductionGeometry optional masked-reduction geometry
+         * @param advancedReductionGeometry optional advanced-reduction geometry
+         * @param softmaxGeometry optional softmax geometry
+         * @param trailingNormalizationGeometry optional trailing-normalization geometry
+         * @throws NullPointerException if a required reference or list element is null
+         * @throws IllegalArgumentException if boundary, family, or geometry facts disagree
+         */
+        public LoweredPartition(CpuPortableKernelIr portableKernelIr, List<ValueId> boundaryValues,
+                List<CpuAccessPlan.Binding> accessBindings, List<Long> referencedElementSpans,
+                List<DataType> boundaryDataTypes, List<ValueId> virtualValues, long[] extents,
+                long elementCount, String fusionReason, long[] affineAddressPairs,
+                Optional<CpuNonAffineMovementLowering.Geometry> movementGeometry,
+                Optional<CpuIndexingLowering.Geometry> indexingGeometry,
+                Optional<CpuScatterLowering.Geometry> scatterGeometry,
+                Optional<CpuFoldLowering.Geometry> foldGeometry,
+                Optional<CpuOrderingLowering.Geometry> orderingGeometry,
+                Optional<CpuRandomLowering.Geometry> randomGeometry,
+                Optional<CpuScanLowering.Geometry> scanGeometry,
+                Optional<CpuAggregateLowering.Geometry> aggregateGeometry,
+                Optional<CpuArgExtremaLowering.Geometry> argExtremaGeometry,
+                Optional<CpuMaskedReductionLowering.Geometry> maskedReductionGeometry,
+                Optional<CpuAdvancedReductionLowering.Geometry> advancedReductionGeometry,
+                Optional<CpuSoftmaxLowering.Geometry> softmaxGeometry,
+                Optional<CpuTrailingNormalizationLowering.Geometry> trailingNormalizationGeometry) {
+            this(portableKernelIr, boundaryValues, accessBindings, referencedElementSpans,
+                    boundaryDataTypes, virtualValues, extents, elementCount, fusionReason,
+                    affineAddressPairs, movementGeometry, indexingGeometry, scatterGeometry,
+                    foldGeometry, orderingGeometry, randomGeometry, scanGeometry, aggregateGeometry,
+                    argExtremaGeometry, maskedReductionGeometry, advancedReductionGeometry,
+                    softmaxGeometry, trailingNormalizationGeometry, Optional.empty());
+        }
 
         /**
          * Creates an existing-family lowering with no trailing-normalization geometry.
@@ -855,6 +921,15 @@ public final class CpuPartitionLowering {
          * @param scatterGeometry non-null optional functional-scatter geometry
          * @param foldGeometry non-null optional overlap-fold geometry
          * @param orderingGeometry non-null optional stable-ordering geometry
+         * @param randomGeometry non-null optional explicit-state random geometry
+         * @param scanGeometry non-null optional cumulative-scan geometry
+         * @param aggregateGeometry non-null optional ordinary-aggregate geometry
+         * @param argExtremaGeometry non-null optional arg-extrema geometry
+         * @param maskedReductionGeometry non-null optional masked-reduction geometry
+         * @param advancedReductionGeometry non-null optional advanced-reduction geometry
+         * @param softmaxGeometry non-null optional stable-softmax geometry
+         * @param trailingNormalizationGeometry non-null optional trailing-normalization geometry
+         * @param batchNormInferenceGeometry non-null optional batch-normalization inference geometry
          * @throws NullPointerException if a required component or element is {@code null}
          * @throws IllegalArgumentException if fewer than one input plus one output are present or
          *     boundary collections have different cardinalities
@@ -884,6 +959,8 @@ public final class CpuPartitionLowering {
             softmaxGeometry = Objects.requireNonNull(softmaxGeometry, "softmaxGeometry");
             trailingNormalizationGeometry = Objects.requireNonNull(trailingNormalizationGeometry,
                     "trailingNormalizationGeometry");
+            batchNormInferenceGeometry = Objects.requireNonNull(batchNormInferenceGeometry,
+                    "batchNormInferenceGeometry");
             Objects.requireNonNull(fusionReason, "fusionReason");
             int size = boundaryValues.size();
             if (size < 1 || accessBindings.size() != size || referencedElementSpans.size() != size
@@ -938,6 +1015,8 @@ public final class CpuPartitionLowering {
                                                         ? softmax.encodedKernelIr()
                                                     : portableKernelIr instanceof io.github.pho001.synaptik.backend.cpu.internal.ir.CpuTrailingNormalizationIr normalization
                                                         ? normalization.encodedKernelIr()
+                                                    : portableKernelIr instanceof io.github.pho001.synaptik.backend.cpu.internal.ir.CpuBatchNormInferenceIr batch
+                                                        ? batch.encodedKernelIr()
                                                     : ((io.github.pho001.synaptik.backend.cpu.internal.ir.CpuAggregateIr)
                                                         portableKernelIr).encodedKernelIr();
         }

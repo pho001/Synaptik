@@ -1417,7 +1417,8 @@ row exceeded the fixed gate in one fork, so neither rejected sample contributes 
 
 Current coverage ends at this one-node static portable family. Ordinary aggregates, arg extrema,
 masked reductions, advanced reductions, stable softmax, and trailing Layer/RMS normalization are
-the separate current families below. Batch normalization remains later CPU work. Multi-node scan
+the separate current families below. Batch-normalization inference is also a separate current
+family below, while training remains planned. Multi-node scan
 fusion, partial scans, cross-worker prefix combination, vector or native scan bodies, dynamic
 Shape/layout binding, in-place/overlapping execution, public scan configuration, and a shared
 Runtime scan primitive are not implemented.
@@ -1890,7 +1891,8 @@ claim.
 This family adds no public API, Model or Compiler semantic change, backward execution, vector or
 native route, fusion, dynamic Shape/layout support, overlap allowance, workspace algorithm,
 backend conformance result, or integration guarantee. Layer/RMS normalization is the separate
-current family below; batch normalization remains later CPU work.
+current family below; batch-normalization inference follows it as a separate current family and
+training remains planned.
 
 ### Current trailing Layer/RMS-normalization family
 
@@ -1972,7 +1974,73 @@ tuning result, native/vector guarantee, or performance claim for another Shape o
 This increment adds no public API or shared-contract change, backward execution, fusion,
 materialization, Vector API or native route, dynamic or symbolic Shape, unresolved layout,
 decomposed-graph recognition, or cross-backend numerical promise. Batch-normalization inference
-and training remain separate planned CPU 0007F1 and 0007F2 work.
+is the separate current family below; batch-normalization training remains planned CPU 0007F2
+work.
+
+### Current batch-normalization inference family
+
+The portable CPU route accepts exactly one explicit first-class `BATCH_NORM_INFERENCE` occurrence
+with the ordered inputs `[input, scale, bias, runningMean, runningVariance]` and one output. It does
+not infer this family from decomposed arithmetic. The input and output have the same fully static
+Shape of rank at least two; scale, bias, running mean, and running variance are rank-one `[C]`
+vectors, where `C` is the extent of the normalized arbitrary static channel axis.
+
+Every input may independently be BFLOAT16, FLOAT32, or FLOAT64. Promotion proceeds in the exact
+five-input occurrence order, and the output and positive finite epsilon use that result type.
+Epsilon is retained by its exact result-type bits. Each represented input is converted to the
+result type before the direct running-variance formula is evaluated in this order:
+
+```text
+centered     = input - runningMean[channel]
+denominator  = sqrt(runningVariance[channel] + epsilon)
+standardized = centered / denominator
+result       = standardized * scale[channel] + bias[channel]
+```
+
+The add, square root boundary, subtraction, division, multiplication, and final addition use
+FLOAT32 locals and rounding boundaries for BFLOAT16/FLOAT32 results and FLOAT64 locals for FLOAT64
+results. BFLOAT16 is encoded once at the final store. Scale, bias, mean, variance, and denominator
+are hoisted outside the coordinates belonging to a channel. This is a CPU-private conforming
+finite-precision realization, not a public cast or cross-backend bitwise promise.
+
+Cold preparation derives prefix, channel, suffix, flattened non-channel, and output counts. The
+default range owns channels. Parallel-scalar preparation selects the flattened non-channel range
+when that domain is larger than the channel domain and falls back to channel ownership if fewer
+than two ranges would result. Both forms are deterministic because ranges own disjoint output
+coordinates. Generated entries decode their initial range coordinate once, then use odometer and
+incremental address updates; they do not repeat per-element coordinate division/remainder or
+avoidable base-address reconstruction. Empty output performs no read, write, generated call, or
+worker submission.
+
+The family declares no workspace, materialization, scratch, denominator table, saved statistic,
+or training state. Each boundary accepts the exact typed heap array or a native-order, live,
+thread-accessible, aligned `MemorySegment`; carriers may be mixed. Fully static resolved layouts
+may be dense, broadcast, or strided and must use non-negative offsets and strides. Output layout
+must be injective. Repeated logical inputs share one boundary in first-occurrence order while the
+five semantic positions remain in the generated identity. Input/input aliasing is allowed, but
+the complete accessed output span must not overlap any input; binding rejects overlap and all
+other carrier/layout failures before writes or worker submission.
+
+Schema 49 records the five ordered types, promotion result, exact epsilon bits, rank and channel
+axis, first-occurrence boundary map, access plans, selected channel/non-channel range form,
+algorithm version, and concrete carriers. Generated classes are deterministic, final,
+field-free, constructor-free, and expose exactly one typed static entry without a scratch
+parameter. Retained member and Class-File audits admit only the required primitive array or typed
+segment access, `Math.sqrt`, and BFLOAT16 conversion members.
+
+The frozen performance matrix covers eight batch/control targets across five sequential isolated
+forks. Every accepted fork and median was at most `1.15x` its optimal clean Java equivalent; the
+tightest batch result was the BN-MIX-F32 fork at `1.149753751x`. Rejected probe designs and sample
+windows that failed the frozen protocol remain recorded as rejected evidence. The accepted
+generated bodies are equivalent in semantic algorithm, hot-loop/dataflow shape, and avoidable-
+overhead profile to the specialized optimal clean Java cases; they are not claimed to be byte-for-
+byte `javac` output or to produce identical JIT assembly. The evidence supports only the frozen
+Shapes, carriers, host, Java version, and protocol, not universal performance.
+
+This family adds no training/statistic transition, fusion, Vector API or native route, dynamic or
+symbolic Shape, unresolved layout, autotuning, public API, shared Prepare/backend-contract,
+backend-conformance, or integration guarantee. Batch-normalization training remains planned in
+CPU 0007F2.
 
 ### Unary numerical closure
 
@@ -2450,17 +2518,18 @@ architecture capability checkpoint then passed, and the provider milestone is co
 The current CPU foundation provides the bounded fully static pointwise matrix, static
 resolved-layout affine family, and one-node static movement, indexing, functional-scatter,
 overlap-fold, stable ordering, explicit-state random, cumulative-scan, aggregate, arg-extrema,
-masked-reduction, advanced-reduction, stable-softmax, and trailing Layer/RMS-normalization
-families
+masked-reduction, advanced-reduction, stable-softmax, trailing Layer/RMS-normalization, and
+batch-normalization inference families
 described above. Scalar
 execution covers every admitted row; parallel-scalar orchestration is available for disjoint
 affine, movement, scatter, fold, ordering, random-element, whole-scan-slice, whole-aggregate-
 output-cell, whole-arg-extrema-output-cell, whole-masked-reduction-output-cell, whole-advanced-
-reduction-output-cell, whole-softmax-slice, and whole-trailing-normalization-slice ranges; and the
+reduction-output-cell, whole-softmax-slice, whole-trailing-normalization-slice, and selected
+channel or flattened non-channel batch-inference ranges; and the
 pointwise family retains its exact typed value-vector and virtual-mask parity matrix. Generator
-schema 48 distinguishes pointwise,
+schema 49 distinguishes pointwise,
 affine, movement, indexing, scatter, fold, ordering, random, scan, aggregate, arg-extrema, and
-masked-reduction, advanced-reduction, softmax, and trailing-normalization
+masked-reduction, advanced-reduction, softmax, trailing-normalization, and batch-inference
 structures,
 including movement occurrence order,
 unequal-rank access, exact
@@ -2503,7 +2572,10 @@ above. Schema 47 adds first-class softmax/log-softmax kind, selected-axis, type-
 algorithm/pass, access, carrier, and direct emitted-body identity. Schema 48 adds the four
 first-class trailing Layer/RMS forms, ordered promotion and unique-boundary mapping, exact epsilon,
 normalized geometry, pass/resource identity, direct numerical bodies, and static typed segment
-layouts. Schema 48 is the only current compatible artifact envelope. Schema-47 and earlier
+layouts. Schema 49 adds the five-input batch-inference identity, arbitrary channel axis, ordered
+promotion and exact epsilon, unique-boundary mapping, selected channel/non-channel range form,
+zero-resource identity, and direct running-variance body. Schema 49 is the only current compatible
+artifact envelope. Schema 48 and earlier
 envelopes are incompatible safe misses.
 No excluded
 aggregate/scatter form or later semantic family,

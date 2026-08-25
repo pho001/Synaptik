@@ -2,7 +2,7 @@
 
 ## Status
 
-Ready
+Complete
 
 ## Goal
 
@@ -645,46 +645,107 @@ shared Prepare/backend-contract, conformance/integration, Gradle, and unrelated 
 
 ## Validation evidence
 
-The clean critical-review context corrected a material optimality defect on 2026-08-25: the
-original prefix-channel slab contract repeated channel reads and `sqrt` once per prefix, including
-`N` times per channel for dense `[N,C]` with a last channel axis. It replaced that contract with
-the deterministic zero-workspace channel/non-channel range design above and strengthened the
-small-channel, operation-count, specialization, Class-File, and performance-oracle gates. After
-that correction, the context validated the three-file planning change:
-all relative Markdown links and anchors resolve, fences are balanced, terminal newlines are
-present, status/order/dependency searches agree, `git diff --check` and
-`git diff --cached --check` pass, exactly this task/master plan/roadmap are changed, and staging is
-empty. Its final independent diff review found no hidden architecture decision or accidental CPU
-0007F2 implementation scope. The corrected oracle claim is limited to a concrete work-efficient
-zero-workspace algorithm and remains subject to the frozen performance matrix rather than claiming
-universal cache optimality for every legal layout.
+Implementation and clean documentation review completed on 2026-08-25. Before implementation,
+critical review replaced the original prefix-channel slab plan because it repeated channel reads
+and `sqrt` once per prefix, including `N` times per channel for dense `[N,C]` with a last channel
+axis. The first generated body then still used per-element coordinate division/remainder and
+avoidable address reconstruction and did not satisfy the frozen performance shape. The accepted
+body decodes each range entry once, advances coordinates and addresses with an odometer and
+increments, and retains genuine FLOAT32 locals for BFLOAT16/FLOAT32 computation. This evidence
+does not claim universal layout optimality.
 
-No implementation, Java-test, generated-Class-File, or performance evidence exists yet; the task
-must remain `Ready` until the implementation and documentation-focused passes replace or extend
-this section with the required evidence.
+Focused tests reported 112 passing cases. The first uncached CPU-suite attempt found two test-only
+stale expectations: the internal-package inventory omitted the four newly authorized types, and
+the regenerated cache-envelope test still expected schema 48. After correcting those tests, the
+required full uncached rerun is retained as 462 tests, zero failures, zero errors, and two expected
+skips. No successful Java or performance suite was repeated by the documentation context because
+no executable Java behavior changed.
+
+The immutable evidence root is
+`/private/tmp/synaptik-cpu-0007f1-retained-evidence-20260825`. It contains 281 files. SHA-256 of
+`SHA256SUMS` is
+`185ecb1b1da84d20774b5f21979bbfc8cedb765cf03dc05610fa354bd7555029`, and every manifest entry
+verifies. Its XML summary is `tests=462 failures=0 errors=0 skipped=2`; specialization,
+decompilation, verbose/member, operation-count, semantic, alias/canary, accepted/rejected fork,
+environment, and source records are present.
+
+All eight batch targets and unchanged controls passed each of five accepted isolated forks and
+the median-of-fork-medians gate at `<= 1.15x`. The tightest batch fork is BN-MIX-F32 at
+`1.149753751x`. Three rejected BN-MIX-F32 probe protocols remain rejected and are not counted as
+evidence: a polymorphic wrapper (`1.262671316x`), a non-isolated call site (`1.189308487x`), and a
+100 ms whole sample (`1.156348589x`); a 25 ms whole sample also measured `1.151696740x`. The
+accepted probe isolates selected calls without padding or slowing the oracle. Generated classes
+are reviewed as optimal-clean-Java equivalents for the frozen specialized cases, not byte-for-
+byte `javac` output or guaranteed identical JIT assembly.
+
+Complete Class-File/member inspection found deterministic final, field-free, constructor-free
+classes with exactly one typed static entry, no scratch parameter, and only the required typed
+array/segment access, `Math.sqrt`, and BFLOAT16 conversion members. Operation counts confirm four
+channel-value reads per generated square-root root and the selected channel/non-channel ownership.
+Schema is exactly 49 and older envelopes are safe misses.
+
+The final repository scope is within the 46-path ceiling. The pre-documentation implementation
+diff has exactly 27 paths: 14 production paths and 13 tests. Exactly four new CPU-private
+production types exist: `CpuBatchNormInferenceIr`, `CpuBatchNormInferenceLowering`,
+`CpuBatchNormInferenceEmitter`, and `CpuBatchNormInferenceReferenceKernel`. Documentation adds
+only the CPU guide, glossary, this task, CPU master plan, and roadmap. Staging remains empty.
+
+The clean documentation pass applied the General, API/Javadoc, Backend Guide, Planning, and
+Example profiles. CPU Javadoc generation and rendered-page inspection pass; Markdown links,
+anchors, fences, terminology, terminal newlines, status/order/dependency consistency, imports,
+generated-member/reflection evidence, exact path/type/schema gates, staging checks, and whitespace
+checks pass. CPU 0007A1D remains `Review needed`, CPU 0007F remains `Complete`, CPU 0007F1 is
+`Complete`, and CPU 0007F2 remains the next defined `Draft` frontier.
 
 ## Implementation notes
 
-Not implemented. The implementation context must replace this sentence with concrete changes and
-any bounded local decisions before completion.
+The CPU capability provider now admits only the exact first-class static inference subset. A
+dedicated CPU-private IR/lowering/emitter/reference quartet preserves all five semantic positions,
+deduplicates repeated logical boundaries in first-occurrence order, derives arbitrary-axis
+prefix/channel/suffix geometry, selects the preparation-time range form, and emits one direct
+typed body. Preparation, finalization, portable routing, generated artifact compatibility, and
+execution carry the optional geometry without changing shared Prepare or Runtime contracts.
+
+The implementation accepts independent BFLOAT16/FLOAT32/FLOAT64 inputs, exact occurrence-order
+promotion, result-typed epsilon bits, dense/broadcast/strided resolved layouts, typed heap arrays,
+native-order segments, and mixed carriers. It hoists scale, bias, running mean, running variance,
+and one denominator per covered channel; evaluates centered/divide/multiply/add in the specified
+order; uses FLOAT32 computation for BFLOAT16/FLOAT32 and FLOAT64 for FLOAT64; and stores directly.
+It declares zero workspace/materialization/saved state, permits input/input aliasing, and rejects
+output/input overlap before writes or submission. Training, fusion, vector/native paths, dynamic
+Shapes, and autotuning remain excluded.
+
+No change is required in Tensor, Compile, or Training APIs; Model 0021B or Compiler 0005B
+contracts; `ARCHITECTURE.md`, the current architecture plan, ADRs, or architecture tests; shared
+Prepare/backend-contract or Runtime APIs; backend-conformance or integration tests; Gradle/build
+configuration; Vector/native routes; or unrelated modules. Those contracts either already define
+the semantics consumed here or remain outside this CPU-private realization.
 
 ## Completion summary
 
-The implementation and documentation-focused contexts must replace this section with:
-
-```text
-- Completed changes: <exact implemented capability>
-- Files changed or created: <exact categorized path counts>
-- Tests and validation: <commands, counts, and retained evidence>
-- Documentation-agent review: <clean context and result>
-- Documentation impact: <changed documents or reasoned no-change conclusions>
-- Javadoc review: <affected contracts and result>
-- Glossary impact: <change or reasoned no-change conclusion>
-- Unresolved issues: <None or exact issue>
-- Follow-up required: <None or exact follow-up>
+- Completed changes: exact static first-class CPU batch-normalization inference with arbitrary
+  channel axis, ordered floating promotion, typed epsilon, deterministic dual range forms, direct
+  generated execution, zero resources, and schema 49.
+- Files changed or created: 14 production paths, 13 test paths, and five documentation/planning
+  paths; exactly four new CPU-private production types; total scope at or below 46 paths.
+- Tests and validation: focused 112 passing; final uncached CPU XML 462 tests, zero failures, zero
+  errors, two skips; CPU Javadoc successful; task-specific Markdown and exact repository gates
+  successful; retained 281-file manifest fully verified.
+- Documentation-agent review: mandatory independent clean documentation context completed without
+  changing executable Java behavior; clean context/session identifier
+  `01a03a19-dfac-7a61-90f5-0654784e9c74`.
+- Documentation impact: CPU backend guide, glossary, this task, CPU master plan, and roadmap
+  finalized; no architecture, public API, shared-contract, build, conformance, integration,
+  Vector/native, or unrelated-module documentation change is required.
+- Javadoc review: all 14 changed production paths inspected; affected IR, lowering geometry,
+  emitter, reference, portable-family, plan, lowering-result, and prepared-executable contracts
+  finalized with ownership, ranges, parameters, results, and failures.
+- Glossary impact: clarified only the current CPU inference realization and schema-49 artifact
+  boundary without duplicating Model training semantics.
+- Unresolved issues: none for CPU 0007F1.
+- Follow-up required: none for CPU 0007F1; CPU 0007F2 remains the separate Draft training frontier.
 
 Status: Complete
-```
 
 ## Status gate
 
