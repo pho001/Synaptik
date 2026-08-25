@@ -59,6 +59,11 @@
  * and applies separate stable logarithmic, corrected-statistical, and scaled-norm calculations.
  * It consumes no production lowering geometry, packer, emitter, or generated execution helper.</p>
  *
+ * <p>The softmax oracle independently derives logical slice coordinates from Shape, axis, offset,
+ * and strides. It applies the frozen type-specific primitive stable algorithm and represented
+ * rounding without consuming production lowering, packed geometry, carrier binding, validation,
+ * or emitted helpers.</p>
+ *
  * <p>Reference evaluation is outside the generated Runtime hot path and owns no buffers, slots, or
  * artifact lifecycle.
  */

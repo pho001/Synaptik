@@ -44,6 +44,11 @@
  * VARIANCE, STANDARD_DEVIATION, L1_NORM, or L2_NORM occurrence over FLOAT64, FLOAT32, or
  * BFLOAT16. It preserves ordered axes and complete output-cell ownership; only L1 and statistics
  * use the existing exact-state workspace, while log-sum-exp and L2 remain workspace-free.
+ * Softmax coverage accepts exactly one first-class {@code SOFTMAX} or {@code LOG_SOFTMAX}
+ * occurrence over FLOAT64, FLOAT32, or BFLOAT16 with a positive selected extent. It preserves
+ * Shape and axis identity, validates the complete finite input and maximum-shift domain before
+ * mutation or worker submission, and executes direct stable three-pass complete-slice ranges
+ * without workspace or materialization.
  * The provider exposes no route, carrier, preparation, or execution API.
  *
  * <p>The {@code internal} namespace contains unsupported implementation contracts for complete-

@@ -303,6 +303,39 @@ public final class CpuNormEmitter {
      */
     static void emitStore(CodeBuilder code, CpuCarrierEmitter carriers,
             CpuKernelSpecialization specialization, DataType type, int address, int result) {
+        emitStore(code, carriers, specialization, type, address, result, false);
+    }
+
+    /**
+     * Emits final result-format narrowing and a typed store using the proved address-local width.
+     * @param code non-null method builder
+     * @param carriers non-null typed carrier emitter
+     * @param specialization non-null output-carrier specialization
+     * @param type represented result type
+     * @param address output element-address local
+     * @param result binary64 result local
+     * @param intAddress whether {@code address} is a proved heap-array {@code int} index
+     */
+    static void emitStore(CodeBuilder code, CpuCarrierEmitter carriers,
+            CpuKernelSpecialization specialization, DataType type, int address, int result,
+            boolean intAddress) {
+        emitStore(code, carriers, specialization, type, address, result, intAddress, false);
+    }
+
+    /**
+     * Emits final narrowing and a typed store with optional frozen constant-layout segment access.
+     * @param code non-null method builder
+     * @param carriers non-null typed carrier emitter
+     * @param specialization non-null output-carrier specialization
+     * @param type represented result type
+     * @param address output element-address local
+     * @param result binary64 result local
+     * @param intAddress whether {@code address} is a proved heap-array {@code int} index
+     * @param frozenLayout whether segment access uses the proved constant native layout
+     */
+    static void emitStore(CodeBuilder code, CpuCarrierEmitter carriers,
+            CpuKernelSpecialization specialization, DataType type, int address, int result,
+            boolean intAddress, boolean frozenLayout) {
         int represented = result;
         if (type == DataType.FLOAT32) {
             represented = code.allocateLocal(TypeKind.FLOAT);
@@ -321,7 +354,10 @@ public final class CpuNormEmitter {
                     .loadConstant(1).iand().iadd().loadConstant(16).iushr()
                     .istore(represented).labelBinding(rounded);
         }
-        carriers.store(type, specialization.carrierPattern().getLast(), 1, address, represented, false);
+        if (frozenLayout) carriers.storeFrozen(type, specialization.carrierPattern().getLast(), 1,
+                address, represented, intAddress);
+        else carriers.store(type, specialization.carrierPattern().getLast(), 1, address,
+                represented, intAddress);
     }
 
     /**

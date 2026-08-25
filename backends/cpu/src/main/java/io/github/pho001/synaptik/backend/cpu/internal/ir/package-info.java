@@ -88,6 +88,11 @@
  * retention, correction, pass/algorithm version, selected-domain count, and exact-state shape.
  * Concrete offsets, strides, carriers, ranges, slots, and workers remain cold facts.</p>
  *
+ * <p>The separate softmax representation retains first-class SOFTMAX or LOG_SOFTMAX identity,
+ * represented type, normalized axis, stable algorithm/pass shape, and structural input/output
+ * access. Concrete extents, stride magnitudes, carriers, ranges, slots, values, and workers remain
+ * cold and no decomposed graph can acquire this identity.</p>
+ *
  * <p>Lowering creates these cold immutable models. Portable code generation and the scalar
  * reference realization may consume their established semantics, but Runtime never receives or
  * interprets them.

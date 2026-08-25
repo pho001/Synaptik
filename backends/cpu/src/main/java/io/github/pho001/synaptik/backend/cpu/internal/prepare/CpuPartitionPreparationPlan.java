@@ -22,6 +22,7 @@ import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuAggregateLower
 import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuArgExtremaLowering;
 import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuMaskedReductionLowering;
 import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuAdvancedReductionLowering;
+import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuSoftmaxLowering;
 
 /**
  * Route-neutral immutable selected CPU partition plan.
@@ -69,6 +70,7 @@ import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuAdvancedReduct
  * @param maskedReductionGeometry non-null optional directional masked SUM/MEAN geometry
  * @param advancedReductionGeometry non-null optional logarithmic, statistical, or norm
  *     complete-output-cell geometry
+ * @param softmaxGeometry non-null optional zero-workspace shape-preserving normalization geometry
  */
 public record CpuPartitionPreparationPlan(List<ExecutionUnitPlan> units, Route route,
         ExecutionStrategy executionStrategy,
@@ -91,7 +93,8 @@ public record CpuPartitionPreparationPlan(List<ExecutionUnitPlan> units, Route r
         Optional<CpuAggregateLowering.Geometry> aggregateGeometry,
         Optional<CpuArgExtremaLowering.Geometry> argExtremaGeometry,
         Optional<CpuMaskedReductionLowering.Geometry> maskedReductionGeometry,
-        Optional<CpuAdvancedReductionLowering.Geometry> advancedReductionGeometry)
+        Optional<CpuAdvancedReductionLowering.Geometry> advancedReductionGeometry,
+        Optional<CpuSoftmaxLowering.Geometry> softmaxGeometry)
         implements BackendPreparationPlan {
 
     /**
@@ -147,7 +150,7 @@ public record CpuPartitionPreparationPlan(List<ExecutionUnitPlan> units, Route r
                 loweringManifest, materialization, workspaceDeclaration, workspaceUse,
                 specializationBudget, movementGeometry, indexingGeometry, scatterGeometry,
                 foldGeometry, orderingGeometry, Optional.empty(), Optional.empty(), Optional.empty(),
-                Optional.empty(), Optional.empty(), Optional.empty());
+                Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty());
     }
     /**
      * Creates a pointwise or affine plan without non-affine movement geometry.
@@ -193,7 +196,7 @@ public record CpuPartitionPreparationPlan(List<ExecutionUnitPlan> units, Route r
                 materialization.isPresent() ? WorkspaceUse.MATERIALIZATION : WorkspaceUse.NONE,
                 specializationBudget, Optional.empty(), Optional.empty(), Optional.empty(),
                 Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(),
-                Optional.empty(), Optional.empty(), Optional.empty());
+                Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty());
     }
     /** Meaning of the plan's sole optional CPU workspace. */
     public enum WorkspaceUse {
@@ -334,6 +337,7 @@ public record CpuPartitionPreparationPlan(List<ExecutionUnitPlan> units, Route r
                 "maskedReductionGeometry");
         advancedReductionGeometry = Objects.requireNonNull(advancedReductionGeometry,
                 "advancedReductionGeometry");
+        softmaxGeometry = Objects.requireNonNull(softmaxGeometry, "softmaxGeometry");
         if (units.size() != 1 || route != Route.PORTABLE
                 || bufferDeclarations.isEmpty()
                 || boundaryValues.size() != bufferDeclarations.size()
@@ -366,6 +370,8 @@ public record CpuPartitionPreparationPlan(List<ExecutionUnitPlan> units, Route r
                 instanceof io.github.pho001.synaptik.backend.cpu.internal.ir.CpuMaskedReductionIr;
         boolean advancedReduction = units.getFirst().portablePlan().portableKernelIr()
                 instanceof io.github.pho001.synaptik.backend.cpu.internal.ir.CpuAdvancedReductionIr;
+        boolean softmax = units.getFirst().portablePlan().portableKernelIr()
+                instanceof io.github.pho001.synaptik.backend.cpu.internal.ir.CpuSoftmaxIr;
         if (affine ? affineAddressPairs.length != Math.multiplyExact(elementCount, 2)
                 : affineAddressPairs.length != 0) {
             throw new IllegalArgumentException("affine address geometry must match the copy domain");
@@ -485,6 +491,21 @@ public record CpuPartitionPreparationPlan(List<ExecutionUnitPlan> units, Route r
                 throw new IllegalArgumentException(
                         "advanced-reduction structural IR and geometry disagree");
             }
+        }
+        if (softmax != softmaxGeometry.isPresent() || softmax && (bufferDeclarations.size() != 2
+                || materialization.isPresent() || workspaceDeclaration.isPresent()))
+            throw new IllegalArgumentException("softmax IR and zero-resource geometry must agree");
+        if (softmax) {
+            var softmaxIr = (io.github.pho001.synaptik.backend.cpu.internal.ir.CpuSoftmaxIr)
+                    units.getFirst().portablePlan().portableKernelIr();
+            var geometry = softmaxGeometry.orElseThrow();
+            if (softmaxIr.kind() != geometry.kind() || softmaxIr.dataType() != geometry.dataType()
+                    || softmaxIr.axis() != geometry.axis()
+                    || !softmaxIr.inputAccess().equals(accessBindings.getFirst().plan())
+                    || !softmaxIr.outputAccess().equals(accessBindings.getLast().plan())
+                    || elementCount != geometry.sliceCount() || extents.length != 1
+                    || extents[0] != geometry.sliceCount())
+                throw new IllegalArgumentException("softmax structural IR and geometry disagree");
         }
         if (fold) {
             var foldIr = (io.github.pho001.synaptik.backend.cpu.internal.ir.CpuFoldIr)

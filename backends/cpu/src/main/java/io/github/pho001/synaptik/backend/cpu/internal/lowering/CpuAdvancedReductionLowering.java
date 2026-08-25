@@ -106,7 +106,7 @@ public final class CpuAdvancedReductionLowering {
                 "legal: one static advanced floating reduction", new long[0], Optional.empty(),
                 Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(),
                 Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(),
-                Optional.empty(), Optional.of(geometry));
+                Optional.empty(), Optional.of(geometry), Optional.empty());
     }
 
     private static long exactStateSliceBytes(DataType type, long count) {

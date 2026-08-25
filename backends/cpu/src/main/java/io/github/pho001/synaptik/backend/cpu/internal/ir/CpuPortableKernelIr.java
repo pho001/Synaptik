@@ -13,7 +13,7 @@ package io.github.pho001.synaptik.backend.cpu.internal.ir;
 public sealed interface CpuPortableKernelIr permits CpuKernelIr, CpuAffineCopyIr,
         CpuDataMovementIr, CpuIndexingIr, CpuScatterIr, CpuFoldIr, CpuOrderingIr, CpuRandomIr,
         CpuScanIr, CpuAggregateIr, CpuArgExtremaIr, CpuMaskedReductionIr,
-        CpuAdvancedReductionIr {
+        CpuAdvancedReductionIr, CpuSoftmaxIr {
     /**
      * Returns the deterministic structural key used for generated-code compatibility.
      *

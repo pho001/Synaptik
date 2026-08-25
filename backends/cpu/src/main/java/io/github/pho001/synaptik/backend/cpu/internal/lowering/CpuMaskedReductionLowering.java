@@ -114,7 +114,7 @@ public final class CpuMaskedReductionLowering {
                 outputCount, "legal: one static directional masked sum or mean", new long[0],
                 Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(),
                 Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(),
-                Optional.empty(), Optional.of(geometry), Optional.empty());
+                Optional.empty(), Optional.of(geometry), Optional.empty(), Optional.empty());
     }
 
     private static GraphValue require(Map<ValueId, GraphValue> values, ValueId id) {

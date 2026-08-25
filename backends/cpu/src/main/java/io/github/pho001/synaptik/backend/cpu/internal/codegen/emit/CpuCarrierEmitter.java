@@ -144,6 +144,26 @@ final class CpuCarrierEmitter {
     }
 
     /**
+     * Emits a frozen native-order scalar load with a constant typed segment layout.
+     * @param type exact admitted floating data type
+     * @param access generation-time-selected carrier form
+     * @param parameterSlot exact input-carrier parameter slot
+     * @param addressLocal proved element-address local
+     * @param intAddress whether a heap address is represented as an {@code int}
+     */
+    void loadFrozen(DataType type, CarrierAccess access, int parameterSlot, int addressLocal,
+            boolean intAddress) {
+        if (access != CarrierAccess.MEMORY_SEGMENT) {
+            load(type, access, parameterSlot, addressLocal, intAddress);
+            return;
+        }
+        code.aload(parameterSlot); constantLayout(type);
+        code.lload(addressLocal).loadConstant((long) type.byteWidth()).lmul();
+        code.invokeinterface(SEGMENT, "get", MethodTypeDesc.of(primitive(type), layoutClass(type),
+                TypeKind.LONG.upperBound()));
+    }
+
+    /**
      * Emits one scalar store of the supplied type to a generation-time-selected carrier form.
      *
      * @param type non-null exact logical data type to store
@@ -191,6 +211,38 @@ final class CpuCarrierEmitter {
         loadLocal(type, valueLocal);
         code.invokeinterface(SEGMENT, "set", MethodTypeDesc.of(TypeKind.VOID.upperBound(),
                 layoutClass(type), TypeKind.LONG.upperBound(), primitive(type)));
+    }
+
+    /**
+     * Emits a frozen native-order scalar store with a constant typed segment layout.
+     * @param type exact admitted floating data type
+     * @param access generation-time-selected carrier form
+     * @param parameterSlot exact output-carrier parameter slot
+     * @param addressLocal proved element-address local
+     * @param valueLocal represented primitive value local
+     * @param intAddress whether a heap address is represented as an {@code int}
+     */
+    void storeFrozen(DataType type, CarrierAccess access, int parameterSlot, int addressLocal,
+            int valueLocal, boolean intAddress) {
+        if (access != CarrierAccess.MEMORY_SEGMENT) {
+            store(type, access, parameterSlot, addressLocal, valueLocal, intAddress);
+            return;
+        }
+        code.aload(parameterSlot); constantLayout(type);
+        code.lload(addressLocal).loadConstant((long) type.byteWidth()).lmul();
+        loadLocal(type, valueLocal);
+        code.invokeinterface(SEGMENT, "set", MethodTypeDesc.of(TypeKind.VOID.upperBound(),
+                layoutClass(type), TypeKind.LONG.upperBound(), primitive(type)));
+    }
+
+    private void constantLayout(DataType type) {
+        String field = switch (type) {
+            case FLOAT64 -> "JAVA_DOUBLE_UNALIGNED";
+            case FLOAT32 -> "JAVA_FLOAT_UNALIGNED";
+            case BFLOAT16 -> "JAVA_SHORT_UNALIGNED";
+            default -> throw new IllegalArgumentException("unsupported frozen segment data type");
+        };
+        code.getstatic(VALUE_LAYOUT, field, layoutClass(type));
     }
 
     /**

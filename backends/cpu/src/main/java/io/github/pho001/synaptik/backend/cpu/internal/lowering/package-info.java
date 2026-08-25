@@ -104,6 +104,11 @@
  * cells, rejects invalid corrected denominators, and declares exact state only for L1 and the
  * statistical mean pass.</p>
  *
+ * <p>Softmax lowering admits exactly one first-class static resolved-layout SOFTMAX or
+ * LOG_SOFTMAX occurrence. It preserves Shape, derives canonical complete-slice ranges and
+ * positive width, accepts arbitrary non-negative input strides and an injective output, and
+ * declares exactly two buffers with no materialization, workspace, partial, or combine state.</p>
+ *
  * <p>Lowering runs on the preparation cold path; no lowering object or Model operation reaches the
  * generated execution loop.
  */

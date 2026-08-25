@@ -20,6 +20,8 @@ import io.github.pho001.synaptik.model.operation.layout.*;
 import io.github.pho001.synaptik.model.operation.ordering.*;
 import io.github.pho001.synaptik.model.operation.scan.*;
 import io.github.pho001.synaptik.model.operation.reduction.*;
+import io.github.pho001.synaptik.model.operation.normalization.SoftmaxAttrs;
+import io.github.pho001.synaptik.model.operation.normalization.SoftmaxKind;
 import io.github.pho001.synaptik.model.shape.Shape;
 import io.github.pho001.synaptik.model.shape.DynamicDimension;
 import io.github.pho001.synaptik.model.shape.StaticDimension;
@@ -30,6 +32,24 @@ import java.util.Optional;
 import org.junit.jupiter.api.Test;
 
 class CpuCapabilityProviderTest {
+    @Test void reportsOnlyExactPositiveWidthShapePreservingSoftmaxRows() {
+        var provider = new CpuCapabilityProvider();
+        for (SoftmaxKind kind : SoftmaxKind.values()) for (DataType type : List.of(
+                DataType.FLOAT64, DataType.FLOAT32, DataType.BFLOAT16)) assertTrue(
+                provider.supports(query(kind, new SoftmaxAttrs(1),
+                        List.of(descriptor(type, Shape.of(2, 3))),
+                        descriptor(type, Shape.of(2, 3)))));
+        assertAll(() -> assertFalse(provider.supports(query(SoftmaxKind.SOFTMAX,
+                        new SoftmaxAttrs(1), List.of(descriptor(DataType.FLOAT32, Shape.of(2, 0))),
+                        descriptor(DataType.FLOAT32, Shape.of(2, 0))))),
+                () -> assertFalse(provider.supports(query(SoftmaxKind.LOG_SOFTMAX,
+                        new SoftmaxAttrs(1), List.of(descriptor(DataType.INT32, Shape.of(2, 3))),
+                        descriptor(DataType.INT32, Shape.of(2, 3))))),
+                () -> assertFalse(provider.supports(query(SoftmaxKind.SOFTMAX,
+                        new SoftmaxAttrs(1), List.of(descriptor(DataType.FLOAT32, Shape.of(2, 3))),
+                        descriptor(DataType.FLOAT32, Shape.of(3, 2))))));
+    }
+
     @Test void reportsOnlyExactStaticAdvancedReductionMatrix() {
         var provider = new CpuCapabilityProvider(); Shape inputShape = Shape.of(2, 3, 4);
         for (DataType type : List.of(DataType.FLOAT64, DataType.FLOAT32, DataType.BFLOAT16)) {

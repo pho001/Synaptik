@@ -39,7 +39,9 @@ import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuScanLoweringTe
 import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuAggregateLoweringTest;
 import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuArgExtremaLoweringTest;
 import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuMaskedReductionLoweringTest;
+import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuSoftmaxLoweringTest;
 import io.github.pho001.synaptik.model.operation.scan.CumulativeScanKind;
+import io.github.pho001.synaptik.model.operation.normalization.SoftmaxKind;
 import io.github.pho001.synaptik.model.operation.reduction.AggregateReductionKind;
 import io.github.pho001.synaptik.model.operation.reduction.ArgExtremaTiePolicy;
 import io.github.pho001.synaptik.model.operation.reduction.AxisReductionAttrs;
@@ -70,6 +72,52 @@ class CpuPreparedExecutableTest {
             ValueLayout.JAVA_INT_UNALIGNED.withOrder(ByteOrder.nativeOrder());
     private static final ValueLayout.OfLong LONG =
             ValueLayout.JAVA_LONG_UNALIGNED.withOrder(ByteOrder.nativeOrder());
+
+    @Test void softmaxValidatesBeforeWritesAndParallelizesOnlyCompleteSlices() {
+        var base = CpuSoftmaxLoweringTest.context(SoftmaxKind.SOFTMAX, DataType.FLOAT64,
+                Shape.of(8, 4), 1);
+        var config = new PortableExecutionConfig(ComputePreference.SCALAR, 4, 4, 1);
+        var context = new io.github.pho001.synaptik.prepare.analysis.PrepareContext<>(
+                base.partition(), base.nodes(), base.values(), base.memoryRequirements(),
+                base.constants(), new CpuPartitionAnalysisInputs(false,
+                        List.of(CarrierAccess.DOUBLE_ARRAY, CarrierAccess.DOUBLE_ARRAY), config));
+        var analysis = new CpuPartitionPreparer().analyze(context);
+        try (var workers = new CpuWorkerGroup(4)) {
+            var executable = CpuPartitionFinalizerTest.finalizeExecutable(analysis,
+                    Optional.empty(), Optional.of(workers));
+            double[] input = new double[32];
+            for (int index = 0; index < input.length; index++) input[index] = index % 4 - 2;
+            double[] output = new double[34]; java.util.Arrays.fill(output, -77);
+            var run = state(executable, List.of(borrow(input, 0, 32), borrow(output, 1, 32)));
+            try {
+                var bound = executable.bind(run); bound.execute();
+                for (int row = 0; row < 8; row++) assertEquals(1.0,
+                        output[1 + row * 4] + output[2 + row * 4]
+                                + output[3 + row * 4] + output[4 + row * 4], 2e-15);
+                assertEquals(-77, output[0]); assertEquals(-77, output[33]);
+                double[] first = output.clone(); bound.execute(); assertArrayEquals(first, output);
+            } finally { run.close(); }
+
+            double[] invalidInput = input.clone(); invalidInput[31] = Double.NaN;
+            double[] untouched = new double[34]; java.util.Arrays.fill(untouched, -31);
+            var invalid = state(executable, List.of(borrow(invalidInput, 0, 32),
+                    borrow(untouched, 1, 32)));
+            try {
+                assertThrows(IllegalArgumentException.class, () -> executable.bind(invalid));
+                double[] expected = new double[34]; java.util.Arrays.fill(expected, -31);
+                assertArrayEquals(expected, untouched);
+            } finally { invalid.close(); }
+
+            double[] shared = new double[40]; java.util.Arrays.fill(shared, 19);
+            double[] unchanged = shared.clone();
+            var overlap = state(executable, List.of(borrow(shared, 0, 32),
+                    borrow(shared, 3, 32)));
+            try {
+                assertThrows(IllegalArgumentException.class, () -> executable.bind(overlap));
+                assertArrayEquals(unchanged, shared);
+            } finally { overlap.close(); }
+        }
+    }
 
     @Test void advancedStatisticsOwnWholeParallelCellsAndRejectOverlapBeforeWrites() {
         var base = CpuAggregateLoweringTest.context(AggregateReductionKind.VARIANCE,

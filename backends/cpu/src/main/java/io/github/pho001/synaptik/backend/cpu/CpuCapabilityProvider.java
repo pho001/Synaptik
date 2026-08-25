@@ -42,6 +42,8 @@ import io.github.pho001.synaptik.model.operation.random.GraphRngKind;
 import io.github.pho001.synaptik.model.operation.random.GraphRngStateAttrs;
 import io.github.pho001.synaptik.model.operation.scan.CumulativeScanAttrs;
 import io.github.pho001.synaptik.model.operation.scan.CumulativeScanKind;
+import io.github.pho001.synaptik.model.operation.normalization.SoftmaxAttrs;
+import io.github.pho001.synaptik.model.operation.normalization.SoftmaxKind;
 import io.github.pho001.synaptik.model.operation.reduction.AggregateReductionKind;
 import io.github.pho001.synaptik.model.operation.reduction.ArgExtremaAttrs;
 import io.github.pho001.synaptik.model.operation.reduction.AxisReductionAttrs;
@@ -121,6 +123,12 @@ import java.util.Objects;
  * and an injective output. Statistics additionally require the static selected-domain count to
  * exceed the non-negative correction.</p>
  *
+ * <p>A separate one-node stable-normalization matrix admits first-class SOFTMAX and LOG_SOFTMAX
+ * for FLOAT64, FLOAT32, and BFLOAT16. It requires one positive selected-axis extent, identical
+ * Shape/type/gradient eligibility, resolved non-negative layouts, and an injective output. The
+ * CPU execution boundary separately rejects non-finite represented inputs and shifts before any
+ * output mutation; that admitted subset is not a Model semantic promise.</p>
+ *
  * <p>The movement route also admits exactly one fully static, resolved-layout
  * {@code SLICE_UPDATE} occurrence with ordered {@code [base, update]} inputs. Both normalized
  * signed finite-coordinate {@link SliceAttrs} and target-relative {@link CropToShapeAttrs}
@@ -185,6 +193,8 @@ public final class CpuCapabilityProvider implements BackendCapabilityProvider {
      * Advanced reductions additionally require the exact floating type/attribute pairing,
      * ordered normalized axes, matching gradient eligibility, Model-derived output Shape, and a
      * valid static corrected denominator for statistics.
+     * Softmax additionally requires its exact attributes, a rank-positive shape-preserving
+     * floating descriptor pair, and a positive selected extent.
      * Cross-type casts, dynamic
      * or unresolved geometry, negative-step extraction slices, non-injective
      * movement outputs, and all rows outside the implemented matrix return {@code false} without
@@ -213,6 +223,7 @@ public final class CpuCapabilityProvider implements BackendCapabilityProvider {
         try {
             if (kind instanceof AggregateReductionKind aggregate)
                 return supportsAggregate(query, output, aggregate);
+            if (kind instanceof SoftmaxKind) return supportsSoftmax(query, output);
             if (kind instanceof CumulativeScanKind) return supportsScan(query, output);
             if (kind == GraphRngKind.INITIAL_STATE) return supportsInitialState(query);
             if (kind == DropoutKind.DROPOUT) return supportsDropout(query);
@@ -308,6 +319,26 @@ public final class CpuCapabilityProvider implements BackendCapabilityProvider {
             }
         } catch (IllegalArgumentException | ArithmeticException incompatible) { return false; }
         return false;
+    }
+
+    private static boolean supportsSoftmax(OperationCapabilityQuery query,
+            TensorDescriptor output) {
+        if (!(query.operation().attrs() instanceof SoftmaxAttrs attrs)
+                || query.inputs().size() != 1) return false;
+        TensorDescriptor input = query.inputs().getFirst();
+        DataType type = input.dataType();
+        int rank = input.shape().rank();
+        if ((type != DataType.FLOAT64 && type != DataType.FLOAT32
+                && type != DataType.BFLOAT16) || output.dataType() != type
+                || output.requiresGrad() != input.requiresGrad() || rank <= 0
+                || attrs.axis() < 0 || attrs.axis() >= rank
+                || input.shape().toLongArray()[attrs.axis()] <= 0
+                || !input.shape().equals(output.shape())) return false;
+        LayoutDescriptor in = input.layout().orElseThrow(), out = output.layout().orElseThrow();
+        return in.storageOffset() >= 0 && out.storageOffset() >= 0
+                && java.util.Arrays.stream(in.strides()).allMatch(value -> value >= 0)
+                && java.util.Arrays.stream(out.strides()).allMatch(value -> value >= 0)
+                && injective(output.shape().toLongArray(), out.strides());
     }
 
     private static boolean supportsAggregate(OperationCapabilityQuery query,

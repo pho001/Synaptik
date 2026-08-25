@@ -72,6 +72,11 @@
  * rejected, and each scalar or parallel-scalar range owns whole output cells plus its private
  * scratch slice when L1 or statistics require one.</p>
  *
+ * <p>Softmax binding validates carrier access, spans, alignment, output writability and
+ * injectivity, and complete input/output non-overlap before its focused validator scans every
+ * represented input and maximum shift. Only after that pre-write check can scalar or
+ * parallel-scalar complete-slice calls execute; empty outputs scan, submit, and write nothing.</p>
+ *
  * <p>Runtime retains run-level lifecycle ownership; CPU memory representations retain physical
  * allocation and release ownership. Composition owns and closes the worker group; finalizers,
  * prepared executables, and bound invocations only borrow it.

@@ -220,7 +220,12 @@ fresh floating expressions with Shape-aware axis normalization, exact Shape/type
 retention, unresolved layout, and one-input provenance. Tensor construction performs no numerical
 evaluation, gradient construction, compiler work, backend work, or execution. Current
 package-private compiler autograd supports both floating kinds through their exact forward
-outputs; numerical evaluation, lowering, backend support, and execution remain planned.
+outputs. The current CPU portable route executes exactly one first-class fully static,
+resolved-layout SOFTMAX or LOG_SOFTMAX occurrence for FLOAT64, FLOAT32, or BFLOAT16 over its
+private finite, positive-selected-width subset. It supports heap, native-order segment, and mixed
+carriers, arbitrary legal layouts, complete-slice scalar or parallel-scalar ranges, and zero
+workspace. It never infers this family from a decomposed graph. Other backend and execution forms
+remain planned.
 The `LossKind` vocabulary is implemented with mean-squared error plus dense-target and index-target
 categorical cross entropy directly from logits. The shared loss-only `LossReduction` values are
 `NONE`, `SUM`, and `MEAN`; exact attributes retain each meaning's reduction and, for categorical
@@ -1254,8 +1259,8 @@ right-aligned broadcast must equal the data Shape. Generated code branches on th
 loading data, counts selected positions exactly, and reuses the ordinary exact floating state and
 one final rounding. Three ordered buffers plus one per-range exact-state workspace are declared;
 scalar or parallel-scalar ranges own complete output cells without mask materialization,
-partial/combine state, or selected-count workspace. Schema 45 introduced this family; schema 46
-is current. Retained schema-42 ledger and performance results are historical evidence only.
+partial/combine state, or selected-count workspace. Schema 45 introduced this family; schema 47
+retains it. Retained schema-42 ledger and performance results are historical evidence only.
 
 Completed CPU 0007D adds exactly one fully static resolved-layout `LOG_SUM_EXP`, `VARIANCE`,
 `STANDARD_DEVIATION`, `L1_NORM`, or `L2_NORM` occurrence over matching FLOAT64, FLOAT32, or
@@ -1263,7 +1268,8 @@ BFLOAT16 input and output. One shared CPU-private geometry owns ordered axes and
 cells, while three focused emitters own maximum-shift log-sum-exp, corrected two-pass statistics,
 and exact-L1/scaled-L2 norm bodies. L1 and statistics reuse the existing per-range exact-state
 workspace; log-sum-exp and L2 use primitive locals only. Heap arrays, native-order segments, and
-mixed carriers execute through typed generated entries. Schema 46 is current. This coverage adds
+mixed carriers execute through typed generated entries. Schema 46 introduced this family; schema
+47 retains it. This coverage adds
 no public/shared contract, gradient, compiler, vector/native/fusion/materialization/dynamic-Shape,
 partial/combine, or cross-backend numerical promise.
 
@@ -1358,7 +1364,7 @@ decision occurs in the generated loop.
 ### CPU kernel specialization
 
 The implemented backend-private immutable description of every fact allowed to change one
-generated CPU class. The current form uses schema 46 and includes the canonical lowering fingerprint with
+generated CPU class. The current form uses schema 47 and includes the canonical lowering fingerprint with
 typed opcode sequence, exact scalar-immediate bits, exact ordered clamp-bound bits, and selected
 scalar-power realizations, exact/default numerical mode, generated
 scalar/vector compute form, exact preferred FLOAT32, FLOAT64, INT32, INT64, or BOOL species bit
@@ -1431,14 +1437,14 @@ Keeping the artifact reachable keeps its hidden-class state reachable, without p
 unreferenced class unloads. Direct generator calls produce equal class bytes but distinct hidden
 classes and artifact identities. The current durable generated-kernel artifact store may instead
 reuse compatible class bytes and weakly intern one loaded artifact while it remains live. The
-artifact is not by itself a prepared route. Current schema-46 artifacts execute admitted bounded
+artifact is not by itself a prepared route. Current schema-47 artifacts execute admitted bounded
 pointwise chains, one static affine represented-bit copy, one static
 PAD/TILE/CONCAT/STACK/window-extraction/SLICE_UPDATE movement, one static indexing occurrence,
 one functional-scatter output pass, one overlap-fold pass, one stable ordering/selection pass,
 one explicit-state initializer/dropout pass, one typed cumulative-scan body, one typed
-ordinary-aggregate body, one typed arg-extrema body, one typed masked-reduction body, or one typed
-advanced-reduction body across the implemented carrier patterns. The current-only schema-46
-boundary treats schema 45 and earlier as
+ordinary-aggregate body, one typed arg-extrema body, one typed masked-reduction body, one typed
+advanced-reduction body, or one typed stable-softmax body across the implemented carrier patterns.
+The current-only schema-47 boundary treats schema 46 and earlier as
 safe incompatible misses with no migration reader. Retained schema-42 ledger and performance
 material is historical evidence rather than a current artifact claim.
 
@@ -1815,7 +1821,7 @@ output does not skip a non-empty validation domain; after successful validation 
 generated entry and submits no worker work.
 
 CPU analysis declares unique inputs in semantic first-use order followed by one output. It selects
-one execution unit, no materialization, no workspace, and one current schema-46 artifact whose
+one execution unit, no materialization, no workspace, and one current schema-47 artifact whose
 generated class embeds carrier-, type-, family-, and access-specialized scalar or parallel-scalar
 output writers. Proved dense heap arrays use integer loop/address state; general layouts and
 segment or mixed carriers retain typed long-address traversal. Guarded frozen GATHER and GATHER_ND
@@ -4886,7 +4892,7 @@ finite steps including legal length-one `Long.MIN_VALUE`, handles scalar and emp
 supports arbitrary disjoint scalar or parallel-scalar ranges across heap, segment, and mixed
 carriers. Output/input physical overlap is rejected; exact same-value base/update inputs may share
 one deduplicated boundary. Schema 15 introduced the slice-update family/rank/map structure, and
-current schema 46 retains it;
+current schema 47 retains it;
 concrete placement remains cold. Functional scatter and overlap fold are separate current CPU
 portable families.
 
@@ -4937,6 +4943,24 @@ log-softmax constructs `g - exp(y) * sum(g, axis, true)`. This compiler behavior
 forward numerical algorithm, backend route, or execution result. See [Softmax
 expressions](api/tensor-api.md#softmax-expressions) and [Softmax
 semantic kinds and attributes](api/tensor-api.md#softmax-semantic-kinds-and-attributes).
+
+The current CPU portable route admits exactly one explicit first-class occurrence with fully
+static resolved geometry, FLOAT64/FLOAT32/BFLOAT16 identity, and a positive selected-axis extent.
+It never treats an equivalent-looking decomposed pointwise/reduction graph as stable softmax.
+Every represented input and every `value - sliceMaximum` shift must be finite; this private subset
+lets CPU fail closed where Model and Compiler intentionally make no portable NaN, infinity,
+finite-shift-overflow, or zero-selected-width promise. A zero extent on a non-selected axis yields
+an empty output and no value scan, write, generated call, or worker submission.
+
+Cold execution accepts typed heap arrays, native-order `MemorySegment` carriers, and mixed pairs
+over arbitrary resolved legal layouts. It validates carrier access, spans, alignment, output
+injectivity, complete non-overlap, and the full admitted value domain before mutation or worker
+submission. Complete-slice ranges use zero workspace. Both kinds use a stable three-pass
+maximum/compensated-shifted-exponential-sum/final-store algorithm. SOFTMAX computes exponentials
+and division but no logarithm; LOG_SOFTMAX computes one `Math.log(sum)` per slice and stores the
+shift minus that logarithm. Schema 47 identifies the direct typed generated family. These facts
+are CPU-private algorithm and capability boundaries, not unsupported cross-backend semantic or
+bitwise promises.
 
 ### Layer normalization
 

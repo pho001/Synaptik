@@ -150,9 +150,12 @@ public final class CpuGeneratorSchema {
      * mask broadcasting, early false exclusion, runtime selected counts, and exact-state scratch.
      * Schema 46 adds direct typed LOG_SUM_EXP, VARIANCE, STANDARD_DEVIATION, L1_NORM, and L2_NORM
      * complete-output-cell bodies plus their ordered-axis, correction, pass, and resource identity.
+     * Schema 47 adds direct typed SOFTMAX and LOG_SOFTMAX complete-slice bodies, including their
+     * operation kind, selected axis, finite-input contract, pass structure, and exact layout
+     * identity.
      * Envelopes written for earlier schemas are incompatible misses.
      */
-    public static final int CURRENT_VERSION = 46;
+    public static final int CURRENT_VERSION = 47;
     /** Generated entry name. */ public static final String ENTRY_NAME = "invoke";
     private CpuGeneratorSchema() { }
 

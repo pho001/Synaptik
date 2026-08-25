@@ -15,6 +15,7 @@ import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuAggregateLower
 import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuArgExtremaLowering;
 import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuMaskedReductionLowering;
 import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuAdvancedReductionLowering;
+import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuSoftmaxLowering;
 import io.github.pho001.synaptik.backend.cpu.internal.memory.CpuBufferArgument;
 import io.github.pho001.synaptik.backend.cpu.internal.memory.CpuBufferRepresentation;
 import io.github.pho001.synaptik.backend.cpu.internal.memory.CpuContiguousWorkspace;
@@ -95,6 +96,7 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
     private final Optional<CpuArgExtremaLowering.Geometry> argExtremaGeometry;
     private final Optional<CpuMaskedReductionLowering.Geometry> maskedReductionGeometry;
     private final Optional<CpuAdvancedReductionLowering.Geometry> advancedReductionGeometry;
+    private final Optional<CpuSoftmaxLowering.Geometry> softmaxGeometry;
 
     /**
      * Creates a direct derived-boundary recipe for one exact half-open logical range.
@@ -138,7 +140,7 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
                 materialization, workspaceSelection, affineAddressPairs, movementGeometry,
                 indexingGeometry, scatterGeometry, foldGeometry, orderingGeometry,
                 Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(),
-                Optional.empty(), Optional.empty());
+                Optional.empty(), Optional.empty(), Optional.empty());
     }
 
     /**
@@ -501,6 +503,7 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
      *     broadcast, output-cell, and exact-state geometry
      * @param advancedReductionGeometry non-null optional logarithmic, statistical, or norm
      *     complete-output-cell and exact-state geometry
+     * @param softmaxGeometry non-null optional zero-workspace complete-slice normalization geometry
      * @throws NullPointerException if a required reference or list element is null
      * @throws IllegalArgumentException if memory, boundary, carrier, range, worker, geometry,
      *     workspace, or specialization facts disagree
@@ -522,7 +525,8 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
             Optional<CpuAggregateLowering.Geometry> aggregateGeometry,
             Optional<CpuArgExtremaLowering.Geometry> argExtremaGeometry,
             Optional<CpuMaskedReductionLowering.Geometry> maskedReductionGeometry,
-            Optional<CpuAdvancedReductionLowering.Geometry> advancedReductionGeometry) {
+            Optional<CpuAdvancedReductionLowering.Geometry> advancedReductionGeometry,
+            Optional<CpuSoftmaxLowering.Geometry> softmaxGeometry) {
         super(memoryPlan, selections, workspaceSelection.map(List::of).orElseGet(List::of),
                 accesses(selections.size(), randomGeometry.map(g -> g.family()
                         == io.github.pho001.synaptik.backend.cpu.internal.ir.CpuRandomIr.Family.DROPOUT
@@ -553,7 +557,10 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
                 "maskedReductionGeometry");
         this.advancedReductionGeometry = Objects.requireNonNull(advancedReductionGeometry,
                 "advancedReductionGeometry");
-        long count = this.advancedReductionGeometry.isPresent()
+        this.softmaxGeometry = Objects.requireNonNull(softmaxGeometry, "softmaxGeometry");
+        long count = this.softmaxGeometry.isPresent()
+                ? this.softmaxGeometry.orElseThrow().sliceCount()
+                : this.advancedReductionGeometry.isPresent()
                 ? this.advancedReductionGeometry.orElseThrow().outputCount()
                 : this.maskedReductionGeometry.isPresent()
                 ? this.maskedReductionGeometry.orElseThrow().outputCount()
@@ -601,6 +608,7 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
                 +(this.aggregateGeometry.isPresent()?1:0)+(this.argExtremaGeometry.isPresent()?1:0);
         geometryCount += this.maskedReductionGeometry.isPresent() ? 1 : 0;
         geometryCount += this.advancedReductionGeometry.isPresent() ? 1 : 0;
+        geometryCount += this.softmaxGeometry.isPresent() ? 1 : 0;
         if (geometryCount>1) {
             throw new IllegalArgumentException("affine, movement, indexing, scatter, and fold geometry are exclusive");
         }
@@ -639,6 +647,7 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
      * @return a new immutable ranged binding
      */
     public CpuAccessPlan.Binding binding() {
+        if (softmaxGeometry.isPresent()) return bindings.getLast();
         return ranged(movementGeometry.isPresent() || indexingGeometry.isPresent()
                 || scatterGeometry.isPresent() || foldGeometry.isPresent() || orderingGeometry.isPresent()
                 || randomGeometry.isPresent()
@@ -655,6 +664,7 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
      * @return a new immutable list in boundary order with route-appropriate ranges
      */
     public List<CpuAccessPlan.Binding> accessBindings() {
+        if (softmaxGeometry.isPresent()) return bindings;
         if (movementGeometry.isPresent() || indexingGeometry.isPresent()
                 || scatterGeometry.isPresent() || foldGeometry.isPresent() || orderingGeometry.isPresent()
                 || randomGeometry.isPresent() || scanGeometry.isPresent()
@@ -686,7 +696,7 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
                 workspaceSelection, affineCopy ? affineAddressPairs : null, movementGeometry,
                 indexingGeometry, scatterGeometry, foldGeometry, orderingGeometry, randomGeometry,
                 scanGeometry, aggregateGeometry, argExtremaGeometry, maskedReductionGeometry,
-                advancedReductionGeometry);
+                advancedReductionGeometry, softmaxGeometry);
     }
 
     private CpuAccessPlan.Binding ranged(CpuAccessPlan.Binding source) {
@@ -792,7 +802,7 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
                             || orderingGeometry.isPresent() || scanGeometry.isPresent()
                             || aggregateGeometry.isPresent() || argExtremaGeometry.isPresent()
                             || maskedReductionGeometry.isPresent()
-                            || advancedReductionGeometry.isPresent()
+                            || advancedReductionGeometry.isPresent() || softmaxGeometry.isPresent()
                         ? overlaps(arguments.get(input), inputBinding,
                             arguments.get(firstOutputIndex), bindings.get(firstOutputIndex))
                         : overlaps(arguments.get(input), ranged(inputBinding),
@@ -837,6 +847,9 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
         if (workerGroup != null && hasWorkspace && !workerGroup.workersCanAccess(
                 ((CpuContiguousWorkspace) workspaces[0]).writableSegment()))
             throw new IllegalArgumentException("scratch is not accessible to every CPU worker");
+        if (softmaxGeometry.isPresent()) {
+            CpuSoftmaxInputValidator.validate(arguments.getFirst(), softmaxGeometry.orElseThrow());
+        }
         if (aggregateGeometry.filter(g -> g.scratchSliceBytes() > 0
                 && g.outputCount() > 0).isPresent()) {
             MemorySegment aggregateScratch = scratch(workspaces);
@@ -948,6 +961,14 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
 
     private long[] geometry(List<CpuBufferArgument> arguments, long rangeStart, long rangeEnd,
             int rangeIndex) {
+        if (softmaxGeometry.isPresent()) {
+            long[] bases = new long[2];
+            for (int index = 0; index < 2; index++) {
+                int width = artifact.specialization().boundaryDataTypes().get(index).byteWidth();
+                bases[index] = arguments.get(index).byteOffset() / width;
+            }
+            return softmaxGeometry.orElseThrow().pack(bases);
+        }
         if (advancedReductionGeometry.isPresent()) {
             long[] bases = new long[2];
             for (int index = 0; index < 2; index++) {

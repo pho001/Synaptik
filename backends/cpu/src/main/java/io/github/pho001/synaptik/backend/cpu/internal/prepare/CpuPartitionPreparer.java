@@ -109,7 +109,9 @@ public final class CpuPartitionPreparer implements BackendPartitionPreparer<
                 instanceof io.github.pho001.synaptik.backend.cpu.internal.ir.CpuMaskedReductionIr;
         boolean advancedReduction = lowered.portableKernelIr()
                 instanceof io.github.pho001.synaptik.backend.cpu.internal.ir.CpuAdvancedReductionIr;
-        Optional<CpuMaterializationPlan> materialization = movement || indexing || scatter || fold || ordering || random || scan || aggregate || argExtrema || maskedReduction || advancedReduction ? Optional.empty()
+        boolean softmax = lowered.portableKernelIr()
+                instanceof io.github.pho001.synaptik.backend.cpu.internal.ir.CpuSoftmaxIr;
+        Optional<CpuMaterializationPlan> materialization = movement || indexing || scatter || fold || ordering || random || scan || aggregate || argExtrema || maskedReduction || advancedReduction || softmax ? Optional.empty()
                 : selectMaterialization(lowered, context.backendInputs().materializationPolicy());
         var declarations = new ArrayList<PreparationResourceRequirement.Buffer>(lowered.boundaryValues().size());
         for (int i = 0; i < lowered.boundaryValues().size(); i++) declarations.add(
@@ -132,7 +134,7 @@ public final class CpuPartitionPreparer implements BackendPartitionPreparer<
         DataType vectorType = vectorLaneType(kernelIr);
         int lanes = speciesLanes(vectorType);
         int speciesBits = speciesBits(vectorType);
-        boolean vectorEligible = !affineCopy && !indexing && !scatter && !fold && !ordering && !random && !scan && !aggregate && !argExtrema && !maskedReduction && !advancedReduction && config.computePreference()
+        boolean vectorEligible = !affineCopy && !indexing && !scatter && !fold && !ordering && !random && !scan && !aggregate && !argExtrema && !maskedReduction && !advancedReduction && !softmax && config.computePreference()
                         == CpuPartitionAnalysisInputs.PortableExecutionConfig.ComputePreference.VECTOR_IF_ELIGIBLE
                 && vectorType != null && lanes > 1 && lowered.elementCount() >= lanes
                 && vectorTopologyEligible(kernelIr, vectorType)
@@ -250,7 +252,9 @@ public final class CpuPartitionPreparer implements BackendPartitionPreparer<
                 lowered.movementGeometry(), lowered.indexingGeometry(), lowered.scatterGeometry(),
                 lowered.foldGeometry(), lowered.orderingGeometry(), lowered.randomGeometry(),
                 lowered.scanGeometry(), lowered.aggregateGeometry(), lowered.argExtremaGeometry(),
-                lowered.maskedReductionGeometry(), lowered.advancedReductionGeometry());
+                lowered.maskedReductionGeometry(), lowered.advancedReductionGeometry(),
+                lowered.softmaxGeometry());
+
         var requirements = new ArrayList<PreparationResourceRequirement>(declarations);
         plan.workspaceDeclaration().ifPresent(requirements::add);
         return new BackendPartitionAnalysis<>(context.partition(), plan, requirements);

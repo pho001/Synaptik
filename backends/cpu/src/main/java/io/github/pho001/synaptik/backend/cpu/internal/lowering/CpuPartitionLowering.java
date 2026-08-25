@@ -63,6 +63,7 @@ public final class CpuPartitionLowering {
             new CpuMaskedReductionLowering();
     private final CpuAdvancedReductionLowering advancedReductionLowering =
             new CpuAdvancedReductionLowering();
+    private final CpuSoftmaxLowering softmaxLowering = new CpuSoftmaxLowering();
 
     /** Creates a stateless lowering boundary with the current CPU capability and power analysis. */
     public CpuPartitionLowering() { }
@@ -88,6 +89,9 @@ public final class CpuPartitionLowering {
         }
         if (context.nodes().size() == 1) {
             Object kind = context.nodes().getFirst().operation().kind();
+            if (kind instanceof io.github.pho001.synaptik.model.operation.normalization.SoftmaxKind) {
+                return softmaxLowering.lower(context);
+            }
             if (kind instanceof io.github.pho001.synaptik.model.operation.reduction.AggregateReductionKind) {
                 if (kind == io.github.pho001.synaptik.model.operation.reduction.AggregateReductionKind.LOG_SUM_EXP
                         || kind == io.github.pho001.synaptik.model.operation.reduction.AggregateReductionKind.VARIANCE
@@ -500,6 +504,7 @@ public final class CpuPartitionLowering {
      * @param argExtremaGeometry compact cold one-axis logical-index geometry
      * @param maskedReductionGeometry compact cold directional masked-reduction geometry
      * @param advancedReductionGeometry compact cold logarithmic/statistical/norm geometry
+     * @param softmaxGeometry compact cold shape-preserving normalization geometry
      */
     public record LoweredPartition(CpuPortableKernelIr portableKernelIr, List<ValueId> boundaryValues,
             List<CpuAccessPlan.Binding> accessBindings, List<Long> referencedElementSpans,
@@ -515,7 +520,8 @@ public final class CpuPartitionLowering {
             Optional<CpuAggregateLowering.Geometry> aggregateGeometry,
             Optional<CpuArgExtremaLowering.Geometry> argExtremaGeometry,
             Optional<CpuMaskedReductionLowering.Geometry> maskedReductionGeometry,
-            Optional<CpuAdvancedReductionLowering.Geometry> advancedReductionGeometry) {
+            Optional<CpuAdvancedReductionLowering.Geometry> advancedReductionGeometry,
+            Optional<CpuSoftmaxLowering.Geometry> softmaxGeometry) {
 
         /**
          * Creates an existing-family lowering with optional aggregate geometry and no
@@ -558,7 +564,8 @@ public final class CpuPartitionLowering {
                     boundaryDataTypes, virtualValues, extents, elementCount, fusionReason,
                     affineAddressPairs, movementGeometry, indexingGeometry, scatterGeometry,
                     foldGeometry, orderingGeometry, randomGeometry, scanGeometry,
-                    aggregateGeometry, Optional.empty(), Optional.empty(), Optional.empty());
+                    aggregateGeometry, Optional.empty(), Optional.empty(), Optional.empty(),
+                    Optional.empty());
         }
 
         /**
@@ -600,7 +607,7 @@ public final class CpuPartitionLowering {
                     boundaryDataTypes, virtualValues, extents, elementCount, fusionReason,
                     affineAddressPairs, movementGeometry, indexingGeometry, scatterGeometry,
                     foldGeometry, orderingGeometry, randomGeometry, scanGeometry, Optional.empty(),
-                    Optional.empty(), Optional.empty(), Optional.empty());
+                    Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty());
         }
 
         /**
@@ -640,7 +647,7 @@ public final class CpuPartitionLowering {
                     boundaryDataTypes, virtualValues, extents, elementCount, fusionReason,
                     affineAddressPairs, movementGeometry, indexingGeometry, scatterGeometry,
                     foldGeometry, orderingGeometry, randomGeometry, Optional.empty(), Optional.empty(),
-                    Optional.empty(), Optional.empty(), Optional.empty());
+                    Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty());
         }
 
         /**
@@ -678,7 +685,7 @@ public final class CpuPartitionLowering {
                     boundaryDataTypes, virtualValues, extents, elementCount, fusionReason,
                     affineAddressPairs, movementGeometry, indexingGeometry, scatterGeometry,
                     foldGeometry, orderingGeometry, Optional.empty(), Optional.empty(), Optional.empty(),
-                    Optional.empty(), Optional.empty(), Optional.empty());
+                    Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty());
         }
         /**
          * Creates a pointwise or affine lowering without movement geometry.
@@ -706,7 +713,7 @@ public final class CpuPartitionLowering {
                     boundaryDataTypes, virtualValues, extents, elementCount, fusionReason,
                     affineAddressPairs, Optional.empty(), Optional.empty(), Optional.empty(),
                     Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(),
-                    Optional.empty(), Optional.empty(), Optional.empty());
+                    Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty());
         }
 
         /**
@@ -734,7 +741,7 @@ public final class CpuPartitionLowering {
                     boundaryDataTypes, virtualValues, extents, elementCount, fusionReason,
                     affineAddressPairs, movementGeometry, Optional.empty(), Optional.empty(),
                     Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(),
-                    Optional.empty(), Optional.empty(), Optional.empty());
+                    Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty());
         }
 
         /**
@@ -766,7 +773,7 @@ public final class CpuPartitionLowering {
                     boundaryDataTypes, virtualValues, extents, elementCount, fusionReason,
                     affineAddressPairs, movementGeometry, indexingGeometry, Optional.empty(),
                     Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(),
-                    Optional.empty(), Optional.empty(), Optional.empty());
+                    Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty());
         }
         /**
          * Validates matching boundary facts and snapshots every mutable collection or array.
@@ -813,6 +820,7 @@ public final class CpuPartitionLowering {
                     "maskedReductionGeometry");
             advancedReductionGeometry = Objects.requireNonNull(advancedReductionGeometry,
                     "advancedReductionGeometry");
+            softmaxGeometry = Objects.requireNonNull(softmaxGeometry, "softmaxGeometry");
             Objects.requireNonNull(fusionReason, "fusionReason");
             int size = boundaryValues.size();
             if (size < 1 || accessBindings.size() != size || referencedElementSpans.size() != size
@@ -863,6 +871,8 @@ public final class CpuPartitionLowering {
                                                         ? masked.encodedKernelIr()
                                                     : portableKernelIr instanceof io.github.pho001.synaptik.backend.cpu.internal.ir.CpuAdvancedReductionIr advanced
                                                         ? advanced.encodedKernelIr()
+                                                    : portableKernelIr instanceof io.github.pho001.synaptik.backend.cpu.internal.ir.CpuSoftmaxIr softmax
+                                                        ? softmax.encodedKernelIr()
                                                     : ((io.github.pho001.synaptik.backend.cpu.internal.ir.CpuAggregateIr)
                                                         portableKernelIr).encodedKernelIr();
         }

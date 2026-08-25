@@ -161,6 +161,11 @@
  * emits exact represented L1 or scaled-squares L2. Generated entries call no Synaptik numerical
  * helper and narrow once at the final store.</p>
  *
+ * <p>The focused softmax emitter owns both generation-time first-class kinds. It emits direct
+ * maximum, compensated shifted-exponential-sum, and result-store passes, uses complete-slice
+ * bounds, embeds typed carrier/layout addressing and BFLOAT16 conversion, and calls no Synaptik
+ * validator, reference kernel, semantic dispatcher, or numerical helper.</p>
+ *
  * <p>Covered scalar activation formulas, BFLOAT16 scan arithmetic and rounding, and aggregate
  * extrema/Boolean combination are emitted directly. Those per-element bodies therefore have no
  * runtime reference to another Synaptik class. The selected bounded movement classes likewise

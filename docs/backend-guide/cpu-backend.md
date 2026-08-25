@@ -1182,7 +1182,7 @@ independent primitive-index insertion implementation for differential evidence; 
 Runtime fallback.
 
 Schema 27 introduced the complete carrier-, represented-type-, family-, direction-, output-,
-and access-specialized ordering body, which current schema 46 retains. It uses a stable bottom-up
+and access-specialized ordering body, which current schema 47 retains. It uses a stable bottom-up
 merge over the two assigned
 INT64 scratch regions, selecting the left logical index on equality. Dense heap-array forms use
 cold-proved integer loop and address state. Arbitrary supported layouts and heap, segment, or
@@ -1416,8 +1416,8 @@ production tuning input. Two earlier five-fork samples were rejected in full bec
 row exceeded the fixed gate in one fork, so neither rejected sample contributes accepted ratios.
 
 Current coverage ends at this one-node static portable family. Ordinary aggregates, arg extrema,
-masked reductions, and advanced reductions are the separate current families below. Stable
-`SOFTMAX`/`LOG_SOFTMAX` and normalization remain Draft CPU 0007E–0007F work. Multi-node scan
+masked reductions, advanced reductions, and stable softmax are the separate current families
+below. Layer, RMS, and batch normalization remain Draft CPU 0007F work. Multi-node scan
 fusion, partial scans, cross-worker prefix combination, vector or native scan bodies, dynamic
 Shape/layout binding, in-place/overlapping execution, public scan configuration, and a shared
 Runtime scan primitive are not implemented.
@@ -1617,8 +1617,9 @@ order and produce bit-identical results. This is a deterministic CPU result guar
 that floating output arithmetic is mathematically associative or that another backend uses the
 same NaN policy.
 
-Current coverage ends at this one-node static family. Arg extrema and masked reductions are the
-separate current families below. Advanced reductions, softmax, normalization, multi-node reduction fusion,
+Current coverage ends at this one-node static family. Arg extrema, masked reductions, advanced
+reductions, and stable softmax are the separate current families below. Layer, RMS, and batch
+normalization, multi-node reduction fusion,
 within-domain parallelism, partial/combine trees, vector/native reduction bodies, dynamic
 Shape/layout binding, in-place overlap, tuning, and broader performance guarantees remain outside
 this increment. The task's fixed generated/direct measurements are acceptance evidence for its
@@ -1814,7 +1815,82 @@ work, and stores. The worst fork ratio was `1.099406784x` and the worst median a
 
 This family does not add public or shared semantics, gradients, compiler behavior, vector or
 native execution, fusion, materialization, dynamic Shapes/layouts, partial/combine state, or a
-cross-backend numerical promise. Stable softmax and log-softmax remain Draft CPU 0007E work.
+cross-backend numerical promise. Stable softmax and log-softmax are the separate current family
+below.
+
+### Current stable-softmax family
+
+The portable stable-softmax family accepts exactly one first-class, fully static,
+resolved-layout `SOFTMAX` or `LOG_SOFTMAX` occurrence. CPU never recognizes an equivalent-looking
+maximum/subtraction/exponential/reduction/division/logarithm graph as this family. Input and output
+use the same FLOAT64, FLOAT32, or BFLOAT16 representation and exact Shape, and retain matching
+gradient-eligibility metadata. The selected normalized axis must have positive extent. A zero
+extent on any non-selected axis instead makes the shape-preserving output empty, so execution
+performs no value scan, generated call, write, or worker submission.
+
+This route deliberately admits a CPU-private numerical subset. Every represented input and every
+selected-width shift `value - sliceMaximum` must be finite. The restriction exists because Model
+and Compiler define the first-class mathematical meaning but intentionally leave NaN, infinity,
+finite shift overflow, and a zero selected-axis extent unsettled for executable policy. CPU rejects
+those cases rather than inventing portable results or implying that another backend must reject
+them.
+
+Cold binding first validates the exact heap-array or native-order `MemorySegment` carrier,
+thread access, liveness, alignment, complete referenced span, output writability and injectivity,
+and complete input/output non-overlap. A focused validator then checks the entire admitted value
+domain before any output mutation or worker submission. Heap, segment, and mixed input/output
+pairs are supported for `double[]`, `float[]`, and raw-BFLOAT16 `short[]` carriers. Arbitrary
+resolved legal non-negative layouts are supported, including positive offsets, non-contiguous
+injective output strides, and zero input strides.
+
+Each generated range counts complete normalization slices rather than individual elements. Slice
+coordinates follow canonical logical row-major order over non-selected axes, and selected-axis
+coordinates increase within a slice. Scalar and parallel-scalar execution therefore never split
+one normalization slice and need no workspace, materialization, partial result, or combine state.
+
+Both kinds use three direct passes:
+
+1. retain the first maximum on an equal-value tie;
+2. accumulate `exp(value - maximum)` with a compensated primitive sum; and
+3. write the kind-specific result.
+
+SOFTMAX writes `exp(value - maximum) / sum` and computes no logarithm. LOG_SOFTMAX computes
+`log(sum)` once per complete slice after pass two and writes
+`(value - maximum) - log(sum)` without reevaluating the exponential in pass three. FLOAT64 and
+FLOAT32 use binary64 maximum, shifts, exponential/logarithm results, and compensated sums.
+BFLOAT16 decodes to binary32, uses binary32 maximum, shifts, and compensated accumulation, narrows
+each `Math.exp` or `Math.log` result at the formula point, and rounds the final result once to
+BFLOAT16. These are CPU-private finite-precision choices, not public promotion or cross-backend
+bitwise semantics.
+
+For example, one admitted slice `[1, 2, 3]` produces approximately
+`[0.09003057, 0.24472847, 0.66524096]` for SOFTMAX and
+`[-2.40760596, -1.40760596, -0.40760596]` for LOG_SOFTMAX. The first row sums approximately to
+one, and exponentiating the second reconstructs it. This numerical walkthrough illustrates the
+first-class meanings; it does not extend the CPU-private admitted subset into a portable
+special-value or bitwise contract.
+
+Schema 47 records the first-class kind, selected axis, representation, stable algorithm and pass
+shape, access plans, carrier forms, and direct emitted-body identity. Generated classes are final,
+field-free, constructor-free, and expose one typed static entry with packed primitive geometry and
+complete-slice `start`/`end` bounds. Generated SOFTMAX contains no `Math.log` reference;
+LOG_SOFTMAX retains its required logarithm. Complete inspection found no allocation, boxing,
+reflection, method handle, `invokedynamic`, collection, semantic dispatch, or Synaptik numerical
+helper in the retained generated targets.
+
+The retained evidence covers eight generated targets and three unchanged-family controls across
+five sequential isolated Java virtual machine forks. All 55 per-fork and all 11 aggregate ratios
+were at most `1.15x` against optimal clean Java implementations with the same validation,
+algorithm, pass/dataflow shape, addressing, narrowing, and stores. The worst fork ratio was
+`1.119471916x` for BFLOAT16 LOG_SOFTMAX heap in fork 2; the worst aggregate ratio was
+`1.113919290x` for the same case. This evidence is bounded to the recorded classes, host, Java
+version, and protocol. It is not a universal throughput, tuning, vector/native, or cross-backend
+claim.
+
+This family adds no public API, Model or Compiler semantic change, backward execution, vector or
+native route, fusion, dynamic Shape/layout support, overlap allowance, workspace algorithm,
+backend conformance result, or integration guarantee. Layer, RMS, and batch normalization remain
+separate Draft CPU 0007F work.
 
 ### Unary numerical closure
 
@@ -2292,17 +2368,17 @@ architecture capability checkpoint then passed, and the provider milestone is co
 The current CPU foundation provides the bounded fully static pointwise matrix, static
 resolved-layout affine family, and one-node static movement, indexing, functional-scatter,
 overlap-fold, stable ordering, explicit-state random, cumulative-scan, aggregate, arg-extrema,
-masked-reduction, and advanced-reduction
+masked-reduction, advanced-reduction, and stable-softmax
 families
 described above. Scalar
 execution covers every admitted row; parallel-scalar orchestration is available for disjoint
 affine, movement, scatter, fold, ordering, random-element, whole-scan-slice, whole-aggregate-
-output-cell, whole-arg-extrema-output-cell, whole-masked-reduction-output-cell, and whole-advanced-
-reduction-output-cell ranges; and the
+output-cell, whole-arg-extrema-output-cell, whole-masked-reduction-output-cell, whole-advanced-
+reduction-output-cell, and whole-softmax-slice ranges; and the
 pointwise family retains its exact typed value-vector and virtual-mask parity matrix. Generator
-schema 46 distinguishes pointwise,
+schema 47 distinguishes pointwise,
 affine, movement, indexing, scatter, fold, ordering, random, scan, aggregate, arg-extrema, and
-masked-reduction and advanced-reduction
+masked-reduction, advanced-reduction, and softmax
 structures,
 including movement occurrence order,
 unequal-rank access, exact
@@ -2341,7 +2417,9 @@ topology, three typed boundaries, early false exclusion, invocation-local select
 direct exact-state SUM/MEAN bodies described above. Retained schema-42 ledger and performance
 material is explicitly historical. Schema 46 adds ordered advanced-reduction axes, correction,
 algorithm/pass and resource identity, plus the three focused direct numerical bodies described
-above; schema 46 is the only current compatible artifact envelope.
+above. Schema 47 adds first-class softmax/log-softmax kind, selected-axis, type-specific stable
+algorithm/pass, access, carrier, and direct emitted-body identity; schema 47 is the only current
+compatible artifact envelope. Schema-46 and earlier envelopes are incompatible safe misses.
 No excluded
 aggregate/scatter form or later semantic family,
 general BFLOAT16 pointwise or dropout numerical operation,
