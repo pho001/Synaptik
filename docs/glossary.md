@@ -4892,7 +4892,7 @@ finite steps including legal length-one `Long.MIN_VALUE`, handles scalar and emp
 supports arbitrary disjoint scalar or parallel-scalar ranges across heap, segment, and mixed
 carriers. Output/input physical overlap is rejected; exact same-value base/update inputs may share
 one deduplicated boundary. Schema 15 introduced the slice-update family/rank/map structure, and
-current schema 47 retains it;
+current schema 48 retains it;
 concrete placement remains cold. Functional scatter and overlap fold are separate current CPU
 portable families.
 
@@ -4985,6 +4985,14 @@ typed epsilon, and delegates each forward call to the public affine `Tensor.laye
 It adds no normalization mathematics, numerical algorithm, Tensor-result claim, gradient rule,
 compiler or backend support, or execution behavior.
 
+The current CPU portable route executes only the explicit first-class input-only or three-input
+affine occurrence when Shapes and layouts are fully static and resolved. Complete leading-slice
+ranges use a three-pass exact-mean/population-variance/store algorithm and one disjoint existing
+exact-state workspace slice per simultaneous range. BFLOAT16/FLOAT32 results use FLOAT32 formula
+boundaries and FLOAT64 results use FLOAT64; this is CPU-private finite-precision behavior, not a
+portable bitwise promise. Decomposed graphs, dynamic Shapes, fusion, vector/native execution, and
+materialization are not recognized by this route.
+
 ### RMS normalization
 
 Implemented shape-preserving root-mean-square normalization that divides every value in a
@@ -5000,6 +5008,14 @@ square, capture a graph, create saved statistics, select an algorithm, or execut
 package-private compiler autograd supports the input and optional scale roles through ordinary
 population-mean Tensor expressions.
 See [RMS-normalization expressions](api/tensor-api.md#rms-normalization-expressions).
+
+The current CPU portable route executes only the explicit first-class input-only or two-input
+scaled occurrence when Shapes and layouts are fully static and resolved. Its two complete passes
+use scaled sum of squares and then normalize/optionally scale with zero workspace. It shares the
+Layer route's ordered floating promotion, computation-format boundary, typed heap/segment carrier
+support, complete-slice determinism, and no-decomposed-graph rule. This CPU implementation does
+not add a portable bitwise promise, saved statistics, fusion, vector/native execution, dynamic
+Shape support, or materialization.
 
 ### Batch normalization / batch-normalization inference and training
 

@@ -1416,8 +1416,8 @@ production tuning input. Two earlier five-fork samples were rejected in full bec
 row exceeded the fixed gate in one fork, so neither rejected sample contributes accepted ratios.
 
 Current coverage ends at this one-node static portable family. Ordinary aggregates, arg extrema,
-masked reductions, advanced reductions, and stable softmax are the separate current families
-below. Layer, RMS, and batch normalization remain Draft CPU 0007F work. Multi-node scan
+masked reductions, advanced reductions, stable softmax, and trailing Layer/RMS normalization are
+the separate current families below. Batch normalization remains later CPU work. Multi-node scan
 fusion, partial scans, cross-worker prefix combination, vector or native scan bodies, dynamic
 Shape/layout binding, in-place/overlapping execution, public scan configuration, and a shared
 Runtime scan primitive are not implemented.
@@ -1618,8 +1618,8 @@ that floating output arithmetic is mathematically associative or that another ba
 same NaN policy.
 
 Current coverage ends at this one-node static family. Arg extrema, masked reductions, advanced
-reductions, and stable softmax are the separate current families below. Layer, RMS, and batch
-normalization, multi-node reduction fusion,
+reductions, stable softmax, and trailing Layer/RMS normalization are the separate current families
+below. Batch normalization, multi-node reduction fusion,
 within-domain parallelism, partial/combine trees, vector/native reduction bodies, dynamic
 Shape/layout binding, in-place overlap, tuning, and broader performance guarantees remain outside
 this increment. The task's fixed generated/direct measurements are acceptance evidence for its
@@ -1889,8 +1889,90 @@ claim.
 
 This family adds no public API, Model or Compiler semantic change, backward execution, vector or
 native route, fusion, dynamic Shape/layout support, overlap allowance, workspace algorithm,
-backend conformance result, or integration guarantee. Layer, RMS, and batch normalization remain
-separate Draft CPU 0007F work.
+backend conformance result, or integration guarantee. Layer/RMS normalization is the separate
+current family below; batch normalization remains later CPU work.
+
+### Current trailing Layer/RMS-normalization family
+
+The portable trailing-normalization family accepts exactly one explicit first-class
+`LAYER_NORM` or `RMS_NORM` occurrence with fully static Shapes and resolved non-negative layouts.
+It never reconstructs normalization from a decomposed arithmetic/reduction graph. A positive-rank
+normalized Shape must equal the input's trailing Shape, and every optional parameter has that
+exact Shape. The four admitted forms are:
+
+| Family form | Ordered inputs | Calculation after the shared statistic |
+|---|---|---|
+| Layer | `[input]` | Standardize |
+| Affine Layer | `[input, scale, bias]` | Standardize, multiply by scale, then add bias |
+| RMS | `[input]` | Divide by the root mean square |
+| Scaled RMS | `[input, scale]` | Divide, then multiply by scale |
+
+Every input may independently be BFLOAT16, FLOAT32, or FLOAT64. Promotion follows occurrence
+order—input/scale/bias for affine Layer and input/scale for scaled RMS—and the output plus exact
+typed epsilon must use the resulting type. Reads convert each represented input to that result
+type before numerical work. BFLOAT16 and FLOAT32 results use FLOAT32 formula boundaries, including
+the rounded Layer mean and final divide/multiply/add; FLOAT64 uses FLOAT64. BFLOAT16 is encoded
+once at the final store. This is a CPU-private conforming computation boundary, not a public cast,
+result-format change, or cross-backend bitwise promise.
+
+A Layer slice with values `x_i` and population count `N` requests:
+
+```text
+mean           = sum_i(x_i) / N
+variance       = sum_i((x_i - mean)^2) / N
+standardized_i = (x_i - mean) / sqrt(variance + epsilon)
+```
+
+The generated body uses three complete passes. The first classifies the slice and calculates its
+exact represented-value sum in the existing exact-state workspace before rounding the mean once.
+The second forms compensated sums of deviations and squared deviations, applies the correction
+`sumSquares - sumDeviation^2 / N`, clamps only a negative roundoff residue to positive zero, and
+divides by `N`. The third standardizes and, for the affine form, performs separate result-format
+multiply and add operations. A finite constant slice, including mixed signed zeros, standardizes
+to exact positive zero; NaN or either infinity makes every standardized value NaN.
+
+RMS normalization instead uses the uncentered population mean square:
+
+```text
+root         = sqrt(sum_i(x_i * x_i) / N + epsilon)
+normalized_i = x_i / root
+```
+
+Its first pass uses scaled sum of squares to avoid avoidable finite overflow or underflow while
+forming the root; its second divides and optionally scales. NaN has priority. Without NaN, an
+infinite input makes the root positive infinity, so finite numerators produce signed zero and
+infinite numerators produce NaN. RMS requires zero workspace. Layer declares exactly one existing
+eight-byte-aligned `AGGREGATE_EXACT_STATE` slice per simultaneous range; neither family declares
+materialization, partial values, combine state, saved statistics, or another resource kind.
+
+Each range owns complete leading slices and never divides a normalized slice. Scalar and
+parallel-scalar execution therefore visit every slice in the same logical row-major order and are
+raw-bit deterministic for the same prepared inputs; simultaneous Layer ranges receive disjoint
+scratch. Empty leading or normalized extents perform no read, write, scratch access, generated
+call, or worker submission. Cold binding first validates each typed heap array or native-order
+`MemorySegment`, thread access, liveness, alignment, complete span, output injectivity, and every
+output/input and workspace overlap. Repeated logical inputs share one boundary in first-use order.
+
+Schema 48 freezes family and form, ordered types and boundary map, exact epsilon bits, normalized
+rank and code-shaping geometry, pass/resource identity, access plans, and concrete carrier forms.
+Generated segment access uses static typed native-order layouts; it does not construct a
+`ValueLayout` on each invocation. The 17 retained Java 26 generated classes are final,
+field-free, constructor-free, and expose one typed static entry. Full Class-File/member scans found
+no forbidden member or opcode and confirmed the direct three-pass Layer and two-pass RMS bodies.
+Schema 47 and earlier envelopes are incompatible safe misses.
+
+The bounded performance evidence compares fourteen Layer/RMS targets and three unchanged-family
+controls with frozen optimal clean Java implementations that perform the same validation,
+arithmetic, pass/dataflow shape, address work, conversions, and stores. All 85 per-fork and 17
+aggregate ratios passed `<= 1.15x` across five isolated forks. The worst fork ratio was
+`1.136183168x`; the worst aggregate ratio was `1.113266704x`, both for BFLOAT16 RMS. This proves
+only the recorded cases, source, Java/runtime, host, and protocol. It is not a universal speedup,
+tuning result, native/vector guarantee, or performance claim for another Shape or backend.
+
+This increment adds no public API or shared-contract change, backward execution, fusion,
+materialization, Vector API or native route, dynamic or symbolic Shape, unresolved layout,
+decomposed-graph recognition, or cross-backend numerical promise. Batch-normalization inference
+and training remain separate planned CPU 0007F1 and 0007F2 work.
 
 ### Unary numerical closure
 
@@ -2368,17 +2450,17 @@ architecture capability checkpoint then passed, and the provider milestone is co
 The current CPU foundation provides the bounded fully static pointwise matrix, static
 resolved-layout affine family, and one-node static movement, indexing, functional-scatter,
 overlap-fold, stable ordering, explicit-state random, cumulative-scan, aggregate, arg-extrema,
-masked-reduction, advanced-reduction, and stable-softmax
+masked-reduction, advanced-reduction, stable-softmax, and trailing Layer/RMS-normalization
 families
 described above. Scalar
 execution covers every admitted row; parallel-scalar orchestration is available for disjoint
 affine, movement, scatter, fold, ordering, random-element, whole-scan-slice, whole-aggregate-
 output-cell, whole-arg-extrema-output-cell, whole-masked-reduction-output-cell, whole-advanced-
-reduction-output-cell, and whole-softmax-slice ranges; and the
+reduction-output-cell, whole-softmax-slice, and whole-trailing-normalization-slice ranges; and the
 pointwise family retains its exact typed value-vector and virtual-mask parity matrix. Generator
-schema 47 distinguishes pointwise,
+schema 48 distinguishes pointwise,
 affine, movement, indexing, scatter, fold, ordering, random, scan, aggregate, arg-extrema, and
-masked-reduction, advanced-reduction, and softmax
+masked-reduction, advanced-reduction, softmax, and trailing-normalization
 structures,
 including movement occurrence order,
 unequal-rank access, exact
@@ -2418,8 +2500,11 @@ direct exact-state SUM/MEAN bodies described above. Retained schema-42 ledger an
 material is explicitly historical. Schema 46 adds ordered advanced-reduction axes, correction,
 algorithm/pass and resource identity, plus the three focused direct numerical bodies described
 above. Schema 47 adds first-class softmax/log-softmax kind, selected-axis, type-specific stable
-algorithm/pass, access, carrier, and direct emitted-body identity; schema 47 is the only current
-compatible artifact envelope. Schema-46 and earlier envelopes are incompatible safe misses.
+algorithm/pass, access, carrier, and direct emitted-body identity. Schema 48 adds the four
+first-class trailing Layer/RMS forms, ordered promotion and unique-boundary mapping, exact epsilon,
+normalized geometry, pass/resource identity, direct numerical bodies, and static typed segment
+layouts. Schema 48 is the only current compatible artifact envelope. Schema-47 and earlier
+envelopes are incompatible safe misses.
 No excluded
 aggregate/scatter form or later semantic family,
 general BFLOAT16 pointwise or dropout numerical operation,

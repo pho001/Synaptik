@@ -20,10 +20,13 @@ import java.util.Objects;
  * cold. Ordering IR retains the family, type, direction, output-order, boundary-access, and
  * scratch-entry facts needed for a typed embedded stable-merge body while concrete axis/layout
  * geometry and scratch assignment stay cold. Ordinary aggregate IR is encoded for compatibility
- * while its generated entry remains a direct typed body.
+ * while its generated entry remains a direct typed body. Softmax and trailing Layer/RMS
+ * normalization similarly retain only code-shaping identity; concrete slice ranges, typed
+ * carriers, and optional Layer scratch stay cold.
  *
  * @param portableKernelIr non-null route-independent pointwise, affine, movement, indexing,
- *     functional-scatter, overlap-fold, ordering, random, cumulative-scan, or aggregate IR
+ *     functional-scatter, overlap-fold, ordering, random, cumulative-scan, aggregate, softmax, or
+ *     trailing-normalization IR
  * @param specialization non-null selected exact/default scalar or preferred-species vector
  *     Class-File specialization; parallel orchestration, if selected, remains outside the artifact
  */
@@ -33,7 +36,8 @@ public record CpuPortableRoutePlan(CpuPortableKernelIr portableKernelIr,
      * Validates one portable realization plan.
      *
      * @param portableKernelIr non-null route-independent pointwise, affine, movement, indexing,
-     *     scatter, fold, ordering, random, cumulative-scan, or aggregate IR
+     *     scatter, fold, ordering, random, cumulative-scan, aggregate, softmax, or
+     *     trailing-normalization IR
      * @param specialization non-null matching scalar or vector generated specialization
      * @throws NullPointerException if either component is {@code null}
      * @throws IllegalArgumentException if the specialization does not match the canonical IR, or
@@ -97,6 +101,8 @@ public record CpuPortableRoutePlan(CpuPortableKernelIr portableKernelIr,
             return advanced.encodedKernelIr();
         if (source instanceof io.github.pho001.synaptik.backend.cpu.internal.ir.CpuSoftmaxIr softmax)
             return softmax.encodedKernelIr();
+        if (source instanceof io.github.pho001.synaptik.backend.cpu.internal.ir.CpuTrailingNormalizationIr normalization)
+            return normalization.encodedKernelIr();
         return ((io.github.pho001.synaptik.backend.cpu.internal.ir.CpuAggregateIr) source)
                 .encodedKernelIr();
     }

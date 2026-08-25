@@ -40,6 +40,7 @@ import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuAggregateLower
 import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuArgExtremaLoweringTest;
 import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuMaskedReductionLoweringTest;
 import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuSoftmaxLoweringTest;
+import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuTrailingNormalizationLoweringTest;
 import io.github.pho001.synaptik.model.operation.scan.CumulativeScanKind;
 import io.github.pho001.synaptik.model.operation.normalization.SoftmaxKind;
 import io.github.pho001.synaptik.model.operation.reduction.AggregateReductionKind;
@@ -72,6 +73,76 @@ class CpuPreparedExecutableTest {
             ValueLayout.JAVA_INT_UNALIGNED.withOrder(ByteOrder.nativeOrder());
     private static final ValueLayout.OfLong LONG =
             ValueLayout.JAVA_LONG_UNALIGNED.withOrder(ByteOrder.nativeOrder());
+
+    @Test void layerNormalizationUsesPrivateRangeScratchAndRejectsOverlapBeforeWrites() {
+        var base = CpuTrailingNormalizationLoweringTest.context(true, false, DataType.FLOAT64,
+                Shape.of(8, 4), Shape.of(4), List.of(0));
+        var config = new PortableExecutionConfig(ComputePreference.SCALAR, 4, 2, 1);
+        var context = new io.github.pho001.synaptik.prepare.analysis.PrepareContext<>(
+                base.partition(), base.nodes(), base.values(), base.memoryRequirements(),
+                base.constants(), new CpuPartitionAnalysisInputs(false,
+                        List.of(CarrierAccess.DOUBLE_ARRAY, CarrierAccess.DOUBLE_ARRAY), config));
+        var analysis = new CpuPartitionPreparer().analyze(context);
+        var declaration = analysis.plan().workspaceDeclaration().orElseThrow();
+        assertAll(() -> assertTrue(analysis.plan().selectedRangeCount() >= 2),
+                () -> assertEquals(analysis.plan().trailingNormalizationGeometry().orElseThrow()
+                        .workspaceBytes(analysis.plan().selectedRangeCount()),
+                        declaration.byteSize()));
+        try (var workers = new CpuWorkerGroup(4)) {
+            var executable = CpuPartitionFinalizerTest.finalizeExecutable(analysis,
+                    Optional.empty(), Optional.of(workers));
+            double[] input = new double[32];
+            for (int row = 0; row < 8; row++) for (int column = 0; column < 4; column++)
+                input[row * 4 + column] = column - 2;
+            double[] output = new double[34]; java.util.Arrays.fill(output, -77);
+            var workspace = CpuContiguousWorkspace.allocate(declaration.byteSize(),
+                    declaration.byteAlignment());
+            var run = state(executable, List.of(borrow(input, 0, 32), borrow(output, 1, 32)),
+                    List.of(workspace));
+            try {
+                var bound = executable.bind(run); bound.execute();
+                double root = StrictMath.sqrt(1.25 + 1e-5);
+                for (int row = 0; row < 8; row++) for (int column = 0; column < 4; column++)
+                    assertEquals((column - 1.5) / root, output[1 + row * 4 + column], 2e-15);
+                assertEquals(-77, output[0]); assertEquals(-77, output[33]);
+                double[] first = output.clone(); bound.execute(); assertArrayEquals(first, output);
+            } finally { run.close(); }
+
+            double[] shared = new double[40]; java.util.Arrays.fill(shared, 19);
+            double[] unchanged = shared.clone();
+            var overlapWorkspace = CpuContiguousWorkspace.allocate(declaration.byteSize(),
+                    declaration.byteAlignment());
+            var overlap = state(executable, List.of(borrow(shared, 0, 32),
+                    borrow(shared, 3, 32)), List.of(overlapWorkspace));
+            try {
+                assertThrows(IllegalArgumentException.class, () -> executable.bind(overlap));
+                assertArrayEquals(unchanged, shared);
+            } finally { overlap.close(); }
+        }
+    }
+
+    @Test void rmsNormalizationNeedsNoWorkspaceAndKeepsLargeFiniteRootsFinite() {
+        var base = CpuTrailingNormalizationLoweringTest.context(false, false, DataType.FLOAT64,
+                Shape.of(1, 2), Shape.of(2), List.of(0));
+        var context = new io.github.pho001.synaptik.prepare.analysis.PrepareContext<>(
+                base.partition(), base.nodes(), base.values(), base.memoryRequirements(),
+                base.constants(), new CpuPartitionAnalysisInputs(false,
+                        List.of(CarrierAccess.DOUBLE_ARRAY, CarrierAccess.DOUBLE_ARRAY)));
+        var analysis = new CpuPartitionPreparer().analyze(context);
+        assertTrue(analysis.plan().workspaceDeclaration().isEmpty());
+        var executable = CpuPartitionFinalizerTest.finalizeExecutable(analysis, Optional.empty());
+        double scale = Double.MAX_VALUE / 2.0;
+        double[] input = {scale, scale / 2.0}, output = {-9, -9};
+        var run = state(executable, List.of(borrow(input, 0, 2), borrow(output, 0, 2)));
+        try {
+            executable.bind(run).execute();
+            double root = StrictMath.hypot(scale * StrictMath.sqrt(1.25 / 2.0),
+                    StrictMath.sqrt(1e-5));
+            assertAll(() -> assertTrue(Double.isFinite(root)),
+                    () -> assertEquals(input[0] / root, output[0], 0.0),
+                    () -> assertEquals(input[1] / root, output[1], 0.0));
+        } finally { run.close(); }
+    }
 
     @Test void softmaxValidatesBeforeWritesAndParallelizesOnlyCompleteSlices() {
         var base = CpuSoftmaxLoweringTest.context(SoftmaxKind.SOFTMAX, DataType.FLOAT64,

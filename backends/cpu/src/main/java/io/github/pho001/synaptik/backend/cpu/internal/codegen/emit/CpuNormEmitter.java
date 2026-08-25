@@ -336,6 +336,26 @@ public final class CpuNormEmitter {
     static void emitStore(CodeBuilder code, CpuCarrierEmitter carriers,
             CpuKernelSpecialization specialization, DataType type, int address, int result,
             boolean intAddress, boolean frozenLayout) {
+        emitStore(code, carriers, specialization, type, specialization.carrierPattern().size() - 1,
+                address, result, intAddress, frozenLayout);
+    }
+
+    /**
+     * Emits one store to an explicitly selected generated output boundary.
+     *
+     * @param code non-null Class-File method builder to mutate
+     * @param carriers non-null typed carrier emitter bound to {@code code}
+     * @param specialization non-null exact carrier specialization
+     * @param type represented result type
+     * @param outputBoundary zero-based output boundary in the generated entry
+     * @param address output element-address local
+     * @param result binary64 result local
+     * @param intAddress whether {@code address} is a proved heap-array {@code int} index
+     * @param frozenLayout whether segment access uses the proved static native-order layout
+     */
+    static void emitStore(CodeBuilder code, CpuCarrierEmitter carriers,
+            CpuKernelSpecialization specialization, DataType type, int outputBoundary,
+            int address, int result, boolean intAddress, boolean frozenLayout) {
         int represented = result;
         if (type == DataType.FLOAT32) {
             represented = code.allocateLocal(TypeKind.FLOAT);
@@ -354,10 +374,11 @@ public final class CpuNormEmitter {
                     .loadConstant(1).iand().iadd().loadConstant(16).iushr()
                     .istore(represented).labelBinding(rounded);
         }
-        if (frozenLayout) carriers.storeFrozen(type, specialization.carrierPattern().getLast(), 1,
+        if (frozenLayout) carriers.storeFrozen(type,
+                specialization.carrierPattern().get(outputBoundary), outputBoundary,
                 address, represented, intAddress);
-        else carriers.store(type, specialization.carrierPattern().getLast(), 1, address,
-                represented, intAddress);
+        else carriers.store(type, specialization.carrierPattern().get(outputBoundary),
+                outputBoundary, address, represented, intAddress);
     }
 
     /**

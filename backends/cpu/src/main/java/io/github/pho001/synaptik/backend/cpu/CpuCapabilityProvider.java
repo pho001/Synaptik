@@ -44,6 +44,11 @@ import io.github.pho001.synaptik.model.operation.scan.CumulativeScanAttrs;
 import io.github.pho001.synaptik.model.operation.scan.CumulativeScanKind;
 import io.github.pho001.synaptik.model.operation.normalization.SoftmaxAttrs;
 import io.github.pho001.synaptik.model.operation.normalization.SoftmaxKind;
+import io.github.pho001.synaptik.model.operation.normalization.AffineLayerNormAttrs;
+import io.github.pho001.synaptik.model.operation.normalization.LayerNormAttrs;
+import io.github.pho001.synaptik.model.operation.normalization.LayerNormKind;
+import io.github.pho001.synaptik.model.operation.normalization.RmsNormAttrs;
+import io.github.pho001.synaptik.model.operation.normalization.RmsNormKind;
 import io.github.pho001.synaptik.model.operation.reduction.AggregateReductionKind;
 import io.github.pho001.synaptik.model.operation.reduction.ArgExtremaAttrs;
 import io.github.pho001.synaptik.model.operation.reduction.AxisReductionAttrs;
@@ -129,6 +134,13 @@ import java.util.Objects;
  * CPU execution boundary separately rejects non-finite represented inputs and shifts before any
  * output mutation; that admitted subset is not a Model semantic promise.</p>
  *
+ * <p>A separate trailing-normalization matrix admits only first-class Layer and RMS occurrences
+ * over a positive-rank static normalized Shape. Layer supports input-only and exact
+ * {@code [input, scale, bias]} affine forms; RMS supports input-only and exact
+ * {@code [input, scale]} forms. BFLOAT16, FLOAT32, and FLOAT64 operands promote in occurrence
+ * order, epsilon and output use that exact type, and the output retains input Shape with an
+ * injective resolved layout. Capability does not recognize an equivalent decomposed graph.</p>
+ *
  * <p>The movement route also admits exactly one fully static, resolved-layout
  * {@code SLICE_UPDATE} occurrence with ordered {@code [base, update]} inputs. Both normalized
  * signed finite-coordinate {@link SliceAttrs} and target-relative {@link CropToShapeAttrs}
@@ -137,8 +149,8 @@ import java.util.Objects;
  * selected positions, without mutating either input.</p>
  *
  * <p>Complete-partition lowering remains stricter: it validates either one supported movement,
- * indexing, functional-scatter, overlap-fold, ordering, random, cumulative-scan, or ordinary
- * aggregate occurrence, a connected one-to-eight pointwise
+ * indexing, functional-scatter, overlap-fold, ordering, random, cumulative-scan, aggregate,
+ * softmax, or trailing-normalization occurrence, a connected one-to-eight pointwise
  * chain, or a connected one-to-eight affine chain, then applies exact layout, alias, fan-out,
  * publication, and partition-boundary checks before resource declaration. Occurrence support
  * therefore does not promise that an arbitrary mixed or branched partition can be prepared.</p>
@@ -224,6 +236,8 @@ public final class CpuCapabilityProvider implements BackendCapabilityProvider {
             if (kind instanceof AggregateReductionKind aggregate)
                 return supportsAggregate(query, output, aggregate);
             if (kind instanceof SoftmaxKind) return supportsSoftmax(query, output);
+            if (kind instanceof LayerNormKind || kind instanceof RmsNormKind)
+                return supportsTrailingNormalization(query, output);
             if (kind instanceof CumulativeScanKind) return supportsScan(query, output);
             if (kind == GraphRngKind.INITIAL_STATE) return supportsInitialState(query);
             if (kind == DropoutKind.DROPOUT) return supportsDropout(query);
@@ -339,6 +353,47 @@ public final class CpuCapabilityProvider implements BackendCapabilityProvider {
                 && java.util.Arrays.stream(in.strides()).allMatch(value -> value >= 0)
                 && java.util.Arrays.stream(out.strides()).allMatch(value -> value >= 0)
                 && injective(output.shape().toLongArray(), out.strides());
+    }
+
+    private static boolean supportsTrailingNormalization(OperationCapabilityQuery query,
+            TensorDescriptor output) {
+        Object kind = query.operation().kind();
+        Object attrs = query.operation().attrs();
+        int count;
+        Shape normalized;
+        io.github.pho001.synaptik.model.datatype.ScalarValue epsilon;
+        if (kind == LayerNormKind.LAYER_NORM && attrs instanceof LayerNormAttrs value) {
+            count = 1; normalized = value.normalizedShape(); epsilon = value.epsilon();
+        } else if (kind == LayerNormKind.LAYER_NORM
+                && attrs instanceof AffineLayerNormAttrs value) {
+            count = 3; normalized = value.normalizedShape(); epsilon = value.epsilon();
+        } else if (kind == RmsNormKind.RMS_NORM && attrs instanceof RmsNormAttrs value) {
+            count = query.inputs().size(); normalized = value.normalizedShape();
+            epsilon = value.epsilon();
+            if (count < 1 || count > 2) return false;
+        } else return false;
+        if (query.inputs().size() != count || normalized.rank() <= 0) return false;
+        TensorDescriptor input = query.inputs().getFirst();
+        if (!normalizationFloating(input.dataType()) || input.shape().rank() < normalized.rank()
+                || !input.shape().equals(output.shape())) return false;
+        DataType result = input.dataType(); boolean gradient = input.requiresGrad();
+        for (int index = 1; index < count; index++) {
+            TensorDescriptor operand = query.inputs().get(index);
+            if (!normalizationFloating(operand.dataType()) || !operand.shape().equals(normalized)) return false;
+            result = io.github.pho001.synaptik.model.datatype.DataTypePromotion.promoteFloating(
+                    result, operand.dataType());
+            gradient |= operand.requiresGrad();
+        }
+        long[] inputShape = input.shape().toLongArray();
+        long[] normalizedShape = normalized.toLongArray();
+        int leading = inputShape.length - normalizedShape.length;
+        for (int axis = 0; axis < normalizedShape.length; axis++)
+            if (inputShape[leading + axis] != normalizedShape[axis]) return false;
+        LayoutDescriptor out = output.layout().orElseThrow();
+        return output.dataType() == result && epsilon.dataType() == result
+                && output.requiresGrad() == gradient && out.storageOffset() >= 0
+                && java.util.Arrays.stream(out.strides()).allMatch(value -> value >= 0)
+                && injective(inputShape, out.strides());
     }
 
     private static boolean supportsAggregate(OperationCapabilityQuery query,
@@ -1082,6 +1137,10 @@ public final class CpuCapabilityProvider implements BackendCapabilityProvider {
 
     private static boolean floating(DataType type) {
         return type == DataType.FLOAT64 || type == DataType.FLOAT32;
+    }
+
+    private static boolean normalizationFloating(DataType type) {
+        return floating(type) || type == DataType.BFLOAT16;
     }
 
     private static boolean supportedNumeric(DataType type) {

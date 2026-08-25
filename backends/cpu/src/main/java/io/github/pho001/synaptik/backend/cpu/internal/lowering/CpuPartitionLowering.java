@@ -43,8 +43,9 @@ import java.util.Optional;
  * Model operation, shape, and layout contracts during analysis and maps every admitted unary kind
  * to one distinct CPU opcode without decomposition. Generated and Runtime code see only the
  * resulting CPU-private IR and cold bindings. Exact one-node movement, indexing, scatter, fold,
- * ordering, explicit-state random, and cumulative-scan families are delegated to focused
- * lowerers; the movement family includes functional slice update.</p>
+ * ordering, explicit-state random, cumulative-scan, aggregate, softmax, and trailing Layer/RMS
+ * normalization families are delegated to focused lowerers; the movement family includes
+ * functional slice update.</p>
  */
 public final class CpuPartitionLowering {
     private final CpuCapabilityProvider capabilities = new CpuCapabilityProvider();
@@ -64,6 +65,8 @@ public final class CpuPartitionLowering {
     private final CpuAdvancedReductionLowering advancedReductionLowering =
             new CpuAdvancedReductionLowering();
     private final CpuSoftmaxLowering softmaxLowering = new CpuSoftmaxLowering();
+    private final CpuTrailingNormalizationLowering trailingNormalizationLowering =
+            new CpuTrailingNormalizationLowering();
 
     /** Creates a stateless lowering boundary with the current CPU capability and power analysis. */
     public CpuPartitionLowering() { }
@@ -91,6 +94,10 @@ public final class CpuPartitionLowering {
             Object kind = context.nodes().getFirst().operation().kind();
             if (kind instanceof io.github.pho001.synaptik.model.operation.normalization.SoftmaxKind) {
                 return softmaxLowering.lower(context);
+            }
+            if (kind instanceof io.github.pho001.synaptik.model.operation.normalization.LayerNormKind
+                    || kind instanceof io.github.pho001.synaptik.model.operation.normalization.RmsNormKind) {
+                return trailingNormalizationLowering.lower(context);
             }
             if (kind instanceof io.github.pho001.synaptik.model.operation.reduction.AggregateReductionKind) {
                 if (kind == io.github.pho001.synaptik.model.operation.reduction.AggregateReductionKind.LOG_SUM_EXP
@@ -505,6 +512,7 @@ public final class CpuPartitionLowering {
      * @param maskedReductionGeometry compact cold directional masked-reduction geometry
      * @param advancedReductionGeometry compact cold logarithmic/statistical/norm geometry
      * @param softmaxGeometry compact cold shape-preserving normalization geometry
+     * @param trailingNormalizationGeometry compact cold Layer/RMS trailing-slice geometry
      */
     public record LoweredPartition(CpuPortableKernelIr portableKernelIr, List<ValueId> boundaryValues,
             List<CpuAccessPlan.Binding> accessBindings, List<Long> referencedElementSpans,
@@ -521,7 +529,60 @@ public final class CpuPartitionLowering {
             Optional<CpuArgExtremaLowering.Geometry> argExtremaGeometry,
             Optional<CpuMaskedReductionLowering.Geometry> maskedReductionGeometry,
             Optional<CpuAdvancedReductionLowering.Geometry> advancedReductionGeometry,
-            Optional<CpuSoftmaxLowering.Geometry> softmaxGeometry) {
+            Optional<CpuSoftmaxLowering.Geometry> softmaxGeometry,
+            Optional<CpuTrailingNormalizationLowering.Geometry> trailingNormalizationGeometry) {
+
+        /**
+         * Creates an existing-family lowering with no trailing-normalization geometry.
+         *
+         * @param portableKernelIr non-null route-independent family identity
+         * @param boundaryValues non-null ordered materialized boundaries; copied defensively
+         * @param accessBindings non-null ordered cold bindings; copied defensively
+         * @param referencedElementSpans non-null exact declaration spans; copied defensively
+         * @param boundaryDataTypes non-null exact boundary types; copied defensively
+         * @param virtualValues non-null internal unmaterialized values; copied defensively
+         * @param extents non-null iteration extents; copied defensively
+         * @param elementCount non-negative logical work-item count
+         * @param fusionReason non-null lowering explanation
+         * @param affineAddressPairs non-null affine address pairs, or empty; copied defensively
+         * @param movementGeometry non-null optional movement geometry
+         * @param indexingGeometry non-null optional indexing geometry
+         * @param scatterGeometry non-null optional scatter geometry
+         * @param foldGeometry non-null optional fold geometry
+         * @param orderingGeometry non-null optional ordering geometry
+         * @param randomGeometry non-null optional explicit-state random geometry
+         * @param scanGeometry non-null optional cumulative-scan geometry
+         * @param aggregateGeometry non-null optional ordinary-aggregate geometry
+         * @param argExtremaGeometry non-null optional arg-extrema geometry
+         * @param maskedReductionGeometry non-null optional masked-reduction geometry
+         * @param advancedReductionGeometry non-null optional advanced-reduction geometry
+         * @param softmaxGeometry non-null optional stable-softmax geometry
+         * @throws NullPointerException if a required reference or list element is null
+         * @throws IllegalArgumentException if boundary, family, or geometry facts disagree
+         */
+        public LoweredPartition(CpuPortableKernelIr portableKernelIr, List<ValueId> boundaryValues,
+                List<CpuAccessPlan.Binding> accessBindings, List<Long> referencedElementSpans,
+                List<DataType> boundaryDataTypes, List<ValueId> virtualValues, long[] extents,
+                long elementCount, String fusionReason, long[] affineAddressPairs,
+                Optional<CpuNonAffineMovementLowering.Geometry> movementGeometry,
+                Optional<CpuIndexingLowering.Geometry> indexingGeometry,
+                Optional<CpuScatterLowering.Geometry> scatterGeometry,
+                Optional<CpuFoldLowering.Geometry> foldGeometry,
+                Optional<CpuOrderingLowering.Geometry> orderingGeometry,
+                Optional<CpuRandomLowering.Geometry> randomGeometry,
+                Optional<CpuScanLowering.Geometry> scanGeometry,
+                Optional<CpuAggregateLowering.Geometry> aggregateGeometry,
+                Optional<CpuArgExtremaLowering.Geometry> argExtremaGeometry,
+                Optional<CpuMaskedReductionLowering.Geometry> maskedReductionGeometry,
+                Optional<CpuAdvancedReductionLowering.Geometry> advancedReductionGeometry,
+                Optional<CpuSoftmaxLowering.Geometry> softmaxGeometry) {
+            this(portableKernelIr, boundaryValues, accessBindings, referencedElementSpans,
+                    boundaryDataTypes, virtualValues, extents, elementCount, fusionReason,
+                    affineAddressPairs, movementGeometry, indexingGeometry, scatterGeometry,
+                    foldGeometry, orderingGeometry, randomGeometry, scanGeometry, aggregateGeometry,
+                    argExtremaGeometry, maskedReductionGeometry, advancedReductionGeometry,
+                    softmaxGeometry, Optional.empty());
+        }
 
         /**
          * Creates an existing-family lowering with optional aggregate geometry and no
@@ -821,6 +882,8 @@ public final class CpuPartitionLowering {
             advancedReductionGeometry = Objects.requireNonNull(advancedReductionGeometry,
                     "advancedReductionGeometry");
             softmaxGeometry = Objects.requireNonNull(softmaxGeometry, "softmaxGeometry");
+            trailingNormalizationGeometry = Objects.requireNonNull(trailingNormalizationGeometry,
+                    "trailingNormalizationGeometry");
             Objects.requireNonNull(fusionReason, "fusionReason");
             int size = boundaryValues.size();
             if (size < 1 || accessBindings.size() != size || referencedElementSpans.size() != size
@@ -873,6 +936,8 @@ public final class CpuPartitionLowering {
                                                         ? advanced.encodedKernelIr()
                                                     : portableKernelIr instanceof io.github.pho001.synaptik.backend.cpu.internal.ir.CpuSoftmaxIr softmax
                                                         ? softmax.encodedKernelIr()
+                                                    : portableKernelIr instanceof io.github.pho001.synaptik.backend.cpu.internal.ir.CpuTrailingNormalizationIr normalization
+                                                        ? normalization.encodedKernelIr()
                                                     : ((io.github.pho001.synaptik.backend.cpu.internal.ir.CpuAggregateIr)
                                                         portableKernelIr).encodedKernelIr();
         }

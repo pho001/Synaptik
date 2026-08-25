@@ -22,6 +22,7 @@ import io.github.pho001.synaptik.model.operation.scan.*;
 import io.github.pho001.synaptik.model.operation.reduction.*;
 import io.github.pho001.synaptik.model.operation.normalization.SoftmaxAttrs;
 import io.github.pho001.synaptik.model.operation.normalization.SoftmaxKind;
+import io.github.pho001.synaptik.model.operation.normalization.*;
 import io.github.pho001.synaptik.model.shape.Shape;
 import io.github.pho001.synaptik.model.shape.DynamicDimension;
 import io.github.pho001.synaptik.model.shape.StaticDimension;
@@ -32,6 +33,35 @@ import java.util.Optional;
 import org.junit.jupiter.api.Test;
 
 class CpuCapabilityProviderTest {
+    @Test void reportsOnlyExactTrailingLayerAndRmsFormsWithOrderedPromotion() {
+        var provider = new CpuCapabilityProvider(); Shape input = Shape.of(2, 3);
+        Shape normalized = Shape.of(3);
+        assertAll(
+                () -> assertTrue(provider.supports(query(LayerNormKind.LAYER_NORM,
+                        new LayerNormAttrs(normalized, ScalarValue.float32(1e-5f)),
+                        List.of(descriptor(DataType.FLOAT32, input)),
+                        descriptor(DataType.FLOAT32, input)))),
+                () -> assertTrue(provider.supports(query(LayerNormKind.LAYER_NORM,
+                        new AffineLayerNormAttrs(normalized, ScalarValue.float64(1e-5)),
+                        List.of(descriptor(DataType.BFLOAT16, input),
+                                descriptor(DataType.FLOAT32, normalized),
+                                descriptor(DataType.FLOAT64, normalized)),
+                        descriptor(DataType.FLOAT64, input)))),
+                () -> assertTrue(provider.supports(query(RmsNormKind.RMS_NORM,
+                        new RmsNormAttrs(normalized, ScalarValue.float32(1e-5f)),
+                        List.of(descriptor(DataType.BFLOAT16, input),
+                                descriptor(DataType.FLOAT32, normalized)),
+                        descriptor(DataType.FLOAT32, input)))),
+                () -> assertFalse(provider.supports(query(RmsNormKind.RMS_NORM,
+                        new RmsNormAttrs(Shape.of(2), ScalarValue.float32(1e-5f)),
+                        List.of(descriptor(DataType.FLOAT32, input)),
+                        descriptor(DataType.FLOAT32, input)))),
+                () -> assertFalse(provider.supports(query(LayerNormKind.LAYER_NORM,
+                        new LayerNormAttrs(normalized, ScalarValue.float64(1e-5)),
+                        List.of(descriptor(DataType.FLOAT32, input)),
+                        descriptor(DataType.FLOAT32, input)))));
+    }
+
     @Test void reportsOnlyExactPositiveWidthShapePreservingSoftmaxRows() {
         var provider = new CpuCapabilityProvider();
         for (SoftmaxKind kind : SoftmaxKind.values()) for (DataType type : List.of(

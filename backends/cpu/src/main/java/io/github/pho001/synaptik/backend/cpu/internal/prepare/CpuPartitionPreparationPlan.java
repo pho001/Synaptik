@@ -23,6 +23,7 @@ import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuArgExtremaLowe
 import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuMaskedReductionLowering;
 import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuAdvancedReductionLowering;
 import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuSoftmaxLowering;
+import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuTrailingNormalizationLowering;
 
 /**
  * Route-neutral immutable selected CPU partition plan.
@@ -71,6 +72,8 @@ import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuSoftmaxLowerin
  * @param advancedReductionGeometry non-null optional logarithmic, statistical, or norm
  *     complete-output-cell geometry
  * @param softmaxGeometry non-null optional zero-workspace shape-preserving normalization geometry
+ * @param trailingNormalizationGeometry non-null optional trailing Layer/RMS geometry; Layer may
+ *     pair with exact-state workspace while RMS requires none
  */
 public record CpuPartitionPreparationPlan(List<ExecutionUnitPlan> units, Route route,
         ExecutionStrategy executionStrategy,
@@ -94,8 +97,79 @@ public record CpuPartitionPreparationPlan(List<ExecutionUnitPlan> units, Route r
         Optional<CpuArgExtremaLowering.Geometry> argExtremaGeometry,
         Optional<CpuMaskedReductionLowering.Geometry> maskedReductionGeometry,
         Optional<CpuAdvancedReductionLowering.Geometry> advancedReductionGeometry,
-        Optional<CpuSoftmaxLowering.Geometry> softmaxGeometry)
+        Optional<CpuSoftmaxLowering.Geometry> softmaxGeometry,
+        Optional<CpuTrailingNormalizationLowering.Geometry> trailingNormalizationGeometry)
         implements BackendPreparationPlan {
+
+    /**
+     * Creates an existing-family plan without trailing-normalization geometry.
+     *
+     * @param units non-null computation-oriented units; copied defensively
+     * @param route non-null selected route
+     * @param executionStrategy non-null selected compute/orchestration strategy
+     * @param bufferDeclarations non-null exact declarations; copied defensively
+     * @param boundaryValues non-null boundary identities in declaration order; copied defensively
+     * @param accessBindings non-null access geometry in boundary order; copied defensively
+     * @param carrierPattern non-null Runtime carrier forms; copied defensively
+     * @param generatedCarrierPattern non-null generated-entry carrier forms; copied defensively
+     * @param extents non-null iteration extents; copied defensively
+     * @param elementCount non-negative logical work-item count
+     * @param affineAddressPairs non-null affine address pairs, or empty; copied defensively
+     * @param selectedRangeCount positive selected maximum range count
+     * @param minimumElementsPerWorker positive minimum work items per worker chunk
+     * @param vectorSpeciesBitSize selected vector size in bits, or zero for scalar compute
+     * @param loweringManifest non-null deterministic cold diagnostic summary
+     * @param materialization non-null optional input materialization
+     * @param workspaceDeclaration non-null optional exact workspace declaration
+     * @param workspaceUse non-null workspace purpose
+     * @param specializationBudget non-null immutable specialization budget
+     * @param movementGeometry non-null optional movement geometry
+     * @param indexingGeometry non-null optional indexing geometry
+     * @param scatterGeometry non-null optional scatter geometry
+     * @param foldGeometry non-null optional fold geometry
+     * @param orderingGeometry non-null optional ordering geometry
+     * @param randomGeometry non-null optional explicit-state random geometry
+     * @param scanGeometry non-null optional cumulative-scan geometry
+     * @param aggregateGeometry non-null optional ordinary-aggregate geometry
+     * @param argExtremaGeometry non-null optional arg-extrema geometry
+     * @param maskedReductionGeometry non-null optional masked-reduction geometry
+     * @param advancedReductionGeometry non-null optional advanced-reduction geometry
+     * @param softmaxGeometry non-null optional stable-softmax geometry
+     * @throws NullPointerException if a required reference or list element is null
+     * @throws IllegalArgumentException if route, boundary, range, workspace, carrier, or family
+     *     geometry facts disagree
+     * @throws ArithmeticException if exact geometry or resource validation overflows
+     */
+    public CpuPartitionPreparationPlan(List<ExecutionUnitPlan> units, Route route,
+            ExecutionStrategy executionStrategy,
+            List<PreparationResourceRequirement.Buffer> bufferDeclarations,
+            List<ValueId> boundaryValues, List<CpuAccessPlan.Binding> accessBindings,
+            List<CarrierAccess> carrierPattern, List<CarrierAccess> generatedCarrierPattern,
+            long[] extents, long elementCount, long[] affineAddressPairs,
+            int selectedRangeCount, long minimumElementsPerWorker, int vectorSpeciesBitSize,
+            String loweringManifest, Optional<CpuMaterializationPlan> materialization,
+            Optional<PreparationResourceRequirement.Workspace> workspaceDeclaration,
+            WorkspaceUse workspaceUse, CpuSpecializationBudget specializationBudget,
+            Optional<CpuNonAffineMovementLowering.Geometry> movementGeometry,
+            Optional<CpuIndexingLowering.Geometry> indexingGeometry,
+            Optional<CpuScatterLowering.Geometry> scatterGeometry,
+            Optional<CpuFoldLowering.Geometry> foldGeometry,
+            Optional<CpuOrderingLowering.Geometry> orderingGeometry,
+            Optional<CpuRandomLowering.Geometry> randomGeometry,
+            Optional<CpuScanLowering.Geometry> scanGeometry,
+            Optional<CpuAggregateLowering.Geometry> aggregateGeometry,
+            Optional<CpuArgExtremaLowering.Geometry> argExtremaGeometry,
+            Optional<CpuMaskedReductionLowering.Geometry> maskedReductionGeometry,
+            Optional<CpuAdvancedReductionLowering.Geometry> advancedReductionGeometry,
+            Optional<CpuSoftmaxLowering.Geometry> softmaxGeometry) {
+        this(units, route, executionStrategy, bufferDeclarations, boundaryValues, accessBindings,
+                carrierPattern, generatedCarrierPattern, extents, elementCount, affineAddressPairs,
+                selectedRangeCount, minimumElementsPerWorker, vectorSpeciesBitSize, loweringManifest,
+                materialization, workspaceDeclaration, workspaceUse, specializationBudget,
+                movementGeometry, indexingGeometry, scatterGeometry, foldGeometry, orderingGeometry,
+                randomGeometry, scanGeometry, aggregateGeometry, argExtremaGeometry,
+                maskedReductionGeometry, advancedReductionGeometry, softmaxGeometry, Optional.empty());
+    }
 
     /**
      * Creates an existing-family plan without explicit-state random or cumulative-scan geometry.
@@ -303,6 +377,14 @@ public record CpuPartitionPreparationPlan(List<ExecutionUnitPlan> units, Route r
      * @param scatterGeometry non-null optional functional-scatter geometry
      * @param foldGeometry non-null optional overlap-fold geometry
      * @param orderingGeometry non-null optional stable ordering geometry
+     * @param randomGeometry non-null optional explicit-state random geometry
+     * @param scanGeometry non-null optional cumulative-scan geometry
+     * @param aggregateGeometry non-null optional ordinary-aggregate geometry
+     * @param argExtremaGeometry non-null optional arg-extrema geometry
+     * @param maskedReductionGeometry non-null optional masked-reduction geometry
+     * @param advancedReductionGeometry non-null optional advanced-reduction geometry
+     * @param softmaxGeometry non-null optional stable-softmax geometry
+     * @param trailingNormalizationGeometry non-null optional trailing Layer/RMS geometry
      * @throws NullPointerException if a required component is {@code null}
      * @throws IllegalArgumentException if the plan is not one portable unit with matching derived
      *     boundary facts, or if strategy, range, materialization, workspace, species, or budget
@@ -338,6 +420,8 @@ public record CpuPartitionPreparationPlan(List<ExecutionUnitPlan> units, Route r
         advancedReductionGeometry = Objects.requireNonNull(advancedReductionGeometry,
                 "advancedReductionGeometry");
         softmaxGeometry = Objects.requireNonNull(softmaxGeometry, "softmaxGeometry");
+        trailingNormalizationGeometry = Objects.requireNonNull(trailingNormalizationGeometry,
+                "trailingNormalizationGeometry");
         if (units.size() != 1 || route != Route.PORTABLE
                 || bufferDeclarations.isEmpty()
                 || boundaryValues.size() != bufferDeclarations.size()
@@ -372,6 +456,8 @@ public record CpuPartitionPreparationPlan(List<ExecutionUnitPlan> units, Route r
                 instanceof io.github.pho001.synaptik.backend.cpu.internal.ir.CpuAdvancedReductionIr;
         boolean softmax = units.getFirst().portablePlan().portableKernelIr()
                 instanceof io.github.pho001.synaptik.backend.cpu.internal.ir.CpuSoftmaxIr;
+        boolean trailingNormalization = units.getFirst().portablePlan().portableKernelIr()
+                instanceof io.github.pho001.synaptik.backend.cpu.internal.ir.CpuTrailingNormalizationIr;
         if (affine ? affineAddressPairs.length != Math.multiplyExact(elementCount, 2)
                 : affineAddressPairs.length != 0) {
             throw new IllegalArgumentException("affine address geometry must match the copy domain");
@@ -507,6 +593,26 @@ public record CpuPartitionPreparationPlan(List<ExecutionUnitPlan> units, Route r
                     || extents[0] != geometry.sliceCount())
                 throw new IllegalArgumentException("softmax structural IR and geometry disagree");
         }
+        if (trailingNormalization != trailingNormalizationGeometry.isPresent()
+                || trailingNormalization && materialization.isPresent())
+            throw new IllegalArgumentException(
+                    "trailing-normalization IR and cold geometry must agree");
+        if (trailingNormalization) {
+            var normalizationIr = (io.github.pho001.synaptik.backend.cpu.internal.ir.CpuTrailingNormalizationIr)
+                    units.getFirst().portablePlan().portableKernelIr();
+            var geometry = trailingNormalizationGeometry.orElseThrow();
+            if (normalizationIr.kind() != geometry.kind()
+                    || normalizationIr.form() != geometry.form()
+                    || normalizationIr.resultType() != geometry.resultType()
+                    || normalizationIr.epsilonBits() != geometry.epsilonBits()
+                    || normalizationIr.normalizedRank() != geometry.normalizedRank()
+                    || normalizationIr.normalizedCount() != geometry.normalizedCount()
+                    || !normalizationIr.positionToBoundary().equals(geometry.positionToBoundary())
+                    || elementCount != (geometry.normalizedCount() == 0 ? 0 : geometry.leadingCount())
+                    || extents.length != 1 || extents[0] != elementCount)
+                throw new IllegalArgumentException(
+                        "trailing-normalization structural IR and geometry disagree");
+        }
         if (fold) {
             var foldIr = (io.github.pho001.synaptik.backend.cpu.internal.ir.CpuFoldIr)
                     units.getFirst().portablePlan().portableKernelIr();
@@ -539,7 +645,10 @@ public record CpuPartitionPreparationPlan(List<ExecutionUnitPlan> units, Route r
                                 ? WorkspaceUse.AGGREGATE_EXACT_STATE
                                 : advancedReductionGeometry.filter(g -> g.scratchSliceBytes() > 0
                                     && g.outputCount() > 0).isPresent()
-                                    ? WorkspaceUse.AGGREGATE_EXACT_STATE : WorkspaceUse.NONE;
+                                    ? WorkspaceUse.AGGREGATE_EXACT_STATE
+                                    : trailingNormalizationGeometry.filter(g -> g.scratchSliceBytes() > 0
+                                        && g.normalizedCount() > 0).isPresent()
+                                        ? WorkspaceUse.AGGREGATE_EXACT_STATE : WorkspaceUse.NONE;
         if (workspaceUse != expectedUse
                 || workspaceDeclaration.isPresent() != (workspaceUse != WorkspaceUse.NONE)) {
             throw new IllegalArgumentException("workspace purpose and declaration must agree");
@@ -565,7 +674,10 @@ public record CpuPartitionPreparationPlan(List<ExecutionUnitPlan> units, Route r
                     ? aggregateGeometry.orElseThrow().workspaceBytes(selectedRangeCount)
                     : maskedReductionGeometry.isPresent()
                         ? maskedReductionGeometry.orElseThrow().workspaceBytes(selectedRangeCount)
-                        : advancedReductionGeometry.orElseThrow().workspaceBytes(selectedRangeCount);
+                        : advancedReductionGeometry.isPresent()
+                            ? advancedReductionGeometry.orElseThrow().workspaceBytes(selectedRangeCount)
+                            : trailingNormalizationGeometry.orElseThrow()
+                                .workspaceBytes(selectedRangeCount);
             if (workspace.requirementId() != 0 || workspace.byteAlignment() != Long.BYTES
                     || workspace.byteSize() != expected)
                 throw new IllegalArgumentException("aggregate exact-state workspace facts disagree");

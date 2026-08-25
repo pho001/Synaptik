@@ -21,8 +21,9 @@ import java.util.Optional;
  *
  * <p>Every derived-boundary buffer assignment and optional exact workspace assignment is resolved and checked
  * before the single permitted artifact-store call. Finalization cannot change the selected copy,
- * generated carrier pattern, route, strategy, specialization, or declaration geometry. Fold and
- * cumulative-scan plans necessarily retain exactly two buffers and no workspace assignment.
+ * generated carrier pattern, route, strategy, specialization, or declaration geometry. Fold,
+ * cumulative-scan, and RMS-normalization plans retain no workspace assignment; Layer
+ * normalization retains only its already-declared exact-state assignment.
  */
 public final class CpuPartitionFinalizer implements BackendPartitionFinalizer<CpuPartitionPreparationPlan> {
     private final CpuGeneratedKernelArtifactStore artifactStore;
@@ -62,7 +63,8 @@ public final class CpuPartitionFinalizer implements BackendPartitionFinalizer<Cp
      * Verifies exact assignments and realizes the selected artifact without changing analysis.
      * @param finalization non-null complete shared post-assignment handoff
      * @return one immutable partition-level executable that strongly owns its artifact and, for
-     *     cumulative scans, retains only immutable slice/layout geometry; never {@code null}
+     *     cumulative scans and trailing normalization, retains only immutable slice/layout
+     *     geometry; never {@code null}
      * @throws NullPointerException if {@code finalization} is {@code null}
      * @throws IllegalArgumentException if ownership, assignments, specialization, or artifact
      *     realization is incompatible with the analyzed plan
@@ -128,6 +130,6 @@ public final class CpuPartitionFinalizer implements BackendPartitionFinalizer<Cp
                 plan.foldGeometry(), plan.orderingGeometry(), plan.randomGeometry(),
                 plan.scanGeometry(), plan.aggregateGeometry(), plan.argExtremaGeometry(),
                 plan.maskedReductionGeometry(), plan.advancedReductionGeometry(),
-                plan.softmaxGeometry());
+                plan.softmaxGeometry(), plan.trailingNormalizationGeometry());
     }
 }

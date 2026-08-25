@@ -99,7 +99,9 @@ package io.github.pho001.synaptik.backend.cpu.internal.cache;
  * correction identity, operation-specific pass shape, exact-state resource shape, and direct
  * typed logarithmic, statistical, and norm bodies.
  * The optional persistent envelope stores this version and has no legacy reader, migration path,
- * or converter.
+ * or converter. Schema 47 adds first-class stable softmax/log-softmax. Schema 48 adds the four
+ * trailing Layer/RMS forms, ordered mixed-type boundaries, exact typed epsilon identity,
+ * complete-slice pass shape, Layer-only exact-state scratch, and frozen typed segment layouts.
  */
 public final class CpuGeneratorSchema {
     /**
@@ -155,7 +157,7 @@ public final class CpuGeneratorSchema {
      * identity.
      * Envelopes written for earlier schemas are incompatible misses.
      */
-    public static final int CURRENT_VERSION = 47;
+    public static final int CURRENT_VERSION = 48;
     /** Generated entry name. */ public static final String ENTRY_NAME = "invoke";
     private CpuGeneratorSchema() { }
 

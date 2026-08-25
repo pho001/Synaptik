@@ -16,6 +16,7 @@ import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuArgExtremaLowe
 import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuMaskedReductionLowering;
 import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuAdvancedReductionLowering;
 import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuSoftmaxLowering;
+import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuTrailingNormalizationLowering;
 import io.github.pho001.synaptik.backend.cpu.internal.memory.CpuBufferArgument;
 import io.github.pho001.synaptik.backend.cpu.internal.memory.CpuBufferRepresentation;
 import io.github.pho001.synaptik.backend.cpu.internal.memory.CpuContiguousWorkspace;
@@ -70,6 +71,10 @@ import java.util.Optional;
  * output write or worker submission, permits only physical input/input aliasing, and rejects the
  * output against both inputs and the exact-state workspace. Every call receives one already-sliced
  * private exact state region and retains its selected count in primitive invocation-local state.
+ * Trailing Layer/RMS normalization binding validates every typed carrier, resolved span,
+ * output/input overlap, and optional Layer exact-state slice before mutation or submission.
+ * Ranges always own complete trailing slices; Layer ranges receive disjoint scratch, while RMS
+ * requires none.
  */
 public final class CpuPreparedExecutable extends PreparedExecutable {
     private final CpuGeneratedKernel artifact;
@@ -97,6 +102,7 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
     private final Optional<CpuMaskedReductionLowering.Geometry> maskedReductionGeometry;
     private final Optional<CpuAdvancedReductionLowering.Geometry> advancedReductionGeometry;
     private final Optional<CpuSoftmaxLowering.Geometry> softmaxGeometry;
+    private final Optional<CpuTrailingNormalizationLowering.Geometry> trailingNormalizationGeometry;
 
     /**
      * Creates a direct derived-boundary recipe for one exact half-open logical range.
@@ -527,6 +533,75 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
             Optional<CpuMaskedReductionLowering.Geometry> maskedReductionGeometry,
             Optional<CpuAdvancedReductionLowering.Geometry> advancedReductionGeometry,
             Optional<CpuSoftmaxLowering.Geometry> softmaxGeometry) {
+        this(memoryPlan, selections, artifact, bindings, carrierPattern, generatedCarrierPattern,
+                start, end, selectedRangeCount, minimumElementsPerWorker, workerGroup,
+                materialization, workspaceSelection, affineAddressPairs, movementGeometry,
+                indexingGeometry, scatterGeometry, foldGeometry, orderingGeometry, randomGeometry,
+                scanGeometry, aggregateGeometry, argExtremaGeometry, maskedReductionGeometry,
+                advancedReductionGeometry, softmaxGeometry, Optional.empty());
+    }
+
+    /**
+     * Creates the complete direct recipe including optional trailing-normalization geometry.
+     *
+     * <p>Exactly one optional route geometry may be present. For trailing normalization,
+     * selections are unique logical inputs in first-occurrence order followed by one output;
+     * Layer may pair with one assigned exact-state workspace and RMS must not. The recipe retains
+     * immutable geometry and a borrowed worker group but does not own carrier instances or
+     * per-run workspace.</p>
+     *
+     * @param memoryPlan exact immutable prepared memory plan
+     * @param selections ordered unique inputs followed by output buffer selections
+     * @param artifact non-null verified generated artifact retained strongly by this recipe
+     * @param bindings complete boundary access geometry in selection order; copied defensively
+     * @param carrierPattern Runtime carrier forms in selection order; copied defensively
+     * @param generatedCarrierPattern direct generated-entry carrier forms; copied defensively
+     * @param start inclusive logical element, output-cell, or complete-slice ordinal
+     * @param end exclusive logical element, output-cell, or complete-slice ordinal
+     * @param selectedRangeCount positive selected maximum simultaneous range count
+     * @param minimumElementsPerWorker positive minimum work items per worker chunk
+     * @param workerGroup borrowed open worker group for a parallel plan, otherwise {@code null}
+     * @param materialization non-null optional pointwise input materialization
+     * @param workspaceSelection non-null optional assigned route workspace; Layer normalization
+     *     uses exact-state scratch and RMS normalization uses none
+     * @param affineAddressPairs affine copy pairs, or {@code null}
+     * @param movementGeometry non-null optional static movement geometry
+     * @param indexingGeometry non-null optional indexing geometry
+     * @param scatterGeometry non-null optional functional-scatter geometry
+     * @param foldGeometry non-null optional overlap-fold geometry
+     * @param orderingGeometry non-null optional stable ordering geometry
+     * @param randomGeometry non-null optional explicit-state initializer/dropout geometry
+     * @param scanGeometry non-null optional cumulative-scan slice/layout geometry
+     * @param aggregateGeometry non-null optional ordinary aggregate output/domain geometry
+     * @param argExtremaGeometry non-null optional logical-index reduction geometry
+     * @param maskedReductionGeometry non-null optional directional masked-reduction geometry
+     * @param advancedReductionGeometry non-null optional advanced-reduction geometry
+     * @param softmaxGeometry non-null optional stable-softmax complete-slice geometry
+     * @param trailingNormalizationGeometry non-null optional Layer/RMS trailing-slice geometry
+     * @throws NullPointerException if a required reference or list element is null
+     * @throws IllegalArgumentException if memory, boundaries, carriers, range, worker, route,
+     *     workspace, or specialization facts disagree
+     * @throws ArithmeticException if exact range, span, or workspace validation overflows
+     */
+    public CpuPreparedExecutable(PreparedMemoryPlan memoryPlan, List<BufferSelection> selections,
+            CpuGeneratedKernel artifact, List<CpuAccessPlan.Binding> bindings,
+            List<CarrierAccess> carrierPattern, List<CarrierAccess> generatedCarrierPattern,
+            long start, long end, int selectedRangeCount, long minimumElementsPerWorker,
+            CpuWorkerGroup workerGroup, Optional<CpuMaterializationPlan> materialization,
+            Optional<WorkspaceSelection> workspaceSelection, long[] affineAddressPairs,
+            Optional<CpuNonAffineMovementLowering.Geometry> movementGeometry,
+            Optional<CpuIndexingLowering.Geometry> indexingGeometry,
+            Optional<CpuScatterLowering.Geometry> scatterGeometry,
+            Optional<CpuFoldLowering.Geometry> foldGeometry,
+            Optional<CpuOrderingLowering.Geometry> orderingGeometry,
+            Optional<CpuRandomLowering.Geometry> randomGeometry,
+            Optional<CpuScanLowering.Geometry> scanGeometry,
+            Optional<CpuAggregateLowering.Geometry> aggregateGeometry,
+            Optional<CpuArgExtremaLowering.Geometry> argExtremaGeometry,
+            Optional<CpuMaskedReductionLowering.Geometry> maskedReductionGeometry,
+            Optional<CpuAdvancedReductionLowering.Geometry> advancedReductionGeometry,
+            Optional<CpuSoftmaxLowering.Geometry> softmaxGeometry,
+            Optional<CpuTrailingNormalizationLowering.Geometry> trailingNormalizationGeometry) {
         super(memoryPlan, selections, workspaceSelection.map(List::of).orElseGet(List::of),
                 accesses(selections.size(), randomGeometry.map(g -> g.family()
                         == io.github.pho001.synaptik.backend.cpu.internal.ir.CpuRandomIr.Family.DROPOUT
@@ -558,7 +633,12 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
         this.advancedReductionGeometry = Objects.requireNonNull(advancedReductionGeometry,
                 "advancedReductionGeometry");
         this.softmaxGeometry = Objects.requireNonNull(softmaxGeometry, "softmaxGeometry");
-        long count = this.softmaxGeometry.isPresent()
+        this.trailingNormalizationGeometry = Objects.requireNonNull(trailingNormalizationGeometry,
+                "trailingNormalizationGeometry");
+        long count = this.trailingNormalizationGeometry.isPresent()
+                ? (this.trailingNormalizationGeometry.orElseThrow().normalizedCount() == 0 ? 0
+                    : this.trailingNormalizationGeometry.orElseThrow().leadingCount())
+                : this.softmaxGeometry.isPresent()
                 ? this.softmaxGeometry.orElseThrow().sliceCount()
                 : this.advancedReductionGeometry.isPresent()
                 ? this.advancedReductionGeometry.orElseThrow().outputCount()
@@ -609,6 +689,7 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
         geometryCount += this.maskedReductionGeometry.isPresent() ? 1 : 0;
         geometryCount += this.advancedReductionGeometry.isPresent() ? 1 : 0;
         geometryCount += this.softmaxGeometry.isPresent() ? 1 : 0;
+        geometryCount += this.trailingNormalizationGeometry.isPresent() ? 1 : 0;
         if (geometryCount>1) {
             throw new IllegalArgumentException("affine, movement, indexing, scatter, and fold geometry are exclusive");
         }
@@ -619,8 +700,11 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
                 .isPresent();
         boolean advancedScratch=this.advancedReductionGeometry.filter(g -> g.scratchSliceBytes() > 0
                 && g.outputCount() > 0).isPresent();
+        boolean normalizationScratch=this.trailingNormalizationGeometry
+                .filter(g -> g.scratchSliceBytes() > 0 && g.normalizedCount() > 0).isPresent();
         if (workspaceSelection.isPresent() != (materialization.isPresent() || scatterScratch
                 || aggregateScratch || maskedScratch || advancedScratch
+                || normalizationScratch
                 || this.orderingGeometry.isPresent())) {
             throw new IllegalArgumentException("workspace selection purpose is inconsistent");
         }
@@ -647,13 +731,13 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
      * @return a new immutable ranged binding
      */
     public CpuAccessPlan.Binding binding() {
-        if (softmaxGeometry.isPresent()) return bindings.getLast();
+        if (softmaxGeometry.isPresent() || trailingNormalizationGeometry.isPresent()) return bindings.getLast();
         return ranged(movementGeometry.isPresent() || indexingGeometry.isPresent()
                 || scatterGeometry.isPresent() || foldGeometry.isPresent() || orderingGeometry.isPresent()
                 || randomGeometry.isPresent()
                 || scanGeometry.isPresent() || aggregateGeometry.isPresent()
                 || argExtremaGeometry.isPresent() || maskedReductionGeometry.isPresent()
-                || advancedReductionGeometry.isPresent()
+                || advancedReductionGeometry.isPresent() || trailingNormalizationGeometry.isPresent()
                 ? bindings.getLast() : bindings.getFirst());
     }
     /**
@@ -664,7 +748,7 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
      * @return a new immutable list in boundary order with route-appropriate ranges
      */
     public List<CpuAccessPlan.Binding> accessBindings() {
-        if (softmaxGeometry.isPresent()) return bindings;
+        if (softmaxGeometry.isPresent() || trailingNormalizationGeometry.isPresent()) return bindings;
         if (movementGeometry.isPresent() || indexingGeometry.isPresent()
                 || scatterGeometry.isPresent() || foldGeometry.isPresent() || orderingGeometry.isPresent()
                 || randomGeometry.isPresent() || scanGeometry.isPresent()
@@ -696,7 +780,7 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
                 workspaceSelection, affineCopy ? affineAddressPairs : null, movementGeometry,
                 indexingGeometry, scatterGeometry, foldGeometry, orderingGeometry, randomGeometry,
                 scanGeometry, aggregateGeometry, argExtremaGeometry, maskedReductionGeometry,
-                advancedReductionGeometry, softmaxGeometry);
+                advancedReductionGeometry, softmaxGeometry, trailingNormalizationGeometry);
     }
 
     private CpuAccessPlan.Binding ranged(CpuAccessPlan.Binding source) {
@@ -736,6 +820,7 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
         if (index != 0 || materialization.isEmpty() && scatterGeometry.isEmpty()
                     && orderingGeometry.isEmpty() && aggregateGeometry.isEmpty()
                     && maskedReductionGeometry.isEmpty() && advancedReductionGeometry.isEmpty()
+                    && trailingNormalizationGeometry.isEmpty()
                 || !(representation instanceof CpuContiguousWorkspace workspace)
                 || !workspace.isAccessible()) return false;
         long bytes=materialization.map(CpuMaterializationPlan::byteCount)
@@ -747,8 +832,10 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
                             .map(g -> g.workspaceBytes(selectedRangeCount))
                             .orElseGet(() -> advancedReductionGeometry
                             .map(g -> g.workspaceBytes(selectedRangeCount))
+                            .orElseGet(() -> trailingNormalizationGeometry
+                            .map(g -> g.workspaceBytes(selectedRangeCount))
                             .orElseGet(() -> orderingGeometry.orElseThrow()
-                                .workspaceBytes(selectedRangeCount))))));
+                                .workspaceBytes(selectedRangeCount)))))));
         long alignment=materialization.map(CpuMaterializationPlan::byteAlignment).orElse(8L);
         return workspace.byteSize() == bytes && workspace.byteAlignment() == alignment
                 && workspace.writableSegment().address() % alignment == 0;
@@ -763,6 +850,8 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
                 || maskedReductionGeometry.filter(g -> g.outputCount() > 0).isPresent()
                 || advancedReductionGeometry.filter(g -> g.scratchSliceBytes() > 0
                     && g.outputCount() > 0).isPresent()
+                || trailingNormalizationGeometry.filter(g -> g.scratchSliceBytes() > 0
+                    && g.normalizedCount() > 0).isPresent()
                 || orderingGeometry.isPresent();
         if (workspaces.length != (hasWorkspace ? 1 : 0)) {
             throw new IllegalArgumentException("workspace count disagrees with prepared use");
@@ -803,6 +892,7 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
                             || aggregateGeometry.isPresent() || argExtremaGeometry.isPresent()
                             || maskedReductionGeometry.isPresent()
                             || advancedReductionGeometry.isPresent() || softmaxGeometry.isPresent()
+                            || trailingNormalizationGeometry.isPresent()
                         ? overlaps(arguments.get(input), inputBinding,
                             arguments.get(firstOutputIndex), bindings.get(firstOutputIndex))
                         : overlaps(arguments.get(input), ranged(inputBinding),
@@ -874,6 +964,15 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
                         && advancedScratch.asOverlappingSlice(segment.segment()).isPresent())
                     throw new IllegalArgumentException(
                             "advanced-reduction scratch must not overlap a buffer");
+        }
+        if (trailingNormalizationGeometry.filter(g -> g.scratchSliceBytes() > 0
+                && g.normalizedCount() > 0).isPresent()) {
+            MemorySegment normalizationScratch = scratch(workspaces);
+            for (CpuBufferArgument argument : arguments)
+                if (argument instanceof CpuBufferArgument.Segment segment
+                        && normalizationScratch.asOverlappingSlice(segment.segment()).isPresent())
+                    throw new IllegalArgumentException(
+                            "trailing-normalization scratch must not overlap a buffer");
         }
         long length = end - start;
         KernelCall prologue = randomGeometry.isPresent() ? callFor(artifact.entryPoint(), arguments,
@@ -961,6 +1060,14 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
 
     private long[] geometry(List<CpuBufferArgument> arguments, long rangeStart, long rangeEnd,
             int rangeIndex) {
+        if (trailingNormalizationGeometry.isPresent()) {
+            long[] bases = new long[arguments.size()];
+            for (int index = 0; index < bases.length; index++) {
+                int width = artifact.specialization().boundaryDataTypes().get(index).byteWidth();
+                bases[index] = arguments.get(index).byteOffset() / width;
+            }
+            return trailingNormalizationGeometry.orElseThrow().pack(bases);
+        }
         if (softmaxGeometry.isPresent()) {
             long[] bases = new long[2];
             for (int index = 0; index < 2; index++) {
@@ -1181,6 +1288,11 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
         if (whole != null && advancedReductionGeometry.filter(g -> g.scratchSliceBytes() > 0
                 && g.outputCount() > 0).isPresent()) {
             long bytes = advancedReductionGeometry.orElseThrow().scratchSliceBytes();
+            return whole.asSlice(Math.multiplyExact((long) rangeIndex, bytes), bytes);
+        }
+        if (whole != null && trailingNormalizationGeometry.filter(g -> g.scratchSliceBytes() > 0
+                && g.normalizedCount() > 0).isPresent()) {
+            long bytes = trailingNormalizationGeometry.orElseThrow().scratchSliceBytes();
             return whole.asSlice(Math.multiplyExact((long) rangeIndex, bytes), bytes);
         }
         return whole;
