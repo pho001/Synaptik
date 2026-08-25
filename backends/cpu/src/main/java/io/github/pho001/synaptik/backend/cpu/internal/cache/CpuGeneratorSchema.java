@@ -95,6 +95,9 @@ package io.github.pho001.synaptik.backend.cpu.internal.cache;
  * Schema 44 adds one-axis ARG_MIN/ARG_MAX direct typed loops. Schema 45 adds directional
  * right-aligned masked SUM/MEAN identity, three typed boundaries, early canonical-mask branching,
  * invocation-local selected counts, and exact-state generated entries.
+ * Schema 46 adds the five-kind advanced floating reduction family, ordered selected-axis and
+ * correction identity, operation-specific pass shape, exact-state resource shape, and direct
+ * typed logarithmic, statistical, and norm bodies.
  * The optional persistent envelope stores this version and has no legacy reader, migration path,
  * or converter.
  */
@@ -145,9 +148,11 @@ public final class CpuGeneratorSchema {
      * typed loops, including guarded unit-stride and stride-two forms with arbitrary-stride
      * fallback; schema 45 adds direct typed masked SUM/MEAN output-cell bodies with directional
      * mask broadcasting, early false exclusion, runtime selected counts, and exact-state scratch.
+     * Schema 46 adds direct typed LOG_SUM_EXP, VARIANCE, STANDARD_DEVIATION, L1_NORM, and L2_NORM
+     * complete-output-cell bodies plus their ordered-axis, correction, pass, and resource identity.
      * Envelopes written for earlier schemas are incompatible misses.
      */
-    public static final int CURRENT_VERSION = 45;
+    public static final int CURRENT_VERSION = 46;
     /** Generated entry name. */ public static final String ENTRY_NAME = "invoke";
     private CpuGeneratorSchema() { }
 

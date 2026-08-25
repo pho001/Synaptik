@@ -42,6 +42,10 @@
  * boundaries followed by one exact-state scratch segment. Its generated body embeds the mask
  * topology, early false branch, selected-count work, and exact finalization; concrete layout
  * magnitudes, range count, carriers, scratch identity, and per-range slice offsets stay cold.
+ * An advanced-reduction specialization has one floating input and matching output. LOG_SUM_EXP
+ * and L2_NORM are workspace-free; L1_NORM and both statistical kinds add the existing exact-state
+ * scratch parameter. The generated body fixes axes, correction, pass shape, and numerical owner,
+ * while resolved layout magnitudes and complete-output-cell ranges remain cold.
  *
  * <p>The plan is immutable cold-path state; route dispatch never occurs inside the generated loop.
  */

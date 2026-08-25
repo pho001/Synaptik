@@ -36,6 +36,8 @@ import io.github.pho001.synaptik.model.operation.ordering.OrderingKind;
 import io.github.pho001.synaptik.model.operation.ordering.SortAttrs;
 import io.github.pho001.synaptik.model.operation.reduction.AggregateReductionKind;
 import io.github.pho001.synaptik.model.operation.reduction.AxisReductionAttrs;
+import io.github.pho001.synaptik.model.operation.reduction.MultiAxisReductionAttrs;
+import io.github.pho001.synaptik.model.operation.reduction.StatisticalReductionAttrs;
 import io.github.pho001.synaptik.model.operation.scan.CumulativeScanKind;
 import io.github.pho001.synaptik.model.shape.Shape;
 import io.github.pho001.synaptik.prepare.analysis.PrepareContext;
@@ -75,14 +77,15 @@ class CpuGeneratedDirectEvidenceClosureTest {
             "aggregate:any:multi-axis", "aggregate:sum:full", "aggregate:sum:axis",
             "aggregate:sum:multi-axis", "aggregate:mean:full", "aggregate:mean:axis",
             "aggregate:mean:multi-axis", "aggregate:prod:full", "aggregate:prod:axis",
-            "aggregate:prod:multi-axis");
+            "aggregate:prod:multi-axis", "advanced:log-sum-exp", "advanced:variance",
+            "advanced:standard-deviation", "advanced:l1-norm", "advanced:l2-norm");
 
     @Test void ledgerCoversEveryPointwiseOpcodeAndCurrentNonPointwiseForm() {
         assertAll(
                 () -> assertEquals(48, CpuPointwiseOpcode.values().length),
                 () -> assertEquals(EnumSet.allOf(CpuPointwiseOpcode.class),
                         EnumSet.copyOf(List.of(CpuPointwiseOpcode.values()))),
-                () -> assertEquals(61, NON_POINTWISE_FORMS.size()),
+                () -> assertEquals(66, NON_POINTWISE_FORMS.size()),
                 () -> assertTrue(NON_POINTWISE_FORMS.stream().noneMatch(String::isBlank)));
     }
 
@@ -123,6 +126,12 @@ class CpuGeneratedDirectEvidenceClosureTest {
         representatives.add(new Representative(generated(CpuAggregateLoweringTest.context(
                 AggregateReductionKind.MEAN, DataType.FLOAT32, Shape.of(4, 8),
                 new AxisReductionAttrs(1, false), Shape.of(4))), 1));
+        representatives.add(new Representative(advanced(AggregateReductionKind.LOG_SUM_EXP), 0));
+        representatives.add(new Representative(advanced(AggregateReductionKind.VARIANCE), 0));
+        representatives.add(new Representative(advanced(
+                AggregateReductionKind.STANDARD_DEVIATION), 0));
+        representatives.add(new Representative(advanced(AggregateReductionKind.L1_NORM), 0));
+        representatives.add(new Representative(advanced(AggregateReductionKind.L2_NORM), 0));
         representatives.forEach(representative -> {
             assertClosedClass(representative.bytes());
             assertSegmentLayoutsHoisted(representative);
@@ -134,6 +143,19 @@ class CpuGeneratedDirectEvidenceClosureTest {
                 .portablePlan();
         return new CpuClassFileKernelGenerator().generateClassBytes(
                 route.specialization(), route.kernelIr());
+    }
+
+    private static byte[] advanced(AggregateReductionKind kind) {
+        var attrs = kind == AggregateReductionKind.VARIANCE
+                || kind == AggregateReductionKind.STANDARD_DEVIATION
+                ? new StatisticalReductionAttrs(List.of(1), false, 1)
+                : new MultiAxisReductionAttrs(List.of(1), false);
+        var base = CpuAggregateLoweringTest.context(kind, DataType.FLOAT64,
+                Shape.of(4, 8), attrs, Shape.of(4));
+        return generated(new PrepareContext<>(base.partition(), base.nodes(), base.values(),
+                base.memoryRequirements(), base.constants(), new CpuPartitionAnalysisInputs(false,
+                        List.of(CpuKernelSpecialization.CarrierAccess.DOUBLE_ARRAY,
+                                CpuKernelSpecialization.CarrierAccess.DOUBLE_ARRAY))));
     }
 
     private static byte[] pointwise(boolean vector, boolean segment) {

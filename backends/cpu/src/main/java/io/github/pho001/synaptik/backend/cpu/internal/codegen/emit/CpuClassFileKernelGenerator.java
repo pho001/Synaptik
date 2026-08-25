@@ -68,6 +68,7 @@ public final class CpuClassFileKernelGenerator {
         int entryFlags = AccessFlag.STATIC.mask()
                 | (kernelIr.familyIdentity().startsWith("arg-extrema:")
                     || kernelIr.familyIdentity().startsWith("masked-reduction:")
+                    || kernelIr.familyIdentity().startsWith("advanced-reduction:")
                         ? AccessFlag.PUBLIC.mask() : 0);
         byte[] bytes = ClassFile.of().build(owner, classBuilder -> classBuilder
                 .withVersion(ClassFile.JAVA_26_VERSION, 0).withFlags(AccessFlag.FINAL)
@@ -79,7 +80,15 @@ public final class CpuClassFileKernelGenerator {
                                         specialization.carrierPattern());
                             }
                             if (kernelIr.instructions().isEmpty()) {
-                                if (kernelIr.familyIdentity().startsWith("masked-reduction:")) {
+                                if (kernelIr.familyIdentity().startsWith("advanced-reduction:LOG_SUM_EXP:")) {
+                                    new CpuLogSumExpEmitter().emit(code, specialization, kernelIr);
+                                } else if (kernelIr.familyIdentity().startsWith("advanced-reduction:VARIANCE:")
+                                        || kernelIr.familyIdentity().startsWith("advanced-reduction:STANDARD_DEVIATION:")) {
+                                    new CpuStatisticalReductionEmitter().emit(code, specialization, kernelIr);
+                                } else if (kernelIr.familyIdentity().startsWith("advanced-reduction:L1_NORM:")
+                                        || kernelIr.familyIdentity().startsWith("advanced-reduction:L2_NORM:")) {
+                                    new CpuNormEmitter().emit(code, specialization, kernelIr);
+                                } else if (kernelIr.familyIdentity().startsWith("masked-reduction:")) {
                                     new CpuMaskedReductionEmitter().emit(code, specialization, kernelIr);
                                 } else if (kernelIr.familyIdentity().startsWith("arg-extrema:")) {
                                     new CpuArgExtremaEmitter().emit(code, specialization, kernelIr);
@@ -371,18 +380,19 @@ public final class CpuClassFileKernelGenerator {
             boolean aggregate = kernelIr.familyIdentity().startsWith("aggregate:");
             boolean argExtrema = kernelIr.familyIdentity().startsWith("arg-extrema:");
             boolean maskedReduction = kernelIr.familyIdentity().startsWith("masked-reduction:");
+            boolean advancedReduction = kernelIr.familyIdentity().startsWith("advanced-reduction:");
             boolean scatter = kernelIr.familyIdentity().startsWith("scatter:");
             boolean fold = kernelIr.familyIdentity().startsWith("fold:");
             boolean ordering = kernelIr.familyIdentity().startsWith("ordering:");
             boolean movement = kernelIr.familyIdentity().startsWith("movement:");
             boolean affine = kernelIr.familyIdentity().startsWith("affine:");
-            if ((!movement && !affine && !indexing && !scatter && !fold && !ordering && !random && !scan && !aggregate && !argExtrema && !maskedReduction)
+            if ((!movement && !affine && !indexing && !scatter && !fold && !ordering && !random && !scan && !aggregate && !argExtrema && !maskedReduction && !advancedReduction)
                     || affine && kernelIr.values().size() != 2
                     || movement && (kernelIr.values().size() < 2 || kernelIr.values().size() > 17)
-                    || !ordering && !random && !scan && !aggregate && !argExtrema && !maskedReduction && kernelIr.values().subList(0, kernelIr.values().size() - 1).stream()
+                    || !ordering && !random && !scan && !aggregate && !argExtrema && !maskedReduction && !advancedReduction && kernelIr.values().subList(0, kernelIr.values().size() - 1).stream()
                         .anyMatch(value -> value.kind() != CpuKernelIr.Value.Kind.INPUT)
                     || kernelIr.values().getLast().kind() != CpuKernelIr.Value.Kind.OUTPUT
-                    || !indexing && !scatter && !fold && !ordering && !random && !scan && !aggregate && !argExtrema && !maskedReduction
+                    || !indexing && !scatter && !fold && !ordering && !random && !scan && !aggregate && !argExtrema && !maskedReduction && !advancedReduction
                         && kernelIr.values().stream().map(CpuKernelIr.Value::dataType).distinct().count() != 1
                     || random && kernelIr.values().size() != 1 && kernelIr.values().size() != 5
                     || specialization.executionStrategy().compute()

@@ -3,7 +3,7 @@
 ## Outcome and status
 
 This guide defines the CPU integration boundary and helps contributors avoid treating CPU routes
-as separate backends. The current CPU module accepts twelve bounded, fully static portable families.
+as separate backends. The current CPU module accepts thirteen bounded, fully static portable families.
 A pointwise partition is one supported occurrence or one connected straight-line chain of at most
 eight occurrences. A static affine partition is one connected one-input/one-output chain of at
 most eight resolved-layout view occurrences. Either family lowers to one computation unit, one
@@ -87,6 +87,14 @@ False positions are excluded before their data is loaded or classified. Scalar o
 execution owns complete output cells, keeps an exact true-position count, and uses one run-owned
 exact-state slice per simultaneously used range. It declares three buffers and no mask
 materialization, selected-count workspace, partial result, or combine state.
+The thirteenth family is exactly one resolved-layout `LOG_SUM_EXP`, `VARIANCE`,
+`STANDARD_DEVIATION`, `L1_NORM`, or `L2_NORM` occurrence. It accepts matching FLOAT64, FLOAT32,
+or BFLOAT16 input and output, preserves the Model-owned ordered axes and correction, and walks
+each selected domain in canonical input-axis row-major order. Log-sum-exp uses a maximum-shifted
+two-pass sum; variance and standard deviation use corrected two-pass statistics; L1 uses the
+existing exact represented-sum state; and L2 uses scaled sum of squares. Scalar or parallel-scalar
+execution owns complete output cells. Only L1 and statistics use a run-owned exact-state slice;
+the family adds no materialization, partial result, combine state, vector body, or native route.
 
 Generated scalar and Java 26 Vector API entries accept primitive `start` and `end` bounds.
 Compatible concrete extents bind on the cold path and share identical class bytes and one
@@ -1174,7 +1182,7 @@ independent primitive-index insertion implementation for differential evidence; 
 Runtime fallback.
 
 Schema 27 introduced the complete carrier-, represented-type-, family-, direction-, output-,
-and access-specialized ordering body, which current schema 45 retains. It uses a stable bottom-up
+and access-specialized ordering body, which current schema 46 retains. It uses a stable bottom-up
 merge over the two assigned
 INT64 scratch regions, selecting the left logical index on equality. Dense heap-array forms use
 cold-proved integer loop and address state. Arbitrary supported layouts and heap, segment, or
@@ -1408,8 +1416,7 @@ production tuning input. Two earlier five-fork samples were rejected in full bec
 row exceeded the fixed gate in one fork, so neither rejected sample contributes accepted ratios.
 
 Current coverage ends at this one-node static portable family. Ordinary aggregates, arg extrema,
-and masked reductions are the separate current families below. Logarithmic, statistical, and norm
-reductions remain Draft CPU 0007D work. Stable
+masked reductions, and advanced reductions are the separate current families below. Stable
 `SOFTMAX`/`LOG_SOFTMAX` and normalization remain Draft CPU 0007E–0007F work. Multi-node scan
 fusion, partial scans, cross-worker prefix combination, vector or native scan bodies, dynamic
 Shape/layout binding, in-place/overlapping execution, public scan configuration, and a shared
@@ -1755,6 +1762,59 @@ Current coverage does not include other masked operations, vector or native exec
 selected-domain splitting, materialization, fusion, dynamic Shapes/layouts, new Model or Compiler
 semantics, gradients, or broader backend conformance. Those forms remain fail-closed or belong to
 their existing owners.
+
+### Current advanced-reduction family
+
+The portable advanced-reduction family accepts exactly one fully static, resolved-layout
+`LOG_SUM_EXP`, `VARIANCE`, `STANDARD_DEVIATION`, `L1_NORM`, or `L2_NORM` occurrence. Input and
+output use the same FLOAT64, FLOAT32, or BFLOAT16 representation. CPU consumes the Model's
+normalized ordered axes, keep-Dimension choice, and non-negative statistical correction. Axis
+order remains specialization and diagnostic identity; selected values are visited in canonical
+input-axis row-major order. The selected-domain count `N` must fit `long`, and statistics fail
+closed unless `N > correction`.
+
+The numerical owner is selected while the class is generated:
+
+| Family | Stable finite algorithm | Workspace |
+|---|---|---|
+| `LOG_SUM_EXP` | Find the maximum, then compensate the binary64 sum of `exp(value - maximum)` | None |
+| `VARIANCE`, `STANDARD_DEVIATION` | Exact result-type mean, then compensated deviations and squared deviations with the correction term | Existing exact-state slice for the mean |
+| `L1_NORM` | Exact sum of represented absolute values, rounded once | Existing exact-state slice |
+| `L2_NORM` | Scaled sum of squares followed by square root | None |
+
+FLOAT32 and BFLOAT16 values use binary64 intermediates and narrow once at the output. That is a
+CPU-private implementation choice, not public type promotion or a cross-backend bitwise promise.
+Log-sum-exp preserves a finite singleton directly. Statistics clamp only a negative roundoff
+residue before division; standard deviation then takes the non-negative principal square root.
+The L2 scale prevents avoidable finite overflow or underflow from squaring first.
+
+Special values are classified before finite arithmetic. NaN has priority and produces the CPU
+canonical quiet NaN. Positive infinity dominates log-sum-exp; an empty or all-negative-infinity
+domain produces negative infinity. Either infinity makes statistics NaN. Either norm produces
+positive infinity when no NaN occurs, and every exact zero norm is positive zero. A selected zero
+extent is therefore negative infinity for log-sum-exp and positive zero for either norm;
+statistics reject it. An empty axis list is a one-value point domain. Valid finite point
+statistics are positive zero, while point norms are the represented absolute value.
+
+Analysis declares one input and one distinct injective output. L1 and statistics add one
+eight-byte-aligned exact-state slice per simultaneously used output-cell range. No selected domain
+is split: scalar and parallel-scalar ranges own complete output cells and private scratch. Cold
+execution validates carrier/access/alignment, complete spans, output/input and workspace overlap,
+and output injectivity before any mutation or worker submission. Heap arrays, native-order
+`MemorySegment` carriers, and all matching mixed input/output pairs use one typed generated entry.
+
+Schema 46 adds the focused advanced-reduction identity, ordered-axis membership, correction,
+algorithm/pass shape, exact resource facts, and dispatch to three numerical emitters:
+log-sum-exp, corrected statistics, and norms. The retained fifteen generated classes cover five
+kinds across three representations, with three unchanged-family controls. Complete Class-File
+inspection found no forbidden generated member. All targets and controls passed five isolated
+forks against optimal clean Java implementations with the same algorithm, traversal, address
+work, and stores. The worst fork ratio was `1.099406784x` and the worst median aggregate ratio was
+`1.087934030x`, both FLOAT64 log-sum-exp, within the task-local `<= 1.15x` gate.
+
+This family does not add public or shared semantics, gradients, compiler behavior, vector or
+native execution, fusion, materialization, dynamic Shapes/layouts, partial/combine state, or a
+cross-backend numerical promise. Stable softmax and log-softmax remain Draft CPU 0007E work.
 
 ### Unary numerical closure
 
@@ -2231,17 +2291,18 @@ architecture capability checkpoint then passed, and the provider milestone is co
 
 The current CPU foundation provides the bounded fully static pointwise matrix, static
 resolved-layout affine family, and one-node static movement, indexing, functional-scatter,
-overlap-fold, stable ordering, explicit-state random, cumulative-scan, aggregate, arg-extrema, and
-masked-reduction
+overlap-fold, stable ordering, explicit-state random, cumulative-scan, aggregate, arg-extrema,
+masked-reduction, and advanced-reduction
 families
 described above. Scalar
 execution covers every admitted row; parallel-scalar orchestration is available for disjoint
 affine, movement, scatter, fold, ordering, random-element, whole-scan-slice, whole-aggregate-
-output-cell, whole-arg-extrema-output-cell, and whole-masked-reduction-output-cell ranges; and the
+output-cell, whole-arg-extrema-output-cell, whole-masked-reduction-output-cell, and whole-advanced-
+reduction-output-cell ranges; and the
 pointwise family retains its exact typed value-vector and virtual-mask parity matrix. Generator
-schema 45 distinguishes pointwise,
+schema 46 distinguishes pointwise,
 affine, movement, indexing, scatter, fold, ordering, random, scan, aggregate, arg-extrema, and
-masked-reduction
+masked-reduction and advanced-reduction
 structures,
 including movement occurrence order,
 unequal-rank access, exact
@@ -2278,7 +2339,9 @@ separate mixed-input/output arg-extrema identity and direct typed unit-stride, g
 and arbitrary-stride bodies described above. Schema 45 adds the directional right-aligned mask
 topology, three typed boundaries, early false exclusion, invocation-local selected count, and
 direct exact-state SUM/MEAN bodies described above. Retained schema-42 ledger and performance
-material is explicitly historical; schema 45 is the only current compatible artifact envelope.
+material is explicitly historical. Schema 46 adds ordered advanced-reduction axes, correction,
+algorithm/pass and resource identity, plus the three focused direct numerical bodies described
+above; schema 46 is the only current compatible artifact envelope.
 No excluded
 aggregate/scatter form or later semantic family,
 general BFLOAT16 pointwise or dropout numerical operation,

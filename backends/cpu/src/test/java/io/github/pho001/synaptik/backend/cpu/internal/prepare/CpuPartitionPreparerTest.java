@@ -22,6 +22,7 @@ import io.github.pho001.synaptik.model.operation.OperationKind;
 import io.github.pho001.synaptik.model.operation.reduction.AggregateReductionKind;
 import io.github.pho001.synaptik.model.operation.reduction.AxisReductionAttrs;
 import io.github.pho001.synaptik.model.operation.reduction.SumToShapeAttrs;
+import io.github.pho001.synaptik.model.operation.reduction.StatisticalReductionAttrs;
 import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuAggregateLoweringTest;
 import io.github.pho001.synaptik.model.operation.layout.CompositionAxisAttrs;
 import io.github.pho001.synaptik.model.operation.layout.TensorCompositionKind;
@@ -64,6 +65,32 @@ import jdk.incubator.vector.LongVector;
 import jdk.incubator.vector.ByteVector;
 
 public class CpuPartitionPreparerTest {
+    @Test void advancedStatisticsDeclareTwoBuffersAndOnlyPerRangeExactState() {
+        var base = CpuAggregateLoweringTest.context(AggregateReductionKind.VARIANCE,
+                DataType.FLOAT32, Shape.of(8, 4),
+                new StatisticalReductionAttrs(List.of(1), false, 1), Shape.of(8));
+        var config = new CpuPartitionAnalysisInputs.PortableExecutionConfig(
+                CpuPartitionAnalysisInputs.PortableExecutionConfig.ComputePreference.SCALAR,
+                4, 4, 1);
+        var context = new PrepareContext<>(base.partition(), base.nodes(), base.values(),
+                base.memoryRequirements(), base.constants(), new CpuPartitionAnalysisInputs(false,
+                    List.of(io.github.pho001.synaptik.backend.cpu.internal.cache
+                            .CpuKernelSpecialization.CarrierAccess.FLOAT_ARRAY,
+                            io.github.pho001.synaptik.backend.cpu.internal.cache
+                            .CpuKernelSpecialization.CarrierAccess.FLOAT_ARRAY), config));
+        var plan = new CpuPartitionPreparer().analyze(context).plan();
+        var geometry = plan.advancedReductionGeometry().orElseThrow();
+        assertAll(() -> assertEquals(2, plan.bufferDeclarations().size()),
+                () -> assertTrue(plan.materialization().isEmpty()),
+                () -> assertEquals(4, plan.selectedRangeCount()),
+                () -> assertEquals(geometry.workspaceBytes(4),
+                        plan.workspaceDeclaration().orElseThrow().byteSize()),
+                () -> assertEquals(CpuPartitionPreparationPlan.WorkspaceUse.AGGREGATE_EXACT_STATE,
+                        plan.workspaceUse()),
+                () -> assertTrue(plan.units().getFirst().portablePlan().specialization()
+                        .scratchParameter()));
+    }
+
     @Test void maskedReductionDeclaresThreeBuffersAndOnlyPerRangeExactState() {
         var base = CpuMaskedReductionLoweringTest.context(AggregateReductionKind.MEAN,
                 DataType.FLOAT32, Shape.of(8, 3), Shape.of(3), 1);
@@ -180,7 +207,7 @@ public class CpuPartitionPreparerTest {
                 () -> assertTrue(initial.workspaceDeclaration().isEmpty()),
                 () -> assertTrue(dropout.workspaceDeclaration().isEmpty()),
                 () -> assertTrue(dropout.randomGeometry().isPresent()),
-                () -> assertEquals(45, io.github.pho001.synaptik.backend.cpu.internal.cache
+                () -> assertEquals(46, io.github.pho001.synaptik.backend.cpu.internal.cache
                         .CpuGeneratorSchema.CURRENT_VERSION));
     }
     @Test void foldDeclaresExactlyTwoBuffersOneArtifactAndNoWorkspaceOrMaterialization() {

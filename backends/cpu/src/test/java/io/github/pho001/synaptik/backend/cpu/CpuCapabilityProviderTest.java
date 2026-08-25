@@ -30,6 +30,49 @@ import java.util.Optional;
 import org.junit.jupiter.api.Test;
 
 class CpuCapabilityProviderTest {
+    @Test void reportsOnlyExactStaticAdvancedReductionMatrix() {
+        var provider = new CpuCapabilityProvider(); Shape inputShape = Shape.of(2, 3, 4);
+        for (DataType type : List.of(DataType.FLOAT64, DataType.FLOAT32, DataType.BFLOAT16)) {
+            for (AggregateReductionKind kind : List.of(AggregateReductionKind.LOG_SUM_EXP,
+                    AggregateReductionKind.L1_NORM, AggregateReductionKind.L2_NORM)) {
+                assertTrue(provider.supports(query(kind,
+                        new MultiAxisReductionAttrs(List.of(2, 0), false),
+                        List.of(descriptor(type, inputShape)), descriptor(type, Shape.of(3)))));
+            }
+            for (AggregateReductionKind kind : List.of(AggregateReductionKind.VARIANCE,
+                    AggregateReductionKind.STANDARD_DEVIATION)) {
+                assertTrue(provider.supports(query(kind,
+                        new StatisticalReductionAttrs(List.of(2, 0), true, 1),
+                        List.of(descriptor(type, inputShape)),
+                        descriptor(type, Shape.of(1, 3, 1)))));
+            }
+        }
+        TensorDescriptor gradientInput = new TensorDescriptor(DataType.FLOAT64, inputShape,
+                Optional.of(LayoutDescriptor.contiguous(inputShape)), true);
+        TensorDescriptor nonInjective = new TensorDescriptor(DataType.FLOAT64, Shape.of(2, 4),
+                Optional.of(LayoutDescriptor.of(Shape.of(2, 4), new long[] {0, 1}, 0, true)), false);
+        assertAll(
+                () -> assertFalse(provider.supports(query(AggregateReductionKind.L1_NORM,
+                        new MultiAxisReductionAttrs(List.of(1), false),
+                        List.of(descriptor(DataType.INT32, inputShape)),
+                        descriptor(DataType.INT32, Shape.of(2, 4))))),
+                () -> assertFalse(provider.supports(query(AggregateReductionKind.L2_NORM,
+                        new MultiAxisReductionAttrs(List.of(1), false), List.of(gradientInput),
+                        descriptor(DataType.FLOAT64, Shape.of(2, 4))))),
+                () -> assertFalse(provider.supports(query(AggregateReductionKind.LOG_SUM_EXP,
+                        new MultiAxisReductionAttrs(List.of(1), false),
+                        List.of(descriptor(DataType.FLOAT64, inputShape)), nonInjective))),
+                () -> assertFalse(provider.supports(query(AggregateReductionKind.VARIANCE,
+                        new StatisticalReductionAttrs(List.of(1), false, 3),
+                        List.of(descriptor(DataType.FLOAT64, inputShape)),
+                        descriptor(DataType.FLOAT64, Shape.of(2, 4))))),
+                () -> assertThrows(IllegalArgumentException.class, () -> query(
+                        AggregateReductionKind.VARIANCE,
+                        new MultiAxisReductionAttrs(List.of(1), false),
+                        List.of(descriptor(DataType.FLOAT64, inputShape)),
+                        descriptor(DataType.FLOAT64, Shape.of(2, 4)))));
+    }
+
     @Test void reportsOnlyExactDirectionalMaskedSumAndMeanMatrix() {
         var provider = new CpuCapabilityProvider();
         for (DataType type : List.of(DataType.FLOAT64, DataType.FLOAT32, DataType.BFLOAT16)) {

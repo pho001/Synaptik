@@ -71,8 +71,9 @@
  * family, its mixed numeric-input/INT64-output signature, structural selection facts, and direct
  * logical-coordinate body. Schema 45 adds directional right-aligned masked SUM/MEAN identity,
  * its three typed boundaries, mask broadcast topology, early mask branch, selected-count work,
- * and exact-state entry shape. Schema 45 is current-only; schema-44 and earlier envelopes are
- * incompatible misses. Retained schema-42 performance and ledger material is historical evidence,
+ * and exact-state entry shape. Schema 46 adds the advanced floating reduction family and its
+ * algorithm, pass, correction, domain, and exact-state identities. Schema 46 is current-only;
+ * schema-45 and earlier envelopes are incompatible misses. Retained schema-42 performance and ledger material is historical evidence,
  * not a current-schema artifact claim.
  * Four complete candidate plans, one realized artifact, zero additional fixed-shape variants,
  * and zero additional unrolled variants are the current planner-visible hard budget. A guarded

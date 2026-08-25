@@ -82,6 +82,10 @@
  * complete output cells and disjoint per-range slices. Analysis selects no mask materialization,
  * selected-count workspace, partial state, or combine state; schema 45 finalization realizes the
  * direct typed three-boundary entry after shared slot assignment.
+ * Advanced-reduction plans declare one input and one output, select scalar or complete-output-cell
+ * parallel-scalar orchestration, and never materialize or split a selected domain. L1 and
+ * statistics declare one maximum exact-state slice per selected range; log-sum-exp and L2 declare
+ * no workspace. Schema 46 finalization realizes the corresponding typed entry.
  *
  * <p>All work in this package is cold-path work. Runtime collaborates only through the resulting
  * prepared executable and never receives the canonical kernel intermediate representation.

@@ -54,6 +54,11 @@
  * FLOAT32, or BFLOAT16 values. It calls no production lowering, packer, exact-sum emitter, or
  * generated execution helper.</p>
  *
+ * <p>The advanced-reduction oracle independently derives retained and selected coordinates from
+ * Shapes and ordered axes, uses high-precision represented sums for L1 and statistical means,
+ * and applies separate stable logarithmic, corrected-statistical, and scaled-norm calculations.
+ * It consumes no production lowering geometry, packer, emitter, or generated execution helper.</p>
+ *
  * <p>Reference evaluation is outside the generated Runtime hot path and owns no buffers, slots, or
  * artifact lifecycle.
  */

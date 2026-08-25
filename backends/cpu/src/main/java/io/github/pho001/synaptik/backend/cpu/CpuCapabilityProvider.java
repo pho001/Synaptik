@@ -48,6 +48,7 @@ import io.github.pho001.synaptik.model.operation.reduction.AxisReductionAttrs;
 import io.github.pho001.synaptik.model.operation.reduction.MultiAxisReductionAttrs;
 import io.github.pho001.synaptik.model.operation.reduction.MaskedReductionAttrs;
 import io.github.pho001.synaptik.model.operation.reduction.SumToShapeAttrs;
+import io.github.pho001.synaptik.model.operation.reduction.StatisticalReductionAttrs;
 import io.github.pho001.synaptik.model.shape.Shape;
 import io.github.pho001.synaptik.planning.capability.BackendCapabilityProvider;
 import io.github.pho001.synaptik.planning.capability.OperationCapabilityQuery;
@@ -113,6 +114,13 @@ import java.util.Objects;
  * layouts, and an injective output. Tie policy and logical-coordinate semantics remain Model
  * facts; lowering and binding own complete output-cell realization and physical non-overlap.</p>
  *
+ * <p>A separate advanced-reduction matrix admits LOG_SUM_EXP, VARIANCE,
+ * STANDARD_DEVIATION, L1_NORM, and L2_NORM for FLOAT64, FLOAT32, and BFLOAT16. It requires
+ * normalized ordered multi-axis or statistical attributes, identical gradient-eligibility and
+ * input/output types, exact retained/removed-axis output Shape, resolved non-negative layouts,
+ * and an injective output. Statistics additionally require the static selected-domain count to
+ * exceed the non-negative correction.</p>
+ *
  * <p>The movement route also admits exactly one fully static, resolved-layout
  * {@code SLICE_UPDATE} occurrence with ordered {@code [base, update]} inputs. Both normalized
  * signed finite-coordinate {@link SliceAttrs} and target-relative {@link CropToShapeAttrs}
@@ -174,6 +182,9 @@ public final class CpuCapabilityProvider implements BackendCapabilityProvider {
      * Arg extrema additionally requires a five-type numeric input, exact non-gradient INT64
      * output, valid normalized axis with positive selected extent, exact keep/remove-Dimension
      * Shape, and injective output layout.
+     * Advanced reductions additionally require the exact floating type/attribute pairing,
+     * ordered normalized axes, matching gradient eligibility, Model-derived output Shape, and a
+     * valid static corrected denominator for statistics.
      * Cross-type casts, dynamic
      * or unresolved geometry, negative-step extraction slices, non-injective
      * movement outputs, and all rows outside the implemented matrix return {@code false} without
@@ -307,6 +318,13 @@ public final class CpuCapabilityProvider implements BackendCapabilityProvider {
         if (query.operation().attrs() instanceof MaskedReductionAttrs masked) {
             return supportsMaskedReduction(query, output, kind, masked);
         }
+        if (kind == AggregateReductionKind.LOG_SUM_EXP
+                || kind == AggregateReductionKind.VARIANCE
+                || kind == AggregateReductionKind.STANDARD_DEVIATION
+                || kind == AggregateReductionKind.L1_NORM
+                || kind == AggregateReductionKind.L2_NORM) {
+            return supportsAdvancedReduction(query, output, kind);
+        }
         if (query.inputs().size() != 1 || kind != AggregateReductionKind.SUM
                 && kind != AggregateReductionKind.MEAN && kind != AggregateReductionKind.PROD
                 && kind != AggregateReductionKind.MIN
@@ -358,6 +376,42 @@ public final class CpuCapabilityProvider implements BackendCapabilityProvider {
         if (!java.util.Arrays.equals(output.shape().toLongArray(),
                 expected.stream().mapToLong(Long::longValue).toArray())) return false;
         return injective(output.shape().toLongArray(), output.layout().orElseThrow().strides());
+    }
+
+    private static boolean supportsAdvancedReduction(OperationCapabilityQuery query,
+            TensorDescriptor output, AggregateReductionKind kind) {
+        if (query.inputs().size() != 1) return false;
+        TensorDescriptor input = query.inputs().getFirst();
+        DataType type = input.dataType();
+        if ((type != DataType.FLOAT64 && type != DataType.FLOAT32
+                && type != DataType.BFLOAT16) || output.dataType() != type
+                || output.requiresGrad() != input.requiresGrad()) return false;
+        int rank = input.shape().rank();
+        java.util.List<Integer> axes; boolean keep; long correction = 0;
+        boolean statistical = kind == AggregateReductionKind.VARIANCE
+                || kind == AggregateReductionKind.STANDARD_DEVIATION;
+        if (statistical) {
+            if (!(query.operation().attrs() instanceof StatisticalReductionAttrs attrs)) return false;
+            axes = attrs.axes(); keep = attrs.keepDimensions(); correction = attrs.correction();
+        } else {
+            if (!(query.operation().attrs() instanceof MultiAxisReductionAttrs attrs)) return false;
+            axes = attrs.axes(); keep = attrs.keepDimensions();
+        }
+        boolean[] selected = new boolean[rank]; long domain = 1;
+        for (int axis : axes) {
+            if (axis < 0 || axis >= rank || selected[axis]) return false;
+            selected[axis] = true;
+            domain = Math.multiplyExact(domain, input.shape().toLongArray()[axis]);
+        }
+        if (statistical && domain <= correction) return false;
+        long[] source = input.shape().toLongArray();
+        long[] expected = new long[keep ? rank : rank - axes.size()];
+        for (int inputAxis = 0, outputAxis = 0; inputAxis < rank; inputAxis++) {
+            if (selected[inputAxis]) { if (keep) expected[outputAxis++] = 1; }
+            else expected[outputAxis++] = source[inputAxis];
+        }
+        return java.util.Arrays.equals(expected, output.shape().toLongArray())
+                && injective(expected, output.layout().orElseThrow().strides());
     }
 
     private static boolean supportsMaskedReduction(OperationCapabilityQuery query,

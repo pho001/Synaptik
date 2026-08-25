@@ -155,6 +155,12 @@
  * The generated entry contains no Synaptik runtime call, allocation, semantic dispatch, mask
  * materialization, partial state, or combine step.</p>
  *
+ * <p>Three focused advanced-reduction emitters share only generated coordinate traversal. The
+ * logarithmic owner emits maximum-shift two-pass log-sum-exp, the statistical owner emits an
+ * exact represented mean followed by corrected compensated deviation passes, and the norm owner
+ * emits exact represented L1 or scaled-squares L2. Generated entries call no Synaptik numerical
+ * helper and narrow once at the final store.</p>
+ *
  * <p>Covered scalar activation formulas, BFLOAT16 scan arithmetic and rounding, and aggregate
  * extrema/Boolean combination are emitted directly. Those per-element bodies therefore have no
  * runtime reference to another Synaptik class. The selected bounded movement classes likewise

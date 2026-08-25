@@ -21,6 +21,7 @@ import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuScanLowering;
 import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuAggregateLowering;
 import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuArgExtremaLowering;
 import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuMaskedReductionLowering;
+import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuAdvancedReductionLowering;
 
 /**
  * Route-neutral immutable selected CPU partition plan.
@@ -66,6 +67,8 @@ import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuMaskedReductio
  *     geometry; floating numerical rows carry an exact per-range state shape
  * @param argExtremaGeometry non-null optional one-axis logical-index output-cell geometry
  * @param maskedReductionGeometry non-null optional directional masked SUM/MEAN geometry
+ * @param advancedReductionGeometry non-null optional logarithmic, statistical, or norm
+ *     complete-output-cell geometry
  */
 public record CpuPartitionPreparationPlan(List<ExecutionUnitPlan> units, Route route,
         ExecutionStrategy executionStrategy,
@@ -87,7 +90,8 @@ public record CpuPartitionPreparationPlan(List<ExecutionUnitPlan> units, Route r
         Optional<CpuScanLowering.Geometry> scanGeometry,
         Optional<CpuAggregateLowering.Geometry> aggregateGeometry,
         Optional<CpuArgExtremaLowering.Geometry> argExtremaGeometry,
-        Optional<CpuMaskedReductionLowering.Geometry> maskedReductionGeometry)
+        Optional<CpuMaskedReductionLowering.Geometry> maskedReductionGeometry,
+        Optional<CpuAdvancedReductionLowering.Geometry> advancedReductionGeometry)
         implements BackendPreparationPlan {
 
     /**
@@ -143,7 +147,7 @@ public record CpuPartitionPreparationPlan(List<ExecutionUnitPlan> units, Route r
                 loweringManifest, materialization, workspaceDeclaration, workspaceUse,
                 specializationBudget, movementGeometry, indexingGeometry, scatterGeometry,
                 foldGeometry, orderingGeometry, Optional.empty(), Optional.empty(), Optional.empty(),
-                Optional.empty(), Optional.empty());
+                Optional.empty(), Optional.empty(), Optional.empty());
     }
     /**
      * Creates a pointwise or affine plan without non-affine movement geometry.
@@ -189,7 +193,7 @@ public record CpuPartitionPreparationPlan(List<ExecutionUnitPlan> units, Route r
                 materialization.isPresent() ? WorkspaceUse.MATERIALIZATION : WorkspaceUse.NONE,
                 specializationBudget, Optional.empty(), Optional.empty(), Optional.empty(),
                 Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(),
-                Optional.empty(), Optional.empty());
+                Optional.empty(), Optional.empty(), Optional.empty());
     }
     /** Meaning of the plan's sole optional CPU workspace. */
     public enum WorkspaceUse {
@@ -328,6 +332,8 @@ public record CpuPartitionPreparationPlan(List<ExecutionUnitPlan> units, Route r
         argExtremaGeometry = Objects.requireNonNull(argExtremaGeometry, "argExtremaGeometry");
         maskedReductionGeometry = Objects.requireNonNull(maskedReductionGeometry,
                 "maskedReductionGeometry");
+        advancedReductionGeometry = Objects.requireNonNull(advancedReductionGeometry,
+                "advancedReductionGeometry");
         if (units.size() != 1 || route != Route.PORTABLE
                 || bufferDeclarations.isEmpty()
                 || boundaryValues.size() != bufferDeclarations.size()
@@ -358,6 +364,8 @@ public record CpuPartitionPreparationPlan(List<ExecutionUnitPlan> units, Route r
                 instanceof io.github.pho001.synaptik.backend.cpu.internal.ir.CpuArgExtremaIr;
         boolean maskedReduction = units.getFirst().portablePlan().portableKernelIr()
                 instanceof io.github.pho001.synaptik.backend.cpu.internal.ir.CpuMaskedReductionIr;
+        boolean advancedReduction = units.getFirst().portablePlan().portableKernelIr()
+                instanceof io.github.pho001.synaptik.backend.cpu.internal.ir.CpuAdvancedReductionIr;
         if (affine ? affineAddressPairs.length != Math.multiplyExact(elementCount, 2)
                 : affineAddressPairs.length != 0) {
             throw new IllegalArgumentException("affine address geometry must match the copy domain");
@@ -457,6 +465,27 @@ public record CpuPartitionPreparationPlan(List<ExecutionUnitPlan> units, Route r
                         "masked-reduction structural IR and geometry disagree");
             }
         }
+        if (advancedReduction != advancedReductionGeometry.isPresent()
+                || advancedReduction && (bufferDeclarations.size() != 2
+                    || materialization.isPresent())) {
+            throw new IllegalArgumentException(
+                    "advanced-reduction IR and cold geometry must agree");
+        }
+        if (advancedReduction) {
+            var advancedIr = (io.github.pho001.synaptik.backend.cpu.internal.ir.CpuAdvancedReductionIr)
+                    units.getFirst().portablePlan().portableKernelIr();
+            var geometry = advancedReductionGeometry.orElseThrow();
+            if (advancedIr.kind() != geometry.kind() || advancedIr.dataType() != geometry.dataType()
+                    || advancedIr.keepDimensions() != geometry.keepDimensions()
+                    || advancedIr.correction() != geometry.correction()
+                    || !java.util.Arrays.equals(advancedIr.orderedAxes(), geometry.orderedAxes())
+                    || !java.util.Arrays.equals(advancedIr.selectedAxes(), geometry.selectedAxes())
+                    || elementCount != geometry.outputCount() || extents.length != 1
+                    || extents[0] != geometry.outputCount()) {
+                throw new IllegalArgumentException(
+                        "advanced-reduction structural IR and geometry disagree");
+            }
+        }
         if (fold) {
             var foldIr = (io.github.pho001.synaptik.backend.cpu.internal.ir.CpuFoldIr)
                     units.getFirst().portablePlan().portableKernelIr();
@@ -486,7 +515,10 @@ public record CpuPartitionPreparationPlan(List<ExecutionUnitPlan> units, Route r
                                 && g.outputCount() > 0).isPresent()
                             ? WorkspaceUse.AGGREGATE_EXACT_STATE
                             : maskedReductionGeometry.filter(g -> g.outputCount() > 0).isPresent()
-                                ? WorkspaceUse.AGGREGATE_EXACT_STATE : WorkspaceUse.NONE;
+                                ? WorkspaceUse.AGGREGATE_EXACT_STATE
+                                : advancedReductionGeometry.filter(g -> g.scratchSliceBytes() > 0
+                                    && g.outputCount() > 0).isPresent()
+                                    ? WorkspaceUse.AGGREGATE_EXACT_STATE : WorkspaceUse.NONE;
         if (workspaceUse != expectedUse
                 || workspaceDeclaration.isPresent() != (workspaceUse != WorkspaceUse.NONE)) {
             throw new IllegalArgumentException("workspace purpose and declaration must agree");
@@ -510,7 +542,9 @@ public record CpuPartitionPreparationPlan(List<ExecutionUnitPlan> units, Route r
             var workspace = workspaceDeclaration.orElseThrow();
             long expected = aggregateGeometry.isPresent()
                     ? aggregateGeometry.orElseThrow().workspaceBytes(selectedRangeCount)
-                    : maskedReductionGeometry.orElseThrow().workspaceBytes(selectedRangeCount);
+                    : maskedReductionGeometry.isPresent()
+                        ? maskedReductionGeometry.orElseThrow().workspaceBytes(selectedRangeCount)
+                        : advancedReductionGeometry.orElseThrow().workspaceBytes(selectedRangeCount);
             if (workspace.requirementId() != 0 || workspace.byteAlignment() != Long.BYTES
                     || workspace.byteSize() != expected)
                 throw new IllegalArgumentException("aggregate exact-state workspace facts disagree");

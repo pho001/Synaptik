@@ -1254,8 +1254,18 @@ right-aligned broadcast must equal the data Shape. Generated code branches on th
 loading data, counts selected positions exactly, and reuses the ordinary exact floating state and
 one final rounding. Three ordered buffers plus one per-range exact-state workspace are declared;
 scalar or parallel-scalar ranges own complete output cells without mask materialization,
-partial/combine state, or selected-count workspace. Schema 45 is current. Retained schema-42
-ledger and performance results are historical evidence only.
+partial/combine state, or selected-count workspace. Schema 45 introduced this family; schema 46
+is current. Retained schema-42 ledger and performance results are historical evidence only.
+
+Completed CPU 0007D adds exactly one fully static resolved-layout `LOG_SUM_EXP`, `VARIANCE`,
+`STANDARD_DEVIATION`, `L1_NORM`, or `L2_NORM` occurrence over matching FLOAT64, FLOAT32, or
+BFLOAT16 input and output. One shared CPU-private geometry owns ordered axes and complete output
+cells, while three focused emitters own maximum-shift log-sum-exp, corrected two-pass statistics,
+and exact-L1/scaled-L2 norm bodies. L1 and statistics reuse the existing per-range exact-state
+workspace; log-sum-exp and L2 use primitive locals only. Heap arrays, native-order segments, and
+mixed carriers execute through typed generated entries. Schema 46 is current. This coverage adds
+no public/shared contract, gradient, compiler, vector/native/fusion/materialization/dynamic-Shape,
+partial/combine, or cross-backend numerical promise.
 
 Cross-type cast, general BFLOAT16 pointwise arithmetic, FLOAT16 execution, relaxed math,
 native/vendor realization, dynamic layouts, Vector API scatter, fold, ordering, scan, or ordinary
@@ -1348,7 +1358,7 @@ decision occurs in the generated loop.
 ### CPU kernel specialization
 
 The implemented backend-private immutable description of every fact allowed to change one
-generated CPU class. The current form uses schema 45 and includes the canonical lowering fingerprint with
+generated CPU class. The current form uses schema 46 and includes the canonical lowering fingerprint with
 typed opcode sequence, exact scalar-immediate bits, exact ordered clamp-bound bits, and selected
 scalar-power realizations, exact/default numerical mode, generated
 scalar/vector compute form, exact preferred FLOAT32, FLOAT64, INT32, INT64, or BOOL species bit
@@ -1421,13 +1431,14 @@ Keeping the artifact reachable keeps its hidden-class state reachable, without p
 unreferenced class unloads. Direct generator calls produce equal class bytes but distinct hidden
 classes and artifact identities. The current durable generated-kernel artifact store may instead
 reuse compatible class bytes and weakly intern one loaded artifact while it remains live. The
-artifact is not by itself a prepared route. Current schema-45 artifacts execute admitted bounded
+artifact is not by itself a prepared route. Current schema-46 artifacts execute admitted bounded
 pointwise chains, one static affine represented-bit copy, one static
 PAD/TILE/CONCAT/STACK/window-extraction/SLICE_UPDATE movement, one static indexing occurrence,
 one functional-scatter output pass, one overlap-fold pass, one stable ordering/selection pass,
 one explicit-state initializer/dropout pass, one typed cumulative-scan body, one typed
-ordinary-aggregate body, one typed arg-extrema body, or one typed masked-reduction body across the
-implemented carrier patterns. The current-only schema-45 boundary treats schema 44 and earlier as
+ordinary-aggregate body, one typed arg-extrema body, one typed masked-reduction body, or one typed
+advanced-reduction body across the implemented carrier patterns. The current-only schema-46
+boundary treats schema 45 and earlier as
 safe incompatible misses with no migration reader. Retained schema-42 ledger and performance
 material is historical evidence rather than a current artifact claim.
 
@@ -1804,7 +1815,7 @@ output does not skip a non-empty validation domain; after successful validation 
 generated entry and submits no worker work.
 
 CPU analysis declares unique inputs in semantic first-use order followed by one output. It selects
-one execution unit, no materialization, no workspace, and one current schema-45 artifact whose
+one execution unit, no materialization, no workspace, and one current schema-46 artifact whose
 generated class embeds carrier-, type-, family-, and access-specialized scalar or parallel-scalar
 output writers. Proved dense heap arrays use integer loop/address state; general layouts and
 segment or mixed carriers retain typed long-address traversal. Guarded frozen GATHER and GATHER_ND
@@ -4875,7 +4886,7 @@ finite steps including legal length-one `Long.MIN_VALUE`, handles scalar and emp
 supports arbitrary disjoint scalar or parallel-scalar ranges across heap, segment, and mixed
 carriers. Output/input physical overlap is rejected; exact same-value base/update inputs may share
 one deduplicated boundary. Schema 15 introduced the slice-update family/rank/map structure, and
-current schema 45 retains it;
+current schema 46 retains it;
 concrete placement remains cold. Functional scatter and overlap fold are separate current CPU
 portable families.
 

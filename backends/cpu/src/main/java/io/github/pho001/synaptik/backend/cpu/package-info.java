@@ -40,6 +40,10 @@
  * are excluded before data loading or classification. Scalar or parallel-scalar execution owns
  * complete output cells, keeps an exact selected count, and uses one run-owned exact-state slice
  * per simultaneously used range without mask materialization, partial state, or combination.
+ * Advanced-reduction coverage accepts exactly one fully static resolved-layout LOG_SUM_EXP,
+ * VARIANCE, STANDARD_DEVIATION, L1_NORM, or L2_NORM occurrence over FLOAT64, FLOAT32, or
+ * BFLOAT16. It preserves ordered axes and complete output-cell ownership; only L1 and statistics
+ * use the existing exact-state workspace, while log-sum-exp and L2 remain workspace-free.
  * The provider exposes no route, carrier, preparation, or execution API.
  *
  * <p>The {@code internal} namespace contains unsupported implementation contracts for complete-

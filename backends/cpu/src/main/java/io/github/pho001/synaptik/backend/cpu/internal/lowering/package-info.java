@@ -98,6 +98,12 @@
  * ranges, exact selected-axis and state bounds, and one exact-state slice per simultaneously used
  * range. Selected count remains a generated primitive local; no domain is split or combined.</p>
  *
+ * <p>Advanced-reduction lowering admits exactly one static resolved-layout LOG_SUM_EXP,
+ * VARIANCE, STANDARD_DEVIATION, L1_NORM, or L2_NORM occurrence over the three floating types.
+ * It preserves ordered axes, derives canonical complete selected domains and injective output
+ * cells, rejects invalid corrected denominators, and declares exact state only for L1 and the
+ * statistical mean pass.</p>
+ *
  * <p>Lowering runs on the preparation cold path; no lowering object or Model operation reaches the
  * generated execution loop.
  */

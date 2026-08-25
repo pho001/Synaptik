@@ -83,6 +83,11 @@
  * emitted bytes, offsets, stride magnitudes, carriers, ranges, selected counts, and workspace
  * slots remain cold; no mask copy, partial state, or combine state belongs to the identity.</p>
  *
+ * <p>The advanced-reduction representation distinguishes logarithmic, corrected statistical,
+ * and norm meanings while retaining the ordered axes, canonical selected-axis membership,
+ * retention, correction, pass/algorithm version, selected-domain count, and exact-state shape.
+ * Concrete offsets, strides, carriers, ranges, slots, and workers remain cold facts.</p>
+ *
  * <p>Lowering creates these cold immutable models. Portable code generation and the scalar
  * reference realization may consume their established semantics, but Runtime never receives or
  * interprets them.

@@ -67,6 +67,11 @@
  * or parallel-scalar range owns complete output cells and one private exact-state slice; selected
  * count remains invocation-local and no selected domain is split or combined.</p>
  *
+ * <p>Advanced-reduction binding validates the complete floating input/output spans and any exact
+ * state before mutation or worker submission. Output/input and scratch/buffer overlap are
+ * rejected, and each scalar or parallel-scalar range owns whole output cells plus its private
+ * scratch slice when L1 or statistics require one.</p>
+ *
  * <p>Runtime retains run-level lifecycle ownership; CPU memory representations retain physical
  * allocation and release ownership. Composition owns and closes the worker group; finalizers,
  * prepared executables, and bound invocations only borrow it.

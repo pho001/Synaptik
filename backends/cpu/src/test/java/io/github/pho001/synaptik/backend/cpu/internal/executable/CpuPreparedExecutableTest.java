@@ -44,6 +44,7 @@ import io.github.pho001.synaptik.model.operation.reduction.AggregateReductionKin
 import io.github.pho001.synaptik.model.operation.reduction.ArgExtremaTiePolicy;
 import io.github.pho001.synaptik.model.operation.reduction.AxisReductionAttrs;
 import io.github.pho001.synaptik.model.operation.reduction.SumToShapeAttrs;
+import io.github.pho001.synaptik.model.operation.reduction.StatisticalReductionAttrs;
 import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuOrderingLoweringTest;
 import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuRandomLoweringTest;
 import io.github.pho001.synaptik.backend.cpu.internal.prepare.CpuPartitionPreparer;
@@ -69,6 +70,47 @@ class CpuPreparedExecutableTest {
             ValueLayout.JAVA_INT_UNALIGNED.withOrder(ByteOrder.nativeOrder());
     private static final ValueLayout.OfLong LONG =
             ValueLayout.JAVA_LONG_UNALIGNED.withOrder(ByteOrder.nativeOrder());
+
+    @Test void advancedStatisticsOwnWholeParallelCellsAndRejectOverlapBeforeWrites() {
+        var base = CpuAggregateLoweringTest.context(AggregateReductionKind.VARIANCE,
+                DataType.FLOAT64, Shape.of(8, 4),
+                new StatisticalReductionAttrs(List.of(1), false, 1), Shape.of(8));
+        var config = new PortableExecutionConfig(ComputePreference.SCALAR, 4, 4, 1);
+        var context = new io.github.pho001.synaptik.prepare.analysis.PrepareContext<>(
+                base.partition(), base.nodes(), base.values(), base.memoryRequirements(),
+                base.constants(), new CpuPartitionAnalysisInputs(false,
+                        List.of(CarrierAccess.DOUBLE_ARRAY, CarrierAccess.DOUBLE_ARRAY), config));
+        var analysis = new CpuPartitionPreparer().analyze(context);
+        var declaration = analysis.plan().workspaceDeclaration().orElseThrow();
+        var workers = new CpuWorkerGroup(4);
+        try {
+            var executable = CpuPartitionFinalizerTest.finalizeExecutable(analysis,
+                    Optional.empty(), Optional.of(workers));
+            double[] input = new double[32];
+            for (int row = 0; row < 8; row++) for (int column = 0; column < 4; column++)
+                input[row * 4 + column] = row + column;
+            double[] output = new double[10]; java.util.Arrays.fill(output, -77);
+            var run = state(executable, List.of(borrow(input, 0, input.length),
+                    borrow(output, 1, 8)), List.of(CpuContiguousWorkspace.allocate(
+                            declaration.byteSize(), declaration.byteAlignment())));
+            try {
+                var bound = executable.bind(run); bound.execute();
+                for (int row = 0; row < 8; row++) assertEquals(5.0 / 3.0, output[row + 1]);
+                assertEquals(-77, output[0]); assertEquals(-77, output[9]);
+                double[] first = output.clone(); bound.execute(); assertArrayEquals(first, output);
+            } finally { run.close(); }
+
+            double[] shared = new double[40]; java.util.Arrays.fill(shared, 19);
+            double[] unchanged = shared.clone();
+            var overlap = state(executable, List.of(borrow(shared, 0, 32),
+                    borrow(shared, 3, 8)), List.of(CpuContiguousWorkspace.allocate(
+                            declaration.byteSize(), declaration.byteAlignment())));
+            try {
+                assertThrows(IllegalArgumentException.class, () -> executable.bind(overlap));
+                assertArrayEquals(unchanged, shared);
+            } finally { overlap.close(); }
+        } finally { workers.close(); }
+    }
 
     @Test void maskedReductionParallelRangesAreDeterministicAndColdFailuresPrecedeWrites() {
         var base = CpuMaskedReductionLoweringTest.context(AggregateReductionKind.MEAN,

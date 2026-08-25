@@ -237,7 +237,7 @@ created by 0005A. All consume the common analysis above; none creates another ba
 | 0007A2 | [Portable binding-aware sum-to-Shape reduction](tasks/0007a2-portable-binding-aware-sum-to-shape-reduction.md) | Complete | Complete 0007A1C; accumulated schema-42 evidence through 0007A1O; Model 0023A; Compiler 0005B | Added `SUM` with exact `SumToShapeAttrs`, right-aligned bound-Shape validation, leading/aligned reduction geometry, all five numeric types, truthful resources, direct generated loops, and schema 43 without dynamic unresolved execution. Its corrected 37-path scope permits the A1O ledger integration test to distinguish historical schema-42 evidence from exact current schema 43 while preserving the ledger resource unchanged. |
 | 0007B | [Portable arg-extrema coverage](tasks/0007b-portable-arg-extrema-coverage.md) | Complete | 0007A2; Model 0018U1; Compiler 0005B | Added one fully static resolved-layout one-axis ARG_MIN/ARG_MAX occurrence with exact five-type ordering, FIRST/LAST logical ties, INT64 indices, zero resources, focused private owners, direct generated loops, deterministic scalar/parallel output-cell ranges, schema 44, and passing five-fork optimal-direct-Java parity. |
 | 0007C | [Portable masked reduction coverage](tasks/0007c-portable-masked-reduction-coverage.md) | Complete | 0007A1; 0007B; Model 0018Q; Compiler 0005B | Added exactly one fully static axis-removing FLOAT64/FLOAT32/BFLOAT16 masked SUM/MEAN occurrence with a canonical BOOL mask, directional right-aligned broadcast exactly to the data Shape, pre-classification false exclusion, exact selected-count semantics, existing exact floating state, focused private owners, direct typed bytecode, schema 45, and passing optimal-direct-Java evidence. |
-| 0007D | Portable logarithmic, statistical, and norm reduction coverage | Draft | 0007A1 | Add LOG_SUM_EXP, VARIANCE, STANDARD_DEVIATION, L1_NORM, and L2_NORM with stable exact/default finite-precision algorithms, correction validity, special values, deterministic combination, and declared scratch where required. |
+| 0007D | [Portable logarithmic, statistical, and norm reduction coverage](tasks/0007d-portable-logarithmic-statistical-and-norm-reduction-coverage.md) | Complete | 0007A1; Model 0018V; Compiler 0005B | Added fully static FLOAT64/FLOAT32/BFLOAT16 LOG_SUM_EXP, VARIANCE, STANDARD_DEVIATION, L1_NORM, and L2_NORM through shared output-cell geometry, three focused direct emitters, exact special values, stable finite algorithms, schema 46, and passing optimal-direct-Java evidence. |
 | 0007E | Portable stable softmax and log-softmax coverage | Draft | 0007D | Add one-axis SOFTMAX/LOG_SOFTMAX as explicit stable multi-pass semantic kernels; never infer them from decomposed pointwise/reduction graphs. |
 | 0007F | Portable layer, RMS, and batch normalization coverage | Draft | 0007D | Add current layer/RMS normalization and batch-normalization inference/training signatures with exact ordered inputs/outputs, saved/next statistics, epsilon/momentum rules, deterministic multi-pass execution, and truthful resources. |
 | 0008 | Portable linear algebra, Conv2d, pooling, attention, and loss coverage | Draft | 0002–0007F | Generate the remaining current portable executable families, including grouped NCHW `CONV2D`. Establish a bounded initial epilogue direction for MATMUL or Conv2d followed by an optional compatible bias ADD and at most one already-supported exact pointwise activation or clamp, only when single-use dataflow, Shape/layout, numerical order, publication, and resource rules preserve semantics; all other forms split safely. |
@@ -338,8 +338,9 @@ performance targets failed the final fork. Detailed CPU 0007A1E through CPU 0007
 is `Complete`. Detailed
 [CPU 0007B Portable arg-extrema coverage](tasks/0007b-portable-arg-extrema-coverage.md) is
 `Complete`; detailed [CPU 0007C Portable masked reduction coverage](tasks/0007c-portable-masked-reduction-coverage.md)
-is `Complete`. CPU 0007D is the next ordered `Draft` task and has no detailed specification; CPU
-0007E–0007F and every later CPU task remain `Draft` without later detailed specifications. This includes new CPU
+is `Complete`. Detailed [CPU 0007D Portable logarithmic, statistical, and norm reduction coverage](tasks/0007d-portable-logarithmic-statistical-and-norm-reduction-coverage.md)
+is `Complete`. CPU 0007E is the next ordered `Draft` CPU task; CPU 0007F and every later CPU task remain `Draft` without
+later detailed specifications. This includes new CPU
 0008E, which extends the later Conv2d-heavy-family foundation to Conv3d and validates Conv1d
 through the explicit Conv2d composition; it is not an authorization to bypass the
 ordered 0007A2–0008D work. CPU
@@ -400,8 +401,8 @@ remain `VERIFIED,20`; all twenty rows and their medians passed five accepted for
 retained and rejected. CPU 0007A1O subsequently closes the ledger gap with a tested versioned
 replacement and fresh evidence for all 40 formerly structural-only pointwise rows. CPU 0007A1C
 and CPU 0007A1O are Complete. CPU 0007A2, detailed CPU 0007B, and detailed CPU 0007C are
-`Complete`. CPU 0007D is the next ordered Draft task and has no detailed specification; later work
-remains Draft without detailed specifications.
+`Complete`. Detailed CPU 0007D is `Complete`; CPU 0007E and later work remain Draft
+without detailed specifications.
 
 CPU 0007B is Complete at schema 44. Its six deterministic, constructor-free generated classes
 cover ARG_MIN and ARG_MAX with FIRST and LAST ties across the frozen corpus. Retained exact
@@ -420,6 +421,18 @@ generated-versus-optimal-direct-Java cases at `<= 1.15x`; the worst ratio was `0
 Retained schema-42 ledger evidence remains explicitly historical. The final 42-path scope contains
 exactly three new CPU-private production types and changes no public/shared/build/architecture/
 conformance/integration boundary.
+
+CPU 0007D is Complete at schema 46. Its fifteen retained generated classes cover
+`LOG_SUM_EXP`, `VARIANCE`, `STANDARD_DEVIATION`, `L1_NORM`, and `L2_NORM` across FLOAT64,
+FLOAT32, and BFLOAT16, plus three unchanged-family controls. The final uncached CPU suite reports
+416 tests, one expected opt-in persistence skip, and no failures or errors. All targets and
+controls passed five isolated optimal-direct-Java forks at `<= 1.15x`; the worst fork ratio was
+`1.099406784x` and worst aggregate ratio was `1.087934030x`, both FLOAT64 log-sum-exp. Complete
+Class-File and member inspection found no forbidden generated member. The final 45-path scope has
+27 production/Javadoc paths, 13 test paths, the five named documentation/planning paths, and
+exactly six new CPU-private production types. It changes no public/shared/build/architecture/
+conformance/integration boundary. CPU 0007A1D remains historical Review needed, and CPU 0007E is
+the next ordered Draft task without a detailed specification.
 
 CPU 0007A1O implementation context `01a032f9-66c9-73f1-8960-8c39c97c830d`, initial audit
 context `01a032f1-a956-7ca0-9a18-4ce3f585208b`, and the mandatory final documentation pass
@@ -700,9 +713,8 @@ detailed task 0006B2, detailed task 0006C, and detailed task 0006D are `Complete
 `Complete`; detailed 0007A0C, detailed 0007A0D, and detailed 0007A0E are `Complete`; detailed
 0007A0F is `Complete`; detailed CPU 0007A1, CPU 0007A1A, and CPU 0007A1B are `Complete`.
 CPU 0007A1C is `Complete`; CPU 0007A1D remains `Review needed`; detailed CPU 0007A1E through CPU
-0007A1O, CPU 0007A2, detailed CPU 0007B, and detailed CPU 0007C are `Complete`. CPU 0007D is the
-next ordered `Draft` task and has no detailed specification; CPU 0007E–0017 remain Draft without
-later detailed specifications.
+0007A1O, CPU 0007A2, detailed CPU 0007B, and detailed CPU 0007C are `Complete`. Detailed CPU 0007D
+is `Complete`; CPU 0007E–0017 remain Draft without later detailed specifications.
 CPU 0005C preserves that exact slice and implements cold selection among all four portable
 strategies. It uses the preferred Java 26 FLOAT64 species only for direct contiguous runs and
 scalar broadcasts, scalar tails and general-odometer fallback, configured/available parallelism
@@ -867,9 +879,9 @@ and detailed CPU 0007A is `Complete`; corrective CPU 0007A0, CPU 0007A0A, and CP
 `Complete`; detailed CPU 0007A0C, CPU 0007A0D, and CPU 0007A0E are `Complete`; detailed CPU
 0007A0F is `Complete`. Detailed CPU 0007A1, CPU 0007A1A, and CPU 0007A1B are `Complete`.
 CPU 0007A1C is `Complete`, CPU 0007A1D remains `Review needed`, and detailed CPU 0007A1E through
-CPU 0007A1O, CPU 0007A2, detailed CPU 0007B, and detailed CPU 0007C are `Complete`; CPU 0007D is
-the next ordered `Draft` task and has no detailed specification, and later work remains ordered
-`Draft`.
+CPU 0007A1O, CPU 0007A2, detailed CPU 0007B, and detailed CPU 0007C are `Complete`; detailed CPU
+0007D is `Complete`, and CPU 0007E and later work remain ordered `Draft` without
+detailed specifications.
 
 Detailed CPU 0006A1 is Complete. It extends the same movement pipeline with one fully static,
 resolved-layout UNFOLD_AXIS occurrence for all six represented types or one floating UNFOLD2D
@@ -1014,10 +1026,11 @@ the work at the active frontier.
   0007A1D, and Complete corrective CPU 0007A1E–0007A1O precede Complete CPU 0007A2,
   which owns binding-aware
   target-Shape SUM. Detailed Complete 0007B owns arg
-  extrema; detailed Complete 0007C owns masked reductions; Draft 0007D owns logarithmic/statistical/norm
+  extrema; detailed Complete 0007C owns masked reductions; detailed Complete 0007D owns logarithmic/statistical/norm
   reductions; Draft 0007E owns stable softmax/log-softmax; and Draft 0007F owns layer/RMS/batch
   normalization. CPU 0007A1O, detailed CPU 0007A2, detailed CPU 0007B, and detailed CPU 0007C are
-  `Complete`; CPU 0007D is the next ordered Draft task and has no detailed specification.
+  `Complete`; detailed CPU 0007D is `Complete`. CPU 0007E and later tasks remain
+  Draft without detailed specifications.
 - CPU 0007 is first because the closed cumulative-scan family is independently executable and
   has no aggregate-combination dependency. Partitioning only across complete logical scan slices
   preserves one sequential typed accumulation order, requires no partial/combine workspace, and
@@ -1066,8 +1079,8 @@ the work at the active frontier.
   five accepted 44-case forks satisfy every original A1C gate. This insertion is ordered
   corrective work and does not change architecture authority or waive A1D's historical failed
   local criterion. Detailed CPU 0007A2, detailed CPU 0007B, and detailed CPU 0007C are `Complete`.
-  CPU 0007D is the next ordered Draft task and has no detailed specification; later rows remain
-  Draft without detailed specifications.
+  Detailed CPU 0007D is `Complete`; CPU 0007E and later rows remain Draft without
+  detailed specifications.
 - CPU 0006D selects `SYNAPTIK_CPU_SPLITMIX64_COUNTER_V1`: `mix64` uses shifts 30/27/31 and
   multipliers `0xbf58476d1ce4e5b9`/`0x94d049bb133111eb` after key bias
   `0x9e3779b97f4a7c15`; each draw is `mix64(counter + logicalIndex +
