@@ -4,6 +4,7 @@ import io.github.pho001.synaptik.backend.contract.BackendId;
 import io.github.pho001.synaptik.backend.cpu.CpuCapabilityProvider;
 import io.github.pho001.synaptik.backend.cpu.internal.cache.CpuGeneratedKernelArtifactStore;
 import io.github.pho001.synaptik.backend.cpu.internal.executable.CpuPreparedExecutable;
+import io.github.pho001.synaptik.backend.cpu.internal.executable.CpuPreparedExecutableSequence;
 import io.github.pho001.synaptik.backend.cpu.internal.executable.CpuWorkerGroup;
 import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuAccessPlan;
 import io.github.pho001.synaptik.prepare.BackendPartitionFinalization;
@@ -15,6 +16,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.LinkedHashMap;
 
 /**
  * Post-assignment verification, artifact realization, and partition executable finalization.
@@ -85,7 +87,17 @@ public final class CpuPartitionFinalizer implements BackendPartitionFinalizer<Cp
             }
             if (match == null) throw new IllegalArgumentException(
                     "buffer declaration has no exact shared assignment: " + declaration.valueId());
+            var entry = finalization.memoryPlan().buffers().get(match.planIndex());
+            if (entry.slot() != match.slot() || entry.byteSize() < declaration.byteSize()
+                    || entry.byteAlignment() < declaration.byteAlignment()) {
+                throw new IllegalArgumentException("buffer assignment geometry disagrees");
+            }
             selections.add(new PreparedExecutable.BufferSelection(match.planIndex(), 0));
+        }
+        long bufferAssignments = finalization.assignments().stream()
+                .filter(PreparationResourceAssignment.Buffer.class::isInstance).count();
+        if (bufferAssignments != plan.bufferDeclarations().size()) {
+            throw new IllegalArgumentException("CPU finalization requires the exact buffer set");
         }
         PreparedExecutable.WorkspaceSelection workspaceSelection = null;
         if (plan.workspaceDeclaration().isPresent()) {
@@ -106,6 +118,9 @@ public final class CpuPartitionFinalizer implements BackendPartitionFinalizer<Cp
         } else if (finalization.assignments().stream()
                 .anyMatch(PreparationResourceAssignment.Workspace.class::isInstance)) {
             throw new IllegalArgumentException("direct CPU plan rejects workspace assignments");
+        }
+        if (plan.form() == CpuPartitionPreparationPlan.PlanForm.CONV2D_MATERIALIZED_SUFFIX) {
+            return finalizeConv2dSequence(finalization, selections);
         }
         var unit = plan.units().getFirst();
         CpuWorkerGroup selectedWorkers = null;
@@ -131,6 +146,77 @@ public final class CpuPartitionFinalizer implements BackendPartitionFinalizer<Cp
                 plan.scanGeometry(), plan.aggregateGeometry(), plan.argExtremaGeometry(),
                 plan.maskedReductionGeometry(), plan.advancedReductionGeometry(),
                 plan.softmaxGeometry(), plan.trailingNormalizationGeometry(),
-                plan.batchNormInferenceGeometry(), plan.batchNormTrainingGeometry());
+                plan.batchNormInferenceGeometry(), plan.batchNormTrainingGeometry(),
+                plan.conv2dGeometry());
+    }
+
+    private PreparedExecutable finalizeConv2dSequence(
+            BackendPartitionFinalization<CpuPartitionPreparationPlan> finalization,
+            List<PreparedExecutable.BufferSelection> outerSelections) {
+        var plan = finalization.analysis().plan();
+        if (plan.units().size() != 2 || plan.workspaceDeclaration().isPresent()) {
+            throw new IllegalArgumentException("malformed Conv2d sequence plan");
+        }
+        var selectionByValue = new LinkedHashMap<io.github.pho001.synaptik.model.graph.ValueId,
+                PreparedExecutable.BufferSelection>();
+        for (int i = 0; i < plan.boundaryValues().size(); i++) {
+            selectionByValue.put(plan.boundaryValues().get(i), outerSelections.get(i));
+        }
+        var leadUnit = plan.units().get(0);
+        var suffixUnit = plan.units().get(1);
+        var leadSelections = leadUnit.boundaryValues().stream()
+                .map(selectionByValue::get).toList();
+        var suffixSelections = suffixUnit.boundaryValues().stream()
+                .map(selectionByValue::get).toList();
+        if (leadSelections.stream().anyMatch(Objects::isNull)
+                || suffixSelections.stream().anyMatch(Objects::isNull)) {
+            throw new IllegalArgumentException("split unit boundary has no assigned selection");
+        }
+        CpuWorkerGroup leadWorkers = workers(leadUnit);
+        CpuWorkerGroup suffixWorkers = workers(suffixUnit);
+        var leadArtifact = artifactStore.loadOrGenerate(
+                leadUnit.portablePlan().specialization(), leadUnit.portablePlan().kernelIr());
+        var suffixArtifact = artifactStore.loadOrGenerate(
+                suffixUnit.portablePlan().specialization(), suffixUnit.portablePlan().kernelIr());
+        var lead = unitExecutable(finalization, leadUnit, leadSelections, leadArtifact, leadWorkers);
+        var suffix = unitExecutable(finalization, suffixUnit, suffixSelections, suffixArtifact,
+                suffixWorkers);
+        var writeValues = new java.util.HashSet<io.github.pho001.synaptik.model.graph.ValueId>();
+        writeValues.add(leadUnit.boundaryValues().getLast());
+        writeValues.addAll(suffixUnit.boundaryValues().subList(
+                suffixUnit.boundaryValues().size() - suffixUnit.outputCount(),
+                suffixUnit.boundaryValues().size()));
+        var accesses = plan.boundaryValues().stream().map(value -> writeValues.contains(value)
+                ? PreparedExecutable.BufferAccess.WRITE_ONLY
+                : PreparedExecutable.BufferAccess.READ_ONLY).toList();
+        return new CpuPreparedExecutableSequence(finalization.memoryPlan(), outerSelections,
+                accesses, lead, suffix);
+    }
+
+    private CpuWorkerGroup workers(CpuPartitionPreparationPlan.ExecutionUnitPlan unit) {
+        if (unit.selectedRangeCount() < 2) return null;
+        CpuWorkerGroup selected = workerGroup.orElseThrow(() -> new IllegalArgumentException(
+                "parallel CPU split unit requires a worker group"));
+        if (!selected.isOpen() || selected.workerCount() < unit.selectedRangeCount()) {
+            throw new IllegalArgumentException("CPU worker group is closed or undersized");
+        }
+        return selected;
+    }
+
+    private static CpuPreparedExecutable unitExecutable(
+            BackendPartitionFinalization<CpuPartitionPreparationPlan> finalization,
+            CpuPartitionPreparationPlan.ExecutionUnitPlan unit,
+            List<PreparedExecutable.BufferSelection> selections,
+            io.github.pho001.synaptik.backend.cpu.internal.codegen.emit.CpuGeneratedKernel artifact,
+            CpuWorkerGroup workers) {
+        return new CpuPreparedExecutable(finalization.memoryPlan(), selections, artifact,
+                unit.accessBindings(), unit.carrierPattern(), unit.generatedCarrierPattern(),
+                0, unit.elementCount(), unit.selectedRangeCount(),
+                unit.minimumElementsPerWorker(), workers, Optional.empty(), Optional.empty(), null,
+                Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(),
+                Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(),
+                Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(),
+                Optional.empty(), Optional.empty(), Optional.empty(),
+                unit.conv2dGeometry(), unit.outputCount());
     }
 }

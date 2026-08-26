@@ -52,6 +52,8 @@ import io.github.pho001.synaptik.model.operation.normalization.RmsNormKind;
 import io.github.pho001.synaptik.model.operation.normalization.BatchNormInferenceAttrs;
 import io.github.pho001.synaptik.model.operation.normalization.BatchNormTrainingAttrs;
 import io.github.pho001.synaptik.model.operation.normalization.BatchNormKind;
+import io.github.pho001.synaptik.model.operation.convolution.Conv2dAttrs;
+import io.github.pho001.synaptik.model.operation.convolution.Conv2dKind;
 import io.github.pho001.synaptik.model.operation.reduction.AggregateReductionKind;
 import io.github.pho001.synaptik.model.operation.reduction.ArgExtremaAttrs;
 import io.github.pho001.synaptik.model.operation.reduction.AxisReductionAttrs;
@@ -239,6 +241,7 @@ public final class CpuCapabilityProvider implements BackendCapabilityProvider {
         try {
             if (kind instanceof AggregateReductionKind aggregate)
                 return supportsAggregate(query, output, aggregate);
+            if (kind == Conv2dKind.CONV2D) return supportsConv2d(query, output);
             if (kind instanceof SoftmaxKind) return supportsSoftmax(query, output);
             if (kind instanceof LayerNormKind || kind instanceof RmsNormKind)
                 return supportsTrailingNormalization(query, output);
@@ -341,6 +344,42 @@ public final class CpuCapabilityProvider implements BackendCapabilityProvider {
             }
         } catch (IllegalArgumentException | ArithmeticException incompatible) { return false; }
         return false;
+    }
+
+    private static boolean supportsConv2d(OperationCapabilityQuery query,
+            TensorDescriptor output) {
+        if (!(query.operation().attrs() instanceof Conv2dAttrs attrs)
+                || (query.inputs().size() != 2 && query.inputs().size() != 3)) return false;
+        TensorDescriptor input = query.inputs().get(0), weight = query.inputs().get(1);
+        TensorDescriptor bias = query.inputs().size() == 3 ? query.inputs().get(2) : null;
+        if (!normalizationFloating(input.dataType()) || !normalizationFloating(weight.dataType())
+                || bias != null && !normalizationFloating(bias.dataType())
+                || input.shape().rank() != 4 || weight.shape().rank() != 4
+                || bias != null && bias.shape().rank() != 1) return false;
+        long[] x = input.shape().toLongArray(), w = weight.shape().toLongArray();
+        long[] y = output.shape().toLongArray();
+        if (y.length != 4 || w[2] <= 0 || w[3] <= 0
+                || x[1] % attrs.groups() != 0 || w[0] % attrs.groups() != 0
+                || Math.multiplyExact(w[1], attrs.groups()) != x[1]
+                || bias != null && bias.shape().toLongArray()[0] != w[0]) return false;
+        long effectiveH = Math.addExact(Math.multiplyExact(w[2] - 1,
+                attrs.dilationHeight()), 1);
+        long effectiveW = Math.addExact(Math.multiplyExact(w[3] - 1,
+                attrs.dilationWidth()), 1);
+        long paddedH = Math.addExact(x[2], Math.multiplyExact(2, attrs.paddingHeight()));
+        long paddedW = Math.addExact(x[3], Math.multiplyExact(2, attrs.paddingWidth()));
+        if (paddedH < effectiveH || paddedW < effectiveW) return false;
+        long outH = Math.addExact((paddedH - effectiveH) / attrs.strideHeight(), 1);
+        long outW = Math.addExact((paddedW - effectiveW) / attrs.strideWidth(), 1);
+        DataType promoted = io.github.pho001.synaptik.model.datatype.DataTypePromotion
+                .promoteFloating(input.dataType(), weight.dataType());
+        if (bias != null) promoted = io.github.pho001.synaptik.model.datatype.DataTypePromotion
+                .promoteFloating(promoted, bias.dataType());
+        return promoted == output.dataType()
+                && java.util.Arrays.equals(y, new long[] {x[0], w[0], outH, outW})
+                && output.requiresGrad() == (input.requiresGrad() || weight.requiresGrad()
+                    || bias != null && bias.requiresGrad())
+                && injective(y, output.layout().orElseThrow().strides());
     }
 
     private static boolean supportsSoftmax(OperationCapabilityQuery query,

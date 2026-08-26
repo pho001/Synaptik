@@ -83,6 +83,13 @@
  * legal. Complete-channel ranges receive disjoint scratch slices and write explicit normalized,
  * next-statistic, and saved-statistic outputs without retained cross-run state.</p>
  *
+ * <p>Conv2d binding packs resolved NCHW boundary geometry and validates typed heap-array,
+ * native-order segment, or mixed carriers before complete-output-cell work. The sole admitted
+ * split form is one CPU-private two-child executable: its outer access declaration makes the
+ * intermediate and final writes visible to Runtime as one atomic executable boundary, validates
+ * aliases and both children before writes, and invokes Conv2d then its pointwise suffix strictly
+ * in order. The composite does not mutate {@code RunState} validity itself.</p>
+ *
  * <p>Runtime retains run-level lifecycle ownership; CPU memory representations retain physical
  * allocation and release ownership. Composition owns and closes the worker group; finalizers,
  * prepared executables, and bound invocations only borrow it.

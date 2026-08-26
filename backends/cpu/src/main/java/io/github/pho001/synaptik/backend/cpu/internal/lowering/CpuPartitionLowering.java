@@ -71,6 +71,7 @@ public final class CpuPartitionLowering {
             new CpuBatchNormInferenceLowering();
     private final CpuBatchNormTrainingLowering batchNormTrainingLowering =
             new CpuBatchNormTrainingLowering();
+    private final CpuConv2dLowering conv2dLowering = new CpuConv2dLowering();
 
     /** Creates a stateless lowering boundary with the current CPU capability and power analysis. */
     public CpuPartitionLowering() { }
@@ -93,6 +94,10 @@ public final class CpuPartitionLowering {
         }
         if (context.nodes().isEmpty() || context.nodes().size() > 8) {
             throw new IllegalArgumentException("CPU pointwise partition requires one through eight nodes");
+        }
+        if (context.nodes().getFirst().operation().kind()
+                == io.github.pho001.synaptik.model.operation.convolution.Conv2dKind.CONV2D) {
+            return conv2dLowering.lower(context);
         }
         if (context.nodes().size() == 1) {
             Object kind = context.nodes().getFirst().operation().kind();
@@ -178,6 +183,7 @@ public final class CpuPartitionLowering {
         var external = new LinkedHashMap<ValueId, Integer>();
         var producedOrdinals = new LinkedHashMap<ValueId, Integer>();
         var virtualOutputs = new ArrayList<ValueId>();
+        var materializedIntermediateOutputs = new ArrayList<ValueId>();
         var instructions = new ArrayList<PendingInstruction>();
         ValueId previous = null;
         for (int nodeIndex = 0; nodeIndex < context.nodes().size(); nodeIndex++) {
@@ -200,8 +206,16 @@ public final class CpuPartitionLowering {
                 throw new IllegalArgumentException("partition dataflow must be acyclic and non-aliasing");
             }
             if (nodeIndex < context.nodes().size() - 1) {
-                requireVirtual(memory.get(output), context, output);
-                virtualOutputs.add(output);
+                LogicalMemoryRequirement requirement = memory.get(output);
+                if (context.backendInputs() instanceof io.github.pho001.synaptik.backend.cpu
+                        .internal.prepare.CpuPartitionAnalysisInputs inputs
+                        && inputs.conv2dMaterializedSuffixUnit() && requirement.graphOutput()) {
+                    requireMaterializedIntermediate(requirement, context, output);
+                    materializedIntermediateOutputs.add(output);
+                } else {
+                    requireVirtual(requirement, context, output);
+                    virtualOutputs.add(output);
+                }
             }
             instructions.add(new PendingInstruction(node, output));
             producedOrdinals.put(output, -1);
@@ -243,14 +257,24 @@ public final class CpuPartitionLowering {
             spans.add(value.descriptor().layout().orElseThrow().referencedElementSpan());
             boundaryTypes.add(value.descriptor().dataType());
         }
-        for (ValueId id : virtualOutputs) {
+        for (ValueId id : context.nodes().subList(0, context.nodes().size() - 1).stream()
+                .map(node -> node.outputs().getFirst()).toList()) {
             GraphValue value = require(values, id);
-            Normalized normalized = normalize(value.descriptor().shape(),
-                    LayoutDescriptor.contiguous(value.descriptor().shape()), iterationShape,
-                    CpuAccessPlan.AccessKind.READ);
+            boolean materialized = materializedIntermediateOutputs.contains(id);
+            Normalized normalized = normalize(value.descriptor().shape(), materialized
+                    ? value.descriptor().layout().orElseThrow()
+                    : LayoutDescriptor.contiguous(value.descriptor().shape()), iterationShape,
+                    materialized ? CpuAccessPlan.AccessKind.WRITE : CpuAccessPlan.AccessKind.READ);
             producedOrdinals.put(id, ordinal);
             irValues.add(new CpuKernelIr.Value(ordinal++, value.descriptor().dataType(),
-                    CpuKernelIr.Value.Kind.VIRTUAL, normalized.plan()));
+                    materialized ? CpuKernelIr.Value.Kind.OUTPUT : CpuKernelIr.Value.Kind.VIRTUAL,
+                    normalized.plan()));
+            if (materialized) {
+                boundaryValues.add(id);
+                bindings.add(normalized.binding());
+                spans.add(value.descriptor().layout().orElseThrow().referencedElementSpan());
+                boundaryTypes.add(value.descriptor().dataType());
+            }
         }
         GraphValue output = require(values, finalOutput);
         Normalized outputAccess = normalize(output.descriptor().shape(),
@@ -278,9 +302,15 @@ public final class CpuPartitionLowering {
             irInstructions.add(new CpuKernelIr.Instruction(opcode, inputs,
                     producedOrdinals.get(pending.output()), immediate, realization, clamp));
         }
+        var stores = new ArrayList<CpuKernelIr.Store>();
+        int outputOrdinal = 0;
+        for (ValueId id : materializedIntermediateOutputs) {
+            stores.add(new CpuKernelIr.Store(producedOrdinals.get(id), outputOrdinal++));
+        }
+        stores.add(new CpuKernelIr.Store(producedOrdinals.get(finalOutput), outputOrdinal));
         var ir = new CpuKernelIr(irValues, irInstructions,
                 new CpuKernelIr.Loop("start", "end"),
-                List.of(new CpuKernelIr.Store(producedOrdinals.get(finalOutput), 0)));
+                stores);
         return new LoweredPartition(ir, boundaryValues, bindings, spans, boundaryTypes,
                 virtualOutputs, iterationShape.toLongArray(), elementCount,
                 "legal: bounded connected straight-line pointwise chain", new long[0]);
@@ -295,7 +325,15 @@ public final class CpuPartitionLowering {
         }
     }
 
-    private static CpuPointwiseOpcode opcode(CompiledNode node) {
+    /**
+     * Maps one already-admitted pointwise occurrence to its CPU-private generated opcode.
+     *
+     * @param node non-null compiled occurrence whose kind belongs to the bounded pointwise family
+     * @return the non-null exact generated opcode
+     * @throws NullPointerException if {@code node} or its operation is {@code null}
+     * @throws IllegalArgumentException if the operation kind has no admitted CPU opcode
+     */
+    static CpuPointwiseOpcode opcode(CompiledNode node) {
         Object kind = node.operation().kind();
         if (kind instanceof BinaryArithmeticKind value) return switch (value) {
             case ADD -> CpuPointwiseOpcode.ADD; case SUB -> CpuPointwiseOpcode.SUB;
@@ -352,7 +390,16 @@ public final class CpuPartitionLowering {
         return new IllegalArgumentException("unsupported CPU pointwise opcode");
     }
 
-    private static CpuKernelIr.ScalarImmediate scalarImmediate(CompiledNode node) {
+    /**
+     * Encodes a scalar-elementwise attribute without numerical conversion.
+     *
+     * @param node non-null compiled occurrence to inspect
+     * @return the exact typed immediate, or {@code null} when the occurrence has no scalar-value
+     *     attributes
+     * @throws NullPointerException if {@code node} or its operation is {@code null}
+     * @throws IllegalArgumentException if the scalar type has no admitted immediate encoding
+     */
+    static CpuKernelIr.ScalarImmediate scalarImmediate(CompiledNode node) {
         if (!(node.operation().attrs() instanceof ScalarValueAttrs attrs)) return null;
         ScalarValue value = attrs.value();
         long bits = switch (value.dataType()) {
@@ -365,7 +412,16 @@ public final class CpuPartitionLowering {
         return new CpuKernelIr.ScalarImmediate(value.dataType(), bits);
     }
 
-    private static CpuKernelIr.ClampImmediate clampImmediate(CompiledNode node) {
+    /**
+     * Encodes both ordered bounds of a scalar clamp occurrence.
+     *
+     * @param node non-null compiled occurrence to inspect
+     * @return the exact two-bound immediate, or {@code null} when the occurrence has no clamp
+     *     attributes
+     * @throws NullPointerException if {@code node} or its operation is {@code null}
+     * @throws IllegalArgumentException if either bound type has no admitted immediate encoding
+     */
+    static CpuKernelIr.ClampImmediate clampImmediate(CompiledNode node) {
         if (!(node.operation().attrs() instanceof ClampRangeAttrs attrs)) return null;
         return new CpuKernelIr.ClampImmediate(scalarImmediate(attrs.minValue()),
                 scalarImmediate(attrs.maxValue()));
@@ -401,6 +457,17 @@ public final class CpuPartitionLowering {
                 || !requirement.producerPartition().orElseThrow().equals(context.partition())
                 || !requirement.consumerPartitions().equals(List.of(context.partition()))) {
             throw new IllegalArgumentException("internal result must be private and single-partition: " + id);
+        }
+    }
+
+    private static void requireMaterializedIntermediate(LogicalMemoryRequirement requirement,
+            PrepareContext<?> context, ValueId id) {
+        if (requirement == null || !requirement.graphOutput()
+                || requirement.producerPartition().isEmpty()
+                || !requirement.producerPartition().orElseThrow().equals(context.partition())
+                || !requirement.consumerPartitions().equals(List.of(context.partition()))) {
+            throw new IllegalArgumentException(
+                    "published suffix intermediate must be single-partition: " + id);
         }
     }
 
@@ -529,6 +596,7 @@ public final class CpuPartitionLowering {
      *     geometry
      * @param batchNormTrainingGeometry compact cold complete-channel training geometry with one
      *     exact-state slice per simultaneous non-empty range
+     * @param conv2dGeometry compact cold grouped NCHW Conv2d boundary geometry
      */
     public record LoweredPartition(CpuPortableKernelIr portableKernelIr, List<ValueId> boundaryValues,
             List<CpuAccessPlan.Binding> accessBindings, List<Long> referencedElementSpans,
@@ -548,7 +616,69 @@ public final class CpuPartitionLowering {
             Optional<CpuSoftmaxLowering.Geometry> softmaxGeometry,
             Optional<CpuTrailingNormalizationLowering.Geometry> trailingNormalizationGeometry,
             Optional<CpuBatchNormInferenceLowering.Geometry> batchNormInferenceGeometry,
-            Optional<CpuBatchNormTrainingLowering.Geometry> batchNormTrainingGeometry) {
+            Optional<CpuBatchNormTrainingLowering.Geometry> batchNormTrainingGeometry,
+            Optional<CpuConv2dLowering.Geometry> conv2dGeometry) {
+
+        /**
+         * Creates an established-family lowering with no Conv2d geometry.
+         *
+         * @param portableKernelIr route-independent canonical kernel IR
+         * @param boundaryValues external reads followed by materialized outputs
+         * @param accessBindings normalized cold boundary bindings
+         * @param referencedElementSpans exact declaration spans in boundary order
+         * @param boundaryDataTypes exact represented types in boundary order
+         * @param virtualValues internal single-use results without Runtime slots
+         * @param extents final logical range extents
+         * @param elementCount checked logical range count
+         * @param fusionReason cold diagnostic explanation
+         * @param affineAddressPairs affine addresses or an empty array
+         * @param movementGeometry optional movement geometry
+         * @param indexingGeometry optional indexing geometry
+         * @param scatterGeometry optional scatter geometry
+         * @param foldGeometry optional fold geometry
+         * @param orderingGeometry optional ordering geometry
+         * @param randomGeometry optional explicit-state geometry
+         * @param scanGeometry optional scan geometry
+         * @param aggregateGeometry optional aggregate geometry
+         * @param argExtremaGeometry optional arg-extrema geometry
+         * @param maskedReductionGeometry optional masked-reduction geometry
+         * @param advancedReductionGeometry optional advanced-reduction geometry
+         * @param softmaxGeometry optional softmax geometry
+         * @param trailingNormalizationGeometry optional Layer/RMS geometry
+         * @param batchNormInferenceGeometry optional batch-normalization inference geometry
+         * @param batchNormTrainingGeometry optional batch-normalization training geometry
+         * @throws NullPointerException if a required reference or list element is {@code null}
+         * @throws IllegalArgumentException if boundary, range, or specialized-family facts
+         *     disagree
+         * @throws ArithmeticException if checked range or geometry arithmetic overflows
+         */
+        public LoweredPartition(CpuPortableKernelIr portableKernelIr, List<ValueId> boundaryValues,
+                List<CpuAccessPlan.Binding> accessBindings, List<Long> referencedElementSpans,
+                List<DataType> boundaryDataTypes, List<ValueId> virtualValues, long[] extents,
+                long elementCount, String fusionReason, long[] affineAddressPairs,
+                Optional<CpuNonAffineMovementLowering.Geometry> movementGeometry,
+                Optional<CpuIndexingLowering.Geometry> indexingGeometry,
+                Optional<CpuScatterLowering.Geometry> scatterGeometry,
+                Optional<CpuFoldLowering.Geometry> foldGeometry,
+                Optional<CpuOrderingLowering.Geometry> orderingGeometry,
+                Optional<CpuRandomLowering.Geometry> randomGeometry,
+                Optional<CpuScanLowering.Geometry> scanGeometry,
+                Optional<CpuAggregateLowering.Geometry> aggregateGeometry,
+                Optional<CpuArgExtremaLowering.Geometry> argExtremaGeometry,
+                Optional<CpuMaskedReductionLowering.Geometry> maskedReductionGeometry,
+                Optional<CpuAdvancedReductionLowering.Geometry> advancedReductionGeometry,
+                Optional<CpuSoftmaxLowering.Geometry> softmaxGeometry,
+                Optional<CpuTrailingNormalizationLowering.Geometry> trailingNormalizationGeometry,
+                Optional<CpuBatchNormInferenceLowering.Geometry> batchNormInferenceGeometry,
+                Optional<CpuBatchNormTrainingLowering.Geometry> batchNormTrainingGeometry) {
+            this(portableKernelIr, boundaryValues, accessBindings, referencedElementSpans,
+                    boundaryDataTypes, virtualValues, extents, elementCount, fusionReason,
+                    affineAddressPairs, movementGeometry, indexingGeometry, scatterGeometry,
+                    foldGeometry, orderingGeometry, randomGeometry, scanGeometry, aggregateGeometry,
+                    argExtremaGeometry, maskedReductionGeometry, advancedReductionGeometry,
+                    softmaxGeometry, trailingNormalizationGeometry, batchNormInferenceGeometry,
+                    batchNormTrainingGeometry, Optional.empty());
+        }
 
         /**
          * Creates an existing-family lowering with no batch-normalization geometry.
@@ -970,6 +1100,9 @@ public final class CpuPartitionLowering {
                     "trailingNormalizationGeometry");
             batchNormInferenceGeometry = Objects.requireNonNull(batchNormInferenceGeometry,
                     "batchNormInferenceGeometry");
+            batchNormTrainingGeometry = Objects.requireNonNull(batchNormTrainingGeometry,
+                    "batchNormTrainingGeometry");
+            conv2dGeometry = Objects.requireNonNull(conv2dGeometry, "conv2dGeometry");
             Objects.requireNonNull(fusionReason, "fusionReason");
             int size = boundaryValues.size();
             if (size < 1 || accessBindings.size() != size || referencedElementSpans.size() != size
@@ -1028,6 +1161,8 @@ public final class CpuPartitionLowering {
                                                         ? batch.encodedKernelIr()
                                                     : portableKernelIr instanceof io.github.pho001.synaptik.backend.cpu.internal.ir.CpuBatchNormTrainingIr training
                                                         ? training.encodedKernelIr()
+                                                    : portableKernelIr instanceof io.github.pho001.synaptik.backend.cpu.internal.ir.CpuConv2dIr conv2d
+                                                        ? conv2d.encodedKernelIr()
                                                     : ((io.github.pho001.synaptik.backend.cpu.internal.ir.CpuAggregateIr)
                                                         portableKernelIr).encodedKernelIr();
         }

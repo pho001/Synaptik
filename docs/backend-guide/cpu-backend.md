@@ -3,7 +3,8 @@
 ## Outcome and status
 
 This guide defines the CPU integration boundary and helps contributors avoid treating CPU routes
-as separate backends. The current CPU module accepts thirteen bounded, fully static portable families.
+as separate backends. The current CPU module accepts the bounded, fully static portable families
+described below.
 A pointwise partition is one supported occurrence or one connected straight-line chain of at most
 eight occurrences. A static affine partition is one connected one-input/one-output chain of at
 most eight resolved-layout view occurrences. Either family lowers to one computation unit, one
@@ -2108,10 +2109,11 @@ submission it validates liveness, access, alignment, spans, layouts, the exact w
 output/input pair, every output/output pair, and every buffer/workspace pair. Input/input aliasing
 is legal read sharing; any output overlap fails without writes.
 
-Schema 50 records the family, five semantic types and promoted result, raw momentum and epsilon
+Schema 50 introduced the family, five semantic types and promoted result, raw momentum and epsilon
 bits, rank and channel axis, three-pass arithmetic identity, exact-state limb/slice shape,
 first-occurrence input map, ordered access plans, carrier signature, and scratch-bearing entry.
-Schema 49 and earlier envelopes are incompatible safe misses. The eight retained generated Java
+Schema 50 and earlier envelopes are incompatible safe misses under the current schema. The eight
+retained generated Java
 26 classes are deterministic, final, field-free, constructor-free, and expose one typed static
 entry. Complete `javap` and member scans found direct odometer traversals, one square-root site and
 four semantic division sites per class, with no forbidden allocation, boxing, reflection,
@@ -2125,6 +2127,61 @@ was `1.123421082x` and the worst aggregate ratio was `1.110678870x`, both `BNT-R
 environment/classpath sample was rejected before measurement; no measured ratio was discarded.
 This evidence is bounded to the recorded source, classes, host, Java version, and protocol. It is
 not a universal performance, tuning, vector/native, or cross-backend bitwise claim.
+
+### Current grouped NCHW Conv2d family
+
+The portable CPU route accepts one explicit fully static, resolved-layout grouped `CONV2D`
+occurrence. Input uses NCHW order `[N, C_in, H, W]`; weight uses
+`[C_out, C_in/groups, K_h, K_w]`; optional intrinsic bias uses `[C_out]`; and output uses
+`[N, C_out, H_out, W_out]`. FLOAT64, FLOAT32, and BFLOAT16 boundaries may be selected
+independently and promote in semantic input order. The route supports positive groups, including
+depthwise geometry, positive stride and dilation, and non-negative explicit symmetric padding.
+
+Generated work owns a half-open range of complete output cells. For each cell it visits the
+contiguous group-local input channels, kernel height, and kernel width in increasing logical
+order. Out-of-range padded input is conceptual positive zero and still participates in ordinary
+multiplication. FLOAT64 output accumulates in FLOAT64; FLOAT32 and BFLOAT16 output accumulate in
+FLOAT32; BFLOAT16 narrows only at the final store. An intrinsic bias initializes the accumulator.
+The direct generated body may additionally retain one legal same-type right-broadcast ADD, or
+that ADD followed by exact RELU. Other independently supported pointwise suffixes are not silently
+fused into this body.
+
+The route accepts exact typed primitive arrays, native-order `MemorySegment` values, and mixed
+carrier patterns. Fully static layouts may use non-negative offsets and strides; the output must
+be injective. Cold binding validates carrier type, accessibility, alignment, exact spans,
+writability, and every output/input overlap before generated work or worker submission. Scalar
+execution uses the caller thread; parallel-scalar execution partitions only complete output
+cells, so ranges require no atomics, partial sums, combine step, packing, im2col buffer, or hidden
+workspace.
+
+One narrow non-fusible suffix is permitted as a materialized two-unit plan. It contains the direct
+Conv2d unit, one independently generated pointwise suffix unit, and one ordinary intermediate
+buffer. A CPU-private `CpuPreparedExecutableSequence` exposes all external reads plus the
+intermediate and final writes through one `PreparedExecutable` access declaration. Cold binding
+validates aliases and binds both children before either can write. Hot invocation completes and
+joins the Conv2d child before invoking the suffix child. The sequence does not mutate `RunState`
+validity: Runtime performs one atomic pre-execution invalidation and one successful post-execution
+validation for the outer executable boundary.
+
+#### Geometry example
+
+An input `[1, 4, 5, 5]`, weight `[6, 2, 3, 3]`, bias `[6]`, two groups, stride 2, padding 1,
+and dilation 1 is valid. The effective kernel is `1 * (3 - 1) + 1 = 3`, so each output spatial
+extent is `floor((5 + 2 * 1 - 3) / 2) + 1 = 3`. The result Shape is `[1, 6, 3, 3]`; each output
+channel reads exactly the two input channels belonging to its group. Changing groups to four
+would be invalid for this weight/output-channel geometry because six output channels are not
+divisible by four.
+
+Schema 51 adds the direct Conv2d identity: ordered promoted types, intrinsic-bias presence,
+stride, padding, dilation, groups, direct algorithm version, legal epilogue, access plans, carrier
+signature, and direct complete-output-cell body. Each unit of the exact split form has its own
+structural key and generated artifact. Schema 50 and earlier envelopes are safe incompatible
+misses; no migration reader is present.
+
+This family does not add Conv1d or Conv3d CPU execution, backward/training execution, general DAG
+partitioning or materialization, MATMUL, pooling, attention, losses, vector/native convolution,
+packing, im2col, autotuning, dynamic or symbolic Shapes, unresolved layouts, or a cross-backend
+bitwise result promise. Those remain separate planned work.
 
 ### Unary numerical closure
 
@@ -2603,19 +2660,19 @@ The current CPU foundation provides the bounded fully static pointwise matrix, s
 resolved-layout affine family, and one-node static movement, indexing, functional-scatter,
 overlap-fold, stable ordering, explicit-state random, cumulative-scan, aggregate, arg-extrema,
 masked-reduction, advanced-reduction, stable-softmax, trailing Layer/RMS-normalization, and
-batch-normalization inference and training families
+batch-normalization inference and training, and grouped NCHW Conv2d families
 described above. Scalar
 execution covers every admitted row; parallel-scalar orchestration is available for disjoint
 affine, movement, scatter, fold, ordering, random-element, whole-scan-slice, whole-aggregate-
 output-cell, whole-arg-extrema-output-cell, whole-masked-reduction-output-cell, whole-advanced-
 reduction-output-cell, whole-softmax-slice, whole-trailing-normalization-slice, and selected
 channel or flattened non-channel batch-inference ranges and complete-channel batch-training
-ranges; and the
+ranges, plus complete Conv2d output-cell ranges; and the
 pointwise family retains its exact typed value-vector and virtual-mask parity matrix. Generator
-schema 50 distinguishes pointwise,
+schema 51 distinguishes pointwise,
 affine, movement, indexing, scatter, fold, ordering, random, scan, aggregate, arg-extrema, and
-masked-reduction, advanced-reduction, softmax, trailing-normalization, batch-inference, and
-batch-training structures,
+masked-reduction, advanced-reduction, softmax, trailing-normalization, batch-inference,
+batch-training, and grouped NCHW Conv2d structures,
 including movement occurrence order,
 unequal-rank access, exact
 padding bits, functional slice-update rank/map identity, scatter reduction/scratch signature and
@@ -2659,9 +2716,11 @@ first-class trailing Layer/RMS forms, ordered promotion and unique-boundary mapp
 normalized geometry, pass/resource identity, direct numerical bodies, and static typed segment
 layouts. Schema 49 adds the five-input batch-inference identity, arbitrary channel axis, ordered
 promotion and exact epsilon, unique-boundary mapping, selected channel/non-channel range form,
-zero-resource identity, and direct running-variance body. Schema 49 is the only current compatible
-artifact envelope. Schema 48 and earlier
-envelopes are incompatible safe misses.
+zero-resource identity, and direct running-variance body. Schema 49 was the compatible artifact
+envelope for that increment. Schema 50 adds five-output batch-normalization
+training, and schema 51 adds direct grouped NCHW Conv2d and its typed output-cell entry. Schema 51
+is the only current compatible artifact envelope; schema 50 and earlier envelopes are
+incompatible safe misses.
 No excluded
 aggregate/scatter form or later semantic family,
 general BFLOAT16 pointwise or dropout numerical operation,

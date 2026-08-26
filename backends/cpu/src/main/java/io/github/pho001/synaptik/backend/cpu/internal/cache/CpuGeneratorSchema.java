@@ -164,10 +164,12 @@ public final class CpuGeneratorSchema {
      * running-variance body. Schema 50 adds first-class five-input/five-output batch-normalization
      * training, exact momentum and epsilon bits, complete-channel ranges, three-pass arithmetic,
      * exact-state shape, unique-input mapping, ordered output access, and the direct generated
-     * statistic-transition body.
+     * statistic-transition body. Schema 51 adds direct grouped NCHW Conv2d identity, cold static
+     * layout geometry, intrinsic optional bias, typed complete-output-cell traversal, and
+     * FLOAT64/FLOAT32 accumulation with final BFLOAT16 narrowing.
      * Envelopes written for earlier schemas are incompatible misses.
      */
-    public static final int CURRENT_VERSION = 50;
+    public static final int CURRENT_VERSION = 51;
     /** Generated entry name. */ public static final String ENTRY_NAME = "invoke";
     private CpuGeneratorSchema() { }
 

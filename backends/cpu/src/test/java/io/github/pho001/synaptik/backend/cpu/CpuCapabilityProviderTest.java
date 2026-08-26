@@ -23,6 +23,7 @@ import io.github.pho001.synaptik.model.operation.reduction.*;
 import io.github.pho001.synaptik.model.operation.normalization.SoftmaxAttrs;
 import io.github.pho001.synaptik.model.operation.normalization.SoftmaxKind;
 import io.github.pho001.synaptik.model.operation.normalization.*;
+import io.github.pho001.synaptik.model.operation.convolution.*;
 import io.github.pho001.synaptik.model.shape.Shape;
 import io.github.pho001.synaptik.model.shape.DynamicDimension;
 import io.github.pho001.synaptik.model.shape.StaticDimension;
@@ -33,6 +34,32 @@ import java.util.Optional;
 import org.junit.jupiter.api.Test;
 
 class CpuCapabilityProviderTest {
+    @Test void reportsOnlyExactStaticGroupedNchwConv2dOccurrences() {
+        var provider = new CpuCapabilityProvider();
+        Shape inputShape = Shape.of(2, 4, 7, 8), weightShape = Shape.of(6, 2, 3, 2);
+        Shape outputShape = Shape.of(2, 6, 3, 5), biasShape = Shape.of(6);
+        var attrs = new Conv2dAttrs(2, 2, 1, 1, 2, 1, 2);
+        var input = descriptor(DataType.BFLOAT16, inputShape);
+        var weight = descriptor(DataType.FLOAT32, weightShape);
+        var bias = descriptor(DataType.FLOAT64, biasShape);
+        var output = descriptor(DataType.FLOAT64, outputShape);
+        assertAll(() -> assertTrue(provider.supports(query(Conv2dKind.CONV2D, attrs,
+                        List.of(input, weight, bias), output))),
+                () -> assertTrue(provider.supports(query(Conv2dKind.CONV2D, attrs,
+                        List.of(input, weight), descriptor(DataType.FLOAT32, outputShape)))),
+                () -> assertFalse(provider.supports(query(Conv2dKind.CONV2D, attrs,
+                        List.of(input, weight, bias), descriptor(DataType.FLOAT32, outputShape)))),
+                () -> assertFalse(provider.supports(query(Conv2dKind.CONV2D, attrs,
+                        List.of(descriptor(DataType.INT32, inputShape), weight),
+                        descriptor(DataType.FLOAT32, outputShape)))),
+                () -> assertFalse(provider.supports(query(Conv2dKind.CONV2D, attrs,
+                        List.of(input, descriptor(DataType.FLOAT32, Shape.of(6, 3, 3, 2))),
+                        descriptor(DataType.FLOAT32, outputShape)))),
+                () -> assertFalse(provider.supports(query(Conv2dKind.CONV2D, attrs,
+                        List.of(input, weight), descriptor(DataType.FLOAT32, Shape.of(2, 6, 4, 5))))));
+        assertArrayEquals(new DataType[] {DataType.FLOAT64, DataType.FLOAT32, DataType.BFLOAT16,
+                DataType.INT32, DataType.INT64, DataType.BOOL}, DataType.values());
+    }
     @Test void reportsOnlyExactBatchNormalizationInferenceOccurrences() {
         var provider = new CpuCapabilityProvider();
         Shape input = Shape.of(2, 3, 4), channel = Shape.of(3);

@@ -14,10 +14,12 @@ import java.util.List;
  * @param portableExecution non-null immutable cold compute-preference and parallelism inputs
  * @param materializationPolicy non-null dimensionless cold comparison policy; disabled means
  *     direct access only
+ * @param conv2dMaterializedSuffixUnit whether this input belongs to the sole tagged pointwise
+ *     suffix unit of a two-unit Conv2d plan
  */
 public record CpuPartitionAnalysisInputs(boolean loweringManifestEnabled,
         List<CarrierAccess> carrierPattern, PortableExecutionConfig portableExecution,
-        MaterializationPolicy materializationPolicy)
+        MaterializationPolicy materializationPolicy, boolean conv2dMaterializedSuffixUnit)
         implements BackendAnalysisInputs {
     /**
      * Default input: manifest and materialization disabled, scalar single-thread execution, and
@@ -25,7 +27,24 @@ public record CpuPartitionAnalysisInputs(boolean loweringManifestEnabled,
      */
     public static final CpuPartitionAnalysisInputs DEFAULT = new CpuPartitionAnalysisInputs(false,
             List.of(),
-            PortableExecutionConfig.DEFAULT, MaterializationPolicy.DISABLED);
+            PortableExecutionConfig.DEFAULT, MaterializationPolicy.DISABLED, false);
+
+    /**
+     * Creates ordinary analysis inputs outside the tagged Conv2d suffix exception.
+     *
+     * @param loweringManifestEnabled whether cold diagnostics retain a lowering manifest
+     * @param carrierPattern ordered direct carrier forms; copied defensively by the canonical
+     *     constructor
+     * @param portableExecution immutable compute and parallelism preferences
+     * @param materializationPolicy dimensionless cold materialization policy
+     * @throws NullPointerException if a required reference or list element is {@code null}
+     */
+    public CpuPartitionAnalysisInputs(boolean loweringManifestEnabled,
+            List<CarrierAccess> carrierPattern, PortableExecutionConfig portableExecution,
+            MaterializationPolicy materializationPolicy) {
+        this(loweringManifestEnabled, carrierPattern, portableExecution, materializationPolicy,
+                false);
+    }
 
     /**
      * Cold, dimensionless materialization evidence. No value is measured during preparation.
@@ -120,7 +139,7 @@ public record CpuPartitionAnalysisInputs(boolean loweringManifestEnabled,
     public CpuPartitionAnalysisInputs(boolean loweringManifestEnabled,
             List<CarrierAccess> carrierPattern) {
         this(loweringManifestEnabled, carrierPattern, PortableExecutionConfig.DEFAULT,
-                MaterializationPolicy.DISABLED);
+                MaterializationPolicy.DISABLED, false);
     }
 
     /**
@@ -135,7 +154,7 @@ public record CpuPartitionAnalysisInputs(boolean loweringManifestEnabled,
     public CpuPartitionAnalysisInputs(boolean loweringManifestEnabled,
             List<CarrierAccess> carrierPattern, PortableExecutionConfig portableExecution) {
         this(loweringManifestEnabled, carrierPattern, portableExecution,
-                MaterializationPolicy.DISABLED);
+                MaterializationPolicy.DISABLED, false);
     }
 
     /**

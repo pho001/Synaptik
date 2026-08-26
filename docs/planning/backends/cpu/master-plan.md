@@ -166,7 +166,8 @@ io.github.pho001.synaptik.backend.cpu/
     codegen/emit/             portable Class-File generation and direct family/loop emission
     route/portable/           portable route selection/realization plan
     cache/                    structural identity and optional persistence
-    executable/               prepared partition execution and CPU-private worker orchestration
+    executable/               prepared partition execution, worker orchestration, and the sole
+                              bounded Conv2d two-unit composite
     reference/                conformance/fail-closed scalar reference
 ```
 
@@ -242,13 +243,17 @@ created by 0005A. All consume the common analysis above; none creates another ba
 | 0007F | [Portable layer and RMS normalization coverage](tasks/0007f-portable-layer-and-rms-normalization-coverage.md) | Complete | 0007E; Model 0021/0021A; Compiler 0005B | Added all four first-class Layer/RMS forms through shared static trailing-slice geometry, separate direct numerical emitters, exact ordered floating promotion, deterministic complete-slice ranges, Layer-only existing exact-state scratch, RMS zero workspace, schema 48, and passing optimal-clean-Java evidence; decomposed graphs are never inferred as normalization. |
 | 0007F1 | [Portable batch-normalization inference coverage](tasks/0007f1-portable-batch-normalization-inference-coverage.md) | Complete | 0007F; Model 0021B; Compiler 0005B | Added stateless coordinatewise five-input/one-output batch inference with arbitrary normalized channel axis, exact ordered promotion/epsilon, channel-hoisted running-statistic work, deterministic channel/non-channel ranges, zero workspace, direct generated execution, and schema 49. |
 | 0007F2 | [Portable batch-normalization training and statistic-transition coverage](tasks/0007f2-portable-batch-normalization-training-and-statistic-transition-coverage.md) | Complete | 0007F1; Model 0021C; Compiler 0005B | Added first-class five-input/five-output static training execution through complete-channel scalar/parallel-scalar ranges, exact-sum scratch, corrected biased and unbiased variances, typed momentum/epsilon transitions, saved statistics, mixed output Shapes, direct five-output publication, complete overlap validation, and schema 50. |
-| 0008 | Portable linear algebra, Conv2d, pooling, attention, and loss coverage | Draft | 0002–0007F2; Model 0025G; Model 0025H; Compiler 0006B | Generate the remaining current portable executable families, including grouped NCHW `CONV2D`. Establish a bounded initial epilogue direction for MATMUL or Conv2d followed by an optional compatible bias ADD and at most one already-supported exact pointwise activation or clamp, only when single-use dataflow, Shape/layout, numerical order, publication, and resource rules preserve semantics; all other forms split safely. |
-| 0008A | Portable channels-first dimensional convolution closure | Draft | 0008; Model 0025G–0025H; Compiler 0006B | Immediately after the Conv2d foundation, validate NCW Conv1d end to end through its visible `EXPAND_DIMS -> CONV2D -> SQUEEZE` composition and add truthful grouped NCDHW Conv3d analysis, lowering, exact buffer/workspace declarations, scalar generated execution, and bounded parallel strategy. Reuse private geometry, access, epilogue, or kernel components only where the implemented rank-two and rank-three routes prove a common responsibility; add no public/backend-generic `ConvNd`, dynamic rank, or speculative universal convolution IR. |
+| 0008 | [Portable grouped NCHW Conv2d execution foundation](tasks/0008-portable-grouped-nchw-conv2d-execution-foundation.md) | Complete | 0002–0007F2; Model 0020; Model 0025G; Model 0025H; Compiler 0006B | Added direct grouped NCHW Conv2d with intrinsic optional bias, groups/depthwise, explicit padding/stride/dilation, scalar/parallel-scalar complete-output-cell generated code, schema 51, and passing optimal-clean-Java evidence. Legal external ADD and ADD-plus-RELU remain direct; the sole tagged two-unit CPU-private composite materializes one independently supported suffix through one ordinary intermediate buffer and one atomic Runtime executable boundary. |
+| 0008A | Portable channels-first dimensional convolution closure | Ready | 0008; Model 0025G–0025H; Compiler 0006B | Immediately after the Conv2d foundation, validate NCW Conv1d end to end through its visible `EXPAND_DIMS -> CONV2D -> SQUEEZE` composition and add truthful grouped NCDHW Conv3d analysis, lowering, exact buffer/workspace declarations, scalar generated execution, and bounded parallel strategy. Reuse private geometry, access, epilogue, or kernel components only where the implemented rank-two and rank-three routes prove a common responsibility; add no public/backend-generic `ConvNd`, dynamic rank, or speculative universal convolution IR. |
 | 0008B | General partition-DAG computation-unit decomposition and bounded fusion | Draft | 0006–0008A | After dimensional-convolution closure, decompose one CPU-owned partition directed acyclic graph (DAG) into computation units, then admit bounded vertical and horizontal fusion only across legal edges. Bound fan-out, indexing complexity, generated-code size, simultaneously live values, and unit/candidate count; preserve a deterministic materialized split fallback whenever fusion is illegal, over budget, or unprofitable. |
 | 0008C | Typed specialized-subgraph and epilogue recognition | Draft | 0007F2–0008B | Add CPU-private typed recognition for a selected closed set of specialized subgraphs: initially MATMUL, convolution, and reduction epilogues plus explicit semantic kernels. Add no public pattern registry or domain-specific language (DSL), no new Model kinds, and no recognition that silently turns decomposed softmax or normalization into a first-class semantic kind. Unrecognized or ineligible graphs retain ordinary decomposed units. |
 | 0008D | Bounded fusion profitability and typed decision facts | Draft | 0008B–0008C | Rank only complete legal fused and split candidates with bounded safe no-measurement heuristics by default. Retain typed cold accepted, rejected, and selected decision facts, including legality rejection separately from profitability rejection, for later Trace backend payload translation and tuning inspection without exposing a public registry or moving selection into Runtime. |
 | 0008E | Bounded multi-input materialization and representation reuse | Draft | 0008D | Extend portable pointwise computation-unit representation planning to cost-select at most two distinct external read-boundary materializations, including both operands of eligible binary work. Cover FLOAT64, FLOAT32, INT32, INT64, and BOOL where the operation already has CPU execution; gate BFLOAT16 on later pointwise numerical support. Enumerate only bounded single/pair variants of legal fused/split topologies, deduplicate repeated boundaries, reuse one selected copy across compatible uses, and give every complete topology/representation candidate a stable typed CPU-private identity with materialized-boundary, layout/access, reuse, workspace, strategy, and topology facts sufficient for later opaque Prepare/tuning compatibility. Re-rank candidates through 0008D's no-measurement profitability facts, preserve direct access as the uncertainty- and tie-winning fallback, perform no measurement or tuning-cache work, and leave DAG split materialization plus native packing/reorder to their existing owners. |
-| 0009 | Portable generated-coverage closure checkpoint | Draft | 0001–0008E, explicitly including 0005A–0005J, corrective 0007A0A–0007A1O and any later residual corrections selected before 0007A2, 0007A–0007F2 including 0007A1/0007A2 and 0007F/0007F1/0007F2, and the ordered 0008A–0008E dimensional-convolution/decomposition/recognition/profitability/materialization sequence; complete current selected Model semantic inventory | Prove the bytecode/Vector portable route is the truthful supported semantic baseline and fallback, including completed per-family generated/direct corrective evidence, dimensional-convolution execution before general DAG work, safe general DAG decomposition, bounded recognition/fusion, deterministic split fallback, bounded single/dual-input materialization with representation reuse, and typed cold decision evidence. Classify metadata-only work, prove unsupported work fails closed, and close capability/conformance before native peer-route expansion. |
+| 0008F | Portable MATMUL execution and bounded linear epilogues | Draft | 0008E; Model 0019/0019D; Compiler 0005D | Add the complete current MATMUL rank/batch/broadcast family and the corresponding optional compatible bias ADD plus at-most-one exact activation/clamp epilogue or safe split, with direct generated/oracle evidence and without a native-provider route. |
+| 0008G | Portable max/average Pool2d execution | Draft | 0008F; Model 0020A–0020A1; Compiler 0005D | Add first-class NCHW max and average pooling with exact geometry, divisor, numerical, empty-domain, layout, resource, generated-code, and fallback contracts. |
+| 0008H | Portable scaled-dot-product attention execution | Draft | 0008G; Model 0019E/0023F; Compiler 0005D | Add the current one- and two-output attention signatures with optional mask, stable score normalization, exact publication/resources, direct generated execution, and safe fallback without inferring decomposed attention. |
+| 0008I | Portable loss-family execution | Draft | 0008H; Model 0022–0022B; Compiler 0005D | Add mean-squared error plus dense- and index-target categorical cross-entropy-with-logits across their current reductions, exceptional-value policies, publications, validation, and direct generated evidence. |
+| 0009 | Portable generated-coverage closure checkpoint | Draft | 0001–0008I, explicitly including 0005A–0005J, corrective 0007A0A–0007A1O and any later residual corrections selected before 0007A2, 0007A–0007F2 including 0007A1/0007A2 and 0007F/0007F1/0007F2, and the ordered 0008A–0008I dimensional-convolution/decomposition/recognition/profitability/materialization/heavy-family sequence; complete current selected Model semantic inventory | Prove the bytecode/Vector portable route is the truthful supported semantic baseline and fallback, including completed per-family generated/direct corrective evidence, dimensional-convolution execution before general DAG work, safe general DAG decomposition, bounded recognition/fusion, deterministic split fallback, bounded single/dual-input materialization with representation reuse, remaining heavy-family execution, and typed cold decision evidence. Classify metadata-only work, prove unsupported work fails closed, and close capability/conformance before native peer-route expansion. |
 | 0010 | Narrow OpenBLAS BLAS-compatible native route | Draft | 0005A; 0009; completed OpenBLAS provider | Add only `route.nativeblas.openblas` for eligible BLAS-compatible linear algebra, preserving portable alternatives and using shared lowering, representations, exact filtering, materialization accounting, and whole-plan transition cost; never treat OpenBLAS as universal or preferred. |
 | 0011 | Intel oneMKL BLAS and VML peer routes | Draft | 0005A; 0009; concrete Intel CPU use case and supported oneMKL ABI evidence | Add distinct `route.nativeblas.mkl` BLAS and `route.nativeops.mkl` VML leaves over shared analysis, without duplicating graph interpretation, fusion, access planning, or lifecycle ownership. |
 | 0012 | Intel oneDNN partition peer routes | Draft | 0005A; 0009; stable common CPU lowering; concrete DNN/ML use case and supported oneDNN ABI evidence | Add `route.nativeops.onednn` as a distinct eligible partition route over common lowering/IR and whole-plan cost, without collapsing it into oneMKL or portable code generation. |
@@ -349,13 +354,16 @@ is `Complete`. Detailed
 [CPU 0007F1 Portable batch-normalization inference coverage](tasks/0007f1-portable-batch-normalization-inference-coverage.md)
 is `Complete`; detailed
 [CPU 0007F2 Portable batch-normalization training and statistic-transition coverage](tasks/0007f2-portable-batch-normalization-training-and-statistic-transition-coverage.md)
-is `Complete`, and every later CPU task remains `Draft` without a detailed specification. CPU 0008 retains the remaining heavy-family coverage, including MATMUL, grouped
-Conv2d, pooling, attention, and loss work. Immediately afterward, CPU 0008A validates Conv1d
+is `Complete`. Detailed CPU 0008 is `Complete` and establishes only the grouped
+NCHW Conv2d foundation plus its bounded family-local epilogue/split contract. MATMUL, pooling,
+attention, and losses remain explicitly owned by Draft CPU 0008F–0008I without detailed
+specifications. CPU 0008A is the sole `Ready` CPU task and validates Conv1d
 through the explicit Conv2d composition and adds Conv3d execution before the general DAG,
 recognition, profitability, and materialization sequence in CPU 0008B–0008E. This is an ordering
 and dependency correction inside the existing portable route, not a new route beginning at CPU
 0008 or an architecture change. The resulting order is Model 0025G, Model 0025H, Compiler 0006B,
-CPU 0008, CPU 0008A, CPU 0008B, CPU 0008C, CPU 0008D, and CPU 0008E; Compiler 0006C remains a
+CPU 0008, CPU 0008A, CPU 0008B, CPU 0008C, CPU 0008D, CPU 0008E, and then the remaining heavy
+families in CPU 0008F–0008I; Compiler 0006C remains a
 separate gradient-closure task that does not block CPU forward execution. CPU
 0006D is one bounded
 one-node family task because
@@ -513,8 +521,10 @@ measurement and no ratio sample was discarded. The retained bundle verifies with
 47 paths: 25 production/Javadoc, 15 tests, five task documentation paths, and two preserved
 unrelated planning paths; the bounded 0007F2 scope is 45 paths and exactly four new CPU-private
 production types. No public/shared/build/architecture/conformance/integration boundary changed.
-CPU 0007A1D remains Review needed; CPU 0008 and later rows remain Draft without detailed
-specifications, with the Conv1d/Conv3d-before-general-DAG ordering correction preserved.
+CPU 0007A1D remains Review needed; detailed CPU 0008 is Complete, CPU 0008A is the sole Ready CPU
+task, and CPU 0008B and later rows remain Draft without detailed specifications. The
+Conv1d/Conv3d-before-general-DAG
+ordering correction remains preserved.
 
 CPU 0007A1O implementation context `01a032f9-66c9-73f1-8960-8c39c97c830d`, initial audit
 context `01a032f1-a956-7ca0-9a18-4ce3f585208b`, and the mandatory final documentation pass
@@ -797,8 +807,8 @@ detailed task 0006B2, detailed task 0006C, and detailed task 0006D are `Complete
 CPU 0007A1C is `Complete`; CPU 0007A1D remains `Review needed`; detailed CPU 0007A1E through CPU
 0007A1O, CPU 0007A2, detailed CPU 0007B, and detailed CPU 0007C are `Complete`. Detailed CPU 0007D
 and detailed CPU 0007E and CPU 0007F are `Complete`, while detailed CPU 0007F1 is `Complete`;
-detailed CPU 0007F2 is `Complete`, and CPU 0008 through 0017 remain Draft without later detailed
-specifications.
+detailed CPU 0007F2 and detailed CPU 0008 are `Complete`; CPU 0008A is the sole `Ready` CPU task,
+and CPU 0008B through 0017 remain Draft without later detailed specifications.
 CPU 0005C preserves that exact slice and implements cold selection among all four portable
 strategies. It uses the preferred Java 26 FLOAT64 species only for direct contiguous runs and
 scalar broadcasts, scalar tails and general-odometer fallback, configured/available parallelism
@@ -1115,7 +1125,8 @@ the work at the active frontier.
   normalization; detailed Complete 0007F1 owns batch inference; and detailed Complete 0007F2 owns
   batch training/statistic transition. CPU 0007A1O, detailed CPU 0007A2, detailed CPU 0007B, and detailed CPU 0007C are
   `Complete`; detailed CPU 0007D, CPU 0007E, and CPU 0007F are `Complete`. Detailed CPU 0007F1 is
-  `Complete`; CPU 0007F2 is `Complete`, and later tasks remain Draft without detailed specifications.
+  `Complete`; CPU 0007F2 and detailed CPU 0008 are `Complete`, CPU 0008A is the sole Ready CPU
+  task, and later tasks remain Draft without detailed specifications.
 - CPU 0007 is first because the closed cumulative-scan family is independently executable and
   has no aggregate-combination dependency. Partitioning only across complete logical scan slices
   preserves one sequential typed accumulation order, requires no partial/combine workspace, and
@@ -1190,7 +1201,26 @@ the work at the active frontier.
   and explicit semantic kernels as their Draft tasks land. Fusion legality and profitability are
   separate; neither may cross alias/state/random/publication/fan-out/partition or numerical-order
   boundaries. Decomposed softmax is not silently recognized as stable `SOFTMAX`.
-- Draft 0008A closes dimensional convolution immediately after CPU 0008: it validates visible
+- Complete CPU 0008 is narrowed from the former five-family Draft row to one grouped NCHW
+  Conv2d capability. The source-backed reason is task granularity: Conv2d, MATMUL, pooling,
+  attention, and loss have distinct geometry, algorithms, numerical/resource/publication
+  contracts, generated-loop shapes, and evidence matrices. CPU 0008 retains intrinsic optional
+  bias plus only a bounded Conv2d-led compatible external ADD and at-most-one exact
+  activation/clamp epilogue with a deterministic family-local split. Draft CPU 0008F–0008I retain
+  MATMUL, pooling, attention, and loss ownership without detailed specifications. This planning
+  refinement changes neither architecture nor the required 0008 -> 0008A -> 0008B -> 0008C ->
+  0008D -> 0008E order.
+- CPU 0008 resolves its in-progress split contradiction locally. `CpuPartitionPreparationPlan`
+  keeps the one-unit invariant for every existing family, direct Conv2d, and legal fused Conv2d
+  plan, but admits exactly two complete per-unit fact sets under one closed Conv2d materialized-
+  suffix tag. Analysis declares the connecting Conv2d result once as an ordinary buffer before
+  shared assignment. Finalization realizes both independently keyed artifacts and returns one
+  CPU-private composite executable, so unchanged Runtime performs one ordinary atomic access-
+  validity transition and the final publication suffix remains unchanged. Cold binding validates
+  both units and cross-unit overlap before either writes; execution completes and joins the first
+  unit before starting the second. This exception adds no general decomposition, recognition,
+  candidate, profitability, or representation model and does not move work from Draft 0008B–0008E.
+- Ready 0008A closes dimensional convolution immediately after CPU 0008: it validates visible
   Conv1d composition and adds direct Conv3d execution without depending on general fusion,
   profitability, or multi-input materialization. Draft 0008B then generalizes the current
   straight-line unit boundary to bounded partition-DAG decomposition with deterministic

@@ -1415,7 +1415,9 @@ schema 48 trailing Layer/RMS normalization, schema 49 batch-normalization infere
 range-form, ordered-type, exact-epsilon, carrier/access, and direct-body compatibility facts, and
 schema 50 five-output batch-normalization training identity, raw momentum/epsilon bits,
 complete-channel ranges, three-pass arithmetic, exact-state shape, boundary map, and direct-body
-compatibility facts.
+compatibility facts. Schema 51 adds direct grouped NCHW Conv2d identity, optional intrinsic bias,
+legal ADD and ADD-plus-RELU epilogues, complete-output-cell ranges, access/carrier structure, and
+the direct typed body.
 Canonical IR separately supplies value kind, data type, ordered semantics/stores, iteration rank,
 axis roles, contiguous-suffix form, and access regime. Their derived compatibility bytes and
 structural identity are order-sensitive.
@@ -1444,16 +1446,17 @@ Keeping the artifact reachable keeps its hidden-class state reachable, without p
 unreferenced class unloads. Direct generator calls produce equal class bytes but distinct hidden
 classes and artifact identities. The current durable generated-kernel artifact store may instead
 reuse compatible class bytes and weakly intern one loaded artifact while it remains live. The
-artifact is not by itself a prepared route. Current schema-50 artifacts execute admitted bounded
+artifact is not by itself a prepared route. Current schema-51 artifacts execute admitted bounded
 pointwise chains, one static affine represented-bit copy, one static
 PAD/TILE/CONCAT/STACK/window-extraction/SLICE_UPDATE movement, one static indexing occurrence,
 one functional-scatter output pass, one overlap-fold pass, one stable ordering/selection pass,
 one explicit-state initializer/dropout pass, one typed cumulative-scan body, one typed
 ordinary-aggregate body, one typed arg-extrema body, one typed masked-reduction body, one typed
 advanced-reduction body, one typed stable-softmax body, one typed trailing-normalization body, or
-one typed batch-normalization inference body, or one typed batch-normalization training body
+one typed batch-normalization inference body, one typed batch-normalization training body, or one
+direct grouped NCHW Conv2d body
 across the implemented carrier patterns.
-The current-only schema-50 boundary treats schema 49 and earlier as
+The current-only schema-51 boundary treats schema 50 and earlier as
 safe incompatible misses with no migration reader. Retained schema-42 ledger and performance
 material is historical evidence rather than a current artifact claim.
 
@@ -1493,13 +1496,14 @@ ordered boundary values and data-type/carrier pattern, normalized access binding
 declarations, compatible extents/count, selected range count, positive minimum range size, exact
 vector species when applicable, optional selected materialization, original and adjusted generated
 carrier patterns, optional exact workspace declaration, specialization budget, optional compact
-movement, indexing, scatter, fold, ordering, random, scan, or aggregate geometry, and an optional
-cold lowering manifest.
+movement, indexing, scatter, fold, ordering, random, scan, aggregate, or Conv2d geometry, and an
+optional cold lowering manifest.
 
 CPU analysis validates that Planning selected CPU ownership, admits one connected straight-line
 chain of one through eight supported pointwise occurrences or one exact static movement,
 indexing, functional-scatter, overlap-fold, stable-ordering, explicit-state random, cumulative-
-scan, or ordinary-aggregate occurrence, derives every family-specific Model
+scan, ordinary-aggregate occurrence, or the bounded direct/two-unit Conv2d form, derives every
+family-specific Model
 shape, normalizes resolved layouts, proves output write injectivity, derives external boundaries
 and virtual single-use results, and compares direct plus at most three eligible one-input copy
 candidates. It declares each boundary's referenced byte span and, when selected, appends workspace
@@ -1517,7 +1521,7 @@ The implemented backend-private immutable Runtime recipe constructed by CPU fina
 shared slot assignment. `CpuPreparedExecutable` strongly retains the partition's one generated
 artifact and exact static `MethodHandle`, the lowering-derived selected buffers, full normalized geometry, ordered
 original/generated carrier patterns, optional materialization/workspace selection, optional
-compact movement, indexing, scatter, fold, ordering, random, scan, or aggregate geometry, one
+compact movement, indexing, scatter, fold, ordering, random, scan, aggregate, or Conv2d geometry, one
 half-open
 logical range, selected range bounds, and an optional borrowed CPU worker group. It owns no
 physical representation or worker close lifecycle and may bind
@@ -1538,7 +1542,8 @@ table. It invokes one range inline or
 synchronously joins deterministic disjoint chunks through the borrowed group; generated code
 performs no scheduling. The current production families establish only the admitted bounded
 pointwise, affine, movement, indexing, functional-scatter, overlap-fold, stable-ordering,
-explicit-state random, cumulative-scan, and ordinary-aggregate matrices; they make no
+explicit-state random, cumulative-scan, ordinary-aggregate, and grouped NCHW Conv2d matrices;
+they make no
 Tensor-result, gradient, compiler, conformance, integration, or performance guarantee.
 
 ### CPU execution unit
@@ -2312,8 +2317,11 @@ output channels. Dilation is the positive spacing between stored kernel position
 kernel extent is `dilation * (kernel - 1) + 1`. Symmetric conceptual positive-zero padding is
 applied on both sides of each spatial axis. Current model construction derives metadata and
 provenance only. Package-private compiler capture and grouped input, weight, and optional bias
-first-order formulas through public unfold/matrix/fold expressions are current; concrete binding,
-decomposition, backend algorithms, and execution remain planned. See
+first-order formulas through public unfold/matrix/fold expressions are current. The CPU backend
+separately executes the fully static, resolved-layout FLOAT64/FLOAT32/BFLOAT16 subset directly,
+including optional intrinsic bias, groups/depthwise geometry, scalar or parallel-scalar complete-
+output-cell ranges, and the bounded fusion/materialized-suffix forms documented in the CPU backend
+guide. Other backend algorithms and execution forms remain planned. See
 [Tensor API](api/tensor-api.md#grouped-nchw-conv2d-expressions).
 
 ### Conv3d / NCDHW

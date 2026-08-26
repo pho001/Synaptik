@@ -73,18 +73,22 @@ public final class CpuClassFileKernelGenerator {
                     || kernelIr.familyIdentity().startsWith("trailing-normalization:")
                     || kernelIr.familyIdentity().startsWith("batch-normalization-inference:")
                     || kernelIr.familyIdentity().startsWith("batch-normalization-training:")
+                    || kernelIr.familyIdentity().startsWith("conv2d:")
                         ? AccessFlag.PUBLIC.mask() : 0);
         byte[] bytes = ClassFile.of().build(owner, classBuilder -> classBuilder
                 .withVersion(ClassFile.JAVA_26_VERSION, 0).withFlags(AccessFlag.FINAL)
                 .withMethod(CpuGeneratorSchema.ENTRY_NAME, type, entryFlags, method ->
                         method.withCode(code -> {
-                            if (usesSharedCarrierLayouts(kernelIr)) {
+                            if (usesSharedCarrierLayouts(kernelIr)
+                                    && !kernelIr.familyIdentity().startsWith("conv2d:")) {
                                 CpuCarrierEmitter.prepareSegmentLayouts(code,
                                         specialization.boundaryDataTypes(),
                                         specialization.carrierPattern());
                             }
                             if (kernelIr.instructions().isEmpty()) {
-                                if (kernelIr.familyIdentity().startsWith("batch-normalization-training:")) {
+                                if (kernelIr.familyIdentity().startsWith("conv2d:")) {
+                                    new CpuConv2dEmitter().emit(code, specialization, kernelIr);
+                                } else if (kernelIr.familyIdentity().startsWith("batch-normalization-training:")) {
                                     new CpuBatchNormTrainingEmitter().emit(code, specialization, kernelIr);
                                 } else if (kernelIr.familyIdentity().startsWith("batch-normalization-inference:")) {
                                     new CpuBatchNormInferenceEmitter().emit(code, specialization, kernelIr);
@@ -196,6 +200,7 @@ public final class CpuClassFileKernelGenerator {
                 && !family.startsWith("trailing-normalization:")
                 && !family.startsWith("batch-normalization-inference:")
                 && !family.startsWith("batch-normalization-training:");
+
     }
 
     /**
@@ -385,10 +390,13 @@ public final class CpuClassFileKernelGenerator {
         List<DataType> boundaryTypes = kernelIr.values().stream()
                 .filter(value -> value.kind() != CpuKernelIr.Value.Kind.VIRTUAL)
                 .map(CpuKernelIr.Value::dataType).toList();
+        boolean pointwise = kernelIr.familyIdentity().equals("pointwise");
+        int expectedStores = kernelIr.familyIdentity()
+                .startsWith("batch-normalization-training:") ? 5 : 1;
         if (!boundaryTypes.equals(specialization.boundaryDataTypes())
                 || kernelIr.instructions().size() > 8
-                || kernelIr.stores().size() != (kernelIr.familyIdentity()
-                    .startsWith("batch-normalization-training:") ? 5 : 1)) {
+                || (pointwise ? kernelIr.stores().isEmpty()
+                    : kernelIr.stores().size() != expectedStores)) {
             throw new IllegalArgumentException("unsupported canonical pointwise IR");
         }
         if (kernelIr.instructions().isEmpty()) {
@@ -406,19 +414,21 @@ public final class CpuClassFileKernelGenerator {
                     .startsWith("batch-normalization-inference:");
             boolean batchTraining = kernelIr.familyIdentity()
                     .startsWith("batch-normalization-training:");
+            boolean conv2d = kernelIr.familyIdentity().startsWith("conv2d:");
             boolean scatter = kernelIr.familyIdentity().startsWith("scatter:");
             boolean fold = kernelIr.familyIdentity().startsWith("fold:");
             boolean ordering = kernelIr.familyIdentity().startsWith("ordering:");
             boolean movement = kernelIr.familyIdentity().startsWith("movement:");
             boolean affine = kernelIr.familyIdentity().startsWith("affine:");
-            if ((!movement && !affine && !indexing && !scatter && !fold && !ordering && !random && !scan && !aggregate && !argExtrema && !maskedReduction && !advancedReduction && !softmax && !trailingNormalization && !batchNormalization && !batchTraining)
+            if ((!movement && !affine && !indexing && !scatter && !fold && !ordering && !random && !scan && !aggregate && !argExtrema && !maskedReduction && !advancedReduction && !softmax && !trailingNormalization && !batchNormalization && !batchTraining && !conv2d)
                     || affine && kernelIr.values().size() != 2
                     || movement && (kernelIr.values().size() < 2 || kernelIr.values().size() > 17)
-                    || !ordering && !random && !scan && !aggregate && !argExtrema && !maskedReduction && !advancedReduction && !softmax && !trailingNormalization && !batchNormalization && !batchTraining && kernelIr.values().subList(0, kernelIr.values().size() - 1).stream()
+                    || !ordering && !random && !scan && !aggregate && !argExtrema && !maskedReduction && !advancedReduction && !softmax && !trailingNormalization && !batchNormalization && !batchTraining && !conv2d && kernelIr.values().subList(0, kernelIr.values().size() - 1).stream()
                         .anyMatch(value -> value.kind() != CpuKernelIr.Value.Kind.INPUT)
                     || kernelIr.values().getLast().kind() != CpuKernelIr.Value.Kind.OUTPUT
-                    || !indexing && !scatter && !fold && !ordering && !random && !scan && !aggregate && !argExtrema && !maskedReduction && !advancedReduction && !softmax && !trailingNormalization && !batchNormalization && !batchTraining
+                    || !indexing && !scatter && !fold && !ordering && !random && !scan && !aggregate && !argExtrema && !maskedReduction && !advancedReduction && !softmax && !trailingNormalization && !batchNormalization && !batchTraining && !conv2d
                         && kernelIr.values().stream().map(CpuKernelIr.Value::dataType).distinct().count() != 1
+                    || conv2d && (kernelIr.values().size() < 3 || kernelIr.values().size() > 5)
                     || random && kernelIr.values().size() != 1 && kernelIr.values().size() != 5
                     || specialization.executionStrategy().compute()
                         != io.github.pho001.synaptik.backend.cpu.internal.prepare.CpuPartitionPreparationPlan.ExecutionStrategy.Compute.SCALAR

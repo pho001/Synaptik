@@ -2,6 +2,7 @@ package io.github.pho001.synaptik.backend.cpu.internal.prepare;
 
 import io.github.pho001.synaptik.backend.cpu.internal.route.portable.CpuPortableRoutePlan;
 import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuAccessPlan;
+import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuKernelIr;
 import io.github.pho001.synaptik.backend.cpu.internal.cache.CpuKernelSpecialization.CarrierAccess;
 import io.github.pho001.synaptik.model.graph.ValueId;
 import io.github.pho001.synaptik.prepare.analysis.BackendPreparationPlan;
@@ -26,6 +27,7 @@ import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuSoftmaxLowerin
 import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuTrailingNormalizationLowering;
 import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuBatchNormInferenceLowering;
 import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuBatchNormTrainingLowering;
+import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuConv2dLowering;
 
 /**
  * Route-neutral immutable selected CPU partition plan.
@@ -81,6 +83,8 @@ import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuBatchNormTrain
  * @param batchNormTrainingGeometry non-null optional complete-channel training geometry; paired
  *     with exact-state workspace for non-empty channel work and mutually exclusive with every
  *     other specialized-family geometry
+ * @param conv2dGeometry non-null optional grouped NCHW Conv2d boundary geometry; present only on
+ *     the direct lead unit and mutually exclusive with every other specialized-family geometry
  */
 public record CpuPartitionPreparationPlan(List<ExecutionUnitPlan> units, Route route,
         ExecutionStrategy executionStrategy,
@@ -107,8 +111,87 @@ public record CpuPartitionPreparationPlan(List<ExecutionUnitPlan> units, Route r
         Optional<CpuSoftmaxLowering.Geometry> softmaxGeometry,
         Optional<CpuTrailingNormalizationLowering.Geometry> trailingNormalizationGeometry,
         Optional<CpuBatchNormInferenceLowering.Geometry> batchNormInferenceGeometry,
-        Optional<CpuBatchNormTrainingLowering.Geometry> batchNormTrainingGeometry)
+        Optional<CpuBatchNormTrainingLowering.Geometry> batchNormTrainingGeometry,
+        Optional<CpuConv2dLowering.Geometry> conv2dGeometry)
         implements BackendPreparationPlan {
+
+    /**
+     * Creates an established one-unit family plan with no Conv2d geometry.
+     *
+     * @param units computation-oriented units
+     * @param route selected route
+     * @param executionStrategy selected compute/orchestration strategy
+     * @param bufferDeclarations exact post-fusion declarations
+     * @param boundaryValues ordered materialized values
+     * @param accessBindings ordered cold access geometry
+     * @param carrierPattern Runtime carrier forms
+     * @param generatedCarrierPattern generated-entry carrier forms
+     * @param extents compatible logical range extents
+     * @param elementCount checked logical range count
+     * @param affineAddressPairs affine addresses or an empty array
+     * @param selectedRangeCount positive selected maximum range count
+     * @param minimumElementsPerWorker positive minimum work per worker chunk
+     * @param vectorSpeciesBitSize selected vector width, or zero
+     * @param loweringManifest cold diagnostic text
+     * @param materialization optional pointwise input materialization
+     * @param workspaceDeclaration optional exact workspace declaration
+     * @param workspaceUse meaning of the optional workspace
+     * @param specializationBudget enforced specialization budget
+     * @param movementGeometry optional movement geometry
+     * @param indexingGeometry optional indexing geometry
+     * @param scatterGeometry optional scatter geometry
+     * @param foldGeometry optional fold geometry
+     * @param orderingGeometry optional ordering geometry
+     * @param randomGeometry optional explicit-state geometry
+     * @param scanGeometry optional scan geometry
+     * @param aggregateGeometry optional aggregate geometry
+     * @param argExtremaGeometry optional arg-extrema geometry
+     * @param maskedReductionGeometry optional masked-reduction geometry
+     * @param advancedReductionGeometry optional advanced-reduction geometry
+     * @param softmaxGeometry optional softmax geometry
+     * @param trailingNormalizationGeometry optional Layer/RMS geometry
+     * @param batchNormInferenceGeometry optional batch-normalization inference geometry
+     * @param batchNormTrainingGeometry optional batch-normalization training geometry
+     * @throws NullPointerException if a required reference or list element is {@code null}
+     * @throws IllegalArgumentException if plan, resource, range, geometry, or specialization facts
+     *     disagree
+     * @throws ArithmeticException if checked range or geometry arithmetic overflows
+     */
+    public CpuPartitionPreparationPlan(List<ExecutionUnitPlan> units, Route route,
+            ExecutionStrategy executionStrategy,
+            List<PreparationResourceRequirement.Buffer> bufferDeclarations,
+            List<ValueId> boundaryValues, List<CpuAccessPlan.Binding> accessBindings,
+            List<CarrierAccess> carrierPattern, List<CarrierAccess> generatedCarrierPattern,
+            long[] extents, long elementCount, long[] affineAddressPairs,
+            int selectedRangeCount, long minimumElementsPerWorker, int vectorSpeciesBitSize,
+            String loweringManifest, Optional<CpuMaterializationPlan> materialization,
+            Optional<PreparationResourceRequirement.Workspace> workspaceDeclaration,
+            WorkspaceUse workspaceUse, CpuSpecializationBudget specializationBudget,
+            Optional<CpuNonAffineMovementLowering.Geometry> movementGeometry,
+            Optional<CpuIndexingLowering.Geometry> indexingGeometry,
+            Optional<CpuScatterLowering.Geometry> scatterGeometry,
+            Optional<CpuFoldLowering.Geometry> foldGeometry,
+            Optional<CpuOrderingLowering.Geometry> orderingGeometry,
+            Optional<CpuRandomLowering.Geometry> randomGeometry,
+            Optional<CpuScanLowering.Geometry> scanGeometry,
+            Optional<CpuAggregateLowering.Geometry> aggregateGeometry,
+            Optional<CpuArgExtremaLowering.Geometry> argExtremaGeometry,
+            Optional<CpuMaskedReductionLowering.Geometry> maskedReductionGeometry,
+            Optional<CpuAdvancedReductionLowering.Geometry> advancedReductionGeometry,
+            Optional<CpuSoftmaxLowering.Geometry> softmaxGeometry,
+            Optional<CpuTrailingNormalizationLowering.Geometry> trailingNormalizationGeometry,
+            Optional<CpuBatchNormInferenceLowering.Geometry> batchNormInferenceGeometry,
+            Optional<CpuBatchNormTrainingLowering.Geometry> batchNormTrainingGeometry) {
+        this(units, route, executionStrategy, bufferDeclarations, boundaryValues, accessBindings,
+                carrierPattern, generatedCarrierPattern, extents, elementCount, affineAddressPairs,
+                selectedRangeCount, minimumElementsPerWorker, vectorSpeciesBitSize, loweringManifest,
+                materialization, workspaceDeclaration, workspaceUse, specializationBudget,
+                movementGeometry, indexingGeometry, scatterGeometry, foldGeometry, orderingGeometry,
+                randomGeometry, scanGeometry, aggregateGeometry, argExtremaGeometry,
+                maskedReductionGeometry, advancedReductionGeometry, softmaxGeometry,
+                trailingNormalizationGeometry, batchNormInferenceGeometry,
+                batchNormTrainingGeometry, Optional.empty());
+    }
 
     /**
      * Creates an existing-family plan without batch-normalization inference geometry.
@@ -367,24 +450,129 @@ public record CpuPartitionPreparationPlan(List<ExecutionUnitPlan> units, Route r
         /** Per-range exact floating ordinary-aggregate or masked-reduction state. */
         AGGREGATE_EXACT_STATE
     }
+    /** Closed whole-partition form; the second value is reserved solely for CPU 0008. */
+    public enum PlanForm {
+        /** Every established family and direct or fused Conv2d plan. */ ONE_UNIT,
+        /** Exact direct Conv2d followed by one independently generated pointwise suffix. */
+        CONV2D_MATERIALIZED_SUFFIX
+    }
+
     /**
-     * One computation-oriented execution unit.
+     * One complete computation-oriented execution unit.
      *
      * @param portablePlan non-null already-lowered portable realization plan
+     * @param boundaryValues ordered unit-local materialized values
+     * @param accessBindings ordered unit-local cold access facts
+     * @param carrierPattern requested carriers in boundary order
+     * @param generatedCarrierPattern generated-entry carriers in boundary order
+     * @param extents unit-local logical range extents
+     * @param elementCount checked unit-local logical range count
+     * @param executionStrategy unit-local scalar or parallel-scalar selection
+     * @param selectedRangeCount positive selected range count
+     * @param minimumElementsPerWorker positive minimum work per submitted range
+     * @param vectorSpeciesBitSize zero for the admitted split units
+     * @param conv2dGeometry exact Conv2d geometry for the lead unit only
+     * @param outputCount positive count of trailing materialized output boundaries
      * @param fusionReason non-null cold diagnostic explanation of the selected fusion
      */
-    public record ExecutionUnitPlan(CpuPortableRoutePlan portablePlan, String fusionReason) {
+    public record ExecutionUnitPlan(CpuPortableRoutePlan portablePlan,
+            List<ValueId> boundaryValues, List<CpuAccessPlan.Binding> accessBindings,
+            List<CarrierAccess> carrierPattern, List<CarrierAccess> generatedCarrierPattern,
+            long[] extents, long elementCount, ExecutionStrategy executionStrategy,
+            int selectedRangeCount, long minimumElementsPerWorker, int vectorSpeciesBitSize,
+            Optional<CpuConv2dLowering.Geometry> conv2dGeometry, int outputCount,
+            String fusionReason) {
         /**
          * Validates one selected unit and its diagnostic explanation.
          *
          * @param portablePlan non-null already-lowered portable realization plan
+         * @param boundaryValues ordered unit-local materialized values; copied defensively
+         * @param accessBindings ordered unit-local cold access facts; copied defensively
+         * @param carrierPattern requested carriers in boundary order; copied defensively
+         * @param generatedCarrierPattern generated-entry carriers; copied defensively
+         * @param extents unit-local logical range extents; copied defensively
+         * @param elementCount checked unit-local logical range count
+         * @param executionStrategy unit-local scalar or parallel-scalar selection
+         * @param selectedRangeCount positive selected range count
+         * @param minimumElementsPerWorker positive minimum work per submitted range
+         * @param vectorSpeciesBitSize selected vector width, or zero
+         * @param conv2dGeometry exact Conv2d geometry for the lead unit only
+         * @param outputCount positive count of trailing materialized outputs
          * @param fusionReason non-null cold diagnostic explanation
-         * @throws NullPointerException if either component is {@code null}
+         * @throws NullPointerException if a required reference or list element is {@code null}
+         * @throws IllegalArgumentException if unit boundaries, range, outputs, strategy, or
+         *     specialization facts disagree
+         * @throws ArithmeticException if the extent product overflows
          */
         public ExecutionUnitPlan {
             Objects.requireNonNull(portablePlan, "portablePlan");
+            boundaryValues = List.copyOf(boundaryValues);
+            accessBindings = List.copyOf(accessBindings);
+            carrierPattern = List.copyOf(carrierPattern);
+            generatedCarrierPattern = List.copyOf(generatedCarrierPattern);
+            extents = extents.clone();
+            Objects.requireNonNull(executionStrategy, "executionStrategy");
+            conv2dGeometry = Objects.requireNonNull(conv2dGeometry, "conv2dGeometry");
             Objects.requireNonNull(fusionReason, "fusionReason");
+            CpuKernelIr generated = portablePlan.kernelIr();
+            var materialized = generated.values().stream()
+                    .filter(value -> value.kind() != CpuKernelIr.Value.Kind.VIRTUAL).toList();
+            long checkedCount = 1;
+            boolean empty = false;
+            for (long extent : extents) {
+                if (extent < 0) throw new IllegalArgumentException(
+                        "CPU execution-unit extent must be non-negative");
+                if (extent == 0) empty = true;
+                else if (!empty) checkedCount = Math.multiplyExact(checkedCount, extent);
+            }
+            if (empty) checkedCount = 0;
+            boolean parallel = executionStrategy.orchestration()
+                    == ExecutionStrategy.Orchestration.PARALLEL;
+            boolean vector = executionStrategy.compute() == ExecutionStrategy.Compute.VECTOR;
+            if (boundaryValues.isEmpty() || accessBindings.size() != boundaryValues.size()
+                    || carrierPattern.size() != boundaryValues.size()
+                    || generatedCarrierPattern.size() != boundaryValues.size()
+                    || materialized.size() != boundaryValues.size()
+                    || elementCount < 0 || elementCount != checkedCount || selectedRangeCount <= 0
+                    || minimumElementsPerWorker <= 0 || vectorSpeciesBitSize < 0
+                    || outputCount <= 0 || outputCount > boundaryValues.size()
+                    || materialized.subList(materialized.size() - outputCount, materialized.size())
+                        .stream().anyMatch(value -> value.kind() != CpuKernelIr.Value.Kind.OUTPUT)
+                    || materialized.subList(0, materialized.size() - outputCount).stream()
+                        .anyMatch(value -> value.kind() != CpuKernelIr.Value.Kind.INPUT)
+                    || parallel != (selectedRangeCount >= 2)
+                    || vector != (vectorSpeciesBitSize > 0)
+                    || portablePlan.specialization().carrierPattern()
+                        .equals(generatedCarrierPattern) == false
+                    || portablePlan.specialization().vectorSpeciesBitSize()
+                        != vectorSpeciesBitSize) {
+                throw new IllegalArgumentException("CPU execution-unit facts disagree");
+            }
         }
+
+        /** Returns the unit-local logical range extents without exposing retained state.
+         * @return a new copy of the unit-local logical range extents
+         */
+        @Override public long[] extents() { return extents.clone(); }
+    }
+
+    /** Returns the closed whole-partition form implied by validated unit cardinality.
+     * @return the non-null direct/fused or exact two-unit plan tag
+     */
+    public PlanForm form() {
+        return units.size() == 2 ? PlanForm.CONV2D_MATERIALIZED_SUFFIX : PlanForm.ONE_UNIT;
+    }
+
+    private static boolean unitAccessesAgree(ExecutionUnitPlan unit) {
+        var values = unit.portablePlan().kernelIr().values().stream()
+                .filter(value -> value.kind() != CpuKernelIr.Value.Kind.VIRTUAL).toList();
+        if (values.size() != unit.accessBindings().size()) return false;
+        for (int index = 0; index < values.size(); index++) {
+            if (!values.get(index).accessPlan().equals(unit.accessBindings().get(index).plan())) {
+                return false;
+            }
+        }
+        return true;
     }
     /** Route selected after common lowering. */
     public enum Route {
@@ -514,13 +702,44 @@ public record CpuPartitionPreparationPlan(List<ExecutionUnitPlan> units, Route r
                 "batchNormInferenceGeometry");
         batchNormTrainingGeometry = Objects.requireNonNull(batchNormTrainingGeometry,
                 "batchNormTrainingGeometry");
-        if (units.size() != 1 || route != Route.PORTABLE
+        conv2dGeometry = Objects.requireNonNull(conv2dGeometry, "conv2dGeometry");
+        boolean split = units.size() == 2;
+        if (units.isEmpty() || units.size() > 2 || route != Route.PORTABLE
                 || bufferDeclarations.isEmpty()
                 || boundaryValues.size() != bufferDeclarations.size()
                 || accessBindings.size() != bufferDeclarations.size()
                 || carrierPattern.size() != bufferDeclarations.size()
                 || generatedCarrierPattern.size() != bufferDeclarations.size()) {
                 throw new IllegalArgumentException("CPU plan must contain one portable unit and matching boundaries");
+        }
+        if (!bufferDeclarations.stream().map(PreparationResourceRequirement.Buffer::valueId)
+                .toList().equals(boundaryValues)
+                || boundaryValues.stream().distinct().count() != boundaryValues.size()) {
+            throw new IllegalArgumentException(
+                    "CPU declarations and distinct boundary identities must agree");
+        }
+        if (split) {
+            var lead = units.get(0);
+            var suffix = units.get(1);
+            ValueId intermediate = lead.boundaryValues().getLast();
+            int suffixIntermediate = suffix.boundaryValues().indexOf(intermediate);
+            var suffixIr = suffix.portablePlan().portableKernelIr() instanceof CpuKernelIr value
+                    ? value : null;
+            if (!(lead.portablePlan().portableKernelIr()
+                    instanceof io.github.pho001.synaptik.backend.cpu.internal.ir.CpuConv2dIr)
+                    || suffixIr == null || !"pointwise".equals(suffixIr.familyIdentity())
+                    || lead.conv2dGeometry().isEmpty() || suffix.conv2dGeometry().isPresent()
+                    || lead.outputCount() != 1 || lead.vectorSpeciesBitSize() != 0
+                    || suffix.vectorSpeciesBitSize() != 0
+                    || !unitAccessesAgree(lead) || !unitAccessesAgree(suffix)
+                    || materialization.isPresent() || workspaceDeclaration.isPresent()
+                    || suffixIntermediate < 0
+                    || suffixIntermediate >= suffix.boundaryValues().size()
+                        - suffix.outputCount()
+                    || suffix.boundaryValues().stream().filter(intermediate::equals).count() != 1) {
+                throw new IllegalArgumentException(
+                        "two units require the exact Conv2d materialized-suffix form");
+            }
         }
         boolean affine = units.getFirst().portablePlan().portableKernelIr()
                 instanceof io.github.pho001.synaptik.backend.cpu.internal.ir.CpuAffineCopyIr;
@@ -554,9 +773,15 @@ public record CpuPartitionPreparationPlan(List<ExecutionUnitPlan> units, Route r
                 instanceof io.github.pho001.synaptik.backend.cpu.internal.ir.CpuBatchNormInferenceIr;
         boolean batchNormTraining = units.getFirst().portablePlan().portableKernelIr()
                 instanceof io.github.pho001.synaptik.backend.cpu.internal.ir.CpuBatchNormTrainingIr;
+        boolean conv2d = units.getFirst().portablePlan().portableKernelIr()
+                instanceof io.github.pho001.synaptik.backend.cpu.internal.ir.CpuConv2dIr;
         if (affine ? affineAddressPairs.length != Math.multiplyExact(elementCount, 2)
                 : affineAddressPairs.length != 0) {
             throw new IllegalArgumentException("affine address geometry must match the copy domain");
+        }
+        if (conv2d != conv2dGeometry.isPresent() || conv2d && (materialization.isPresent()
+                || workspaceDeclaration.isPresent())) {
+            throw new IllegalArgumentException("Conv2d IR and zero-workspace geometry must agree");
         }
         if (movement != movementGeometry.isPresent()) {
             throw new IllegalArgumentException("movement IR and cold geometry must agree");
