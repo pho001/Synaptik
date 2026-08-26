@@ -8171,8 +8171,10 @@ Each successful call creates one fresh canonical output at producer index zero. 
 unlabeled and storage-free, has unresolved layout, retains the exact derived Shape and promoted
 type, and combines the input gradient-request metadata with logical OR. Provenance retains the
 exact `Conv3dAttrs` reference and ordered inputs `[input, weight]` or
-`[input, weight, bias]`. Current Model construction reads no tensor values. Compiler adoption and
-final proof of deferred relations remain planned in Draft Compiler task 0006B.
+`[input, weight, bias]`. Current Model construction reads no tensor values. Complete Compiler task
+0006B now independently infers and final-validates these descriptors and their deferred channel
+and spatial relations for forward-only compilation. Conv3d gradients remain separate Draft
+Compiler 0006C work, and no execution or capability-provider support follows from that adoption.
 
 ### NCHW maximum-pooling expressions
 

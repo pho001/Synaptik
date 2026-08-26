@@ -9,6 +9,7 @@ import io.github.pho001.synaptik.model.operation.attention.ScaledDotProductAtten
 import io.github.pho001.synaptik.model.operation.attention.ScaledDotProductAttentionKind;
 import io.github.pho001.synaptik.model.operation.convolution.Conv2dAttrs;
 import io.github.pho001.synaptik.model.operation.convolution.Conv2dKind;
+import io.github.pho001.synaptik.model.operation.convolution.Conv3dKind;
 import io.github.pho001.synaptik.model.operation.elementwise.binary.BinaryArithmeticKind;
 import io.github.pho001.synaptik.model.operation.elementwise.cast.CastAttrs;
 import io.github.pho001.synaptik.model.operation.elementwise.cast.CastKind;
@@ -171,13 +172,14 @@ import java.util.Set;
  * <p>This owner selects rules and rejects unsupported operation, input/output signature,
  * attribute, role, data-type, Shape, and policy combinations. A known rejection occurs before the
  * seed, a derivative constant, a matching {@code ARGSORT}, or another formula Tensor is
- * constructed, so it consumes no derivative {@code TensorId}. Fixed recurrent-scan occurrences
- * are rejected from the complete original forward inventory before stage, seed, or formula
- * validation because backpropagation through time is not implemented. The guarantee ends after a
- * successful plan is returned: later public Tensor construction, capture, inference, validation,
- * or optimization may consume IDs before failing. This owner neither reads Tensor payloads,
- * captures a graph, allocates storage, binds a dynamic Dimension, lowers work, nor executes
- * computation.</p>
+ * constructed, so it consumes no derivative {@code TensorId}. Fixed recurrent-scan and Conv3d
+ * occurrences are rejected from the complete original forward inventory in deterministic
+ * producer postorder before stage, seed, route, occurrence-policy, or formula validation.
+ * Recurrent BPTT and Conv3d adjoints remain separately deferred, including when a requested
+ * gradient belongs to an unrelated supported branch. The guarantee ends after a successful plan
+ * is returned: later public Tensor construction, capture, inference, validation, or optimization
+ * may consume IDs before failing. This owner neither reads Tensor payloads, captures a graph,
+ * allocates storage, binds a dynamic Dimension, lowers work, nor executes computation.</p>
  */
 final class AutogradPreflight {
     private AutogradPreflight() {}
@@ -209,7 +211,7 @@ final class AutogradPreflight {
         }
 
         Inventory original = inventory(forwardOutputs);
-        rejectRecurrentScan(original);
+        rejectForwardOnlyOccurrences(original);
         FunctionalGradientRequest.Stage firstRequest = request.stages().getFirst();
         List<Tensor> firstOutputs = new ArrayList<>(firstRequest.outputs().size());
         IdentityHashMap<Tensor, Integer> outputPositions = new IdentityHashMap<>();
@@ -1935,7 +1937,14 @@ final class AutogradPreflight {
         return -1;
     }
 
-    private static void rejectRecurrentScan(Inventory original) {
+    /**
+     * Rejects the first complete-forward occurrence whose gradients are deliberately deferred.
+     *
+     * @param original non-null allocation-free inventory in deterministic producer postorder
+     * @throws IllegalArgumentException if the inventory contains fixed recurrence or Conv3d;
+     *     rejection occurs before seed normalization or derivative Tensor construction
+     */
+    private static void rejectForwardOnlyOccurrences(Inventory original) {
         for (int producerIndex = 0;
                 producerIndex < original.producerPostorder().size();
                 producerIndex++) {
@@ -1948,6 +1957,15 @@ final class AutogradPreflight {
                                 + producer.operation().attrs().getClass().getName()
                                 + ": fixed recurrent scan is forward-only until "
                                 + "backpropagation through time is implemented");
+            }
+            if (producer.operation().kind() == Conv3dKind.CONV3D) {
+                throw new IllegalArgumentException(
+                        "producerPostorder[" + producerIndex + "] "
+                                + producer.operation().kind().getClass().getName() + "."
+                                + producer.operation().kind().name() + " attrs="
+                                + producer.operation().attrs().getClass().getName()
+                                + ": Conv3d is forward-only until Compiler task 0006C "
+                                + "closes its gradients");
             }
         }
     }

@@ -12,7 +12,7 @@ import io.github.pho001.synaptik.model.operation.linalg.MatmulKind;
 import io.github.pho001.synaptik.model.operation.loss.*;
 import io.github.pho001.synaptik.model.operation.pooling.*;
 import io.github.pho001.synaptik.model.operation.random.*;
-import io.github.pho001.synaptik.model.shape.Shape;
+import io.github.pho001.synaptik.model.shape.*;
 import io.github.pho001.synaptik.model.tensor.*;
 import java.util.*;
 import org.junit.jupiter.api.Test;
@@ -109,6 +109,157 @@ final class StructuredOperationInferenceTest {
                 List.of(descriptor(DataType.FLOAT32, Shape.of(1, 1, 1, 1), true)),
                 List.of(descriptor(DataType.FLOAT32, Shape.of(1, 1, 1, 1), true)),
                 "effective kernel does not fit");
+    }
+
+    @Test
+    void independentlyRejectsConv3dRoleKernelConstraintAndGeometryCategories() {
+        Operation operation = new Operation(Conv3dKind.CONV3D, Conv3dAttrs.defaults());
+        TensorDescriptor validInput = descriptor(
+                DataType.FLOAT32, Shape.of(1, 4, 5, 5, 5), true);
+        TensorDescriptor validWeight = descriptor(
+                DataType.FLOAT32, Shape.of(6, 4, 3, 3, 3), true);
+        TensorDescriptor validOutput = descriptor(
+                DataType.FLOAT32, Shape.of(1, 6, 3, 3, 3), true);
+
+        assertInvalid(
+                operation,
+                List.of(descriptor(DataType.INT32, Shape.of(1, 4, 5, 5, 5), false), validWeight),
+                List.of(validOutput),
+                "conv3d input must be floating");
+        assertInvalid(
+                operation,
+                List.of(descriptor(DataType.FLOAT32, Shape.of(1, 4, 5, 5), true), validWeight),
+                List.of(validOutput),
+                "conv3d input rank must be 5: 4");
+        assertInvalid(
+                operation,
+                List.of(validInput, descriptor(DataType.FLOAT32,
+                        Shape.ofDimensions(
+                                new StaticDimension(6), new StaticDimension(4),
+                                new DynamicDimension("Kd"), new StaticDimension(3),
+                                new StaticDimension(3)), true)),
+                List.of(validOutput),
+                "conv3d kernel depth must be static");
+
+        Conv3dAttrs groupsTwo = new Conv3dAttrs(
+                1, 1, 1, 0, 0, 0, 1, 1, 1, 2);
+        assertInvalid(
+                new Operation(Conv3dKind.CONV3D, groupsTwo),
+                List.of(
+                        descriptor(DataType.FLOAT32, Shape.of(1, 5, 5, 5, 5), true),
+                        descriptor(DataType.FLOAT32, Shape.of(6, 2, 3, 3, 3), true)),
+                List.of(validOutput),
+                "constraint conv3d input channels divisible by groups failed");
+        assertInvalid(
+                new Operation(Conv3dKind.CONV3D, groupsTwo),
+                List.of(
+                        validInput,
+                        descriptor(DataType.FLOAT32, Shape.of(5, 2, 3, 3, 3), true)),
+                List.of(descriptor(
+                        DataType.FLOAT32, Shape.of(1, 5, 3, 3, 3), true)),
+                "constraint conv3d output channels divisible by groups failed");
+        assertInvalid(
+                new Operation(Conv3dKind.CONV3D, groupsTwo),
+                List.of(
+                        validInput,
+                        descriptor(DataType.FLOAT32, Shape.of(6, 3, 3, 3, 3), true)),
+                List.of(validOutput),
+                "constraint conv3d weight channels per group failed");
+        assertInvalid(
+                operation,
+                List.of(
+                        validInput,
+                        validWeight,
+                        descriptor(DataType.FLOAT32, Shape.of(5), true)),
+                List.of(validOutput),
+                "constraint conv3d bias channels failed");
+        assertInvalid(
+                operation,
+                List.of(
+                        descriptor(DataType.FLOAT32, Shape.of(1, 4, 2, 5, 5), true),
+                        validWeight),
+                List.of(validOutput),
+                "conv3d effective kernel does not fit padded depth");
+        assertInvalid(
+                operation,
+                List.of(
+                        descriptor(DataType.FLOAT32, Shape.of(1, 4, 3, 2, 5), true),
+                        validWeight),
+                List.of(validOutput),
+                "conv3d effective kernel does not fit padded height");
+        assertInvalid(
+                operation,
+                List.of(
+                        descriptor(DataType.FLOAT32, Shape.of(1, 4, 3, 3, 2), true),
+                        validWeight),
+                List.of(validOutput),
+                "conv3d effective kernel does not fit padded width");
+    }
+
+    @Test
+    void reportsConv3dCheckedOverflowAndCompleteStoredDescriptorMismatchContext() {
+        Operation overflow = new Operation(
+                Conv3dKind.CONV3D,
+                new Conv3dAttrs(
+                        1, 1, 1, 0, 0, 0, Long.MAX_VALUE, 1, 1, 1));
+        assertInvalid(
+                overflow,
+                List.of(
+                        descriptor(DataType.FLOAT32, Shape.of(1, 1, 5, 5, 5), false),
+                        descriptor(DataType.FLOAT32, Shape.of(1, 1, 2, 1, 1), false)),
+                List.of(descriptor(DataType.FLOAT32, Shape.of(1, 1, 1, 5, 5), false)),
+                "descriptor derivation failed: long overflow");
+        assertInvalid(
+                new Operation(
+                        Conv3dKind.CONV3D,
+                        new Conv3dAttrs(
+                                1, 1, 1, Long.MAX_VALUE, 0, 0, 1, 1, 1, 1)),
+                List.of(
+                        descriptor(DataType.FLOAT32, Shape.of(1, 1, 5, 5, 5), false),
+                        descriptor(DataType.FLOAT32, Shape.of(1, 1, 1, 1, 1), false)),
+                List.of(descriptor(DataType.FLOAT32, Shape.of(1, 1, 1, 5, 5), false)),
+                "descriptor derivation failed: long overflow");
+        assertInvalid(
+                new Operation(
+                        Conv3dKind.CONV3D,
+                        new Conv3dAttrs(1, 1, 1, 1, 0, 0, 1, 1, 1, 1)),
+                List.of(
+                        descriptor(DataType.FLOAT32,
+                                Shape.of(1, 1, Long.MAX_VALUE, 5, 5), false),
+                        descriptor(DataType.FLOAT32, Shape.of(1, 1, 1, 1, 1), false)),
+                List.of(descriptor(DataType.FLOAT32, Shape.of(1, 1, 1, 5, 5), false)),
+                "descriptor derivation failed: long overflow");
+        assertInvalid(
+                new Operation(
+                        Conv3dKind.CONV3D,
+                        new Conv3dAttrs(1, 1, 1, 0, 0, 0, 1, 1, 1, 2)),
+                List.of(
+                        descriptor(DataType.FLOAT32,
+                                Shape.ofDimensions(
+                                        new StaticDimension(1), new DynamicDimension("Cin"),
+                                        new StaticDimension(5), new StaticDimension(5),
+                                        new StaticDimension(5)), false),
+                        descriptor(DataType.FLOAT32,
+                                Shape.of(6, Long.MAX_VALUE, 1, 1, 1), false)),
+                List.of(descriptor(DataType.FLOAT32, Shape.of(1, 6, 5, 5, 5), false)),
+                "descriptor derivation failed: long overflow");
+
+        Operation operation = new Operation(Conv3dKind.CONV3D, Conv3dAttrs.defaults());
+        CompiledGraphModel graph = graph(
+                operation,
+                List.of(
+                        descriptor(DataType.FLOAT32, Shape.of(1, 4, 5, 5, 5), true),
+                        descriptor(DataType.FLOAT32, Shape.of(6, 4, 3, 3, 3), false)),
+                List.of(descriptor(DataType.FLOAT32, Shape.of(1, 6, 4, 3, 3), true)));
+        String message = assertThrows(
+                IllegalArgumentException.class,
+                () -> CapturedGraphInference.inferAndValidate(graph)).getMessage();
+        assertAll(
+                () -> assertTrue(message.startsWith(
+                        "nodes[0] NodeId[value=0] " + Conv3dKind.class.getName()
+                                + ".CONV3D: output[0] ValueId[value=2]"), message),
+                () -> assertTrue(message.contains("expected=TensorDescriptor"), message),
+                () -> assertTrue(message.contains("stored=TensorDescriptor"), message));
     }
 
     @Test

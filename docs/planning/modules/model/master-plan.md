@@ -1929,7 +1929,7 @@ Task 0025B and
 are Complete. Task 0025D and Model 0025E are Complete detailed Model specifications; 0025E
 implements the fixed flat recurrent-scan metadata selected by completed NN 0021A. Detailed
 [Compiler 0005C](../compiler/tasks/0005c-layout-window-indexing-scatter-ordering-and-stochastic-gradient-completion.md)
-and Compiler 0005D–0006A are Complete. Compiler 0006A adopted forward inference while recurrent
+and Compiler 0005D–0006B are Complete. Compiler 0006A adopted recurrent forward inference while recurrent
 autograd, execution, and capability advertisement remain deferred. Detailed
 [Model 0025F](tasks/0025f-recurrent-scan-expression-namespace-correction.md) is Complete as the
 immediate API-placement correction that preceded Compiler 0006A. At 0025F completion, its
@@ -1937,7 +1937,9 @@ coordinator-authorized Compiler boundary-test correction preserved the then-unsu
 inference and autograd state while reconciling the complete Model inventory. Its coordinator-authorized
 Training API scope correction removes the final stale receiver claim. The exact completed scope is
 29 paths. [Model 0025G](tasks/0025g-ncw-conv1d-composition.md) is Complete; detailed
-[Model 0025H](tasks/0025h-ncdhw-conv3d-semantics-and-tensor-expressions.md) is Complete, and Model
-0026 remains Draft without a detailed specification. No Model task is Ready or In progress.
+[Model 0025H](tasks/0025h-ncdhw-conv3d-semantics-and-tensor-expressions.md) is Complete. Complete
+Compiler 0006B independently adopts its Conv3d descriptor contract for forward-only compilation;
+gradient closure and CPU execution remain downstream work. Model 0026 remains Draft without a
+detailed specification. No Model task is Ready or In progress.
 The legacy branch must be consulted read-only for capability and test evidence when preparing each
 applicable capability task.

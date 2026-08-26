@@ -72,14 +72,15 @@ without another operation kind. Detailed
 [Model 0025H](modules/model/tasks/0025h-ncdhw-conv3d-semantics-and-tensor-expressions.md) is Complete
 and adds first-class grouped NCDHW `CONV3D`, because
 current operations cannot express it with graph size independent of spatial extents. Compiler
-0006B next adopts Conv3d forward inference and initially fails backward closed. Compiler 0006C
-separately proves adjoint expressibility before closing gradients or selecting the smallest Model
-prerequisite; it is not a prerequisite for CPU forward execution. CPU 0008 then establishes the
-portable Conv2d execution foundation while retaining its remaining MATMUL, pooling, attention,
-and loss coverage. Immediately afterward, CPU 0008A validates Conv1d through the visible Conv2d
-composition and adds direct Conv3d execution. CPU 0008B–0008E only then add general partition-DAG
-decomposition and bounded fusion, typed specialized-subgraph recognition, profitability decision
-facts, and bounded multi-input materialization in that order. Engine 0004 proves the same typed
+Complete Compiler 0006B adopts Conv3d forward inference and initially fails backward closed.
+Compiler 0006C separately proves adjoint expressibility before closing gradients or selecting the
+smallest Model prerequisite; it is not a prerequisite for CPU forward execution. CPU 0008 then
+establishes the portable Conv2d execution foundation while retaining its remaining MATMUL,
+pooling, attention, and loss coverage. Immediately afterward, CPU 0008A validates Conv1d through
+the visible Conv2d composition and adds direct Conv3d execution. CPU 0008B–0008E only then add
+general partition-DAG decomposition and bounded fusion, typed specialized-subgraph recognition,
+profitability decision facts, and bounded multi-input materialization in that order. Engine 0004
+proves the same typed
 input/publication lifecycle for all three ranks. Only afterward does NN 0025 add separate
 `Conv1d`, `Conv2d`, and `Conv3d` layers and `ModuleFactory` recipes, with NN 0025A as the end-to-end
 user-capability checkpoint.
@@ -125,18 +126,21 @@ remain code/config-defined; compiled, prepared, Runtime, backend, and device art
 The completed Model frontier is
 [Model 0025H NCDHW Conv3d semantics and Tensor expressions](modules/model/tasks/0025h-ncdhw-conv3d-semantics-and-tensor-expressions.md).
 Model 0025G remains Complete, and Model 0026 remains Draft without a detailed specification.
-Compiler 0006B remains the next separate Draft forward consumer after 0025H; Compiler 0006C
-remains separate Draft gradient closure.
+Detailed
+[Compiler 0006B Conv3d forward adoption and explicit gradient boundary](modules/compiler/tasks/0006b-conv3d-forward-adoption-and-explicit-gradient-boundary.md)
+is Complete as the separate forward consumer after 0025H; Compiler 0006C remains separate Draft
+gradient closure. CPU 0008 remains the next Draft task to plan separately.
 
 The compiler project area is Complete through
-[Compiler 0006A Fixed recurrent-scan forward adoption and explicit BPTT boundary](modules/compiler/tasks/0006a-fixed-recurrent-scan-forward-adoption-and-bptt-boundary.md).
+[Compiler 0006B Conv3d forward adoption and explicit gradient boundary](modules/compiler/tasks/0006b-conv3d-forward-adoption-and-explicit-gradient-boundary.md).
 The preceding Compiler 0006 supplies the bounded functional one/two-stage request, ordered
 `GradientPublicationBinding` values, derivative-order metadata, and final
 `ForwardPublicationBinding` terminology. Compiler 0006A adopts fixed recurrent forward nodes and
-keeps backpropagation through time fail-closed. Draft Compiler 0006B plans the Conv3d forward
-adoption that precedes CPU 0008 and CPU 0008A; Draft Compiler 0006C separately plans gradient
-closure and does not block CPU forward execution. Compiler 0007 remains the later exact-algebra
-row. None has a detailed specification.
+keeps backpropagation through time fail-closed. Complete Compiler 0006B supplies the Conv3d forward
+adoption that precedes CPU 0008 and CPU 0008A; Draft Compiler 0006C separately owns gradient
+closure and does not block CPU forward execution. Compiler 0007 remains the later Draft exact-
+algebra row. Neither 0006C nor 0007 has a detailed specification, and no Compiler task is Ready or
+In progress.
 
 The completed Runtime implementation frontier is
 [Runtime 0010 Prepared runner and dynamic execution](modules/runtime/tasks/0010-prepared-runner-and-dynamic-execution.md).
@@ -1465,11 +1469,11 @@ the complete current model operation inventory before higher-order work:
 | [0005E First-order gradient coverage closure checkpoint](modules/compiler/tasks/0005e-first-order-gradient-coverage-closure-checkpoint.md) | Complete | 0005A, 0005B, 0005C, 0005D | Added one package-private checker; closed all current 37 kind families, 107 constants, 128 signature variants, legal output slots, and ordered input roles; and proved fail-closed/Tensor-ID plus bounded transitive and connected nested-pass formula closure at the first-order checkpoint. |
 | [0006 Explicit functional gradient requests and higher-order differentiation](modules/compiler/tasks/0006-explicit-functional-gradient-requests-and-higher-order-differentiation.md) | Complete | 0005E and the stable public compile/artifact boundary from 0005 | Added one immutable one/two-stage functional request, explicit/default seeds, ERROR/ZERO disconnected behavior, ordered `GradientPublicationBinding` values, and compiler-owned derivative-order metadata over the closed formula matrix without Tensor gradient state or another compile facade. |
 | [0006A Fixed recurrent-scan forward adoption and explicit BPTT boundary](modules/compiler/tasks/0006a-fixed-recurrent-scan-forward-adoption-and-bptt-boundary.md) | Complete | Model 0025E–0025F; 0001–0006 | Adopted all fixed recurrent forward variants as ordinary flat nodes and rejected backward-capable recurrence before derivative allocation. |
-| 0006B Conv3d forward adoption and explicit gradient boundary | Draft | Model 0025H; 0001–0006A | Adopt first-class Conv3d forward inference and final validation while keeping its backward boundary explicit and fail-closed. |
+| [0006B Conv3d forward adoption and explicit gradient boundary](modules/compiler/tasks/0006b-conv3d-forward-adoption-and-explicit-gradient-boundary.md) | Complete | Model 0025H; 0001–0006A | Adopted first-class Conv3d forward inference and final validation while keeping its backward boundary explicit and fail-closed. |
 | 0006C Conv3d adjoint expressibility and gradient closure | Draft | 0006B; proven public Tensor algebra or a separately selected Model prerequisite | Close Conv3d gradients only after group, geometry, overlap, symbolic-Shape, and higher-order expressibility are proved. |
 
-Compiler 0005A–0006A and their Model prerequisites are Complete. Compiler 0006B–0006C and 0007
-remain Draft without detailed specifications. Family tasks
+Compiler 0005A–0006B and their Model prerequisites are Complete. No Compiler task is Ready or In
+progress. Compiler 0006C and 0007 remain Draft without detailed specifications. Family tasks
 must not claim that every operation role has a gradient: BOOL, index, random-number-generator
 (RNG) state, mask, and configuration roles remain intentionally non-differentiable where
 applicable. Each compiler task must explicitly choose its required tie, subgradient,

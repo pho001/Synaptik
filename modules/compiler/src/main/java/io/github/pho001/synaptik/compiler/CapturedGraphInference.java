@@ -8,6 +8,7 @@ import io.github.pho001.synaptik.model.operation.Operation;
 import io.github.pho001.synaptik.model.operation.OperationKind;
 import io.github.pho001.synaptik.model.operation.attention.ScaledDotProductAttentionKind;
 import io.github.pho001.synaptik.model.operation.convolution.Conv2dKind;
+import io.github.pho001.synaptik.model.operation.convolution.Conv3dKind;
 import io.github.pho001.synaptik.model.operation.elementwise.binary.BinaryArithmeticKind;
 import io.github.pho001.synaptik.model.operation.elementwise.cast.CastKind;
 import io.github.pho001.synaptik.model.operation.elementwise.classification.FloatingClassificationKind;
@@ -40,7 +41,10 @@ import java.util.Objects;
  * <p>The pass independently derives every operation occurrence's complete output descriptors,
  * compares them with the stored graph descriptors, and retains only Shape obligations that the
  * current immutable model facts cannot prove or disprove. It neither rewrites the graph nor
- * reconstructs public Tensor expressions.
+ * reconstructs public Tensor expressions. Forward-only Conv3d occurrences use this same boundary
+ * before canonicalization and after every changed optimization candidate, so their NCDHW result
+ * descriptors and ordered channel, bias, and spatial-fit obligations are proved again from the
+ * final graph rather than trusted from Model construction.
  */
 final class CapturedGraphInference {
     private CapturedGraphInference() {}
@@ -175,7 +179,8 @@ final class CapturedGraphInference {
             return LayoutInference.infer(operation, inputs);
         }
         if (kind instanceof MatmulKind || kind instanceof ScaledDotProductAttentionKind
-                || kind instanceof Conv2dKind || kind instanceof Pool2dKind || kind instanceof LossKind
+                || kind instanceof Conv2dKind || kind instanceof Conv3dKind
+                || kind instanceof Pool2dKind || kind instanceof LossKind
                 || kind instanceof GraphRngKind || kind instanceof DropoutKind) {
             return StructuredOperationInference.infer(operation, inputs, outputCount);
         }

@@ -2331,7 +2331,10 @@ Conv2d meaning by one spatial axis without introducing `ConvNd`. Stored kernels 
 Each effective kernel extent is `dilation * (kernel - 1) + 1`; static spatial and grouped-channel
 relations are checked locally, while unresolved relations remain visible in exact descriptors and
 attributes. Floating promotion, conceptual positive-zero padding, and accumulation policy are
-part of the Model meaning. Compiler adoption and final proof remain Draft task 0006B. See
+part of the Model meaning. Complete Compiler task 0006B independently infers and final-validates
+that descriptor contract for forward-only compilation, retaining unresolved channel and spatial
+relations as ordered constraints. Draft Compiler 0006C separately owns gradient closure, and later
+CPU work owns execution. See
 [grouped NCDHW Conv3d expressions](api/tensor-api.md#grouped-ncdhw-conv3d-expressions).
 
 ### Data type / `DataType`
@@ -2602,13 +2605,12 @@ floating SORT and TOP_K values, explicit-state dropout values, exact two-output 
 grouped convolution, maximum and average pooling, MSE, dense categorical loss, and positive-
 static-depth index categorical logits.
 
-The current source-backed first-order closure contains 128 exact signature fingerprints, including
-both `SLICE_UPDATE` attributes variants. Compiler forward verification also adopts the three
-recurrent RNN, GRU, and LSTM signatures. Model's later Conv3d family brings the complete production
-inventory to 39 operation-kind enum families, 111 constants, and 132 fingerprints. The 131
-preceding fingerprints are in the Compiler forward inventory; first-order differentiation keeps
-the three recurrent signatures outside its 128-fingerprint closure. `CONV3D` remains outside both
-closed Compiler inventories until separate Draft tasks 0006B and 0006C address those boundaries.
+The current source-backed first-order closure contains 37 operation-kind enum families, 107
+constants, and 128 exact signature fingerprints, including both `SLICE_UPDATE` attributes
+variants. Compiler forward verification covers the complete production inventory of 39 families,
+111 constants, and 132 fingerprints. First-order differentiation keeps four signatures outside
+its supported closure: recurrent RNN, GRU, and LSTM plus `CONV3D`. Complete task 0006B makes
+Conv3d a forward-only Compiler signature; Draft task 0006C separately owns its gradient closure.
 Each supported legal output/input role is conditionally differentiable, intentionally
 non-differentiable, or fail-closed. A conditionally differentiable role becomes usable only after
 occurrence-local preflight proves its exact Shape, data type, cardinality, canonical-auxiliary,

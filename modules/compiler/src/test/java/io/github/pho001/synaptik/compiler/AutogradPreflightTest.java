@@ -10,6 +10,8 @@ import io.github.pho001.synaptik.model.datatype.DataType;
 import io.github.pho001.synaptik.model.datatype.ScalarValue;
 import io.github.pho001.synaptik.model.operation.attention.ScaledDotProductAttentionKind;
 import io.github.pho001.synaptik.model.operation.convolution.Conv2dKind;
+import io.github.pho001.synaptik.model.operation.convolution.Conv3dAttrs;
+import io.github.pho001.synaptik.model.operation.convolution.Conv3dKind;
 import io.github.pho001.synaptik.model.operation.elementwise.binary.BinaryArithmeticKind;
 import io.github.pho001.synaptik.model.operation.elementwise.cast.CastKind;
 import io.github.pho001.synaptik.model.operation.elementwise.classification.FloatingClassificationKind;
@@ -35,6 +37,7 @@ import io.github.pho001.synaptik.model.tensor.TensorDescriptor;
 import io.github.pho001.synaptik.model.tensor.TensorFactory;
 import java.util.List;
 import java.util.Optional;
+import java.util.concurrent.atomic.AtomicLong;
 import org.junit.jupiter.api.Test;
 
 final class AutogradPreflightTest {
@@ -408,8 +411,51 @@ final class AutogradPreflightTest {
         }
     }
 
+    @Test
+    void rejectsConv3dFromCompleteForwardInventoryBeforeDerivativeAllocation()
+            throws Exception {
+        for (CompileMode mode : List.of(
+                CompileMode.FORWARD_AND_BACKWARD, CompileMode.TRAINING_STEP)) {
+            Tensor input = tensor(Shape.of(1, 2, 5, 5, 5), true);
+            Tensor weight = tensor(Shape.of(4, 2, 3, 3, 3), true);
+            Tensor bias = tensor(Shape.of(4), true);
+            Tensor conv3d = mode == CompileMode.FORWARD_AND_BACKWARD
+                    ? input.conv3d(weight, Conv3dAttrs.defaults())
+                    : input.conv3d(weight, bias, Conv3dAttrs.defaults());
+            Tensor target = tensor(Shape.of(2), true);
+            Tensor objective = target.mul(target).sum();
+            FunctionalGradientRequest.Stage request =
+                    FunctionalGradientTestSupport.stage(objective, List.of(target));
+            long before = nextTensorId();
+
+            IllegalArgumentException failure = assertThrows(
+                    IllegalArgumentException.class,
+                    () -> AutogradPreflight.preflight(
+                            mode,
+                            List.of(conv3d, objective),
+                            request,
+                            CompileTimeConstantGraph.Ingress.empty()));
+
+            assertTrue(failure.getMessage().startsWith("producerPostorder[0] "),
+                    failure.getMessage());
+            assertTrue(failure.getMessage().contains(
+                    Conv3dKind.class.getName() + ".CONV3D attrs="
+                            + Conv3dAttrs.class.getName()), failure.getMessage());
+            assertTrue(failure.getMessage().endsWith(
+                    "Conv3d is forward-only until Compiler task 0006C closes its gradients"),
+                    failure.getMessage());
+            assertEquals(before, nextTensorId());
+        }
+    }
+
     private static Tensor tensor(Shape shape, boolean requiresGrad) {
         return TensorFactory.create(new TensorDescriptor(
                 DataType.FLOAT32, shape, Optional.empty(), requiresGrad));
+    }
+
+    private static long nextTensorId() throws Exception {
+        var field = TensorFactory.class.getDeclaredField("NEXT_TENSOR_ID");
+        field.setAccessible(true);
+        return ((AtomicLong) field.get(null)).get();
     }
 }

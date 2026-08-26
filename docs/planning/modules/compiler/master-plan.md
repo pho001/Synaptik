@@ -23,6 +23,7 @@ validation, exact graph transformation, compiler-owned autograd, and planning or
 - compiler-owned pre-capture Tensor-expression autograd
 - combined forward/backward graph construction
 - fixed recurrent-scan forward-only capture, inference, validation, and ordinary Planning handoff
+- grouped NCDHW Conv3d forward-only inference, validation, and ordinary Planning handoff
 - complete valid backend-neutral graph-transformation candidates for later bounded model tuning
 - publication, planning, logical memory orchestration, and diagnostics
 
@@ -51,6 +52,8 @@ validation, exact graph transformation, compiler-owned autograd, and planning or
   candidates but does not construct or reinterpret them.
 - Each fixed recurrent-scan producer remains one identity-distinct ordinary flat compiled node;
   backward-capable requests remain fail-closed until a later explicit BPTT decision.
+- Each Conv3d producer remains one ordinary flat CSE-eligible compiled node; backward-capable
+  requests remain fail-closed until separate gradient closure.
 
 ## Allowed dependencies
 
@@ -103,7 +106,7 @@ cross-package/public orchestration boundary from a concrete consumer.
 | 0005E | [First-order gradient coverage closure checkpoint](tasks/0005e-first-order-gradient-coverage-closure-checkpoint.md) | Complete | 0005A, 0005B, 0005C, 0005D | Added one package-private coverage checker; closed all current 37 kind families, 107 constants, 128 signature variants, legal output slots, and ordered input roles as differentiable, intentionally non-differentiable, or explicitly fail-closed; and proved bounded transitive and connected nested-pass formula closure at the first-order capability checkpoint. |
 | 0006 | [Explicit functional gradient requests and higher-order differentiation](tasks/0006-explicit-functional-gradient-requests-and-higher-order-differentiation.md) | Complete | 0005E and the stable public compile/artifact boundary from 0005 | Added one public immutable one/two-stage functional request, explicit/default cotangent seeds, ERROR/ZERO disconnected behavior, ordered `GradientPublicationBinding` values, and compiler-owned derivative-order metadata over the closed first-order formula matrix without Tensor gradient lifecycle state or another compile facade. |
 | 0006A | [Fixed recurrent-scan forward adoption and explicit BPTT boundary](tasks/0006a-fixed-recurrent-scan-forward-adoption-and-bptt-boundary.md) | Complete | accepted ADR 0012 and NN 0021A architecture decision; Model 0025E–0025F; 0001–0006 | Adopted each fixed RNN/GRU/LSTM producer as one identity-distinct ordinary flat forward node, independently inferred/final-validated exact static descriptors, preserved whole multi-output identity through optimization and ordinary publication/Planning handoff, and rejected every backward-capable forward inventory containing recurrence before derivative allocation while the exact three gradient signatures remain deferred. |
-| 0006B | Conv3d forward adoption and explicit gradient boundary | Draft | Model 0025H; 0001–0006A | Adopt first-class `CONV3D` as one ordinary flat node, independently infer and final-validate NCDHW descriptors and deferred relations, and initially reject backward-capable requests containing it before derivative allocation. NCW Conv1d needs no inventory row because Model 0025G is ordinary `EXPAND_DIMS -> CONV2D -> SQUEEZE` composition. |
+| 0006B | [Conv3d forward adoption and explicit gradient boundary](tasks/0006b-conv3d-forward-adoption-and-explicit-gradient-boundary.md) | Complete | Model 0025H; 0001–0006A | Adopted first-class `CONV3D` as one ordinary flat forward node, independently inferred and final-validated NCDHW descriptors and ordered deferred relations, preserved ordinary CSE/publication/Planning handoff, and rejected backward-capable requests containing it before derivative allocation. Forward coverage is now 39 families, 111 constants, and 132 signatures; first-order support remains 37/107/128 with four deferred signatures. |
 | 0006C | Conv3d adjoint expressibility and gradient closure | Draft | 0006B; current public Tensor algebra; any separately selected Model prerequisite | Prove whether grouped NCDHW input/weight/bias cotangents are expressible through current public window, layout, matrix, reduction, and fold operations. Implement and add `CONV3D` to the closed derivative inventory only when exact group isolation, dilation/padding, overlap accumulation, symbolic Shape, and higher-order formula closure are representable; otherwise select the smallest Model-owned prerequisite first and keep the family fail-closed. |
 | 0007 | Exact constant identities and permission-aware algebra | Draft | 0006; Config 0006 before any relaxed rule | Reassess remaining graph-level exact constant/algebra identities and any explicitly permitted relaxed rewrites without changing completed 0001–0006 history: preserve current guarded scalar `POW(+1) -> input`, require complete exceptional-value/constant-sidecar/output/publication/phase/autograd/descriptor proof before an exact `POW(0)` typed shape-correct one-splat, and never infer Tensor constants from storage or factory history. |
 
@@ -142,21 +145,29 @@ higher-order path without implementing higher-order requests before 0006.
 - Fixed recurrent-scan forward adoption and explicit BPTT boundary — Complete
   [task 0006A](tasks/0006a-fixed-recurrent-scan-forward-adoption-and-bptt-boundary.md), after the
   accepted ADR 0012/NN 0021A decision and completed Model 0025E–0025F prerequisites.
+- Conv3d forward adoption and explicit gradient boundary — Complete
+  [task 0006B](tasks/0006b-conv3d-forward-adoption-and-explicit-gradient-boundary.md), after
+  completed Model 0025H and Compiler 0001–0006A.
 
 ## Current status
 
-Complete through task 0006A. Tasks 0001–0006A are Complete with recorded source, tests,
+Complete through task 0006B. Tasks 0001–0006B are Complete with recorded source, tests,
 documentation, and validation. Detailed
 [task 0006A](tasks/0006a-fixed-recurrent-scan-forward-adoption-and-bptt-boundary.md) is Complete
 after accepted ADR 0012/NN 0021A and completed Model 0025E–0025F. It uses the existing ordinary
 `CompiledNode`, a dedicated package-private recurrent inference
 helper, a recurrent CSE identity exclusion, and an allocation-free complete-forward-inventory
-autograd guard. Draft tasks 0006B–0006C are the later dimensional-convolution compiler program
-and have no detailed specifications. Conv1d deliberately reuses the implemented Conv2d inference
-and gradient path through visible Model composition. Conv3d first gains forward inference plus an
-explicit fail-closed backward boundary; its separate adjoint task must inspect actual public
-Tensor expressibility before promising a formula or requesting another Model primitive. Compiler
-0007 remains Draft without a detailed specification. The repository
+autograd guard. Detailed
+[task 0006B](tasks/0006b-conv3d-forward-adoption-and-explicit-gradient-boundary.md) is Complete.
+It adopts Conv3d only in the ordinary flat forward pipeline, independently derives exact NCDHW
+descriptors and ordered deferred channel/geometry obligations, preserves ordinary CSE,
+publication, diagnostics, and Planning handoff, and keeps both backward-capable modes
+allocation-free and fail-closed. Conv1d deliberately reuses the
+implemented Conv2d inference and gradient path through visible Model composition. Task 0006C
+remains the separate Draft adjoint-expressibility and gradient-closure owner without a detailed
+specification; it must inspect actual public Tensor expressibility before promising a formula or
+requesting another Model primitive. Compiler 0007 also remains Draft without a detailed
+specification. No Compiler task is Ready or In progress. The repository
 roadmap separately records the concurrent CPU execution frontier; this Compiler planning state
 does not authorize implementation ahead of that coordinator-owned order. Compiler 0004, 0004A,
 and 0004B are Complete with

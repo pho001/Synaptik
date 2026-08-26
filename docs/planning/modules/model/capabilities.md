@@ -691,9 +691,10 @@ Input `[N, C_in, D, H, W]`, weight `[C_out, C_in/groups, K_d, K_h, K_w]`, and op
 depth/height/width stride, symmetric-padding, dilation, and group fields. Model validates static
 kernel and geometry relations, retains canonical symbolic spatial Dimensions and unresolved
 channel relations, applies ordered floating promotion and the selected accumulation policy, and
-records one canonical output with exact ordered provenance. Compiler 0006B remains the absent
-Draft forward consumer, Compiler 0006C remains separate Draft gradient closure, and later CPU work
-remains outside this Model capability.
+records one canonical output with exact ordered provenance. Complete Compiler 0006B now consumes
+that metadata for independent forward inference and final validation while leaving gradients
+fail-closed. Compiler 0006C remains separate Draft gradient closure, and later CPU work remains
+outside this Model capability.
 
 Completed task 0020 adds grouped NCHW two-dimensional cross-correlation with weight-derived
 static kernels, optional exact output-channel bias, ordered floating promotion, selected

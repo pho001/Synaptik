@@ -273,12 +273,15 @@ inference and first-order gradient rules apply to those ordinary nodes without a
 inventory entry or formula. This structural reuse is a current compiler fact, not a fusion,
 lowering, backend-capability, execution, or performance claim.
 Model task 0025H adds one first-class grouped NCDHW `CONV3D` kind with two or three ordered inputs,
-one output, and `Conv3dAttrs`. This expands the Model inventory only. Compiler forward adoption,
-descriptor inference, and final proof of deferred channel and spatial relations remain Draft task
-0006B. Until that separate task is complete, `CONV3D` is outside the closed Compiler forward
-inventory, and every backward-capable request containing it must remain fail-closed. Draft task
-0006C remains the separate gradient-closure decision; no detailed specification exists for either
-task.
+one output, and `Conv3dAttrs`. Complete Compiler task 0006B adopts that signature only for
+`FORWARD_ONLY` compilation. Compiler inference independently derives the promoted type, rank-five
+result descriptor, and depth/height/width geometry, then final validation compares that result
+with the captured descriptor. It proves or retains ordered obligations for input-channel
+divisibility, output-channel divisibility, weight channels per group, optional bias length, and
+non-negative depth, height, then width numerators. Every backward-capable request whose complete
+original forward inventory contains `CONV3D` fails before seed validation or derivative Tensor
+allocation. Draft task 0006C remains the separate gradient-closure decision and has no detailed
+specification.
 Compiler task 0005E closed that matrix against the production Model inventory at its checkpoint:
 37 operation-kind enum families, 107 constants, and 128 complete
 kind/attributes/input-range/output-range fingerprints. The checkpoint includes both
@@ -286,8 +289,9 @@ kind/attributes/input-range/output-range fingerprints. The checkpoint includes b
 constants, and three exact signatures. Compiler forward verification now adopts those signatures,
 but the first-order gradient inventory intentionally does not. The current complete Model
 inventory is therefore 39 families, 111 constants, and 132 signatures. Compiler forward
-verification currently covers the preceding 131 signatures through recurrent-scan adoption, while
-the supported first-order Compiler inventory remains the exact original 128 signatures.
+verification now covers all 132 signatures. The supported first-order Compiler inventory remains
+the exact 37-family, 107-constant, 128-signature closure; its disjoint deferred set contains the
+three recurrent signatures and the one Conv3d signature.
 
 Package-private `GraphCompiler.compile` takes `CompileMode`, ordered forward outputs, an optional
 public `FunctionalGradientRequest`, explicit forward constant ingress, and
@@ -606,7 +610,7 @@ is intentionally explicit:
 | Classification | Current deferred or rejected families |
 |---|---|
 | Structured fail-closed boundaries | One-output attention lacks canonical same-occurrence weights and is rejected; index-target categorical cross-entropy rejects a dynamic or zero class depth |
-| Current source-backed closure | The supported closed inventory contains exactly 128 signature fingerprints; the boundary test adds the three explicitly deferred RNN, GRU, and LSTM signatures and proves that the disjoint 131-signature union equals the complete 38-family, 110-constant Model inventory. Every supported legal output/input role has a `D`, `ND`, or `FC` disposition, and generated formula edges remain inside the same classified Tensor algebra. Every deferred recurrent boundary role fails closed with the unknown/unclassified reason and allocates no Tensor ID. |
+| Current source-backed closure | The supported closed inventory contains exactly 37 families, 107 constants, and 128 signature fingerprints. The boundary test adds the four explicitly deferred RNN, GRU, LSTM, and Conv3d signatures and proves that the disjoint 132-signature union equals the complete 39-family, 111-constant Model inventory. Every supported legal output/input role has a `D`, `ND`, or `FC` disposition, and generated formula edges remain inside the same classified Tensor algebra. Every deferred boundary role fails closed with the unknown/unclassified reason and allocates no Tensor ID. |
 | Non-differentiable roles and outputs | Comparisons, BOOL logic/classification, `ALL`, `ANY`, arg-extrema results, batch-training saved auxiliary roots, one-hot and other index roles, ordering indices, dropout masks, padding constants, select coordinates, and graph RNG state |
 
 Unknown/custom kinds, wrong attribute classes or cardinalities, missing canonical outputs, and
@@ -892,10 +896,13 @@ and result Shapes are `[N, C_in, D, H, W]`,
 `[C_out, C_in/groups, K_d, K_h, K_w]`, `[C_out]`, and
 `[N, C_out, D_out, H_out, W_out]`. The ten-field `Conv3dAttrs` value retains depth/height/width
 stride, symmetric padding, dilation, and groups. Model validates statically decidable relations
-and retains unresolved relations in exact descriptors and attributes. This kind is not yet in the
-closed Compiler forward inventory: Draft 0006B owns adoption and final proof, and Draft 0006C
-remains separate. Backward-capable requests containing `CONV3D` must remain fail-closed until the
-appropriate later closure is completed.
+and retains unresolved relations in exact descriptors and attributes. Complete Compiler 0006B
+includes this kind in the closed forward inventory. Independent inference and final validation
+prove or retain its ordered channel and spatial obligations, and ordinary CSE, publication,
+diagnostics, and Planning handoff preserve the exact operation and ordered descriptors. Draft
+0006C remains separate: backward-capable requests containing `CONV3D` fail before derivative
+allocation. No current provider advertisement, lowering, prepared executable, backend route, or
+execution follows from forward adoption.
 `Tensor.maxPool2d(attrs)` is current first-class NCHW maximum-pooling model construction. One
 `MAX_POOL2D` occurrence records exact ordered input `[input]`, `MaxPool2dAttrs`, one output at
 index zero, the unchanged floating type and gradient request, exact batch/channel Dimensions, and
@@ -1067,7 +1074,7 @@ forward-producer postorder immediately after allocation-free inventory construct
 before seed validation or any derivative Tensor is created. The first-order coverage boundary
 still classifies each of the exact three deferred recurrent signatures with the
 unknown/unclassified reason; their disjoint union with the unchanged 128 supported signatures is
-the complete 131-signature Model inventory. No current capability provider, public compiler API,
+the 131-signature pre-Conv3d inventory. No current capability provider, public compiler API,
 prepared executable, backend route, runtime length read, or backpropagation-through-time (BPTT)
 implementation supports the family.
 `Tensor.softmax` and `Tensor.logSoftmax` accept floating input and one positive or negative axis.
@@ -1667,8 +1674,8 @@ CompiledGraph graph = CompiledGraph.compile(output, CompileConfig.auto());
   scaled-dot-product-attention construction with optional BOOL mask and scale/causal attributes,
   preserving the original one-output family and adding an explicit same-producer output/weights
   family, plus grouped NCHW Conv2d construction with optional bias and exact geometry/group
-  attributes, plus Model-current grouped NCDHW Conv3d construction whose Compiler adoption remains
-  Draft 0006B, plus NCHW maximum- and
+  attributes, plus Model-current grouped NCDHW Conv3d construction with current Compiler
+  forward-only inference and validation, plus NCHW maximum- and
   average-pooling construction with operation-specific attributes and exact floor/ceil spatial
   expressions, plus static-resolved or
   dynamic-unresolved contiguous
