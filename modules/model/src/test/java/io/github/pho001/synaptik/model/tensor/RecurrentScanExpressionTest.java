@@ -65,7 +65,7 @@ public final class RecurrentScanExpressionTest {
                         publicNamespaceMethods.stream().map(Method::getName).collect(
                                 java.util.stream.Collectors.toSet())),
                 () -> assertTrue(recurrentTensorMethods.isEmpty()),
-                () -> assertEquals(204, Arrays.stream(Tensor.class.getDeclaredMethods())
+                () -> assertEquals(206, Arrays.stream(Tensor.class.getDeclaredMethods())
                         .filter(method -> Modifier.isPublic(method.getModifiers())).count()),
                 () -> assertRecord(
                         RecurrentScanResult.class,

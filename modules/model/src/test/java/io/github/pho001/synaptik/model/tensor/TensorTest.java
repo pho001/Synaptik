@@ -13,6 +13,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import io.github.pho001.synaptik.model.datatype.DataType;
 import io.github.pho001.synaptik.model.operation.attention.ScaledDotProductAttentionAttrs;
 import io.github.pho001.synaptik.model.operation.convolution.Conv2dAttrs;
+import io.github.pho001.synaptik.model.operation.convolution.Conv3dAttrs;
 import io.github.pho001.synaptik.model.datatype.ScalarValue;
 import io.github.pho001.synaptik.model.layout.LayoutDescriptor;
 import io.github.pho001.synaptik.model.operation.NoOperationAttrs;
@@ -87,7 +88,7 @@ class TensorTest {
         Set<String> publicMethods = declaredPublicMethods.stream()
                 .map(method -> method.getName())
                 .collect(Collectors.toSet());
-        assertEquals(204, declaredPublicMethods.size());
+        assertEquals(206, declaredPublicMethods.size());
         assertEquals(
                 Set.of("id", "descriptor", "label", "hostStorage", "replaceHostStorage",
                         "clearHostStorage", "provenance", "toString", "add", "sub", "mul",
@@ -100,7 +101,7 @@ class TensorTest {
                         "logicalAnd", "logicalOr", "logicalNot", "where", "cast", "sum",
                         "mean", "prod", "sumToShape", "all", "any", "argMin", "argMax", "cumSum", "cumProd", "softmax", "matmul", "linear",
                         "scaledDotProductAttention", "scaledDotProductAttentionWithWeights",
-                        "conv1d", "conv2d", "maxPool2d", "averagePool2d",
+                        "conv1d", "conv2d", "conv3d", "maxPool2d", "averagePool2d",
                         "sort", "argsort", "topK",
                         "logSoftmax", "meanSquaredError", "categoricalCrossEntropyWithLogits", "layerNorm", "rmsNorm", "batchNormInference", "batchNormTraining", "logSumExp", "variance", "standardDeviation", "l1Norm",
                         "l2Norm", "contiguous", "reshape", "expand", "permute",
@@ -209,6 +210,17 @@ class TensorTest {
                     () -> assertTrue(Modifier.isPublic(conv2d.getModifiers())),
                     () -> assertFalse(Modifier.isStatic(conv2d.getModifiers())),
                     () -> assertFalse(Modifier.isSynchronized(conv2d.getModifiers())));
+        }
+
+        for (var parameters : List.of(
+                new Class<?>[] {Tensor.class, Conv3dAttrs.class},
+                new Class<?>[] {Tensor.class, Tensor.class, Conv3dAttrs.class})) {
+            var conv3d = Tensor.class.getDeclaredMethod("conv3d", parameters);
+            assertAll(
+                    () -> assertEquals(Tensor.class, conv3d.getReturnType()),
+                    () -> assertTrue(Modifier.isPublic(conv3d.getModifiers())),
+                    () -> assertFalse(Modifier.isStatic(conv3d.getModifiers())),
+                    () -> assertFalse(Modifier.isSynchronized(conv3d.getModifiers())));
         }
 
         var maxPool2d = Tensor.class.getDeclaredMethod("maxPool2d", MaxPool2dAttrs.class);

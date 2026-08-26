@@ -272,14 +272,22 @@ does not see `CONV1D`, `ConvNd`, or a Conv1d attributes value. Existing rank-edi
 inference and first-order gradient rules apply to those ordinary nodes without a new Compiler
 inventory entry or formula. This structural reuse is a current compiler fact, not a fusion,
 lowering, backend-capability, execution, or performance claim.
+Model task 0025H adds one first-class grouped NCDHW `CONV3D` kind with two or three ordered inputs,
+one output, and `Conv3dAttrs`. This expands the Model inventory only. Compiler forward adoption,
+descriptor inference, and final proof of deferred channel and spatial relations remain Draft task
+0006B. Until that separate task is complete, `CONV3D` is outside the closed Compiler forward
+inventory, and every backward-capable request containing it must remain fail-closed. Draft task
+0006C remains the separate gradient-closure decision; no detailed specification exists for either
+task.
 Compiler task 0005E closed that matrix against the production Model inventory at its checkpoint:
 37 operation-kind enum families, 107 constants, and 128 complete
 kind/attributes/input-range/output-range fingerprints. The checkpoint includes both
 `SLICE_UPDATE` attributes variants. Model 0025E subsequently added one recurrent family, three
 constants, and three exact signatures. Compiler forward verification now adopts those signatures,
 but the first-order gradient inventory intentionally does not. The current complete Model
-inventory is therefore 38 families, 110 constants, and 131 signatures, while the supported
-first-order Compiler inventory remains the exact original 128 signatures.
+inventory is therefore 39 families, 111 constants, and 132 signatures. Compiler forward
+verification currently covers the preceding 131 signatures through recurrent-scan adoption, while
+the supported first-order Compiler inventory remains the exact original 128 signatures.
 
 Package-private `GraphCompiler.compile` takes `CompileMode`, ordered forward outputs, an optional
 public `FunctionalGradientRequest`, explicit forward constant ingress, and
@@ -878,6 +886,16 @@ and optional bias cotangent for grouped convolution through exact-group `unfold2
 contraction, reduction, and overlap-accumulating `fold2d`. Legal decomposition, saved values,
 concrete binding, backend lowering, algorithm selection, and execution remain planned in their
 owning layers.
+`Tensor.conv3d(weight, attrs)` and `Tensor.conv3d(weight, bias, attrs)` are current Model
+construction for one first-class grouped NCDHW `CONV3D` occurrence. Input, weight, optional bias,
+and result Shapes are `[N, C_in, D, H, W]`,
+`[C_out, C_in/groups, K_d, K_h, K_w]`, `[C_out]`, and
+`[N, C_out, D_out, H_out, W_out]`. The ten-field `Conv3dAttrs` value retains depth/height/width
+stride, symmetric padding, dilation, and groups. Model validates statically decidable relations
+and retains unresolved relations in exact descriptors and attributes. This kind is not yet in the
+closed Compiler forward inventory: Draft 0006B owns adoption and final proof, and Draft 0006C
+remains separate. Backward-capable requests containing `CONV3D` must remain fail-closed until the
+appropriate later closure is completed.
 `Tensor.maxPool2d(attrs)` is current first-class NCHW maximum-pooling model construction. One
 `MAX_POOL2D` occurrence records exact ordered input `[input]`, `MaxPool2dAttrs`, one output at
 index zero, the unchanged floating type and gradient request, exact batch/channel Dimensions, and
@@ -1648,8 +1666,9 @@ CompiledGraph graph = CompiledGraph.compile(output, CompileConfig.auto());
   first-class
   scaled-dot-product-attention construction with optional BOOL mask and scale/causal attributes,
   preserving the original one-output family and adding an explicit same-producer output/weights
-  family, plus grouped NCHW Conv2d
-  construction with optional bias and exact geometry/group attributes, plus NCHW maximum- and
+  family, plus grouped NCHW Conv2d construction with optional bias and exact geometry/group
+  attributes, plus Model-current grouped NCDHW Conv3d construction whose Compiler adoption remains
+  Draft 0006B, plus NCHW maximum- and
   average-pooling construction with operation-specific attributes and exact floor/ceil spatial
   expressions, plus static-resolved or
   dynamic-unresolved contiguous

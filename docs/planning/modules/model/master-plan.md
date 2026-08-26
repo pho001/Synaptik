@@ -299,7 +299,7 @@ Operation-family subpackages are introduced only when a focused operation task d
 | 0025E | [Fixed recurrent-scan semantic family and Tensor expressions](tasks/0025e-fixed-recurrent-scan-semantic-family-and-tensor-expressions.md) | Complete | accepted NN 0021A architecture decision; 0018K–0018L, 0018N, 0019, 0025; current recurrent cell equations | Added the fixed RNN-tanh, reset-after GRU, and LSTM forward/reverse recurrent-scan meanings, rank-one runtime `INT64` valid-length input, dense time-major output plus typed final states, and exact shared multi-output Tensor provenance without a user-defined body/region abstraction or execution claim. |
 | 0025F | [Recurrent-scan expression namespace correction](tasks/0025f-recurrent-scan-expression-namespace-correction.md) | Complete | 0025E; before Compiler 0006A | Moved the six newly introduced fixed-scan constructors off the Tensor receiver surface into public stateless `model.tensor.RecurrentScan.rnn/gru/lstm` overloads, preserving exact semantics, validation, IDs, canonical outputs, and fail-closed Compiler behavior without aliases or downstream adoption; corrected the directly affected Compiler inventory boundary test without adding production support. |
 | 0025G | [NCW Conv1d composition](tasks/0025g-ncw-conv1d-composition.md) | Complete | 0020; 0017F1; current Compiler 0005D convolution gradients | Added public NCW one-dimensional convolution as exact `EXPAND_DIMS -> CONV2D -> SQUEEZE` composition with rank-three weights expanded by one unit kernel axis, rank-specific validation, symmetric padding, per-axis stride/dilation, groups, optional bias, and no `CONV1D` kind. |
-| 0025H | NCDHW Conv3d semantics and Tensor expressions | Draft | 0020; 0018K–0018N; 0018V; 0019; 0025G | Add one first-class grouped NCDHW `CONV3D` operation with optional bias, exact static/symbolic output geometry, positive static kernel extents, rank-specific immutable stride/symmetric-padding/dilation/group attributes, floating numerical policy, and ordered provenance without a public `ConvNd`. |
+| 0025H | [NCDHW Conv3d semantics and Tensor expressions](tasks/0025h-ncdhw-conv3d-semantics-and-tensor-expressions.md) | Complete | 0020; 0018K–0018N; 0018V; 0019; 0025G | Added one first-class grouped NCDHW `CONV3D` operation with optional bias, exact static/symbolic output geometry, positive static kernel extents, rank-specific immutable stride/symmetric-padding/dilation/group attributes, floating numerical policy, and ordered provenance without a public `ConvNd`. |
 | 0026 | IEEE FLOAT16 and mixed-precision semantic contracts | Draft | 0001, 0018N, completed operation-family semantics; required before any backend advertises FLOAT16 | Preserve BFLOAT16, add distinct true IEEE-754 binary16 `FLOAT16`, and audit affected families for explicit input, accumulation/intermediate, and output types without adding backend support. |
 
 ## Milestones
@@ -351,8 +351,9 @@ Operation-family subpackages are introduced only when a focused operation task d
 - Channels-first convolution expansion: Complete [task 0025G](tasks/0025g-ncw-conv1d-composition.md)
   represents NCW `Conv1d`
   through the existing NCHW `CONV2D` semantic occurrence, so Compiler inference, current
-  convolution adjoints, and later Conv2d execution remain the single semantic path. Draft task
-  0025H introduces `CONV3D` only because NCDHW convolution cannot be represented as a bounded,
+  convolution adjoints, and later Conv2d execution remain the single semantic path. Complete
+  [task 0025H](tasks/0025h-ncdhw-conv3d-semantics-and-tensor-expressions.md) introduces `CONV3D`
+  only because NCDHW convolution cannot be represented as a bounded,
   shape-independent composition of current operations. Both tasks retain rank-specific public
   entry points and attributes; neither creates a public `ConvNd`, dynamic-rank operation, or
   arbitrary geometry array contract. Symmetric padding remains the first intrinsic contract;
@@ -401,9 +402,11 @@ use `RnnSequence`, `GruSequence`, and `LstmSequence`, while the low-level fixed-
 six Tensor receiver methods to static `RecurrentScan.rnn`, `gru`, and `lstm` overloads in the same
 tensor package. Exact operation inputs/outputs, validation/effects, canonical producer
 provenance, result records, fixed semantics, and current Compiler fail-closed behavior remain
-unchanged. [Task 0025G](tasks/0025g-ncw-conv1d-composition.md) is Complete; 0025H is the next
-Draft Model frontier, and future task 0026 remains Draft. Neither has a detailed specification,
-and neither reopens the
+unchanged. [Task 0025G](tasks/0025g-ncw-conv1d-composition.md) is Complete; detailed
+[task 0025H](tasks/0025h-ncdhw-conv3d-semantics-and-tensor-expressions.md) adds the first-class
+rank-three-spatial semantic occurrence, and future task 0026 remains Draft without a detailed
+specification. Neither
+reopens the
 completed historical capability milestone. Future task 0026 is an explicit prerequisite only for
 backend FLOAT16 claims; CPU tasks that preserve the current six-type contract and fail closed for FLOAT16
 may proceed in their existing order.
@@ -1933,7 +1936,8 @@ immediate API-placement correction that preceded Compiler 0006A. At 0025F comple
 coordinator-authorized Compiler boundary-test correction preserved the then-unsupported recurrent
 inference and autograd state while reconciling the complete Model inventory. Its coordinator-authorized
 Training API scope correction removes the final stale receiver claim. The exact completed scope is
-29 paths. [Model 0025G](tasks/0025g-ncw-conv1d-composition.md) is Complete; Model 0025H is the next
-Draft Model frontier, and Model 0026 remains Draft. Neither has a detailed specification.
+29 paths. [Model 0025G](tasks/0025g-ncw-conv1d-composition.md) is Complete; detailed
+[Model 0025H](tasks/0025h-ncdhw-conv3d-semantics-and-tensor-expressions.md) is Complete, and Model
+0026 remains Draft without a detailed specification. No Model task is Ready or In progress.
 The legacy branch must be consulted read-only for capability and test evidence when preparing each
 applicable capability task.

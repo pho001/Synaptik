@@ -68,7 +68,9 @@ The channels-first convolution expansion is an owner-ordered program whose first
 [Model 0025G](modules/model/tasks/0025g-ncw-conv1d-composition.md), is Complete; it is not a public
 generic `ConvNd`. Model 0025G adds NCW Conv1d as visible singleton-height
 `EXPAND_DIMS -> CONV2D -> SQUEEZE` composition, so it reuses current Conv2d inference and gradients
-without another operation kind. Model 0025H then adds first-class grouped NCDHW `CONV3D`, because
+without another operation kind. Detailed
+[Model 0025H](modules/model/tasks/0025h-ncdhw-conv3d-semantics-and-tensor-expressions.md) is Complete
+and adds first-class grouped NCDHW `CONV3D`, because
 current operations cannot express it with graph size independent of spatial extents. Compiler
 0006B next adopts Conv3d forward inference and initially fails backward closed. Compiler 0006C
 separately proves adjoint expressibility before closing gradients or selecting the smallest Model
@@ -119,6 +121,12 @@ model-only users do not inherit optimizer/session dependencies. Arbitrary `Model
 remain code/config-defined; compiled, prepared, Runtime, backend, and device artifacts are rebuilt.
 
 ## Current frontier
+
+The completed Model frontier is
+[Model 0025H NCDHW Conv3d semantics and Tensor expressions](modules/model/tasks/0025h-ncdhw-conv3d-semantics-and-tensor-expressions.md).
+Model 0025G remains Complete, and Model 0026 remains Draft without a detailed specification.
+Compiler 0006B remains the next separate Draft forward consumer after 0025H; Compiler 0006C
+remains separate Draft gradient closure.
 
 The compiler project area is Complete through
 [Compiler 0006A Fixed recurrent-scan forward adoption and explicit BPTT boundary](modules/compiler/tasks/0006a-fixed-recurrent-scan-forward-adoption-and-bptt-boundary.md).
@@ -2575,7 +2583,7 @@ authorized Compile API status correction.
 | 128 | [0025E Fixed recurrent-scan semantic family and Tensor expressions](modules/model/tasks/0025e-fixed-recurrent-scan-semantic-family-and-tensor-expressions.md) | Complete |
 | 129 | [0025F Recurrent-scan expression namespace correction](modules/model/tasks/0025f-recurrent-scan-expression-namespace-correction.md) | Complete |
 | 130 | [0025G NCW Conv1d composition](modules/model/tasks/0025g-ncw-conv1d-composition.md) | Complete |
-| 131 | 0025H NCDHW Conv3d semantics and Tensor expressions | Draft (convolution program; no detailed specification) |
+| 131 | [0025H NCDHW Conv3d semantics and Tensor expressions](modules/model/tasks/0025h-ncdhw-conv3d-semantics-and-tensor-expressions.md) | Complete |
 | 132 | 0026 IEEE FLOAT16 and mixed-precision semantic contracts | Draft (future interleave; no detailed specification) |
 
 Task dependencies in the model master plan remain hard prerequisites. The table order is the default execution order even when a later task has no explicit dependency on an earlier task.

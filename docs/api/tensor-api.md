@@ -45,6 +45,8 @@ arbitrary complete axis reordering, and `transpose()` adds its rank-two `[1, 0]`
 Two `linear` overloads compose that transpose with MATMUL and optional exact rank-one ADD bias.
 Two `conv1d` overloads compose input/weight singleton-height expansion, ordinary grouped Conv2d,
 and height squeeze, with optional output-channel bias and no new operation kind.
+Two `conv3d` overloads construct one first-class grouped cross-correlation occurrence in NCDHW
+axis order, with optional output-channel bias and explicit rank-three-spatial geometry.
 `expandDims(int)` inserts one singleton axis, while `squeeze(int)` removes one selected statically
 known singleton axis. `slice(long[], long[], int[], long[])` adds general signed-step directional
 half-open selection. `sliceAxis(int, long, long)` supplies its one-axis step-one convenience,
@@ -8045,6 +8047,132 @@ optional bias cotangent construction are current. The compiler formula preserves
 through public unfold, matrix, reduction, and overlap-accumulating fold expressions. Legal
 decomposition, concrete binding, saved values, backend lowering, and execution remain future
 lifecycle work.
+
+### Grouped NCDHW Conv3d expressions
+
+`input.conv3d(weight, attrs)` and `input.conv3d(weight, bias, attrs)` construct one first-class
+grouped three-dimensional cross-correlation expression. NCDHW names the rank-five logical axis
+order batch (`N`), input channel (`C_in`), depth (`D`), height (`H`), then width (`W`).
+Cross-correlation uses the stored kernel in depth/height/width order without reversing it.
+
+| Value | Required Shape | Meaning |
+|---|---|---|
+| receiver input | `[N, C_in, D, H, W]` | rank-five NCDHW input |
+| weight | `[C_out, C_in/groups, K_d, K_h, K_w]` | one stored three-dimensional kernel per output channel and input-channel position within its group |
+| optional bias | `[C_out]` | one value participating once for each spatial result in that output channel |
+| result | `[N, C_out, D_out, H_out, W_out]` | exact input batch and weight output-channel Dimensions plus three derived spatial Dimensions |
+
+`Conv3dAttrs` is an immutable ten-field value. Its fields remain in depth, height, width order
+within each geometry family:
+
+| Fields | Constraint | Meaning |
+|---|---|---|
+| `strideDepth`, `strideHeight`, `strideWidth` | positive `long` values | steps between adjacent output positions |
+| `paddingDepth`, `paddingHeight`, `paddingWidth` | non-negative `long` values | conceptual positive-zero positions on each side of the corresponding axis |
+| `dilationDepth`, `dilationHeight`, `dilationWidth` | positive `long` values | spacing between adjacent stored kernel positions |
+| `groups` | positive `long` | number of independent contiguous input/output channel groups |
+
+`Conv3dAttrs.defaults()` selects unit stride and dilation, zero symmetric padding, and one group.
+Kernel extents come from the weight Shape, while choosing the three-input overload supplies bias.
+
+For each spatial axis, let `X` be the input extent, `K_x` the positive static kernel extent, `p_x`
+the symmetric padding on each side, `d_x` the dilation, and `s_x` the stride:
+
+```text
+effectiveKernel_x = d_x * (K_x - 1) + 1
+numerator_x       = X + 2 * p_x - effectiveKernel_x
+X_out             = floor(numerator_x / s_x) + 1
+```
+
+Literal arithmetic is checked in signed `long`. A static negative numerator fails during Model
+construction, while zero produces one output position. If an input spatial Dimension is
+unresolved, the result retains the canonical symbolic equivalent of the formula; its eventual
+concrete value must still make the numerator non-negative. Kernel depth, height, and width must
+each be statically known and positive.
+
+Static input and output channel counts must each be divisible by `groups`. When both participating
+Dimensions are static, `weightChannelsPerGroup * groups` must equal `C_in`, and bias length must
+equal `C_out`. A relation involving an unresolved Dimension is deferred rather than guessed. The
+exact inputs, descriptors, and attributes preserve the facts needed for later proof.
+
+#### Biased grouped Conv3d metadata example
+
+The goal is to inspect current Model metadata for two groups. Input `[2, 4, 8, 9, 10]`, weight
+`[6, 2, 3, 3, 3]`, and bias `[6]` use two input channels per group. Strides `(2, 1, 2)`, symmetric
+padding `(1, 1, 0)`, and dilation `(1, 2, 1)` produce spatial extents `(4, 7, 4)`.
+
+```java
+import io.github.pho001.synaptik.model.datatype.DataType;
+import io.github.pho001.synaptik.model.operation.convolution.Conv3dAttrs;
+import io.github.pho001.synaptik.model.shape.Shape;
+import io.github.pho001.synaptik.model.tensor.Tensor;
+import io.github.pho001.synaptik.model.tensor.TensorDescriptor;
+import io.github.pho001.synaptik.model.tensor.TensorFactory;
+import java.util.Optional;
+
+public final class GroupedConv3dMetadataExample {
+    public static void main(String[] args) {
+        Tensor input = TensorFactory.create(new TensorDescriptor(
+                DataType.BFLOAT16, Shape.of(2, 4, 8, 9, 10), Optional.empty(), true));
+        Tensor weight = TensorFactory.create(new TensorDescriptor(
+                DataType.FLOAT32, Shape.of(6, 2, 3, 3, 3), Optional.empty(), false));
+        Tensor bias = TensorFactory.create(new TensorDescriptor(
+                DataType.FLOAT64, Shape.of(6), Optional.empty(), false));
+        Conv3dAttrs attrs = new Conv3dAttrs(2, 1, 2, 1, 1, 0, 1, 2, 1, 2);
+
+        Tensor output = input.conv3d(weight, bias, attrs);
+        var provenance = output.provenance().orElseThrow();
+
+        System.out.println(output.descriptor().shape());
+        System.out.println(output.descriptor().dataType());
+        System.out.println(output.descriptor().requiresGrad());
+        System.out.println(provenance.operation().kind());
+        System.out.println(provenance.operation().attrs() == attrs);
+        System.out.println(provenance.inputs().get(0) == input
+                && provenance.inputs().get(1) == weight
+                && provenance.inputs().get(2) == bias);
+    }
+}
+```
+
+It prints:
+
+```text
+Shape[2, 6, 4, 7, 4]
+FLOAT64
+true
+CONV3D
+true
+true
+```
+
+The Shape follows the three formulas independently. Promotion processes input and weight first,
+then bias, so the result type is FLOAT64. The last three lines identify one `CONV3D` occurrence,
+the exact attributes reference, and exact ordered inputs `[input, weight, bias]`. This example
+establishes Model metadata and provenance only.
+
+#### Numerical and provenance policy
+
+For output channel `o`, its group selects the corresponding contiguous `C_in/groups` input
+channels. Products are conceptually visited by increasing input channel, kernel depth, kernel
+height, then kernel width. Optional bias participates exactly once in the accumulation domain
+before final output conversion. Coordinates outside the input are conceptual positive-zero
+samples and participate in ordinary IEEE-754 multiplication, including multiplication by
+infinity.
+
+Input, weight, and present bias must be floating. Promotion processes input and weight first,
+then present bias. FLOAT64 output accumulates in FLOAT64; FLOAT32 and BFLOAT16 output accumulate
+in FLOAT32, with final conversion for BFLOAT16. NaN, infinity, and signed zero otherwise follow
+ordinary multiplication and addition. An empty input-channel contraction starts at positive
+zero before optional bias; empty batch and output-channel axes are valid. Reassociation and fused
+multiply-add are permitted, so no fixed summation order or bitwise-identical rounding is promised.
+
+Each successful call creates one fresh canonical output at producer index zero. The result is
+unlabeled and storage-free, has unresolved layout, retains the exact derived Shape and promoted
+type, and combines the input gradient-request metadata with logical OR. Provenance retains the
+exact `Conv3dAttrs` reference and ordered inputs `[input, weight]` or
+`[input, weight, bias]`. Current Model construction reads no tensor values. Compiler adoption and
+final proof of deferred relations remain planned in Draft Compiler task 0006B.
 
 ### NCHW maximum-pooling expressions
 

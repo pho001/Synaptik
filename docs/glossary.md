@@ -2316,6 +2316,24 @@ first-order formulas through public unfold/matrix/fold expressions are current; 
 decomposition, backend algorithms, and execution remain planned. See
 [Tensor API](api/tensor-api.md#grouped-nchw-conv2d-expressions).
 
+### Conv3d / NCDHW
+
+Current `Tensor.conv3d` records one first-class grouped three-dimensional cross-correlation in
+NCDHW order: batch, channel, depth, height, width. Input Shape is `[N, C_in, D, H, W]`, weight is
+`[C_out, C_in/groups, K_d, K_h, K_w]`, optional bias is `[C_out]`, and result is
+`[N, C_out, D_out, H_out, W_out]`. `Conv3dAttrs` contains exactly ten primitive fields: three
+strides, three non-negative symmetric-padding amounts, three dilations, then positive groups, with
+each three-field family ordered depth, height, width.
+
+Conv3d is first-class because one `CONV3D` occurrence owns the metadata and provenance. This
+differs from the visible rank-edit/Conv2d/rank-edit Conv1d composition and extends the first-class
+Conv2d meaning by one spatial axis without introducing `ConvNd`. Stored kernels are not reversed.
+Each effective kernel extent is `dilation * (kernel - 1) + 1`; static spatial and grouped-channel
+relations are checked locally, while unresolved relations remain visible in exact descriptors and
+attributes. Floating promotion, conceptual positive-zero padding, and accumulation policy are
+part of the Model meaning. Compiler adoption and final proof remain Draft task 0006B. See
+[grouped NCDHW Conv3d expressions](api/tensor-api.md#grouped-ncdhw-conv3d-expressions).
+
 ### Data type / `DataType`
 
 The logical kind of scalar stored in each element of a tensor, such as `FLOAT32`, `INT64`, or `BOOL`. `DataType` records model-level facts including category and width, which lets model and compiler code interpret values consistently. It does not claim that every backend supports the type, prescribe a physical allocation alignment, or select a conversion route. See [Data types](api/tensor-api.md#data-types).
@@ -2584,12 +2602,13 @@ floating SORT and TOP_K values, explicit-state dropout values, exact two-output 
 grouped convolution, maximum and average pooling, MSE, dense categorical loss, and positive-
 static-depth index categorical logits.
 
-The current source-backed supported closure contains 128 exact signature fingerprints, including
-both `SLICE_UPDATE` attributes variants. Model's later recurrent family brings the complete
-production inventory to 38 operation-kind enum families, 110 constants, and 131 fingerprints.
-The Compiler boundary names the exact three deferred RNN, GRU, and LSTM signatures, proves their
-disjoint union with the 128 supported signatures equals that complete inventory, and rejects every
-deferred boundary role with the exact unknown/unclassified reason without allocating a Tensor ID.
+The current source-backed first-order closure contains 128 exact signature fingerprints, including
+both `SLICE_UPDATE` attributes variants. Compiler forward verification also adopts the three
+recurrent RNN, GRU, and LSTM signatures. Model's later Conv3d family brings the complete production
+inventory to 39 operation-kind enum families, 111 constants, and 132 fingerprints. The 131
+preceding fingerprints are in the Compiler forward inventory; first-order differentiation keeps
+the three recurrent signatures outside its 128-fingerprint closure. `CONV3D` remains outside both
+closed Compiler inventories until separate Draft tasks 0006B and 0006C address those boundaries.
 Each supported legal output/input role is conditionally differentiable, intentionally
 non-differentiable, or fail-closed. A conditionally differentiable role becomes usable only after
 occurrence-local preflight proves its exact Shape, data type, cardinality, canonical-auxiliary,

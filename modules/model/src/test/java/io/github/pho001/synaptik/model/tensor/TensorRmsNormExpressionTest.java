@@ -53,7 +53,7 @@ class TensorRmsNormExpressionTest {
                 () -> assertTrue(entries.stream().allMatch(method ->
                         method.getName().equals("apply")
                                 && Modifier.isStatic(method.getModifiers()))),
-                () -> assertEquals(204, Arrays.stream(Tensor.class.getDeclaredMethods())
+                () -> assertEquals(206, Arrays.stream(Tensor.class.getDeclaredMethods())
                         .filter(method -> Modifier.isPublic(method.getModifiers())).count()));
     }
 

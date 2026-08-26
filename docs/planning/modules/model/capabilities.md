@@ -684,6 +684,17 @@ are inherited from Conv2d. Current compiler inference and gradients see only tho
 ordinary nodes. This metadata convenience adds no `CONV1D`, `ConvNd`, backend capability,
 execution, fusion, or performance result.
 
+Completed task [0025H](tasks/0025h-ncdhw-conv3d-semantics-and-tensor-expressions.md) adds one
+first-class grouped NCDHW `CONV3D` semantic family and exactly two Tensor receiver overloads.
+Input `[N, C_in, D, H, W]`, weight `[C_out, C_in/groups, K_d, K_h, K_w]`, and optional bias
+`[C_out]` produce `[N, C_out, D_out, H_out, W_out]`. `Conv3dAttrs` owns exactly ten primitive
+depth/height/width stride, symmetric-padding, dilation, and group fields. Model validates static
+kernel and geometry relations, retains canonical symbolic spatial Dimensions and unresolved
+channel relations, applies ordered floating promotion and the selected accumulation policy, and
+records one canonical output with exact ordered provenance. Compiler 0006B remains the absent
+Draft forward consumer, Compiler 0006C remains separate Draft gradient closure, and later CPU work
+remains outside this Model capability.
+
 Completed task 0020 adds grouped NCHW two-dimensional cross-correlation with weight-derived
 static kernels, optional exact output-channel bias, ordered floating promotion, selected
 accumulation/special-value meaning, and floor-mode static or symbolic spatial results. For dynamic

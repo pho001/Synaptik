@@ -6,6 +6,7 @@ import io.github.pho001.synaptik.model.operation.attention.ScaledDotProductAtten
 import io.github.pho001.synaptik.model.operation.attention.ScaledDotProductAttentionKind;
 import io.github.pho001.synaptik.model.operation.convolution.Conv1dAttrs;
 import io.github.pho001.synaptik.model.operation.convolution.Conv2dAttrs;
+import io.github.pho001.synaptik.model.operation.convolution.Conv3dAttrs;
 import io.github.pho001.synaptik.model.operation.elementwise.binary.BinaryArithmeticKind;
 import io.github.pho001.synaptik.model.operation.elementwise.cast.CastAttrs;
 import io.github.pho001.synaptik.model.operation.elementwise.cast.CastKind;
@@ -683,6 +684,94 @@ public final class Tensor {
      */
     public Tensor conv2d(Tensor weight, Tensor bias, Conv2dAttrs attrs) {
         return TensorConv2dExpressions.apply(this, weight, bias, attrs);
+    }
+
+    /**
+     * Builds grouped NCDHW three-dimensional cross-correlation without bias.
+     *
+     * <p>This input has Shape {@code [N, C_in, D, H, W]}; {@code weight} has Shape
+     * {@code [C_out, C_in/groups, K_d, K_h, K_w]}. Both must be rank-five floating tensors,
+     * kernel extents must be statically known and positive, and every statically provable
+     * grouped-channel relation must hold. Relations involving unresolved channel Dimensions
+     * remain compiler or binding obligations retained by exact descriptors and attributes.</p>
+     *
+     * <p>For an input spatial extent {@code X}, kernel {@code k}, symmetric padding per side
+     * {@code p}, dilation {@code d}, and stride {@code s}, the output extent is
+     * {@code floor((X + 2p - (d(k - 1) + 1)) / s) + 1}. Static geometry rejects a negative
+     * numerator; symbolic geometry retains this canonical formula and defers non-negativity. The
+     * result Shape is {@code [N, C_out, D_out, H_out, W_out]} and preserves the exact input batch
+     * and weight output-channel Dimension references.</p>
+     *
+     * <p>Input and weight types promote through the floating hierarchy. FLOAT64 output accumulates
+     * in FLOAT64; FLOAT32 and BFLOAT16 output accumulate in FLOAT32, with final conversion for
+     * BFLOAT16. Each output is a grouped cross-correlation in increasing logical input-channel,
+     * kernel-depth, kernel-height, then kernel-width order; the stored kernel is not reversed.
+     * Out-of-range coordinates are conceptual positive zero and participate in ordinary IEEE-754
+     * multiplication, including with infinity. NaN, infinity, and signed zero otherwise follow
+     * ordinary multiplication and addition. An empty channel contraction starts at positive
+     * zero. Reassociation and fused multiply-add are permitted without a fixed-order or bitwise
+     * cross-backend guarantee.</p>
+     *
+     * <p>The fresh canonical result has promoted type, exact derived Shape, unresolved layout,
+     * gradient request equal to the input/weight logical OR, no label or storage, and ordered
+     * provenance {@code [this, weight]} at output index zero. This method reads no values and
+     * provides no gradient rule, graph capture, decomposition, algorithm, backend support,
+     * allocation, runtime, or execution behavior.</p>
+     *
+     * @param weight non-null rank-five floating weight retained as ordered input one and not
+     *     mutated
+     * @param attrs non-null immutable stride, padding, dilation, and group semantics retained by
+     *     exact reference
+     * @return non-null fresh canonical unlabeled storage-free output with promoted type, NCDHW
+     *     Shape, unresolved layout, propagated gradient request, and two-input CONV3D provenance
+     * @throws NullPointerException if {@code weight} or {@code attrs} is null, checked in that
+     *     order with the parameter name as message
+     * @throws IllegalArgumentException if floating, rank, kernel, grouped-channel, or spatial
+     *     geometry validation fails
+     * @throws ArithmeticException if checked geometry arithmetic overflows {@code long}
+     * @throws IllegalStateException if Tensor identifier space is exhausted
+     */
+    public Tensor conv3d(Tensor weight, Conv3dAttrs attrs) {
+        return TensorConv3dExpressions.apply(this, weight, attrs);
+    }
+
+    /**
+     * Builds grouped NCDHW three-dimensional cross-correlation with output-channel bias.
+     *
+     * <p>This input and {@code weight} follow {@link #conv3d(Tensor, Conv3dAttrs)}. The non-null
+     * floating {@code bias} has exact rank one and Shape {@code [C_out]}; a statically known bias
+     * length must equal the statically known weight output-channel extent. Unresolved equality is
+     * deferred because the exact descriptors remain in provenance.</p>
+     *
+     * <p>Floating promotion processes input and weight first, then bias. Bias participates exactly
+     * once in the accumulation domain before final output conversion. Shape, grouping,
+     * conceptual-padding, special-value, reassociation, and determinism policies otherwise match
+     * the unbiased form.</p>
+     *
+     * <p>The fresh canonical result has unresolved layout, no label or storage, gradient request
+     * equal to the logical OR across all three inputs, and ordered provenance
+     * {@code [this, weight, bias]} at output index zero. Construction performs no value work,
+     * mutation, gradient definition, graph capture, lowering, algorithm selection, allocation,
+     * or execution.</p>
+     *
+     * @param weight non-null rank-five floating weight retained as ordered input one and not
+     *     mutated
+     * @param bias non-null rank-one floating output-channel bias retained as ordered input two and
+     *     not mutated
+     * @param attrs non-null immutable stride, padding, dilation, and group semantics retained by
+     *     exact reference
+     * @return non-null fresh canonical unlabeled storage-free output with promoted type, exact
+     *     derived NCDHW Shape, unresolved layout, three-way gradient-request OR, and biased
+     *     CONV3D provenance
+     * @throws NullPointerException if {@code weight}, {@code bias}, or {@code attrs} is null,
+     *     checked in that order with the parameter name as message
+     * @throws IllegalArgumentException if floating, rank, kernel, grouped-channel, bias-channel,
+     *     or spatial geometry validation fails
+     * @throws ArithmeticException if checked geometry arithmetic overflows {@code long}
+     * @throws IllegalStateException if Tensor identifier space is exhausted
+     */
+    public Tensor conv3d(Tensor weight, Tensor bias, Conv3dAttrs attrs) {
+        return TensorConv3dExpressions.apply(this, weight, bias, attrs);
     }
 
     /**
