@@ -69,6 +69,8 @@ public final class CpuPartitionLowering {
             new CpuTrailingNormalizationLowering();
     private final CpuBatchNormInferenceLowering batchNormInferenceLowering =
             new CpuBatchNormInferenceLowering();
+    private final CpuBatchNormTrainingLowering batchNormTrainingLowering =
+            new CpuBatchNormTrainingLowering();
 
     /** Creates a stateless lowering boundary with the current CPU capability and power analysis. */
     public CpuPartitionLowering() { }
@@ -104,6 +106,10 @@ public final class CpuPartitionLowering {
             if (kind == io.github.pho001.synaptik.model.operation.normalization.BatchNormKind
                     .BATCH_NORM_INFERENCE) {
                 return batchNormInferenceLowering.lower(context);
+            }
+            if (kind == io.github.pho001.synaptik.model.operation.normalization.BatchNormKind
+                    .BATCH_NORM_TRAINING) {
+                return batchNormTrainingLowering.lower(context);
             }
             if (kind instanceof io.github.pho001.synaptik.model.operation.reduction.AggregateReductionKind) {
                 if (kind == io.github.pho001.synaptik.model.operation.reduction.AggregateReductionKind.LOG_SUM_EXP
@@ -521,6 +527,8 @@ public final class CpuPartitionLowering {
      * @param trailingNormalizationGeometry compact cold Layer/RMS trailing-slice geometry
      * @param batchNormInferenceGeometry compact cold zero-workspace arbitrary-axis inference
      *     geometry
+     * @param batchNormTrainingGeometry compact cold complete-channel training geometry with one
+     *     exact-state slice per simultaneous non-empty range
      */
     public record LoweredPartition(CpuPortableKernelIr portableKernelIr, List<ValueId> boundaryValues,
             List<CpuAccessPlan.Binding> accessBindings, List<Long> referencedElementSpans,
@@ -539,7 +547,8 @@ public final class CpuPartitionLowering {
             Optional<CpuAdvancedReductionLowering.Geometry> advancedReductionGeometry,
             Optional<CpuSoftmaxLowering.Geometry> softmaxGeometry,
             Optional<CpuTrailingNormalizationLowering.Geometry> trailingNormalizationGeometry,
-            Optional<CpuBatchNormInferenceLowering.Geometry> batchNormInferenceGeometry) {
+            Optional<CpuBatchNormInferenceLowering.Geometry> batchNormInferenceGeometry,
+            Optional<CpuBatchNormTrainingLowering.Geometry> batchNormTrainingGeometry) {
 
         /**
          * Creates an existing-family lowering with no batch-normalization geometry.
@@ -595,7 +604,7 @@ public final class CpuPartitionLowering {
                     affineAddressPairs, movementGeometry, indexingGeometry, scatterGeometry,
                     foldGeometry, orderingGeometry, randomGeometry, scanGeometry, aggregateGeometry,
                     argExtremaGeometry, maskedReductionGeometry, advancedReductionGeometry,
-                    softmaxGeometry, trailingNormalizationGeometry, Optional.empty());
+                    softmaxGeometry, trailingNormalizationGeometry, Optional.empty(), Optional.empty());
         }
 
         /**
@@ -1017,6 +1026,8 @@ public final class CpuPartitionLowering {
                                                         ? normalization.encodedKernelIr()
                                                     : portableKernelIr instanceof io.github.pho001.synaptik.backend.cpu.internal.ir.CpuBatchNormInferenceIr batch
                                                         ? batch.encodedKernelIr()
+                                                    : portableKernelIr instanceof io.github.pho001.synaptik.backend.cpu.internal.ir.CpuBatchNormTrainingIr training
+                                                        ? training.encodedKernelIr()
                                                     : ((io.github.pho001.synaptik.backend.cpu.internal.ir.CpuAggregateIr)
                                                         portableKernelIr).encodedKernelIr();
         }

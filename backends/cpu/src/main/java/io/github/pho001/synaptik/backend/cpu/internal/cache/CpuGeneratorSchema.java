@@ -161,10 +161,13 @@ public final class CpuGeneratorSchema {
      * direct typed bodies. Schema 49 adds first-class batch-normalization inference with five
      * ordered input types, ordered promotion result, exact epsilon bits, arbitrary channel axis,
      * unique-boundary map, channel/non-channel range form, zero-resource identity, and direct
-     * running-variance body.
+     * running-variance body. Schema 50 adds first-class five-input/five-output batch-normalization
+     * training, exact momentum and epsilon bits, complete-channel ranges, three-pass arithmetic,
+     * exact-state shape, unique-input mapping, ordered output access, and the direct generated
+     * statistic-transition body.
      * Envelopes written for earlier schemas are incompatible misses.
      */
-    public static final int CURRENT_VERSION = 49;
+    public static final int CURRENT_VERSION = 50;
     /** Generated entry name. */ public static final String ENTRY_NAME = "invoke";
     private CpuGeneratorSchema() { }
 

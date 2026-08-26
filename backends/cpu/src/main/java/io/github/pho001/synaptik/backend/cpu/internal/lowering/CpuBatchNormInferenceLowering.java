@@ -128,7 +128,7 @@ public final class CpuBatchNormInferenceLowering {
                 Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(),
                 Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(),
                 Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(),
-                Optional.empty(), Optional.of(geometry));
+                Optional.empty(), Optional.of(geometry), Optional.empty());
     }
 
     private static long epsilonBits(ScalarValue epsilon) {

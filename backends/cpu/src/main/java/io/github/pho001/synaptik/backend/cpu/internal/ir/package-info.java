@@ -93,6 +93,12 @@
  * access. Concrete extents, stride magnitudes, carriers, ranges, slots, values, and workers remain
  * cold and no decomposed graph can acquire this identity.</p>
  *
+ * <p>The two batch-normalization representations remain distinct. Inference records its five
+ * inputs, one output, epsilon, channel axis, and zero-workspace range identity. Training records
+ * five semantic inputs over first-occurrence unique boundaries, five ordered outputs, raw
+ * momentum and epsilon bits, three-pass arithmetic, and exact-state limb/slice shape. Concrete
+ * layouts, ranges, workspace slots, carrier objects, and run state remain cold facts.</p>
+ *
  * <p>Lowering creates these cold immutable models. Portable code generation and the scalar
  * reference realization may consume their established semantics, but Runtime never receives or
  * interprets them.

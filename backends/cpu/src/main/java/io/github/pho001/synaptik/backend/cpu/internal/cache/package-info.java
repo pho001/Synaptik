@@ -74,7 +74,11 @@
  * and exact-state entry shape. Schema 46 adds the advanced floating reduction family and its
  * algorithm, pass, correction, domain, and exact-state identities. Schema 47 adds first-class
  * softmax/log-softmax kind, axis, type-specific stable algorithm/pass, access, carrier, and direct
- * emitted-body identity. Schema 47 is current-only; schema-46 and earlier envelopes are
+ * emitted-body identity. Schema 48 adds trailing Layer/RMS normalization, schema 49 adds
+ * arbitrary-axis batch-normalization inference, and schema 50 adds five-input/five-output batch-
+ * normalization training with raw momentum/epsilon bits, complete-channel range and pass
+ * identity, exact-state shape, boundary mapping, and ordered access/store structure. Schema 50 is
+ * current-only; schema-49 and earlier envelopes are
  * incompatible misses. Retained schema-42 performance and ledger material is historical evidence,
  * not a current-schema artifact claim.
  * Four complete candidate plans, one realized artifact, zero additional fixed-shape variants,

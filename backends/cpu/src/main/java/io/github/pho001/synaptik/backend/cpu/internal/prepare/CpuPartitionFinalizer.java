@@ -131,6 +131,6 @@ public final class CpuPartitionFinalizer implements BackendPartitionFinalizer<Cp
                 plan.scanGeometry(), plan.aggregateGeometry(), plan.argExtremaGeometry(),
                 plan.maskedReductionGeometry(), plan.advancedReductionGeometry(),
                 plan.softmaxGeometry(), plan.trailingNormalizationGeometry(),
-                plan.batchNormInferenceGeometry());
+                plan.batchNormInferenceGeometry(), plan.batchNormTrainingGeometry());
     }
 }

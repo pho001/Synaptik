@@ -25,6 +25,7 @@ import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuAdvancedReduct
 import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuSoftmaxLowering;
 import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuTrailingNormalizationLowering;
 import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuBatchNormInferenceLowering;
+import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuBatchNormTrainingLowering;
 
 /**
  * Route-neutral immutable selected CPU partition plan.
@@ -77,6 +78,9 @@ import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuBatchNormInfer
  *     pair with exact-state workspace while RMS requires none
  * @param batchNormInferenceGeometry non-null optional zero-workspace arbitrary-axis inference
  *     geometry, mutually exclusive with every other specialized-family geometry
+ * @param batchNormTrainingGeometry non-null optional complete-channel training geometry; paired
+ *     with exact-state workspace for non-empty channel work and mutually exclusive with every
+ *     other specialized-family geometry
  */
 public record CpuPartitionPreparationPlan(List<ExecutionUnitPlan> units, Route route,
         ExecutionStrategy executionStrategy,
@@ -102,7 +106,8 @@ public record CpuPartitionPreparationPlan(List<ExecutionUnitPlan> units, Route r
         Optional<CpuAdvancedReductionLowering.Geometry> advancedReductionGeometry,
         Optional<CpuSoftmaxLowering.Geometry> softmaxGeometry,
         Optional<CpuTrailingNormalizationLowering.Geometry> trailingNormalizationGeometry,
-        Optional<CpuBatchNormInferenceLowering.Geometry> batchNormInferenceGeometry)
+        Optional<CpuBatchNormInferenceLowering.Geometry> batchNormInferenceGeometry,
+        Optional<CpuBatchNormTrainingLowering.Geometry> batchNormTrainingGeometry)
         implements BackendPreparationPlan {
 
     /**
@@ -178,7 +183,7 @@ public record CpuPartitionPreparationPlan(List<ExecutionUnitPlan> units, Route r
                 movementGeometry, indexingGeometry, scatterGeometry, foldGeometry, orderingGeometry,
                 randomGeometry, scanGeometry, aggregateGeometry, argExtremaGeometry,
                 maskedReductionGeometry, advancedReductionGeometry, softmaxGeometry,
-                trailingNormalizationGeometry, Optional.empty());
+                trailingNormalizationGeometry, Optional.empty(), Optional.empty());
     }
 
     /**
@@ -249,7 +254,7 @@ public record CpuPartitionPreparationPlan(List<ExecutionUnitPlan> units, Route r
                 movementGeometry, indexingGeometry, scatterGeometry, foldGeometry, orderingGeometry,
                 randomGeometry, scanGeometry, aggregateGeometry, argExtremaGeometry,
                 maskedReductionGeometry, advancedReductionGeometry, softmaxGeometry,
-                Optional.empty(), Optional.empty());
+                Optional.empty(), Optional.empty(), Optional.empty());
     }
 
     /**
@@ -507,6 +512,8 @@ public record CpuPartitionPreparationPlan(List<ExecutionUnitPlan> units, Route r
                 "trailingNormalizationGeometry");
         batchNormInferenceGeometry = Objects.requireNonNull(batchNormInferenceGeometry,
                 "batchNormInferenceGeometry");
+        batchNormTrainingGeometry = Objects.requireNonNull(batchNormTrainingGeometry,
+                "batchNormTrainingGeometry");
         if (units.size() != 1 || route != Route.PORTABLE
                 || bufferDeclarations.isEmpty()
                 || boundaryValues.size() != bufferDeclarations.size()
@@ -545,6 +552,8 @@ public record CpuPartitionPreparationPlan(List<ExecutionUnitPlan> units, Route r
                 instanceof io.github.pho001.synaptik.backend.cpu.internal.ir.CpuTrailingNormalizationIr;
         boolean batchNormalization = units.getFirst().portablePlan().portableKernelIr()
                 instanceof io.github.pho001.synaptik.backend.cpu.internal.ir.CpuBatchNormInferenceIr;
+        boolean batchNormTraining = units.getFirst().portablePlan().portableKernelIr()
+                instanceof io.github.pho001.synaptik.backend.cpu.internal.ir.CpuBatchNormTrainingIr;
         if (affine ? affineAddressPairs.length != Math.multiplyExact(elementCount, 2)
                 : affineAddressPairs.length != 0) {
             throw new IllegalArgumentException("affine address geometry must match the copy domain");
@@ -722,6 +731,22 @@ public record CpuPartitionPreparationPlan(List<ExecutionUnitPlan> units, Route r
                         "batch-normalization structural IR and geometry disagree");
             }
         }
+        if (batchNormTraining != batchNormTrainingGeometry.isPresent()
+                || batchNormTraining && materialization.isPresent())
+            throw new IllegalArgumentException("batch-normalization training IR and geometry must agree");
+        if (batchNormTraining) {
+            var trainingIr = (io.github.pho001.synaptik.backend.cpu.internal.ir.CpuBatchNormTrainingIr)
+                    units.getFirst().portablePlan().portableKernelIr();
+            var geometry = batchNormTrainingGeometry.orElseThrow();
+            if (trainingIr.resultType() != geometry.resultType()
+                    || trainingIr.momentumBits() != geometry.momentumBits()
+                    || trainingIr.epsilonBits() != geometry.epsilonBits()
+                    || trainingIr.channelAxis() != geometry.channelAxis()
+                    || !trainingIr.positionToBoundary().equals(geometry.positionToBoundary())
+                    || elementCount != geometry.channelCount() || extents.length != 1
+                    || extents[0] != elementCount)
+                throw new IllegalArgumentException("batch-normalization training structural facts disagree");
+        }
         if (fold) {
             var foldIr = (io.github.pho001.synaptik.backend.cpu.internal.ir.CpuFoldIr)
                     units.getFirst().portablePlan().portableKernelIr();
@@ -757,7 +782,10 @@ public record CpuPartitionPreparationPlan(List<ExecutionUnitPlan> units, Route r
                                     ? WorkspaceUse.AGGREGATE_EXACT_STATE
                                     : trailingNormalizationGeometry.filter(g -> g.scratchSliceBytes() > 0
                                         && g.normalizedCount() > 0).isPresent()
-                                        ? WorkspaceUse.AGGREGATE_EXACT_STATE : WorkspaceUse.NONE;
+                                        ? WorkspaceUse.AGGREGATE_EXACT_STATE
+                                        : batchNormTrainingGeometry.filter(g -> g.scratchSliceBytes() > 0
+                                            && g.channelCount() > 0).isPresent()
+                                            ? WorkspaceUse.AGGREGATE_EXACT_STATE : WorkspaceUse.NONE;
         if (workspaceUse != expectedUse
                 || workspaceDeclaration.isPresent() != (workspaceUse != WorkspaceUse.NONE)) {
             throw new IllegalArgumentException("workspace purpose and declaration must agree");
@@ -785,8 +813,9 @@ public record CpuPartitionPreparationPlan(List<ExecutionUnitPlan> units, Route r
                         ? maskedReductionGeometry.orElseThrow().workspaceBytes(selectedRangeCount)
                         : advancedReductionGeometry.isPresent()
                             ? advancedReductionGeometry.orElseThrow().workspaceBytes(selectedRangeCount)
-                            : trailingNormalizationGeometry.orElseThrow()
-                                .workspaceBytes(selectedRangeCount);
+                            : trailingNormalizationGeometry.isPresent()
+                                ? trailingNormalizationGeometry.orElseThrow().workspaceBytes(selectedRangeCount)
+                                : batchNormTrainingGeometry.orElseThrow().workspaceBytes(selectedRangeCount);
             if (workspace.requirementId() != 0 || workspace.byteAlignment() != Long.BYTES
                     || workspace.byteSize() != expected)
                 throw new IllegalArgumentException("aggregate exact-state workspace facts disagree");

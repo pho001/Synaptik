@@ -109,6 +109,12 @@
  * positive width, accepts arbitrary non-negative input strides and an injective output, and
  * declares exactly two buffers with no materialization, workspace, partial, or combine state.</p>
  *
+ * <p>Batch-normalization training lowering admits exactly one explicit fully static
+ * five-input/five-output occurrence. It derives arbitrary-axis prefix/channel/suffix geometry,
+ * deduplicates inputs in first-occurrence order, proves five distinct injective outputs, and
+ * sizes one exact-state slice for each simultaneous complete-channel range. It creates no
+ * partial statistic, combine state, materialization, or hidden running state.</p>
+ *
  * <p>Lowering runs on the preparation cold path; no lowering object or Model operation reaches the
  * generated execution loop.
  */

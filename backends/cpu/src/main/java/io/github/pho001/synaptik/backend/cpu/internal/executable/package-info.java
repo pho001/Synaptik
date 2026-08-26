@@ -77,6 +77,12 @@
  * represented input and maximum shift. Only after that pre-write check can scalar or
  * parallel-scalar complete-slice calls execute; empty outputs scan, submit, and write nothing.</p>
  *
+ * <p>Batch-normalization training binding validates five semantic positions over deduplicated
+ * inputs, five outputs, and the exact-state workspace before mutation or submission. Every
+ * output/input, output/output, and buffer/workspace overlap is rejected; input/input sharing is
+ * legal. Complete-channel ranges receive disjoint scratch slices and write explicit normalized,
+ * next-statistic, and saved-statistic outputs without retained cross-run state.</p>
+ *
  * <p>Runtime retains run-level lifecycle ownership; CPU memory representations retain physical
  * allocation and release ownership. Composition owns and closes the worker group; finalizers,
  * prepared executables, and bound invocations only borrow it.

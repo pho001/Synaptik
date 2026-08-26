@@ -65,16 +65,26 @@ compatibility/legacy contracts until deliberate migration; dense masking alone d
 work, and arbitrary masks with holes remain a distinct future capability.
 
 The future channels-first convolution expansion is an owner-ordered Draft program rather than a
-public generic `ConvNd`. Model 0025G adds NCW Conv1d as visible singleton-height composition over
-the existing NCHW `CONV2D`, so it reuses current Conv2d inference and gradients without another
-operation kind. Model 0025H adds first-class grouped NCDHW `CONV3D`, because current operations
-cannot express it with graph size independent of spatial extents. Compiler 0006B adopts Conv3d
-forward inference and initially fails backward closed; Compiler 0006C separately proves adjoint
-expressibility before closing gradients or selecting the smallest Model prerequisite. CPU 0008
-owns Conv2d execution, CPU 0008E validates Conv1d through that path and adds Conv3d execution, and
-Engine 0004 proves the same typed input/publication lifecycle for all three ranks. Only afterward
-does NN 0025 add separate `Conv1d`, `Conv2d`, and `Conv3d` layers and `ModuleFactory` recipes, with
-NN 0025A as the end-to-end user-capability checkpoint.
+public generic `ConvNd`. Model 0025G first adds NCW Conv1d as visible singleton-height
+`EXPAND_DIMS -> CONV2D -> SQUEEZE` composition, so it reuses current Conv2d inference and gradients
+without another operation kind. Model 0025H then adds first-class grouped NCDHW `CONV3D`, because
+current operations cannot express it with graph size independent of spatial extents. Compiler
+0006B next adopts Conv3d forward inference and initially fails backward closed. Compiler 0006C
+separately proves adjoint expressibility before closing gradients or selecting the smallest Model
+prerequisite; it is not a prerequisite for CPU forward execution. CPU 0008 then establishes the
+portable Conv2d execution foundation while retaining its remaining MATMUL, pooling, attention,
+and loss coverage. Immediately afterward, CPU 0008A validates Conv1d through the visible Conv2d
+composition and adds direct Conv3d execution. CPU 0008B–0008E only then add general partition-DAG
+decomposition and bounded fusion, typed specialized-subgraph recognition, profitability decision
+facts, and bounded multi-input materialization in that order. Engine 0004 proves the same typed
+input/publication lifecycle for all three ranks. Only afterward does NN 0025 add separate
+`Conv1d`, `Conv2d`, and `Conv3d` layers and `ModuleFactory` recipes, with NN 0025A as the end-to-end
+user-capability checkpoint.
+
+This is an ordering and dependency correction within the already planned portable CPU route. It
+does not introduce a new portable route beginning at CPU 0008, change architecture, or make the
+dimensional-convolution closure depend on later general fusion or materialization facilities
+without a concrete documented need.
 
 No new Planning, Prepare, or Runtime task is selected: all three forms have static descriptor
 Shapes for one prepared execution and flow as ordinary flat nodes or visible ordinary
@@ -114,9 +124,10 @@ The compiler project area is Complete through
 The preceding Compiler 0006 supplies the bounded functional one/two-stage request, ordered
 `GradientPublicationBinding` values, derivative-order metadata, and final
 `ForwardPublicationBinding` terminology. Compiler 0006A adopts fixed recurrent forward nodes and
-keeps backpropagation through time fail-closed. Draft Compiler 0006B–0006C plan Conv3d forward and
-gradient adoption, while Compiler 0007 remains the later exact-algebra row. None has a detailed
-specification or changes the active CPU frontier.
+keeps backpropagation through time fail-closed. Draft Compiler 0006B plans the Conv3d forward
+adoption that precedes CPU 0008 and CPU 0008A; Draft Compiler 0006C separately plans gradient
+closure and does not block CPU forward execution. Compiler 0007 remains the later exact-algebra
+row. None has a detailed specification.
 
 The completed Runtime implementation frontier is
 [Runtime 0010 Prepared runner and dynamic execution](modules/runtime/tasks/0010-prepared-runner-and-dynamic-execution.md).
@@ -263,8 +274,10 @@ stable softmax/log-softmax. Complete
 cohesive trailing-slice Layer/RMS boundary; Complete
 [CPU 0007F1](backends/cpu/tasks/0007f1-portable-batch-normalization-inference-coverage.md) owns
 coordinatewise batch inference with channel-hoisted scalar work and deterministic zero-workspace
-channel/non-channel ranges; and Draft CPU 0007F2 owns batch training/statistic transition.
-CPU 0007F and CPU 0007F1 have detailed specifications.
+channel/non-channel ranges; and detailed Ready
+[CPU 0007F2](backends/cpu/tasks/0007f2-portable-batch-normalization-training-and-statistic-transition-coverage.md)
+owns batch training/statistic transition. CPU 0007F, CPU 0007F1, and CPU 0007F2 have detailed
+specifications; CPU 0008 remains Draft without one.
 A completed local
 bytecode/performance audit then inserted detailed
 [CPU 0007A0 generated hot-path parity correction](backends/cpu/tasks/0007a0-generated-hot-path-parity-correction.md)
@@ -391,8 +404,8 @@ and closes A1C without changing production bytes or schema 42. Detailed
 [CPU 0007B](backends/cpu/tasks/0007b-portable-arg-extrema-coverage.md) is `Complete`. Detailed
 [CPU 0007C](backends/cpu/tasks/0007c-portable-masked-reduction-coverage.md) is `Complete`. Detailed
 [CPU 0007D](backends/cpu/tasks/0007d-portable-logarithmic-statistical-and-norm-reduction-coverage.md)
-and detailed CPU 0007E and CPU 0007F are `Complete`, while detailed CPU 0007F1 is `Complete`; CPU
-0007F2 and later work remain Draft without detailed specifications. A2's corrected
+and detailed CPU 0007E and CPU 0007F are `Complete`, while detailed CPU 0007F1 is `Complete`;
+detailed CPU 0007F2 is `Complete`, and later work remains Draft without detailed specifications. A2's corrected
 37-path scope
 permits the A1O ledger
 integration test to distinguish historical schema-42 evidence from exact current schema 43 while
@@ -429,7 +442,7 @@ Its final 47-path scope comprises 29 production/Javadoc, 13 test, and five docum
 paths, including exactly five new CPU-private production types and schema 47. It changes no
 public/shared/build/architecture/conformance/integration boundary. CPU 0007E is Complete, CPU
 0007A1D remains Review needed, and detailed CPU 0007F is Complete. Detailed CPU 0007F1 is Complete;
-CPU 0007F2 and later tasks remain Draft without detailed specifications.
+detailed CPU 0007F2 is Complete, and later tasks remain Draft without detailed specifications.
 
 CPU 0007F retained evidence covers fourteen first-class Layer/RMS targets and three unchanged-
 family controls across five isolated forks. All 85 per-fork and 17 aggregate generated/optimal-
@@ -441,8 +454,8 @@ digest `a7ca999336d73dbf2fee3d2414ff31f0339a5048ec7e2b5ab804b1c5186829c9`. Its f
 scope comprises 16 production/Javadoc, 14 test, and exactly five documentation/planning paths,
 including exactly five new CPU-private production types and schema 48. It changes no public/
 shared/build/architecture/conformance/integration boundary. CPU 0007F is Complete; CPU 0007A1D
-remains Review needed; detailed CPU 0007F1 is Complete; CPU 0007F2 and every later CPU task remain
-Draft without detailed specifications.
+remains Review needed; detailed CPU 0007F1 is Complete; detailed CPU 0007F2 is Complete, and every
+later CPU task remains Draft without detailed specifications.
 
 CPU 0007F1 is Complete at schema 49. Its first-class inference route supports arbitrary static
 channel axes, exact ordered floating promotion and typed epsilon, direct running variance,
@@ -452,8 +465,26 @@ failures, zero errors, and two expected skips. Five accepted frozen forks passed
 batch/control `<= 1.15x` gate; the 281-file retained bundle verifies with digest
 `185ecb1b1da84d20774b5f21979bbfc8cedb765cf03dc05610fa354bd7555029`. The bounded change has
 exactly 14 production paths, 13 tests, and four new CPU-private production types, with no shared
-or architecture boundary change. CPU 0007A1D remains Review needed; Draft CPU 0007F2 remains the
-next defined CPU frontier.
+or architecture boundary change. CPU 0007A1D remains Review needed; detailed CPU 0007F2 is
+Complete and CPU 0008 is the next Draft CPU frontier.
+
+CPU 0007F2 is Complete at schema 50. Its explicit five-input/five-output
+`BATCH_NORM_TRAINING` route owns complete channels, reuses one exact-state slice per active
+scalar or parallel-scalar range, computes biased saved variance and separately divided unbiased
+running variance, and publishes explicit next and saved statistics without hidden state. The
+focused evidence passed 10 suites/114 tests; the implementation context's final uncached CPU
+suite passed 86 suites/472 tests with two expected skips and no failures or errors. Eight
+deterministic generated classes passed complete `javap`, member, forbidden-reference, and
+operation-count scans. Five accepted isolated Java 26.0.1 fixed-heap forks passed all 60 per-fork
+and 12 aggregate ratios at `<= 1.15x`; the worst fork and aggregate were `1.123421082x` and
+`1.110678870x`, both `BNT-REPEAT`. One whole environment/classpath sample was rejected before
+measurement and no ratio sample was discarded. The retained bundle verifies with digest
+`d1138b75924cea2b1bbce6ba127213eb2181de7156884b857ce1e475b9b95edb`. The worktree has 47 paths:
+25 production/Javadoc, 15 test, five 0007F2 documentation/planning paths, and two preserved
+unrelated planning paths; exactly four new CPU-private production types were added. No public,
+shared, Gradle, architecture, conformance, or integration boundary changed. CPU 0007A1D remains
+Review needed. CPU 0008 and later tasks remain Draft without detailed specifications, and the
+Conv1d/Conv3d-before-general-DAG ordering correction remains intact.
 
 The isolated `M-CONCAT` A1G
 fork at `1.158061861x` does not reopen completed A1E because
@@ -484,7 +515,7 @@ artifacts are incompatible safe misses. Detailed CPU 0007A1B and CPU 0007A1E are
 0007A1C is `Complete`, CPU 0007A1D remains `Review needed`, and CPU 0007A1F through CPU 0007A1O
 are `Complete`. Detailed CPU 0007A2, detailed CPU 0007B, and detailed CPU 0007C are `Complete`.
 Detailed CPU 0007D, detailed CPU 0007E, and detailed CPU 0007F are `Complete`; detailed CPU 0007F1
-is `Complete`; CPU 0007F2 and later work remain Draft without detailed specifications.
+is `Complete`; detailed CPU 0007F2 is `Complete`, and later work remains Draft without detailed specifications.
 CPU 0007A0F implementation context `01a0194d-ff2e-78d3-9815-f0830065185b`, independent review
 orchestration context `01a0196a-0930-7521-972f-84021b85519b` with isolated review context
 `/root/cpu_0007a0f_review`, and clean documentation context
@@ -554,7 +585,7 @@ detailed CPU 0007A0B, detailed CPU 0007A0C, detailed CPU 0007A0D, and detailed C
 CPU 0007A1C is `Complete`, CPU 0007A1D remains `Review needed`, and detailed CPU 0007A1E through
 CPU 0007A1O, CPU 0007A2, detailed CPU 0007B, and detailed CPU 0007C are `Complete`. CPU 0007D is
 detailed and `Complete`; detailed CPU 0007E and detailed CPU 0007F are `Complete`; detailed CPU
-0007F1 is `Complete`; CPU 0007F2 and later work remain Draft without detailed specifications.
+0007F1 is `Complete`; detailed CPU 0007F2 is `Complete`, and later work remains Draft without detailed specifications.
 CPU 0006B1 implementation context `019ff230-109c-73a3-933f-611ee7f6143d` and independent
 audit/fix context `019ff248-a9e4-7150-8fbb-db2730d7cc1b` produced the final focused
 12-suite/103-test and CPU 38-suite/230-test evidence; the latter has one expected existing skip
@@ -594,7 +625,8 @@ detailed CPU 0006B1, CPU 0006B2, CPU 0006C, CPU 0006D, CPU 0007, and detailed CP
 CPU 0007A1C is `Complete`, CPU 0007A1D remains `Review needed`, and detailed CPU 0007A1E through
 CPU 0007A1O, CPU 0007A2, detailed CPU 0007B, and detailed CPU 0007C are `Complete`. Detailed CPU
 0007D, detailed CPU 0007E, and detailed CPU 0007F are `Complete`, while detailed CPU 0007F1 is
-`Complete`; CPU 0007F2 through CPU 0017 remain Draft without detailed specifications.
+`Complete`; detailed CPU 0007F2 is `Complete`, and CPU 0008 through CPU 0017 remain Draft without
+detailed specifications.
 CPU 0003
 implements a
 model-independent filesystem store beneath an explicit
@@ -823,39 +855,48 @@ stable multi-pass softmax/log-softmax. Complete
 [CPU 0007F](backends/cpu/tasks/0007f-portable-layer-and-rms-normalization-coverage.md) owns
 trailing-slice Layer/RMS normalization; Complete
 [CPU 0007F1](backends/cpu/tasks/0007f1-portable-batch-normalization-inference-coverage.md) then owns
-batch inference; and Draft CPU 0007F2 owns batch training/statistic transition. Draft CPU 0008 already owns heavy portable linear algebra,
-convolution, pooling, attention, and loss families; its initial bounded epilogue direction is
-MATMUL or convolution followed by an optional compatible bias ADD and at most one existing exact
-pointwise activation or clamp, with a safe split whenever semantic, Shape/layout, publication,
-resource, or numerical-order conditions do not hold. These rows remain the family implementation
-owners rather than being replaced by generic fusion planning.
+batch inference; and detailed Ready
+[CPU 0007F2](backends/cpu/tasks/0007f2-portable-batch-normalization-training-and-statistic-transition-coverage.md)
+owns batch training/statistic transition. After Model 0025G,
+Model 0025H, and Compiler 0006B complete in that order, Draft CPU 0008 establishes the portable
+Conv2d foundation while retaining heavy portable MATMUL, pooling, attention, and loss coverage.
+Its initial bounded epilogue direction is MATMUL or convolution followed by an optional compatible
+bias ADD and at most one existing exact pointwise activation or clamp, with a safe split whenever
+semantic, Shape/layout, publication, resource, or numerical-order conditions do not hold. These
+rows remain the family implementation owners rather than being replaced by generic fusion
+planning.
 
-Before portable closure, Draft CPU 0008A adds general partition-DAG decomposition into computation
-units plus bounded vertical and horizontal fusion with deterministic materialized split fallback.
-Its budgets cover fan-out, indexing complexity, generated-code size, simultaneously live values,
-and candidate/unit count. Draft CPU 0008B then adds a closed typed CPU-private recognizer for
-selected MATMUL, convolution, and reduction epilogues plus explicit semantic kernels. It creates
-no public pattern registry or domain-specific language, adds no Model kind, and never silently
-recognizes decomposed softmax as stable `SOFTMAX`. Draft CPU 0008C ranks only complete legal fused
-and split candidates and records typed cold accepted, rejected, and selected facts. Legality is a
-fail-closed semantic/resource gate; profitability may still select a split candidate because of
-code size, live-value pressure, materialization, route eligibility, or estimated complete-plan
-cost. Draft CPU 0008D then enriches each already legal portable pointwise fused/split topology
-with bounded representation variants. It may cost-select at most two distinct external read-
-boundary materializations—including both operands of eligible binary work—across the five
-currently executable pointwise types, while BFLOAT16 waits for pointwise numerical support.
-Candidate generation remains bounded to selected single/pair copies, repeated boundaries
-deduplicate, one copy may serve compatible repeated uses, and direct access wins ties. The
-complete topology/representation variants return through 0008C's profitability facts, so copy
-cost and compute benefit may change which legal plan wins. CPU 0008D does not change fusion
-legality or invent topologies; DAG split materialization remains CPU 0008A work, while native
-packing and reorder remain owned by CPU 0010–0015. Every complete variant has a stable typed
-CPU-private identity carrying its materialized boundaries, layout/access regimes, reuse,
-workspace, execution strategy, and fused/split topology. Ordinary preparation may select one
-baseline without making the bounded candidate identity irreproducible for the later opaque
-Prepare/tuning handoff. Insufficient profitability evidence selects direct access. CPU 0008D
-performs no measurement, tuning-cache lookup or mutation, public tuning configuration, or shared
-handoff implementation.
+Immediately after that foundation, Draft CPU 0008A validates NCW Conv1d end to end through its
+visible `EXPAND_DIMS -> CONV2D -> SQUEEZE` composition and adds direct grouped NCDHW Conv3d
+execution. It depends on CPU 0008, Model 0025G–0025H, and Compiler 0006B, not on later general
+fusion or materialization. Compiler 0006C remains a separate gradient-closure task and does not
+block this forward execution work.
+
+Draft CPU 0008B then adds general partition-DAG decomposition into computation units plus bounded
+vertical and horizontal fusion with deterministic materialized split fallback. Its budgets cover
+fan-out, indexing complexity, generated-code size, simultaneously live values, and candidate/unit
+count. Draft CPU 0008C adds a closed typed CPU-private recognizer for selected MATMUL,
+convolution, and reduction epilogues plus explicit semantic kernels. It creates no public pattern
+registry or domain-specific language, adds no Model kind, and never silently recognizes decomposed
+softmax as stable `SOFTMAX`. Draft CPU 0008D ranks only complete legal fused and split candidates
+and records typed cold accepted, rejected, and selected facts. Legality is a fail-closed semantic/
+resource gate; profitability may still select a split candidate because of code size, live-value
+pressure, materialization, route eligibility, or estimated complete-plan cost. Draft CPU 0008E
+then enriches each already legal portable pointwise fused/split topology with bounded
+representation variants. It may cost-select at most two distinct external read-boundary
+materializations—including both operands of eligible binary work—across the five currently
+executable pointwise types, while BFLOAT16 waits for pointwise numerical support. Candidate
+generation remains bounded to selected single/pair copies, repeated boundaries deduplicate, one
+copy may serve compatible repeated uses, and direct access wins ties. The complete topology/
+representation variants return through 0008D's profitability facts, so copy cost and compute
+benefit may change which legal plan wins. CPU 0008E does not change fusion legality or invent
+topologies; DAG split materialization remains CPU 0008B work, while native packing and reorder
+remain owned by CPU 0010–0015. Every complete variant has a stable typed CPU-private identity
+carrying its materialized boundaries, layout/access regimes, reuse, workspace, execution strategy,
+and fused/split topology. Ordinary preparation may select one baseline without making the bounded
+candidate identity irreproducible for the later opaque Prepare/tuning handoff. Insufficient
+profitability evidence selects direct access. CPU 0008E performs no measurement, tuning-cache
+lookup or mutation, public tuning configuration, or shared handoff implementation.
 
 Ordinary CPU preparation uses bounded deterministic no-measurement profitability heuristics.
 The distinct future Config 0006A request inputs, Prepare 0004 opaque candidate handoff, CPU 0016
@@ -866,12 +907,12 @@ ranking an isolated kernel or moving materialization legality out of CPU. Autotu
 default fusion-profitability mechanism, and Runtime never searches,
 reads or mutates tuning caches, or revises a prepared selection. Later Trace backend payloads and
 tuning inspection may consume translated typed cold decision facts without taking ownership of
-CPU legality, recognition, or selection. CPU 0009 depends on 0008A–0008D and closes these
-foundations—including bounded single/dual-input materialization, direct/materialized parity,
+CPU legality, recognition, or selection. CPU 0009 depends on the ordered CPU 0008A–0008E sequence
+and closes dimensional convolution before the general decomposition, recognition, profitability,
+and bounded single/dual-input materialization foundations—including direct/materialized parity,
 deduplicated reuse, and candidate/resource ceilings—before CPU 0010–0015 add portable/native
-peer-route choices; those later routes consume the common decomposition, recognition,
-profitability, and representation decisions instead of creating competing graph interpreters or
-fusion planners.
+peer-route choices. Those later routes consume the common decisions instead of creating competing
+graph interpreters or fusion planners.
 
 Portable generation uses family-specific typed lowerers plus shared scalar, vector, heap,
 segment, range, tile, partial-reduction, and combine emitters rather than one god generator.
@@ -993,7 +1034,7 @@ CPU 0007A0F and detailed CPU 0007A1 are `Complete`.
 Detailed CPU 0007A1A through CPU 0007A1C are `Complete`; CPU 0007A1D remains `Review needed`;
 detailed CPU 0007A1E through CPU 0007A1O, CPU 0007A2, and detailed CPU 0007B are `Complete`.
 Detailed CPU 0007C, detailed CPU 0007D, detailed CPU 0007E, and detailed CPU 0007F are `Complete`.
-Detailed CPU 0007F1 is `Complete`; CPU 0007F2–0017 and the refined Config, Prepare,
+Detailed CPU 0007F1 is `Complete`; detailed CPU 0007F2 is `Complete`; CPU 0008–0017 and the refined Config, Prepare,
 Metal, and tuning
 rows remain `Draft` without later detailed specifications.
 Completed OpenBLAS history and every completed project area remain unchanged.
@@ -1019,7 +1060,7 @@ is `Complete`; detailed
 is `Complete`; CPU 0007A1C is `Complete`; CPU 0007A1D remains `Review needed`; detailed CPU 0007A1E
 through CPU 0007A1O, detailed CPU 0007A2, detailed CPU 0007B, and detailed CPU 0007C are
 `Complete`. Detailed CPU 0007D, detailed CPU 0007E, and detailed CPU 0007F are `Complete`; detailed
-CPU 0007F1 is `Complete`; CPU 0007F2 and later work remain Draft without detailed specifications.
+CPU 0007F1 is `Complete`; detailed CPU 0007F2 is `Complete`, and later work remains Draft without detailed specifications.
 CPU 0006A delivers one exact static resolved-layout PAD, TILE, CONCAT, or STACK occurrence with
 ordered one-through-sixteen composition inputs, first-occurrence unique declarations, compact
 cold movement geometry, all-six-type represented-bit scalar/parallel-scalar generation, one

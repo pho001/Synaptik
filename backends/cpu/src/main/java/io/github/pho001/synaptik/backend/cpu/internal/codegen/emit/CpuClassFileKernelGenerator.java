@@ -72,6 +72,7 @@ public final class CpuClassFileKernelGenerator {
                     || kernelIr.familyIdentity().startsWith("softmax:")
                     || kernelIr.familyIdentity().startsWith("trailing-normalization:")
                     || kernelIr.familyIdentity().startsWith("batch-normalization-inference:")
+                    || kernelIr.familyIdentity().startsWith("batch-normalization-training:")
                         ? AccessFlag.PUBLIC.mask() : 0);
         byte[] bytes = ClassFile.of().build(owner, classBuilder -> classBuilder
                 .withVersion(ClassFile.JAVA_26_VERSION, 0).withFlags(AccessFlag.FINAL)
@@ -83,7 +84,9 @@ public final class CpuClassFileKernelGenerator {
                                         specialization.carrierPattern());
                             }
                             if (kernelIr.instructions().isEmpty()) {
-                                if (kernelIr.familyIdentity().startsWith("batch-normalization-inference:")) {
+                                if (kernelIr.familyIdentity().startsWith("batch-normalization-training:")) {
+                                    new CpuBatchNormTrainingEmitter().emit(code, specialization, kernelIr);
+                                } else if (kernelIr.familyIdentity().startsWith("batch-normalization-inference:")) {
                                     new CpuBatchNormInferenceEmitter().emit(code, specialization, kernelIr);
                                 } else if (kernelIr.familyIdentity().startsWith("trailing-normalization:LAYER:")) {
                                     new CpuLayerNormEmitter().emit(code, specialization, kernelIr);
@@ -191,7 +194,8 @@ public final class CpuClassFileKernelGenerator {
         return !family.startsWith("fold:") && !family.startsWith("ordering:")
                 && !family.startsWith("random:") && !family.startsWith("arg-extrema:")
                 && !family.startsWith("trailing-normalization:")
-                && !family.startsWith("batch-normalization-inference:");
+                && !family.startsWith("batch-normalization-inference:")
+                && !family.startsWith("batch-normalization-training:");
     }
 
     /**
@@ -383,7 +387,8 @@ public final class CpuClassFileKernelGenerator {
                 .map(CpuKernelIr.Value::dataType).toList();
         if (!boundaryTypes.equals(specialization.boundaryDataTypes())
                 || kernelIr.instructions().size() > 8
-                || kernelIr.stores().size() != 1) {
+                || kernelIr.stores().size() != (kernelIr.familyIdentity()
+                    .startsWith("batch-normalization-training:") ? 5 : 1)) {
             throw new IllegalArgumentException("unsupported canonical pointwise IR");
         }
         if (kernelIr.instructions().isEmpty()) {
@@ -399,18 +404,20 @@ public final class CpuClassFileKernelGenerator {
                     .startsWith("trailing-normalization:");
             boolean batchNormalization = kernelIr.familyIdentity()
                     .startsWith("batch-normalization-inference:");
+            boolean batchTraining = kernelIr.familyIdentity()
+                    .startsWith("batch-normalization-training:");
             boolean scatter = kernelIr.familyIdentity().startsWith("scatter:");
             boolean fold = kernelIr.familyIdentity().startsWith("fold:");
             boolean ordering = kernelIr.familyIdentity().startsWith("ordering:");
             boolean movement = kernelIr.familyIdentity().startsWith("movement:");
             boolean affine = kernelIr.familyIdentity().startsWith("affine:");
-            if ((!movement && !affine && !indexing && !scatter && !fold && !ordering && !random && !scan && !aggregate && !argExtrema && !maskedReduction && !advancedReduction && !softmax && !trailingNormalization && !batchNormalization)
+            if ((!movement && !affine && !indexing && !scatter && !fold && !ordering && !random && !scan && !aggregate && !argExtrema && !maskedReduction && !advancedReduction && !softmax && !trailingNormalization && !batchNormalization && !batchTraining)
                     || affine && kernelIr.values().size() != 2
                     || movement && (kernelIr.values().size() < 2 || kernelIr.values().size() > 17)
-                    || !ordering && !random && !scan && !aggregate && !argExtrema && !maskedReduction && !advancedReduction && !softmax && !trailingNormalization && !batchNormalization && kernelIr.values().subList(0, kernelIr.values().size() - 1).stream()
+                    || !ordering && !random && !scan && !aggregate && !argExtrema && !maskedReduction && !advancedReduction && !softmax && !trailingNormalization && !batchNormalization && !batchTraining && kernelIr.values().subList(0, kernelIr.values().size() - 1).stream()
                         .anyMatch(value -> value.kind() != CpuKernelIr.Value.Kind.INPUT)
                     || kernelIr.values().getLast().kind() != CpuKernelIr.Value.Kind.OUTPUT
-                    || !indexing && !scatter && !fold && !ordering && !random && !scan && !aggregate && !argExtrema && !maskedReduction && !advancedReduction && !softmax && !trailingNormalization && !batchNormalization
+                    || !indexing && !scatter && !fold && !ordering && !random && !scan && !aggregate && !argExtrema && !maskedReduction && !advancedReduction && !softmax && !trailingNormalization && !batchNormalization && !batchTraining
                         && kernelIr.values().stream().map(CpuKernelIr.Value::dataType).distinct().count() != 1
                     || random && kernelIr.values().size() != 1 && kernelIr.values().size() != 5
                     || specialization.executionStrategy().compute()

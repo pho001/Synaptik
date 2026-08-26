@@ -42,6 +42,7 @@ import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuMaskedReductio
 import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuSoftmaxLoweringTest;
 import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuTrailingNormalizationLoweringTest;
 import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuBatchNormInferenceLoweringTest;
+import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuBatchNormTrainingLoweringTest;
 import io.github.pho001.synaptik.model.operation.scan.CumulativeScanKind;
 import io.github.pho001.synaptik.model.operation.normalization.SoftmaxKind;
 import io.github.pho001.synaptik.model.operation.reduction.AggregateReductionKind;
@@ -74,6 +75,45 @@ class CpuPreparedExecutableTest {
             ValueLayout.JAVA_INT_UNALIGNED.withOrder(ByteOrder.nativeOrder());
     private static final ValueLayout.OfLong LONG =
             ValueLayout.JAVA_LONG_UNALIGNED.withOrder(ByteOrder.nativeOrder());
+
+    @Test void batchNormTrainingPublishesFiveOutputsWithOneDisjointRangeSlice() {
+        var base = CpuBatchNormTrainingLoweringTest.context(Shape.of(2, 3, 4), 1);
+        var config = new PortableExecutionConfig(ComputePreference.SCALAR, 4, 4, 1);
+        var context = new io.github.pho001.synaptik.prepare.analysis.PrepareContext<>(
+                base.partition(), base.nodes(), base.values(), base.memoryRequirements(),
+                base.constants(), new CpuPartitionAnalysisInputs(false,
+                java.util.Collections.nCopies(10, CarrierAccess.FLOAT_ARRAY), config));
+        var analysis = new CpuPartitionPreparer().analyze(context);
+        assertEquals(3, analysis.plan().selectedRangeCount());
+        try (var workers = new CpuWorkerGroup(3)) {
+            var executable = CpuPartitionFinalizerTest.finalizeExecutable(analysis,
+                    Optional.empty(), Optional.of(workers));
+            float[] input = new float[24];
+            for (int i = 0; i < input.length; i++) input[i] = i % 4 + i / 12;
+            float[] scale = {1, 2, .5f}, bias = {0, .5f, -1};
+            float[] oldMean = {10, 10, 10}, oldVar = {4, 4, 4};
+            float[] output = new float[24], nextMean = new float[3], nextVar = new float[3];
+            float[] savedMean = new float[3], savedInv = new float[3];
+            var declaration = analysis.plan().workspaceDeclaration().orElseThrow();
+            var workspace = CpuContiguousWorkspace.allocate(declaration.byteSize(),
+                    declaration.byteAlignment());
+            var run = state(executable, List.of(borrow(input, 0, input.length),
+                    borrow(scale, 0, scale.length), borrow(bias, 0, bias.length),
+                    borrow(oldMean, 0, oldMean.length), borrow(oldVar, 0, oldVar.length),
+                    borrow(output, 0, output.length), borrow(nextMean, 0, nextMean.length),
+                    borrow(nextVar, 0, nextVar.length), borrow(savedMean, 0, savedMean.length),
+                    borrow(savedInv, 0, savedInv.length)), List.of(workspace));
+            try {
+                executable.bind(run).execute();
+                for (int channel = 0; channel < 3; channel++) {
+                    assertTrue(Float.isFinite(savedMean[channel]));
+                    assertTrue(Float.isFinite(savedInv[channel]));
+                    assertTrue(Float.isFinite(nextMean[channel]));
+                    assertTrue(Float.isFinite(nextVar[channel]));
+                }
+            } finally { run.close(); }
+        }
+    }
 
     @Test void batchNormalizationExecutesDirectParallelRangesAndValidatesOverlapFirst() {
         var base = CpuBatchNormInferenceLoweringTest.context(

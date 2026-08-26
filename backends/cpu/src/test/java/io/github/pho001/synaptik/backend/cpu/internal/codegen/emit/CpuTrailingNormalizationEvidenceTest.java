@@ -67,6 +67,23 @@ public final class CpuTrailingNormalizationEvidenceTest {
             long[] generatedRounds, long[] directRounds) { }
     private record Prepared(MethodHandle handle, MemorySegment scratch, long[] geometry,
             byte[] classBytes, byte[] compatibility, String specialization) { }
+
+    static List<CpuBatchNormTrainingPerformanceTest.BenchmarkCase> trainingControls(Arena arena)
+            throws Throwable {
+        List<Case> retained = new ArrayList<>();
+        addDense(retained, arena, DataType.FLOAT32, true, false);
+        addVarianceControl(retained, arena);
+        addPointwiseControl(retained);
+        List<String> names = List.of("CONTROL_F32_LAYER_NORM", "CONTROL_F32_VARIANCE",
+                "CONTROL_F32_ADD");
+        List<CpuBatchNormTrainingPerformanceTest.BenchmarkCase> result = new ArrayList<>();
+        for (int index = 0; index < retained.size(); index++) {
+            Case value = retained.get(index);
+            result.add(CpuBatchNormTrainingPerformanceTest.adapt(names.get(index),
+                    value.generated::run, value.direct::run, value.verify::run));
+        }
+        return List.copyOf(result);
+    }
     private enum ExactType {
         F64(53, -1074, 1023, 52, 1023), F32(24, -149, 127, 23, 127);
         final int precision, minimumUnitExponent, maximumExponent, fractionBits, bias;

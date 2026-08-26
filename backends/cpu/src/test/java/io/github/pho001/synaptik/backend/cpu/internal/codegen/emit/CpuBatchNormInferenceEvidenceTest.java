@@ -39,6 +39,14 @@ public final class CpuBatchNormInferenceEvidenceTest {
     private record Prepared(MethodHandle handle, long[] geometry,
             CpuBatchNormInferenceIr.RangeForm form, long items, byte[] bytes) { }
 
+    static CpuBatchNormTrainingPerformanceTest.BenchmarkCase float32BatchInferenceControl()
+            throws Throwable {
+        Case value = dense("CONTROL_F32_BATCH_INFERENCE", DataType.FLOAT32,
+                32, 64, 256, 1);
+        return CpuBatchNormTrainingPerformanceTest.adapt(value.name, value.generated::run,
+                value.direct::run, value.verify::run);
+    }
+
     @Test void frozenInventoryAndOperationBoundsAreExact() throws Throwable {
         List<Case> cases = cases();
         assertEquals(List.of("BN-BF16-A1", "BN-F32-A1", "BN-F64-A1", "BN-F32-A0",

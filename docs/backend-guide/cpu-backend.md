@@ -570,7 +570,7 @@ fallback is a cold strategy decision, not an execution failure or a universal ve
 claim.
 
 This remains the existing connected straight-line one-through-eight unit. General partition-DAG
-decomposition and bounded vertical or horizontal fusion remain Draft CPU 0008A work.
+decomposition and bounded vertical or horizontal fusion remain Draft CPU 0008B work.
 
 Schema 40 adds one bounded body inside the existing scalar pointwise artifact for the frozen
 FLOAT32 `[512,512]` `DIV -> SIGMOID -> MUL` chain. Its ordered carriers are `MemorySegment`,
@@ -1417,8 +1417,8 @@ row exceeded the fixed gate in one fork, so neither rejected sample contributes 
 
 Current coverage ends at this one-node static portable family. Ordinary aggregates, arg extrema,
 masked reductions, advanced reductions, stable softmax, and trailing Layer/RMS normalization are
-the separate current families below. Batch-normalization inference is also a separate current
-family below, while training remains planned. Multi-node scan
+the separate current families below. Batch-normalization inference and training are also separate
+current families below. Multi-node scan
 fusion, partial scans, cross-worker prefix combination, vector or native scan bodies, dynamic
 Shape/layout binding, in-place/overlapping execution, public scan configuration, and a shared
 Runtime scan primitive are not implemented.
@@ -1890,9 +1890,8 @@ claim.
 
 This family adds no public API, Model or Compiler semantic change, backward execution, vector or
 native route, fusion, dynamic Shape/layout support, overlap allowance, workspace algorithm,
-backend conformance result, or integration guarantee. Layer/RMS normalization is the separate
-current family below; batch-normalization inference follows it as a separate current family and
-training remains planned.
+backend conformance result, or integration guarantee. Layer/RMS normalization and the two
+first-class batch-normalization forms are separate current families below.
 
 ### Current trailing Layer/RMS-normalization family
 
@@ -1974,8 +1973,7 @@ tuning result, native/vector guarantee, or performance claim for another Shape o
 This increment adds no public API or shared-contract change, backward execution, fusion,
 materialization, Vector API or native route, dynamic or symbolic Shape, unresolved layout,
 decomposed-graph recognition, or cross-backend numerical promise. Batch-normalization inference
-is the separate current family below; batch-normalization training remains planned CPU 0007F2
-work.
+and training are separate current families below.
 
 ### Current batch-normalization inference family
 
@@ -2037,10 +2035,96 @@ overhead profile to the specialized optimal clean Java cases; they are not claim
 byte `javac` output or to produce identical JIT assembly. The evidence supports only the frozen
 Shapes, carriers, host, Java version, and protocol, not universal performance.
 
-This family adds no training/statistic transition, fusion, Vector API or native route, dynamic or
+This inference family adds no training/statistic transition, fusion, Vector API or native route, dynamic or
 symbolic Shape, unresolved layout, autotuning, public API, shared Prepare/backend-contract,
-backend-conformance, or integration guarantee. Batch-normalization training remains planned in
-CPU 0007F2.
+backend-conformance, or integration guarantee.
+
+### Current batch-normalization training family
+
+The portable CPU route accepts exactly one explicit first-class `BATCH_NORM_TRAINING` occurrence.
+It preserves the Model operation's five ordered inputs and five ordered outputs:
+
+```text
+inputs  = [input, scale, bias, runningMean, runningVariance]
+outputs = [output, nextRunningMean, nextRunningVariance,
+           savedBatchMean, savedInverseStandardDeviation]
+```
+
+All descriptors and layouts are fully static and resolved. The input rank is at least two, the
+arbitrary normalized channel axis has extent `C`, and the other four inputs plus outputs one
+through four are rank-one `[C]` vectors. Every output has an injective writable layout. The CPU
+route accepts independent BFLOAT16, FLOAT32, or FLOAT64 inputs, promotes them in the displayed
+order, and requires every output plus momentum and epsilon to have the promoted result type.
+Equivalent decomposed reductions and arithmetic remain ordinary nodes; training never shares an
+identity or runtime mode with batch inference.
+
+One scalar or parallel-scalar range owns a half-open interval of complete channels. If `N` is the
+product of every non-channel extent, each owned channel visits all `N` coordinates in canonical
+prefix-major then suffix-major order. Non-empty channel work requires `N >= 2`. A zero channel
+extent is empty work: it performs no carrier read, exact-state access, generated call, square
+root, output write, or worker submission.
+
+For a non-empty channel, the generated body makes three complete traversals. The first obtains the
+exact represented-value sum from one existing `AGGREGATE_EXACT_STATE` slice and rounds
+`batchMean = sum / N` once to the result computation format. The second forms compensated sums of
+deviations and squared deviations, then uses the fixed correction and separate divisions:
+
+```text
+numerator        = sumSquaredDeviation - sumDeviation * sumDeviation / N
+biasedVariance   = numerator / N
+unbiasedVariance = numerator / (N - 1)
+savedInv         = 1 / sqrt(biasedVariance + epsilon)
+```
+
+Only a finite negative roundoff residue in `numerator` is clamped to positive zero. Forward
+normalization and the saved inverse standard deviation therefore use biased population variance;
+the next running variance uses the separately divided unbiased estimate. Epsilon affects only the
+saved inverse-standard-deviation radicand. The four channel statistics are stored once in output
+slots one through four before the third traversal computes each normalized output as separate
+`input - mean`, multiply by `savedInv`, multiply by scale, then add bias operations.
+
+Momentum is the weight of the new batch, not of the old statistic:
+
+```text
+nextRunningMean     = (1 - momentum) * runningMean + momentum * batchMean
+nextRunningVariance = (1 - momentum) * runningVariance + momentum * unbiasedVariance
+```
+
+These are ordinary explicit outputs. The route neither mutates the supplied running statistics
+nor retains hidden cross-run state. Saved mean and saved inverse standard deviation are also
+ordinary graph outputs, not backend-created tape or persistent workspace. BFLOAT16 and FLOAT32
+results use FLOAT32 formula boundaries; FLOAT64 uses FLOAT64. BFLOAT16 narrows only at final
+stores. NaN or infinity in a non-empty input channel produces canonical NaN batch statistics and
+normalized results. Old running variance affects only its transition; it is not used, checked, or
+repaired for forward normalization. The written transition arithmetic remains authoritative at
+momentum endpoints, so a zero coefficient does not suppress NaN or infinity.
+
+Preparation declares unique inputs once in first-occurrence order, then all five outputs, and
+exactly one eight-byte-aligned exact-state workspace slice per simultaneous range. A slice is
+reused sequentially across channels and no partial statistic, combine state, saved-statistic
+scratch, materialization, or persistent resource exists. Cold binding accepts exact typed heap
+arrays, native-order `MemorySegment` values, and mixed patterns. Before any write or worker
+submission it validates liveness, access, alignment, spans, layouts, the exact workspace, every
+output/input pair, every output/output pair, and every buffer/workspace pair. Input/input aliasing
+is legal read sharing; any output overlap fails without writes.
+
+Schema 50 records the family, five semantic types and promoted result, raw momentum and epsilon
+bits, rank and channel axis, three-pass arithmetic identity, exact-state limb/slice shape,
+first-occurrence input map, ordered access plans, carrier signature, and scratch-bearing entry.
+Schema 49 and earlier envelopes are incompatible safe misses. The eight retained generated Java
+26 classes are deterministic, final, field-free, constructor-free, and expose one typed static
+entry. Complete `javap` and member scans found direct odometer traversals, one square-root site and
+four semantic division sites per class, with no forbidden allocation, boxing, reflection,
+dispatch, layout construction, or Synaptik numerical helper reference.
+
+The frozen evidence compares eight training targets and four unchanged-family controls with
+optimal clean Java implementations having identical validation, channel ownership, arithmetic,
+passes, addressing, workspace reuse, and stores. Five accepted isolated `-Xms1g -Xmx1g` Java
+26.0.1 forks passed all 60 per-fork and all 12 aggregate `<= 1.15x` gates. The worst fork ratio
+was `1.123421082x` and the worst aggregate ratio was `1.110678870x`, both `BNT-REPEAT`. One whole
+environment/classpath sample was rejected before measurement; no measured ratio was discarded.
+This evidence is bounded to the recorded source, classes, host, Java version, and protocol. It is
+not a universal performance, tuning, vector/native, or cross-backend bitwise claim.
 
 ### Unary numerical closure
 
@@ -2519,18 +2603,19 @@ The current CPU foundation provides the bounded fully static pointwise matrix, s
 resolved-layout affine family, and one-node static movement, indexing, functional-scatter,
 overlap-fold, stable ordering, explicit-state random, cumulative-scan, aggregate, arg-extrema,
 masked-reduction, advanced-reduction, stable-softmax, trailing Layer/RMS-normalization, and
-batch-normalization inference families
+batch-normalization inference and training families
 described above. Scalar
 execution covers every admitted row; parallel-scalar orchestration is available for disjoint
 affine, movement, scatter, fold, ordering, random-element, whole-scan-slice, whole-aggregate-
 output-cell, whole-arg-extrema-output-cell, whole-masked-reduction-output-cell, whole-advanced-
 reduction-output-cell, whole-softmax-slice, whole-trailing-normalization-slice, and selected
-channel or flattened non-channel batch-inference ranges; and the
+channel or flattened non-channel batch-inference ranges and complete-channel batch-training
+ranges; and the
 pointwise family retains its exact typed value-vector and virtual-mask parity matrix. Generator
-schema 49 distinguishes pointwise,
+schema 50 distinguishes pointwise,
 affine, movement, indexing, scatter, fold, ordering, random, scan, aggregate, arg-extrema, and
-masked-reduction, advanced-reduction, softmax, trailing-normalization, and batch-inference
-structures,
+masked-reduction, advanced-reduction, softmax, trailing-normalization, batch-inference, and
+batch-training structures,
 including movement occurrence order,
 unequal-rank access, exact
 padding bits, functional slice-update rank/map identity, scatter reduction/scratch signature and

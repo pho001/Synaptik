@@ -49,6 +49,10 @@
  * Shape and axis identity, validates the complete finite input and maximum-shift domain before
  * mutation or worker submission, and executes direct stable three-pass complete-slice ranges
  * without workspace or materialization.
+ * Trailing Layer/RMS normalization and arbitrary-axis batch-normalization inference and training
+ * are separate first-class static families. Batch training preserves five explicit inputs and
+ * outputs, assigns complete channels to scalar or parallel-scalar ranges, uses one exact-state
+ * slice per active range, and publishes next and saved statistics without hidden state.
  * The provider exposes no route, carrier, preparation, or execution API.
  *
  * <p>The {@code internal} namespace contains unsupported implementation contracts for complete-

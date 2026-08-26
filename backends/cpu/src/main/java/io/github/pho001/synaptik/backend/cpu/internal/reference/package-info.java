@@ -64,6 +64,11 @@
  * rounding without consuming production lowering, packed geometry, carrier binding, validation,
  * or emitted helpers.</p>
  *
+ * <p>The batch-normalization training oracle independently derives channel coordinates and dense
+ * logical outputs. It applies the exact-sum mean, corrected biased and unbiased variance
+ * divisions, new-batch-weight transitions, saved inverse standard deviation, and normalized
+ * affine order without using production lowering, packing, emission, or Runtime binding.</p>
+ *
  * <p>Reference evaluation is outside the generated Runtime hot path and owns no buffers, slots, or
  * artifact lifecycle.
  */

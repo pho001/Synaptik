@@ -1277,7 +1277,7 @@ Cross-type cast, general BFLOAT16 pointwise arithmetic, FLOAT16 execution, relax
 native/vendor realization, dynamic layouts, Vector API scatter, fold, ordering, scan, or ordinary
 aggregate execution,
 gradients, and universal backend support are not part of this route increment. General
-partition-DAG decomposition and bounded vertical/horizontal fusion remain Draft CPU 0008A work.
+partition-DAG decomposition and bounded vertical/horizontal fusion remain Draft CPU 0008B work.
 
 OpenBLAS is not another meaning of portable route. It is a narrow cross-platform native fallback
 for eligible BLAS-compatible linear algebra. It is neither a universal fallback nor preferred over
@@ -1411,8 +1411,11 @@ frozen BFLOAT16 axes-zero-and-two MIN primitive traversal while retaining typed 
 fallbacks.
 Schema 43 adds SUM-to-Shape, schema 44 arg-extrema, schema 45 directional masked reduction,
 schema 46 advanced logarithmic/statistical/norm reduction, schema 47 stable softmax/log-softmax,
-schema 48 trailing Layer/RMS normalization, and schema 49 batch-normalization inference identity,
-range-form, ordered-type, exact-epsilon, carrier/access, and direct-body compatibility facts.
+schema 48 trailing Layer/RMS normalization, schema 49 batch-normalization inference identity,
+range-form, ordered-type, exact-epsilon, carrier/access, and direct-body compatibility facts, and
+schema 50 five-output batch-normalization training identity, raw momentum/epsilon bits,
+complete-channel ranges, three-pass arithmetic, exact-state shape, boundary map, and direct-body
+compatibility facts.
 Canonical IR separately supplies value kind, data type, ordered semantics/stores, iteration rank,
 axis roles, contiguous-suffix form, and access regime. Their derived compatibility bytes and
 structural identity are order-sensitive.
@@ -1441,15 +1444,16 @@ Keeping the artifact reachable keeps its hidden-class state reachable, without p
 unreferenced class unloads. Direct generator calls produce equal class bytes but distinct hidden
 classes and artifact identities. The current durable generated-kernel artifact store may instead
 reuse compatible class bytes and weakly intern one loaded artifact while it remains live. The
-artifact is not by itself a prepared route. Current schema-49 artifacts execute admitted bounded
+artifact is not by itself a prepared route. Current schema-50 artifacts execute admitted bounded
 pointwise chains, one static affine represented-bit copy, one static
 PAD/TILE/CONCAT/STACK/window-extraction/SLICE_UPDATE movement, one static indexing occurrence,
 one functional-scatter output pass, one overlap-fold pass, one stable ordering/selection pass,
 one explicit-state initializer/dropout pass, one typed cumulative-scan body, one typed
 ordinary-aggregate body, one typed arg-extrema body, one typed masked-reduction body, one typed
 advanced-reduction body, one typed stable-softmax body, one typed trailing-normalization body, or
-one typed batch-normalization inference body across the implemented carrier patterns.
-The current-only schema-49 boundary treats schema 48 and earlier as
+one typed batch-normalization inference body, or one typed batch-normalization training body
+across the implemented carrier patterns.
+The current-only schema-50 boundary treats schema 49 and earlier as
 safe incompatible misses with no migration reader. Retained schema-42 ledger and performance
 material is historical evidence rather than a current artifact claim.
 
@@ -5052,8 +5056,8 @@ ordered BFLOAT16/FLOAT32/FLOAT64 promotion, exact typed epsilon, direct running-
 zero workspace/materialization, and deterministic channel or flattened non-channel ranges. It
 accepts typed heap arrays, native-order segments, and mixed carriers; input/input aliasing is
 allowed while output/input overlap is rejected before writes. This CPU realization does not add
-training, fusion, vector/native execution, dynamic Shapes, autotuning, or a cross-backend bitwise
-promise. Batch-normalization training lowering and execution remain planned.
+fusion, vector/native execution, dynamic Shapes, autotuning, or a cross-backend bitwise promise.
+Training remains a distinct current CPU family.
 
 **Batch-normalization training** reduces every non-channel axis to calculate batch mean and
 variance. Forward normalization uses biased population variance, while the explicit next running
@@ -5067,8 +5071,16 @@ Its shared producer additionally describes saved batch mean and saved inverse st
 Current package-private compiler autograd routes normalized output to input/scale/bias, next
 running mean to input/running mean, and next running variance to input/running variance. It
 retrieves the exact same-occurrence saved wrappers for formulas; saved slots are not independent
-cotangent roots. Training-session and checkpoint ownership, physical saved-value lifetime,
-publication, lowering, and execution remain planned in their owning layers.
+cotangent roots. The current CPU portable route executes the explicit occurrence for fully static
+resolved layouts. Scalar and parallel-scalar half-open ranges own complete channels and reuse one
+exact-state workspace slice per simultaneous range. The generated three-pass body computes an
+exact-sum mean, a corrected numerator, biased saved variance and separately divided unbiased
+running variance, the epsilon-adjusted saved inverse standard deviation, four statistic stores,
+then normalized affine output. It accepts ordered mixed floating types and heap/segment carriers;
+input/input aliasing is legal, while all output/input, output/output, and workspace overlaps fail
+before mutation or worker submission. Schema 50 records this generated identity. Training-session
+and checkpoint ownership and cross-step assignment remain in their owning layers; CPU execution
+adds no hidden state or runtime tape.
 
 The current `extensions/nn` `BatchNorm` module is the state owner for this mandatory affine form.
 It narrows the four state vectors to one positive fully static Shape and exact floating type, and
