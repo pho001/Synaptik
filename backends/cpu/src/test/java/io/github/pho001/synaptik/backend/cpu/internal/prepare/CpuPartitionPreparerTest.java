@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.*;
 
 import io.github.pho001.synaptik.backend.cpu.CpuCapabilityProvider;
 import io.github.pho001.synaptik.model.datatype.DataType;
+import io.github.pho001.synaptik.model.datatype.ScalarValue;
 import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuNonAffineMovementLoweringTest;
 import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuIndexingLoweringTest;
 import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuScatterLoweringTest;
@@ -42,6 +43,8 @@ import io.github.pho001.synaptik.model.operation.elementwise.unary.UnaryElementw
 import io.github.pho001.synaptik.model.operation.elementwise.comparison.BinaryComparisonKind;
 import io.github.pho001.synaptik.model.operation.elementwise.logical.BooleanLogicalKind;
 import io.github.pho001.synaptik.model.operation.elementwise.selection.WhereSelectionKind;
+import io.github.pho001.synaptik.model.operation.elementwise.scalar.ScalarElementwiseKind;
+import io.github.pho001.synaptik.model.operation.elementwise.scalar.ScalarValueAttrs;
 import io.github.pho001.synaptik.model.shape.Shape;
 import io.github.pho001.synaptik.model.shape.ShapeBroadcast;
 import io.github.pho001.synaptik.model.tensor.TensorDescriptor;
@@ -432,7 +435,7 @@ public class CpuPartitionPreparerTest {
                 () -> assertEquals("scalar", analysis.plan().executionStrategy().toString()));
     }
 
-    @Test void failsClosedForPublishedIntermediate() {
+    @Test void materializesPublishedIntermediateAsAStableUnitBarrier() {
         var context = context(Shape.of(2));
         var memory = new ArrayList<>(context.memoryRequirements());
         var old = memory.get(3);
@@ -440,8 +443,28 @@ public class CpuPartitionPreparerTest {
                 old.producerPartition(), old.consumerPartitions(), true));
         var changed = new PrepareContext<>(context.partition(), context.nodes(), context.values(),
                 memory, Map.of(), context.backendInputs());
-        assertThrows(IllegalArgumentException.class,
-                () -> new CpuPartitionPreparer().analyze(changed));
+        var plan = new CpuPartitionPreparer().analyze(changed).plan();
+        assertAll(() -> assertEquals(2, plan.units().size()),
+                () -> assertTrue(plan.boundaryValues().contains(old.valueId())),
+                () -> assertEquals(List.of(), plan.units().getFirst().dependencies()),
+                () -> assertEquals(List.of(0), plan.units().get(1).dependencies()));
+    }
+
+    @Test void horizontallyFusesIndependentSameDomainPointwiseBranchesIntoTwoStores() {
+        Shape shape = Shape.of(8);
+        var value = descriptor(DataType.FLOAT32, shape);
+        var left = new CompiledNode(new NodeId(0), new Operation(ScalarElementwiseKind.ADD,
+                new ScalarValueAttrs(ScalarValue.float32(1))), List.of(new ValueId(0)),
+                List.of(new ValueId(2)));
+        var right = new CompiledNode(new NodeId(1), new Operation(ScalarElementwiseKind.MUL,
+                new ScalarValueAttrs(ScalarValue.float32(2))), List.of(new ValueId(1)),
+                List.of(new ValueId(3)));
+        var plan = new CpuPartitionPreparer().analyze(arbitraryContext(List.of(left, right),
+                List.of(value, value, value, value), CpuPartitionAnalysisInputs.DEFAULT)).plan();
+        assertAll(() -> assertEquals(1, plan.units().size()),
+                () -> assertEquals(List.of(0, 1), plan.units().getFirst().memberNodeOrdinals()),
+                () -> assertEquals(2, plan.units().getFirst().portablePlan().kernelIr().stores().size()),
+                () -> assertEquals(4, plan.bufferDeclarations().size()));
     }
 
     @Test void analysisInputsSnapshotPatternAndValidateCountBeforeLoweringConsumption() {

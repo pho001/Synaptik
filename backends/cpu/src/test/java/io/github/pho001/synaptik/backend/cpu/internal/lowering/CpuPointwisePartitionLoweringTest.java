@@ -59,7 +59,7 @@ class CpuPointwisePartitionLoweringTest {
         }
     }
 
-    @Test void rejectsOverBudgetAndDisconnectedPartitionsBeforeDeclarations() {
+    @Test void rejectsOverBudgetAndLowersDisconnectedSameDomainBranchesWithTwoStores() {
         assertThrows(IllegalArgumentException.class, () -> new CpuPartitionLowering().lower(chain(9)));
         var context = chain(2);
         var nodes = new ArrayList<>(context.nodes());
@@ -68,8 +68,9 @@ class CpuPointwisePartitionLoweringTest {
                 List.of(new ValueId(0)), second.outputs()));
         var disconnected = new PrepareContext<>(context.partition(), nodes, context.values(),
                 context.memoryRequirements(), Map.of(), context.backendInputs());
-        assertThrows(IllegalArgumentException.class,
-                () -> new CpuPartitionLowering().lower(disconnected));
+        var lowered = new CpuPartitionLowering().lower(disconnected);
+        assertAll(() -> assertEquals(2, lowered.kernelIr().stores().size()),
+                () -> assertEquals(3, lowered.boundaryValues().size()));
     }
 
     @Test void preparationDerivesDefaultSegmentPatternAndScalarFallback() {

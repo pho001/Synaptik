@@ -1,18 +1,16 @@
 package io.github.pho001.synaptik.backend.cpu.internal.prepare;
 
-import io.github.pho001.synaptik.backend.cpu.CpuCapabilityProvider;
 import io.github.pho001.synaptik.backend.cpu.internal.cache.CpuKernelSpecialization;
 import io.github.pho001.synaptik.backend.cpu.internal.cache.CpuLoweringFingerprint;
 import io.github.pho001.synaptik.backend.cpu.internal.cache.CpuSpecializationBudget;
 import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuPartitionLowering;
+import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuPartitionDagDecomposer;
 import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuMaterializationPlan;
 import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuAccessPlan;
 import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuKernelIr;
 import io.github.pho001.synaptik.backend.cpu.internal.route.portable.CpuPortableRoutePlan;
 import io.github.pho001.synaptik.model.datatype.DataType;
 import io.github.pho001.synaptik.model.graph.ValueId;
-import io.github.pho001.synaptik.planning.memory.LogicalMemoryRequirement;
-import io.github.pho001.synaptik.planning.partition.PlannedPartition;
 import io.github.pho001.synaptik.prepare.analysis.BackendPartitionAnalysis;
 import io.github.pho001.synaptik.prepare.analysis.BackendPartitionPreparer;
 import io.github.pho001.synaptik.prepare.analysis.PreparationResourceRequirement;
@@ -56,6 +54,7 @@ import jdk.incubator.vector.ByteVector;
 public final class CpuPartitionPreparer implements BackendPartitionPreparer<
         CpuPartitionAnalysisInputs, CpuPartitionPreparationPlan> {
     private final CpuPartitionLowering lowering;
+    private final CpuPartitionDagDecomposer decomposer = new CpuPartitionDagDecomposer();
 
     /** Creates a preparer with the permanent common lowering owner. */
     public CpuPartitionPreparer() { this(new CpuPartitionLowering()); }
@@ -72,12 +71,13 @@ public final class CpuPartitionPreparer implements BackendPartitionPreparer<
     /**
      * Lowers, fuses, selects one bounded complete plan, and declares exact post-fusion resources.
      * @param context non-null complete CPU analysis context
-     * @return one immutable analysis with one unit, a cold-selected portable strategy, one exact
-     *     declaration per derived boundary, and at most one workspace declaration; affine and
-     *     fold, cumulative-scan, and ordinary-aggregate plans have no workspace, while ordering
-     *     masked floating reduction, and Layer normalization have exact per-range scratch, while
-     *     RMS normalization has none and TOP_K has ordered values then INT64-index outputs; never
-     *     {@code null}
+     * @return one immutable analysis with one through eight topologically ordered units, one exact
+     *     deduplicated declaration per materialized value, and each unit's already-selected
+     *     portable strategy and optional exact workspace; never {@code null}. Multi-unit workspace
+     *     declarations are rebased to the final unit index before they enter the partition
+     *     requirement list. A one-unit plan may retain the established optional external-read
+     *     materialization, while a multi-unit plan disables it and retains only family-intrinsic
+     *     unit workspaces.
      * @throws NullPointerException if {@code context} is {@code null}
      * @throws IllegalArgumentException if complete-partition lowering rejects the occurrence or
      *     declared resource geometry is invalid
@@ -86,8 +86,56 @@ public final class CpuPartitionPreparer implements BackendPartitionPreparer<
     @Override public BackendPartitionAnalysis<CpuPartitionPreparationPlan> analyze(
             PrepareContext<CpuPartitionAnalysisInputs> context) {
         Objects.requireNonNull(context, "context");
-        if (requiresConv2dMaterializedSuffix(context)) return analyzeConv2dSplit(context);
-        var lowered = lowering.lower(context);
+        var units = decomposer.decompose(context, lowering);
+        if (units.size() == 1) {
+            return annotateSingle(analyzeUnit(context, units.getFirst().lowering(), 0, true),
+                    units.getFirst());
+        }
+        return analyzeDag(context, units);
+    }
+
+    private static BackendPartitionAnalysis<CpuPartitionPreparationPlan> annotateSingle(
+            BackendPartitionAnalysis<CpuPartitionPreparationPlan> analysis,
+            CpuPartitionDagDecomposer.Unit topology) {
+        var plan = analysis.plan();
+        var unit = plan.units().getFirst();
+        var facts = new CpuPartitionPreparationPlan.UnitRuntimeFacts(plan.affineAddressPairs(),
+                plan.materialization(), plan.workspaceDeclaration(), plan.workspaceUse(),
+                plan.movementGeometry(), plan.indexingGeometry(), plan.scatterGeometry(),
+                plan.foldGeometry(), plan.orderingGeometry(), plan.randomGeometry(),
+                plan.scanGeometry(), plan.aggregateGeometry(), plan.argExtremaGeometry(),
+                plan.maskedReductionGeometry(), plan.advancedReductionGeometry(),
+                plan.softmaxGeometry(), plan.trailingNormalizationGeometry(),
+                plan.batchNormInferenceGeometry(), plan.batchNormTrainingGeometry());
+        var enriched = new CpuPartitionPreparationPlan.ExecutionUnitPlan(unit.portablePlan(),
+                unit.boundaryValues(), unit.accessBindings(), unit.carrierPattern(),
+                unit.generatedCarrierPattern(), unit.extents(), unit.elementCount(),
+                unit.executionStrategy(), unit.selectedRangeCount(), unit.minimumElementsPerWorker(),
+                unit.vectorSpeciesBitSize(), unit.conv2dGeometry(), unit.conv3dGeometry(),
+                unit.outputCount(), unit.fusionReason(), topology.dependencies(),
+                topology.memberNodeOrdinals(), facts);
+        var annotated = new CpuPartitionPreparationPlan(List.of(enriched), plan.route(),
+                plan.executionStrategy(), plan.bufferDeclarations(), plan.boundaryValues(),
+                plan.accessBindings(), plan.carrierPattern(), plan.generatedCarrierPattern(),
+                plan.extents(), plan.elementCount(), plan.affineAddressPairs(),
+                plan.selectedRangeCount(), plan.minimumElementsPerWorker(),
+                plan.vectorSpeciesBitSize(), plan.loweringManifest(), plan.materialization(),
+                plan.workspaceDeclaration(), plan.workspaceUse(), plan.specializationBudget(),
+                plan.movementGeometry(), plan.indexingGeometry(), plan.scatterGeometry(),
+                plan.foldGeometry(), plan.orderingGeometry(), plan.randomGeometry(),
+                plan.scanGeometry(), plan.aggregateGeometry(), plan.argExtremaGeometry(),
+                plan.maskedReductionGeometry(), plan.advancedReductionGeometry(),
+                plan.softmaxGeometry(), plan.trailingNormalizationGeometry(),
+                plan.batchNormInferenceGeometry(), plan.batchNormTrainingGeometry(),
+                plan.conv2dGeometry());
+        return new BackendPartitionAnalysis<>(analysis.partition(), annotated,
+                analysis.requirements());
+    }
+
+    private BackendPartitionAnalysis<CpuPartitionPreparationPlan> analyzeUnit(
+            PrepareContext<CpuPartitionAnalysisInputs> context,
+            CpuPartitionLowering.LoweredPartition lowered, int workspaceRequirementId,
+            boolean allowMaterialization) {
         var requestedCarriers = context.backendInputs().carrierPattern().isEmpty()
                 ? java.util.Collections.nCopies(lowered.boundaryValues().size(),
                         CpuKernelSpecialization.CarrierAccess.MEMORY_SEGMENT)
@@ -130,8 +178,9 @@ public final class CpuPartitionPreparer implements BackendPartitionPreparer<
                 instanceof io.github.pho001.synaptik.backend.cpu.internal.ir.CpuConv2dIr;
         boolean conv3d = lowered.portableKernelIr()
                 instanceof io.github.pho001.synaptik.backend.cpu.internal.ir.CpuConv3dIr;
-        Optional<CpuMaterializationPlan> materialization = movement || indexing || scatter || fold || ordering || random || scan || aggregate || argExtrema || maskedReduction || advancedReduction || softmax || trailingNormalization || batchNormalization || batchNormTraining || conv2d || conv3d ? Optional.empty()
-                : selectMaterialization(lowered, context.backendInputs().materializationPolicy());
+        Optional<CpuMaterializationPlan> materialization = !allowMaterialization || movement || indexing || scatter || fold || ordering || random || scan || aggregate || argExtrema || maskedReduction || advancedReduction || softmax || trailingNormalization || batchNormalization || batchNormTraining || conv2d || conv3d ? Optional.empty()
+                : selectMaterialization(lowered, context.backendInputs().materializationPolicy(),
+                        workspaceRequirementId);
         var declarations = new ArrayList<PreparationResourceRequirement.Buffer>(lowered.boundaryValues().size());
         for (int i = 0; i < lowered.boundaryValues().size(); i++) declarations.add(
                 new PreparationResourceRequirement.Buffer(lowered.boundaryValues().get(i),
@@ -254,12 +303,12 @@ public final class CpuPartitionPreparer implements BackendPartitionPreparer<
                             copy.byteCount(), copy.byteAlignment()));
         if (lowered.scatterGeometry().filter(g -> g.scratchSliceBytes() > 0).isPresent()) {
             var scatterGeometry = lowered.scatterGeometry().orElseThrow();
-            workspace = Optional.of(new PreparationResourceRequirement.Workspace(0,
+            workspace = Optional.of(new PreparationResourceRequirement.Workspace(workspaceRequirementId,
                     scatterGeometry.workspaceBytes(selectedRangeCount), Long.BYTES));
         }
         if (lowered.orderingGeometry().isPresent()) {
             var geometry = lowered.orderingGeometry().orElseThrow();
-            workspace = Optional.of(new PreparationResourceRequirement.Workspace(0,
+            workspace = Optional.of(new PreparationResourceRequirement.Workspace(workspaceRequirementId,
                     geometry.workspaceBytes(selectedRangeCount), Long.BYTES));
         }
         if (lowered.aggregateGeometry().filter(g -> g.scratchSliceBytes() > 0
@@ -270,7 +319,7 @@ public final class CpuPartitionPreparer implements BackendPartitionPreparer<
             if (limit.enabled() && aggregateBytes > limit.maximumAdditionalBytes())
                 throw new IllegalArgumentException(
                         "aggregate exact-state workspace exceeds the configured byte ceiling");
-            workspace = Optional.of(new PreparationResourceRequirement.Workspace(0,
+            workspace = Optional.of(new PreparationResourceRequirement.Workspace(workspaceRequirementId,
                     aggregateBytes, Long.BYTES));
         }
         if (lowered.maskedReductionGeometry().filter(g -> g.outputCount() > 0).isPresent()) {
@@ -280,7 +329,7 @@ public final class CpuPartitionPreparer implements BackendPartitionPreparer<
             if (limit.enabled() && maskedBytes > limit.maximumAdditionalBytes())
                 throw new IllegalArgumentException(
                         "masked-reduction exact-state workspace exceeds the configured byte ceiling");
-            workspace = Optional.of(new PreparationResourceRequirement.Workspace(0,
+            workspace = Optional.of(new PreparationResourceRequirement.Workspace(workspaceRequirementId,
                     maskedBytes, Long.BYTES));
         }
         if (lowered.advancedReductionGeometry().filter(g -> g.scratchSliceBytes() > 0
@@ -291,7 +340,7 @@ public final class CpuPartitionPreparer implements BackendPartitionPreparer<
             if (limit.enabled() && bytes > limit.maximumAdditionalBytes())
                 throw new IllegalArgumentException(
                         "advanced-reduction exact-state workspace exceeds the configured byte ceiling");
-            workspace = Optional.of(new PreparationResourceRequirement.Workspace(0,
+            workspace = Optional.of(new PreparationResourceRequirement.Workspace(workspaceRequirementId,
                     bytes, Long.BYTES));
         }
         if (lowered.trailingNormalizationGeometry().filter(g -> g.scratchSliceBytes() > 0
@@ -302,7 +351,7 @@ public final class CpuPartitionPreparer implements BackendPartitionPreparer<
             if (limit.enabled() && bytes > limit.maximumAdditionalBytes())
                 throw new IllegalArgumentException(
                         "trailing-normalization exact-state workspace exceeds the configured byte ceiling");
-            workspace = Optional.of(new PreparationResourceRequirement.Workspace(0, bytes,
+            workspace = Optional.of(new PreparationResourceRequirement.Workspace(workspaceRequirementId, bytes,
                     Long.BYTES));
         }
         if (lowered.batchNormTrainingGeometry().filter(g -> g.scratchSliceBytes() > 0
@@ -313,7 +362,7 @@ public final class CpuPartitionPreparer implements BackendPartitionPreparer<
             if (limit.enabled() && bytes > limit.maximumAdditionalBytes())
                 throw new IllegalArgumentException(
                         "batch-normalization training exact-state workspace exceeds the configured byte ceiling");
-            workspace = Optional.of(new PreparationResourceRequirement.Workspace(0, bytes, Long.BYTES));
+            workspace = Optional.of(new PreparationResourceRequirement.Workspace(workspaceRequirementId, bytes, Long.BYTES));
         }
         var workspaceUse = materialization.isPresent()
                 ? CpuPartitionPreparationPlan.WorkspaceUse.MATERIALIZATION
@@ -365,170 +414,126 @@ public final class CpuPartitionPreparer implements BackendPartitionPreparer<
         return new BackendPartitionAnalysis<>(context.partition(), plan, requirements);
     }
 
-    private BackendPartitionAnalysis<CpuPartitionPreparationPlan> analyzeConv2dSplit(
-            PrepareContext<CpuPartitionAnalysisInputs> context) {
-        var leadNode = context.nodes().getFirst();
-        var suffixNodes = context.nodes().subList(1, context.nodes().size());
-        var leadPartition = new PlannedPartition(CpuCapabilityProvider.CPU_BACKEND_ID,
-                List.of(leadNode.id()));
-        var suffixPartition = new PlannedPartition(CpuCapabilityProvider.CPU_BACKEND_ID,
-                suffixNodes.stream().map(node -> node.id()).toList());
-        var scalar = context.backendInputs().portableExecution();
-        var scalarConfig = new CpuPartitionAnalysisInputs.PortableExecutionConfig(
-                CpuPartitionAnalysisInputs.PortableExecutionConfig.ComputePreference.SCALAR,
-                scalar.configuredMaximumParallelism(), scalar.availableParallelism(),
-                scalar.minimumElementsPerWorker());
-        var blankInputs = new CpuPartitionAnalysisInputs(
-                context.backendInputs().loweringManifestEnabled(), List.of(), scalarConfig,
+    private BackendPartitionAnalysis<CpuPartitionPreparationPlan> analyzeDag(
+            PrepareContext<CpuPartitionAnalysisInputs> context,
+            List<CpuPartitionDagDecomposer.Unit> topology) {
+        var baseInputs = new CpuPartitionAnalysisInputs(
+                context.backendInputs().loweringManifestEnabled(), List.of(),
+                context.backendInputs().portableExecution(),
                 CpuPartitionAnalysisInputs.MaterializationPolicy.DISABLED, false);
-        var suffixBlankInputs = new CpuPartitionAnalysisInputs(
-                context.backendInputs().loweringManifestEnabled(), List.of(), scalarConfig,
-                CpuPartitionAnalysisInputs.MaterializationPolicy.DISABLED, true);
-        var leadContext = splitContext(context, leadPartition, List.of(leadNode), blankInputs);
-        var suffixContext = splitContext(context, suffixPartition, suffixNodes, suffixBlankInputs);
-        var lead = analyze(leadContext);
-        var suffix = analyze(suffixContext);
-        var declarations = mergedDeclarations(lead.plan(), suffix.plan());
-
+        var analyses = new ArrayList<BackendPartitionAnalysis<CpuPartitionPreparationPlan>>();
+        for (int index = 0; index < topology.size(); index++) {
+            var unit = topology.get(index);
+            analyses.add(analyzeUnit(decomposer.unitContext(context, unit.nodes(), baseInputs),
+                    unit.lowering(), 0, false));
+        }
+        var declarations = mergeDeclarations(analyses);
         List<CpuKernelSpecialization.CarrierAccess> requested =
                 context.backendInputs().carrierPattern();
         if (!requested.isEmpty()) {
             if (requested.size() != declarations.size()) {
                 throw new IllegalArgumentException(
-                        "carrier pattern count must match distinct split buffers");
+                        "carrier pattern count must match distinct partition buffers: requested="
+                                + requested.size() + ", buffers=" + declarations.size()
+                                + ", values=" + declarations.stream()
+                                    .map(PreparationResourceRequirement.Buffer::valueId).toList()
+                                + ", members=" + topology.stream()
+                                    .map(unit -> unit.memberNodeOrdinals() + ":"
+                                            + unit.lowering().portableKernelIr().getClass().getSimpleName())
+                                    .toList());
             }
-            var byValue = new java.util.LinkedHashMap<ValueId,
+            var carriers = new java.util.LinkedHashMap<ValueId,
                     CpuKernelSpecialization.CarrierAccess>();
-            for (int i = 0; i < declarations.size(); i++) {
-                byValue.put(declarations.get(i).valueId(), requested.get(i));
+            for (int i = 0; i < declarations.size(); i++)
+                carriers.put(declarations.get(i).valueId(), requested.get(i));
+            analyses.clear();
+            for (int index = 0; index < topology.size(); index++) {
+                var unit = topology.get(index);
+                var local = unit.lowering().boundaryValues().stream().map(carriers::get).toList();
+                if (local.stream().anyMatch(Objects::isNull)) {
+                    throw new IllegalArgumentException("unit boundary has no carrier selection");
+                }
+                var inputs = new CpuPartitionAnalysisInputs(
+                        context.backendInputs().loweringManifestEnabled(), local,
+                        context.backendInputs().portableExecution(),
+                        CpuPartitionAnalysisInputs.MaterializationPolicy.DISABLED, false);
+                analyses.add(analyzeUnit(decomposer.unitContext(context, unit.nodes(), inputs),
+                        unit.lowering(), 0, false));
             }
-            leadContext = splitContext(context, leadPartition, List.of(leadNode),
-                    unitInputs(blankInputs, lead.plan().boundaryValues().stream()
-                            .map(byValue::get).toList(), false));
-            suffixContext = splitContext(context, suffixPartition, suffixNodes,
-                    unitInputs(suffixBlankInputs, suffix.plan().boundaryValues().stream()
-                            .map(byValue::get).toList(), true));
-            lead = analyze(leadContext);
-            suffix = analyze(suffixContext);
-            declarations = mergedDeclarations(lead.plan(), suffix.plan());
+            declarations = mergeDeclarations(analyses);
         }
 
-        var boundaryValues = declarations.stream()
-                .map(PreparationResourceRequirement.Buffer::valueId).toList();
-        var bindingsByValue = new java.util.LinkedHashMap<ValueId, CpuAccessPlan.Binding>();
+        var bindingByValue = new java.util.LinkedHashMap<ValueId, CpuAccessPlan.Binding>();
         var requestedByValue = new java.util.LinkedHashMap<ValueId,
                 CpuKernelSpecialization.CarrierAccess>();
         var generatedByValue = new java.util.LinkedHashMap<ValueId,
                 CpuKernelSpecialization.CarrierAccess>();
-        mergeUnitFacts(lead.plan(), bindingsByValue, requestedByValue, generatedByValue);
-        mergeUnitFacts(suffix.plan(), bindingsByValue, requestedByValue, generatedByValue);
-        var leadPlan = lead.plan();
-        var suffixPlan = suffix.plan();
-        var units = List.of(leadPlan.units().getFirst(), suffixPlan.units().getFirst());
+        var units = new ArrayList<CpuPartitionPreparationPlan.ExecutionUnitPlan>();
+        var requirements = new ArrayList<PreparationResourceRequirement>();
+        requirements.addAll(declarations);
+        for (int index = 0; index < analyses.size(); index++) {
+            CpuPartitionPreparationPlan selected = analyses.get(index).plan();
+            mergeUnitFacts(selected, bindingByValue, requestedByValue, generatedByValue);
+            int unitIndex = index;
+            Optional<PreparationResourceRequirement.Workspace> workspace =
+                    selected.workspaceDeclaration().map(declaration ->
+                            new PreparationResourceRequirement.Workspace(unitIndex,
+                                    declaration.byteSize(), declaration.byteAlignment()));
+            workspace.ifPresent(requirements::add);
+            var unit = selected.units().getFirst();
+            var runtimeFacts = new CpuPartitionPreparationPlan.UnitRuntimeFacts(
+                    selected.affineAddressPairs(), selected.materialization(),
+                    workspace, selected.workspaceUse(),
+                    selected.movementGeometry(), selected.indexingGeometry(),
+                    selected.scatterGeometry(), selected.foldGeometry(),
+                    selected.orderingGeometry(), selected.randomGeometry(),
+                    selected.scanGeometry(), selected.aggregateGeometry(),
+                    selected.argExtremaGeometry(), selected.maskedReductionGeometry(),
+                    selected.advancedReductionGeometry(), selected.softmaxGeometry(),
+                    selected.trailingNormalizationGeometry(),
+                    selected.batchNormInferenceGeometry(), selected.batchNormTrainingGeometry());
+            CpuPartitionDagDecomposer.Unit topologyUnit = topology.get(index);
+            units.add(new CpuPartitionPreparationPlan.ExecutionUnitPlan(unit.portablePlan(),
+                    unit.boundaryValues(), unit.accessBindings(), unit.carrierPattern(),
+                    unit.generatedCarrierPattern(), unit.extents(), unit.elementCount(),
+                    unit.executionStrategy(), unit.selectedRangeCount(),
+                    unit.minimumElementsPerWorker(), unit.vectorSpeciesBitSize(),
+                    unit.conv2dGeometry(), unit.conv3dGeometry(), unit.outputCount(),
+                    unit.fusionReason(), topologyUnit.dependencies(),
+                    topologyUnit.memberNodeOrdinals(), runtimeFacts));
+        }
+        var boundaryValues = declarations.stream()
+                .map(PreparationResourceRequirement.Buffer::valueId).toList();
         String manifest = context.backendInputs().loweringManifestEnabled()
-                ? "form=CONV2D_MATERIALIZED_SUFFIX;lead={" + leadPlan.loweringManifest()
-                    + "};suffix={" + suffixPlan.loweringManifest() + "}" : "";
+                ? "form=GENERAL_PARTITION;units=" + units.size() + ";members="
+                    + units.stream().map(CpuPartitionPreparationPlan.ExecutionUnitPlan::memberNodeOrdinals)
+                        .toList() : "";
         var combined = new CpuPartitionPreparationPlan(units,
-                CpuPartitionPreparationPlan.Route.PORTABLE, leadPlan.executionStrategy(),
+                CpuPartitionPreparationPlan.Route.PORTABLE,
+                CpuPartitionPreparationPlan.ExecutionStrategy.SCALAR,
                 declarations, boundaryValues,
-                boundaryValues.stream().map(bindingsByValue::get).toList(),
+                boundaryValues.stream().map(bindingByValue::get).toList(),
                 boundaryValues.stream().map(requestedByValue::get).toList(),
                 boundaryValues.stream().map(generatedByValue::get).toList(),
-                leadPlan.extents(), leadPlan.elementCount(), new long[0],
-                leadPlan.selectedRangeCount(), leadPlan.minimumElementsPerWorker(), 0,
-                manifest, Optional.empty(), Optional.empty(),
-                CpuPartitionPreparationPlan.WorkspaceUse.NONE,
+                new long[0], 0, new long[0], 1, 1, 0, manifest,
+                Optional.empty(), Optional.empty(), CpuPartitionPreparationPlan.WorkspaceUse.NONE,
                 new CpuSpecializationBudget(4, 1, 0, 0), Optional.empty(), Optional.empty(),
                 Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(),
                 Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(),
                 Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(),
-                Optional.empty(), leadPlan.conv2dGeometry());
-        return new BackendPartitionAnalysis<>(context.partition(), combined,
-                new ArrayList<PreparationResourceRequirement>(declarations));
+                Optional.empty());
+        return new BackendPartitionAnalysis<>(context.partition(), combined, requirements);
     }
 
-    private static boolean requiresConv2dMaterializedSuffix(
-            PrepareContext<CpuPartitionAnalysisInputs> context) {
-        if (context.nodes().size() < 2 || context.nodes().size() > 3
-                || context.nodes().getFirst().operation().kind()
-                != io.github.pho001.synaptik.model.operation.convolution.Conv2dKind.CONV2D) {
-            return false;
-        }
-        Object second = context.nodes().get(1).operation().kind();
-        boolean add = second == io.github.pho001.synaptik.model.operation.elementwise.binary
-                .BinaryArithmeticKind.ADD;
-        boolean activation = second instanceof io.github.pho001.synaptik.model.operation
-                .elementwise.unary.UnaryElementwiseKind
-                || second == io.github.pho001.synaptik.model.operation.elementwise.scalar
-                    .ScalarElementwiseKind.CLAMP;
-        if (!add && !activation || context.nodes().size() == 3 && (!add
-                || !(context.nodes().get(2).operation().kind()
-                    instanceof io.github.pho001.synaptik.model.operation.elementwise.unary
-                        .UnaryElementwiseKind)
-                && context.nodes().get(2).operation().kind()
-                    != io.github.pho001.synaptik.model.operation.elementwise.scalar
-                        .ScalarElementwiseKind.CLAMP)) {
-            return false;
-        }
-        var requirements = new java.util.HashMap<ValueId, LogicalMemoryRequirement>();
-        context.memoryRequirements().forEach(value -> requirements.put(value.valueId(), value));
-        for (int i = 0; i < context.nodes().size() - 1; i++) {
-            var requirement = requirements.get(context.nodes().get(i).outputs().getFirst());
-            if (requirement == null) {
-                throw new IllegalArgumentException("Conv2d suffix memory fact is not projected");
-            }
-            if (requirement.graphOutput()) {
-                return true;
-            }
-        }
-        if (!add) return true;
-        return context.nodes().size() == 3 && context.nodes().get(2).operation().kind()
-                != io.github.pho001.synaptik.model.operation.elementwise.unary
-                    .UnaryElementwiseKind.RELU;
-    }
-
-    private static CpuPartitionAnalysisInputs unitInputs(CpuPartitionAnalysisInputs base,
-            List<CpuKernelSpecialization.CarrierAccess> carriers, boolean suffix) {
-        return new CpuPartitionAnalysisInputs(base.loweringManifestEnabled(), carriers,
-                base.portableExecution(), CpuPartitionAnalysisInputs.MaterializationPolicy.DISABLED,
-                suffix);
-    }
-
-    private static PrepareContext<CpuPartitionAnalysisInputs> splitContext(
-            PrepareContext<CpuPartitionAnalysisInputs> source, PlannedPartition partition,
-            List<io.github.pho001.synaptik.model.graph.CompiledNode> nodes,
-            CpuPartitionAnalysisInputs inputs) {
-        var produced = nodes.stream().flatMap(node -> node.outputs().stream())
-                .collect(java.util.stream.Collectors.toSet());
-        var consumed = nodes.stream().flatMap(node -> node.inputs().stream())
-                .collect(java.util.stream.Collectors.toSet());
-        var requirements = new ArrayList<LogicalMemoryRequirement>(source.values().size());
-        var originals = new java.util.HashMap<ValueId, LogicalMemoryRequirement>();
-        source.memoryRequirements().forEach(value -> originals.put(value.valueId(), value));
-        for (var value : source.values()) {
-            var original = originals.get(value.id());
-            requirements.add(new LogicalMemoryRequirement(value.id(), value.descriptor(),
-                    produced.contains(value.id()) ? Optional.of(partition) : Optional.empty(),
-                    consumed.contains(value.id()) ? List.of(partition) : List.of(),
-                    original.graphOutput()));
-        }
-        var constants = new java.util.LinkedHashMap<ValueId,
-                io.github.pho001.synaptik.model.datatype.ScalarValue>();
-        source.constants().forEach((id, value) -> {
-            if (consumed.contains(id) && !produced.contains(id)) constants.put(id, value);
-        });
-        return new PrepareContext<>(partition, nodes, source.values(), requirements, constants, inputs);
-    }
-
-    private static List<PreparationResourceRequirement.Buffer> mergedDeclarations(
-            CpuPartitionPreparationPlan lead, CpuPartitionPreparationPlan suffix) {
-        var result = new java.util.LinkedHashMap<ValueId, PreparationResourceRequirement.Buffer>();
-        for (var declaration : lead.bufferDeclarations()) result.put(declaration.valueId(), declaration);
-        for (var declaration : suffix.bufferDeclarations()) {
-            var existing = result.putIfAbsent(declaration.valueId(), declaration);
-            if (existing != null && (existing.byteSize() != declaration.byteSize()
-                    || existing.byteAlignment() != declaration.byteAlignment())) {
-                throw new IllegalArgumentException("split buffer declarations disagree");
+    private static List<PreparationResourceRequirement.Buffer> mergeDeclarations(
+            List<BackendPartitionAnalysis<CpuPartitionPreparationPlan>> analyses) {
+        var result = new java.util.LinkedHashMap<ValueId,
+                PreparationResourceRequirement.Buffer>();
+        for (var analysis : analyses) for (var declaration : analysis.plan().bufferDeclarations()) {
+            var old = result.putIfAbsent(declaration.valueId(), declaration);
+            if (old != null && (old.byteSize() != declaration.byteSize()
+                    || old.byteAlignment() != declaration.byteAlignment())) {
+                throw new IllegalArgumentException("unit buffer declarations disagree");
             }
         }
         return List.copyOf(result.values());
@@ -548,7 +553,7 @@ public final class CpuPartitionPreparer implements BackendPartitionPreparer<
 
     private static Optional<CpuMaterializationPlan> selectMaterialization(
             CpuPartitionLowering.LoweredPartition lowered,
-            CpuPartitionAnalysisInputs.MaterializationPolicy policy) {
+            CpuPartitionAnalysisInputs.MaterializationPolicy policy, int workspaceRequirementId) {
         if (!policy.enabled()) return Optional.empty();
         long elements = lowered.elementCount();
         long bytes = Math.multiplyExact(elements, Double.BYTES);
@@ -585,7 +590,7 @@ public final class CpuPartitionPreparer implements BackendPartitionPreparer<
                     || basisPoints < policy.minimumBenefitBasisPoints()) continue;
             CpuAccessPlan.Binding dense = denseBinding(lowered.extents(), elements);
             var candidate = new CpuMaterializationPlan(index, lowered.boundaryValues().get(index),
-                    source, dense, elements, bytes, 0, Double.BYTES, useCount,
+                    source, dense, elements, bytes, workspaceRequirementId, Double.BYTES, useCount,
                     policy.expectedRunCount(), direct, copy, contiguousKernel, copied, benefit,
                     basisPoints, "selected: lower estimated total cost after all hard gates");
             if (best == null || copied < best.copiedTotalCost()) best = candidate;

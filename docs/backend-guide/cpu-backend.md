@@ -5,14 +5,15 @@
 This guide defines the CPU integration boundary and helps contributors avoid treating CPU routes
 as separate backends. The current CPU module accepts the bounded, fully static portable families
 described below.
-A pointwise partition is one supported occurrence or one connected straight-line chain of at most
-eight occurrences. A static affine partition is one connected one-input/one-output chain of at
-most eight resolved-layout view occurrences. Either family lowers to one computation unit, one
-route-independent canonical kernel intermediate representation (IR), one generated Java 26 class,
-and one partition-level prepared executable. Internal single-use results remain graph and logical-
-memory values but are virtual in the unit. Pointwise analysis declares its derived external
-boundaries and sole final output; affine analysis declares exactly the original source and final
-result. A static movement partition is exactly one resolved-layout PAD, TILE, CONCAT, STACK,
+A CPU-owned partition directed acyclic graph (DAG) contains one through eight supported compiled
+nodes. CPU analysis first decomposes it into established computation-unit seeds, then performs
+bounded deterministic vertical and horizontal fusion only among ordinary pointwise units. The
+result is one through eight topologically ordered units behind one partition-level prepared
+executable. Eligible unpublished single-use pointwise results remain virtual inside a fused unit;
+every value crossing units, every published result, and every external read is an ordinary
+declared buffer. One pointwise unit may therefore have multiple ordered output stores. A static
+affine unit remains one connected one-input/one-output chain of at most eight resolved-layout view
+occurrences. A static movement unit is exactly one resolved-layout PAD, TILE, CONCAT, STACK,
 UNFOLD_AXIS, or UNFOLD2D occurrence. It declares each distinct input once in first-occurrence
 order plus one distinct injective output while preserving every semantic composition occurrence.
 UNFOLD_AXIS copies all six represented types; UNFOLD2D copies only FLOAT64, FLOAT32, and BFLOAT16
@@ -122,7 +123,8 @@ completes before consumer execution. Capability and lowering fail closed for eve
 operation, type, shape, layout, parameter, alias, fan-out, publication, carrier, or route. In
 particular, CAST is same-type only and BFLOAT16 remains representation-only for affine movement;
 CPU does not invent cross-type conversion semantics. Native, tuning, excluded pointwise rows,
-general partition-DAG fusion and later operation families remain Draft. Functional scatter,
+specialized-subgraph recognition, profitability ranking, multi-input representation selection,
+native routes, tuning, and later operation families remain planned. Functional scatter,
 overlap fold, stable ordering, explicit-state random, cumulative-scan, and ordinary-aggregate
 execution are current
 only within the exact
@@ -453,13 +455,65 @@ The current CPU-private flow is:
 ```text
 complete CPU-owned partition
   -> computation-oriented execution units
-  -> legal then profitable fusion
+  -> bounded deterministic legal fusion
   -> route-independent canonical kernel IR and normalized access-plan form
   -> exact post-fusion buffer declarations
   -> portable Class-File/Vector baseline or eligible peer native route
   -> one partition-level PreparedExecutable
   -> direct cold-bound execution
 ```
+
+### General partition DAG and bounded pointwise fusion
+
+CPU preparation treats the complete CPU-owned partition as a bounded directed acyclic graph
+(DAG), not as a promise that every node belongs in one generated loop. It first selects the
+longest already-established seed at each stable node position. Affine chains and specialized
+movement, indexing, scatter, fold, ordering, random, scan, reduction, normalization, and
+convolution families remain indivisible seeds. Only units represented by the ordinary pointwise
+kernel IR may be contracted.
+
+Vertical fusion crosses an unpublished pointwise value only when it has exactly one in-partition
+consumer. Horizontal fusion combines dependency-independent pointwise units that are ready from
+the same predecessor set and have the same checked iteration domain. The combined IR preserves
+stable operation order and emits one store for each materialized branch result. Publication,
+fan-out, state/random transitions, affine or specialized families, numerical-order-sensitive
+families, incompatible access geometry, and any unproved alias relation remain unit barriers.
+
+The contraction search is deterministic: vertical pairs precede horizontal pairs, and the first
+legal pair within all hard ceilings is accepted. The ceilings are eight partition nodes, eight
+final units, 28 attempted pairs, eight nodes per newly fused pointwise unit, 16 materialized
+boundaries, 16 simultaneously live IR values, 32 indexing-complexity units, and 64 estimated
+generated-code units. The last estimator is structural analysis input, not a Class-File byte-size
+claim or a profitability score. An illegal, unsupported, or over-budget contraction leaves the
+complete materialized split plan intact; failure occurs only when an individual seed is itself
+unsupported or the complete context is malformed. Profitability ranking belongs to later CPU
+work.
+
+```text
+input -> pointwise producer -> split buffer -> pointwise left  --\
+                                      \-----> pointwise right ---+-> publications
+```
+
+In this compact fork example the producer has two consumers, so its result must be materialized.
+If the two consumers have the same domain and predecessor set, CPU analysis may horizontally fuse
+them into one multi-store unit. The producer unit completes, including any worker join, before the
+consumer unit starts.
+
+Split buffers and external-read materialization are distinct. A split buffer is an ordinary
+`Buffer(ValueId)` for an existing graph value that crosses units. The optional CPU contiguous-copy
+materialization is an anonymous workspace used to change one external read's representation; it
+remains available only for a one-unit plan. Each intrinsic family workspace in a multi-unit plan
+has the final unit index as its partition-unique requirement ID and stays run-owned. Shared Prepare
+assigns all declared resources without interpreting the CPU topology.
+
+Finalization resolves the complete buffer and workspace assignment sets before looking up or
+generating the first unit artifact, then realizes exactly one already-selected artifact per unit
+in stable order. Cold composite binding validates every outer CPU representation, writability,
+workspace, child contract, and cross-buffer overlap before returning an invocation. Hot execution
+uses the already-bound immutable child list in stable unit order and stops at the first failure;
+it performs no graph inspection or dynamic scheduling. Runtime surrounds the composite with one
+atomic invalid-before/valid-after transition, so a failed partition does not validate any declared
+partition write.
 
 The proving slice is one fully static FLOAT64 ADD -> exact GELU -> MUL chain. ADD and MUL use the
 current Model right-aligned broadcast result, GELU preserves the ADD result Shape exactly, and all
@@ -570,8 +624,9 @@ lanes. Parallel-scalar remains available when cold orchestration selects more th
 fallback is a cold strategy decision, not an execution failure or a universal vectorization
 claim.
 
-This remains the existing connected straight-line one-through-eight unit. General partition-DAG
-decomposition and bounded vertical or horizontal fusion remain Draft CPU 0008B work.
+These operation and access rules also apply inside the bounded pointwise DAG model. A selected
+unit may be a vertical chain or a horizontally fused same-domain branch set with multiple stores;
+barrier edges remain materialized between units.
 
 Schema 40 adds one bounded body inside the existing scalar pointwise artifact for the frozen
 FLOAT32 `[512,512]` `DIV -> SIGMOID -> MUL` chain. Its ordered carriers are `MemorySegment`,
@@ -605,13 +660,13 @@ output; another legal chain derives a different count. The BOOL store is canonic
 demonstrates family lowering, virtuality, and derived boundary cardinality; it does not add
 cross-type conversion, general DAG fusion, or another operation family.
 
-Complete-partition lowering admits one through eight stored occurrences only when the internal
-dataflow is connected, acyclic in stored order, and straight-line. Each non-final result must have
-one later internal consumer and no publication, fan-out, or cross-partition obligation. Side
-inputs become external boundaries, later occurrences may right-broadcast a virtual result, and
-exactly one final store is materialized. Disconnected subchains, multiple outputs, internal
-fan-out, more than eight occurrences, or a partially supported partition fail before declaration
-or artifact access.
+Complete-partition analysis admits one through eight supported stored occurrences in acyclic
+producer-before-consumer order. Side inputs become external boundaries. Eligible unpublished
+single-use pointwise results may remain virtual within a fused unit, while publications, fan-out,
+and all cross-unit values materialize. Disconnected same-domain pointwise branches may form one
+multi-store unit; other disconnected or mixed-family work remains separate supported units.
+Malformed topology, more than eight occurrences, or an independently unsupported seed fails
+before declaration or artifact access.
 
 Same-type CAST is intentionally narrow. Current Model construction represents all source/target
 pairs but leaves cross-type numerical conversion—rounding, overflow, saturation, NaN, and BOOL
@@ -2154,14 +2209,14 @@ execution uses the caller thread; parallel-scalar execution partitions only comp
 cells, so ranges require no atomics, partial sums, combine step, packing, im2col buffer, or hidden
 workspace.
 
-One narrow non-fusible suffix is permitted as a materialized two-unit plan. It contains the direct
-Conv2d unit, one independently generated pointwise suffix unit, and one ordinary intermediate
-buffer. A CPU-private `CpuPreparedExecutableSequence` exposes all external reads plus the
-intermediate and final writes through one `PreparedExecutable` access declaration. Cold binding
-validates aliases and binds both children before either can write. Hot invocation completes and
-joins the Conv2d child before invoking the suffix child. The sequence does not mutate `RunState`
-validity: Runtime performs one atomic pre-execution invalidation and one successful post-execution
-validation for the outer executable boundary.
+A non-fusible suffix is represented by the general materialized multi-unit plan. It contains the
+direct Conv2d unit, one independently generated pointwise suffix unit, and one ordinary
+intermediate buffer. The CPU-private `CpuPreparedPartitionExecutable` exposes all external reads
+plus the intermediate and final writes through one `PreparedExecutable` access declaration. Cold
+binding validates aliases and binds both children before either can write. Hot invocation
+completes and joins the Conv2d child before invoking the suffix child. The composite does not
+mutate `RunState` validity: Runtime performs one atomic pre-execution invalidation and one
+successful post-execution validation for the outer executable boundary.
 
 #### Geometry example
 

@@ -35,11 +35,13 @@ import java.util.Objects;
 import java.util.Optional;
 
 /**
- * Lowers one bounded supported CPU partition into one route-neutral CPU unit.
+ * Lowers one bounded supported CPU unit into one route-neutral portable representation.
  *
- * <p>Lowering derives external boundaries in deterministic first-use order, retains internal
- * single-use results as typed virtual values, including internal BOOL mask results, and
- * materializes only the final store. It consumes
+ * <p>For ordinary pointwise directed acyclic graphs (DAGs), lowering derives external boundaries
+ * in deterministic first-use order, retains eligible unpublished internal results as typed
+ * virtual values (including BOOL masks), and emits one ordered store for every published or
+ * otherwise unit-boundary output. All materialized pointwise outputs share one checked iteration
+ * domain. It consumes
  * Model operation, shape, and layout contracts during analysis and maps every admitted unary kind
  * to one distinct CPU opcode without decomposition. Generated and Runtime code see only the
  * resulting CPU-private IR and cold bindings. Exact one-node movement, indexing, scatter, fold,
@@ -80,11 +82,12 @@ public final class CpuPartitionLowering {
     public CpuPartitionLowering() { }
 
     /**
-     * Lowers one supported one-node specialized family occurrence, or one through eight connected
-     * pointwise or affine occurrences, and rejects every unsupported partition shape.
+     * Lowers one supported specialized-family seed, affine chain, or one-through-eight-node
+     * ordinary pointwise DAG, and rejects every unsupported unit shape.
      *
      * @param context non-null complete validated CPU partition projection
-     * @return one immutable single-unit lowering with derived materialized boundaries
+     * @return one immutable single-unit lowering with deterministic materialized boundaries and
+     *     ordered stores; never {@code null}
      * @throws NullPointerException if {@code context} is {@code null}
      * @throws IllegalArgumentException if ownership, cardinality, dataflow, or an occurrence is
      *     outside the implemented CPU matrix
@@ -194,59 +197,50 @@ public final class CpuPartitionLowering {
         var external = new LinkedHashMap<ValueId, Integer>();
         var producedOrdinals = new LinkedHashMap<ValueId, Integer>();
         var virtualOutputs = new ArrayList<ValueId>();
-        var materializedIntermediateOutputs = new ArrayList<ValueId>();
+        var materializedOutputs = new ArrayList<ValueId>();
         var instructions = new ArrayList<PendingInstruction>();
-        ValueId previous = null;
+        var produced = new java.util.LinkedHashSet<ValueId>();
         for (int nodeIndex = 0; nodeIndex < context.nodes().size(); nodeIndex++) {
             CompiledNode node = context.nodes().get(nodeIndex);
             if (node.outputs().size() != 1) {
                 throw new IllegalArgumentException("pointwise node must have exactly one output");
             }
             assertOccurrence(node, values);
-            if (nodeIndex > 0) {
-                ValueId expectedPrevious = previous;
-                if (node.inputs().stream().filter(expectedPrevious::equals).count() != 1) {
-                    throw new IllegalArgumentException("partition must be one connected straight-line chain");
-                }
-            }
             for (ValueId input : node.inputs()) {
-                if (!producedOrdinals.containsKey(input)) external.putIfAbsent(input, -1);
+                if (!produced.contains(input)) external.putIfAbsent(input, -1);
             }
             ValueId output = node.outputs().getFirst();
-            if (external.containsKey(output) || producedOrdinals.containsKey(output)) {
+            if (external.containsKey(output) || !produced.add(output)) {
                 throw new IllegalArgumentException("partition dataflow must be acyclic and non-aliasing");
-            }
-            if (nodeIndex < context.nodes().size() - 1) {
-                LogicalMemoryRequirement requirement = memory.get(output);
-                if (context.backendInputs() instanceof io.github.pho001.synaptik.backend.cpu
-                        .internal.prepare.CpuPartitionAnalysisInputs inputs
-                        && inputs.conv2dMaterializedSuffixUnit() && requirement.graphOutput()) {
-                    requireMaterializedIntermediate(requirement, context, output);
-                    materializedIntermediateOutputs.add(output);
-                } else {
-                    requireVirtual(requirement, context, output);
-                    virtualOutputs.add(output);
-                }
             }
             instructions.add(new PendingInstruction(node, output));
             producedOrdinals.put(output, -1);
-            previous = output;
         }
-
-        for (int nodeIndex = 0; nodeIndex < context.nodes().size() - 1; nodeIndex++) {
-            ValueId output = context.nodes().get(nodeIndex).outputs().getFirst();
-            long uses = context.nodes().subList(nodeIndex + 1, context.nodes().size()).stream()
-                    .flatMap(node -> node.inputs().stream()).filter(output::equals).count();
-            if (uses != 1) throw new IllegalArgumentException(
-                    "each non-final result must have exactly one later use");
+        for (CompiledNode node : context.nodes()) {
+            ValueId output = node.outputs().getFirst();
+            LogicalMemoryRequirement requirement = memory.get(output);
+            if (requirement == null) {
+                throw new IllegalArgumentException("pointwise output memory fact is not projected");
+            }
+            boolean consumedInside = context.nodes().stream().flatMap(value -> value.inputs().stream())
+                    .anyMatch(output::equals);
+            if (consumedInside && !requirement.graphOutput()) {
+                requireVirtual(requirement, context, output);
+                virtualOutputs.add(output);
+            } else {
+                requireMaterializedIntermediate(requirement, context, output);
+                materializedOutputs.add(output);
+            }
         }
-
-        ValueId finalOutput = context.nodes().getLast().outputs().getFirst();
-        if (context.nodes().stream().flatMap(node -> node.inputs().stream())
-                .anyMatch(finalOutput::equals)) {
-            throw new IllegalArgumentException("final output must not feed the partition");
+        if (materializedOutputs.isEmpty()) {
+            throw new IllegalArgumentException("pointwise unit must have a materialized output");
         }
-        Shape iterationShape = require(values, finalOutput).descriptor().shape();
+        Shape iterationShape = require(values, materializedOutputs.getFirst()).descriptor().shape();
+        for (ValueId output : materializedOutputs) {
+            if (!require(values, output).descriptor().shape().equals(iterationShape)) {
+                throw new IllegalArgumentException("pointwise outputs require one iteration domain");
+            }
+        }
         long elementCount = iterationShape.knownElementCount().orElseThrow();
 
         var irValues = new ArrayList<CpuKernelIr.Value>();
@@ -268,10 +262,9 @@ public final class CpuPartitionLowering {
             spans.add(value.descriptor().layout().orElseThrow().referencedElementSpan());
             boundaryTypes.add(value.descriptor().dataType());
         }
-        for (ValueId id : context.nodes().subList(0, context.nodes().size() - 1).stream()
-                .map(node -> node.outputs().getFirst()).toList()) {
+        for (ValueId id : context.nodes().stream().map(node -> node.outputs().getFirst()).toList()) {
             GraphValue value = require(values, id);
-            boolean materialized = materializedIntermediateOutputs.contains(id);
+            boolean materialized = materializedOutputs.contains(id);
             Normalized normalized = normalize(value.descriptor().shape(), materialized
                     ? value.descriptor().layout().orElseThrow()
                     : LayoutDescriptor.contiguous(value.descriptor().shape()), iterationShape,
@@ -287,18 +280,6 @@ public final class CpuPartitionLowering {
                 boundaryTypes.add(value.descriptor().dataType());
             }
         }
-        GraphValue output = require(values, finalOutput);
-        Normalized outputAccess = normalize(output.descriptor().shape(),
-                output.descriptor().layout().orElseThrow(), iterationShape,
-                CpuAccessPlan.AccessKind.WRITE);
-        producedOrdinals.put(finalOutput, ordinal);
-        irValues.add(new CpuKernelIr.Value(ordinal, output.descriptor().dataType(),
-                CpuKernelIr.Value.Kind.OUTPUT, outputAccess.plan()));
-        boundaryValues.add(finalOutput);
-        bindings.add(outputAccess.binding());
-        spans.add(output.descriptor().layout().orElseThrow().referencedElementSpan());
-        boundaryTypes.add(output.descriptor().dataType());
-
         var irInstructions = new ArrayList<CpuKernelIr.Instruction>();
         for (PendingInstruction pending : instructions) {
             var inputs = pending.node().inputs().stream().map(id -> {
@@ -315,16 +296,18 @@ public final class CpuPartitionLowering {
         }
         var stores = new ArrayList<CpuKernelIr.Store>();
         int outputOrdinal = 0;
-        for (ValueId id : materializedIntermediateOutputs) {
+        for (ValueId id : materializedOutputs) {
             stores.add(new CpuKernelIr.Store(producedOrdinals.get(id), outputOrdinal++));
         }
-        stores.add(new CpuKernelIr.Store(producedOrdinals.get(finalOutput), outputOrdinal));
         var ir = new CpuKernelIr(irValues, irInstructions,
                 new CpuKernelIr.Loop("start", "end"),
                 stores);
         return new LoweredPartition(ir, boundaryValues, bindings, spans, boundaryTypes,
                 virtualOutputs, iterationShape.toLongArray(), elementCount,
-                "legal: bounded connected straight-line pointwise chain", new long[0]);
+                materializedOutputs.size() == 1
+                        ? "legal: bounded pointwise unit"
+                        : "legal: bounded multi-store pointwise DAG unit",
+                new long[0]);
     }
 
     private void assertOccurrence(CompiledNode node, Map<ValueId, GraphValue> values) {
@@ -473,12 +456,10 @@ public final class CpuPartitionLowering {
 
     private static void requireMaterializedIntermediate(LogicalMemoryRequirement requirement,
             PrepareContext<?> context, ValueId id) {
-        if (requirement == null || !requirement.graphOutput()
-                || requirement.producerPartition().isEmpty()
-                || !requirement.producerPartition().orElseThrow().equals(context.partition())
-                || !requirement.consumerPartitions().equals(List.of(context.partition()))) {
+        if (requirement == null || requirement.producerPartition().isEmpty()
+                || !requirement.producerPartition().orElseThrow().equals(context.partition())) {
             throw new IllegalArgumentException(
-                    "published suffix intermediate must be single-partition: " + id);
+                    "materialized output must be produced by the analyzed partition: " + id);
         }
     }
 

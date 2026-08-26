@@ -1273,11 +1273,19 @@ mixed carriers execute through typed generated entries. Schema 46 introduced thi
 no public/shared contract, gradient, compiler, vector/native/fusion/materialization/dynamic-Shape,
 partial/combine, or cross-backend numerical promise.
 
+Complete CPU 0008B generalizes complete CPU-owned partitions to one-through-eight-node directed
+acyclic graphs. Analysis forms stable computation units, contracts ordinary pointwise pairs
+subject to hard structural budgets, and preserves materialized unit boundaries across fan-out,
+publication, state/random, affine/specialized, and numerical-order barriers. A horizontal
+pointwise contraction may emit multiple ordered stores. Its liveness gate starts inputs at first
+use, starts results at definition, deduplicates same-instruction uses, and retires values after
+their final instruction or store use. Profitability ranking, specialized-subgraph recognition,
+and multi-input external representation selection remain later CPU work.
+
 Cross-type cast, general BFLOAT16 pointwise arithmetic, FLOAT16 execution, relaxed math,
 native/vendor realization, dynamic layouts, Vector API scatter, fold, ordering, scan, or ordinary
-aggregate execution,
-gradients, and universal backend support are not part of this route increment. General
-partition-DAG decomposition and bounded vertical/horizontal fusion remain Draft CPU 0008B work.
+aggregate execution, gradients, and universal backend support are not part of this route
+increment.
 
 OpenBLAS is not another meaning of portable route. It is a narrow cross-platform native fallback
 for eligible BLAS-compatible linear algebra. It is neither a universal fallback nor preferred over
@@ -1490,35 +1498,33 @@ artifact.
 ### CPU portable preparation plan
 
 The implemented backend-private immutable result of route-neutral CPU analysis before shared slot
-assignment. `CpuPartitionPreparationPlan` retains one fused execution unit, its canonical kernel
-IR and portable specialization, exact/default compute and orchestration strategy, the derived
-ordered boundary values and data-type/carrier pattern, normalized access bindings, exact per-boundary
-declarations, compatible extents/count, selected range count, positive minimum range size, exact
-vector species when applicable, optional selected materialization, original and adjusted generated
-carrier patterns, optional exact workspace declaration, specialization budget, optional compact
-movement, indexing, scatter, fold, ordering, random, scan, aggregate, or Conv2d geometry, and an
-optional cold lowering manifest.
+assignment. `CpuPartitionPreparationPlan` retains one through eight stable computation units,
+their direct producer indices and original member-node ordinals, each unit's canonical kernel IR,
+portable specialization, execution strategy, boundary/carrier facts, and optional exact workspace
+or specialized-family geometry, plus one deduplicated whole-partition buffer declaration view and
+an optional cold lowering manifest. The top-level legacy geometry remains authoritative only for
+an established one-unit plan.
 
-CPU analysis validates that Planning selected CPU ownership, admits one connected straight-line
-chain of one through eight supported pointwise occurrences or one exact static movement,
-indexing, functional-scatter, overlap-fold, stable-ordering, explicit-state random, cumulative-
-scan, ordinary-aggregate occurrence, or the bounded direct/two-unit Conv2d form, derives every
-family-specific Model
-shape, normalizes resolved layouts, proves output write injectivity, derives external boundaries
-and virtual single-use results, and compares direct plus at most three eligible one-input copy
-candidates. It declares each boundary's referenced byte span and, when selected, appends workspace
-ID `0` with exact dense byte geometry. Shared Prepare sees the plan opaquely and later validates
-declarations against assigned `PreparedMemoryPlan` geometry.
+CPU analysis validates that Planning selected CPU ownership and that the complete one-through-
+eight-node context is acyclic in producer-before-consumer order. It selects established affine or
+specialized seeds, performs bounded deterministic vertical and horizontal contraction only for
+ordinary pointwise IR, and retains the complete split topology whenever a contraction is illegal,
+unsupported, or over budget. Every cross-unit or published value is one ordinary buffer keyed by
+its existing `ValueId`; family-intrinsic workspaces use partition-unique final-unit IDs. The
+optional one-input contiguous-copy workspace remains available only for a one-unit plan. Shared
+Prepare sees the plan opaquely and later validates declarations against assigned
+`PreparedMemoryPlan` geometry.
 
 The plan is not a generated artifact, assigned slot, executable, physical resource, per-run
 binding, capability claim, tuning result, registry, or public route API. It fails closed before
-artifact work for unsupported rows, disconnected or fan-out topology, multiple final outputs, or
-more than eight occurrences.
+artifact work for malformed topology, independently unsupported seeds, invalid resource geometry,
+or more than eight occurrences; a rejected pointwise contraction alone does not fail the split
+plan.
 
 ### CPU portable prepared executable
 
-The implemented backend-private immutable Runtime recipe constructed by CPU finalization after
-shared slot assignment. `CpuPreparedExecutable` strongly retains the partition's one generated
+The implemented backend-private immutable direct-unit Runtime recipe constructed by CPU
+finalization after shared slot assignment. `CpuPreparedExecutable` strongly retains one generated
 artifact and exact static `MethodHandle`, the lowering-derived selected buffers, full normalized geometry, ordered
 original/generated carrier patterns, optional materialization/workspace selection, optional
 compact movement, indexing, scatter, fold, ordering, random, scan, aggregate, or Conv2d geometry, one
@@ -1543,8 +1549,16 @@ synchronously joins deterministic disjoint chunks through the borrowed group; ge
 performs no scheduling. The current production families establish only the admitted bounded
 pointwise, affine, movement, indexing, functional-scatter, overlap-fold, stable-ordering,
 explicit-state random, cumulative-scan, ordinary-aggregate, and grouped NCHW Conv2d matrices;
-they make no
-Tensor-result, gradient, compiler, conformance, integration, or performance guarantee.
+they make no Tensor-result, gradient, compiler, conformance, integration, or universal performance
+guarantee.
+
+A multi-unit plan instead returns one `CpuPreparedPartitionExecutable`. It retains an immutable
+topologically ordered child list and dependency facts. Cold binding validates all outer CPU
+buffers, workspaces, writability, and every overlap involving a write before binding every child.
+Hot execution invokes the already-bound children strictly in order, with each child completing and
+joining its worker ranges before the next begins. Runtime, not the composite, owns the one atomic
+partition validity transition. The dependency lists are diagnostic topology identity, not a
+dynamic scheduler.
 
 ### CPU execution unit
 
@@ -1555,6 +1569,11 @@ generated-Class-File, metadata-only, or peer native realization. A scalar refere
 is reserved for conformance and fail-closed fallback, not Runtime IR interpretation. A partition
 may contain multiple units, but Runtime receives one partition-level prepared executable rather
 than one executable per graph node or unit.
+
+CPU 0008B constructs the maximally split supported seed topology first. It then contracts only
+ordinary pointwise units: vertical fusion crosses one unpublished single-consumer value, while
+horizontal fusion combines dependency-independent same-domain units with the same predecessor
+set. Cross-unit values are ordinary materialized graph-value buffers, not anonymous workspaces.
 
 The term is CPU-private lowering vocabulary. It is not a Planning `PlannedPartition`,
 Runtime `PreparedUnit`, public backend SPI, operation family, registry entry, or shared Prepare
@@ -1574,7 +1593,9 @@ forty-eight-opcode family-oriented pointwise vocabulary, exact typed scalar-imme
 two-bound clamp bits, selected scalar-power realizations, ordered computation semantics,
 normalized access-plan form,
 a universal primitive `start`/`end` loop
-model, fusion form, output stores, and the numerical semantic version. It contains no compatible
+model, fusion form, one or more ordered output stores, and the numerical semantic version. A
+multi-store pointwise form evaluates the stable instruction list once per logical element and
+writes each materialized branch result directly. It contains no compatible
 concrete extents or element count by default, selected route/configuration, thread count, vector
 species, cache root, generator/artifact compatibility setting, `Operation`, `CompiledNode`, graph
 identity, Runtime slot, physical segment, method handle, or run state.

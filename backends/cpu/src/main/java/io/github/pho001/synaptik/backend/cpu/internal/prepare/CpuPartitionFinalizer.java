@@ -4,7 +4,7 @@ import io.github.pho001.synaptik.backend.contract.BackendId;
 import io.github.pho001.synaptik.backend.cpu.CpuCapabilityProvider;
 import io.github.pho001.synaptik.backend.cpu.internal.cache.CpuGeneratedKernelArtifactStore;
 import io.github.pho001.synaptik.backend.cpu.internal.executable.CpuPreparedExecutable;
-import io.github.pho001.synaptik.backend.cpu.internal.executable.CpuPreparedExecutableSequence;
+import io.github.pho001.synaptik.backend.cpu.internal.executable.CpuPreparedPartitionExecutable;
 import io.github.pho001.synaptik.backend.cpu.internal.executable.CpuWorkerGroup;
 import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuAccessPlan;
 import io.github.pho001.synaptik.prepare.BackendPartitionFinalization;
@@ -21,11 +21,12 @@ import java.util.LinkedHashMap;
 /**
  * Post-assignment verification, artifact realization, and partition executable finalization.
  *
- * <p>Every derived-boundary buffer assignment and optional exact workspace assignment is resolved and checked
- * before the single permitted artifact-store call. Finalization cannot change the selected copy,
- * generated carrier pattern, route, strategy, specialization, or declaration geometry. Fold,
- * cumulative-scan, and RMS-normalization plans retain no workspace assignment; Layer
- * normalization retains only its already-declared exact-state assignment.
+ * <p>Every deduplicated partition buffer assignment and every unit-local exact workspace
+ * assignment is resolved and checked before the first artifact-store call. Finalization then
+ * realizes one already-selected artifact per unit in stable order. It cannot change unit
+ * topology, dependencies, materialization, generated carrier patterns, route, strategy,
+ * specialization, or declaration geometry. A multi-unit result is wrapped in one CPU-private
+ * atomic sequential composite; a one-unit result remains the direct child recipe.</p>
  */
 public final class CpuPartitionFinalizer implements BackendPartitionFinalizer<CpuPartitionPreparationPlan> {
     private final CpuGeneratedKernelArtifactStore artifactStore;
@@ -62,11 +63,11 @@ public final class CpuPartitionFinalizer implements BackendPartitionFinalizer<Cp
     @Override public BackendId backendId() { return CpuCapabilityProvider.CPU_BACKEND_ID; }
 
     /**
-     * Verifies exact assignments and realizes the selected artifact without changing analysis.
+     * Verifies the complete exact assignment set and realizes selected unit artifacts without
+     * changing analysis.
      * @param finalization non-null complete shared post-assignment handoff
-     * @return one immutable partition-level executable that strongly owns its artifact and, for
-     *     cumulative scans and trailing normalization, retains only immutable slice/layout
-     *     geometry; never {@code null}
+     * @return one immutable direct or composite partition-level executable that strongly retains
+     *     every selected artifact and only immutable prepared geometry; never {@code null}
      * @throws NullPointerException if {@code finalization} is {@code null}
      * @throws IllegalArgumentException if ownership, assignments, specialization, or artifact
      *     realization is incompatible with the analyzed plan
@@ -99,9 +100,13 @@ public final class CpuPartitionFinalizer implements BackendPartitionFinalizer<Cp
         if (bufferAssignments != plan.bufferDeclarations().size()) {
             throw new IllegalArgumentException("CPU finalization requires the exact buffer set");
         }
-        PreparedExecutable.WorkspaceSelection workspaceSelection = null;
-        if (plan.workspaceDeclaration().isPresent()) {
-            var declaration = plan.workspaceDeclaration().orElseThrow();
+        var workspaceDeclarations = plan.units().size() == 1
+                ? plan.workspaceDeclaration().stream().toList()
+                : plan.units().stream().map(CpuPartitionPreparationPlan.ExecutionUnitPlan::runtimeFacts)
+                    .flatMap(facts -> facts.workspaceDeclaration().stream()).toList();
+        var workspaceSelections = new LinkedHashMap<io.github.pho001.synaptik.prepare.analysis.PreparationResourceRequirement.Workspace,
+                PreparedExecutable.WorkspaceSelection>();
+        for (var declaration : workspaceDeclarations) {
             PreparationResourceAssignment.Workspace match = null;
             for (var assignment : finalization.assignments()) {
                 if (assignment instanceof PreparationResourceAssignment.Workspace workspace
@@ -114,13 +119,16 @@ public final class CpuPartitionFinalizer implements BackendPartitionFinalizer<Cp
                     || entry.byteAlignment() != declaration.byteAlignment()) {
                 throw new IllegalArgumentException("workspace assignment geometry disagrees");
             }
-            workspaceSelection = new PreparedExecutable.WorkspaceSelection(match.planIndex());
-        } else if (finalization.assignments().stream()
-                .anyMatch(PreparationResourceAssignment.Workspace.class::isInstance)) {
-            throw new IllegalArgumentException("direct CPU plan rejects workspace assignments");
+            workspaceSelections.put(declaration,
+                    new PreparedExecutable.WorkspaceSelection(match.planIndex()));
         }
-        if (plan.form() == CpuPartitionPreparationPlan.PlanForm.CONV2D_MATERIALIZED_SUFFIX) {
-            return finalizeConv2dSequence(finalization, selections);
+        long assignedWorkspaces = finalization.assignments().stream()
+                .filter(PreparationResourceAssignment.Workspace.class::isInstance).count();
+        if (assignedWorkspaces != workspaceDeclarations.size()) {
+            throw new IllegalArgumentException("CPU finalization requires the exact workspace set");
+        }
+        if (plan.units().size() > 1) {
+            return finalizeComposite(finalization, selections, workspaceSelections);
         }
         var unit = plan.units().getFirst();
         CpuWorkerGroup selectedWorkers = null;
@@ -137,7 +145,7 @@ public final class CpuPartitionFinalizer implements BackendPartitionFinalizer<Cp
                 plan.accessBindings(), plan.carrierPattern(), plan.generatedCarrierPattern(),
                 0, plan.elementCount(),
                 plan.selectedRangeCount(), plan.minimumElementsPerWorker(), selectedWorkers,
-                plan.materialization(), Optional.ofNullable(workspaceSelection),
+                plan.materialization(), plan.workspaceDeclaration().map(workspaceSelections::get),
                 plan.units().getFirst().portablePlan().portableKernelIr()
                         instanceof io.github.pho001.synaptik.backend.cpu.internal.ir.CpuAffineCopyIr
                         ? plan.affineAddressPairs() : null,
@@ -150,47 +158,45 @@ public final class CpuPartitionFinalizer implements BackendPartitionFinalizer<Cp
                 plan.conv2dGeometry(), unit.conv3dGeometry(), unit.outputCount());
     }
 
-    private PreparedExecutable finalizeConv2dSequence(
+    private PreparedExecutable finalizeComposite(
             BackendPartitionFinalization<CpuPartitionPreparationPlan> finalization,
-            List<PreparedExecutable.BufferSelection> outerSelections) {
+            List<PreparedExecutable.BufferSelection> outerSelections,
+            java.util.Map<io.github.pho001.synaptik.prepare.analysis.PreparationResourceRequirement.Workspace,
+                    PreparedExecutable.WorkspaceSelection> workspaceSelections) {
         var plan = finalization.analysis().plan();
-        if (plan.units().size() != 2 || plan.workspaceDeclaration().isPresent()) {
-            throw new IllegalArgumentException("malformed Conv2d sequence plan");
-        }
         var selectionByValue = new LinkedHashMap<io.github.pho001.synaptik.model.graph.ValueId,
                 PreparedExecutable.BufferSelection>();
         for (int i = 0; i < plan.boundaryValues().size(); i++) {
             selectionByValue.put(plan.boundaryValues().get(i), outerSelections.get(i));
         }
-        var leadUnit = plan.units().get(0);
-        var suffixUnit = plan.units().get(1);
-        var leadSelections = leadUnit.boundaryValues().stream()
-                .map(selectionByValue::get).toList();
-        var suffixSelections = suffixUnit.boundaryValues().stream()
-                .map(selectionByValue::get).toList();
-        if (leadSelections.stream().anyMatch(Objects::isNull)
-                || suffixSelections.stream().anyMatch(Objects::isNull)) {
-            throw new IllegalArgumentException("split unit boundary has no assigned selection");
+        var localSelections = new ArrayList<List<PreparedExecutable.BufferSelection>>();
+        var selectedWorkers = new ArrayList<CpuWorkerGroup>();
+        for (var unit : plan.units()) {
+            var local = unit.boundaryValues().stream().map(selectionByValue::get).toList();
+            if (local.stream().anyMatch(Objects::isNull))
+                throw new IllegalArgumentException("unit boundary has no assigned selection");
+            localSelections.add(local);
+            selectedWorkers.add(workers(unit));
         }
-        CpuWorkerGroup leadWorkers = workers(leadUnit);
-        CpuWorkerGroup suffixWorkers = workers(suffixUnit);
-        var leadArtifact = artifactStore.loadOrGenerate(
-                leadUnit.portablePlan().specialization(), leadUnit.portablePlan().kernelIr());
-        var suffixArtifact = artifactStore.loadOrGenerate(
-                suffixUnit.portablePlan().specialization(), suffixUnit.portablePlan().kernelIr());
-        var lead = unitExecutable(finalization, leadUnit, leadSelections, leadArtifact, leadWorkers);
-        var suffix = unitExecutable(finalization, suffixUnit, suffixSelections, suffixArtifact,
-                suffixWorkers);
+        var children = new ArrayList<CpuPreparedExecutable>();
+        for (int index = 0; index < plan.units().size(); index++) {
+            var unit = plan.units().get(index);
+            var artifact = artifactStore.loadOrGenerate(unit.portablePlan().specialization(),
+                    unit.portablePlan().kernelIr());
+            children.add(unitExecutable(finalization, unit, localSelections.get(index), artifact,
+                    selectedWorkers.get(index), unit.runtimeFacts().workspaceDeclaration()
+                        .map(workspaceSelections::get)));
+        }
         var writeValues = new java.util.HashSet<io.github.pho001.synaptik.model.graph.ValueId>();
-        writeValues.add(leadUnit.boundaryValues().getLast());
-        writeValues.addAll(suffixUnit.boundaryValues().subList(
-                suffixUnit.boundaryValues().size() - suffixUnit.outputCount(),
-                suffixUnit.boundaryValues().size()));
+        for (var unit : plan.units()) writeValues.addAll(unit.boundaryValues().subList(
+                unit.boundaryValues().size() - unit.outputCount(), unit.boundaryValues().size()));
         var accesses = plan.boundaryValues().stream().map(value -> writeValues.contains(value)
                 ? PreparedExecutable.BufferAccess.WRITE_ONLY
                 : PreparedExecutable.BufferAccess.READ_ONLY).toList();
-        return new CpuPreparedExecutableSequence(finalization.memoryPlan(), outerSelections,
-                accesses, lead, suffix);
+        return new CpuPreparedPartitionExecutable(finalization.memoryPlan(), outerSelections,
+                List.copyOf(workspaceSelections.values()), accesses, children,
+                plan.units().stream().map(CpuPartitionPreparationPlan.ExecutionUnitPlan::dependencies)
+                    .toList());
     }
 
     private CpuWorkerGroup workers(CpuPartitionPreparationPlan.ExecutionUnitPlan unit) {
@@ -208,15 +214,21 @@ public final class CpuPartitionFinalizer implements BackendPartitionFinalizer<Cp
             CpuPartitionPreparationPlan.ExecutionUnitPlan unit,
             List<PreparedExecutable.BufferSelection> selections,
             io.github.pho001.synaptik.backend.cpu.internal.codegen.emit.CpuGeneratedKernel artifact,
-            CpuWorkerGroup workers) {
+            CpuWorkerGroup workers, Optional<PreparedExecutable.WorkspaceSelection> workspace) {
+        var facts = unit.runtimeFacts();
         return new CpuPreparedExecutable(finalization.memoryPlan(), selections, artifact,
                 unit.accessBindings(), unit.carrierPattern(), unit.generatedCarrierPattern(),
                 0, unit.elementCount(), unit.selectedRangeCount(),
-                unit.minimumElementsPerWorker(), workers, Optional.empty(), Optional.empty(), null,
-                Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(),
-                Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(),
-                Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(),
-                Optional.empty(), Optional.empty(), Optional.empty(),
+                unit.minimumElementsPerWorker(), workers, facts.materialization(), workspace,
+                unit.portablePlan().portableKernelIr()
+                        instanceof io.github.pho001.synaptik.backend.cpu.internal.ir.CpuAffineCopyIr
+                        ? facts.affineAddressPairs() : null,
+                facts.movementGeometry(), facts.indexingGeometry(), facts.scatterGeometry(),
+                facts.foldGeometry(), facts.orderingGeometry(), facts.randomGeometry(),
+                facts.scanGeometry(), facts.aggregateGeometry(), facts.argExtremaGeometry(),
+                facts.maskedReductionGeometry(), facts.advancedReductionGeometry(),
+                facts.softmaxGeometry(), facts.trailingNormalizationGeometry(),
+                facts.batchNormInferenceGeometry(), facts.batchNormTrainingGeometry(),
                 unit.conv2dGeometry(), unit.conv3dGeometry(), unit.outputCount());
     }
 }

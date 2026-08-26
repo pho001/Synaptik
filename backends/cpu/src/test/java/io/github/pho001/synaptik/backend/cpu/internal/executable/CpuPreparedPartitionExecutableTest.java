@@ -33,19 +33,19 @@ import java.lang.foreign.MemorySegment;
 import java.util.*;
 import org.junit.jupiter.api.Test;
 
-class CpuPreparedExecutableSequenceTest {
+class CpuPreparedPartitionExecutableTest {
     @Test void realizesTwoArtifactsAndExecutesStrictlyThroughOneComposite() {
         var analysis = new CpuPartitionPreparer().analyze(context());
         assertAll(() -> assertEquals(CpuPartitionPreparationPlan.PlanForm
-                        .CONV2D_MATERIALIZED_SUFFIX, analysis.plan().form()),
+                        .GENERAL_PARTITION, analysis.plan().form()),
                 () -> assertEquals(2, analysis.plan().units().size()),
                 () -> assertEquals(6, analysis.plan().bufferDeclarations().size()),
                 () -> assertTrue(analysis.plan().workspaceDeclaration().isEmpty()),
                 () -> assertEquals(analysis.plan().units().get(0).boundaryValues().getLast(),
                         analysis.plan().units().get(1).boundaryValues().getFirst()));
         var executable = finalizeSequence(analysis);
-        assertAll(() -> assertNotSame(executable.conv2d().artifact().hiddenClass(),
-                        executable.suffix().artifact().hiddenClass()),
+        assertAll(() -> assertNotSame(executable.children().get(0).artifact().hiddenClass(),
+                        executable.children().get(1).artifact().hiddenClass()),
                 () -> assertEquals(6, executable.bufferSelectionCount()),
                 () -> assertEquals(PreparedExecutable.BufferAccess.WRITE_ONLY,
                         executable.bufferAccess(3)),
@@ -82,9 +82,9 @@ class CpuPreparedExecutableSequenceTest {
         var analysis = new CpuPartitionPreparer().analyze(context(true, true));
         var plan = analysis.plan();
         assertAll(() -> assertEquals(CpuPartitionPreparationPlan.PlanForm
-                        .CONV2D_MATERIALIZED_SUFFIX, plan.form()),
-                () -> assertEquals(2, plan.units().size()),
-                () -> assertEquals(2, plan.units().get(1).outputCount()),
+                        .GENERAL_PARTITION, plan.form()),
+                () -> assertEquals(3, plan.units().size()),
+                () -> assertEquals(1, plan.units().get(1).outputCount()),
                 () -> assertEquals(7, plan.bufferDeclarations().size()),
                 () -> assertEquals(plan.units().get(0).boundaryValues().getLast(),
                         plan.units().get(1).boundaryValues().get(1)));
@@ -140,7 +140,7 @@ class CpuPreparedExecutableSequenceTest {
                 Optional.of(LayoutDescriptor.contiguous(shape)), false);
     }
 
-    private static CpuPreparedExecutableSequence finalizeSequence(
+    private static CpuPreparedPartitionExecutable finalizeSequence(
             BackendPartitionAnalysis<CpuPartitionPreparationPlan> analysis) {
         var buffers = new ArrayList<PreparedMemoryPlan.BufferEntry>();
         var assignments = new ArrayList<PreparationResourceAssignment>();
@@ -153,11 +153,11 @@ class CpuPreparedExecutableSequenceTest {
                     buffers.size() - 1));
         }
         var memory = new PreparedMemoryPlan(buffers, List.of());
-        return (CpuPreparedExecutableSequence) new CpuPartitionFinalizer().finalizePartition(
+        return (CpuPreparedPartitionExecutable) new CpuPartitionFinalizer().finalizePartition(
                 new BackendPartitionFinalization<>(analysis, memory, assignments));
     }
 
-    private static RunState state(CpuPreparedExecutableSequence executable,
+    private static RunState state(CpuPreparedPartitionExecutable executable,
             List<float[]> carriers) {
         var bindings = new ArrayList<List<BufferRepresentationBinding>>();
         for (int i = 0; i < carriers.size(); i++) {
