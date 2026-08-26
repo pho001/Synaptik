@@ -64,8 +64,9 @@ Model topology or compiled graph structure. Current Java `long[]` recurrent cont
 compatibility/legacy contracts until deliberate migration; dense masking alone does not skip cell
 work, and arbitrary masks with holes remain a distinct future capability.
 
-The future channels-first convolution expansion is an owner-ordered Draft program rather than a
-public generic `ConvNd`. Model 0025G first adds NCW Conv1d as visible singleton-height
+The channels-first convolution expansion is an owner-ordered program whose first task,
+[Model 0025G](modules/model/tasks/0025g-ncw-conv1d-composition.md), is Complete; it is not a public
+generic `ConvNd`. Model 0025G adds NCW Conv1d as visible singleton-height
 `EXPAND_DIMS -> CONV2D -> SQUEEZE` composition, so it reuses current Conv2d inference and gradients
 without another operation kind. Model 0025H then adds first-class grouped NCDHW `CONV3D`, because
 current operations cannot express it with graph size independent of spatial extents. Compiler
@@ -2573,7 +2574,7 @@ authorized Compile API status correction.
 | 127 | [0025D Dynamic-extent slice extraction and symbolic slice placement](modules/model/tasks/0025d-dynamic-extent-slice-extraction-and-symbolic-slice-placement.md) | Complete |
 | 128 | [0025E Fixed recurrent-scan semantic family and Tensor expressions](modules/model/tasks/0025e-fixed-recurrent-scan-semantic-family-and-tensor-expressions.md) | Complete |
 | 129 | [0025F Recurrent-scan expression namespace correction](modules/model/tasks/0025f-recurrent-scan-expression-namespace-correction.md) | Complete |
-| 130 | 0025G NCW Conv1d composition | Draft (convolution program; no detailed specification) |
+| 130 | [0025G NCW Conv1d composition](modules/model/tasks/0025g-ncw-conv1d-composition.md) | Complete |
 | 131 | 0025H NCDHW Conv3d semantics and Tensor expressions | Draft (convolution program; no detailed specification) |
 | 132 | 0026 IEEE FLOAT16 and mixed-precision semantic contracts | Draft (future interleave; no detailed specification) |
 

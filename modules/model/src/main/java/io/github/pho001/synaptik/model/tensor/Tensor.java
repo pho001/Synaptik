@@ -4,6 +4,7 @@ import io.github.pho001.synaptik.model.datatype.DataType;
 import io.github.pho001.synaptik.model.datatype.ScalarValue;
 import io.github.pho001.synaptik.model.operation.attention.ScaledDotProductAttentionAttrs;
 import io.github.pho001.synaptik.model.operation.attention.ScaledDotProductAttentionKind;
+import io.github.pho001.synaptik.model.operation.convolution.Conv1dAttrs;
 import io.github.pho001.synaptik.model.operation.convolution.Conv2dAttrs;
 import io.github.pho001.synaptik.model.operation.elementwise.binary.BinaryArithmeticKind;
 import io.github.pho001.synaptik.model.operation.elementwise.cast.CastAttrs;
@@ -542,6 +543,60 @@ public final class Tensor {
      */
     public Tensor pow(Tensor right) {
         return TensorBinaryExpressions.apply(this, right, BinaryArithmeticKind.POW);
+    }
+
+    /**
+     * Builds grouped NCW one-dimensional cross-correlation as expand, Conv2d, and squeeze.
+     *
+     * <p>This input has Shape {@code [N, C_in, W]} and {@code weight} has Shape
+     * {@code [C_out, C_in/groups, K_w]}. The kernel width must be statically positive. Static
+     * channel relations and checked output geometry are validated before any intermediate Tensor
+     * identity is allocated; unresolved relations remain visible to later compiler validation.</p>
+     *
+     * <p>The exact result is {@code this.expandDims(2)}, {@code weight.expandDims(2)}, their
+     * unbiased Conv2d with mapped geometry, and {@code squeeze(2)}. Thus the returned Tensor's
+     * immediate producer is SQUEEZE and each successful call consumes four fresh identities.
+     * Floating promotion, grouped cross-correlation, conceptual padding, accumulation, special
+     * values, reassociation, and determinism are exactly the current Conv2d policies.</p>
+     *
+     * @param weight non-null rank-three floating kernel retained through the visible composition
+     * @param attrs non-null immutable width geometry translated to fresh Conv2d attributes
+     * @return non-null fresh canonical squeeze result with Shape {@code [N, C_out, W_out]},
+     *     promoted type, unresolved layout, no label or storage, and input/weight gradient OR
+     * @throws NullPointerException if {@code weight} or {@code attrs} is null, in that order
+     * @throws IllegalArgumentException if floating, rank, kernel, grouping, or geometry validation
+     *     fails
+     * @throws ArithmeticException if checked geometry overflows {@code long}
+     * @throws IllegalStateException if identifier space is exhausted; delegated failure after
+     *     composition starts may leave earlier intermediate identifiers consumed
+     */
+    public Tensor conv1d(Tensor weight, Conv1dAttrs attrs) {
+        return TensorConv1dExpressions.apply(this, weight, attrs);
+    }
+
+    /**
+     * Builds grouped NCW one-dimensional cross-correlation with output-channel bias.
+     *
+     * <p>The input, weight, geometry, Shape derivation, and exact four-producer composition follow
+     * {@link #conv1d(Tensor, Conv1dAttrs)}. The non-null floating {@code bias} has Shape
+     * {@code [C_out]}, participates once in Conv2d accumulation, and is retained directly as
+     * Conv2d input two without expansion. Promotion processes input and weight before bias.</p>
+     *
+     * @param weight non-null rank-three floating kernel retained through the visible composition
+     * @param bias non-null rank-one floating output-channel bias retained directly by Conv2d
+     * @param attrs non-null immutable width geometry translated to fresh Conv2d attributes
+     * @return non-null fresh canonical squeeze result with derived NCW Shape, promoted type,
+     *     unresolved layout, no label or storage, and three-way gradient-request OR
+     * @throws NullPointerException if {@code weight}, {@code bias}, or {@code attrs} is null,
+     *     checked in that order
+     * @throws IllegalArgumentException if floating, rank, kernel, grouping, bias, or geometry
+     *     validation fails
+     * @throws ArithmeticException if checked geometry overflows {@code long}
+     * @throws IllegalStateException if identifier space is exhausted; delegated failure after
+     *     composition starts may leave earlier intermediate identifiers consumed
+     */
+    public Tensor conv1d(Tensor weight, Tensor bias, Conv1dAttrs attrs) {
+        return TensorConv1dExpressions.apply(this, weight, bias, attrs);
     }
 
     /**

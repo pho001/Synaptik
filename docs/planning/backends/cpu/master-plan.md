@@ -349,7 +349,7 @@ is `Complete`. Detailed
 [CPU 0007F1 Portable batch-normalization inference coverage](tasks/0007f1-portable-batch-normalization-inference-coverage.md)
 is `Complete`; detailed
 [CPU 0007F2 Portable batch-normalization training and statistic-transition coverage](tasks/0007f2-portable-batch-normalization-training-and-statistic-transition-coverage.md)
-is `Ready`, and every later CPU task remains `Draft` without a detailed specification. CPU 0008 retains the remaining heavy-family coverage, including MATMUL, grouped
+is `Complete`, and every later CPU task remains `Draft` without a detailed specification. CPU 0008 retains the remaining heavy-family coverage, including MATMUL, grouped
 Conv2d, pooling, attention, and loss work. Immediately afterward, CPU 0008A validates Conv1d
 through the explicit Conv2d composition and adds Conv3d execution before the general DAG,
 recognition, profitability, and materialization sequence in CPU 0008B–0008E. This is an ordering

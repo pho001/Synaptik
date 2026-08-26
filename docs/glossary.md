@@ -2289,6 +2289,18 @@ unresolved extent is deferred because the contraction extent is absent from the 
 The term describes mathematical and Shape meaning, not an accumulation loop or kernel choice.
 See [Matrix-multiplication expressions](api/tensor-api.md#matrix-multiplication-expressions).
 
+### Conv1d composition
+
+The current public `Tensor.conv1d` convenience records grouped one-dimensional cross-correlation
+in NCW order: batch, channel, width. It is not a first-class operation kind. It visibly expands
+input `[N, C_in, W]` and weight `[C_out, C_in/groups, K_w]` at axis 2, producing
+`[N, C_in, 1, W]` and `[C_out, C_in/groups, 1, K_w]`; applies the ordinary grouped Conv2d
+operation with `Conv2dAttrs(1, stride, 0, padding, 1, dilation, groups)` and optional direct bias;
+then squeezes axis 2. Compiler inference and current gradients consequently reuse the existing
+rank-edit and Conv2d nodes. There is no `CONV1D` or public/private `ConvNd`, and this Model
+composition does not claim backend execution or performance. See
+[Grouped NCW Conv1d composition](api/tensor-api.md#grouped-ncw-conv1d-composition).
+
 ### Convolution / Conv2d
 
 Current `Tensor.conv2d` records grouped two-dimensional cross-correlation in NCHW order: batch,

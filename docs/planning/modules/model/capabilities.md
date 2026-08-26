@@ -674,6 +674,16 @@ records the deferred inequality instead of choosing a backend-dependent result.
 
 ### Convolution and pooling frontier
 
+Completed task [0025G](tasks/0025g-ncw-conv1d-composition.md) adds exactly two public NCW Conv1d
+receiver overloads as a visible composition of current operations, not as another operation-kind
+inventory entry. Input and rank-three weight each use `EXPAND_DIMS(2)`, so the weight becomes
+`[C_out, C_in/groups, 1, K_w]`; mapped
+`Conv2dAttrs(1, stride, 0, padding, 1, dilation, groups)` drives the ordinary optional-bias
+`CONV2D`, and `SQUEEZE(2)` returns `[N, C_out, W_out]`. Floating promotion and numerical meaning
+are inherited from Conv2d. Current compiler inference and gradients see only those existing
+ordinary nodes. This metadata convenience adds no `CONV1D`, `ConvNd`, backend capability,
+execution, fusion, or performance result.
+
 Completed task 0020 adds grouped NCHW two-dimensional cross-correlation with weight-derived
 static kernels, optional exact output-channel bias, ordered floating promotion, selected
 accumulation/special-value meaning, and floor-mode static or symbolic spatial results. For dynamic

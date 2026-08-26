@@ -265,6 +265,13 @@ layout, Gather/scatter, ordering/top-K, and explicit-state dropout first-order m
 Compiler task 0005D is Complete and adds the current two-output attention, grouped convolution,
 pooling, and loss first-order matrix without adding a public gradient API or backward-only
 operation vocabulary.
+Model task 0025G adds NCW Conv1d only as the ordinary visible
+`EXPAND_DIMS(2) -> EXPAND_DIMS(2) -> CONV2D -> SQUEEZE(2)` Tensor composition. Generic capture
+therefore sees two rank-edit nodes, one existing grouped Conv2d node, and one rank-edit node; it
+does not see `CONV1D`, `ConvNd`, or a Conv1d attributes value. Existing rank-edit and Conv2d
+inference and first-order gradient rules apply to those ordinary nodes without a new Compiler
+inventory entry or formula. This structural reuse is a current compiler fact, not a fusion,
+lowering, backend-capability, execution, or performance claim.
 Compiler task 0005E closed that matrix against the production Model inventory at its checkpoint:
 37 operation-kind enum families, 107 constants, and 128 complete
 kind/attributes/input-range/output-range fingerprints. The checkpoint includes both

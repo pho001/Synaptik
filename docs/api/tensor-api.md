@@ -43,6 +43,8 @@ preserving coordinate changes from either raw `long...` dimensions or an exact n
 repetition with locally derived zero-stride view geometry when possible. `permute(int...)` adds
 arbitrary complete axis reordering, and `transpose()` adds its rank-two `[1, 0]` convenience.
 Two `linear` overloads compose that transpose with MATMUL and optional exact rank-one ADD bias.
+Two `conv1d` overloads compose input/weight singleton-height expansion, ordinary grouped Conv2d,
+and height squeeze, with optional output-channel bias and no new operation kind.
 `expandDims(int)` inserts one singleton axis, while `squeeze(int)` removes one selected statically
 known singleton axis. `slice(long[], long[], int[], long[])` adds general signed-step directional
 half-open selection. `sliceAxis(int, long, long)` supplies its one-axis step-one convenience,
@@ -7810,6 +7812,90 @@ first-order autograd can now construct query, key, and value cotangents from out
 query and key cotangents from canonical weights slot one for this exact two-output occurrence.
 The one-output overload fails closed because it has no canonical same-occurrence weights output;
 a BOOL mask remains non-differentiable.
+
+### Grouped NCW Conv1d composition
+
+`input.conv1d(weight, attrs)` and `input.conv1d(weight, bias, attrs)` are rank-specific
+conveniences for grouped one-dimensional cross-correlation in NCW order: batch, channel, width.
+They add no `CONV1D` operation. Each successful call constructs this exact visible graph:
+
+```text
+input  [N, C_in, W]                 --EXPAND_DIMS(2)--\
+                                                          CONV2D --SQUEEZE(2)--> [N, C_out, W_out]
+weight [C_out, C_in/groups, K_w]    --EXPAND_DIMS(2)--/
+optional bias [C_out] -----------------------------------/
+```
+
+The expansions produce `[N, C_in, 1, W]` and
+`[C_out, C_in/groups, 1, K_w]`. The latter is the rank-three weight with a singleton kernel-height
+axis inserted. `Conv1dAttrs(stride, padding, dilation, groups)` maps to the fresh Conv2d value
+`Conv2dAttrs(1, stride, 0, padding, 1, dilation, groups)`: height uses unit stride and dilation
+with zero padding, while width uses the requested geometry. Bias is optional, remains rank one,
+and is passed directly to Conv2d without expansion.
+
+For input width `W`, positive static kernel width `K_w`, padding `p`, dilation `d`, and stride
+`s`, the result width is:
+
+```text
+effectiveKernel = d * (K_w - 1) + 1
+W_out           = floor((W + 2 * p - effectiveKernel) / s) + 1
+```
+
+Static invalid geometry and statically provable group, channel, and bias mismatches fail before
+the first intermediate is constructed. An unresolved input width retains the same canonical
+symbolic expression as Conv2d and defers its non-negative-numerator obligation. Input, weight,
+and present bias must be floating. Their ordered promotion, accumulation, conceptual-padding,
+special-value, reassociation, and determinism policies are inherited unchanged from Conv2d.
+
+#### Biased grouped Conv1d metadata example
+
+The goal is to inspect the visible composition. Input `[2, 4, 7]`, weight `[6, 2, 3]`, bias
+`[6]`, and two groups use two input channels per group. With stride two, padding one, and dilation
+one, the result width is four.
+
+```java
+import io.github.pho001.synaptik.model.datatype.DataType;
+import io.github.pho001.synaptik.model.operation.convolution.Conv1dAttrs;
+import io.github.pho001.synaptik.model.shape.Shape;
+import io.github.pho001.synaptik.model.tensor.Tensor;
+import io.github.pho001.synaptik.model.tensor.TensorDescriptor;
+import io.github.pho001.synaptik.model.tensor.TensorFactory;
+import java.util.Optional;
+
+Tensor input = TensorFactory.create(new TensorDescriptor(
+        DataType.FLOAT32, Shape.of(2, 4, 7), Optional.empty(), true));
+Tensor weight = TensorFactory.create(new TensorDescriptor(
+        DataType.BFLOAT16, Shape.of(6, 2, 3), Optional.empty(), false));
+Tensor bias = TensorFactory.create(new TensorDescriptor(
+        DataType.FLOAT64, Shape.of(6), Optional.empty(), false));
+
+Tensor output = input.conv1d(weight, bias, new Conv1dAttrs(2, 1, 1, 2));
+var squeeze = output.provenance().orElseThrow();
+var conv2d = squeeze.inputs().getFirst().provenance().orElseThrow();
+
+System.out.println(output.descriptor().shape());
+System.out.println(output.descriptor().dataType());
+System.out.println(squeeze.operation().kind());
+System.out.println(conv2d.operation().kind());
+System.out.println(conv2d.inputs().get(1).descriptor().shape());
+```
+
+It prints:
+
+```text
+Shape[2, 6, 4]
+FLOAT64
+SQUEEZE
+CONV2D
+Shape[6, 2, 1, 3]
+```
+
+The immediate producer is `SQUEEZE`; its input is the Conv2d result, whose first two inputs come
+from distinct `EXPAND_DIMS(2)` producers and whose optional third input is the original bias.
+Each call therefore creates four fresh canonical one-output wrappers and contains no
+`CONV1D` or `ConvNd` node. The example proves current metadata and provenance only. It does not
+evaluate values, promise fusion or performance, advertise a backend capability, or execute the
+operation.
 
 ### Grouped NCHW Conv2d expressions
 
