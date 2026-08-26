@@ -147,7 +147,7 @@ public final class CpuPartitionFinalizer implements BackendPartitionFinalizer<Cp
                 plan.maskedReductionGeometry(), plan.advancedReductionGeometry(),
                 plan.softmaxGeometry(), plan.trailingNormalizationGeometry(),
                 plan.batchNormInferenceGeometry(), plan.batchNormTrainingGeometry(),
-                plan.conv2dGeometry());
+                plan.conv2dGeometry(), unit.conv3dGeometry(), unit.outputCount());
     }
 
     private PreparedExecutable finalizeConv2dSequence(
@@ -217,6 +217,6 @@ public final class CpuPartitionFinalizer implements BackendPartitionFinalizer<Cp
                 Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(),
                 Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(),
                 Optional.empty(), Optional.empty(), Optional.empty(),
-                unit.conv2dGeometry(), unit.outputCount());
+                unit.conv2dGeometry(), unit.conv3dGeometry(), unit.outputCount());
     }
 }

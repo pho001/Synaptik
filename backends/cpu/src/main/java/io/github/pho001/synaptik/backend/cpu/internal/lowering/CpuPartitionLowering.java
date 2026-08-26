@@ -72,6 +72,9 @@ public final class CpuPartitionLowering {
     private final CpuBatchNormTrainingLowering batchNormTrainingLowering =
             new CpuBatchNormTrainingLowering();
     private final CpuConv2dLowering conv2dLowering = new CpuConv2dLowering();
+    private final CpuConv3dLowering conv3dLowering = new CpuConv3dLowering();
+    private final CpuConv1dCompositionLowering conv1dCompositionLowering =
+            new CpuConv1dCompositionLowering();
 
     /** Creates a stateless lowering boundary with the current CPU capability and power analysis. */
     public CpuPartitionLowering() { }
@@ -95,9 +98,17 @@ public final class CpuPartitionLowering {
         if (context.nodes().isEmpty() || context.nodes().size() > 8) {
             throw new IllegalArgumentException("CPU pointwise partition requires one through eight nodes");
         }
+        if (context.nodes().size() == 4 && context.nodes().get(2).operation().kind()
+                == io.github.pho001.synaptik.model.operation.convolution.Conv2dKind.CONV2D) {
+            return conv1dCompositionLowering.lower(context);
+        }
         if (context.nodes().getFirst().operation().kind()
                 == io.github.pho001.synaptik.model.operation.convolution.Conv2dKind.CONV2D) {
             return conv2dLowering.lower(context);
+        }
+        if (context.nodes().getFirst().operation().kind()
+                == io.github.pho001.synaptik.model.operation.convolution.Conv3dKind.CONV3D) {
+            return conv3dLowering.lower(context);
         }
         if (context.nodes().size() == 1) {
             Object kind = context.nodes().getFirst().operation().kind();
@@ -597,6 +608,7 @@ public final class CpuPartitionLowering {
      * @param batchNormTrainingGeometry compact cold complete-channel training geometry with one
      *     exact-state slice per simultaneous non-empty range
      * @param conv2dGeometry compact cold grouped NCHW Conv2d boundary geometry
+     * @param conv3dGeometry compact cold grouped NCDHW Conv3d boundary geometry
      */
     public record LoweredPartition(CpuPortableKernelIr portableKernelIr, List<ValueId> boundaryValues,
             List<CpuAccessPlan.Binding> accessBindings, List<Long> referencedElementSpans,
@@ -617,7 +629,71 @@ public final class CpuPartitionLowering {
             Optional<CpuTrailingNormalizationLowering.Geometry> trailingNormalizationGeometry,
             Optional<CpuBatchNormInferenceLowering.Geometry> batchNormInferenceGeometry,
             Optional<CpuBatchNormTrainingLowering.Geometry> batchNormTrainingGeometry,
-            Optional<CpuConv2dLowering.Geometry> conv2dGeometry) {
+            Optional<CpuConv2dLowering.Geometry> conv2dGeometry,
+            Optional<CpuConv3dLowering.Geometry> conv3dGeometry) {
+
+        /**
+         * Creates an established-family lowering with no Conv3d geometry.
+         *
+         * @param portableKernelIr non-null route-independent canonical kernel IR
+         * @param boundaryValues external reads followed by materialized outputs
+         * @param accessBindings normalized cold boundary bindings
+         * @param referencedElementSpans exact declaration spans in boundary order
+         * @param boundaryDataTypes exact represented types in boundary order
+         * @param virtualValues internal single-use results without Runtime slots
+         * @param extents final logical range extents
+         * @param elementCount checked non-negative logical range count
+         * @param fusionReason non-null cold diagnostic explanation
+         * @param affineAddressPairs affine addresses or an empty array
+         * @param movementGeometry optional movement geometry
+         * @param indexingGeometry optional indexing geometry
+         * @param scatterGeometry optional scatter geometry
+         * @param foldGeometry optional fold geometry
+         * @param orderingGeometry optional stable-ordering geometry
+         * @param randomGeometry optional explicit-state geometry
+         * @param scanGeometry optional cumulative-scan geometry
+         * @param aggregateGeometry optional ordinary-aggregate geometry
+         * @param argExtremaGeometry optional arg-extrema geometry
+         * @param maskedReductionGeometry optional masked-reduction geometry
+         * @param advancedReductionGeometry optional logarithmic/statistical/norm geometry
+         * @param softmaxGeometry optional softmax geometry
+         * @param trailingNormalizationGeometry optional Layer/RMS geometry
+         * @param batchNormInferenceGeometry optional batch-normalization inference geometry
+         * @param batchNormTrainingGeometry optional batch-normalization training geometry
+         * @param conv2dGeometry optional grouped NCHW Conv2d geometry
+         * @throws NullPointerException if a required reference or list element is {@code null}
+         * @throws IllegalArgumentException if boundary, range, or specialized-family facts
+         *     disagree
+         * @throws ArithmeticException if checked range or geometry arithmetic overflows
+         */
+        public LoweredPartition(CpuPortableKernelIr portableKernelIr, List<ValueId> boundaryValues,
+                List<CpuAccessPlan.Binding> accessBindings, List<Long> referencedElementSpans,
+                List<DataType> boundaryDataTypes, List<ValueId> virtualValues, long[] extents,
+                long elementCount, String fusionReason, long[] affineAddressPairs,
+                Optional<CpuNonAffineMovementLowering.Geometry> movementGeometry,
+                Optional<CpuIndexingLowering.Geometry> indexingGeometry,
+                Optional<CpuScatterLowering.Geometry> scatterGeometry,
+                Optional<CpuFoldLowering.Geometry> foldGeometry,
+                Optional<CpuOrderingLowering.Geometry> orderingGeometry,
+                Optional<CpuRandomLowering.Geometry> randomGeometry,
+                Optional<CpuScanLowering.Geometry> scanGeometry,
+                Optional<CpuAggregateLowering.Geometry> aggregateGeometry,
+                Optional<CpuArgExtremaLowering.Geometry> argExtremaGeometry,
+                Optional<CpuMaskedReductionLowering.Geometry> maskedReductionGeometry,
+                Optional<CpuAdvancedReductionLowering.Geometry> advancedReductionGeometry,
+                Optional<CpuSoftmaxLowering.Geometry> softmaxGeometry,
+                Optional<CpuTrailingNormalizationLowering.Geometry> trailingNormalizationGeometry,
+                Optional<CpuBatchNormInferenceLowering.Geometry> batchNormInferenceGeometry,
+                Optional<CpuBatchNormTrainingLowering.Geometry> batchNormTrainingGeometry,
+                Optional<CpuConv2dLowering.Geometry> conv2dGeometry) {
+            this(portableKernelIr,boundaryValues,accessBindings,referencedElementSpans,
+                    boundaryDataTypes,virtualValues,extents,elementCount,fusionReason,
+                    affineAddressPairs,movementGeometry,indexingGeometry,scatterGeometry,
+                    foldGeometry,orderingGeometry,randomGeometry,scanGeometry,aggregateGeometry,
+                    argExtremaGeometry,maskedReductionGeometry,advancedReductionGeometry,
+                    softmaxGeometry,trailingNormalizationGeometry,batchNormInferenceGeometry,
+                    batchNormTrainingGeometry,conv2dGeometry,Optional.empty());
+        }
 
         /**
          * Creates an established-family lowering with no Conv2d geometry.
@@ -677,7 +753,7 @@ public final class CpuPartitionLowering {
                     foldGeometry, orderingGeometry, randomGeometry, scanGeometry, aggregateGeometry,
                     argExtremaGeometry, maskedReductionGeometry, advancedReductionGeometry,
                     softmaxGeometry, trailingNormalizationGeometry, batchNormInferenceGeometry,
-                    batchNormTrainingGeometry, Optional.empty());
+                    batchNormTrainingGeometry, Optional.empty(), Optional.empty());
         }
 
         /**
@@ -1163,6 +1239,8 @@ public final class CpuPartitionLowering {
                                                         ? training.encodedKernelIr()
                                                     : portableKernelIr instanceof io.github.pho001.synaptik.backend.cpu.internal.ir.CpuConv2dIr conv2d
                                                         ? conv2d.encodedKernelIr()
+                                                    : portableKernelIr instanceof io.github.pho001.synaptik.backend.cpu.internal.ir.CpuConv3dIr conv3d
+                                                        ? conv3d.encodedKernelIr()
                                                     : ((io.github.pho001.synaptik.backend.cpu.internal.ir.CpuAggregateIr)
                                                         portableKernelIr).encodedKernelIr();
         }

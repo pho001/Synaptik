@@ -1,0 +1,13 @@
+form,owner,result,accumulator,bias,groups,carrier,addressing,orchestration,evidence
+CONV1D-UNBIASED,conv2d-existing,FLOAT32,FLOAT32,false,1,dense-heap,singleton-height-conv2d,scalar,cpu-0008-CONV-DENSE-F32
+CONV1D-BIASED-GROUPED,conv2d-existing,FLOAT64,FLOAT64,true,intermediate,dense-heap,singleton-height-conv2d,scalar,cpu-0008-CONV-GROUPED-F64
+CONV1D-DEPTHWISE,conv2d-existing,BFLOAT16,FLOAT32,true,depthwise,dense-heap,singleton-height-conv2d,scalar,cpu-0008-CONV-DEPTHWISE-BF16
+CONV3D-DENSE-F32,conv3d-new,FLOAT32,FLOAT32,false,1,dense-heap,dense-linear,scalar,CONV3D-DENSE-F32
+CONV3D-GROUPED-BIASED-F32,conv3d-new,FLOAT32,FLOAT32,true,intermediate,dense-heap,dense-linear,scalar,CONV3D-GROUPED-BIASED-F32
+CONV3D-GROUPED-BIASED-F64,conv3d-new,FLOAT64,FLOAT64,true,intermediate,dense-heap,dense-linear,scalar,CONV3D-GROUPED-BIASED-F64
+CONV3D-DEPTHWISE-BF16,conv3d-new,BFLOAT16,FLOAT32,false,depthwise,dense-heap,dense-linear,scalar,CONV3D-DEPTHWISE-BF16
+CONV3D-ALL-SEGMENT-F32,conv3d-new,FLOAT32,FLOAT32,false,1,all-segment,dense-layout-long-address,scalar,CONV3D-ALL-SEGMENT-F32
+CONV3D-GENERAL-MIXED,conv3d-new,FLOAT64,FLOAT64,false,intermediate,mixed,arbitrary-layout,scalar,CONV3D-GENERAL-MIXED
+CONV3D-PARALLEL-F32,conv3d-new,FLOAT32,FLOAT32,false,1,dense-heap,dense-linear,parallel-scalar,CONV3D-PARALLEL-F32
+CONV2D-DIRECT-CONTROL,conv2d-existing,FLOAT32,FLOAT32,false,1,dense-heap,dense-linear,scalar,cpu-0008-CONV-DENSE-F32
+CONV2D-MATERIALIZED-SUFFIX-CONTROL,conv2d-existing,FLOAT32,FLOAT32,false,1,dense-heap,dense-linear,parallel-scalar,cpu-0008-CONV-SPLIT-ADD-RELU

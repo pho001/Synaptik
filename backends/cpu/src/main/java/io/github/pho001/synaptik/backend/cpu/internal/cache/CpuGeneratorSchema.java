@@ -166,10 +166,12 @@ public final class CpuGeneratorSchema {
      * exact-state shape, unique-input mapping, ordered output access, and the direct generated
      * statistic-transition body. Schema 51 adds direct grouped NCHW Conv2d identity, cold static
      * layout geometry, intrinsic optional bias, typed complete-output-cell traversal, and
-     * FLOAT64/FLOAT32 accumulation with final BFLOAT16 narrowing.
+     * FLOAT64/FLOAT32 accumulation with final BFLOAT16 narrowing. Schema 52 adds the direct
+     * grouped NCDHW Conv3d identity, rank-five cold layout geometry, intrinsic optional bias,
+     * typed complete-output-cell traversal, and the same type-specific accumulation boundary.
      * Envelopes written for earlier schemas are incompatible misses.
      */
-    public static final int CURRENT_VERSION = 51;
+    public static final int CURRENT_VERSION = 52;
     /** Generated entry name. */ public static final String ENTRY_NAME = "invoke";
     private CpuGeneratorSchema() { }
 

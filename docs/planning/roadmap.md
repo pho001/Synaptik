@@ -76,10 +76,10 @@ Complete Compiler 0006B adopts Conv3d forward inference and initially fails back
 Compiler 0006C separately proves adjoint expressibility before closing gradients or selecting the
 smallest Model prerequisite; it is not a prerequisite for CPU forward execution. Detailed
 [CPU 0008](backends/cpu/tasks/0008-portable-grouped-nchw-conv2d-execution-foundation.md) is Complete
-and establishes the portable grouped NCHW Conv2d execution foundation. CPU 0008A is the sole Ready
-CPU task.
+and establishes the portable grouped NCHW Conv2d execution foundation. CPU 0008A is Complete, and
+CPU 0008B is the sole Ready CPU task.
 MATMUL, pooling, attention, and loss coverage remains explicitly owned by Draft CPU 0008F–0008I
-without detailed specifications. Immediately afterward, CPU 0008A validates Conv1d through
+without detailed specifications. CPU 0008A validates Conv1d through
 the visible Conv2d composition and adds direct Conv3d execution. CPU 0008B–0008E only then add
 general partition-DAG decomposition and bounded fusion, typed specialized-subgraph recognition,
 profitability decision facts, and bounded multi-input materialization in that order. Engine 0004
@@ -132,7 +132,8 @@ Model 0025G remains Complete, and Model 0026 remains Draft without a detailed sp
 Detailed
 [Compiler 0006B Conv3d forward adoption and explicit gradient boundary](modules/compiler/tasks/0006b-conv3d-forward-adoption-and-explicit-gradient-boundary.md)
 is Complete as the separate forward consumer after 0025H; Compiler 0006C remains separate Draft
-gradient closure. Detailed CPU 0008 is Complete; CPU 0008A is the sole Ready CPU task.
+gradient closure. Detailed CPU 0008 and CPU 0008A are Complete; CPU 0008B is the sole Ready CPU
+task.
 
 The compiler project area is Complete through
 [Compiler 0006B Conv3d forward adoption and explicit gradient boundary](modules/compiler/tasks/0006b-conv3d-forward-adoption-and-explicit-gradient-boundary.md).
@@ -293,7 +294,7 @@ coordinatewise batch inference with channel-hoisted scalar work and deterministi
 channel/non-channel ranges; and detailed Complete
 [CPU 0007F2](backends/cpu/tasks/0007f2-portable-batch-normalization-training-and-statistic-transition-coverage.md)
 owns batch training/statistic transition. CPU 0007F, CPU 0007F1, CPU 0007F2, and detailed CPU
-0008 are Complete; CPU 0008A is the sole Ready CPU task.
+0008 and 0008A are Complete; CPU 0008B is the sole Ready CPU task.
 A completed local
 bytecode/performance audit then inserted detailed
 [CPU 0007A0 generated hot-path parity correction](backends/cpu/tasks/0007a0-generated-hot-path-parity-correction.md)
@@ -471,7 +472,8 @@ scope comprises 16 production/Javadoc, 14 test, and exactly five documentation/p
 including exactly five new CPU-private production types and schema 48. It changes no public/
 shared/build/architecture/conformance/integration boundary. CPU 0007F is Complete; CPU 0007A1D
 remains Review needed; detailed CPU 0007F1, CPU 0007F2, and CPU 0008 are Complete. CPU 0008A is
-the sole Ready CPU task, and CPU 0008B and later remain Draft without detailed specifications.
+Complete, CPU 0008B is the sole Ready CPU task, and CPU 0008C and later remain Draft without
+detailed specifications.
 
 CPU 0007F1 is Complete at schema 49. Its first-class inference route supports arbitrary static
 channel axes, exact ordered floating promotion and typed epsilon, direct running variance,
@@ -482,7 +484,7 @@ batch/control `<= 1.15x` gate; the 281-file retained bundle verifies with digest
 `185ecb1b1da84d20774b5f21979bbfc8cedb765cf03dc05610fa354bd7555029`. The bounded change has
 exactly 14 production paths, 13 tests, and four new CPU-private production types, with no shared
 or architecture boundary change. CPU 0007A1D remains Review needed; detailed CPU 0007F2 and CPU
-0008 are Complete, and CPU 0008A is the sole Ready CPU frontier.
+0008 and 0008A are Complete, and CPU 0008B is the sole Ready CPU frontier.
 
 CPU 0007F2 is Complete at schema 50. Its explicit five-input/five-output
 `BATCH_NORM_TRAINING` route owns complete channels, reuses one exact-state slice per active
@@ -499,7 +501,7 @@ measurement and no ratio sample was discarded. The retained bundle verifies with
 25 production/Javadoc, 15 test, five 0007F2 documentation/planning paths, and two preserved
 unrelated planning paths; exactly four new CPU-private production types were added. No public,
 shared, Gradle, architecture, conformance, or integration boundary changed. CPU 0007A1D remains
-Review needed. Detailed CPU 0008 is Complete; CPU 0008A is the sole Ready CPU task, and CPU 0008B
+Review needed. Detailed CPU 0008 and CPU 0008A are Complete; CPU 0008B is the sole Ready CPU task,
 and later tasks remain Draft without detailed specifications. The Conv1d/Conv3d-before-general-DAG ordering correction
 remains intact.
 
@@ -642,8 +644,8 @@ detailed CPU 0006B1, CPU 0006B2, CPU 0006C, CPU 0006D, CPU 0007, and detailed CP
 CPU 0007A1C is `Complete`, CPU 0007A1D remains `Review needed`, and detailed CPU 0007A1E through
 CPU 0007A1O, CPU 0007A2, detailed CPU 0007B, and detailed CPU 0007C are `Complete`. Detailed CPU
 0007D, detailed CPU 0007E, and detailed CPU 0007F are `Complete`, while detailed CPU 0007F1 is
-`Complete`; detailed CPU 0007F2 and CPU 0008 are `Complete`, CPU 0008A is the sole `Ready` CPU task,
-and CPU 0008B through CPU 0017 remain Draft without detailed specifications.
+`Complete`; detailed CPU 0007F2, CPU 0008, and CPU 0008A are `Complete`, CPU 0008B is the sole
+`Ready` CPU task, and CPU 0008C through CPU 0017 remain Draft without detailed specifications.
 CPU 0003
 implements a
 model-independent filesystem store beneath an explicit
@@ -905,7 +907,8 @@ generated/direct and aggregate-median `<= 1.15x` gate; the highest aggregate med
 `c501650e90412ce5f7664fbfa1f6fd4c42f695ed171f05ffcd838ee871d9ba8b`. The final bounded scope is
 19 production/Javadoc paths, 13 CPU test/resource paths, five documentation/planning paths, and 37
 total paths, with no shared Java, Gradle, architecture, conformance, or integration change. CPU
-0008A is now the sole Ready CPU task; CPU 0008B–0008E remain Draft in order.
+0008A is Complete; CPU 0008B is now the sole Ready CPU task, and CPU 0008C–0008E remain Draft in
+order.
 
 This refinement is source-backed: Conv2d, MATMUL, pooling, attention, and loss have distinct
 geometry, numerical algorithms, resources, publication shapes, generated-loop bodies, and
@@ -914,13 +917,15 @@ performance evidence. Combining them would exceed one cohesive implementation se
 loss ownership respectively, without detailed specifications. These family rows remain their
 implementation owners rather than being replaced by generic fusion planning.
 
-Immediately after that foundation, Ready CPU 0008A validates NCW Conv1d end to end through its
-visible `EXPAND_DIMS -> CONV2D -> SQUEEZE` composition and adds direct grouped NCDHW Conv3d
-execution. It depends on CPU 0008, Model 0025G–0025H, and Compiler 0006B, not on later general
-fusion or materialization. Compiler 0006C remains a separate gradient-closure task and does not
-block this forward execution work.
+Immediately after that foundation, Complete
+[CPU 0008A Portable channels-first dimensional convolution closure](backends/cpu/tasks/0008a-portable-channels-first-dimensional-convolution-closure.md)
+validates NCW Conv1d end to end through its visible
+`EXPAND_DIMS -> CONV2D -> SQUEEZE` composition and adds direct grouped NCDHW Conv3d execution. It
+depends on CPU 0008, Model 0025G–0025H, and Compiler 0006B, not on later general fusion or
+materialization. Compiler 0006C remains a separate gradient-closure task and does not block this
+forward execution work.
 
-Draft CPU 0008B then adds general partition-DAG decomposition into computation units plus bounded
+Ready CPU 0008B then adds general partition-DAG decomposition into computation units plus bounded
 vertical and horizontal fusion with deterministic materialized split fallback. Its budgets cover
 fan-out, indexing complexity, generated-code size, simultaneously live values, and candidate/unit
 count. Draft CPU 0008C adds a closed typed CPU-private recognizer for selected MATMUL,
@@ -1085,8 +1090,8 @@ CPU 0007A0F and detailed CPU 0007A1 are `Complete`.
 Detailed CPU 0007A1A through CPU 0007A1C are `Complete`; CPU 0007A1D remains `Review needed`;
 detailed CPU 0007A1E through CPU 0007A1O, CPU 0007A2, and detailed CPU 0007B are `Complete`.
 Detailed CPU 0007C, detailed CPU 0007D, detailed CPU 0007E, and detailed CPU 0007F are `Complete`.
-Detailed CPU 0007F1, CPU 0007F2, and CPU 0008 are `Complete`; CPU 0008A is the sole `Ready` CPU
-task. CPU 0008B–0017 and the refined Config, Prepare, Metal, and tuning rows remain `Draft`
+Detailed CPU 0007F1, CPU 0007F2, CPU 0008, and CPU 0008A are `Complete`; CPU 0008B is the sole
+`Ready` CPU task. CPU 0008C–0017 and the refined Config, Prepare, Metal, and tuning rows remain `Draft`
 without later detailed specifications.
 Completed OpenBLAS history and every completed project area remain unchanged.
 

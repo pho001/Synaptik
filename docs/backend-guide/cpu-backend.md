@@ -2178,10 +2178,71 @@ signature, and direct complete-output-cell body. Each unit of the exact split fo
 structural key and generated artifact. Schema 50 and earlier envelopes are safe incompatible
 misses; no migration reader is present.
 
-This family does not add Conv1d or Conv3d CPU execution, backward/training execution, general DAG
-partitioning or materialization, MATMUL, pooling, attention, losses, vector/native convolution,
-packing, im2col, autotuning, dynamic or symbolic Shapes, unresolved layouts, or a cross-backend
-bitwise result promise. Those remain separate planned work.
+### Current NCW Conv1d composition and grouped NCDHW Conv3d family
+
+The portable CPU route now closes the current channels-first dimensional-convolution slice in two
+rank-specific ways. NCW Conv1d remains the visible four-node Model and Compiler composition: two
+independent `EXPAND_DIMS(2)` values feed one ordinary `CONV2D`, whose result feeds
+`SQUEEZE(2)`. CPU analysis recognizes only that exact topology, mapped attributes, private
+single-use intermediates, and address-preserving singleton views. It then reuses the established
+singleton-height Conv2d generated unit while declaring only the original rank-three input,
+weight, optional bias, and final output. All three intermediate graph values remain virtual;
+there is no Conv1d operation, generated body, workspace, materialization, or graph rewrite.
+
+Conv3d is instead one first-class `CONV3D` occurrence. The direct CPU route accepts fully static,
+resolved-layout NCDHW input `[N, C_in, D, H, W]`, weight
+`[C_out, C_in/groups, K_d, K_h, K_w]`, optional intrinsic bias `[C_out]`, and output
+`[N, C_out, D_out, H_out, W_out]`. FLOAT64, FLOAT32, and BFLOAT16 boundaries promote in semantic
+input order. Groups may be one, intermediate, or depthwise; stride and dilation are positive;
+symmetric padding is non-negative. Legal layouts may have arbitrary non-negative offsets and
+strides, but the output must be injective.
+
+Generated Conv3d work owns a half-open range of complete output cells in logical
+`N, C_out, D_out, H_out, W_out` order. Each cell traverses its group-local input channels, then
+kernel depth, height, and width in increasing order. Padded input coordinates contribute
+positive zero through ordinary multiplication, so an infinite stored weight can still produce
+NaN. Optional intrinsic bias initializes the accumulator once. FLOAT64 output accumulates in
+FLOAT64; FLOAT32 and BFLOAT16 output accumulate in FLOAT32; BFLOAT16 narrows once at the store.
+
+Both scalar and bounded parallel-scalar orchestration invoke the same generated body. Parallel
+ranges contain complete output cells with one writer each, so Conv3d declares no workspace,
+packing, im2col buffer, partial sum, atomic, or combine phase. Empty output invokes no generated
+entry and submits no worker work. Cold binding accepts exact typed primitive arrays,
+native-order accessible `MemorySegment` values, and mixed carriers. Before any write or worker
+submission it validates carrier type, accessibility, order, alignment, exact spans, output
+writability, worker capacity, and every output/input overlap. Input/input read sharing is legal;
+any output/input overlap fails closed.
+
+#### Conv3d geometry example
+
+For input `[1, 4, 5, 5, 5]`, weight `[6, 2, 3, 3, 3]`, bias `[6]`, two groups, stride
+`[2, 2, 2]`, padding `[1, 1, 1]`, and dilation `[1, 1, 1]`, each effective kernel extent is
+`1 * (3 - 1) + 1 = 3`. Each output spatial extent is
+`floor((5 + 2 * 1 - 3) / 2) + 1 = 3`, so the result Shape is `[1, 6, 3, 3, 3]`. Each output
+channel reads the two input channels in its group. This example demonstrates geometry and group
+isolation; it does not claim vector/native execution or cross-backend bitwise identity.
+
+Schema 52 adds direct grouped NCDHW Conv3d identity: ordered boundary/result types, intrinsic-bias
+presence, rank-five stride/padding/dilation/groups, algorithm version, access plans, carrier
+signature, and typed complete-output-cell body. Schema 51 and earlier envelopes are incompatible
+safe misses. The task-owned frozen ledger maps the recognized Conv1d forms to their unchanged
+Conv2d bodies and retains seven distinct Conv3d generated forms plus unchanged Conv2d controls.
+Complete Class-File and `javap -c -v` inspection found deterministic final, field-free,
+constructor-free classes with one typed static entry and no allocation, boxing, reflection,
+collection dispatch, graph/layout/operation lookup, or Synaptik-owned hot helper call.
+
+Five accepted isolated Java 26 fixed-heap forks passed every per-fork and aggregate
+generated/direct `<= 1.15x` gate. The seven Conv3d aggregate ratios ranged from `0.667123855x` to
+`1.066896079x`; unchanged Conv2d controls ranged from `0.939897066x` to `1.035211861x`. This is
+bounded evidence for the retained forms and environment, not a universal speedup claim.
+
+The Conv3d epilogue boundary is exact: only the occurrence's intrinsic rank-one bias is admitted.
+An external ADD, activation, clamp, fan-out, or other Conv3d-led suffix fails this specialized
+path and cannot select the Conv2d-only fused or materialized-suffix forms. Backward/training
+execution, general partition-DAG decomposition, external Conv3d epilogues, MATMUL, pooling,
+attention, losses, vector/native convolution, packing, autotuning, dynamic or symbolic Shapes,
+unresolved layouts, public Engine integration, and cross-backend bitwise identity remain outside
+this current CPU capability.
 
 ### Unary numerical closure
 
@@ -2660,19 +2721,20 @@ The current CPU foundation provides the bounded fully static pointwise matrix, s
 resolved-layout affine family, and one-node static movement, indexing, functional-scatter,
 overlap-fold, stable ordering, explicit-state random, cumulative-scan, aggregate, arg-extrema,
 masked-reduction, advanced-reduction, stable-softmax, trailing Layer/RMS-normalization, and
-batch-normalization inference and training, and grouped NCHW Conv2d families
+batch-normalization inference and training, grouped NCHW Conv2d, exact NCW Conv1d composition,
+and direct grouped NCDHW Conv3d families
 described above. Scalar
 execution covers every admitted row; parallel-scalar orchestration is available for disjoint
 affine, movement, scatter, fold, ordering, random-element, whole-scan-slice, whole-aggregate-
 output-cell, whole-arg-extrema-output-cell, whole-masked-reduction-output-cell, whole-advanced-
 reduction-output-cell, whole-softmax-slice, whole-trailing-normalization-slice, and selected
 channel or flattened non-channel batch-inference ranges and complete-channel batch-training
-ranges, plus complete Conv2d output-cell ranges; and the
+ranges, plus complete Conv2d and Conv3d output-cell ranges; and the
 pointwise family retains its exact typed value-vector and virtual-mask parity matrix. Generator
-schema 51 distinguishes pointwise,
+schema 52 distinguishes pointwise,
 affine, movement, indexing, scatter, fold, ordering, random, scan, aggregate, arg-extrema, and
 masked-reduction, advanced-reduction, softmax, trailing-normalization, batch-inference,
-batch-training, and grouped NCHW Conv2d structures,
+batch-training, grouped NCHW Conv2d, and grouped NCDHW Conv3d structures,
 including movement occurrence order,
 unequal-rank access, exact
 padding bits, functional slice-update rank/map identity, scatter reduction/scratch signature and
@@ -2718,8 +2780,9 @@ layouts. Schema 49 adds the five-input batch-inference identity, arbitrary chann
 promotion and exact epsilon, unique-boundary mapping, selected channel/non-channel range form,
 zero-resource identity, and direct running-variance body. Schema 49 was the compatible artifact
 envelope for that increment. Schema 50 adds five-output batch-normalization
-training, and schema 51 adds direct grouped NCHW Conv2d and its typed output-cell entry. Schema 51
-is the only current compatible artifact envelope; schema 50 and earlier envelopes are
+training, schema 51 adds direct grouped NCHW Conv2d and its typed output-cell entry, and schema 52
+adds direct grouped NCDHW Conv3d and its rank-five typed output-cell entry. Schema 52 is the only
+current compatible artifact envelope; schema 51 and earlier envelopes are
 incompatible safe misses.
 No excluded
 aggregate/scatter form or later semantic family,

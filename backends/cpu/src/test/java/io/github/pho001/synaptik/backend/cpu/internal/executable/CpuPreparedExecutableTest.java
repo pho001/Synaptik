@@ -43,6 +43,7 @@ import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuSoftmaxLowerin
 import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuTrailingNormalizationLoweringTest;
 import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuBatchNormInferenceLoweringTest;
 import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuBatchNormTrainingLoweringTest;
+import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuConv3dLoweringTest;
 import io.github.pho001.synaptik.model.operation.scan.CumulativeScanKind;
 import io.github.pho001.synaptik.model.operation.normalization.SoftmaxKind;
 import io.github.pho001.synaptik.model.operation.reduction.AggregateReductionKind;
@@ -50,6 +51,7 @@ import io.github.pho001.synaptik.model.operation.reduction.ArgExtremaTiePolicy;
 import io.github.pho001.synaptik.model.operation.reduction.AxisReductionAttrs;
 import io.github.pho001.synaptik.model.operation.reduction.SumToShapeAttrs;
 import io.github.pho001.synaptik.model.operation.reduction.StatisticalReductionAttrs;
+import io.github.pho001.synaptik.model.operation.convolution.Conv3dAttrs;
 import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuOrderingLoweringTest;
 import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuRandomLoweringTest;
 import io.github.pho001.synaptik.backend.cpu.internal.prepare.CpuPartitionPreparer;
@@ -75,6 +77,13 @@ class CpuPreparedExecutableTest {
             ValueLayout.JAVA_INT_UNALIGNED.withOrder(ByteOrder.nativeOrder());
     private static final ValueLayout.OfLong LONG =
             ValueLayout.JAVA_LONG_UNALIGNED.withOrder(ByteOrder.nativeOrder());
+
+    @Test void conv3dExecutesScalarAndParallelCompleteCellsAndRejectsOverlapBeforeWrite(){
+        var base=CpuConv3dLoweringTest.context(List.of(DataType.FLOAT32,DataType.FLOAT32),Shape.of(1,2,3,3,3),Shape.of(2,2,2,2,2),Shape.of(1,2,2,2,2),Conv3dAttrs.defaults(),null);float[] input=new float[54],weight=new float[32];for(int i=0;i<input.length;i++)input[i]=i*.1f-2;for(int i=0;i<weight.length;i++)weight[i]=(i%5-2)*.25f;
+        var scalarContext=new io.github.pho001.synaptik.prepare.analysis.PrepareContext<>(base.partition(),base.nodes(),base.values(),base.memoryRequirements(),base.constants(),new CpuPartitionAnalysisInputs(false,List.of(CarrierAccess.FLOAT_ARRAY,CarrierAccess.FLOAT_ARRAY,CarrierAccess.FLOAT_ARRAY)));var scalar=CpuPartitionFinalizerTest.finalizeExecutable(new CpuPartitionPreparer().analyze(scalarContext),Optional.empty());float[] scalarOutput=new float[16];var scalarState=state(scalar,List.of(borrow(input,0,input.length),borrow(weight,0,weight.length),borrow(scalarOutput,0,scalarOutput.length)));try{scalar.bind(scalarState).execute();}finally{scalarState.close();}
+        var config=new PortableExecutionConfig(ComputePreference.SCALAR,4,4,1);var parallelContext=new io.github.pho001.synaptik.prepare.analysis.PrepareContext<>(base.partition(),base.nodes(),base.values(),base.memoryRequirements(),base.constants(),new CpuPartitionAnalysisInputs(false,List.of(CarrierAccess.FLOAT_ARRAY,CarrierAccess.FLOAT_ARRAY,CarrierAccess.FLOAT_ARRAY),config));var analysis=new CpuPartitionPreparer().analyze(parallelContext);try(var workers=new CpuWorkerGroup(4)){var parallel=CpuPartitionFinalizerTest.finalizeExecutable(analysis,Optional.empty(),Optional.of(workers));float[] parallelOutput=new float[16];var run=state(parallel,List.of(borrow(input,0,input.length),borrow(weight,0,weight.length),borrow(parallelOutput,0,parallelOutput.length)));try{parallel.bind(run).execute();assertArrayEquals(scalarOutput,parallelOutput);}finally{run.close();}
+            float[] shared=new float[64];java.util.Arrays.fill(shared,-7f);var overlap=state(parallel,List.of(borrow(shared,0,54),borrow(weight,0,weight.length),borrow(shared,0,16)));try{assertThrows(IllegalArgumentException.class,()->parallel.bind(overlap));for(float value:shared)assertEquals(-7f,value);}finally{overlap.close();}}
+    }
 
     @Test void batchNormTrainingPublishesFiveOutputsWithOneDisjointRangeSlice() {
         var base = CpuBatchNormTrainingLoweringTest.context(Shape.of(2, 3, 4), 1);

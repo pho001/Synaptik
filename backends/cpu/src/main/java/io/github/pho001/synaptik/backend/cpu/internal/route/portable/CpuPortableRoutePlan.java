@@ -109,6 +109,8 @@ public record CpuPortableRoutePlan(CpuPortableKernelIr portableKernelIr,
             return training.encodedKernelIr();
         if (source instanceof io.github.pho001.synaptik.backend.cpu.internal.ir.CpuConv2dIr conv2d)
             return conv2d.encodedKernelIr();
+        if (source instanceof io.github.pho001.synaptik.backend.cpu.internal.ir.CpuConv3dIr conv3d)
+            return conv3d.encodedKernelIr();
         return ((io.github.pho001.synaptik.backend.cpu.internal.ir.CpuAggregateIr) source)
                 .encodedKernelIr();
     }

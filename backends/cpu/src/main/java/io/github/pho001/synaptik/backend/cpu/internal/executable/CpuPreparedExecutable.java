@@ -20,6 +20,7 @@ import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuTrailingNormal
 import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuBatchNormInferenceLowering;
 import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuBatchNormTrainingLowering;
 import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuConv2dLowering;
+import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuConv3dLowering;
 import io.github.pho001.synaptik.backend.cpu.internal.memory.CpuBufferArgument;
 import io.github.pho001.synaptik.backend.cpu.internal.memory.CpuBufferRepresentation;
 import io.github.pho001.synaptik.backend.cpu.internal.memory.CpuContiguousWorkspace;
@@ -109,6 +110,7 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
     private final Optional<CpuBatchNormInferenceLowering.Geometry> batchNormInferenceGeometry;
     private final Optional<CpuBatchNormTrainingLowering.Geometry> batchNormTrainingGeometry;
     private final Optional<CpuConv2dLowering.Geometry> conv2dGeometry;
+    private final Optional<CpuConv3dLowering.Geometry> conv3dGeometry;
     private final int outputCount;
 
     /**
@@ -762,6 +764,7 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
                 scanGeometry, aggregateGeometry, argExtremaGeometry, maskedReductionGeometry,
                 advancedReductionGeometry, softmaxGeometry, trailingNormalizationGeometry,
                 batchNormInferenceGeometry, batchNormTrainingGeometry, conv2dGeometry,
+                Optional.empty(),
                 establishedOutputCount(batchNormTrainingGeometry, randomGeometry,
                         orderingGeometry));
     }
@@ -805,6 +808,7 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
      * @param batchNormInferenceGeometry non-null optional batch-normalization inference geometry
      * @param batchNormTrainingGeometry non-null optional batch-normalization training geometry
      * @param conv2dGeometry non-null optional grouped NCHW Conv2d boundary geometry
+     * @param conv3dGeometry non-null optional grouped NCDHW Conv3d boundary geometry
      * @param outputCount positive number of trailing selections written by this unit
      * @throws NullPointerException if a required reference or list element is {@code null}
      * @throws IllegalArgumentException if memory, boundary, carrier, range, worker, route,
@@ -832,7 +836,8 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
             Optional<CpuTrailingNormalizationLowering.Geometry> trailingNormalizationGeometry,
             Optional<CpuBatchNormInferenceLowering.Geometry> batchNormInferenceGeometry,
             Optional<CpuBatchNormTrainingLowering.Geometry> batchNormTrainingGeometry,
-            Optional<CpuConv2dLowering.Geometry> conv2dGeometry, int outputCount) {
+            Optional<CpuConv2dLowering.Geometry> conv2dGeometry,
+            Optional<CpuConv3dLowering.Geometry> conv3dGeometry, int outputCount) {
         super(memoryPlan, selections, workspaceSelection.map(List::of).orElseGet(List::of),
                 accesses(selections.size(), outputCount));
         if (selections.isEmpty()) throw new IllegalArgumentException("at least one buffer required");
@@ -867,11 +872,12 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
         this.batchNormTrainingGeometry = Objects.requireNonNull(batchNormTrainingGeometry,
                 "batchNormTrainingGeometry");
         this.conv2dGeometry = Objects.requireNonNull(conv2dGeometry, "conv2dGeometry");
+        this.conv3dGeometry = Objects.requireNonNull(conv3dGeometry, "conv3dGeometry");
         this.outputCount = outputCount;
         if (outputCount <= 0 || outputCount > selections.size()) {
             throw new IllegalArgumentException("output boundary count is inconsistent");
         }
-        long count = this.conv2dGeometry.isPresent()
+        long count = this.conv2dGeometry.isPresent() || this.conv3dGeometry.isPresent()
                 ? this.bindings.getLast().elementCount()
                 : this.batchNormTrainingGeometry.isPresent()
                 ? this.batchNormTrainingGeometry.orElseThrow().channelCount()
@@ -935,6 +941,7 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
         geometryCount += this.batchNormInferenceGeometry.isPresent() ? 1 : 0;
         geometryCount += this.batchNormTrainingGeometry.isPresent() ? 1 : 0;
         geometryCount += this.conv2dGeometry.isPresent() ? 1 : 0;
+        geometryCount += this.conv3dGeometry.isPresent() ? 1 : 0;
         if (geometryCount>1) {
             throw new IllegalArgumentException("affine, movement, indexing, scatter, and fold geometry are exclusive");
         }
@@ -980,7 +987,7 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
     public CpuAccessPlan.Binding binding() {
         if (softmaxGeometry.isPresent() || trailingNormalizationGeometry.isPresent()
                 || batchNormInferenceGeometry.isPresent() || batchNormTrainingGeometry.isPresent()
-                || conv2dGeometry.isPresent()) return bindings.getLast();
+                || conv2dGeometry.isPresent() || conv3dGeometry.isPresent()) return bindings.getLast();
         return ranged(movementGeometry.isPresent() || indexingGeometry.isPresent()
                 || scatterGeometry.isPresent() || foldGeometry.isPresent() || orderingGeometry.isPresent()
                 || randomGeometry.isPresent()
@@ -999,7 +1006,7 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
     public List<CpuAccessPlan.Binding> accessBindings() {
         if (softmaxGeometry.isPresent() || trailingNormalizationGeometry.isPresent()
                 || batchNormInferenceGeometry.isPresent() || batchNormTrainingGeometry.isPresent()
-                || conv2dGeometry.isPresent()) return bindings;
+                || conv2dGeometry.isPresent() || conv3dGeometry.isPresent()) return bindings;
         if (movementGeometry.isPresent() || indexingGeometry.isPresent()
                 || scatterGeometry.isPresent() || foldGeometry.isPresent() || orderingGeometry.isPresent()
                 || randomGeometry.isPresent() || scanGeometry.isPresent()
@@ -1033,6 +1040,7 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
                 scanGeometry, aggregateGeometry, argExtremaGeometry, maskedReductionGeometry,
                 advancedReductionGeometry, softmaxGeometry, trailingNormalizationGeometry,
                 batchNormInferenceGeometry, batchNormTrainingGeometry, conv2dGeometry,
+                conv3dGeometry,
                 outputCount);
     }
 
@@ -1143,7 +1151,7 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
                             || advancedReductionGeometry.isPresent() || softmaxGeometry.isPresent()
                             || trailingNormalizationGeometry.isPresent()
                             || batchNormInferenceGeometry.isPresent() || batchNormTrainingGeometry.isPresent()
-                            || conv2dGeometry.isPresent()
+                            || conv2dGeometry.isPresent() || conv3dGeometry.isPresent()
                         ? overlaps(arguments.get(input), inputBinding,
                             arguments.get(firstOutputIndex), bindings.get(firstOutputIndex))
                         : overlaps(arguments.get(input), ranged(inputBinding),
@@ -1333,6 +1341,14 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
 
     private long[] geometry(List<CpuBufferArgument> arguments, long rangeStart, long rangeEnd,
             int rangeIndex) {
+        if (conv3dGeometry.isPresent()) {
+            long[] bases = new long[arguments.size()];
+            for (int index = 0; index < bases.length; index++) {
+                int width = artifact.specialization().boundaryDataTypes().get(index).byteWidth();
+                bases[index] = arguments.get(index).byteOffset() / width;
+            }
+            return conv3dGeometry.orElseThrow().pack(bases);
+        }
         if (conv2dGeometry.isPresent()) {
             long[] bases = new long[arguments.size()];
             for (int index = 0; index < bases.length; index++) {

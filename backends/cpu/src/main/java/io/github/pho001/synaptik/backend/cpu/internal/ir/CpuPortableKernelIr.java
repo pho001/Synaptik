@@ -15,7 +15,7 @@ public sealed interface CpuPortableKernelIr permits CpuKernelIr, CpuAffineCopyIr
         CpuDataMovementIr, CpuIndexingIr, CpuScatterIr, CpuFoldIr, CpuOrderingIr, CpuRandomIr,
         CpuScanIr, CpuAggregateIr, CpuArgExtremaIr, CpuMaskedReductionIr,
         CpuAdvancedReductionIr, CpuSoftmaxIr, CpuTrailingNormalizationIr,
-        CpuBatchNormInferenceIr, CpuBatchNormTrainingIr, CpuConv2dIr {
+        CpuBatchNormInferenceIr, CpuBatchNormTrainingIr, CpuConv2dIr, CpuConv3dIr {
     /**
      * Returns the deterministic structural key used for generated-code compatibility.
      *
