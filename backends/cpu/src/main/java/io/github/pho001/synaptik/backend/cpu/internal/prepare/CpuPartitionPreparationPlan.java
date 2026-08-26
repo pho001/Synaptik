@@ -3,11 +3,15 @@ package io.github.pho001.synaptik.backend.cpu.internal.prepare;
 import io.github.pho001.synaptik.backend.cpu.internal.route.portable.CpuPortableRoutePlan;
 import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuAccessPlan;
 import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuKernelIr;
+import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuSpecializedSubgraph;
 import io.github.pho001.synaptik.backend.cpu.internal.cache.CpuKernelSpecialization.CarrierAccess;
 import io.github.pho001.synaptik.model.graph.ValueId;
 import io.github.pho001.synaptik.prepare.analysis.BackendPreparationPlan;
 import io.github.pho001.synaptik.prepare.analysis.PreparationResourceRequirement;
 import java.util.List;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.BitSet;
 import java.util.Objects;
 import java.util.Optional;
 import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuMaterializationPlan;
@@ -93,6 +97,9 @@ import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuConv3dLowering
  *     other specialized-family geometry
  * @param conv2dGeometry non-null optional grouped NCHW Conv2d boundary geometry; present only on
  *     the direct lead unit and mutually exclusive with every other specialized-family geometry
+ * @param specializedSubgraphs non-null ordered CPU-private cold recognition facts; copied
+ *     defensively, validated against the exact baseline snapshot, and excluded from generated
+ *     artifact identity and runtime dispatch
  */
 public record CpuPartitionPreparationPlan(List<ExecutionUnitPlan> units, Route route,
         ExecutionStrategy executionStrategy,
@@ -120,7 +127,8 @@ public record CpuPartitionPreparationPlan(List<ExecutionUnitPlan> units, Route r
         Optional<CpuTrailingNormalizationLowering.Geometry> trailingNormalizationGeometry,
         Optional<CpuBatchNormInferenceLowering.Geometry> batchNormInferenceGeometry,
         Optional<CpuBatchNormTrainingLowering.Geometry> batchNormTrainingGeometry,
-        Optional<CpuConv2dLowering.Geometry> conv2dGeometry)
+        Optional<CpuConv2dLowering.Geometry> conv2dGeometry,
+        List<CpuSpecializedSubgraph> specializedSubgraphs)
         implements BackendPreparationPlan {
 
     /**
@@ -198,7 +206,7 @@ public record CpuPartitionPreparationPlan(List<ExecutionUnitPlan> units, Route r
                 randomGeometry, scanGeometry, aggregateGeometry, argExtremaGeometry,
                 maskedReductionGeometry, advancedReductionGeometry, softmaxGeometry,
                 trailingNormalizationGeometry, batchNormInferenceGeometry,
-                batchNormTrainingGeometry, Optional.empty());
+                batchNormTrainingGeometry, Optional.empty(), List.of());
     }
 
     /**
@@ -274,7 +282,8 @@ public record CpuPartitionPreparationPlan(List<ExecutionUnitPlan> units, Route r
                 movementGeometry, indexingGeometry, scatterGeometry, foldGeometry, orderingGeometry,
                 randomGeometry, scanGeometry, aggregateGeometry, argExtremaGeometry,
                 maskedReductionGeometry, advancedReductionGeometry, softmaxGeometry,
-                trailingNormalizationGeometry, Optional.empty(), Optional.empty());
+                trailingNormalizationGeometry, Optional.empty(), Optional.empty(), Optional.empty(),
+                List.of());
     }
 
     /**
@@ -345,7 +354,7 @@ public record CpuPartitionPreparationPlan(List<ExecutionUnitPlan> units, Route r
                 movementGeometry, indexingGeometry, scatterGeometry, foldGeometry, orderingGeometry,
                 randomGeometry, scanGeometry, aggregateGeometry, argExtremaGeometry,
                 maskedReductionGeometry, advancedReductionGeometry, softmaxGeometry,
-                Optional.empty(), Optional.empty(), Optional.empty());
+                Optional.empty());
     }
 
     /**
@@ -446,8 +455,7 @@ public record CpuPartitionPreparationPlan(List<ExecutionUnitPlan> units, Route r
                 loweringManifest, materialization, workspaceDeclaration,
                 materialization.isPresent() ? WorkspaceUse.MATERIALIZATION : WorkspaceUse.NONE,
                 specializationBudget, Optional.empty(), Optional.empty(), Optional.empty(),
-                Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(),
-                Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty());
+                Optional.empty(), Optional.empty());
     }
     /** Meaning of the plan's sole optional CPU workspace. */
     public enum WorkspaceUse {
@@ -891,6 +899,7 @@ public record CpuPartitionPreparationPlan(List<ExecutionUnitPlan> units, Route r
         batchNormTrainingGeometry = Objects.requireNonNull(batchNormTrainingGeometry,
                 "batchNormTrainingGeometry");
         conv2dGeometry = Objects.requireNonNull(conv2dGeometry, "conv2dGeometry");
+        specializedSubgraphs = List.copyOf(specializedSubgraphs);
         boolean split = units.size() > 1;
         if (units.isEmpty() || units.size() > 8 || route != Route.PORTABLE
                 || bufferDeclarations.isEmpty()
@@ -1244,7 +1253,171 @@ public record CpuPartitionPreparationPlan(List<ExecutionUnitPlan> units, Route r
             }
         }
         }
+        validateSpecializedSubgraphs(units, specializedSubgraphs);
     }
+
+    private static void validateSpecializedSubgraphs(List<ExecutionUnitPlan> units,
+            List<CpuSpecializedSubgraph> facts) {
+        if (facts.size() > 8) throw new IllegalArgumentException(
+                "CPU plan retains at most eight recognition facts");
+        var claimed = new BitSet();
+        int previousAnchor = -1;
+        for (CpuSpecializedSubgraph fact : facts) {
+            if (fact.disposition()
+                    == CpuSpecializedSubgraph.ExecutionDisposition.UNSUPPORTED_ANCHOR) {
+                throw new IllegalArgumentException(
+                        "unsupported recognition anchor cannot enter a successful CPU plan");
+            }
+            if (fact.memberNodeOrdinals().getFirst() <= previousAnchor) {
+                throw new IllegalArgumentException("recognition facts are not in stable anchor order");
+            }
+            previousAnchor = fact.memberNodeOrdinals().getFirst();
+            var associatedMembers = new ArrayList<Integer>();
+            int previousUnit = -1;
+            for (int unitIndex : fact.baselineUnitIndices()) {
+                if (unitIndex <= previousUnit || unitIndex >= units.size()) {
+                    throw new IllegalArgumentException("recognition baseline-unit index is invalid");
+                }
+                previousUnit = unitIndex;
+                associatedMembers.addAll(units.get(unitIndex).memberNodeOrdinals());
+            }
+            if (!associatedMembers.equals(fact.memberNodeOrdinals())) {
+                throw new IllegalArgumentException(
+                        "recognition members and baseline units disagree");
+            }
+            List<CpuSpecializedSubgraph.BaselineUnitFact> actualBaseline =
+                    fact.baselineUnitIndices().stream()
+                            .map(index -> baselineUnitFact(units.get(index))).toList();
+            if (!actualBaseline.equals(fact.structuralIdentity().baselineUnits())) {
+                throw new IllegalArgumentException(
+                        "recognition baseline IR or resource topology disagrees");
+            }
+            for (int member : fact.memberNodeOrdinals()) {
+                if (claimed.get(member)) throw new IllegalArgumentException(
+                        "recognition facts overlap at node ordinal " + member);
+                claimed.set(member);
+            }
+            if (fact.disposition()
+                    == CpuSpecializedSubgraph.ExecutionDisposition.EXISTING_SPECIALIZED) {
+                if (fact.baselineUnitIndices().size() != 1) throw new IllegalArgumentException(
+                        "existing specialized fact must retain exactly one baseline unit");
+                Object ir = units.get(fact.baselineUnitIndices().getFirst())
+                        .portablePlan().portableKernelIr();
+                if (fact instanceof CpuSpecializedSubgraph.ConvolutionEpilogue convolution) {
+                    if (!(ir instanceof io.github.pho001.synaptik.backend.cpu.internal.ir.CpuConv2dIr conv)
+                            || convolution.form() != CpuSpecializedSubgraph.Form.CONV2D
+                            || conv.epilogue() != (convolution.epilogue().terminal()
+                                == CpuSpecializedSubgraph.Terminal.RELU
+                                    ? io.github.pho001.synaptik.backend.cpu.internal.ir.CpuConv2dIr.Epilogue.ADD_RELU
+                                    : io.github.pho001.synaptik.backend.cpu.internal.ir.CpuConv2dIr.Epilogue.ADD)) {
+                        throw new IllegalArgumentException(
+                                "existing Conv2d recognition and unit IR disagree");
+                    }
+                }
+            }
+        }
+    }
+
+    private static CpuSpecializedSubgraph.BaselineUnitFact baselineUnitFact(
+            ExecutionUnitPlan unit) {
+        CpuKernelIr encoded = unit.portablePlan().kernelIr();
+        List<CpuKernelIr.Value> materialized = encoded.values().stream()
+                .filter(value -> value.kind() != CpuKernelIr.Value.Kind.VIRTUAL).toList();
+        var boundaries = new ArrayList<CpuSpecializedSubgraph.BoundaryResourceFact>(
+                materialized.size());
+        for (int index = 0; index < materialized.size(); index++) {
+            CpuKernelIr.Value value = materialized.get(index);
+            CpuAccessPlan.Binding binding = unit.accessBindings().get(index);
+            boundaries.add(new CpuSpecializedSubgraph.BoundaryResourceFact(value.dataType(),
+                    value.kind(), value.accessPlan(), binding.extents(),
+                    binding.baseElementOffset(), binding.effectiveStrides(),
+                    binding.elementCount(), binding.start(), binding.end(),
+                    binding.referencedElementSpan(), binding.startCoordinates(),
+                    binding.startAddress(), binding.accessedElementStart(),
+                    binding.accessedElementEnd(), unit.carrierPattern().get(index),
+                    unit.generatedCarrierPattern().get(index)));
+        }
+        CpuSpecializedSubgraph.WorkspaceRole role = switch (unit.runtimeFacts().workspaceUse()) {
+            case NONE -> CpuSpecializedSubgraph.WorkspaceRole.NONE;
+            case MATERIALIZATION -> CpuSpecializedSubgraph.WorkspaceRole.MATERIALIZATION;
+            case SCATTER_PRODUCT -> CpuSpecializedSubgraph.WorkspaceRole.SCATTER_PRODUCT;
+            case ORDERING_INDICES -> CpuSpecializedSubgraph.WorkspaceRole.ORDERING_INDICES;
+            case AGGREGATE_EXACT_STATE ->
+                    CpuSpecializedSubgraph.WorkspaceRole.AGGREGATE_EXACT_STATE;
+        };
+        CpuSpecializedSubgraph.WorkspaceResourceFact workspace = unit.runtimeFacts()
+                .workspaceDeclaration()
+                .map(value -> new CpuSpecializedSubgraph.WorkspaceResourceFact(role,
+                        value.byteSize(), value.byteAlignment()))
+                .orElseGet(() -> new CpuSpecializedSubgraph.WorkspaceResourceFact(
+                        CpuSpecializedSubgraph.WorkspaceRole.NONE, 0, 0));
+        var strategy = unit.executionStrategy();
+        var materialization = unit.runtimeFacts().materialization().map(value ->
+                new CpuSpecializedSubgraph.MaterializationFact(value.sourceBoundaryIndex(),
+                        value.sourceBinding(), value.consumerBinding(), value.elementCount(),
+                        value.byteCount(), value.byteAlignment(), value.useCount(),
+                        value.expectedRunCount(), value.directCost(), value.copyCost(),
+                        value.contiguousCost(), value.copiedTotalCost(), value.netBenefit(),
+                        value.benefitBasisPoints(), value.selectionReason()));
+        BaselinePackedTopology topology = baselinePackedTopology(unit, materialized.size());
+        var execution = new CpuSpecializedSubgraph.BaselineExecutionFact(
+                CpuSpecializedSubgraph.BaselineRoute.PORTABLE,
+                unit.portablePlan().specialization(),
+                CpuSpecializedSubgraph.BaselineCompute.valueOf(strategy.compute().name()),
+                CpuSpecializedSubgraph.BaselineOrchestration.valueOf(
+                        strategy.orchestration().name()),
+                boxed(unit.extents()), unit.elementCount(), unit.selectedRangeCount(),
+                unit.minimumElementsPerWorker(), unit.vectorSpeciesBitSize(),
+                boxed(unit.runtimeFacts().affineAddressPairs()), materialization,
+                topology.kind(), topology.geometry(), unit.fusionReason());
+        return new CpuSpecializedSubgraph.BaselineUnitFact(
+                unit.portablePlan().portableKernelIr().structuralKey(), execution,
+                unit.dependencies(), boundaries, unit.outputCount(), workspace);
+    }
+
+    private static BaselinePackedTopology baselinePackedTopology(ExecutionUnitPlan unit,
+            int boundaryCount) {
+        long[] bases = new long[boundaryCount];
+        UnitRuntimeFacts runtime = unit.runtimeFacts();
+        if (unit.conv3dGeometry().isPresent()) return baselinePacked(
+                CpuSpecializedSubgraph.RuntimeTopology.CONV3D,
+                unit.conv3dGeometry().orElseThrow().pack(bases));
+        if (unit.conv2dGeometry().isPresent()) return baselinePacked(
+                CpuSpecializedSubgraph.RuntimeTopology.CONV2D,
+                unit.conv2dGeometry().orElseThrow().pack(bases));
+        if (runtime.batchNormTrainingGeometry().isPresent()) return baselinePacked(
+                CpuSpecializedSubgraph.RuntimeTopology.BATCH_NORM_TRAINING,
+                runtime.batchNormTrainingGeometry().orElseThrow().pack(bases, 0));
+        if (runtime.batchNormInferenceGeometry().isPresent()) return baselinePacked(
+                CpuSpecializedSubgraph.RuntimeTopology.BATCH_NORM_INFERENCE,
+                runtime.batchNormInferenceGeometry().orElseThrow().pack(bases));
+        if (runtime.trailingNormalizationGeometry().isPresent()) return baselinePacked(
+                CpuSpecializedSubgraph.RuntimeTopology.TRAILING_NORMALIZATION,
+                runtime.trailingNormalizationGeometry().orElseThrow().pack(bases));
+        if (runtime.softmaxGeometry().isPresent()) return baselinePacked(
+                CpuSpecializedSubgraph.RuntimeTopology.SOFTMAX,
+                runtime.softmaxGeometry().orElseThrow().pack(bases));
+        if (runtime.advancedReductionGeometry().isPresent()) return baselinePacked(
+                CpuSpecializedSubgraph.RuntimeTopology.ADVANCED_REDUCTION,
+                runtime.advancedReductionGeometry().orElseThrow().pack(bases));
+        if (runtime.aggregateGeometry().isPresent()) return baselinePacked(
+                CpuSpecializedSubgraph.RuntimeTopology.AGGREGATE,
+                runtime.aggregateGeometry().orElseThrow().pack(bases, 0));
+        return new BaselinePackedTopology(CpuSpecializedSubgraph.RuntimeTopology.POINTWISE,
+                List.of());
+    }
+
+    private static BaselinePackedTopology baselinePacked(
+            CpuSpecializedSubgraph.RuntimeTopology kind, long[] geometry) {
+        return new BaselinePackedTopology(kind, boxed(geometry));
+    }
+
+    private static List<Long> boxed(long[] values) {
+        return Arrays.stream(values).boxed().toList();
+    }
+
+    private record BaselinePackedTopology(CpuSpecializedSubgraph.RuntimeTopology kind,
+            List<Long> geometry) { }
     /** Returns instance geometry.
      * @return a new defensive copy of compatible extents */
     @Override public long[] extents() { return extents.clone(); }

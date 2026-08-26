@@ -5,9 +5,11 @@ import io.github.pho001.synaptik.backend.cpu.internal.cache.CpuLoweringFingerpri
 import io.github.pho001.synaptik.backend.cpu.internal.cache.CpuSpecializationBudget;
 import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuPartitionLowering;
 import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuPartitionDagDecomposer;
+import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuSpecializedSubgraphRecognizer;
 import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuMaterializationPlan;
 import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuAccessPlan;
 import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuKernelIr;
+import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuSpecializedSubgraph;
 import io.github.pho001.synaptik.backend.cpu.internal.route.portable.CpuPortableRoutePlan;
 import io.github.pho001.synaptik.model.datatype.DataType;
 import io.github.pho001.synaptik.model.graph.ValueId;
@@ -55,6 +57,8 @@ public final class CpuPartitionPreparer implements BackendPartitionPreparer<
         CpuPartitionAnalysisInputs, CpuPartitionPreparationPlan> {
     private final CpuPartitionLowering lowering;
     private final CpuPartitionDagDecomposer decomposer = new CpuPartitionDagDecomposer();
+    private final CpuSpecializedSubgraphRecognizer recognizer =
+            new CpuSpecializedSubgraphRecognizer();
 
     /** Creates a preparer with the permanent common lowering owner. */
     public CpuPartitionPreparer() { this(new CpuPartitionLowering()); }
@@ -77,7 +81,9 @@ public final class CpuPartitionPreparer implements BackendPartitionPreparer<
      *     declarations are rebased to the final unit index before they enter the partition
      *     requirement list. A one-unit plan may retain the established optional external-read
      *     materialization, while a multi-unit plan disables it and retains only family-intrinsic
-     *     unit workspaces.
+     *     unit workspaces. The returned plan also carries ordered CPU-private recognition facts
+     *     only after their exact baseline-unit IR and resource snapshot has been validated;
+     *     those facts do not alter declarations, artifact identity, finalization, or execution.
      * @throws NullPointerException if {@code context} is {@code null}
      * @throws IllegalArgumentException if complete-partition lowering rejects the occurrence or
      *     declared resource geometry is invalid
@@ -87,11 +93,38 @@ public final class CpuPartitionPreparer implements BackendPartitionPreparer<
             PrepareContext<CpuPartitionAnalysisInputs> context) {
         Objects.requireNonNull(context, "context");
         var units = decomposer.decompose(context, lowering);
+        BackendPartitionAnalysis<CpuPartitionPreparationPlan> analysis;
         if (units.size() == 1) {
-            return annotateSingle(analyzeUnit(context, units.getFirst().lowering(), 0, true),
+            analysis = annotateSingle(analyzeUnit(context, units.getFirst().lowering(), 0, true),
                     units.getFirst());
+        } else {
+            analysis = analyzeDag(context, units);
         }
-        return analyzeDag(context, units);
+        List<CpuSpecializedSubgraph> facts = recognizer.recognize(context,
+                analysis.plan().units());
+        return withRecognition(analysis, facts);
+    }
+
+    private static BackendPartitionAnalysis<CpuPartitionPreparationPlan> withRecognition(
+            BackendPartitionAnalysis<CpuPartitionPreparationPlan> analysis,
+            List<CpuSpecializedSubgraph> facts) {
+        var plan = analysis.plan();
+        var enriched = new CpuPartitionPreparationPlan(plan.units(), plan.route(),
+                plan.executionStrategy(), plan.bufferDeclarations(), plan.boundaryValues(),
+                plan.accessBindings(), plan.carrierPattern(), plan.generatedCarrierPattern(),
+                plan.extents(), plan.elementCount(), plan.affineAddressPairs(),
+                plan.selectedRangeCount(), plan.minimumElementsPerWorker(),
+                plan.vectorSpeciesBitSize(), plan.loweringManifest(), plan.materialization(),
+                plan.workspaceDeclaration(), plan.workspaceUse(), plan.specializationBudget(),
+                plan.movementGeometry(), plan.indexingGeometry(), plan.scatterGeometry(),
+                plan.foldGeometry(), plan.orderingGeometry(), plan.randomGeometry(),
+                plan.scanGeometry(), plan.aggregateGeometry(), plan.argExtremaGeometry(),
+                plan.maskedReductionGeometry(), plan.advancedReductionGeometry(),
+                plan.softmaxGeometry(), plan.trailingNormalizationGeometry(),
+                plan.batchNormInferenceGeometry(), plan.batchNormTrainingGeometry(),
+                plan.conv2dGeometry(), facts);
+        return new BackendPartitionAnalysis<>(analysis.partition(), enriched,
+                analysis.requirements());
     }
 
     private static BackendPartitionAnalysis<CpuPartitionPreparationPlan> annotateSingle(
@@ -127,7 +160,7 @@ public final class CpuPartitionPreparer implements BackendPartitionPreparer<
                 plan.maskedReductionGeometry(), plan.advancedReductionGeometry(),
                 plan.softmaxGeometry(), plan.trailingNormalizationGeometry(),
                 plan.batchNormInferenceGeometry(), plan.batchNormTrainingGeometry(),
-                plan.conv2dGeometry());
+                plan.conv2dGeometry(), List.of());
         return new BackendPartitionAnalysis<>(analysis.partition(), annotated,
                 analysis.requirements());
     }
@@ -407,7 +440,8 @@ public final class CpuPartitionPreparer implements BackendPartitionPreparer<
                 lowered.scanGeometry(), lowered.aggregateGeometry(), lowered.argExtremaGeometry(),
                 lowered.maskedReductionGeometry(), lowered.advancedReductionGeometry(),
                 lowered.softmaxGeometry(), lowered.trailingNormalizationGeometry(),
-                selectedBatchGeometry, selectedTrainingGeometry, lowered.conv2dGeometry());
+                selectedBatchGeometry, selectedTrainingGeometry, lowered.conv2dGeometry(),
+                List.of());
 
         var requirements = new ArrayList<PreparationResourceRequirement>(declarations);
         plan.workspaceDeclaration().ifPresent(requirements::add);
@@ -521,7 +555,7 @@ public final class CpuPartitionPreparer implements BackendPartitionPreparer<
                 Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(),
                 Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(),
                 Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(),
-                Optional.empty());
+                Optional.empty(), Optional.empty(), List.of());
         return new BackendPartitionAnalysis<>(context.partition(), combined, requirements);
     }
 

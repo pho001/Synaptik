@@ -2,9 +2,11 @@ package io.github.pho001.synaptik.backend.cpu.internal.codegen.emit;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+import io.github.pho001.synaptik.backend.cpu.CpuCapabilityProvider;
 import io.github.pho001.synaptik.backend.cpu.internal.cache.CpuGeneratorSchema;
 import io.github.pho001.synaptik.backend.cpu.internal.cache.CpuKernelSpecialization.CarrierAccess;
 import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuConv2dLoweringTest;
+import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuPartitionLowering;
 import io.github.pho001.synaptik.backend.cpu.internal.prepare.CpuPartitionAnalysisInputs;
 import io.github.pho001.synaptik.backend.cpu.internal.prepare.CpuPartitionPreparer;
 import io.github.pho001.synaptik.model.datatype.DataType;
@@ -32,7 +34,7 @@ public final class CpuConv2dEvidenceTest {
         assertEquals(52, CpuGeneratorSchema.CURRENT_VERSION);
         List<Target> targets = targets();
         assertEquals(List.of("CONV-DENSE-F32", "CONV-GROUPED-F64", "CONV-DEPTHWISE-BF16",
-                "CONV-GENERAL-MIXED", "CONV-FUSED-ADD-RELU", "CONV-PARALLEL-F32",
+                "CONV-GENERAL-MIXED", "CONV-FUSED-ADD", "CONV-FUSED-ADD-RELU", "CONV-PARALLEL-F32",
                 "CONV-SPLIT-ADD-RELU"), targets.stream().map(Target::name).toList());
         Files.createDirectories(EVIDENCE);
         for (Target target : targets) inspect(target);
@@ -40,7 +42,15 @@ public final class CpuConv2dEvidenceTest {
 
     private static void inspect(Target target) throws Exception {
         var plan = new CpuPartitionPreparer().analyze(target.context).plan();
+        Optional<CpuPartitionLowering.LoweredPartition> recognitionFree =
+                target.name.startsWith("CONV-FUSED-")
+                ? Optional.of(new CpuPartitionLowering().lower(target.context)) : Optional.empty();
         assertEquals(target.classes, plan.units().size(), target.name);
+        if (recognitionFree.isPresent()) {
+            assertEquals(recognitionFree.orElseThrow().portableKernelIr().structuralKey(),
+                    plan.units().getFirst().portablePlan().portableKernelIr().structuralKey(),
+                    target.name + " recognition-free lowering identity");
+        }
         for (int index = 0; index < plan.units().size(); index++) {
             var route = plan.units().get(index).portablePlan();
             var generator = new CpuClassFileKernelGenerator();
@@ -48,6 +58,11 @@ public final class CpuConv2dEvidenceTest {
             assertArrayEquals(bytes,
                     generator.generateClassBytes(route.specialization(), route.kernelIr()),
                     target.name + " unit " + index);
+            if (recognitionFree.isPresent()) {
+                assertArrayEquals(bytes, generator.generateClassBytes(route.specialization(),
+                                recognitionFree.orElseThrow().kernelIr()),
+                        target.name + " recognition-free class-byte identity");
+            }
             var model = ClassFile.of().parse(bytes);
             assertAll(target.name,
                     () -> assertTrue(model.flags().has(java.lang.reflect.AccessFlag.FINAL)),
@@ -99,6 +114,8 @@ public final class CpuConv2dEvidenceTest {
                 List.of(CarrierAccess.MEMORY_SEGMENT, CarrierAccess.DOUBLE_ARRAY,
                         CarrierAccess.MEMORY_SEGMENT), 1));
         var fused = CpuConv2dGeneratedKernelTest.fusedContext();
+        result.add(new Target("CONV-FUSED-ADD", inputs(addOnly(fused),
+                Collections.nCopies(5, CarrierAccess.FLOAT_ARRAY), 1), 1));
         result.add(new Target("CONV-FUSED-ADD-RELU", inputs(fused,
                 Collections.nCopies(5, CarrierAccess.FLOAT_ARRAY), 1), 1));
         result.add(direct("CONV-PARALLEL-F32", List.of(DataType.FLOAT32, DataType.FLOAT32),
@@ -137,6 +154,27 @@ public final class CpuConv2dEvidenceTest {
                     : requirement).toList();
         return new PrepareContext<>(base.partition(), base.nodes(), base.values(), memory,
                 base.constants(), base.backendInputs());
+    }
+
+    private static PrepareContext<CpuPartitionAnalysisInputs> addOnly(
+            PrepareContext<CpuPartitionAnalysisInputs> base) {
+        var nodes = base.nodes().subList(0, 2);
+        var values = base.values().stream().filter(value -> value.id().value() <= 5).toList();
+        var partition = new io.github.pho001.synaptik.planning.partition.PlannedPartition(
+                CpuCapabilityProvider.CPU_BACKEND_ID,
+                nodes.stream().map(node -> node.id()).toList());
+        var memory = base.memoryRequirements().stream()
+                .filter(requirement -> requirement.valueId().value() <= 5)
+                .map(requirement -> requirement.valueId().value() == 5
+                        ? new LogicalMemoryRequirement(requirement.valueId(),
+                            requirement.descriptor(), Optional.of(partition), List.of(), true)
+                        : new LogicalMemoryRequirement(requirement.valueId(),
+                            requirement.descriptor(), requirement.valueId().value() >= 4
+                                ? Optional.of(partition) : Optional.empty(),
+                            List.of(partition), false))
+                .toList();
+        return new PrepareContext<>(partition, nodes, values, memory, base.constants(),
+                base.backendInputs());
     }
 
     private static void retain(String name, byte[] bytes, byte[] compatibility,

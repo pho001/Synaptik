@@ -3,6 +3,13 @@ package io.github.pho001.synaptik.backend.cpu.internal.prepare;
 import static org.junit.jupiter.api.Assertions.*;
 
 import io.github.pho001.synaptik.backend.cpu.CpuCapabilityProvider;
+import io.github.pho001.synaptik.backend.cpu.internal.cache.CpuKernelSpecialization;
+import io.github.pho001.synaptik.backend.cpu.internal.cache.CpuLoweringFingerprint;
+import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuSpecializedSubgraph;
+import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuSpecializedSubgraph.BaselineExecutionFact;
+import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuSpecializedSubgraph.BaselineUnitFact;
+import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuSpecializedSubgraph.ReductionEpilogue;
+import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuSpecializedSubgraph.StructuralIdentity;
 import io.github.pho001.synaptik.model.datatype.DataType;
 import io.github.pho001.synaptik.model.datatype.ScalarValue;
 import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuNonAffineMovementLoweringTest;
@@ -68,6 +75,152 @@ import jdk.incubator.vector.LongVector;
 import jdk.incubator.vector.ByteVector;
 
 public class CpuPartitionPreparerTest {
+    @Test void ordinarySplitRecognitionSnapshotsAndValidatesTheExactSelectedBaseline() {
+        var context = CpuAggregateLoweringTest.context(AggregateReductionKind.SUM,
+                DataType.FLOAT32, Shape.of(2, 3), new AxisReductionAttrs(1, false), Shape.of(2));
+        var plan = new CpuPartitionPreparer().analyze(context).plan();
+        var fact = (ReductionEpilogue) plan.specializedSubgraphs().getFirst();
+        BaselineUnitFact baseline = fact.structuralIdentity().baselineUnits().getFirst();
+        var unit = plan.units().getFirst();
+        BaselineExecutionFact execution = baseline.execution();
+
+        CpuKernelSpecialization source = execution.specialization();
+        var changedSpecialization = new CpuKernelSpecialization(source.loweringFingerprint(),
+                source.numericalMode(), source.executionStrategy(), source.boundaryDataTypes(),
+                source.carrierPattern(), source.vectorSpeciesBitSize(),
+                source.materializedSourcePosition(), source.scalarPowerRealizations(),
+                !source.scratchParameter());
+        var wrongSpecialization = withExecution(baseline, new BaselineExecutionFact(
+                execution.route(), changedSpecialization, execution.compute(),
+                execution.orchestration(), execution.extents(), execution.elementCount(),
+                execution.selectedRangeCount(), execution.minimumElementsPerWorker(),
+                execution.vectorSpeciesBitSize(), execution.affineAddressPairs(),
+                execution.materialization(), execution.runtimeTopology(),
+                execution.packedGeometry(), execution.fusionReason()));
+        var wrongStrategy = withExecution(baseline, new BaselineExecutionFact(
+                execution.route(), execution.specialization(), execution.compute(),
+                CpuSpecializedSubgraph.BaselineOrchestration.PARALLEL, execution.extents(),
+                execution.elementCount(), 2, execution.minimumElementsPerWorker(),
+                execution.vectorSpeciesBitSize(), execution.affineAddressPairs(),
+                execution.materialization(), execution.runtimeTopology(),
+                execution.packedGeometry(), execution.fusionReason()));
+        var binding = unit.accessBindings().getFirst();
+        var forgedMaterialization = new CpuSpecializedSubgraph.MaterializationFact(0, binding,
+                binding, unit.elementCount(), Math.multiplyExact(unit.elementCount(), Double.BYTES),
+                Double.BYTES, 1, 1, 10, 1, 1, 2, 8, 8_000, "forged");
+        var materializedSpecialization = new CpuKernelSpecialization(
+                source.loweringFingerprint(), source.numericalMode(), source.executionStrategy(),
+                source.boundaryDataTypes(), source.carrierPattern(), source.vectorSpeciesBitSize(),
+                0, source.scalarPowerRealizations(), false);
+        var materializedExecution = new BaselineExecutionFact(
+                execution.route(), materializedSpecialization, execution.compute(),
+                execution.orchestration(), execution.extents(), execution.elementCount(),
+                execution.selectedRangeCount(), execution.minimumElementsPerWorker(),
+                execution.vectorSpeciesBitSize(), execution.affineAddressPairs(),
+                Optional.of(forgedMaterialization), execution.runtimeTopology(),
+                execution.packedGeometry(), execution.fusionReason());
+        var wrongMaterialization = new BaselineUnitFact(baseline.structuralKey(),
+                materializedExecution, baseline.dependencies(), baseline.boundaries(),
+                baseline.outputCount(), new CpuSpecializedSubgraph.WorkspaceResourceFact(
+                    CpuSpecializedSubgraph.WorkspaceRole.MATERIALIZATION,
+                    forgedMaterialization.byteCount(), forgedMaterialization.byteAlignment()));
+        var wrongTopology = withExecution(baseline, new BaselineExecutionFact(
+                execution.route(), execution.specialization(), execution.compute(),
+                execution.orchestration(), execution.extents(), execution.elementCount(),
+                execution.selectedRangeCount(), execution.minimumElementsPerWorker(),
+                execution.vectorSpeciesBitSize(), execution.affineAddressPairs(),
+                execution.materialization(), CpuSpecializedSubgraph.RuntimeTopology.POINTWISE,
+                List.of(), execution.fusionReason()));
+        String wrongKey = "02".repeat(32);
+        var wrongFingerprintSpecialization = new CpuKernelSpecialization(
+                CpuLoweringFingerprint.fromHex(wrongKey), source.numericalMode(),
+                source.executionStrategy(), source.boundaryDataTypes(), source.carrierPattern(),
+                source.vectorSpeciesBitSize(), source.materializedSourcePosition(),
+                source.scalarPowerRealizations(), source.scratchParameter());
+        var wrongIrExecution = new BaselineExecutionFact(execution.route(),
+                wrongFingerprintSpecialization, execution.compute(), execution.orchestration(),
+                execution.extents(), execution.elementCount(), execution.selectedRangeCount(),
+                execution.minimumElementsPerWorker(), execution.vectorSpeciesBitSize(),
+                execution.affineAddressPairs(), execution.materialization(),
+                execution.runtimeTopology(), execution.packedGeometry(), execution.fusionReason());
+        var wrongIr = new BaselineUnitFact(wrongKey, wrongIrExecution,
+                baseline.dependencies(), baseline.boundaries(), baseline.outputCount(),
+                baseline.workspace());
+        var changedBoundaries = new ArrayList<>(baseline.boundaries());
+        var boundary = changedBoundaries.getFirst();
+        changedBoundaries.set(0, new CpuSpecializedSubgraph.BoundaryResourceFact(
+                boundary.dataType(), boundary.role(), boundary.accessPlan(), boundary.extents(),
+                boundary.baseElementOffset(), boundary.effectiveStrides(), boundary.elementCount(),
+                boundary.start(), boundary.end(),
+                Math.addExact(boundary.referencedElementSpan(), 1), boundary.startCoordinates(),
+                boundary.startAddress(), boundary.accessedElementStart(),
+                boundary.accessedElementEnd(), boundary.carrier(), boundary.generatedCarrier()));
+        var wrongResources = new BaselineUnitFact(baseline.structuralKey(), execution,
+                baseline.dependencies(), changedBoundaries, baseline.outputCount(),
+                baseline.workspace());
+
+        assertAll(
+                () -> assertEquals(unit.portablePlan().specialization(),
+                        execution.specialization()),
+                () -> assertEquals(unit.executionStrategy().compute().name(),
+                        execution.compute().name()),
+                () -> assertEquals(unit.executionStrategy().orchestration().name(),
+                        execution.orchestration().name()),
+                () -> assertEquals(unit.selectedRangeCount(), execution.selectedRangeCount()),
+                () -> assertEquals(unit.minimumElementsPerWorker(),
+                        execution.minimumElementsPerWorker()),
+                () -> assertEquals(CpuSpecializedSubgraph.RuntimeTopology.AGGREGATE,
+                        execution.runtimeTopology()),
+                () -> assertFalse(execution.packedGeometry().isEmpty()),
+                () -> assertThrows(IllegalArgumentException.class,
+                        () -> copyRecognitionPlan(plan, forged(fact, wrongIr))),
+                () -> assertThrows(IllegalArgumentException.class,
+                        () -> copyRecognitionPlan(plan, forged(fact, wrongResources))),
+                () -> assertThrows(IllegalArgumentException.class,
+                        () -> copyRecognitionPlan(plan, forged(fact, wrongSpecialization))),
+                () -> assertThrows(IllegalArgumentException.class,
+                        () -> copyRecognitionPlan(plan, forged(fact, wrongStrategy))),
+                () -> assertThrows(IllegalArgumentException.class,
+                        () -> copyRecognitionPlan(plan, forged(fact, wrongMaterialization))),
+                () -> assertThrows(IllegalArgumentException.class,
+                        () -> copyRecognitionPlan(plan, forged(fact, wrongTopology))));
+    }
+
+    private static BaselineUnitFact withExecution(BaselineUnitFact source,
+            BaselineExecutionFact execution) {
+        return new BaselineUnitFact(source.structuralKey(), execution, source.dependencies(),
+                source.boundaries(), source.outputCount(), source.workspace());
+    }
+
+    private static ReductionEpilogue forged(ReductionEpilogue fact,
+            BaselineUnitFact baseline) {
+        StructuralIdentity source = fact.structuralIdentity();
+        var identity = new StructuralIdentity(source.family(), source.form(),
+                source.inputDataTypes(), source.resultDataTypes(), source.accessFacts(),
+                source.attributes(), source.epilogue(), List.of(baseline));
+        return new ReductionEpilogue(fact.form(), fact.memberNodeOrdinals(),
+                fact.baselineUnitIndices(), fact.inputDataTypes(), fact.resultDataTypes(),
+                fact.accessFacts(), fact.epilogue(), identity);
+    }
+
+    private static CpuPartitionPreparationPlan copyRecognitionPlan(
+            CpuPartitionPreparationPlan plan, CpuSpecializedSubgraph fact) {
+        return new CpuPartitionPreparationPlan(plan.units(), plan.route(),
+                plan.executionStrategy(), plan.bufferDeclarations(), plan.boundaryValues(),
+                plan.accessBindings(), plan.carrierPattern(), plan.generatedCarrierPattern(),
+                plan.extents(), plan.elementCount(), plan.affineAddressPairs(),
+                plan.selectedRangeCount(), plan.minimumElementsPerWorker(),
+                plan.vectorSpeciesBitSize(), plan.loweringManifest(), plan.materialization(),
+                plan.workspaceDeclaration(), plan.workspaceUse(), plan.specializationBudget(),
+                plan.movementGeometry(), plan.indexingGeometry(), plan.scatterGeometry(),
+                plan.foldGeometry(), plan.orderingGeometry(), plan.randomGeometry(),
+                plan.scanGeometry(), plan.aggregateGeometry(), plan.argExtremaGeometry(),
+                plan.maskedReductionGeometry(), plan.advancedReductionGeometry(),
+                plan.softmaxGeometry(), plan.trailingNormalizationGeometry(),
+                plan.batchNormInferenceGeometry(), plan.batchNormTrainingGeometry(),
+                plan.conv2dGeometry(), List.of(fact));
+    }
+
     @Test void advancedStatisticsDeclareTwoBuffersAndOnlyPerRangeExactState() {
         var base = CpuAggregateLoweringTest.context(AggregateReductionKind.VARIANCE,
                 DataType.FLOAT32, Shape.of(8, 4),

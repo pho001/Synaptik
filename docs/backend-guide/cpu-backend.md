@@ -123,8 +123,9 @@ completes before consumer execution. Capability and lowering fail closed for eve
 operation, type, shape, layout, parameter, alias, fan-out, publication, carrier, or route. In
 particular, CAST is same-type only and BFLOAT16 remains representation-only for affine movement;
 CPU does not invent cross-type conversion semantics. Native, tuning, excluded pointwise rows,
-specialized-subgraph recognition, profitability ranking, multi-input representation selection,
-native routes, tuning, and later operation families remain planned. Functional scatter,
+profitability ranking, multi-input representation selection, native routes, tuning, and later
+operation families remain planned. CPU-private specialized-subgraph recognition is current only
+as the cold, recognition-only boundary described below. Functional scatter,
 overlap fold, stable ordering, explicit-state random, cumulative-scan, and ordinary-aggregate
 execution are current
 only within the exact
@@ -514,6 +515,47 @@ uses the already-bound immutable child list in stable unit order and stops at th
 it performs no graph inspection or dynamic scheduling. Runtime surrounds the composite with one
 atomic invalid-before/valid-after transition, so a failed partition does not validate any declared
 partition write.
+
+### CPU-private specialized-subgraph recognition
+
+CPU analysis now records bounded typed recognition facts after the complete 0008B execution plan
+has succeeded. A recognition fact identifies an exact MATMUL, channels-first convolution,
+selected floating reduction with a literal suffix, or an already first-class softmax or
+normalization kernel. The only suffix vocabulary is an optional external `ADD` followed by at
+most one exact activation or `CLAMP`. These facts are private cold metadata, not another kernel
+intermediate representation (IR), artifact key, capability surface, or Runtime application
+programming interface (API).
+
+```text
+complete projected partition
+  -> build the ordinary 0008B execution plan
+  -> recognize a bounded semantic topology
+  -> snapshot its exact baseline units and resources
+  -> reject any disagreement
+  -> retain the already selected execution unchanged
+```
+
+The snapshot is fail-closed and exact. It retains each associated unit's portable-IR structural
+key, generated specialization, scalar/vector and single/parallel strategy, ranges, materialized
+boundary bindings, carrier forms, dependencies, workspace, materialization decision, and packed
+runtime geometry. Plan validation independently rebuilds those facts. A mismatch rejects the
+recognition fact before resource declaration or artifact access; it never repairs, relaxes, or
+replaces the baseline.
+
+The execution dispositions make this boundary explicit. `UNSUPPORTED_ANCHOR` is diagnostic-only
+MATMUL recognition and cannot enter a successful CPU plan. `ORDINARY_SPLIT` retains the exact
+materialized units already selected for Conv1d, Conv3d, and reduction epilogues.
+`EXISTING_SPECIALIZED` refers only to an already implemented identical form: the exact Conv2d
+`ADD` and `ADD -> RELU` forms from CPU 0008, plus the existing one-unit first-class softmax and
+normalization kernels. Recognition does not infer first-class semantics from algebraically similar
+decomposed graphs.
+
+Retained evidence compares recognition-free and recognized Conv2d `ADD` and `ADD -> RELU`
+preparation. Each pair has equal portable IR and exact generated class bytes. Generator schema 52
+is unchanged, and complete binary, `javap`, member-reference, and source scans find no recognition
+fact or helper in generated code, artifact identity, executable code, or hot dispatch. No new
+benchmark fork was run because this task changes neither a generated form nor a runtime hot path;
+the owning execution tasks' performance evidence remains controlling.
 
 The proving slice is one fully static FLOAT64 ADD -> exact GELU -> MUL chain. ADD and MUL use the
 current Model right-aligned broadcast result, GELU preserves the ADD result Shape exactly, and all
