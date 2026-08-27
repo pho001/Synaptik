@@ -34,6 +34,14 @@ class PrepareContextTest {
     @Test
     void validatesTopLevelReferencesAndNodeOrderBeforeProjectionDetails() {
         Fixture fixture = fixture();
+        NullPointerException nullPartitionDag = assertThrows(
+                NullPointerException.class,
+                () -> new PrepareContext<>(
+                        (PartitionDag) null,
+                        fixture.values,
+                        fixture.requirements,
+                        fixture.constants,
+                        fixture.inputs));
         List<CompiledNode> nodesWithNull =
                 new ArrayList<>(Arrays.asList(fixture.nodes.getFirst(), null, null));
 
@@ -104,6 +112,7 @@ class PrepareContextTest {
                         fixture.inputs));
 
         assertAll(
+                () -> assertEquals("partitionDag", nullPartitionDag.getMessage()),
                 () -> assertEquals("partition", nullPartition.getMessage()),
                 () -> assertEquals("nodes", nullNodes.getMessage()),
                 () -> assertEquals("values", nullValues.getMessage()),
@@ -304,6 +313,13 @@ class PrepareContextTest {
                 suppliedRequirements,
                 suppliedConstants,
                 fixture.inputs);
+        PartitionDag partitionDag = context.partitionDag();
+        PrepareContext<FakeInputs> canonical = new PrepareContext<>(
+                partitionDag,
+                fixture.values,
+                fixture.requirements,
+                fixture.constants,
+                fixture.inputs);
         suppliedNodes.clear();
         suppliedValues.clear();
         suppliedRequirements.clear();
@@ -311,6 +327,17 @@ class PrepareContextTest {
 
         assertAll(
                 () -> assertSame(fixture.partition, context.partition()),
+                () -> assertSame(partitionDag.nodes(), context.nodes()),
+                () -> assertSame(partitionDag, canonical.partitionDag()),
+                () -> assertEquals(context, canonical),
+                () -> assertEquals(context.hashCode(), canonical.hashCode()),
+                () -> assertEquals(
+                        "PrepareContext[partitionDag=" + partitionDag
+                                + ", values=" + fixture.values
+                                + ", memoryRequirements=" + fixture.requirements
+                                + ", constants=" + fixture.constants
+                                + ", backendInputs=" + fixture.inputs + "]",
+                        context.toString()),
                 () -> assertEquals(fixture.nodes, context.nodes()),
                 () -> assertSame(fixture.nodes.getFirst(), context.nodes().getFirst()),
                 () -> assertNotSame(suppliedNodes, context.nodes()),

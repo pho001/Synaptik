@@ -29,6 +29,8 @@ backend types, not a production backend or runnable engine.
 
 - A [`PrepareContext`](../glossary.md#prepare-context-preparecontext) is the immutable,
   partition-scoped projection that shared Prepare validates before calling a backend.
+- A [`PartitionDag`](../glossary.md#partition-dag-partitiondag) is the context's immutable local
+  topology. It preserves node and port occurrences without adding backend policy.
 - A [backend partition analysis](../glossary.md#backend-partition-analysis-backendpartitionanalysis)
   is the result of route selection and exact resource declaration, before any slot exists.
 - A [preparation resource requirement](../glossary.md#preparation-resource-requirement) declares
@@ -47,7 +49,7 @@ Read this flow from backend-neutral compile facts toward reusable runtime state:
 
 ```text
 capability reporting and Planning ownership
-  -> PrepareContext for one PlannedPartition                 current
+  -> PartitionDag + PrepareContext for one PlannedPartition  current
   -> BackendPartitionPreparer.analyze                        current
   -> BackendPartitionAnalysis + exact requirements           current
   -> shared BufferSlot/WorkspaceSlot assignment              current, package-internal
@@ -91,6 +93,7 @@ import io.github.pho001.synaptik.prepare.analysis.BackendAnalysisInputs;
 import io.github.pho001.synaptik.prepare.analysis.BackendPartitionAnalysis;
 import io.github.pho001.synaptik.prepare.analysis.BackendPartitionPreparer;
 import io.github.pho001.synaptik.prepare.analysis.BackendPreparationPlan;
+import io.github.pho001.synaptik.prepare.analysis.PartitionDag;
 import io.github.pho001.synaptik.prepare.analysis.PreparationResourceRequirement;
 import io.github.pho001.synaptik.prepare.analysis.PrepareContext;
 import java.util.List;
@@ -106,14 +109,15 @@ final class CpuPreparer
     public BackendPartitionAnalysis<CpuPlan> analyze(
             PrepareContext<CpuInputs> context) {
         Objects.requireNonNull(context, "context");
-        if (context.nodes().size() != 1
+        PartitionDag dag = context.partitionDag();
+        if (dag.nodes().size() != 1
                 || context.values().size() != 2
                 || context.backendInputs().alignment() != 4) {
             throw new IllegalArgumentException("unsupported example context");
         }
 
-        ValueId inputId = context.nodes().getFirst().inputs().getFirst();
-        ValueId outputId = context.nodes().getFirst().outputs().getFirst();
+        ValueId inputId = dag.externalInputs().getFirst().valueId();
+        ValueId outputId = dag.localSinks().getFirst().outputs().getFirst();
         CpuPlan plan = new CpuPlan("vector", 4);
 
         return new BackendPartitionAnalysis<>(
@@ -131,6 +135,9 @@ final class CpuPreparer
 
 - The generic marker roles keep `CpuInputs` paired with `CpuPlan`; the implementation needs no
   cast, raw `Object`, or string-keyed parameter map.
+- `partitionDag()` is the sole retained topology source. This one-node example reads its external
+  input occurrence and local sink directly; a multi-node backend can also query exact producer,
+  consumer, and edge ports without reconstructing adjacency.
 - The preparer rejects any context outside this example's supported shape before returning a
   partial result. A production backend would validate its complete supported operation,
   descriptor, capability, and configuration contract.
@@ -327,11 +334,24 @@ gradient publications. It invokes no creator and performs no physical work.
 
 ## Context and requirement invariants
 
-`PrepareContext` snapshots its lists and map before analysis. Node IDs must match
-`PlannedPartition.nodeIds()` exactly and in order. Projected values are unique by `ValueId`;
-every node input and output must resolve to one of them. Every projected value has exactly one
-descriptor-matching `LogicalMemoryRequirement`, but the contract does not add a separate rule
-that every projected value must appear in a node input or output.
+`PartitionDag` snapshots membership while retaining the exact node references. Node IDs must
+match `PlannedPartition.nodeIds()` exactly and in order. Producer and consumer occurrences retain
+their zero-based node and output/input port positions. Repeated inputs remain separate consumer
+and edge entries, and every output of a multi-output node remains separately addressable. An
+external input has no local producer. A local sink has no output consumed locally, regardless of
+publication or cross-partition use.
+
+These are topology-only facts. They do not describe graph regions, cross-partition ownership,
+transfer, publication, materialization, memory policy, fusion legality, route selection,
+scheduling, or execution. `PrepareContext` stores the DAG as its only node/topology state and
+snapshots its other lists and map before analysis. Its canonical record shape has five
+components; the six-argument partition-and-node-list constructor preserves source calls only and
+does not promise binary compatibility with the former record shape.
+
+Projected values are unique by `ValueId`; every node input and output must resolve to one of
+them. Every projected value has exactly one descriptor-matching `LogicalMemoryRequirement`, but
+the contract does not add a separate rule that every projected value must appear in a node input
+or output.
 
 Every projected descriptor must have a fully static Shape. A projected logical-splat constant is
 permitted only for a projected graph input, and its `ScalarValue` data type must match the input

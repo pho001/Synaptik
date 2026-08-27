@@ -16,7 +16,8 @@ prepared-execution runner. Prepare
 currently implements the analysis-side projection, opaque marker roles, exact resource
 declarations, analysis result, preparer collaboration, deterministic complete-set slot assignment,
 typed backend finalization input/collaboration, the minimal prepared-partition association, exact
-compile projection, explicit schedule assembly, complete schedule validation, and construction of
+compile projection, one immutable partition-local directed acyclic graph (DAG) per backend
+analysis context, explicit schedule assembly, complete schedule validation, and construction of
 the reusable prepared-execution root.
 Physical allocation and access implementations, public output-value access, public Prepare
 composition through Engine, and production concrete backends remain planned.
@@ -73,23 +74,44 @@ positions without moving graph objects or physical storage into the Runtime hot-
 ## Current analysis foundation
 
 The current `modules/prepare` production surface is the
-`io.github.pho001.synaptik.prepare.analysis` package. Its exact six top-level declarations are:
+`io.github.pho001.synaptik.prepare.analysis` package. Its exact seven top-level declarations are:
 
 - `BackendAnalysisInputs`, the marker role for one concrete backend's immutable target,
   capability, configuration, and compatible cached-decision inputs;
 - `BackendPreparationPlan`, the marker role for that backend's immutable selected lowering,
   route, and private configuration;
+- `PartitionDag`, the immutable topology-only projection for exactly one planned partition;
 - `PrepareContext`, the validated partition projection;
 - `PreparationResourceRequirement`, the sealed buffer/workspace declaration family;
 - `BackendPartitionAnalysis`, the immutable selected-plan and requirement result; and
 - `BackendPartitionPreparer`, the typed backend analysis collaboration.
 
-`PrepareContext` retains the exact planned-partition reference and immutable ordered snapshots of
-its nodes, projected values, and logical-memory requirements. Its node IDs must match the
-partition exactly and in order. Projected values are unique by `ValueId`, every node input and
-output resolves to one projected value, and every projected value has one descriptor-matching
-logical-memory requirement. This is intentionally asymmetric: the current contract does not
-separately require every projected value to occur in a node input or output.
+`PartitionDag` retains the exact planned-partition reference and exact `CompiledNode` references
+in validated stable topological order. It derives producer/output-port, consumer/input-port, and
+edge occurrences from ordered node ports. Repeated inputs therefore remain distinct, each output
+of a multi-output node has its own producer occurrence, and query order follows partition node
+order then port order. An input occurrence is external when its `ValueId` has no producer inside
+this partition. A local sink is a node with no output consumed inside this partition; publication
+and cross-partition consumers do not change that topology-only classification.
+
+The DAG contains neither the complete `CompiledGraphModel` nor nodes from another partition. It
+does not infer regions, cross-partition ownership, transfer, publication, materialization, memory,
+fusion, route, scheduling, or performance policy. Duplicate node IDs or produced values,
+partition membership/order disagreement, self-dependencies, and later-producer dependencies fail
+construction before backend analysis.
+
+`PrepareContext` stores this exact DAG as its sole node/topology component. Its derived
+`partition()` and `nodes()` methods delegate to the DAG. The canonical record has five components:
+the DAG, projected values, logical-memory requirements, constants, and backend inputs. Its public
+six-argument partition-and-node-list constructor remains source-compatible with the former call
+shape by constructing one DAG and delegating to the canonical constructor. No binary
+compatibility is promised: the record descriptor, component reflection, equality, hash code, and
+textual form now follow the five-component shape.
+
+Projected values are unique by `ValueId`, every node input and output resolves to one projected
+value, and every projected value has one descriptor-matching logical-memory requirement. This is
+intentionally asymmetric: the current contract does not separately require every projected value
+to occur in a node input or output.
 
 All projected Shapes must be fully static. An immutable logical-splat constant may be projected
 only for a projected graph input, and its exact `ScalarValue` type must match that input's
@@ -110,11 +132,12 @@ implements this collaboration.
 
 ## The staged prepare handoff
 
-The first handoff is now represented by `PrepareContext`. Shared Prepare can build this
-partition-scoped projection from stable semantic and Planning facts plus fully resolved
-prepare-time inputs. It is not `CompileArtifacts` and exposes no Compiler-owned implementation
-state. Concrete backends may consume the projected Model and Planning contracts during analysis;
-Runtime never receives those graph objects.
+The first handoff is now represented by `PrepareContext`. While shared Prepare holds the complete
+compile graph, it constructs each `PartitionDag` exactly once, constructs all contexts before the
+first backend call, and passes only the partition-local projection plus stable semantic and
+Planning facts and fully resolved prepare-time inputs. The context is not `CompileArtifacts` and
+exposes no Compiler-owned aggregate. Concrete backends may consume the projected Model and
+Planning contracts during analysis; Runtime never receives those graph objects.
 
 Through the current `BackendPartitionPreparer` collaboration, the owning backend deterministically
 analyzes and lowers the partition from those explicit inputs. It selects one supported route and

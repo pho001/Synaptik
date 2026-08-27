@@ -62,8 +62,8 @@ Define and validate the shared transition from immutable compile artifacts to pr
 
 ```text
 io.github.pho001.synaptik.prepare/
-  analysis/  public partition-scoped analysis request, opaque backend plan, exact resource
-             declarations, and backend analyzer collaboration
+  analysis/  public immutable partition-local DAG and analysis request, opaque backend plan,
+             exact resource declarations, and backend analyzer collaboration
   <root>     finalized prepared-partition result plus current complete graph-preparation,
              schedule-assembly, and validation contracts
 ```
@@ -80,7 +80,8 @@ target/backend capabilities, configuration, and compatible cached decisions. It 
 | 0001 | [Backend partition analysis and resource declaration](tasks/0001-backend-partition-analysis-and-resource-declaration.md) | Complete | Compiler 0006; Planning 0006; Runtime 0001; ADR 0010 | Defines the analysis-side Prepare projection, typed backend analyzer, opaque selected plan, and exact buffer/workspace declarations without assigning slots or finalizing executables. |
 | 0002 | [Backend partition finalization handoff](tasks/0002-backend-partition-finalization-handoff.md) | Complete | 0001; Runtime 0002–0004 | Assigns deterministic conservative shared slots across the complete ordered analyses, retains exact source associations, and finalizes each typed backend plan into the minimal prepared partition/executable association. |
 | 0003 | [Prepare orchestration and validation](tasks/0003-prepare-orchestration-and-validation.md) | Complete | 0001–0002; Compiler 0006; Planning 0006; Runtime 0002–0014 | Composes exact compile projection, typed backend analysis/finalization, initialized constant representations, prepared-memory assignment, complete schedule assembly/validation, and final prepared execution without concrete backend logic. |
-| 0004 | Opaque backend-candidate and tuning-artifact handoff | Draft | 0001–0003; at least one concrete backend typed-candidate producer; stable tuning-artifact compatibility | Expose complete backend candidates per occurrence or partition opaquely, pass compatible tuning-cache decisions into deterministic analysis, and preserve backend-owned filtering/selection without interpreting route, generated-artifact, storage, or vendor fields. |
+| 0003A | [Immutable partition-local DAG analysis projection](tasks/0003a-immutable-partition-local-dag-analysis-projection.md) | Complete | 0001–0003; CPU 0008B–0008E as downstream evidence | Added one public immutable Prepare-owned projection for exactly one planned partition, made it `PrepareContext`'s sole node/topology source, precomputed precise structural occurrences and adjacency, and kept the complete cross-backend model DAG out of concrete backends. |
+| 0004 | Opaque backend-candidate and tuning-artifact handoff | Draft | 0001–0003A; at least one concrete backend typed-candidate producer; stable tuning-artifact compatibility | Expose complete backend candidates per occurrence or partition opaquely, pass compatible tuning-cache decisions into deterministic analysis, and preserve backend-owned filtering/selection without interpreting route, generated-artifact, storage, or vendor fields. |
 
 ## Milestones
 
@@ -99,6 +100,10 @@ collaboration selected by ADR 0010. Its focused and final implementation validat
 suites and 11 tests with no failures, errors, or skips. The separate documentation pass finalized
 the production/package Javadocs, backend guide, focused architecture status, glossary, and
 planning records without changing executable Java or repeating those successful tests.
+
+[Task 0003A](tasks/0003a-immutable-partition-local-dag-analysis-projection.md) is Complete. It
+reopened the otherwise completed Prepare milestone for one shared immutable partition-local
+structural projection before CPU MATMUL. CPU adoption remains a separate Draft CPU 0008E1 task.
 
 Task 0001 remains deliberately analysis-only. `PrepareContext` accepts fully static partition
 facts and one backend-specific immutable input object carrying target capabilities,
@@ -137,10 +142,21 @@ executable Java or repeating the successful tests. Prepare Javadoc, the Java 26 
 example, nine-file Markdown validation, exact public/package-private shape, mechanism, exact
 18-path scope, unchanged architecture/build boundaries, status, and whitespace gates passed.
 
-Future task 0004 remains Draft without a detailed specification. It does not reopen the completed
-Prepare project area, alter tasks 0001–0003, or replace CPU as the next global frontier. It is a
-deferred bounded interleave only after a concrete CPU typed-candidate producer and tuning-artifact
-consumer stabilize; until then it cannot become Ready.
+User-authorized interleaved
+[task 0003A](tasks/0003a-immutable-partition-local-dag-analysis-projection.md) is Complete. It
+adds a shared immutable partition-local topology projection before CPU MATMUL so no concrete
+backend receives the complete cross-backend model DAG and each backend need not reconstruct exact
+structural occurrences independently. It preserves the completed 0001–0003
+analysis/finalization lifecycle and does not migrate CPU reconstruction; Draft CPU 0008E1 owns
+that later adoption. The implementation-owned final Prepare run passed 41 tests; the final shared
+checkpoint reported 42 Prepare tests and 2,491 repository tests overall with 3 expected skips and
+no failures or errors. Clean documentation context
+`01a043d7-113c-7ee2-8257-42678c1a7be4` finalized Javadocs, public and backend guidance, glossary,
+and planning evidence.
+
+Future task 0004 remains Draft without a detailed specification. It follows 0003A without
+renumbering and remains the deferred opaque candidate/tuning handoff. CPU 0008E1 and CPU 0008F
+also remain Draft without detailed specifications.
 
 ## Open questions
 

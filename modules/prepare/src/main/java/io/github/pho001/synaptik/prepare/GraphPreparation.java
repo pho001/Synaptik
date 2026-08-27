@@ -13,6 +13,7 @@ import io.github.pho001.synaptik.prepare.analysis.BackendAnalysisInputs;
 import io.github.pho001.synaptik.prepare.analysis.BackendPartitionAnalysis;
 import io.github.pho001.synaptik.prepare.analysis.BackendPreparationPlan;
 import io.github.pho001.synaptik.prepare.analysis.PrepareContext;
+import io.github.pho001.synaptik.prepare.analysis.PartitionDag;
 import io.github.pho001.synaptik.runtime.execution.PreparedBufferTransfer;
 import io.github.pho001.synaptik.runtime.execution.PreparedExecutable;
 import io.github.pho001.synaptik.runtime.execution.PreparedExecution;
@@ -39,11 +40,13 @@ import java.util.Set;
  * Performs complete shared graph preparation from immutable compile artifacts to one Runtime
  * execution recipe.
  *
- * <p>The operation projects every backend context before analysis, invokes analysis and
- * finalization in compile-partition order, exposes complete immutable facts to one explicit
- * schedule assembler, validates the returned recipe, and returns the exact prepared memory plan
- * and schedule in one {@link PreparedExecution}. It performs no physical work, execution,
- * backend discovery, tuning, or dynamic binding.</p>
+ * <p>The operation projects every backend context before analysis, constructs each partition's
+ * immutable local DAG exactly once while it owns the complete compile graph, and passes only that
+ * local projection to backend analysis. It then invokes analysis and finalization in
+ * compile-partition order, exposes complete immutable facts to one explicit schedule assembler,
+ * validates the returned recipe, and returns the exact prepared memory plan and schedule in one
+ * {@link PreparedExecution}. It performs no physical work, execution, backend discovery, tuning,
+ * or dynamic binding.</p>
  */
 public final class GraphPreparation {
     private GraphPreparation() {}
@@ -464,9 +467,9 @@ public final class GraphPreparation {
                     constants.put(source.valueId(), source.value());
                 }
             }
+            PartitionDag partitionDag = new PartitionDag(partition, partitionNodes);
             return new PrepareContext<>(
-                    partition,
-                    partitionNodes,
+                    partitionDag,
                     values,
                     memoryRequirements,
                     constants,

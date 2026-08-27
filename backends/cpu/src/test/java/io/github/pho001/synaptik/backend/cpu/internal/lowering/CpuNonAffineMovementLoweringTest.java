@@ -172,11 +172,12 @@ public class CpuNonAffineMovementLoweringTest {
                 oneNode.nodes().getFirst().inputs(), oneNode.nodes().getFirst().outputs());
         var twoNodePartition = new PlannedPartition(CpuCapabilityProvider.CPU_BACKEND_ID,
                 List.of(new NodeId(0), new NodeId(1)));
-        var twoNodes = new PrepareContext<>(twoNodePartition,
-                List.of(oneNode.nodes().getFirst(), secondNode), oneNode.values(),
-                oneNode.memoryRequirements(), oneNode.constants(), oneNode.backendInputs());
         assertAll(
-                () -> assertThrows(IllegalArgumentException.class, () -> lower(twoNodes)),
+                () -> assertThrows(IllegalArgumentException.class,
+                        () -> new PrepareContext<>(twoNodePartition,
+                                List.of(oneNode.nodes().getFirst(), secondNode), oneNode.values(),
+                                oneNode.memoryRequirements(), oneNode.constants(),
+                                oneNode.backendInputs())),
                 () -> assertThrows(IllegalArgumentException.class, () -> lower(context(
                         new Operation(WindowTransformKind.UNFOLD2D, window), List.of(0, 0),
                         List.of(input), output))),

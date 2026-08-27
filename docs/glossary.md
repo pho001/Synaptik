@@ -4321,10 +4321,16 @@ Boundary](architecture/runtime-prepare-backend-boundary.md#the-staged-prepare-ha
 ### Prepare context: `PrepareContext`
 
 The implemented public immutable projection that shared Prepare supplies for analysis of one
-`PlannedPartition`. It retains the exact partition and backend-input references plus immutable
-membership snapshots of supplied nodes, projected graph values, matching logical-memory
-requirements, and exact typed logical-splat constants. List order and constant-map encounter
-order preserve the supplying containers' deterministic order.
+`PlannedPartition`. Its sole node/topology component is the exact immutable
+[`PartitionDag`](#partition-dag-partitiondag); `partition()` and `nodes()` are derived views. It
+also retains the exact backend-input reference plus immutable membership snapshots of projected
+graph values, matching logical-memory requirements, and exact typed logical-splat constants. List
+order and constant-map encounter order preserve the supplying containers' deterministic order.
+
+The canonical record has five components: DAG, values, requirements, constants, and backend
+inputs. Its six-argument partition-and-node-list constructor constructs one DAG and preserves the
+former source call shape. It does not promise binary compatibility with the former record
+descriptor, component reflection, equality, hash code, or textual form.
 
 The projected nodes must match `PlannedPartition.nodeIds()` exactly and in order. Projected
 values are unique by `ValueId`; every node input and output must resolve to one projected value;
@@ -4342,6 +4348,21 @@ physical materialization.
 binding, route choice, slot, allocation, executable, schedule, or per-run state. Its generic
 backend input is one [opaque backend analysis role](#opaque-backend-analysis-roles), retained
 without shared interpretation.
+
+### Partition DAG: `PartitionDag`
+
+The implemented public immutable Prepare-owned directed acyclic graph (DAG) projection for
+exactly one `PlannedPartition`. It retains exact `CompiledNode` references in validated stable
+topological order and derives producer/output-port, consumer/input-port, and edge occurrences
+from ordered ports. Repeated inputs remain distinct occurrences, and every output of a
+multi-output node has its own producer occurrence.
+
+An external input occurrence has no producer inside this partition. A local sink has no output
+consumed inside this partition; publication and cross-partition consumers do not affect that
+classification. These facts describe local topology only. The projection contains no complete
+`CompiledGraphModel`, other partition's node, graph region, callback, ownership, transfer,
+publication, materialization, memory, fusion, route, scheduling, performance, or execution
+policy.
 
 ### Opaque backend analysis roles
 

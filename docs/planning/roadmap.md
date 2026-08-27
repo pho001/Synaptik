@@ -21,7 +21,7 @@ Parallel work is not the default. It requires an explicit roadmap or master-plan
 | 5 | [`modules/planning`](modules/planning/master-plan.md) | Complete | Stable model/backend identity contracts permit the explicitly bounded capability-query interleave before config scoring is complete. | Ownership, partitioning, scoring, logical memory planning, and the selected contract-closure audit are complete. |
 | 6 | [`modules/runtime`](modules/runtime/master-plan.md) | Complete | Compiler/planning handoff, backend identities, the trace foundation, and ADR 0011's per-run resource ownership/cold-binding decision are stable. | Runtime 0012, 0013, and 0014 resolved the selected cleanup, status, and architecture-enforcement findings; the Runtime closure milestone is complete. |
 | 7 | [`modules/compiler`](modules/compiler/master-plan.md) | Complete | Model, config, planning, backend-contract, and trace contracts are ready for the complete compiler lifecycle; bounded task 0001 may start from the closed model graph/provenance contracts alone. | Compile artifacts, graph transformations, and autograd compilation are complete. |
-| 8 | [`modules/prepare`](modules/prepare/master-plan.md) | Complete | Compiler/planning artifacts and Runtime recipe/runner contracts are stable; ADR 0010 authorizes the analysis-first staged handoff. | Shared prepare contracts and validation are complete. |
+| 8 | [`modules/prepare`](modules/prepare/master-plan.md) | Complete | Compiler/planning artifacts and Runtime recipe/runner contracts are stable; ADR 0010 authorizes the analysis-first staged handoff. | Shared prepare contracts and validation include one immutable partition-local DAG projection before CPU adoption and MATMUL. |
 | 9 | [`backends/openblas-provider`](backends/openblas-provider/master-plan.md) | Complete | Native interop conventions needed by the provider are decided. | The low-level provider contract and validation are complete. |
 | 10 | [`backends/cpu`](backends/cpu/master-plan.md) | In progress | Model, config, planning, runtime, prepare, backend-contract, trace, and OpenBLAS contracts are ready. | CPU is a conforming reference backend for the selected capability set. |
 | 11 | [`modules/engine`](modules/engine/master-plan.md) | Draft | Compiler, runtime, prepare, and the CPU backend can be composed. | The public compile, prepare, and run lifecycle works end to end on CPU. |
@@ -103,15 +103,16 @@ corrected plan authorized it. Replacement documentation context
 that the existing CPU portable preparation plan, CPU contiguous materialization plan, and
 Materialization glossary entries were stale while glossary edits remained prohibited. The
 corrected 43-path ceiling authorized the guide and those three glossary entries, with exactly
-36 final worktree paths. CPU 0008F is now the sole Ready CPU row and intentionally has no task
-specification.
+36 final worktree paths. The user-authorized Prepare 0003A interleave is Complete. CPU 0008E1 and
+CPU 0008F are Draft and intentionally have no task specifications.
 Implementation context `01a03f9e-9ea6-7bf2-988e-565cf055725e` passed the corrected authoritative
 CPU rerun with 536 tests, 3 skips, schema 52, shared typed contraction outcomes, best-only tie
 fallback, exact retained-recognition overlap validation, independently recomputed
 publication/write roles, and retained five-fork generated/direct plus selected-fused/split
 evidence.
-MATMUL coverage is owned by Ready CPU 0008F, while pooling, attention, and loss coverage remains
-owned by Draft CPU 0008G–0008I; none has a detailed specification. CPU 0008A validates Conv1d through
+MATMUL coverage remains owned by Draft CPU 0008F after Draft CPU 0008E1 adopts the shared
+partition DAG, while pooling, attention, and loss coverage remains owned by Draft CPU
+0008G–0008I; none has a detailed specification. CPU 0008A validates Conv1d through
 the visible Conv2d composition and adds direct Conv3d execution. CPU 0008B–0008E only then add
 general partition-DAG decomposition and bounded fusion, typed specialized-subgraph recognition,
 profitability decision facts, and bounded multi-input materialization in that order. Engine 0004
@@ -125,12 +126,12 @@ does not introduce a new portable route beginning at CPU 0008, change architectu
 dimensional-convolution closure depend on later general fusion or materialization facilities
 without a concrete documented need.
 
-No new Planning, Prepare, or Runtime task is selected: all three forms have static descriptor
-Shapes for one prepared execution and flow as ordinary flat nodes or visible ordinary
-composition. Planning continues to select only backend ownership, Prepare projects and finalizes
-the existing node facts and exact resources, and Runtime executes the prepared schedule without
-interpreting convolution. A later implementation must stop and record concrete evidence before
-adding a shared-contract row if Conv3d reveals a real gap.
+This earlier convolution-specific no-shared-task conclusion remains historical. The new
+user-authorized Prepare 0003A interleave addresses a separately demonstrated general boundary:
+one immutable partition-local DAG projection prevents complete cross-backend graph exposure and
+removes the need for concrete backends to reconstruct exact structural occurrences independently.
+Planning still selects only backend ownership, and Runtime still executes prepared schedules
+without interpreting graph topology.
 
 The initial layer geometry is rank-specific positive stride/dilation plus non-negative symmetric
 padding and positive groups. Asymmetric padding remains explicit preceding `PAD` composition or a
@@ -169,7 +170,27 @@ gradient closure. Detailed CPU 0008, CPU 0008A, CPU 0008B, and CPU 0008C are Com
 is Complete and records the final evidence. Detailed
 [CPU 0008E](backends/cpu/tasks/0008e-bounded-multi-input-materialization-and-representation-reuse.md)
 is Complete after its candidate-only/direct-selection and seven-owner test-oracle corrective
-pass; CPU 0008F is the sole Ready CPU row without a detailed specification.
+pass. [Prepare 0003A](modules/prepare/tasks/0003a-immutable-partition-local-dag-analysis-projection.md)
+is Complete. CPU 0008E1 and CPU 0008F are Draft without detailed specifications.
+
+This is an explicit user-authorized interleave before CPU MATMUL. Prepare 0003A adds the shared
+immutable partition-local DAG projection and keeps the complete cross-backend model DAG out of
+concrete backends. Draft CPU 0008E1 then adopts that projection in
+`CpuPartitionDagDecomposer` and directly related cold analysis without changing CPU 0008B–0008E
+topology identities, stable order, legality, candidate counts, generated code, schema 53,
+performance evidence, fusion policy, hot code, or Runtime behavior. Draft CPU 0008F follows
+0008E1. Neither CPU 0008E1 nor CPU 0008F has a detailed task specification. Existing Prepare 0004
+remains Draft, follows 0003A without renumbering, and has no detailed specification.
+
+Prepare 0003A is Complete. Its implementation-owned final Prepare run passed 41 tests, and the
+downstream CPU run passed 544 tests with 3 expected skips and no failures or errors. Clean
+documentation context `01a043d7-113c-7ee2-8257-42678c1a7be4` finalized the public and package
+Javadocs, API status, focused boundary explanation, backend guide, glossary, and planning
+evidence. The task-required shared checkpoint ran exactly once and passed 364 suites and 2,491
+tests with the same 3 expected skips and no failures or errors, including 4 architecture-test
+suites and 6 architecture tests. The final scope is 17 authorized paths, with exactly one CPU
+test path and no CPU production, Gradle, architecture-test source, backend-conformance, or
+integration-test source change.
 
 The compiler project area is Complete through
 [Compiler 0006B Conv3d forward adoption and explicit gradient boundary](modules/compiler/tasks/0006b-conv3d-forward-adoption-and-explicit-gradient-boundary.md).
@@ -232,7 +253,8 @@ initially-valid buffer origin for non-bindable logical splats; Runtime receives 
 fact. It adds no concrete backend, discovery, Engine facade, physical work in Prepare, execution,
 tuning, or dynamic binding.
 
-The Prepare milestone is therefore closed. The OpenBLAS provider project area is also Complete.
+The original Prepare 0001–0003 milestone and user-authorized interleaved Prepare 0003A are
+Complete. The OpenBLAS provider project area remains Complete.
 CPU 0005A is now Complete and atomically supersedes the provisional CPU 0001–0005 implementation;
 those five task records remain preserved as Superseded historical evidence. The current completed
 CPU implementation frontier is detailed
@@ -330,7 +352,8 @@ coordinatewise batch inference with channel-hoisted scalar work and deterministi
 channel/non-channel ranges; and detailed Complete
 [CPU 0007F2](backends/cpu/tasks/0007f2-portable-batch-normalization-training-and-statistic-transition-coverage.md)
 owns batch training/statistic transition. CPU 0007F, CPU 0007F1, CPU 0007F2, and detailed CPU
-0008, 0008A, 0008B, 0008C, CPU 0008D, and CPU 0008E are Complete; CPU 0008F is the sole Ready row.
+0008, 0008A, 0008B, 0008C, CPU 0008D, CPU 0008E, and Prepare 0003A are Complete; CPU 0008E1 and
+CPU 0008F are Draft without detailed specifications.
 A completed local
 bytecode/performance audit then inserted detailed
 [CPU 0007A0 generated hot-path parity correction](backends/cpu/tasks/0007a0-generated-hot-path-parity-correction.md)
@@ -508,8 +531,8 @@ scope comprises 16 production/Javadoc, 14 test, and exactly five documentation/p
 including exactly five new CPU-private production types and schema 48. It changes no public/
 shared/build/architecture/conformance/integration boundary. CPU 0007F is Complete; CPU 0007A1D
 remains Review needed; detailed CPU 0007F1, CPU 0007F2, CPU 0008, CPU 0008A, and CPU 0008B are
-Complete. CPU 0008C, CPU 0008D, and CPU 0008E are Complete; CPU 0008F is the sole Ready row, and
-later tasks remain Draft.
+Complete. CPU 0008C, CPU 0008D, CPU 0008E, and Prepare 0003A are Complete; CPU 0008E1 and CPU
+0008F are Draft without detailed specifications, and later tasks remain Draft.
 
 CPU 0007F1 is Complete at schema 49. Its first-class inference route supports arbitrary static
 channel axes, exact ordered floating promotion and typed epsilon, direct running variance,
@@ -520,8 +543,8 @@ batch/control `<= 1.15x` gate; the 281-file retained bundle verifies with digest
 `185ecb1b1da84d20774b5f21979bbfc8cedb765cf03dc05610fa354bd7555029`. The bounded change has
 exactly 14 production paths, 13 tests, and four new CPU-private production types, with no shared
 or architecture boundary change. CPU 0007A1D remains Review needed; detailed CPU 0007F2, CPU
-0008, CPU 0008A, CPU 0008B, CPU 0008C, CPU 0008D, and CPU 0008E are Complete; CPU 0008F is the
-sole Ready row.
+0008, CPU 0008A, CPU 0008B, CPU 0008C, CPU 0008D, CPU 0008E, and Prepare 0003A are Complete; CPU
+0008E1 and CPU 0008F are Draft without detailed specifications.
 
 CPU 0007F2 is Complete at schema 50. Its explicit five-input/five-output
 `BATCH_NORM_TRAINING` route owns complete channels, reuses one exact-state slice per active
@@ -539,7 +562,8 @@ measurement and no ratio sample was discarded. The retained bundle verifies with
 unrelated planning paths; exactly four new CPU-private production types were added. No public,
 shared, Gradle, architecture, conformance, or integration boundary changed. CPU 0007A1D remains
 Review needed. Detailed CPU 0008, CPU 0008A, CPU 0008B, CPU 0008C, CPU 0008D, and CPU 0008E are
-Complete; CPU 0008F is the sole Ready row, and later tasks remain Draft. The
+Complete; Prepare 0003A is Complete, CPU 0008E1 and CPU 0008F are Draft without detailed
+specifications, and later tasks remain Draft. The
 Conv1d/Conv3d-before-general-DAG ordering correction
 remains intact.
 
@@ -683,8 +707,8 @@ CPU 0007A1C is `Complete`, CPU 0007A1D remains `Review needed`, and detailed CPU
 CPU 0007A1O, CPU 0007A2, detailed CPU 0007B, and detailed CPU 0007C are `Complete`. Detailed CPU
 0007D, detailed CPU 0007E, and detailed CPU 0007F are `Complete`, while detailed CPU 0007F1 is
 `Complete`; detailed CPU 0007F2, CPU 0008, CPU 0008A, CPU 0008B, CPU 0008C, and CPU 0008D are
-`Complete`; detailed CPU 0008E is `Complete`, CPU 0008F is the sole `Ready` row, and CPU 0008G
-through CPU 0017 remain Draft.
+`Complete`; detailed CPU 0008E and Prepare 0003A are `Complete`, CPU 0008E1 and CPU 0008F are
+`Draft` without detailed specifications, and CPU 0008G through CPU 0017 remain Draft.
 CPU 0003
 implements a
 model-independent filesystem store beneath an explicit
@@ -946,7 +970,8 @@ generated/direct and aggregate-median `<= 1.15x` gate; the highest aggregate med
 `c501650e90412ce5f7664fbfa1f6fd4c42f695ed171f05ffcd838ee871d9ba8b`. The final bounded scope is
 19 production/Javadoc paths, 13 CPU test/resource paths, five documentation/planning paths, and 37
 total paths, with no shared Java, Gradle, architecture, conformance, or integration change. CPU
-0008A, CPU 0008B, CPU 0008C, CPU 0008D, and CPU 0008E are Complete; CPU 0008F is the sole Ready row.
+0008A, CPU 0008B, CPU 0008C, CPU 0008D, CPU 0008E, and Prepare 0003A are Complete; CPU 0008E1 and
+CPU 0008F are Draft without detailed specifications.
 
 This refinement is source-backed: Conv2d, MATMUL, pooling, attention, and loss have distinct
 geometry, numerical algorithms, resources, publication shapes, generated-loop bodies, and
@@ -1026,16 +1051,18 @@ ranking an isolated kernel or moving materialization legality out of CPU. This f
 gate is later tuning acceptance rather than a false 0008E performance claim, and Runtime never searches,
 reads or mutates tuning caches, or revises a prepared selection. Later Trace backend payloads and
 tuning inspection may consume translated typed cold decision facts without taking ownership of
-CPU legality, recognition, or selection. Ready CPU 0008F next delivers MATMUL; Draft CPU
-0008G–0008I then deliver pooling, attention, and loss execution as separate cohesive family tasks.
-CPU 0009 depends on the ordered
-CPU 0008A–0008I sequence
+CPU legality, recognition, or selection. Draft CPU 0008E1 next adopts the shared partition DAG
+without changing CPU policy or generated/hot code; Draft CPU 0008F then delivers MATMUL. Draft CPU
+0008G–0008I later deliver pooling, attention, and loss execution as separate cohesive family tasks.
+CPU 0009 depends on the ordered CPU 0008A–0008E, Prepare 0003A, CPU 0008E1, and CPU 0008F–0008I
+sequence
 and closes dimensional convolution before the general decomposition, recognition, profitability,
 and bounded single/dual-input materialization foundations—including direct/materialized parity,
 deduplicated reuse, and candidate/resource ceilings—before CPU 0010–0015 add portable/native
-peer-route choices. The required frontier order remains CPU 0008 -> CPU 0008A -> CPU 0008B -> CPU
-0008C -> CPU 0008D -> CPU 0008E before those family follow-ups. Those later routes consume the
-common decisions instead of creating competing graph interpreters or fusion planners.
+peer-route choices. The required frontier order is CPU 0008 -> CPU 0008A -> CPU 0008B -> CPU
+0008C -> CPU 0008D -> CPU 0008E -> Prepare 0003A -> CPU 0008E1 -> CPU 0008F before those later
+family follow-ups. Those later routes consume the common decisions instead of creating competing
+graph interpreters or fusion planners.
 
 Portable generation uses family-specific typed lowerers plus shared scalar, vector, heap,
 segment, range, tile, partial-reduction, and combine emitters rather than one god generator.
@@ -1158,8 +1185,9 @@ Detailed CPU 0007A1A through CPU 0007A1C are `Complete`; CPU 0007A1D remains `Re
 detailed CPU 0007A1E through CPU 0007A1O, CPU 0007A2, and detailed CPU 0007B are `Complete`.
 Detailed CPU 0007C, detailed CPU 0007D, detailed CPU 0007E, and detailed CPU 0007F are `Complete`.
 Detailed CPU 0007F1, CPU 0007F2, CPU 0008, CPU 0008A, CPU 0008B, CPU 0008C, and CPU 0008D are
-`Complete`; detailed CPU 0008E is `Complete`. CPU 0008F is the sole `Ready` row; CPU 0008G–0017
-and the refined Config, Prepare, Metal, and tuning rows remain `Draft`.
+`Complete`; detailed CPU 0008E is `Complete`. CPU 0008E1 and CPU 0008F are `Draft` without
+detailed specifications; CPU 0008G–0017 and the refined Config, Metal, and tuning rows remain
+`Draft`. Prepare 0003A is Complete.
 Completed OpenBLAS history and every completed project area remain unchanged.
 
 CPU remains the active global project area. CPU 0005A through CPU 0006 are `Complete`, detailed
@@ -1491,8 +1519,9 @@ Runtime 0008 keeps `PreparedExecution` unchanged and adds no runner/traversal, e
 invalidation, publication/result, Prepare orchestration, concrete backend, config/tuning/tracing,
 or coherence policy. Runtime 0009–0014 are Complete. Runtime 0011 remains its unchanged historical
 `BLOCKING_GAP` verdict, while Runtime 0012–0014 resolved its three selected findings and closed the
-Runtime milestone. Prepare 0003 is Complete and closes the Prepare milestone. Backend
-Contract remains Complete and closed. Module dependency directions are unchanged; the Runtime
+Runtime milestone. Prepare 0003 and user-authorized interleaved Prepare 0003A are Complete.
+Backend Contract remains Complete and closed. Module
+dependency directions are unchanged; the Runtime
 architecture tests enforce existing rules rather than changing them.
 
 Runtime 0008's focused command passed three suites and 31 tests, and its single final Runtime

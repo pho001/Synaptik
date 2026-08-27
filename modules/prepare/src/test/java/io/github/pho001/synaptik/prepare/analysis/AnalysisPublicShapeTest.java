@@ -22,10 +22,11 @@ import org.junit.jupiter.api.Test;
 
 class AnalysisPublicShapeTest {
     @Test
-    void exposesTheExactMarkerRolesAndSixComponentContextRecord() {
+    void exposesTheExactMarkerRolesPartitionDagAndFiveComponentContextRecord() {
         Class<BackendAnalysisInputs> inputs = BackendAnalysisInputs.class;
         Class<BackendPreparationPlan> plan = BackendPreparationPlan.class;
         Class<PrepareContext> context = PrepareContext.class;
+        Class<PartitionDag> dag = PartitionDag.class;
         var components = context.getRecordComponents();
         Type contextBound = context.getTypeParameters()[0].getBounds()[0];
 
@@ -42,15 +43,70 @@ class AnalysisPublicShapeTest {
                 () -> assertEquals(0, plan.getInterfaces().length),
                 () -> assertEquals(
                         "io.github.pho001.synaptik.prepare.analysis", context.getPackageName()),
+                () -> assertTrue(Modifier.isPublic(dag.getModifiers())),
+                () -> assertTrue(Modifier.isFinal(dag.getModifiers())),
+                () -> assertFalse(dag.isRecord()),
+                () -> assertEquals(
+                        List.of(
+                                "consumers",
+                                "edges",
+                                "equals",
+                                "externalInputs",
+                                "hashCode",
+                                "localSinks",
+                                "node",
+                                "nodes",
+                                "partition",
+                                "producer",
+                                "toString"),
+                        Arrays.stream(dag.getDeclaredMethods())
+                                .filter(method -> Modifier.isPublic(method.getModifiers()))
+                                .map(method -> method.getName())
+                                .sorted()
+                                .toList()),
+                () -> assertTrue(PartitionDag.ProducerOccurrence.class.isRecord()),
+                () -> assertTrue(Modifier.isPublic(
+                        PartitionDag.ProducerOccurrence.class.getModifiers())),
+                () -> assertTrue(PartitionDag.ConsumerOccurrence.class.isRecord()),
+                () -> assertTrue(Modifier.isPublic(
+                        PartitionDag.ConsumerOccurrence.class.getModifiers())),
+                () -> assertTrue(PartitionDag.Edge.class.isRecord()),
+                () -> assertTrue(Modifier.isPublic(PartitionDag.Edge.class.getModifiers())),
+                () -> assertEquals(0, dag.getDeclaredFields().length
+                        - Arrays.stream(dag.getDeclaredFields())
+                                .filter(field -> Modifier.isPrivate(field.getModifiers())
+                                        && Modifier.isFinal(field.getModifiers()))
+                                .count()),
                 () -> assertTrue(Modifier.isPublic(context.getModifiers())),
                 () -> assertTrue(Modifier.isFinal(context.getModifiers())),
                 () -> assertTrue(context.isRecord()),
+                () -> assertEquals(2, context.getDeclaredConstructors().length),
+                () -> assertTrue(Arrays.stream(context.getDeclaredConstructors()).anyMatch(
+                        constructor -> Arrays.equals(
+                                constructor.getParameterTypes(),
+                                new Class<?>[] {
+                                    PartitionDag.class,
+                                    List.class,
+                                    List.class,
+                                    Map.class,
+                                    BackendAnalysisInputs.class
+                                }))),
+                () -> assertTrue(Arrays.stream(context.getDeclaredConstructors()).anyMatch(
+                        constructor -> Arrays.equals(
+                                constructor.getParameterTypes(),
+                                new Class<?>[] {
+                                    PlannedPartition.class,
+                                    List.class,
+                                    List.class,
+                                    List.class,
+                                    Map.class,
+                                    BackendAnalysisInputs.class
+                                }))),
                 () -> assertEquals(1, context.getTypeParameters().length),
                 () -> assertEquals(BackendAnalysisInputs.class, contextBound),
                 () -> assertEquals(
                         List.of(
-                                "partition",
-                                "nodes",
+                                "partitionDag",
                                 "values",
                                 "memoryRequirements",
                                 "constants",
@@ -58,8 +114,7 @@ class AnalysisPublicShapeTest {
                         Arrays.stream(components).map(component -> component.getName()).toList()),
                 () -> assertArrayEquals(
                         new Class<?>[] {
-                            PlannedPartition.class,
-                            List.class,
+                            PartitionDag.class,
                             List.class,
                             List.class,
                             Map.class,
@@ -67,14 +122,13 @@ class AnalysisPublicShapeTest {
                         },
                         Arrays.stream(components).map(component -> component.getType())
                                 .toArray(Class<?>[]::new)),
-                () -> assertListArgument(components[1].getGenericType(), CompiledNode.class),
-                () -> assertListArgument(components[2].getGenericType(), GraphValue.class),
+                () -> assertListArgument(components[1].getGenericType(), GraphValue.class),
                 () -> assertListArgument(
-                        components[3].getGenericType(), LogicalMemoryRequirement.class),
+                        components[2].getGenericType(), LogicalMemoryRequirement.class),
                 () -> assertMapArguments(
-                        components[4].getGenericType(), ValueId.class, ScalarValue.class),
+                        components[3].getGenericType(), ValueId.class, ScalarValue.class),
                 () -> assertEquals(
-                        context.getTypeParameters()[0], components[5].getGenericType()));
+                        context.getTypeParameters()[0], components[4].getGenericType()));
     }
 
     @Test

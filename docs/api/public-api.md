@@ -499,8 +499,23 @@ failure, and thread-safety details.
 
 The public `modules:prepare` surface now spans the existing `prepare.analysis` package, four
 root-package finalization contracts, and five complete-graph orchestration declarations.
-Analysis retains one typed opaque selected plan and exact
-buffer/workspace declarations. `PreparationResourceAssignment` associates each exact declaration
+Analysis receives one immutable `PartitionDag` for exactly one planned partition and retains one
+typed opaque selected plan plus exact buffer/workspace declarations. The DAG keeps exact nodes in
+stable topological order and exposes immutable producer/output-port, consumer/input-port, edge,
+external-input-occurrence, and local-sink facts. Repeated input ports and every output of a
+multi-output node remain separate occurrences in node-and-port order. External inputs and local
+sinks are topology-only: they imply no cross-partition owner, publication, transfer,
+materialization, memory, fusion, route, or schedule policy.
+
+`PrepareContext` has five canonical record components: `partitionDag`, `values`,
+`memoryRequirements`, `constants`, and `backendInputs`. Its derived `partition()` and `nodes()`
+views delegate to the DAG. A public six-argument constructor accepting the previous partition and
+node-list call shape remains source-compatible by constructing one DAG; no binary compatibility
+is promised for the changed record descriptor, component reflection, equality, hash code, or text
+form. The context exposes no complete `CompiledGraphModel`, graph region, callback, or
+Compiler-owned aggregate.
+
+`PreparationResourceAssignment` associates each exact declaration
 with an assigned Runtime slot and dense plan index. `BackendPartitionFinalization` carries one
 typed analysis, the exact shared `PreparedMemoryPlan`, and assignments in declaration order to a
 `BackendPartitionFinalizer`. `PreparedPartition` retains the exact planned partition and returned

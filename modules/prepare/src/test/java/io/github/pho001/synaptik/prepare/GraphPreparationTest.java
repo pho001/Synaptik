@@ -117,6 +117,10 @@ class GraphPreparationTest {
                 () -> assertEquals(2, contexts.size()),
                 () -> assertSame(fixture.partitions.get(0), contexts.get(0).partition()),
                 () -> assertSame(fixture.partitions.get(1), contexts.get(1).partition()),
+                () -> assertSame(
+                        contexts.get(0).partitionDag().nodes(), contexts.get(0).nodes()),
+                () -> assertSame(
+                        contexts.get(1).partitionDag().nodes(), contexts.get(1).nodes()),
                 () -> assertEquals(
                         List.of(fixture.nodes.get(0)), contexts.get(0).nodes()),
                 () -> assertEquals(

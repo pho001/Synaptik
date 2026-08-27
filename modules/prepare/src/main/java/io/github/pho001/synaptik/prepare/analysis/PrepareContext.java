@@ -32,10 +32,15 @@ import java.util.Objects;
  * backend analysis. This value does not bind dynamic dimensions, select a route, assign a slot,
  * allocate storage, or contain executable state.</p>
  *
+ * <p>The canonical record shape has five components: partition DAG, values, logical-memory
+ * requirements, constants, and backend inputs. A six-argument constructor accepting a planned
+ * partition and node list preserves the previous source-level call form by constructing one DAG
+ * and delegating to the canonical constructor. This convenience does not promise binary
+ * compatibility with the previous record descriptor, record-component reflection, equality,
+ * hash code, or textual form.</p>
+ *
  * @param <I> concrete backend-owned immutable analysis-input role
- * @param partition non-null planned partition retained by exact reference
- * @param nodes non-null ordered nodes to snapshot; elements must be non-null and their IDs must
- *     equal the partition's ordered node IDs
+ * @param partitionDag non-null exact immutable partition topology retained by exact reference
  * @param values non-null ordered projected values to snapshot; elements must be non-null, unique
  *     by value ID, and have fully static descriptor shapes
  * @param memoryRequirements non-null ordered logical requirements to snapshot; elements must be
@@ -45,8 +50,7 @@ import java.util.Objects;
  * @param backendInputs non-null backend-owned immutable input retained opaquely by exact reference
  */
 public record PrepareContext<I extends BackendAnalysisInputs>(
-        PlannedPartition partition,
-        List<CompiledNode> nodes,
+        PartitionDag partitionDag,
         List<GraphValue> values,
         List<LogicalMemoryRequirement> memoryRequirements,
         Map<ValueId, ScalarValue> constants,
@@ -59,8 +63,7 @@ public record PrepareContext<I extends BackendAnalysisInputs>(
      * reference-closure, logical-requirement, and constant checks. No supplied collection
      * container is retained.</p>
      *
-     * @param partition non-null planned partition to retain exactly
-     * @param nodes non-null ordered nodes to snapshot
+     * @param partitionDag non-null validated partition topology retained exactly
      * @param values non-null ordered projected values to snapshot
      * @param memoryRequirements non-null ordered projected logical requirements to snapshot
      * @param constants non-null projected logical-splat constants to snapshot
@@ -73,38 +76,11 @@ public record PrepareContext<I extends BackendAnalysisInputs>(
      *     exactly, or a constant is not an exact-typed projected graph input
      */
     public PrepareContext {
-        Objects.requireNonNull(partition, "partition");
-        Objects.requireNonNull(nodes, "nodes");
+        Objects.requireNonNull(partitionDag, "partitionDag");
         Objects.requireNonNull(values, "values");
         Objects.requireNonNull(memoryRequirements, "memoryRequirements");
         Objects.requireNonNull(constants, "constants");
         Objects.requireNonNull(backendInputs, "backendInputs");
-
-        for (int index = 0; index < nodes.size(); index++) {
-            Objects.requireNonNull(nodes.get(index), "nodes[" + index + "]");
-        }
-        nodes = List.copyOf(nodes);
-
-        if (nodes.size() != partition.nodeIds().size()) {
-            throw new IllegalArgumentException(
-                    "nodes size "
-                            + nodes.size()
-                            + " does not match partition nodeIds size "
-                            + partition.nodeIds().size());
-        }
-        for (int index = 0; index < nodes.size(); index++) {
-            if (!nodes.get(index).id().equals(partition.nodeIds().get(index))) {
-                throw new IllegalArgumentException(
-                        "nodes["
-                                + index
-                                + "].id must equal partition.nodeIds["
-                                + index
-                                + "]: expected "
-                                + partition.nodeIds().get(index)
-                                + " but was "
-                                + nodes.get(index).id());
-            }
-        }
 
         var valuesById = new LinkedHashMap<ValueId, GraphValue>();
         for (int index = 0; index < values.size(); index++) {
@@ -140,8 +116,8 @@ public record PrepareContext<I extends BackendAnalysisInputs>(
         memoryRequirements = List.copyOf(memoryRequirements);
 
         var projectedInputIds = new HashSet<ValueId>();
-        for (int nodeIndex = 0; nodeIndex < nodes.size(); nodeIndex++) {
-            CompiledNode node = nodes.get(nodeIndex);
+        for (int nodeIndex = 0; nodeIndex < partitionDag.nodes().size(); nodeIndex++) {
+            CompiledNode node = partitionDag.nodes().get(nodeIndex);
             for (int inputIndex = 0; inputIndex < node.inputs().size(); inputIndex++) {
                 ValueId input = node.inputs().get(inputIndex);
                 if (!valuesById.containsKey(input)) {
@@ -233,13 +209,52 @@ public record PrepareContext<I extends BackendAnalysisInputs>(
     }
 
     /**
+     * Preserves the original source-level construction form while deriving one authoritative DAG.
+     *
+     * @param partition non-null planned partition retained by the constructed projection
+     * @param nodes non-null ordered nodes used to construct exactly one validated projection
+     * @param values non-null ordered projected values to snapshot
+     * @param memoryRequirements non-null ordered projected logical requirements to snapshot
+     * @param constants non-null projected logical-splat constants to snapshot
+     * @param backendInputs non-null immutable backend input retained opaquely and exactly
+     * @throws NullPointerException if a supplied component is {@code null} or the compatibility
+     *     node list contains a null element
+     * @throws IllegalArgumentException if the constructed partition DAG or the remaining
+     *     projected facts fail the canonical validation
+     */
+    public PrepareContext(
+            PlannedPartition partition,
+            List<CompiledNode> nodes,
+            List<GraphValue> values,
+            List<LogicalMemoryRequirement> memoryRequirements,
+            Map<ValueId, ScalarValue> constants,
+            I backendInputs) {
+        this(
+                new PartitionDag(partition, nodes),
+                values,
+                memoryRequirements,
+                constants,
+                backendInputs);
+    }
+
+    /**
+     * Returns the sole retained node and topology projection.
+     *
+     * @return the exact non-null immutable partition DAG supplied to the canonical constructor or
+     *     constructed once by the list-taking compatibility constructor
+     */
+    @Override
+    public PartitionDag partitionDag() {
+        return partitionDag;
+    }
+
+    /**
      * Returns the analyzed partition recipe.
      *
      * @return the exact non-null immutable partition reference supplied at construction
      */
-    @Override
     public PlannedPartition partition() {
-        return partition;
+        return partitionDag.partition();
     }
 
     /**
@@ -247,9 +262,8 @@ public record PrepareContext<I extends BackendAnalysisInputs>(
      *
      * @return non-null immutable ordered snapshot containing the exact supplied node references
      */
-    @Override
     public List<CompiledNode> nodes() {
-        return nodes;
+        return partitionDag.nodes();
     }
 
     /**
