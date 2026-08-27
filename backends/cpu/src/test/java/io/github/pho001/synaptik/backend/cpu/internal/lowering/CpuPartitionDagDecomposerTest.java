@@ -128,6 +128,32 @@ class CpuPartitionDagDecomposerTest {
         }
     }
 
+    @Test void repeatedPortsAndMultiOutputProducerPositionsSurviveUnitProjection() {
+        Shape shape = Shape.of(2, 3, 4);
+        Shape vector = Shape.of(3);
+        var layouts = List.of(LayoutDescriptor.contiguous(shape),
+                LayoutDescriptor.contiguous(vector), LayoutDescriptor.contiguous(vector),
+                LayoutDescriptor.contiguous(vector), LayoutDescriptor.contiguous(vector),
+                LayoutDescriptor.contiguous(shape),
+                LayoutDescriptor.contiguous(vector), LayoutDescriptor.contiguous(vector),
+                LayoutDescriptor.contiguous(vector), LayoutDescriptor.contiguous(vector));
+        var context = CpuBatchNormTrainingLoweringTest.context(
+                java.util.Collections.nCopies(5, DataType.FLOAT32), shape, 1,
+                List.of(0, 1, 1, 2, 3), layouts);
+        var dag = context.partitionDag();
+        var plan = new CpuPartitionPreparer().analyze(context).plan();
+
+        assertAll(
+                () -> assertEquals(List.of(1, 2), dag.consumers(new ValueId(1)).stream()
+                        .map(occurrence -> occurrence.inputPosition()).toList()),
+                () -> assertEquals(List.of(0, 1, 2, 3, 4),
+                        java.util.stream.IntStream.range(4, 9)
+                                .mapToObj(index -> dag.producer(new ValueId(index)).orElseThrow()
+                                        .outputPosition()).toList()),
+                () -> assertEquals(List.of(0), plan.units().getFirst().memberNodeOrdinals()),
+                () -> assertTrue(plan.units().getFirst().dependencies().isEmpty()));
+    }
+
     @Test void malformedLaterNodeFailsBeforeAnyPreparationRequirementExists() {
         var base = publishedChain(2);
         var values = new ArrayList<>(base.values());

@@ -68,6 +68,32 @@ class CpuPointwisePartitionLoweringTest {
         }
     }
 
+    @Test void repeatedExternalInputPortsRemainDistinctIrUsesWithOneBoundary() {
+        Shape shape = Shape.of(5);
+        TensorDescriptor descriptor = descriptor(DataType.FLOAT32, shape);
+        ValueId input = new ValueId(0);
+        ValueId output = new ValueId(1);
+        var node = new CompiledNode(new NodeId(0), new Operation(BinaryArithmeticKind.ADD,
+                NoOperationAttrs.INSTANCE), List.of(input, input), List.of(output));
+        var partition = new PlannedPartition(CpuCapabilityProvider.CPU_BACKEND_ID,
+                List.of(node.id()));
+        var context = new PrepareContext<>(partition, List.of(node),
+                List.of(new GraphValue(input, descriptor), new GraphValue(output, descriptor)),
+                List.of(new LogicalMemoryRequirement(input, descriptor, Optional.empty(),
+                                List.of(partition), false),
+                        new LogicalMemoryRequirement(output, descriptor, Optional.of(partition),
+                                List.of(), true)),
+                Map.of(), CpuPartitionAnalysisInputs.DEFAULT);
+
+        var lowered = new CpuPartitionLowering().lower(context);
+        assertAll(
+                () -> assertEquals(List.of(input, output), lowered.boundaryValues()),
+                () -> assertEquals(List.of(0, 0),
+                        lowered.kernelIr().instructions().getFirst().inputs()),
+                () -> assertEquals(List.of(0, 1), context.partitionDag().consumers(input).stream()
+                        .map(occurrence -> occurrence.inputPosition()).toList()));
+    }
+
     @Test void rejectsOverBudgetAndLowersDisconnectedSameDomainBranchesWithTwoStores() {
         assertThrows(IllegalArgumentException.class, () -> new CpuPartitionLowering().lower(chain(9)));
         var context = chain(2);

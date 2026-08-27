@@ -32,6 +32,11 @@ class CpuFusionProfitabilitySelectorTest {
                 CpuPartitionDagDecomposerTest.publishedChain(2)).plan();
         var diamond = new CpuPartitionPreparer().analyze(
                 CpuPartitionDagDecomposerTest.diamond()).plan();
+        var roles = legal(diamond.fusionDecisions()).stream()
+                .flatMap(candidate -> candidate.identity().units().stream())
+                .flatMap(unit -> unit.boundaries().stream())
+                .map(CpuFusionDecision.BoundaryFact::role)
+                .collect(java.util.stream.Collectors.toSet());
         assertAll(
                 () -> assertEquals(CpuFusionDecision.SelectionReason.CANONICAL_SPLIT,
                         selection(publication.fusionDecisions()).reason()),
@@ -46,7 +51,10 @@ class CpuFusionProfitabilitySelectorTest {
                         .anyMatch(value -> value.reason()
                                 == CpuFusionDecision.LegalityReason.FAN_OUT_BARRIER)),
                 () -> assertEquals(2, legal(diamond.fusionDecisions()).size()),
-                () -> assertEquals(2, diamond.units().size()));
+                () -> assertEquals(2, diamond.units().size()),
+                () -> assertTrue(roles.contains(CpuFusionDecision.BoundaryRole.EXTERNAL_READ)),
+                () -> assertTrue(roles.contains(CpuFusionDecision.BoundaryRole.CROSS_UNIT)),
+                () -> assertTrue(roles.contains(CpuFusionDecision.BoundaryRole.PUBLICATION)));
     }
 
     @Test void eightNodeEnumerationExhaustsAttemptsRetainsBaselineAndSafelySplits() {

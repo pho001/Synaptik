@@ -25,11 +25,13 @@ import io.github.pho001.synaptik.model.graph.GraphValue;
 import io.github.pho001.synaptik.model.graph.ValueId;
 import io.github.pho001.synaptik.planning.memory.LogicalMemoryRequirement;
 import io.github.pho001.synaptik.planning.partition.PlannedPartition;
+import io.github.pho001.synaptik.prepare.analysis.PartitionDag;
 import io.github.pho001.synaptik.prepare.analysis.PrepareContext;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.IdentityHashMap;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -40,9 +42,12 @@ import java.util.Set;
 
 /**
  * Deterministically decomposes one complete CPU-owned partition DAG into bounded computation
- * units. Established affine and numerical-family lowerings remain indivisible seeds; only the
- * ordinary pointwise IR is contracted, and a rejected contraction leaves the split topology
- * unchanged.
+ * units. Complete-partition order, producer, consumer, edge, and port-occurrence facts come from
+ * {@link PrepareContext#partitionDag()}; unit membership, contracted topology, lowering, and
+ * candidate dependencies and their unit-index accounting remain CPU-owned. Established affine
+ * and numerical-family lowerings
+ * remain indivisible seeds; only the ordinary pointwise IR is contracted, and a rejected
+ * contraction leaves the split topology unchanged.
  */
 public final class CpuPartitionDagDecomposer {
     /** Maximum compiled nodes admitted by one complete CPU partition. */
@@ -233,7 +238,8 @@ public final class CpuPartitionDagDecomposer {
      * Enumerates every complete topology reachable through the unchanged 0008B contraction
      * grammar. Recognition-associated baseline units are immutable barriers.
      *
-     * @param context complete non-null CPU analysis context
+     * @param context complete non-null CPU analysis context whose shared partition DAG supplies
+     *     stable node order and exact producer, consumer, edge, and port occurrences
      * @param lowering non-null current lowering owner
      * @param recognition non-null immutable 0008C facts associated with the exact baseline
      * @return bounded deterministic complete-topology enumeration
@@ -248,8 +254,8 @@ public final class CpuPartitionDagDecomposer {
         Objects.requireNonNull(lowering, "lowering");
         recognition = List.copyOf(recognition);
         validate(context);
-        var ordinals = new HashMap<CompiledNode, Integer>();
-        for (int i = 0; i < context.nodes().size(); i++) ordinals.put(context.nodes().get(i), i);
+        PartitionDag dag = context.partitionDag();
+        var ordinals = ordinals(dag);
         List<Unit> baseline = decompose(context, lowering);
         var lockedBaselineUnits = new LinkedHashSet<Integer>();
         recognition.forEach(fact -> lockedBaselineUnits.addAll(fact.baselineUnitIndices()));
@@ -258,7 +264,7 @@ public final class CpuPartitionDagDecomposer {
         }
         List<MutableUnit> splitMutable = canonicalSeeds(context, lowering, ordinals, baseline,
                 lockedBaselineUnits);
-        List<Unit> split = finish(splitMutable, ordinals);
+        List<Unit> split = finish(splitMutable, ordinals, dag);
         var queue = new java.util.ArrayDeque<List<MutableUnit>>();
         queue.add(copyTopology(splitMutable));
         var candidates = new ArrayList<List<Unit>>();
@@ -269,9 +275,9 @@ public final class CpuPartitionDagDecomposer {
         boolean complete = true;
         enumeration: while (!queue.isEmpty()) {
             List<MutableUnit> source = queue.removeFirst();
-            List<MutableUnit> ordered = topological(source, ordinals);
-            TopologyIdentity sourceIdentity = identity(finish(source, ordinals));
-            var pairs = enumerationPairs(source, ordered);
+            List<MutableUnit> ordered = topological(source, ordinals, dag);
+            TopologyIdentity sourceIdentity = identity(finish(source, ordinals, dag));
+            var pairs = enumerationPairs(dag, ordered);
             for (Pair pair : pairs) {
                 if (attempts.size() == MAX_ENUMERATION_ATTEMPTS) {
                     complete = false;
@@ -288,7 +294,7 @@ public final class CpuPartitionDagDecomposer {
                 int left = memberIndex(next, pair.left());
                 int right = memberIndex(next, pair.right());
                 replace(next, left, right, result.unit());
-                List<Unit> finished = finish(next, ordinals);
+                List<Unit> finished = finish(next, ordinals, dag);
                 TopologyIdentity candidateIdentity = identity(finished);
                 if (!seen.add(candidateIdentity)) continue;
                 if (candidates.size() == MAX_CANDIDATES) {
@@ -312,7 +318,8 @@ public final class CpuPartitionDagDecomposer {
      * Builds the maximally split supported baseline and applies bounded deterministic pointwise
      * contractions.
      *
-     * @param context complete non-null CPU analysis context
+     * @param context complete non-null CPU analysis context whose shared partition DAG supplies
+     *     stable node order and exact producer, consumer, edge, and port occurrences
      * @param lowering current non-null family lowering owner
      * @return one through eight immutable units in stable topological order
      * @throws NullPointerException if either argument is {@code null}
@@ -325,8 +332,8 @@ public final class CpuPartitionDagDecomposer {
         Objects.requireNonNull(context, "context");
         Objects.requireNonNull(lowering, "lowering");
         validate(context);
-        var ordinals = new HashMap<CompiledNode, Integer>();
-        for (int i = 0; i < context.nodes().size(); i++) ordinals.put(context.nodes().get(i), i);
+        PartitionDag dag = context.partitionDag();
+        var ordinals = ordinals(dag);
         var working = seeds(context, lowering, ordinals);
         int attempts = 0;
         boolean changed;
@@ -352,13 +359,13 @@ public final class CpuPartitionDagDecomposer {
         changed = true;
         while (changed && attempts < MAX_ATTEMPTS) {
             changed = false;
-            List<MutableUnit> ordered = topological(working, ordinals);
+            List<MutableUnit> ordered = topological(working, ordinals, dag);
             outer: for (int left = 0; left < ordered.size(); left++) {
                 for (int right = left + 1; right < ordered.size(); right++) {
                     if (attempts++ >= MAX_ATTEMPTS) break outer;
                     MutableUnit a = ordered.get(left);
                     MutableUnit b = ordered.get(right);
-                    if (horizontal(working, a, b)) {
+                    if (horizontal(dag, working, a, b)) {
                         MutableUnit fused = contract(context, lowering, a, b, ordinals);
                         if (fused != null) {
                             replace(working, working.indexOf(a), working.indexOf(b), fused);
@@ -369,15 +376,18 @@ public final class CpuPartitionDagDecomposer {
                 }
             }
         }
-        return finish(working, ordinals);
+        return finish(working, ordinals, dag);
     }
 
     /**
      * Projects one selected unit without inventing graph values or changing the outer owner.
-     * The returned context is immutable analysis state and owns no physical resources.
+     * Membership and outside-consumer facts are filtered from the source partition DAG, and the
+     * returned context contains exactly the selected nodes in their original stable order. The
+     * returned context is immutable analysis state and owns no physical resources.
      *
-     * @param source non-null complete partition context
-     * @param nodes non-null, non-empty selected node list in stable order
+     * @param source non-null complete partition context carrying the source shared partition DAG
+     * @param nodes non-null, non-empty identity-preserving subset of source DAG nodes in original
+     *     stable order
      * @param inputs non-null CPU-private analysis inputs for the selected unit
      * @return a non-null unit-scoped context with projected memory/publication facts
      * @throws NullPointerException if a required reference or list element is {@code null}
@@ -392,28 +402,23 @@ public final class CpuPartitionDagDecomposer {
 
     private static void validate(PrepareContext<CpuPartitionAnalysisInputs> context) {
         if (!context.partition().owner().equals(CpuCapabilityProvider.CPU_BACKEND_ID)
-                || context.nodes().isEmpty() || context.nodes().size() > MAX_NODES) {
+                || context.partitionDag().nodes().isEmpty()
+                || context.partitionDag().nodes().size() > MAX_NODES) {
             throw new IllegalArgumentException("CPU partition requires one through eight nodes");
         }
-        var nodeIds = new HashSet<>();
-        var outputs = new HashSet<ValueId>();
         var values = new HashSet<ValueId>();
         context.values().forEach(value -> values.add(value.id()));
         var memory = new HashSet<ValueId>();
         context.memoryRequirements().forEach(value -> memory.add(value.valueId()));
-        for (CompiledNode node : context.nodes()) {
-            if (!nodeIds.add(node.id())) throw new IllegalArgumentException("duplicate CPU node identity");
+        for (CompiledNode node : context.partitionDag().nodes()) {
             for (ValueId input : node.inputs()) {
                 if (!values.contains(input) || !memory.contains(input))
                     throw new IllegalArgumentException("CPU input fact is not projected");
-                if (outputs.contains(input)) continue;
-                boolean laterProducer = context.nodes().stream().flatMap(value -> value.outputs().stream())
-                        .anyMatch(input::equals);
-                if (laterProducer) throw new IllegalArgumentException("CPU consumer precedes producer");
             }
             for (ValueId output : node.outputs()) {
-                if (!outputs.add(output) || !values.contains(output) || !memory.contains(output))
-                    throw new IllegalArgumentException("duplicate or missing CPU output fact");
+                if (!values.contains(output) || !memory.contains(output)) {
+                    throw new IllegalArgumentException("CPU output fact is not projected");
+                }
             }
         }
     }
@@ -421,12 +426,13 @@ public final class CpuPartitionDagDecomposer {
     private static List<MutableUnit> seeds(PrepareContext<CpuPartitionAnalysisInputs> context,
             CpuPartitionLowering lowering, Map<CompiledNode, Integer> ordinals) {
         var result = new ArrayList<MutableUnit>();
+        List<CompiledNode> partitionNodes = context.partitionDag().nodes();
         int index = 0;
-        while (index < context.nodes().size()) {
+        while (index < partitionNodes.size()) {
             MutableUnit selected = null;
             IllegalArgumentException lastFailure = null;
-            for (int end = context.nodes().size(); end > index; end--) {
-                List<CompiledNode> nodes = context.nodes().subList(index, end);
+            for (int end = partitionNodes.size(); end > index; end--) {
+                List<CompiledNode> nodes = partitionNodes.subList(index, end);
                 if (nodes.size() > 1 && !establishedMultiNodeCandidate(nodes)) continue;
                 try {
                     var lowered = lowering.lower(project(context, nodes,
@@ -468,24 +474,20 @@ public final class CpuPartitionDagDecomposer {
         context.memoryRequirements().stream().filter(LogicalMemoryRequirement::graphOutput)
                 .forEach(value -> graphOutputs.add(value.valueId()));
         for (CompiledNode node : producer.nodes) for (ValueId output : node.outputs()) {
-            long uses = context.nodes().stream().flatMap(value -> value.inputs().stream())
-                    .filter(output::equals).count();
-            if (uses == 1 && !graphOutputs.contains(output)
-                    && consumer.nodes.stream().flatMap(value -> value.inputs().stream())
-                        .anyMatch(output::equals)) return true;
+            List<PartitionDag.ConsumerOccurrence> uses = context.partitionDag().consumers(output);
+            if (uses.size() == 1 && !graphOutputs.contains(output)
+                    && containsNode(consumer, uses.getFirst().node())) return true;
         }
         return false;
     }
 
-    private static boolean horizontal(List<MutableUnit> all, MutableUnit left, MutableUnit right) {
+    private static boolean horizontal(PartitionDag dag, List<MutableUnit> all,
+            MutableUnit left, MutableUnit right) {
         if (!left.pointwise() || !right.pointwise()) return false;
-        var leftDependencies = producers(all, left);
-        var rightDependencies = producers(all, right);
+        var leftDependencies = producers(dag, all, left);
+        var rightDependencies = producers(dag, all, right);
         if (!leftDependencies.equals(rightDependencies)) return false;
-        var leftOutputs = outputs(left);
-        var rightOutputs = outputs(right);
-        return left.nodes.stream().flatMap(node -> node.inputs().stream()).noneMatch(rightOutputs::contains)
-                && right.nodes.stream().flatMap(node -> node.inputs().stream()).noneMatch(leftOutputs::contains)
+        return !hasEdge(dag, left, right) && !hasEdge(dag, right, left)
                 && java.util.Arrays.equals(left.lowering.extents(), right.lowering.extents());
     }
 
@@ -634,7 +636,7 @@ public final class CpuPartitionDagDecomposer {
         ordinary.forEach(unit -> ordinaryByFirst.put(ordinals.get(unit.nodes.getFirst()), unit));
         var result = new ArrayList<MutableUnit>();
         int ordinal = 0;
-        while (ordinal < context.nodes().size()) {
+        while (ordinal < context.partitionDag().nodes().size()) {
             Unit locked = lockedByFirst.get(ordinal);
             if (locked != null) {
                 result.add(new MutableUnit(locked.nodes(), locked.lowering()));
@@ -656,15 +658,13 @@ public final class CpuPartitionDagDecomposer {
         return result;
     }
 
-    private static List<Pair> enumerationPairs(List<MutableUnit> all,
-            List<MutableUnit> ordered) {
+    private static List<Pair> enumerationPairs(PartitionDag dag, List<MutableUnit> ordered) {
         var result = new ArrayList<Pair>();
         for (MutableUnit producer : ordered) for (MutableUnit consumer : ordered) {
             if (producer == consumer) continue;
-            var produced = outputs(producer);
-            boolean edge = consumer.nodes.stream().flatMap(node -> node.inputs().stream())
-                    .anyMatch(produced::contains);
-            if (edge) result.add(new Pair(producer, consumer, PairKind.VERTICAL));
+            if (hasEdge(dag, producer, consumer)) {
+                result.add(new Pair(producer, consumer, PairKind.VERTICAL));
+            }
         }
         for (int left = 0; left < ordered.size(); left++) {
             for (int right = left + 1; right < ordered.size(); right++) {
@@ -693,20 +693,23 @@ public final class CpuPartitionDagDecomposer {
             var graphOutputs = new HashSet<ValueId>();
             context.memoryRequirements().stream().filter(LogicalMemoryRequirement::graphOutput)
                     .forEach(value -> graphOutputs.add(value.valueId()));
-            var connecting = outputs(left).stream().filter(output -> right.nodes.stream()
-                    .flatMap(node -> node.inputs().stream()).anyMatch(output::equals)).toList();
+            var connecting = outputs(left).stream().filter(output -> context.partitionDag()
+                    .consumers(output).stream().anyMatch(occurrence ->
+                            containsNode(right, occurrence.node()))).toList();
             if (connecting.isEmpty()) return new Contraction(null,
                     RejectionReason.ROUTE_INELIGIBLE);
             if (connecting.stream().anyMatch(graphOutputs::contains)) return new Contraction(null,
                     RejectionReason.PUBLICATION_BARRIER);
             for (ValueId output : connecting) {
-                long uses = context.nodes().stream().flatMap(node -> node.inputs().stream())
-                        .filter(output::equals).count();
-                if (uses != 1) return new Contraction(null, RejectionReason.FAN_OUT_BARRIER);
+                if (context.partitionDag().consumers(output).size() != 1) {
+                    return new Contraction(null, RejectionReason.FAN_OUT_BARRIER);
+                }
             }
         } else {
-            if (!horizontal(all, left, right)) return new Contraction(null,
+            if (!horizontal(context.partitionDag(), all, left, right)) {
+                return new Contraction(null,
                     RejectionReason.ROUTE_INELIGIBLE);
+            }
         }
         return contractResult(context, lowering, left, right, ordinals);
     }
@@ -772,13 +775,13 @@ public final class CpuPartitionDagDecomposer {
     private record Contraction(MutableUnit unit, RejectionReason rejection) { }
 
     private static List<Unit> finish(List<MutableUnit> units,
-            Map<CompiledNode, Integer> ordinals) {
-        List<MutableUnit> ordered = topological(units, ordinals);
+            Map<CompiledNode, Integer> ordinals, PartitionDag dag) {
+        List<MutableUnit> ordered = topological(units, ordinals, dag);
         var indices = new HashMap<MutableUnit, Integer>();
         for (int i = 0; i < ordered.size(); i++) indices.put(ordered.get(i), i);
         var result = new ArrayList<Unit>();
         for (MutableUnit unit : ordered) {
-            List<Integer> dependencies = producers(units, unit).stream().map(indices::get)
+            List<Integer> dependencies = producers(dag, units, unit).stream().map(indices::get)
                     .sorted().toList();
             if (dependencies.stream().anyMatch(value -> value >= indices.get(unit)))
                 throw new IllegalArgumentException("CPU unit topology is cyclic");
@@ -789,11 +792,12 @@ public final class CpuPartitionDagDecomposer {
     }
 
     private static List<MutableUnit> topological(List<MutableUnit> units,
-            Map<CompiledNode, Integer> ordinals) {
+            Map<CompiledNode, Integer> ordinals, PartitionDag dag) {
         var remaining = new ArrayList<>(units);
         var result = new ArrayList<MutableUnit>();
         while (!remaining.isEmpty()) {
-            MutableUnit ready = remaining.stream().filter(unit -> result.containsAll(producers(units, unit)))
+            MutableUnit ready = remaining.stream().filter(unit ->
+                            result.containsAll(producers(dag, units, unit)))
                     .min(Comparator.comparingInt(unit -> unit.nodes.stream().mapToInt(ordinals::get).min().orElseThrow()))
                     .orElseThrow(() -> new IllegalArgumentException("CPU unit topology is cyclic"));
             result.add(ready);
@@ -802,13 +806,32 @@ public final class CpuPartitionDagDecomposer {
         return result;
     }
 
-    private static LinkedHashSet<MutableUnit> producers(List<MutableUnit> units, MutableUnit target) {
-        var inputs = target.nodes.stream().flatMap(node -> node.inputs().stream())
-                .collect(java.util.stream.Collectors.toSet());
+    private static LinkedHashSet<MutableUnit> producers(PartitionDag dag,
+            List<MutableUnit> units, MutableUnit target) {
         var result = new LinkedHashSet<MutableUnit>();
-        for (MutableUnit unit : units) if (unit != target && outputs(unit).stream().anyMatch(inputs::contains))
-            result.add(unit);
+        for (MutableUnit unit : units) {
+            if (unit != target && hasEdge(dag, unit, target)) result.add(unit);
+        }
         return result;
+    }
+
+    private static boolean hasEdge(PartitionDag dag, MutableUnit producer,
+            MutableUnit consumer) {
+        return dag.edges().stream().anyMatch(edge ->
+                containsNode(producer, edge.producer().node())
+                        && containsNode(consumer, edge.consumer().node()));
+    }
+
+    private static Map<CompiledNode, Integer> ordinals(PartitionDag dag) {
+        var result = new IdentityHashMap<CompiledNode, Integer>();
+        for (int index = 0; index < dag.nodes().size(); index++) {
+            result.put(dag.nodes().get(index), index);
+        }
+        return result;
+    }
+
+    private static boolean containsNode(MutableUnit unit, CompiledNode node) {
+        return unit.nodes.stream().anyMatch(member -> member == node);
     }
 
     private static LinkedHashSet<ValueId> outputs(MutableUnit unit) {
@@ -819,20 +842,25 @@ public final class CpuPartitionDagDecomposer {
     private static PrepareContext<CpuPartitionAnalysisInputs> project(
             PrepareContext<CpuPartitionAnalysisInputs> source, List<CompiledNode> nodes,
             CpuPartitionAnalysisInputs inputs) {
-        var nodeSet = new HashSet<>(nodes);
+        Set<CompiledNode> nodeSet = java.util.Collections.newSetFromMap(new IdentityHashMap<>());
+        nodeSet.addAll(nodes);
         var partition = new PlannedPartition(source.partition().owner(),
                 nodes.stream().map(CompiledNode::id).toList());
-        var produced = nodes.stream().flatMap(node -> node.outputs().stream())
+        var produced = source.values().stream().map(GraphValue::id)
+                .filter(value -> source.partitionDag().producer(value)
+                        .map(occurrence -> nodeSet.contains(occurrence.node())).orElse(false))
                 .collect(java.util.stream.Collectors.toSet());
-        var consumed = nodes.stream().flatMap(node -> node.inputs().stream())
+        var consumed = source.values().stream().map(GraphValue::id)
+                .filter(value -> source.partitionDag().consumers(value).stream()
+                        .anyMatch(occurrence -> nodeSet.contains(occurrence.node())))
                 .collect(java.util.stream.Collectors.toSet());
         var original = new HashMap<ValueId, LogicalMemoryRequirement>();
         source.memoryRequirements().forEach(value -> original.put(value.valueId(), value));
         var requirements = new ArrayList<LogicalMemoryRequirement>();
         for (GraphValue value : source.values()) {
             LogicalMemoryRequirement old = original.get(value.id());
-            boolean outsideConsumer = source.nodes().stream().filter(node -> !nodeSet.contains(node))
-                    .flatMap(node -> node.inputs().stream()).anyMatch(value.id()::equals);
+            boolean outsideConsumer = source.partitionDag().consumers(value.id()).stream()
+                    .anyMatch(occurrence -> !nodeSet.contains(occurrence.node()));
             boolean publication = old != null && old.graphOutput();
             requirements.add(new LogicalMemoryRequirement(value.id(), value.descriptor(),
                     produced.contains(value.id()) ? Optional.of(partition) : Optional.empty(),

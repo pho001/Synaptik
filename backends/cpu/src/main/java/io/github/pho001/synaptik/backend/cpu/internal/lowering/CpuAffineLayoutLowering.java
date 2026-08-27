@@ -19,9 +19,11 @@ import java.util.*;
  *
  * <p>Lowering retains graph and logical-memory values while marking eligible unit-private
  * intermediates as CPU-private virtual values. It derives exactly one source boundary, one final
- * result boundary, and a deterministic table of source/result element addresses. Zero-stride
- * result layouts use a distinct-address write domain only when every repeated logical coordinate
- * selects the same represented source value.</p>
+ * result boundary, and validates intermediate and final-result uses from the exact consumer
+ * occurrences in the shared partition DAG. Address composition, virtual-value eligibility, and
+ * represented-bit copy lowering remain CPU-owned. Zero-stride result layouts use a
+ * distinct-address write domain only when every repeated logical coordinate selects the same
+ * represented source value.</p>
  */
 public final class CpuAffineLayoutLowering {
     private final CpuCapabilityProvider capabilities = new CpuCapabilityProvider();
@@ -33,7 +35,9 @@ public final class CpuAffineLayoutLowering {
     /**
      * Lowers one exact affine chain to one represented-bit boundary copy.
      *
-     * @param context non-null complete projected partition context with static resolved layouts
+     * @param context non-null complete projected partition context whose shared partition DAG
+     *     contains the exact affine-chain nodes and consumer occurrences, with static resolved
+     *     layouts and matching logical-memory facts
      * @return one immutable lowered partition with two boundaries and zero or more virtual
      *     intermediates; never {@code null}
      * @throws NullPointerException if required projected state is absent or {@code context} is
@@ -46,6 +50,7 @@ public final class CpuAffineLayoutLowering {
      */
     public CpuPartitionLowering.LoweredPartition lower(
             PrepareContext<? extends BackendAnalysisInputs> context) {
+        List<CompiledNode> nodes = context.partitionDag().nodes();
         Map<ValueId, GraphValue> values = new LinkedHashMap<>();
         context.values().forEach(value -> values.put(value.id(), value));
         Map<ValueId, LogicalMemoryRequirement> memory = new LinkedHashMap<>();
@@ -54,8 +59,8 @@ public final class CpuAffineLayoutLowering {
         ValueId previous = null;
         List<ValueId> virtual = new ArrayList<>();
         List<CpuAffineCopyIr.MappingStep> steps = new ArrayList<>();
-        for (int i = 0; i < context.nodes().size(); i++) {
-            CompiledNode node = context.nodes().get(i);
+        for (int i = 0; i < nodes.size(); i++) {
+            CompiledNode node = nodes.get(i);
             if (node.inputs().size() != 1 || node.outputs().size() != 1
                     || i > 0 && !node.inputs().getFirst().equals(previous)) {
                 throw new IllegalArgumentException("affine partition must be one connected one-input chain");
@@ -67,7 +72,7 @@ public final class CpuAffineLayoutLowering {
                 throw new IllegalArgumentException("partition contains an unsupported CPU affine occurrence");
             }
             if (i == 0) source = node.inputs().getFirst();
-            if (i + 1 < context.nodes().size()) {
+            if (i + 1 < nodes.size()) {
                 requireVirtual(memory.get(node.outputs().getFirst()), context);
                 virtual.add(node.outputs().getFirst());
             }
@@ -89,8 +94,8 @@ public final class CpuAffineLayoutLowering {
         for (long logical = 0; logical < logicalCount; logical++) {
             long resultAddress = address(resultLayout, finalCoordinates);
             long[] sourceCoordinates = finalCoordinates.clone();
-            for (int nodeIndex = context.nodes().size() - 1; nodeIndex >= 0; nodeIndex--) {
-                CompiledNode node = context.nodes().get(nodeIndex);
+            for (int nodeIndex = nodes.size() - 1; nodeIndex >= 0; nodeIndex--) {
+                CompiledNode node = nodes.get(nodeIndex);
                 sourceCoordinates = reverse(node, require(values, node.inputs().getFirst()),
                         require(values, node.outputs().getFirst()), sourceCoordinates);
             }
@@ -252,13 +257,14 @@ public final class CpuAffineLayoutLowering {
     }
 
     private static void validateUses(PrepareContext<?> context, ValueId result) {
-        if (context.nodes().stream().flatMap(node -> node.inputs().stream()).anyMatch(result::equals))
+        if (!context.partitionDag().consumers(result).isEmpty())
             throw new IllegalArgumentException("final affine output must not feed the unit");
-        for (int i = 0; i + 1 < context.nodes().size(); i++) {
-            ValueId intermediate = context.nodes().get(i).outputs().getFirst();
-            long uses = context.nodes().stream().skip(i + 1L).flatMap(node -> node.inputs().stream())
-                    .filter(intermediate::equals).count();
-            if (uses != 1) throw new IllegalArgumentException("affine intermediate must have one use");
+        List<CompiledNode> nodes = context.partitionDag().nodes();
+        for (int i = 0; i + 1 < nodes.size(); i++) {
+            ValueId intermediate = nodes.get(i).outputs().getFirst();
+            if (context.partitionDag().consumers(intermediate).size() != 1) {
+                throw new IllegalArgumentException("affine intermediate must have one use");
+            }
         }
     }
     private static void requireVirtual(LogicalMemoryRequirement requirement, PrepareContext<?> context) {

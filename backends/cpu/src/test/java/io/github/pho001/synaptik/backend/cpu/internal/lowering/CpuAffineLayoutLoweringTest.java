@@ -130,6 +130,12 @@ public class CpuAffineLayoutLoweringTest {
                         lowered.affineAddressPairs()),
                 () -> assertEquals(2, lowered.boundaryValues().size()),
                 () -> assertEquals(2, lowered.virtualValues().size()),
+                () -> assertEquals(List.of(0), context.partitionDag()
+                        .consumers(new ValueId(1)).stream()
+                        .map(occurrence -> occurrence.inputPosition()).toList()),
+                () -> assertEquals(List.of(0), context.partitionDag()
+                        .consumers(new ValueId(2)).stream()
+                        .map(occurrence -> occurrence.inputPosition()).toList()),
                 () -> assertEquals(2, new CpuPartitionPreparer().analyze(context).requirements().size()));
     }
 

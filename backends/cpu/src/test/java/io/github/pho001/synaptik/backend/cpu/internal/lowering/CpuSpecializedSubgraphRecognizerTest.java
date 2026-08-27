@@ -13,6 +13,9 @@ import io.github.pho001.synaptik.model.layout.LayoutDescriptor;
 import io.github.pho001.synaptik.model.operation.NoOperationAttrs;
 import io.github.pho001.synaptik.model.operation.Operation;
 import io.github.pho001.synaptik.model.operation.elementwise.unary.UnaryElementwiseKind;
+import io.github.pho001.synaptik.model.operation.layout.AxisTransformKind;
+import io.github.pho001.synaptik.model.operation.layout.PermutationAttrs;
+import io.github.pho001.synaptik.model.operation.linalg.MatmulKind;
 import io.github.pho001.synaptik.model.operation.normalization.SoftmaxKind;
 import io.github.pho001.synaptik.model.operation.normalization.SoftmaxAttrs;
 import io.github.pho001.synaptik.model.operation.reduction.AggregateReductionKind;
@@ -171,6 +174,46 @@ class CpuSpecializedSubgraphRecognizerTest {
                 () -> assertEquals(List.of(0, 1), fact.baselineUnitIndices()),
                 () -> assertTrue(third.specializedSubgraphs().stream()
                         .noneMatch(candidate -> candidate instanceof ConvolutionEpilogue)));
+    }
+
+    @Test void transposeProducerRecognitionRequiresOneExactConsumerOccurrence() {
+        var recognizer = new CpuSpecializedSubgraphRecognizer();
+        MatmulEpilogue privateWeight = recognizer.recognizeUnsupportedMatmul(
+                transposedMatmul(false)).getFirst();
+        MatmulEpilogue sharedWeight = recognizer.recognizeUnsupportedMatmul(
+                transposedMatmul(true)).getFirst();
+        assertAll(
+                () -> assertEquals(MatmulInputForm.TRANSPOSED_WEIGHT,
+                        ((MatmulAttributes) privateWeight.structuralIdentity().attributes())
+                                .inputForm()),
+                () -> assertEquals(MatmulInputForm.ORDINARY,
+                        ((MatmulAttributes) sharedWeight.structuralIdentity().attributes())
+                                .inputForm()));
+    }
+
+    private static PrepareContext<CpuPartitionAnalysisInputs> transposedMatmul(
+            boolean extraConsumer) {
+        var nodes = new ArrayList<CompiledNode>();
+        nodes.add(new CompiledNode(new NodeId(0), new Operation(AxisTransformKind.PERMUTE,
+                new PermutationAttrs(List.of(1, 0))), List.of(new ValueId(1)),
+                List.of(new ValueId(2))));
+        nodes.add(new CompiledNode(new NodeId(1), new Operation(MatmulKind.MATMUL,
+                NoOperationAttrs.INSTANCE), List.of(new ValueId(0), new ValueId(2)),
+                List.of(new ValueId(3))));
+        if (extraConsumer) {
+            nodes.add(new CompiledNode(new NodeId(2), new Operation(UnaryElementwiseKind.NEG,
+                    NoOperationAttrs.INSTANCE), List.of(new ValueId(2)),
+                    List.of(new ValueId(4))));
+        }
+        var descriptors = new ArrayList<TensorDescriptor>(List.of(descriptor(Shape.of(2, 4)),
+                descriptor(Shape.of(3, 4)), descriptor(Shape.of(4, 3)),
+                descriptor(Shape.of(2, 3))));
+        var outputs = new java.util.HashSet<ValueId>(Set.of(new ValueId(3)));
+        if (extraConsumer) {
+            descriptors.add(descriptor(Shape.of(4, 3)));
+            outputs.add(new ValueId(4));
+        }
+        return context(nodes, descriptors, outputs);
     }
 
     private static PrepareContext<CpuPartitionAnalysisInputs> independentSoftmax(int count) {

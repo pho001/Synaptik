@@ -18,6 +18,7 @@ import io.github.pho001.synaptik.backend.cpu.internal.prepare.CpuPartitionAnalys
 import io.github.pho001.synaptik.backend.cpu.internal.prepare.CpuPartitionPreparationPlan;
 import io.github.pho001.synaptik.model.graph.ValueId;
 import io.github.pho001.synaptik.planning.memory.LogicalMemoryRequirement;
+import io.github.pho001.synaptik.prepare.analysis.PartitionDag;
 import io.github.pho001.synaptik.prepare.analysis.PrepareContext;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -31,7 +32,9 @@ import java.util.Optional;
  * measurement, cache access, environment lookup, persistence, generated-code selection, or
  * Runtime work. The unchanged margin and structural-pressure constants are also the required
  * topology guardrails when {@link CpuRepresentationPlanner} composes representation costs with
- * these already-legal topology scores.
+ * these already-legal topology scores. Boundary roles map exact shared partition-DAG producer and
+ * consumer occurrences through each already-selected CPU unit membership. Candidate identity,
+ * score, and unit accounting remain CPU-owned, while publication remains a logical-memory fact.
  */
 public final class CpuFusionProfitabilitySelector {
     /** Required score improvement before a fused candidate may replace canonical split. */
@@ -107,7 +110,8 @@ public final class CpuFusionProfitabilitySelector {
     /**
      * Ranks every admitted legal complete topology and selects a safe complete plan.
      *
-     * @param context non-null complete CPU analysis context
+     * @param context non-null complete CPU analysis context carrying the shared partition-local
+     *     DAG and matching logical-memory facts
      * @param enumeration non-null complete or budget-incomplete bounded enumeration
      * @param candidates non-null candidate plans aligned with enumeration discovery order
      * @return selected candidate and ordered closed decision facts
@@ -205,7 +209,8 @@ public final class CpuFusionProfitabilitySelector {
     /**
      * Recomputes the exact candidate identity used by plan validation.
      *
-     * @param context complete non-null context
+     * @param context complete non-null context carrying the shared partition-local DAG and
+     *     matching logical-memory facts
      * @param candidate complete non-null candidate
      * @return graph-identity-free immutable identity
      * @throws NullPointerException if either argument is {@code null}
@@ -325,21 +330,27 @@ public final class CpuFusionProfitabilitySelector {
 
     private static BoundaryRole boundaryRole(PrepareContext<CpuPartitionAnalysisInputs> context,
             List<CpuPartitionDagDecomposer.Unit> topology, ValueId value) {
-        int producer = -1;
-        int consumers = 0;
-        for (int index = 0; index < topology.size(); index++) {
-            var unit = topology.get(index);
-            if (unit.nodes().stream().flatMap(node -> node.outputs().stream()).anyMatch(value::equals))
-                producer = index;
-            if (unit.nodes().stream().flatMap(node -> node.inputs().stream()).anyMatch(value::equals))
-                consumers++;
-        }
-        if (producer >= 0 && consumers > 0) return BoundaryRole.CROSS_UNIT;
+        PartitionDag dag = context.partitionDag();
+        int producer = dag.producer(value).map(occurrence ->
+                unitIndex(topology, occurrence.node())).orElse(-1);
+        boolean consumed = dag.consumers(value).stream()
+                .anyMatch(occurrence -> unitIndex(topology, occurrence.node()) >= 0);
+        if (producer >= 0 && consumed) return BoundaryRole.CROSS_UNIT;
         boolean publication = context.memoryRequirements().stream()
                 .filter(LogicalMemoryRequirement::graphOutput)
                 .anyMatch(requirement -> requirement.valueId().equals(value));
         return producer >= 0 ? publication ? BoundaryRole.PUBLICATION : BoundaryRole.PARTITION_WRITE
                 : BoundaryRole.EXTERNAL_READ;
+    }
+
+    private static int unitIndex(List<CpuPartitionDagDecomposer.Unit> topology,
+            io.github.pho001.synaptik.model.graph.CompiledNode node) {
+        for (int index = 0; index < topology.size(); index++) {
+            if (topology.get(index).nodes().stream().anyMatch(member -> member == node)) {
+                return index;
+            }
+        }
+        return -1;
     }
 
     private static CpuFusionDecision.WorkspaceRole workspaceRole(

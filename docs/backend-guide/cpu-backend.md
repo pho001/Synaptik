@@ -476,6 +476,15 @@ movement, indexing, scatter, fold, ordering, random, scan, reduction, normalizat
 convolution families remain indivisible seeds. Only units represented by the ordinary pointwise
 kernel IR may be contracted.
 
+Shared Prepare validates and carries this partition-local topology once in the immutable
+`PrepareContext.partitionDag()` projection. CPU cold analysis reads its stable node order and
+exact producer/output-port, consumer/input-port, edge, and external-input occurrences rather than
+reconstructing a second complete adjacency index. CPU still owns computation-unit membership,
+contraction candidates, unit dependencies, semantic lowering, candidate-local IR instruction-use
+counts, representation choices, and boundary-role accounting. Publication and cross-partition
+obligations continue to come from logical-memory facts; the shared DAG does not decide fusion,
+materialization, resources, scheduling, or execution.
+
 Vertical fusion crosses an unpublished pointwise value only when it has exactly one in-partition
 consumer. Horizontal fusion combines dependency-independent pointwise units that are ready from
 the same predecessor set and have the same checked iteration domain. The combined IR preserves

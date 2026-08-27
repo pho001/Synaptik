@@ -26,6 +26,7 @@ import io.github.pho001.synaptik.model.shape.Shape;
 import io.github.pho001.synaptik.planning.capability.OperationCapabilityQuery;
 import io.github.pho001.synaptik.planning.memory.LogicalMemoryRequirement;
 import io.github.pho001.synaptik.prepare.analysis.BackendAnalysisInputs;
+import io.github.pho001.synaptik.prepare.analysis.PartitionDag;
 import io.github.pho001.synaptik.prepare.analysis.PrepareContext;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -37,11 +38,13 @@ import java.util.Optional;
 /**
  * Lowers one bounded supported CPU unit into one route-neutral portable representation.
  *
- * <p>For ordinary pointwise directed acyclic graphs (DAGs), lowering derives external boundaries
- * in deterministic first-use order, retains eligible unpublished internal results as typed
- * virtual values (including BOOL masks), and emits one ordered store for every published or
- * otherwise unit-boundary output. All materialized pointwise outputs share one checked iteration
- * domain. It consumes
+ * <p>For ordinary pointwise directed acyclic graphs (DAGs), lowering consumes the validated
+ * partition-local producer and consumer occurrences carried by {@link PrepareContext}, derives
+ * external boundaries in deterministic first-use order, retains eligible unpublished internal
+ * results as typed virtual values (including BOOL masks), and emits one ordered store for every
+ * published or otherwise unit-boundary output. Port occurrences determine graph topology, while
+ * semantic input positions and candidate-local IR use counts remain CPU-owned lowering facts.
+ * All materialized pointwise outputs share one checked iteration domain. It consumes
  * Model operation, shape, and layout contracts during analysis and maps every admitted unary kind
  * to one distinct CPU opcode without decomposition. Generated and Runtime code see only the
  * resulting CPU-private IR and cold bindings. Exact one-node movement, indexing, scatter, fold,
@@ -85,7 +88,8 @@ public final class CpuPartitionLowering {
      * Lowers one supported specialized-family seed, affine chain, or one-through-eight-node
      * ordinary pointwise DAG, and rejects every unsupported unit shape.
      *
-     * @param context non-null complete validated CPU partition projection
+     * @param context non-null complete validated CPU partition projection whose shared DAG
+     *     supplies exact stable node, producer, consumer, and external-input occurrences
      * @return one immutable single-unit lowering with deterministic materialized boundaries and
      *     ordered stores; never {@code null}
      * @throws NullPointerException if {@code context} is {@code null}
@@ -95,26 +99,27 @@ public final class CpuPartitionLowering {
      */
     public LoweredPartition lower(PrepareContext<? extends BackendAnalysisInputs> context) {
         Objects.requireNonNull(context, "context");
+        List<CompiledNode> nodes = context.partitionDag().nodes();
         if (!context.partition().owner().equals(CpuCapabilityProvider.CPU_BACKEND_ID)) {
             throw new IllegalArgumentException("partition owner must be CPU");
         }
-        if (context.nodes().isEmpty() || context.nodes().size() > 8) {
+        if (nodes.isEmpty() || nodes.size() > 8) {
             throw new IllegalArgumentException("CPU pointwise partition requires one through eight nodes");
         }
-        if (context.nodes().size() == 4 && context.nodes().get(2).operation().kind()
+        if (nodes.size() == 4 && nodes.get(2).operation().kind()
                 == io.github.pho001.synaptik.model.operation.convolution.Conv2dKind.CONV2D) {
             return conv1dCompositionLowering.lower(context);
         }
-        if (context.nodes().getFirst().operation().kind()
+        if (nodes.getFirst().operation().kind()
                 == io.github.pho001.synaptik.model.operation.convolution.Conv2dKind.CONV2D) {
             return conv2dLowering.lower(context);
         }
-        if (context.nodes().getFirst().operation().kind()
+        if (nodes.getFirst().operation().kind()
                 == io.github.pho001.synaptik.model.operation.convolution.Conv3dKind.CONV3D) {
             return conv3dLowering.lower(context);
         }
-        if (context.nodes().size() == 1) {
-            Object kind = context.nodes().getFirst().operation().kind();
+        if (nodes.size() == 1) {
+            Object kind = nodes.getFirst().operation().kind();
             if (kind instanceof io.github.pho001.synaptik.model.operation.normalization.SoftmaxKind) {
                 return softmaxLowering.lower(context);
             }
@@ -138,7 +143,7 @@ public final class CpuPartitionLowering {
                         || kind == io.github.pho001.synaptik.model.operation.reduction.AggregateReductionKind.L2_NORM) {
                     return advancedReductionLowering.lower(context);
                 }
-                if (context.nodes().getFirst().operation().attrs()
+                if (nodes.getFirst().operation().attrs()
                         instanceof io.github.pho001.synaptik.model.operation.reduction.MaskedReductionAttrs) {
                     return maskedReductionLowering.lower(context);
                 }
@@ -182,7 +187,7 @@ public final class CpuPartitionLowering {
                 return movementLowering.lower(context);
             }
         }
-        if (context.nodes().stream().allMatch(node -> {
+        if (nodes.stream().allMatch(node -> {
             Object kind = node.operation().kind();
             return kind instanceof io.github.pho001.synaptik.model.operation.layout.ContiguousKind
                     || kind instanceof io.github.pho001.synaptik.model.operation.layout.ShapeTransformKind
@@ -200,30 +205,30 @@ public final class CpuPartitionLowering {
         var materializedOutputs = new ArrayList<ValueId>();
         var instructions = new ArrayList<PendingInstruction>();
         var produced = new java.util.LinkedHashSet<ValueId>();
-        for (int nodeIndex = 0; nodeIndex < context.nodes().size(); nodeIndex++) {
-            CompiledNode node = context.nodes().get(nodeIndex);
+        PartitionDag dag = context.partitionDag();
+        dag.externalInputs().forEach(occurrence ->
+                external.putIfAbsent(occurrence.valueId(), -1));
+        for (CompiledNode node : dag.nodes()) {
             if (node.outputs().size() != 1) {
                 throw new IllegalArgumentException("pointwise node must have exactly one output");
             }
             assertOccurrence(node, values);
-            for (ValueId input : node.inputs()) {
-                if (!produced.contains(input)) external.putIfAbsent(input, -1);
-            }
             ValueId output = node.outputs().getFirst();
-            if (external.containsKey(output) || !produced.add(output)) {
+            PartitionDag.ProducerOccurrence producer = dag.producer(output).orElseThrow();
+            if (producer.node() != node || producer.outputPosition() != 0
+                    || external.containsKey(output) || !produced.add(output)) {
                 throw new IllegalArgumentException("partition dataflow must be acyclic and non-aliasing");
             }
             instructions.add(new PendingInstruction(node, output));
             producedOrdinals.put(output, -1);
         }
-        for (CompiledNode node : context.nodes()) {
+        for (CompiledNode node : dag.nodes()) {
             ValueId output = node.outputs().getFirst();
             LogicalMemoryRequirement requirement = memory.get(output);
             if (requirement == null) {
                 throw new IllegalArgumentException("pointwise output memory fact is not projected");
             }
-            boolean consumedInside = context.nodes().stream().flatMap(value -> value.inputs().stream())
-                    .anyMatch(output::equals);
+            boolean consumedInside = !dag.consumers(output).isEmpty();
             if (consumedInside && !requirement.graphOutput()) {
                 requireVirtual(requirement, context, output);
                 virtualOutputs.add(output);
@@ -262,7 +267,7 @@ public final class CpuPartitionLowering {
             spans.add(value.descriptor().layout().orElseThrow().referencedElementSpan());
             boundaryTypes.add(value.descriptor().dataType());
         }
-        for (ValueId id : context.nodes().stream().map(node -> node.outputs().getFirst()).toList()) {
+        for (ValueId id : dag.nodes().stream().map(node -> node.outputs().getFirst()).toList()) {
             GraphValue value = require(values, id);
             boolean materialized = materializedOutputs.contains(id);
             Normalized normalized = normalize(value.descriptor().shape(), materialized

@@ -27,14 +27,18 @@ import io.github.pho001.synaptik.model.operation.reduction.*;
 import io.github.pho001.synaptik.model.shape.Shape;
 import io.github.pho001.synaptik.planning.capability.OperationCapabilityQuery;
 import io.github.pho001.synaptik.planning.memory.LogicalMemoryRequirement;
+import io.github.pho001.synaptik.prepare.analysis.PartitionDag;
 import io.github.pho001.synaptik.prepare.analysis.PrepareContext;
 import java.util.*;
 
 /**
- * Stateless bounded recognizer for the closed CPU 0008C family matrix. It scans stable partition
- * order, never rewrites graph state, and associates retained supported facts only after the
- * independently selected 0008B baseline is available. Recognition is cold metadata only: it does
- * not change capability, lowering, generated artifact identity, finalization, or hot dispatch.
+ * Stateless bounded recognizer for the closed CPU 0008C family matrix. It scans the shared DAG's
+ * stable partition order, uses its exact producer and consumer occurrences for privacy and
+ * single-use gates, never rewrites graph state, and associates retained supported facts only
+ * after the independently selected 0008B baseline is available. Family attempts, member
+ * positions, baseline-unit associations, and recognition dispositions remain CPU-owned.
+ * Recognition is cold metadata only: it does not change capability, lowering, generated artifact
+ * identity, finalization, or hot dispatch.
  */
 public final class CpuSpecializedSubgraphRecognizer {
     /** Maximum topology/family attempts made by one recognition scan. */
@@ -56,7 +60,8 @@ public final class CpuSpecializedSubgraphRecognizer {
     /**
      * Recognizes supported facts and validates their exact baseline-unit association.
      *
-     * @param context complete non-null stable CPU partition projection
+     * @param context complete non-null stable CPU partition projection whose shared DAG supplies
+     *     exact producer and consumer occurrences
      * @param baseline non-null successful 0008B execution-unit plans whose stable IR and exact
      *     resource topology are snapshotted into every retained fact
      * @return immutable facts in increasing anchor order
@@ -71,13 +76,14 @@ public final class CpuSpecializedSubgraphRecognizer {
         Objects.requireNonNull(context, "context");
         List<ExecutionUnitPlan> baselineUnits = List.copyOf(baseline);
         Map<ValueId, GraphValue> values = values(context);
-        var claimed = new BitSet(context.nodes().size());
+        List<CompiledNode> nodes = context.partitionDag().nodes();
+        var claimed = new BitSet(nodes.size());
         var facts = new ArrayList<CpuSpecializedSubgraph>();
         var attempts = new Attempts();
-        for (int ordinal = 0; ordinal < context.nodes().size() && facts.size() < MAX_FACTS; ordinal++) {
+        for (int ordinal = 0; ordinal < nodes.size() && facts.size() < MAX_FACTS; ordinal++) {
             if (claimed.get(ordinal)) continue;
             Candidate selected = null;
-            for (RecognizerFamily family : familiesFor(context.nodes(), ordinal)) {
+            for (RecognizerFamily family : familiesFor(nodes, ordinal)) {
                 if (!attempts.take()) return List.copyOf(facts);
                 Candidate candidate = candidate(context, values, ordinal, family, attempts);
                 if (attempts.exhausted()) return List.copyOf(facts);
@@ -106,7 +112,8 @@ public final class CpuSpecializedSubgraphRecognizer {
      * Performs focused MATMUL recognition without admitting the unsupported anchor to a plan.
      * This method is diagnostic cold analysis only and returns an empty baseline association.
      *
-     * @param context complete non-null projection whose anchor may be unsupported by CPU
+     * @param context complete non-null projection whose shared DAG supplies exact producer and
+     *     consumer occurrences and whose anchor may be unsupported by CPU
      * @return immutable zero-or-one MATMUL fact list
      * @throws NullPointerException if {@code context} or a required fact is null
      * @throws IllegalArgumentException if projected graph facts are malformed
@@ -116,7 +123,7 @@ public final class CpuSpecializedSubgraphRecognizer {
         Objects.requireNonNull(context, "context");
         Map<ValueId, GraphValue> values = values(context);
         var attempts = new Attempts();
-        for (int ordinal = 0; ordinal < context.nodes().size(); ordinal++) {
+        for (int ordinal = 0; ordinal < context.partitionDag().nodes().size(); ordinal++) {
             if (!attempts.take()) return List.of();
             Candidate candidate = candidate(context, values, ordinal, RecognizerFamily.MATMUL,
                     attempts);
@@ -141,7 +148,7 @@ public final class CpuSpecializedSubgraphRecognizer {
 
     private Candidate convolution(PrepareContext<CpuPartitionAnalysisInputs> context,
             Map<ValueId, GraphValue> values, int ordinal, int dimensions, Attempts attempts) {
-        List<CompiledNode> nodes = context.nodes();
+        List<CompiledNode> nodes = context.partitionDag().nodes();
         int anchorEnd = ordinal;
         Form form;
         ConvolutionAttributes attributes;
@@ -195,7 +202,7 @@ public final class CpuSpecializedSubgraphRecognizer {
 
     private Candidate matmul(PrepareContext<CpuPartitionAnalysisInputs> context,
             Map<ValueId, GraphValue> values, int ordinal, Attempts attempts) {
-        CompiledNode node = context.nodes().get(ordinal);
+        CompiledNode node = context.partitionDag().nodes().get(ordinal);
         if (node.operation().kind() != MatmulKind.MATMUL
                 || node.operation().attrs() != NoOperationAttrs.INSTANCE
                 || node.inputs().size() != 2 || node.outputs().size() != 1) return null;
@@ -216,13 +223,13 @@ public final class CpuSpecializedSubgraphRecognizer {
         if (suffix == null) return null;
         List<Integer> members = range(ordinal, suffix.end());
         return build(Family.MATMUL, Form.MATMUL, new MatmulAttributes(inputForm), members,
-                node.inputs(), context.nodes().get(suffix.end()).outputs(), values,
+                node.inputs(), context.partitionDag().nodes().get(suffix.end()).outputs(), values,
                 suffix.epilogue(), ExecutionDisposition.UNSUPPORTED_ANCHOR);
     }
 
     private Candidate reduction(PrepareContext<CpuPartitionAnalysisInputs> context,
             Map<ValueId, GraphValue> values, int ordinal, Attempts attempts) {
-        CompiledNode node = context.nodes().get(ordinal);
+        CompiledNode node = context.partitionDag().nodes().get(ordinal);
         if (!(node.operation().kind() instanceof AggregateReductionKind kind)
                 || !reductionKind(kind) || node.inputs().size() != 1 || node.outputs().size() != 1)
             return null;
@@ -236,13 +243,13 @@ public final class CpuSpecializedSubgraphRecognizer {
         if (suffix == null) return null;
         List<Integer> members = range(ordinal, suffix.end());
         return build(Family.REDUCTION, reductionForm(kind), attributes, members, node.inputs(),
-                context.nodes().get(suffix.end()).outputs(), values, suffix.epilogue(),
+                context.partitionDag().nodes().get(suffix.end()).outputs(), values, suffix.epilogue(),
                 ExecutionDisposition.ORDINARY_SPLIT);
     }
 
     private Candidate explicit(PrepareContext<CpuPartitionAnalysisInputs> context,
             Map<ValueId, GraphValue> values, int ordinal) {
-        CompiledNode node = context.nodes().get(ordinal);
+        CompiledNode node = context.partitionDag().nodes().get(ordinal);
         Form form; ExplicitAttributes attrs;
         Object kind = node.operation().kind(); Object raw = node.operation().attrs();
         if (kind instanceof SoftmaxKind softmax && raw instanceof SoftmaxAttrs value) {
@@ -303,13 +310,14 @@ public final class CpuSpecializedSubgraphRecognizer {
 
     private static Suffix suffix(PrepareContext<CpuPartitionAnalysisInputs> context,
             Map<ValueId, GraphValue> values, int anchorEnd, ValueId anchorOutput) {
-        List<CompiledNode> nodes = context.nodes();
+        List<CompiledNode> nodes = context.partitionDag().nodes();
         if (anchorEnd + 1 >= nodes.size()) return Suffix.none(anchorEnd);
         CompiledNode next = nodes.get(anchorEnd + 1);
         boolean add = next.operation().kind() == BinaryArithmeticKind.ADD
                 && next.operation().attrs() == NoOperationAttrs.INSTANCE
                 && next.inputs().size() == 2 && next.outputs().size() == 1
-                && next.inputs().stream().filter(anchorOutput::equals).count() == 1;
+                && context.partitionDag().consumers(anchorOutput).stream()
+                        .filter(occurrence -> occurrence.node() == next).count() == 1;
         if (add) {
             ValueId external = next.inputs().getFirst().equals(anchorOutput)
                     ? next.inputs().get(1) : next.inputs().getFirst();
@@ -375,10 +383,10 @@ public final class CpuSpecializedSubgraphRecognizer {
         if (members.size() > MAX_MEMBERS || suffix.epilogue().operationCount() > 2) return false;
         Set<ValueId> internal = new HashSet<>();
         for (int i = 0; i < members.size() - 1; i++) {
-            CompiledNode node = context.nodes().get(members.get(i));
+            CompiledNode node = context.partitionDag().nodes().get(members.get(i));
             if (node.outputs().size() != 1) return false;
             ValueId output = node.outputs().getFirst(); internal.add(output);
-            long uses = context.nodes().stream().flatMap(n -> n.inputs().stream()).filter(output::equals).count();
+            int uses = context.partitionDag().consumers(output).size();
             LogicalMemoryRequirement memory = context.memoryRequirements().stream()
                     .filter(v -> v.valueId().equals(output)).findFirst().orElse(null);
             if (uses != 1 || memory == null || memory.graphOutput()
@@ -387,7 +395,7 @@ public final class CpuSpecializedSubgraphRecognizer {
                     || !memory.consumerPartitions().equals(List.of(context.partition()))) return false;
         }
         for (int ordinal : members) {
-            CompiledNode node = context.nodes().get(ordinal);
+            CompiledNode node = context.partitionDag().nodes().get(ordinal);
             for (ValueId id : node.outputs()) if (!eligibleOutput(require(values, id))) return false;
         }
         return true;
@@ -581,14 +589,17 @@ public final class CpuSpecializedSubgraphRecognizer {
             && node.operation().attrs() instanceof AxisTransformAttrs attrs && attrs.axis() == 2; }
     private static boolean transposedWeight(PrepareContext<CpuPartitionAnalysisInputs> context,
             Map<ValueId, GraphValue> values, ValueId id) {
-        CompiledNode producer = context.nodes().stream().filter(n -> n.outputs().contains(id)).findFirst().orElse(null);
-        if (producer == null || producer.operation().kind() != AxisTransformKind.PERMUTE
+        PartitionDag.ProducerOccurrence occurrence = context.partitionDag().producer(id)
+                .orElse(null);
+        CompiledNode producer = occurrence == null ? null : occurrence.node();
+        if (producer == null || occurrence.outputPosition() != 0
+                || producer.operation().kind() != AxisTransformKind.PERMUTE
                 || producer.outputs().size() != 1 || producer.inputs().size() != 1
                 || require(values, id).descriptor().shape().rank() != 2) return false;
         Object attrs = producer.operation().attrs();
         return attrs instanceof PermutationAttrs permutation
-                && permutation.axes().equals(List.of(1, 0)) && context.nodes().stream()
-                .flatMap(n -> n.inputs().stream()).filter(id::equals).count() == 1;
+                && permutation.axes().equals(List.of(1, 0))
+                && context.partitionDag().consumers(id).size() == 1;
     }
     private static ReductionAttributes reductionAttributes(AggregateReductionKind kind, Object attrs, int rank) {
         if (attrs == NoOperationAttrs.INSTANCE) return new ReductionAttributes(kind, ReductionForm.FULL,
