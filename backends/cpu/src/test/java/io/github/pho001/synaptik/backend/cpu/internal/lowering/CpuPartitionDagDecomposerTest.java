@@ -154,6 +154,61 @@ class CpuPartitionDagDecomposerTest {
                 () -> assertTrue(plan.units().getFirst().dependencies().isEmpty()));
     }
 
+    @Test void nonzeroBatchNormOutputFeedsLaterUnitWithExactProjectionAndDependency() {
+        Shape shape = Shape.of(2, 3, 4);
+        var context = batchNormTrainingOutputOneConsumer(shape);
+        var value = context.nodes().getFirst().outputs().get(1);
+        var producer = context.partitionDag().producer(value).orElseThrow();
+        var consumer = context.partitionDag().consumers(value).getFirst();
+        var requirement = context.memoryRequirements().stream()
+                .filter(candidate -> candidate.valueId().equals(value)).findFirst().orElseThrow();
+        var decomposer = new CpuPartitionDagDecomposer();
+        var producerOnly = decomposer.unitContext(context, List.of(producer.node()),
+                CpuPartitionAnalysisInputs.DEFAULT);
+        var producerOnlyOccurrence = producerOnly.partitionDag().producer(value).orElseThrow();
+        var producerOnlyRequirement = producerOnly.memoryRequirements().stream()
+                .filter(candidate -> candidate.valueId().equals(value)).findFirst().orElseThrow();
+        var consumerOnly = decomposer.unitContext(context, List.of(consumer.node()),
+                CpuPartitionAnalysisInputs.DEFAULT);
+        var consumerOnlyInput = consumerOnly.partitionDag().externalInputs().stream()
+                .filter(occurrence -> occurrence.valueId().equals(value)).findFirst().orElseThrow();
+        var consumerOnlyRequirement = consumerOnly.memoryRequirements().stream()
+                .filter(candidate -> candidate.valueId().equals(value)).findFirst().orElseThrow();
+        var plan = new CpuPartitionPreparer().analyze(context).plan();
+
+        assertAll(
+                () -> assertEquals(1, producer.outputPosition()),
+                () -> assertEquals(0, producer.nodePosition()),
+                () -> assertEquals(List.of(1), context.partitionDag().consumers(value).stream()
+                        .map(occurrence -> occurrence.nodePosition()).toList()),
+                () -> assertEquals(List.of(0), context.partitionDag().consumers(value).stream()
+                        .map(occurrence -> occurrence.inputPosition()).toList()),
+                () -> assertFalse(requirement.graphOutput()),
+                () -> assertEquals(List.of(context.partition()),
+                        requirement.consumerPartitions()),
+                () -> assertSame(producer.node(), producerOnlyOccurrence.node()),
+                () -> assertEquals(1, producerOnlyOccurrence.outputPosition()),
+                () -> assertTrue(producerOnly.partitionDag().consumers(value).isEmpty()),
+                () -> assertEquals(Optional.of(producerOnly.partition()),
+                        producerOnlyRequirement.producerPartition()),
+                () -> assertTrue(producerOnlyRequirement.consumerPartitions().isEmpty()),
+                () -> assertTrue(producerOnlyRequirement.graphOutput()),
+                () -> assertTrue(consumerOnly.partitionDag().producer(value).isEmpty()),
+                () -> assertEquals(1, consumerOnly.partitionDag().externalInputs().size()),
+                () -> assertSame(consumer.node(), consumerOnlyInput.node()),
+                () -> assertEquals(value, consumerOnlyInput.valueId()),
+                () -> assertEquals(0, consumerOnlyInput.nodePosition()),
+                () -> assertEquals(0, consumerOnlyInput.inputPosition()),
+                () -> assertTrue(consumerOnlyRequirement.producerPartition().isEmpty()),
+                () -> assertEquals(List.of(consumerOnly.partition()),
+                        consumerOnlyRequirement.consumerPartitions()),
+                () -> assertFalse(consumerOnlyRequirement.graphOutput()),
+                () -> assertEquals(List.of(List.of(0), List.of(1)), plan.units().stream()
+                        .map(unit -> unit.memberNodeOrdinals()).toList()),
+                () -> assertEquals(List.of(), plan.units().get(0).dependencies()),
+                () -> assertEquals(List.of(0), plan.units().get(1).dependencies()));
+    }
+
     @Test void malformedLaterNodeFailsBeforeAnyPreparationRequirementExists() {
         var base = publishedChain(2);
         var values = new ArrayList<>(base.values());
@@ -322,7 +377,7 @@ class CpuPartitionDagDecomposerTest {
                 scalar(2, new ValueId(1), new ValueId(3), ScalarElementwiseKind.SUB));
         var descriptors = java.util.stream.IntStream.range(0, 4)
                 .mapToObj(ignored -> descriptor(DataType.FLOAT32, Shape.of(4))).toList();
-        return context(nodes, descriptors, Set.of(new ValueId(2), new ValueId(3)));
+        return context(nodes, descriptors, Set.of(new ValueId(2)));
     }
 
     private static PrepareContext<CpuPartitionAnalysisInputs> fanOut(int consumers) {
@@ -378,6 +433,35 @@ class CpuPartitionDagDecomposerTest {
                         List.of(new ValueId(5))));
         return context(nodes, List.of(value, state, value, mask, state, value),
                 Set.of(new ValueId(3), new ValueId(4), new ValueId(5)));
+    }
+
+    private static PrepareContext<CpuPartitionAnalysisInputs> batchNormTrainingOutputOneConsumer(
+            Shape shape) {
+        var base = CpuBatchNormTrainingLoweringTest.context(shape, 1);
+        CompiledNode batchNorm = base.nodes().getFirst();
+        ValueId consumedOutput = batchNorm.outputs().get(1);
+        ValueId result = new ValueId(10);
+        CompiledNode consumer = new CompiledNode(new NodeId(1),
+                new Operation(UnaryElementwiseKind.RELU, NoOperationAttrs.INSTANCE),
+                List.of(consumedOutput), List.of(result));
+        var nodes = List.of(batchNorm, consumer);
+        var partition = new PlannedPartition(CpuCapabilityProvider.CPU_BACKEND_ID,
+                nodes.stream().map(CompiledNode::id).toList());
+        var values = new ArrayList<>(base.values());
+        TensorDescriptor resultDescriptor = values.stream()
+                .filter(value -> value.id().equals(consumedOutput)).findFirst().orElseThrow()
+                .descriptor();
+        values.add(new GraphValue(result, resultDescriptor));
+        var memory = values.stream().map(value -> {
+            boolean produced = nodes.stream().anyMatch(node -> node.outputs().contains(value.id()));
+            boolean consumed = nodes.stream().anyMatch(node -> node.inputs().contains(value.id()));
+            boolean published = produced && !consumed;
+            return new LogicalMemoryRequirement(value.id(), value.descriptor(),
+                    produced ? Optional.of(partition) : Optional.empty(),
+                    consumed ? List.of(partition) : List.of(), published);
+        }).toList();
+        return new PrepareContext<>(partition, nodes, values, memory, Map.of(),
+                CpuPartitionAnalysisInputs.DEFAULT);
     }
 
     private static CompiledNode scalar(int node, ValueId input, ValueId output,

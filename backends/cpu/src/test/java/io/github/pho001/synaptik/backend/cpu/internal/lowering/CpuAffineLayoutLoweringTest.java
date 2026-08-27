@@ -9,6 +9,7 @@ import io.github.pho001.synaptik.model.datatype.DataType;
 import io.github.pho001.synaptik.model.graph.*;
 import io.github.pho001.synaptik.model.layout.LayoutDescriptor;
 import io.github.pho001.synaptik.model.operation.Operation;
+import io.github.pho001.synaptik.model.operation.elementwise.binary.BinaryArithmeticKind;
 import io.github.pho001.synaptik.model.operation.index.SelectAttrs;
 import io.github.pho001.synaptik.model.operation.index.SelectKind;
 import io.github.pho001.synaptik.model.operation.NoOperationAttrs;
@@ -169,6 +170,44 @@ public class CpuAffineLayoutLoweringTest {
         CompiledNode second = two.nodes().get(1);
         assertThrows(IllegalArgumentException.class, () -> new CompiledNode(second.id(),
                 second.operation(), List.of(new ValueId(1), new ValueId(0)), second.outputs()));
+    }
+
+    @Test void repeatedAffineIntermediatePortsRetainBothOccurrencesAndFailChainValidation() {
+        Shape shape = Shape.of(3);
+        TensorDescriptor descriptor = descriptor(DataType.INT32, shape,
+                LayoutDescriptor.contiguous(shape));
+        Operation contiguous = new Operation(ContiguousKind.CONTIGUOUS,
+                NoOperationAttrs.INSTANCE);
+        var nodes = List.of(
+                new CompiledNode(new NodeId(0), contiguous,
+                        List.of(new ValueId(0)), List.of(new ValueId(1))),
+                new CompiledNode(new NodeId(1),
+                        new Operation(BinaryArithmeticKind.ADD, NoOperationAttrs.INSTANCE),
+                        List.of(new ValueId(1), new ValueId(1)), List.of(new ValueId(2))));
+        var partition = new PlannedPartition(CpuCapabilityProvider.CPU_BACKEND_ID,
+                nodes.stream().map(CompiledNode::id).toList());
+        var values = java.util.stream.LongStream.range(0, 3)
+                .mapToObj(id -> new GraphValue(new ValueId(id), descriptor)).toList();
+        var memory = List.of(
+                new LogicalMemoryRequirement(new ValueId(0), descriptor, Optional.empty(),
+                        List.of(partition), false),
+                new LogicalMemoryRequirement(new ValueId(1), descriptor, Optional.of(partition),
+                        List.of(partition), false),
+                new LogicalMemoryRequirement(new ValueId(2), descriptor, Optional.of(partition),
+                        List.of(), true));
+        var context = new PrepareContext<>(partition, nodes, values, memory, Map.of(),
+                CpuPartitionAnalysisInputs.DEFAULT);
+
+        assertAll(
+                () -> assertEquals(List.of(1, 1), context.partitionDag()
+                        .consumers(new ValueId(1)).stream()
+                        .map(occurrence -> occurrence.nodePosition()).toList()),
+                () -> assertEquals(List.of(0, 1), context.partitionDag()
+                        .consumers(new ValueId(1)).stream()
+                        .map(occurrence -> occurrence.inputPosition()).toList()),
+                () -> assertEquals("affine partition must be one connected one-input chain",
+                        assertThrows(IllegalArgumentException.class,
+                                () -> new CpuAffineLayoutLowering().lower(context)).getMessage()));
     }
 
     @Test void handlesScalarZeroElementAndDistinctAddressDomains() {

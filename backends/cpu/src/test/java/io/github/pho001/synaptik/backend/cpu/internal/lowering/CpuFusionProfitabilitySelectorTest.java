@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.*;
 
 import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuFusionDecision;
 import io.github.pho001.synaptik.backend.cpu.internal.prepare.CpuPartitionPreparer;
+import io.github.pho001.synaptik.model.graph.ValueId;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -54,7 +55,37 @@ class CpuFusionProfitabilitySelectorTest {
                 () -> assertEquals(2, diamond.units().size()),
                 () -> assertTrue(roles.contains(CpuFusionDecision.BoundaryRole.EXTERNAL_READ)),
                 () -> assertTrue(roles.contains(CpuFusionDecision.BoundaryRole.CROSS_UNIT)),
-                () -> assertTrue(roles.contains(CpuFusionDecision.BoundaryRole.PUBLICATION)));
+                () -> assertTrue(roles.contains(CpuFusionDecision.BoundaryRole.PUBLICATION)),
+                () -> assertTrue(roles.contains(CpuFusionDecision.BoundaryRole.PARTITION_WRITE)));
+    }
+
+    @Test void boundaryFactsMapEveryRoleToExactValueAndCandidateUnit() {
+        var publication = new CpuPartitionPreparer().analyze(
+                CpuPartitionDagDecomposerTest.publishedChain(2)).plan();
+        var publicationCandidate = legal(publication.fusionDecisions()).getFirst().identity();
+        var diamond = new CpuPartitionPreparer().analyze(
+                CpuPartitionDagDecomposerTest.diamond()).plan();
+        var diamondCandidate = legal(diamond.fusionDecisions()).getFirst().identity();
+
+        assertAll(
+                () -> assertBoundary(publicationCandidate, publication.boundaryValues(),
+                        0, 0, new ValueId(0),
+                        CpuFusionDecision.BoundaryRole.EXTERNAL_READ),
+                () -> assertBoundary(publicationCandidate, publication.boundaryValues(),
+                        0, 1, new ValueId(1),
+                        CpuFusionDecision.BoundaryRole.CROSS_UNIT),
+                () -> assertBoundary(publicationCandidate, publication.boundaryValues(),
+                        1, 0, new ValueId(1),
+                        CpuFusionDecision.BoundaryRole.CROSS_UNIT),
+                () -> assertBoundary(publicationCandidate, publication.boundaryValues(),
+                        1, 1, new ValueId(2),
+                        CpuFusionDecision.BoundaryRole.PUBLICATION),
+                () -> assertBoundary(diamondCandidate, diamond.boundaryValues(),
+                        1, 1, new ValueId(2),
+                        CpuFusionDecision.BoundaryRole.PUBLICATION),
+                () -> assertBoundary(diamondCandidate, diamond.boundaryValues(),
+                        2, 1, new ValueId(3),
+                        CpuFusionDecision.BoundaryRole.PARTITION_WRITE));
     }
 
     @Test void eightNodeEnumerationExhaustsAttemptsRetainsBaselineAndSafelySplits() {
@@ -150,5 +181,18 @@ class CpuFusionProfitabilitySelectorTest {
     private static CpuFusionDecision.Selection selection(List<CpuFusionDecision> decisions) {
         return decisions.stream().filter(CpuFusionDecision.Selection.class::isInstance)
                 .map(CpuFusionDecision.Selection.class::cast).findFirst().orElseThrow();
+    }
+
+    private static void assertBoundary(CpuFusionDecision.CandidateIdentity candidate,
+            List<ValueId> boundaryValues, int unitPosition, int boundaryPosition, ValueId value,
+            CpuFusionDecision.BoundaryRole role) {
+        var unit = candidate.units().get(unitPosition);
+        var fact = unit.boundaries().get(boundaryPosition);
+        assertAll(
+                () -> assertEquals(List.of(unitPosition), unit.memberNodePositions()),
+                () -> assertEquals(value,
+                        boundaryValues.get(fact.relativeBoundaryPosition())),
+                () -> assertEquals(boundaryPosition, fact.unitBoundaryPosition()),
+                () -> assertEquals(role, fact.role()));
     }
 }
