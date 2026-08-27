@@ -2,7 +2,23 @@ package io.github.pho001.synaptik.backend.cpu.internal.lowering;
 
 import io.github.pho001.synaptik.backend.cpu.CpuCapabilityProvider;
 import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuAccessPlan;
+import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuAdvancedReductionIr;
+import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuAggregateIr;
+import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuArgExtremaIr;
+import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuBatchNormInferenceIr;
+import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuBatchNormTrainingIr;
+import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuConv2dIr;
+import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuConv3dIr;
+import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuFoldIr;
 import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuKernelIr;
+import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuMaskedReductionIr;
+import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuOrderingIr;
+import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuPortableKernelIr;
+import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuRandomIr;
+import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuScanIr;
+import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuSoftmaxIr;
+import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuSpecializedSubgraph;
+import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuTrailingNormalizationIr;
 import io.github.pho001.synaptik.backend.cpu.internal.prepare.CpuPartitionAnalysisInputs;
 import io.github.pho001.synaptik.model.graph.CompiledNode;
 import io.github.pho001.synaptik.model.graph.GraphValue;
@@ -20,6 +36,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 
 /**
  * Deterministically decomposes one complete CPU-owned partition DAG into bounded computation
@@ -40,8 +57,12 @@ public final class CpuPartitionDagDecomposer {
     static final int MAX_INDEXING_UNITS = 32;
     /** Maximum structural generated-code estimate for a contracted pointwise unit. */
     static final int MAX_CODE_UNITS = 64;
+    /** Maximum distinct complete topologies admitted for profitability ranking. */
+    static final int MAX_CANDIDATES = 64;
+    /** Maximum source-topology/pair attempts admitted by complete enumeration. */
+    static final int MAX_ENUMERATION_ATTEMPTS = 256;
 
-    /** Creates a stateless cold-analysis decomposition boundary. */
+    /** Creates a stateless cold-analysis decomposition boundary with no retained graph state. */
     public CpuPartitionDagDecomposer() { }
 
     /**
@@ -79,6 +100,212 @@ public final class CpuPartitionDagDecomposer {
          * @return {@code true} exactly when the selected portable IR is ordinary pointwise IR
          */
         public boolean pointwise() { return lowering.portableKernelIr() instanceof CpuKernelIr; }
+    }
+
+    /** Closed contraction relation examined by complete bounded enumeration. */
+    public enum PairKind {
+        /** Producer-to-consumer contraction. */ VERTICAL,
+        /** Dependency-independent same-domain contraction. */ HORIZONTAL
+    }
+
+    /** Closed hard-legality result for one rejected contraction attempt. */
+    public enum RejectionReason {
+        /** Operation-family semantics forbid contraction. */ SEMANTIC_BARRIER,
+        /** The connecting value is a graph publication. */ PUBLICATION_BARRIER,
+        /** The connecting value has multiple consumers. */ FAN_OUT_BARRIER,
+        /** State transition or random advancement must remain indivisible. */ STATE_OR_RANDOM_BARRIER,
+        /** Numerical traversal or accumulation order must remain indivisible. */ NUMERICAL_ORDER_BARRIER,
+        /** Alias or normalized-access compatibility was not proved. */ ALIAS_OR_ACCESS_UNPROVED,
+        /** Contraction would violate dependency order. */ DEPENDENCY_CYCLE,
+        /** Current lowering does not support the combined occurrence. */ UNSUPPORTED_LOWERING,
+        /** The combined lowering is not an admitted pointwise route. */ ROUTE_INELIGIBLE,
+        /** A hard structural or resource ceiling would be exceeded. */ HARD_BUDGET_EXCEEDED
+    }
+
+    /**
+     * Stable graph-identity-free source topology used to identify one attempted pair.
+     *
+     * @param memberNodeOrdinals ordered unit member positions; copied defensively
+     */
+    public record TopologyIdentity(List<List<Integer>> memberNodeOrdinals) {
+        /**
+         * Validates and snapshots the complete unit membership.
+         *
+         * @throws NullPointerException if the outer list, an inner list, or a member is null
+         * @throws IllegalArgumentException if there are no units, more than eight units, or an
+         *     empty unit membership
+         */
+        public TopologyIdentity {
+            memberNodeOrdinals = memberNodeOrdinals.stream().map(List::copyOf).toList();
+            if (memberNodeOrdinals.isEmpty() || memberNodeOrdinals.size() > MAX_NODES
+                    || memberNodeOrdinals.stream().anyMatch(List::isEmpty)) {
+                throw new IllegalArgumentException("CPU topology identity is invalid");
+            }
+        }
+    }
+
+    /**
+     * One distinct source-topology pair attempt.
+     *
+     * @param source complete source topology
+     * @param leftUnit stable source-unit position
+     * @param rightUnit stable source-unit position
+     * @param kind vertical or horizontal relation
+     * @param rejection empty exactly when contraction produced a legal complete topology
+     */
+    public record Attempt(TopologyIdentity source, int leftUnit, int rightUnit, PairKind kind,
+            Optional<RejectionReason> rejection) {
+        /**
+         * Validates the immutable attempted-pair fact.
+         *
+         * @throws NullPointerException if {@code source}, {@code kind}, or {@code rejection} is
+         *     null
+         * @throws IllegalArgumentException if either position is outside {@code source} or both
+         *     positions are equal
+         */
+        public Attempt {
+            Objects.requireNonNull(source, "source");
+            Objects.requireNonNull(kind, "kind");
+            rejection = Objects.requireNonNull(rejection, "rejection");
+            if (leftUnit < 0 || rightUnit < 0 || leftUnit == rightUnit
+                    || leftUnit >= source.memberNodeOrdinals().size()
+                    || rightUnit >= source.memberNodeOrdinals().size()) {
+                throw new IllegalArgumentException("CPU attempted pair is outside its topology");
+            }
+        }
+    }
+
+    /**
+     * Complete bounded enumeration result. Candidate zero is always canonical split; the exact
+     * compatibility baseline is always present. An incomplete result is inspection-only and must
+     * select canonical split.
+     *
+     * @param canonicalSplit immutable safe split topology
+     * @param compatibilityBaseline exact unchanged {@link #decompose} result
+     * @param candidates distinct complete legal topologies in breadth-first discovery order
+     * @param attempts distinct source/pair attempts in deterministic order
+     * @param complete whether every reachable pair was examined within both ceilings
+     */
+    public record Enumeration(List<Unit> canonicalSplit, List<Unit> compatibilityBaseline,
+            List<List<Unit>> candidates, List<Attempt> attempts, boolean complete) {
+        /**
+         * Validates and snapshots one enumeration result.
+         *
+         * @throws NullPointerException if a required list or retained element is {@code null}
+         * @throws IllegalArgumentException if a ceiling is exceeded, canonical split is not the
+         *     first candidate, or the exact compatibility baseline is absent
+         */
+        public Enumeration {
+            canonicalSplit = List.copyOf(canonicalSplit);
+            compatibilityBaseline = List.copyOf(compatibilityBaseline);
+            candidates = candidates.stream().map(List::copyOf).toList();
+            attempts = List.copyOf(attempts);
+            if (canonicalSplit.isEmpty() || compatibilityBaseline.isEmpty()
+                    || candidates.isEmpty() || candidates.size() > MAX_CANDIDATES
+                    || attempts.size() > MAX_ENUMERATION_ATTEMPTS
+                    || !sameMembership(candidates.getFirst(), canonicalSplit)
+                    || !containsMembership(candidates, compatibilityBaseline)) {
+                throw new IllegalArgumentException("CPU complete topology enumeration disagrees");
+            }
+        }
+    }
+
+    /**
+     * Exact shared 0008B pointwise structural calculation.
+     *
+     * @param materializedBoundaries non-negative count of non-virtual IR boundaries
+     * @param indexingComplexityUnits non-negative checked access-complexity sum
+     * @param simultaneouslyLiveValues non-negative maximum live-value count
+     * @param generatedCodeSizeUnits non-negative structural code-size estimate, not byte length
+     */
+    public record StructuralFacts(int materializedBoundaries, int indexingComplexityUnits,
+            int simultaneouslyLiveValues, int generatedCodeSizeUnits) {
+        /** Validates non-negative checked structural facts. */
+        public StructuralFacts {
+            if (materializedBoundaries < 0 || indexingComplexityUnits < 0
+                    || simultaneouslyLiveValues < 0 || generatedCodeSizeUnits < 0) {
+                throw new IllegalArgumentException("CPU pointwise structural facts are negative");
+            }
+        }
+    }
+
+    /**
+     * Enumerates every complete topology reachable through the unchanged 0008B contraction
+     * grammar. Recognition-associated baseline units are immutable barriers.
+     *
+     * @param context complete non-null CPU analysis context
+     * @param lowering non-null current lowering owner
+     * @param recognition non-null immutable 0008C facts associated with the exact baseline
+     * @return bounded deterministic complete-topology enumeration
+     * @throws NullPointerException if an argument or recognition fact is {@code null}
+     * @throws IllegalArgumentException if the complete context, recognition association,
+     *     canonical seed topology, or retained compatibility baseline is inconsistent
+     * @throws ArithmeticException if exact topology or lowering arithmetic overflows
+     */
+    public Enumeration enumerate(PrepareContext<CpuPartitionAnalysisInputs> context,
+            CpuPartitionLowering lowering, List<CpuSpecializedSubgraph> recognition) {
+        Objects.requireNonNull(context, "context");
+        Objects.requireNonNull(lowering, "lowering");
+        recognition = List.copyOf(recognition);
+        validate(context);
+        var ordinals = new HashMap<CompiledNode, Integer>();
+        for (int i = 0; i < context.nodes().size(); i++) ordinals.put(context.nodes().get(i), i);
+        List<Unit> baseline = decompose(context, lowering);
+        var lockedBaselineUnits = new LinkedHashSet<Integer>();
+        recognition.forEach(fact -> lockedBaselineUnits.addAll(fact.baselineUnitIndices()));
+        if (lockedBaselineUnits.stream().anyMatch(index -> index < 0 || index >= baseline.size())) {
+            throw new IllegalArgumentException("recognition references an invalid baseline unit");
+        }
+        List<MutableUnit> splitMutable = canonicalSeeds(context, lowering, ordinals, baseline,
+                lockedBaselineUnits);
+        List<Unit> split = finish(splitMutable, ordinals);
+        var queue = new java.util.ArrayDeque<List<MutableUnit>>();
+        queue.add(copyTopology(splitMutable));
+        var candidates = new ArrayList<List<Unit>>();
+        candidates.add(split);
+        var seen = new LinkedHashSet<TopologyIdentity>();
+        seen.add(identity(split));
+        var attempts = new ArrayList<Attempt>();
+        boolean complete = true;
+        enumeration: while (!queue.isEmpty()) {
+            List<MutableUnit> source = queue.removeFirst();
+            List<MutableUnit> ordered = topological(source, ordinals);
+            TopologyIdentity sourceIdentity = identity(finish(source, ordinals));
+            var pairs = enumerationPairs(source, ordered);
+            for (Pair pair : pairs) {
+                if (attempts.size() == MAX_ENUMERATION_ATTEMPTS) {
+                    complete = false;
+                    break enumeration;
+                }
+                Contraction result = attempt(context, lowering, source, pair.left(), pair.right(),
+                        pair.kind(), ordinals, baseline, lockedBaselineUnits);
+                int leftIndex = ordered.indexOf(pair.left());
+                int rightIndex = ordered.indexOf(pair.right());
+                attempts.add(new Attempt(sourceIdentity, leftIndex, rightIndex, pair.kind(),
+                        Optional.ofNullable(result.rejection())));
+                if (result.unit() == null) continue;
+                List<MutableUnit> next = copyTopology(source);
+                int left = memberIndex(next, pair.left());
+                int right = memberIndex(next, pair.right());
+                replace(next, left, right, result.unit());
+                List<Unit> finished = finish(next, ordinals);
+                TopologyIdentity candidateIdentity = identity(finished);
+                if (!seen.add(candidateIdentity)) continue;
+                if (candidates.size() == MAX_CANDIDATES) {
+                    complete = false;
+                    break enumeration;
+                }
+                candidates.add(finished);
+                queue.addLast(next);
+            }
+        }
+        if (candidates.stream().noneMatch(candidate -> sameMembership(candidate, baseline))) {
+            if (complete) throw new IllegalArgumentException(
+                    "exact CPU 0008B baseline is not reachable");
+            if (candidates.size() == MAX_CANDIDATES) candidates.set(candidates.size() - 1, baseline);
+            else candidates.add(baseline);
+        }
+        return new Enumeration(split, baseline, candidates, attempts, complete);
     }
 
     /**
@@ -265,17 +492,28 @@ public final class CpuPartitionDagDecomposer {
     private static MutableUnit contract(PrepareContext<CpuPartitionAnalysisInputs> context,
             CpuPartitionLowering lowering, MutableUnit left, MutableUnit right,
             Map<CompiledNode, Integer> ordinals) {
+        return contractResult(context, lowering, left, right, ordinals).unit();
+    }
+
+    private static Contraction contractResult(
+            PrepareContext<CpuPartitionAnalysisInputs> context, CpuPartitionLowering lowering,
+            MutableUnit left, MutableUnit right, Map<CompiledNode, Integer> ordinals) {
         var nodes = new ArrayList<CompiledNode>(left.nodes);
         nodes.addAll(right.nodes);
         nodes.sort(Comparator.comparingInt(ordinals::get));
-        if (nodes.size() > MAX_NODES) return null;
+        if (nodes.size() > MAX_NODES) return new Contraction(null,
+                RejectionReason.HARD_BUDGET_EXCEEDED);
         try {
             var lowered = lowering.lower(project(context, nodes, context.backendInputs()));
-            if (!(lowered.portableKernelIr() instanceof CpuKernelIr ir)) return null;
-            if (!withinBudgets(ir)) return null;
-            return new MutableUnit(nodes, lowered);
-        } catch (IllegalArgumentException | ArithmeticException rejected) {
-            return null;
+            if (!(lowered.portableKernelIr() instanceof CpuKernelIr ir)) return new Contraction(
+                    null, RejectionReason.ROUTE_INELIGIBLE);
+            if (!withinBudgets(ir)) return new Contraction(null,
+                    RejectionReason.HARD_BUDGET_EXCEEDED);
+            return new Contraction(new MutableUnit(nodes, lowered), null);
+        } catch (ArithmeticException overflow) {
+            return new Contraction(null, RejectionReason.HARD_BUDGET_EXCEEDED);
+        } catch (IllegalArgumentException unsupported) {
+            return new Contraction(null, RejectionReason.UNSUPPORTED_LOWERING);
         }
     }
 
@@ -290,9 +528,26 @@ public final class CpuPartitionDagDecomposer {
      * @throws ArithmeticException if exact indexing arithmetic overflows
      */
     static boolean withinBudgets(CpuKernelIr ir) {
+        StructuralFacts facts = structuralFacts(ir);
+        return facts.materializedBoundaries() <= MAX_BOUNDARIES
+                && facts.indexingComplexityUnits() <= MAX_INDEXING_UNITS
+                && facts.simultaneouslyLiveValues() <= MAX_LIVE_VALUES
+                && facts.generatedCodeSizeUnits() <= MAX_CODE_UNITS;
+    }
+
+    /**
+     * Computes the shared checked 0008B structural quantities used by hard legality and 0008D
+     * profitability. Keeping this calculation here prevents the heuristic from drifting from the
+     * established contraction proof.
+     *
+     * @param ir non-null validated pointwise IR
+     * @return exact non-negative boundary, indexing, liveness, and code-size facts
+     * @throws ArithmeticException if checked structural arithmetic exceeds {@code int}
+     */
+    public static StructuralFacts structuralFacts(CpuKernelIr ir) {
         Objects.requireNonNull(ir, "ir");
-        long boundaries = ir.values().stream().filter(value -> value.kind() != CpuKernelIr.Value.Kind.VIRTUAL).count();
-        if (boundaries > MAX_BOUNDARIES) return false;
+        int boundaries = Math.toIntExact(ir.values().stream()
+                .filter(value -> value.kind() != CpuKernelIr.Value.Kind.VIRTUAL).count());
         int indexing = 0;
         for (CpuKernelIr.Value value : ir.values()) {
             if (value.kind() == CpuKernelIr.Value.Kind.VIRTUAL) continue;
@@ -303,13 +558,13 @@ public final class CpuPartitionDagDecomposer {
                 case GENERAL_ODOMETER -> 4;
             });
         }
-        if (indexing > MAX_INDEXING_UNITS) return false;
         int liveMaximum = liveMaximum(ir);
-        if (liveMaximum > MAX_LIVE_VALUES) return false;
         long virtuals = ir.values().stream().filter(value -> value.kind() == CpuKernelIr.Value.Kind.VIRTUAL).count();
-        long code = 8L + 4L * ir.instructions().size() + 3L * ir.stores().size()
-                + indexing + virtuals;
-        return code <= MAX_CODE_UNITS;
+        int code = Math.toIntExact(Math.addExact(Math.addExact(Math.addExact(8L,
+                Math.multiplyExact(4L, ir.instructions().size())),
+                Math.multiplyExact(3L, ir.stores().size())),
+                Math.addExact(indexing, virtuals)));
+        return new StructuralFacts(boundaries, indexing, liveMaximum, code);
     }
 
     /**
@@ -363,6 +618,158 @@ public final class CpuPartitionDagDecomposer {
         units.remove(low);
         units.add(low, fused);
     }
+
+    private static List<MutableUnit> canonicalSeeds(
+            PrepareContext<CpuPartitionAnalysisInputs> context, CpuPartitionLowering lowering,
+            Map<CompiledNode, Integer> ordinals, List<Unit> baseline,
+            Set<Integer> lockedBaselineUnits) {
+        if (lockedBaselineUnits.isEmpty()) return seeds(context, lowering, ordinals);
+        var lockedByFirst = new HashMap<Integer, Unit>();
+        for (int index : lockedBaselineUnits) {
+            Unit unit = baseline.get(index);
+            lockedByFirst.put(unit.memberNodeOrdinals().getFirst(), unit);
+        }
+        List<MutableUnit> ordinary = seeds(context, lowering, ordinals);
+        var ordinaryByFirst = new HashMap<Integer, MutableUnit>();
+        ordinary.forEach(unit -> ordinaryByFirst.put(ordinals.get(unit.nodes.getFirst()), unit));
+        var result = new ArrayList<MutableUnit>();
+        int ordinal = 0;
+        while (ordinal < context.nodes().size()) {
+            Unit locked = lockedByFirst.get(ordinal);
+            if (locked != null) {
+                result.add(new MutableUnit(locked.nodes(), locked.lowering()));
+                ordinal = Math.addExact(ordinal, locked.nodes().size());
+                continue;
+            }
+            MutableUnit seed = ordinaryByFirst.get(ordinal);
+            if (seed == null) throw new IllegalArgumentException(
+                    "recognition barrier cuts through an established seed");
+            boolean overlapsLocked = seed.nodes.stream().map(ordinals::get)
+                    .anyMatch(value -> lockedBaselineUnits.stream()
+                            .map(baseline::get).flatMap(unit -> unit.memberNodeOrdinals().stream())
+                            .anyMatch(value::equals));
+            if (overlapsLocked) throw new IllegalArgumentException(
+                    "recognition baseline association disagrees with canonical seeds");
+            result.add(seed);
+            ordinal = Math.addExact(ordinal, seed.nodes.size());
+        }
+        return result;
+    }
+
+    private static List<Pair> enumerationPairs(List<MutableUnit> all,
+            List<MutableUnit> ordered) {
+        var result = new ArrayList<Pair>();
+        for (MutableUnit producer : ordered) for (MutableUnit consumer : ordered) {
+            if (producer == consumer) continue;
+            var produced = outputs(producer);
+            boolean edge = consumer.nodes.stream().flatMap(node -> node.inputs().stream())
+                    .anyMatch(produced::contains);
+            if (edge) result.add(new Pair(producer, consumer, PairKind.VERTICAL));
+        }
+        for (int left = 0; left < ordered.size(); left++) {
+            for (int right = left + 1; right < ordered.size(); right++) {
+                MutableUnit a = ordered.get(left);
+                MutableUnit b = ordered.get(right);
+                boolean edge = result.stream().anyMatch(pair -> pair.left() == a && pair.right() == b
+                        || pair.left() == b && pair.right() == a);
+                if (!edge) result.add(new Pair(a, b, PairKind.HORIZONTAL));
+            }
+        }
+        return result;
+    }
+
+    private static Contraction attempt(PrepareContext<CpuPartitionAnalysisInputs> context,
+            CpuPartitionLowering lowering, List<MutableUnit> all, MutableUnit left,
+            MutableUnit right, PairKind kind, Map<CompiledNode, Integer> ordinals,
+            List<Unit> baseline, Set<Integer> lockedBaselineUnits) {
+        if (locked(left, ordinals, baseline, lockedBaselineUnits)
+                || locked(right, ordinals, baseline, lockedBaselineUnits)) {
+            return new Contraction(null, RejectionReason.SEMANTIC_BARRIER);
+        }
+        if (!left.pointwise() || !right.pointwise()) {
+            return new Contraction(null, barrier(left, right));
+        }
+        if (kind == PairKind.VERTICAL) {
+            var graphOutputs = new HashSet<ValueId>();
+            context.memoryRequirements().stream().filter(LogicalMemoryRequirement::graphOutput)
+                    .forEach(value -> graphOutputs.add(value.valueId()));
+            var connecting = outputs(left).stream().filter(output -> right.nodes.stream()
+                    .flatMap(node -> node.inputs().stream()).anyMatch(output::equals)).toList();
+            if (connecting.isEmpty()) return new Contraction(null,
+                    RejectionReason.ROUTE_INELIGIBLE);
+            if (connecting.stream().anyMatch(graphOutputs::contains)) return new Contraction(null,
+                    RejectionReason.PUBLICATION_BARRIER);
+            for (ValueId output : connecting) {
+                long uses = context.nodes().stream().flatMap(node -> node.inputs().stream())
+                        .filter(output::equals).count();
+                if (uses != 1) return new Contraction(null, RejectionReason.FAN_OUT_BARRIER);
+            }
+        } else {
+            if (!horizontal(all, left, right)) return new Contraction(null,
+                    RejectionReason.ROUTE_INELIGIBLE);
+        }
+        return contractResult(context, lowering, left, right, ordinals);
+    }
+
+    private static boolean locked(MutableUnit unit, Map<CompiledNode, Integer> ordinals,
+            List<Unit> baseline, Set<Integer> lockedBaselineUnits) {
+        List<Integer> members = unit.nodes.stream().map(ordinals::get).toList();
+        return lockedBaselineUnits.stream().map(baseline::get)
+                .map(Unit::memberNodeOrdinals).anyMatch(members::equals);
+    }
+
+    private static RejectionReason barrier(MutableUnit left, MutableUnit right) {
+        var forms = java.util.stream.Stream.of(left, right)
+                .map(unit -> unit.lowering.portableKernelIr()).toList();
+        if (forms.stream().anyMatch(CpuRandomIr.class::isInstance)) {
+            return RejectionReason.STATE_OR_RANDOM_BARRIER;
+        }
+        if (forms.stream().anyMatch(CpuPartitionDagDecomposer::numericalBarrier)) {
+            return RejectionReason.NUMERICAL_ORDER_BARRIER;
+        }
+        return RejectionReason.SEMANTIC_BARRIER;
+    }
+
+    private static boolean numericalBarrier(CpuPortableKernelIr form) {
+        return form instanceof CpuAggregateIr || form instanceof CpuAdvancedReductionIr
+                || form instanceof CpuArgExtremaIr || form instanceof CpuMaskedReductionIr
+                || form instanceof CpuFoldIr || form instanceof CpuScanIr
+                || form instanceof CpuOrderingIr || form instanceof CpuSoftmaxIr
+                || form instanceof CpuTrailingNormalizationIr
+                || form instanceof CpuBatchNormInferenceIr
+                || form instanceof CpuBatchNormTrainingIr || form instanceof CpuConv2dIr
+                || form instanceof CpuConv3dIr;
+    }
+
+    private static int memberIndex(List<MutableUnit> topology, MutableUnit source) {
+        List<CompiledNode> members = source.nodes;
+        for (int index = 0; index < topology.size(); index++) {
+            if (topology.get(index).nodes.equals(members)) return index;
+        }
+        throw new IllegalArgumentException("enumeration source pair is not retained");
+    }
+
+    private static List<MutableUnit> copyTopology(List<MutableUnit> source) {
+        return source.stream().map(unit -> new MutableUnit(unit.nodes, unit.lowering)).toList()
+                .stream().collect(java.util.stream.Collectors.toCollection(ArrayList::new));
+    }
+
+    private static TopologyIdentity identity(List<Unit> units) {
+        return new TopologyIdentity(units.stream().map(Unit::memberNodeOrdinals).toList());
+    }
+
+    private static boolean sameMembership(List<Unit> left, List<Unit> right) {
+        return left.stream().map(Unit::memberNodeOrdinals).toList()
+                .equals(right.stream().map(Unit::memberNodeOrdinals).toList());
+    }
+
+    private static boolean containsMembership(List<List<Unit>> candidates, List<Unit> expected) {
+        for (List<Unit> candidate : candidates) if (sameMembership(candidate, expected)) return true;
+        return false;
+    }
+
+    private record Pair(MutableUnit left, MutableUnit right, PairKind kind) { }
+    private record Contraction(MutableUnit unit, RejectionReason rejection) { }
 
     private static List<Unit> finish(List<MutableUnit> units,
             Map<CompiledNode, Integer> ordinals) {

@@ -456,7 +456,8 @@ The current CPU-private flow is:
 ```text
 complete CPU-owned partition
   -> computation-oriented execution units
-  -> bounded deterministic legal fusion
+  -> bounded complete legal-topology enumeration
+  -> deterministic profitability selection or canonical split fallback
   -> route-independent canonical kernel IR and normalized access-plan form
   -> exact post-fusion buffer declarations
   -> portable Class-File/Vector baseline or eligible peer native route
@@ -480,15 +481,15 @@ stable operation order and emits one store for each materialized branch result. 
 fan-out, state/random transitions, affine or specialized families, numerical-order-sensitive
 families, incompatible access geometry, and any unproved alias relation remain unit barriers.
 
-The contraction search is deterministic: vertical pairs precede horizontal pairs, and the first
-legal pair within all hard ceilings is accepted. The ceilings are eight partition nodes, eight
-final units, 28 attempted pairs, eight nodes per newly fused pointwise unit, 16 materialized
-boundaries, 16 simultaneously live IR values, 32 indexing-complexity units, and 64 estimated
-generated-code units. The last estimator is structural analysis input, not a Class-File byte-size
-claim or a profitability score. An illegal, unsupported, or over-budget contraction leaves the
-complete materialized split plan intact; failure occurs only when an individual seed is itself
-unsupported or the complete context is malformed. Profitability ranking belongs to later CPU
-work.
+The compatibility decomposition remains deterministic: vertical pairs precede horizontal pairs,
+and the first legal pair within all CPU 0008B hard ceilings is accepted. Those ceilings are eight
+partition nodes, eight final units, 28 attempted pairs, eight nodes per newly fused pointwise
+unit, 16 materialized boundaries, 16 simultaneously live IR values, 32 indexing-complexity units,
+and 64 estimated generated-code units. CPU 0008D reuses the same typed contraction result and
+structural calculation while enumerating complete alternatives; it does not weaken these
+correctness and resource gates. An illegal, unsupported, or over-budget contraction therefore
+leaves a complete materialized topology available, and failure still occurs only when an
+individual seed is unsupported or the complete context is malformed.
 
 ```text
 input -> pointwise producer -> split buffer -> pointwise left  --\
@@ -556,6 +557,71 @@ is unchanged, and complete binary, `javap`, member-reference, and source scans f
 fact or helper in generated code, artifact identity, executable code, or hot dispatch. No new
 benchmark fork was run because this task changes neither a generated form nor a runtime hot path;
 the owning execution tasks' performance evidence remains controlling.
+
+### Bounded complete-topology profitability
+
+CPU analysis now separates three questions that are easy to conflate:
+
+```text
+legality       -> may this contraction preserve the established semantic/resource contract?
+profitability  -> does one complete legal topology beat canonical split by the fixed heuristic?
+selection      -> which complete plan survives every fallback rule?
+```
+
+Starting from the canonical maximally split seeds, analysis explores the unchanged pointwise
+contraction grammar in deterministic breadth-first order. It admits at most 64 distinct complete
+topologies and 256 distinct source-topology/pair attempts. The exact CPU 0008B maximal-legal
+decomposition is retained separately as the compatibility baseline. Recognition-associated
+0008C baseline units are immutable barriers, so enumeration cannot silently broaden recognition
+or fuse through an established specialized occurrence. If a 65th topology or pending 257th pair
+shows that enumeration is incomplete, selection ignores the partial ranking and returns canonical
+split.
+
+Every legal complete topology receives checked integer facts. For one candidate, the score is:
+
+```text
+64 * final unit count
++ sum over cross-unit buffers (16 + min(4096, ceil(referenced bytes / 4096)))
++ sum over pointwise units (
+     generated-code units
+   + indexing-complexity units
+   + 8 * max(0, simultaneously-live values - 8))
++ 32 * indivisible non-pointwise unit count
+```
+
+The score is a structural heuristic, not measured time. A fused alternative is comparable only
+when its largest pointwise unit has at most 48 generated-code units and 12 simultaneously live
+values and it does not increase cross-unit materialized bytes relative to canonical split. The
+best comparable alternative must improve split's score by at least 32 points. An absent/overflowed
+score, incomplete enumeration, insufficient margin, or a best-alternative tie selects canonical
+split. Tie fallback is best-only: a non-winning candidate tied with split cannot suppress a
+different strictly profitable winner. Stable typed identity, rather than map iteration, graph ID,
+or text, breaks ordering after the score and resource comparisons.
+
+The retained facts distinguish legal candidates, hard-legality rejections, profitability-only
+rejections, and final selection. Candidate identity contains relative member/dependency positions,
+typed structural-key octets, specialization, execution strategy, boundary access and byte
+geometry, optional workspace geometry, and indivisible/split/fused topology. It deliberately
+contains no graph/value/slot identity, physical resource, class loader, generated class, cache
+entry, measurement, or Runtime input. The facts are immutable CPU-private cold Prepare metadata;
+they do not enter schema 52, generated-artifact identity, finalization choice, Runtime dispatch,
+Trace, tuning, or a cache.
+
+Boundary roles are also validated independently. Preparation derives an immutable ordered list of
+publication boundary positions from `LogicalMemoryRequirement.graphOutput()`. Plan validation
+uses that projection to recompute `PUBLICATION` versus unpublished `PARTITION_WRITE`, while unit
+occurrence counts independently determine `CROSS_UNIT`. It also compares every derivable retained
+0008C baseline fact—member order, structural key, specialization, dependencies, access geometry,
+workspace, and topology—against the exact compatibility identity. A mismatch fails closed rather
+than trusting the claimed decision or recognition fact.
+
+The retained fixed-topology evidence is intentionally narrow. Across two retained runs, all 45
+samples per comparison were kept; generated/direct medians were `0.886422494` and `0.885426214`,
+while fused/canonical-split medians were `0.503477345` and `0.494450262`. All three generated class
+hashes were identical across runs, and inspection retained Java 26 major version 70, descriptor
+`([I[I[JJJ)V`, one method, and zero fields, member references, allocations, dispatch instructions,
+or string constants. This validates that selected topology on the evidence host. It is not a
+universal speedup claim.
 
 The proving slice is one fully static FLOAT64 ADD -> exact GELU -> MUL chain. ADD and MUL use the
 current Model right-aligned broadcast result, GELU preserves the ADD result Shape exactly, and all

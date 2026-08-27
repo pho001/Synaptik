@@ -1279,8 +1279,11 @@ subject to hard structural budgets, and preserves materialized unit boundaries a
 publication, state/random, affine/specialized, and numerical-order barriers. A horizontal
 pointwise contraction may emit multiple ordered stores. Its liveness gate starts inputs at first
 use, starts results at definition, deduplicates same-instruction uses, and retires values after
-their final instruction or store use. Profitability ranking, specialized-subgraph recognition,
-and multi-input external representation selection remain later CPU work.
+their final instruction or store use. Complete CPU 0008C adds CPU-private recognition without
+changing execution. Complete CPU 0008D enumerates at most 64 complete legal topologies across 256
+pair attempts and applies deterministic no-measurement profitability selection. Canonical split
+wins incomplete enumeration, uncertainty, insufficient margin, and a tie with the best comparable
+alternative. Multi-input external representation selection remains CPU 0008E work.
 
 Cross-type cast, general BFLOAT16 pointwise arithmetic, FLOAT16 execution, relaxed math,
 native/vendor realization, dynamic layouts, Vector API scatter, fold, ordering, scan, or ordinary
@@ -1521,6 +1524,15 @@ artifact work for malformed topology, independently unsupported seeds, invalid r
 or more than eight occurrences; a rejected pointwise contraction alone does not fail the split
 plan.
 
+Complete CPU 0008D additionally retains closed legality, profitability, and selection facts in
+the plan as CPU-private cold metadata. Their topology identities use relative positions and typed
+structural/resource facts rather than graph, value, slot, class-loader, cache, or Runtime identity.
+The plan also stores an immutable projection of boundary positions whose authoritative logical-
+memory requirements have `graphOutput() == true`; validation uses that projection to recompute
+`PUBLICATION` versus `PARTITION_WRITE` instead of trusting the claimed decision role. These facts
+do not participate in generated-artifact identity, schema 52, finalization selection, Runtime
+dispatch, measurement, tuning, or cache state.
+
 ### CPU portable prepared executable
 
 The implemented backend-private immutable direct-unit Runtime recipe constructed by CPU
@@ -1574,6 +1586,13 @@ CPU 0008B constructs the maximally split supported seed topology first. It then 
 ordinary pointwise units: vertical fusion crosses one unpublished single-consumer value, while
 horizontal fusion combines dependency-independent same-domain units with the same predecessor
 set. Cross-unit values are ordinary materialized graph-value buffers, not anonymous workspaces.
+
+CPU 0008D keeps those hard legality rules and enumerates bounded complete alternatives. The
+canonical maximally split topology is the correctness fallback; the exact CPU 0008B maximal-legal
+result is separately retained as the compatibility baseline. A checked structural score may
+select a strictly better comparable fused topology, but it cannot make an illegal contraction
+legal. Incomplete enumeration, uncertain arithmetic, and a tie involving the best alternative
+select canonical split.
 
 The term is CPU-private lowering vocabulary. It is not a Planning `PlannedPartition`,
 Runtime `PreparedUnit`, public backend SPI, operation family, registry entry, or shared Prepare

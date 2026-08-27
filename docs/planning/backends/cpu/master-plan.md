@@ -247,8 +247,8 @@ created by 0005A. All consume the common analysis above; none creates another ba
 | 0008A | [Portable channels-first dimensional convolution closure](tasks/0008a-portable-channels-first-dimensional-convolution-closure.md) | Complete | 0008; Model 0025G–0025H; Compiler 0006B | Validated exact NCW Conv1d through its visible virtual-singleton `EXPAND_DIMS -> CONV2D -> SQUEEZE` composition and added direct grouped NCDHW Conv3d with intrinsic optional bias, resolved arrays/segments/mixed carriers, zero workspace/materialization, scalar/parallel-scalar complete-output-cell generated execution, schema 52, and passing structural/performance evidence. External Conv3d epilogues and general DAG handling remain fail-closed. |
 | 0008B | [General partition-DAG computation-unit decomposition and bounded fusion](tasks/0008b-general-partition-dag-computation-unit-decomposition-and-bounded-fusion.md) | Complete | 0006–0008A | Added deterministic one-to-eight-unit partition-DAG decomposition, bounded vertical/horizontal ordinary-pointwise fusion, exact materialized split buffers, final-index unit workspaces, general atomic sequential finalization, and direct multi-store Class-File/performance evidence. The final CPU suite passed 99 suites/512 tests with three expected skips; all five accepted generated/direct forks and their aggregate passed `<= 1.15x`, while all six rejected samples remain retained. |
 | 0008C | [Typed specialized-subgraph and epilogue recognition](tasks/0008c-typed-specialized-subgraph-and-epilogue-recognition.md) | Complete | 0007F2–0008B | Added recognition-only CPU-private typed facts for exact MATMUL, Conv1d/Conv2d/Conv3d, selected floating-reduction epilogues, and already first-class softmax/normalization kernels. The uniform suffix is optional external ADD plus at most one exact activation/CLAMP. Only CPU 0008's existing Conv2d ADD/ADD-RELU form is already specialized; MATMUL stays unsupported until 0008F and every other recognized epilogue retains the exact 0008B split. Schema 52, artifact identity, capability, generated code, and public/shared contracts remain unchanged; exact baseline and no-leakage evidence passed. |
-| 0008D | Bounded fusion profitability and typed decision facts | Ready | 0008B–0008C | Rank only complete legal fused and split candidates with bounded safe no-measurement heuristics by default. Retain typed cold accepted, rejected, and selected decision facts, including legality rejection separately from profitability rejection, for later Trace backend payload translation and tuning inspection without exposing a public registry or moving selection into Runtime. No detailed specification exists yet. |
-| 0008E | Bounded multi-input materialization and representation reuse | Draft | 0008D | Extend portable pointwise computation-unit representation planning to cost-select at most two distinct external read-boundary materializations, including both operands of eligible binary work. Cover FLOAT64, FLOAT32, INT32, INT64, and BOOL where the operation already has CPU execution; gate BFLOAT16 on later pointwise numerical support. Enumerate only bounded single/pair variants of legal fused/split topologies, deduplicate repeated boundaries, reuse one selected copy across compatible uses, and give every complete topology/representation candidate a stable typed CPU-private identity with materialized-boundary, layout/access, reuse, workspace, strategy, and topology facts sufficient for later opaque Prepare/tuning compatibility. Re-rank candidates through 0008D's no-measurement profitability facts, preserve direct access as the uncertainty- and tie-winning fallback, perform no measurement or tuning-cache work, and leave DAG split materialization plus native packing/reorder to their existing owners. |
+| 0008D | [Bounded fusion profitability and typed decision facts](tasks/0008d-bounded-fusion-profitability-and-typed-decision-facts.md) | Complete | 0008B–0008C | Implemented the complete admitted bounded set, deterministic checked integer ranking, best-only tie fallback, graph-identity-free typed facts, shared typed contraction outcomes, exact retained-recognition overlap validation, and independent publication/write role recomputation. The authoritative CPU suite passed 536 tests in 103 suites with 3 skips and no failures/errors; both retained runs kept all 45 samples per comparison, schema 52 and generated forms remain unchanged, and the clean documentation pass finalized Javadocs, guide, glossary, and planning evidence. |
+| 0008E | Bounded multi-input materialization and representation reuse | Ready | 0008D | Extend portable pointwise computation-unit representation planning to cost-select at most two distinct external read-boundary materializations, including both operands of eligible binary work. Cover FLOAT64, FLOAT32, INT32, INT64, and BOOL where the operation already has CPU execution; gate BFLOAT16 on later pointwise numerical support. Enumerate only bounded single/pair variants of legal fused/split topologies, deduplicate repeated boundaries, reuse one selected copy across compatible uses, and give every complete topology/representation candidate a stable typed CPU-private identity with materialized-boundary, layout/access, reuse, workspace, strategy, and topology facts sufficient for later opaque Prepare/tuning compatibility. Re-rank candidates through 0008D's no-measurement profitability facts, preserve direct access as the uncertainty- and tie-winning fallback, perform no measurement or tuning-cache work, and leave DAG split materialization plus native packing/reorder to their existing owners. No detailed 0008E task specification exists yet. |
 | 0008F | Portable MATMUL execution and bounded linear epilogues | Draft | 0008E; Model 0019/0019D; Compiler 0005D | Add the complete current MATMUL rank/batch/broadcast family and the corresponding optional compatible bias ADD plus at-most-one exact activation/clamp epilogue or safe split, with direct generated/oracle evidence and without a native-provider route. |
 | 0008G | Portable max/average Pool2d execution | Draft | 0008F; Model 0020A–0020A1; Compiler 0005D | Add first-class NCHW max and average pooling with exact geometry, divisor, numerical, empty-domain, layout, resource, generated-code, and fallback contracts. |
 | 0008H | Portable scaled-dot-product attention execution | Draft | 0008G; Model 0019E/0023F; Compiler 0005D | Add the current one- and two-output attention signatures with optional mask, stable score normalization, exact publication/resources, direct generated execution, and safe fallback without inferring decomposed attention. |
@@ -358,9 +358,9 @@ is `Complete`. Detailed CPU 0008 is `Complete` and establishes only the grouped
 NCHW Conv2d foundation plus its bounded family-local epilogue/split contract. MATMUL, pooling,
 attention, and losses remain explicitly owned by Draft CPU 0008F–0008I without detailed
 specifications. CPU 0008A is `Complete`: it validates Conv1d through the explicit Conv2d
-composition and adds Conv3d execution before the general DAG. CPU 0008B and CPU 0008C are
-`Complete`; CPU 0008D is the sole `Ready` CPU task and continues the profitability and materialization
-sequence in CPU 0008B–0008E. This is an ordering
+composition and adds Conv3d execution before the general DAG. CPU 0008B, CPU 0008C, and CPU 0008D
+are `Complete`; CPU 0008E is the sole `Ready` CPU task and has no detailed specification yet. It
+continues the profitability and materialization sequence in CPU 0008B–0008E. This is an ordering
 and dependency correction inside the existing portable route, not a new route beginning at CPU
 0008 or an architecture change. The resulting order is Model 0025G, Model 0025H, Compiler 0006B,
 CPU 0008, CPU 0008A, CPU 0008B, CPU 0008C, CPU 0008D, CPU 0008E, and then the remaining heavy
@@ -523,7 +523,8 @@ measurement and no ratio sample was discarded. The retained bundle verifies with
 unrelated planning paths; the bounded 0007F2 scope is 45 paths and exactly four new CPU-private
 production types. No public/shared/build/architecture/conformance/integration boundary changed.
 CPU 0007A1D remains Review needed; detailed CPU 0008, CPU 0008A, and CPU 0008B are Complete.
-CPU 0008C is Complete; CPU 0008D is the sole Ready row, and later rows remain Draft without detailed specifications. The
+CPU 0008C and CPU 0008D are Complete; CPU 0008E is the sole Ready row without a detailed
+specification, and later rows remain Draft. The
 Conv1d/Conv3d-before-general-DAG
 ordering correction remains preserved.
 
@@ -809,8 +810,8 @@ CPU 0007A1C is `Complete`; CPU 0007A1D remains `Review needed`; detailed CPU 000
 0007A1O, CPU 0007A2, detailed CPU 0007B, and detailed CPU 0007C are `Complete`. Detailed CPU 0007D
 and detailed CPU 0007E and CPU 0007F are `Complete`, while detailed CPU 0007F1 is `Complete`;
 detailed CPU 0007F2, detailed CPU 0008, detailed CPU 0008A, and detailed CPU 0008B are `Complete`;
-CPU 0008C is `Complete`, CPU 0008D is `Ready`, and CPU 0008E through 0017 remain Draft without
-later detailed specifications.
+CPU 0008C and detailed CPU 0008D are `Complete`; CPU 0008E is the sole `Ready` row without a
+detailed specification, and CPU 0008F through 0017 remain Draft without later detailed specifications.
 CPU 0005C preserves that exact slice and implements cold selection among all four portable
 strategies. It uses the preferred Java 26 FLOAT64 species only for direct contiguous runs and
 scalar broadcasts, scalar tails and general-odometer fallback, configured/available parallelism
@@ -1127,8 +1128,9 @@ the work at the active frontier.
   normalization; detailed Complete 0007F1 owns batch inference; and detailed Complete 0007F2 owns
   batch training/statistic transition. CPU 0007A1O, detailed CPU 0007A2, detailed CPU 0007B, and detailed CPU 0007C are
   `Complete`; detailed CPU 0007D, CPU 0007E, and CPU 0007F are `Complete`. Detailed CPU 0007F1 is
-  `Complete`; CPU 0007F2, detailed CPU 0008, CPU 0008A, CPU 0008B, and CPU 0008C are `Complete`;
-  CPU 0008D is `Ready`, and later tasks remain Draft without detailed specifications.
+  `Complete`; CPU 0007F2, detailed CPU 0008, CPU 0008A, CPU 0008B, CPU 0008C, and CPU 0008D are
+  `Complete`; CPU 0008E is the sole `Ready` row without a detailed specification, and later tasks
+  remain Draft.
 - CPU 0007 is first because the closed cumulative-scan family is independently executable and
   has no aggregate-combination dependency. Partitioning only across complete logical scan slices
   preserves one sequential typed accumulation order, requires no partial/combine workspace, and
@@ -1235,13 +1237,13 @@ the work at the active frontier.
   unsupported until 0008F, only the already implemented Conv2d ADD/ADD-RELU form maps to existing
   specialized execution, and recognized Conv1d/Conv3d/reduction epilogues keep the exact 0008B
   split. Its explicit semantic-kernel facts require the actual first-class SOFTMAX, LOG_SOFTMAX,
-  Layer/RMS, or batch-normalization kind and never infer decomposed mathematics. Ready 0008D owns
+  Layer/RMS, or batch-normalization kind and never infer decomposed mathematics. CPU 0008D owns
   profitability ranking and cold
   decision facts. Legality rejects a candidate that cannot preserve semantics, fan-out/barrier
   rules, or hard resource budgets; profitability may reject an otherwise legal candidate because
   of estimated code size, live-value pressure, materialization, route eligibility, or complete-
   plan cost.
-  Draft 0008E subsequently extends portable pointwise computation-unit representation planning:
+  Ready 0008E subsequently extends portable pointwise computation-unit representation planning:
   it may materialize at most two distinct external read boundaries, including both operands of an
   eligible binary operation, and may reuse one selected copy across compatible uses. It does not
   decide fusion legality, invent a fused/split topology, create materialized DAG splits, or perform
@@ -1252,14 +1254,19 @@ the work at the active frontier.
   workspace, execution strategy, and fused/split topology. Ordinary preparation may select one
   candidate without discarding the reproducible bounded candidate identity needed by the later
   opaque Prepare 0004 and Tuning 0001–0002 handoff. Direct access remains the safe fallback when
-  profitability evidence is insufficient and wins every tie. Draft 0008E performs no measurement,
+  profitability evidence is insufficient and wins every tie. Ready 0008E performs no measurement,
   tuning-cache lookup or mutation, public tuning configuration, or shared handoff implementation.
-- Ready 0008D uses safe deterministic no-measurement heuristics for ordinary preparation. Later
+- Detailed complete [0008D](tasks/0008d-bounded-fusion-profitability-and-typed-decision-facts.md)
+  ranks the complete admitted set of legal existing fused/split forms with exact integer
+  structural heuristics and closed typed legality, profitability, and selection facts. It retains
+  the exact 0008B comparison baseline and immutable 0008C recognition snapshots, while canonical
+  split wins ties, uncertainty, or incomplete bounded enumeration. It adds no generated/hot form,
+  Trace payload, public registry, measurement, cache, or Runtime choice. Later
   Config 0006A supplies declarative model-autotuning inputs, Prepare 0004 carries candidates and
   compatible decisions opaquely, CPU 0016 consumes compatible workload-cache selections, and
   Tuning 0001–0002 may measure eligible complete candidates when the user explicitly requests
   model autotuning. Autotuning is not the default fusion-profitability mechanism, and no search,
-  cache mutation, or choice occurs in Runtime. Ready 0008D's typed cold decision facts remain
+  cache mutation, or choice occurs in Runtime. CPU 0008D's typed cold decision facts remain
   CPU-owned; later Trace backend payloads and tuning inspection may translate or consume them
   without making Trace or tuning the decision owner.
 - One route-independent `CpuKernelIr` contains typed boundary/virtual values, ordered semantics,

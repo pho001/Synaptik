@@ -4,6 +4,7 @@ import io.github.pho001.synaptik.backend.cpu.internal.route.portable.CpuPortable
 import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuAccessPlan;
 import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuKernelIr;
 import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuSpecializedSubgraph;
+import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuFusionDecision;
 import io.github.pho001.synaptik.backend.cpu.internal.cache.CpuKernelSpecialization.CarrierAccess;
 import io.github.pho001.synaptik.model.graph.ValueId;
 import io.github.pho001.synaptik.prepare.analysis.BackendPreparationPlan;
@@ -100,6 +101,12 @@ import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuConv3dLowering
  * @param specializedSubgraphs non-null ordered CPU-private cold recognition facts; copied
  *     defensively, validated against the exact baseline snapshot, and excluded from generated
  *     artifact identity and runtime dispatch
+ * @param fusionDecisions non-null ordered CPU-private legal, profitability, and selection facts;
+ *     copied defensively, recomputed against selected units/resources, and excluded from generated
+ *     artifact identity, finalization decisions, and Runtime dispatch
+ * @param publicationBoundaryPositions non-null ordered complete-plan boundary positions whose
+ *     authoritative logical-memory requirement is a graph publication; copied defensively and
+ *     used only to validate cold decision facts
  */
 public record CpuPartitionPreparationPlan(List<ExecutionUnitPlan> units, Route route,
         ExecutionStrategy executionStrategy,
@@ -128,8 +135,94 @@ public record CpuPartitionPreparationPlan(List<ExecutionUnitPlan> units, Route r
         Optional<CpuBatchNormInferenceLowering.Geometry> batchNormInferenceGeometry,
         Optional<CpuBatchNormTrainingLowering.Geometry> batchNormTrainingGeometry,
         Optional<CpuConv2dLowering.Geometry> conv2dGeometry,
-        List<CpuSpecializedSubgraph> specializedSubgraphs)
+        List<CpuSpecializedSubgraph> specializedSubgraphs,
+        List<CpuFusionDecision> fusionDecisions,
+        List<Integer> publicationBoundaryPositions)
         implements BackendPreparationPlan {
+
+    /**
+     * Creates a plan carrying 0008C recognition but no 0008D decision facts. This compatibility
+     * constructor is used while complete candidates are being ranked.
+     *
+     * @param units non-null one-through-eight unit snapshot
+     * @param route non-null selected route
+     * @param executionStrategy non-null selected or general-plan compatibility strategy
+     * @param bufferDeclarations non-null exact buffer declarations
+     * @param boundaryValues non-null distinct values in declaration order
+     * @param accessBindings non-null bindings aligned with {@code boundaryValues}
+     * @param carrierPattern non-null requested carriers aligned with {@code boundaryValues}
+     * @param generatedCarrierPattern non-null generated carriers aligned with the boundaries
+     * @param extents non-null defensively copied one-unit extents, or empty for a general plan
+     * @param elementCount non-negative checked logical element count
+     * @param affineAddressPairs non-null defensively copied affine source/result pairs
+     * @param selectedRangeCount positive selected range count
+     * @param minimumElementsPerWorker positive minimum worker chunk size
+     * @param vectorSpeciesBitSize positive selected species size, or zero for scalar compute
+     * @param loweringManifest non-null cold diagnostic text, possibly empty
+     * @param materialization non-null optional one-unit external-read copy
+     * @param workspaceDeclaration non-null optional exact one-unit workspace
+     * @param workspaceUse non-null role agreeing with {@code workspaceDeclaration}
+     * @param specializationBudget non-null exact specialization ceiling
+     * @param movementGeometry non-null optional movement geometry
+     * @param indexingGeometry non-null optional indexing geometry
+     * @param scatterGeometry non-null optional scatter geometry
+     * @param foldGeometry non-null optional fold geometry
+     * @param orderingGeometry non-null optional ordering geometry
+     * @param randomGeometry non-null optional random geometry
+     * @param scanGeometry non-null optional scan geometry
+     * @param aggregateGeometry non-null optional aggregate geometry
+     * @param argExtremaGeometry non-null optional arg-extrema geometry
+     * @param maskedReductionGeometry non-null optional masked-reduction geometry
+     * @param advancedReductionGeometry non-null optional advanced-reduction geometry
+     * @param softmaxGeometry non-null optional softmax geometry
+     * @param trailingNormalizationGeometry non-null optional Layer/RMS geometry
+     * @param batchNormInferenceGeometry non-null optional batch-normalization inference geometry
+     * @param batchNormTrainingGeometry non-null optional batch-normalization training geometry
+     * @param conv2dGeometry non-null optional grouped NCHW Conv2d geometry
+     * @param specializedSubgraphs non-null immutable 0008C fact snapshot
+     * @throws NullPointerException if a required reference or collection element is null
+     * @throws IllegalArgumentException if topology, resources, carriers, strategy, geometry,
+     *     recognition, or other component invariants disagree
+     * @throws ArithmeticException if exact validation arithmetic overflows
+     */
+    public CpuPartitionPreparationPlan(List<ExecutionUnitPlan> units, Route route,
+            ExecutionStrategy executionStrategy,
+            List<PreparationResourceRequirement.Buffer> bufferDeclarations,
+            List<ValueId> boundaryValues, List<CpuAccessPlan.Binding> accessBindings,
+            List<CarrierAccess> carrierPattern, List<CarrierAccess> generatedCarrierPattern,
+            long[] extents, long elementCount, long[] affineAddressPairs,
+            int selectedRangeCount, long minimumElementsPerWorker, int vectorSpeciesBitSize,
+            String loweringManifest, Optional<CpuMaterializationPlan> materialization,
+            Optional<PreparationResourceRequirement.Workspace> workspaceDeclaration,
+            WorkspaceUse workspaceUse, CpuSpecializationBudget specializationBudget,
+            Optional<CpuNonAffineMovementLowering.Geometry> movementGeometry,
+            Optional<CpuIndexingLowering.Geometry> indexingGeometry,
+            Optional<CpuScatterLowering.Geometry> scatterGeometry,
+            Optional<CpuFoldLowering.Geometry> foldGeometry,
+            Optional<CpuOrderingLowering.Geometry> orderingGeometry,
+            Optional<CpuRandomLowering.Geometry> randomGeometry,
+            Optional<CpuScanLowering.Geometry> scanGeometry,
+            Optional<CpuAggregateLowering.Geometry> aggregateGeometry,
+            Optional<CpuArgExtremaLowering.Geometry> argExtremaGeometry,
+            Optional<CpuMaskedReductionLowering.Geometry> maskedReductionGeometry,
+            Optional<CpuAdvancedReductionLowering.Geometry> advancedReductionGeometry,
+            Optional<CpuSoftmaxLowering.Geometry> softmaxGeometry,
+            Optional<CpuTrailingNormalizationLowering.Geometry> trailingNormalizationGeometry,
+            Optional<CpuBatchNormInferenceLowering.Geometry> batchNormInferenceGeometry,
+            Optional<CpuBatchNormTrainingLowering.Geometry> batchNormTrainingGeometry,
+            Optional<CpuConv2dLowering.Geometry> conv2dGeometry,
+            List<CpuSpecializedSubgraph> specializedSubgraphs) {
+        this(units, route, executionStrategy, bufferDeclarations, boundaryValues, accessBindings,
+                carrierPattern, generatedCarrierPattern, extents, elementCount, affineAddressPairs,
+                selectedRangeCount, minimumElementsPerWorker, vectorSpeciesBitSize,
+                loweringManifest, materialization, workspaceDeclaration, workspaceUse,
+                specializationBudget, movementGeometry, indexingGeometry, scatterGeometry,
+                foldGeometry, orderingGeometry, randomGeometry, scanGeometry, aggregateGeometry,
+                argExtremaGeometry, maskedReductionGeometry, advancedReductionGeometry,
+                softmaxGeometry, trailingNormalizationGeometry, batchNormInferenceGeometry,
+                batchNormTrainingGeometry, conv2dGeometry, specializedSubgraphs, List.of(),
+                List.of());
+    }
 
     /**
      * Creates an established one-unit family plan with no Conv2d geometry.
@@ -900,6 +993,8 @@ public record CpuPartitionPreparationPlan(List<ExecutionUnitPlan> units, Route r
                 "batchNormTrainingGeometry");
         conv2dGeometry = Objects.requireNonNull(conv2dGeometry, "conv2dGeometry");
         specializedSubgraphs = List.copyOf(specializedSubgraphs);
+        fusionDecisions = List.copyOf(fusionDecisions);
+        publicationBoundaryPositions = List.copyOf(publicationBoundaryPositions);
         boolean split = units.size() > 1;
         if (units.isEmpty() || units.size() > 8 || route != Route.PORTABLE
                 || bufferDeclarations.isEmpty()
@@ -914,6 +1009,15 @@ public record CpuPartitionPreparationPlan(List<ExecutionUnitPlan> units, Route r
                 || boundaryValues.stream().distinct().count() != boundaryValues.size()) {
             throw new IllegalArgumentException(
                     "CPU declarations and distinct boundary identities must agree");
+        }
+        int completeBoundaryCount = boundaryValues.size();
+        if (!publicationBoundaryPositions.stream().sorted().toList()
+                    .equals(publicationBoundaryPositions)
+                || publicationBoundaryPositions.stream().distinct().count()
+                    != publicationBoundaryPositions.size()
+                || publicationBoundaryPositions.stream().anyMatch(position -> position == null
+                    || position < 0 || position >= completeBoundaryCount)) {
+            throw new IllegalArgumentException("CPU publication boundary positions are invalid");
         }
         if (split) {
             for (int index = 0; index < units.size(); index++) {
@@ -1253,7 +1357,350 @@ public record CpuPartitionPreparationPlan(List<ExecutionUnitPlan> units, Route r
             }
         }
         }
-        validateSpecializedSubgraphs(units, specializedSubgraphs);
+        if (fusionDecisions.isEmpty()) validateSpecializedSubgraphs(units, specializedSubgraphs);
+        else validateRetainedSpecializedSubgraphs(specializedSubgraphs, fusionDecisions);
+        validateFusionDecisions(units, boundaryValues, bufferDeclarations,
+                publicationBoundaryPositions, fusionDecisions);
+    }
+
+    private static void validateRetainedSpecializedSubgraphs(
+            List<CpuSpecializedSubgraph> facts, List<CpuFusionDecision> decisions) {
+        if (facts.size() > 8) throw new IllegalArgumentException(
+                "CPU plan retains at most eight recognition facts");
+        CpuFusionDecision.Selection selection = decisions.stream()
+                .filter(CpuFusionDecision.Selection.class::isInstance)
+                .map(CpuFusionDecision.Selection.class::cast).findFirst().orElseThrow(() ->
+                        new IllegalArgumentException("recognition has no retained baseline selection"));
+        List<CpuFusionDecision.UnitIdentity> baseline =
+                selection.compatibilityBaseline().units();
+        var claimed = new BitSet();
+        int previousAnchor = -1;
+        for (CpuSpecializedSubgraph fact : facts) {
+            if (fact.disposition()
+                    == CpuSpecializedSubgraph.ExecutionDisposition.UNSUPPORTED_ANCHOR) {
+                throw new IllegalArgumentException(
+                        "unsupported recognition anchor cannot enter a successful CPU plan");
+            }
+            if (fact.memberNodeOrdinals().getFirst() <= previousAnchor) {
+                throw new IllegalArgumentException("recognition facts are not in stable anchor order");
+            }
+            previousAnchor = fact.memberNodeOrdinals().getFirst();
+            if (fact.baselineUnitIndices().isEmpty()
+                    || fact.baselineUnitIndices().size() > 2
+                    || fact.baselineUnitIndices().stream().anyMatch(index -> index < 0
+                        || index >= baseline.size())
+                    || fact.structuralIdentity().baselineUnits().size()
+                        != fact.baselineUnitIndices().size()) {
+                throw new IllegalArgumentException("retained recognition baseline is invalid");
+            }
+            var associatedMembers = new ArrayList<Integer>();
+            int previousUnit = -1;
+            for (int local = 0; local < fact.baselineUnitIndices().size(); local++) {
+                int unitIndex = fact.baselineUnitIndices().get(local);
+                if (unitIndex <= previousUnit) throw new IllegalArgumentException(
+                        "recognition baseline-unit index is invalid");
+                previousUnit = unitIndex;
+                CpuFusionDecision.UnitIdentity selectedUnit = baseline.get(unitIndex);
+                associatedMembers.addAll(selectedUnit.memberNodePositions());
+                if (!retainedBaselineMatches(
+                        fact.structuralIdentity().baselineUnits().get(local), selectedUnit,
+                        baseline)) {
+                    throw new IllegalArgumentException(
+                            "retained recognition baseline IR or resource topology disagrees");
+                }
+            }
+            if (!associatedMembers.equals(fact.memberNodeOrdinals())) {
+                throw new IllegalArgumentException(
+                        "recognition members and retained baseline units disagree");
+            }
+            for (int member : fact.memberNodeOrdinals()) {
+                if (claimed.get(member)) throw new IllegalArgumentException(
+                        "retained recognition facts overlap");
+                claimed.set(member);
+            }
+            if (fact.disposition()
+                    == CpuSpecializedSubgraph.ExecutionDisposition.EXISTING_SPECIALIZED
+                    && (fact.baselineUnitIndices().size() != 1
+                        || baseline.get(fact.baselineUnitIndices().getFirst()).topology()
+                            != CpuFusionDecision.UnitTopology.INDIVISIBLE
+                        || !existingSpecializedTopologyMatches(fact))) {
+                throw new IllegalArgumentException(
+                        "existing specialized recognition and retained baseline disagree");
+            }
+        }
+    }
+
+    private static boolean retainedBaselineMatches(
+            CpuSpecializedSubgraph.BaselineUnitFact recognition,
+            CpuFusionDecision.UnitIdentity selected,
+            List<CpuFusionDecision.UnitIdentity> completeBaseline) {
+        CpuSpecializedSubgraph.BaselineExecutionFact execution = recognition.execution();
+        if (!CpuFusionDecision.StructuralKey.fromHex(recognition.structuralKey())
+                    .equals(selected.portableIrStructuralKey())
+                || !execution.specialization().equals(selected.specialization())
+                || decisionStrategy(execution) != selected.strategy()
+                || !recognition.dependencies().equals(selected.dependencyUnitPositions())
+                || recognition.boundaries().size() != selected.boundaries().size()
+                || (execution.runtimeTopology()
+                        == CpuSpecializedSubgraph.RuntimeTopology.POINTWISE)
+                    != (selected.topology() != CpuFusionDecision.UnitTopology.INDIVISIBLE)) {
+            return false;
+        }
+        for (int index = 0; index < recognition.boundaries().size(); index++) {
+            CpuSpecializedSubgraph.BoundaryResourceFact old =
+                    recognition.boundaries().get(index);
+            CpuFusionDecision.BoundaryFact current = selected.boundaries().get(index);
+            long referencedBytes;
+            try {
+                referencedBytes = Math.multiplyExact(old.referencedElementSpan(),
+                        old.dataType().byteWidth());
+            } catch (ArithmeticException invalid) {
+                return false;
+            }
+            long occurrences = completeBaseline.stream().flatMap(unit ->
+                    unit.boundaries().stream()).filter(boundary ->
+                            boundary.relativeBoundaryPosition()
+                                    == current.relativeBoundaryPosition()).count();
+            boolean roleMatches = occurrences > 1
+                    ? current.role() == CpuFusionDecision.BoundaryRole.CROSS_UNIT
+                    : old.role() == CpuKernelIr.Value.Kind.INPUT
+                        ? current.role() == CpuFusionDecision.BoundaryRole.EXTERNAL_READ
+                        : current.role() == CpuFusionDecision.BoundaryRole.PARTITION_WRITE
+                            || current.role() == CpuFusionDecision.BoundaryRole.PUBLICATION;
+            if (current.unitBoundaryPosition() != index
+                    || current.regime() != old.accessPlan().regime()
+                    || current.referencedBytes() != referencedBytes
+                    || current.byteAlignment() != old.dataType().byteWidth()
+                    || !roleMatches) {
+                return false;
+            }
+        }
+        CpuSpecializedSubgraph.WorkspaceResourceFact oldWorkspace = recognition.workspace();
+        if ((oldWorkspace.role() == CpuSpecializedSubgraph.WorkspaceRole.NONE)
+                != selected.workspace().isEmpty()) return false;
+        if (selected.workspace().isPresent()) {
+            CpuFusionDecision.WorkspaceFact current = selected.workspace().orElseThrow();
+            if (current.role() != decisionWorkspaceRole(oldWorkspace.role())
+                    || current.byteSize() != oldWorkspace.byteSize()
+                    || current.byteAlignment() != oldWorkspace.byteAlignment()) return false;
+        }
+        return true;
+    }
+
+    private static CpuFusionDecision.Strategy decisionStrategy(
+            CpuSpecializedSubgraph.BaselineExecutionFact execution) {
+        boolean vector = execution.compute() == CpuSpecializedSubgraph.BaselineCompute.VECTOR;
+        boolean parallel = execution.orchestration()
+                == CpuSpecializedSubgraph.BaselineOrchestration.PARALLEL;
+        return vector ? parallel ? CpuFusionDecision.Strategy.PARALLEL_VECTOR
+                        : CpuFusionDecision.Strategy.VECTOR
+                : parallel ? CpuFusionDecision.Strategy.PARALLEL_SCALAR
+                        : CpuFusionDecision.Strategy.SCALAR;
+    }
+
+    private static CpuFusionDecision.WorkspaceRole decisionWorkspaceRole(
+            CpuSpecializedSubgraph.WorkspaceRole role) {
+        return switch (role) {
+            case MATERIALIZATION -> CpuFusionDecision.WorkspaceRole.MATERIALIZATION;
+            case SCATTER_PRODUCT -> CpuFusionDecision.WorkspaceRole.SCATTER_PRODUCT;
+            case ORDERING_INDICES -> CpuFusionDecision.WorkspaceRole.ORDERING_INDICES;
+            case AGGREGATE_EXACT_STATE -> CpuFusionDecision.WorkspaceRole.AGGREGATE_EXACT_STATE;
+            case NONE -> throw new IllegalArgumentException(
+                    "retained recognition workspace has no decision role");
+        };
+    }
+
+    private static boolean existingSpecializedTopologyMatches(CpuSpecializedSubgraph fact) {
+        CpuSpecializedSubgraph.RuntimeTopology topology = fact.structuralIdentity()
+                .baselineUnits().getFirst().execution().runtimeTopology();
+        if (fact instanceof CpuSpecializedSubgraph.ConvolutionEpilogue convolution) {
+            return convolution.form() == CpuSpecializedSubgraph.Form.CONV2D
+                    && topology == CpuSpecializedSubgraph.RuntimeTopology.CONV2D
+                    || convolution.form() == CpuSpecializedSubgraph.Form.CONV3D
+                    && topology == CpuSpecializedSubgraph.RuntimeTopology.CONV3D;
+        }
+        if (fact instanceof CpuSpecializedSubgraph.ExplicitSemanticKernel explicit) {
+            return switch (explicit.form()) {
+                case SOFTMAX, LOG_SOFTMAX ->
+                        topology == CpuSpecializedSubgraph.RuntimeTopology.SOFTMAX;
+                case LAYER_NORM, RMS_NORM -> topology
+                        == CpuSpecializedSubgraph.RuntimeTopology.TRAILING_NORMALIZATION;
+                case BATCH_NORM_INFERENCE -> topology
+                        == CpuSpecializedSubgraph.RuntimeTopology.BATCH_NORM_INFERENCE;
+                case BATCH_NORM_TRAINING -> topology
+                        == CpuSpecializedSubgraph.RuntimeTopology.BATCH_NORM_TRAINING;
+                default -> false;
+            };
+        }
+        return false;
+    }
+
+    private static void validateFusionDecisions(List<ExecutionUnitPlan> units,
+            List<ValueId> boundaryValues,
+            List<PreparationResourceRequirement.Buffer> bufferDeclarations,
+            List<Integer> publicationBoundaryPositions,
+            List<CpuFusionDecision> decisions) {
+        if (decisions.isEmpty()) return;
+        if (decisions.size() > 384 || !(decisions.getLast() instanceof CpuFusionDecision.Selection selection)) {
+            throw new IllegalArgumentException("CPU fusion decision facts are incomplete");
+        }
+        var legal = decisions.stream().filter(CpuFusionDecision.LegalCandidate.class::isInstance)
+                .map(CpuFusionDecision.LegalCandidate.class::cast).toList();
+        long selections = decisions.stream().filter(CpuFusionDecision.Selection.class::isInstance)
+                .count();
+        int firstNonLegal = 0;
+        while (firstNonLegal < decisions.size()
+                && decisions.get(firstNonLegal) instanceof CpuFusionDecision.LegalCandidate) {
+            firstNonLegal++;
+        }
+        int firstProfitability = firstNonLegal;
+        while (firstProfitability < decisions.size()
+                && decisions.get(firstProfitability) instanceof CpuFusionDecision.LegalityRejection) {
+            firstProfitability++;
+        }
+        int selectionIndex = firstProfitability;
+        while (selectionIndex < decisions.size()
+                && decisions.get(selectionIndex) instanceof CpuFusionDecision.ProfitabilityRejection) {
+            selectionIndex++;
+        }
+        if (legal.isEmpty() || legal.size() > 64
+                || selections != 1 || firstNonLegal != legal.size()
+                || selectionIndex != decisions.size() - 1
+                || legal.stream().filter(CpuFusionDecision.LegalCandidate::canonicalSplit).count() != 1
+                || legal.stream().filter(CpuFusionDecision.LegalCandidate::compatibilityBaseline).count() != 1
+                || legal.stream().map(CpuFusionDecision.LegalCandidate::identity).distinct().count()
+                    != legal.size()
+                || legal.stream().map(CpuFusionDecision.LegalCandidate::stableRank).distinct().count()
+                    != legal.size()
+                || !legal.stream().map(CpuFusionDecision.LegalCandidate::stableRank).sorted()
+                    .toList().equals(java.util.stream.IntStream.range(0, legal.size()).boxed().toList())) {
+            throw new IllegalArgumentException("CPU ranked legal candidates are inconsistent");
+        }
+        CpuFusionDecision.LegalCandidate selected = legal.stream()
+                .filter(value -> value.identity().equals(selection.selected())).findFirst()
+                .orElseThrow(() -> new IllegalArgumentException(
+                        "CPU selected identity is not a retained legal candidate"));
+        if (selected.stableRank() != selection.stableRank()
+                || !selected.score().equals(selection.selectedScore())
+                || legal.stream().filter(CpuFusionDecision.LegalCandidate::canonicalSplit)
+                    .noneMatch(value -> value.identity().equals(selection.canonicalSplit())
+                            && value.score().equals(selection.canonicalSplitScore()))
+                || legal.stream().filter(CpuFusionDecision.LegalCandidate::compatibilityBaseline)
+                    .noneMatch(value -> value.identity().equals(selection.compatibilityBaseline()))
+                || selection.reason() != CpuFusionDecision.SelectionReason.PROFITABLE_FUSION
+                    && !selection.selected().equals(selection.canonicalSplit())
+                || selection.reason() == CpuFusionDecision.SelectionReason.PROFITABLE_FUSION
+                    && selection.selected().equals(selection.canonicalSplit())) {
+            throw new IllegalArgumentException("CPU selected decision does not match retained plan");
+        }
+        String identityMismatch = selectedIdentityMismatch(selected.identity(), units,
+                boundaryValues, bufferDeclarations, publicationBoundaryPositions);
+        if (identityMismatch != null) throw new IllegalArgumentException(
+                "CPU selected identity does not recompute from retained units/resources: "
+                        + identityMismatch);
+        var legalIdentities = legal.stream().map(CpuFusionDecision.LegalCandidate::identity).toList();
+        var profitabilityIdentities = decisions.stream()
+                .filter(CpuFusionDecision.ProfitabilityRejection.class::isInstance)
+                .map(CpuFusionDecision.ProfitabilityRejection.class::cast)
+                .map(CpuFusionDecision.ProfitabilityRejection::candidate).toList();
+        if (profitabilityIdentities.stream().distinct().count() != profitabilityIdentities.size()
+                || profitabilityIdentities.contains(selection.selected())) {
+            throw new IllegalArgumentException("CPU profitability rejection set is inconsistent");
+        }
+        for (CpuFusionDecision decision : decisions) {
+            if (decision instanceof CpuFusionDecision.LegalityRejection rejection
+                    && !legalIdentities.contains(rejection.sourceTopology())) {
+                throw new IllegalArgumentException("CPU legality rejection source is not retained");
+            }
+            if (decision instanceof CpuFusionDecision.ProfitabilityRejection rejection
+                    && !legalIdentities.contains(rejection.candidate())) {
+                throw new IllegalArgumentException("CPU profitability rejection is not legal");
+            }
+        }
+    }
+
+    private static String selectedIdentityMismatch(CpuFusionDecision.CandidateIdentity identity,
+            List<ExecutionUnitPlan> units, List<ValueId> boundaryValues,
+            List<PreparationResourceRequirement.Buffer> declarations,
+            List<Integer> publicationBoundaryPositions) {
+        if (identity.units().size() != units.size()) return "unit-count";
+        for (int unitIndex = 0; unitIndex < units.size(); unitIndex++) {
+            ExecutionUnitPlan unit = units.get(unitIndex);
+            CpuFusionDecision.UnitIdentity retained = identity.units().get(unitIndex);
+            if (!retained.memberNodePositions().equals(unit.memberNodeOrdinals())
+                    || !retained.dependencyUnitPositions().equals(unit.dependencies())
+                    || !retained.portableIrStructuralKey().equals(
+                        CpuFusionDecision.StructuralKey.fromHex(
+                                unit.portablePlan().portableKernelIr().structuralKey()))
+                    || !retained.specialization().equals(unit.portablePlan().specialization())
+                    || retained.strategy() != decisionStrategy(unit.executionStrategy())
+                    || retained.topology() != decisionTopology(unit)
+                    || retained.boundaries().size() != unit.boundaryValues().size()) return "unit-" + unitIndex;
+            for (int local = 0; local < unit.boundaryValues().size(); local++) {
+                int localPosition = local;
+                int relative = boundaryValues.indexOf(unit.boundaryValues().get(local));
+                if (relative < 0) return "boundary-absence";
+                CpuFusionDecision.BoundaryFact fact = retained.boundaries().get(local);
+                var declaration = declarations.get(relative);
+                if (fact.relativeBoundaryPosition() != relative
+                        || fact.unitBoundaryPosition() != local
+                        || fact.regime() != unit.accessBindings().get(local).plan().regime()
+                        || fact.referencedBytes() != declaration.byteSize()
+                        || fact.byteAlignment() != declaration.byteAlignment()) return "boundary-" + unitIndex + "-" + local;
+                long occurrences = units.stream().flatMap(candidate ->
+                        candidate.boundaryValues().stream()).filter(
+                                unit.boundaryValues().get(local)::equals).count();
+                CpuFusionDecision.BoundaryRole role = occurrences > 1
+                        ? CpuFusionDecision.BoundaryRole.CROSS_UNIT
+                        : unit.portablePlan().kernelIr().values().stream()
+                            .filter(value -> value.kind() != CpuKernelIr.Value.Kind.VIRTUAL)
+                            .toList().get(localPosition).kind() == CpuKernelIr.Value.Kind.OUTPUT
+                                ? publicationBoundaryPositions.contains(relative)
+                                    ? CpuFusionDecision.BoundaryRole.PUBLICATION
+                                    : CpuFusionDecision.BoundaryRole.PARTITION_WRITE
+                                : CpuFusionDecision.BoundaryRole.EXTERNAL_READ;
+                if (fact.role() != role) return "boundary-role-" + unitIndex + "-" + local
+                        + "-" + fact.role() + "-" + role;
+            }
+            boolean workspace = unit.runtimeFacts().workspaceDeclaration().isPresent();
+            if (retained.workspace().isPresent() != workspace) return "workspace-presence";
+            if (workspace) {
+                var actual = unit.runtimeFacts().workspaceDeclaration().orElseThrow();
+                var expected = retained.workspace().orElseThrow();
+                if (expected.byteSize() != actual.byteSize()
+                        || expected.byteAlignment() != actual.byteAlignment()
+                        || expected.role() != decisionWorkspaceRole(
+                                unit.runtimeFacts().workspaceUse())) return "workspace-geometry";
+            }
+        }
+        return null;
+    }
+
+    private static CpuFusionDecision.Strategy decisionStrategy(ExecutionStrategy strategy) {
+        boolean vector = strategy.compute() == ExecutionStrategy.Compute.VECTOR;
+        boolean parallel = strategy.orchestration() == ExecutionStrategy.Orchestration.PARALLEL;
+        return vector ? parallel ? CpuFusionDecision.Strategy.PARALLEL_VECTOR
+                        : CpuFusionDecision.Strategy.VECTOR
+                : parallel ? CpuFusionDecision.Strategy.PARALLEL_SCALAR
+                        : CpuFusionDecision.Strategy.SCALAR;
+    }
+
+    private static CpuFusionDecision.UnitTopology decisionTopology(ExecutionUnitPlan unit) {
+        boolean pointwise = unit.portablePlan().portableKernelIr() instanceof CpuKernelIr;
+        return !pointwise ? CpuFusionDecision.UnitTopology.INDIVISIBLE
+                : unit.memberNodeOrdinals().size() == 1
+                    ? CpuFusionDecision.UnitTopology.SPLIT_POINTWISE
+                    : CpuFusionDecision.UnitTopology.FUSED_POINTWISE;
+    }
+
+    private static CpuFusionDecision.WorkspaceRole decisionWorkspaceRole(WorkspaceUse use) {
+        return switch (use) {
+            case MATERIALIZATION -> CpuFusionDecision.WorkspaceRole.MATERIALIZATION;
+            case SCATTER_PRODUCT -> CpuFusionDecision.WorkspaceRole.SCATTER_PRODUCT;
+            case ORDERING_INDICES -> CpuFusionDecision.WorkspaceRole.ORDERING_INDICES;
+            case AGGREGATE_EXACT_STATE -> CpuFusionDecision.WorkspaceRole.AGGREGATE_EXACT_STATE;
+            case NONE -> throw new IllegalArgumentException("workspace decision has no role");
+        };
     }
 
     private static void validateSpecializedSubgraphs(List<ExecutionUnitPlan> units,

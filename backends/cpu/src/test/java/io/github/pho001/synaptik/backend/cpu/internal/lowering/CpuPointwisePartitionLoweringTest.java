@@ -5,7 +5,10 @@ import static org.junit.jupiter.api.Assertions.*;
 import io.github.pho001.synaptik.backend.cpu.CpuCapabilityProvider;
 import io.github.pho001.synaptik.backend.cpu.internal.prepare.CpuPartitionAnalysisInputs;
 import io.github.pho001.synaptik.backend.cpu.internal.prepare.CpuPartitionPreparer;
+import io.github.pho001.synaptik.backend.cpu.internal.prepare.CpuPartitionFinalizer;
 import io.github.pho001.synaptik.backend.cpu.internal.prepare.CpuPartitionFinalizerTest;
+import io.github.pho001.synaptik.backend.cpu.internal.prepare.CpuPartitionPreparationPlan;
+import io.github.pho001.synaptik.backend.cpu.internal.executable.CpuPreparedPartitionExecutable;
 import io.github.pho001.synaptik.model.datatype.DataType;
 import io.github.pho001.synaptik.model.datatype.ScalarValue;
 import io.github.pho001.synaptik.model.graph.*;
@@ -26,6 +29,12 @@ import io.github.pho001.synaptik.model.tensor.TensorDescriptor;
 import io.github.pho001.synaptik.planning.memory.LogicalMemoryRequirement;
 import io.github.pho001.synaptik.planning.partition.PlannedPartition;
 import io.github.pho001.synaptik.prepare.analysis.PrepareContext;
+import io.github.pho001.synaptik.prepare.analysis.BackendPartitionAnalysis;
+import io.github.pho001.synaptik.prepare.BackendPartitionFinalization;
+import io.github.pho001.synaptik.prepare.PreparationResourceAssignment;
+import io.github.pho001.synaptik.prepare.analysis.PreparationResourceRequirement;
+import io.github.pho001.synaptik.runtime.memory.BufferSlot;
+import io.github.pho001.synaptik.runtime.memory.PreparedMemoryPlan;
 import java.util.*;
 import org.junit.jupiter.api.Test;
 import io.github.pho001.synaptik.backend.cpu.internal.memory.CpuNativeBuffer;
@@ -74,30 +83,35 @@ class CpuPointwisePartitionLoweringTest {
     }
 
     @Test void preparationDerivesDefaultSegmentPatternAndScalarFallback() {
-        var plan = new CpuPartitionPreparer().analyze(chain(8)).plan();
-        var executable = CpuPartitionFinalizerTest.finalizeExecutable(
-                new CpuPartitionPreparer().analyze(chain(8)), Optional.empty());
+        var analysis = new CpuPartitionPreparer().analyze(chain(8));
+        var plan = analysis.plan();
+        var executable = finalizeSplit(analysis);
         assertAll(
-                () -> assertEquals(2, plan.bufferDeclarations().size()),
-                () -> assertEquals(List.of(
-                        io.github.pho001.synaptik.backend.cpu.internal.cache.CpuKernelSpecialization.CarrierAccess.MEMORY_SEGMENT,
+                () -> assertEquals(8, plan.units().size()),
+                () -> assertEquals(9, plan.bufferDeclarations().size()),
+                () -> assertEquals(Collections.nCopies(9,
                         io.github.pho001.synaptik.backend.cpu.internal.cache.CpuKernelSpecialization.CarrierAccess.MEMORY_SEGMENT),
                         plan.carrierPattern()),
                 () -> assertEquals("scalar", plan.executionStrategy().toString()),
                 () -> assertEquals(List.of(DataType.INT32, DataType.INT32),
                         plan.units().getFirst().portablePlan().specialization().boundaryDataTypes()),
-                () -> assertEquals(2, executable.bufferSelectionCount()),
-                () -> assertNotNull(executable.artifact().hiddenClass()));
+                () -> assertEquals(9, executable.bufferSelectionCount()),
+                () -> assertEquals(8, executable.children().size()),
+                () -> assertTrue(executable.children().stream()
+                        .allMatch(child -> child.artifact().hiddenClass() != null)));
     }
 
-    @Test void finalizedEightInstructionExecutableRunsThroughOneBoundInvocation() {
+    @Test void finalizedEightInstructionFallbackRunsThroughTheExistingCompositeForm() {
         var analysis = new CpuPartitionPreparer().analyze(chain(8));
-        var executable = CpuPartitionFinalizerTest.finalizeExecutable(analysis, Optional.empty());
-        var input = CpuNativeBuffer.allocate(DataType.INT32, 20, 4);
-        var output = CpuNativeBuffer.allocate(DataType.INT32, 20, 4);
-        var state = new RunState(executable.memoryPlan(), List.of(
-                List.of(new BufferRepresentationBinding(input, RunResourceOwnership.RUN_OWNED)),
-                List.of(new BufferRepresentationBinding(output, RunResourceOwnership.RUN_OWNED))), List.of());
+        var executable = finalizeSplit(analysis);
+        var buffers = new ArrayList<CpuNativeBuffer>();
+        for (int index = 0; index < 9; index++)
+            buffers.add(CpuNativeBuffer.allocate(DataType.INT32, 20, 4));
+        var input = buffers.getFirst();
+        var output = buffers.getLast();
+        var state = new RunState(executable.memoryPlan(), buffers.stream().map(buffer ->
+                List.of(new BufferRepresentationBinding(buffer, RunResourceOwnership.RUN_OWNED)))
+                .toList(), List.of());
         var layout = ValueLayout.JAVA_INT_UNALIGNED.withOrder(ByteOrder.nativeOrder());
         try {
             for (int i = 0; i < 5; i++) input.segment().set(layout, i * 4L, Integer.MAX_VALUE - i);
@@ -105,6 +119,23 @@ class CpuPointwisePartitionLoweringTest {
             for (int i = 0; i < 5; i++) assertEquals(Integer.MAX_VALUE - i + 36,
                     output.segment().get(layout, i * 4L));
         } finally { state.close(); }
+    }
+
+    private static CpuPreparedPartitionExecutable finalizeSplit(
+            BackendPartitionAnalysis<CpuPartitionPreparationPlan> analysis) {
+        var buffers = new ArrayList<PreparedMemoryPlan.BufferEntry>();
+        var assignments = new ArrayList<PreparationResourceAssignment>();
+        for (PreparationResourceRequirement requirement : analysis.requirements()) {
+            var buffer = (PreparationResourceRequirement.Buffer) requirement;
+            var slot = new BufferSlot(buffers.size());
+            buffers.add(new PreparedMemoryPlan.BufferEntry(slot, buffer.byteSize(),
+                    buffer.byteAlignment()));
+            assignments.add(new PreparationResourceAssignment.Buffer(buffer, slot,
+                    buffers.size() - 1));
+        }
+        return (CpuPreparedPartitionExecutable) new CpuPartitionFinalizer().finalizePartition(
+                new BackendPartitionFinalization<>(analysis,
+                        new PreparedMemoryPlan(buffers, List.of()), assignments));
     }
 
     @Test void coldBindingRejectsNonCanonicalWhereCondition() {

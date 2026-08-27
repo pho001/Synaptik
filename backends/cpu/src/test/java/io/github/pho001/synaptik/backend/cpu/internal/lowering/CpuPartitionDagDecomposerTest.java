@@ -67,9 +67,13 @@ class CpuPartitionDagDecomposerTest {
         var splitEight = new CpuPartitionPreparer().analyze(publishedChain(8)).plan();
         assertAll(
                 () -> assertEquals(1, one.units().size()),
-                () -> assertEquals(1, fusedEight.units().size()),
-                () -> assertEquals(8,
-                        fusedEight.units().getFirst().memberNodeOrdinals().size()),
+                () -> assertEquals(8, fusedEight.units().size()),
+                () -> assertEquals(1, fusedEight.fusionDecisions().stream()
+                        .filter(io.github.pho001.synaptik.backend.cpu.internal.ir.CpuFusionDecision
+                                .Selection.class::isInstance)
+                        .map(io.github.pho001.synaptik.backend.cpu.internal.ir.CpuFusionDecision
+                                .Selection.class::cast)
+                        .findFirst().orElseThrow().compatibilityBaseline().units().size()),
                 () -> assertEquals(8, splitEight.units().size()),
                 () -> assertEquals(28, CpuPartitionDagDecomposer.MAX_ATTEMPTS),
                 () -> assertThrows(IllegalArgumentException.class, () ->
@@ -274,7 +278,7 @@ class CpuPartitionDagDecomposerTest {
         return new CpuKernelIr(values, instructions, new CpuKernelIr.Loop("start", "end"), stores);
     }
 
-    private static PrepareContext<CpuPartitionAnalysisInputs> publishedChain(int count) {
+    static PrepareContext<CpuPartitionAnalysisInputs> publishedChain(int count) {
         var nodes = new ArrayList<CompiledNode>();
         for (int index = 0; index < count; index++) nodes.add(scalar(index,
                 new ValueId(index), new ValueId(index + 1L), ScalarElementwiseKind.ADD));
@@ -285,7 +289,7 @@ class CpuPartitionDagDecomposerTest {
                         .collect(java.util.stream.Collectors.toSet()));
     }
 
-    private static PrepareContext<CpuPartitionAnalysisInputs> diamond() {
+    static PrepareContext<CpuPartitionAnalysisInputs> diamond() {
         var nodes = List.of(
                 scalar(0, new ValueId(0), new ValueId(1), ScalarElementwiseKind.ADD),
                 scalar(1, new ValueId(1), new ValueId(2), ScalarElementwiseKind.MUL),

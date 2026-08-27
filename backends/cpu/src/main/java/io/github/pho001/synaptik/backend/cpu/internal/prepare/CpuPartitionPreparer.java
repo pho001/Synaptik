@@ -6,6 +6,7 @@ import io.github.pho001.synaptik.backend.cpu.internal.cache.CpuSpecializationBud
 import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuPartitionLowering;
 import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuPartitionDagDecomposer;
 import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuSpecializedSubgraphRecognizer;
+import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuFusionProfitabilitySelector;
 import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuMaterializationPlan;
 import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuAccessPlan;
 import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuKernelIr;
@@ -59,6 +60,8 @@ public final class CpuPartitionPreparer implements BackendPartitionPreparer<
     private final CpuPartitionDagDecomposer decomposer = new CpuPartitionDagDecomposer();
     private final CpuSpecializedSubgraphRecognizer recognizer =
             new CpuSpecializedSubgraphRecognizer();
+    private final CpuFusionProfitabilitySelector selector =
+            new CpuFusionProfitabilitySelector();
 
     /** Creates a preparer with the permanent common lowering owner. */
     public CpuPartitionPreparer() { this(new CpuPartitionLowering()); }
@@ -84,6 +87,8 @@ public final class CpuPartitionPreparer implements BackendPartitionPreparer<
      *     unit workspaces. The returned plan also carries ordered CPU-private recognition facts
      *     only after their exact baseline-unit IR and resource snapshot has been validated;
      *     those facts do not alter declarations, artifact identity, finalization, or execution.
+     *     The plan also retains the authoritative logical-memory graph-publication boundary
+     *     positions solely so its selected boundary roles can be independently recomputed.
      * @throws NullPointerException if {@code context} is {@code null}
      * @throws IllegalArgumentException if complete-partition lowering rejects the occurrence or
      *     declared resource geometry is invalid
@@ -92,23 +97,89 @@ public final class CpuPartitionPreparer implements BackendPartitionPreparer<
     @Override public BackendPartitionAnalysis<CpuPartitionPreparationPlan> analyze(
             PrepareContext<CpuPartitionAnalysisInputs> context) {
         Objects.requireNonNull(context, "context");
-        var units = decomposer.decompose(context, lowering);
-        BackendPartitionAnalysis<CpuPartitionPreparationPlan> analysis;
-        if (units.size() == 1) {
-            analysis = annotateSingle(analyzeUnit(context, units.getFirst().lowering(), 0, true),
-                    units.getFirst());
-        } else {
-            analysis = analyzeDag(context, units);
+        List<CpuPartitionDagDecomposer.Unit> baseline = decomposer.decompose(context, lowering);
+        BackendPartitionAnalysis<CpuPartitionPreparationPlan> baselineAnalysis =
+                analyzeTopology(context, baseline, null);
+        List<CpuSpecializedSubgraph> recognition = recognizer.recognize(context,
+                baselineAnalysis.plan().units());
+        CpuPartitionDagDecomposer.Enumeration enumeration = decomposer.enumerate(context,
+                lowering, recognition);
+        var analyses = new ArrayList<BackendPartitionAnalysis<CpuPartitionPreparationPlan>>();
+        var candidates = new ArrayList<CpuFusionProfitabilitySelector.Candidate>();
+        for (List<CpuPartitionDagDecomposer.Unit> topology : enumeration.candidates()) {
+            BackendPartitionAnalysis<CpuPartitionPreparationPlan> analysis =
+                    sameTopology(topology, baseline) ? baselineAnalysis
+                            : analyzeTopology(context, topology,
+                                    baselineAnalysis.plan().boundaryValues());
+            analyses.add(analysis);
+            candidates.add(new CpuFusionProfitabilitySelector.Candidate(topology, analysis.plan()));
         }
-        List<CpuSpecializedSubgraph> facts = recognizer.recognize(context,
-                analysis.plan().units());
-        return withRecognition(analysis, facts);
+        CpuFusionProfitabilitySelector.Result selected = selector.select(context, enumeration,
+                candidates);
+        int selectedIndex = candidates.indexOf(selected.selected());
+        return withMetadata(context, analyses.get(selectedIndex), recognition,
+                selected.decisions());
     }
 
-    private static BackendPartitionAnalysis<CpuPartitionPreparationPlan> withRecognition(
+    private BackendPartitionAnalysis<CpuPartitionPreparationPlan> analyzeTopology(
+            PrepareContext<CpuPartitionAnalysisInputs> context,
+            List<CpuPartitionDagDecomposer.Unit> units, List<ValueId> carrierReferenceValues) {
+        if (units.size() != 1) return analyzeDag(context, units, carrierReferenceValues);
+        var unit = units.getFirst();
+        PrepareContext<CpuPartitionAnalysisInputs> unitContext = context;
+        if (carrierReferenceValues != null && !context.backendInputs().carrierPattern().isEmpty()) {
+            var inputs = candidateInputs(context, unit.lowering().boundaryValues(),
+                    carrierReferenceValues, true);
+            unitContext = decomposer.unitContext(context, unit.nodes(), inputs);
+        }
+        return annotateSingle(analyzeUnit(unitContext, unit.lowering(), 0, true), unit);
+    }
+
+    private static CpuPartitionAnalysisInputs candidateInputs(
+            PrepareContext<CpuPartitionAnalysisInputs> context, List<ValueId> boundaryValues,
+            List<ValueId> carrierReferenceValues, boolean allowMaterialization) {
+        List<CpuKernelSpecialization.CarrierAccess> requested =
+                context.backendInputs().carrierPattern();
+        if (requested.size() != carrierReferenceValues.size()) {
+            throw new IllegalArgumentException(
+                    "carrier pattern count must match the exact 0008B baseline buffers");
+        }
+        var carriers = new java.util.LinkedHashMap<ValueId,
+                CpuKernelSpecialization.CarrierAccess>();
+        for (int index = 0; index < carrierReferenceValues.size(); index++) {
+            carriers.put(carrierReferenceValues.get(index), requested.get(index));
+        }
+        var projected = boundaryValues.stream().map(value -> carriers.getOrDefault(value,
+                CpuKernelSpecialization.CarrierAccess.MEMORY_SEGMENT)).toList();
+        return new CpuPartitionAnalysisInputs(
+                context.backendInputs().loweringManifestEnabled(), projected,
+                context.backendInputs().portableExecution(),
+                allowMaterialization ? context.backendInputs().materializationPolicy()
+                        : CpuPartitionAnalysisInputs.MaterializationPolicy.DISABLED,
+                allowMaterialization
+                        && context.backendInputs().conv2dMaterializedSuffixUnit());
+    }
+
+    private static boolean sameTopology(List<CpuPartitionDagDecomposer.Unit> left,
+            List<CpuPartitionDagDecomposer.Unit> right) {
+        return left.stream().map(CpuPartitionDagDecomposer.Unit::memberNodeOrdinals).toList()
+                .equals(right.stream().map(CpuPartitionDagDecomposer.Unit::memberNodeOrdinals).toList());
+    }
+
+    private static BackendPartitionAnalysis<CpuPartitionPreparationPlan> withMetadata(
+            PrepareContext<CpuPartitionAnalysisInputs> context,
             BackendPartitionAnalysis<CpuPartitionPreparationPlan> analysis,
-            List<CpuSpecializedSubgraph> facts) {
+            List<CpuSpecializedSubgraph> facts,
+            List<io.github.pho001.synaptik.backend.cpu.internal.ir.CpuFusionDecision> decisions) {
         var plan = analysis.plan();
+        var publications = new java.util.HashSet<ValueId>();
+        context.memoryRequirements().stream().filter(
+                io.github.pho001.synaptik.planning.memory.LogicalMemoryRequirement::graphOutput)
+                .map(io.github.pho001.synaptik.planning.memory.LogicalMemoryRequirement::valueId)
+                .forEach(publications::add);
+        List<Integer> publicationBoundaryPositions = java.util.stream.IntStream.range(
+                0, plan.boundaryValues().size()).filter(position ->
+                        publications.contains(plan.boundaryValues().get(position))).boxed().toList();
         var enriched = new CpuPartitionPreparationPlan(plan.units(), plan.route(),
                 plan.executionStrategy(), plan.bufferDeclarations(), plan.boundaryValues(),
                 plan.accessBindings(), plan.carrierPattern(), plan.generatedCarrierPattern(),
@@ -122,7 +193,7 @@ public final class CpuPartitionPreparer implements BackendPartitionPreparer<
                 plan.maskedReductionGeometry(), plan.advancedReductionGeometry(),
                 plan.softmaxGeometry(), plan.trailingNormalizationGeometry(),
                 plan.batchNormInferenceGeometry(), plan.batchNormTrainingGeometry(),
-                plan.conv2dGeometry(), facts);
+                plan.conv2dGeometry(), facts, decisions, publicationBoundaryPositions);
         return new BackendPartitionAnalysis<>(analysis.partition(), enriched,
                 analysis.requirements());
     }
@@ -450,7 +521,8 @@ public final class CpuPartitionPreparer implements BackendPartitionPreparer<
 
     private BackendPartitionAnalysis<CpuPartitionPreparationPlan> analyzeDag(
             PrepareContext<CpuPartitionAnalysisInputs> context,
-            List<CpuPartitionDagDecomposer.Unit> topology) {
+            List<CpuPartitionDagDecomposer.Unit> topology,
+            List<ValueId> carrierReferenceValues) {
         var baseInputs = new CpuPartitionAnalysisInputs(
                 context.backendInputs().loweringManifestEnabled(), List.of(),
                 context.backendInputs().portableExecution(),
@@ -465,7 +537,7 @@ public final class CpuPartitionPreparer implements BackendPartitionPreparer<
         List<CpuKernelSpecialization.CarrierAccess> requested =
                 context.backendInputs().carrierPattern();
         if (!requested.isEmpty()) {
-            if (requested.size() != declarations.size()) {
+            if (carrierReferenceValues == null && requested.size() != declarations.size()) {
                 throw new IllegalArgumentException(
                         "carrier pattern count must match distinct partition buffers: requested="
                                 + requested.size() + ", buffers=" + declarations.size()
@@ -476,21 +548,17 @@ public final class CpuPartitionPreparer implements BackendPartitionPreparer<
                                             + unit.lowering().portableKernelIr().getClass().getSimpleName())
                                     .toList());
             }
-            var carriers = new java.util.LinkedHashMap<ValueId,
-                    CpuKernelSpecialization.CarrierAccess>();
-            for (int i = 0; i < declarations.size(); i++)
-                carriers.put(declarations.get(i).valueId(), requested.get(i));
+            List<ValueId> reference = carrierReferenceValues == null
+                    ? declarations.stream().map(PreparationResourceRequirement.Buffer::valueId)
+                            .toList()
+                    : carrierReferenceValues;
+            if (requested.size() != reference.size()) throw new IllegalArgumentException(
+                    "carrier pattern count must match the exact 0008B baseline buffers");
             analyses.clear();
             for (int index = 0; index < topology.size(); index++) {
                 var unit = topology.get(index);
-                var local = unit.lowering().boundaryValues().stream().map(carriers::get).toList();
-                if (local.stream().anyMatch(Objects::isNull)) {
-                    throw new IllegalArgumentException("unit boundary has no carrier selection");
-                }
-                var inputs = new CpuPartitionAnalysisInputs(
-                        context.backendInputs().loweringManifestEnabled(), local,
-                        context.backendInputs().portableExecution(),
-                        CpuPartitionAnalysisInputs.MaterializationPolicy.DISABLED, false);
+                var inputs = candidateInputs(context, unit.lowering().boundaryValues(), reference,
+                        false);
                 analyses.add(analyzeUnit(decomposer.unitContext(context, unit.nodes(), inputs),
                         unit.lowering(), 0, false));
             }
