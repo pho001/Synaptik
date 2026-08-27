@@ -34,6 +34,30 @@ import io.github.pho001.synaptik.model.operation.layout.FoldAxisAttrs;
 import io.github.pho001.synaptik.model.operation.layout.WindowTransformKind;
 
 class CpuKernelSpecializationTest {
+    @Test void schema53CompatibilityRetainsExactSchema52DirectPointwiseClassIdentity()
+            throws Exception {
+        Shape shape = Shape.of(64, 64);
+        var descriptor = new TensorDescriptor(DataType.FLOAT64, shape,
+                Optional.of(LayoutDescriptor.contiguous(shape)), false);
+        var route = CpuPartitionPreparerTest.analyze(descriptor, descriptor, descriptor,
+                descriptor, CpuPartitionAnalysisInputs.DEFAULT).plan().units().getFirst()
+                .portablePlan();
+        byte[] bytes = new CpuClassFileKernelGenerator().generateClassBytes(
+                route.specialization(), route.kernelIr());
+        assertAll(
+                () -> assertTrue(new String(route.specialization().compatibilityBytes(),
+                        java.nio.charset.StandardCharsets.US_ASCII).startsWith("53|")),
+                () -> assertTrue(new String(route.specialization().classIdentityBytes(),
+                        java.nio.charset.StandardCharsets.US_ASCII).startsWith("52|")),
+                () -> assertEquals(
+                        "600f01e111b3c40b06e406d8e5047818e2ec875166fb27d706b004a121a8cdb3",
+                        route.specialization().structuralKey()),
+                () -> assertEquals(
+                        "5bb43f82369fcb43a3eb50b9be42d856016ec91bab3aeb0f83b4b0af928a6efd",
+                        java.util.HexFormat.of().formatHex(java.security.MessageDigest
+                                .getInstance("SHA-256").digest(bytes))));
+    }
+
     @Test void foldIdentityExcludesColdGeometryAndSeparatesFamilyTypeCarrierAndRank() {
         var axisOne = fold(new Operation(WindowTransformKind.FOLD_AXIS,
                 new FoldAxisAttrs(0, 5, 1)), DataType.FLOAT32, Shape.of(3, 3), Shape.of(5),
@@ -165,17 +189,23 @@ class CpuKernelSpecializationTest {
                 new CpuPartitionAnalysisInputs(false,
                         CpuPartitionAnalysisInputs.DEFAULT.carrierPattern(),
                         PortableExecutionConfig.DEFAULT, policy)).plan();
+        var candidate = CpuPartitionPreparerTest.explicitRepresentationCandidate(
+                CpuPartitionPreparerTest.analyze(general, dense, dense, dense,
+                        new CpuPartitionAnalysisInputs(false,
+                                CpuPartitionAnalysisInputs.DEFAULT.carrierPattern(),
+                                PortableExecutionConfig.DEFAULT, policy)), policy, 0).plan();
         var direct = CpuPartitionPreparerTest.analyze(general, dense, dense, dense,
                 CpuPartitionAnalysisInputs.DEFAULT).plan();
+        var represented = candidate.representationUnits().getFirst().portablePlan();
         assertAll(
-                () -> assertEquals(0, materialized.units().getFirst().portablePlan()
-                        .specialization().materializedSourcePosition()),
+                () -> assertTrue(materialized.materializations().isEmpty()),
+                () -> assertTrue(materialized.representationUnits().isEmpty()),
+                () -> assertEquals(0, represented.specialization().materializedSourcePosition()),
                 () -> assertNotEquals(direct.units().getFirst().portablePlan().specialization()
                                 .structuralKey(),
-                        materialized.units().getFirst().portablePlan().specialization()
-                                .structuralKey()),
+                        represented.specialization().structuralKey()),
                 () -> assertEquals(new CpuSpecializationBudget(4, 1, 0, 0),
-                        materialized.specializationBudget()),
+                        candidate.specializationBudget()),
                 () -> assertThrows(IllegalArgumentException.class,
                         () -> new CpuSpecializationBudget(5, 1, 0, 0)),
                 () -> assertThrows(IllegalArgumentException.class,
@@ -260,7 +290,7 @@ class CpuKernelSpecializationTest {
                                 otherExtents.kernelIr())),
                 () -> assertNotEquals(axisZero.specialization(), otherFamily.specialization()),
                 () -> assertNotEquals(axisZero.specialization(), otherCarrier.specialization()),
-                () -> assertEquals(52, CpuGeneratorSchema.CURRENT_VERSION),
+                () -> assertEquals(53, CpuGeneratorSchema.CURRENT_VERSION),
                 () -> assertEquals(-1, axisZero.specialization().materializedSourcePosition()));
     }
 

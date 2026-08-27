@@ -252,11 +252,29 @@ public record CpuKernelSpecialization(CpuLoweringFingerprint loweringFingerprint
                 + "|power=" + scalarPowerRealizations + "|scratch=" + scratchParameter)
                 .getBytes(StandardCharsets.US_ASCII);
     }
+    /**
+     * Returns the stable generated-class identity projection.
+     *
+     * <p>Schema 53 changes only the existing affine-copy body. Retaining schema 52 in this
+     * projection preserves byte-exact binary names and class bytes for otherwise unchanged
+     * pointwise specializations, while {@link #compatibilityBytes()} still invalidates every
+     * pre-53 persisted envelope.</p>
+     *
+     * @return a new deterministic schema-52 identity byte array
+     */
+    public byte[] classIdentityBytes() {
+        return (52 + "|" + loweringFingerprint.hex() + "|"
+                + numericalMode + "|" + executionStrategy.compute() + "|" + boundaryDataTypes
+                + "|" + carrierPattern
+                + "|" + vectorSpeciesBitSize + "|materialized=" + materializedSourcePosition
+                + "|power=" + scalarPowerRealizations + "|scratch=" + scratchParameter)
+                .getBytes(StandardCharsets.US_ASCII);
+    }
     /** Returns artifact identity.
      * @return the deterministic lowercase hexadecimal key */
     public String structuralKey() {
         try { return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256")
-                .digest(compatibilityBytes())); }
+                .digest(classIdentityBytes())); }
         catch (NoSuchAlgorithmException impossible) { throw new AssertionError(impossible); }
     }
 

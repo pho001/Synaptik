@@ -47,6 +47,11 @@ import java.util.Optional;
  * retains the original read-only source for one canonical copy and substitutes the workspace
  * segment only in the generated consumer arguments. Execution completes that copy on the invoking
  * thread before any inline or worker consumer call begins.
+ * A representation-adjusted child may instead retain one or two explicitly chosen copy plans and
+ * their workspace positions. The enclosing partition composite performs each generated copy once
+ * before invoking any child, while this child binds every compatible repeated or cross-unit
+ * consumer directly to the completed workspace. Ordinary preparation selects direct children and
+ * never asks Runtime to choose among retained representation candidates.
  * For an affine plan, cold binding additionally validates the exact two boundary carriers and
  * represented address spans, rejects source/result overlap, and retains the composed address
  * pairs directly. Runtime invokes only the prepared range and never interprets the view chain.
@@ -92,6 +97,9 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
     private final CpuWorkerGroup workerGroup;
     private final Optional<CpuMaterializationPlan> materialization;
     private final Optional<WorkspaceSelection> workspaceSelection;
+    private final List<CpuMaterializationPlan> representationMaterializations;
+    private final List<Integer> representationMaterializationPositions;
+    private final List<WorkspaceSelection> representationWorkspaceSelections;
     private final boolean affineCopy;
     private final long[] affineAddressPairs;
     private final Optional<CpuNonAffineMovementLowering.Geometry> movementGeometry;
@@ -838,7 +846,90 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
             Optional<CpuBatchNormTrainingLowering.Geometry> batchNormTrainingGeometry,
             Optional<CpuConv2dLowering.Geometry> conv2dGeometry,
             Optional<CpuConv3dLowering.Geometry> conv3dGeometry, int outputCount) {
-        super(memoryPlan, selections, workspaceSelection.map(List::of).orElseGet(List::of),
+        this(memoryPlan, selections, artifact, bindings, carrierPattern, generatedCarrierPattern,
+                start, end, selectedRangeCount, minimumElementsPerWorker, workerGroup,
+                materialization.isPresent() ? Optional.empty() : workspaceSelection,
+                materialization.stream().toList(), materialization.isPresent()
+                        ? workspaceSelection.stream().toList() : List.of(),
+                affineAddressPairs, movementGeometry, indexingGeometry, scatterGeometry,
+                foldGeometry, orderingGeometry, randomGeometry, scanGeometry, aggregateGeometry,
+                argExtremaGeometry, maskedReductionGeometry, advancedReductionGeometry,
+                softmaxGeometry, trailingNormalizationGeometry, batchNormInferenceGeometry,
+                batchNormTrainingGeometry, conv2dGeometry, conv3dGeometry, outputCount);
+    }
+
+    /**
+     * Creates a computation recipe whose copied inputs are already-filled representation
+     * workspaces. This constructor never performs the copies.
+     *
+     * @param memoryPlan exact immutable prepared memory plan
+     * @param selections ordered input then trailing output buffer selections
+     * @param artifact verified generated consumer artifact retained strongly by this recipe
+     * @param bindings complete represented boundary geometry; copied defensively
+     * @param carrierPattern Runtime carrier forms; copied defensively
+     * @param generatedCarrierPattern generated-entry carrier forms with copied inputs replaced by
+     *     workspace segments; copied defensively
+     * @param start inclusive logical element, cell, slice, or channel bound
+     * @param end exclusive logical element, cell, slice, or channel bound
+     * @param selectedRangeCount positive selected maximum simultaneous range count
+     * @param minimumElementsPerWorker positive minimum work items per worker chunk
+     * @param workerGroup borrowed worker group for parallel execution, otherwise {@code null}
+     * @param workspaceSelection non-null optional family-owned route workspace
+     * @param representationMaterializations non-null ordered copies consumed by this unit; copied
+     *     defensively
+     * @param representationWorkspaceSelections non-null assigned copy workspaces aligned with the
+     *     copies; copied defensively
+     * @param affineAddressPairs affine copy pairs, or {@code null}
+     * @param movementGeometry non-null optional movement geometry
+     * @param indexingGeometry non-null optional indexing geometry
+     * @param scatterGeometry non-null optional scatter geometry
+     * @param foldGeometry non-null optional fold geometry
+     * @param orderingGeometry non-null optional ordering geometry
+     * @param randomGeometry non-null optional explicit-state geometry
+     * @param scanGeometry non-null optional scan geometry
+     * @param aggregateGeometry non-null optional aggregate geometry
+     * @param argExtremaGeometry non-null optional arg-extrema geometry
+     * @param maskedReductionGeometry non-null optional masked-reduction geometry
+     * @param advancedReductionGeometry non-null optional advanced-reduction geometry
+     * @param softmaxGeometry non-null optional softmax geometry
+     * @param trailingNormalizationGeometry non-null optional trailing-normalization geometry
+     * @param batchNormInferenceGeometry non-null optional batch-normalization inference geometry
+     * @param batchNormTrainingGeometry non-null optional batch-normalization training geometry
+     * @param conv2dGeometry non-null optional grouped NCHW Conv2d boundary geometry
+     * @param conv3dGeometry non-null optional grouped NCDHW Conv3d boundary geometry
+     * @param outputCount positive number of trailing selections written by this unit
+     * @throws NullPointerException if a required reference or list element is {@code null}
+     * @throws IllegalArgumentException if representation plans/workspaces, memory, boundary,
+     *     carrier, range, worker, route, output-count, workspace, or specialization facts disagree
+     * @throws ArithmeticException if exact range, span, or geometry validation overflows
+     */
+    public CpuPreparedExecutable(PreparedMemoryPlan memoryPlan, List<BufferSelection> selections,
+            CpuGeneratedKernel artifact, List<CpuAccessPlan.Binding> bindings,
+            List<CarrierAccess> carrierPattern, List<CarrierAccess> generatedCarrierPattern,
+            long start, long end, int selectedRangeCount, long minimumElementsPerWorker,
+            CpuWorkerGroup workerGroup, Optional<WorkspaceSelection> workspaceSelection,
+            List<CpuMaterializationPlan> representationMaterializations,
+            List<WorkspaceSelection> representationWorkspaceSelections,
+            long[] affineAddressPairs,
+            Optional<CpuNonAffineMovementLowering.Geometry> movementGeometry,
+            Optional<CpuIndexingLowering.Geometry> indexingGeometry,
+            Optional<CpuScatterLowering.Geometry> scatterGeometry,
+            Optional<CpuFoldLowering.Geometry> foldGeometry,
+            Optional<CpuOrderingLowering.Geometry> orderingGeometry,
+            Optional<CpuRandomLowering.Geometry> randomGeometry,
+            Optional<CpuScanLowering.Geometry> scanGeometry,
+            Optional<CpuAggregateLowering.Geometry> aggregateGeometry,
+            Optional<CpuArgExtremaLowering.Geometry> argExtremaGeometry,
+            Optional<CpuMaskedReductionLowering.Geometry> maskedReductionGeometry,
+            Optional<CpuAdvancedReductionLowering.Geometry> advancedReductionGeometry,
+            Optional<CpuSoftmaxLowering.Geometry> softmaxGeometry,
+            Optional<CpuTrailingNormalizationLowering.Geometry> trailingNormalizationGeometry,
+            Optional<CpuBatchNormInferenceLowering.Geometry> batchNormInferenceGeometry,
+            Optional<CpuBatchNormTrainingLowering.Geometry> batchNormTrainingGeometry,
+            Optional<CpuConv2dLowering.Geometry> conv2dGeometry,
+            Optional<CpuConv3dLowering.Geometry> conv3dGeometry, int outputCount) {
+        super(memoryPlan, selections, java.util.stream.Stream.concat(workspaceSelection.stream(),
+                representationWorkspaceSelections.stream()).toList(),
                 accesses(selections.size(), outputCount));
         if (selections.isEmpty()) throw new IllegalArgumentException("at least one buffer required");
         this.artifact = Objects.requireNonNull(artifact, "artifact");
@@ -921,8 +1012,15 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
         this.selectedRangeCount = selectedRangeCount;
         this.minimumElementsPerWorker = minimumElementsPerWorker;
         this.workerGroup = workerGroup;
-        this.materialization = Objects.requireNonNull(materialization, "materialization");
+        this.materialization = Optional.empty();
         this.workspaceSelection = Objects.requireNonNull(workspaceSelection, "workspaceSelection");
+        this.representationMaterializations = List.copyOf(representationMaterializations);
+        this.representationWorkspaceSelections = List.copyOf(representationWorkspaceSelections);
+        if (this.representationMaterializations.size() > 2
+                || this.representationMaterializations.size()
+                        != this.representationWorkspaceSelections.size()) {
+            throw new IllegalArgumentException("representation workspace selections disagree");
+        }
         this.affineCopy = affineAddressPairs != null;
         this.affineAddressPairs = affineAddressPairs == null ? new long[0] : affineAddressPairs.clone();
         if (affineCopy && (this.affineAddressPairs.length % 2 != 0
@@ -956,20 +1054,74 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
                 .filter(g -> g.scratchSliceBytes() > 0 && g.normalizedCount() > 0).isPresent();
         boolean trainingScratch=this.batchNormTrainingGeometry
                 .filter(g -> g.scratchSliceBytes() > 0 && g.channelCount() > 0).isPresent();
-        if (workspaceSelection.isPresent() != (materialization.isPresent() || scatterScratch
+        if (workspaceSelection.isPresent() != (scatterScratch
                 || aggregateScratch || maskedScratch || advancedScratch
                 || normalizationScratch || trainingScratch
                 || this.orderingGeometry.isPresent())) {
             throw new IllegalArgumentException("workspace selection purpose is inconsistent");
         }
-        int materializedPosition = materialization
-                .map(CpuMaterializationPlan::sourceBoundaryIndex).orElse(-1);
-        if (artifact.specialization().materializedSourcePosition() != materializedPosition
-                || materialization.isPresent() && !bindings.get(materializedPosition)
-                        .equals(materialization.orElseThrow().consumerBinding())) {
+        this.representationMaterializationPositions = representationPositions(
+                this.representationMaterializations, this.bindings, this.carrierPattern,
+                this.generatedCarrierPattern,
+                artifact.specialization().materializedSourcePosition());
+    }
+
+    /**
+     * Resolves complete-plan copy identities to this generated unit's local input positions.
+     * The generated specialization disambiguates a reused single copy; multiple copies must
+     * identify one unique retained consumer-coordinate vector. No graph identity is consulted.
+     *
+     * @param copies selected complete-plan copies consumed by this unit
+     * @param bindings representation-adjusted unit-local bindings
+     * @param carriers original unit-local carrier forms
+     * @param generatedCarriers representation-adjusted unit-local carrier forms
+     * @param specializedPosition generated single-copy position, or {@code -1}
+     * @return immutable copy-aligned unit-local input positions
+     * @throws IllegalArgumentException if retained facts do not identify one exact local mapping
+     */
+    private static List<Integer> representationPositions(List<CpuMaterializationPlan> copies,
+            List<CpuAccessPlan.Binding> bindings, List<CarrierAccess> carriers,
+            List<CarrierAccess> generatedCarriers, int specializedPosition) {
+        if (copies.isEmpty()) {
+            if (specializedPosition != -1) throw new IllegalArgumentException(
+                    "generated specialization has no selected materialization");
+            return List.of();
+        }
+        var candidates = new ArrayList<List<Integer>>();
+        for (int unit = 0; unit < 8; unit++) {
+            int unitPosition = unit;
+            var positions = new ArrayList<Integer>(copies.size());
+            boolean compatible = true;
+            for (CpuMaterializationPlan copy : copies) {
+                var consumers = copy.consumers().stream()
+                        .filter(value -> value.unitPosition() == unitPosition).toList();
+                if (consumers.size() != 1) {
+                    compatible = false;
+                    break;
+                }
+                int position = consumers.getFirst().boundaryPosition();
+                if (position < 0 || position >= bindings.size()
+                        || !bindings.get(position).equals(copy.consumerBinding())
+                        || carriers.get(position) != copy.sourceCarrier()
+                        || generatedCarriers.get(position) != CarrierAccess.MEMORY_SEGMENT) {
+                    compatible = false;
+                    break;
+                }
+                positions.add(position);
+            }
+            if (compatible && (copies.size() != 1
+                    ? specializedPosition == -1
+                    : positions.getFirst() == specializedPosition)
+                    && !candidates.contains(positions)) {
+                candidates.add(List.copyOf(positions));
+            }
+        }
+        if (candidates.size() != 1
+                || candidates.getFirst().stream().distinct().count() != copies.size()) {
             throw new IllegalArgumentException(
                     "materialization and generated specialization must agree");
         }
+        return candidates.getFirst();
     }
 
     /**
@@ -1034,8 +1186,9 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
         for (int i = 0; i < bindings.size(); i++) selections.add(bufferSelection(i));
         return new CpuPreparedExecutable(memoryPlan(), selections, artifact, bindings,
                 carrierPattern, generatedCarrierPattern, rangeStart, rangeEnd, selectedRangeCount,
-                minimumElementsPerWorker, workerGroup, materialization,
-                workspaceSelection, affineCopy ? affineAddressPairs : null, movementGeometry,
+                minimumElementsPerWorker, workerGroup, workspaceSelection,
+                representationMaterializations, representationWorkspaceSelections,
+                affineCopy ? affineAddressPairs : null, movementGeometry,
                 indexingGeometry, scatterGeometry, foldGeometry, orderingGeometry, randomGeometry,
                 scanGeometry, aggregateGeometry, argExtremaGeometry, maskedReductionGeometry,
                 advancedReductionGeometry, softmaxGeometry, trailingNormalizationGeometry,
@@ -1074,14 +1227,23 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
 
     @Override protected boolean acceptsWorkspaceRepresentation(int index,
             WorkspaceRepresentation representation) {
-        if (index != 0 || materialization.isEmpty() && scatterGeometry.isEmpty()
+        if (!(representation instanceof CpuContiguousWorkspace workspace)
+                || !workspace.isAccessible()) return false;
+        int intrinsicCount = workspaceSelection.isPresent() ? 1 : 0;
+        if (index >= intrinsicCount) {
+            int copyIndex = index - intrinsicCount;
+            if (copyIndex < 0 || copyIndex >= representationMaterializations.size()) return false;
+            CpuMaterializationPlan copy = representationMaterializations.get(copyIndex);
+            return workspace.byteSize() == copy.byteCount()
+                    && workspace.byteAlignment() == copy.byteAlignment()
+                    && workspace.writableSegment().address() % copy.byteAlignment() == 0;
+        }
+        if (index != 0 || scatterGeometry.isEmpty()
                     && orderingGeometry.isEmpty() && aggregateGeometry.isEmpty()
                     && maskedReductionGeometry.isEmpty() && advancedReductionGeometry.isEmpty()
                     && trailingNormalizationGeometry.isEmpty() && batchNormTrainingGeometry.isEmpty()
-                || !(representation instanceof CpuContiguousWorkspace workspace)
-                || !workspace.isAccessible()) return false;
-        long bytes=materialization.map(CpuMaterializationPlan::byteCount)
-                .orElseGet(()->scatterGeometry.filter(g -> g.scratchSliceBytes() > 0)
+                ) return false;
+        long bytes=scatterGeometry.filter(g -> g.scratchSliceBytes() > 0)
                         .map(g -> g.workspaceBytes(selectedRangeCount))
                         .orElseGet(() -> aggregateGeometry.filter(g -> g.scratchSliceBytes() > 0)
                         .map(g -> g.workspaceBytes(selectedRangeCount))
@@ -1094,16 +1256,15 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
                             .orElseGet(() -> batchNormTrainingGeometry
                             .map(g -> g.workspaceBytes(selectedRangeCount))
                             .orElseGet(() -> orderingGeometry.orElseThrow()
-                                .workspaceBytes(selectedRangeCount))))))));
-        long alignment=materialization.map(CpuMaterializationPlan::byteAlignment).orElse(8L);
+                                .workspaceBytes(selectedRangeCount)))))));
+        long alignment=8L;
         return workspace.byteSize() == bytes && workspace.byteAlignment() == alignment
                 && workspace.writableSegment().address() % alignment == 0;
     }
 
     @Override protected BoundInvocation bindCompatible(RunState state,
             BufferRepresentation[] buffers, WorkspaceRepresentation[] workspaces) {
-        boolean hasWorkspace=materialization.isPresent()
-                || scatterGeometry.filter(g->g.scratchSliceBytes()>0).isPresent()
+        boolean hasWorkspace=scatterGeometry.filter(g->g.scratchSliceBytes()>0).isPresent()
                 || aggregateGeometry.filter(g -> g.scratchSliceBytes() > 0
                     && g.outputCount() > 0).isPresent()
                 || maskedReductionGeometry.filter(g -> g.outputCount() > 0).isPresent()
@@ -1114,7 +1275,8 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
                 || batchNormTrainingGeometry.filter(g -> g.scratchSliceBytes() > 0
                     && g.channelCount() > 0).isPresent()
                 || orderingGeometry.isPresent();
-        if (workspaces.length != (hasWorkspace ? 1 : 0)) {
+        int intrinsicCount = hasWorkspace ? 1 : 0;
+        if (workspaces.length != intrinsicCount + representationMaterializations.size()) {
             throw new IllegalArgumentException("workspace count disagrees with prepared use");
         }
         var arguments = new ArrayList<CpuBufferArgument>(bindings.size());
@@ -1137,9 +1299,12 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
             }
         } else {
         for (int input = 0; input < firstOutputIndex; input++) {
-            CpuAccessPlan.Binding inputBinding = materialization.isPresent()
-                    && materialization.orElseThrow().sourceBoundaryIndex() == input
-                    ? materialization.orElseThrow().sourceBinding() : bindings.get(input);
+            int inputPosition = input;
+            int representedIndex = representationMaterializationPositions.indexOf(inputPosition);
+            CpuMaterializationPlan represented = representedIndex < 0 ? null
+                    : representationMaterializations.get(representedIndex);
+            CpuAccessPlan.Binding inputBinding = represented == null ? bindings.get(input)
+                    : represented.sourceBinding();
             boolean overlap = affineCopy
                     ? affineOverlaps(arguments.get(input), arguments.get(firstOutputIndex), input,
                             firstOutputIndex)
@@ -1190,15 +1355,13 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
                 new IndexValidation(arguments, g)).orElse(null);
         ScatterValidation scatterValidation = scatterGeometry.map(g ->
                 new ScatterValidation(arguments, g)).orElse(null);
-        CopyCall copyCall = null;
-        if (materialization.isPresent()) {
-            var copy = materialization.orElseThrow();
-            CpuBufferArgument source = arguments.get(copy.sourceBoundaryIndex());
-            MemorySegment workspace = ((CpuContiguousWorkspace) workspaces[0]).writableSegment();
-            if (end > start) copyCall = copyCall(
-                    source, copy.sourceBinding(), workspace, copy.elementCount());
-            arguments.set(copy.sourceBoundaryIndex(), new CpuBufferArgument.Segment(
-                    io.github.pho001.synaptik.model.datatype.DataType.FLOAT64,
+        for (int copyIndex = 0; copyIndex < representationMaterializations.size(); copyIndex++) {
+            var copy = representationMaterializations.get(copyIndex);
+            MemorySegment workspace = ((CpuContiguousWorkspace)
+                    workspaces[intrinsicCount + copyIndex]).writableSegment();
+            arguments.set(representationMaterializationPositions.get(copyIndex),
+                    new CpuBufferArgument.Segment(
+                    copy.dataType(),
                     workspace.asReadOnly(), workspace.byteSize(), true));
         }
         if (workerGroup != null) for (CpuBufferArgument argument : arguments) {
@@ -1210,6 +1373,10 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
         if (workerGroup != null && hasWorkspace && !workerGroup.workersCanAccess(
                 ((CpuContiguousWorkspace) workspaces[0]).writableSegment()))
             throw new IllegalArgumentException("scratch is not accessible to every CPU worker");
+        if (workerGroup != null) for (int index = intrinsicCount; index < workspaces.length; index++)
+            if (!workerGroup.workersCanAccess(((CpuContiguousWorkspace) workspaces[index])
+                    .writableSegment())) throw new IllegalArgumentException(
+                            "materialization workspace is not accessible to every CPU worker");
         if (softmaxGeometry.isPresent()) {
             CpuSoftmaxInputValidator.validate(arguments.getFirst(), softmaxGeometry.orElseThrow());
         }
@@ -1264,7 +1431,7 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
             KernelCall call = length == 0 ? null : callFor(artifact.entryPoint(), arguments,
                     artifact.specialization().scratchParameter() ? scratch(workspaces, 0) : null,
                     geometry(arguments, start, end, 0), start, end);
-            return new Invocation(state, copyCall, validation, scatterValidation, prologue, call, null);
+            return new Invocation(state, validation, scatterValidation, prologue, call, null);
         }
         CpuWorkerGroup.RangeCall[] calls = new CpuWorkerGroup.RangeCall[chunkCount];
         long quotient = length / chunkCount;
@@ -1278,52 +1445,7 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
             calls[index] = call::invoke;
             chunkStart = chunkEnd;
         }
-        return new Invocation(state, copyCall, validation, scatterValidation, prologue, null, calls);
-    }
-
-    @FunctionalInterface private interface CopyCall { void invoke(); }
-
-    private static CopyCall copyCall(CpuBufferArgument source, CpuAccessPlan.Binding binding,
-            MemorySegment target, long count) {
-        int rank = binding.extents().size();
-        long[] extents = binding.extents().stream().mapToLong(Long::longValue).toArray();
-        long[] strides = binding.effectiveStrides().stream().mapToLong(Long::longValue).toArray();
-        long[] coordinates = new long[rank];
-        if (source instanceof CpuBufferArgument.Doubles doubles) {
-            long arrayBase = doubles.byteOffset() / Double.BYTES;
-            return () -> copyArray(doubles.carrier(), arrayBase, binding.baseElementOffset(),
-                    target, count, extents, strides, coordinates);
-        }
-        MemorySegment segment = ((CpuBufferArgument.Segment) source).segment();
-        return () -> copySegment(segment, binding.baseElementOffset(), target, count,
-                extents, strides, coordinates);
-    }
-
-    private static void copyArray(double[] source, long arrayBase, long initialAddress,
-            MemorySegment target, long count, long[] extents, long[] strides,
-            long[] coordinates) {
-        java.util.Arrays.fill(coordinates, 0);
-        long address = initialAddress;
-        for (long logical = 0; logical < count; logical++) {
-            double value = source[Math.toIntExact(arrayBase + address)];
-            target.set(ValueLayout.JAVA_DOUBLE,
-                    Math.multiplyExact(logical, Double.BYTES), value);
-            address = advanceAddress(address, extents, strides, coordinates);
-        }
-    }
-
-    private static void copySegment(MemorySegment source, long initialAddress,
-            MemorySegment target, long count, long[] extents, long[] strides,
-            long[] coordinates) {
-            java.util.Arrays.fill(coordinates, 0);
-            long address = initialAddress;
-            for (long logical = 0; logical < count; logical++) {
-                double value = source.get(ValueLayout.JAVA_DOUBLE,
-                        Math.multiplyExact(address, Double.BYTES));
-                target.set(ValueLayout.JAVA_DOUBLE,
-                        Math.multiplyExact(logical, Double.BYTES), value);
-                address = advanceAddress(address, extents, strides, coordinates);
-            }
+        return new Invocation(state, validation, scatterValidation, prologue, null, calls);
     }
 
     private static long advanceAddress(long address, long[] extents, long[] strides,
@@ -1945,22 +2067,20 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
     }
 
     private final class Invocation extends BoundInvocation {
-        private final CopyCall copy;
         private final IndexValidation validation;
         private final ScatterValidation scatterValidation;
         private final KernelCall prologue;
         private final KernelCall call;
         private final CpuWorkerGroup.RangeCall[] calls;
-        Invocation(RunState state, CopyCall copy, IndexValidation validation,
+        Invocation(RunState state, IndexValidation validation,
                 ScatterValidation scatterValidation, KernelCall prologue, KernelCall call,
                 CpuWorkerGroup.RangeCall[] calls) {
-            super(state); this.copy = copy; this.validation = validation;
+            super(state); this.validation = validation;
             this.scatterValidation=scatterValidation; this.prologue=prologue;
             this.call = call; this.calls = calls;
         }
         @Override protected void executeBound() {
             try {
-                if (copy != null) copy.invoke();
                 if (validation != null) validation.validate();
                 if (scatterValidation != null) scatterValidation.validate();
                 if (prologue != null) prologue.invoke();

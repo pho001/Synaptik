@@ -6,6 +6,7 @@ import io.github.pho001.synaptik.backend.cpu.internal.memory.CpuNativeBuffer;
 import io.github.pho001.synaptik.backend.cpu.internal.memory.CpuBorrowedBuffer;
 import io.github.pho001.synaptik.backend.cpu.internal.memory.CpuContiguousWorkspace;
 import io.github.pho001.synaptik.backend.cpu.internal.cache.CpuKernelSpecialization.CarrierAccess;
+import io.github.pho001.synaptik.backend.cpu.internal.cache.CpuGeneratedKernelArtifactStore;
 import io.github.pho001.synaptik.backend.cpu.internal.prepare.CpuPartitionAnalysisInputs;
 import io.github.pho001.synaptik.backend.cpu.internal.prepare.CpuPartitionPreparerTest;
 import io.github.pho001.synaptik.backend.cpu.internal.prepare.CpuPartitionFinalizerTest;
@@ -702,13 +703,17 @@ class CpuPreparedExecutableTest {
                 new CpuPartitionAnalysisInputs(false,
                         originalPattern,
                         CpuPartitionAnalysisInputs.PortableExecutionConfig.DEFAULT, policy));
-        assertEquals(2, analysis.plan().materialization().orElseThrow().sourceBoundaryIndex());
+        assertTrue(analysis.plan().materializations().isEmpty());
+        var candidate = CpuPartitionPreparerTest.explicitRepresentationCandidate(
+                analysis, policy, 2);
+        assertEquals(2, candidate.plan().materializations().getFirst().sourceBoundaryIndex());
         assertAll(
                 () -> assertEquals(CarrierAccess.DOUBLE_ARRAY,
                         analysis.plan().carrierPattern().get(2)),
                 () -> assertEquals(CarrierAccess.MEMORY_SEGMENT,
-                        analysis.plan().generatedCarrierPattern().get(2)));
-        var executable = CpuPartitionFinalizerTest.finalizeExecutable(analysis, Optional.empty());
+                        candidate.plan().representationUnits().getFirst().carrierPattern().get(2)));
+        var executable = CpuPartitionFinalizerTest.finalizePreparedExecutable(candidate,
+                Optional.empty());
         var buffers = new ArrayList<io.github.pho001.synaptik.runtime.resource.BufferRepresentation>();
         var bindings = new ArrayList<List<BufferRepresentationBinding>>();
         for (int index = 0; index < executable.memoryPlan().buffers().size(); index++) {
@@ -762,24 +767,28 @@ class CpuPreparedExecutableTest {
                 new CpuPartitionAnalysisInputs(false,
                         CpuPartitionAnalysisInputs.DEFAULT.carrierPattern(),
                         CpuPartitionAnalysisInputs.PortableExecutionConfig.DEFAULT, policy));
+        assertTrue(analysis.plan().materializations().isEmpty());
+        var candidate = CpuPartitionPreparerTest.explicitRepresentationCandidate(
+                analysis, policy, 0);
 
-        var zero = CpuPartitionFinalizerTest.finalizeExecutable(analysis, Optional.empty())
-                .forRange(3, 3);
-        var zeroResources = nativeResources(zero);
+        var copy = candidate.plan().materializations().getFirst();
+        var copyArtifact = new CpuGeneratedKernelArtifactStore().loadOrGenerate(
+                copy.copySpecialization(), copy.copyIr().encodedKernelIr());
+        var zeroSource = CpuNativeBuffer.allocate(DataType.FLOAT64, 48, 8);
         var zeroWorkspace = CpuContiguousWorkspace.allocate(48, 8);
         zeroWorkspace.writableSegment().set(DOUBLE, 0, 456.0);
-        segment(zeroResources.get(3)).set(DOUBLE, 24, 789.0);
-        var zeroState = state(zero, zeroResources, List.of(zeroWorkspace));
         try {
-            zero.bind(zeroState).execute();
-            assertAll(
-                    () -> assertEquals(456.0,
-                            zeroWorkspace.writableSegment().get(DOUBLE, 0)),
-                    () -> assertEquals(789.0,
-                            segment(zeroResources.get(3)).get(DOUBLE, 24)));
-        } finally { zeroState.close(); }
+            assertDoesNotThrow(() -> copyArtifact.entryPoint().invokeWithArguments(
+                    zeroSource.segment(), zeroWorkspace.writableSegment(),
+                    copy.affineAddressPairs(), 3L, 3L));
+            assertEquals(456.0, zeroWorkspace.writableSegment().get(DOUBLE, 0));
+        } finally {
+            zeroSource.close();
+            zeroWorkspace.close();
+        }
 
-        var failing = CpuPartitionFinalizerTest.finalizeExecutable(analysis, Optional.empty());
+        var failing = CpuPartitionFinalizerTest.finalizePreparedExecutable(candidate,
+                Optional.empty());
         var failureResources = nativeResources(failing);
         var failureWorkspace = CpuContiguousWorkspace.allocate(48, 8);
         segment(failureResources.get(3)).set(DOUBLE, 0, 321.0);
@@ -807,7 +816,11 @@ class CpuPreparedExecutableTest {
         var analysis = CpuPartitionPreparerTest.analyze(general, dense, dense, dense,
                 new CpuPartitionAnalysisInputs(false, pattern,
                         CpuPartitionAnalysisInputs.PortableExecutionConfig.DEFAULT, policy));
-        var executable = CpuPartitionFinalizerTest.finalizeExecutable(analysis, Optional.empty());
+        assertTrue(analysis.plan().materializations().isEmpty());
+        var candidate = CpuPartitionPreparerTest.explicitRepresentationCandidate(
+                analysis, policy, 0);
+        var executable = CpuPartitionFinalizerTest.finalizePreparedExecutable(candidate,
+                Optional.empty());
         double[] sharedCarrier = new double[6];
         var sharedInput = borrow(sharedCarrier, 0, 6);
         var sharedOutput = borrow(sharedCarrier, 0, 6);
@@ -1956,12 +1969,12 @@ class CpuPreparedExecutableTest {
         return CpuBorrowedBuffer.borrow(new MemorySegmentStorage(type, elements, segment));
     }
 
-    private static RunState state(CpuPreparedExecutable executable,
+    private static RunState state(io.github.pho001.synaptik.runtime.execution.PreparedExecutable executable,
             List<? extends io.github.pho001.synaptik.runtime.resource.BufferRepresentation> resources) {
         return state(executable, resources, List.of());
     }
 
-    private static RunState state(CpuPreparedExecutable executable,
+    private static RunState state(io.github.pho001.synaptik.runtime.execution.PreparedExecutable executable,
             List<? extends io.github.pho001.synaptik.runtime.resource.BufferRepresentation> resources,
             List<? extends io.github.pho001.synaptik.runtime.resource.WorkspaceRepresentation>
                     workspaces) {
@@ -1975,7 +1988,8 @@ class CpuPreparedExecutableTest {
         return new RunState(executable.memoryPlan(), bindings, workspaceSnapshot);
     }
 
-    private static List<CpuNativeBuffer> nativeResources(CpuPreparedExecutable executable) {
+    private static List<CpuNativeBuffer> nativeResources(
+            io.github.pho001.synaptik.runtime.execution.PreparedExecutable executable) {
         return executable.memoryPlan().buffers().stream().map(entry -> CpuNativeBuffer.allocate(
                 DataType.FLOAT64, entry.byteSize(), entry.byteAlignment())).toList();
     }

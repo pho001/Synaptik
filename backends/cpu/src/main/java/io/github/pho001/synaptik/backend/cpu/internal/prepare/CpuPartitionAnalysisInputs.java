@@ -12,8 +12,9 @@ import java.util.List;
  *     membership is snapshotted and contains no physical carrier object; an empty list selects
  *     one exact {@code MEMORY_SEGMENT} form per derived boundary
  * @param portableExecution non-null immutable cold compute-preference and parallelism inputs
- * @param materializationPolicy non-null dimensionless cold comparison policy; disabled means
- *     direct access only
+ * @param materializationPolicy non-null dimensionless cold candidate-comparison policy; disabled
+ *     retains only direct forms, while enabled ordinary analysis retains complete bounded copied
+ *     candidates but still selects direct execution
  * @param conv2dMaterializedSuffixUnit whether this input belongs to the sole tagged pointwise
  *     suffix unit of a two-unit Conv2d plan
  */
@@ -49,16 +50,17 @@ public record CpuPartitionAnalysisInputs(boolean loweringManifestEnabled,
     /**
      * Cold, dimensionless materialization evidence. No value is measured during preparation.
      *
-     * @param enabled whether analysis may compare one-input contiguous-copy candidates
+     * @param enabled whether analysis may retain bounded direct, single-copy, and two-copy
+     *     complete representation candidates; it does not authorize ordinary copy promotion
      * @param copyFixedCostUnits non-negative fixed copy estimate per run
      * @param copyCostUnitsPerElement non-negative copy estimate per logical element
      * @param directKernelCostUnitsPerElement non-negative direct-consumer estimate per element/use
      * @param contiguousKernelCostUnitsPerElement non-negative contiguous-consumer estimate per
      *     element/use
      * @param expectedRunCount positive repeated-run estimate
-     * @param maximumAdditionalBytes non-negative workspace byte ceiling
-     * @param minimumNetBenefitCostUnits non-negative absolute selection threshold
-     * @param minimumBenefitBasisPoints relative selection threshold from {@code 0} through
+     * @param maximumAdditionalBytes non-negative combined copy-candidate workspace byte ceiling
+     * @param minimumNetBenefitCostUnits non-negative diagnostic absolute benefit threshold
+     * @param minimumBenefitBasisPoints diagnostic relative benefit threshold from {@code 0} through
      *     {@code 10_000}
      */
     public record MaterializationPolicy(boolean enabled, long copyFixedCostUnits,

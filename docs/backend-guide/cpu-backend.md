@@ -117,14 +117,16 @@ extrema/clamp/ReLU/sign/cast, signed-integral arithmetic/extrema/cast, canonical
 and narrowly virtual floating comparison/classification masks through logical masks into WHERE.
 Cold analysis selects scalar, vector, parallel-scalar, or parallel-vector execution;
 vector-ineligible admitted geometry or opcodes fall back to scalar compute. Analysis can also
-compare direct access with at most one CPU-private contiguous FLOAT64 input copy from explicit
-dimensionless cold cost evidence. A selected copy uses one declared run-owned workspace and
-completes before consumer execution. Capability and lowering fail closed for every other
+retain bounded direct, eligible single-copy, and eligible disjoint-consumer pair representation
+candidates for external reads across FLOAT64, FLOAT32, INT32, INT64, and canonical BOOL pointwise
+work. Each copy candidate owns a declared run workspace and explicit generated affine-copy unit;
+compatible repeated and cross-unit uses share one copy. Ordinary preparation selects direct and
+declares none of those candidate-only resources. Capability and lowering fail closed for every other
 operation, type, shape, layout, parameter, alias, fan-out, publication, carrier, or route. In
 particular, CAST is same-type only and BFLOAT16 remains representation-only for affine movement;
 CPU does not invent cross-type conversion semantics. Native, tuning, excluded pointwise rows,
-profitability ranking, multi-input representation selection, native routes, tuning, and later
-operation families remain planned. CPU-private specialized-subgraph recognition is current only
+native routes, model-autotuning promotion, and later operation families remain planned.
+CPU-private specialized-subgraph recognition is current only
 as the cold, recognition-only boundary described below. Functional scatter,
 overlap fold, stable ordering, explicit-state random, cumulative-scan, and ordinary-aggregate
 execution are current
@@ -501,12 +503,16 @@ If the two consumers have the same domain and predecessor set, CPU analysis may 
 them into one multi-store unit. The producer unit completes, including any worker join, before the
 consumer unit starts.
 
-Split buffers and external-read materialization are distinct. A split buffer is an ordinary
-`Buffer(ValueId)` for an existing graph value that crosses units. The optional CPU contiguous-copy
-materialization is an anonymous workspace used to change one external read's representation; it
-remains available only for a one-unit plan. Each intrinsic family workspace in a multi-unit plan
-has the final unit index as its partition-unique requirement ID and stays run-owned. Shared Prepare
-assigns all declared resources without interpreting the CPU topology.
+Split buffers and external-read representation candidates are distinct. A CPU 0008B split buffer
+is an ordinary `Buffer(ValueId)` for an existing graph value that crosses units. A CPU 0008E
+contiguous-copy candidate instead uses an anonymous workspace to change an external read's
+representation without creating a graph value. Candidates may describe one eligible copy or two
+eligible copies whose consumers are disjoint at instruction level, and one copy may feed
+compatible repeated or cross-unit uses. Each intrinsic family workspace in a multi-unit plan has
+the final unit index as its partition-unique requirement ID and stays run-owned. Ordinary
+preparation selects direct, so Shared Prepare receives none of the candidate-only copy resources;
+an explicitly promoted future complete plan would declare them before assignment without asking
+Shared Prepare to interpret CPU topology.
 
 Finalization resolves the complete buffer and workspace assignment sets before looking up or
 generating the first unit artifact, then realizes exactly one already-selected artifact per unit
@@ -2577,8 +2583,9 @@ coordinates/address and exact accessed half-open span for its requested range. C
 vectorizes dense linear, scalar-broadcast, last-axis, and block/outer access only when every
 non-scalar boundary has a complete preferred-species contiguous run. General odometer access and
 too-short runs select scalar compute rather than rejecting the partition. There is no vector
-gather. Cost-gated contiguous materialization may replace one eligible non-dense input access, but
-complete access semantics do not promise universal vectorization.
+gather. Bounded contiguous-copy candidates may represent eligible non-dense input accesses, but
+ordinary preparation selects direct and complete access semantics do not promise universal
+vectorization.
 
 Vector classes use the Java 26 preferred species for their validated lane type:
 `FloatVector.SPECIES_PREFERRED`, `DoubleVector.SPECIES_PREFERRED`,
@@ -2597,13 +2604,24 @@ JVM may internally
 scalarize a Vector API operation, so this route and its tests do not promise hardware intrinsics
 or speedup.
 
-### Current contiguous materialization decision
+### Current contiguous representation candidates
 
-Before shared assignment, CPU analysis enumerates candidates in stable order: direct access,
-then at most the first three eligible FLOAT64 read boundaries. It admits only one-input copies whose source
-is non-scalar, non-dense, consumed by the unit, within the additional-memory limit, and usable as
-canonical contiguous FLOAT64 segment access. Direct wins every tie. For each admitted input,
-analysis derives use count from the lowered unit and compares these dimensionless cold estimates:
+Before shared assignment, CPU analysis completes a bounded cross-product of each already legal
+CPU 0008D topology with representation forms. Stable order is direct first, then every eligible
+single copy in source order, then every eligible pair of distinct sources in lexicographic source
+order. Eligible external reads cover FLOAT64, FLOAT32, INT32, INT64, and canonical BOOL, whose
+stored byte representation is the CPU UINT8 carrier form. BFLOAT16 remains excluded because raw
+movement support does not establish pointwise numerical support. Scalar/all-zero and already
+dense sources, unused values, incompatible mappings or carriers, unresolved or overflowed facts,
+and candidates beyond the exact source, variant, or resource ceilings fail closed.
+
+One candidate copy retains the source access and carrier, canonical dense consumer access, typed
+consumer positions and use counts, checked cost and resource geometry, generated affine-copy IR
+and specialization, and a dedicated workspace with analysis-local ID 8 or 9. Repeated occurrences
+of the exact same source are deduplicated. When their binding, type, carrier, and element geometry
+are compatible, repeated consumers, including consumers in different computation units, reuse one
+copy. For each admitted source, analysis derives use count from all represented consumers and
+retains these dimensionless cold estimates:
 
 ```text
 direct = expected runs * uses * direct kernel cost
@@ -2611,25 +2629,44 @@ copied = expected runs * (copy cost + uses * contiguous kernel cost)
 net benefit = direct - copied
 ```
 
-Selection also requires positive benefit and the configured absolute and basis-point thresholds.
-Checked `long` arithmetic fails analysis on overflow. These inputs are supplied evidence, not
-nanoseconds, and CPU analysis never measures a model or searches a tuning cache.
+These costs and the configured byte and benefit thresholds are diagnostic candidate facts, not
+proof of end-to-end promotion. Checked `long` arithmetic fails analysis on overflow. CPU analysis
+never measures a model or searches a tuning cache. When one represented instruction consumes both
+sources of a proposed pair, analysis retains a typed `CO_CONSUMED_PAIR` rejection before ranking;
+the corresponding singles and any pair whose consumers remain disjoint stay complete candidates.
 
-A selected `CpuMaterializationPlan` retains the original source boundary and access binding plus a
-canonical dense consumer binding. All derived graph-value buffer declarations remain first and
-unchanged. CPU analysis appends exactly one workspace declaration with analysis-local ID `0`,
-`elementCount * Double.BYTES` bytes, and `Double.BYTES` alignment. The workspace has no `ValueId`;
-the Model graph, `LogicalMemoryPlan`, boundary identities, and two virtual intermediates remain
-unchanged. Shared Prepare assigns the workspace without interpreting CPU copy or cost facts.
+Ordinary enabled preparation always selects the exact direct topology already selected by CPU
+0008D, produces zero representation materializations, and records
+`DIRECT_MATERIALIZATION_UNPROVED`. Disabled policy also stays direct and records
+`DIRECT_POLICY_DISABLED`. Incomplete enumeration, arithmetic uncertainty, or unresolved facts
+select canonical direct with `DIRECT_UNCERTAINTY`. Materialized variants are nevertheless
+complete candidate data: they preserve identity, cost, resources, representation-adjusted
+consumer units, generated copy units, and executable finalization facts. Candidate-only does not
+mean illegal or partly specified, and it does not mean current estimates prove that a copy is
+faster.
 
-Finalization resolves all boundary buffer assignments and the optional workspace assignment before
-the one artifact lookup. Cold binding validates the original source and the run-owned aligned
-`CpuContiguousWorkspace`. The original carrier pattern still describes the Runtime buffers;
-the adjusted generated pattern replaces only the copied input with `MemorySegment`. The generated
-entry therefore retains the derived boundary count—materialization adds no workspace argument.
-The invoking thread copies logical elements in canonical order once per bound invocation, then an
-inline consumer or every selected worker reads the completed workspace. A copy failure prevents
-consumer execution, and an empty execution range touches neither source nor workspace.
+For an explicitly chosen compatible candidate, all graph-value buffer declarations remain first
+and unchanged. The plan adds one or two anonymous workspaces with no `ValueId`, and finalization
+resolves every boundary and workspace before generating the affine-copy artifacts followed by the
+represented consumer artifacts. Cold binding validates every original source, destination
+workspace, consumer, and overlap before mutation. Execution invokes each copy exactly once before
+any represented consumer; inline and worker consumers then read the completed workspace, and a
+copy failure prevents all consumer execution. The complete partition remains one atomic prepared
+executable. These workspaces are not CPU 0008B graph-split `Buffer(ValueId)` resources.
+
+Schema 53 changes the existing general affine-copy body so a proved dense destination loads its
+initial address once and advances a unit-stride cursor. The emitted typed heap-array or unaligned
+segment load/store loop matches the optimal clean-Java semantic algorithm and hot-loop shape. The
+retained Class-File inspection shows no hidden Synaptik helper dispatch, allocation, boxing,
+reflection, planner fact, or Runtime representation choice in generated work. Generated/oracle
+median `1.000326680` establishes affine-copy parity for the retained case, but the complete
+materialized/direct median `2.605250934` shows why that candidate is not promoted by ordinary
+preparation.
+
+Future Config 0006A, Prepare 0004, CPU 0016, and Tuning 0001–0002 may supply a compatible explicit
+complete candidate only after end-to-end measurement includes the copy and every consumer. That
+selection must complete before Runtime. Runtime executes the immutable prepared choice and never
+enumerates candidates, autotunes, reads a tuning cache, or chooses a representation.
 
 Shared Prepare remains blind to CPU units and fusion. Its narrow declaration hardening checks only
 cross-planned-partition values: the producer partition, when present, and every distinct external
@@ -2660,7 +2697,9 @@ ascending range order. Interruption cancels unclaimed work, joins started work, 
 status, and reports a CPU-private coordination exception. A racing close rejects new work,
 cancels unclaimed chunks, joins started chunks, and terminates every owned worker. No write
 rollback is promised; Runtime retains its existing failed-executable output-validity behavior.
-CPU 0005D completes this materialization and persistence/specialization evidence gate.
+CPU 0005D established the earlier one-unit materialization and persistence/specialization evidence
+gate; CPU 0008E now retains the bounded multi-input candidates above while keeping ordinary
+selection direct.
 
 For example, iteration Shape `[2, 4, 3]` can combine a dense `[2, 4, 3]` input, a right-aligned
 `[3]` bias, and a contiguous `[2, 1, 3]` input. Their access regimes are respectively

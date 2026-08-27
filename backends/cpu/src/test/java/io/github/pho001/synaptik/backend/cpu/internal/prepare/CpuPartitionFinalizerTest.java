@@ -12,6 +12,7 @@ import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuMaskedReductio
 import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuAggregateLoweringTest;
 import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuOrderingLoweringTest;
 import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuRandomLoweringTest;
+import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuMaterializationPlan;
 import io.github.pho001.synaptik.backend.cpu.internal.cache.CpuKernelSpecialization.CarrierAccess;
 import io.github.pho001.synaptik.model.operation.Operation;
 import io.github.pho001.synaptik.model.operation.layout.CompositionAxisAttrs;
@@ -57,7 +58,7 @@ public class CpuPartitionFinalizerTest {
         var base=CpuConv3dLoweringTest.context(List.of(DataType.FLOAT32,DataType.FLOAT32),Shape.of(1,2,4,3,3),Shape.of(2,2,2,2,2),Shape.of(1,2,3,2,2),Conv3dAttrs.defaults(),null);
         var context=new io.github.pho001.synaptik.prepare.analysis.PrepareContext<>(base.partition(),base.nodes(),base.values(),base.memoryRequirements(),base.constants(),new CpuPartitionAnalysisInputs(false,List.of(CarrierAccess.MEMORY_SEGMENT,CarrierAccess.FLOAT_ARRAY,CarrierAccess.FLOAT_ARRAY)));
         var analysis=new CpuPartitionPreparer().analyze(context);Path artifactRoot=root.resolve("conv3d");var executable=finalizeExecutable(analysis,Optional.of(artifactRoot));
-        try(var files=Files.list(artifactRoot)){assertAll(()->assertEquals(3,executable.bufferSelectionCount()),()->assertTrue(executable.memoryPlan().workspaces().isEmpty()),()->assertEquals(52,io.github.pho001.synaptik.backend.cpu.internal.cache.CpuGeneratorSchema.CURRENT_VERSION),()->assertEquals(1,files.filter(path->path.getFileName().toString().endsWith(".artifact")).count()));}
+        try(var files=Files.list(artifactRoot)){assertAll(()->assertEquals(3,executable.bufferSelectionCount()),()->assertTrue(executable.memoryPlan().workspaces().isEmpty()),()->assertEquals(53,io.github.pho001.synaptik.backend.cpu.internal.cache.CpuGeneratorSchema.CURRENT_VERSION),()->assertEquals(1,files.filter(path->path.getFileName().toString().endsWith(".artifact")).count()));}
     }
 
     @Test void advancedNormFinalizesTwoBuffersNoWorkspaceAndOneSchema46Artifact()
@@ -76,7 +77,7 @@ public class CpuPartitionFinalizerTest {
         try (var files = Files.list(artifactRoot)) {
             assertAll(() -> assertEquals(2, executable.bufferSelectionCount()),
                     () -> assertTrue(executable.memoryPlan().workspaces().isEmpty()),
-                    () -> assertEquals(52, io.github.pho001.synaptik.backend.cpu.internal.cache
+                    () -> assertEquals(53, io.github.pho001.synaptik.backend.cpu.internal.cache
                             .CpuGeneratorSchema.CURRENT_VERSION),
                     () -> assertEquals(1, files.filter(path -> path.getFileName().toString()
                             .endsWith(".artifact")).count()));
@@ -100,7 +101,7 @@ public class CpuPartitionFinalizerTest {
             assertAll(() -> assertEquals(3, executable.bufferSelectionCount()),
                     () -> assertEquals(3, executable.memoryPlan().buffers().size()),
                     () -> assertEquals(1, executable.memoryPlan().workspaces().size()),
-                    () -> assertEquals(52, io.github.pho001.synaptik.backend.cpu.internal.cache
+                    () -> assertEquals(53, io.github.pho001.synaptik.backend.cpu.internal.cache
                             .CpuGeneratorSchema.CURRENT_VERSION),
                     () -> assertEquals(1, files.filter(path -> path.getFileName().toString()
                             .endsWith(".artifact")).count()));
@@ -159,12 +160,17 @@ public class CpuPartitionFinalizerTest {
         var analysis = CpuPartitionPreparerTest.analyze(general, dense, dense, dense,
                 new CpuPartitionAnalysisInputs(false,
                         CpuPartitionAnalysisInputs.DEFAULT.carrierPattern(), parallel, policy));
+        var candidate = CpuPartitionPreparerTest.explicitRepresentationCandidate(
+                analysis, policy, 0);
         Path artifactRoot = root.resolve("must-remain-absent");
         assertAll(
-                () -> assertEquals(5, analysis.requirements().size()),
-                () -> assertTrue(analysis.plan().workspaceDeclaration().isPresent()),
+                () -> assertTrue(analysis.plan().materializations().isEmpty()),
+                () -> assertEquals(4, analysis.requirements().size()),
+                () -> assertEquals(5, candidate.requirements().size()),
+                () -> assertEquals(List.of(8), candidate.plan().materializations().stream()
+                        .map(CpuMaterializationPlan::workspaceRequirementId).toList()),
                 () -> assertThrows(IllegalArgumentException.class,
-                        () -> finalizeExecutable(analysis, Optional.of(artifactRoot))),
+                        () -> finalizeExecutable(candidate, Optional.of(artifactRoot))),
                 () -> assertFalse(Files.exists(artifactRoot)));
     }
 
@@ -292,7 +298,7 @@ public class CpuPartitionFinalizerTest {
             assertAll(() -> assertEquals(2, executable.bufferSelectionCount()),
                     () -> assertEquals(2, executable.memoryPlan().buffers().size()),
                     () -> assertTrue(executable.memoryPlan().workspaces().isEmpty()),
-                    () -> assertEquals(52, io.github.pho001.synaptik.backend.cpu.internal.cache
+                    () -> assertEquals(53, io.github.pho001.synaptik.backend.cpu.internal.cache
                             .CpuGeneratorSchema.CURRENT_VERSION),
                     () -> assertEquals(1, files.filter(path -> path.getFileName().toString()
                             .endsWith(".artifact")).count()));
@@ -335,7 +341,7 @@ public class CpuPartitionFinalizerTest {
             assertAll(() -> assertEquals(2, executable.bufferSelectionCount()),
                     () -> assertEquals(2, executable.memoryPlan().buffers().size()),
                     () -> assertTrue(executable.memoryPlan().workspaces().isEmpty()),
-                    () -> assertEquals(52, io.github.pho001.synaptik.backend.cpu.internal.cache
+                    () -> assertEquals(53, io.github.pho001.synaptik.backend.cpu.internal.cache
                             .CpuGeneratorSchema.CURRENT_VERSION),
                     () -> assertEquals(1, files.filter(path -> path.getFileName().toString()
                             .endsWith(".artifact")).count()));
@@ -405,6 +411,40 @@ public class CpuPartitionFinalizerTest {
         }
         var memoryPlan = new PreparedMemoryPlan(entries, workspaceEntries);
         return (CpuPreparedExecutable) new CpuPartitionFinalizer(root, workerGroup).finalizePartition(
+                new BackendPartitionFinalization<>(analysis, memoryPlan, assignments));
+    }
+
+    public static io.github.pho001.synaptik.runtime.execution.PreparedExecutable finalizePreparedExecutable(
+            io.github.pho001.synaptik.prepare.analysis.BackendPartitionAnalysis<
+                    CpuPartitionPreparationPlan> analysis, Optional<Path> root) {
+        return finalizePreparedExecutable(analysis, root, Optional.empty());
+    }
+
+    public static io.github.pho001.synaptik.runtime.execution.PreparedExecutable finalizePreparedExecutable(
+            io.github.pho001.synaptik.prepare.analysis.BackendPartitionAnalysis<
+                    CpuPartitionPreparationPlan> analysis, Optional<Path> root,
+            Optional<CpuWorkerGroup> workerGroup) {
+        var entries = new ArrayList<PreparedMemoryPlan.BufferEntry>();
+        var assignments = new ArrayList<PreparationResourceAssignment>();
+        var workspaceEntries = new ArrayList<PreparedMemoryPlan.WorkspaceEntry>();
+        for (var any : analysis.requirements()) {
+            if (any instanceof PreparationResourceRequirement.Workspace requirement) {
+                var slot = new WorkspaceSlot(workspaceEntries.size());
+                workspaceEntries.add(new PreparedMemoryPlan.WorkspaceEntry(slot,
+                        requirement.byteSize(), requirement.byteAlignment()));
+                assignments.add(new PreparationResourceAssignment.Workspace(requirement, slot,
+                        workspaceEntries.size() - 1));
+            } else {
+                var requirement = (PreparationResourceRequirement.Buffer) any;
+                var slot = new BufferSlot(entries.size());
+                entries.add(new PreparedMemoryPlan.BufferEntry(slot, requirement.byteSize(),
+                        requirement.byteAlignment()));
+                assignments.add(new PreparationResourceAssignment.Buffer(requirement, slot,
+                        entries.size() - 1));
+            }
+        }
+        var memoryPlan = new PreparedMemoryPlan(entries, workspaceEntries);
+        return new CpuPartitionFinalizer(root, workerGroup).finalizePartition(
                 new BackendPartitionFinalization<>(analysis, memoryPlan, assignments));
     }
 }

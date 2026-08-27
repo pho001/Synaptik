@@ -54,11 +54,13 @@ class CpuShapePolymorphicArtifactTest {
                 Optional.of(LayoutDescriptor.contiguous(shape)), false);
         var policy = new CpuPartitionAnalysisInputs.MaterializationPolicy(
                 true, 0, 1, 20, 1, 2, Long.MAX_VALUE, 1, 1);
-        var route = CpuPartitionPreparerTest.analyze(source, dense, dense, dense,
-                new CpuPartitionAnalysisInputs(false,
+        var inputs = new CpuPartitionAnalysisInputs(false,
                         CpuPartitionAnalysisInputs.DEFAULT.carrierPattern(),
-                        CpuPartitionAnalysisInputs.PortableExecutionConfig.DEFAULT, policy))
-                .plan().units().getFirst().portablePlan();
+                        CpuPartitionAnalysisInputs.PortableExecutionConfig.DEFAULT, policy);
+        var ordinary = CpuPartitionPreparerTest.analyze(source, dense, dense, dense, inputs);
+        assertTrue(ordinary.plan().materializations().isEmpty());
+        var route = CpuPartitionPreparerTest.explicitRepresentationCandidate(ordinary, policy, 0)
+                .plan().representationUnits().getFirst().portablePlan();
         return new Materialized(source, dense, route);
     }
 

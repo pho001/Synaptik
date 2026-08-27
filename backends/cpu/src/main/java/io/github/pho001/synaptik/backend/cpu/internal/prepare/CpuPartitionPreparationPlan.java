@@ -5,6 +5,7 @@ import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuAccessPlan;
 import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuKernelIr;
 import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuSpecializedSubgraph;
 import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuFusionDecision;
+import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuRepresentationDecision;
 import io.github.pho001.synaptik.backend.cpu.internal.cache.CpuKernelSpecialization.CarrierAccess;
 import io.github.pho001.synaptik.model.graph.ValueId;
 import io.github.pho001.synaptik.prepare.analysis.BackendPreparationPlan;
@@ -51,8 +52,8 @@ import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuConv3dLowering
  * @param accessBindings non-null normalized cold geometry in boundary order; copied defensively
  * @param carrierPattern non-null direct carrier forms in boundary order; copied defensively
  * @param generatedCarrierPattern non-null generated consumer carrier forms in boundary order;
- *     differs from {@code carrierPattern} only when the selected copy replaces one input with the
- *     contiguous workspace segment
+ *     differs from {@code carrierPattern} only when this plan realizes an explicitly chosen copy
+ *     candidate by replacing a consumer input with its contiguous workspace segment
  * @param extents non-null cold-bound compatible extents for a one-unit plan, or empty for a
  *     general plan; copied defensively
  * @param elementCount checked logical element count represented by {@code extents}, or zero for a
@@ -107,6 +108,13 @@ import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuConv3dLowering
  * @param publicationBoundaryPositions non-null ordered complete-plan boundary positions whose
  *     authoritative logical-memory requirement is a graph publication; copied defensively and
  *     used only to validate cold decision facts
+ * @param materializations non-null ordered zero-, one-, or two-copy representation work realized
+ *     by this exact plan; ordinary preparation selects direct and therefore leaves this empty
+ * @param representationUnits non-null representation-adjusted generated consumer plans in
+ *     semantic-unit order, empty exactly when this plan realizes no copy candidate
+ * @param representationDecisions non-null bounded closed representation variants and final
+ *     ordinary selection; copied defensively; materialized variants remain candidate-only unless
+ *     a later owner explicitly supplies a compatible complete choice before finalization
  */
 public record CpuPartitionPreparationPlan(List<ExecutionUnitPlan> units, Route route,
         ExecutionStrategy executionStrategy,
@@ -137,7 +145,10 @@ public record CpuPartitionPreparationPlan(List<ExecutionUnitPlan> units, Route r
         Optional<CpuConv2dLowering.Geometry> conv2dGeometry,
         List<CpuSpecializedSubgraph> specializedSubgraphs,
         List<CpuFusionDecision> fusionDecisions,
-        List<Integer> publicationBoundaryPositions)
+        List<Integer> publicationBoundaryPositions,
+        List<CpuMaterializationPlan> materializations,
+        List<RepresentationUnitPlan> representationUnits,
+        List<CpuRepresentationDecision> representationDecisions)
         implements BackendPreparationPlan {
 
     /**
@@ -221,7 +232,7 @@ public record CpuPartitionPreparationPlan(List<ExecutionUnitPlan> units, Route r
                 argExtremaGeometry, maskedReductionGeometry, advancedReductionGeometry,
                 softmaxGeometry, trailingNormalizationGeometry, batchNormInferenceGeometry,
                 batchNormTrainingGeometry, conv2dGeometry, specializedSubgraphs, List.of(),
-                List.of());
+                List.of(), List.of(), List.of(), List.of());
     }
 
     /**
@@ -757,6 +768,29 @@ public record CpuPartitionPreparationPlan(List<ExecutionUnitPlan> units, Route r
         @Override public long[] extents() { return extents.clone(); }
     }
 
+    /**
+     * Representation-adjusted generated consumer facts aligned with one unchanged semantic unit.
+     *
+     * @param unitPosition stable semantic-unit position
+     * @param portablePlan adjusted pointwise route plan
+     * @param accessBindings generated consumer bindings in local boundary order
+     * @param carrierPattern generated consumer carriers in local boundary order
+     */
+    public record RepresentationUnitPlan(int unitPosition, CpuPortableRoutePlan portablePlan,
+            List<CpuAccessPlan.Binding> accessBindings, List<CarrierAccess> carrierPattern) {
+        /** Snapshots one adjusted pointwise consumer plan. */
+        public RepresentationUnitPlan {
+            Objects.requireNonNull(portablePlan, "portablePlan");
+            accessBindings = List.copyOf(accessBindings);
+            carrierPattern = List.copyOf(carrierPattern);
+            if (unitPosition < 0 || unitPosition >= 8 || accessBindings.isEmpty()
+                    || accessBindings.size() != carrierPattern.size()
+                    || !portablePlan.specialization().carrierPattern().equals(carrierPattern)) {
+                throw new IllegalArgumentException("CPU represented unit facts disagree");
+            }
+        }
+    }
+
     /** Returns the closed whole-partition form implied by validated unit cardinality.
      * @return the non-null direct/fused or exact two-unit plan tag
      */
@@ -995,6 +1029,29 @@ public record CpuPartitionPreparationPlan(List<ExecutionUnitPlan> units, Route r
         specializedSubgraphs = List.copyOf(specializedSubgraphs);
         fusionDecisions = List.copyOf(fusionDecisions);
         publicationBoundaryPositions = List.copyOf(publicationBoundaryPositions);
+        materializations = List.copyOf(materializations);
+        representationUnits = List.copyOf(representationUnits);
+        representationDecisions = List.copyOf(representationDecisions);
+        if (materializations.size() > 2
+                || materializations.stream().map(CpuMaterializationPlan::sourceBoundaryIndex)
+                    .distinct().count() != materializations.size()
+                || !materializations.stream().map(CpuMaterializationPlan::workspaceRequirementId)
+                    .toList().equals(java.util.stream.IntStream.range(8,
+                            8 + materializations.size()).boxed().toList())
+                || representationUnits.isEmpty() != materializations.isEmpty()
+                || !representationUnits.isEmpty() && representationUnits.size() != units.size()
+                || representationDecisions.size() > CpuRepresentationDecision.MAX_VARIANTS + 1
+                || !representationDecisions.isEmpty()
+                    && (!(representationDecisions.getLast()
+                            instanceof CpuRepresentationDecision.Selection representationSelection)
+                        || representationDecisions.stream().filter(
+                            CpuRepresentationDecision.Selection.class::isInstance).count() != 1
+                        || !representationSelection.selected().materializations().equals(
+                            materializations.stream().map(CpuMaterializationPlan::identity).toList()))
+                || fusionDecisions.size() + representationDecisions.size()
+                    > CpuRepresentationDecision.MAX_TOTAL_DECISION_FACTS) {
+            throw new IllegalArgumentException("CPU representation plan facts disagree");
+        }
         boolean split = units.size() > 1;
         if (units.isEmpty() || units.size() > 8 || route != Route.PORTABLE
                 || bufferDeclarations.isEmpty()
@@ -1360,7 +1417,7 @@ public record CpuPartitionPreparationPlan(List<ExecutionUnitPlan> units, Route r
         if (fusionDecisions.isEmpty()) validateSpecializedSubgraphs(units, specializedSubgraphs);
         else validateRetainedSpecializedSubgraphs(specializedSubgraphs, fusionDecisions);
         validateFusionDecisions(units, boundaryValues, bufferDeclarations,
-                publicationBoundaryPositions, fusionDecisions);
+                publicationBoundaryPositions, fusionDecisions, representationDecisions);
     }
 
     private static void validateRetainedSpecializedSubgraphs(
@@ -1539,7 +1596,8 @@ public record CpuPartitionPreparationPlan(List<ExecutionUnitPlan> units, Route r
             List<ValueId> boundaryValues,
             List<PreparationResourceRequirement.Buffer> bufferDeclarations,
             List<Integer> publicationBoundaryPositions,
-            List<CpuFusionDecision> decisions) {
+            List<CpuFusionDecision> decisions,
+            List<CpuRepresentationDecision> representationDecisions) {
         if (decisions.isEmpty()) return;
         if (decisions.size() > 384 || !(decisions.getLast() instanceof CpuFusionDecision.Selection selection)) {
             throw new IllegalArgumentException("CPU fusion decision facts are incomplete");
@@ -1593,7 +1651,14 @@ public record CpuPartitionPreparationPlan(List<ExecutionUnitPlan> units, Route r
                     && selection.selected().equals(selection.canonicalSplit())) {
             throw new IllegalArgumentException("CPU selected decision does not match retained plan");
         }
-        String identityMismatch = selectedIdentityMismatch(selected.identity(), units,
+        CpuFusionDecision.CandidateIdentity retainedIdentity = representationDecisions.stream()
+                .filter(CpuRepresentationDecision.Selection.class::isInstance)
+                .map(CpuRepresentationDecision.Selection.class::cast)
+                .map(value -> value.selected().topology()).findFirst().orElse(selected.identity());
+        if (legal.stream().noneMatch(value -> value.identity().equals(retainedIdentity)))
+            throw new IllegalArgumentException(
+                    "CPU represented topology is not an unchanged legal candidate");
+        String identityMismatch = selectedIdentityMismatch(retainedIdentity, units,
                 boundaryValues, bufferDeclarations, publicationBoundaryPositions);
         if (identityMismatch != null) throw new IllegalArgumentException(
                 "CPU selected identity does not recompute from retained units/resources: "
@@ -1650,7 +1715,15 @@ public record CpuPartitionPreparationPlan(List<ExecutionUnitPlan> units, Route r
                 long occurrences = units.stream().flatMap(candidate ->
                         candidate.boundaryValues().stream()).filter(
                                 unit.boundaryValues().get(local)::equals).count();
-                CpuFusionDecision.BoundaryRole role = occurrences > 1
+                boolean producedInside = units.stream().anyMatch(candidate -> {
+                    int candidateLocal = candidate.boundaryValues().indexOf(
+                            unit.boundaryValues().get(localPosition));
+                    if (candidateLocal < 0) return false;
+                    return candidate.portablePlan().kernelIr().values().stream()
+                            .filter(value -> value.kind() != CpuKernelIr.Value.Kind.VIRTUAL)
+                            .toList().get(candidateLocal).kind() == CpuKernelIr.Value.Kind.OUTPUT;
+                });
+                CpuFusionDecision.BoundaryRole role = producedInside && occurrences > 1
                         ? CpuFusionDecision.BoundaryRole.CROSS_UNIT
                         : unit.portablePlan().kernelIr().values().stream()
                             .filter(value -> value.kind() != CpuKernelIr.Value.Kind.VIRTUAL)

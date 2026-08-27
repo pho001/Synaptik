@@ -1513,10 +1513,14 @@ eight-node context is acyclic in producer-before-consumer order. It selects esta
 specialized seeds, performs bounded deterministic vertical and horizontal contraction only for
 ordinary pointwise IR, and retains the complete split topology whenever a contraction is illegal,
 unsupported, or over budget. Every cross-unit or published value is one ordinary buffer keyed by
-its existing `ValueId`; family-intrinsic workspaces use partition-unique final-unit IDs. The
-optional one-input contiguous-copy workspace remains available only for a one-unit plan. Shared
-Prepare sees the plan opaquely and later validates declarations against assigned
-`PreparedMemoryPlan` geometry.
+its existing `ValueId`; family-intrinsic workspaces use partition-unique final-unit IDs.
+CPU-private representation facts additionally retain bounded direct, eligible single-copy, and
+eligible disjoint-consumer pair candidates across FLOAT64, FLOAT32, INT32, INT64, and canonical
+BOOL pointwise work. A materialized candidate uses one anonymous workspace per copied external
+read, not an ordinary graph-split `Buffer(ValueId)`. Compatible repeated and cross-unit uses reuse
+one copy. Shared Prepare sees the selected plan opaquely and later validates declarations against
+assigned `PreparedMemoryPlan` geometry; ordinary preparation selects direct and therefore declares
+none of the candidate-only copy workspaces.
 
 The plan is not a generated artifact, assigned slot, executable, physical resource, per-run
 binding, capability claim, tuning result, registry, or public route API. It fails closed before
@@ -1530,8 +1534,11 @@ structural/resource facts rather than graph, value, slot, class-loader, cache, o
 The plan also stores an immutable projection of boundary positions whose authoritative logical-
 memory requirements have `graphOutput() == true`; validation uses that projection to recompute
 `PUBLICATION` versus `PARTITION_WRITE` instead of trusting the claimed decision role. These facts
-do not participate in generated-artifact identity, schema 52, finalization selection, Runtime
-dispatch, measurement, tuning, or cache state.
+and CPU 0008E representation candidates do not participate in finalization selection, Runtime
+dispatch, measurement, tuning, or cache state. A pair that one represented instruction would
+consume together is retained as a typed `CO_CONSUMED_PAIR` rejection; its singles and eligible
+disjoint-consumer pairs remain candidates. Generated-envelope schema 53 covers the current affine-
+copy body, while ordinary direct generated identity remains stable.
 
 ### CPU portable prepared executable
 
@@ -1726,21 +1733,28 @@ Compiler/Model `SUM_TO_SHAPE` semantics plus later CPU reduction coverage.
 
 ### CPU contiguous materialization plan
 
-The implemented CPU-private immutable decision to copy at most one eligible FLOAT64 read boundary
-of the current pointwise unit into run-owned contiguous workspace. `CpuMaterializationPlan` retains the
-original source boundary identity and normalized binding, a canonical dense consumer binding,
-checked element/byte geometry, analysis-local workspace ID `0`, derived lowered-unit use count,
-expected runs, dimensionless direct/copy/contiguous estimates, positive net benefit, basis-point
-benefit, and a diagnostic selection reason.
+One complete CPU-private external-read copy candidate into a dedicated run-owned contiguous
+workspace. `CpuMaterializationPlan` retains the typed source identity, carrier and normalized
+binding, canonical dense consumer binding, compatible consumer positions and use counts, checked
+element and byte geometry, analysis-local workspace ID 8 or 9, dimensionless cost facts, generated
+affine-copy identity and specialization, and exact affine address pairs. Candidate types are
+FLOAT64, FLOAT32, INT32, INT64, and canonical BOOL; BFLOAT16 remains excluded from pointwise
+materialization because represented-bit movement does not establish its numerical execution.
 
-Analysis enumerates direct plus at most the first three eligible reads in derived boundary order;
-direct wins ties. It rejects
-scalar/all-zero and already-dense sources, unused values, excess additional memory, non-beneficial
-costs, and ineligible consumer forms. A selected plan appends one workspace declaration after all
-derived graph-value buffers. Shared Prepare assigns that workspace opaquely, and CPU finalization
-verifies it before artifact access. The copy completes once per bound invocation before consumer
-work. This plan does not add a graph value, mutate `LogicalMemoryPlan`, measure during prepare,
-select a future tuning-cache entry, or authorize more than one copy.
+CPU analysis retains direct, every eligible single copy, and every eligible pair of distinct
+sources in stable order. One represented instruction consuming both proposed sources produces a
+typed `CO_CONSUMED_PAIR` rejection before ranking. Both corresponding singles and pairs whose
+consumers are disjoint remain complete. Compatible repeated and cross-unit uses of the same exact
+source reuse one copy and workspace. These anonymous external-read workspaces are distinct from
+CPU 0008B's ordinary graph-split `Buffer(ValueId)` resources.
+
+Ordinary enabled preparation retains all complete candidates but selects CPU 0008D's exact direct
+topology with zero copies and `DIRECT_MATERIALIZATION_UNPROVED`; disabled and uncertain policies
+also stay direct with their corresponding typed reasons. A materialized form is candidate-only,
+not incomplete: its resources, generated copy unit, represented consumers, finalization, and
+execution remain reproducible for a future compatible Config, Prepare, CPU, or tuning selection
+based on end-to-end evidence. Runtime never selects, autotunes, or searches candidate
+representations.
 
 ### CPU portable execution strategy
 
@@ -3552,9 +3566,14 @@ of the same prepared buffer. Materialization is that transfer in this context, n
 Runtime operation, allocation, transfer-route search, hidden coherence policy, or property decided
 by `LayoutDescriptor` alone.
 
-The current CPU proving slice also implements one backend-private workspace materialization. It
-copies one selected input into a CPU-owned run workspace before the generated consumer, without
-creating another graph value or Runtime transfer recipe. See [CPU contiguous materialization
+The current CPU proving slice also retains backend-private external-read workspace candidates.
+They cover eligible single copies and disjoint-consumer pairs across FLOAT64, FLOAT32, INT32,
+INT64, and canonical BOOL. A compatible source is copied once for repeated or cross-unit uses; a
+pair consumed together by one represented instruction is rejected as `CO_CONSUMED_PAIR`.
+Ordinary preparation selects direct, while each materialized candidate remains complete for a
+future explicit end-to-end-proved pre-Runtime promotion. Runtime never selects among these forms.
+They create neither a graph value nor a Runtime transfer recipe and are distinct from CPU 0008B
+graph-split `Buffer(ValueId)` resources. See [CPU contiguous materialization
 plan](#cpu-contiguous-materialization-plan).
 
 The CPU affine family performs a different boundary materialization: after folding eligible

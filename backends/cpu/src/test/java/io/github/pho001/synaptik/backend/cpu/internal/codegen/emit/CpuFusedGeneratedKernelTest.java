@@ -186,7 +186,7 @@ class CpuFusedGeneratedKernelTest {
         }
     }
 
-    @Test void selectedCopiesMatchReferenceForEverySourceRegimeAndStrategy() {
+    @Test void retainedCandidateCopiesMatchReferenceForEverySourceRegimeAndStrategy() {
         var configs = List.of(
                 new PortableExecutionConfig(ComputePreference.SCALAR, 1, 1, 1),
                 new PortableExecutionConfig(ComputePreference.VECTOR_IF_ELIGIBLE, 1, 1, 1),
@@ -218,9 +218,12 @@ class CpuFusedGeneratedKernelTest {
         var analysis = CpuPartitionPreparerTest.analyze(a, b, c, output,
                 new CpuPartitionAnalysisInputs(false,
                         CpuPartitionAnalysisInputs.DEFAULT.carrierPattern(), config, policy));
+        assertTrue(analysis.plan().materializations().isEmpty());
+        var candidate = CpuPartitionPreparerTest.explicitRepresentationCandidate(
+                analysis, policy, expectedSource);
         assertEquals(expectedSource,
-                analysis.plan().materialization().orElseThrow().sourceBoundaryIndex());
-        executeAnalysis(analysis);
+                candidate.plan().materializations().getFirst().sourceBoundaryIndex());
+        executeAnalysis(candidate);
     }
 
     private static void executeVectorCase(TensorDescriptor first, Shape target) {
@@ -259,9 +262,8 @@ class CpuFusedGeneratedKernelTest {
                     analysis) {
         CpuWorkerGroup workers = analysis.plan().selectedRangeCount() >= 2
                 ? new CpuWorkerGroup(analysis.plan().selectedRangeCount()) : null;
-        var fullExecutable = CpuPartitionFinalizerTest.finalizeExecutable(analysis, Optional.empty(),
-                Optional.ofNullable(workers));
-        var executable = fullExecutable.forRange(1, fullExecutable.binding().elementCount() - 1);
+        var executable = CpuPartitionFinalizerTest.finalizePreparedExecutable(analysis,
+                Optional.empty(), Optional.ofNullable(workers));
         DataType dataType = analysis.plan().units().getFirst().portablePlan().specialization()
                 .boundaryDataTypes().getFirst();
         int width = dataType.byteWidth();
@@ -281,10 +283,10 @@ class CpuFusedGeneratedKernelTest {
                     value + offset / (double) width + 0.25);
         }
         List<io.github.pho001.synaptik.runtime.resource.WorkspaceRepresentation> workspaces =
-                executable.memoryPlan().workspaces().isEmpty() ? List.of()
-                : List.of(CpuContiguousWorkspace.allocate(
-                        executable.memoryPlan().workspaces().getFirst().byteSize(),
-                        executable.memoryPlan().workspaces().getFirst().byteAlignment()));
+                executable.memoryPlan().workspaces().stream().map(entry ->
+                        CpuContiguousWorkspace.allocate(entry.byteSize(), entry.byteAlignment()))
+                    .map(io.github.pho001.synaptik.runtime.resource.WorkspaceRepresentation.class::cast)
+                    .toList();
         var state = new RunState(executable.memoryPlan(), runtimeBindings, workspaces);
         try {
             executable.bind(state).execute();
@@ -297,15 +299,12 @@ class CpuFusedGeneratedKernelTest {
                 if (dataType == DataType.FLOAT32) buffers.get(3).segment().set(FLOAT, i * 4L, 0);
                 else buffers.get(3).segment().set(DOUBLE, i * 8L, 0);
             }
-            var referenceBindings = new ArrayList<>(executable.accessBindings());
-            analysis.plan().materialization().ifPresent(copy -> referenceBindings.set(
-                    copy.sourceBoundaryIndex(), ranged(copy.sourceBinding(),
-                            executable.binding().start(), executable.binding().end())));
+            var referenceBindings = new ArrayList<>(analysis.plan().units().getFirst()
+                    .accessBindings());
             CpuScalarReferenceKernel.execute(
                     analysis.plan().units().getFirst().portablePlan().kernelIr(),
                     buffers.stream().map(buffer -> buffer.argument()).toList(),
-                    referenceBindings, executable.binding().start(),
-                    executable.binding().end());
+                    referenceBindings, 0, analysis.plan().units().getFirst().elementCount());
             for (int i = 0; i < outputLength; i++) {
                 double expected = dataType == DataType.FLOAT32
                         ? buffers.get(3).segment().get(FLOAT, i * 4L)

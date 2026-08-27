@@ -29,7 +29,9 @@ import java.util.Optional;
  * Stateless CPU-private owner of complete-topology identity, deterministic integer profitability
  * ranking, and safe split fallback. It reads only immutable cold analysis facts and performs no
  * measurement, cache access, environment lookup, persistence, generated-code selection, or
- * Runtime work.
+ * Runtime work. The unchanged margin and structural-pressure constants are also the required
+ * topology guardrails when {@link CpuRepresentationPlanner} composes representation costs with
+ * these already-legal topology scores.
  */
 public final class CpuFusionProfitabilitySelector {
     /** Required score improvement before a fused candidate may replace canonical split. */

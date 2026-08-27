@@ -26,7 +26,10 @@ import java.util.LinkedHashMap;
  * realizes one already-selected artifact per unit in stable order. It cannot change unit
  * topology, dependencies, materialization, generated carrier patterns, route, strategy,
  * specialization, or declaration geometry. A multi-unit result is wrapped in one CPU-private
- * atomic sequential composite; a one-unit result remains the direct child recipe.</p>
+ * atomic sequential composite; a one-unit result remains the direct child recipe. When the exact
+ * analyzed plan contains an explicitly chosen representation candidate, finalization also
+ * realizes its one or two generated affine-copy artifacts before consumer artifacts. It does not
+ * select among retained candidates.</p>
  */
 public final class CpuPartitionFinalizer implements BackendPartitionFinalizer<CpuPartitionPreparationPlan> {
     private final CpuGeneratedKernelArtifactStore artifactStore;
@@ -100,10 +103,10 @@ public final class CpuPartitionFinalizer implements BackendPartitionFinalizer<Cp
         if (bufferAssignments != plan.bufferDeclarations().size()) {
             throw new IllegalArgumentException("CPU finalization requires the exact buffer set");
         }
-        var workspaceDeclarations = plan.units().size() == 1
-                ? plan.workspaceDeclaration().stream().toList()
-                : plan.units().stream().map(CpuPartitionPreparationPlan.ExecutionUnitPlan::runtimeFacts)
-                    .flatMap(facts -> facts.workspaceDeclaration().stream()).toList();
+        var workspaceDeclarations = finalization.analysis().requirements().stream()
+                .filter(io.github.pho001.synaptik.prepare.analysis.PreparationResourceRequirement.Workspace.class::isInstance)
+                .map(io.github.pho001.synaptik.prepare.analysis.PreparationResourceRequirement.Workspace.class::cast)
+                .toList();
         var workspaceSelections = new LinkedHashMap<io.github.pho001.synaptik.prepare.analysis.PreparationResourceRequirement.Workspace,
                 PreparedExecutable.WorkspaceSelection>();
         for (var declaration : workspaceDeclarations) {
@@ -127,7 +130,7 @@ public final class CpuPartitionFinalizer implements BackendPartitionFinalizer<Cp
         if (assignedWorkspaces != workspaceDeclarations.size()) {
             throw new IllegalArgumentException("CPU finalization requires the exact workspace set");
         }
-        if (plan.units().size() > 1) {
+        if (plan.units().size() > 1 || !plan.materializations().isEmpty()) {
             return finalizeComposite(finalization, selections, workspaceSelections);
         }
         var unit = plan.units().getFirst();
@@ -179,13 +182,34 @@ public final class CpuPartitionFinalizer implements BackendPartitionFinalizer<Cp
             selectedWorkers.add(workers(unit));
         }
         var children = new ArrayList<CpuPreparedExecutable>();
+        var copyUnits = new ArrayList<CpuPreparedPartitionExecutable.CopyUnit>();
+        var orderedWorkspaces = List.copyOf(workspaceSelections.keySet());
+        for (var copy : plan.materializations()) {
+            var declaration = orderedWorkspaces.stream().filter(value ->
+                    value.requirementId() == copy.workspaceRequirementId()).findFirst()
+                    .orElseThrow(() -> new IllegalArgumentException(
+                            "copy workspace declaration is absent"));
+            var artifact = artifactStore.loadOrGenerate(copy.copySpecialization(),
+                    copy.copyIr().encodedKernelIr());
+            copyUnits.add(new CpuPreparedPartitionExecutable.CopyUnit(copy, artifact,
+                    copy.sourceBoundaryIndex(), orderedWorkspaces.indexOf(declaration)));
+        }
         for (int index = 0; index < plan.units().size(); index++) {
+            int unitIndex = index;
             var unit = plan.units().get(index);
-            var artifact = artifactStore.loadOrGenerate(unit.portablePlan().specialization(),
-                    unit.portablePlan().kernelIr());
-            children.add(unitExecutable(finalization, unit, localSelections.get(index), artifact,
-                    selectedWorkers.get(index), unit.runtimeFacts().workspaceDeclaration()
-                        .map(workspaceSelections::get)));
+            var represented = plan.representationUnits().isEmpty() ? null
+                    : plan.representationUnits().get(index);
+            var route = represented == null ? unit.portablePlan() : represented.portablePlan();
+            var artifact = artifactStore.loadOrGenerate(route.specialization(), route.kernelIr());
+            var consumedCopies = plan.materializations().stream().filter(copy -> copy.consumers()
+                    .stream().anyMatch(value -> value.unitPosition() == unitIndex)).toList();
+            children.add(unitExecutable(finalization, unit, represented,
+                    localSelections.get(index), artifact, selectedWorkers.get(index),
+                    unit.runtimeFacts().workspaceDeclaration().map(workspaceSelections::get),
+                    consumedCopies, consumedCopies.stream().map(copy -> orderedWorkspaces.stream()
+                            .filter(value -> value.requirementId()
+                                    == copy.workspaceRequirementId()).findFirst().orElseThrow())
+                            .map(workspaceSelections::get).toList()));
         }
         var writeValues = new java.util.HashSet<io.github.pho001.synaptik.model.graph.ValueId>();
         for (var unit : plan.units()) writeValues.addAll(unit.boundaryValues().subList(
@@ -194,7 +218,7 @@ public final class CpuPartitionFinalizer implements BackendPartitionFinalizer<Cp
                 ? PreparedExecutable.BufferAccess.WRITE_ONLY
                 : PreparedExecutable.BufferAccess.READ_ONLY).toList();
         return new CpuPreparedPartitionExecutable(finalization.memoryPlan(), outerSelections,
-                List.copyOf(workspaceSelections.values()), accesses, children,
+                List.copyOf(workspaceSelections.values()), accesses, copyUnits, children,
                 plan.units().stream().map(CpuPartitionPreparationPlan.ExecutionUnitPlan::dependencies)
                     .toList());
     }
@@ -212,14 +236,20 @@ public final class CpuPartitionFinalizer implements BackendPartitionFinalizer<Cp
     private static CpuPreparedExecutable unitExecutable(
             BackendPartitionFinalization<CpuPartitionPreparationPlan> finalization,
             CpuPartitionPreparationPlan.ExecutionUnitPlan unit,
+            CpuPartitionPreparationPlan.RepresentationUnitPlan represented,
             List<PreparedExecutable.BufferSelection> selections,
             io.github.pho001.synaptik.backend.cpu.internal.codegen.emit.CpuGeneratedKernel artifact,
-            CpuWorkerGroup workers, Optional<PreparedExecutable.WorkspaceSelection> workspace) {
+            CpuWorkerGroup workers, Optional<PreparedExecutable.WorkspaceSelection> workspace,
+            List<io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuMaterializationPlan> copies,
+            List<PreparedExecutable.WorkspaceSelection> copyWorkspaces) {
         var facts = unit.runtimeFacts();
+        var bindings = represented == null ? unit.accessBindings() : represented.accessBindings();
+        var generatedCarriers = represented == null ? unit.generatedCarrierPattern()
+                : represented.carrierPattern();
         return new CpuPreparedExecutable(finalization.memoryPlan(), selections, artifact,
-                unit.accessBindings(), unit.carrierPattern(), unit.generatedCarrierPattern(),
+                bindings, unit.carrierPattern(), generatedCarriers,
                 0, unit.elementCount(), unit.selectedRangeCount(),
-                unit.minimumElementsPerWorker(), workers, facts.materialization(), workspace,
+                unit.minimumElementsPerWorker(), workers, workspace, copies, copyWorkspaces,
                 unit.portablePlan().portableKernelIr()
                         instanceof io.github.pho001.synaptik.backend.cpu.internal.ir.CpuAffineCopyIr
                         ? facts.affineAddressPairs() : null,

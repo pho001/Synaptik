@@ -2,6 +2,10 @@ package io.github.pho001.synaptik.backend.cpu.internal.codegen.emit;
 
 import static org.junit.jupiter.api.Assertions.*;
 import io.github.pho001.synaptik.backend.cpu.internal.cache.CpuKernelSpecialization.CarrierAccess;
+import io.github.pho001.synaptik.backend.cpu.internal.cache.CpuKernelSpecialization;
+import io.github.pho001.synaptik.backend.cpu.internal.cache.CpuLoweringFingerprint;
+import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuAccessPlan;
+import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuAffineCopyIr;
 import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuAffineLayoutLoweringTest;
 import io.github.pho001.synaptik.backend.cpu.internal.memory.CpuBorrowedBuffer;
 import io.github.pho001.synaptik.backend.cpu.internal.memory.CpuNativeBuffer;
@@ -26,6 +30,57 @@ import java.lang.reflect.AccessFlag;
 import org.junit.jupiter.api.Test;
 
 class CpuAffineCopyGeneratedKernelTest {
+    @Test void provedDenseSegmentResultLoadsInitialAddressOnceAndAdvancesForSubranges()
+            throws Throwable {
+        var read = new CpuAccessPlan(CpuAccessPlan.AccessKind.READ,
+                CpuAccessPlan.Regime.GENERAL_ODOMETER, 1,
+                List.of(CpuAccessPlan.AxisRole.STRIDED), 0);
+        var write = new CpuAccessPlan(CpuAccessPlan.AccessKind.WRITE,
+                CpuAccessPlan.Regime.DENSE_LINEAR, 1,
+                List.of(CpuAccessPlan.AxisRole.CONTIGUOUS), 1);
+        var affine = new CpuAffineCopyIr(DataType.FLOAT64, read, write,
+                List.of(new CpuAffineCopyIr.MappingStep(CpuAffineCopyIr.MappingKind.CONTIGUOUS,
+                        1, 1, List.of())), CpuAffineCopyIr.WriteDomain.LOGICAL_ELEMENTS);
+        var specialization = new CpuKernelSpecialization(
+                CpuLoweringFingerprint.fromHex(affine.structuralKey()),
+                CpuKernelSpecialization.NumericalMode.EXACT_DEFAULT,
+                CpuPartitionPreparationPlan.ExecutionStrategy.SCALAR,
+                List.of(DataType.FLOAT64, DataType.FLOAT64),
+                List.of(CarrierAccess.DOUBLE_ARRAY, CarrierAccess.MEMORY_SEGMENT),
+                0, -1, List.of(), false);
+        var generator = new CpuClassFileKernelGenerator();
+        assertTrue(CpuAffineCopyEmitter.ownsGeneralLongDenseResultCarrierAccess(
+                specialization, affine.encodedKernelIr()));
+        byte[] bytes = generator.generateClassBytes(specialization, affine.encodedKernelIr());
+        var artifact = generator.defineClassBytes(specialization, bytes);
+        double[] source = {10, 20, 30, 40, 50, 60};
+        long[] geometry = {5, 4, 4, 5, 3, 6, 2, 700, 1, 800, 0, 900};
+        try (var arena = java.lang.foreign.Arena.ofConfined()) {
+            MemorySegment result = arena.allocate(12 * 8L, 8);
+            artifact.entryPoint().invokeExact(source, result, geometry, 2L, 5L);
+            assertAll(
+                    () -> assertEquals(40, result.get(ValueLayout.JAVA_DOUBLE, 6 * 8L)),
+                    () -> assertEquals(30, result.get(ValueLayout.JAVA_DOUBLE, 7 * 8L)),
+                    () -> assertEquals(20, result.get(ValueLayout.JAVA_DOUBLE, 8 * 8L)),
+                    () -> assertEquals(0, result.get(ValueLayout.JAVA_DOUBLE, 9 * 8L)));
+            assertDoesNotThrow(() -> artifact.entryPoint().invokeWithArguments(
+                    source, result, geometry, 6L, 6L));
+        }
+        var code = ClassFile.of().parse(bytes).methods().getFirst().code().orElseThrow();
+        String constants = new String(bytes, StandardCharsets.ISO_8859_1);
+        assertAll(
+                () -> assertEquals(2, opcodeCount(code, Opcode.LALOAD)),
+                () -> assertEquals(1, opcodeCount(code, Opcode.IFGE)),
+                () -> assertEquals(1, opcodeCount(code, Opcode.IFLT)),
+                () -> assertEquals(0, opcodeCount(code, Opcode.GOTO)),
+                () -> assertEquals(0, opcodeCount(code, Opcode.ASTORE)),
+                () -> assertEquals(0, opcodeCount(code, Opcode.NEW)),
+                () -> assertEquals(0, opcodeCount(code, Opcode.ANEWARRAY)),
+                () -> assertEquals(0, opcodeCount(code, Opcode.NEWARRAY)),
+                () -> assertFalse(constants.contains("nativeOrder")),
+                () -> assertFalse(constants.contains("withOrder")));
+    }
+
     @Test void guardedFrozenBfloat16PermuteSlicePreservesRangesAndRetainsFallback()
             throws Throwable {
         var analysis = new CpuPartitionPreparer().analyze(
@@ -33,6 +88,8 @@ class CpuAffineCopyGeneratedKernelTest {
         var route = analysis.plan().units().getFirst().portablePlan();
         var generator = new CpuClassFileKernelGenerator();
         byte[] bytes = generator.generateClassBytes(route.specialization(), route.kernelIr());
+        assertFalse(CpuAffineCopyEmitter.ownsGeneralLongDenseResultCarrierAccess(
+                route.specialization(), route.kernelIr()));
         var artifact = generator.defineClassBytes(route.specialization(), bytes);
         long[] geometry = analysis.plan().affineAddressPairs();
         int count = 256 * 32 * 32;
@@ -108,6 +165,13 @@ class CpuAffineCopyGeneratedKernelTest {
         var generator = new CpuClassFileKernelGenerator();
         var denseRoute = denseAnalysis.plan().units().getFirst().portablePlan();
         var generalRoute = generalAnalysis.plan().units().getFirst().portablePlan();
+        assertAll(
+                () -> assertFalse(CpuAffineCopyEmitter
+                        .ownsGeneralLongDenseResultCarrierAccess(denseRoute.specialization(),
+                                denseRoute.kernelIr())),
+                () -> assertFalse(CpuAffineCopyEmitter
+                        .ownsGeneralLongDenseResultCarrierAccess(generalRoute.specialization(),
+                                generalRoute.kernelIr())));
         var dense = ClassFile.of().parse(generator.generateClassBytes(
                 denseRoute.specialization(), denseRoute.kernelIr()))
                 .methods().getFirst().code().orElseThrow();

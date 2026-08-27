@@ -8,6 +8,7 @@ import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuPartitionDagDe
 import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuSpecializedSubgraphRecognizer;
 import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuFusionProfitabilitySelector;
 import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuMaterializationPlan;
+import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuRepresentationPlanner;
 import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuAccessPlan;
 import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuKernelIr;
 import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuSpecializedSubgraph;
@@ -30,9 +31,14 @@ import jdk.incubator.vector.ByteVector;
 
 /**
  * Whole-partition CPU analysis entry for the current bounded static portable families.
- * Analysis deterministically compares direct access with at most three one-input contiguous-copy
- * candidates, then selects scalar or preferred-species vector compute and single-thread or
- * bounded parallel orchestration before shared resource assignment. Exact vector eligibility is
+ * Analysis retains complete direct, eligible single-copy, and eligible disjoint-consumer pair
+ * representation candidates for FLOAT64, FLOAT32, INT32, INT64, and canonical BOOL pointwise
+ * work. It rejects a pair when one represented instruction consumes both copied sources, and one
+ * compatible copy identity may serve repeated or cross-unit consumers. Ordinary preparation
+ * selects the exact CPU 0008D direct topology with no representation-copy resources; retained
+ * materialized forms remain complete candidate data for later explicit pre-Runtime promotion.
+ * Analysis then selects scalar or preferred-species vector compute and single-thread or bounded
+ * parallel orchestration before shared resource assignment. Exact vector eligibility is
  * typed across floating, signed-integral, canonical-BOOL, and narrowly virtual floating-mask
  * topologies; direct power and unsafe mask storage remain scalar. Analysis measures nothing and
  * performs no artifact or persistence access. Static affine chains instead retain scalar compute,
@@ -62,6 +68,8 @@ public final class CpuPartitionPreparer implements BackendPartitionPreparer<
             new CpuSpecializedSubgraphRecognizer();
     private final CpuFusionProfitabilitySelector selector =
             new CpuFusionProfitabilitySelector();
+    private final CpuRepresentationPlanner representationPlanner =
+            new CpuRepresentationPlanner();
 
     /** Creates a preparer with the permanent common lowering owner. */
     public CpuPartitionPreparer() { this(new CpuPartitionLowering()); }
@@ -116,9 +124,76 @@ public final class CpuPartitionPreparer implements BackendPartitionPreparer<
         }
         CpuFusionProfitabilitySelector.Result selected = selector.select(context, enumeration,
                 candidates);
-        int selectedIndex = candidates.indexOf(selected.selected());
-        return withMetadata(context, analyses.get(selectedIndex), recognition,
-                selected.decisions());
+        CpuRepresentationPlanner.Result representation = representationPlanner.select(context,
+                candidates, selected.decisions());
+        BackendPartitionAnalysis<CpuPartitionPreparationPlan> represented = withRepresentation(
+                analyses.get(representation.candidateIndex()), representation);
+        return withMetadata(context, represented, recognition, selected.decisions());
+    }
+
+    private static BackendPartitionAnalysis<CpuPartitionPreparationPlan> withRepresentation(
+            BackendPartitionAnalysis<CpuPartitionPreparationPlan> analysis,
+            CpuRepresentationPlanner.Result representation) {
+        var plan = analysis.plan();
+        var representedUnits = new ArrayList<CpuPartitionPreparationPlan.RepresentationUnitPlan>();
+        for (int unitIndex = 0; !representation.materializations().isEmpty()
+                && unitIndex < plan.units().size(); unitIndex++) {
+            int representedUnitIndex = unitIndex;
+            var unit = plan.units().get(unitIndex);
+            var bindings = new ArrayList<>(unit.accessBindings());
+            var carriers = new ArrayList<>(unit.generatedCarrierPattern());
+            CpuKernelIr ir = (CpuKernelIr) unit.portablePlan().portableKernelIr();
+            boolean changed = false;
+            for (CpuMaterializationPlan copy : representation.materializations()) {
+                for (var consumer : copy.consumers()) {
+                    if (consumer.unitPosition() != unitIndex) continue;
+                    bindings.set(consumer.boundaryPosition(), copy.consumerBinding());
+                    carriers.set(consumer.boundaryPosition(),
+                            CpuKernelSpecialization.CarrierAccess.MEMORY_SEGMENT);
+                    ir = adjustedIr(ir, consumer.boundaryPosition(),
+                            copy.consumerBinding().plan());
+                    changed = true;
+                }
+            }
+            CpuPortableRoutePlan route = unit.portablePlan();
+            if (changed) {
+                var old = route.specialization();
+                var specialization = new CpuKernelSpecialization(
+                        CpuLoweringFingerprint.fromHex(ir.structuralKey()), old.numericalMode(),
+                        old.executionStrategy(), old.boundaryDataTypes(), carriers,
+                        old.vectorSpeciesBitSize(), representation.materializations().size() == 1
+                            ? representation.materializations().getFirst().consumers().stream()
+                                .filter(value -> value.unitPosition() == representedUnitIndex)
+                                .mapToInt(value -> value.boundaryPosition()).findFirst().orElse(-1)
+                            : -1,
+                        old.scalarPowerRealizations(), old.scratchParameter());
+                route = new CpuPortableRoutePlan(ir, specialization);
+            }
+            representedUnits.add(new CpuPartitionPreparationPlan.RepresentationUnitPlan(unitIndex,
+                    route, bindings, carriers));
+        }
+        var requirements = new ArrayList<PreparationResourceRequirement>(analysis.requirements());
+        for (CpuMaterializationPlan copy : representation.materializations()) requirements.add(
+                new PreparationResourceRequirement.Workspace(copy.workspaceRequirementId(),
+                        copy.byteCount(), copy.byteAlignment()));
+        var representedPlan = new CpuPartitionPreparationPlan(plan.units(), plan.route(),
+                plan.executionStrategy(), plan.bufferDeclarations(), plan.boundaryValues(),
+                plan.accessBindings(), plan.carrierPattern(), plan.generatedCarrierPattern(),
+                plan.extents(), plan.elementCount(), plan.affineAddressPairs(),
+                plan.selectedRangeCount(), plan.minimumElementsPerWorker(),
+                plan.vectorSpeciesBitSize(), plan.loweringManifest(), plan.materialization(),
+                plan.workspaceDeclaration(), plan.workspaceUse(), plan.specializationBudget(),
+                plan.movementGeometry(), plan.indexingGeometry(), plan.scatterGeometry(),
+                plan.foldGeometry(), plan.orderingGeometry(), plan.randomGeometry(),
+                plan.scanGeometry(), plan.aggregateGeometry(), plan.argExtremaGeometry(),
+                plan.maskedReductionGeometry(), plan.advancedReductionGeometry(),
+                plan.softmaxGeometry(), plan.trailingNormalizationGeometry(),
+                plan.batchNormInferenceGeometry(), plan.batchNormTrainingGeometry(),
+                plan.conv2dGeometry(), plan.specializedSubgraphs(), plan.fusionDecisions(),
+                plan.publicationBoundaryPositions(), representation.materializations(),
+                representation.materializations().isEmpty() ? List.of() : representedUnits,
+                representation.decisions());
+        return new BackendPartitionAnalysis<>(analysis.partition(), representedPlan, requirements);
     }
 
     private BackendPartitionAnalysis<CpuPartitionPreparationPlan> analyzeTopology(
@@ -193,7 +268,9 @@ public final class CpuPartitionPreparer implements BackendPartitionPreparer<
                 plan.maskedReductionGeometry(), plan.advancedReductionGeometry(),
                 plan.softmaxGeometry(), plan.trailingNormalizationGeometry(),
                 plan.batchNormInferenceGeometry(), plan.batchNormTrainingGeometry(),
-                plan.conv2dGeometry(), facts, decisions, publicationBoundaryPositions);
+                plan.conv2dGeometry(), facts, decisions, publicationBoundaryPositions,
+                plan.materializations(), plan.representationUnits(),
+                plan.representationDecisions());
         return new BackendPartitionAnalysis<>(analysis.partition(), enriched,
                 analysis.requirements());
     }
@@ -282,9 +359,7 @@ public final class CpuPartitionPreparer implements BackendPartitionPreparer<
                 instanceof io.github.pho001.synaptik.backend.cpu.internal.ir.CpuConv2dIr;
         boolean conv3d = lowered.portableKernelIr()
                 instanceof io.github.pho001.synaptik.backend.cpu.internal.ir.CpuConv3dIr;
-        Optional<CpuMaterializationPlan> materialization = !allowMaterialization || movement || indexing || scatter || fold || ordering || random || scan || aggregate || argExtrema || maskedReduction || advancedReduction || softmax || trailingNormalization || batchNormalization || batchNormTraining || conv2d || conv3d ? Optional.empty()
-                : selectMaterialization(lowered, context.backendInputs().materializationPolicy(),
-                        workspaceRequirementId);
+        Optional<CpuMaterializationPlan> materialization = Optional.empty();
         var declarations = new ArrayList<PreparationResourceRequirement.Buffer>(lowered.boundaryValues().size());
         for (int i = 0; i < lowered.boundaryValues().size(); i++) declarations.add(
                 new PreparationResourceRequirement.Buffer(lowered.boundaryValues().get(i),
@@ -651,53 +726,6 @@ public final class CpuPartitionPreparer implements BackendPartitionPreparer<
             generated.putIfAbsent(unit.boundaryValues().get(i),
                     unit.generatedCarrierPattern().get(i));
         }
-    }
-
-    private static Optional<CpuMaterializationPlan> selectMaterialization(
-            CpuPartitionLowering.LoweredPartition lowered,
-            CpuPartitionAnalysisInputs.MaterializationPolicy policy, int workspaceRequirementId) {
-        if (!policy.enabled()) return Optional.empty();
-        long elements = lowered.elementCount();
-        long bytes = Math.multiplyExact(elements, Double.BYTES);
-        if (bytes > policy.maximumAdditionalBytes()) return Optional.empty();
-        CpuMaterializationPlan best = null;
-        int considered = 0;
-        for (int index = 0; index < lowered.boundaryValues().size() - 1 && considered < 3; index++) {
-            int sourceOrdinal = index;
-            CpuAccessPlan.Binding source = lowered.accessBindings().get(index);
-            if (lowered.boundaryDataTypes().get(index) != DataType.FLOAT64) continue;
-            if (source.plan().regime() == CpuAccessPlan.Regime.SCALAR_ALL_ZERO
-                    || source.plan().regime() == CpuAccessPlan.Regime.DENSE_LINEAR) continue;
-            considered++;
-            long useCount = lowered.kernelIr().instructions().stream()
-                    .flatMap(instruction -> instruction.inputs().stream())
-                    .filter(ordinal -> ordinal == sourceOrdinal)
-                    .count();
-            if (useCount == 0) continue;
-            long directKernel = Math.multiplyExact(elements,
-                    policy.directKernelCostUnitsPerElement());
-            long contiguousKernel = Math.multiplyExact(elements,
-                    policy.contiguousKernelCostUnitsPerElement());
-            long copy = Math.addExact(policy.copyFixedCostUnits(), Math.multiplyExact(elements,
-                    policy.copyCostUnitsPerElement()));
-            long direct = Math.multiplyExact(policy.expectedRunCount(),
-                    Math.multiplyExact(useCount, directKernel));
-            long copied = Math.multiplyExact(policy.expectedRunCount(),
-                    Math.addExact(copy, Math.multiplyExact(useCount, contiguousKernel)));
-            if (direct == 0 || copied >= direct) continue;
-            long benefit = Math.subtractExact(direct, copied);
-            int basisPoints = Math.toIntExact(Math.floorDiv(
-                    Math.multiplyExact(10_000L, benefit), direct));
-            if (benefit < policy.minimumNetBenefitCostUnits()
-                    || basisPoints < policy.minimumBenefitBasisPoints()) continue;
-            CpuAccessPlan.Binding dense = denseBinding(lowered.extents(), elements);
-            var candidate = new CpuMaterializationPlan(index, lowered.boundaryValues().get(index),
-                    source, dense, elements, bytes, workspaceRequirementId, Double.BYTES, useCount,
-                    policy.expectedRunCount(), direct, copy, contiguousKernel, copied, benefit,
-                    basisPoints, "selected: lower estimated total cost after all hard gates");
-            if (best == null || copied < best.copiedTotalCost()) best = candidate;
-        }
-        return Optional.ofNullable(best);
     }
 
     private static List<CpuKernelIr.PowerRealization> powerRealizations(CpuKernelIr kernelIr) {

@@ -1,11 +1,16 @@
 package io.github.pho001.synaptik.backend.cpu.internal.prepare;
 
+import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuMaterializationPlan;
+
 import static org.junit.jupiter.api.Assertions.*;
 
 import io.github.pho001.synaptik.backend.cpu.CpuCapabilityProvider;
 import io.github.pho001.synaptik.backend.cpu.internal.cache.CpuKernelSpecialization;
 import io.github.pho001.synaptik.backend.cpu.internal.cache.CpuLoweringFingerprint;
 import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuSpecializedSubgraph;
+import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuAccessPlan;
+import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuAffineCopyIr;
+import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuRepresentationDecision;
 import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuSpecializedSubgraph.BaselineExecutionFact;
 import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuSpecializedSubgraph.BaselineUnitFact;
 import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuSpecializedSubgraph.ReductionEpilogue;
@@ -363,7 +368,7 @@ public class CpuPartitionPreparerTest {
                 () -> assertTrue(initial.workspaceDeclaration().isEmpty()),
                 () -> assertTrue(dropout.workspaceDeclaration().isEmpty()),
                 () -> assertTrue(dropout.randomGeometry().isPresent()),
-                () -> assertEquals(52, io.github.pho001.synaptik.backend.cpu.internal.cache
+                () -> assertEquals(53, io.github.pho001.synaptik.backend.cpu.internal.cache
                         .CpuGeneratorSchema.CURRENT_VERSION));
     }
     @Test void foldDeclaresExactlyTwoBuffersOneArtifactAndNoWorkspaceOrMaterialization() {
@@ -654,17 +659,33 @@ public class CpuPartitionPreparerTest {
                 new CpuPartitionAnalysisInputs(false,
                         CpuPartitionAnalysisInputs.DEFAULT.carrierPattern(),
                         PortableExecutionConfig.DEFAULT, eligible));
-        var copy = selected.plan().materialization().orElseThrow();
+        var selection = (CpuRepresentationDecision.Selection) selected.plan()
+                .representationDecisions().getLast();
+        var variant = selected.plan().representationDecisions().stream()
+                .filter(CpuRepresentationDecision.Variant.class::isInstance)
+                .map(CpuRepresentationDecision.Variant.class::cast)
+                .filter(value -> value.identity().topology().equals(
+                        selection.selected().topology()))
+                .filter(value -> value.identity().materializations().stream().map(
+                        CpuRepresentationDecision.MaterializationIdentity
+                                ::sourceBoundaryPosition).toList().equals(List.of(0)))
+                .findFirst().orElseThrow();
+        var copy = variant.identity().materializations().getFirst();
         assertAll(
-                () -> assertEquals(0, copy.sourceBoundaryIndex()),
-                () -> assertEquals(1, copy.useCount()),
-                () -> assertEquals(3, copy.expectedRunCount()),
-                () -> assertEquals(360, copy.directCost()),
-                () -> assertEquals(63, copy.copiedTotalCost()),
-                () -> assertEquals(8_250, copy.benefitBasisPoints()),
+                () -> assertTrue(selected.plan().materializations().isEmpty()),
+                () -> assertTrue(selection.selected().materializations().isEmpty()),
+                () -> assertEquals(CpuRepresentationDecision.SelectionReason
+                                .DIRECT_MATERIALIZATION_UNPROVED, selection.reason()),
+                () -> assertEquals(0, copy.sourceBoundaryPosition()),
+                () -> assertEquals(1, copy.instructionUseCount()),
+                () -> assertEquals(360, variant.selectedDirectCost().orElseThrow()),
+                () -> assertEquals(63, variant.selectedCopiedCost().orElseThrow()),
+                () -> assertEquals(8_250, variant.benefitBasisPoints().orElseThrow()),
                 () -> assertEquals(List.of(new ValueId(0), new ValueId(1), new ValueId(2),
                         new ValueId(5)), selected.plan().boundaryValues()),
-                () -> assertEquals(5, selected.requirements().size()));
+                () -> assertEquals(8, copy.workspaceRequirementId()),
+                () -> assertEquals(48, copy.workspaceBytes()),
+                () -> assertEquals(4, selected.requirements().size()));
 
         for (var rejected : List.of(
                 new CpuPartitionAnalysisInputs.MaterializationPolicy(
@@ -680,14 +701,14 @@ public class CpuPartitionPreparerTest {
                             CpuPartitionAnalysisInputs.DEFAULT.carrierPattern(),
                             PortableExecutionConfig.DEFAULT, rejected));
             assertAll(
-                    () -> assertTrue(direct.plan().materialization().isEmpty()),
+                    () -> assertTrue(direct.plan().materializations().isEmpty()),
                     () -> assertEquals(4, direct.requirements().size()));
         }
         var denseOnly = analyze(dense, dense, dense, dense,
                 new CpuPartitionAnalysisInputs(false,
                         CpuPartitionAnalysisInputs.DEFAULT.carrierPattern(),
                         PortableExecutionConfig.DEFAULT, eligible));
-        assertTrue(denseOnly.plan().materialization().isEmpty());
+        assertTrue(denseOnly.plan().materializations().isEmpty());
     }
 
     @Test void movementKeepsUniqueBoundaryOrderDisablesWorkspaceAndUsesScalarCompute() {
@@ -904,6 +925,105 @@ public class CpuPartitionPreparerTest {
             TensorDescriptor a, TensorDescriptor b, TensorDescriptor c, TensorDescriptor output,
             CpuPartitionAnalysisInputs inputs) {
         return new CpuPartitionPreparer().analyze(context(a, b, c, output, inputs));
+    }
+
+    public static BackendPartitionAnalysis<CpuPartitionPreparationPlan>
+            explicitRepresentationCandidate(
+                    BackendPartitionAnalysis<CpuPartitionPreparationPlan> analysis,
+                    CpuPartitionAnalysisInputs.MaterializationPolicy policy,
+                    int... sourceBoundaryPositions) {
+        var plan = analysis.plan();
+        var ordinarySelection = (CpuRepresentationDecision.Selection) plan
+                .representationDecisions().getLast();
+        List<Integer> requested = java.util.Arrays.stream(sourceBoundaryPositions).boxed().toList();
+        var candidate = plan.representationDecisions().stream()
+                .filter(CpuRepresentationDecision.Variant.class::isInstance)
+                .map(CpuRepresentationDecision.Variant.class::cast)
+                .filter(variant -> variant.identity().topology().equals(
+                        ordinarySelection.selected().topology()))
+                .filter(variant -> variant.identity().materializations().stream().map(
+                        CpuRepresentationDecision.MaterializationIdentity
+                                ::sourceBoundaryPosition).toList().equals(requested))
+                .findFirst().orElseThrow();
+        var copies = candidate.identity().materializations().stream().map(identity ->
+                explicitMaterialization(identity, policy)).toList();
+        var decisions = new ArrayList<CpuRepresentationDecision>(
+                plan.representationDecisions().subList(0,
+                        plan.representationDecisions().size() - 1));
+        decisions.add(new CpuRepresentationDecision.Selection(candidate.identity(),
+                ordinarySelection.canonicalDirect(), decisions.indexOf(candidate),
+                CpuRepresentationDecision.SelectionReason.COPIED_PROFITABLE));
+        var representation = new io.github.pho001.synaptik.backend.cpu.internal.lowering
+                .CpuRepresentationPlanner.Result(0, copies, decisions);
+        try {
+            var method = CpuPartitionPreparer.class.getDeclaredMethod("withRepresentation",
+                    BackendPartitionAnalysis.class, representation.getClass());
+            method.setAccessible(true);
+            @SuppressWarnings("unchecked")
+            var result = (BackendPartitionAnalysis<CpuPartitionPreparationPlan>) method.invoke(
+                    null, analysis, representation);
+            return result;
+        } catch (ReflectiveOperationException failure) {
+            throw new AssertionError("cannot apply retained CPU representation candidate", failure);
+        }
+    }
+
+    private static CpuMaterializationPlan explicitMaterialization(
+            CpuRepresentationDecision.MaterializationIdentity identity,
+            CpuPartitionAnalysisInputs.MaterializationPolicy policy) {
+        long elements = identity.elementCount();
+        long copyCost = Math.addExact(policy.copyFixedCostUnits(), Math.multiplyExact(elements,
+                policy.copyCostUnitsPerElement()));
+        long contiguousCost = Math.multiplyExact(elements,
+                policy.contiguousKernelCostUnitsPerElement());
+        long directCost = Math.multiplyExact(policy.expectedRunCount(), Math.multiplyExact(
+                identity.instructionUseCount(), Math.multiplyExact(elements,
+                        policy.directKernelCostUnitsPerElement())));
+        long copiedCost = Math.multiplyExact(policy.expectedRunCount(), Math.addExact(copyCost,
+                Math.multiplyExact(identity.instructionUseCount(), contiguousCost)));
+        long benefit = Math.subtractExact(directCost, copiedCost);
+        int basis = directCost == 0 ? 0 : Math.toIntExact(Math.floorDiv(
+                Math.multiplyExact(10_000L, benefit), directCost));
+        CpuAccessPlan denseRead = identity.consumerBinding().plan();
+        var denseWrite = new CpuAccessPlan(CpuAccessPlan.AccessKind.WRITE, denseRead.regime(),
+                denseRead.iterationRank(), denseRead.axisRoles(), denseRead.contiguousSuffix());
+        var copyIr = new CpuAffineCopyIr(identity.dataType(), identity.sourceBinding().plan(),
+                denseWrite, List.of(new CpuAffineCopyIr.MappingStep(
+                        CpuAffineCopyIr.MappingKind.CONTIGUOUS,
+                        identity.sourceBinding().plan().iterationRank(),
+                        identity.sourceBinding().plan().iterationRank(), List.of())),
+                CpuAffineCopyIr.WriteDomain.LOGICAL_ELEMENTS);
+        var copy = new CpuMaterializationPlan(identity.sourceBoundaryPosition(),
+                identity.dataType(), identity.sourceCarrier(), identity.sourceBinding(),
+                identity.consumerBinding(), identity.consumers(), elements, identity.byteCount(),
+                identity.workspaceRequirementId(), identity.workspaceAlignment(),
+                identity.instructionUseCount(), policy.expectedRunCount(), directCost, copyCost,
+                contiguousCost, copiedCost, benefit, basis, identity.copyStrategy(), copyIr,
+                identity.copySpecialization(), affinePairs(identity.sourceBinding()));
+        assertEquals(identity, copy.identity());
+        return copy;
+    }
+
+    private static long[] affinePairs(CpuAccessPlan.Binding binding) {
+        int count = Math.toIntExact(binding.elementCount());
+        long[] pairs = new long[Math.multiplyExact(count, 2)];
+        long[] extents = binding.extents().stream().mapToLong(Long::longValue).toArray();
+        long[] strides = binding.effectiveStrides().stream().mapToLong(Long::longValue).toArray();
+        long[] coordinates = new long[extents.length];
+        long address = binding.baseElementOffset();
+        for (int logical = 0; logical < count; logical++) {
+            pairs[logical * 2] = address;
+            pairs[logical * 2 + 1] = logical;
+            for (int axis = extents.length - 1; axis >= 0; axis--) {
+                coordinates[axis]++;
+                address = Math.addExact(address, strides[axis]);
+                if (coordinates[axis] < extents[axis]) break;
+                address = Math.subtractExact(address,
+                        Math.multiplyExact(extents[axis], strides[axis]));
+                coordinates[axis] = 0;
+            }
+        }
+        return pairs;
     }
 
     public static PrepareContext<CpuPartitionAnalysisInputs> context(Shape shape) {

@@ -320,7 +320,8 @@ class CpuFusionDecisionTest {
                 plan.softmaxGeometry(), plan.trailingNormalizationGeometry(),
                 plan.batchNormInferenceGeometry(), plan.batchNormTrainingGeometry(),
                 plan.conv2dGeometry(), recognition, decisions,
-                plan.publicationBoundaryPositions());
+                plan.publicationBoundaryPositions(), plan.materializations(),
+                plan.representationUnits(), plan.representationDecisions());
     }
 
     private static CpuFusionDecision.CandidateIdentity atResourceCeilings(

@@ -81,6 +81,9 @@ public final class CpuClassFileKernelGenerator {
                 .withMethod(CpuGeneratorSchema.ENTRY_NAME, type, entryFlags, method ->
                         method.withCode(code -> {
                             if (usesSharedCarrierLayouts(kernelIr)
+                                    && !CpuAffineCopyEmitter
+                                            .ownsGeneralLongDenseResultCarrierAccess(
+                                                    specialization, kernelIr)
                                     && !kernelIr.familyIdentity().startsWith("conv2d:")
                                     && !kernelIr.familyIdentity().startsWith("conv3d:")) {
                                 CpuCarrierEmitter.prepareSegmentLayouts(code,

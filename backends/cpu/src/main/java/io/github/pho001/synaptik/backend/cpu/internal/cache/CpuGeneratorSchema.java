@@ -169,9 +169,12 @@ public final class CpuGeneratorSchema {
      * FLOAT64/FLOAT32 accumulation with final BFLOAT16 narrowing. Schema 52 adds the direct
      * grouped NCDHW Conv3d identity, rank-five cold layout geometry, intrinsic optional bias,
      * typed complete-output-cell traversal, and the same type-specific accumulation boundary.
+     * Schema 53 changes the existing general affine-copy body so a proved dense result loads its
+     * initial address once and advances a unit-stride cursor. Generated class identity remains on
+     * the schema-52 projection while envelope compatibility advances current-only to schema 53.
      * Envelopes written for earlier schemas are incompatible misses.
      */
-    public static final int CURRENT_VERSION = 52;
+    public static final int CURRENT_VERSION = 53;
     /** Generated entry name. */ public static final String ENTRY_NAME = "invoke";
     private CpuGeneratorSchema() { }
 
