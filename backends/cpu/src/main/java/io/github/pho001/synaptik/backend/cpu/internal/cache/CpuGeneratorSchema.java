@@ -171,10 +171,12 @@ public final class CpuGeneratorSchema {
      * typed complete-output-cell traversal, and the same type-specific accumulation boundary.
      * Schema 53 changes the existing general affine-copy body so a proved dense result loads its
      * initial address once and advances a unit-stride cursor. Generated class identity remains on
-     * the schema-52 projection while envelope compatibility advances current-only to schema 53.
+     * the schema-52 projection. Schema 54 adds typed portable MATMUL class forms while retaining
+     * that schema-52 class projection for every unchanged family; compatibility envelopes advance
+     * current-only to schema 54.
      * Envelopes written for earlier schemas are incompatible misses.
      */
-    public static final int CURRENT_VERSION = 53;
+    public static final int CURRENT_VERSION = 54;
     /** Generated entry name. */ public static final String ENTRY_NAME = "invoke";
     private CpuGeneratorSchema() { }
 

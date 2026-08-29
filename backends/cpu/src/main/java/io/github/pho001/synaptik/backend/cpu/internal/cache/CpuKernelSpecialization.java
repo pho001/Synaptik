@@ -2,6 +2,7 @@ package io.github.pho001.synaptik.backend.cpu.internal.cache;
 
 import io.github.pho001.synaptik.backend.cpu.internal.prepare.CpuPartitionPreparationPlan;
 import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuKernelIr;
+import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuMatmulIr;
 import java.lang.foreign.MemorySegment;
 import java.lang.invoke.MethodType;
 import java.nio.charset.StandardCharsets;
@@ -10,6 +11,7 @@ import java.security.NoSuchAlgorithmException;
 import java.util.HexFormat;
 import java.util.Objects;
 import java.util.List;
+import java.util.Optional;
 import io.github.pho001.synaptik.model.datatype.DataType;
 import jdk.incubator.vector.ByteVector;
 import jdk.incubator.vector.DoubleVector;
@@ -36,13 +38,16 @@ import jdk.incubator.vector.LongVector;
  * @param scalarPowerRealizations non-null ordered realization facts for every scalar-power
  *     instruction in canonical instruction order; copied defensively
  * @param scratchParameter whether the generated entry accepts one exact CPU scratch segment
+ * @param classIdentitySchema schema projection used only for the generated class identity;
+ *     {@code 52} for unchanged families and {@code 54} for MATMUL
+ * @param matmulIr exact typed MATMUL code-shaping facts, or empty for every unchanged family
  */
 public record CpuKernelSpecialization(CpuLoweringFingerprint loweringFingerprint,
         NumericalMode numericalMode,
         CpuPartitionPreparationPlan.ExecutionStrategy executionStrategy,
         List<DataType> boundaryDataTypes, List<CarrierAccess> carrierPattern, int vectorSpeciesBitSize,
         int materializedSourcePosition, List<CpuKernelIr.PowerRealization> scalarPowerRealizations,
-        boolean scratchParameter) {
+        boolean scratchParameter, int classIdentitySchema, Optional<CpuMatmulIr> matmulIr) {
     /** Generated loop/address representation selected from structural proof facts. */
     public enum LoopAddressing {
         /** Checked {@code long} state for segments, mixed carriers, or general access plans. */
@@ -66,6 +71,57 @@ public record CpuKernelSpecialization(CpuLoweringFingerprint loweringFingerprint
     /** Numerical modes currently admissible. */
     public enum NumericalMode {
         /** Ordinary exact/default operation contract with no relaxed permission. */ EXACT_DEFAULT
+    }
+
+    /**
+     * Preserves the pre-0008F constructor and byte-identical schema-52 class projection.
+     *
+     * @param loweringFingerprint canonical lowering fingerprint
+     * @param numericalMode exact numerical mode
+     * @param executionStrategy generated compute strategy
+     * @param boundaryDataTypes ordered boundary types
+     * @param carrierPattern ordered carriers
+     * @param vectorSpeciesBitSize vector species bits, or zero
+     * @param materializedSourcePosition copied source, or minus one
+     * @param scalarPowerRealizations scalar-power facts
+     * @param scratchParameter whether scratch is present
+     */
+    public CpuKernelSpecialization(CpuLoweringFingerprint loweringFingerprint,
+            NumericalMode numericalMode,
+            CpuPartitionPreparationPlan.ExecutionStrategy executionStrategy,
+            List<DataType> boundaryDataTypes, List<CarrierAccess> carrierPattern,
+            int vectorSpeciesBitSize, int materializedSourcePosition,
+            List<CpuKernelIr.PowerRealization> scalarPowerRealizations,
+            boolean scratchParameter) {
+        this(loweringFingerprint, numericalMode, executionStrategy, boundaryDataTypes,
+                carrierPattern, vectorSpeciesBitSize, materializedSourcePosition,
+                scalarPowerRealizations, scratchParameter, 52, Optional.empty());
+    }
+
+    /**
+     * Creates a specialization with an explicit class-identity projection and no MATMUL facts.
+     *
+     * @param loweringFingerprint canonical lowering fingerprint
+     * @param numericalMode exact numerical mode
+     * @param executionStrategy generated compute strategy
+     * @param boundaryDataTypes ordered boundary types
+     * @param carrierPattern ordered carriers
+     * @param vectorSpeciesBitSize vector species bits, or zero
+     * @param materializedSourcePosition copied source, or minus one
+     * @param scalarPowerRealizations scalar-power facts
+     * @param scratchParameter whether scratch is present
+     * @param classIdentitySchema class projection schema
+     */
+    public CpuKernelSpecialization(CpuLoweringFingerprint loweringFingerprint,
+            NumericalMode numericalMode,
+            CpuPartitionPreparationPlan.ExecutionStrategy executionStrategy,
+            List<DataType> boundaryDataTypes, List<CarrierAccess> carrierPattern,
+            int vectorSpeciesBitSize, int materializedSourcePosition,
+            List<CpuKernelIr.PowerRealization> scalarPowerRealizations,
+            boolean scratchParameter, int classIdentitySchema) {
+        this(loweringFingerprint, numericalMode, executionStrategy, boundaryDataTypes,
+                carrierPattern, vectorSpeciesBitSize, materializedSourcePosition,
+                scalarPowerRealizations, scratchParameter, classIdentitySchema, Optional.empty());
     }
     /**
      * Creates a direct, non-materialized compatibility specialization.
@@ -184,6 +240,13 @@ public record CpuKernelSpecialization(CpuLoweringFingerprint loweringFingerprint
         boundaryDataTypes = List.copyOf(boundaryDataTypes);
         carrierPattern = List.copyOf(carrierPattern);
         scalarPowerRealizations = List.copyOf(scalarPowerRealizations);
+        matmulIr = Objects.requireNonNull(matmulIr, "matmulIr");
+        if (classIdentitySchema != 52 && classIdentitySchema != 54) {
+            throw new IllegalArgumentException("class identity schema must be 52 or 54");
+        }
+        if ((classIdentitySchema == 54) != matmulIr.isPresent()) {
+            throw new IllegalArgumentException("schema-54 class identity requires typed MATMUL facts");
+        }
         if (carrierPattern.isEmpty() || carrierPattern.size() != boundaryDataTypes.size()) {
             throw new IllegalArgumentException("boundary type and carrier entries must agree");
         }
@@ -255,15 +318,15 @@ public record CpuKernelSpecialization(CpuLoweringFingerprint loweringFingerprint
     /**
      * Returns the stable generated-class identity projection.
      *
-     * <p>Schema 53 changes only the existing affine-copy body. Retaining schema 52 in this
-     * projection preserves byte-exact binary names and class bytes for otherwise unchanged
-     * pointwise specializations, while {@link #compatibilityBytes()} still invalidates every
-     * pre-53 persisted envelope.</p>
+     * <p>Schema 54 adds MATMUL forms. Retaining schema 52 for every unchanged family in this
+ * projection preserves byte-exact binary names and class bytes for otherwise unchanged
+ * pointwise specializations, while {@link #compatibilityBytes()} invalidates every schema-53
+ * persisted envelope.</p>
      *
-     * @return a new deterministic schema-52 identity byte array
+     * @return a new deterministic schema-52 or MATMUL schema-54 identity byte array
      */
     public byte[] classIdentityBytes() {
-        return (52 + "|" + loweringFingerprint.hex() + "|"
+        return (classIdentitySchema + "|" + loweringFingerprint.hex() + "|"
                 + numericalMode + "|" + executionStrategy.compute() + "|" + boundaryDataTypes
                 + "|" + carrierPattern
                 + "|" + vectorSpeciesBitSize + "|materialized=" + materializedSourcePosition

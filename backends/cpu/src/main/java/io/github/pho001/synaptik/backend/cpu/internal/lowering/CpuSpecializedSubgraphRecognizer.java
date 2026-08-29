@@ -109,11 +109,10 @@ public final class CpuSpecializedSubgraphRecognizer {
     }
 
     /**
-     * Performs focused MATMUL recognition without admitting the unsupported anchor to a plan.
-     * This method is diagnostic cold analysis only and returns an empty baseline association.
+     * Performs focused MATMUL recognition against the canonical executable baseline.
      *
      * @param context complete non-null projection whose shared DAG supplies exact producer and
-     *     consumer occurrences and whose anchor may be unsupported by CPU
+     *     consumer occurrences
      * @return immutable zero-or-one MATMUL fact list
      * @throws NullPointerException if {@code context} or a required fact is null
      * @throws IllegalArgumentException if projected graph facts are malformed
@@ -224,7 +223,7 @@ public final class CpuSpecializedSubgraphRecognizer {
         List<Integer> members = range(ordinal, suffix.end());
         return build(Family.MATMUL, Form.MATMUL, new MatmulAttributes(inputForm), members,
                 node.inputs(), context.partitionDag().nodes().get(suffix.end()).outputs(), values,
-                suffix.epilogue(), ExecutionDisposition.UNSUPPORTED_ANCHOR);
+                suffix.epilogue(), ExecutionDisposition.EXECUTABLE_ALTERNATIVES);
     }
 
     private Candidate reduction(PrepareContext<CpuPartitionAnalysisInputs> context,
@@ -509,6 +508,8 @@ public final class CpuSpecializedSubgraphRecognizer {
         var runtime = unit.runtimeFacts();
         if (unit.conv3dGeometry().isPresent()) return packed(RuntimeTopology.CONV3D,
                 unit.conv3dGeometry().orElseThrow().pack(bases));
+        if (unit.matmulGeometry().isPresent()) return packed(RuntimeTopology.MATMUL,
+                unit.matmulGeometry().orElseThrow().pack(bases[0], bases[1], bases[bases.length - 1]));
         if (unit.conv2dGeometry().isPresent()) return packed(RuntimeTopology.CONV2D,
                 unit.conv2dGeometry().orElseThrow().pack(bases));
         if (runtime.batchNormTrainingGeometry().isPresent()) {

@@ -20,6 +20,7 @@ import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuTrailingNormal
 import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuBatchNormInferenceLowering;
 import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuBatchNormTrainingLowering;
 import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuConv2dLowering;
+import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuMatmulLowering;
 import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuConv3dLowering;
 import io.github.pho001.synaptik.backend.cpu.internal.memory.CpuBufferArgument;
 import io.github.pho001.synaptik.backend.cpu.internal.memory.CpuBufferRepresentation;
@@ -84,6 +85,10 @@ import java.util.Optional;
  * output/input overlap, and optional Layer exact-state slice before mutation or submission.
  * Ranges always own complete trailing slices; Layer ranges receive disjoint scratch, while RMS
  * requires none.
+ * For MATMUL, binding validates exact typed carriers and packed normalized geometry, rejects every
+ * output/input or output/bias overlap before mutation or worker submission, and creates disjoint
+ * half-open work-unit ranges. Depending on the cold-selected realization, one work unit owns one
+ * output cell, one complete M row, or one bounded M/N tile; K is never divided among ranges.
  */
 public final class CpuPreparedExecutable extends PreparedExecutable {
     private final CpuGeneratedKernel artifact;
@@ -119,6 +124,7 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
     private final Optional<CpuBatchNormTrainingLowering.Geometry> batchNormTrainingGeometry;
     private final Optional<CpuConv2dLowering.Geometry> conv2dGeometry;
     private final Optional<CpuConv3dLowering.Geometry> conv3dGeometry;
+    private final Optional<CpuMatmulLowering.Geometry> matmulGeometry;
     private final int outputCount;
 
     /**
@@ -772,7 +778,7 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
                 scanGeometry, aggregateGeometry, argExtremaGeometry, maskedReductionGeometry,
                 advancedReductionGeometry, softmaxGeometry, trailingNormalizationGeometry,
                 batchNormInferenceGeometry, batchNormTrainingGeometry, conv2dGeometry,
-                Optional.empty(),
+                Optional.empty(), Optional.empty(),
                 establishedOutputCount(batchNormTrainingGeometry, randomGeometry,
                         orderingGeometry));
     }
@@ -817,6 +823,7 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
      * @param batchNormTrainingGeometry non-null optional batch-normalization training geometry
      * @param conv2dGeometry non-null optional grouped NCHW Conv2d boundary geometry
      * @param conv3dGeometry non-null optional grouped NCDHW Conv3d boundary geometry
+     * @param matmulGeometry non-null optional normalized full-K MATMUL geometry
      * @param outputCount positive number of trailing selections written by this unit
      * @throws NullPointerException if a required reference or list element is {@code null}
      * @throws IllegalArgumentException if memory, boundary, carrier, range, worker, route,
@@ -845,7 +852,8 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
             Optional<CpuBatchNormInferenceLowering.Geometry> batchNormInferenceGeometry,
             Optional<CpuBatchNormTrainingLowering.Geometry> batchNormTrainingGeometry,
             Optional<CpuConv2dLowering.Geometry> conv2dGeometry,
-            Optional<CpuConv3dLowering.Geometry> conv3dGeometry, int outputCount) {
+            Optional<CpuConv3dLowering.Geometry> conv3dGeometry,
+            Optional<CpuMatmulLowering.Geometry> matmulGeometry, int outputCount) {
         this(memoryPlan, selections, artifact, bindings, carrierPattern, generatedCarrierPattern,
                 start, end, selectedRangeCount, minimumElementsPerWorker, workerGroup,
                 materialization.isPresent() ? Optional.empty() : workspaceSelection,
@@ -855,7 +863,7 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
                 foldGeometry, orderingGeometry, randomGeometry, scanGeometry, aggregateGeometry,
                 argExtremaGeometry, maskedReductionGeometry, advancedReductionGeometry,
                 softmaxGeometry, trailingNormalizationGeometry, batchNormInferenceGeometry,
-                batchNormTrainingGeometry, conv2dGeometry, conv3dGeometry, outputCount);
+                batchNormTrainingGeometry, conv2dGeometry, conv3dGeometry, matmulGeometry, outputCount);
     }
 
     /**
@@ -897,6 +905,7 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
      * @param batchNormTrainingGeometry non-null optional batch-normalization training geometry
      * @param conv2dGeometry non-null optional grouped NCHW Conv2d boundary geometry
      * @param conv3dGeometry non-null optional grouped NCDHW Conv3d boundary geometry
+     * @param matmulGeometry non-null optional normalized full-K MATMUL geometry
      * @param outputCount positive number of trailing selections written by this unit
      * @throws NullPointerException if a required reference or list element is {@code null}
      * @throws IllegalArgumentException if representation plans/workspaces, memory, boundary,
@@ -927,7 +936,8 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
             Optional<CpuBatchNormInferenceLowering.Geometry> batchNormInferenceGeometry,
             Optional<CpuBatchNormTrainingLowering.Geometry> batchNormTrainingGeometry,
             Optional<CpuConv2dLowering.Geometry> conv2dGeometry,
-            Optional<CpuConv3dLowering.Geometry> conv3dGeometry, int outputCount) {
+            Optional<CpuConv3dLowering.Geometry> conv3dGeometry,
+            Optional<CpuMatmulLowering.Geometry> matmulGeometry, int outputCount) {
         super(memoryPlan, selections, java.util.stream.Stream.concat(workspaceSelection.stream(),
                 representationWorkspaceSelections.stream()).toList(),
                 accesses(selections.size(), outputCount));
@@ -964,11 +974,13 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
                 "batchNormTrainingGeometry");
         this.conv2dGeometry = Objects.requireNonNull(conv2dGeometry, "conv2dGeometry");
         this.conv3dGeometry = Objects.requireNonNull(conv3dGeometry, "conv3dGeometry");
+        this.matmulGeometry = Objects.requireNonNull(matmulGeometry, "matmulGeometry");
         this.outputCount = outputCount;
         if (outputCount <= 0 || outputCount > selections.size()) {
             throw new IllegalArgumentException("output boundary count is inconsistent");
         }
-        long count = this.conv2dGeometry.isPresent() || this.conv3dGeometry.isPresent()
+        long count = this.matmulGeometry.isPresent() ? this.matmulGeometry.orElseThrow().outputCount()
+                : this.conv2dGeometry.isPresent() || this.conv3dGeometry.isPresent()
                 ? this.bindings.getLast().elementCount()
                 : this.batchNormTrainingGeometry.isPresent()
                 ? this.batchNormTrainingGeometry.orElseThrow().channelCount()
@@ -1040,6 +1052,7 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
         geometryCount += this.batchNormTrainingGeometry.isPresent() ? 1 : 0;
         geometryCount += this.conv2dGeometry.isPresent() ? 1 : 0;
         geometryCount += this.conv3dGeometry.isPresent() ? 1 : 0;
+        geometryCount += this.matmulGeometry.isPresent() ? 1 : 0;
         if (geometryCount>1) {
             throw new IllegalArgumentException("affine, movement, indexing, scatter, and fold geometry are exclusive");
         }
@@ -1139,7 +1152,8 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
     public CpuAccessPlan.Binding binding() {
         if (softmaxGeometry.isPresent() || trailingNormalizationGeometry.isPresent()
                 || batchNormInferenceGeometry.isPresent() || batchNormTrainingGeometry.isPresent()
-                || conv2dGeometry.isPresent() || conv3dGeometry.isPresent()) return bindings.getLast();
+                || conv2dGeometry.isPresent() || conv3dGeometry.isPresent()
+                || matmulGeometry.isPresent()) return bindings.getLast();
         return ranged(movementGeometry.isPresent() || indexingGeometry.isPresent()
                 || scatterGeometry.isPresent() || foldGeometry.isPresent() || orderingGeometry.isPresent()
                 || randomGeometry.isPresent()
@@ -1158,7 +1172,8 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
     public List<CpuAccessPlan.Binding> accessBindings() {
         if (softmaxGeometry.isPresent() || trailingNormalizationGeometry.isPresent()
                 || batchNormInferenceGeometry.isPresent() || batchNormTrainingGeometry.isPresent()
-                || conv2dGeometry.isPresent() || conv3dGeometry.isPresent()) return bindings;
+                || conv2dGeometry.isPresent() || conv3dGeometry.isPresent()
+                || matmulGeometry.isPresent()) return bindings;
         if (movementGeometry.isPresent() || indexingGeometry.isPresent()
                 || scatterGeometry.isPresent() || foldGeometry.isPresent() || orderingGeometry.isPresent()
                 || randomGeometry.isPresent() || scanGeometry.isPresent()
@@ -1193,7 +1208,7 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
                 scanGeometry, aggregateGeometry, argExtremaGeometry, maskedReductionGeometry,
                 advancedReductionGeometry, softmaxGeometry, trailingNormalizationGeometry,
                 batchNormInferenceGeometry, batchNormTrainingGeometry, conv2dGeometry,
-                conv3dGeometry,
+                conv3dGeometry, matmulGeometry,
                 outputCount);
     }
 
@@ -1317,6 +1332,7 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
                             || trailingNormalizationGeometry.isPresent()
                             || batchNormInferenceGeometry.isPresent() || batchNormTrainingGeometry.isPresent()
                             || conv2dGeometry.isPresent() || conv3dGeometry.isPresent()
+                            || matmulGeometry.isPresent()
                         ? overlaps(arguments.get(input), inputBinding,
                             arguments.get(firstOutputIndex), bindings.get(firstOutputIndex))
                         : overlaps(arguments.get(input), ranged(inputBinding),
@@ -1463,6 +1479,22 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
 
     private long[] geometry(List<CpuBufferArgument> arguments, long rangeStart, long rangeEnd,
             int rangeIndex) {
+        if (matmulGeometry.isPresent()) {
+            long[] bases = new long[arguments.size()];
+            for (int index = 0; index < bases.length; index++) {
+                int width = artifact.specialization().boundaryDataTypes().get(index).byteWidth();
+                bases[index] = arguments.get(index).byteOffset() / width;
+            }
+            if(bases.length==4) {
+                CpuAccessPlan.Binding bias=bindings.get(2);
+                if(bias.extents().size()!=1||bias.effectiveStrides().size()!=1)
+                    throw new IllegalArgumentException("MATMUL bias binding is not rank one");
+                long biasBase=Math.addExact(bases[2],bias.baseElementOffset());
+                return matmulGeometry.orElseThrow().pack(bases[0],bases[1],bases[3],biasBase,
+                        bias.effectiveStrides().getFirst());
+            }
+            return matmulGeometry.orElseThrow().pack(bases[0], bases[1], bases[bases.length - 1]);
+        }
         if (conv3dGeometry.isPresent()) {
             long[] bases = new long[arguments.size()];
             for (int index = 0; index < bases.length; index++) {

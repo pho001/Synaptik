@@ -6,6 +6,7 @@ import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuAccessPlan;
 import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuAffineCopyIr;
 import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuFusionDecision;
 import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuKernelIr;
+import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuMatmulIr;
 import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuRepresentationDecision;
 import io.github.pho001.synaptik.backend.cpu.internal.prepare.CpuPartitionAnalysisInputs;
 import io.github.pho001.synaptik.backend.cpu.internal.prepare.CpuPartitionPreparationPlan;
@@ -211,6 +212,7 @@ public final class CpuRepresentationPlanner {
             for (CpuRepresentationDecision.ConsumerPosition rightConsumer : right.consumers()) {
                 if (leftConsumer.unitPosition() != rightConsumer.unitPosition()) continue;
                 var unit = plan.units().get(leftConsumer.unitPosition());
+                if(unit.portablePlan().specialization().matmulIr().isPresent())return true;
                 if (!(unit.portablePlan().portableKernelIr() instanceof CpuKernelIr ir)) {
                     throw new IllegalArgumentException("CPU represented pair has non-pointwise IR");
                 }
@@ -284,9 +286,9 @@ public final class CpuRepresentationPlanner {
                 var unit = plan.units().get(unitIndex);
                 int local = unit.boundaryValues().indexOf(sourceValue);
                 if (local < 0) continue;
-                if (!(unit.portablePlan().portableKernelIr() instanceof CpuKernelIr ir)) {
-                    compatible = false; break;
-                }
+                var portable=unit.portablePlan().portableKernelIr();
+                CpuKernelIr ir=portable instanceof CpuKernelIr pointwise?pointwise:null;
+                if(ir==null){compatible=false;break;}
                 CpuFusionDecision.BoundaryRole role = identity.units().get(unitIndex)
                         .boundaries().get(local).role();
                 if (role != CpuFusionDecision.BoundaryRole.EXTERNAL_READ
@@ -298,8 +300,9 @@ public final class CpuRepresentationPlanner {
                 CpuKernelIr.Value value = values.get(local);
                 if (value.kind() != CpuKernelIr.Value.Kind.INPUT || value.dataType() == DataType.BFLOAT16
                         || !admitted(value.dataType())) { compatible = false; break; }
-                long uses = ir.instructions().stream().flatMap(instruction ->
-                        instruction.inputs().stream()).filter(input -> input == value.ordinal()).count();
+                long uses=unit.portablePlan().specialization().matmulIr().isPresent()?1:ir.instructions().stream()
+                        .flatMap(instruction->instruction.inputs().stream())
+                        .filter(input->input==value.ordinal()).count();
                 if (uses == 0) { compatible = false; break; }
                 CpuAccessPlan.Binding binding = unit.accessBindings().get(local);
                 CpuKernelSpecialization.CarrierAccess localCarrier = unit.carrierPattern().get(local);

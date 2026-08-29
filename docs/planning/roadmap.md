@@ -104,15 +104,17 @@ that the existing CPU portable preparation plan, CPU contiguous materialization 
 Materialization glossary entries were stale while glossary edits remained prohibited. The
 corrected 43-path ceiling authorized the guide and those three glossary entries, with exactly
 36 final worktree paths. The user-authorized Prepare 0003A interleave is Complete. Detailed CPU
-0008E1 is Complete; CPU 0008F remains Draft and intentionally has no task specification.
+0008E1 is Complete; detailed
+[CPU 0008F](backends/cpu/tasks/0008f-portable-matmul-execution-and-bounded-linear-epilogues.md)
+is Complete with its retained semantic, Class-File, and performance evidence.
 Implementation context `01a03f9e-9ea6-7bf2-988e-565cf055725e` passed the corrected authoritative
 CPU rerun with 536 tests, 3 skips, schema 52, shared typed contraction outcomes, best-only tie
 fallback, exact retained-recognition overlap validation, independently recomputed
 publication/write roles, and retained five-fork generated/direct plus selected-fused/split
 evidence.
-MATMUL coverage remains owned by Draft CPU 0008F following Complete
-[CPU 0008E1](backends/cpu/tasks/0008e1-shared-partition-dag-adoption-and-reconstruction-removal.md)
-, which adopted the shared partition DAG, while pooling, attention, and loss coverage remains owned by Draft CPU
+MATMUL coverage is implemented by detailed Complete CPU 0008F following Complete
+[CPU 0008E1](backends/cpu/tasks/0008e1-shared-partition-dag-adoption-and-reconstruction-removal.md),
+which adopted the shared partition DAG, while pooling, attention, and loss coverage remains owned by Draft CPU
 0008G–0008I; none has a detailed specification. CPU 0008A validates Conv1d through
 the visible Conv2d composition and adds direct Conv3d execution. CPU 0008B–0008E only then add
 general partition-DAG decomposition and bounded fusion, typed specialized-subgraph recognition,
@@ -174,15 +176,31 @@ is Complete after its candidate-only/direct-selection and seven-owner test-oracl
 pass. [Prepare 0003A](modules/prepare/tasks/0003a-immutable-partition-local-dag-analysis-projection.md)
 is Complete. Detailed
 [CPU 0008E1](backends/cpu/tasks/0008e1-shared-partition-dag-adoption-and-reconstruction-removal.md)
-is Complete. CPU 0008F remains Draft without a detailed specification.
+is Complete. Detailed
+[CPU 0008F](backends/cpu/tasks/0008f-portable-matmul-execution-and-bounded-linear-epilogues.md)
+is Complete. CPU 0008G is the next Draft implementation frontier and has no detailed specification.
+
+CPU 0008F completes the fully static portable MATMUL family at schema 54 across all thirteen
+ordered non-BOOL numeric promotions, vector/matrix/batched/right-broadcast geometry, four bounded
+full-K generated realizations, disjoint output work units, exact bounded linear epilogues or safe
+split, and direct plus candidate-only one-input materializations. Its implementation context
+passed 17 focused suites/182 tests, the sole 109-suite/576-test CPU checkpoint, CPU Javadoc,
+Class-File/forbidden-reference inspection, and five immutable performance forks; the worst
+individual generated/direct kernel ratio was `1.002573` against the required `<= 1.15x` gate.
+The 212-file attempt-16 manifest verifies with digest
+`a88806a9118c1a967ecc77eaf6da9582d15afa959e8368348a0d2ba2a47d4b61`. Materialization
+companions remain evidence-backed candidates rather than automatic default policy. Clean
+documentation context `/root` finalized CPU Javadocs, the backend guide, the existing MATMUL
+glossary entry, and planning status without changing executable Java. Architecture, dependencies,
+shared/public APIs, Gradle, conformance, integration, and native routes remain unchanged.
 
 This is an explicit user-authorized interleave before CPU MATMUL. Prepare 0003A adds the shared
 immutable partition-local DAG projection and keeps the complete cross-backend model DAG out of
 concrete backends. Complete CPU 0008E1 adopted that projection in
 `CpuPartitionDagDecomposer` and directly related cold analysis without changing CPU 0008B–0008E
 topology identities, stable order, legality, candidate counts, generated code, schema 53,
-performance evidence, fusion policy, hot code, or Runtime behavior. Draft CPU 0008F follows
-0008E1 and has no detailed task specification. Existing Prepare 0004
+performance evidence, fusion policy, hot code, or Runtime behavior. Detailed Complete CPU 0008F
+follows 0008E1 and now owns bounded portable MATMUL execution. Existing Prepare 0004
 remains Draft, follows 0003A without renumbering, and has no detailed specification.
 
 CPU 0008E1's focused six-suite matrix passed 63 tests. Its exactly one authoritative final CPU
@@ -361,7 +379,7 @@ channel/non-channel ranges; and detailed Complete
 [CPU 0007F2](backends/cpu/tasks/0007f2-portable-batch-normalization-training-and-statistic-transition-coverage.md)
 owns batch training/statistic transition. CPU 0007F, CPU 0007F1, CPU 0007F2, and detailed CPU
 0008, 0008A, 0008B, 0008C, CPU 0008D, CPU 0008E, and Prepare 0003A are Complete; detailed CPU
-0008E1 is Complete, and CPU 0008F is Draft without a detailed specification.
+0008E1 and detailed CPU 0008F are Complete; CPU 0008G is the next Draft frontier.
 A completed local
 bytecode/performance audit then inserted detailed
 [CPU 0007A0 generated hot-path parity correction](backends/cpu/tasks/0007a0-generated-hot-path-parity-correction.md)
@@ -540,7 +558,7 @@ including exactly five new CPU-private production types and schema 48. It change
 shared/build/architecture/conformance/integration boundary. CPU 0007F is Complete; CPU 0007A1D
 remains Review needed; detailed CPU 0007F1, CPU 0007F2, CPU 0008, CPU 0008A, and CPU 0008B are
 Complete. CPU 0008C, CPU 0008D, CPU 0008E, and Prepare 0003A are Complete; detailed CPU 0008E1
-is Complete, CPU 0008F is Draft without a detailed specification, and later tasks remain Draft.
+and CPU 0008F are Complete, and later tasks remain Draft.
 
 CPU 0007F1 is Complete at schema 49. Its first-class inference route supports arbitrary static
 channel axes, exact ordered floating promotion and typed epsilon, direct running variance,
@@ -552,7 +570,7 @@ batch/control `<= 1.15x` gate; the 281-file retained bundle verifies with digest
 exactly 14 production paths, 13 tests, and four new CPU-private production types, with no shared
 or architecture boundary change. CPU 0007A1D remains Review needed; detailed CPU 0007F2, CPU
 0008, CPU 0008A, CPU 0008B, CPU 0008C, CPU 0008D, CPU 0008E, and Prepare 0003A are Complete;
-detailed CPU 0008E1 is Complete, and CPU 0008F is Draft without a detailed specification.
+detailed CPU 0008E1 and CPU 0008F are Complete.
 
 CPU 0007F2 is Complete at schema 50. Its explicit five-input/five-output
 `BATCH_NORM_TRAINING` route owns complete channels, reuses one exact-state slice per active
@@ -570,8 +588,8 @@ measurement and no ratio sample was discarded. The retained bundle verifies with
 unrelated planning paths; exactly four new CPU-private production types were added. No public,
 shared, Gradle, architecture, conformance, or integration boundary changed. CPU 0007A1D remains
 Review needed. Detailed CPU 0008, CPU 0008A, CPU 0008B, CPU 0008C, CPU 0008D, and CPU 0008E are
-Complete; Prepare 0003A and detailed CPU 0008E1 are Complete, CPU 0008F is Draft without a
-detailed specification, and later tasks remain Draft. The
+Complete; Prepare 0003A, detailed CPU 0008E1, and CPU 0008F are Complete, and later tasks remain
+Draft. The
 Conv1d/Conv3d-before-general-DAG ordering correction
 remains intact.
 
@@ -716,7 +734,7 @@ CPU 0007A1O, CPU 0007A2, detailed CPU 0007B, and detailed CPU 0007C are `Complet
 0007D, detailed CPU 0007E, and detailed CPU 0007F are `Complete`, while detailed CPU 0007F1 is
 `Complete`; detailed CPU 0007F2, CPU 0008, CPU 0008A, CPU 0008B, CPU 0008C, and CPU 0008D are
 `Complete`; detailed CPU 0008E, Prepare 0003A, and detailed CPU 0008E1 are `Complete`,
-CPU 0008F is `Draft` without a detailed specification, and CPU 0008G through CPU 0017 remain Draft.
+CPU 0008F is `Complete`, and CPU 0008G through CPU 0017 remain Draft.
 CPU 0003
 implements a
 model-independent filesystem store beneath an explicit
@@ -979,14 +997,15 @@ generated/direct and aggregate-median `<= 1.15x` gate; the highest aggregate med
 19 production/Javadoc paths, 13 CPU test/resource paths, five documentation/planning paths, and 37
 total paths, with no shared Java, Gradle, architecture, conformance, or integration change. CPU
 0008A, CPU 0008B, CPU 0008C, CPU 0008D, CPU 0008E, and Prepare 0003A are Complete; detailed CPU
-0008E1 is Complete, and CPU 0008F is Draft without a detailed specification.
+0008E1 and CPU 0008F are Complete.
 
 This refinement is source-backed: Conv2d, MATMUL, pooling, attention, and loss have distinct
 geometry, numerical algorithms, resources, publication shapes, generated-loop bodies, and
-performance evidence. Combining them would exceed one cohesive implementation session. Draft CPU
-0008F, 0008G, 0008H, and 0008I therefore retain MATMUL/linear epilogues, pooling, attention, and
-loss ownership respectively, without detailed specifications. These family rows remain their
-implementation owners rather than being replaced by generic fusion planning.
+performance evidence. Combining them would exceed one cohesive implementation session. Detailed
+Complete CPU 0008F and Draft CPU 0008G, 0008H, and 0008I retain MATMUL/linear epilogues, pooling,
+attention, and loss ownership respectively. CPU 0008G is the next frontier but has no detailed
+specification. These family rows remain their implementation owners rather than being replaced by
+generic fusion planning.
 
 Immediately after that foundation, Complete
 [CPU 0008A Portable channels-first dimensional convolution closure](backends/cpu/tasks/0008a-portable-channels-first-dimensional-convolution-closure.md)
@@ -1011,7 +1030,7 @@ Complete
 adds recognition-only CPU-private typed facts for exact MATMUL, Conv1d/Conv2d/Conv3d, selected
 floating-reduction epilogues, and already first-class softmax/normalization kernels. Its closed
 suffix is optional external ADD plus at most one exact activation/CLAMP. It adds no generated form
-or execution: MATMUL stays unsupported until CPU 0008F; only CPU 0008's existing Conv2d
+or execution: at that checkpoint MATMUL stayed unsupported pending CPU 0008F; only CPU 0008's existing Conv2d
 ADD/ADD-RELU form maps to existing specialized execution; and every other recognized epilogue
 retains the exact CPU 0008B split. Schema 52 and artifact identity remain unchanged. It creates no
 public pattern registry or domain-specific language, adds no Model kind, and never silently
@@ -1061,8 +1080,8 @@ reads or mutates tuning caches, or revises a prepared selection. Later Trace bac
 tuning inspection may consume translated typed cold decision facts without taking ownership of
 CPU legality, recognition, or selection. Complete
 [CPU 0008E1](backends/cpu/tasks/0008e1-shared-partition-dag-adoption-and-reconstruction-removal.md)
-adopted the shared partition DAG without changing CPU policy or generated/hot code; Draft CPU
-0008F then delivers MATMUL. Draft CPU
+adopted the shared partition DAG without changing CPU policy or generated/hot code; detailed
+Complete CPU 0008F now delivers MATMUL. Draft CPU
 0008G–0008I later deliver pooling, attention, and loss execution as separate cohesive family tasks.
 CPU 0009 depends on the ordered CPU 0008A–0008E, Prepare 0003A, CPU 0008E1, and CPU 0008F–0008I
 sequence
@@ -1196,7 +1215,7 @@ detailed CPU 0007A1E through CPU 0007A1O, CPU 0007A2, and detailed CPU 0007B are
 Detailed CPU 0007C, detailed CPU 0007D, detailed CPU 0007E, and detailed CPU 0007F are `Complete`.
 Detailed CPU 0007F1, CPU 0007F2, CPU 0008, CPU 0008A, CPU 0008B, CPU 0008C, and CPU 0008D are
 `Complete`; detailed CPU 0008E and CPU 0008E1 are `Complete`; CPU 0008F is
-`Draft` without a detailed specification; CPU 0008G–0017 and the refined Config, Metal, and tuning rows remain
+`Complete`; CPU 0008G–0017 and the refined Config, Metal, and tuning rows remain
 `Draft`. Prepare 0003A is Complete.
 Completed OpenBLAS history and every completed project area remain unchanged.
 

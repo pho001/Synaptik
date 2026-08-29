@@ -2417,10 +2417,80 @@ bounded evidence for the retained forms and environment, not a universal speedup
 The Conv3d epilogue boundary is exact: only the occurrence's intrinsic rank-one bias is admitted.
 An external ADD, activation, clamp, fan-out, or other Conv3d-led suffix fails this specialized
 path and cannot select the Conv2d-only fused or materialized-suffix forms. Backward/training
-execution, general partition-DAG decomposition, external Conv3d epilogues, MATMUL, pooling,
+execution, general partition-DAG decomposition, external Conv3d epilogues, pooling,
 attention, losses, vector/native convolution, packing, autotuning, dynamic or symbolic Shapes,
 unresolved layouts, public Engine integration, and cross-backend bitwise identity remain outside
 this current CPU capability.
+
+### Current portable MATMUL family
+
+The portable CPU route accepts the complete current fully static, resolved-layout `MATMUL`
+semantic family. It covers vector-vector, vector-matrix, matrix-vector, matrix-matrix, and batched
+forms. Rank-one operands are normalized internally with a unit M or N axis, then the inserted
+result axis is removed. Leading batch prefixes align from the right; an absent or singleton
+operand batch coordinate has effective stride zero, so unequal-rank and two-sided singleton
+broadcasting reuse the same checked geometry without copying.
+
+All thirteen ordered non-BOOL numeric promotions are supported: the nine pairs over BFLOAT16,
+FLOAT32, and FLOAT64, plus the four pairs over INT32 and INT64. BFLOAT16 operands decode to
+FLOAT32; BFLOAT16 and FLOAT32 results accumulate in FLOAT32, FLOAT64 accumulates in FLOAT64, and
+BFLOAT16 rounds once at the final store. Integral accumulation uses Java's modular arithmetic at
+the promoted INT32 or INT64 width. Every accumulator starts at its typed zero and traverses K in
+increasing logical order exactly once. Empty K therefore writes positive floating zero or
+integral zero for each existing output cell.
+
+Cold analysis selects from exactly four bounded generated realizations:
+
+| Realization | Work-unit ownership | Eligibility boundary |
+|---|---|---|
+| `DIRECT_SCALAR` | One output cell | Complete fallback for every admitted type, layout, and carrier pattern. |
+| `DIRECT_N_VECTOR` | One complete `(batch, m)` row, including its scalar N tail | Same-type FLOAT32, FLOAT64, INT32, or INT64 with positive K, unit right/result N strides, at least one preferred species, and no fused terminal. |
+| `TILED_SCALAR_2X2` | One bounded two-by-two M/N microtile plus edge tails | Any admitted type/layout after the direct-small gates when M and N are at least two and the checked work reaches the fixed tiling threshold. |
+| `TILED_N_VECTOR_2X2` | Two M rows by two preferred-species N vectors plus edge tails | The vector-access subset with at least two rows, two species, and the fixed large-work threshold. |
+
+The direct-small gates select scalar work for empty output, K zero, unit M or N, or fewer than
+4,096 checked multiply-adds. Scalar tiling becomes eligible at 16,384; vector tiling becomes
+eligible at 65,536. These constants are conservative cold selection policy, not hardware cache
+sizes or universal optimality claims. Concrete extents, batch count, range count, and worker count
+remain invocation geometry, so compatible Shapes reuse the same generated class form.
+
+Each generated `start`/`end` range indexes only the selected flattened output work-unit domain.
+Ranges own disjoint cells, rows, or tiles and may run through the existing caller-owned
+`CpuWorkerGroup`; K is never a parallel axis. There is no K blocking, K splitting, partial result,
+combine phase, atomic update, lock, panel pack, nested worker, or invocation-local packing. The
+scalar fallback preserves arbitrary admitted non-negative-stride layouts and exact heap-array,
+native-order segment, or mixed carrier patterns. Output/input and output/bias overlap is rejected
+before any write or worker submission; read-only input/input sharing remains legal.
+
+The recognized linear suffix remains the visible Model and Compiler
+`PERMUTE([1,0]) -> MATMUL -> optional ADD` composition. CPU recognition may retain an exact
+FLOAT32/FLOAT64 rank-one bias ADD and at most one recognized terminal activation or CLAMP in one
+scalar generated body when legality and complete-topology profitability prove it. The operation
+order is full-K accumulation, bias ADD, optional terminal, then one store. Vector candidates can
+retain no terminal; unsupported or uncertain suffixes keep the canonical executable split. CPU
+does not create a `LINEAR` operation or rediscover a broader transpose or bias pattern.
+
+Direct representation is always executable and remains the ordinary preparation choice. The
+existing representation planner can retain a complete one-copy-left or one-copy-right candidate
+using a declared whole-value affine-copy workspace. A two-copy candidate consumed by the same
+MATMUL remains rejected as `CO_CONSUMED_PAIR`. The retained materialization measurements prove the
+two named task cases only; they do not establish an automatic default policy, panel packing, or a
+Runtime choice.
+
+Schema 54 adds the MATMUL class-identity projection while unchanged generated families retain
+their schema-52 class projection and byte-identical class forms. The retained task evidence uses
+an optimal clean Java implementation at the same shape-polymorphic typed-carrier,
+mutable-`long[]`-geometry, and `long start`/`long end` invocation boundary. Generated code must
+preserve that oracle's specialized algorithm and avoidable-overhead profile; it need not be
+byte-identical or receive the same just-in-time (JIT) compiler inlining decision.
+
+For the frozen ten-row kernel ledger, all five Java 26 forks and all aggregate medians passed the
+generated/direct `<= 1.15x` gate. Aggregate ratios were `0.970930`, `0.989785`, `0.991573`,
+`0.990020`, `0.885035`, `0.990787`, `0.988615`, `0.946980`, `0.996487`, and `0.991202`; the worst
+individual ratio was `1.002573`. The two complete materialization companion medians were
+`0.351500` and `0.582291`. This is bounded evidence for the retained source, generated classes,
+Java version, host, and protocol—not a permanent performance guarantee, universal speedup, native
+route claim, or cross-backend bitwise promise.
 
 ### Unary numerical closure
 

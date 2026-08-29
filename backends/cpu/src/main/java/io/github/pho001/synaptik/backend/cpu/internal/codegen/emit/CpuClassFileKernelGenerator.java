@@ -75,6 +75,7 @@ public final class CpuClassFileKernelGenerator {
                     || kernelIr.familyIdentity().startsWith("batch-normalization-training:")
                     || kernelIr.familyIdentity().startsWith("conv2d:")
                     || kernelIr.familyIdentity().startsWith("conv3d:")
+                    || kernelIr.familyIdentity().startsWith("matmul:")
                         ? AccessFlag.PUBLIC.mask() : 0);
         byte[] bytes = ClassFile.of().build(owner, classBuilder -> classBuilder
                 .withVersion(ClassFile.JAVA_26_VERSION, 0).withFlags(AccessFlag.FINAL)
@@ -91,7 +92,12 @@ public final class CpuClassFileKernelGenerator {
                                         specialization.carrierPattern());
                             }
                             if (kernelIr.instructions().isEmpty()) {
-                                if (kernelIr.familyIdentity().startsWith("conv3d:")) {
+                                if (kernelIr.familyIdentity().startsWith("matmul:")) {
+                                    new CpuMatmulEmitter().emit(code, specialization,
+                                            specialization.matmulIr().orElseThrow(() ->
+                                                new IllegalArgumentException(
+                                                    "MATMUL specialization lacks typed facts")));
+                                } else if (kernelIr.familyIdentity().startsWith("conv3d:")) {
                                     new CpuConv3dEmitter().emit(code, specialization, kernelIr);
                                 } else if (kernelIr.familyIdentity().startsWith("conv2d:")) {
                                     new CpuConv2dEmitter().emit(code, specialization, kernelIr);
@@ -423,23 +429,35 @@ public final class CpuClassFileKernelGenerator {
                     .startsWith("batch-normalization-training:");
             boolean conv2d = kernelIr.familyIdentity().startsWith("conv2d:");
             boolean conv3d = kernelIr.familyIdentity().startsWith("conv3d:");
+            boolean matmul = kernelIr.familyIdentity().startsWith("matmul:");
             boolean scatter = kernelIr.familyIdentity().startsWith("scatter:");
             boolean fold = kernelIr.familyIdentity().startsWith("fold:");
             boolean ordering = kernelIr.familyIdentity().startsWith("ordering:");
             boolean movement = kernelIr.familyIdentity().startsWith("movement:");
             boolean affine = kernelIr.familyIdentity().startsWith("affine:");
-            if ((!movement && !affine && !indexing && !scatter && !fold && !ordering && !random && !scan && !aggregate && !argExtrema && !maskedReduction && !advancedReduction && !softmax && !trailingNormalization && !batchNormalization && !batchTraining && !conv2d && !conv3d)
+            if ((!movement && !affine && !indexing && !scatter && !fold && !ordering && !random && !scan && !aggregate && !argExtrema && !maskedReduction && !advancedReduction && !softmax && !trailingNormalization && !batchNormalization && !batchTraining && !conv2d && !conv3d && !matmul)
                     || affine && kernelIr.values().size() != 2
                     || movement && (kernelIr.values().size() < 2 || kernelIr.values().size() > 17)
-                    || !ordering && !random && !scan && !aggregate && !argExtrema && !maskedReduction && !advancedReduction && !softmax && !trailingNormalization && !batchNormalization && !batchTraining && !conv2d && !conv3d && kernelIr.values().subList(0, kernelIr.values().size() - 1).stream()
+                    || !ordering && !random && !scan && !aggregate && !argExtrema && !maskedReduction && !advancedReduction && !softmax && !trailingNormalization && !batchNormalization && !batchTraining && !conv2d && !conv3d && !matmul && kernelIr.values().subList(0, kernelIr.values().size() - 1).stream()
                         .anyMatch(value -> value.kind() != CpuKernelIr.Value.Kind.INPUT)
                     || kernelIr.values().getLast().kind() != CpuKernelIr.Value.Kind.OUTPUT
-                    || !indexing && !scatter && !fold && !ordering && !random && !scan && !aggregate && !argExtrema && !maskedReduction && !advancedReduction && !softmax && !trailingNormalization && !batchNormalization && !batchTraining && !conv2d && !conv3d
+                    || !indexing && !scatter && !fold && !ordering && !random && !scan && !aggregate && !argExtrema && !maskedReduction && !advancedReduction && !softmax && !trailingNormalization && !batchNormalization && !batchTraining && !conv2d && !conv3d && !matmul
                         && kernelIr.values().stream().map(CpuKernelIr.Value::dataType).distinct().count() != 1
                     || conv2d && (kernelIr.values().size() < 3 || kernelIr.values().size() > 5)
                     || conv3d && (kernelIr.values().size() < 3 || kernelIr.values().size() > 4)
+                    || matmul && (specialization.matmulIr().isEmpty()
+                        || kernelIr.values().size()
+                            != (specialization.matmulIr().orElseThrow().epilogue().hasBias()?4:3)
+                        || specialization.matmulIr().orElseThrow().realization()
+                            != io.github.pho001.synaptik.backend.cpu.internal.ir.CpuMatmulIr.Realization.DIRECT_SCALAR
+                        && specialization.matmulIr().orElseThrow().realization()
+                            != io.github.pho001.synaptik.backend.cpu.internal.ir.CpuMatmulIr.Realization.DIRECT_N_VECTOR
+                        && specialization.matmulIr().orElseThrow().realization()
+                            != io.github.pho001.synaptik.backend.cpu.internal.ir.CpuMatmulIr.Realization.TILED_SCALAR_2X2
+                        && specialization.matmulIr().orElseThrow().realization()
+                            != io.github.pho001.synaptik.backend.cpu.internal.ir.CpuMatmulIr.Realization.TILED_N_VECTOR_2X2)
                     || random && kernelIr.values().size() != 1 && kernelIr.values().size() != 5
-                    || specialization.executionStrategy().compute()
+                    || !matmul && specialization.executionStrategy().compute()
                         != io.github.pho001.synaptik.backend.cpu.internal.prepare.CpuPartitionPreparationPlan.ExecutionStrategy.Compute.SCALAR
                     || !specialization.scalarPowerRealizations().isEmpty()) {
                 throw new IllegalArgumentException("unsupported canonical affine copy IR");

@@ -142,7 +142,8 @@ public final class CpuPartitionPreparer implements BackendPartitionPreparer<
             var unit = plan.units().get(unitIndex);
             var bindings = new ArrayList<>(unit.accessBindings());
             var carriers = new ArrayList<>(unit.generatedCarrierPattern());
-            CpuKernelIr ir = (CpuKernelIr) unit.portablePlan().portableKernelIr();
+            CpuKernelIr ir = unit.portablePlan().kernelIr();
+            var representedMatmul=unit.portablePlan().specialization().matmulIr();
             boolean changed = false;
             for (CpuMaterializationPlan copy : representation.materializations()) {
                 for (var consumer : copy.consumers()) {
@@ -152,6 +153,11 @@ public final class CpuPartitionPreparer implements BackendPartitionPreparer<
                             CpuKernelSpecialization.CarrierAccess.MEMORY_SEGMENT);
                     ir = adjustedIr(ir, consumer.boundaryPosition(),
                             copy.consumerBinding().plan());
+                    if(representedMatmul.isPresent()) {
+                        var matmul=representedMatmul.orElseThrow().withInputAccess(
+                                consumer.boundaryPosition(),copy.consumerBinding().plan());
+                        representedMatmul=Optional.of(matmul);ir=matmul.encodedKernelIr();
+                    }
                     changed = true;
                 }
             }
@@ -166,8 +172,9 @@ public final class CpuPartitionPreparer implements BackendPartitionPreparer<
                                 .filter(value -> value.unitPosition() == representedUnitIndex)
                                 .mapToInt(value -> value.boundaryPosition()).findFirst().orElse(-1)
                             : -1,
-                        old.scalarPowerRealizations(), old.scratchParameter());
-                route = new CpuPortableRoutePlan(ir, specialization);
+                        old.scalarPowerRealizations(), old.scratchParameter(),
+                        old.classIdentitySchema(),representedMatmul);
+                route=new CpuPortableRoutePlan(ir,specialization);
             }
             representedUnits.add(new CpuPartitionPreparationPlan.RepresentationUnitPlan(unitIndex,
                     route, bindings, carriers));
@@ -293,7 +300,7 @@ public final class CpuPartitionPreparer implements BackendPartitionPreparer<
                 unit.generatedCarrierPattern(), unit.extents(), unit.elementCount(),
                 unit.executionStrategy(), unit.selectedRangeCount(), unit.minimumElementsPerWorker(),
                 unit.vectorSpeciesBitSize(), unit.conv2dGeometry(), unit.conv3dGeometry(),
-                unit.outputCount(), unit.fusionReason(), topology.dependencies(),
+                unit.matmulGeometry(), unit.outputCount(), unit.fusionReason(), topology.dependencies(),
                 topology.memberNodeOrdinals(), facts);
         var annotated = new CpuPartitionPreparationPlan(List.of(enriched), plan.route(),
                 plan.executionStrategy(), plan.bufferDeclarations(), plan.boundaryValues(),
@@ -359,6 +366,7 @@ public final class CpuPartitionPreparer implements BackendPartitionPreparer<
                 instanceof io.github.pho001.synaptik.backend.cpu.internal.ir.CpuConv2dIr;
         boolean conv3d = lowered.portableKernelIr()
                 instanceof io.github.pho001.synaptik.backend.cpu.internal.ir.CpuConv3dIr;
+        boolean matmul=lowered.matmulIr().isPresent();
         Optional<CpuMaterializationPlan> materialization = Optional.empty();
         var declarations = new ArrayList<PreparationResourceRequirement.Buffer>(lowered.boundaryValues().size());
         for (int i = 0; i < lowered.boundaryValues().size(); i++) declarations.add(
@@ -369,7 +377,8 @@ public final class CpuPartitionPreparer implements BackendPartitionPreparer<
         var bindings = new ArrayList<>(lowered.accessBindings());
         var carriers = new ArrayList<>(requestedCarriers);
         CpuKernelIr kernelIr = lowered.kernelIr();
-        boolean affineCopy = kernelIr.instructions().isEmpty();
+        boolean affineCopy = lowered.portableKernelIr()
+                instanceof io.github.pho001.synaptik.backend.cpu.internal.ir.CpuAffineCopyIr;
         if (materialization.isPresent()) {
             var selected = materialization.orElseThrow();
             bindings.set(selected.sourceBoundaryIndex(), selected.consumerBinding());
@@ -381,7 +390,13 @@ public final class CpuPartitionPreparer implements BackendPartitionPreparer<
         DataType vectorType = vectorLaneType(kernelIr);
         int lanes = speciesLanes(vectorType);
         int speciesBits = speciesBits(vectorType);
-        boolean vectorEligible = !affineCopy && !indexing && !scatter && !fold && !ordering && !random && !scan && !aggregate && !argExtrema && !maskedReduction && !advancedReduction && !softmax && !trailingNormalization && !batchNormalization && !batchNormTraining && !conv2d && !conv3d && config.computePreference()
+        boolean matmulVector = matmul && config.computePreference()
+                == CpuPartitionAnalysisInputs.PortableExecutionConfig.ComputePreference.VECTOR_IF_ELIGIBLE
+                && (lowered.matmulIr().orElseThrow().realization()
+                == io.github.pho001.synaptik.backend.cpu.internal.ir.CpuMatmulIr.Realization.DIRECT_N_VECTOR
+                ||lowered.matmulIr().orElseThrow().realization()
+                == io.github.pho001.synaptik.backend.cpu.internal.ir.CpuMatmulIr.Realization.TILED_N_VECTOR_2X2);
+        boolean vectorEligible = matmulVector || !matmul && !affineCopy && !movement && !indexing && !scatter && !fold && !ordering && !random && !scan && !aggregate && !argExtrema && !maskedReduction && !advancedReduction && !softmax && !trailingNormalization && !batchNormalization && !batchNormTraining && !conv2d && !conv3d && config.computePreference()
                         == CpuPartitionAnalysisInputs.PortableExecutionConfig.ComputePreference.VECTOR_IF_ELIGIBLE
                 && vectorType != null && lanes > 1 && lowered.elementCount() >= lanes
                 && vectorTopologyEligible(kernelIr, vectorType)
@@ -395,7 +410,27 @@ public final class CpuPartitionPreparer implements BackendPartitionPreparer<
         var selectedBatchGeometry = lowered.batchNormInferenceGeometry();
         var selectedTrainingGeometry = lowered.batchNormTrainingGeometry();
         int selectedRangeCount;
-        if (batchNormalization) {
+        if (matmul) {
+            var geometry = lowered.matmulGeometry().orElseThrow();
+            var form=lowered.matmulIr().orElseThrow().realization();
+            iterationCount = switch (form) {
+                case DIRECT_SCALAR -> geometry.outputCount();
+                case DIRECT_N_VECTOR -> Math.multiplyExact(geometry.batchCount(), geometry.m());
+                case TILED_SCALAR_2X2 -> Math.multiplyExact(geometry.batchCount(),
+                        Math.multiplyExact(ceilDiv(geometry.m(), 2), ceilDiv(geometry.n(), 2)));
+                case TILED_N_VECTOR_2X2 -> Math.multiplyExact(geometry.batchCount(),
+                        Math.multiplyExact(ceilDiv(geometry.m(), 2),
+                                ceilDiv(geometry.n(), Math.multiplyExact(2L, lanes))));
+            };
+            long coordinatesPerWorkUnit = iterationCount == 0 ? 1
+                    : Math.max(1, geometry.outputCount() / iterationCount);
+            minimumRangeItemsPerWorker = iterationCount == 0 ? 1 : Math.max(1,
+                    ceilDiv(config.minimumElementsPerWorker(), coordinatesPerWorkUnit));
+            selectedRangeCount = iterationCount == 0 ? 1 : Math.min(usableParallelism,
+                    Math.toIntExact(Math.min(Integer.MAX_VALUE,
+                            ceilDiv(iterationCount, minimumRangeItemsPerWorker))));
+            selectedExtents = new long[] {iterationCount};
+        } else if (batchNormalization) {
             var geometry = lowered.batchNormInferenceGeometry().orElseThrow();
             var form = usableParallelism >= 2 && geometry.channelCount() < geometry.nonChannelCount()
                     ? io.github.pho001.synaptik.backend.cpu.internal.ir.CpuBatchNormInferenceIr.RangeForm.NON_CHANNEL_RANGE
@@ -466,8 +501,9 @@ public final class CpuPartitionPreparer implements BackendPartitionPreparer<
                         || lowered.trailingNormalizationGeometry()
                             .filter(g -> g.scratchSliceBytes() > 0).isPresent()
                         || lowered.batchNormTrainingGeometry()
-                            .filter(g -> g.scratchSliceBytes() > 0).isPresent());
-        selectedPortableIr = materialization.isPresent() ? kernelIr : selectedPortableIr;
+                            .filter(g -> g.scratchSliceBytes() > 0).isPresent(), matmul ? 54 : 52,
+                lowered.matmulIr());
+        selectedPortableIr = matmul||materialization.isPresent()?kernelIr:selectedPortableIr;
         var routePlan = new CpuPortableRoutePlan(selectedPortableIr, specialization);
         String manifest = "unit=0;fusion=" + lowered.fusionReason()
                 + ";access=" + bindings.stream()
@@ -568,7 +604,7 @@ public final class CpuPartitionPreparer implements BackendPartitionPreparer<
                         routePlan, lowered.boundaryValues(), bindings, requestedCarriers, carriers,
                         selectedExtents, iterationCount, strategy, selectedRangeCount,
                         minimumRangeItemsPerWorker, vectorEligible ? speciesBits : 0,
-                        lowered.conv2dGeometry(), lowered.conv3dGeometry(),
+                        lowered.conv2dGeometry(), lowered.conv3dGeometry(), lowered.matmulGeometry(),
                         (int) kernelIr.values().stream()
                             .filter(value -> value.kind() == CpuKernelIr.Value.Kind.OUTPUT).count(),
                         lowered.fusionReason())),
@@ -675,7 +711,7 @@ public final class CpuPartitionPreparer implements BackendPartitionPreparer<
                     unit.generatedCarrierPattern(), unit.extents(), unit.elementCount(),
                     unit.executionStrategy(), unit.selectedRangeCount(),
                     unit.minimumElementsPerWorker(), unit.vectorSpeciesBitSize(),
-                    unit.conv2dGeometry(), unit.conv3dGeometry(), unit.outputCount(),
+                    unit.conv2dGeometry(), unit.conv3dGeometry(), unit.matmulGeometry(), unit.outputCount(),
                     unit.fusionReason(), topologyUnit.dependencies(),
                     topologyUnit.memberNodeOrdinals(), runtimeFacts));
         }

@@ -78,6 +78,7 @@ public final class CpuPartitionLowering {
             new CpuBatchNormTrainingLowering();
     private final CpuConv2dLowering conv2dLowering = new CpuConv2dLowering();
     private final CpuConv3dLowering conv3dLowering = new CpuConv3dLowering();
+    private final CpuMatmulLowering matmulLowering = new CpuMatmulLowering();
     private final CpuConv1dCompositionLowering conv1dCompositionLowering =
             new CpuConv1dCompositionLowering();
 
@@ -117,6 +118,10 @@ public final class CpuPartitionLowering {
         if (nodes.getFirst().operation().kind()
                 == io.github.pho001.synaptik.model.operation.convolution.Conv3dKind.CONV3D) {
             return conv3dLowering.lower(context);
+        }
+        if (nodes.getFirst().operation().kind()
+                == io.github.pho001.synaptik.model.operation.linalg.MatmulKind.MATMUL) {
+            return matmulLowering.lower(context);
         }
         if (nodes.size() == 1) {
             Object kind = nodes.getFirst().operation().kind();
@@ -595,6 +600,7 @@ public final class CpuPartitionLowering {
      *     exact-state slice per simultaneous non-empty range
      * @param conv2dGeometry compact cold grouped NCHW Conv2d boundary geometry
      * @param conv3dGeometry compact cold grouped NCDHW Conv3d boundary geometry
+     * @param matmulFacts typed code identity and compact cold normalized full-K MATMUL geometry
      */
     public record LoweredPartition(CpuPortableKernelIr portableKernelIr, List<ValueId> boundaryValues,
             List<CpuAccessPlan.Binding> accessBindings, List<Long> referencedElementSpans,
@@ -616,7 +622,82 @@ public final class CpuPartitionLowering {
             Optional<CpuBatchNormInferenceLowering.Geometry> batchNormInferenceGeometry,
             Optional<CpuBatchNormTrainingLowering.Geometry> batchNormTrainingGeometry,
             Optional<CpuConv2dLowering.Geometry> conv2dGeometry,
-            Optional<CpuConv3dLowering.Geometry> conv3dGeometry) {
+            Optional<CpuConv3dLowering.Geometry> conv3dGeometry,
+            Optional<MatmulFacts> matmulFacts) {
+
+        /** Typed MATMUL code identity paired with its separate cold geometry.
+         * @param ir exact non-null code-shaping MATMUL identity
+         * @param geometry exact non-null normalized full-K geometry
+         */
+        public record MatmulFacts(io.github.pho001.synaptik.backend.cpu.internal.ir.CpuMatmulIr ir,
+                CpuMatmulLowering.Geometry geometry) {
+            /** Validates both non-null MATMUL analysis products. */
+            public MatmulFacts {Objects.requireNonNull(ir,"ir");Objects.requireNonNull(geometry,"geometry");}
+        }
+
+        /**
+         * Creates an established-family lowering with no MATMUL geometry.
+         *
+         * @param portableKernelIr non-null route-independent portable kernel IR
+         * @param boundaryValues external reads followed by materialized outputs; copied
+         * @param accessBindings normalized cold boundary bindings; copied
+         * @param referencedElementSpans exact declaration spans in boundary order; copied
+         * @param boundaryDataTypes exact represented boundary types; copied
+         * @param virtualValues same-unit values that require no physical boundary; copied
+         * @param extents final logical work-domain extents; copied defensively
+         * @param elementCount checked product of {@code extents}
+         * @param fusionReason non-null cold diagnostic explanation
+         * @param affineAddressPairs alternating affine source/result addresses; copied
+         * @param movementGeometry optional static movement geometry
+         * @param indexingGeometry optional indexing geometry
+         * @param scatterGeometry optional functional-scatter geometry
+         * @param foldGeometry optional overlap-fold geometry
+         * @param orderingGeometry optional stable-ordering geometry
+         * @param randomGeometry optional explicit-state geometry
+         * @param scanGeometry optional cumulative-scan geometry
+         * @param aggregateGeometry optional ordinary-aggregate geometry
+         * @param argExtremaGeometry optional arg-extrema geometry
+         * @param maskedReductionGeometry optional masked-reduction geometry
+         * @param advancedReductionGeometry optional logarithmic/statistical/norm geometry
+         * @param softmaxGeometry optional stable-softmax geometry
+         * @param trailingNormalizationGeometry optional Layer/RMS geometry
+         * @param batchNormInferenceGeometry optional batch-normalization inference geometry
+         * @param batchNormTrainingGeometry optional batch-normalization training geometry
+         * @param conv2dGeometry optional grouped NCHW Conv2d geometry
+         * @param conv3dGeometry optional grouped NCDHW Conv3d geometry
+         * @throws NullPointerException if a required reference or list element is {@code null}
+         * @throws IllegalArgumentException if boundary, range, output, or family facts disagree
+         * @throws ArithmeticException if checked extent or address arithmetic overflows
+         */
+        public LoweredPartition(CpuPortableKernelIr portableKernelIr, List<ValueId> boundaryValues,
+                List<CpuAccessPlan.Binding> accessBindings, List<Long> referencedElementSpans,
+                List<DataType> boundaryDataTypes, List<ValueId> virtualValues, long[] extents,
+                long elementCount, String fusionReason, long[] affineAddressPairs,
+                Optional<CpuNonAffineMovementLowering.Geometry> movementGeometry,
+                Optional<CpuIndexingLowering.Geometry> indexingGeometry,
+                Optional<CpuScatterLowering.Geometry> scatterGeometry,
+                Optional<CpuFoldLowering.Geometry> foldGeometry,
+                Optional<CpuOrderingLowering.Geometry> orderingGeometry,
+                Optional<CpuRandomLowering.Geometry> randomGeometry,
+                Optional<CpuScanLowering.Geometry> scanGeometry,
+                Optional<CpuAggregateLowering.Geometry> aggregateGeometry,
+                Optional<CpuArgExtremaLowering.Geometry> argExtremaGeometry,
+                Optional<CpuMaskedReductionLowering.Geometry> maskedReductionGeometry,
+                Optional<CpuAdvancedReductionLowering.Geometry> advancedReductionGeometry,
+                Optional<CpuSoftmaxLowering.Geometry> softmaxGeometry,
+                Optional<CpuTrailingNormalizationLowering.Geometry> trailingNormalizationGeometry,
+                Optional<CpuBatchNormInferenceLowering.Geometry> batchNormInferenceGeometry,
+                Optional<CpuBatchNormTrainingLowering.Geometry> batchNormTrainingGeometry,
+                Optional<CpuConv2dLowering.Geometry> conv2dGeometry,
+                Optional<CpuConv3dLowering.Geometry> conv3dGeometry) {
+            this(portableKernelIr,boundaryValues,accessBindings,referencedElementSpans,
+                    boundaryDataTypes,virtualValues,extents,elementCount,fusionReason,
+                    affineAddressPairs,movementGeometry,indexingGeometry,scatterGeometry,
+                    foldGeometry,orderingGeometry,randomGeometry,scanGeometry,aggregateGeometry,
+                    argExtremaGeometry,maskedReductionGeometry,advancedReductionGeometry,
+                    softmaxGeometry,trailingNormalizationGeometry,batchNormInferenceGeometry,
+                    batchNormTrainingGeometry,conv2dGeometry,conv3dGeometry,Optional.empty());
+        }
 
         /**
          * Creates an established-family lowering with no Conv3d geometry.
@@ -1165,6 +1246,8 @@ public final class CpuPartitionLowering {
             batchNormTrainingGeometry = Objects.requireNonNull(batchNormTrainingGeometry,
                     "batchNormTrainingGeometry");
             conv2dGeometry = Objects.requireNonNull(conv2dGeometry, "conv2dGeometry");
+            conv3dGeometry = Objects.requireNonNull(conv3dGeometry, "conv3dGeometry");
+            matmulFacts=Objects.requireNonNull(matmulFacts,"matmulFacts");
             Objects.requireNonNull(fusionReason, "fusionReason");
             int size = boundaryValues.size();
             if (size < 1 || accessBindings.size() != size || referencedElementSpans.size() != size
@@ -1185,6 +1268,22 @@ public final class CpuPartitionLowering {
          *     pointwise IR
          */
         @Override public long[] affineAddressPairs() { return affineAddressPairs.clone(); }
+        /**
+         * Returns the typed MATMUL code identity when this is a MATMUL lowering.
+         *
+         * @return the retained immutable identity, or empty for every other family
+         */
+        public Optional<io.github.pho001.synaptik.backend.cpu.internal.ir.CpuMatmulIr> matmulIr(){
+            return matmulFacts.map(MatmulFacts::ir);
+        }
+        /**
+         * Returns the separate cold MATMUL invocation geometry when present.
+         *
+         * @return the retained immutable geometry, or empty for every other family
+         */
+        public Optional<CpuMatmulLowering.Geometry> matmulGeometry(){
+            return matmulFacts.map(MatmulFacts::geometry);
+        }
         /**
          * Returns the cache-compatible generated form.
          *

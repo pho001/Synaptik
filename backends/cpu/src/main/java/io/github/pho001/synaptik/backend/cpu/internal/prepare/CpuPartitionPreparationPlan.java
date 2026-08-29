@@ -34,6 +34,7 @@ import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuTrailingNormal
 import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuBatchNormInferenceLowering;
 import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuBatchNormTrainingLowering;
 import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuConv2dLowering;
+import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuMatmulLowering;
 import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuConv3dLowering;
 
 /**
@@ -593,6 +594,7 @@ public record CpuPartitionPreparationPlan(List<ExecutionUnitPlan> units, Route r
      * @param vectorSpeciesBitSize zero for the admitted split units
      * @param conv2dGeometry exact Conv2d geometry for the lead unit only
      * @param conv3dGeometry exact Conv3d geometry for a direct rank-five unit only
+     * @param matmulGeometry exact normalized full-K MATMUL geometry for a MATMUL unit only
      * @param outputCount positive count of trailing materialized output boundaries
      * @param fusionReason non-null cold diagnostic explanation of the selected fusion
      * @param dependencies non-null strictly earlier direct producer-unit indices; copied
@@ -607,9 +609,51 @@ public record CpuPartitionPreparationPlan(List<ExecutionUnitPlan> units, Route r
             long[] extents, long elementCount, ExecutionStrategy executionStrategy,
             int selectedRangeCount, long minimumElementsPerWorker, int vectorSpeciesBitSize,
             Optional<CpuConv2dLowering.Geometry> conv2dGeometry,
-            Optional<CpuConv3dLowering.Geometry> conv3dGeometry, int outputCount,
+            Optional<CpuConv3dLowering.Geometry> conv3dGeometry,
+            Optional<CpuMatmulLowering.Geometry> matmulGeometry, int outputCount,
             String fusionReason, List<Integer> dependencies, List<Integer> memberNodeOrdinals,
             UnitRuntimeFacts runtimeFacts) {
+
+        /**
+         * Creates an established execution unit with no MATMUL geometry.
+         *
+         * @param portablePlan non-null already-lowered portable realization plan
+         * @param boundaryValues ordered unit-local materialized values; copied defensively
+         * @param accessBindings ordered unit-local cold access facts; copied defensively
+         * @param carrierPattern requested carriers in boundary order; copied defensively
+         * @param generatedCarrierPattern generated-entry carriers; copied defensively
+         * @param extents unit-local logical range extents; copied defensively
+         * @param elementCount checked non-negative unit-local work-unit count
+         * @param executionStrategy non-null compute and orchestration selection
+         * @param selectedRangeCount positive selected range count
+         * @param minimumElementsPerWorker positive minimum work units per submitted range
+         * @param vectorSpeciesBitSize selected vector width in bits, or zero
+         * @param conv2dGeometry non-null optional grouped NCHW Conv2d geometry
+         * @param conv3dGeometry non-null optional grouped NCDHW Conv3d geometry
+         * @param outputCount positive count of trailing materialized outputs
+         * @param fusionReason non-null cold diagnostic explanation
+         * @param dependencies strictly earlier producer-unit indices; copied defensively
+         * @param memberNodeOrdinals original partition node ordinals; copied defensively
+         * @param runtimeFacts non-null immutable unit-local resource and family facts
+         * @throws NullPointerException if a required reference or list element is {@code null}
+         * @throws IllegalArgumentException if boundaries, ranges, outputs, strategy, or
+         *     specialization facts disagree
+         * @throws ArithmeticException if the extent product overflows
+         */
+        public ExecutionUnitPlan(CpuPortableRoutePlan portablePlan,
+                List<ValueId> boundaryValues, List<CpuAccessPlan.Binding> accessBindings,
+                List<CarrierAccess> carrierPattern, List<CarrierAccess> generatedCarrierPattern,
+                long[] extents, long elementCount, ExecutionStrategy executionStrategy,
+                int selectedRangeCount, long minimumElementsPerWorker, int vectorSpeciesBitSize,
+                Optional<CpuConv2dLowering.Geometry> conv2dGeometry,
+                Optional<CpuConv3dLowering.Geometry> conv3dGeometry, int outputCount,
+                String fusionReason, List<Integer> dependencies, List<Integer> memberNodeOrdinals,
+                UnitRuntimeFacts runtimeFacts) {
+            this(portablePlan,boundaryValues,accessBindings,carrierPattern,generatedCarrierPattern,
+                    extents,elementCount,executionStrategy,selectedRangeCount,
+                    minimumElementsPerWorker,vectorSpeciesBitSize,conv2dGeometry,conv3dGeometry,
+                    Optional.empty(),outputCount,fusionReason,dependencies,memberNodeOrdinals,runtimeFacts);
+        }
         /**
          * Creates the established unit shape with no general-DAG topology or additional runtime
          * facts. This overload preserves structural identity for unchanged one-unit forms.
@@ -645,8 +689,46 @@ public record CpuPartitionPreparationPlan(List<ExecutionUnitPlan> units, Route r
             this(portablePlan, boundaryValues, accessBindings, carrierPattern,
                     generatedCarrierPattern, extents, elementCount, executionStrategy,
                     selectedRangeCount, minimumElementsPerWorker, vectorSpeciesBitSize,
-                    conv2dGeometry, conv3dGeometry, outputCount, fusionReason, List.of(), List.of(),
+                    conv2dGeometry, conv3dGeometry, Optional.empty(), outputCount, fusionReason, List.of(), List.of(),
                     UnitRuntimeFacts.EMPTY);
+        }
+        /**
+         * Creates a one-unit plan with optional MATMUL geometry and no DAG metadata.
+         *
+         * @param portablePlan non-null already-lowered portable realization plan
+         * @param boundaryValues ordered unit-local materialized values; copied defensively
+         * @param accessBindings ordered unit-local cold access facts; copied defensively
+         * @param carrierPattern requested carriers in boundary order; copied defensively
+         * @param generatedCarrierPattern generated-entry carriers; copied defensively
+         * @param extents unit-local logical work-domain extents; copied defensively
+         * @param elementCount checked non-negative work-unit count
+         * @param executionStrategy non-null compute and orchestration selection
+         * @param selectedRangeCount positive selected range count
+         * @param minimumElementsPerWorker positive minimum work units per submitted range
+         * @param vectorSpeciesBitSize selected vector width in bits, or zero
+         * @param conv2dGeometry non-null optional grouped NCHW Conv2d geometry
+         * @param conv3dGeometry non-null optional grouped NCDHW Conv3d geometry
+         * @param matmulGeometry non-null optional normalized full-K MATMUL geometry
+         * @param outputCount positive count of trailing materialized outputs
+         * @param fusionReason non-null cold diagnostic explanation
+         * @throws NullPointerException if a required reference or list element is {@code null}
+         * @throws IllegalArgumentException if boundaries, ranges, outputs, strategy, or
+         *     specialization facts disagree
+         * @throws ArithmeticException if the extent product overflows
+         */
+        public ExecutionUnitPlan(CpuPortableRoutePlan portablePlan,
+                List<ValueId> boundaryValues, List<CpuAccessPlan.Binding> accessBindings,
+                List<CarrierAccess> carrierPattern, List<CarrierAccess> generatedCarrierPattern,
+                long[] extents, long elementCount, ExecutionStrategy executionStrategy,
+                int selectedRangeCount, long minimumElementsPerWorker, int vectorSpeciesBitSize,
+                Optional<CpuConv2dLowering.Geometry> conv2dGeometry,
+                Optional<CpuConv3dLowering.Geometry> conv3dGeometry,
+                Optional<CpuMatmulLowering.Geometry> matmulGeometry, int outputCount,
+                String fusionReason) {
+            this(portablePlan,boundaryValues,accessBindings,carrierPattern,generatedCarrierPattern,
+                    extents,elementCount,executionStrategy,selectedRangeCount,
+                    minimumElementsPerWorker,vectorSpeciesBitSize,conv2dGeometry,conv3dGeometry,
+                    matmulGeometry,outputCount,fusionReason,List.of(),List.of(),UnitRuntimeFacts.EMPTY);
         }
         /**
          * Creates an established execution unit with no Conv3d geometry.
@@ -699,6 +781,7 @@ public record CpuPartitionPreparationPlan(List<ExecutionUnitPlan> units, Route r
          * @param vectorSpeciesBitSize selected vector width, or zero
          * @param conv2dGeometry exact Conv2d geometry for the lead unit only
          * @param conv3dGeometry exact Conv3d geometry for a direct rank-five unit only
+         * @param matmulGeometry exact normalized full-K MATMUL geometry for a MATMUL unit only
          * @param outputCount positive count of trailing materialized outputs
          * @param fusionReason non-null cold diagnostic explanation
          * @param dependencies non-null strictly earlier direct producer-unit indices; copied
@@ -720,11 +803,13 @@ public record CpuPartitionPreparationPlan(List<ExecutionUnitPlan> units, Route r
             Objects.requireNonNull(executionStrategy, "executionStrategy");
             conv2dGeometry = Objects.requireNonNull(conv2dGeometry, "conv2dGeometry");
             conv3dGeometry = Objects.requireNonNull(conv3dGeometry, "conv3dGeometry");
+            matmulGeometry = Objects.requireNonNull(matmulGeometry, "matmulGeometry");
             Objects.requireNonNull(fusionReason, "fusionReason");
             dependencies = List.copyOf(dependencies);
             memberNodeOrdinals = List.copyOf(memberNodeOrdinals);
             Objects.requireNonNull(runtimeFacts, "runtimeFacts");
             CpuKernelIr generated = portablePlan.kernelIr();
+            boolean matmul=portablePlan.specialization().matmulIr().isPresent();
             var materialized = generated.values().stream()
                     .filter(value -> value.kind() != CpuKernelIr.Value.Kind.VIRTUAL).toList();
             long checkedCount = 1;
@@ -757,7 +842,9 @@ public record CpuPartitionPreparationPlan(List<ExecutionUnitPlan> units, Route r
                     || portablePlan.specialization().vectorSpeciesBitSize()
                         != vectorSpeciesBitSize
                     || dependencies.stream().anyMatch(value -> value == null || value < 0)
-                    || memberNodeOrdinals.stream().anyMatch(value -> value == null || value < 0)) {
+                    || memberNodeOrdinals.stream().anyMatch(value -> value == null || value < 0)
+                    || matmul != matmulGeometry.isPresent()
+                    || matmul && (conv2dGeometry.isPresent() || conv3dGeometry.isPresent())) {
                 throw new IllegalArgumentException("CPU execution-unit facts disagree");
             }
         }
@@ -1759,7 +1846,8 @@ public record CpuPartitionPreparationPlan(List<ExecutionUnitPlan> units, Route r
     }
 
     private static CpuFusionDecision.UnitTopology decisionTopology(ExecutionUnitPlan unit) {
-        boolean pointwise = unit.portablePlan().portableKernelIr() instanceof CpuKernelIr;
+        boolean pointwise = unit.portablePlan().portableKernelIr() instanceof CpuKernelIr
+                && unit.portablePlan().specialization().matmulIr().isEmpty();
         return !pointwise ? CpuFusionDecision.UnitTopology.INDIVISIBLE
                 : unit.memberNodeOrdinals().size() == 1
                     ? CpuFusionDecision.UnitTopology.SPLIT_POINTWISE

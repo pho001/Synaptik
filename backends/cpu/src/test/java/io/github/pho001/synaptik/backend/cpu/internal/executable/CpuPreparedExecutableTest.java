@@ -79,6 +79,37 @@ class CpuPreparedExecutableTest {
     private static final ValueLayout.OfLong LONG =
             ValueLayout.JAVA_LONG_UNALIGNED.withOrder(ByteOrder.nativeOrder());
 
+    @Test void matmulParallelRangesOwnDisjointOutputsAndRejectAliasBeforeAnyWrite(){
+        var base=io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuMatmulLoweringTest.context(
+                DataType.FLOAT32,Shape.of(8,16),Shape.of(16,16),Shape.of(8,16));
+        float[] left=new float[128],right=new float[256];for(int i=0;i<left.length;i++)left[i]=i%7-3;
+        for(int i=0;i<right.length;i++)right[i]=i%5-2;
+        var scalarInputs=new CpuPartitionAnalysisInputs(false,java.util.Collections.nCopies(3,
+                CarrierAccess.FLOAT_ARRAY),new PortableExecutionConfig(ComputePreference.SCALAR,1,1,1));
+        var scalarContext=new io.github.pho001.synaptik.prepare.analysis.PrepareContext<>(base.partition(),
+                base.nodes(),base.values(),base.memoryRequirements(),base.constants(),scalarInputs);
+        var scalar=CpuPartitionFinalizerTest.finalizeExecutable(new CpuPartitionPreparer().analyze(
+                scalarContext),Optional.empty());float[] expected=new float[128];
+        var scalarRun=state(scalar,List.of(borrow(left,0,left.length),borrow(right,0,right.length),
+                borrow(expected,0,expected.length)));
+        try{scalar.bind(scalarRun).execute();}finally{scalarRun.close();}
+        var parallelInputs=new CpuPartitionAnalysisInputs(false,java.util.Collections.nCopies(3,
+                CarrierAccess.FLOAT_ARRAY),new PortableExecutionConfig(ComputePreference.SCALAR,4,4,1));
+        var parallelContext=new io.github.pho001.synaptik.prepare.analysis.PrepareContext<>(base.partition(),
+                base.nodes(),base.values(),base.memoryRequirements(),base.constants(),parallelInputs);
+        var analysis=new CpuPartitionPreparer().analyze(parallelContext);
+        try(var workers=new CpuWorkerGroup(4)){var executable=CpuPartitionFinalizerTest.finalizeExecutable(
+                analysis,Optional.empty(),Optional.of(workers));float[] actual=new float[128];
+            var run=state(executable,List.of(borrow(left,0,left.length),borrow(right,0,right.length),
+                    borrow(actual,0,actual.length)));
+            try{executable.bind(run).execute();assertArrayEquals(expected,actual);}finally{run.close();}
+            float[] shared=new float[128];java.util.Arrays.fill(shared,-17f);
+            var overlap=state(executable,List.of(borrow(shared,0,shared.length),
+                    borrow(right,0,right.length),borrow(shared,0,shared.length)));
+            try{assertThrows(IllegalArgumentException.class,()->executable.bind(overlap));
+                for(float value:shared)assertEquals(-17f,value);}finally{overlap.close();}}
+    }
+
     @Test void conv3dExecutesScalarAndParallelCompleteCellsAndRejectsOverlapBeforeWrite(){
         var base=CpuConv3dLoweringTest.context(List.of(DataType.FLOAT32,DataType.FLOAT32),Shape.of(1,2,3,3,3),Shape.of(2,2,2,2,2),Shape.of(1,2,2,2,2),Conv3dAttrs.defaults(),null);float[] input=new float[54],weight=new float[32];for(int i=0;i<input.length;i++)input[i]=i*.1f-2;for(int i=0;i<weight.length;i++)weight[i]=(i%5-2)*.25f;
         var scalarContext=new io.github.pho001.synaptik.prepare.analysis.PrepareContext<>(base.partition(),base.nodes(),base.values(),base.memoryRequirements(),base.constants(),new CpuPartitionAnalysisInputs(false,List.of(CarrierAccess.FLOAT_ARRAY,CarrierAccess.FLOAT_ARRAY,CarrierAccess.FLOAT_ARRAY)));var scalar=CpuPartitionFinalizerTest.finalizeExecutable(new CpuPartitionPreparer().analyze(scalarContext),Optional.empty());float[] scalarOutput=new float[16];var scalarState=state(scalar,List.of(borrow(input,0,input.length),borrow(weight,0,weight.length),borrow(scalarOutput,0,scalarOutput.length)));try{scalar.bind(scalarState).execute();}finally{scalarState.close();}

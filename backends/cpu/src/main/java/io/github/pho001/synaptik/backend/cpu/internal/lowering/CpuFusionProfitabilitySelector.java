@@ -235,7 +235,8 @@ public final class CpuFusionProfitabilitySelector {
         for (int unitIndex = 0; unitIndex < candidate.plan().units().size(); unitIndex++) {
             var unit = candidate.plan().units().get(unitIndex);
             var topology = candidate.topology().get(unitIndex);
-            boolean ordinaryPointwise = unit.portablePlan().portableKernelIr() instanceof CpuKernelIr;
+            boolean ordinaryPointwise=unit.portablePlan().portableKernelIr() instanceof CpuKernelIr
+                    &&unit.portablePlan().specialization().matmulIr().isEmpty();
             if (ordinaryPointwise) pointwise++; else families++;
             if (ordinaryPointwise) {
                 try {

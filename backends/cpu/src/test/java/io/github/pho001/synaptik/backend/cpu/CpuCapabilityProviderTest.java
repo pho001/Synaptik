@@ -24,6 +24,7 @@ import io.github.pho001.synaptik.model.operation.normalization.SoftmaxAttrs;
 import io.github.pho001.synaptik.model.operation.normalization.SoftmaxKind;
 import io.github.pho001.synaptik.model.operation.normalization.*;
 import io.github.pho001.synaptik.model.operation.convolution.*;
+import io.github.pho001.synaptik.model.operation.linalg.MatmulKind;
 import io.github.pho001.synaptik.model.shape.Shape;
 import io.github.pho001.synaptik.model.shape.DynamicDimension;
 import io.github.pho001.synaptik.model.shape.StaticDimension;
@@ -34,6 +35,42 @@ import java.util.Optional;
 import org.junit.jupiter.api.Test;
 
 class CpuCapabilityProviderTest {
+    @Test void reportsExactlyStaticResolvedNumericMatmulOccurrences() {
+        var provider = new CpuCapabilityProvider();
+        var numeric = List.of(DataType.BFLOAT16, DataType.FLOAT32, DataType.FLOAT64,
+                DataType.INT32, DataType.INT64);
+        int admitted = 0;
+        for (DataType leftType : numeric) for (DataType rightType : numeric) {
+            boolean sameCategory = leftType.isFloating() == rightType.isFloating();
+            if (!sameCategory) continue;
+            admitted++;
+            DataType resultType = io.github.pho001.synaptik.model.datatype.DataTypePromotion
+                    .promoteNumeric(leftType, rightType);
+            assertTrue(provider.supports(query(MatmulKind.MATMUL,
+                    List.of(descriptor(leftType, Shape.of(2, 3)),
+                            descriptor(rightType, Shape.of(3, 4))),
+                    descriptor(resultType, Shape.of(2, 4)))));
+        }
+        assertEquals(13, admitted);
+        assertAll(
+                () -> assertTrue(provider.supports(query(MatmulKind.MATMUL,
+                        List.of(descriptor(DataType.FLOAT32, Shape.of(0, 2, 3)),
+                                descriptor(DataType.FLOAT32, Shape.of(1, 3, 4))),
+                        descriptor(DataType.FLOAT32, Shape.of(0, 2, 4))))),
+                () -> assertFalse(provider.supports(query(MatmulKind.MATMUL,
+                        List.of(descriptor(DataType.FLOAT32, Shape.of(2, 3)),
+                                descriptor(DataType.FLOAT32, Shape.of(2, 4))),
+                        descriptor(DataType.FLOAT32, Shape.of(2, 4))))),
+                () -> assertFalse(provider.supports(query(MatmulKind.MATMUL,
+                        List.of(descriptor(DataType.FLOAT32, Shape.of(2, 3)),
+                                descriptor(DataType.INT32, Shape.of(3, 4))),
+                        descriptor(DataType.FLOAT32, Shape.of(2, 4))))),
+                () -> assertFalse(provider.supports(query(MatmulKind.MATMUL,
+                        List.of(descriptor(DataType.BOOL, Shape.of(2, 3)),
+                                descriptor(DataType.BOOL, Shape.of(3, 4))),
+                        descriptor(DataType.BOOL, Shape.of(2, 4))))));
+    }
+
     @Test void reportsOnlyExactStaticGroupedNchwConv2dOccurrences() {
         var provider = new CpuCapabilityProvider();
         Shape inputShape = Shape.of(2, 4, 7, 8), weightShape = Shape.of(6, 2, 3, 2);

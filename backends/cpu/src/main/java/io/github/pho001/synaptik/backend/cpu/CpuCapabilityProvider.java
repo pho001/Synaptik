@@ -63,6 +63,8 @@ import io.github.pho001.synaptik.model.operation.reduction.MultiAxisReductionAtt
 import io.github.pho001.synaptik.model.operation.reduction.MaskedReductionAttrs;
 import io.github.pho001.synaptik.model.operation.reduction.SumToShapeAttrs;
 import io.github.pho001.synaptik.model.operation.reduction.StatisticalReductionAttrs;
+import io.github.pho001.synaptik.model.operation.linalg.MatmulKind;
+import io.github.pho001.synaptik.model.datatype.DataTypePromotion;
 import io.github.pho001.synaptik.model.shape.Shape;
 import io.github.pho001.synaptik.planning.capability.BackendCapabilityProvider;
 import io.github.pho001.synaptik.planning.capability.OperationCapabilityQuery;
@@ -148,6 +150,13 @@ import java.util.Objects;
  * order, epsilon and output use that exact type, and the output retains input Shape with an
  * injective resolved layout. Capability does not recognize an equivalent decomposed graph.</p>
  *
+ * <p>A separate MATMUL matrix admits every fully static, resolved-layout non-BOOL numeric pair:
+ * all ordered BFLOAT16/FLOAT32/FLOAT64 pairs and all ordered INT32/INT64 pairs. It validates
+ * rank-one vector promotion, exact K agreement, right-aligned batch broadcasting, promoted result
+ * type and Shape, non-negative layouts, and an injective output. Lowering remains responsible for
+ * exact carrier compatibility, checked normalized geometry, bounded scalar/vector realization,
+ * alias rejection, optional recognized epilogues, and independent output work-unit ownership.</p>
+ *
  * <p>The movement route also admits exactly one fully static, resolved-layout
  * {@code SLICE_UPDATE} occurrence with ordered {@code [base, update]} inputs. Both normalized
  * signed finite-coordinate {@link SliceAttrs} and target-relative {@link CropToShapeAttrs}
@@ -157,7 +166,7 @@ import java.util.Objects;
  *
  * <p>Complete-partition lowering remains stricter: it validates either one supported movement,
  * indexing, functional-scatter, overlap-fold, ordering, random, cumulative-scan, aggregate,
- * softmax, or trailing-normalization occurrence, a connected one-to-eight pointwise
+ * softmax, trailing-normalization, or MATMUL occurrence, a connected one-to-eight pointwise
  * chain, or a connected one-to-eight affine chain, then applies exact layout, alias, fan-out,
  * publication, and partition-boundary checks before resource declaration. Occurrence support
  * therefore does not promise that an arbitrary mixed or branched partition can be prepared.</p>
@@ -243,6 +252,7 @@ public final class CpuCapabilityProvider implements BackendCapabilityProvider {
         try {
             if (kind instanceof AggregateReductionKind aggregate)
                 return supportsAggregate(query, output, aggregate);
+            if (kind == MatmulKind.MATMUL) return supportsMatmul(query, output);
             if (kind == Conv2dKind.CONV2D) return supportsConv2d(query, output);
             if (kind == Conv3dKind.CONV3D) return supportsConv3d(query, output);
             if (kind instanceof SoftmaxKind) return supportsSoftmax(query, output);
@@ -769,6 +779,35 @@ public final class CpuCapabilityProvider implements BackendCapabilityProvider {
                 && descriptor.layout().orElseThrow().storageOffset() >= 0
                 && java.util.Arrays.stream(descriptor.layout().orElseThrow().strides())
                         .allMatch(stride -> stride >= 0);
+    }
+
+    private static boolean supportsMatmul(OperationCapabilityQuery query,
+            TensorDescriptor output) {
+        if (query.inputs().size() != 2
+                || query.operation().attrs() != NoOperationAttrs.INSTANCE) return false;
+        TensorDescriptor left = query.inputs().get(0), right = query.inputs().get(1);
+        long[] a = left.shape().toLongArray(), b = right.shape().toLongArray();
+        if (a.length < 1 || b.length < 1
+                || a[a.length - 1] != b[b.length == 1 ? 0 : b.length - 2]) return false;
+        DataType promoted;
+        try { promoted = DataTypePromotion.promoteNumeric(left.dataType(), right.dataType()); }
+        catch (IllegalArgumentException exception) { return false; }
+        if (promoted != output.dataType()
+                || !injective(output.shape().toLongArray(),
+                    output.layout().orElseThrow().strides())) return false;
+        int aBatch = Math.max(0, a.length - 2), bBatch = Math.max(0, b.length - 2);
+        int batch = Math.max(aBatch, bBatch), aShift = batch - aBatch, bShift = batch - bBatch;
+        var expected = new java.util.ArrayList<Long>();
+        for (int axis = 0; axis < batch; axis++) {
+            long ae = axis < aShift ? 1 : a[axis - aShift];
+            long be = axis < bShift ? 1 : b[axis - bShift];
+            if (ae != be && ae != 1 && be != 1) return false;
+            expected.add(ae == be ? ae : ae == 1 ? be : be == 1 ? ae : -1);
+        }
+        if (a.length != 1) expected.add(a[a.length - 2]);
+        if (b.length != 1) expected.add(b[b.length - 1]);
+        long[] exact = expected.stream().mapToLong(Long::longValue).toArray();
+        return java.util.Arrays.equals(exact, output.shape().toLongArray());
     }
 
     private static boolean supportsIndexing(OperationCapabilityQuery query,

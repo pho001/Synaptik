@@ -3670,7 +3670,18 @@ operation does not itself capture a graph, multiply stored values, select a back
 execute. Current package-private compiler autograd constructs cotangents for every floating
 vector/matrix rank pairing, unbroadcasts batch axes with ordinary `sumToShape`, and then uses one
 ordinary cast when a promoted contribution differs from the selected operand type. Integral
-MATMUL remains rejected. See
+MATMUL remains rejected by autograd.
+
+The current CPU portable route executes every fully static, resolved-layout non-BOOL numeric
+promotion: all nine ordered BFLOAT16/FLOAT32/FLOAT64 pairs and all four ordered INT32/INT64 pairs.
+It uses a complete scalar fallback plus bounded direct-N-vector, scalar-2x2, and N-vector-2x2
+forms. Each output or microtile traverses full K; parallel ranges own only independent output
+cells, rows, or M/N tiles. Exact FLOAT32/FLOAT64 rank-one bias and one recognized terminal may be
+fused when proved, otherwise the canonical split remains executable. Whole-value one-input
+materializations are retained candidates, while ordinary preparation remains direct; no native
+MATMUL route, K split, packed panel, or automatic materialization policy is current. See
+[the current portable MATMUL family](backend-guide/cpu-backend.md#current-portable-matmul-family)
+and
 [Matrix-multiplication expressions](api/tensor-api.md#matrix-multiplication-expressions).
 
 ### Buffer slot / `BufferSlot`

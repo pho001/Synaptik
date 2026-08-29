@@ -82,6 +82,8 @@ public sealed interface CpuSpecializedSubgraph permits CpuSpecializedSubgraph.Ma
     enum ExecutionDisposition {
         /** Existing identical specialized execution. */ EXISTING_SPECIALIZED,
         /** Existing ordinary materialized split execution. */ ORDINARY_SPLIT,
+        /** Canonical executable MATMUL split plus one exact complete fused alternative. */
+        EXECUTABLE_ALTERNATIVES,
         /** Recognized diagnostic anchor without CPU execution. */ UNSUPPORTED_ANCHOR
     }
     /** MATMUL right-input topology retained without claiming linear execution. */
@@ -146,6 +148,7 @@ public sealed interface CpuSpecializedSubgraph permits CpuSpecializedSubgraph.Ma
         /** Pointwise unit. */ POINTWISE,
         /** Conv2d geometry. */ CONV2D,
         /** Conv3d geometry. */ CONV3D,
+        /** Full-K portable MATMUL geometry. */ MATMUL,
         /** Ordinary aggregate geometry. */ AGGREGATE,
         /** Advanced-reduction geometry. */ ADVANCED_REDUCTION,
         /** Softmax geometry. */ SOFTMAX,
@@ -533,9 +536,9 @@ public sealed interface CpuSpecializedSubgraph permits CpuSpecializedSubgraph.Ma
     }
 
     /**
-     * MATMUL recognition fact; never admitted into a successful prepared plan.
+     * MATMUL recognition fact associated with its canonical executable baseline units.
      * @param memberNodeOrdinals stable semantic member ordinals
-     * @param baselineUnitIndices empty because MATMUL has no current CPU baseline
+     * @param baselineUnitIndices exact one- or two-unit canonical executable split
      * @param inputDataTypes ordered semantic input types
      * @param resultDataTypes ordered semantic result types
      * @param accessFacts immutable input/result access projections
@@ -546,19 +549,25 @@ public sealed interface CpuSpecializedSubgraph permits CpuSpecializedSubgraph.Ma
             List<DataType> inputDataTypes, List<DataType> resultDataTypes,
             List<AccessFact> accessFacts, Epilogue epilogue, StructuralIdentity structuralIdentity)
             implements CpuSpecializedSubgraph {
-        /** Validates and snapshots an unsupported-anchor fact. */
+        /** Validates and snapshots an executable-alternatives fact. */
         public MatmulEpilogue {
             memberNodeOrdinals = members(memberNodeOrdinals); baselineUnitIndices = units(baselineUnitIndices);
             inputDataTypes = List.copyOf(inputDataTypes); resultDataTypes = List.copyOf(resultDataTypes);
             accessFacts = List.copyOf(accessFacts); Objects.requireNonNull(epilogue, "epilogue");
             requireIdentity(structuralIdentity, Family.MATMUL, Form.MATMUL, epilogue,
                     inputDataTypes, resultDataTypes, accessFacts, baselineUnitIndices);
-            if (!baselineUnitIndices.isEmpty() || !structuralIdentity.baselineUnits().isEmpty())
-                throw new IllegalArgumentException("unsupported MATMUL fact has no baseline association");
+            if (baselineUnitIndices.size() > 2
+                    || baselineUnitIndices.size() != structuralIdentity.baselineUnits().size())
+                throw new IllegalArgumentException(
+                        "MATMUL alternatives require the exact one- or two-unit baseline");
         }
-        /** Returns the fail-closed diagnostic disposition.
-         * @return always {@link ExecutionDisposition#UNSUPPORTED_ANCHOR} */
-        @Override public ExecutionDisposition disposition() { return ExecutionDisposition.UNSUPPORTED_ANCHOR; }
+        /** Returns executable alternatives for associated facts and the legacy diagnostic
+         * unsupported disposition only for an explicitly unassociated focused query.
+         * @return the exact association disposition */
+        @Override public ExecutionDisposition disposition() {
+            return baselineUnitIndices.isEmpty() ? ExecutionDisposition.UNSUPPORTED_ANCHOR
+                    : ExecutionDisposition.EXECUTABLE_ALTERNATIVES;
+        }
     }
 
     /**

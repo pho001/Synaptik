@@ -271,6 +271,29 @@ public final class CpuPartitionDagDecomposer {
         candidates.add(split);
         var seen = new LinkedHashSet<TopologyIdentity>();
         seen.add(identity(split));
+        for(CpuSpecializedSubgraph fact:recognition) {
+            if(!(fact instanceof CpuSpecializedSubgraph.MatmulEpilogue)
+                    ||fact.disposition()!=CpuSpecializedSubgraph.ExecutionDisposition.EXECUTABLE_ALTERNATIVES)
+                continue;
+            var memberSet=new LinkedHashSet<>(fact.memberNodeOrdinals());
+            List<CompiledNode> fusedNodes=fact.memberNodeOrdinals().stream()
+                    .map(dag.nodes()::get).toList();
+            var fusedLowering=new CpuMatmulLowering().lower(
+                    project(context,fusedNodes,context.backendInputs()),
+                    (CpuSpecializedSubgraph.MatmulEpilogue)fact);
+            if(fusedLowering.matmulIr().isEmpty())
+                throw new IllegalArgumentException("MATMUL fused alternative did not lower to MATMUL IR");
+            List<MutableUnit> fusedTopology=copyTopology(splitMutable);
+            var covered=new LinkedHashSet<Integer>();
+            fusedTopology.removeIf(unit->{List<Integer> members=unit.nodes.stream().map(ordinals::get).toList();
+                boolean selected=members.stream().anyMatch(memberSet::contains);
+                if(selected)covered.addAll(members);return selected;});
+            if(!covered.equals(memberSet))throw new IllegalArgumentException(
+                    "MATMUL recognition does not match canonical split members");
+            fusedTopology.add(new MutableUnit(fusedNodes,fusedLowering));
+            List<Unit> finished=finish(fusedTopology,ordinals,dag);
+            if(seen.add(identity(finished))){candidates.add(finished);queue.addLast(fusedTopology);}
+        }
         var attempts = new ArrayList<Attempt>();
         boolean complete = true;
         enumeration: while (!queue.isEmpty()) {

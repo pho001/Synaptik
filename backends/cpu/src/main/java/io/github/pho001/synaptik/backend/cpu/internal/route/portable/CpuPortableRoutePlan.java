@@ -50,7 +50,7 @@ public record CpuPortableRoutePlan(CpuPortableKernelIr portableKernelIr,
             throw new IllegalArgumentException("specialization must match canonical IR");
         }
         CpuKernelIr generated = encoded(portableKernelIr);
-        if (portableKernelIr instanceof CpuKernelIr
+        if (portableKernelIr instanceof CpuKernelIr && specialization.matmulIr().isEmpty()
                 && (generated.values().stream().anyMatch(value -> value.dataType()
                         == io.github.pho001.synaptik.model.datatype.DataType.BFLOAT16)
                 || specialization.carrierPattern().contains(
