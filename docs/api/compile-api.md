@@ -283,12 +283,10 @@ original forward inventory contains `CONV3D` fails before seed validation or der
 allocation. Draft task 0006C remains the separate gradient-closure decision and has no detailed
 specification.
 Model task 0025J adds first-class `MAX_POOL3D` and `AVERAGE_POOL3D` Model metadata with exact
-one-input/one-output signatures and rank-five NCDHW descriptors. Complete Compiler 0006B1 adopts
-both signatures, together with the three Model-current `UNFOLD3D`/`FOLD3D` signatures, in ordinary
-forward capture, inference, final validation, optimization, publication, and Planning handoff.
-Both backward-capable modes reject a complete original forward inventory containing any of those
-five signatures before seed validation or derivative Tensor allocation. Draft Compiler 0006B2
-owns all five gradients and adjoints; Draft CPU 0008G1 separately owns execution.
+one-input/one-output signatures and rank-five NCDHW descriptors. Complete Compiler tasks 0006B1
+and 0006B2 adopt both signatures, together with the three Model-current
+`UNFOLD3D`/`FOLD3D` signatures, in ordinary forward verification and first-order differentiation.
+Draft CPU 0008G1 separately owns execution.
 Compiler task 0005E closed that matrix against the production Model inventory at its checkpoint:
 37 operation-kind enum families, 107 constants, and 128 complete
 kind/attributes/input-range/output-range fingerprints. The checkpoint includes both
@@ -297,18 +295,20 @@ constants, and three exact signatures. Compiler forward verification now adopts 
 but the first-order gradient inventory intentionally does not. Before Model 0025J, the complete
 inventory was 39 families, 111 constants, and 132 signatures, all covered by Compiler forward
 verification. Complete 0006B1 expands current Compiler forward verification to the complete Model
-inventory of exactly 40 families, 115 constants, and 137 signatures. The supported production
-first-order Compiler inventory remains the exact 37-family, 107-constant, 128-signature closure.
-Its exact nine-signature deferred partition is RNN, GRU, LSTM, Conv3d, MaxPool3d, AveragePool3d,
-both `UNFOLD3D` attribute variants, and `FOLD3D`.
+inventory of exactly 40 families, 115 constants, and 137 signatures. Complete 0006B2 expands the
+supported production first-order Compiler inventory to exactly 38 families, 111 constants, and
+133 signatures. Its exact four-signature deferred partition is RNN, GRU, LSTM, and Conv3d.
 
 Current Compiler forward inference independently derives the `UNFOLD3D` and `FOLD3D` descriptors
 as canonical columns
 `[N, C * kD * kH * kW, DOut * HOut * WOut]`, literal floor/ceil depth-height-width grids, exact
 direct-positive-zero or typed-padding unfold attributes, and an exact NCDHW fold target Shape.
 It proves, rejects, or retains non-negative spatial-domain obligations and final-validates the
-captured descriptor without binding dimensions or materializing windows. These transforms remain
-forward-only: Draft 0006B2 owns their adjoints and their use in exact Pool3d gradients.
+captured descriptor without binding dimensions or materializing windows. In backward-capable
+modes, either `UNFOLD3D` form folds its cotangent into the exact captured input Shape, while
+`FOLD3D` unfolds its cotangent with the direct positive-zero-padding overload. Typed unfold
+padding is configuration and has no cotangent. These linear adjoints alternate under the supported
+second derivative stage.
 
 Package-private `GraphCompiler.compile` takes `CompileMode`, ordered forward outputs, an optional
 public `FunctionalGradientRequest`, explicit forward constant ingress, and
@@ -627,7 +627,7 @@ is intentionally explicit:
 | Classification | Current deferred or rejected families |
 |---|---|
 | Structured fail-closed boundaries | One-output attention lacks canonical same-occurrence weights and is rejected; index-target categorical cross-entropy rejects a dynamic or zero class depth |
-| Current source-backed closure | The supported production first-order inventory contains exactly 37 families, 107 constants, and 128 signature fingerprints. Current Compiler forward verification covers the complete Model inventory of 40 families, 115 constants, and 137 signatures. Its exact nine-signature deferred partition comprises RNN, GRU, LSTM, Conv3d, both Pool3d signatures, both `UNFOLD3D` attribute variants, and `FOLD3D`. Both backward-capable modes reject any complete forward inventory containing one of the five 0006B1 signatures before seed validation and derivative Tensor allocation; Draft 0006B2 owns their gradients and adjoints. Every currently supported legal output/input role has a `D`, `ND`, or `FC` disposition, and generated formula edges remain inside the same classified Tensor algebra. |
+| Current source-backed closure | The supported production first-order inventory contains exactly 38 families, 111 constants, and 133 signature fingerprints. Current Compiler forward verification covers the complete Model inventory of 40 families, 115 constants, and 137 signatures. Its exact four-signature deferred partition comprises RNN, GRU, LSTM, and Conv3d; both backward-capable modes reject those signatures before seed validation and derivative Tensor allocation. Both Pool3d signatures, both `UNFOLD3D` attribute variants, and `FOLD3D` are supported through ordinary public Tensor expressions. Every currently supported legal output/input role has a `D`, `ND`, or `FC` disposition, and generated formula edges remain inside the same classified Tensor algebra. |
 | Non-differentiable roles and outputs | Comparisons, BOOL logic/classification, `ALL`, `ANY`, arg-extrema results, batch-training saved auxiliary roots, one-hot and other index roles, ordering indices, dropout masks, padding constants, select coordinates, and graph RNG state |
 
 Unknown/custom kinds, wrong attribute classes or cardinalities, missing canonical outputs, and
@@ -928,7 +928,7 @@ future compiler-validation or concrete-binding obligation. Literal ceil mode ret
 ceiling-grid window, even when the terminal window is all-padding; padding exclusion, negative-
 infinity empty windows, NaN propagation, signed-zero ordering, and first-logical-sample ties are
 semantic metadata. Package-private structural capture and descriptor verification are current,
-but the repository does not compile pooling. Current package-private first-order autograd
+but the repository does not execute pooling. Current package-private first-order autograd
 reconstructs the exact first eligible logical winner from the original input and the
 same-occurrence public output, including padding exclusion and the specified NaN and signed-zero
 equality, then routes through public one-hot and overlap-accumulating fold expressions. It adds no
@@ -943,7 +943,7 @@ conceptual positive-zero padding that counts in that divisor, FLOAT32 accumulati
 BFLOAT16 and FLOAT32, FLOAT64 accumulation/division for FLOAT64, one final division, and the
 documented NaN/infinity/signed-zero/all-padding policies. Dynamic spatial non-negativity remains a
 future compiler-validation or concrete-binding obligation. This does not mean the repository
-currently compiles average pooling. Package-private structural capture and descriptor verification
+currently executes average pooling. Package-private structural capture and descriptor verification
 are current. Current package-private first-order autograd divides by a logical typed
 `kernelHeight * kernelWidth` count and routes every window position through public expansion and
 overlap-accumulating fold expressions. Concrete binding, any legal decomposition that preserves
@@ -960,14 +960,19 @@ mathematical `kernelDepth * kernelHeight * kernelWidth` count-padding divisor, s
 accumulator/division domains, one final division, BFLOAT16 narrowing, and its exceptional-value
 policy. Model construction does not evaluate either operation.
 
-Complete Compiler 0006B1 captures both kinds as ordinary flat forward nodes, independently infers
-and final-validates their descriptors and spatial obligations, preserves ordinary CSE,
-publication, diagnostics, and Planning handoff, and accepts them only in `FORWARD_ONLY` mode.
-Both backward-capable modes reject either signature from the complete forward inventory before
-seed validation and derivative Tensor allocation. Complete Model 0025K owns the general window
-algebra, Draft Compiler 0006B2 owns the two Pool3d gradients and three window adjoints, and Draft
-CPU 0008G1 owns generated execution. No current backend capability, lowering, prepared executable,
-runtime behavior, materialized numerical result, or performance property is implied.
+Complete Compiler 0006B1 captures both kinds as ordinary flat forward nodes and independently
+validates their descriptors and spatial obligations. Complete 0006B2 adds their first-order
+gradients through the public three-dimensional window algebra. Average Pool3d divides the
+cotangent by a logical typed `kernelDepth * kernelHeight * kernelWidth` Tensor reduction, expands
+every kernel position, and overlap-accumulates with `fold3d`; padding still counts in the fixed
+divisor but contributes no input cotangent. Maximum Pool3d reconstructs eligibility from typed
+negative-infinity candidates, a separate direct-positive-zero in-bounds mask, and the exact
+same-occurrence output. Its equality preserves dominant NaN, signed-zero ordering, real negative
+infinity, first-winner, and all-padding behavior before one-hot routing and `fold3d` accumulation.
+The maximum selector is a fixed non-differentiable mask for a later derivative stage, while the
+incoming branch remains differentiable. Draft CPU 0008G1 owns generated execution. No current
+backend capability, lowering, prepared executable, runtime behavior, materialized numerical
+result, or performance property is implied.
 `Tensor.sort(axis[, descending])` and `Tensor.argsort(axis[, descending])` currently construct
 distinct stable, one-input, one-output ordering expressions. Both normalize the axis, preserve the
 exact input Shape reference, leave layout unresolved, and use fixed NaN-last ordering in both

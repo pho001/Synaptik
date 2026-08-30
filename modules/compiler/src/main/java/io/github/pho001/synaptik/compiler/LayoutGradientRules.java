@@ -8,6 +8,7 @@ import io.github.pho001.synaptik.model.operation.layout.CompositionAxisAttrs;
 import io.github.pho001.synaptik.model.operation.layout.ContiguousKind;
 import io.github.pho001.synaptik.model.operation.layout.CropToShapeAttrs;
 import io.github.pho001.synaptik.model.operation.layout.Fold2dAttrs;
+import io.github.pho001.synaptik.model.operation.layout.Fold3dAttrs;
 import io.github.pho001.synaptik.model.operation.layout.FoldAxisAttrs;
 import io.github.pho001.synaptik.model.operation.layout.PadAttrs;
 import io.github.pho001.synaptik.model.operation.layout.PadKind;
@@ -19,8 +20,10 @@ import io.github.pho001.synaptik.model.operation.layout.TensorCompositionKind;
 import io.github.pho001.synaptik.model.operation.layout.TileAttrs;
 import io.github.pho001.synaptik.model.operation.layout.TileKind;
 import io.github.pho001.synaptik.model.operation.layout.Unfold2dAttrs;
+import io.github.pho001.synaptik.model.operation.layout.Unfold3dAttrs;
 import io.github.pho001.synaptik.model.operation.layout.UnfoldAxisAttrs;
 import io.github.pho001.synaptik.model.operation.layout.Window2dAttrs;
+import io.github.pho001.synaptik.model.operation.layout.Window3dAttrs;
 import io.github.pho001.synaptik.model.operation.layout.WindowTransformKind;
 import io.github.pho001.synaptik.model.shape.Dimension;
 import io.github.pho001.synaptik.model.shape.DimensionExpressions;
@@ -36,7 +39,8 @@ import java.util.List;
  * <p>The selected rows are {@code CONTIGUOUS}, {@code RESHAPE}, {@code EXPAND},
  * {@code EXPAND_DIMS}, {@code SQUEEZE}, {@code PERMUTE}, both {@code SLICE}/{@code
  * SLICE_UPDATE} attribute forms, {@code SELECT}, {@code PAD}, {@code TILE}, {@code CONCAT},
- * {@code STACK}, and the four axis/two-dimensional window transforms. Formulas reverse only
+ * {@code STACK}, and the axis, two-dimensional, and three-dimensional window transforms.
+ * Formulas reverse only
  * logical Shape, axis, coordinate, composition, and window metadata through public Tensor
  * operations; they neither select physical aliasing or materialization nor read storage, lower
  * work, or execute computation. Preflight owns type, Shape, attributes, role, local
@@ -55,9 +59,10 @@ import java.util.List;
  * repeat axes, then restores the input Shape. {@code CONCAT} crops each selected input from its
  * ordered symbolic prefix; {@code STACK} selects the corresponding inserted-axis coordinate.
  * Repeated input positions remain separate contributions for the reverse accumulator.
- * {@code UNFOLD_AXIS}/{@code FOLD_AXIS} and {@code UNFOLD2D}/{@code FOLD2D} use their exact public
- * overlap-add or extraction counterpart; typed unfold padding remains scalar metadata and
- * receives no cotangent.</p>
+ * {@code UNFOLD_AXIS}/{@code FOLD_AXIS}, {@code UNFOLD2D}/{@code FOLD2D}, and
+ * {@code UNFOLD3D}/{@code FOLD3D} use their exact public overlap-add or extraction counterpart;
+ * typed unfold padding remains scalar metadata and receives no cotangent. Fold adjoints use the
+ * direct positive-zero unfold overload so discarded padded and ceil-tail columns receive zero.</p>
  */
 final class LayoutGradientRules {
     private LayoutGradientRules() {}
@@ -230,6 +235,16 @@ final class LayoutGradientRules {
         if (producer.operation().kind() == WindowTransformKind.FOLD2D) {
             Fold2dAttrs attrs = (Fold2dAttrs) producer.operation().attrs();
             return new Tensor[] {gradient.unfold2d(attrs.window())};
+        }
+        if (producer.operation().kind() == WindowTransformKind.UNFOLD3D) {
+            Window3dAttrs window = producer.operation().attrs() instanceof Unfold3dAttrs attrs
+                    ? attrs.window()
+                    : (Window3dAttrs) producer.operation().attrs();
+            return new Tensor[] {gradient.fold3d(input.descriptor().shape(), window)};
+        }
+        if (producer.operation().kind() == WindowTransformKind.FOLD3D) {
+            Fold3dAttrs attrs = (Fold3dAttrs) producer.operation().attrs();
+            return new Tensor[] {gradient.unfold3d(attrs.window())};
         }
         throw new IllegalStateException(
                 "layout operation was not preflight-approved: " + producer.operation());

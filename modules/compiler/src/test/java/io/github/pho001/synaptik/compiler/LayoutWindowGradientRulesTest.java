@@ -2,15 +2,18 @@ package io.github.pho001.synaptik.compiler;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
+import static org.junit.jupiter.api.Assertions.assertSame;
 
 import io.github.pho001.synaptik.config.compile.CompileMode;
 import io.github.pho001.synaptik.config.compile.GraphOptimizationConfig;
 import io.github.pho001.synaptik.model.graph.GraphPhase;
 import io.github.pho001.synaptik.model.datatype.DataType;
 import io.github.pho001.synaptik.model.operation.layout.CropToShapeAttrs;
+import io.github.pho001.synaptik.model.operation.layout.Fold3dAttrs;
 import io.github.pho001.synaptik.model.operation.layout.SliceAttrs;
 import io.github.pho001.synaptik.model.operation.layout.SliceKind;
 import io.github.pho001.synaptik.model.operation.layout.Window2dAttrs;
+import io.github.pho001.synaptik.model.operation.layout.Window3dAttrs;
 import io.github.pho001.synaptik.model.operation.layout.WindowTransformKind;
 import io.github.pho001.synaptik.model.shape.DynamicDimension;
 import io.github.pho001.synaptik.model.shape.Shape;
@@ -80,6 +83,35 @@ final class LayoutWindowGradientRulesTest {
         assertCompiles(
                 imageColumns.fold2d(Shape.of(1, 1, 3, 3), window).sum(),
                 imageColumns);
+    }
+
+    @Test
+    void threeDimensionalWindowsUseExactPublicAdjointsAndIgnoreTypedPadding() {
+        Window3dAttrs window = new Window3dAttrs(
+                2, 2, 2, 1, 1, 1, 1, 1, 1, 1, 1, 1, true);
+        Tensor volume = tensor(Shape.of(1, 2, 3, 3, 3));
+        for (Tensor columns : List.of(
+                volume.unfold3d(window),
+                volume.unfold3d(
+                        window,
+                        io.github.pho001.synaptik.model.datatype.ScalarValue.float32(-7.0f)))) {
+            Tensor inputGradient = gradient(columns.sum(), volume);
+            var provenance = inputGradient.provenance().orElseThrow();
+            assertEquals(WindowTransformKind.FOLD3D, provenance.operation().kind());
+            Fold3dAttrs attrs = assertInstanceOf(
+                    Fold3dAttrs.class, provenance.operation().attrs());
+            assertSame(volume.descriptor().shape(), attrs.outputShape());
+            assertSame(window, attrs.window());
+            assertCompiles(columns.sum(), volume);
+        }
+
+        Tensor columns = tensor(Shape.of(1, 16, 64));
+        Tensor folded = columns.fold3d(Shape.of(1, 2, 3, 3, 3), window);
+        Tensor columnsGradient = gradient(folded.sum(), columns);
+        var provenance = columnsGradient.provenance().orElseThrow();
+        assertEquals(WindowTransformKind.UNFOLD3D, provenance.operation().kind());
+        assertSame(window, provenance.operation().attrs());
+        assertCompiles(folded.sum(), columns);
     }
 
     private static Tensor gradient(Tensor objective, Tensor target) {

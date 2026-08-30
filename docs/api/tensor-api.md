@@ -7406,14 +7406,14 @@ attach or allocate storage; materialize windows; accumulate overlaps; create a g
 capture a graph; lower to a backend; or execute.
 
 Current Model owns `UNFOLD3D`/`FOLD3D` algebra and public metadata construction. Complete Compiler
-0006B1 captures both unfold variants and fold as ordinary flat nodes in `FORWARD_ONLY`,
-independently infers and final-validates their canonical descriptors and spatial obligations, and
-preserves ordinary optimization, publication, diagnostics, and Planning handoff. Both
-backward-capable modes reject any complete forward inventory containing one before seed validation
-and derivative Tensor allocation. Draft Compiler 0006B2 owns all three adjoints and Pool3d
-gradient construction through these transforms; Draft CPU 0008G1 owns generated execution. No
-current backend capability, Runtime behavior, materialized result, numerical output, or
-performance property follows from constructing either transform.
+0006B1 captures both unfold variants and fold as ordinary flat nodes and independently validates
+their canonical descriptors and spatial obligations. Complete Compiler 0006B2 constructs all
+three adjoints through the same public API: either unfold form maps its cotangent through
+`fold3d` into the exact original input Shape, and fold maps its cotangent through the direct
+positive-zero `unfold3d` overload. Typed padding is immutable configuration rather than a
+differentiable input. Draft CPU 0008G1 owns generated execution. No current backend capability,
+Runtime behavior, materialized result, numerical output, or performance property follows from
+constructing either transform.
 
 #### Complete window-transform expression example
 
@@ -8691,14 +8691,15 @@ Each call creates a fresh, unlabeled, storage-free canonical Tensor with unresol
 result retains the exact input type, batch/channel Dimension references, and gradient-request
 metadata. Provenance retains the exact supplied attributes reference, ordered input `[input]`,
 output index zero, and the canonical `producer.output(0)` wrapper. The example proves those
-current Model facts only. Complete Compiler 0006B1 captures both Pool3d signatures as ordinary
-flat nodes in `FORWARD_ONLY`, independently infers and final-validates their NCDHW descriptors and
-spatial obligations, and preserves ordinary optimization, publication, diagnostics, and Planning
-handoff. Both backward-capable modes reject any complete forward inventory containing either
-signature before seed validation and derivative Tensor allocation. Current Model owns general
-`unfold3d`/`fold3d` algebra, Draft Compiler 0006B2 owns both Pool3d gradients and all three window
-adjoints, and Draft CPU 0008G1 owns execution. No current backend support, gradient, execution,
-materialized numeric result, or performance property follows from this Model API.
+current Model facts only. Complete Compiler tasks 0006B1 and 0006B2 capture, validate, and
+differentiate both Pool3d signatures through ordinary public Tensor expressions. Average Pool3d
+uses its fixed logical kernel divisor and overlap-accumulating `fold3d`. Maximum Pool3d uses the
+exact same-occurrence output and an explicit in-bounds eligibility mask so dominant NaN,
+signed-zero ordering, real negative infinity, first-winner, and all-padding behavior remain
+distinguishable; its selected mask is fixed for a later derivative stage. Current Model owns the
+general `unfold3d`/`fold3d` algebra, and Draft CPU 0008G1 owns execution. No current backend
+support, execution, materialized numeric result, or performance property follows from this Model
+API.
 
 ### Matrix-multiplication semantic kind
 

@@ -2,6 +2,7 @@ package io.github.pho001.synaptik.compiler;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import io.github.pho001.synaptik.backend.contract.BackendAvailabilitySnapshot;
@@ -179,6 +180,61 @@ final class Pool3dAndWindow3dCompilerTest {
                         .map(CompileDiagnostics.DeferredConstraintDiagnostic::subject)
                         .toList());
         assertEquals(1, artifacts.partitions().size());
+    }
+
+    @Test
+    void twoStageClosureUsesDisconnectedPolicyAndKeepsDifferentiableIncomingBranches() {
+        Tensor linearTarget = tensor(Shape.of(1, 1, 3, 3, 3), true);
+        Tensor linearObjective = linearTarget.unfold3d(WINDOW).sum();
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> compileTwoStage(
+                        linearObjective,
+                        linearTarget,
+                        FunctionalGradientRequest.DisconnectedPolicy.ERROR));
+        GraphCompilation linearZero = compileTwoStage(
+                linearObjective,
+                linearTarget,
+                FunctionalGradientRequest.DisconnectedPolicy.ZERO);
+        assertEquals(2, linearZero.gradientResults().size());
+        assertEquals(2, linearZero.gradientResults().get(1).derivativeOrder());
+
+        Tensor maximumTarget = tensor(Shape.of(1, 1, 3, 3, 3), true);
+        Tensor maximum = maximumTarget.maxPool3d(new MaxPool3dAttrs(
+                1, 1, 1, 1, 1, 1, 0, 0, 0, 1, 1, 1, false));
+        Tensor connectedObjective = maximum.mul(maximumTarget).sum();
+        GraphCompilation connected = compileTwoStage(
+                connectedObjective,
+                maximumTarget,
+                FunctionalGradientRequest.DisconnectedPolicy.ERROR);
+        assertEquals(List.of(1, 2), connected.gradientResults().stream()
+                .map(GradientPublicationBinding::derivativeOrder)
+                .toList());
+    }
+
+    private static GraphCompilation compileTwoStage(
+            Tensor objective,
+            Tensor target,
+            FunctionalGradientRequest.DisconnectedPolicy secondPolicy) {
+        FunctionalGradientRequest.Stage first = new FunctionalGradientRequest.Stage(
+                List.of(new FunctionalGradientRequest.ForwardTensorReference(objective)),
+                List.of(Optional.empty()),
+                List.of(target),
+                true,
+                FunctionalGradientRequest.DisconnectedPolicy.ERROR);
+        Tensor secondSeed = tensor(target.descriptor().shape(), false);
+        FunctionalGradientRequest.Stage second = new FunctionalGradientRequest.Stage(
+                List.of(new FunctionalGradientRequest.FirstStageGradientReference(0)),
+                List.of(Optional.of(secondSeed)),
+                List.of(target),
+                false,
+                secondPolicy);
+        return GraphCompiler.compile(
+                CompileMode.FORWARD_AND_BACKWARD,
+                List.of(objective),
+                Optional.of(new FunctionalGradientRequest(List.of(first, second))),
+                CompileTimeConstantGraph.Ingress.empty(),
+                GraphOptimizationConfig.disabled());
     }
 
     private static ValidatedGraph compile(List<Tensor> outputs) {

@@ -362,8 +362,8 @@ Operation-family subpackages are introduced only when a focused operation task d
   arbitrary geometry array contract. Symmetric padding remains the first intrinsic contract;
   asymmetric padding is explicit `PAD` composition or a later separately justified semantic
   extension rather than a silent change to completed `Conv2dAttrs`.
-- Channels-first pooling expansion: 0025I–0025K and detailed Compiler 0006B1 Complete; Compiler
-  0006B2 is the next Draft frontier without a detailed specification.
+- Channels-first pooling expansion: 0025I–0025K and detailed Compiler 0006B1–0006B2 are Complete;
+  Draft CPU 0008G1 is the next cross-plan frontier without a detailed specification.
   Complete [task 0025I](tasks/0025i-ncw-max-average-pool1d-composition.md) reuses the exact singleton-height
   composition proof for NCW pooling and creates no Pool1d kind. Complete
   [task 0025J](tasks/0025j-first-class-ncdhw-max-average-pool3d-semantics.md) is first-class because
@@ -373,8 +373,8 @@ Operation-family subpackages are introduced only when a focused operation task d
   adds only the general `unfold3d`/`fold3d` algebra required by exact Pool3d gradients. These
   tasks introduce no `PoolNd` or dynamic-rank API. Task 0025J adds current Model metadata only;
   complete Compiler 0006B1 adopts the two Pool3d and three 3D-window forward signatures,
-  complete Model 0025K owns window algebra, and Draft Compiler 0006B2 and Draft CPU 0008G1 retain
-  gradients and execution respectively.
+  complete Model 0025K owns window algebra, Complete Compiler 0006B2 owns the detailed gradient
+  closure, and Draft CPU 0008G1 retains execution.
 - Future mixed-precision semantic foundation: task 0026 remains Draft without a detailed
   specification. It must complete before any backend advertises FLOAT16, but it does not block
   current CPU generated-artifact caching, current-type portable analysis/finalization, or
@@ -1960,7 +1960,8 @@ gradient closure remains downstream work. Detailed
 [Model 0025J](tasks/0025j-first-class-ncdhw-max-average-pool3d-semantics.md) are Complete. Detailed
 [Model 0025K](tasks/0025k-public-ncdhw-unfold3d-and-fold3d-window-transforms.md) is Complete. Model
 0026 remains Draft without a detailed specification; no Model task is Ready or In progress.
-Detailed Compiler 0006B1 is Complete. Compiler 0006B2 is the next Draft cross-plan frontier and
-remains without a detailed specification.
+Detailed Compiler 0006B1 is Complete. Detailed
+[Compiler 0006B2](../compiler/tasks/0006b2-pool3d-and-3d-window-gradient-closure.md) is Complete;
+Draft CPU 0008G1 is the next cross-plan frontier without a detailed specification.
 The legacy branch must be consulted read-only for capability and test evidence when preparing each
 applicable capability task.

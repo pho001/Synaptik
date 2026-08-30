@@ -29,8 +29,11 @@ import io.github.pho001.synaptik.model.operation.ordering.SortAttrs;
 import io.github.pho001.synaptik.model.operation.ordering.TopKAttrs;
 import io.github.pho001.synaptik.model.operation.ordering.TopKKind;
 import io.github.pho001.synaptik.model.operation.pooling.AveragePool2dAttrs;
+import io.github.pho001.synaptik.model.operation.pooling.AveragePool3dAttrs;
 import io.github.pho001.synaptik.model.operation.pooling.MaxPool2dAttrs;
+import io.github.pho001.synaptik.model.operation.pooling.MaxPool3dAttrs;
 import io.github.pho001.synaptik.model.operation.pooling.Pool2dKind;
+import io.github.pho001.synaptik.model.operation.pooling.Pool3dKind;
 import io.github.pho001.synaptik.model.operation.random.DropoutAttrs;
 import io.github.pho001.synaptik.model.operation.random.DropoutKind;
 import io.github.pho001.synaptik.model.operation.random.GraphRngKind;
@@ -53,8 +56,8 @@ import java.util.Objects;
  * {@link AutogradPreflight}'s occurrence-local shape, type, cardinality, auxiliary, and policy
  * proof before a formula may be constructed.</p>
  *
- * <p>The immutable signature inventory is deliberately exact: 37 current operation-kind enum
- * families, 107 constants, and 128 complete kind/attributes/cardinality fingerprints. It names
+ * <p>The immutable signature inventory is deliberately exact: 38 current operation-kind enum
+ * families, 111 constants, and 133 complete kind/attributes/cardinality fingerprints. It names
  * every accepted current variant instead of deriving the inventory from Model declarations, so
  * a newly added or changed production signature fails closed until its first-order disposition
  * is reviewed. This type constructs no Tensor or graph state, scans no class path, uses no
@@ -155,7 +158,7 @@ final class FirstOrderGradientCoverage {
     /**
      * Returns the exact immutable Compiler checkpoint inventory.
      *
-     * @return the non-null immutable 128-row signature fingerprint list
+     * @return the non-null immutable 133-row signature fingerprint list
      */
     static List<SignatureFingerprint> signatures() {
         return SIGNATURES;
@@ -313,7 +316,7 @@ final class FirstOrderGradientCoverage {
         if (kind == Conv2dKind.CONV2D) {
             return FamilyOwner.CONVOLUTION;
         }
-        if (kind instanceof Pool2dKind) {
+        if (kind instanceof Pool2dKind || kind instanceof Pool3dKind) {
             return FamilyOwner.POOLING;
         }
         if (kind instanceof LossKind) {
@@ -368,7 +371,7 @@ final class FirstOrderGradientCoverage {
     }
 
     private static List<SignatureFingerprint> buildSignatures() {
-        List<SignatureFingerprint> rows = new ArrayList<>(128);
+        List<SignatureFingerprint> rows = new ArrayList<>(133);
         rows.add(range(
                 ScaledDotProductAttentionKind.SCALED_DOT_PRODUCT_ATTENTION,
                 ScaledDotProductAttentionAttrs.class, 3, 4, 1, 2));
@@ -434,6 +437,9 @@ final class FirstOrderGradientCoverage {
         rows.add(fixed(WindowTransformKind.UNFOLD2D, Window2dAttrs.class, 1, 1));
         rows.add(fixed(WindowTransformKind.UNFOLD2D, Unfold2dAttrs.class, 1, 1));
         rows.add(fixed(WindowTransformKind.FOLD2D, Fold2dAttrs.class, 1, 1));
+        rows.add(fixed(WindowTransformKind.UNFOLD3D, Window3dAttrs.class, 1, 1));
+        rows.add(fixed(WindowTransformKind.UNFOLD3D, Unfold3dAttrs.class, 1, 1));
+        rows.add(fixed(WindowTransformKind.FOLD3D, Fold3dAttrs.class, 1, 1));
         rows.add(fixed(MatmulKind.MATMUL, NoOperationAttrs.class, 2, 1));
         rows.add(fixed(
                 LossKind.MEAN_SQUARED_ERROR, MeanSquaredErrorAttrs.class, 2, 1));
@@ -457,6 +463,8 @@ final class FirstOrderGradientCoverage {
         rows.add(fixed(TopKKind.TOP_K, TopKAttrs.class, 1, 2));
         rows.add(fixed(Pool2dKind.MAX_POOL2D, MaxPool2dAttrs.class, 1, 1));
         rows.add(fixed(Pool2dKind.AVERAGE_POOL2D, AveragePool2dAttrs.class, 1, 1));
+        rows.add(fixed(Pool3dKind.MAX_POOL3D, MaxPool3dAttrs.class, 1, 1));
+        rows.add(fixed(Pool3dKind.AVERAGE_POOL3D, AveragePool3dAttrs.class, 1, 1));
         rows.add(fixed(DropoutKind.DROPOUT, DropoutAttrs.class, 2, 3));
         rows.add(fixed(GraphRngKind.INITIAL_STATE, GraphRngStateAttrs.class, 0, 1));
 
@@ -601,7 +609,7 @@ final class FirstOrderGradientCoverage {
         /** Two-dimensional convolution formulas. */
         CONVOLUTION,
 
-        /** Two-dimensional pooling formulas. */
+        /** Two- and three-dimensional pooling formulas. */
         POOLING,
 
         /** Current loss formulas. */

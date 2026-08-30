@@ -64,7 +64,9 @@ import io.github.pho001.synaptik.model.operation.ordering.SortAttrs;
 import io.github.pho001.synaptik.model.operation.ordering.TopKAttrs;
 import io.github.pho001.synaptik.model.operation.ordering.TopKKind;
 import io.github.pho001.synaptik.model.operation.pooling.AveragePool2dAttrs;
+import io.github.pho001.synaptik.model.operation.pooling.AveragePool3dAttrs;
 import io.github.pho001.synaptik.model.operation.pooling.MaxPool2dAttrs;
+import io.github.pho001.synaptik.model.operation.pooling.MaxPool3dAttrs;
 import io.github.pho001.synaptik.model.operation.pooling.Pool3dKind;
 import io.github.pho001.synaptik.model.operation.pooling.Pool2dKind;
 import io.github.pho001.synaptik.model.operation.random.DropoutAttrs;
@@ -176,13 +178,14 @@ import java.util.Set;
  * <p>This owner selects rules and rejects unsupported operation, input/output signature,
  * attribute, role, data-type, Shape, and policy combinations. A known rejection occurs before the
  * seed, a derivative constant, a matching {@code ARGSORT}, or another formula Tensor is
- * constructed, so it consumes no derivative {@code TensorId}. Fixed recurrent-scan, Conv3d,
- * Pool3d, and three-dimensional window-transform occurrences are rejected from the complete
- * original forward inventory in deterministic producer postorder before stage, seed, route,
- * occurrence-policy, or formula validation. Recurrent BPTT and Conv3d adjoints remain separately
- * deferred; Compiler task 0006B2 owns both Pool3d adjoints and all three three-dimensional window
- * adjoints. The same rejection applies when a requested gradient belongs to an unrelated
- * supported branch. The guarantee ends after a successful plan is returned: later public Tensor
+ * constructed, so it consumes no derivative {@code TensorId}. Fixed recurrent-scan and Conv3d
+ * occurrences are rejected from the complete original forward inventory in deterministic
+ * producer postorder before stage, seed, route, occurrence-policy, or formula validation.
+ * Recurrent BPTT and Conv3d adjoints remain separately deferred. Pool3d and three-dimensional
+ * window transforms instead prove their public unfold/fold formula geometry and structural
+ * kernel volume before allocation. The same rejection applies when a requested gradient belongs
+ * to an unrelated supported branch. The guarantee ends after a successful plan is returned:
+ * later public Tensor
  * construction, capture, inference, validation, or optimization may consume IDs before failing.
  * This owner neither reads Tensor payloads, captures a graph, allocates storage, binds a dynamic
  * Dimension, lowers work, nor executes computation.</p>
@@ -985,6 +988,36 @@ final class AutogradPreflight {
             }
             return;
         }
+        if (operation.kind() instanceof Pool3dKind kind) {
+            boolean attrsMatch = kind == Pool3dKind.MAX_POOL3D
+                    ? operation.attrs() instanceof MaxPool3dAttrs
+                    : operation.attrs() instanceof AveragePool3dAttrs;
+            if (!attrsMatch) {
+                throw unsupported(
+                        producerIndex, producer, outputIndex, -1,
+                        "unsupported Pool3d kind/attributes pairing");
+            }
+            requireInputs(producerIndex, producer, outputIndex, 1);
+            validateStructuredOccurrence(producerIndex, producer, outputIndex);
+            long depth = kind == Pool3dKind.MAX_POOL3D
+                    ? ((MaxPool3dAttrs) operation.attrs()).kernelDepth()
+                    : ((AveragePool3dAttrs) operation.attrs()).kernelDepth();
+            long height = kind == Pool3dKind.MAX_POOL3D
+                    ? ((MaxPool3dAttrs) operation.attrs()).kernelHeight()
+                    : ((AveragePool3dAttrs) operation.attrs()).kernelHeight();
+            long width = kind == Pool3dKind.MAX_POOL3D
+                    ? ((MaxPool3dAttrs) operation.attrs()).kernelWidth()
+                    : ((AveragePool3dAttrs) operation.attrs()).kernelWidth();
+            try {
+                Math.multiplyExact(Math.multiplyExact(depth, height), width);
+                validatePool3dFormulaConstructibility(producer, kind);
+            } catch (RuntimeException exception) {
+                throw unsupported(
+                        producerIndex, producer, outputIndex, -1,
+                        "Pool3d public gradient formula is not constructible");
+            }
+            return;
+        }
         if (operation.kind() instanceof LossKind kind) {
             boolean attrsMatch = switch (kind) {
                 case MEAN_SQUARED_ERROR ->
@@ -1229,6 +1262,11 @@ final class AutogradPreflight {
             requireInputs(producerIndex, producer, outputIndex, 1);
             requireSameFloatingType(producerIndex, producer, outputIndex, 0);
             validateLayoutOccurrence(producerIndex, producer, outputIndex);
+            if (kind == WindowTransformKind.UNFOLD3D
+                    || kind == WindowTransformKind.FOLD3D) {
+                validateWindow3dAdjointConstructibility(
+                        producerIndex, producer, outputIndex, kind);
+            }
             return;
         }
         if (operation.kind() instanceof AxisGatherKind kind) {
@@ -1409,6 +1447,114 @@ final class AutogradPreflight {
                     "layout inference rejected the occurrence");
         }
         validateInferredOccurrence(producerIndex, producer, outputIndex, inferred);
+    }
+
+    /**
+     * Proves that a Pool3d occurrence's public unfold/fold path restores the exact captured input
+     * descriptor without constructing a Tensor.
+     *
+     * @param producer non-null validated one-input Pool3d occurrence
+     * @param kind exact Pool3d kind used to select its immutable geometry type
+     * @throws RuntimeException if layout inference rejects an intermediate or descriptor identity
+     *     is not preserved semantically
+     */
+    private static void validatePool3dFormulaConstructibility(
+            TensorProducer producer, Pool3dKind kind) {
+        Window3dAttrs window = kind == Pool3dKind.MAX_POOL3D
+                ? window((MaxPool3dAttrs) producer.operation().attrs())
+                : window((AveragePool3dAttrs) producer.operation().attrs());
+        var input = producer.inputs().getFirst().descriptor();
+        var unfolded = LayoutInference.infer(
+                new Operation(WindowTransformKind.UNFOLD3D, window), List.of(input));
+        if (unfolded.outputs().size() != 1) {
+            throw new IllegalArgumentException("Pool3d unfold formula must have one output");
+        }
+        var folded = LayoutInference.infer(
+                new Operation(
+                        WindowTransformKind.FOLD3D,
+                        new Fold3dAttrs(input.shape(), window)),
+                unfolded.outputs());
+        if (folded.outputs().size() != 1 || !folded.outputs().getFirst().equals(input)) {
+            throw new IllegalArgumentException("Pool3d fold formula must restore input descriptor");
+        }
+    }
+
+    /**
+     * Proves the exact public adjoint counterpart for a three-dimensional window occurrence.
+     *
+     * @param producerIndex deterministic producer postorder position used in diagnostics
+     * @param producer non-null validated one-input window occurrence
+     * @param outputIndex valid selected output slot
+     * @param kind exact UNFOLD3D or FOLD3D kind
+     * @throws IllegalArgumentException if the generated counterpart is not constructible or does
+     *     not reproduce the original input descriptor
+     */
+    private static void validateWindow3dAdjointConstructibility(
+            int producerIndex,
+            TensorProducer producer,
+            int outputIndex,
+            WindowTransformKind kind) {
+        var input = producer.inputs().getFirst().descriptor();
+        var output = producer.output(outputIndex).descriptor();
+        CapturedGraphInference.InferenceResult inferred;
+        try {
+            if (kind == WindowTransformKind.UNFOLD3D) {
+                Window3dAttrs window = producer.operation().attrs() instanceof Unfold3dAttrs attrs
+                        ? attrs.window()
+                        : (Window3dAttrs) producer.operation().attrs();
+                inferred = LayoutInference.infer(
+                        new Operation(
+                                WindowTransformKind.FOLD3D,
+                                new Fold3dAttrs(input.shape(), window)),
+                        List.of(output));
+            } else {
+                Fold3dAttrs attrs = (Fold3dAttrs) producer.operation().attrs();
+                inferred = LayoutInference.infer(
+                        new Operation(WindowTransformKind.UNFOLD3D, attrs.window()),
+                        List.of(output));
+            }
+        } catch (RuntimeException exception) {
+            throw unsupported(
+                    producerIndex, producer, outputIndex, 0,
+                    "three-dimensional window adjoint is not constructible");
+        }
+        if (inferred.outputs().size() != 1 || !inferred.outputs().getFirst().equals(input)) {
+            throw unsupported(
+                    producerIndex, producer, outputIndex, 0,
+                    "three-dimensional window adjoint descriptor differs from input");
+        }
+    }
+
+    /**
+     * Projects maximum Pool3d geometry into the exact public volumetric window value used by its
+     * derivative formula.
+     *
+     * @param attrs non-null validated maximum Pool3d attributes
+     * @return a new immutable window retaining every geometry component
+     */
+    private static Window3dAttrs window(MaxPool3dAttrs attrs) {
+        return new Window3dAttrs(
+                attrs.kernelDepth(), attrs.kernelHeight(), attrs.kernelWidth(),
+                attrs.strideDepth(), attrs.strideHeight(), attrs.strideWidth(),
+                attrs.paddingDepth(), attrs.paddingHeight(), attrs.paddingWidth(),
+                attrs.dilationDepth(), attrs.dilationHeight(), attrs.dilationWidth(),
+                attrs.ceilMode());
+    }
+
+    /**
+     * Projects average Pool3d geometry into the exact public volumetric window value used by its
+     * derivative formula.
+     *
+     * @param attrs non-null validated average Pool3d attributes
+     * @return a new immutable window retaining every geometry component
+     */
+    private static Window3dAttrs window(AveragePool3dAttrs attrs) {
+        return new Window3dAttrs(
+                attrs.kernelDepth(), attrs.kernelHeight(), attrs.kernelWidth(),
+                attrs.strideDepth(), attrs.strideHeight(), attrs.strideWidth(),
+                attrs.paddingDepth(), attrs.paddingHeight(), attrs.paddingWidth(),
+                attrs.dilationDepth(), attrs.dilationHeight(), attrs.dilationWidth(),
+                attrs.ceilMode());
     }
 
     private static void validateIndexingOccurrence(
@@ -1950,9 +2096,8 @@ final class AutogradPreflight {
      * Rejects the first complete-forward occurrence whose gradients are deliberately deferred.
      *
      * @param original non-null allocation-free inventory in deterministic producer postorder
-     * @throws IllegalArgumentException if the inventory contains fixed recurrence, Conv3d,
-     *     Pool3d, or a three-dimensional window transform; rejection occurs before seed
-     *     normalization or derivative Tensor construction
+     * @throws IllegalArgumentException if the inventory contains fixed recurrence or Conv3d;
+     *     rejection occurs before seed normalization or derivative Tensor construction
      */
     private static void rejectForwardOnlyOccurrences(Inventory original) {
         for (int producerIndex = 0;
@@ -1976,25 +2121,6 @@ final class AutogradPreflight {
                                 + producer.operation().attrs().getClass().getName()
                                 + ": Conv3d is forward-only until Compiler task 0006C "
                                 + "closes its gradients");
-            }
-            if (producer.operation().kind() instanceof Pool3dKind) {
-                throw new IllegalArgumentException(
-                        "producerPostorder[" + producerIndex + "] "
-                                + producer.operation().kind().getClass().getName() + "."
-                                + producer.operation().kind().name() + " attrs="
-                                + producer.operation().attrs().getClass().getName()
-                                + ": Pool3d is forward-only until Compiler task 0006B2 "
-                                + "closes its gradients");
-            }
-            if (producer.operation().kind() == WindowTransformKind.UNFOLD3D
-                    || producer.operation().kind() == WindowTransformKind.FOLD3D) {
-                throw new IllegalArgumentException(
-                        "producerPostorder[" + producerIndex + "] "
-                                + producer.operation().kind().getClass().getName() + "."
-                                + producer.operation().kind().name() + " attrs="
-                                + producer.operation().attrs().getClass().getName()
-                                + ": three-dimensional window transforms are forward-only until "
-                                + "Compiler task 0006B2 closes their gradients");
             }
         }
     }

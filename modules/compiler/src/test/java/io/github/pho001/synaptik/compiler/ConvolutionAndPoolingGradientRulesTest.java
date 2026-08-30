@@ -6,12 +6,18 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import io.github.pho001.synaptik.config.compile.CompileMode;
 import io.github.pho001.synaptik.config.compile.GraphOptimizationConfig;
 import io.github.pho001.synaptik.model.datatype.DataType;
+import io.github.pho001.synaptik.model.datatype.ScalarValue;
 import io.github.pho001.synaptik.model.operation.convolution.Conv2dAttrs;
 import io.github.pho001.synaptik.model.operation.layout.WindowTransformKind;
+import io.github.pho001.synaptik.model.operation.layout.Fold3dAttrs;
+import io.github.pho001.synaptik.model.operation.layout.Unfold3dAttrs;
 import io.github.pho001.synaptik.model.operation.layout.AxisTransformKind;
 import io.github.pho001.synaptik.model.operation.linalg.MatmulKind;
 import io.github.pho001.synaptik.model.operation.pooling.AveragePool2dAttrs;
 import io.github.pho001.synaptik.model.operation.pooling.MaxPool2dAttrs;
+import io.github.pho001.synaptik.model.operation.pooling.AveragePool3dAttrs;
+import io.github.pho001.synaptik.model.operation.pooling.MaxPool3dAttrs;
+import io.github.pho001.synaptik.model.operation.pooling.Pool3dKind;
 import io.github.pho001.synaptik.model.operation.reduction.AggregateReductionKind;
 import io.github.pho001.synaptik.model.shape.Shape;
 import io.github.pho001.synaptik.model.shape.DynamicDimension;
@@ -114,6 +120,88 @@ final class ConvolutionAndPoolingGradientRulesTest {
         assertCompiles(average.sum(), input);
     }
 
+    @Test
+    void pool3dGradientsUseFixedDivisorAndExactSameOccurrenceWinnerReconstruction() {
+        Tensor input = tensor(Shape.of(1, 2, 4, 4, 4));
+        AveragePool3dAttrs averageAttrs = new AveragePool3dAttrs(
+                2, 3, 2, 2, 1, 1, 1, 1, 1, 1, 2, 1, true);
+        MaxPool3dAttrs maximumAttrs = new MaxPool3dAttrs(
+                2, 3, 2, 2, 1, 1, 1, 1, 1, 1, 2, 1, true);
+        Tensor average = input.averagePool3d(averageAttrs);
+        Tensor maximum = input.maxPool3d(maximumAttrs);
+
+        Tensor averageGradient = gradient(average.sum(), input);
+        assertEquals(input.descriptor().shape(), averageGradient.descriptor().shape());
+        assertTrue(containsKind(averageGradient, WindowTransformKind.FOLD3D));
+        assertTrue(containsKind(averageGradient, AggregateReductionKind.SUM));
+        assertTrue(containsKind(
+                averageGradient,
+                io.github.pho001.synaptik.model.operation.elementwise.binary
+                        .BinaryArithmeticKind.DIV));
+
+        Tensor maximumGradient = gradient(maximum.sum(), input);
+        assertEquals(input.descriptor().shape(), maximumGradient.descriptor().shape());
+        assertTrue(containsKind(maximumGradient, WindowTransformKind.FOLD3D));
+        assertTrue(containsKind(maximumGradient, AggregateReductionKind.ARG_MAX));
+        assertTrue(containsKind(
+                maximumGradient,
+                io.github.pho001.synaptik.model.operation.index.OneHotKind.ONE_HOT));
+        assertTrue(reaches(maximumGradient, maximum));
+        assertEquals(1, countKind(maximumGradient, Pool3dKind.MAX_POOL3D));
+        assertEquals(2, countKind(maximumGradient, WindowTransformKind.UNFOLD3D));
+
+        List<Unfold3dAttrs> unfolds = collect(maximumGradient).stream()
+                .flatMap(tensor -> tensor.provenance().stream())
+                .filter(provenance -> provenance.operation().kind()
+                        == WindowTransformKind.UNFOLD3D)
+                .map(provenance -> provenance.operation().attrs())
+                .filter(Unfold3dAttrs.class::isInstance)
+                .map(Unfold3dAttrs.class::cast)
+                .toList();
+        assertEquals(1, unfolds.size());
+        assertEquals(ScalarValue.float32(Float.NEGATIVE_INFINITY),
+                unfolds.getFirst().paddingValue());
+        assertCompiles(average.sum(), input);
+        assertCompiles(maximum.sum(), input);
+    }
+
+    @Test
+    void pool3dGradientFormulasPreserveEveryFloatingTypeAndSymbolicShape() {
+        for (DataType dataType : List.of(
+                DataType.BFLOAT16, DataType.FLOAT32, DataType.FLOAT64)) {
+            DynamicDimension depth = new DynamicDimension("D" + dataType);
+            Tensor input = tensor(
+                    dataType,
+                    Shape.ofDimensions(
+                            new io.github.pho001.synaptik.model.shape.StaticDimension(1),
+                            new io.github.pho001.synaptik.model.shape.StaticDimension(2),
+                            depth,
+                            new io.github.pho001.synaptik.model.shape.StaticDimension(4),
+                            new io.github.pho001.synaptik.model.shape.StaticDimension(4)));
+            Tensor result = input.averagePool3d(new AveragePool3dAttrs(
+                    2, 2, 2, 1, 1, 1, 1, 1, 1, 1, 1, 1, true));
+            Tensor resultGradient = gradient(result.sum(), input);
+            assertEquals(dataType, resultGradient.descriptor().dataType());
+            assertEquals(input.descriptor().shape(), resultGradient.descriptor().shape());
+            Fold3dAttrs fold = collect(resultGradient).stream()
+                    .flatMap(tensor -> tensor.provenance().stream())
+                    .filter(provenance -> provenance.operation().kind()
+                            == WindowTransformKind.FOLD3D)
+                    .map(provenance -> provenance.operation().attrs())
+                    .map(Fold3dAttrs.class::cast)
+                    .findFirst()
+                    .orElseThrow();
+            assertTrue(fold.outputShape() == input.descriptor().shape());
+
+            Tensor maximum = input.maxPool3d(new MaxPool3dAttrs(
+                    2, 2, 2, 1, 1, 1, 1, 1, 1, 1, 1, 1, true));
+            Tensor maximumGradient = gradient(maximum.sum(), input);
+            assertEquals(dataType, maximumGradient.descriptor().dataType());
+            assertEquals(input.descriptor().shape(), maximumGradient.descriptor().shape());
+            assertTrue(reaches(maximumGradient, maximum));
+        }
+    }
+
     private static Tensor gradient(Tensor objective, Tensor target) {
         var plan = AutogradPreflight.preflight(
                 CompileMode.FORWARD_AND_BACKWARD,
@@ -145,6 +233,23 @@ final class ConvolutionAndPoolingGradientRulesTest {
         return traverse(root, tensor -> tensor == expected);
     }
 
+    private static long countKind(Tensor root, Enum<?> kind) {
+        return collect(root).stream()
+                .filter(tensor -> tensor.provenance()
+                        .map(provenance -> provenance.operation().kind() == kind)
+                        .orElse(false))
+                .count();
+    }
+
+    private static List<Tensor> collect(Tensor root) {
+        List<Tensor> result = new java.util.ArrayList<>();
+        traverse(root, tensor -> {
+            result.add(tensor);
+            return false;
+        });
+        return List.copyOf(result);
+    }
+
     private static boolean traverse(
             Tensor root, java.util.function.Predicate<Tensor> predicate) {
         IdentityHashMap<Tensor, Boolean> seen = new IdentityHashMap<>();
@@ -164,7 +269,11 @@ final class ConvolutionAndPoolingGradientRulesTest {
     }
 
     private static Tensor tensor(Shape shape) {
+        return tensor(DataType.FLOAT32, shape);
+    }
+
+    private static Tensor tensor(DataType dataType, Shape shape) {
         return TensorFactory.create(new TensorDescriptor(
-                DataType.FLOAT32, shape, Optional.empty(), true));
+                dataType, shape, Optional.empty(), true));
     }
 }
