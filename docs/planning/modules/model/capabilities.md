@@ -757,12 +757,13 @@ dominant, ranks positive zero above negative zero, and selects the first eligibl
 width occurrence. Average Pool3d uses the fixed mathematical count-padding divisor
 `kernelDepth * kernelHeight * kernelWidth`, the established floating accumulation/division and
 single BFLOAT16 narrowing policy, and the established NaN, infinity, signed-zero, and all-padding
-rules. This completed capability is Model metadata and provenance only. Draft Compiler 0006B1
-owns forward adoption, complete
+rules. This completed capability is Model metadata and provenance only. Complete Compiler 0006B1
+adopts both Pool3d signatures and all three Model-current 3D-window signatures for forward-only
+capture, inference, final validation, and ordinary Planning handoff, while complete
 [Model 0025K](tasks/0025k-public-ncdhw-unfold3d-and-fold3d-window-transforms.md) owns general
 `unfold3d`/`fold3d`, Draft Compiler 0006B2
-owns exact gradients, and Draft CPU 0008G1 owns execution. There is no current graph capture,
-gradient, backend capability, execution, or materialized numerical result for either Pool3d kind.
+owns exact gradients, and Draft CPU 0008G1 owns execution. There is no current gradient, backend
+capability, execution, materialized numerical result, or performance claim for either Pool3d kind.
 
 Completed task 0025K adds rank-specific `UNFOLD3D` and `FOLD3D` Model semantics and exactly three
 public Tensor receivers. Rank-five NCDHW input unfolds to canonical rank-three columns
@@ -771,8 +772,10 @@ flattened depth-height-width and width-fastest. Literal floor/ceil grids, direct
 positive-zero padding, exact typed padding, structural symbolic compatibility, explicit fold
 target Shape, geometric padding exclusion, and deterministic type-specific overlap addition are
 fixed metadata contracts. The current inventory is 40 operation-kind families, 115 constants,
-137 signatures, and 213 declared public Tensor methods. Compiler capture/inference and Pool3d
-gradients remain Draft 0006B1/0006B2; CPU execution remains Draft 0008G1.
+137 signatures, and 213 declared public Tensor methods. Complete Compiler 0006B1 provides
+forward-only capture/inference/final validation for all five signatures and rejects them in both
+backward-capable modes before seed validation and derivative Tensor allocation. Their gradients
+remain Draft 0006B2, and CPU execution remains Draft 0008G1.
 
 ### Important shortly afterward
 

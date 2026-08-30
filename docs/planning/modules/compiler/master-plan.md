@@ -107,8 +107,8 @@ cross-package/public orchestration boundary from a concrete consumer.
 | 0006 | [Explicit functional gradient requests and higher-order differentiation](tasks/0006-explicit-functional-gradient-requests-and-higher-order-differentiation.md) | Complete | 0005E and the stable public compile/artifact boundary from 0005 | Added one public immutable one/two-stage functional request, explicit/default cotangent seeds, ERROR/ZERO disconnected behavior, ordered `GradientPublicationBinding` values, and compiler-owned derivative-order metadata over the closed first-order formula matrix without Tensor gradient lifecycle state or another compile facade. |
 | 0006A | [Fixed recurrent-scan forward adoption and explicit BPTT boundary](tasks/0006a-fixed-recurrent-scan-forward-adoption-and-bptt-boundary.md) | Complete | accepted ADR 0012 and NN 0021A architecture decision; Model 0025E–0025F; 0001–0006 | Adopted each fixed RNN/GRU/LSTM producer as one identity-distinct ordinary flat forward node, independently inferred/final-validated exact static descriptors, preserved whole multi-output identity through optimization and ordinary publication/Planning handoff, and rejected every backward-capable forward inventory containing recurrence before derivative allocation while the exact three gradient signatures remain deferred. |
 | 0006B | [Conv3d forward adoption and explicit gradient boundary](tasks/0006b-conv3d-forward-adoption-and-explicit-gradient-boundary.md) | Complete | Model 0025H; 0001–0006A | Adopted first-class `CONV3D` as one ordinary flat forward node, independently inferred and final-validated NCDHW descriptors and ordered deferred relations, preserved ordinary CSE/publication/Planning handoff, and rejected backward-capable requests containing it before derivative allocation. Forward coverage is now 39 families, 111 constants, and 132 signatures; first-order support remains 37/107/128 with four deferred signatures. |
-| 0006B1 | Pool3d forward adoption and explicit gradient boundary | Draft | Model 0025J; 0006B | Adopt first-class `MAX_POOL3D` and `AVERAGE_POOL3D` forward inference/final validation as ordinary flat nodes, preserve publication and Planning handoff, and reject backward-capable requests containing either family before derivative allocation. No detailed specification exists. |
-| 0006B2 | Pool3d gradient closure | Draft | Model 0025K; 0006B1; 0005D | Close exact NCDHW maximum and fixed-count average pooling gradients through public `unfold3d`/`fold3d`: average uses the logical `kernelDepth * kernelHeight * kernelWidth` divisor, while maximum reconstructs the first eligible depth-height-width winner with exact NaN and signed-zero occurrence matching. Update the source-backed derivative inventory and higher-order closure. No detailed specification exists. |
+| 0006B1 | [Pool3d and 3D-window forward adoption and explicit gradient boundary](tasks/0006b1-pool3d-and-3d-window-forward-adoption-and-explicit-gradient-boundary.md) | Complete | Model 0025J–0025K; 0006B | Adopted all five Pool3d/`UNFOLD3D`/`FOLD3D` signatures in ordinary forward inference/final validation, restored exact 40-family/115-constant/137-signature forward coverage, preserved publication and Planning handoff, and rejected every backward-capable complete forward inventory containing one before seed validation and derivative allocation. Production first-order support remains 37/107/128 with exactly nine deferred signatures. |
+| 0006B2 | Pool3d and 3D-window gradient closure | Draft | Model 0025K; 0006B1; 0005D | Close the two exact NCDHW pooling gradients and the three public `unfold3d`/`fold3d` adjoints required for transitive/higher-order closure: average uses the logical `kernelDepth * kernelHeight * kernelWidth` divisor, while maximum reconstructs the first eligible depth-height-width winner with exact NaN and signed-zero occurrence matching. No detailed specification exists. |
 | 0006C | Conv3d adjoint expressibility and gradient closure | Draft | 0006B; current public Tensor algebra; any separately selected Model prerequisite | Prove whether grouped NCDHW input/weight/bias cotangents are expressible through current public window, layout, matrix, reduction, and fold operations. Implement and add `CONV3D` to the closed derivative inventory only when exact group isolation, dilation/padding, overlap accumulation, symbolic Shape, and higher-order formula closure are representable; otherwise select the smallest Model-owned prerequisite first and keep the family fail-closed. |
 | 0007 | Exact constant identities and permission-aware algebra | Draft | 0006; Config 0006 before any relaxed rule | Reassess remaining graph-level exact constant/algebra identities and any explicitly permitted relaxed rewrites without changing completed 0001–0006 history: preserve current guarded scalar `POW(+1) -> input`, require complete exceptional-value/constant-sidecar/output/publication/phase/autograd/descriptor proof before an exact `POW(0)` typed shape-correct one-splat, and never infer Tensor constants from storage or factory history. |
 
@@ -150,10 +150,13 @@ higher-order path without implementing higher-order requests before 0006.
 - Conv3d forward adoption and explicit gradient boundary — Complete
   [task 0006B](tasks/0006b-conv3d-forward-adoption-and-explicit-gradient-boundary.md), after
   completed Model 0025H and Compiler 0001–0006A.
+- Pool3d and 3D-window forward adoption and explicit gradient boundary — Complete
+  [task 0006B1](tasks/0006b1-pool3d-and-3d-window-forward-adoption-and-explicit-gradient-boundary.md),
+  after completed Model 0025J–0025K and Compiler 0006B.
 
 ## Current status
 
-Complete through task 0006B. Tasks 0001–0006B are Complete with recorded source, tests,
+Complete through task 0006B1. Tasks 0001–0006B1 are Complete with recorded source, tests,
 documentation, and validation. Detailed
 [task 0006A](tasks/0006a-fixed-recurrent-scan-forward-adoption-and-bptt-boundary.md) is Complete
 after accepted ADR 0012/NN 0021A and completed Model 0025E–0025F. It uses the existing ordinary
@@ -165,11 +168,15 @@ It adopts Conv3d only in the ordinary flat forward pipeline, independently deriv
 descriptors and ordered deferred channel/geometry obligations, preserves ordinary CSE,
 publication, diagnostics, and Planning handoff, and keeps both backward-capable modes
 allocation-free and fail-closed. Conv1d deliberately reuses the
-implemented Conv2d inference and gradient path through visible Model composition. Draft 0006B1
-and 0006B2 respectively own Pool3d forward adoption/fail-closed backward and exact Pool3d
-gradient closure after Model 0025J–0025K. Task 0006C remains the separate Draft Conv3d
-adjoint-expressibility and gradient-closure owner. Compiler 0006B1, 0006B2, 0006C, and 0007 have
-no detailed specifications; no Compiler task is Ready or In progress. The repository
+implemented Conv2d inference and gradient path through visible Model composition. Detailed 0006B1
+is Complete after completed Model 0025J–0025K. It adopts all five Pool3d and 3D-window forward
+signatures, restores exact 40/115/137 forward coverage, and keeps the production first-order
+inventory at 37/107/128 with exactly nine deferred signatures. Both backward-capable modes reject
+the five new signatures during complete-forward-inventory preflight before seed validation and
+derivative Tensor allocation. Draft 0006B2 owns all five corresponding gradient signatures. Task
+0006C remains the separate Draft Conv3d adjoint-expressibility and gradient-closure owner. Compiler
+0006B2, 0006C, and 0007 have no detailed specifications; no Compiler task is Ready or In progress.
+The repository
 roadmap separately records the concurrent CPU execution frontier; this Compiler planning state
 does not authorize implementation ahead of that coordinator-owned order. Compiler 0004, 0004A,
 and 0004B are Complete with

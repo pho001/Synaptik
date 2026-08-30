@@ -24,6 +24,7 @@ import io.github.pho001.synaptik.model.operation.loss.LossKind;
 import io.github.pho001.synaptik.model.operation.normalization.*;
 import io.github.pho001.synaptik.model.operation.ordering.*;
 import io.github.pho001.synaptik.model.operation.pooling.Pool2dKind;
+import io.github.pho001.synaptik.model.operation.pooling.Pool3dKind;
 import io.github.pho001.synaptik.model.operation.random.*;
 import io.github.pho001.synaptik.model.operation.recurrent.RecurrentScanKind;
 import io.github.pho001.synaptik.model.operation.reduction.AggregateReductionKind;
@@ -41,10 +42,10 @@ import java.util.Objects;
  * <p>The pass independently derives every operation occurrence's complete output descriptors,
  * compares them with the stored graph descriptors, and retains only Shape obligations that the
  * current immutable model facts cannot prove or disprove. It neither rewrites the graph nor
- * reconstructs public Tensor expressions. Forward-only Conv3d occurrences use this same boundary
- * before canonicalization and after every changed optimization candidate, so their NCDHW result
- * descriptors and ordered channel, bias, and spatial-fit obligations are proved again from the
- * final graph rather than trusted from Model construction.
+ * reconstructs public Tensor expressions. Forward-only Conv3d, Pool3d, and three-dimensional
+ * window occurrences use this same boundary before canonicalization and after every changed
+ * optimization candidate, so their NCDHW result descriptors and ordered spatial-fit obligations
+ * are proved again from the final graph rather than trusted from Model construction.</p>
  */
 final class CapturedGraphInference {
     private CapturedGraphInference() {}
@@ -180,7 +181,8 @@ final class CapturedGraphInference {
         }
         if (kind instanceof MatmulKind || kind instanceof ScaledDotProductAttentionKind
                 || kind instanceof Conv2dKind || kind instanceof Conv3dKind
-                || kind instanceof Pool2dKind || kind instanceof LossKind
+                || kind instanceof Pool2dKind || kind instanceof Pool3dKind
+                || kind instanceof LossKind
                 || kind instanceof GraphRngKind || kind instanceof DropoutKind) {
             return StructuredOperationInference.infer(operation, inputs, outputCount);
         }

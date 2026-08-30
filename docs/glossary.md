@@ -2667,15 +2667,14 @@ floating SORT and TOP_K values, explicit-state dropout values, exact two-output 
 grouped convolution, maximum and average pooling, MSE, dense categorical loss, and positive-
 static-depth index categorical logits.
 
-The current source-backed first-order closure contains 37 operation-kind enum families, 107
-constants, and 128 exact signature fingerprints, including both `SLICE_UPDATE` attributes
-variants. Compiler forward verification covers 39 families, 111 constants, and 132 fingerprints:
-the supported closure plus recurrent RNN/GRU/LSTM and `CONV3D`. Current Model contains 40
-families, 115 constants, and 137 fingerprints after adding `MAX_POOL3D`, `AVERAGE_POOL3D`,
-`UNFOLD3D`, and `FOLD3D` with the two exact unfold attribute variants.
-Complete task 0006B makes Conv3d a forward-only Compiler signature; Draft task 0006C separately
-owns its gradient closure. Draft 0006B1 owns Pool3d forward adoption, while current Model and
-Draft Compiler 0006B2 own the prerequisite window algebra and exact gradients respectively.
+The current source-backed production first-order closure contains 37 operation-kind enum families,
+107 constants, and 128 exact signature fingerprints, including both `SLICE_UPDATE` attributes
+variants. Compiler forward verification covers the complete Model inventory of exactly 40
+families, 115 constants, and 137 fingerprints. Its exact nine-signature deferred partition is
+recurrent RNN/GRU/LSTM, `CONV3D`, `MAX_POOL3D`, `AVERAGE_POOL3D`, both `UNFOLD3D` attribute
+variants, and `FOLD3D`. Complete tasks 0006B and 0006B1 make Conv3d and the five Pool3d/3D-window
+signatures forward-only Compiler capabilities. Draft task 0006C separately owns Conv3d gradient
+closure; Draft 0006B2 owns both Pool3d gradients and all three window adjoints.
 Each supported legal output/input role is conditionally differentiable, intentionally
 non-differentiable, or fail-closed. A conditionally differentiable role becomes usable only after
 occurrence-local preflight proves its exact Shape, data type, cardinality, canonical-auxiliary,
@@ -5967,7 +5966,12 @@ rather than registering an equality constraint. A 3D fold excludes padded and te
 literal-ceil-tail coordinates geometrically, initializes the target to represented positive zero,
 and adds overlapping in-range contributions in canonical flattened column order. FLOAT64 and
 FLOAT32 use sequential same-format addition; BFLOAT16 narrows after every FLOAT32 addition.
-Gradient rules, compiler behavior, materialization, and ONNX behavior remain separately owned.
+Current Compiler forward inference independently derives and final-validates the three
+three-dimensional signatures, preserves their ordinary flat-node optimization, publication,
+diagnostics, and Planning handoff, and retains unresolved spatial-domain constraints. Both
+backward-capable modes reject them during complete-forward-inventory preflight before seed
+validation or derivative Tensor allocation. Gradient rules, materialization, and ONNX behavior
+remain separately owned.
 The current CPU backend executes only the fully static resolved-layout overlap-fold subset
 described in [CPU overlap fold](#cpu-overlap-fold); this backend-specific coverage does not change
 the broader Model contract or imply other backend execution. See
@@ -6035,11 +6039,15 @@ divisor `kernelDepth * kernelHeight * kernelWidth`; padding contributes positive
 counting. BFLOAT16/FLOAT32 accumulation and division use FLOAT32, FLOAT64 uses FLOAT64, and
 BFLOAT16 narrows once after the single final division.
 
-Current Model owns only geometry, numerical meaning, and canonical one-input provenance for
-`MAX_POOL3D` and `AVERAGE_POOL3D`. Draft Compiler 0006B1 owns forward adoption, current Model owns
-general three-dimensional `UNFOLD3D`/`FOLD3D` algebra, Draft Compiler 0006B2 owns gradients, and
-Draft CPU 0008G1 owns execution. No current graph capture, Compiler inference, gradient, backend
-support, execution, or materialized numerical result is implied. See
+Current Model owns geometry, numerical meaning, and canonical one-input provenance for
+`MAX_POOL3D` and `AVERAGE_POOL3D`. Complete Compiler 0006B1 captures both as ordinary flat nodes
+in `FORWARD_ONLY`, independently infers and final-validates their NCDHW descriptors and spatial
+obligations, and preserves ordinary optimization, publication, diagnostics, and Planning handoff.
+Both backward-capable modes reject either signature during complete-forward-inventory preflight
+before seed validation or derivative Tensor allocation. Current Model owns general
+three-dimensional `UNFOLD3D`/`FOLD3D` algebra, Draft Compiler 0006B2 owns both Pool3d gradients and
+all three window adjoints, and Draft CPU 0008G1 owns execution. No current backend support,
+execution, materialized numerical result, or performance property is implied. See
 [NCDHW Pool3d expressions](api/tensor-api.md#ncdhw-pool3d-expressions).
 
 ## Common distinctions

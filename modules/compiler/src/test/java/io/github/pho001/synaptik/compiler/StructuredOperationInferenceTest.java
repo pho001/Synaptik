@@ -306,6 +306,35 @@ final class StructuredOperationInferenceTest {
                 "invalid RNG state descriptor");
     }
 
+    @Test
+    void independentlyValidatesPool3dRankTypeGeometryAndStoredDescriptor() {
+        MaxPool3dAttrs attrs = new MaxPool3dAttrs(
+                3, 3, 3, 1, 1, 1, 0, 0, 0, 1, 1, 1, false);
+        assertInvalid(
+                new Operation(Pool3dKind.MAX_POOL3D, attrs),
+                List.of(descriptor(DataType.FLOAT32, Shape.of(1, 2, 5, 5), true)),
+                List.of(descriptor(DataType.FLOAT32, Shape.of(1, 2, 3, 3, 3), true)),
+                "pool3d input rank must be five");
+        assertInvalid(
+                new Operation(Pool3dKind.MAX_POOL3D, attrs),
+                List.of(descriptor(DataType.INT32, Shape.of(1, 2, 5, 5, 5), false)),
+                List.of(descriptor(DataType.INT32, Shape.of(1, 2, 3, 3, 3), false)),
+                "pool3d input must be floating");
+        assertInvalid(
+                new Operation(Pool3dKind.MAX_POOL3D, attrs),
+                List.of(descriptor(DataType.FLOAT32, Shape.of(1, 2, 2, 5, 5), true)),
+                List.of(descriptor(DataType.FLOAT32, Shape.of(1, 2, 0, 3, 3), true)),
+                "effective kernel does not fit padded depth");
+        assertInvalid(
+                new Operation(
+                        Pool3dKind.AVERAGE_POOL3D,
+                        new AveragePool3dAttrs(
+                                2, 2, 2, 1, 1, 1, 0, 0, 0, 1, 1, 1, false)),
+                List.of(descriptor(DataType.FLOAT32, Shape.of(1, 2, 4, 4, 4), true)),
+                List.of(descriptor(DataType.FLOAT32, Shape.of(1, 2, 2, 3, 3), true)),
+                "output[0]");
+    }
+
     private static void assertInvalid(
             Operation operation,
             List<TensorDescriptor> inputs,

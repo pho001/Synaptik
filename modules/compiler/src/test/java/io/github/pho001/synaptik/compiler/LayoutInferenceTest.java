@@ -177,6 +177,31 @@ final class LayoutInferenceTest {
                         new Fold2dAttrs(Shape.of(1, 1, 3, 3), window)),
                 List.of(descriptor(Shape.of(1, 4, 3))),
                 descriptor(Shape.of(1, 1, 3, 3)), "fold2d columns mismatch");
+
+        Window3dAttrs window3d = new Window3dAttrs(
+                2, 2, 2, 1, 1, 1, 0, 0, 0, 1, 1, 1, false);
+        assertInvalid(
+                new Operation(WindowTransformKind.UNFOLD3D, window3d),
+                List.of(descriptor(Shape.of(1, 2, 4, 4))),
+                descriptor(Shape.of(1, 16, 27)), "unfold3d input rank must be five");
+        assertInvalid(
+                new Operation(
+                        WindowTransformKind.UNFOLD3D,
+                        new Unfold3dAttrs(window3d, ScalarValue.float64(0))),
+                List.of(descriptor(Shape.of(1, 2, 4, 4, 4))),
+                descriptor(Shape.of(1, 16, 27)), "padding value type mismatch");
+        assertInvalid(
+                new Operation(
+                        WindowTransformKind.FOLD3D,
+                        new Fold3dAttrs(Shape.of(1, 2, 4, 4, 4), window3d)),
+                List.of(descriptor(Shape.of(2, 16, 27))),
+                descriptor(Shape.of(1, 2, 4, 4, 4)), "batch dimension mismatch");
+        assertInvalid(
+                new Operation(
+                        WindowTransformKind.FOLD3D,
+                        new Fold3dAttrs(Shape.of(1, 2, 4, 4, 4), window3d)),
+                List.of(descriptor(Shape.of(1, 15, 27))),
+                descriptor(Shape.of(1, 2, 4, 4, 4)), "channel/kernel columns mismatch");
     }
 
     private static void assertInvalid(

@@ -25,6 +25,11 @@ import io.github.pho001.synaptik.model.operation.normalization.LayerNormKind;
 import io.github.pho001.synaptik.model.operation.normalization.RmsNormKind;
 import io.github.pho001.synaptik.model.operation.normalization.SoftmaxKind;
 import io.github.pho001.synaptik.model.operation.loss.LossKind;
+import io.github.pho001.synaptik.model.operation.layout.Window3dAttrs;
+import io.github.pho001.synaptik.model.operation.layout.WindowTransformKind;
+import io.github.pho001.synaptik.model.operation.pooling.AveragePool3dAttrs;
+import io.github.pho001.synaptik.model.operation.pooling.MaxPool3dAttrs;
+import io.github.pho001.synaptik.model.operation.pooling.Pool3dKind;
 import io.github.pho001.synaptik.model.operation.pooling.Pool2dKind;
 import io.github.pho001.synaptik.model.operation.reduction.AggregateReductionKind;
 import io.github.pho001.synaptik.model.operation.scan.CumulativeScanKind;
@@ -445,6 +450,67 @@ final class AutogradPreflightTest {
                     "Conv3d is forward-only until Compiler task 0006C closes its gradients"),
                     failure.getMessage());
             assertEquals(before, nextTensorId());
+        }
+    }
+
+    @Test
+    void rejectsEveryNewVolumetricSignatureFromCompleteInventoryBeforeAllocation()
+            throws Exception {
+        Window3dAttrs window = new Window3dAttrs(
+                2, 2, 2, 1, 1, 1, 0, 0, 0, 1, 1, 1, false);
+        Tensor input = tensor(Shape.of(1, 2, 4, 4, 4), true);
+        Tensor directColumns = input.unfold3d(window);
+        List<Tensor> deferred = List.of(
+                input.maxPool3d(new MaxPool3dAttrs(
+                        2, 2, 2, 1, 1, 1, 0, 0, 0, 1, 1, 1, false)),
+                input.averagePool3d(new AveragePool3dAttrs(
+                        2, 2, 2, 1, 1, 1, 0, 0, 0, 1, 1, 1, false)),
+                directColumns,
+                input.unfold3d(window, ScalarValue.float32(0)),
+                tensor(Shape.of(1, 16, 27), true)
+                        .fold3d(input.descriptor().shape(), window));
+
+        for (CompileMode mode : List.of(
+                CompileMode.FORWARD_AND_BACKWARD, CompileMode.TRAINING_STEP)) {
+            for (Tensor occurrence : deferred) {
+                Tensor target = tensor(Shape.of(2), true);
+                Tensor objective = target.mul(target).sum();
+                Tensor invalidSeed = TensorFactory.create(new TensorDescriptor(
+                        DataType.INT32, Shape.of(2), Optional.empty(), false));
+                FunctionalGradientRequest.Stage invalidSeedRequest =
+                        new FunctionalGradientRequest.Stage(
+                                List.of(new FunctionalGradientRequest.ForwardTensorReference(
+                                        objective)),
+                                List.of(Optional.of(invalidSeed)),
+                                List.of(target),
+                                false,
+                                FunctionalGradientRequest.DisconnectedPolicy.ERROR);
+                long before = nextTensorId();
+                IllegalArgumentException failure = assertThrows(
+                        IllegalArgumentException.class,
+                        () -> AutogradPreflight.preflight(
+                                mode,
+                                List.of(occurrence, objective),
+                                invalidSeedRequest,
+                                CompileTimeConstantGraph.Ingress.empty()));
+                assertTrue(failure.getMessage().startsWith("producerPostorder[0] "),
+                        failure.getMessage());
+                if (occurrence.provenance().orElseThrow().operation().kind()
+                        instanceof Pool3dKind) {
+                    assertTrue(failure.getMessage().contains(Pool3dKind.class.getName()),
+                            failure.getMessage());
+                    assertTrue(failure.getMessage().endsWith(
+                            "Pool3d is forward-only until Compiler task 0006B2 closes its gradients"),
+                            failure.getMessage());
+                } else {
+                    assertTrue(failure.getMessage().contains(
+                            WindowTransformKind.class.getName()), failure.getMessage());
+                    assertTrue(failure.getMessage().endsWith(
+                            "three-dimensional window transforms are forward-only until Compiler task 0006B2 closes their gradients"),
+                            failure.getMessage());
+                }
+                assertEquals(before, nextTensorId());
+            }
         }
     }
 

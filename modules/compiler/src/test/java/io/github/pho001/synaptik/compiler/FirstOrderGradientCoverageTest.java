@@ -10,6 +10,7 @@ import io.github.pho001.synaptik.config.compile.CompileMode;
 import io.github.pho001.synaptik.model.datatype.DataType;
 import io.github.pho001.synaptik.model.datatype.ScalarValue;
 import io.github.pho001.synaptik.model.operation.NoOperationAttrs;
+import io.github.pho001.synaptik.model.operation.OperationAttrs;
 import io.github.pho001.synaptik.model.operation.OperationKind;
 import io.github.pho001.synaptik.model.operation.OperationSignature;
 import io.github.pho001.synaptik.model.operation.attention.ScaledDotProductAttentionKind;
@@ -22,12 +23,19 @@ import io.github.pho001.synaptik.model.operation.elementwise.comparison.BinaryCo
 import io.github.pho001.synaptik.model.operation.elementwise.logical.BooleanLogicalKind;
 import io.github.pho001.synaptik.model.operation.elementwise.selection.WhereSelectionKind;
 import io.github.pho001.synaptik.model.operation.index.*;
+import io.github.pho001.synaptik.model.operation.layout.Fold3dAttrs;
+import io.github.pho001.synaptik.model.operation.layout.Unfold3dAttrs;
+import io.github.pho001.synaptik.model.operation.layout.Window3dAttrs;
+import io.github.pho001.synaptik.model.operation.layout.WindowTransformKind;
 import io.github.pho001.synaptik.model.operation.loss.LossKind;
 import io.github.pho001.synaptik.model.operation.loss.LossReduction;
 import io.github.pho001.synaptik.model.operation.normalization.BatchNormKind;
 import io.github.pho001.synaptik.model.operation.ordering.OrderingKind;
 import io.github.pho001.synaptik.model.operation.ordering.TopKKind;
 import io.github.pho001.synaptik.model.operation.pooling.MaxPool2dAttrs;
+import io.github.pho001.synaptik.model.operation.pooling.AveragePool3dAttrs;
+import io.github.pho001.synaptik.model.operation.pooling.MaxPool3dAttrs;
+import io.github.pho001.synaptik.model.operation.pooling.Pool3dKind;
 import io.github.pho001.synaptik.model.operation.random.DropoutKind;
 import io.github.pho001.synaptik.model.operation.random.GraphRngKind;
 import io.github.pho001.synaptik.model.operation.reduction.AggregateReductionKind;
@@ -107,7 +115,7 @@ final class FirstOrderGradientCoverageTest {
 
         Set<FirstOrderGradientCoverage.SignatureFingerprint> deferred =
                 deferredSignatures();
-        assertEquals(4, deferred.size());
+        assertEquals(9, deferred.size());
         Set<FirstOrderGradientCoverage.SignatureFingerprint> overlap =
                 new HashSet<>(supported);
         overlap.retainAll(deferred);
@@ -117,9 +125,9 @@ final class FirstOrderGradientCoverageTest {
                 new HashSet<>(supported);
         complete.addAll(deferred);
         assertEquals(discovered, complete);
-        assertEquals(39, families.size());
-        assertEquals(111, kinds.size());
-        assertEquals(132, discovered.size());
+        assertEquals(40, families.size());
+        assertEquals(115, kinds.size());
+        assertEquals(137, discovered.size());
     }
 
     @Test
@@ -706,7 +714,18 @@ final class FirstOrderGradientCoverageTest {
                         2,
                         3,
                         1,
-                        1));
+                        1),
+                fixedSignature(Pool3dKind.MAX_POOL3D, MaxPool3dAttrs.class),
+                fixedSignature(Pool3dKind.AVERAGE_POOL3D, AveragePool3dAttrs.class),
+                fixedSignature(WindowTransformKind.UNFOLD3D, Window3dAttrs.class),
+                fixedSignature(WindowTransformKind.UNFOLD3D, Unfold3dAttrs.class),
+                fixedSignature(WindowTransformKind.FOLD3D, Fold3dAttrs.class));
+    }
+
+    private static FirstOrderGradientCoverage.SignatureFingerprint fixedSignature(
+            OperationKind kind, Class<? extends OperationAttrs> attributesType) {
+        return new FirstOrderGradientCoverage.SignatureFingerprint(
+                kind, attributesType, 1, 1, 1, 1);
     }
 
     private static FirstOrderGradientCoverage.SignatureFingerprint recurrentSignature(

@@ -123,8 +123,10 @@ runs in the explicit cross-plan order Model 0025I -> Model 0025J -> Model 0025K 
 [Model 0025J](modules/model/tasks/0025j-first-class-ncdhw-max-average-pool3d-semantics.md) is the
 completed first-class Model metadata step. Detailed
 [Model 0025K](modules/model/tasks/0025k-public-ncdhw-unfold3d-and-fold3d-window-transforms.md) is
-Complete; every later inserted Compiler or CPU task remains Draft without a detailed
-specification. Compiler 0006B1 is the next Draft frontier.
+Complete. Detailed
+[Compiler 0006B1](modules/compiler/tasks/0006b1-pool3d-and-3d-window-forward-adoption-and-explicit-gradient-boundary.md)
+is Complete. Compiler 0006B2 is the next Draft frontier; it and CPU 0008G1 remain without detailed
+specifications.
 Pool1d is the exact visible
 `EXPAND_DIMS(axis 2) -> POOL2D -> SQUEEZE(axis 2)` composition, not a new operation kind. Pool3d
 is first-class because depth enumeration is not a bounded Shape-independent composition; Model
@@ -195,7 +197,9 @@ is Complete. Detailed
 is Complete. Detailed
 [Model 0025K Public NCDHW unfold3d and fold3d window transforms](modules/model/tasks/0025k-public-ncdhw-unfold3d-and-fold3d-window-transforms.md)
 is Complete. Model 0026 remains Draft without a detailed specification, and no Model task is Ready
-or In progress. Compiler 0006B1 is the next Draft cross-plan frontier without a detailed
+or In progress. Detailed
+[Compiler 0006B1 Pool3d and 3D-window forward adoption and explicit gradient boundary](modules/compiler/tasks/0006b1-pool3d-and-3d-window-forward-adoption-and-explicit-gradient-boundary.md)
+is Complete. Compiler 0006B2 is the next Draft cross-plan frontier without a detailed
 specification.
 Detailed
 [Compiler 0006B Conv3d forward adoption and explicit gradient boundary](modules/compiler/tasks/0006b-conv3d-forward-adoption-and-explicit-gradient-boundary.md)
@@ -1674,12 +1678,12 @@ the complete current model operation inventory before higher-order work:
 | [0006 Explicit functional gradient requests and higher-order differentiation](modules/compiler/tasks/0006-explicit-functional-gradient-requests-and-higher-order-differentiation.md) | Complete | 0005E and the stable public compile/artifact boundary from 0005 | Added one immutable one/two-stage functional request, explicit/default seeds, ERROR/ZERO disconnected behavior, ordered `GradientPublicationBinding` values, and compiler-owned derivative-order metadata over the closed formula matrix without Tensor gradient state or another compile facade. |
 | [0006A Fixed recurrent-scan forward adoption and explicit BPTT boundary](modules/compiler/tasks/0006a-fixed-recurrent-scan-forward-adoption-and-bptt-boundary.md) | Complete | Model 0025E–0025F; 0001–0006 | Adopted all fixed recurrent forward variants as ordinary flat nodes and rejected backward-capable recurrence before derivative allocation. |
 | [0006B Conv3d forward adoption and explicit gradient boundary](modules/compiler/tasks/0006b-conv3d-forward-adoption-and-explicit-gradient-boundary.md) | Complete | Model 0025H; 0001–0006A | Adopted first-class Conv3d forward inference and final validation while keeping its backward boundary explicit and fail-closed. |
-| 0006B1 Pool3d forward adoption and explicit gradient boundary | Draft | Model 0025J; 0006B | Adopt first-class Pool3d forward inference/final validation and keep backward-capable requests fail-closed before derivative allocation. No detailed specification exists. |
-| 0006B2 Pool3d gradient closure | Draft | Model 0025K; 0006B1; 0005D | Close exact max first-winner and fixed-count average Pool3d gradients through public 3D window/fold algebra. No detailed specification exists. |
+| [0006B1 Pool3d and 3D-window forward adoption and explicit gradient boundary](modules/compiler/tasks/0006b1-pool3d-and-3d-window-forward-adoption-and-explicit-gradient-boundary.md) | Complete | Model 0025J–0025K; 0006B | Adopted all five Pool3d and 3D-window signatures, restored exact 40/115/137 forward coverage while production first-order support remains 37/107/128 with exactly nine deferred signatures, and kept all five fail-closed in backward-capable requests before seed validation and derivative Tensor allocation. |
+| 0006B2 Pool3d and 3D-window gradient closure | Draft | Model 0025K; 0006B1; 0005D | Close the two exact Pool3d gradients and the three 3D-window adjoints required for transitive/higher-order closure. No detailed specification exists. |
 | 0006C Conv3d adjoint expressibility and gradient closure | Draft | 0006B; proven public Tensor algebra or a separately selected Model prerequisite | Close Conv3d gradients only after group, geometry, overlap, symbolic-Shape, and higher-order expressibility are proved. |
 
-Compiler 0005A–0006B and their Model prerequisites are Complete. No Compiler task is Ready or In
-progress. Compiler 0006B1, 0006B2, 0006C, and 0007 remain Draft without detailed specifications.
+Compiler 0005A–0006B1 and their Model prerequisites are Complete. Compiler 0006B2, 0006C, and
+0007 remain Draft without detailed specifications, and no Compiler task is Ready or In progress.
 Family tasks
 must not claim that every operation role has a gradient: BOOL, index, random-number-generator
 (RNG) state, mask, and configuration roles remain intentionally non-differentiable where

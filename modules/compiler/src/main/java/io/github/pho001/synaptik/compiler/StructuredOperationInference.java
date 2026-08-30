@@ -21,11 +21,11 @@ import java.util.List;
  * Derives descriptors and constraints for structured numeric, loss, and explicit graph-state
  * operation families.
  *
- * <p>Conv3d inference independently reconstructs the complete promoted NCDHW descriptor from the
- * captured input descriptors and exact {@link Conv3dAttrs}. Candidate obligations are emitted in
- * stable channel, optional-bias, depth, height, and width order; the surrounding captured-graph
- * pass proves, rejects, or retains them and repeats that work for the final optimized graph. No
- * inference route lowers convolution, selects execution capability, or supplies a gradient rule.</p>
+ * <p>Conv3d and Pool3d inference independently reconstruct complete NCDHW descriptors from
+ * captured inputs and exact typed attributes. Candidate obligations are emitted in stable axis
+ * order; the surrounding captured-graph pass proves, rejects, or retains them and repeats that
+ * work for the final optimized graph. No inference route lowers an operation, selects execution
+ * capability, or supplies a gradient rule.</p>
  */
 final class StructuredOperationInference {
     private StructuredOperationInference() {}
@@ -50,6 +50,7 @@ final class StructuredOperationInference {
         if(op.kind() instanceof Conv2dKind)return conv((Conv2dAttrs)op.attrs(),in);
         if(op.kind() instanceof Conv3dKind)return conv3d(op,in,outputCount);
         if(op.kind() instanceof Pool2dKind k)return pool(k,op.attrs(),in);
+        if(op.kind() instanceof Pool3dKind)return pool3d(op,in,outputCount);
         if(op.kind() instanceof LossKind k)return loss(k,op.attrs(),in);
         if(op.kind() instanceof GraphRngKind)return CapturedGraphInference.InferenceResult.of(ElementwiseInference.descriptor(DataType.INT64,Shape.of(2),false));
         if(op.kind() instanceof DropoutKind)return dropout(in);
@@ -250,6 +251,149 @@ final class StructuredOperationInference {
      */
     private record Conv3dSpatial(Dimension numerator, Dimension output) {}
     private static CapturedGraphInference.InferenceResult pool(Pool2dKind kind,Object raw,List<TensorDescriptor>in){TensorDescriptor x=in.get(0);ElementwiseInference.requireFloating(x,"input");if(x.shape().rank()!=4)throw new IllegalArgumentException("pool input rank must be four");long kh,kw,ph,pw,dh,dw,sh,sw;boolean ceil;if(kind==Pool2dKind.MAX_POOL2D){MaxPool2dAttrs a=(MaxPool2dAttrs)raw;kh=a.kernelHeight();kw=a.kernelWidth();ph=a.paddingHeight();pw=a.paddingWidth();dh=a.dilationHeight();dw=a.dilationWidth();sh=a.strideHeight();sw=a.strideWidth();ceil=a.ceilMode();}else{AveragePool2dAttrs a=(AveragePool2dAttrs)raw;kh=a.kernelHeight();kw=a.kernelWidth();ph=a.paddingHeight();pw=a.paddingWidth();dh=a.dilationHeight();dw=a.dilationWidth();sh=a.strideHeight();sw=a.strideWidth();ceil=a.ceilMode();}Shape s=Shape.ofDimensions(x.shape().dimension(0),x.shape().dimension(1),spatial(x.shape().dimension(2),kh,ph,dh,sh,ceil),spatial(x.shape().dimension(3),kw,pw,dw,sw,ceil));return CapturedGraphInference.InferenceResult.of(ElementwiseInference.descriptor(x.dataType(),s,x.requiresGrad()));}
+
+    /**
+     * Independently derives one exact rank-five Pool3d result and its spatial obligations.
+     *
+     * @param operation non-null maximum- or average-Pool3d operation
+     * @param inputs non-null ordered descriptor list containing exactly one input
+     * @param outputCount structurally retained output count, required to be one
+     * @return immutable result descriptor and depth, height, then width constraints
+     * @throws IllegalArgumentException if kind, attributes, cardinality, floating type, rank, or
+     *     static spatial geometry violates the Pool3d contract
+     * @throws ArithmeticException if checked geometry arithmetic overflows {@code long}
+     */
+    private static CapturedGraphInference.InferenceResult pool3d(
+            Operation operation, List<TensorDescriptor> inputs, int outputCount) {
+        if (inputs.size() != 1 || outputCount != 1) {
+            throw new IllegalArgumentException("pool3d requires exactly one input and one output");
+        }
+        Pool3dGeometry geometry;
+        if (operation.kind() == Pool3dKind.MAX_POOL3D
+                && operation.attrs() instanceof MaxPool3dAttrs attrs) {
+            geometry = new Pool3dGeometry(
+                    attrs.kernelDepth(), attrs.kernelHeight(), attrs.kernelWidth(),
+                    attrs.strideDepth(), attrs.strideHeight(), attrs.strideWidth(),
+                    attrs.paddingDepth(), attrs.paddingHeight(), attrs.paddingWidth(),
+                    attrs.dilationDepth(), attrs.dilationHeight(), attrs.dilationWidth(),
+                    attrs.ceilMode());
+        } else if (operation.kind() == Pool3dKind.AVERAGE_POOL3D
+                && operation.attrs() instanceof AveragePool3dAttrs attrs) {
+            geometry = new Pool3dGeometry(
+                    attrs.kernelDepth(), attrs.kernelHeight(), attrs.kernelWidth(),
+                    attrs.strideDepth(), attrs.strideHeight(), attrs.strideWidth(),
+                    attrs.paddingDepth(), attrs.paddingHeight(), attrs.paddingWidth(),
+                    attrs.dilationDepth(), attrs.dilationHeight(), attrs.dilationWidth(),
+                    attrs.ceilMode());
+        } else {
+            throw new IllegalArgumentException("unsupported pool3d kind or attributes");
+        }
+        TensorDescriptor input = inputs.getFirst();
+        ElementwiseInference.requireFloating(input, "pool3d input");
+        if (input.shape().rank() != 5) {
+            throw new IllegalArgumentException("pool3d input rank must be five");
+        }
+        Pool3dSpatial depth = pool3dSpatial(
+                input.shape().dimension(2), geometry.kernelDepth(), geometry.paddingDepth(),
+                geometry.dilationDepth(), geometry.strideDepth(), geometry.ceilMode(), "depth");
+        Pool3dSpatial height = pool3dSpatial(
+                input.shape().dimension(3), geometry.kernelHeight(), geometry.paddingHeight(),
+                geometry.dilationHeight(), geometry.strideHeight(), geometry.ceilMode(), "height");
+        Pool3dSpatial width = pool3dSpatial(
+                input.shape().dimension(4), geometry.kernelWidth(), geometry.paddingWidth(),
+                geometry.dilationWidth(), geometry.strideWidth(), geometry.ceilMode(), "width");
+        List<CapturedGraphInference.ConstraintRequest> constraints = List.of(
+                new CapturedGraphInference.ConstraintRequest(
+                        "pool3d depth numerator non-negative",
+                        new DimensionAtLeast(depth.numerator(), 0)),
+                new CapturedGraphInference.ConstraintRequest(
+                        "pool3d height numerator non-negative",
+                        new DimensionAtLeast(height.numerator(), 0)),
+                new CapturedGraphInference.ConstraintRequest(
+                        "pool3d width numerator non-negative",
+                        new DimensionAtLeast(width.numerator(), 0)));
+        Shape outputShape = Shape.ofDimensions(
+                input.shape().dimension(0), input.shape().dimension(1),
+                depth.output(), height.output(), width.output());
+        return new CapturedGraphInference.InferenceResult(
+                List.of(ElementwiseInference.descriptor(
+                        input.dataType(), outputShape, input.requiresGrad())),
+                constraints);
+    }
+
+    /**
+     * Derives one checked Pool3d numerator and floor- or literal-ceil output extent.
+     *
+     * @param input non-null captured spatial Dimension
+     * @param kernel positive kernel extent
+     * @param padding non-negative symmetric padding per side
+     * @param dilation positive kernel dilation
+     * @param stride positive output stride
+     * @param ceilMode whether to use literal ceiling division
+     * @param axis non-null diagnostic axis name
+     * @return exact numerator and output Dimensions
+     * @throws IllegalArgumentException if a static numerator is negative
+     * @throws ArithmeticException if checked geometry arithmetic overflows {@code long}
+     */
+    private static Pool3dSpatial pool3dSpatial(
+            Dimension input, long kernel, long padding, long dilation, long stride,
+            boolean ceilMode, String axis) {
+        long effective = Math.addExact(Math.multiplyExact(dilation, kernel - 1), 1);
+        long doubledPadding = Math.multiplyExact(2, padding);
+        if (input instanceof StaticDimension staticInput) {
+            long numerator = Math.subtractExact(
+                    Math.addExact(staticInput.size(), doubledPadding), effective);
+            if (numerator < 0) {
+                throw new IllegalArgumentException(
+                        "pool3d effective kernel does not fit padded " + axis);
+            }
+            return new Pool3dSpatial(
+                    new StaticDimension(numerator),
+                    new StaticDimension(Math.addExact(
+                            numerator / stride
+                                    + (ceilMode && numerator % stride != 0 ? 1 : 0),
+                            1)));
+        }
+        Dimension numerator = DimensionExpressions.addConstant(
+                input, Math.subtractExact(doubledPadding, effective));
+        Dimension quotient = ceilMode
+                ? DimensionExpressions.ceilingDivide(numerator, stride)
+                : DimensionExpressions.floorDivide(numerator, stride);
+        return new Pool3dSpatial(
+                numerator, DimensionExpressions.addConstant(quotient, 1));
+    }
+
+    /**
+     * Holds one Pool3d axis's pre-division numerator and derived output extent.
+     *
+     * @param numerator non-null padded-input-minus-effective-kernel Dimension
+     * @param output non-null divided numerator plus one
+     */
+    private record Pool3dSpatial(Dimension numerator, Dimension output) {}
+
+    /**
+     * Normalizes the two exact Pool3d attribute records without erasing their operation identity.
+     *
+     * @param kernelDepth positive depth kernel extent
+     * @param kernelHeight positive height kernel extent
+     * @param kernelWidth positive width kernel extent
+     * @param strideDepth positive depth stride
+     * @param strideHeight positive height stride
+     * @param strideWidth positive width stride
+     * @param paddingDepth non-negative depth padding per side
+     * @param paddingHeight non-negative height padding per side
+     * @param paddingWidth non-negative width padding per side
+     * @param dilationDepth positive depth dilation
+     * @param dilationHeight positive height dilation
+     * @param dilationWidth positive width dilation
+     * @param ceilMode whether each output axis uses literal ceiling division
+     */
+    private record Pool3dGeometry(
+            long kernelDepth, long kernelHeight, long kernelWidth,
+            long strideDepth, long strideHeight, long strideWidth,
+            long paddingDepth, long paddingHeight, long paddingWidth,
+            long dilationDepth, long dilationHeight, long dilationWidth,
+            boolean ceilMode) {}
     private static CapturedGraphInference.InferenceResult loss(LossKind kind,Object raw,List<TensorDescriptor>in){TensorDescriptor logits=in.get(0),target=in.get(1);ElementwiseInference.requireFloating(logits,"prediction/logits");List<CapturedGraphInference.ConstraintRequest>cs=new ArrayList<>();Shape result;DataType t;boolean grad;if(kind==LossKind.MEAN_SQUARED_ERROR){ElementwiseInference.requireFloating(target,"target");exactShape(logits.shape(),target.shape(),"MSE",cs);t=DataTypePromotion.promoteFloating(logits.dataType(),target.dataType());LossReduction r=((MeanSquaredErrorAttrs)raw).reduction();result=r==LossReduction.NONE?logits.shape():Shape.scalar();grad=logits.requiresGrad()||target.requiresGrad();}else if(kind==LossKind.DENSE_CATEGORICAL_CROSS_ENTROPY_WITH_LOGITS){ElementwiseInference.requireFloating(target,"target");DenseCategoricalCrossEntropyWithLogitsAttrs a=(DenseCategoricalCrossEntropyWithLogitsAttrs)raw;axis(logits.shape(),a.axis());exactShape(logits.shape(),target.shape(),"dense target",cs);t=DataTypePromotion.promoteFloating(logits.dataType(),target.dataType());result=a.reduction()==LossReduction.NONE?remove(logits.shape(),a.axis()):Shape.scalar();grad=logits.requiresGrad()||target.requiresGrad();cs.add(classConstraint(logits.shape(),a.axis()));}else{ElementwiseInference.requireIndex(target,"target");IndexCategoricalCrossEntropyWithLogitsAttrs a=(IndexCategoricalCrossEntropyWithLogitsAttrs)raw;axis(logits.shape(),a.axis());Shape expected=remove(logits.shape(),a.axis());exactShape(expected,target.shape(),"index target",cs);if(a.ignoreIndex().isPresent()&&a.ignoreIndex().orElseThrow().dataType()!=target.dataType())throw new IllegalArgumentException("ignore index type mismatch");if(a.ignoreIndex().isEmpty())cs.add(classConstraint(logits.shape(),a.axis()));t=logits.dataType();result=a.reduction()==LossReduction.NONE?target.shape():Shape.scalar();grad=logits.requiresGrad();}return new CapturedGraphInference.InferenceResult(List.of(ElementwiseInference.descriptor(t,result,grad)),cs);}
     private static CapturedGraphInference.ConstraintRequest classConstraint(Shape s,int axis){return new CapturedGraphInference.ConstraintRequest("categorical class extent",new AnyOf(List.of(new ShapeElementCountValue(remove(s,axis),0,ShapeElementCountValue.Comparison.EQUAL),new DimensionAtLeast(s.dimension(axis),1))));}
     private static CapturedGraphInference.InferenceResult dropout(List<TensorDescriptor>in){TensorDescriptor x=in.get(0),state=in.get(1);ElementwiseInference.requireFloating(x,"input");if(state.dataType()!=DataType.INT64||!state.shape().equals(Shape.of(2))||state.requiresGrad())throw new IllegalArgumentException("invalid RNG state descriptor");return new CapturedGraphInference.InferenceResult(List.of(ElementwiseInference.descriptor(x.dataType(),x.shape(),x.requiresGrad()),ElementwiseInference.descriptor(DataType.BOOL,x.shape(),false),ElementwiseInference.descriptor(DataType.INT64,Shape.of(2),false)),List.of());}

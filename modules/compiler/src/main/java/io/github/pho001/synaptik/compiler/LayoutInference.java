@@ -30,11 +30,12 @@ import java.util.Optional;
  * axis when it cannot yet be proved.</p>
  *
  * <p>General-axis window transforms retain their existing static transformed-axis contract.
- * Two-dimensional unfold and fold preserve symbolic batch, channel, and spatial expressions and
- * retain independent height and width obligations requiring the padded domain to contain the
- * effective dilated kernel. A disproved relation fails inference; an undecidable relation remains
- * typed compiler state. This class does not inspect values, choose an algorithm, materialize a
- * view, lower a backend operation, or execute computation.</p>
+ * Two- and three-dimensional unfold and fold preserve symbolic batch, channel, and spatial
+ * expressions and retain independent spatial-domain obligations. Three-dimensional fold also
+ * proves the exact batch, flattened channel-kernel, and flattened grid relationships against its
+ * explicit NCDHW target. A disproved relation fails inference; an undecidable spatial relation
+ * remains typed compiler state. This class does not bind dimensions, inspect values, choose an
+ * algorithm, materialize a view, lower a backend operation, or execute computation.</p>
  */
 final class LayoutInference {
     private LayoutInference() {}
@@ -252,7 +253,8 @@ final class LayoutInference {
             }
             dimensions.set(attrs.axis(), new StaticDimension(attrs.outputSize()));
             result = Shape.ofDimensions(dimensions.toArray(Dimension[]::new));
-        } else {
+        } else if (kind == WindowTransformKind.UNFOLD2D
+                || kind == WindowTransformKind.FOLD2D) {
             Window2dAttrs window = raw instanceof Unfold2dAttrs attrs
                     ? attrs.window()
                     : raw instanceof Fold2dAttrs attrs
@@ -279,6 +281,55 @@ final class LayoutInference {
                 }
                 result = attrs.outputShape();
             }
+        } else if (kind == WindowTransformKind.UNFOLD3D) {
+            if (in.size() != 1) {
+                throw new IllegalArgumentException("unfold3d requires exactly one input");
+            }
+            Window3dAttrs attrs;
+            if (raw instanceof Window3dAttrs direct) {
+                attrs = direct;
+            } else if (raw instanceof Unfold3dAttrs explicit) {
+                attrs = explicit.window();
+                if (explicit.paddingValue().dataType() != input.dataType()) {
+                    throw new IllegalArgumentException("unfold3d padding value type mismatch");
+                }
+            } else {
+                throw new IllegalArgumentException("unsupported unfold3d attributes");
+            }
+            ElementwiseInference.requireFloating(input, "unfold3d input");
+            if (input.shape().rank() != 5) {
+                throw new IllegalArgumentException("unfold3d input rank must be five");
+            }
+            result = unfold3dShape(input.shape(), attrs, constraints, "unfold3d");
+        } else if (kind == WindowTransformKind.FOLD3D) {
+            if (in.size() != 1 || !(raw instanceof Fold3dAttrs attrs)) {
+                throw new IllegalArgumentException("unsupported fold3d occurrence");
+            }
+            ElementwiseInference.requireFloating(input, "fold3d input");
+            if (input.shape().rank() != 3 || attrs.outputShape().rank() != 5) {
+                throw new IllegalArgumentException("fold3d rank mismatch");
+            }
+            Shape target = attrs.outputShape();
+            if (!input.shape().dimension(0).equals(target.dimension(0))) {
+                throw new IllegalArgumentException("fold3d batch dimension mismatch");
+            }
+            Dimension expectedColumns = DimensionExpressions.multiply(
+                    DimensionExpressions.multiply(
+                            DimensionExpressions.multiply(
+                                    target.dimension(1), attrs.window().kernelDepth()),
+                            attrs.window().kernelHeight()),
+                    attrs.window().kernelWidth());
+            if (!input.shape().dimension(1).equals(expectedColumns)) {
+                throw new IllegalArgumentException("fold3d channel/kernel columns mismatch");
+            }
+            Shape expected = unfold3dShape(
+                    target, attrs.window(), constraints, "fold3d output");
+            if (!input.shape().dimension(2).equals(expected.dimension(2))) {
+                throw new IllegalArgumentException("fold3d spatial columns mismatch");
+            }
+            result = target;
+        } else {
+            throw new IllegalArgumentException("unsupported window kind");
         }
         return new CapturedGraphInference.InferenceResult(
                 List.of(ElementwiseInference.descriptor(
@@ -316,6 +367,98 @@ final class LayoutInference {
                                 shape.dimension(1), window.kernelHeight()),
                         window.kernelWidth()),
                 DimensionExpressions.multiply(outputHeight, outputWidth));
+    }
+
+    /**
+     * Derives canonical volumetric columns from one exact NCDHW Shape.
+     *
+     * @param shape non-null rank-five NCDHW Shape
+     * @param window non-null validated volumetric window geometry
+     * @param constraints non-null ordered destination for depth, height, and width obligations
+     * @param subject non-null diagnostic prefix
+     * @return rank-three canonical columns Shape
+     * @throws IllegalArgumentException if static geometry does not fit
+     * @throws ArithmeticException if checked geometry arithmetic overflows {@code long}
+     */
+    private static Shape unfold3dShape(
+            Shape shape,
+            Window3dAttrs window,
+            List<CapturedGraphInference.ConstraintRequest> constraints,
+            String subject) {
+        Dimension depth = window3dDimension(
+                shape.dimension(2), window.kernelDepth(), window.paddingDepth(),
+                window.strideDepth(), window.dilationDepth(), window.ceilMode(), constraints,
+                subject + " depth");
+        Dimension height = window3dDimension(
+                shape.dimension(3), window.kernelHeight(), window.paddingHeight(),
+                window.strideHeight(), window.dilationHeight(), window.ceilMode(), constraints,
+                subject + " height");
+        Dimension width = window3dDimension(
+                shape.dimension(4), window.kernelWidth(), window.paddingWidth(),
+                window.strideWidth(), window.dilationWidth(), window.ceilMode(), constraints,
+                subject + " width");
+        Dimension columns = DimensionExpressions.multiply(
+                DimensionExpressions.multiply(
+                        DimensionExpressions.multiply(
+                                shape.dimension(1), window.kernelDepth()),
+                        window.kernelHeight()),
+                window.kernelWidth());
+        Dimension positions = DimensionExpressions.multiply(
+                DimensionExpressions.multiply(depth, height), width);
+        return Shape.ofDimensions(shape.dimension(0), columns, positions);
+    }
+
+    /**
+     * Derives one checked three-dimensional window extent and records its numerator domain.
+     *
+     * @param dimension non-null source spatial Dimension
+     * @param kernel positive kernel extent
+     * @param padding non-negative symmetric padding per side
+     * @param stride positive output stride
+     * @param dilation positive kernel dilation
+     * @param ceil whether to use literal ceiling division
+     * @param constraints non-null ordered constraint destination
+     * @param subject non-null semantic axis name
+     * @return exact static or canonical symbolic output Dimension
+     * @throws IllegalArgumentException if a static numerator is negative
+     * @throws ArithmeticException if checked geometry arithmetic overflows {@code long}
+     */
+    private static Dimension window3dDimension(
+            Dimension dimension,
+            long kernel,
+            long padding,
+            long stride,
+            long dilation,
+            boolean ceil,
+            List<CapturedGraphInference.ConstraintRequest> constraints,
+            String subject) {
+        long effective = Math.addExact(Math.multiplyExact(dilation, kernel - 1), 1);
+        long doubledPadding = Math.multiplyExact(2, padding);
+        Dimension numerator;
+        if (dimension instanceof StaticDimension staticDimension) {
+            long staticNumerator = Math.subtractExact(
+                    Math.addExact(staticDimension.size(), doubledPadding), effective);
+            if (staticNumerator < 0) {
+                throw new IllegalArgumentException("window does not fit");
+            }
+            numerator = new StaticDimension(staticNumerator);
+        } else {
+            numerator = DimensionExpressions.addConstant(
+                    dimension, Math.subtractExact(doubledPadding, effective));
+        }
+        constraints.add(new CapturedGraphInference.ConstraintRequest(
+                subject + " domain", new DimensionAtLeast(numerator, 0)));
+        if (numerator instanceof StaticDimension staticNumerator) {
+            return new StaticDimension(Math.addExact(
+                    staticNumerator.size() / stride
+                            + (ceil && staticNumerator.size() % stride != 0 ? 1 : 0),
+                    1));
+        }
+        return DimensionExpressions.addConstant(
+                ceil
+                        ? DimensionExpressions.ceilingDivide(numerator, stride)
+                        : DimensionExpressions.floorDivide(numerator, stride),
+                1);
     }
 
     private static Dimension windowDimension(
