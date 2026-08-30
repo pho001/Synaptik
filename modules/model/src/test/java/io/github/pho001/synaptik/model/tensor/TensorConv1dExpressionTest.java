@@ -55,7 +55,7 @@ final class TensorConv1dExpressionTest {
                 () -> assertEquals(Tensor.class, biased.getReturnType()),
                 () -> assertFalse(Modifier.isStatic(unbiased.getModifiers())),
                 () -> assertFalse(Modifier.isStatic(biased.getModifiers())),
-                () -> assertEquals(206, Arrays.stream(Tensor.class.getDeclaredMethods())
+                () -> assertEquals(208, Arrays.stream(Tensor.class.getDeclaredMethods())
                         .filter(method -> Modifier.isPublic(method.getModifiers())).count()));
     }
 

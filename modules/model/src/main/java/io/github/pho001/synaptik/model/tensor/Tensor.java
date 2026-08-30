@@ -40,7 +40,9 @@ import io.github.pho001.synaptik.model.operation.loss.LossReduction;
 import io.github.pho001.synaptik.model.operation.normalization.LayerNormKind;
 import io.github.pho001.synaptik.model.operation.normalization.SoftmaxKind;
 import io.github.pho001.synaptik.model.operation.ordering.OrderingKind;
+import io.github.pho001.synaptik.model.operation.pooling.AveragePool1dAttrs;
 import io.github.pho001.synaptik.model.operation.pooling.AveragePool2dAttrs;
+import io.github.pho001.synaptik.model.operation.pooling.MaxPool1dAttrs;
 import io.github.pho001.synaptik.model.operation.pooling.MaxPool2dAttrs;
 import io.github.pho001.synaptik.model.operation.random.DropoutKind;
 import io.github.pho001.synaptik.model.operation.random.GraphRngKind;
@@ -84,7 +86,7 @@ import java.util.Optional;
  * arithmetic, binary comparison,
  * boolean logical, conditional selection, explicit cast, numeric and boolean aggregate reduction,
  * parameterized scalar, and unary
- * elementwise, matrix-multiplication, grouped NCHW convolution, NCHW maximum pooling, and
+ * elementwise, matrix-multiplication, grouped NCW/NCHW convolution, NCW/NCHW pooling, and
  * scaled-dot-product-attention
  * expression methods create
  * fresh storage-free tensors
@@ -772,6 +774,100 @@ public final class Tensor {
      */
     public Tensor conv3d(Tensor weight, Tensor bias, Conv3dAttrs attrs) {
         return TensorConv3dExpressions.apply(this, weight, bias, attrs);
+    }
+
+    /**
+     * Builds one-dimensional maximum pooling over this NCW tensor as a visible Pool2d composition.
+     *
+     * <p>This input must have floating type and Shape {@code [N, C, W]}. For input width {@code W},
+     * kernel sample count {@code k}, symmetric padding per side {@code p}, dilation {@code d}, and
+     * stride {@code s}, the effective kernel is {@code d * (k - 1) + 1}. The output width is floor
+     * or ceiling division of {@code W + 2 * p - effectiveKernel} by {@code s}, plus one. Ceiling
+     * mode uses that literal symmetric padded grid and retains a terminal all-padding window.
+     * Static invalid geometry fails locally; unresolved geometry retains the exact formula and its
+     * later non-negative-numerator binding obligation.</p>
+     *
+     * <p>Construction creates exactly
+     * {@code EXPAND_DIMS(axis 2) -> MAX_POOL2D -> SQUEEZE(axis 2)}. The middle operation retains a
+     * fresh {@link MaxPool2dAttrs} value with height geometry {@code (kernel=1, stride=1,
+     * padding=0, dilation=1)} and the supplied width components. No Pool1d operation occurrence or
+     * signature is created.</p>
+     *
+     * <p>Padding positions are excluded from maximum selection. Increasing Pool2d width order is
+     * therefore the one-dimensional order: an in-bounds NaN wins at its first logical occurrence,
+     * positive zero is above negative zero, equal values retain the first occurrence, infinities
+     * use ordinary order, and an all-padding window produces exact negative infinity. NaN payload,
+     * sign, and signaling preservation are unspecified.</p>
+     *
+     * <p>The fresh result retains this tensor's exact type, batch and channel Dimension references,
+     * and gradient request; it has derived NCW Shape, unresolved layout, no label or storage, and
+     * the canonical output wrapper of the final squeeze. Its provenance exposes all three fresh
+     * producers and lets existing rank-edit and Pool2d gradient rules apply through the
+     * composition. This method reads no values, creates no gradient rule, captures no graph,
+     * chooses no backend, allocates no result storage, and does not execute.</p>
+     *
+     * @param attrs non-null immutable width kernel, stride, excluded-padding, dilation, and literal
+     *     ceil-mode composition parameters; the Pool2d occurrence receives a fresh mapped value
+     * @return non-null fresh unlabeled storage-free result with retained type and metadata, exact
+     *     derived NCW Shape, unresolved layout, and the visible three-producer provenance chain
+     * @throws NullPointerException if {@code attrs} is null, with message {@code attrs}
+     * @throws IllegalArgumentException if this tensor is not floating rank three or its static
+     *     padded width cannot fit the effective kernel
+     * @throws ArithmeticException if checked geometry arithmetic overflows {@code long}
+     * @throws IllegalStateException if Tensor identifier space is exhausted; exhaustion after
+     *     composition starts may leave earlier intermediate identifiers consumed
+     */
+    public Tensor maxPool1d(MaxPool1dAttrs attrs) {
+        return TensorPool1dExpressions.apply(this, attrs);
+    }
+
+    /**
+     * Builds fixed-count one-dimensional average pooling over this NCW tensor as a visible Pool2d
+     * composition.
+     *
+     * <p>This input must have floating type and Shape {@code [N, C, W]}. For input width {@code W},
+     * kernel-position count {@code k}, symmetric padding per side {@code p}, dilation {@code d},
+     * and stride {@code s}, the effective kernel is {@code d * (k - 1) + 1}. The output width is
+     * floor or ceiling division of {@code W + 2 * p - effectiveKernel} by {@code s}, plus one.
+     * Ceiling mode uses that literal symmetric padded grid and retains a terminal all-padding
+     * window. Static invalid geometry fails locally; unresolved geometry retains the exact formula
+     * and its later non-negative-numerator binding obligation.</p>
+     *
+     * <p>Construction creates exactly
+     * {@code EXPAND_DIMS(axis 2) -> AVERAGE_POOL2D -> SQUEEZE(axis 2)}. The middle operation retains
+     * a fresh {@link AveragePool2dAttrs} value with height geometry {@code (kernel=1, stride=1,
+     * padding=0, dilation=1)} and the supplied width components. No Pool1d operation occurrence or
+     * signature is created.</p>
+     *
+     * <p>Every window has fixed divisor {@code kernelWidth}. In-bounds positions contribute their
+     * values; padding contributes positive zero while still counting. BFLOAT16 and FLOAT32
+     * accumulate and divide in FLOAT32, FLOAT64 does so in FLOAT64, and BFLOAT16 narrows only once
+     * at final output. An in-bounds NaN produces NaN; opposing infinities produce NaN, otherwise an
+     * infinity retains its sign. A finite exact-zero mean is negative zero only when every divisor
+     * contribution is an in-bounds negative zero, so padding and an all-padding window produce
+     * positive zero. Reassociation remains permitted without a bitwise cross-backend guarantee.</p>
+     *
+     * <p>The fresh result retains this tensor's exact type, batch and channel Dimension references,
+     * and gradient request; it has derived NCW Shape, unresolved layout, no label or storage, and
+     * the canonical output wrapper of the final squeeze. Its provenance exposes all three fresh
+     * producers and lets existing rank-edit and Pool2d gradient rules apply through the
+     * composition. This method reads no values, creates no gradient rule, captures no graph,
+     * chooses no backend, allocates no result storage, and does not execute.</p>
+     *
+     * @param attrs non-null immutable width kernel, stride, padding, dilation, and literal ceil-mode
+     *     composition parameters; fixed count-padding is Pool2d meaning and the occurrence receives
+     *     a fresh mapped value
+     * @return non-null fresh unlabeled storage-free result with retained type and metadata, exact
+     *     derived NCW Shape, unresolved layout, and the visible three-producer provenance chain
+     * @throws NullPointerException if {@code attrs} is null, with message {@code attrs}
+     * @throws IllegalArgumentException if this tensor is not floating rank three or its static
+     *     padded width cannot fit the effective kernel
+     * @throws ArithmeticException if checked geometry arithmetic overflows {@code long}
+     * @throws IllegalStateException if Tensor identifier space is exhausted; exhaustion after
+     *     composition starts may leave earlier intermediate identifiers consumed
+     */
+    public Tensor averagePool1d(AveragePool1dAttrs attrs) {
+        return TensorPool1dExpressions.apply(this, attrs);
     }
 
     /**

@@ -23,8 +23,10 @@ import io.github.pho001.synaptik.model.operation.layout.Window2dAttrs;
 import io.github.pho001.synaptik.model.operation.Operation;
 import io.github.pho001.synaptik.model.operation.OperationKind;
 import io.github.pho001.synaptik.model.operation.OperationSignature;
-import io.github.pho001.synaptik.model.operation.pooling.MaxPool2dAttrs;
+import io.github.pho001.synaptik.model.operation.pooling.AveragePool1dAttrs;
 import io.github.pho001.synaptik.model.operation.pooling.AveragePool2dAttrs;
+import io.github.pho001.synaptik.model.operation.pooling.MaxPool1dAttrs;
+import io.github.pho001.synaptik.model.operation.pooling.MaxPool2dAttrs;
 import io.github.pho001.synaptik.model.shape.DynamicDimension;
 import io.github.pho001.synaptik.model.shape.Shape;
 import io.github.pho001.synaptik.model.shape.StaticDimension;
@@ -88,7 +90,7 @@ class TensorTest {
         Set<String> publicMethods = declaredPublicMethods.stream()
                 .map(method -> method.getName())
                 .collect(Collectors.toSet());
-        assertEquals(206, declaredPublicMethods.size());
+        assertEquals(208, declaredPublicMethods.size());
         assertEquals(
                 Set.of("id", "descriptor", "label", "hostStorage", "replaceHostStorage",
                         "clearHostStorage", "provenance", "toString", "add", "sub", "mul",
@@ -101,7 +103,8 @@ class TensorTest {
                         "logicalAnd", "logicalOr", "logicalNot", "where", "cast", "sum",
                         "mean", "prod", "sumToShape", "all", "any", "argMin", "argMax", "cumSum", "cumProd", "softmax", "matmul", "linear",
                         "scaledDotProductAttention", "scaledDotProductAttentionWithWeights",
-                        "conv1d", "conv2d", "conv3d", "maxPool2d", "averagePool2d",
+                        "conv1d", "conv2d", "conv3d", "maxPool1d", "averagePool1d",
+                        "maxPool2d", "averagePool2d",
                         "sort", "argsort", "topK",
                         "logSoftmax", "meanSquaredError", "categoricalCrossEntropyWithLogits", "layerNorm", "rmsNorm", "batchNormInference", "batchNormTraining", "logSumExp", "variance", "standardDeviation", "l1Norm",
                         "l2Norm", "contiguous", "reshape", "expand", "permute",
@@ -222,6 +225,24 @@ class TensorTest {
                     () -> assertFalse(Modifier.isStatic(conv3d.getModifiers())),
                     () -> assertFalse(Modifier.isSynchronized(conv3d.getModifiers())));
         }
+
+        var maxPool1d = Tensor.class.getDeclaredMethod("maxPool1d", MaxPool1dAttrs.class);
+        assertAll(
+                () -> assertEquals(Tensor.class, maxPool1d.getReturnType()),
+                () -> assertEquals(List.of(MaxPool1dAttrs.class),
+                        Arrays.asList(maxPool1d.getParameterTypes())),
+                () -> assertTrue(Modifier.isPublic(maxPool1d.getModifiers())),
+                () -> assertFalse(Modifier.isStatic(maxPool1d.getModifiers())),
+                () -> assertFalse(Modifier.isSynchronized(maxPool1d.getModifiers())));
+        var averagePool1d = Tensor.class.getDeclaredMethod(
+                "averagePool1d", AveragePool1dAttrs.class);
+        assertAll(
+                () -> assertEquals(Tensor.class, averagePool1d.getReturnType()),
+                () -> assertEquals(List.of(AveragePool1dAttrs.class),
+                        Arrays.asList(averagePool1d.getParameterTypes())),
+                () -> assertTrue(Modifier.isPublic(averagePool1d.getModifiers())),
+                () -> assertFalse(Modifier.isStatic(averagePool1d.getModifiers())),
+                () -> assertFalse(Modifier.isSynchronized(averagePool1d.getModifiers())));
 
         var maxPool2d = Tensor.class.getDeclaredMethod("maxPool2d", MaxPool2dAttrs.class);
         assertAll(

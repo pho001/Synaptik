@@ -300,6 +300,9 @@ Operation-family subpackages are introduced only when a focused operation task d
 | 0025F | [Recurrent-scan expression namespace correction](tasks/0025f-recurrent-scan-expression-namespace-correction.md) | Complete | 0025E; before Compiler 0006A | Moved the six newly introduced fixed-scan constructors off the Tensor receiver surface into public stateless `model.tensor.RecurrentScan.rnn/gru/lstm` overloads, preserving exact semantics, validation, IDs, canonical outputs, and fail-closed Compiler behavior without aliases or downstream adoption; corrected the directly affected Compiler inventory boundary test without adding production support. |
 | 0025G | [NCW Conv1d composition](tasks/0025g-ncw-conv1d-composition.md) | Complete | 0020; 0017F1; current Compiler 0005D convolution gradients | Added public NCW one-dimensional convolution as exact `EXPAND_DIMS -> CONV2D -> SQUEEZE` composition with rank-three weights expanded by one unit kernel axis, rank-specific validation, symmetric padding, per-axis stride/dilation, groups, optional bias, and no `CONV1D` kind. |
 | 0025H | [NCDHW Conv3d semantics and Tensor expressions](tasks/0025h-ncdhw-conv3d-semantics-and-tensor-expressions.md) | Complete | 0020; 0018K–0018N; 0018V; 0019; 0025G | Added one first-class grouped NCDHW `CONV3D` operation with optional bias, exact static/symbolic output geometry, positive static kernel extents, rank-specific immutable stride/symmetric-padding/dilation/group attributes, floating numerical policy, and ordered provenance without a public `ConvNd`. |
+| 0025I | [NCW max/average Pool1d composition](tasks/0025i-ncw-max-average-pool1d-composition.md) | Complete | 0020A–0020A1; 0017F1; Compiler 0005D pooling gradients | Added rank-specific NCW max and fixed-count average pooling as exact visible `EXPAND_DIMS(axis 2) -> POOL2D -> SQUEEZE(axis 2)` composition, preserving literal width geometry, padding, exceptional values, accumulation/rounding, and Pool2d gradients without a Pool1d operation kind. |
+| 0025J | First-class NCDHW max/average Pool3d semantics | Draft | 0025I; 0020A–0020A1; 0018K–0018N; 0018V | Add rank-specific first-class `MAX_POOL3D` and `AVERAGE_POOL3D` families because exact depth windows cannot be represented by a bounded Shape-independent composition. Preserve literal per-axis floor/ceil grids, excluded maximum padding, fixed count-padding average divisors, depth-height-width first-winner order, and current floating policies. No detailed specification exists. |
+| 0025K | Public NCDHW unfold3d and fold3d window transforms | Draft | 0025J; 0023D | Add the smallest general Model window algebra needed to express exact Pool3d adjoints with depth padding, dilation, literal ceil grids, typed maximum padding, and overlap accumulation. Do not add pooling-specific gradient primitives. No detailed specification exists. |
 | 0026 | IEEE FLOAT16 and mixed-precision semantic contracts | Draft | 0001, 0018N, completed operation-family semantics; required before any backend advertises FLOAT16 | Preserve BFLOAT16, add distinct true IEEE-754 binary16 `FLOAT16`, and audit affected families for explicit input, accumulation/intermediate, and output types without adding backend support. |
 
 ## Milestones
@@ -359,6 +362,13 @@ Operation-family subpackages are introduced only when a focused operation task d
   arbitrary geometry array contract. Symmetric padding remains the first intrinsic contract;
   asymmetric padding is explicit `PAD` composition or a later separately justified semantic
   extension rather than a silent change to completed `Conv2dAttrs`.
+- Channels-first pooling expansion: 0025I Complete; 0025J next Draft frontier
+  [task 0025I](tasks/0025i-ncw-max-average-pool1d-composition.md) reuses the exact singleton-height
+  composition proof for NCW pooling and creates no Pool1d kind. Draft 0025J is first-class because
+  enumerating NCDHW depth windows would make graph size depend on the depth extent, while current
+  operations cannot otherwise preserve depth padding, dilation, and literal ceil windows. Draft
+  0025K adds only the general `unfold3d`/`fold3d` algebra required by exact Pool3d gradients. These
+  tasks introduce no `PoolNd`, dynamic-rank API, execution, or capability advertisement.
 - Future mixed-precision semantic foundation: task 0026 remains Draft without a detailed
   specification. It must complete before any backend advertises FLOAT16, but it does not block
   current CPU generated-artifact caching, current-type portable analysis/finalization, or
@@ -1939,7 +1949,9 @@ Training API scope correction removes the final stale receiver claim. The exact 
 29 paths. [Model 0025G](tasks/0025g-ncw-conv1d-composition.md) is Complete; detailed
 [Model 0025H](tasks/0025h-ncdhw-conv3d-semantics-and-tensor-expressions.md) is Complete. Complete
 Compiler 0006B independently adopts its Conv3d descriptor contract for forward-only compilation;
-gradient closure and CPU execution remain downstream work. Model 0026 remains Draft without a
-detailed specification. No Model task is Ready or In progress.
+gradient closure remains downstream work. Detailed
+[Model 0025I](tasks/0025i-ncw-max-average-pool1d-composition.md) is Complete. Model 0025J is the
+next Draft frontier; 0025J, 0025K, and 0026 remain Draft without detailed specifications, and no
+Model task is Ready or In progress.
 The legacy branch must be consulted read-only for capability and test evidence when preparing each
 applicable capability task.

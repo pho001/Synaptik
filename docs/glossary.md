@@ -5990,6 +5990,19 @@ average pooling through the fixed logical kernel count. See [NCHW maximum-poolin
 expressions](api/tensor-api.md#nchw-maximum-pooling-expressions), [NCHW average-pooling
 expressions](api/tensor-api.md#nchw-average-pooling-expressions), and [Window transform](#window-transform).
 
+### Pool1d composition
+
+The current public `Tensor.maxPool1d` and `Tensor.averagePool1d` conveniences describe
+one-dimensional pooling in NCW order: batch, channel, width. They are not first-class operation
+kinds. Each call visibly inserts singleton height at axis 2, applies the matching existing Pool2d
+operation with height geometry `(kernel=1, stride=1, padding=0, dilation=1)` and the requested
+width geometry, then squeezes axis 2. Maximum pooling inherits Pool2d padding exclusion and first-
+winner rules; average pooling inherits its fixed `kernelWidth` count-padding divisor and floating
+accumulation/rounding rules. Compiler inference and gradients therefore traverse the ordinary
+rank-edit and Pool2d occurrences. Backend support means support for every visible component with
+its actual descriptors and attributes, never a synthetic Pool1d capability. See
+[NCW Pool1d composition](api/tensor-api.md#ncw-pool1d-composition).
+
 ## Common distinctions
 
 ### Tensor versus graph value

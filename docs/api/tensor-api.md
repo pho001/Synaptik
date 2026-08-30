@@ -8176,6 +8176,109 @@ exact `Conv3dAttrs` reference and ordered inputs `[input, weight]` or
 and spatial relations for forward-only compilation. Conv3d gradients remain separate Draft
 Compiler 0006C work, and no execution or capability-provider support follows from that adoption.
 
+### NCW Pool1d composition
+
+`input.maxPool1d(attrs)` and `input.averagePool1d(attrs)` are rank-specific conveniences for
+one-dimensional pooling in NCW order: batch, channel, width. They do not add maximum- or
+average-Pool1d operation kinds. Each successful call creates exactly this visible composition:
+
+```text
+[N, C, W] --EXPAND_DIMS(axis 2)--> [N, C, 1, W]
+          --MAX_POOL2D or AVERAGE_POOL2D--> [N, C, 1, W_out]
+          --SQUEEZE(axis 2)--> [N, C, W_out]
+```
+
+`MaxPool1dAttrs` and `AveragePool1dAttrs` are immutable public composition parameters. Both carry
+positive `kernelWidth`, `strideWidth`, and `dilationWidth`, non-negative symmetric
+`paddingWidth`, and literal `ceilMode`. Construction maps those components to a fresh matching
+Pool2d attributes value:
+
+```text
+height: kernel=1,           stride=1,           padding=0,            dilation=1
+width:  kernel=kernelWidth, stride=strideWidth, padding=paddingWidth, dilation=dilationWidth
+```
+
+The singleton height has output extent one in both floor and literal-ceil modes. Width therefore
+uses the existing Pool2d formula without alteration:
+
+```text
+effectiveKernel = dilationWidth * (kernelWidth - 1) + 1
+numerator       = W + 2 * paddingWidth - effectiveKernel
+W_out           = floor(numerator / strideWidth) + 1
+```
+
+When `ceilMode` is true, the quotient uses literal ceiling division. A static negative numerator
+fails before any producer is created. Checked `long` overflow fails with `ArithmeticException`.
+An unresolved width retains the exact symbolic floor- or ceiling-division expression and the
+obligation that a later concrete binding make the numerator non-negative. The receiver must be a
+floating rank-three Tensor; null attributes, a non-floating type, and another rank fail locally.
+
+Maximum pooling inherits Pool2d padding exclusion and increasing logical width order. An
+in-bounds NaN is dominant at its first logical occurrence, positive zero ranks above negative
+zero, equal values retain their first occurrence, and an all-padding window produces negative
+infinity. Average pooling inherits the fixed count-padding divisor, which reduces from
+`1 * kernelWidth` to `kernelWidth`; padding contributes positive zero while still counting.
+BFLOAT16 and FLOAT32 average accumulation and division use FLOAT32, FLOAT64 uses FLOAT64, and
+BFLOAT16 narrows once at the result. The existing Pool2d NaN, infinity, signed-zero, rounding,
+reassociation, and all-padding policies otherwise apply unchanged.
+
+#### Pool1d Shape and provenance example
+
+The goal is to inspect maximum and average Pool1d metadata for input `[2, 3, 9]`. A width-three
+kernel, stride two, one padding position per side, unit dilation, and floor mode produce width
+five.
+
+```java
+import io.github.pho001.synaptik.model.datatype.DataType;
+import io.github.pho001.synaptik.model.operation.pooling.AveragePool1dAttrs;
+import io.github.pho001.synaptik.model.operation.pooling.MaxPool1dAttrs;
+import io.github.pho001.synaptik.model.shape.Shape;
+import io.github.pho001.synaptik.model.tensor.Tensor;
+import io.github.pho001.synaptik.model.tensor.TensorDescriptor;
+import io.github.pho001.synaptik.model.tensor.TensorFactory;
+import java.util.Optional;
+
+Tensor input = TensorFactory.create(new TensorDescriptor(
+        DataType.FLOAT32, Shape.of(2, 3, 9), Optional.empty(), true));
+Tensor maximum = input.maxPool1d(new MaxPool1dAttrs(3, 2, 1, 1, false));
+Tensor average = input.averagePool1d(new AveragePool1dAttrs(3, 2, 1, 1, false));
+
+var maximumSqueeze = maximum.provenance().orElseThrow();
+var maximumPool2d = maximumSqueeze.inputs().getFirst().provenance().orElseThrow();
+var maximumExpand = maximumPool2d.inputs().getFirst().provenance().orElseThrow();
+
+System.out.println(maximum.descriptor().shape());
+System.out.println(average.descriptor().shape());
+System.out.println(maximumExpand.operation().kind());
+System.out.println(maximumPool2d.operation().kind());
+System.out.println(maximumSqueeze.operation().kind());
+```
+
+It prints:
+
+```text
+Shape[2, 3, 5]
+Shape[2, 3, 5]
+EXPAND_DIMS
+MAX_POOL2D
+SQUEEZE
+```
+
+Each call returns a fresh canonical, unlabeled, storage-free Tensor with unresolved layout. It
+retains the input data type, gradient request, and exact batch/channel Dimension references while
+recording three fresh one-output producers in order. Compiler capture, descriptor validation, and
+gradients consequently see the ordinary rank-edit and Pool2d occurrences. Maximum gradients
+inherit Pool2d's reconstructed first eligible winner; average gradients inherit its fixed divisor
+and overlap fold. There is no Pool1d signature, captured node, dedicated gradient rule, or saved
+maximum-index output.
+
+Backend support is the conjunction of support for the exact `EXPAND_DIMS`, matching Pool2d, and
+`SQUEEZE` occurrences with their actual descriptors and attributes. A backend may recognize the
+whole topology as an optimization only if it preserves that meaning; neither this Model API nor
+such recognition creates or advertises a Pool1d operation capability. The example proves current
+metadata and provenance only. It does not read values, execute pooling, promise fusion, or claim
+support from any particular backend.
+
 ### NCHW maximum-pooling expressions
 
 `input.maxPool2d(attrs)` constructs one `MAX_POOL2D` expression over a floating rank-four input in

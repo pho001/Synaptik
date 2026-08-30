@@ -731,6 +731,20 @@ reassociation is allowed without bitwise or cross-backend rounding identity. Com
 pooling operations would exceed the cohesive path guardrail; sharing NCHW coordinates does not
 make their numerical parameters interchangeable.
 
+Completed task [0025I](tasks/0025i-ncw-max-average-pool1d-composition.md) adds one public NCW
+receiver for each of those Pool2d meanings without adding an operation kind. Each call validates
+floating rank-three input and exact width geometry, then visibly constructs
+`EXPAND_DIMS(axis 2) -> MAX_POOL2D or AVERAGE_POOL2D -> SQUEEZE(axis 2)`. The mapped Pool2d
+attributes use singleton-height geometry `(kernel=1, stride=1, padding=0, dilation=1)` and the
+supplied width geometry. Every result is a fresh canonical squeeze output with unchanged type and
+gradient eligibility, exact retained batch/channel Dimensions, derived width, unresolved layout,
+and ordered three-producer provenance. Maximum and average exceptional-value, count-padding,
+accumulation, rounding, and gradient behavior are inherited through the actual Pool2d occurrence
+and ordinary rank edits. There is no Pool1d signature, captured node, dedicated gradient rule, or
+backend capability. Backend support is only the conjunction of capability for each visible
+component kind with its actual descriptors and attributes; recognizing the whole topology may
+optimize it but must not report synthetic Pool1d support.
+
 ### Important shortly afterward
 
 - diagonal convenience (`flip` was finalized by completed task 0018R as one `SLICE` convenience);

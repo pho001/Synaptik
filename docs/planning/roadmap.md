@@ -116,8 +116,27 @@ MATMUL coverage is implemented by detailed Complete CPU 0008F following Complete
 [CPU 0008E1](backends/cpu/tasks/0008e1-shared-partition-dag-adoption-and-reconstruction-removal.md),
 which adopted the shared partition DAG. Detailed
 [CPU 0008G portable max/average Pool2d execution](backends/cpu/tasks/0008g-portable-max-average-pool2d-execution.md)
-is Complete, while attention and loss coverage remains owned by Draft CPU 0008H–0008I without
-detailed specifications. CPU 0008A validates Conv1d through
+is Complete. Before the previous CPU 0008H attention frontier, the user-requested pooling closure
+runs in the explicit cross-plan order Model 0025I -> Model 0025J -> Model 0025K -> Compiler
+0006B1 -> Compiler 0006B2 -> CPU 0008G1 -> CPU 0008H. Detailed
+[Model 0025I](modules/model/tasks/0025i-ncw-max-average-pool1d-composition.md) is Complete; every
+later inserted task remains Draft without a detailed specification. Pool1d is the exact visible
+`EXPAND_DIMS(axis 2) -> POOL2D -> SQUEEZE(axis 2)` composition, not a new operation kind. Pool3d
+is first-class because depth enumeration is not a bounded Shape-independent composition; Model
+0025K supplies the general 3D window/fold algebra required for its exact gradients. Pool1d's
+singleton height has `(kernel, stride, padding, dilation) = (1, 1, 0, 1)`, so literal floor/ceil
+height geometry is exactly one and width padding/ceil windows are unchanged. Pool3d instead fixes
+literal per-depth/height/width grids: maximum excludes padding, returns negative infinity for an
+all-padding window, treats NaN as dominant, orders `+0.0` above `-0.0`, and chooses the first
+depth-height-width winner; average uses the fixed `kernelDepth * kernelHeight * kernelWidth`
+count-padding divisor. BFLOAT16/FLOAT32 average accumulation and division use FLOAT32, FLOAT64 uses
+FLOAT64, and BFLOAT16 narrows once at the result. Compiler 0006B2 must preserve those occurrence,
+rounding, and exceptional-value rules in gradients. CPU 0008G1
+may recognize only the exact Pool1d topology while reporting its actual component capabilities,
+and reports Pool3d kinds only for supported combinations. Its direct Pool3d generated code must
+match an optimal clean Java oracle and pass semantic, complete Class-File/decompilation/forbidden-
+structure, and five-fork generated-versus-direct `<= 1.15x` evidence. Attention and loss coverage
+then remains owned by Draft CPU 0008H–0008I without detailed specifications. CPU 0008A validates Conv1d through
 the visible Conv2d composition and adds direct Conv3d execution. CPU 0008B–0008E only then add
 general partition-DAG decomposition and bounded fusion, typed specialized-subgraph recognition,
 profitability decision facts, and bounded multi-input materialization in that order. Engine 0004
@@ -164,9 +183,10 @@ remain code/config-defined; compiled, prepared, Runtime, backend, and device art
 
 ## Current frontier
 
-The completed Model frontier is
-[Model 0025H NCDHW Conv3d semantics and Tensor expressions](modules/model/tasks/0025h-ncdhw-conv3d-semantics-and-tensor-expressions.md).
-Model 0025G remains Complete, and Model 0026 remains Draft without a detailed specification.
+Detailed
+[Model 0025I NCW max/average Pool1d composition](modules/model/tasks/0025i-ncw-max-average-pool1d-composition.md)
+is Complete. Model 0025J is the next Draft frontier; Model 0025J, 0025K, and 0026 remain Draft
+without detailed specifications, and no Model task is Ready or In progress.
 Detailed
 [Compiler 0006B Conv3d forward adoption and explicit gradient boundary](modules/compiler/tasks/0006b-conv3d-forward-adoption-and-explicit-gradient-boundary.md)
 is Complete as the separate forward consumer after 0025H; Compiler 0006C remains separate Draft
@@ -181,8 +201,8 @@ is Complete. Detailed
 is Complete. Detailed
 [CPU 0008F](backends/cpu/tasks/0008f-portable-matmul-execution-and-bounded-linear-epilogues.md)
 is Complete. Detailed
-[CPU 0008G](backends/cpu/tasks/0008g-portable-max-average-pool2d-execution.md) is Complete. CPU
-0008H remains the next Draft implementation frontier.
+[CPU 0008G](backends/cpu/tasks/0008g-portable-max-average-pool2d-execution.md) is Complete. Draft
+CPU 0008G1 follows the inserted Model and Compiler prerequisites; CPU 0008H follows 0008G1.
 
 CPU 0008F completes the fully static portable MATMUL family at schema 54 across all thirteen
 ordered non-BOOL numeric promotions, vector/matrix/batched/right-broadcast geometry, four bounded
@@ -383,8 +403,8 @@ channel/non-channel ranges; and detailed Complete
 [CPU 0007F2](backends/cpu/tasks/0007f2-portable-batch-normalization-training-and-statistic-transition-coverage.md)
 owns batch training/statistic transition. CPU 0007F, CPU 0007F1, CPU 0007F2, and detailed CPU
 0008, 0008A, 0008B, 0008C, CPU 0008D, CPU 0008E, and Prepare 0003A are Complete; detailed CPU
-0008E1, detailed CPU 0008F, and detailed CPU 0008G are Complete; CPU 0008H is the next Draft
-frontier.
+0008E1, detailed CPU 0008F, and detailed CPU 0008G are Complete; Draft CPU 0008G1 is inserted
+before Draft CPU 0008H.
 A completed local
 bytecode/performance audit then inserted detailed
 [CPU 0007A0 generated hot-path parity correction](backends/cpu/tasks/0007a0-generated-hot-path-parity-correction.md)
@@ -739,8 +759,7 @@ CPU 0007A1O, CPU 0007A2, detailed CPU 0007B, and detailed CPU 0007C are `Complet
 0007D, detailed CPU 0007E, and detailed CPU 0007F are `Complete`, while detailed CPU 0007F1 is
 `Complete`; detailed CPU 0007F2, CPU 0008, CPU 0008A, CPU 0008B, CPU 0008C, and CPU 0008D are
 `Complete`; detailed CPU 0008E, Prepare 0003A, and detailed CPU 0008E1 are `Complete`,
-CPU 0008F and detailed CPU 0008G are `Complete`, and CPU 0008H through CPU 0017 remain
-Draft.
+CPU 0008F and detailed CPU 0008G are `Complete`, and CPU 0008G1 through CPU 0017 remain Draft.
 CPU 0003
 implements a
 model-independent filesystem store beneath an explicit
@@ -1008,9 +1027,10 @@ total paths, with no shared Java, Gradle, architecture, conformance, or integrat
 This refinement is source-backed: Conv2d, MATMUL, pooling, attention, and loss have distinct
 geometry, numerical algorithms, resources, publication shapes, generated-loop bodies, and
 performance evidence. Combining them would exceed one cohesive implementation session. Detailed
-Complete CPU 0008F, detailed Complete CPU 0008G, and Draft CPU 0008H and 0008I retain MATMUL/linear
-epilogues, pooling, attention, and loss ownership respectively. CPU 0008H is the next Draft
-frontier. These family rows remain their implementation owners rather than being replaced by
+Complete CPU 0008F and detailed Complete CPU 0008G retain MATMUL/linear-epilogue and Pool2d
+ownership. Draft CPU 0008G1 owns Pool1d composition validation and Pool3d execution before Draft
+CPU 0008H and 0008I retain attention and loss ownership. These family rows remain their
+implementation owners rather than being replaced by
 generic fusion planning.
 
 Immediately after that foundation, Complete
@@ -1644,10 +1664,13 @@ the complete current model operation inventory before higher-order work:
 | [0006 Explicit functional gradient requests and higher-order differentiation](modules/compiler/tasks/0006-explicit-functional-gradient-requests-and-higher-order-differentiation.md) | Complete | 0005E and the stable public compile/artifact boundary from 0005 | Added one immutable one/two-stage functional request, explicit/default seeds, ERROR/ZERO disconnected behavior, ordered `GradientPublicationBinding` values, and compiler-owned derivative-order metadata over the closed formula matrix without Tensor gradient state or another compile facade. |
 | [0006A Fixed recurrent-scan forward adoption and explicit BPTT boundary](modules/compiler/tasks/0006a-fixed-recurrent-scan-forward-adoption-and-bptt-boundary.md) | Complete | Model 0025E–0025F; 0001–0006 | Adopted all fixed recurrent forward variants as ordinary flat nodes and rejected backward-capable recurrence before derivative allocation. |
 | [0006B Conv3d forward adoption and explicit gradient boundary](modules/compiler/tasks/0006b-conv3d-forward-adoption-and-explicit-gradient-boundary.md) | Complete | Model 0025H; 0001–0006A | Adopted first-class Conv3d forward inference and final validation while keeping its backward boundary explicit and fail-closed. |
+| 0006B1 Pool3d forward adoption and explicit gradient boundary | Draft | Model 0025J; 0006B | Adopt first-class Pool3d forward inference/final validation and keep backward-capable requests fail-closed before derivative allocation. No detailed specification exists. |
+| 0006B2 Pool3d gradient closure | Draft | Model 0025K; 0006B1; 0005D | Close exact max first-winner and fixed-count average Pool3d gradients through public 3D window/fold algebra. No detailed specification exists. |
 | 0006C Conv3d adjoint expressibility and gradient closure | Draft | 0006B; proven public Tensor algebra or a separately selected Model prerequisite | Close Conv3d gradients only after group, geometry, overlap, symbolic-Shape, and higher-order expressibility are proved. |
 
 Compiler 0005A–0006B and their Model prerequisites are Complete. No Compiler task is Ready or In
-progress. Compiler 0006C and 0007 remain Draft without detailed specifications. Family tasks
+progress. Compiler 0006B1, 0006B2, 0006C, and 0007 remain Draft without detailed specifications.
+Family tasks
 must not claim that every operation role has a gradient: BOOL, index, random-number-generator
 (RNG) state, mask, and configuration roles remain intentionally non-differentiable where
 applicable. Each compiler task must explicitly choose its required tie, subgradient,
@@ -2762,7 +2785,10 @@ authorized Compile API status correction.
 | 129 | [0025F Recurrent-scan expression namespace correction](modules/model/tasks/0025f-recurrent-scan-expression-namespace-correction.md) | Complete |
 | 130 | [0025G NCW Conv1d composition](modules/model/tasks/0025g-ncw-conv1d-composition.md) | Complete |
 | 131 | [0025H NCDHW Conv3d semantics and Tensor expressions](modules/model/tasks/0025h-ncdhw-conv3d-semantics-and-tensor-expressions.md) | Complete |
-| 132 | 0026 IEEE FLOAT16 and mixed-precision semantic contracts | Draft (future interleave; no detailed specification) |
+| 132 | [0025I NCW max/average Pool1d composition](modules/model/tasks/0025i-ncw-max-average-pool1d-composition.md) | Complete |
+| 133 | 0025J First-class NCDHW max/average Pool3d semantics | Draft (no detailed specification) |
+| 134 | 0025K Public NCDHW unfold3d and fold3d window transforms | Draft (no detailed specification) |
+| 135 | 0026 IEEE FLOAT16 and mixed-precision semantic contracts | Draft (future interleave; no detailed specification) |
 
 Task dependencies in the model master plan remain hard prerequisites. The table order is the default execution order even when a later task has no explicit dependency on an earlier task.
 
