@@ -81,7 +81,7 @@ class TensorSumToShapeExpressionTest {
                 () -> assertFalse(Modifier.isSynchronized(sumToShape.getModifiers())),
                 () -> assertFalse(sumToShape.isVarArgs()),
                 () -> assertEquals(Tensor.class, sumToShape.getReturnType()),
-                () -> assertEquals(210, publicTensorMethods),
+                () -> assertEquals(213, publicTensorMethods),
                 () -> assertEquals(1, publicSumToShapeMethods));
     }
 

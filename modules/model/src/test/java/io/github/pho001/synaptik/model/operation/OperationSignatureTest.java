@@ -39,6 +39,7 @@ import io.github.pho001.synaptik.model.operation.layout.CompositionAxisAttrs;
 import io.github.pho001.synaptik.model.operation.layout.ContiguousKind;
 import io.github.pho001.synaptik.model.operation.layout.CropToShapeAttrs;
 import io.github.pho001.synaptik.model.operation.layout.Fold2dAttrs;
+import io.github.pho001.synaptik.model.operation.layout.Fold3dAttrs;
 import io.github.pho001.synaptik.model.operation.layout.FoldAxisAttrs;
 import io.github.pho001.synaptik.model.operation.layout.PadAttrs;
 import io.github.pho001.synaptik.model.operation.layout.PadKind;
@@ -52,7 +53,9 @@ import io.github.pho001.synaptik.model.operation.layout.TileAttrs;
 import io.github.pho001.synaptik.model.operation.layout.TileKind;
 import io.github.pho001.synaptik.model.operation.layout.UnfoldAxisAttrs;
 import io.github.pho001.synaptik.model.operation.layout.Unfold2dAttrs;
+import io.github.pho001.synaptik.model.operation.layout.Unfold3dAttrs;
 import io.github.pho001.synaptik.model.operation.layout.Window2dAttrs;
+import io.github.pho001.synaptik.model.operation.layout.Window3dAttrs;
 import io.github.pho001.synaptik.model.operation.layout.WindowTransformKind;
 import io.github.pho001.synaptik.model.operation.normalization.SoftmaxAttrs;
 import io.github.pho001.synaptik.model.operation.normalization.SoftmaxKind;
@@ -243,6 +246,10 @@ public final class OperationSignatureTest {
                 List.of(fixed(Window2dAttrs.class, 1), fixed(Unfold2dAttrs.class, 1)),
                 WindowTransformKind.UNFOLD2D);
         assertKinds(List.of(fixed(Fold2dAttrs.class, 1)), WindowTransformKind.FOLD2D);
+        assertKinds(
+                List.of(fixed(Window3dAttrs.class, 1), fixed(Unfold3dAttrs.class, 1)),
+                WindowTransformKind.UNFOLD3D);
+        assertKinds(List.of(fixed(Fold3dAttrs.class, 1)), WindowTransformKind.FOLD3D);
 
         assertFamily(List.of(fixed(SoftmaxAttrs.class, 1)), SoftmaxKind.values());
         assertFamily(List.of(fixed(SortAttrs.class, 1)), OrderingKind.values());

@@ -23,20 +23,24 @@ import org.junit.jupiter.api.Test;
 
 class WindowTransformSemanticsTest {
     @Test
-    void declaresExactlyTheFourOrderedWindowTransformKinds() {
+    void declaresExactlyTheSixOrderedWindowTransformKinds() {
         assertAll(
                 () -> assertArrayEquals(
                         new WindowTransformKind[] {
                             WindowTransformKind.UNFOLD_AXIS,
                             WindowTransformKind.FOLD_AXIS,
                             WindowTransformKind.UNFOLD2D,
-                            WindowTransformKind.FOLD2D
+                            WindowTransformKind.FOLD2D,
+                            WindowTransformKind.UNFOLD3D,
+                            WindowTransformKind.FOLD3D
                         },
                         WindowTransformKind.values()),
                 () -> assertEquals("UNFOLD_AXIS", WindowTransformKind.UNFOLD_AXIS.name()),
                 () -> assertEquals("FOLD_AXIS", WindowTransformKind.FOLD_AXIS.name()),
                 () -> assertEquals("UNFOLD2D", WindowTransformKind.UNFOLD2D.name()),
                 () -> assertEquals("FOLD2D", WindowTransformKind.FOLD2D.name()),
+                () -> assertEquals("UNFOLD3D", WindowTransformKind.UNFOLD3D.name()),
+                () -> assertEquals("FOLD3D", WindowTransformKind.FOLD3D.name()),
                 () -> assertSame(
                         WindowTransformKind.UNFOLD_AXIS,
                         WindowTransformKind.valueOf("UNFOLD_AXIS")),
@@ -49,6 +53,12 @@ class WindowTransformSemanticsTest {
                 () -> assertSame(
                         WindowTransformKind.FOLD2D,
                         WindowTransformKind.valueOf("FOLD2D")),
+                () -> assertSame(
+                        WindowTransformKind.UNFOLD3D,
+                        WindowTransformKind.valueOf("UNFOLD3D")),
+                () -> assertSame(
+                        WindowTransformKind.FOLD3D,
+                        WindowTransformKind.valueOf("FOLD3D")),
                 () -> assertInstanceOf(
                         OperationKind.class, WindowTransformKind.UNFOLD_AXIS));
     }
@@ -138,6 +148,66 @@ class WindowTransformSemanticsTest {
                         "outputShape():io.github.pho001.synaptik.model.shape.Shape",
                         "toString():java.lang.String",
                         "window():io.github.pho001.synaptik.model.operation.layout.Window2dAttrs"));
+        assertRecordShape(
+                Window3dAttrs.class,
+                List.of("kernelDepth", "kernelHeight", "kernelWidth", "strideDepth",
+                        "strideHeight", "strideWidth", "paddingDepth", "paddingHeight",
+                        "paddingWidth", "dilationDepth", "dilationHeight", "dilationWidth",
+                        "ceilMode"),
+                List.of(long.class, long.class, long.class, long.class, long.class, long.class,
+                        long.class, long.class, long.class, long.class, long.class, long.class,
+                        boolean.class),
+                List.of("ceilMode():boolean", "dilationDepth():long", "dilationHeight():long",
+                        "dilationWidth():long", "equals(java.lang.Object):boolean",
+                        "hashCode():int", "kernelDepth():long", "kernelHeight():long",
+                        "kernelWidth():long", "paddingDepth():long", "paddingHeight():long",
+                        "paddingWidth():long", "strideDepth():long", "strideHeight():long",
+                        "strideWidth():long", "toString():java.lang.String"));
+        assertRecordShape(
+                Unfold3dAttrs.class,
+                List.of("window", "paddingValue"),
+                List.of(Window3dAttrs.class, ScalarValue.class),
+                List.of("equals(java.lang.Object):boolean", "hashCode():int",
+                        "paddingValue():io.github.pho001.synaptik.model.datatype.ScalarValue",
+                        "toString():java.lang.String",
+                        "window():io.github.pho001.synaptik.model.operation.layout.Window3dAttrs"));
+        assertRecordShape(
+                Fold3dAttrs.class,
+                List.of("outputShape", "window"),
+                List.of(Shape.class, Window3dAttrs.class),
+                List.of("equals(java.lang.Object):boolean", "hashCode():int",
+                        "outputShape():io.github.pho001.synaptik.model.shape.Shape",
+                        "toString():java.lang.String",
+                        "window():io.github.pho001.synaptik.model.operation.layout.Window3dAttrs"));
+    }
+
+    @Test
+    void validatesWindow3dInDeclarationOrderAndRetainsExactFoldAndPaddingReferences() {
+        assertIllegalFailure(
+                () -> new Window3dAttrs(0, 0, 0, 0, 0, 0, -1, -1, -1, 0, 0, 0, false),
+                "kernelDepth must be positive: 0");
+        assertIllegalFailure(
+                () -> new Window3dAttrs(1, 1, 1, 1, 1, 1, 0, 0, 0, 1, 1, 0, false),
+                "dilationWidth must be positive: 0");
+        Window3dAttrs window = new Window3dAttrs(
+                2, 3, 4, 5, 6, 7, 0, 8, 9, 10, 11, 12, true);
+        ScalarValue padding = ScalarValue.float32(Float.NEGATIVE_INFINITY);
+        Shape output = Shape.of(1, 2, 3, 4, 5);
+        Unfold3dAttrs unfold = new Unfold3dAttrs(window, padding);
+        Fold3dAttrs fold = new Fold3dAttrs(output, window);
+
+        assertAll(
+                () -> assertEquals(2, window.kernelDepth()),
+                () -> assertEquals(12, window.dilationWidth()),
+                () -> assertTrue(window.ceilMode()),
+                () -> assertSame(window, unfold.window()),
+                () -> assertSame(padding, unfold.paddingValue()),
+                () -> assertSame(output, fold.outputShape()),
+                () -> assertSame(window, fold.window()));
+        assertNullFailure(() -> new Unfold3dAttrs(null, null), "window");
+        assertNullFailure(() -> new Unfold3dAttrs(window, null), "paddingValue");
+        assertNullFailure(() -> new Fold3dAttrs(null, null), "outputShape");
+        assertNullFailure(() -> new Fold3dAttrs(output, null), "window");
     }
 
     @Test
@@ -343,6 +413,16 @@ class WindowTransformSemanticsTest {
         Operation explicitImageUnfold =
                 new Operation(WindowTransformKind.UNFOLD2D, explicitUnfoldAttrs);
         Operation imageFold = new Operation(WindowTransformKind.FOLD2D, fold2dAttrs);
+        Window3dAttrs window3dAttrs = new Window3dAttrs(
+                2, 2, 2, 1, 1, 1, 0, 0, 0, 1, 1, 1, false);
+        Unfold3dAttrs unfold3dAttrs =
+                new Unfold3dAttrs(window3dAttrs, ScalarValue.float32(Float.NEGATIVE_INFINITY));
+        Fold3dAttrs fold3dAttrs =
+                new Fold3dAttrs(Shape.of(1, 1, 3, 3, 3), window3dAttrs);
+        Operation volumeUnfold = new Operation(WindowTransformKind.UNFOLD3D, window3dAttrs);
+        Operation explicitVolumeUnfold =
+                new Operation(WindowTransformKind.UNFOLD3D, unfold3dAttrs);
+        Operation volumeFold = new Operation(WindowTransformKind.FOLD3D, fold3dAttrs);
 
         assertAll(
                 () -> assertSame(WindowTransformKind.UNFOLD_AXIS, axisUnfold.kind()),
@@ -354,7 +434,10 @@ class WindowTransformSemanticsTest {
                 () -> assertSame(WindowTransformKind.UNFOLD2D, explicitImageUnfold.kind()),
                 () -> assertSame(explicitUnfoldAttrs, explicitImageUnfold.attrs()),
                 () -> assertSame(WindowTransformKind.FOLD2D, imageFold.kind()),
-                () -> assertSame(fold2dAttrs, imageFold.attrs()));
+                () -> assertSame(fold2dAttrs, imageFold.attrs()),
+                () -> assertSame(window3dAttrs, volumeUnfold.attrs()),
+                () -> assertSame(unfold3dAttrs, explicitVolumeUnfold.attrs()),
+                () -> assertSame(fold3dAttrs, volumeFold.attrs()));
     }
 
     @Test
@@ -364,6 +447,9 @@ class WindowTransformSemanticsTest {
         List<String> windowTypes = componentTypeNames(Window2dAttrs.class);
         List<String> explicitUnfoldTypes = componentTypeNames(Unfold2dAttrs.class);
         List<String> fold2dTypes = componentTypeNames(Fold2dAttrs.class);
+        List<String> window3dTypes = componentTypeNames(Window3dAttrs.class);
+        List<String> explicitUnfold3dTypes = componentTypeNames(Unfold3dAttrs.class);
+        List<String> fold3dTypes = componentTypeNames(Fold3dAttrs.class);
 
         assertAll(
                 () -> assertEquals(List.of("int", "long", "long"), unfoldTypes),
@@ -383,6 +469,20 @@ class WindowTransformSemanticsTest {
                                 "io.github.pho001.synaptik.model.shape.Shape",
                                 "io.github.pho001.synaptik.model.operation.layout.Window2dAttrs"),
                         fold2dTypes),
+                () -> assertEquals(
+                        List.of("long", "long", "long", "long", "long", "long", "long",
+                                "long", "long", "long", "long", "long", "boolean"),
+                        window3dTypes),
+                () -> assertEquals(
+                        List.of(
+                                "io.github.pho001.synaptik.model.operation.layout.Window3dAttrs",
+                                "io.github.pho001.synaptik.model.datatype.ScalarValue"),
+                        explicitUnfold3dTypes),
+                () -> assertEquals(
+                        List.of(
+                                "io.github.pho001.synaptik.model.shape.Shape",
+                                "io.github.pho001.synaptik.model.operation.layout.Window3dAttrs"),
+                        fold3dTypes),
                 () -> assertFalse(unfoldTypes.stream().anyMatch(
                         WindowTransformSemanticsTest::isForbiddenComponentType)),
                 () -> assertFalse(foldTypes.stream().anyMatch(
@@ -390,6 +490,10 @@ class WindowTransformSemanticsTest {
                 () -> assertFalse(windowTypes.stream().anyMatch(
                         WindowTransformSemanticsTest::isForbiddenComponentType)),
                 () -> assertFalse(fold2dTypes.stream().anyMatch(
+                        WindowTransformSemanticsTest::isForbiddenComponentType)),
+                () -> assertFalse(window3dTypes.stream().anyMatch(
+                        WindowTransformSemanticsTest::isForbiddenComponentType)),
+                () -> assertFalse(fold3dTypes.stream().anyMatch(
                         WindowTransformSemanticsTest::isForbiddenComponentType)));
     }
 

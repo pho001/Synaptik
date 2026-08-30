@@ -302,7 +302,7 @@ Operation-family subpackages are introduced only when a focused operation task d
 | 0025H | [NCDHW Conv3d semantics and Tensor expressions](tasks/0025h-ncdhw-conv3d-semantics-and-tensor-expressions.md) | Complete | 0020; 0018K–0018N; 0018V; 0019; 0025G | Added one first-class grouped NCDHW `CONV3D` operation with optional bias, exact static/symbolic output geometry, positive static kernel extents, rank-specific immutable stride/symmetric-padding/dilation/group attributes, floating numerical policy, and ordered provenance without a public `ConvNd`. |
 | 0025I | [NCW max/average Pool1d composition](tasks/0025i-ncw-max-average-pool1d-composition.md) | Complete | 0020A–0020A1; 0017F1; Compiler 0005D pooling gradients | Added rank-specific NCW max and fixed-count average pooling as exact visible `EXPAND_DIMS(axis 2) -> POOL2D -> SQUEEZE(axis 2)` composition, preserving literal width geometry, padding, exceptional values, accumulation/rounding, and Pool2d gradients without a Pool1d operation kind. |
 | 0025J | [First-class NCDHW max/average Pool3d semantics](tasks/0025j-first-class-ncdhw-max-average-pool3d-semantics.md) | Complete | 0025I; 0020A–0020A1; 0018K–0018N; 0018V | Added rank-specific first-class `MAX_POOL3D` and `AVERAGE_POOL3D` Model metadata with literal per-axis floor/ceil grids, excluded maximum padding, fixed count-padding average divisors, depth-height-width first-winner order, current floating policies, and canonical one-input provenance. |
-| 0025K | Public NCDHW unfold3d and fold3d window transforms | Draft | 0025J; 0023D | Add the smallest general Model window algebra needed to express exact Pool3d adjoints with depth padding, dilation, literal ceil grids, typed maximum padding, and overlap accumulation. Do not add pooling-specific gradient primitives. No detailed specification exists. |
+| 0025K | [Public NCDHW unfold3d and fold3d window transforms](tasks/0025k-public-ncdhw-unfold3d-and-fold3d-window-transforms.md) | Complete | 0025J; 0023D | Added canonical rank-three NCDHW window columns, direct positive-zero and exact typed padding, literal depth-height-width floor/ceil geometry, and exact target-Shape overlap fold with deterministic type-specific addition. No pooling-specific gradient primitive or generic WindowNd was added. |
 | 0026 | IEEE FLOAT16 and mixed-precision semantic contracts | Draft | 0001, 0018N, completed operation-family semantics; required before any backend advertises FLOAT16 | Preserve BFLOAT16, add distinct true IEEE-754 binary16 `FLOAT16`, and audit affected families for explicit input, accumulation/intermediate, and output types without adding backend support. |
 
 ## Milestones
@@ -362,16 +362,17 @@ Operation-family subpackages are introduced only when a focused operation task d
   arbitrary geometry array contract. Symmetric padding remains the first intrinsic contract;
   asymmetric padding is explicit `PAD` composition or a later separately justified semantic
   extension rather than a silent change to completed `Conv2dAttrs`.
-- Channels-first pooling expansion: 0025I–0025J Complete; 0025K next Draft frontier
+- Channels-first pooling expansion: 0025I–0025K Complete; Compiler 0006B1 next Draft frontier
   [task 0025I](tasks/0025i-ncw-max-average-pool1d-composition.md) reuses the exact singleton-height
   composition proof for NCW pooling and creates no Pool1d kind. Complete
   [task 0025J](tasks/0025j-first-class-ncdhw-max-average-pool3d-semantics.md) is first-class because
   enumerating NCDHW depth windows would make graph size depend on the depth extent, while current
-  operations cannot otherwise preserve depth padding, dilation, and literal ceil windows. Draft
-  0025K adds only the general `unfold3d`/`fold3d` algebra required by exact Pool3d gradients. These
+  operations cannot otherwise preserve depth padding, dilation, and literal ceil windows.
+  Complete [task 0025K](tasks/0025k-public-ncdhw-unfold3d-and-fold3d-window-transforms.md)
+  adds only the general `unfold3d`/`fold3d` algebra required by exact Pool3d gradients. These
   tasks introduce no `PoolNd` or dynamic-rank API. Task 0025J adds current Model metadata only;
-  Draft Compiler 0006B1, Model 0025K, Compiler 0006B2, and CPU 0008G1 retain forward adoption,
-  window algebra, gradients, and execution respectively.
+  Draft Compiler 0006B1, complete Model 0025K, Draft Compiler 0006B2, and Draft CPU 0008G1 retain
+  forward adoption, window algebra, gradients, and execution respectively.
 - Future mixed-precision semantic foundation: task 0026 remains Draft without a detailed
   specification. It must complete before any backend advertises FLOAT16, but it does not block
   current CPU generated-artifact caching, current-type portable analysis/finalization, or
@@ -1954,8 +1955,9 @@ Training API scope correction removes the final stale receiver claim. The exact 
 Compiler 0006B independently adopts its Conv3d descriptor contract for forward-only compilation;
 gradient closure remains downstream work. Detailed
 [Model 0025I](tasks/0025i-ncw-max-average-pool1d-composition.md) and
-[Model 0025J](tasks/0025j-first-class-ncdhw-max-average-pool3d-semantics.md) are Complete. Model
-0025K is the next Draft frontier, and Model 0025K and 0026 remain without detailed specifications;
-no Model task is Ready or In progress.
+[Model 0025J](tasks/0025j-first-class-ncdhw-max-average-pool3d-semantics.md) are Complete. Detailed
+[Model 0025K](tasks/0025k-public-ncdhw-unfold3d-and-fold3d-window-transforms.md) is Complete. Model
+0026 remains Draft without a detailed specification; no Model task is Ready or In progress.
+Compiler 0006B1 is the next Draft cross-plan frontier and still has no detailed specification.
 The legacy branch must be consulted read-only for capability and test evidence when preparing each
 applicable capability task.

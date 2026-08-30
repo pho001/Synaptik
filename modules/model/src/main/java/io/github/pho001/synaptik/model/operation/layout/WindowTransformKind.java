@@ -31,11 +31,19 @@ import java.util.List;
  * <p>The exact kind-to-attributes pairings are UNFOLD_AXIS with {@link UnfoldAxisAttrs}, FOLD_AXIS
  * with {@link FoldAxisAttrs}, UNFOLD2D with either {@link Window2dAttrs} for conceptual
  * positive-zero padding or {@link Unfold2dAttrs} for one exact typed padding value, and FOLD2D
- * with {@link Fold2dAttrs}. Family-owned signatures enforce each exact pairing and declare one
- * input and one output. This enum performs no Tensor construction, Shape calculation, sampling,
- * accumulation, layout or storage selection, gradient construction, graph/compiler work,
- * lowering, backend dispatch, or execution. Public Tensor construction currently exists for all
- * four meanings.</p>
+ * with {@link Fold2dAttrs}. UNFOLD3D similarly accepts direct {@link Window3dAttrs} or explicit
+ * {@link Unfold3dAttrs}, while FOLD3D accepts {@link Fold3dAttrs}. Family-owned signatures enforce
+ * each exact pairing and declare one input and one output. This enum performs no Tensor
+ * construction, Shape calculation, sampling, accumulation, layout or storage selection, gradient
+ * construction, graph/compiler work, lowering, backend dispatch, or execution. Public Tensor
+ * construction currently exists for all six meanings.</p>
+ *
+ * <p>{@link #UNFOLD3D} and {@link #FOLD3D} extend the canonical columns contract to NCDHW
+ * (batch, channel, depth, height, width). Columns have Shape
+ * {@code [N, C * kD * kH * kW, DOut * HOut * WOut]}; channel precedes kernel depth, height, and
+ * width in the middle coordinate, while output depth, height, and width define the final
+ * coordinate. The rank-specific kinds keep this public contract explicit without introducing an
+ * arbitrary-rank window abstraction.</p>
  */
 public enum WindowTransformKind implements OperationKind {
     /**
@@ -65,7 +73,19 @@ public enum WindowTransformKind implements OperationKind {
      * Accumulates canonical rank-three columns into the explicit rank-four NCHW result described
      * by {@link Fold2dAttrs}, summing rather than averaging overlapping contributions.
      */
-    FOLD2D;
+    FOLD2D,
+
+    /**
+     * Materializes rank-five NCDHW input as canonical rank-three volumetric columns using direct
+     * represented-positive-zero padding or one exact typed padding value.
+     */
+    UNFOLD3D,
+
+    /**
+     * Accumulates canonical volumetric columns into the exact rank-five NCDHW target, excluding
+     * padded coordinates and summing overlapping contributions in canonical input order.
+     */
+    FOLD3D;
 
     private static final List<OperationSignature> UNFOLD_AXIS_SIGNATURES =
             List.of(OperationSignature.fixed(UnfoldAxisAttrs.class, 1, 1));
@@ -76,6 +96,11 @@ public enum WindowTransformKind implements OperationKind {
             OperationSignature.fixed(Unfold2dAttrs.class, 1, 1));
     private static final List<OperationSignature> FOLD_2D_SIGNATURES =
             List.of(OperationSignature.fixed(Fold2dAttrs.class, 1, 1));
+    private static final List<OperationSignature> UNFOLD_3D_SIGNATURES = List.of(
+            OperationSignature.fixed(Window3dAttrs.class, 1, 1),
+            OperationSignature.fixed(Unfold3dAttrs.class, 1, 1));
+    private static final List<OperationSignature> FOLD_3D_SIGNATURES =
+            List.of(OperationSignature.fixed(Fold3dAttrs.class, 1, 1));
 
     /**
      * Returns the exact one-input, one-output attributes variant accepted by this window kind.
@@ -89,6 +114,8 @@ public enum WindowTransformKind implements OperationKind {
             case FOLD_AXIS -> FOLD_AXIS_SIGNATURES;
             case UNFOLD2D -> UNFOLD_2D_SIGNATURES;
             case FOLD2D -> FOLD_2D_SIGNATURES;
+            case UNFOLD3D -> UNFOLD_3D_SIGNATURES;
+            case FOLD3D -> FOLD_3D_SIGNATURES;
         };
     }
 }

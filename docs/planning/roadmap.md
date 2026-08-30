@@ -121,8 +121,10 @@ runs in the explicit cross-plan order Model 0025I -> Model 0025J -> Model 0025K 
 0006B1 -> Compiler 0006B2 -> CPU 0008G1 -> CPU 0008H. Detailed
 [Model 0025I](modules/model/tasks/0025i-ncw-max-average-pool1d-composition.md) is Complete. Detailed
 [Model 0025J](modules/model/tasks/0025j-first-class-ncdhw-max-average-pool3d-semantics.md) is the
-completed first-class Model metadata step; every later inserted task remains Draft without a
-detailed specification.
+completed first-class Model metadata step. Detailed
+[Model 0025K](modules/model/tasks/0025k-public-ncdhw-unfold3d-and-fold3d-window-transforms.md) is
+Complete; every later inserted Compiler or CPU task remains Draft without a detailed
+specification. Compiler 0006B1 is the next Draft frontier.
 Pool1d is the exact visible
 `EXPAND_DIMS(axis 2) -> POOL2D -> SQUEEZE(axis 2)` composition, not a new operation kind. Pool3d
 is first-class because depth enumeration is not a bounded Shape-independent composition; Model
@@ -190,8 +192,11 @@ Detailed
 [Model 0025I NCW max/average Pool1d composition](modules/model/tasks/0025i-ncw-max-average-pool1d-composition.md)
 is Complete. Detailed
 [Model 0025J First-class NCDHW max/average Pool3d semantics](modules/model/tasks/0025j-first-class-ncdhw-max-average-pool3d-semantics.md)
-is Complete. Model 0025K is the next Draft frontier; Model 0025K and 0026 remain without detailed
-specifications, and no Model task is Ready or In progress.
+is Complete. Detailed
+[Model 0025K Public NCDHW unfold3d and fold3d window transforms](modules/model/tasks/0025k-public-ncdhw-unfold3d-and-fold3d-window-transforms.md)
+is Complete. Model 0026 remains Draft without a detailed specification, and no Model task is Ready
+or In progress. Compiler 0006B1 is the next Draft cross-plan frontier without a detailed
+specification.
 Detailed
 [Compiler 0006B Conv3d forward adoption and explicit gradient boundary](modules/compiler/tasks/0006b-conv3d-forward-adoption-and-explicit-gradient-boundary.md)
 is Complete as the separate forward consumer after 0025H; Compiler 0006C remains separate Draft
@@ -2792,7 +2797,7 @@ authorized Compile API status correction.
 | 131 | [0025H NCDHW Conv3d semantics and Tensor expressions](modules/model/tasks/0025h-ncdhw-conv3d-semantics-and-tensor-expressions.md) | Complete |
 | 132 | [0025I NCW max/average Pool1d composition](modules/model/tasks/0025i-ncw-max-average-pool1d-composition.md) | Complete |
 | 133 | [0025J First-class NCDHW max/average Pool3d semantics](modules/model/tasks/0025j-first-class-ncdhw-max-average-pool3d-semantics.md) | Complete |
-| 134 | 0025K Public NCDHW unfold3d and fold3d window transforms | Draft (no detailed specification) |
+| 134 | [0025K Public NCDHW unfold3d and fold3d window transforms](modules/model/tasks/0025k-public-ncdhw-unfold3d-and-fold3d-window-transforms.md) | Complete |
 | 135 | 0026 IEEE FLOAT16 and mixed-precision semantic contracts | Draft (future interleave; no detailed specification) |
 
 Task dependencies in the model master plan remain hard prerequisites. The table order is the default execution order even when a later task has no explicit dependency on an earlier task.

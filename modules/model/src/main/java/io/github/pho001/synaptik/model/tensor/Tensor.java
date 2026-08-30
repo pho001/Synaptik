@@ -34,6 +34,7 @@ import io.github.pho001.synaptik.model.operation.layout.SliceKind;
 import io.github.pho001.synaptik.model.operation.layout.TensorCompositionKind;
 import io.github.pho001.synaptik.model.operation.layout.TileKind;
 import io.github.pho001.synaptik.model.operation.layout.Window2dAttrs;
+import io.github.pho001.synaptik.model.operation.layout.Window3dAttrs;
 import io.github.pho001.synaptik.model.operation.layout.WindowTransformKind;
 import io.github.pho001.synaptik.model.operation.linalg.MatmulKind;
 import io.github.pho001.synaptik.model.operation.loss.LossReduction;
@@ -6299,6 +6300,87 @@ public final class Tensor {
      */
     public Tensor fold2d(Shape outputShape, Window2dAttrs window) {
         return TensorWindowExpressions.fold2d(this, outputShape, window);
+    }
+
+    /**
+     * Creates canonical volumetric columns from this rank-five NCDHW tensor.
+     *
+     * <p>For each depth, height, and width dimension {@code X}, output positions are
+     * {@code floor((X + 2 * padding - effectiveKernel) / stride) + 1}, or the literal ceiling
+     * counterpart when ceil mode is selected, where
+     * {@code effectiveKernel = dilation * (kernel - 1) + 1}. The rank-three result Shape is
+     * {@code [N, C * kD * kH * kW, DOut * HOut * WOut]}. Channel is outermost in the middle
+     * coordinate, followed by kernel depth, height, and width; output depth, height, and width
+     * define the final coordinate, with width fastest in both groups.</p>
+     *
+     * <p>Samples outside the unpadded input are represented positive zero, including terminal
+     * literal-ceil positions. The input must be BFLOAT16, FLOAT32, or FLOAT64. The fresh result
+     * preserves type and gradient eligibility, has unresolved layout and no label or storage, and
+     * records exact one-input {@link WindowTransformKind#UNFOLD3D} provenance. Construction does
+     * not read values, materialize columns, define gradients, compile, lower, or execute.</p>
+     *
+     * @param window non-null immutable symmetric three-dimensional geometry retained by reference
+     * @return a non-null fresh rank-three canonical-column tensor with unresolved layout
+     * @throws NullPointerException if {@code window} is null, with message {@code window}
+     * @throws IllegalArgumentException if this tensor is not rank-five NCDHW or supported floating
+     *     type, or static geometry proves an effective kernel does not fit
+     * @throws ArithmeticException if checked geometry or symbolic canonicalization overflows
+     * @throws IllegalStateException if tensor identifier space is exhausted
+     */
+    public Tensor unfold3d(Window3dAttrs window) {
+        return TensorWindowExpressions.unfold3d(this, window);
+    }
+
+    /**
+     * Creates canonical NCDHW volumetric columns with an exact typed padding value.
+     *
+     * <p>Shape, geometry, and coordinate order match {@link #unfold3d(Window3dAttrs)}. Every
+     * out-of-domain sample uses {@code paddingValue}; its type must exactly match this tensor and
+     * its NaN, infinity, or signed-zero bits and object reference are retained without conversion.
+     * The fresh storage-free result records exact one-input UNFOLD3D provenance and no execution,
+     * gradient, compiler, or backend behavior.</p>
+     *
+     * @param window non-null immutable symmetric three-dimensional geometry retained by reference
+     * @param paddingValue non-null exact typed value for every out-of-domain sample, retained by
+     *     reference
+     * @return a non-null fresh rank-three canonical-column tensor with unresolved layout
+     * @throws NullPointerException if {@code window} or {@code paddingValue} is null, in that order
+     * @throws IllegalArgumentException if rank or floating type is unsupported, padding type does
+     *     not match, or static geometry proves an effective kernel does not fit
+     * @throws ArithmeticException if checked geometry or symbolic canonicalization overflows
+     * @throws IllegalStateException if tensor identifier space is exhausted
+     */
+    public Tensor unfold3d(Window3dAttrs window, ScalarValue paddingValue) {
+        return TensorWindowExpressions.unfold3d(this, window, paddingValue);
+    }
+
+    /**
+     * Overlap-accumulates canonical volumetric columns into an explicit NCDHW Shape.
+     *
+     * <p>This rank-three input must equal
+     * {@code [N, C * kD * kH * kW, DOut * HOut * WOut]} structurally for the supplied target and
+     * window. Unrelated unresolved symbols are rejected. Padded and terminal ceil-tail positions
+     * are excluded geometrically. Each target begins at represented positive zero and receives
+     * in-range contributions in canonical flattened input order. FLOAT64 and FLOAT32 use
+     * sequential addition in their own format; BFLOAT16 expands each accumulator and operand to
+     * FLOAT32 and narrows after every contribution. Fold never averages overlaps.</p>
+     *
+     * <p>The fresh result retains the exact target Shape, input type, and gradient eligibility,
+     * has unresolved layout and no label or storage, and records exact one-input
+     * {@link WindowTransformKind#FOLD3D} provenance. Construction records semantics only and does
+     * not inspect values, accumulate, define gradients, compile, lower, or execute.</p>
+     *
+     * @param outputShape non-null explicit rank-five NCDHW target retained by exact reference
+     * @param window non-null immutable symmetric three-dimensional geometry retained by reference
+     * @return a non-null fresh FOLD3D tensor with the exact output Shape and unresolved layout
+     * @throws NullPointerException if {@code outputShape} or {@code window} is null, in that order
+     * @throws IllegalArgumentException if ranks, supported floating type, batch, channel-kernel
+     *     dimension, flattened grid dimension, or statically provable geometry is incompatible
+     * @throws ArithmeticException if checked geometry or symbolic canonicalization overflows
+     * @throws IllegalStateException if tensor identifier space is exhausted
+     */
+    public Tensor fold3d(Shape outputShape, Window3dAttrs window) {
+        return TensorWindowExpressions.fold3d(this, outputShape, window);
     }
 
     /**

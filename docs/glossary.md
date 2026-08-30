@@ -2671,10 +2671,11 @@ The current source-backed first-order closure contains 37 operation-kind enum fa
 constants, and 128 exact signature fingerprints, including both `SLICE_UPDATE` attributes
 variants. Compiler forward verification covers 39 families, 111 constants, and 132 fingerprints:
 the supported closure plus recurrent RNN/GRU/LSTM and `CONV3D`. Current Model contains 40
-families, 113 constants, and 134 fingerprints after adding `MAX_POOL3D` and `AVERAGE_POOL3D`.
+families, 115 constants, and 137 fingerprints after adding `MAX_POOL3D`, `AVERAGE_POOL3D`,
+`UNFOLD3D`, and `FOLD3D` with the two exact unfold attribute variants.
 Complete task 0006B makes Conv3d a forward-only Compiler signature; Draft task 0006C separately
-owns its gradient closure. Draft 0006B1 owns Pool3d forward adoption, while Draft Model 0025K and
-Compiler 0006B2 own the prerequisite window algebra and exact gradients.
+owns its gradient closure. Draft 0006B1 owns Pool3d forward adoption, while current Model and
+Draft Compiler 0006B2 own the prerequisite window algebra and exact gradients respectively.
 Each supported legal output/input role is conditionally differentiable, intentionally
 non-differentiable, or fail-closed. A conditionally differentiable role becomes usable only after
 occurrence-local preflight proves its exact Shape, data type, cardinality, canonical-auxiliary,
@@ -5900,8 +5901,9 @@ A tensor or layout interpretation that aliases storage also used by another logi
 An implemented backend-independent sliding-window meaning represented by
 `WindowTransformKind`. The exact kind/attributes pairings are `UNFOLD_AXIS` with
 `UnfoldAxisAttrs`, `FOLD_AXIS` with `FoldAxisAttrs`, `UNFOLD2D` with direct `Window2dAttrs` or
-explicit-padding `Unfold2dAttrs`, and `FOLD2D` with `Fold2dAttrs`. Family signatures enforce all
-five pairings and declare one input and one output.
+explicit-padding `Unfold2dAttrs`, `FOLD2D` with `Fold2dAttrs`, `UNFOLD3D` with direct
+`Window3dAttrs` or explicit-padding `Unfold3dAttrs`, and `FOLD3D` with `Fold3dAttrs`. Family
+signatures enforce all eight pairings and declare one input and one output.
 
 General-axis unfold materializes windows along one normalized source axis without padding,
 dilation, or image assumptions. For static selected extent `D`, positive window `size`, and
@@ -5930,12 +5932,21 @@ Shape `[1, 1, 3, 3]` gives four contributions to the center and one to each corn
 channel and spatial Dimensions retain the same canonical rank-three form by using exact symbolic
 products for `C * kernelHeight * kernelWidth` and `outputHeight * outputWidth`.
 
+The three-dimensional forms use NCDHW axis order: batch, channel, depth, height, width. They place
+volumetric windows into canonical rank-three columns
+`[N, C * kD * kH * kW, DOut * HOut * WOut]`. The middle coordinate flattens channel, kernel
+depth, kernel height, then kernel width; the final coordinate flattens output depth, output height,
+then output width. Width changes fastest in both groups. This is the three-dimensional extension
+of im2col/col2im terminology; Synaptik uses **volumetric columns** in prose rather than inventing a
+new acronym.
+
 Stride is the positive distance between consecutive window starts. Dilation is the positive
 spacing between kernel samples. Symmetric padding is the same non-negative width on both sides of
 one spatial dimension. Direct `UNFOLD2D + Window2dAttrs` samples outside the source as conceptual
 positive zero. `UNFOLD2D + Unfold2dAttrs` instead uses its exact typed scalar for every symmetric
 padding sample and terminal ceil-grid sample beyond the padded extent, preserving raw floating
-bits. Effective kernel is the span after dilation. For each spatial dimension, current public
+bits. `UNFOLD3D` has the same direct-versus-typed distinction over all three spatial axes.
+Effective kernel is the span after dilation. For each spatial dimension, current public
 expression construction uses checked static or canonical symbolic arithmetic:
 
 ```text
@@ -5948,11 +5959,14 @@ output          = ceil(numerator / stride) + 1        in ceil mode
 The immutable attributes validate only intrinsic component signs and nullness. They retain valid
 values and exact immutable scalar/Shape/window references without calculating geometry or proving
 rank, axis bounds, fit, column compatibility, or arithmetic representability. Current public
-`unfold`, `foldAxis`, both `unfold2d` forms, and `fold2d` construction supplies input-aware local
-validation, exact Shape arithmetic, preserved data type and gradient eligibility, unresolved
-layout, and exact one-input provenance. `fold2d` requires complete structural equality with the
-canonical column formulas and rejects unrelated unresolved symbols rather than registering an
-equality constraint.
+`unfold`, `foldAxis`, both `unfold2d` and `unfold3d` forms, and `fold2d`/`fold3d` construction
+supplies input-aware local validation, exact Shape arithmetic, preserved data type and gradient
+eligibility, unresolved layout, and exact one-input provenance. Each fold requires complete
+structural equality with its canonical column formulas and rejects unrelated unresolved symbols
+rather than registering an equality constraint. A 3D fold excludes padded and terminal
+literal-ceil-tail coordinates geometrically, initializes the target to represented positive zero,
+and adds overlapping in-range contributions in canonical flattened column order. FLOAT64 and
+FLOAT32 use sequential same-format addition; BFLOAT16 narrows after every FLOAT32 addition.
 Gradient rules, compiler behavior, materialization, and ONNX behavior remain separately owned.
 The current CPU backend executes only the fully static resolved-layout overlap-fold subset
 described in [CPU overlap fold](#cpu-overlap-fold); this backend-specific coverage does not change
@@ -6022,8 +6036,8 @@ counting. BFLOAT16/FLOAT32 accumulation and division use FLOAT32, FLOAT64 uses F
 BFLOAT16 narrows once after the single final division.
 
 Current Model owns only geometry, numerical meaning, and canonical one-input provenance for
-`MAX_POOL3D` and `AVERAGE_POOL3D`. Draft Compiler 0006B1 owns forward adoption, Draft Model 0025K
-owns general three-dimensional window/fold algebra, Draft Compiler 0006B2 owns gradients, and
+`MAX_POOL3D` and `AVERAGE_POOL3D`. Draft Compiler 0006B1 owns forward adoption, current Model owns
+general three-dimensional `UNFOLD3D`/`FOLD3D` algebra, Draft Compiler 0006B2 owns gradients, and
 Draft CPU 0008G1 owns execution. No current graph capture, Compiler inference, gradient, backend
 support, execution, or materialized numerical result is implied. See
 [NCDHW Pool3d expressions](api/tensor-api.md#ncdhw-pool3d-expressions).

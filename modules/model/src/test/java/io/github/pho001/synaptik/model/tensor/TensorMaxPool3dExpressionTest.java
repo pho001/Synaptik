@@ -57,7 +57,7 @@ final class TensorMaxPool3dExpressionTest {
                 () -> assertEquals(List.of(MaxPool3dAttrs.class),
                         List.of(receivers.getFirst().getParameterTypes())),
                 () -> assertFalse(Modifier.isStatic(receivers.getFirst().getModifiers())),
-                () -> assertEquals(210, Arrays.stream(Tensor.class.getDeclaredMethods())
+                () -> assertEquals(213, Arrays.stream(Tensor.class.getDeclaredMethods())
                         .filter(method -> Modifier.isPublic(method.getModifiers())).count()));
     }
 

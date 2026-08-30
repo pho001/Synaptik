@@ -4,10 +4,13 @@ import io.github.pho001.synaptik.model.datatype.DataType;
 import io.github.pho001.synaptik.model.datatype.ScalarValue;
 import io.github.pho001.synaptik.model.operation.Operation;
 import io.github.pho001.synaptik.model.operation.layout.Fold2dAttrs;
+import io.github.pho001.synaptik.model.operation.layout.Fold3dAttrs;
 import io.github.pho001.synaptik.model.operation.layout.FoldAxisAttrs;
 import io.github.pho001.synaptik.model.operation.layout.UnfoldAxisAttrs;
 import io.github.pho001.synaptik.model.operation.layout.Unfold2dAttrs;
+import io.github.pho001.synaptik.model.operation.layout.Unfold3dAttrs;
 import io.github.pho001.synaptik.model.operation.layout.Window2dAttrs;
+import io.github.pho001.synaptik.model.operation.layout.Window3dAttrs;
 import io.github.pho001.synaptik.model.operation.layout.WindowTransformKind;
 import io.github.pho001.synaptik.model.shape.Dimension;
 import io.github.pho001.synaptik.model.shape.DimensionExpressions;
@@ -222,6 +225,96 @@ final class TensorWindowExpressions {
     }
 
     /**
+     * Creates canonical volumetric columns from one rank-five floating NCDHW tensor.
+     *
+     * @param input non-null exact sole provenance input
+     * @param window non-null exact depth-height-width geometry retained as operation attributes
+     * @return a fresh rank-three UNFOLD3D tensor with unresolved layout
+     * @throws NullPointerException if a reference is null, checked in parameter order
+     * @throws IllegalArgumentException if rank, type, or statically provable geometry is invalid
+     * @throws ArithmeticException if checked geometry or symbolic canonicalization overflows
+     */
+    static Tensor unfold3d(Tensor input, Window3dAttrs window) {
+        Objects.requireNonNull(input, "input");
+        Objects.requireNonNull(window, "window");
+        Shape inputShape = input.descriptor().shape();
+        if (inputShape.rank() != 5) {
+            throw new IllegalArgumentException("unfold3d requires rank-5 NCDHW input");
+        }
+        validateFloating(input.descriptor().dataType(), "unfold3d");
+        Shape resultShape = unfold3dShape(inputShape, window);
+        Operation operation = new Operation(WindowTransformKind.UNFOLD3D, window);
+        return create(input, resultShape, operation);
+    }
+
+    /**
+     * Creates canonical volumetric columns with one exact typed out-of-domain sample value.
+     *
+     * @param input non-null exact sole provenance input
+     * @param window non-null exact depth-height-width geometry retained by reference
+     * @param paddingValue non-null exact typed padding value retained by reference
+     * @return a fresh rank-three UNFOLD3D tensor with unresolved layout
+     * @throws NullPointerException if a reference is null, checked in parameter order
+     * @throws IllegalArgumentException if rank, type, padding type, or static geometry is invalid
+     * @throws ArithmeticException if checked geometry or symbolic canonicalization overflows
+     */
+    static Tensor unfold3d(
+            Tensor input, Window3dAttrs window, ScalarValue paddingValue) {
+        Objects.requireNonNull(input, "input");
+        Objects.requireNonNull(window, "window");
+        Objects.requireNonNull(paddingValue, "paddingValue");
+        Shape inputShape = input.descriptor().shape();
+        if (inputShape.rank() != 5) {
+            throw new IllegalArgumentException("unfold3d requires rank-5 NCDHW input");
+        }
+        DataType inputDataType = input.descriptor().dataType();
+        validateFloating(inputDataType, "unfold3d");
+        if (paddingValue.dataType() != inputDataType) {
+            throw new IllegalArgumentException(
+                    "unfold3d paddingValue data type must match input data type: paddingValue="
+                            + paddingValue.dataType() + ", input=" + inputDataType);
+        }
+        Shape resultShape = unfold3dShape(inputShape, window);
+        Unfold3dAttrs attrs = new Unfold3dAttrs(window, paddingValue);
+        Operation operation = new Operation(WindowTransformKind.UNFOLD3D, attrs);
+        return create(input, resultShape, operation);
+    }
+
+    /**
+     * Validates canonical volumetric columns and creates exact NCDHW fold metadata.
+     *
+     * @param input non-null rank-three floating canonical-column Tensor
+     * @param outputShape non-null explicit rank-five NCDHW result Shape retained by reference
+     * @param window non-null exact depth-height-width geometry retained by reference
+     * @return a fresh FOLD3D tensor retaining the exact output Shape with unresolved layout
+     * @throws NullPointerException if a reference is null, checked in parameter order
+     * @throws IllegalArgumentException if rank, type, batch, geometry, or structural column
+     *     compatibility is invalid
+     * @throws ArithmeticException if checked geometry or symbolic canonicalization overflows
+     */
+    static Tensor fold3d(Tensor input, Shape outputShape, Window3dAttrs window) {
+        Objects.requireNonNull(input, "input");
+        Objects.requireNonNull(outputShape, "outputShape");
+        Objects.requireNonNull(window, "window");
+        Shape inputShape = input.descriptor().shape();
+        if (inputShape.rank() != 3) {
+            throw new IllegalArgumentException("fold3d requires rank-3 canonical column input");
+        }
+        if (outputShape.rank() != 5) {
+            throw new IllegalArgumentException("fold3d outputShape must be rank-5 NCDHW");
+        }
+        validateFloating(input.descriptor().dataType(), "fold3d");
+        if (!inputShape.dimensions().get(0).equals(outputShape.dimensions().get(0))) {
+            throw new IllegalArgumentException(
+                    "fold3d output batch dimension must match column batch dimension");
+        }
+        validateFold3dShape(inputShape, outputShape, window);
+        Fold3dAttrs attrs = new Fold3dAttrs(outputShape, window);
+        Operation operation = new Operation(WindowTransformKind.FOLD3D, attrs);
+        return create(input, outputShape, operation);
+    }
+
+    /**
      * Requires a floating or integral input type for overlap-summing folding.
      *
      * @param dataType non-null exact input data type
@@ -421,6 +514,88 @@ final class TensorWindowExpressions {
         if (!actualWindowCount.equals(expectedWindowCount)) {
             throw new IllegalArgumentException(
                     "fold2d column count " + dimensionDiagnostic(actualWindowCount)
+                            + " does not match output shape and window geometry: expected="
+                            + dimensionDiagnostic(expectedWindowCount));
+        }
+    }
+
+    /**
+     * Calculates canonical rank-three columns for rank-five NCDHW input.
+     *
+     * @param inputShape non-null validated rank-five input Shape
+     * @param window non-null validated intrinsic window geometry
+     * @return non-null canonical rank-three column Shape retaining the exact batch Dimension
+     * @throws IllegalArgumentException if a static effective kernel does not fit
+     * @throws ArithmeticException if checked geometry or symbolic canonicalization overflows
+     */
+    private static Shape unfold3dShape(Shape inputShape, Window3dAttrs window) {
+        Dimension depth = windowOutputDimension(
+                inputShape.dimensions().get(2), window.kernelDepth(), window.paddingDepth(),
+                window.strideDepth(), window.dilationDepth(), window.ceilMode(),
+                "unfold3d", "depth");
+        Dimension height = windowOutputDimension(
+                inputShape.dimensions().get(3), window.kernelHeight(), window.paddingHeight(),
+                window.strideHeight(), window.dilationHeight(), window.ceilMode(),
+                "unfold3d", "height");
+        Dimension width = windowOutputDimension(
+                inputShape.dimensions().get(4), window.kernelWidth(), window.paddingWidth(),
+                window.strideWidth(), window.dilationWidth(), window.ceilMode(),
+                "unfold3d", "width");
+        Dimension channelWindows = DimensionExpressions.multiply(
+                DimensionExpressions.multiply(
+                        DimensionExpressions.multiply(
+                                inputShape.dimensions().get(1), window.kernelDepth()),
+                        window.kernelHeight()),
+                window.kernelWidth());
+        Dimension windowCount = DimensionExpressions.multiply(
+                DimensionExpressions.multiply(depth, height), width);
+        return Shape.ofDimensions(
+                inputShape.dimensions().get(0), channelWindows, windowCount);
+    }
+
+    /**
+     * Validates canonical columns against exact static or symbolic NCDHW target geometry.
+     *
+     * @param inputShape non-null validated rank-three columns whose batch already matches
+     * @param outputShape non-null validated rank-five NCDHW target
+     * @param window non-null validated intrinsic window geometry
+     * @throws IllegalArgumentException if channel, grid, or static effective-kernel fit fails
+     * @throws ArithmeticException if checked geometry or symbolic canonicalization overflows
+     */
+    private static void validateFold3dShape(
+            Shape inputShape, Shape outputShape, Window3dAttrs window) {
+        Dimension actualChannelWindows = inputShape.dimensions().get(1);
+        Dimension expectedChannelWindows = DimensionExpressions.multiply(
+                DimensionExpressions.multiply(
+                        DimensionExpressions.multiply(
+                                outputShape.dimensions().get(1), window.kernelDepth()),
+                        window.kernelHeight()),
+                window.kernelWidth());
+        if (!actualChannelWindows.equals(expectedChannelWindows)) {
+            throw new IllegalArgumentException(
+                    "fold3d column-channel dimension "
+                            + dimensionDiagnostic(actualChannelWindows)
+                            + " does not match output channels and kernel geometry: expected="
+                            + dimensionDiagnostic(expectedChannelWindows));
+        }
+        Dimension depth = windowOutputDimension(
+                outputShape.dimensions().get(2), window.kernelDepth(), window.paddingDepth(),
+                window.strideDepth(), window.dilationDepth(), window.ceilMode(),
+                "fold3d", "depth");
+        Dimension height = windowOutputDimension(
+                outputShape.dimensions().get(3), window.kernelHeight(), window.paddingHeight(),
+                window.strideHeight(), window.dilationHeight(), window.ceilMode(),
+                "fold3d", "height");
+        Dimension width = windowOutputDimension(
+                outputShape.dimensions().get(4), window.kernelWidth(), window.paddingWidth(),
+                window.strideWidth(), window.dilationWidth(), window.ceilMode(),
+                "fold3d", "width");
+        Dimension expectedWindowCount = DimensionExpressions.multiply(
+                DimensionExpressions.multiply(depth, height), width);
+        Dimension actualWindowCount = inputShape.dimensions().get(2);
+        if (!actualWindowCount.equals(expectedWindowCount)) {
+            throw new IllegalArgumentException(
+                    "fold3d column count " + dimensionDiagnostic(actualWindowCount)
                             + " does not match output shape and window geometry: expected="
                             + dimensionDiagnostic(expectedWindowCount));
         }

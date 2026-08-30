@@ -13,10 +13,13 @@ import io.github.pho001.synaptik.model.datatype.DataType;
 import io.github.pho001.synaptik.model.datatype.ScalarValue;
 import io.github.pho001.synaptik.model.layout.LayoutDescriptor;
 import io.github.pho001.synaptik.model.operation.layout.Fold2dAttrs;
+import io.github.pho001.synaptik.model.operation.layout.Fold3dAttrs;
 import io.github.pho001.synaptik.model.operation.layout.FoldAxisAttrs;
 import io.github.pho001.synaptik.model.operation.layout.Unfold2dAttrs;
+import io.github.pho001.synaptik.model.operation.layout.Unfold3dAttrs;
 import io.github.pho001.synaptik.model.operation.layout.UnfoldAxisAttrs;
 import io.github.pho001.synaptik.model.operation.layout.Window2dAttrs;
+import io.github.pho001.synaptik.model.operation.layout.Window3dAttrs;
 import io.github.pho001.synaptik.model.operation.layout.WindowTransformKind;
 import io.github.pho001.synaptik.model.shape.DynamicDimension;
 import io.github.pho001.synaptik.model.shape.Dimension;
@@ -59,6 +62,7 @@ class TensorWindowExpressionTest {
                                 "create(io.github.pho001.synaptik.model.tensor.Tensor,io.github.pho001.synaptik.model.shape.Shape,io.github.pho001.synaptik.model.operation.Operation):io.github.pho001.synaptik.model.tensor.Tensor",
                                 "dimensionDiagnostic(io.github.pho001.synaptik.model.shape.Dimension):java.lang.String",
                                 "fold2d(io.github.pho001.synaptik.model.tensor.Tensor,io.github.pho001.synaptik.model.shape.Shape,io.github.pho001.synaptik.model.operation.layout.Window2dAttrs):io.github.pho001.synaptik.model.tensor.Tensor",
+                                "fold3d(io.github.pho001.synaptik.model.tensor.Tensor,io.github.pho001.synaptik.model.shape.Shape,io.github.pho001.synaptik.model.operation.layout.Window3dAttrs):io.github.pho001.synaptik.model.tensor.Tensor",
                                 "foldAxis(io.github.pho001.synaptik.model.tensor.Tensor,int,long,long):io.github.pho001.synaptik.model.tensor.Tensor",
                                 "foldAxisShape(io.github.pho001.synaptik.model.shape.Shape,io.github.pho001.synaptik.model.operation.layout.FoldAxisAttrs):io.github.pho001.synaptik.model.shape.Shape",
                                 "normalizeAxis(int,int):int",
@@ -66,10 +70,14 @@ class TensorWindowExpressionTest {
                                 "unfold2d(io.github.pho001.synaptik.model.tensor.Tensor,io.github.pho001.synaptik.model.operation.layout.Window2dAttrs):io.github.pho001.synaptik.model.tensor.Tensor",
                                 "unfold2d(io.github.pho001.synaptik.model.tensor.Tensor,io.github.pho001.synaptik.model.operation.layout.Window2dAttrs,io.github.pho001.synaptik.model.datatype.ScalarValue):io.github.pho001.synaptik.model.tensor.Tensor",
                                 "unfold2dShape(io.github.pho001.synaptik.model.shape.Shape,io.github.pho001.synaptik.model.operation.layout.Window2dAttrs):io.github.pho001.synaptik.model.shape.Shape",
+                                "unfold3d(io.github.pho001.synaptik.model.tensor.Tensor,io.github.pho001.synaptik.model.operation.layout.Window3dAttrs):io.github.pho001.synaptik.model.tensor.Tensor",
+                                "unfold3d(io.github.pho001.synaptik.model.tensor.Tensor,io.github.pho001.synaptik.model.operation.layout.Window3dAttrs,io.github.pho001.synaptik.model.datatype.ScalarValue):io.github.pho001.synaptik.model.tensor.Tensor",
+                                "unfold3dShape(io.github.pho001.synaptik.model.shape.Shape,io.github.pho001.synaptik.model.operation.layout.Window3dAttrs):io.github.pho001.synaptik.model.shape.Shape",
                                 "unfoldAxis(io.github.pho001.synaptik.model.tensor.Tensor,int,long,long):io.github.pho001.synaptik.model.tensor.Tensor",
                                 "unfoldAxisShape(io.github.pho001.synaptik.model.shape.Shape,io.github.pho001.synaptik.model.operation.layout.UnfoldAxisAttrs):io.github.pho001.synaptik.model.shape.Shape",
                                 "validateFloating(io.github.pho001.synaptik.model.datatype.DataType,java.lang.String):void",
                                 "validateFold2dShape(io.github.pho001.synaptik.model.shape.Shape,io.github.pho001.synaptik.model.shape.Shape,io.github.pho001.synaptik.model.operation.layout.Window2dAttrs):void",
+                                "validateFold3dShape(io.github.pho001.synaptik.model.shape.Shape,io.github.pho001.synaptik.model.shape.Shape,io.github.pho001.synaptik.model.operation.layout.Window3dAttrs):void",
                                 "validateNumeric(io.github.pho001.synaptik.model.datatype.DataType,java.lang.String):void",
                                 "windowOutputDimension(io.github.pho001.synaptik.model.shape.Dimension,long,long,long,long,boolean,java.lang.String,java.lang.String):io.github.pho001.synaptik.model.shape.Dimension",
                                 "windowOutputSize(long,long,long,long,long,boolean,java.lang.String,java.lang.String):long"),
@@ -83,7 +91,11 @@ class TensorWindowExpressionTest {
                 () -> assertEquals(Tensor.class, Tensor.class.getDeclaredMethod(
                         "foldAxis", int.class, long.class, long.class).getReturnType()),
                 () -> assertEquals(Tensor.class, Tensor.class.getDeclaredMethod(
-                        "unfold2d", Window2dAttrs.class, ScalarValue.class).getReturnType()));
+                        "unfold2d", Window2dAttrs.class, ScalarValue.class).getReturnType()),
+                () -> assertEquals(Tensor.class, Tensor.class.getDeclaredMethod(
+                        "unfold3d", Window3dAttrs.class, ScalarValue.class).getReturnType()),
+                () -> assertEquals(Tensor.class, Tensor.class.getDeclaredMethod(
+                        "fold3d", Shape.class, Window3dAttrs.class).getReturnType()));
     }
 
     @Test
@@ -669,6 +681,140 @@ class TensorWindowExpressionTest {
     }
 
     @Test
+    void unfold3dDerivesStaticAndCanonicalSymbolicDepthHeightWidthColumns() {
+        DynamicDimension batch = new DynamicDimension("N3");
+        DynamicDimension channels = new DynamicDimension("C3");
+        DynamicDimension depth = new DynamicDimension("D3");
+        DynamicDimension height = new DynamicDimension("H3");
+        DynamicDimension width = new DynamicDimension("W3");
+        Tensor dynamic = tensor(DataType.FLOAT64,
+                Shape.ofDimensions(batch, channels, depth, height, width),
+                Optional.empty(), true);
+        Window3dAttrs floor = window3d(2, 3, 4, 2, 2, 3, 1, 1, 2, 1, 1, 1, false);
+        Window3dAttrs ceil = window3d(2, 2, 2, 2, 2, 2, 1, 1, 1, 2, 2, 2, true);
+
+        Tensor floorResult = dynamic.unfold3d(floor);
+        Tensor ceilResult = tensor(DataType.FLOAT32, Shape.of(1, 2, 3, 3, 3),
+                Optional.empty(), true).unfold3d(ceil);
+        Dimension expectedChannels = DimensionExpressions.multiply(
+                DimensionExpressions.multiply(
+                        DimensionExpressions.multiply(channels, 2), 3), 4);
+        Dimension expectedDepth = DimensionExpressions.addConstant(
+                DimensionExpressions.floorDivide(
+                        depth, 2), 1);
+        Dimension expectedHeight = DimensionExpressions.addConstant(
+                DimensionExpressions.floorDivide(
+                        DimensionExpressions.addConstant(height, -1), 2), 1);
+        Dimension expectedWidth = DimensionExpressions.addConstant(
+                DimensionExpressions.floorDivide(
+                        width, 3), 1);
+
+        assertAll(
+                () -> assertSame(batch, floorResult.descriptor().shape().dimensions().get(0)),
+                () -> assertEquals(expectedChannels,
+                        floorResult.descriptor().shape().dimensions().get(1)),
+                () -> assertEquals(DimensionExpressions.multiply(
+                                DimensionExpressions.multiply(expectedDepth, expectedHeight),
+                                expectedWidth),
+                        floorResult.descriptor().shape().dimensions().get(2)),
+                () -> assertEquals(Shape.of(1, 16, 8), ceilResult.descriptor().shape()),
+                () -> assertSame(floor,
+                        floorResult.provenance().orElseThrow().operation().attrs()),
+                () -> assertSame(WindowTransformKind.UNFOLD3D,
+                        floorResult.provenance().orElseThrow().operation().kind()));
+    }
+
+    @Test
+    void unfold3dAcceptsExactlyFloatingTypesAndRetainsExactTypedPadding() {
+        Window3dAttrs window = window3d(1, 1, 1, 1, 1, 1, 0, 0, 0, 1, 1, 1, false);
+        for (DataType dataType : DataType.values()) {
+            Tensor input = tensor(dataType, Shape.of(1, 2, 3, 4, 5), Optional.empty(),
+                    dataType.isDifferentiable());
+            if (dataType.isFloating()) {
+                Tensor result = input.unfold3d(window);
+                assertEquals(Shape.of(1, 2, 60), result.descriptor().shape());
+            } else {
+                IllegalArgumentException failure = assertThrows(
+                        IllegalArgumentException.class, () -> input.unfold3d(window));
+                assertEquals("unfold3d requires floating input: " + dataType,
+                        failure.getMessage());
+            }
+        }
+        ScalarValue padding = ScalarValue.bfloat16Bits((short) 0xFF80);
+        Tensor input = tensor(DataType.BFLOAT16, Shape.of(1, 1, 2, 2, 2), Optional.empty(), true);
+        Tensor result = input.unfold3d(window, padding);
+        Unfold3dAttrs attrs = (Unfold3dAttrs) result.provenance().orElseThrow().operation().attrs();
+        assertAll(
+                () -> assertSame(window, attrs.window()),
+                () -> assertSame(padding, attrs.paddingValue()),
+                () -> assertEquals(List.of(input), result.provenance().orElseThrow().inputs()),
+                () -> assertEquals(0, result.provenance().orElseThrow().outputIndex()),
+                () -> assertSame(result,
+                        result.provenance().orElseThrow().producer().output(0)));
+    }
+
+    @Test
+    void fold3dRequiresExactCanonicalColumnsAndRetainsTargetAndProvenance() {
+        DynamicDimension batch = new DynamicDimension("foldN");
+        Shape output = Shape.ofDimensions(batch, new DynamicDimension("foldC"),
+                new DynamicDimension("foldD"), new DynamicDimension("foldH"),
+                new DynamicDimension("foldW"));
+        Window3dAttrs window = window3d(2, 2, 2, 1, 1, 1, 0, 0, 0, 1, 1, 1, false);
+        Tensor image = tensor(DataType.FLOAT32, output, Optional.empty(), true);
+        Tensor columns = image.unfold3d(window);
+        Tensor result = columns.fold3d(output, window);
+        Fold3dAttrs attrs = (Fold3dAttrs) result.provenance().orElseThrow().operation().attrs();
+        Tensor unrelated = tensor(DataType.FLOAT32,
+                Shape.ofDimensions(batch, new DynamicDimension("otherChannels"),
+                        columns.descriptor().shape().dimensions().get(2)),
+                Optional.empty(), true);
+        IllegalArgumentException mismatch = assertThrows(IllegalArgumentException.class,
+                () -> unrelated.fold3d(output, window));
+
+        assertAll(
+                () -> assertSame(output, result.descriptor().shape()),
+                () -> assertSame(output, attrs.outputShape()),
+                () -> assertSame(window, attrs.window()),
+                () -> assertSame(WindowTransformKind.FOLD3D,
+                        result.provenance().orElseThrow().operation().kind()),
+                () -> assertEquals(List.of(columns), result.provenance().orElseThrow().inputs()),
+                () -> assertTrue(result.descriptor().layout().isEmpty()),
+                () -> assertTrue(result.hostStorage().isEmpty()),
+                () -> assertTrue(mismatch.getMessage().startsWith(
+                        "fold3d column-channel dimension ")));
+    }
+
+    @Test
+    void unfold3dAndFold3dRejectInExactOrderBeforeIdentityAllocation() throws Exception {
+        Window3dAttrs window = window3d(2, 2, 2, 1, 1, 1, 0, 0, 0, 1, 1, 1, false);
+        Tensor ordinary = tensor(DataType.FLOAT32, Shape.of(1, 1, 3, 3, 3), Optional.empty(), true);
+        Tensor rankFour = tensor(DataType.INT32, Shape.of(1, 1, 1, 1), Optional.empty(), false);
+        Tensor integral = tensor(DataType.INT32, Shape.of(1, 1, 1, 1, 1), Optional.empty(), false);
+        Tensor columns = tensor(DataType.FLOAT32, Shape.of(1, 8, 8), Optional.empty(), true);
+        AtomicLong next = nextTensorIdState();
+        long before = next.get();
+
+        assertEquals("input", assertThrows(NullPointerException.class,
+                () -> TensorWindowExpressions.unfold3d(null, null)).getMessage());
+        assertEquals("window", assertThrows(NullPointerException.class,
+                () -> ordinary.unfold3d(null)).getMessage());
+        assertEquals("unfold3d requires rank-5 NCDHW input", assertThrows(
+                IllegalArgumentException.class, () -> rankFour.unfold3d(window)).getMessage());
+        assertEquals("unfold3d requires floating input: INT32", assertThrows(
+                IllegalArgumentException.class, () -> integral.unfold3d(window)).getMessage());
+        assertEquals(
+                "unfold3d paddingValue data type must match input data type: paddingValue=FLOAT64, input=FLOAT32",
+                assertThrows(IllegalArgumentException.class,
+                        () -> ordinary.unfold3d(window, ScalarValue.float64(0))).getMessage());
+        assertEquals("fold3d outputShape must be rank-5 NCDHW", assertThrows(
+                IllegalArgumentException.class,
+                () -> columns.fold3d(Shape.scalar(), window)).getMessage());
+        assertEquals(before, next.get());
+        ordinary.unfold3d(window);
+        assertEquals(before + 1, next.get());
+    }
+
+    @Test
     void repeatedRequestsAreFreshAndInputStorageAndMetadataRemainUntouched() {
         Shape shape = Shape.of(1, 1, 3, 3);
         LayoutDescriptor layout = LayoutDescriptor.contiguous(shape);
@@ -746,6 +892,20 @@ class TensorWindowExpressionTest {
                 paddingWidth,
                 dilationHeight,
                 dilationWidth,
+                ceilMode);
+    }
+
+    private static Window3dAttrs window3d(
+            long kernelDepth, long kernelHeight, long kernelWidth,
+            long strideDepth, long strideHeight, long strideWidth,
+            long paddingDepth, long paddingHeight, long paddingWidth,
+            long dilationDepth, long dilationHeight, long dilationWidth,
+            boolean ceilMode) {
+        return new Window3dAttrs(
+                kernelDepth, kernelHeight, kernelWidth,
+                strideDepth, strideHeight, strideWidth,
+                paddingDepth, paddingHeight, paddingWidth,
+                dilationDepth, dilationHeight, dilationWidth,
                 ceilMode);
     }
 

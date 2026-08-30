@@ -257,10 +257,11 @@ Shape validation, result metadata, and ordered provenance. Index bounds, `NONE` 
 detection, gradients, compiler behavior, backend behavior, and execution remain planned or
 separately owned.
 
-`WindowTransformKind.UNFOLD_AXIS`, `FOLD_AXIS`, `UNFOLD2D`, and `FOLD2D` are current semantic
-identities with normalized immutable window attributes. Public `Tensor.unfold`, `foldAxis`, both
-`unfold2d` variants, and `fold2d` own their input-aware Shape and compatibility checks, checked
-static or canonical symbolic arithmetic, unresolved result layout, and exact one-input provenance.
+`WindowTransformKind.UNFOLD_AXIS`, `FOLD_AXIS`, `UNFOLD2D`, `FOLD2D`, `UNFOLD3D`, and `FOLD3D`
+are current semantic identities with normalized immutable window attributes. Public
+`Tensor.unfold`, `foldAxis`, both `unfold2d` and `unfold3d` variants, and `fold2d`/`fold3d` own
+their input-aware Shape and compatibility checks, checked static or canonical symbolic
+arithmetic, unresolved result layout, and exact one-input provenance.
 These contracts describe materialized windows or overlap-summing
 scatter-add without reading values, attaching storage, capturing a graph, generating gradients,
 or executing.
@@ -7264,7 +7265,9 @@ inspection. Unstack rejects an invalid axis, dynamic selected extent, or count a
 without consuming an identifier.
 ### Window-transform expressions
 
-The current public API constructs five storage-free sliding-window expressions:
+The current public API constructs eight storage-free sliding-window expressions. The public
+`Tensor` class has exactly 213 declared public methods after adding the three rank-specific 3D
+receivers:
 
 ```java
 tensor.unfold(int axis, long size, long step)
@@ -7272,6 +7275,9 @@ tensor.foldAxis(int axis, long outputSize, long step)
 tensor.unfold2d(Window2dAttrs window)
 tensor.unfold2d(Window2dAttrs window, ScalarValue paddingValue)
 tensor.fold2d(Shape outputShape, Window2dAttrs window)
+tensor.unfold3d(Window3dAttrs window)
+tensor.unfold3d(Window3dAttrs window, ScalarValue paddingValue)
+tensor.fold3d(Shape outputShape, Window3dAttrs window)
 ```
 
 `unfold` requires rank at least one and normalizes its raw axis against the input rank. The selected
@@ -7329,11 +7335,81 @@ Conceptual `[1, 1, 3, 3]` input with a 2-by-2 kernel, unit stride and dilation, 
 padding, and floor mode unfolds to `[1, 4, 4]`. Folding compatible columns to `[1, 1, 3, 3]`
 scatter-adds four contributions at the center and one at each corner, without overlap averaging.
 
+The 3D forms extend the same algebra to rank-five NCDHW input `[N, C, D, H, W]`. They accept
+BFLOAT16, FLOAT32, or FLOAT64 only. For each depth, height, and width axis they use the same
+literal floor-or-ceiling formula above, deriving depth first, then height, then width. They do not
+drop a terminal literal-ceil window even when every sampled coordinate lies outside the unpadded
+input. `unfold3d` always returns the canonical rank-three Shape:
+
+```text
+[N, C * kD * kH * kW, DOut * HOut * WOut]
+```
+
+For output-grid coordinate `(od, oh, ow)` and kernel coordinate `(kd, kh, kw)`, the logical input
+coordinate and two flattened column coordinates are:
+
+```text
+id = od * strideDepth  - paddingDepth  + kd * dilationDepth
+ih = oh * strideHeight - paddingHeight + kh * dilationHeight
+iw = ow * strideWidth  - paddingWidth  + kw * dilationWidth
+
+q = (((c * kD + kd) * kH + kh) * kW + kw)
+p = ((od * HOut + oh) * WOut + ow)
+column = [n, q, p]
+```
+
+| Flattened coordinate | Outermost to fastest-changing component | Meaning |
+|---|---|---|
+| `q` | channel, kernel depth, kernel height, kernel width | selects one channel/kernel position |
+| `p` | output depth, output height, output width | selects one spatial window position |
+
+This ordering is structural Model metadata. It fixes the later interpretation of columns but does
+not promise a physical storage traversal or backend algorithm.
+
+For direct `unfold3d(window)`, every out-of-range `(id, ih, iw)` sample is exact represented
+positive zero. The typed overload instead retains and uses the exact same-typed `ScalarValue`, so
+`ScalarValue.float32(Float.NEGATIVE_INFINITY)` can describe maximum-reconstruction padding
+without adding a pooling-specific operation. The scalar's reference and represented bits are
+retained; no conversion occurs.
+
+`fold3d(outputShape, window)` requires rank-three columns whose batch, complete channel-kernel
+Dimension, and complete flattened-grid Dimension are structurally equal to the formulas for the
+explicit rank-five NCDHW target. The result retains the exact supplied `Shape` reference.
+Out-of-range padded and literal-ceil-tail coordinates are excluded geometrically, regardless of
+the column value. Each target starts at represented positive zero, and in-range contributions are
+added in increasing `[n, q, p]` order. FLOAT64 and FLOAT32 add sequentially in their own format.
+BFLOAT16 expands the accumulator and next operand to FLOAT32, adds once, and narrows after every
+logical contribution. Fold neither averages overlaps nor compares values with a padding scalar.
+
+As a small overlap example, a one-channel `[1, 1, 3, 3, 3]` target with a 2-by-2-by-2 kernel,
+unit stride/dilation, zero padding, and floor mode has columns Shape `[1, 8, 8]`. The center target
+coordinate belongs to all eight windows, while each corner belongs to one. `fold3d` therefore
+adds eight distinct column contributions at the center and one at each corner. This describes the
+eventual value semantics; Model construction itself performs no addition.
+
+For unresolved input `[N, C, D, H, W]`, a 2-by-3-by-4 kernel, stride `(2, 2, 3)`, padding
+`(1, 1, 2)`, unit dilation, and floor mode produces:
+
+```text
+[N,
+ ((C * 2) * 3) * 4,
+ ((floor(D / 2) + 1) * (floor((H - 1) / 2) + 1)) * (floor(W / 3) + 1)]
+```
+
+The exact `N` Dimension reference is retained. These canonical expressions describe unresolved
+metadata; they do not bind the symbols or discharge the later non-negative-numerator obligation.
+
 All results preserve the exact input data type and gradient-eligibility flag, use unresolved
 layout, record the matching normalized attributes and exact `[input]` provenance, and receive a
 fresh unlabeled identity. They do not inspect input layout, label, provenance, storage, or values;
 attach or allocate storage; materialize windows; accumulate overlaps; create a gradient rule;
 capture a graph; lower to a backend; or execute.
+
+Current Model owns `UNFOLD3D`/`FOLD3D` algebra and public metadata construction only. Draft
+Compiler 0006B1 owns Pool3d forward adoption and its initial fail-closed backward boundary. Draft
+Compiler 0006B2 owns Pool3d gradient construction through these transforms, and Draft CPU 0008G1
+owns generated execution. No current Compiler capture, inference, derivative rule, backend
+capability, Runtime behavior, or materialized result follows from constructing either transform.
 
 #### Complete window-transform expression example
 
@@ -8612,7 +8688,7 @@ result retains the exact input type, batch/channel Dimension references, and gra
 metadata. Provenance retains the exact supplied attributes reference, ordered input `[input]`,
 output index zero, and the canonical `producer.output(0)` wrapper. The example proves those
 current Model facts only. Draft Compiler 0006B1 owns forward capture/inference adoption and must
-initially reject backward-capable requests before derivative allocation. Draft Model 0025K owns
+initially reject backward-capable requests before derivative allocation. Current Model owns
 general `unfold3d`/`fold3d` algebra, Draft Compiler 0006B2 owns exact gradients after it, and Draft
 CPU 0008G1 owns execution. No current backend support, graph capture, gradient, execution, or
 materialized numeric result follows from this Model API.
@@ -10061,7 +10137,8 @@ from axis scatter, whose indices address one selected axis rather than multi-axi
 
 The public enum
 `io.github.pho001.synaptik.model.operation.layout.WindowTransformKind` implements `OperationKind`
-with exactly `UNFOLD_AXIS`, `FOLD_AXIS`, `UNFOLD2D`, and `FOLD2D`, in that order. These
+with exactly `UNFOLD_AXIS`, `FOLD_AXIS`, `UNFOLD2D`, `FOLD2D`, `UNFOLD3D`, and `FOLD3D`, in that
+order. These
 backend-independent meanings materialize sliding windows or scatter-add window contributions;
 they do not construct Tensors, calculate result Shapes, or execute values.
 
@@ -10071,6 +10148,8 @@ they do not construct Tensors, calculate result Shapes, or execute values.
 | `FOLD_AXIS` | Interpret the eventual input's final dimension as window size, remove it, and scatter-add windows along one normalized target axis with an explicit restored extent. | `FoldAxisAttrs` |
 | `UNFOLD2D` | Convert one conceptual rank-four NCHW image tensor to canonical rank-three im2col columns, using direct positive-zero or explicit exact typed padding. | `Window2dAttrs` or `Unfold2dAttrs` |
 | `FOLD2D` | Accumulate canonical rank-three columns through col2im into one explicit rank-four NCHW result Shape. | `Fold2dAttrs` |
+| `UNFOLD3D` | Convert one conceptual rank-five NCDHW volume to canonical rank-three volumetric columns, using direct positive-zero or explicit exact typed padding. | `Window3dAttrs` or `Unfold3dAttrs` |
+| `FOLD3D` | Accumulate canonical rank-three volumetric columns into one explicit rank-five NCDHW result Shape. | `Fold3dAttrs` |
 
 NCHW orders axes as batch, channel, height, and width. Im2col places sampled image windows into
 columns; col2im scatters those column entries back to image coordinates and adds entries that
@@ -10208,8 +10287,14 @@ columns to compare. Current public `fold2d` construction establishes rank-four N
 static-or-symbolic structural compatibility before constructing a fold expression. Unrelated
 symbols are rejected rather than registered as equality constraints.
 
-Family signatures enforce the five exact attributes pairings and declare one input and one output;
-`UNFOLD2D` lists direct `Window2dAttrs` first and `Unfold2dAttrs` second.
+The 3D records follow the same structural boundary. `Window3dAttrs` contains depth-height-width
+kernel, stride, symmetric padding, dilation, and literal-ceil selection in that order.
+`Unfold3dAttrs` retains the exact window and typed padding references. `Fold3dAttrs` retains the
+exact NCDHW target Shape and window references. They perform no input-aware rank, type, fit,
+product, column-compatibility, or arithmetic validation.
+
+Family signatures enforce the eight exact attributes pairings and declare one input and one
+output; each unfold kind lists direct window attributes before explicit-padding attributes.
 The semantic values themselves define no Tensor construction,
 result-data-type rules, resolved layout, storage, provenance, gradients, graph/compiler behavior,
 planning, prepare, runtime, backend or ONNX behavior, materialization, or execution. The current

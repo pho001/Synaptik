@@ -20,6 +20,7 @@ import io.github.pho001.synaptik.model.operation.NoOperationAttrs;
 import io.github.pho001.synaptik.model.operation.index.ScatterReduction;
 import io.github.pho001.synaptik.model.operation.reduction.ArgExtremaTiePolicy;
 import io.github.pho001.synaptik.model.operation.layout.Window2dAttrs;
+import io.github.pho001.synaptik.model.operation.layout.Window3dAttrs;
 import io.github.pho001.synaptik.model.operation.Operation;
 import io.github.pho001.synaptik.model.operation.OperationKind;
 import io.github.pho001.synaptik.model.operation.OperationSignature;
@@ -90,7 +91,7 @@ class TensorTest {
         Set<String> publicMethods = declaredPublicMethods.stream()
                 .map(method -> method.getName())
                 .collect(Collectors.toSet());
-        assertEquals(210, declaredPublicMethods.size());
+        assertEquals(213, declaredPublicMethods.size());
         assertEquals(
                 Set.of("id", "descriptor", "label", "hostStorage", "replaceHostStorage",
                         "clearHostStorage", "provenance", "toString", "add", "sub", "mul",
@@ -114,7 +115,7 @@ class TensorTest {
                         "gather", "embedding", "oneHot", "gatherElements", "gatherNd",
                         "scatterAdd", "scatterElements", "scatterNd", "pad",
                         "tile", "concat", "stack", "unstack", "unfold",
-                        "unfold2d", "foldAxis", "fold2d"),
+                        "unfold2d", "foldAxis", "fold2d", "unfold3d", "fold3d"),
                 publicMethods);
         assertAll(
                 () -> assertTrue(Modifier.isSynchronized(
@@ -679,7 +680,12 @@ class TensorTest {
                 Tensor.class.getDeclaredMethod(
                         "foldAxis", int.class, long.class, long.class),
                 Tensor.class.getDeclaredMethod(
-                        "fold2d", Shape.class, Window2dAttrs.class))) {
+                        "fold2d", Shape.class, Window2dAttrs.class),
+                Tensor.class.getDeclaredMethod("unfold3d", Window3dAttrs.class),
+                Tensor.class.getDeclaredMethod(
+                        "unfold3d", Window3dAttrs.class, ScalarValue.class),
+                Tensor.class.getDeclaredMethod(
+                        "fold3d", Shape.class, Window3dAttrs.class))) {
             assertAll(
                     () -> assertEquals(Tensor.class, method.getReturnType()),
                     () -> assertTrue(Modifier.isPublic(method.getModifiers())),

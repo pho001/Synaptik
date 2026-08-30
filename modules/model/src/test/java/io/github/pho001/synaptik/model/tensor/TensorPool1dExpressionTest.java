@@ -59,7 +59,7 @@ final class TensorPool1dExpressionTest {
                 () -> assertEquals(Tensor.class, average.getReturnType()),
                 () -> assertFalse(Modifier.isStatic(maximum.getModifiers())),
                 () -> assertFalse(Modifier.isStatic(average.getModifiers())),
-                () -> assertEquals(210, Arrays.stream(Tensor.class.getDeclaredMethods())
+                () -> assertEquals(213, Arrays.stream(Tensor.class.getDeclaredMethods())
                         .filter(method -> Modifier.isPublic(method.getModifiers())).count()));
     }
 
