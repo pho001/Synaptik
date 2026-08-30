@@ -80,6 +80,30 @@ import jdk.incubator.vector.LongVector;
 import jdk.incubator.vector.ByteVector;
 
 public class CpuPartitionPreparerTest {
+    @Test void pool2dRemainsDirectScalarWhenVectorExecutionIsPreferred() {
+        var base = io.github.pho001.synaptik.backend.cpu.internal.lowering
+                .CpuPool2dLoweringTest.context(
+                        io.github.pho001.synaptik.model.operation.pooling.Pool2dKind.MAX_POOL2D,
+                        new io.github.pho001.synaptik.model.operation.pooling.MaxPool2dAttrs(
+                                2, 2, 1, 1, 0, 0, 1, 1, false),
+                        DataType.FLOAT32, Shape.of(1, 1, 4, 4), Shape.of(1, 1, 3, 3));
+        var context = new PrepareContext<>(base.partition(), base.nodes(), base.values(),
+                base.memoryRequirements(), base.constants(), new CpuPartitionAnalysisInputs(
+                        false, List.of(CarrierAccess.FLOAT_ARRAY, CarrierAccess.FLOAT_ARRAY),
+                        new PortableExecutionConfig(ComputePreference.VECTOR_IF_ELIGIBLE,
+                                1, 1, 1)));
+
+        var plan = new CpuPartitionPreparer().analyze(context).plan();
+        var unit = plan.units().getFirst();
+
+        assertAll(
+                () -> assertEquals("scalar", plan.executionStrategy().toString()),
+                () -> assertEquals(0, plan.vectorSpeciesBitSize()),
+                () -> assertEquals(55, unit.portablePlan().specialization()
+                        .classIdentitySchema()),
+                () -> assertTrue(unit.pool2dGeometry().isPresent()));
+    }
+
     @Test void ordinarySplitRecognitionSnapshotsAndValidatesTheExactSelectedBaseline() {
         var context = CpuAggregateLoweringTest.context(AggregateReductionKind.SUM,
                 DataType.FLOAT32, Shape.of(2, 3), new AxisReductionAttrs(1, false), Shape.of(2));
@@ -368,7 +392,7 @@ public class CpuPartitionPreparerTest {
                 () -> assertTrue(initial.workspaceDeclaration().isEmpty()),
                 () -> assertTrue(dropout.workspaceDeclaration().isEmpty()),
                 () -> assertTrue(dropout.randomGeometry().isPresent()),
-                () -> assertEquals(54, io.github.pho001.synaptik.backend.cpu.internal.cache
+                () -> assertEquals(55, io.github.pho001.synaptik.backend.cpu.internal.cache
                         .CpuGeneratorSchema.CURRENT_VERSION));
     }
     @Test void foldDeclaresExactlyTwoBuffersOneArtifactAndNoWorkspaceOrMaterialization() {

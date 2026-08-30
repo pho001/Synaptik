@@ -173,10 +173,13 @@ public final class CpuGeneratorSchema {
      * initial address once and advances a unit-stride cursor. Generated class identity remains on
      * the schema-52 projection. Schema 54 adds typed portable MATMUL class forms while retaining
      * that schema-52 class projection for every unchanged family; compatibility envelopes advance
-     * current-only to schema 54.
+     * current-only to schema 54. Schema 55 adds direct typed NCHW MAX_POOL2D and AVERAGE_POOL2D
+     * bodies, cold layout and window geometry, complete-output-cell ranges, fixed-divisor average
+     * semantics, conceptual zero padding, and exact NaN and signed-zero behavior while preserving
+     * the schema-52 and schema-54 class projections for unchanged families.
      * Envelopes written for earlier schemas are incompatible misses.
      */
-    public static final int CURRENT_VERSION = 54;
+    public static final int CURRENT_VERSION = 55;
     /** Generated entry name. */ public static final String ENTRY_NAME = "invoke";
     private CpuGeneratorSchema() { }
 

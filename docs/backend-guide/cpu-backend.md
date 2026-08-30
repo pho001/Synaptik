@@ -97,6 +97,14 @@ two-pass sum; variance and standard deviation use corrected two-pass statistics;
 existing exact represented-sum state; and L2 uses scaled sum of squares. Scalar or parallel-scalar
 execution owns complete output cells. Only L1 and statistics use a run-owned exact-state slice;
 the family adds no materialization, partial result, combine state, vector body, or native route.
+The fourteenth family is exactly one resolved-layout `MAX_POOL2D` or `AVERAGE_POOL2D` occurrence
+over matching rank-four NCHW BFLOAT16, FLOAT32, or FLOAT64 input and output. It uses the Model's
+literal floor/ceiling grid, symmetric padding, stride, and dilation. Scalar or parallel-scalar
+execution owns complete output cells, accepts exact typed heap-array, segment, or mixed carriers,
+and declares zero workspace. Max excludes padding; average includes conceptual positive-zero
+padding in its fixed kernel-position divisor. The direct schema-55 generated body is the only
+pooling route and adds no fusion, materialization, vector body, native route, saved indices, or
+backward execution.
 
 Generated scalar and Java 26 Vector API entries accept primitive `start` and `end` bounds.
 Compatible concrete extents bind on the cold path and share identical class bytes and one
@@ -125,7 +133,7 @@ declares none of those candidate-only resources. Capability and lowering fail cl
 operation, type, shape, layout, parameter, alias, fan-out, publication, carrier, or route. In
 particular, CAST is same-type only and BFLOAT16 remains representation-only for affine movement;
 CPU does not invent cross-type conversion semantics. Native, tuning, excluded pointwise rows,
-native routes, model-autotuning promotion, and later operation families remain planned.
+native routes, model-autotuning promotion, and other operation families remain planned.
 CPU-private specialized-subgraph recognition is current only
 as the cold, recognition-only boundary described below. Functional scatter,
 overlap fold, stable ordering, explicit-state random, cumulative-scan, and ordinary-aggregate
@@ -2491,6 +2499,62 @@ individual ratio was `1.002573`. The two complete materialization companion medi
 `0.351500` and `0.582291`. This is bounded evidence for the retained source, generated classes,
 Java version, host, and protocol—not a permanent performance guarantee, universal speedup, native
 route claim, or cross-backend bitwise promise.
+
+### Current portable NCHW Pool2d family
+
+The portable CPU route accepts one fully static, resolved-layout `MAX_POOL2D` or
+`AVERAGE_POOL2D` occurrence with one rank-four channels-first input `[N,C,H,W]` and one matching
+output. Input and output must have the same BFLOAT16, FLOAT32, or FLOAT64 type. The input may use
+arbitrary checked non-negative strides, including broadcast-zero strides; the output layout must
+be injective. Each boundary independently accepts its exact primitive heap-array carrier or a
+native-order `MemorySegment`, including mixed input/output carrier forms.
+
+For either spatial axis, the route computes the effective kernel and output extent literally:
+
+```text
+effectiveKernel = dilation * (kernel - 1) + 1
+numerator       = input + 2 * padding - effectiveKernel
+output          = floor(numerator / stride) + 1
+output          = ceil(numerator / stride) + 1  // when ceil mode is true
+```
+
+All arithmetic and address spans are checked. Ceil mode retains the literal symmetric padded
+grid; CPU does not discard a terminal window merely because its start lies in trailing padding.
+For example, input `[1,1,2,2]`, kernel `2x2`, stride one, dilation one, and padding one produces
+output `[1,1,3,3]`. With input values `[[1,2],[3,4]]`, the top-left max is `1` and the center max
+is `4`; the top-left average is `0.25` because its three conceptual padding positions contribute
+positive zero but still count in the divisor of four, while the center average is `2.5`.
+
+Maximum pooling visits kernel height and then kernel width in increasing order, excludes padding
+from selection, and writes negative infinity for an all-padding window. The first NaN wins; among
+non-NaNs ordinary numerical order applies, positive zero wins over negative zero, and equal
+candidates retain the first represented sample. In particular, BFLOAT16 compares decoded values
+but stores the selected represented non-NaN bits rather than narrowing a promoted accumulator.
+
+Average pooling always divides by `kernelHeight * kernelWidth`; dilation changes coordinates, not
+the divisor. BFLOAT16 and FLOAT32 accumulate and divide in FLOAT32, FLOAT64 does both in FLOAT64,
+and BFLOAT16 narrows once after division. Conceptual padding contributes positive zero. An exact
+zero result is negative only when every divisor contribution is an in-bounds negative zero;
+cancellation, any positive zero, or any padding produces positive zero. Increasing kernel-order
+traversal makes this CPU implementation deterministic, but it is not a cross-backend finite-bit
+identity promise.
+
+Cold binding rejects physical output/input overlap before any output write or worker submission.
+A zero batch or channel extent yields an empty output and invokes no generated work. Otherwise,
+the scalar and parallel-scalar strategies call the same `DIRECT_SCALAR` body over half-open ranges
+of complete flattened NCHW output cells. A range never splits a pooling window, and execution uses
+no partial result, combine phase, atomic update, lock, nested worker, window materialization, or
+workspace.
+
+Pooling remains one direct atomic CPU unit. CPU does not recognize a pooling epilogue, rank a
+pooling fusion alternative, broaden pointwise materialization, decompose pooling through
+`UNFOLD2D`, or select a vector or native implementation. Schema 55 identifies the new Pool2d code
+shape; unchanged generated families retain their schema-52 projections and MATMUL retains schema
+54. The retained optimal-clean-Java comparison used five fixed-heap forks and six max/average
+cases spanning dense F64, padded/dilated/ceil F32, and mixed-carrier BF16. Aggregate generated to
+direct medians ranged from `0.931805101x` through `1.106718493x`, so every retained row passed the
+task's `<= 1.15x` gate. This is bounded evidence for those artifacts and environment, not a
+universal performance claim.
 
 ### Unary numerical closure
 

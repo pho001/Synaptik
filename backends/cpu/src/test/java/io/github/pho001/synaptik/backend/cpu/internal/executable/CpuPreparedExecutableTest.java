@@ -24,6 +24,7 @@ import io.github.pho001.synaptik.runtime.run.RunState;
 import java.lang.foreign.ValueLayout;
 import java.nio.ByteOrder;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -45,6 +46,7 @@ import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuTrailingNormal
 import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuBatchNormInferenceLoweringTest;
 import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuBatchNormTrainingLoweringTest;
 import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuConv3dLoweringTest;
+import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuPool2dLoweringTest;
 import io.github.pho001.synaptik.model.operation.scan.CumulativeScanKind;
 import io.github.pho001.synaptik.model.operation.normalization.SoftmaxKind;
 import io.github.pho001.synaptik.model.operation.reduction.AggregateReductionKind;
@@ -53,6 +55,8 @@ import io.github.pho001.synaptik.model.operation.reduction.AxisReductionAttrs;
 import io.github.pho001.synaptik.model.operation.reduction.SumToShapeAttrs;
 import io.github.pho001.synaptik.model.operation.reduction.StatisticalReductionAttrs;
 import io.github.pho001.synaptik.model.operation.convolution.Conv3dAttrs;
+import io.github.pho001.synaptik.model.operation.pooling.MaxPool2dAttrs;
+import io.github.pho001.synaptik.model.operation.pooling.Pool2dKind;
 import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuOrderingLoweringTest;
 import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuRandomLoweringTest;
 import io.github.pho001.synaptik.backend.cpu.internal.prepare.CpuPartitionPreparer;
@@ -78,6 +82,92 @@ class CpuPreparedExecutableTest {
             ValueLayout.JAVA_INT_UNALIGNED.withOrder(ByteOrder.nativeOrder());
     private static final ValueLayout.OfLong LONG =
             ValueLayout.JAVA_LONG_UNALIGNED.withOrder(ByteOrder.nativeOrder());
+
+    @Test void pool2dExecutesScalarAndParallelCompleteCellsAndRejectsOverlapBeforeWrite() {
+        var base = CpuPool2dLoweringTest.context(Pool2dKind.MAX_POOL2D,
+                new MaxPool2dAttrs(3, 2, 2, 2, 2, 2, 2, 1, true), DataType.FLOAT32,
+                Shape.of(1, 1, 4, 5), Shape.of(1, 1, 3, 5));
+        float[] input = new float[20];
+        for (int index = 0; index < input.length; index++) input[index] = index % 7 - 3.25f;
+        var scalarContext = new io.github.pho001.synaptik.prepare.analysis.PrepareContext<>(
+                base.partition(), base.nodes(), base.values(), base.memoryRequirements(),
+                base.constants(), new CpuPartitionAnalysisInputs(false,
+                        List.of(CarrierAccess.FLOAT_ARRAY, CarrierAccess.FLOAT_ARRAY)));
+        var scalar = CpuPartitionFinalizerTest.finalizeExecutable(
+                new CpuPartitionPreparer().analyze(scalarContext), Optional.empty());
+        float[] expected = new float[15];
+        var scalarRun = state(scalar, List.of(borrow(input, 0, input.length),
+                borrow(expected, 0, expected.length)));
+        try { scalar.bind(scalarRun).execute(); } finally { scalarRun.close(); }
+
+        var config = new PortableExecutionConfig(ComputePreference.SCALAR, 4, 4, 1);
+        var parallelContext = new io.github.pho001.synaptik.prepare.analysis.PrepareContext<>(
+                base.partition(), base.nodes(), base.values(), base.memoryRequirements(),
+                base.constants(), new CpuPartitionAnalysisInputs(false,
+                        List.of(CarrierAccess.FLOAT_ARRAY, CarrierAccess.FLOAT_ARRAY), config));
+        var analysis = new CpuPartitionPreparer().analyze(parallelContext);
+        try (var workers = new CpuWorkerGroup(4)) {
+            var parallel = CpuPartitionFinalizerTest.finalizeExecutable(analysis,
+                    Optional.empty(), Optional.of(workers));
+            float[] actual = new float[15];
+            var run = state(parallel, List.of(borrow(input, 0, input.length),
+                    borrow(actual, 0, actual.length)));
+            try { parallel.bind(run).execute(); assertArrayEquals(expected, actual); }
+            finally { run.close(); }
+            float[] shared = new float[20]; Arrays.fill(shared, -17f);
+            var overlap = state(parallel, List.of(borrow(shared, 0, 20), borrow(shared, 0, 15)));
+            try {
+                assertThrows(IllegalArgumentException.class, () -> parallel.bind(overlap));
+                for (float value : shared) assertEquals(-17f, value);
+            } finally { overlap.close(); }
+        }
+    }
+
+    @Test void pool2dPreparedRangeUsesExpandedOutputCellCount() {
+        var base = CpuPool2dLoweringTest.context(Pool2dKind.MAX_POOL2D,
+                new MaxPool2dAttrs(2, 2, 1, 1, 2, 2, 1, 1, false), DataType.FLOAT32,
+                Shape.of(1, 1, 1, 1), Shape.of(1, 1, 4, 4));
+        var context = new io.github.pho001.synaptik.prepare.analysis.PrepareContext<>(
+                base.partition(), base.nodes(), base.values(), base.memoryRequirements(),
+                base.constants(), new CpuPartitionAnalysisInputs(false,
+                        List.of(CarrierAccess.FLOAT_ARRAY, CarrierAccess.FLOAT_ARRAY)));
+        var executable = CpuPartitionFinalizerTest.finalizeExecutable(
+                new CpuPartitionPreparer().analyze(context), Optional.empty());
+        assertEquals(List.of(4L, 64L), executable.memoryPlan().buffers().stream()
+                .map(entry -> entry.byteSize()).toList());
+        float[] output = new float[16];
+        var run = state(executable, List.of(borrow(new float[]{7.0f}, 0, 1),
+                borrow(output, 0, output.length)));
+        try {
+            executable.bind(run).execute();
+        } finally {
+            run.close();
+        }
+        assertEquals(Float.NEGATIVE_INFINITY, output[0]);
+        assertEquals(7.0f, output[5]);
+    }
+
+    @Test void pool2dEmptyOutputExecutesWithoutTouchingCarriers() {
+        var base = CpuPool2dLoweringTest.context(Pool2dKind.AVERAGE_POOL2D,
+                new io.github.pho001.synaptik.model.operation.pooling.AveragePool2dAttrs(
+                        1, 1, 1, 1, 0, 0, 1, 1, false), DataType.FLOAT64,
+                Shape.of(0, 1, 2, 2), Shape.of(0, 1, 2, 2));
+        var context = new io.github.pho001.synaptik.prepare.analysis.PrepareContext<>(
+                base.partition(), base.nodes(), base.values(), base.memoryRequirements(),
+                base.constants(), new CpuPartitionAnalysisInputs(false,
+                        List.of(CarrierAccess.DOUBLE_ARRAY, CarrierAccess.DOUBLE_ARRAY)));
+        var executable = CpuPartitionFinalizerTest.finalizeExecutable(
+                new CpuPartitionPreparer().analyze(context), Optional.empty());
+        assertEquals(List.of(0L, 0L), executable.memoryPlan().buffers().stream()
+                .map(entry -> entry.byteSize()).toList());
+        var run = state(executable, List.of(borrow(new double[0], 0, 0),
+                borrow(new double[0], 0, 0)));
+        try {
+            executable.bind(run).execute();
+        } finally {
+            run.close();
+        }
+    }
 
     @Test void matmulParallelRangesOwnDisjointOutputsAndRejectAliasBeforeAnyWrite(){
         var base=io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuMatmulLoweringTest.context(

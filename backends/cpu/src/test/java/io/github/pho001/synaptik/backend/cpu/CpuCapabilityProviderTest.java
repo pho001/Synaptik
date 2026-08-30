@@ -25,6 +25,7 @@ import io.github.pho001.synaptik.model.operation.normalization.SoftmaxKind;
 import io.github.pho001.synaptik.model.operation.normalization.*;
 import io.github.pho001.synaptik.model.operation.convolution.*;
 import io.github.pho001.synaptik.model.operation.linalg.MatmulKind;
+import io.github.pho001.synaptik.model.operation.pooling.*;
 import io.github.pho001.synaptik.model.shape.Shape;
 import io.github.pho001.synaptik.model.shape.DynamicDimension;
 import io.github.pho001.synaptik.model.shape.StaticDimension;
@@ -35,6 +36,41 @@ import java.util.Optional;
 import org.junit.jupiter.api.Test;
 
 class CpuCapabilityProviderTest {
+    @Test void reportsOnlyExactStaticResolvedFloatingNchwPool2dOccurrences() {
+        var provider = new CpuCapabilityProvider();
+        var max = new MaxPool2dAttrs(3, 2, 2, 2, 2, 2, 2, 1, true);
+        var average = new AveragePool2dAttrs(3, 2, 2, 2, 2, 2, 2, 1, true);
+        for (DataType type : List.of(DataType.BFLOAT16, DataType.FLOAT32, DataType.FLOAT64)) {
+            var input = descriptor(type, Shape.of(1, 2, 4, 5));
+            var output = descriptor(type, Shape.of(1, 2, 3, 5));
+            assertAll(type.toString(),
+                    () -> assertTrue(provider.supports(query(Pool2dKind.MAX_POOL2D, max,
+                            List.of(input), output))),
+                    () -> assertTrue(provider.supports(query(Pool2dKind.AVERAGE_POOL2D, average,
+                            List.of(input), output))));
+        }
+        var input = descriptor(DataType.FLOAT32, Shape.of(1, 2, 4, 5));
+        var output = descriptor(DataType.FLOAT32, Shape.of(1, 2, 3, 5));
+        var unresolved = new TensorDescriptor(DataType.FLOAT32, Shape.of(1, 2, 3, 5),
+                Optional.empty(), false);
+        var nonInjective = new TensorDescriptor(DataType.FLOAT32, Shape.of(1, 2, 3, 5),
+                Optional.of(LayoutDescriptor.of(Shape.of(1, 2, 3, 5),
+                        new long[]{30, 0, 5, 1}, 0, true)), false);
+        assertAll(
+                () -> assertFalse(provider.supports(query(Pool2dKind.MAX_POOL2D, max,
+                        List.of(descriptor(DataType.INT32, Shape.of(1, 2, 4, 5))), output))),
+                () -> assertFalse(provider.supports(query(Pool2dKind.MAX_POOL2D, max,
+                        List.of(input), descriptor(DataType.FLOAT64, Shape.of(1, 2, 3, 5))))),
+                () -> assertFalse(provider.supports(query(Pool2dKind.MAX_POOL2D, max,
+                        List.of(input), descriptor(DataType.FLOAT32, Shape.of(1, 2, 3, 4))))),
+                () -> assertThrows(IllegalArgumentException.class,
+                        () -> query(Pool2dKind.MAX_POOL2D, average, List.of(input), output)),
+                () -> assertFalse(provider.supports(query(Pool2dKind.MAX_POOL2D, max,
+                        List.of(input), unresolved))),
+                () -> assertFalse(provider.supports(query(Pool2dKind.MAX_POOL2D, max,
+                        List.of(input), nonInjective))));
+    }
+
     @Test void reportsExactlyStaticResolvedNumericMatmulOccurrences() {
         var provider = new CpuCapabilityProvider();
         var numeric = List.of(DataType.BFLOAT16, DataType.FLOAT32, DataType.FLOAT64,

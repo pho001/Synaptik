@@ -39,7 +39,7 @@ import jdk.incubator.vector.LongVector;
  *     instruction in canonical instruction order; copied defensively
  * @param scratchParameter whether the generated entry accepts one exact CPU scratch segment
  * @param classIdentitySchema schema projection used only for the generated class identity;
- *     {@code 52} for unchanged families and {@code 54} for MATMUL
+ *     {@code 52} for unchanged families, {@code 54} for MATMUL, and {@code 55} for Pool2d
  * @param matmulIr exact typed MATMUL code-shaping facts, or empty for every unchanged family
  */
 public record CpuKernelSpecialization(CpuLoweringFingerprint loweringFingerprint,
@@ -241,11 +241,13 @@ public record CpuKernelSpecialization(CpuLoweringFingerprint loweringFingerprint
         carrierPattern = List.copyOf(carrierPattern);
         scalarPowerRealizations = List.copyOf(scalarPowerRealizations);
         matmulIr = Objects.requireNonNull(matmulIr, "matmulIr");
-        if (classIdentitySchema != 52 && classIdentitySchema != 54) {
-            throw new IllegalArgumentException("class identity schema must be 52 or 54");
+        if (classIdentitySchema != 52 && classIdentitySchema != 54 && classIdentitySchema != 55) {
+            throw new IllegalArgumentException("class identity schema must be 52, 54, or 55");
         }
-        if ((classIdentitySchema == 54) != matmulIr.isPresent()) {
-            throw new IllegalArgumentException("schema-54 class identity requires typed MATMUL facts");
+        if ((classIdentitySchema == 54) != matmulIr.isPresent()
+                || classIdentitySchema == 55 && matmulIr.isPresent()) {
+            throw new IllegalArgumentException(
+                    "class identity schema and typed MATMUL facts disagree");
         }
         if (carrierPattern.isEmpty() || carrierPattern.size() != boundaryDataTypes.size()) {
             throw new IllegalArgumentException("boundary type and carrier entries must agree");

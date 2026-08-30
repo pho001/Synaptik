@@ -22,6 +22,7 @@ import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuBatchNormTrain
 import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuConv2dLowering;
 import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuMatmulLowering;
 import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuConv3dLowering;
+import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuPool2dLowering;
 import io.github.pho001.synaptik.backend.cpu.internal.memory.CpuBufferArgument;
 import io.github.pho001.synaptik.backend.cpu.internal.memory.CpuBufferRepresentation;
 import io.github.pho001.synaptik.backend.cpu.internal.memory.CpuContiguousWorkspace;
@@ -89,6 +90,9 @@ import java.util.Optional;
  * output/input or output/bias overlap before mutation or worker submission, and creates disjoint
  * half-open work-unit ranges. Depending on the cold-selected realization, one work unit owns one
  * output cell, one complete M row, or one bounded M/N tile; K is never divided among ranges.
+ * Pool2d binding validates exact typed input/output spans and rejects physical overlap before any
+ * output mutation or worker submission. Each range owns complete NCHW output cells and receives
+ * immutable packed layout and window geometry; a pooling window is never divided among ranges.
  */
 public final class CpuPreparedExecutable extends PreparedExecutable {
     private final CpuGeneratedKernel artifact;
@@ -125,6 +129,7 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
     private final Optional<CpuConv2dLowering.Geometry> conv2dGeometry;
     private final Optional<CpuConv3dLowering.Geometry> conv3dGeometry;
     private final Optional<CpuMatmulLowering.Geometry> matmulGeometry;
+    private final Optional<CpuPool2dLowering.Geometry> pool2dGeometry;
     private final int outputCount;
 
     /**
@@ -863,7 +868,8 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
                 foldGeometry, orderingGeometry, randomGeometry, scanGeometry, aggregateGeometry,
                 argExtremaGeometry, maskedReductionGeometry, advancedReductionGeometry,
                 softmaxGeometry, trailingNormalizationGeometry, batchNormInferenceGeometry,
-                batchNormTrainingGeometry, conv2dGeometry, conv3dGeometry, matmulGeometry, outputCount);
+                batchNormTrainingGeometry, conv2dGeometry, conv3dGeometry, matmulGeometry,
+                Optional.empty(), outputCount);
     }
 
     /**
@@ -906,6 +912,7 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
      * @param conv2dGeometry non-null optional grouped NCHW Conv2d boundary geometry
      * @param conv3dGeometry non-null optional grouped NCDHW Conv3d boundary geometry
      * @param matmulGeometry non-null optional normalized full-K MATMUL geometry
+     * @param pool2dGeometry non-null optional NCHW Pool2d boundary geometry
      * @param outputCount positive number of trailing selections written by this unit
      * @throws NullPointerException if a required reference or list element is {@code null}
      * @throws IllegalArgumentException if representation plans/workspaces, memory, boundary,
@@ -937,7 +944,8 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
             Optional<CpuBatchNormTrainingLowering.Geometry> batchNormTrainingGeometry,
             Optional<CpuConv2dLowering.Geometry> conv2dGeometry,
             Optional<CpuConv3dLowering.Geometry> conv3dGeometry,
-            Optional<CpuMatmulLowering.Geometry> matmulGeometry, int outputCount) {
+            Optional<CpuMatmulLowering.Geometry> matmulGeometry,
+            Optional<CpuPool2dLowering.Geometry> pool2dGeometry, int outputCount) {
         super(memoryPlan, selections, java.util.stream.Stream.concat(workspaceSelection.stream(),
                 representationWorkspaceSelections.stream()).toList(),
                 accesses(selections.size(), outputCount));
@@ -975,11 +983,14 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
         this.conv2dGeometry = Objects.requireNonNull(conv2dGeometry, "conv2dGeometry");
         this.conv3dGeometry = Objects.requireNonNull(conv3dGeometry, "conv3dGeometry");
         this.matmulGeometry = Objects.requireNonNull(matmulGeometry, "matmulGeometry");
+        this.pool2dGeometry = Objects.requireNonNull(pool2dGeometry, "pool2dGeometry");
         this.outputCount = outputCount;
         if (outputCount <= 0 || outputCount > selections.size()) {
             throw new IllegalArgumentException("output boundary count is inconsistent");
         }
-        long count = this.matmulGeometry.isPresent() ? this.matmulGeometry.orElseThrow().outputCount()
+        long count = this.pool2dGeometry.isPresent()
+                ? this.pool2dGeometry.orElseThrow().outputCount()
+                : this.matmulGeometry.isPresent() ? this.matmulGeometry.orElseThrow().outputCount()
                 : this.conv2dGeometry.isPresent() || this.conv3dGeometry.isPresent()
                 ? this.bindings.getLast().elementCount()
                 : this.batchNormTrainingGeometry.isPresent()
@@ -1053,6 +1064,7 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
         geometryCount += this.conv2dGeometry.isPresent() ? 1 : 0;
         geometryCount += this.conv3dGeometry.isPresent() ? 1 : 0;
         geometryCount += this.matmulGeometry.isPresent() ? 1 : 0;
+        geometryCount += this.pool2dGeometry.isPresent() ? 1 : 0;
         if (geometryCount>1) {
             throw new IllegalArgumentException("affine, movement, indexing, scatter, and fold geometry are exclusive");
         }
@@ -1077,6 +1089,85 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
                 this.representationMaterializations, this.bindings, this.carrierPattern,
                 this.generatedCarrierPattern,
                 artifact.specialization().materializedSourcePosition());
+    }
+
+    /**
+     * Creates a direct or legacy single-materialization recipe with optional Pool2d geometry.
+     *
+     * @param memoryPlan exact immutable prepared memory plan
+     * @param selections ordered input then trailing output selections
+     * @param artifact verified generated artifact retained by this recipe
+     * @param bindings complete represented boundary geometry; copied defensively
+     * @param carrierPattern Runtime carrier forms; copied defensively
+     * @param generatedCarrierPattern generated-entry carrier forms; copied defensively
+     * @param start inclusive logical output-cell bound
+     * @param end exclusive logical output-cell bound
+     * @param selectedRangeCount positive selected maximum simultaneous range count
+     * @param minimumElementsPerWorker positive minimum output cells per worker chunk
+     * @param workerGroup borrowed worker group for parallel execution, otherwise {@code null}
+     * @param materialization non-null optional pointwise input materialization
+     * @param workspaceSelection non-null optional assigned workspace selection
+     * @param affineAddressPairs affine copy pairs, or {@code null}
+     * @param movementGeometry non-null optional movement geometry
+     * @param indexingGeometry non-null optional indexing geometry
+     * @param scatterGeometry non-null optional scatter geometry
+     * @param foldGeometry non-null optional fold geometry
+     * @param orderingGeometry non-null optional ordering geometry
+     * @param randomGeometry non-null optional explicit-state geometry
+     * @param scanGeometry non-null optional scan geometry
+     * @param aggregateGeometry non-null optional aggregate geometry
+     * @param argExtremaGeometry non-null optional arg-extrema geometry
+     * @param maskedReductionGeometry non-null optional masked-reduction geometry
+     * @param advancedReductionGeometry non-null optional advanced-reduction geometry
+     * @param softmaxGeometry non-null optional softmax geometry
+     * @param trailingNormalizationGeometry non-null optional trailing-normalization geometry
+     * @param batchNormInferenceGeometry non-null optional batch-normalization inference geometry
+     * @param batchNormTrainingGeometry non-null optional batch-normalization training geometry
+     * @param conv2dGeometry non-null optional grouped NCHW Conv2d geometry
+     * @param conv3dGeometry non-null optional grouped NCDHW Conv3d geometry
+     * @param matmulGeometry non-null optional MATMUL geometry
+     * @param pool2dGeometry non-null optional NCHW Pool2d geometry
+     * @param outputCount positive number of trailing output selections
+     * @throws NullPointerException if a required reference or list element is {@code null}
+     * @throws IllegalArgumentException if recipe, geometry, range, or carrier facts disagree
+     * @throws ArithmeticException if exact range, span, or geometry validation overflows
+     */
+    public CpuPreparedExecutable(PreparedMemoryPlan memoryPlan, List<BufferSelection> selections,
+            CpuGeneratedKernel artifact, List<CpuAccessPlan.Binding> bindings,
+            List<CarrierAccess> carrierPattern, List<CarrierAccess> generatedCarrierPattern,
+            long start, long end, int selectedRangeCount, long minimumElementsPerWorker,
+            CpuWorkerGroup workerGroup, Optional<CpuMaterializationPlan> materialization,
+            Optional<WorkspaceSelection> workspaceSelection, long[] affineAddressPairs,
+            Optional<CpuNonAffineMovementLowering.Geometry> movementGeometry,
+            Optional<CpuIndexingLowering.Geometry> indexingGeometry,
+            Optional<CpuScatterLowering.Geometry> scatterGeometry,
+            Optional<CpuFoldLowering.Geometry> foldGeometry,
+            Optional<CpuOrderingLowering.Geometry> orderingGeometry,
+            Optional<CpuRandomLowering.Geometry> randomGeometry,
+            Optional<CpuScanLowering.Geometry> scanGeometry,
+            Optional<CpuAggregateLowering.Geometry> aggregateGeometry,
+            Optional<CpuArgExtremaLowering.Geometry> argExtremaGeometry,
+            Optional<CpuMaskedReductionLowering.Geometry> maskedReductionGeometry,
+            Optional<CpuAdvancedReductionLowering.Geometry> advancedReductionGeometry,
+            Optional<CpuSoftmaxLowering.Geometry> softmaxGeometry,
+            Optional<CpuTrailingNormalizationLowering.Geometry> trailingNormalizationGeometry,
+            Optional<CpuBatchNormInferenceLowering.Geometry> batchNormInferenceGeometry,
+            Optional<CpuBatchNormTrainingLowering.Geometry> batchNormTrainingGeometry,
+            Optional<CpuConv2dLowering.Geometry> conv2dGeometry,
+            Optional<CpuConv3dLowering.Geometry> conv3dGeometry,
+            Optional<CpuMatmulLowering.Geometry> matmulGeometry,
+            Optional<CpuPool2dLowering.Geometry> pool2dGeometry, int outputCount) {
+        this(memoryPlan, selections, artifact, bindings, carrierPattern, generatedCarrierPattern,
+                start, end, selectedRangeCount, minimumElementsPerWorker, workerGroup,
+                materialization.isPresent() ? Optional.empty() : workspaceSelection,
+                materialization.stream().toList(), materialization.isPresent()
+                        ? workspaceSelection.stream().toList() : List.of(),
+                affineAddressPairs, movementGeometry, indexingGeometry, scatterGeometry,
+                foldGeometry, orderingGeometry, randomGeometry, scanGeometry, aggregateGeometry,
+                argExtremaGeometry, maskedReductionGeometry, advancedReductionGeometry,
+                softmaxGeometry, trailingNormalizationGeometry, batchNormInferenceGeometry,
+                batchNormTrainingGeometry, conv2dGeometry, conv3dGeometry, matmulGeometry,
+                pool2dGeometry, outputCount);
     }
 
     /**
@@ -1153,7 +1244,7 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
         if (softmaxGeometry.isPresent() || trailingNormalizationGeometry.isPresent()
                 || batchNormInferenceGeometry.isPresent() || batchNormTrainingGeometry.isPresent()
                 || conv2dGeometry.isPresent() || conv3dGeometry.isPresent()
-                || matmulGeometry.isPresent()) return bindings.getLast();
+                || matmulGeometry.isPresent() || pool2dGeometry.isPresent()) return bindings.getLast();
         return ranged(movementGeometry.isPresent() || indexingGeometry.isPresent()
                 || scatterGeometry.isPresent() || foldGeometry.isPresent() || orderingGeometry.isPresent()
                 || randomGeometry.isPresent()
@@ -1173,7 +1264,7 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
         if (softmaxGeometry.isPresent() || trailingNormalizationGeometry.isPresent()
                 || batchNormInferenceGeometry.isPresent() || batchNormTrainingGeometry.isPresent()
                 || conv2dGeometry.isPresent() || conv3dGeometry.isPresent()
-                || matmulGeometry.isPresent()) return bindings;
+                || matmulGeometry.isPresent() || pool2dGeometry.isPresent()) return bindings;
         if (movementGeometry.isPresent() || indexingGeometry.isPresent()
                 || scatterGeometry.isPresent() || foldGeometry.isPresent() || orderingGeometry.isPresent()
                 || randomGeometry.isPresent() || scanGeometry.isPresent()
@@ -1208,7 +1299,7 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
                 scanGeometry, aggregateGeometry, argExtremaGeometry, maskedReductionGeometry,
                 advancedReductionGeometry, softmaxGeometry, trailingNormalizationGeometry,
                 batchNormInferenceGeometry, batchNormTrainingGeometry, conv2dGeometry,
-                conv3dGeometry, matmulGeometry,
+                conv3dGeometry, matmulGeometry, pool2dGeometry,
                 outputCount);
     }
 
@@ -1332,7 +1423,7 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
                             || trailingNormalizationGeometry.isPresent()
                             || batchNormInferenceGeometry.isPresent() || batchNormTrainingGeometry.isPresent()
                             || conv2dGeometry.isPresent() || conv3dGeometry.isPresent()
-                            || matmulGeometry.isPresent()
+                            || matmulGeometry.isPresent() || pool2dGeometry.isPresent()
                         ? overlaps(arguments.get(input), inputBinding,
                             arguments.get(firstOutputIndex), bindings.get(firstOutputIndex))
                         : overlaps(arguments.get(input), ranged(inputBinding),
@@ -1479,6 +1570,12 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
 
     private long[] geometry(List<CpuBufferArgument> arguments, long rangeStart, long rangeEnd,
             int rangeIndex) {
+        if (pool2dGeometry.isPresent()) {
+            int width = artifact.specialization().boundaryDataTypes().getFirst().byteWidth();
+            return pool2dGeometry.orElseThrow().pack(
+                    arguments.getFirst().byteOffset() / width,
+                    arguments.getLast().byteOffset() / width);
+        }
         if (matmulGeometry.isPresent()) {
             long[] bases = new long[arguments.size()];
             for (int index = 0; index < bases.length; index++) {

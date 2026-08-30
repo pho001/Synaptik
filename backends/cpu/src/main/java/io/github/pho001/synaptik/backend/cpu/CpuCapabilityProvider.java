@@ -64,6 +64,9 @@ import io.github.pho001.synaptik.model.operation.reduction.MaskedReductionAttrs;
 import io.github.pho001.synaptik.model.operation.reduction.SumToShapeAttrs;
 import io.github.pho001.synaptik.model.operation.reduction.StatisticalReductionAttrs;
 import io.github.pho001.synaptik.model.operation.linalg.MatmulKind;
+import io.github.pho001.synaptik.model.operation.pooling.Pool2dKind;
+import io.github.pho001.synaptik.model.operation.pooling.MaxPool2dAttrs;
+import io.github.pho001.synaptik.model.operation.pooling.AveragePool2dAttrs;
 import io.github.pho001.synaptik.model.datatype.DataTypePromotion;
 import io.github.pho001.synaptik.model.shape.Shape;
 import io.github.pho001.synaptik.planning.capability.BackendCapabilityProvider;
@@ -253,6 +256,7 @@ public final class CpuCapabilityProvider implements BackendCapabilityProvider {
             if (kind instanceof AggregateReductionKind aggregate)
                 return supportsAggregate(query, output, aggregate);
             if (kind == MatmulKind.MATMUL) return supportsMatmul(query, output);
+            if (kind instanceof Pool2dKind) return supportsPool2d(query, output);
             if (kind == Conv2dKind.CONV2D) return supportsConv2d(query, output);
             if (kind == Conv3dKind.CONV3D) return supportsConv3d(query, output);
             if (kind instanceof SoftmaxKind) return supportsSoftmax(query, output);
@@ -808,6 +812,67 @@ public final class CpuCapabilityProvider implements BackendCapabilityProvider {
         if (b.length != 1) expected.add(b[b.length - 1]);
         long[] exact = expected.stream().mapToLong(Long::longValue).toArray();
         return java.util.Arrays.equals(exact, output.shape().toLongArray());
+    }
+
+    private static boolean supportsPool2d(OperationCapabilityQuery query, TensorDescriptor output) {
+        if (query.inputs().size() != 1) return false;
+        TensorDescriptor input = query.inputs().getFirst();
+        Object kind = query.operation().kind();
+        Object attrs = query.operation().attrs();
+        long kernelHeight;
+        long kernelWidth;
+        long strideHeight;
+        long strideWidth;
+        long paddingHeight;
+        long paddingWidth;
+        long dilationHeight;
+        long dilationWidth;
+        boolean ceilMode;
+        if (kind == Pool2dKind.MAX_POOL2D && attrs instanceof MaxPool2dAttrs pool) {
+            kernelHeight = pool.kernelHeight();
+            kernelWidth = pool.kernelWidth();
+            strideHeight = pool.strideHeight();
+            strideWidth = pool.strideWidth();
+            paddingHeight = pool.paddingHeight();
+            paddingWidth = pool.paddingWidth();
+            dilationHeight = pool.dilationHeight();
+            dilationWidth = pool.dilationWidth();
+            ceilMode = pool.ceilMode();
+        } else if (kind == Pool2dKind.AVERAGE_POOL2D
+                && attrs instanceof AveragePool2dAttrs pool) {
+            kernelHeight = pool.kernelHeight();
+            kernelWidth = pool.kernelWidth();
+            strideHeight = pool.strideHeight();
+            strideWidth = pool.strideWidth();
+            paddingHeight = pool.paddingHeight();
+            paddingWidth = pool.paddingWidth();
+            dilationHeight = pool.dilationHeight();
+            dilationWidth = pool.dilationWidth();
+            ceilMode = pool.ceilMode();
+        } else {
+            return false;
+        }
+        if (!windowFloating(input.dataType()) || output.dataType() != input.dataType()
+                || output.requiresGrad() != input.requiresGrad()
+                || input.shape().rank() != 4 || output.shape().rank() != 4
+                || !injective(output.shape().toLongArray(),
+                    output.layout().orElseThrow().strides())) {
+            return false;
+        }
+        long[] inputShape = input.shape().toLongArray();
+        long[] outputShape = output.shape().toLongArray();
+        long effectiveHeight = Math.addExact(Math.multiplyExact(dilationHeight,
+                Math.subtractExact(kernelHeight, 1)), 1);
+        long effectiveWidth = Math.addExact(Math.multiplyExact(dilationWidth,
+                Math.subtractExact(kernelWidth, 1)), 1);
+        long heightNumerator = Math.subtractExact(Math.addExact(inputShape[2],
+                Math.multiplyExact(2, paddingHeight)), effectiveHeight);
+        long widthNumerator = Math.subtractExact(Math.addExact(inputShape[3],
+                Math.multiplyExact(2, paddingWidth)), effectiveWidth);
+        if (heightNumerator < 0 || widthNumerator < 0) return false;
+        return java.util.Arrays.equals(outputShape, new long[]{inputShape[0], inputShape[1],
+                windowOutput(heightNumerator, strideHeight, ceilMode),
+                windowOutput(widthNumerator, strideWidth, ceilMode)});
     }
 
     private static boolean supportsIndexing(OperationCapabilityQuery query,

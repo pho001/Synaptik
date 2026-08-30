@@ -300,7 +300,8 @@ public final class CpuPartitionPreparer implements BackendPartitionPreparer<
                 unit.generatedCarrierPattern(), unit.extents(), unit.elementCount(),
                 unit.executionStrategy(), unit.selectedRangeCount(), unit.minimumElementsPerWorker(),
                 unit.vectorSpeciesBitSize(), unit.conv2dGeometry(), unit.conv3dGeometry(),
-                unit.matmulGeometry(), unit.outputCount(), unit.fusionReason(), topology.dependencies(),
+                unit.matmulGeometry(), unit.pool2dGeometry(), unit.outputCount(),
+                unit.fusionReason(), topology.dependencies(),
                 topology.memberNodeOrdinals(), facts);
         var annotated = new CpuPartitionPreparationPlan(List.of(enriched), plan.route(),
                 plan.executionStrategy(), plan.bufferDeclarations(), plan.boundaryValues(),
@@ -366,7 +367,8 @@ public final class CpuPartitionPreparer implements BackendPartitionPreparer<
                 instanceof io.github.pho001.synaptik.backend.cpu.internal.ir.CpuConv2dIr;
         boolean conv3d = lowered.portableKernelIr()
                 instanceof io.github.pho001.synaptik.backend.cpu.internal.ir.CpuConv3dIr;
-        boolean matmul=lowered.matmulIr().isPresent();
+        boolean matmul = lowered.matmulIr().isPresent();
+        boolean pool2d = lowered.pool2dGeometry().isPresent();
         Optional<CpuMaterializationPlan> materialization = Optional.empty();
         var declarations = new ArrayList<PreparationResourceRequirement.Buffer>(lowered.boundaryValues().size());
         for (int i = 0; i < lowered.boundaryValues().size(); i++) declarations.add(
@@ -396,7 +398,11 @@ public final class CpuPartitionPreparer implements BackendPartitionPreparer<
                 == io.github.pho001.synaptik.backend.cpu.internal.ir.CpuMatmulIr.Realization.DIRECT_N_VECTOR
                 ||lowered.matmulIr().orElseThrow().realization()
                 == io.github.pho001.synaptik.backend.cpu.internal.ir.CpuMatmulIr.Realization.TILED_N_VECTOR_2X2);
-        boolean vectorEligible = matmulVector || !matmul && !affineCopy && !movement && !indexing && !scatter && !fold && !ordering && !random && !scan && !aggregate && !argExtrema && !maskedReduction && !advancedReduction && !softmax && !trailingNormalization && !batchNormalization && !batchNormTraining && !conv2d && !conv3d && config.computePreference()
+        boolean vectorEligible = matmulVector || !matmul && !pool2d && !affineCopy && !movement
+                && !indexing && !scatter && !fold && !ordering && !random && !scan && !aggregate
+                && !argExtrema && !maskedReduction && !advancedReduction && !softmax
+                && !trailingNormalization && !batchNormalization && !batchNormTraining
+                && !conv2d && !conv3d && config.computePreference()
                         == CpuPartitionAnalysisInputs.PortableExecutionConfig.ComputePreference.VECTOR_IF_ELIGIBLE
                 && vectorType != null && lanes > 1 && lowered.elementCount() >= lanes
                 && vectorTopologyEligible(kernelIr, vectorType)
@@ -501,7 +507,8 @@ public final class CpuPartitionPreparer implements BackendPartitionPreparer<
                         || lowered.trailingNormalizationGeometry()
                             .filter(g -> g.scratchSliceBytes() > 0).isPresent()
                         || lowered.batchNormTrainingGeometry()
-                            .filter(g -> g.scratchSliceBytes() > 0).isPresent(), matmul ? 54 : 52,
+                            .filter(g -> g.scratchSliceBytes() > 0).isPresent(),
+                pool2d ? 55 : matmul ? 54 : 52,
                 lowered.matmulIr());
         selectedPortableIr = matmul||materialization.isPresent()?kernelIr:selectedPortableIr;
         var routePlan = new CpuPortableRoutePlan(selectedPortableIr, specialization);
@@ -605,9 +612,11 @@ public final class CpuPartitionPreparer implements BackendPartitionPreparer<
                         selectedExtents, iterationCount, strategy, selectedRangeCount,
                         minimumRangeItemsPerWorker, vectorEligible ? speciesBits : 0,
                         lowered.conv2dGeometry(), lowered.conv3dGeometry(), lowered.matmulGeometry(),
+                        lowered.pool2dGeometry(),
                         (int) kernelIr.values().stream()
                             .filter(value -> value.kind() == CpuKernelIr.Value.Kind.OUTPUT).count(),
-                        lowered.fusionReason())),
+                        lowered.fusionReason(), List.of(), List.of(),
+                        CpuPartitionPreparationPlan.UnitRuntimeFacts.EMPTY)),
                 CpuPartitionPreparationPlan.Route.PORTABLE,
                 strategy,
                 declarations, lowered.boundaryValues(), bindings,
@@ -711,7 +720,8 @@ public final class CpuPartitionPreparer implements BackendPartitionPreparer<
                     unit.generatedCarrierPattern(), unit.extents(), unit.elementCount(),
                     unit.executionStrategy(), unit.selectedRangeCount(),
                     unit.minimumElementsPerWorker(), unit.vectorSpeciesBitSize(),
-                    unit.conv2dGeometry(), unit.conv3dGeometry(), unit.matmulGeometry(), unit.outputCount(),
+                    unit.conv2dGeometry(), unit.conv3dGeometry(), unit.matmulGeometry(),
+                    unit.pool2dGeometry(), unit.outputCount(),
                     unit.fusionReason(), topologyUnit.dependencies(),
                     topologyUnit.memberNodeOrdinals(), runtimeFacts));
         }

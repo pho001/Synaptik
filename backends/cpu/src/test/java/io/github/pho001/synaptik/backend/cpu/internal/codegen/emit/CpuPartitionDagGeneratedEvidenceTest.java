@@ -72,7 +72,7 @@ class CpuPartitionDagGeneratedEvidenceTest {
         String constants = new String(first, StandardCharsets.ISO_8859_1);
         assertAll(
                 () -> assertFalse(plan.fusionDecisions().isEmpty()),
-                () -> assertEquals(54, CpuGeneratorSchema.CURRENT_VERSION),
+                () -> assertEquals(55, CpuGeneratorSchema.CURRENT_VERSION),
                 () -> assertArrayEquals(first, second),
                 () -> assertFalse(constants.contains("CpuFusionDecision")),
                 () -> assertFalse(constants.contains("CpuFusionProfitabilitySelector")),
