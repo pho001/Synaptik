@@ -127,7 +127,8 @@ Complete. Detailed
 [Compiler 0006B1](modules/compiler/tasks/0006b1-pool3d-and-3d-window-forward-adoption-and-explicit-gradient-boundary.md)
 is Complete. Detailed
 [Compiler 0006B2](modules/compiler/tasks/0006b2-pool3d-and-3d-window-gradient-closure.md) is
-Complete. CPU 0008G1 remains the Draft next frontier without a detailed specification.
+Complete. Detailed [CPU 0008G1](backends/cpu/tasks/0008g1-portable-pool1d-composition-validation-and-pool3d-generated-execution.md)
+is Complete.
 Pool1d is the exact visible
 `EXPAND_DIMS(axis 2) -> POOL2D -> SQUEEZE(axis 2)` composition, not a new operation kind. Pool3d
 is first-class because depth enumeration is not a bounded Shape-independent composition; Model
@@ -140,9 +141,9 @@ depth-height-width winner; average uses the fixed `kernelDepth * kernelHeight * 
 count-padding divisor. BFLOAT16/FLOAT32 average accumulation and division use FLOAT32, FLOAT64 uses
 FLOAT64, and BFLOAT16 narrows once at the result. Complete Compiler 0006B2 preserves those
 occurrence, rounding, and exceptional-value rules in gradients. CPU 0008G1
-may recognize only the exact Pool1d topology while reporting its actual component capabilities,
-and reports Pool3d kinds only for supported combinations. Its direct Pool3d generated code must
-match an optimal clean Java oracle and pass semantic, complete Class-File/decompilation/forbidden-
+recognizes only the exact Pool1d topology while reporting its actual component capabilities, and
+reports Pool3d kinds only for supported combinations. Its direct Pool3d generated code matched an
+optimal clean Java oracle and passed semantic, complete Class-File/decompilation/forbidden-
 structure, and five-fork generated-versus-direct `<= 1.15x` evidence. Attention and loss coverage
 then remains owned by Draft CPU 0008H–0008I without detailed specifications. CPU 0008A validates Conv1d through
 the visible Conv2d composition and adds direct Conv3d execution. CPU 0008B–0008E only then add
@@ -202,7 +203,7 @@ or In progress. Detailed
 [Compiler 0006B1 Pool3d and 3D-window forward adoption and explicit gradient boundary](modules/compiler/tasks/0006b1-pool3d-and-3d-window-forward-adoption-and-explicit-gradient-boundary.md)
 is Complete. Detailed
 [Compiler 0006B2 Pool3d and 3D-window gradient closure](modules/compiler/tasks/0006b2-pool3d-and-3d-window-gradient-closure.md)
-is the Ready next cross-plan frontier.
+is Complete.
 Detailed
 [Compiler 0006B Conv3d forward adoption and explicit gradient boundary](modules/compiler/tasks/0006b-conv3d-forward-adoption-and-explicit-gradient-boundary.md)
 is Complete as the separate forward consumer after 0025H; Compiler 0006C remains separate Draft
@@ -217,8 +218,9 @@ is Complete. Detailed
 is Complete. Detailed
 [CPU 0008F](backends/cpu/tasks/0008f-portable-matmul-execution-and-bounded-linear-epilogues.md)
 is Complete. Detailed
-[CPU 0008G](backends/cpu/tasks/0008g-portable-max-average-pool2d-execution.md) is Complete. Draft
-CPU 0008G1 follows the inserted Model and Compiler prerequisites; CPU 0008H follows 0008G1.
+[CPU 0008G](backends/cpu/tasks/0008g-portable-max-average-pool2d-execution.md) and detailed
+[CPU 0008G1](backends/cpu/tasks/0008g1-portable-pool1d-composition-validation-and-pool3d-generated-execution.md)
+are Complete. Draft CPU 0008H follows without a detailed specification.
 
 CPU 0008F completes the fully static portable MATMUL family at schema 54 across all thirteen
 ordered non-BOOL numeric promotions, vector/matrix/batched/right-broadcast geometry, four bounded
@@ -419,8 +421,8 @@ channel/non-channel ranges; and detailed Complete
 [CPU 0007F2](backends/cpu/tasks/0007f2-portable-batch-normalization-training-and-statistic-transition-coverage.md)
 owns batch training/statistic transition. CPU 0007F, CPU 0007F1, CPU 0007F2, and detailed CPU
 0008, 0008A, 0008B, 0008C, CPU 0008D, CPU 0008E, and Prepare 0003A are Complete; detailed CPU
-0008E1, detailed CPU 0008F, and detailed CPU 0008G are Complete; Draft CPU 0008G1 is inserted
-before Draft CPU 0008H.
+0008E1, detailed CPU 0008F, detailed CPU 0008G, and detailed CPU 0008G1 are Complete; Draft CPU
+0008H follows without a detailed specification.
 A completed local
 bytecode/performance audit then inserted detailed
 [CPU 0007A0 generated hot-path parity correction](backends/cpu/tasks/0007a0-generated-hot-path-parity-correction.md)
@@ -775,7 +777,8 @@ CPU 0007A1O, CPU 0007A2, detailed CPU 0007B, and detailed CPU 0007C are `Complet
 0007D, detailed CPU 0007E, and detailed CPU 0007F are `Complete`, while detailed CPU 0007F1 is
 `Complete`; detailed CPU 0007F2, CPU 0008, CPU 0008A, CPU 0008B, CPU 0008C, and CPU 0008D are
 `Complete`; detailed CPU 0008E, Prepare 0003A, and detailed CPU 0008E1 are `Complete`,
-CPU 0008F and detailed CPU 0008G are `Complete`, and CPU 0008G1 through CPU 0017 remain Draft.
+CPU 0008F, detailed CPU 0008G, and detailed CPU 0008G1 are `Complete`; CPU 0008H
+through CPU 0017 remain Draft.
 CPU 0003
 implements a
 model-independent filesystem store beneath an explicit
@@ -1044,7 +1047,7 @@ This refinement is source-backed: Conv2d, MATMUL, pooling, attention, and loss h
 geometry, numerical algorithms, resources, publication shapes, generated-loop bodies, and
 performance evidence. Combining them would exceed one cohesive implementation session. Detailed
 Complete CPU 0008F and detailed Complete CPU 0008G retain MATMUL/linear-epilogue and Pool2d
-ownership. Draft CPU 0008G1 owns Pool1d composition validation and Pool3d execution before Draft
+ownership. Complete detailed CPU 0008G1 owns Pool1d composition validation and Pool3d execution before Draft
 CPU 0008H and 0008I retain attention and loss ownership. These family rows remain their
 implementation owners rather than being replaced by
 generic fusion planning.
@@ -1257,7 +1260,7 @@ detailed CPU 0007A1E through CPU 0007A1O, CPU 0007A2, and detailed CPU 0007B are
 Detailed CPU 0007C, detailed CPU 0007D, detailed CPU 0007E, and detailed CPU 0007F are `Complete`.
 Detailed CPU 0007F1, CPU 0007F2, CPU 0008, CPU 0008A, CPU 0008B, CPU 0008C, and CPU 0008D are
 `Complete`; detailed CPU 0008E and CPU 0008E1 are `Complete`; CPU 0008F is
-`Complete`; detailed CPU 0008G is `Complete`; CPU 0008H–0017 and the refined Config, Metal, and
+`Complete`; detailed CPU 0008G and CPU 0008G1 are `Complete`; CPU 0008H–0017 and the refined Config, Metal, and
 tuning rows remain `Draft`. Prepare 0003A is Complete.
 Completed OpenBLAS history and every completed project area remain unchanged.
 

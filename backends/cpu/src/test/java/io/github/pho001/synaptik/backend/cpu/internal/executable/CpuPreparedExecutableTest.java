@@ -47,6 +47,7 @@ import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuBatchNormInfer
 import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuBatchNormTrainingLoweringTest;
 import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuConv3dLoweringTest;
 import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuPool2dLoweringTest;
+import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuPool3dLoweringTest;
 import io.github.pho001.synaptik.model.operation.scan.CumulativeScanKind;
 import io.github.pho001.synaptik.model.operation.normalization.SoftmaxKind;
 import io.github.pho001.synaptik.model.operation.reduction.AggregateReductionKind;
@@ -57,6 +58,8 @@ import io.github.pho001.synaptik.model.operation.reduction.StatisticalReductionA
 import io.github.pho001.synaptik.model.operation.convolution.Conv3dAttrs;
 import io.github.pho001.synaptik.model.operation.pooling.MaxPool2dAttrs;
 import io.github.pho001.synaptik.model.operation.pooling.Pool2dKind;
+import io.github.pho001.synaptik.model.operation.pooling.MaxPool3dAttrs;
+import io.github.pho001.synaptik.model.operation.pooling.Pool3dKind;
 import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuOrderingLoweringTest;
 import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuRandomLoweringTest;
 import io.github.pho001.synaptik.backend.cpu.internal.prepare.CpuPartitionPreparer;
@@ -82,6 +85,49 @@ class CpuPreparedExecutableTest {
             ValueLayout.JAVA_INT_UNALIGNED.withOrder(ByteOrder.nativeOrder());
     private static final ValueLayout.OfLong LONG =
             ValueLayout.JAVA_LONG_UNALIGNED.withOrder(ByteOrder.nativeOrder());
+
+    @Test void pool3dExecutesScalarAndParallelCompleteCellsAndRejectsOverlapBeforeWrite() {
+        var base = CpuPool3dLoweringTest.context(Pool3dKind.MAX_POOL3D,
+                new MaxPool3dAttrs(2, 2, 2, 1, 1, 1, 0, 0, 0, 1, 1, 1, false),
+                DataType.FLOAT32, Shape.of(1, 1, 3, 3, 3), Shape.of(1, 1, 2, 2, 2));
+        float[] input = new float[27];
+        for (int index = 0; index < input.length; index++) input[index] = index - 13.5f;
+        var scalarContext = new io.github.pho001.synaptik.prepare.analysis.PrepareContext<>(
+                base.partition(), base.nodes(), base.values(), base.memoryRequirements(),
+                base.constants(), new CpuPartitionAnalysisInputs(false,
+                        List.of(CarrierAccess.FLOAT_ARRAY, CarrierAccess.FLOAT_ARRAY)));
+        var scalar = CpuPartitionFinalizerTest.finalizeExecutable(
+                new CpuPartitionPreparer().analyze(scalarContext), Optional.empty());
+        float[] expected = new float[8];
+        var scalarRun = state(scalar, List.of(borrow(input, 0, input.length),
+                borrow(expected, 0, expected.length)));
+        try { scalar.bind(scalarRun).execute(); } finally { scalarRun.close(); }
+
+        var config = new PortableExecutionConfig(ComputePreference.SCALAR, 4, 4, 1);
+        var parallelContext = new io.github.pho001.synaptik.prepare.analysis.PrepareContext<>(
+                base.partition(), base.nodes(), base.values(), base.memoryRequirements(),
+                base.constants(), new CpuPartitionAnalysisInputs(false,
+                        List.of(CarrierAccess.FLOAT_ARRAY, CarrierAccess.FLOAT_ARRAY), config));
+        var analysis = new CpuPartitionPreparer().analyze(parallelContext);
+        assertAll(() -> assertTrue(analysis.plan().workspaceDeclaration().isEmpty()),
+                () -> assertTrue(analysis.plan().materialization().isEmpty()),
+                () -> assertEquals(4, analysis.plan().selectedRangeCount()));
+        try (var workers = new CpuWorkerGroup(4)) {
+            var parallel = CpuPartitionFinalizerTest.finalizeExecutable(analysis,
+                    Optional.empty(), Optional.of(workers));
+            float[] actual = new float[8];
+            var run = state(parallel, List.of(borrow(input, 0, input.length),
+                    borrow(actual, 0, actual.length)));
+            try { parallel.bind(run).execute(); assertArrayEquals(expected, actual); }
+            finally { run.close(); }
+            float[] shared = new float[27]; Arrays.fill(shared, -17f);
+            var overlap = state(parallel, List.of(borrow(shared, 0, 27), borrow(shared, 0, 8)));
+            try {
+                assertThrows(IllegalArgumentException.class, () -> parallel.bind(overlap));
+                for (float value : shared) assertEquals(-17f, value);
+            } finally { overlap.close(); }
+        }
+    }
 
     @Test void pool2dExecutesScalarAndParallelCompleteCellsAndRejectsOverlapBeforeWrite() {
         var base = CpuPool2dLoweringTest.context(Pool2dKind.MAX_POOL2D,

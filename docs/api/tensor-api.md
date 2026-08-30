@@ -7411,9 +7411,10 @@ their canonical descriptors and spatial obligations. Complete Compiler 0006B2 co
 three adjoints through the same public API: either unfold form maps its cotangent through
 `fold3d` into the exact original input Shape, and fold maps its cotangent through the direct
 positive-zero `unfold3d` overload. Typed padding is immutable configuration rather than a
-differentiable input. Draft CPU 0008G1 owns generated execution. No current backend capability,
-Runtime behavior, materialized result, numerical output, or performance property follows from
-constructing either transform.
+differentiable input. The current CPU Pool3d implementation does not execute `UNFOLD3D` or
+`FOLD3D`; those remain separate operation families. No backend capability, Runtime behavior,
+materialized result, numerical output, or performance property for either transform follows from
+constructing it.
 
 #### Complete window-transform expression example
 
@@ -8357,9 +8358,12 @@ maximum-index output.
 Backend support is the conjunction of support for the exact `EXPAND_DIMS`, matching Pool2d, and
 `SQUEEZE` occurrences with their actual descriptors and attributes. A backend may recognize the
 whole topology as an optimization only if it preserves that meaning; neither this Model API nor
-such recognition creates or advertises a Pool1d operation capability. The example proves current
-metadata and provenance only. It does not read values, execute pooling, promise fusion, or claim
-support from any particular backend.
+such recognition creates or advertises a Pool1d operation capability. The current CPU backend
+recognizes only this exact private single-use topology with resolved singleton-height affine
+layouts. It keeps both rank edits virtual and reuses the same schema-55 generated Pool2d class
+bytes that the matching direct Pool2d occurrence uses. Near matches retain ordinary decomposition.
+The example itself still proves Model metadata and provenance only: constructing it does not read
+values, execute pooling, guarantee that CPU recognition will apply, or promise fusion.
 
 ### NCHW maximum-pooling expressions
 
@@ -8697,9 +8701,13 @@ uses its fixed logical kernel divisor and overlap-accumulating `fold3d`. Maximum
 exact same-occurrence output and an explicit in-bounds eligibility mask so dominant NaN,
 signed-zero ordering, real negative infinity, first-winner, and all-padding behavior remain
 distinguishable; its selected mask is fixed for a later derivative stage. Current Model owns the
-general `unfold3d`/`fold3d` algebra, and Draft CPU 0008G1 owns execution. No current backend
-support, execution, materialized numeric result, or performance property follows from this Model
-API.
+general `unfold3d`/`fold3d` algebra. The CPU backend now supports direct non-gradient Pool3d
+execution only for fully static Shapes, resolved non-negative layouts, injective output layouts,
+BFLOAT16/FLOAT32/FLOAT64 carriers, and representable checked geometry. Its scalar or
+caller-parallel generated schema-56 body owns complete output cells and uses zero workspace or
+materialization. This is backend-internal prepared execution, not value evaluation by the Model
+call, general Pool3d support for dynamic geometry, execution of `unfold3d`/`fold3d`, or a
+vector/native/fused route.
 
 ### Matrix-multiplication semantic kind
 

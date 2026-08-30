@@ -50,6 +50,23 @@ import org.junit.jupiter.api.io.TempDir;
 class CpuPartitionDagResourceTest {
     @TempDir Path root;
 
+    @Test void pool3dDeclaresOnlyItsInputAndOutputBuffers() {
+        var base=io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuPool3dLoweringTest
+                .context(io.github.pho001.synaptik.model.operation.pooling.Pool3dKind.MAX_POOL3D,
+                        new io.github.pho001.synaptik.model.operation.pooling.MaxPool3dAttrs(
+                                2,2,2,1,1,1,0,0,0,1,1,1,false),DataType.FLOAT32,
+                        Shape.of(1,1,3,3,3),Shape.of(1,1,2,2,2));
+        var context=new PrepareContext<>(base.partition(),base.nodes(),base.values(),
+                base.memoryRequirements(),base.constants(),new CpuPartitionAnalysisInputs(false,
+                        List.of(CarrierAccess.FLOAT_ARRAY,CarrierAccess.MEMORY_SEGMENT)));
+        var analysis=new CpuPartitionPreparer().analyze(context);
+        assertAll(()->assertEquals(2,analysis.requirements().size()),
+                ()->assertTrue(analysis.requirements().stream().allMatch(
+                        PreparationResourceRequirement.Buffer.class::isInstance)),
+                ()->assertTrue(analysis.plan().workspaceDeclaration().isEmpty()),
+                ()->assertTrue(analysis.plan().materialization().isEmpty()));
+    }
+
     @Test void twoWorkspaceUnitsUseFinalIndicesAndExactFirstUseBufferCarrierMapping() {
         var analysis = analysis();
         var plan = analysis.plan();

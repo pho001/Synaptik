@@ -23,6 +23,7 @@ import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuConv2dLowering
 import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuMatmulLowering;
 import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuConv3dLowering;
 import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuPool2dLowering;
+import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuPool3dLowering;
 import io.github.pho001.synaptik.backend.cpu.internal.memory.CpuBufferArgument;
 import io.github.pho001.synaptik.backend.cpu.internal.memory.CpuBufferRepresentation;
 import io.github.pho001.synaptik.backend.cpu.internal.memory.CpuContiguousWorkspace;
@@ -130,6 +131,7 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
     private final Optional<CpuConv3dLowering.Geometry> conv3dGeometry;
     private final Optional<CpuMatmulLowering.Geometry> matmulGeometry;
     private final Optional<CpuPool2dLowering.Geometry> pool2dGeometry;
+    private final Optional<CpuPool3dLowering.Geometry> pool3dGeometry;
     private final int outputCount;
 
     /**
@@ -869,7 +871,7 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
                 argExtremaGeometry, maskedReductionGeometry, advancedReductionGeometry,
                 softmaxGeometry, trailingNormalizationGeometry, batchNormInferenceGeometry,
                 batchNormTrainingGeometry, conv2dGeometry, conv3dGeometry, matmulGeometry,
-                Optional.empty(), outputCount);
+                Optional.empty(), Optional.empty(), outputCount);
     }
 
     /**
@@ -913,6 +915,7 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
      * @param conv3dGeometry non-null optional grouped NCDHW Conv3d boundary geometry
      * @param matmulGeometry non-null optional normalized full-K MATMUL geometry
      * @param pool2dGeometry non-null optional NCHW Pool2d boundary geometry
+     * @param pool3dGeometry non-null optional NCDHW Pool3d boundary geometry
      * @param outputCount positive number of trailing selections written by this unit
      * @throws NullPointerException if a required reference or list element is {@code null}
      * @throws IllegalArgumentException if representation plans/workspaces, memory, boundary,
@@ -945,7 +948,8 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
             Optional<CpuConv2dLowering.Geometry> conv2dGeometry,
             Optional<CpuConv3dLowering.Geometry> conv3dGeometry,
             Optional<CpuMatmulLowering.Geometry> matmulGeometry,
-            Optional<CpuPool2dLowering.Geometry> pool2dGeometry, int outputCount) {
+            Optional<CpuPool2dLowering.Geometry> pool2dGeometry,
+            Optional<CpuPool3dLowering.Geometry> pool3dGeometry, int outputCount) {
         super(memoryPlan, selections, java.util.stream.Stream.concat(workspaceSelection.stream(),
                 representationWorkspaceSelections.stream()).toList(),
                 accesses(selections.size(), outputCount));
@@ -984,11 +988,14 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
         this.conv3dGeometry = Objects.requireNonNull(conv3dGeometry, "conv3dGeometry");
         this.matmulGeometry = Objects.requireNonNull(matmulGeometry, "matmulGeometry");
         this.pool2dGeometry = Objects.requireNonNull(pool2dGeometry, "pool2dGeometry");
+        this.pool3dGeometry = Objects.requireNonNull(pool3dGeometry, "pool3dGeometry");
         this.outputCount = outputCount;
         if (outputCount <= 0 || outputCount > selections.size()) {
             throw new IllegalArgumentException("output boundary count is inconsistent");
         }
-        long count = this.pool2dGeometry.isPresent()
+        long count = this.pool3dGeometry.isPresent()
+                ? this.pool3dGeometry.orElseThrow().outputCount()
+                : this.pool2dGeometry.isPresent()
                 ? this.pool2dGeometry.orElseThrow().outputCount()
                 : this.matmulGeometry.isPresent() ? this.matmulGeometry.orElseThrow().outputCount()
                 : this.conv2dGeometry.isPresent() || this.conv3dGeometry.isPresent()
@@ -1065,6 +1072,7 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
         geometryCount += this.conv3dGeometry.isPresent() ? 1 : 0;
         geometryCount += this.matmulGeometry.isPresent() ? 1 : 0;
         geometryCount += this.pool2dGeometry.isPresent() ? 1 : 0;
+        geometryCount += this.pool3dGeometry.isPresent() ? 1 : 0;
         if (geometryCount>1) {
             throw new IllegalArgumentException("affine, movement, indexing, scatter, and fold geometry are exclusive");
         }
@@ -1127,6 +1135,7 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
      * @param conv3dGeometry non-null optional grouped NCDHW Conv3d geometry
      * @param matmulGeometry non-null optional MATMUL geometry
      * @param pool2dGeometry non-null optional NCHW Pool2d geometry
+     * @param pool3dGeometry non-null optional NCDHW Pool3d geometry
      * @param outputCount positive number of trailing output selections
      * @throws NullPointerException if a required reference or list element is {@code null}
      * @throws IllegalArgumentException if recipe, geometry, range, or carrier facts disagree
@@ -1156,7 +1165,8 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
             Optional<CpuConv2dLowering.Geometry> conv2dGeometry,
             Optional<CpuConv3dLowering.Geometry> conv3dGeometry,
             Optional<CpuMatmulLowering.Geometry> matmulGeometry,
-            Optional<CpuPool2dLowering.Geometry> pool2dGeometry, int outputCount) {
+            Optional<CpuPool2dLowering.Geometry> pool2dGeometry,
+            Optional<CpuPool3dLowering.Geometry> pool3dGeometry, int outputCount) {
         this(memoryPlan, selections, artifact, bindings, carrierPattern, generatedCarrierPattern,
                 start, end, selectedRangeCount, minimumElementsPerWorker, workerGroup,
                 materialization.isPresent() ? Optional.empty() : workspaceSelection,
@@ -1167,7 +1177,7 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
                 argExtremaGeometry, maskedReductionGeometry, advancedReductionGeometry,
                 softmaxGeometry, trailingNormalizationGeometry, batchNormInferenceGeometry,
                 batchNormTrainingGeometry, conv2dGeometry, conv3dGeometry, matmulGeometry,
-                pool2dGeometry, outputCount);
+                pool2dGeometry, pool3dGeometry, outputCount);
     }
 
     /**
@@ -1244,7 +1254,8 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
         if (softmaxGeometry.isPresent() || trailingNormalizationGeometry.isPresent()
                 || batchNormInferenceGeometry.isPresent() || batchNormTrainingGeometry.isPresent()
                 || conv2dGeometry.isPresent() || conv3dGeometry.isPresent()
-                || matmulGeometry.isPresent() || pool2dGeometry.isPresent()) return bindings.getLast();
+                || matmulGeometry.isPresent() || pool2dGeometry.isPresent()
+                || pool3dGeometry.isPresent()) return bindings.getLast();
         return ranged(movementGeometry.isPresent() || indexingGeometry.isPresent()
                 || scatterGeometry.isPresent() || foldGeometry.isPresent() || orderingGeometry.isPresent()
                 || randomGeometry.isPresent()
@@ -1264,7 +1275,8 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
         if (softmaxGeometry.isPresent() || trailingNormalizationGeometry.isPresent()
                 || batchNormInferenceGeometry.isPresent() || batchNormTrainingGeometry.isPresent()
                 || conv2dGeometry.isPresent() || conv3dGeometry.isPresent()
-                || matmulGeometry.isPresent() || pool2dGeometry.isPresent()) return bindings;
+                || matmulGeometry.isPresent() || pool2dGeometry.isPresent()
+                || pool3dGeometry.isPresent()) return bindings;
         if (movementGeometry.isPresent() || indexingGeometry.isPresent()
                 || scatterGeometry.isPresent() || foldGeometry.isPresent() || orderingGeometry.isPresent()
                 || randomGeometry.isPresent() || scanGeometry.isPresent()
@@ -1299,7 +1311,7 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
                 scanGeometry, aggregateGeometry, argExtremaGeometry, maskedReductionGeometry,
                 advancedReductionGeometry, softmaxGeometry, trailingNormalizationGeometry,
                 batchNormInferenceGeometry, batchNormTrainingGeometry, conv2dGeometry,
-                conv3dGeometry, matmulGeometry, pool2dGeometry,
+                conv3dGeometry, matmulGeometry, pool2dGeometry, pool3dGeometry,
                 outputCount);
     }
 
@@ -1424,6 +1436,7 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
                             || batchNormInferenceGeometry.isPresent() || batchNormTrainingGeometry.isPresent()
                             || conv2dGeometry.isPresent() || conv3dGeometry.isPresent()
                             || matmulGeometry.isPresent() || pool2dGeometry.isPresent()
+                            || pool3dGeometry.isPresent()
                         ? overlaps(arguments.get(input), inputBinding,
                             arguments.get(firstOutputIndex), bindings.get(firstOutputIndex))
                         : overlaps(arguments.get(input), ranged(inputBinding),
@@ -1570,6 +1583,12 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
 
     private long[] geometry(List<CpuBufferArgument> arguments, long rangeStart, long rangeEnd,
             int rangeIndex) {
+        if (pool3dGeometry.isPresent()) {
+            int width = artifact.specialization().boundaryDataTypes().getFirst().byteWidth();
+            return pool3dGeometry.orElseThrow().pack(
+                    arguments.getFirst().byteOffset() / width,
+                    arguments.getLast().byteOffset() / width);
+        }
         if (pool2dGeometry.isPresent()) {
             int width = artifact.specialization().boundaryDataTypes().getFirst().byteWidth();
             return pool2dGeometry.orElseThrow().pack(

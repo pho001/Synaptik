@@ -106,6 +106,29 @@ padding in its fixed kernel-position divisor. The direct schema-55 generated bod
 pooling route and adds no fusion, materialization, vector body, native route, saved indices, or
 backward execution.
 
+The same Pool2d body also implements one exact visible NCW Pool1d composition when CPU analysis
+recognizes `EXPAND_DIMS(axis 2) -> POOL2D -> SQUEEZE(axis 2)`. Both rank edits remain virtual,
+and the external rank-three input and output are the only buffer boundaries. Recognition requires
+private single-use intermediates, exact affine singleton-height layouts, and Pool2d height
+geometry `(kernel, stride, padding, dilation) = (1, 1, 0, 1)`. A near match follows ordinary
+partition-DAG decomposition. This optimization retains schema-55 Pool2d class identity and does
+not create a Pool1d operation, capability query, IR family, route, or generated artifact; CPU
+continues to report the three visible component occurrences independently.
+
+The fifteenth family is exactly one resolved-layout `MAX_POOL3D` or `AVERAGE_POOL3D` occurrence
+over matching rank-five NCDHW BFLOAT16, FLOAT32, or FLOAT64 input and output. The direct schema-56
+generated body visits each complete output cell in depth-height-width order and supports typed
+heap-array, native-order segment, and mixed carriers. Maximum excludes padding, preserves the
+first eligible NaN or equal winner, ranks positive zero above negative zero, and returns negative
+infinity for an all-padding window. Average uses the fixed
+`kernelDepth * kernelHeight * kernelWidth` count-padding divisor, FLOAT32 arithmetic for BFLOAT16
+and FLOAT32, FLOAT64 arithmetic for FLOAT64, and one final BFLOAT16 narrowing. Scalar execution
+or caller-owned parallel-scalar ranges divide only complete output cells; the family declares one
+read, one write, and zero workspace or materialization. Current support is limited to fully static
+Shapes, resolved non-negative layouts, an injective output, exact floor/literal-ceil geometry, and
+non-gradient occurrences. It adds no pooling fusion, saved winners, general PoolNd bridge,
+unfold/fold execution, vector/native route, or dynamic geometry.
+
 Generated scalar and Java 26 Vector API entries accept primitive `start` and `end` bounds.
 Compatible concrete extents bind on the cold path and share identical class bytes and one
 process-local loaded compatibility identity. The pointwise semantic matrix uses exactly five

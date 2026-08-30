@@ -363,7 +363,8 @@ Operation-family subpackages are introduced only when a focused operation task d
   asymmetric padding is explicit `PAD` composition or a later separately justified semantic
   extension rather than a silent change to completed `Conv2dAttrs`.
 - Channels-first pooling expansion: 0025I–0025K and detailed Compiler 0006B1–0006B2 are Complete;
-  Draft CPU 0008G1 is the next cross-plan frontier without a detailed specification.
+  detailed [CPU 0008G1](../../backends/cpu/tasks/0008g1-portable-pool1d-composition-validation-and-pool3d-generated-execution.md)
+  is Complete and closes the bounded CPU execution step.
   Complete [task 0025I](tasks/0025i-ncw-max-average-pool1d-composition.md) reuses the exact singleton-height
   composition proof for NCW pooling and creates no Pool1d kind. Complete
   [task 0025J](tasks/0025j-first-class-ncdhw-max-average-pool3d-semantics.md) is first-class because
@@ -374,7 +375,7 @@ Operation-family subpackages are introduced only when a focused operation task d
   tasks introduce no `PoolNd` or dynamic-rank API. Task 0025J adds current Model metadata only;
   complete Compiler 0006B1 adopts the two Pool3d and three 3D-window forward signatures,
   complete Model 0025K owns window algebra, Complete Compiler 0006B2 owns the detailed gradient
-  closure, and Draft CPU 0008G1 retains execution.
+  closure, and Complete CPU 0008G1 supplies the bounded fully static Pool3d CPU execution subset.
 - Future mixed-precision semantic foundation: task 0026 remains Draft without a detailed
   specification. It must complete before any backend advertises FLOAT16, but it does not block
   current CPU generated-artifact caching, current-type portable analysis/finalization, or
@@ -1962,6 +1963,7 @@ gradient closure remains downstream work. Detailed
 0026 remains Draft without a detailed specification; no Model task is Ready or In progress.
 Detailed Compiler 0006B1 is Complete. Detailed
 [Compiler 0006B2](../compiler/tasks/0006b2-pool3d-and-3d-window-gradient-closure.md) is Complete;
-Draft CPU 0008G1 is the next cross-plan frontier without a detailed specification.
+Detailed [CPU 0008G1](../../backends/cpu/tasks/0008g1-portable-pool1d-composition-validation-and-pool3d-generated-execution.md)
+is Complete. Draft CPU 0008H remains the next cross-plan frontier without a detailed specification.
 The legacy branch must be consulted read-only for capability and test evidence when preparing each
 applicable capability task.

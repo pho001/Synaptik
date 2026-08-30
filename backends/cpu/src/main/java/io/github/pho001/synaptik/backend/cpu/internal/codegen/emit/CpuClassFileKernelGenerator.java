@@ -77,6 +77,7 @@ public final class CpuClassFileKernelGenerator {
                     || kernelIr.familyIdentity().startsWith("conv3d:")
                     || kernelIr.familyIdentity().startsWith("matmul:")
                     || kernelIr.familyIdentity().startsWith("pool2d:")
+                    || kernelIr.familyIdentity().startsWith("pool3d:")
                         ? AccessFlag.PUBLIC.mask() : 0);
         byte[] bytes = ClassFile.of().build(owner, classBuilder -> classBuilder
                 .withVersion(ClassFile.JAVA_26_VERSION, 0).withFlags(AccessFlag.FINAL)
@@ -88,7 +89,8 @@ public final class CpuClassFileKernelGenerator {
                                                     specialization, kernelIr)
                                     && !kernelIr.familyIdentity().startsWith("conv2d:")
                                     && !kernelIr.familyIdentity().startsWith("conv3d:")
-                                    && !kernelIr.familyIdentity().startsWith("pool2d:")) {
+                                    && !kernelIr.familyIdentity().startsWith("pool2d:")
+                                    && !kernelIr.familyIdentity().startsWith("pool3d:")) {
                                 CpuCarrierEmitter.prepareSegmentLayouts(code,
                                         specialization.boundaryDataTypes(),
                                         specialization.carrierPattern());
@@ -96,6 +98,8 @@ public final class CpuClassFileKernelGenerator {
                             if (kernelIr.instructions().isEmpty()) {
                                 if (kernelIr.familyIdentity().startsWith("pool2d:")) {
                                     new CpuPool2dEmitter().emit(code, specialization, kernelIr);
+                                } else if (kernelIr.familyIdentity().startsWith("pool3d:")) {
+                                    new CpuPool3dEmitter().emit(code, specialization, kernelIr);
                                 } else if (kernelIr.familyIdentity().startsWith("matmul:")) {
                                     new CpuMatmulEmitter().emit(code, specialization,
                                             specialization.matmulIr().orElseThrow(() ->
@@ -435,22 +439,24 @@ public final class CpuClassFileKernelGenerator {
             boolean conv3d = kernelIr.familyIdentity().startsWith("conv3d:");
             boolean matmul = kernelIr.familyIdentity().startsWith("matmul:");
             boolean pool2d = kernelIr.familyIdentity().startsWith("pool2d:");
+            boolean pool3d = kernelIr.familyIdentity().startsWith("pool3d:");
             boolean scatter = kernelIr.familyIdentity().startsWith("scatter:");
             boolean fold = kernelIr.familyIdentity().startsWith("fold:");
             boolean ordering = kernelIr.familyIdentity().startsWith("ordering:");
             boolean movement = kernelIr.familyIdentity().startsWith("movement:");
             boolean affine = kernelIr.familyIdentity().startsWith("affine:");
-            if ((!movement && !affine && !indexing && !scatter && !fold && !ordering && !random && !scan && !aggregate && !argExtrema && !maskedReduction && !advancedReduction && !softmax && !trailingNormalization && !batchNormalization && !batchTraining && !conv2d && !conv3d && !matmul && !pool2d)
+            if ((!movement && !affine && !indexing && !scatter && !fold && !ordering && !random && !scan && !aggregate && !argExtrema && !maskedReduction && !advancedReduction && !softmax && !trailingNormalization && !batchNormalization && !batchTraining && !conv2d && !conv3d && !matmul && !pool2d && !pool3d)
                     || affine && kernelIr.values().size() != 2
                     || movement && (kernelIr.values().size() < 2 || kernelIr.values().size() > 17)
-                    || !ordering && !random && !scan && !aggregate && !argExtrema && !maskedReduction && !advancedReduction && !softmax && !trailingNormalization && !batchNormalization && !batchTraining && !conv2d && !conv3d && !matmul && !pool2d && kernelIr.values().subList(0, kernelIr.values().size() - 1).stream()
+                    || !ordering && !random && !scan && !aggregate && !argExtrema && !maskedReduction && !advancedReduction && !softmax && !trailingNormalization && !batchNormalization && !batchTraining && !conv2d && !conv3d && !matmul && !pool2d && !pool3d && kernelIr.values().subList(0, kernelIr.values().size() - 1).stream()
                         .anyMatch(value -> value.kind() != CpuKernelIr.Value.Kind.INPUT)
                     || kernelIr.values().getLast().kind() != CpuKernelIr.Value.Kind.OUTPUT
-                    || !indexing && !scatter && !fold && !ordering && !random && !scan && !aggregate && !argExtrema && !maskedReduction && !advancedReduction && !softmax && !trailingNormalization && !batchNormalization && !batchTraining && !conv2d && !conv3d && !matmul && !pool2d
+                    || !indexing && !scatter && !fold && !ordering && !random && !scan && !aggregate && !argExtrema && !maskedReduction && !advancedReduction && !softmax && !trailingNormalization && !batchNormalization && !batchTraining && !conv2d && !conv3d && !matmul && !pool2d && !pool3d
                         && kernelIr.values().stream().map(CpuKernelIr.Value::dataType).distinct().count() != 1
                     || conv2d && (kernelIr.values().size() < 3 || kernelIr.values().size() > 5)
                     || conv3d && (kernelIr.values().size() < 3 || kernelIr.values().size() > 4)
                     || pool2d && kernelIr.values().size() != 2
+                    || pool3d && kernelIr.values().size() != 2
                     || matmul && (specialization.matmulIr().isEmpty()
                         || kernelIr.values().size()
                             != (specialization.matmulIr().orElseThrow().epilogue().hasBias()?4:3)

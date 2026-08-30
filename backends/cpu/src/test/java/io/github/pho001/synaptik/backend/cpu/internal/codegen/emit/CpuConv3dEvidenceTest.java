@@ -28,7 +28,7 @@ public final class CpuConv3dEvidenceTest {
     private record Target(String name,PrepareContext<CpuPartitionAnalysisInputs> context){}
 
     @Test void retainsClosedRepresentativeGeneratedInventory()throws Exception{
-        assertEquals(55,CpuGeneratorSchema.CURRENT_VERSION);Files.createDirectories(GENERATED);
+        assertEquals(56,CpuGeneratorSchema.CURRENT_VERSION);Files.createDirectories(GENERATED);
         try(InputStream input=getClass().getResourceAsStream("/cpu-0008a-generated-form-ledger.csv")){assertNotNull(input);Files.copy(input,ROOT.resolve("generated-form-ledger.csv"),java.nio.file.StandardCopyOption.REPLACE_EXISTING);}
         var targets=targets();assertEquals(List.of("CONV3D-DENSE-F32","CONV3D-GROUPED-BIASED-F32","CONV3D-GROUPED-BIASED-F64","CONV3D-DEPTHWISE-BF16","CONV3D-ALL-SEGMENT-F32","CONV3D-GENERAL-MIXED","CONV3D-PARALLEL-F32"),targets.stream().map(Target::name).toList());
         for(Target target:targets)inspect(target);

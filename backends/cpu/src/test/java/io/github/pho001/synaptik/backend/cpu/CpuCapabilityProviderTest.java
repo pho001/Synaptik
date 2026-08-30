@@ -71,6 +71,45 @@ class CpuCapabilityProviderTest {
                         List.of(input), nonInjective))));
     }
 
+    @Test void reportsOnlyExactStaticResolvedFloatingNcdhwPool3dOccurrences() {
+        var provider=new CpuCapabilityProvider();
+        var max=new MaxPool3dAttrs(2,2,2,2,2,2,2,2,2,1,1,1,true);
+        var average=new AveragePool3dAttrs(2,2,2,2,2,2,2,2,2,1,1,1,true);
+        for(DataType type:List.of(DataType.BFLOAT16,DataType.FLOAT32,DataType.FLOAT64)){
+            var input=descriptor(type,Shape.of(1,2,3,3,3));
+            var output=descriptor(type,Shape.of(1,2,4,4,4));
+            assertAll(()->assertTrue(provider.supports(query(Pool3dKind.MAX_POOL3D,max,List.of(input),output))),
+                    ()->assertTrue(provider.supports(query(Pool3dKind.AVERAGE_POOL3D,average,List.of(input),output))));
+        }
+        var input=descriptor(DataType.FLOAT32,Shape.of(1,2,3,3,3));
+        var output=descriptor(DataType.FLOAT32,Shape.of(1,2,4,4,4));
+        var gradientInput=new TensorDescriptor(DataType.FLOAT32,Shape.of(1,2,3,3,3),
+                Optional.of(LayoutDescriptor.contiguous(Shape.of(1,2,3,3,3))),true);
+        var gradientOutput=new TensorDescriptor(DataType.FLOAT32,Shape.of(1,2,4,4,4),
+                Optional.of(LayoutDescriptor.contiguous(Shape.of(1,2,4,4,4))),true);
+        Shape outputShape=Shape.of(1,2,4,4,4);
+        var nonInjective=new TensorDescriptor(DataType.FLOAT32,outputShape,
+                Optional.of(LayoutDescriptor.of(outputShape,new long[]{0,0,0,0,0},0,true)),false);
+        Shape inputShape=Shape.of(1,2,3,3,3);
+        var nonInjectiveInput=new TensorDescriptor(DataType.FLOAT32,inputShape,
+                Optional.of(LayoutDescriptor.of(inputShape,new long[]{0,0,0,0,0},0,true)),false);
+        assertAll(()->assertFalse(provider.supports(query(Pool3dKind.MAX_POOL3D,max,
+                        List.of(descriptor(DataType.INT32,Shape.of(1,2,3,3,3))),output))),
+                ()->assertTrue(provider.supports(query(Pool3dKind.MAX_POOL3D,max,
+                        List.of(nonInjectiveInput),output))),
+                ()->assertFalse(provider.supports(query(Pool3dKind.MAX_POOL3D,max,List.of(input),
+                        descriptor(DataType.FLOAT32,Shape.of(1,2,4,4,3))))),
+                ()->assertFalse(provider.supports(query(Pool3dKind.MAX_POOL3D,max,
+                        List.of(gradientInput),gradientOutput))),
+                ()->assertFalse(provider.supports(query(Pool3dKind.MAX_POOL3D,max,
+                        List.of(input),nonInjective))),
+                ()->assertFalse(provider.supports(query(Pool3dKind.MAX_POOL3D,max,
+                        List.of(descriptor(DataType.FLOAT32,Shape.of(1,2,3,3))),
+                        descriptor(DataType.FLOAT32,Shape.of(1,2,4,4))))),
+                ()->assertThrows(IllegalArgumentException.class,()->query(Pool3dKind.MAX_POOL3D,
+                        average,List.of(input),output)));
+    }
+
     @Test void reportsExactlyStaticResolvedNumericMatmulOccurrences() {
         var provider = new CpuCapabilityProvider();
         var numeric = List.of(DataType.BFLOAT16, DataType.FLOAT32, DataType.FLOAT64,

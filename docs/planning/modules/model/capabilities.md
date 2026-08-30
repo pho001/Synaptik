@@ -763,8 +763,10 @@ capture, inference, final validation, and ordinary Planning handoff, while compl
 [Model 0025K](tasks/0025k-public-ncdhw-unfold3d-and-fold3d-window-transforms.md) owns general
 `unfold3d`/`fold3d`, and Complete detailed
 [Compiler 0006B2](../compiler/tasks/0006b2-pool3d-and-3d-window-gradient-closure.md) owns exact
-gradients. Draft CPU 0008G1 owns execution. There is no current backend capability, execution,
-materialized numerical result, or performance claim for either Pool3d kind.
+gradients. Complete [CPU 0008G1](../../backends/cpu/tasks/0008g1-portable-pool1d-composition-validation-and-pool3d-generated-execution.md)
+adds the fully static resolved-layout non-gradient BFLOAT16/FLOAT32/FLOAT64 CPU execution subset.
+That backend implementation does not broaden Model metadata, execute gradients or 3D window
+transforms, or imply dynamic, vector/native, fused, or cross-backend support.
 
 Completed task 0025K adds rank-specific `UNFOLD3D` and `FOLD3D` Model semantics and exactly three
 public Tensor receivers. Rank-five NCDHW input unfolds to canonical rank-three columns
@@ -776,7 +778,7 @@ fixed metadata contracts. The current inventory is 40 operation-kind families, 1
 137 signatures, and 213 declared public Tensor methods. Complete Compiler 0006B1 provides
 capture/inference/final validation for all five signatures. Complete Compiler 0006B2 provides
 their exact first-order adjoints and supported two-stage closure through ordinary public Tensor
-expressions. CPU execution remains Draft 0008G1.
+expressions. Complete CPU 0008G1 supplies only the bounded current Pool3d CPU execution subset.
 
 ### Important shortly afterward
 

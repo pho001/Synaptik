@@ -39,7 +39,8 @@ import jdk.incubator.vector.LongVector;
  *     instruction in canonical instruction order; copied defensively
  * @param scratchParameter whether the generated entry accepts one exact CPU scratch segment
  * @param classIdentitySchema schema projection used only for the generated class identity;
- *     {@code 52} for unchanged families, {@code 54} for MATMUL, and {@code 55} for Pool2d
+ *     {@code 52} for unchanged families, {@code 54} for MATMUL, {@code 55} for Pool2d, and
+ *     {@code 56} for Pool3d
  * @param matmulIr exact typed MATMUL code-shaping facts, or empty for every unchanged family
  */
 public record CpuKernelSpecialization(CpuLoweringFingerprint loweringFingerprint,
@@ -241,8 +242,9 @@ public record CpuKernelSpecialization(CpuLoweringFingerprint loweringFingerprint
         carrierPattern = List.copyOf(carrierPattern);
         scalarPowerRealizations = List.copyOf(scalarPowerRealizations);
         matmulIr = Objects.requireNonNull(matmulIr, "matmulIr");
-        if (classIdentitySchema != 52 && classIdentitySchema != 54 && classIdentitySchema != 55) {
-            throw new IllegalArgumentException("class identity schema must be 52, 54, or 55");
+        if (classIdentitySchema != 52 && classIdentitySchema != 54 && classIdentitySchema != 55
+                && classIdentitySchema != 56) {
+            throw new IllegalArgumentException("class identity schema must be 52, 54, 55, or 56");
         }
         if ((classIdentitySchema == 54) != matmulIr.isPresent()
                 || classIdentitySchema == 55 && matmulIr.isPresent()) {

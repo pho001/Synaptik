@@ -37,6 +37,7 @@ import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuConv2dLowering
 import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuMatmulLowering;
 import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuConv3dLowering;
 import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuPool2dLowering;
+import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuPool3dLowering;
 
 /**
  * Route-neutral immutable selected CPU partition plan. General plans retain one through eight
@@ -597,6 +598,7 @@ public record CpuPartitionPreparationPlan(List<ExecutionUnitPlan> units, Route r
      * @param conv3dGeometry exact Conv3d geometry for a direct rank-five unit only
      * @param matmulGeometry exact normalized full-K MATMUL geometry for a MATMUL unit only
      * @param pool2dGeometry exact NCHW Pool2d geometry for a Pool2d unit only
+     * @param pool3dGeometry exact NCDHW Pool3d geometry for a Pool3d unit only
      * @param outputCount positive count of trailing materialized output boundaries
      * @param fusionReason non-null cold diagnostic explanation of the selected fusion
      * @param dependencies non-null strictly earlier direct producer-unit indices; copied
@@ -614,9 +616,56 @@ public record CpuPartitionPreparationPlan(List<ExecutionUnitPlan> units, Route r
             Optional<CpuConv3dLowering.Geometry> conv3dGeometry,
             Optional<CpuMatmulLowering.Geometry> matmulGeometry,
             Optional<CpuPool2dLowering.Geometry> pool2dGeometry,
+            Optional<CpuPool3dLowering.Geometry> pool3dGeometry,
             int outputCount,
             String fusionReason, List<Integer> dependencies, List<Integer> memberNodeOrdinals,
             UnitRuntimeFacts runtimeFacts) {
+
+        /**
+         * Preserves the schema-55 and earlier unit constructor with no Pool3d geometry.
+         *
+         * @param portablePlan non-null already-lowered portable plan
+         * @param boundaryValues ordered materialized values; copied defensively
+         * @param accessBindings ordered cold access facts; copied defensively
+         * @param carrierPattern requested carriers; copied defensively
+         * @param generatedCarrierPattern generated-entry carriers; copied defensively
+         * @param extents logical range extents; copied defensively
+         * @param elementCount checked logical range count
+         * @param executionStrategy non-null compute and orchestration selection
+         * @param selectedRangeCount positive selected range count
+         * @param minimumElementsPerWorker positive minimum range work
+         * @param vectorSpeciesBitSize vector width in bits, or zero
+         * @param conv2dGeometry non-null optional Conv2d geometry
+         * @param conv3dGeometry non-null optional Conv3d geometry
+         * @param matmulGeometry non-null optional MATMUL geometry
+         * @param pool2dGeometry non-null optional Pool2d geometry
+         * @param outputCount positive trailing output count
+         * @param fusionReason non-null cold diagnostic explanation
+         * @param dependencies strictly earlier producer-unit indices; copied defensively
+         * @param memberNodeOrdinals stable original node ordinals; copied defensively
+         * @param runtimeFacts non-null immutable unit-local runtime facts
+         * @throws NullPointerException if a required reference or list element is {@code null}
+         * @throws IllegalArgumentException if unit facts disagree
+         * @throws ArithmeticException if the extent product overflows
+         */
+        public ExecutionUnitPlan(CpuPortableRoutePlan portablePlan,
+                List<ValueId> boundaryValues, List<CpuAccessPlan.Binding> accessBindings,
+                List<CarrierAccess> carrierPattern, List<CarrierAccess> generatedCarrierPattern,
+                long[] extents, long elementCount, ExecutionStrategy executionStrategy,
+                int selectedRangeCount, long minimumElementsPerWorker, int vectorSpeciesBitSize,
+                Optional<CpuConv2dLowering.Geometry> conv2dGeometry,
+                Optional<CpuConv3dLowering.Geometry> conv3dGeometry,
+                Optional<CpuMatmulLowering.Geometry> matmulGeometry,
+                Optional<CpuPool2dLowering.Geometry> pool2dGeometry, int outputCount,
+                String fusionReason, List<Integer> dependencies, List<Integer> memberNodeOrdinals,
+                UnitRuntimeFacts runtimeFacts) {
+            this(portablePlan, boundaryValues, accessBindings, carrierPattern,
+                    generatedCarrierPattern, extents, elementCount, executionStrategy,
+                    selectedRangeCount, minimumElementsPerWorker, vectorSpeciesBitSize,
+                    conv2dGeometry, conv3dGeometry, matmulGeometry, pool2dGeometry,
+                    Optional.empty(), outputCount, fusionReason, dependencies, memberNodeOrdinals,
+                    runtimeFacts);
+        }
 
         /**
          * Preserves the complete established-unit constructor with no Pool2d geometry.
@@ -830,6 +879,7 @@ public record CpuPartitionPreparationPlan(List<ExecutionUnitPlan> units, Route r
          * @param conv3dGeometry exact Conv3d geometry for a direct rank-five unit only
          * @param matmulGeometry exact normalized full-K MATMUL geometry for a MATMUL unit only
          * @param pool2dGeometry exact NCHW Pool2d geometry for a Pool2d unit only
+         * @param pool3dGeometry exact NCDHW Pool3d geometry for a Pool3d unit only
          * @param outputCount positive count of trailing materialized outputs
          * @param fusionReason non-null cold diagnostic explanation
          * @param dependencies non-null strictly earlier direct producer-unit indices; copied
@@ -853,6 +903,7 @@ public record CpuPartitionPreparationPlan(List<ExecutionUnitPlan> units, Route r
             conv3dGeometry = Objects.requireNonNull(conv3dGeometry, "conv3dGeometry");
             matmulGeometry = Objects.requireNonNull(matmulGeometry, "matmulGeometry");
             pool2dGeometry = Objects.requireNonNull(pool2dGeometry, "pool2dGeometry");
+            pool3dGeometry = Objects.requireNonNull(pool3dGeometry, "pool3dGeometry");
             Objects.requireNonNull(fusionReason, "fusionReason");
             dependencies = List.copyOf(dependencies);
             memberNodeOrdinals = List.copyOf(memberNodeOrdinals);
@@ -861,6 +912,8 @@ public record CpuPartitionPreparationPlan(List<ExecutionUnitPlan> units, Route r
             boolean matmul = portablePlan.specialization().matmulIr().isPresent();
             boolean pool2d = portablePlan.portableKernelIr()
                     instanceof io.github.pho001.synaptik.backend.cpu.internal.ir.CpuPool2dIr;
+            boolean pool3d = portablePlan.portableKernelIr()
+                    instanceof io.github.pho001.synaptik.backend.cpu.internal.ir.CpuPool3dIr;
             var materialized = generated.values().stream()
                     .filter(value -> value.kind() != CpuKernelIr.Value.Kind.VIRTUAL).toList();
             long checkedCount = 1;
@@ -896,12 +949,18 @@ public record CpuPartitionPreparationPlan(List<ExecutionUnitPlan> units, Route r
                     || memberNodeOrdinals.stream().anyMatch(value -> value == null || value < 0)
                     || matmul != matmulGeometry.isPresent()
                     || pool2d != pool2dGeometry.isPresent()
+                    || pool3d != pool3dGeometry.isPresent()
                     || pool2d != (portablePlan.specialization().classIdentitySchema() == 55)
+                    || pool3d != (portablePlan.specialization().classIdentitySchema() == 56)
                     || matmul && (conv2dGeometry.isPresent() || conv3dGeometry.isPresent()
-                        || pool2dGeometry.isPresent())
+                        || pool2dGeometry.isPresent() || pool3dGeometry.isPresent())
                     || pool2d && (conv2dGeometry.isPresent() || conv3dGeometry.isPresent()
                         || matmulGeometry.isPresent()
-                        || pool2dGeometry.orElseThrow().outputCount() != elementCount)) {
+                        || pool3dGeometry.isPresent()
+                        || pool2dGeometry.orElseThrow().outputCount() != elementCount)
+                    || pool3d && (conv2dGeometry.isPresent() || conv3dGeometry.isPresent()
+                        || matmulGeometry.isPresent() || pool2dGeometry.isPresent()
+                        || pool3dGeometry.orElseThrow().outputCount() != elementCount)) {
                 throw new IllegalArgumentException("CPU execution-unit facts disagree");
             }
         }

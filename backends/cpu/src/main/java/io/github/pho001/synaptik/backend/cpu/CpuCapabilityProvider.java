@@ -67,6 +67,9 @@ import io.github.pho001.synaptik.model.operation.linalg.MatmulKind;
 import io.github.pho001.synaptik.model.operation.pooling.Pool2dKind;
 import io.github.pho001.synaptik.model.operation.pooling.MaxPool2dAttrs;
 import io.github.pho001.synaptik.model.operation.pooling.AveragePool2dAttrs;
+import io.github.pho001.synaptik.model.operation.pooling.Pool3dKind;
+import io.github.pho001.synaptik.model.operation.pooling.MaxPool3dAttrs;
+import io.github.pho001.synaptik.model.operation.pooling.AveragePool3dAttrs;
 import io.github.pho001.synaptik.model.datatype.DataTypePromotion;
 import io.github.pho001.synaptik.model.shape.Shape;
 import io.github.pho001.synaptik.planning.capability.BackendCapabilityProvider;
@@ -103,6 +106,12 @@ import java.util.Objects;
  * <p>A distinct one-node fold matrix admits numeric {@code FOLD_AXIS} and floating
  * {@code FOLD2D}. Fold requires exact current static geometry, a distinct injective result,
  * canonical represented addition, and no implicit base, workspace, or padding value.</p>
+ *
+ * <p>The pooling matrix admits direct static NCHW Pool2d and non-gradient NCDHW Pool3d max and
+ * fixed-divisor average occurrences for BFLOAT16, FLOAT32, and FLOAT64. Pool3d requires exact
+ * floor/ceil output geometry, non-negative resolved layouts, and an injective output; its input
+ * may be non-injective because pooling only reads it. Pool1d remains three independently reported
+ * affine/Pool2d components and is not a capability kind of its own.</p>
  *
  * <p>A distinct one-node ordering matrix admits stable {@code SORT}, {@code ARGSORT}, and
  * two-output {@code TOP_K} for all six represented types. It requires exact static Shape and
@@ -257,6 +266,7 @@ public final class CpuCapabilityProvider implements BackendCapabilityProvider {
                 return supportsAggregate(query, output, aggregate);
             if (kind == MatmulKind.MATMUL) return supportsMatmul(query, output);
             if (kind instanceof Pool2dKind) return supportsPool2d(query, output);
+            if (kind instanceof Pool3dKind) return supportsPool3d(query, output);
             if (kind == Conv2dKind.CONV2D) return supportsConv2d(query, output);
             if (kind == Conv3dKind.CONV3D) return supportsConv3d(query, output);
             if (kind instanceof SoftmaxKind) return supportsSoftmax(query, output);
@@ -873,6 +883,40 @@ public final class CpuCapabilityProvider implements BackendCapabilityProvider {
         return java.util.Arrays.equals(outputShape, new long[]{inputShape[0], inputShape[1],
                 windowOutput(heightNumerator, strideHeight, ceilMode),
                 windowOutput(widthNumerator, strideWidth, ceilMode)});
+    }
+
+    private static boolean supportsPool3d(OperationCapabilityQuery query, TensorDescriptor output) {
+        if (query.inputs().size() != 1) return false;
+        TensorDescriptor input = query.inputs().getFirst();
+        Object kind = query.operation().kind(), attrs = query.operation().attrs();
+        long kd, kh, kw, sd, sh, sw, pd, ph, pw, dd, dh, dw;
+        boolean ceil;
+        if (kind == Pool3dKind.MAX_POOL3D && attrs instanceof MaxPool3dAttrs a) {
+            kd=a.kernelDepth(); kh=a.kernelHeight(); kw=a.kernelWidth();
+            sd=a.strideDepth(); sh=a.strideHeight(); sw=a.strideWidth();
+            pd=a.paddingDepth(); ph=a.paddingHeight(); pw=a.paddingWidth();
+            dd=a.dilationDepth(); dh=a.dilationHeight(); dw=a.dilationWidth(); ceil=a.ceilMode();
+        } else if (kind == Pool3dKind.AVERAGE_POOL3D && attrs instanceof AveragePool3dAttrs a) {
+            kd=a.kernelDepth(); kh=a.kernelHeight(); kw=a.kernelWidth();
+            sd=a.strideDepth(); sh=a.strideHeight(); sw=a.strideWidth();
+            pd=a.paddingDepth(); ph=a.paddingHeight(); pw=a.paddingWidth();
+            dd=a.dilationDepth(); dh=a.dilationHeight(); dw=a.dilationWidth(); ceil=a.ceilMode();
+        } else return false;
+        if (!windowFloating(input.dataType()) || output.dataType() != input.dataType()
+                || input.requiresGrad() || output.requiresGrad() || input.shape().rank() != 5
+                || output.shape().rank() != 5 || !injective(output.shape().toLongArray(),
+                        output.layout().orElseThrow().strides())) return false;
+        long[] x=input.shape().toLongArray(), y=output.shape().toLongArray();
+        long nd=Math.subtractExact(Math.addExact(x[2],Math.multiplyExact(2,pd)),
+                Math.addExact(Math.multiplyExact(dd,Math.subtractExact(kd,1)),1));
+        long nh=Math.subtractExact(Math.addExact(x[3],Math.multiplyExact(2,ph)),
+                Math.addExact(Math.multiplyExact(dh,Math.subtractExact(kh,1)),1));
+        long nw=Math.subtractExact(Math.addExact(x[4],Math.multiplyExact(2,pw)),
+                Math.addExact(Math.multiplyExact(dw,Math.subtractExact(kw,1)),1));
+        if(nd<0||nh<0||nw<0)return false;
+        Math.multiplyExact(Math.multiplyExact(kd,kh),kw);
+        return java.util.Arrays.equals(y,new long[]{x[0],x[1],windowOutput(nd,sd,ceil),
+                windowOutput(nh,sh,ceil),windowOutput(nw,sw,ceil)});
     }
 
     private static boolean supportsIndexing(OperationCapabilityQuery query,

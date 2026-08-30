@@ -14,6 +14,7 @@ import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuKernelIr;
 import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuMaskedReductionIr;
 import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuOrderingIr;
 import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuPool2dIr;
+import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuPool3dIr;
 import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuPortableKernelIr;
 import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuRandomIr;
 import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuScanIr;
@@ -765,7 +766,8 @@ public final class CpuPartitionDagDecomposer {
                 || form instanceof CpuTrailingNormalizationIr
                 || form instanceof CpuBatchNormInferenceIr
                 || form instanceof CpuBatchNormTrainingIr || form instanceof CpuConv2dIr
-                || form instanceof CpuConv3dIr || form instanceof CpuPool2dIr;
+                || form instanceof CpuConv3dIr || form instanceof CpuPool2dIr
+                || form instanceof CpuPool3dIr;
     }
 
     private static int memberIndex(List<MutableUnit> topology, MutableUnit source) {

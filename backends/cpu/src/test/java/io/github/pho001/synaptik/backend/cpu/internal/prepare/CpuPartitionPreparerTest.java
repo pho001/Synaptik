@@ -80,6 +80,30 @@ import jdk.incubator.vector.LongVector;
 import jdk.incubator.vector.ByteVector;
 
 public class CpuPartitionPreparerTest {
+    @Test void pool3dRemainsDirectScalarWhenVectorExecutionIsPreferred() {
+        var base=io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuPool3dLoweringTest
+                .context(io.github.pho001.synaptik.model.operation.pooling.Pool3dKind.MAX_POOL3D,
+                        new io.github.pho001.synaptik.model.operation.pooling.MaxPool3dAttrs(
+                                2,2,2,1,1,1,0,0,0,1,1,1,false),DataType.FLOAT32,
+                        Shape.of(1,1,3,3,3),Shape.of(1,1,2,2,2));
+        var context=new PrepareContext<>(base.partition(),base.nodes(),base.values(),
+                base.memoryRequirements(),base.constants(),new CpuPartitionAnalysisInputs(false,
+                        List.of(CarrierAccess.MEMORY_SEGMENT,CarrierAccess.FLOAT_ARRAY),
+                        new PortableExecutionConfig(ComputePreference.VECTOR_IF_ELIGIBLE,4,4,1)));
+        var plan=new CpuPartitionPreparer().analyze(context).plan();
+        var unit=plan.units().getFirst();
+        assertAll(()->assertEquals(CpuPartitionPreparationPlan.ExecutionStrategy.Compute.SCALAR,
+                        plan.executionStrategy().compute()),
+                ()->assertEquals(4,plan.selectedRangeCount()),
+                ()->assertEquals(0,plan.vectorSpeciesBitSize()),
+                ()->assertEquals(56,unit.portablePlan().specialization().classIdentitySchema()),
+                ()->assertEquals(List.of(CarrierAccess.MEMORY_SEGMENT,CarrierAccess.FLOAT_ARRAY),
+                        unit.generatedCarrierPattern()),
+                ()->assertTrue(unit.pool3dGeometry().isPresent()),
+                ()->assertTrue(plan.workspaceDeclaration().isEmpty()),
+                ()->assertTrue(plan.materialization().isEmpty()));
+    }
+
     @Test void pool2dRemainsDirectScalarWhenVectorExecutionIsPreferred() {
         var base = io.github.pho001.synaptik.backend.cpu.internal.lowering
                 .CpuPool2dLoweringTest.context(
@@ -392,7 +416,7 @@ public class CpuPartitionPreparerTest {
                 () -> assertTrue(initial.workspaceDeclaration().isEmpty()),
                 () -> assertTrue(dropout.workspaceDeclaration().isEmpty()),
                 () -> assertTrue(dropout.randomGeometry().isPresent()),
-                () -> assertEquals(55, io.github.pho001.synaptik.backend.cpu.internal.cache
+                () -> assertEquals(56, io.github.pho001.synaptik.backend.cpu.internal.cache
                         .CpuGeneratorSchema.CURRENT_VERSION));
     }
     @Test void foldDeclaresExactlyTwoBuffersOneArtifactAndNoWorkspaceOrMaterialization() {

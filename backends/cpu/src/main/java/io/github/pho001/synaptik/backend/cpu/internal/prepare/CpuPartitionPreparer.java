@@ -300,7 +300,7 @@ public final class CpuPartitionPreparer implements BackendPartitionPreparer<
                 unit.generatedCarrierPattern(), unit.extents(), unit.elementCount(),
                 unit.executionStrategy(), unit.selectedRangeCount(), unit.minimumElementsPerWorker(),
                 unit.vectorSpeciesBitSize(), unit.conv2dGeometry(), unit.conv3dGeometry(),
-                unit.matmulGeometry(), unit.pool2dGeometry(), unit.outputCount(),
+                unit.matmulGeometry(), unit.pool2dGeometry(), unit.pool3dGeometry(), unit.outputCount(),
                 unit.fusionReason(), topology.dependencies(),
                 topology.memberNodeOrdinals(), facts);
         var annotated = new CpuPartitionPreparationPlan(List.of(enriched), plan.route(),
@@ -369,6 +369,7 @@ public final class CpuPartitionPreparer implements BackendPartitionPreparer<
                 instanceof io.github.pho001.synaptik.backend.cpu.internal.ir.CpuConv3dIr;
         boolean matmul = lowered.matmulIr().isPresent();
         boolean pool2d = lowered.pool2dGeometry().isPresent();
+        boolean pool3d = lowered.pool3dGeometry().isPresent();
         Optional<CpuMaterializationPlan> materialization = Optional.empty();
         var declarations = new ArrayList<PreparationResourceRequirement.Buffer>(lowered.boundaryValues().size());
         for (int i = 0; i < lowered.boundaryValues().size(); i++) declarations.add(
@@ -398,7 +399,7 @@ public final class CpuPartitionPreparer implements BackendPartitionPreparer<
                 == io.github.pho001.synaptik.backend.cpu.internal.ir.CpuMatmulIr.Realization.DIRECT_N_VECTOR
                 ||lowered.matmulIr().orElseThrow().realization()
                 == io.github.pho001.synaptik.backend.cpu.internal.ir.CpuMatmulIr.Realization.TILED_N_VECTOR_2X2);
-        boolean vectorEligible = matmulVector || !matmul && !pool2d && !affineCopy && !movement
+        boolean vectorEligible = matmulVector || !matmul && !pool2d && !pool3d && !affineCopy && !movement
                 && !indexing && !scatter && !fold && !ordering && !random && !scan && !aggregate
                 && !argExtrema && !maskedReduction && !advancedReduction && !softmax
                 && !trailingNormalization && !batchNormalization && !batchNormTraining
@@ -508,7 +509,7 @@ public final class CpuPartitionPreparer implements BackendPartitionPreparer<
                             .filter(g -> g.scratchSliceBytes() > 0).isPresent()
                         || lowered.batchNormTrainingGeometry()
                             .filter(g -> g.scratchSliceBytes() > 0).isPresent(),
-                pool2d ? 55 : matmul ? 54 : 52,
+                pool3d ? 56 : pool2d ? 55 : matmul ? 54 : 52,
                 lowered.matmulIr());
         selectedPortableIr = matmul||materialization.isPresent()?kernelIr:selectedPortableIr;
         var routePlan = new CpuPortableRoutePlan(selectedPortableIr, specialization);
@@ -612,7 +613,7 @@ public final class CpuPartitionPreparer implements BackendPartitionPreparer<
                         selectedExtents, iterationCount, strategy, selectedRangeCount,
                         minimumRangeItemsPerWorker, vectorEligible ? speciesBits : 0,
                         lowered.conv2dGeometry(), lowered.conv3dGeometry(), lowered.matmulGeometry(),
-                        lowered.pool2dGeometry(),
+                        lowered.pool2dGeometry(), lowered.pool3dGeometry(),
                         (int) kernelIr.values().stream()
                             .filter(value -> value.kind() == CpuKernelIr.Value.Kind.OUTPUT).count(),
                         lowered.fusionReason(), List.of(), List.of(),
@@ -721,7 +722,7 @@ public final class CpuPartitionPreparer implements BackendPartitionPreparer<
                     unit.executionStrategy(), unit.selectedRangeCount(),
                     unit.minimumElementsPerWorker(), unit.vectorSpeciesBitSize(),
                     unit.conv2dGeometry(), unit.conv3dGeometry(), unit.matmulGeometry(),
-                    unit.pool2dGeometry(), unit.outputCount(),
+                    unit.pool2dGeometry(), unit.pool3dGeometry(), unit.outputCount(),
                     unit.fusionReason(), topologyUnit.dependencies(),
                     topologyUnit.memberNodeOrdinals(), runtimeFacts));
         }

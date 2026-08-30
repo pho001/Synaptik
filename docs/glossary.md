@@ -6018,7 +6018,10 @@ width geometry, then squeezes axis 2. Maximum pooling inherits Pool2d padding ex
 winner rules; average pooling inherits its fixed `kernelWidth` count-padding divisor and floating
 accumulation/rounding rules. Compiler inference and gradients therefore traverse the ordinary
 rank-edit and Pool2d occurrences. Backend support means support for every visible component with
-its actual descriptors and attributes, never a synthetic Pool1d capability. See
+its actual descriptors and attributes, never a synthetic Pool1d capability. The current CPU
+backend additionally recognizes only the exact private single-use three-node topology, keeps both
+rank edits virtual, and reuses byte-identical schema-55 Pool2d generated code. Recognition is an
+optimization over the visible components, not a new operation, capability, or artifact. See
 [NCW Pool1d composition](api/tensor-api.md#ncw-pool1d-composition).
 
 ### Pool3d / NCDHW pooling
@@ -6043,8 +6046,11 @@ and differentiate both signatures through ordinary public Tensor expressions. Av
 uses its fixed logical kernel divisor and overlap fold. Maximum Pool3d reconstructs an explicit
 eligible first winner from the same-occurrence output, preserving padding exclusion, NaN,
 signed-zero, real-negative-infinity, and all-padding distinctions; that selector is fixed for a
-later derivative stage. Draft CPU 0008G1 owns execution. No current backend support, execution,
-materialized numerical result, or performance property is implied. See
+later derivative stage. The current CPU backend executes the fully static, resolved non-negative-
+layout, non-gradient BFLOAT16/FLOAT32/FLOAT64 subset with one direct schema-56 generated scalar
+body and optional caller-owned parallel output-cell ranges. It uses zero workspace and
+materialization. This does not imply dynamic geometry, Pool3d gradients, `UNFOLD3D`/`FOLD3D`
+execution, pooling fusion, vector/native routes, or cross-backend performance. See
 [NCDHW Pool3d expressions](api/tensor-api.md#ncdhw-pool3d-expressions).
 
 ## Common distinctions

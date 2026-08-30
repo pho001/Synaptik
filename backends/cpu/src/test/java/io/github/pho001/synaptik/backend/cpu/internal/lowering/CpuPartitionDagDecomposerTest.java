@@ -108,14 +108,17 @@ class CpuPartitionDagDecomposerTest {
         var publication = new CpuPartitionPreparer().analyze(publishedChain(2)).plan();
         var affine = new CpuPartitionPreparer().analyze(affineThenPointwise()).plan();
         var numerical = new CpuPartitionPreparer().analyze(aggregateThenPointwise()).plan();
+        var pool3d = new CpuPartitionPreparer().analyze(pool3dThenPointwise()).plan();
         var state = new CpuPartitionPreparer().analyze(dropoutThenPointwise()).plan();
         assertAll(
                 () -> assertEquals(2, publication.units().size()),
                 () -> assertEquals(2, affine.units().size()),
                 () -> assertEquals(2, numerical.units().size()),
+                () -> assertEquals(2, pool3d.units().size()),
                 () -> assertEquals(2, state.units().size()),
                 () -> assertEquals(List.of(0), affine.units().get(1).dependencies()),
                 () -> assertEquals(List.of(0), numerical.units().get(1).dependencies()),
+                () -> assertEquals(List.of(0), pool3d.units().get(1).dependencies()),
                 () -> assertEquals(List.of(0), state.units().get(1).dependencies()));
     }
 
@@ -416,6 +419,19 @@ class CpuPartitionDagDecomposerTest {
                         NoOperationAttrs.INSTANCE), List.of(new ValueId(1)),
                         List.of(new ValueId(2))));
         return context(nodes, List.of(input, reduced, reduced), Set.of(new ValueId(2)));
+    }
+
+    private static PrepareContext<CpuPartitionAnalysisInputs> pool3dThenPointwise() {
+        var input=descriptor(DataType.FLOAT32,Shape.of(1,1,3,3,3));
+        var output=descriptor(DataType.FLOAT32,Shape.of(1,1,2,2,2));
+        var nodes=List.of(new CompiledNode(new NodeId(0),new Operation(
+                        io.github.pho001.synaptik.model.operation.pooling.Pool3dKind.MAX_POOL3D,
+                        new io.github.pho001.synaptik.model.operation.pooling.MaxPool3dAttrs(
+                                2,2,2,1,1,1,0,0,0,1,1,1,false)),List.of(new ValueId(0)),
+                        List.of(new ValueId(1))),
+                new CompiledNode(new NodeId(1),new Operation(UnaryElementwiseKind.RELU,
+                        NoOperationAttrs.INSTANCE),List.of(new ValueId(1)),List.of(new ValueId(2))));
+        return context(nodes,List.of(input,output,output),Set.of(new ValueId(2)));
     }
 
     private static PrepareContext<CpuPartitionAnalysisInputs> dropoutThenPointwise() {

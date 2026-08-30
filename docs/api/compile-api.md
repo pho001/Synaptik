@@ -286,7 +286,8 @@ Model task 0025J adds first-class `MAX_POOL3D` and `AVERAGE_POOL3D` Model metada
 one-input/one-output signatures and rank-five NCDHW descriptors. Complete Compiler tasks 0006B1
 and 0006B2 adopt both signatures, together with the three Model-current
 `UNFOLD3D`/`FOLD3D` signatures, in ordinary forward verification and first-order differentiation.
-Draft CPU 0008G1 separately owns execution.
+Complete CPU 0008G1 separately implements the fully static resolved-layout non-gradient Pool3d
+execution subset; it does not add Compiler behavior or execute the 3D window-transform family.
 Compiler task 0005E closed that matrix against the production Model inventory at its checkpoint:
 37 operation-kind enum families, 107 constants, and 128 complete
 kind/attributes/input-range/output-range fingerprints. The checkpoint includes both
@@ -927,13 +928,13 @@ static or canonical-symbolic floor/ceil spatial extents. Dynamic spatial non-neg
 future compiler-validation or concrete-binding obligation. Literal ceil mode retains every
 ceiling-grid window, even when the terminal window is all-padding; padding exclusion, negative-
 infinity empty windows, NaN propagation, signed-zero ordering, and first-logical-sample ties are
-semantic metadata. Package-private structural capture and descriptor verification are current,
-but the repository does not execute pooling. Current package-private first-order autograd
+semantic metadata. Package-private structural capture and descriptor verification are current.
+The CPU backend executes the fully static resolved-layout non-gradient subset through its direct
+schema-55 generated route. Current package-private first-order autograd
 reconstructs the exact first eligible logical winner from the original input and the
 same-occurrence public output, including padding exclusion and the specified NaN and signed-zero
 equality, then routes through public one-hot and overlap-accumulating fold expressions. It adds no
-saved-index output. Concrete binding, legal decomposition, backend lowering, algorithms, kernels,
-and execution remain planned.
+saved-index output. Other concrete bindings, backends, and routes remain separately owned.
 `Tensor.averagePool2d(attrs)` is current first-class NCHW average-pooling model construction. One
 `AVERAGE_POOL2D` occurrence records exact ordered input `[input]`, `AveragePool2dAttrs`, one output
 at index zero, the unchanged floating type and gradient request, exact batch/channel Dimensions,
@@ -942,13 +943,13 @@ all-padding windows. Its semantic metadata fixes a `kernelHeight * kernelWidth` 
 conceptual positive-zero padding that counts in that divisor, FLOAT32 accumulation/division for
 BFLOAT16 and FLOAT32, FLOAT64 accumulation/division for FLOAT64, one final division, and the
 documented NaN/infinity/signed-zero/all-padding policies. Dynamic spatial non-negativity remains a
-future compiler-validation or concrete-binding obligation. This does not mean the repository
-currently executes average pooling. Package-private structural capture and descriptor verification
-are current. Current package-private first-order autograd divides by a logical typed
+future compiler-validation or concrete-binding obligation. Package-private structural capture and
+descriptor verification are current. The CPU backend executes the fully static resolved-layout
+non-gradient subset through its direct schema-55 generated route. Current package-private
+first-order autograd divides by a logical typed
 `kernelHeight * kernelWidth` count and routes every window position through public expansion and
-overlap-accumulating fold expressions. Concrete binding, any legal decomposition that preserves
-the fixed divisor and special-value meaning, backend lowering, algorithms, tolerances, kernels,
-and execution remain planned in their owning layers.
+overlap-accumulating fold expressions. Other concrete bindings, backends, algorithms, and routes
+remain separately owned.
 `Tensor.maxPool3d(attrs)` and `Tensor.averagePool3d(attrs)` are current Model construction for
 first-class rank-five NCDHW metadata. Each records exact ordered input `[input]`, its family-
 specific thirteen-field attrs reference, one output at index zero, the unchanged floating type
@@ -970,9 +971,12 @@ negative-infinity candidates, a separate direct-positive-zero in-bounds mask, an
 same-occurrence output. Its equality preserves dominant NaN, signed-zero ordering, real negative
 infinity, first-winner, and all-padding behavior before one-hot routing and `fold3d` accumulation.
 The maximum selector is a fixed non-differentiable mask for a later derivative stage, while the
-incoming branch remains differentiable. Draft CPU 0008G1 owns generated execution. No current
-backend capability, lowering, prepared executable, runtime behavior, materialized numerical
-result, or performance property is implied.
+incoming branch remains differentiable. The CPU backend now advertises and prepares only the
+fully static resolved-layout non-gradient BFLOAT16/FLOAT32/FLOAT64 subset. Its schema-56 direct
+generated body uses scalar compute, optionally distributes complete output-cell ranges through
+caller-owned workers, and declares zero workspace or materialization. This does not extend
+Compiler semantics, execute gradients or `UNFOLD3D`/`FOLD3D`, establish public Engine execution,
+or imply dynamic, fused, vector, native, or cross-backend performance support.
 `Tensor.sort(axis[, descending])` and `Tensor.argsort(axis[, descending])` currently construct
 distinct stable, one-input, one-output ordering expressions. Both normalize the axis, preserve the
 exact input Shape reference, leave layout unresolved, and use fixed NaN-last ordering in both
