@@ -745,6 +745,23 @@ backend capability. Backend support is only the conjunction of capability for ea
 component kind with its actual descriptors and attributes; recognizing the whole topology may
 optimize it but must not report synthetic Pool1d support.
 
+Completed task [0025J](tasks/0025j-first-class-ncdhw-max-average-pool3d-semantics.md) adds the
+first-class `MAX_POOL3D` and `AVERAGE_POOL3D` Model family because exact depth windows cannot be
+represented by a bounded Shape-independent composition. Each floating rank-five NCDHW receiver
+call records one canonical one-input/one-output occurrence, retains exact type, batch/channel
+Dimensions, and gradient-request metadata, and derives static or canonical-symbolic depth,
+height, and width geometry. Literal ceil mode retains terminal all-padding windows.
+
+Maximum Pool3d excludes padding, uses negative infinity for an all-padding window, treats NaN as
+dominant, ranks positive zero above negative zero, and selects the first eligible depth-height-
+width occurrence. Average Pool3d uses the fixed mathematical count-padding divisor
+`kernelDepth * kernelHeight * kernelWidth`, the established floating accumulation/division and
+single BFLOAT16 narrowing policy, and the established NaN, infinity, signed-zero, and all-padding
+rules. This completed capability is Model metadata and provenance only. Draft Compiler 0006B1
+owns forward adoption, Draft Model 0025K owns general `unfold3d`/`fold3d`, Draft Compiler 0006B2
+owns exact gradients, and Draft CPU 0008G1 owns execution. There is no current graph capture,
+gradient, backend capability, execution, or materialized numerical result for either Pool3d kind.
+
 ### Important shortly afterward
 
 - diagonal convenience (`flip` was finalized by completed task 0018R as one `SLICE` convenience);

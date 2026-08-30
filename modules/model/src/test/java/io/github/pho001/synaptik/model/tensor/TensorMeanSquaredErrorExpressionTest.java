@@ -63,7 +63,7 @@ class TensorMeanSquaredErrorExpressionTest {
                                 "validateClassExtent",
                                 "removeAxis"),
                         methodNames),
-                () -> assertEquals(208, Arrays.stream(Tensor.class.getDeclaredMethods())
+                () -> assertEquals(210, Arrays.stream(Tensor.class.getDeclaredMethods())
                         .filter(method -> Modifier.isPublic(method.getModifiers())).count()),
                 () -> assertEquals(1, Arrays.stream(Tensor.class.getDeclaredMethods())
                         .filter(method -> Modifier.isPublic(method.getModifiers()))

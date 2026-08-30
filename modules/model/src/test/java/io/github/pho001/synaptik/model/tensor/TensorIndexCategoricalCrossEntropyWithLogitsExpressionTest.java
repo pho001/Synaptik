@@ -53,7 +53,7 @@ class TensorIndexCategoricalCrossEntropyWithLogitsExpressionTest {
                         .filter(method -> method.getName().equals(
                                 "categoricalCrossEntropyWithLogits"))
                         .count()),
-                () -> assertEquals(208, Arrays.stream(Tensor.class.getDeclaredMethods())
+                () -> assertEquals(210, Arrays.stream(Tensor.class.getDeclaredMethods())
                         .filter(method -> Modifier.isPublic(method.getModifiers()))
                         .count()),
                 () -> assertTrue(Arrays.stream(Tensor.class.getDeclaredMethods())

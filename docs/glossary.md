@@ -2669,10 +2669,12 @@ static-depth index categorical logits.
 
 The current source-backed first-order closure contains 37 operation-kind enum families, 107
 constants, and 128 exact signature fingerprints, including both `SLICE_UPDATE` attributes
-variants. Compiler forward verification covers the complete production inventory of 39 families,
-111 constants, and 132 fingerprints. First-order differentiation keeps four signatures outside
-its supported closure: recurrent RNN, GRU, and LSTM plus `CONV3D`. Complete task 0006B makes
-Conv3d a forward-only Compiler signature; Draft task 0006C separately owns its gradient closure.
+variants. Compiler forward verification covers 39 families, 111 constants, and 132 fingerprints:
+the supported closure plus recurrent RNN/GRU/LSTM and `CONV3D`. Current Model contains 40
+families, 113 constants, and 134 fingerprints after adding `MAX_POOL3D` and `AVERAGE_POOL3D`.
+Complete task 0006B makes Conv3d a forward-only Compiler signature; Draft task 0006C separately
+owns its gradient closure. Draft 0006B1 owns Pool3d forward adoption, while Draft Model 0025K and
+Compiler 0006B2 own the prerequisite window algebra and exact gradients.
 Each supported legal output/input role is conditionally differentiable, intentionally
 non-differentiable, or fail-closed. A conditionally differentiable role becomes usable only after
 occurrence-local preflight proves its exact Shape, data type, cardinality, canonical-auxiliary,
@@ -6002,6 +6004,29 @@ accumulation/rounding rules. Compiler inference and gradients therefore traverse
 rank-edit and Pool2d occurrences. Backend support means support for every visible component with
 its actual descriptors and attributes, never a synthetic Pool1d capability. See
 [NCW Pool1d composition](api/tensor-api.md#ncw-pool1d-composition).
+
+### Pool3d / NCDHW pooling
+
+Current `Tensor.maxPool3d` and `Tensor.averagePool3d` record one first-class pooling occurrence in
+NCDHW order: batch, channel, depth, height, width. Input Shape is `[N, C, D, H, W]`; result Shape
+is `[N, C, D_out, H_out, W_out]`. Each family has its own immutable thirteen-component attributes
+record with depth/height/width kernel, stride, symmetric padding, dilation, and literal ceil mode.
+This is first-class Model metadata because enumerating depth windows would make a composed graph
+depend on the input depth. It is not a general `PoolNd` contract.
+
+Maximum Pool3d excludes padding from selection, returns negative infinity for an all-padding
+window, treats NaN as dominant, orders positive zero above negative zero, and retains the first
+eligible depth-height-width winner. Average Pool3d uses the fixed mathematical count-padding
+divisor `kernelDepth * kernelHeight * kernelWidth`; padding contributes positive zero while still
+counting. BFLOAT16/FLOAT32 accumulation and division use FLOAT32, FLOAT64 uses FLOAT64, and
+BFLOAT16 narrows once after the single final division.
+
+Current Model owns only geometry, numerical meaning, and canonical one-input provenance for
+`MAX_POOL3D` and `AVERAGE_POOL3D`. Draft Compiler 0006B1 owns forward adoption, Draft Model 0025K
+owns general three-dimensional window/fold algebra, Draft Compiler 0006B2 owns gradients, and
+Draft CPU 0008G1 owns execution. No current graph capture, Compiler inference, gradient, backend
+support, execution, or materialized numerical result is implied. See
+[NCDHW Pool3d expressions](api/tensor-api.md#ncdhw-pool3d-expressions).
 
 ## Common distinctions
 

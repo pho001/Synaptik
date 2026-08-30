@@ -42,8 +42,10 @@ import io.github.pho001.synaptik.model.operation.normalization.SoftmaxKind;
 import io.github.pho001.synaptik.model.operation.ordering.OrderingKind;
 import io.github.pho001.synaptik.model.operation.pooling.AveragePool1dAttrs;
 import io.github.pho001.synaptik.model.operation.pooling.AveragePool2dAttrs;
+import io.github.pho001.synaptik.model.operation.pooling.AveragePool3dAttrs;
 import io.github.pho001.synaptik.model.operation.pooling.MaxPool1dAttrs;
 import io.github.pho001.synaptik.model.operation.pooling.MaxPool2dAttrs;
+import io.github.pho001.synaptik.model.operation.pooling.MaxPool3dAttrs;
 import io.github.pho001.synaptik.model.operation.random.DropoutKind;
 import io.github.pho001.synaptik.model.operation.random.GraphRngKind;
 import io.github.pho001.synaptik.model.operation.reduction.AggregateReductionKind;
@@ -86,7 +88,8 @@ import java.util.Optional;
  * arithmetic, binary comparison,
  * boolean logical, conditional selection, explicit cast, numeric and boolean aggregate reduction,
  * parameterized scalar, and unary
- * elementwise, matrix-multiplication, grouped NCW/NCHW convolution, NCW/NCHW pooling, and
+ * elementwise, matrix-multiplication, grouped NCW/NCHW/NCDHW convolution, NCW/NCHW/NCDHW
+ * pooling, and
  * scaled-dot-product-attention
  * expression methods create
  * fresh storage-free tensors
@@ -953,6 +956,87 @@ public final class Tensor {
      */
     public Tensor averagePool2d(AveragePool2dAttrs attrs) {
         return TensorAveragePool2dExpressions.apply(this, attrs);
+    }
+
+    /**
+     * Builds one three-dimensional maximum-pooling expression over this NCDHW tensor.
+     *
+     * <p>This input must have floating type and Shape {@code [N, C, D, H, W]}. For each spatial
+     * extent {@code X}, kernel sample count {@code k}, symmetric padding per side {@code p},
+     * dilation {@code d}, and stride {@code s}, the effective kernel is
+     * {@code d * (k - 1) + 1}. The output extent is floor or literal ceiling division of
+     * {@code X + 2 * p - effectiveKernel} by {@code s}, plus one. Static negative numerators fail;
+     * unresolved extents retain the canonical expression and its later non-negative binding
+     * obligation. Literal ceiling mode retains terminal all-padding windows.</p>
+     *
+     * <p>Each output window maps logical kernel coordinates to input coordinates in increasing
+     * depth, then height, then width order. On each axis, logical kernel coordinate {@code r} maps
+     * to {@code output * stride - padding + r * dilation}. Out-of-bounds padding is excluded. An
+     * all-padding window produces exact negative infinity. Any eligible NaN dominates every
+     * non-NaN and the first eligible NaN wins; otherwise ordinary maximum applies, positive zero
+     * ranks above negative zero, infinities use ordinary order, and numerically equal candidates
+     * retain the first eligible value. The selected represented non-NaN value retains the exact
+     * input type without an accumulator. NaN representation details are unspecified.</p>
+     *
+     * <p>The fresh canonical result retains this tensor's exact type, batch and channel Dimension
+     * references, and gradient request. It has derived NCDHW Shape, unresolved layout, no label or
+     * storage, and exact one-input {@code MAX_POOL3D} provenance at output index zero. This method
+     * reads no values and defines no saved indices, gradient, graph capture, compiler adoption,
+     * lowering, backend support, allocation, runtime, or execution behavior.</p>
+     *
+     * @param attrs non-null immutable kernel, stride, excluded-padding, dilation, and literal
+     *     ceil-mode geometry retained by exact reference
+     * @return non-null fresh canonical unlabeled storage-free result with retained type and
+     *     metadata, derived NCDHW Shape, unresolved layout, and MAX_POOL3D provenance
+     * @throws NullPointerException if {@code attrs} is null, with message {@code attrs}
+     * @throws IllegalArgumentException if this tensor is not floating rank five or its static
+     *     padded spatial geometry cannot fit the effective kernel
+     * @throws ArithmeticException if checked geometry arithmetic overflows {@code long}
+     * @throws IllegalStateException if Tensor identifier space is exhausted
+     */
+    public Tensor maxPool3d(MaxPool3dAttrs attrs) {
+        return TensorMaxPool3dExpressions.apply(this, attrs);
+    }
+
+    /**
+     * Builds one fixed-count three-dimensional average-pooling expression over this NCDHW tensor.
+     *
+     * <p>This input must have floating type and Shape {@code [N, C, D, H, W]}. Per-axis output
+     * geometry matches {@link #maxPool3d(MaxPool3dAttrs)}, including checked static arithmetic,
+     * canonical unresolved expressions, and literal ceiling grids with terminal all-padding
+     * windows.</p>
+     *
+     * <p>Every logical kernel position counts in the fixed mathematical divisor
+     * {@code kernelDepth * kernelHeight * kernelWidth}. Dilation changes coordinates, not that
+     * divisor. In-bounds positions contribute once; padding contributes conceptual positive zero
+     * and still counts. BFLOAT16 and FLOAT32 accumulate and divide in FLOAT32, FLOAT64 does so in
+     * FLOAT64, the sum is divided once by the fixed divisor, and BFLOAT16 narrows once after that
+     * division. Construction does not materialize the three-factor divisor as a {@code long}.</p>
+     *
+     * <p>An in-bounds NaN produces NaN. Opposing infinity signs produce NaN; otherwise an infinity
+     * retains its sign. An exact-zero finite mean is negative zero only when every divisor
+     * position is an in-bounds negative zero; cancellation, positive zero, or padding produces
+     * positive zero, so an all-padding window produces positive zero. Finite accumulation may be
+     * reassociated, without a fixed traversal or bitwise cross-backend result promise.</p>
+     *
+     * <p>The fresh canonical result retains this tensor's exact type, batch and channel Dimension
+     * references, and gradient request. It has derived NCDHW Shape, unresolved layout, no label or
+     * storage, and exact one-input {@code AVERAGE_POOL3D} provenance at output index zero. This
+     * method reads no values and defines no gradient, graph capture, compiler adoption, lowering,
+     * backend support, allocation, runtime, or execution behavior.</p>
+     *
+     * @param attrs non-null immutable kernel, stride, count-padding, dilation, and literal
+     *     ceil-mode geometry retained by exact reference
+     * @return non-null fresh canonical unlabeled storage-free result with retained type and
+     *     metadata, derived NCDHW Shape, unresolved layout, and AVERAGE_POOL3D provenance
+     * @throws NullPointerException if {@code attrs} is null, with message {@code attrs}
+     * @throws IllegalArgumentException if this tensor is not floating rank five or its static
+     *     padded spatial geometry cannot fit the effective kernel
+     * @throws ArithmeticException if checked geometry arithmetic overflows {@code long}
+     * @throws IllegalStateException if Tensor identifier space is exhausted
+     */
+    public Tensor averagePool3d(AveragePool3dAttrs attrs) {
+        return TensorAveragePool3dExpressions.apply(this, attrs);
     }
 
     /**

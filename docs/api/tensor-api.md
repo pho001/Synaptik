@@ -47,6 +47,8 @@ Two `conv1d` overloads compose input/weight singleton-height expansion, ordinary
 and height squeeze, with optional output-channel bias and no new operation kind.
 Two `conv3d` overloads construct one first-class grouped cross-correlation occurrence in NCDHW
 axis order, with optional output-channel bias and explicit rank-three-spatial geometry.
+One `maxPool3d` and one `averagePool3d` receiver construct first-class NCDHW pooling metadata with
+rank-specific depth, height, and width geometry. They do not evaluate or materialize a result.
 `expandDims(int)` inserts one singleton axis, while `squeeze(int)` removes one selected statically
 known singleton axis. `slice(long[], long[], int[], long[])` adds general signed-step directional
 half-open selection. `sliceAxis(int, long, long)` supplies its one-axis step-one convenience,
@@ -8503,6 +8505,117 @@ are current, as is compiler-owned first-order input-cotangent construction throu
 fixed kernel count and public expansion/fold expressions. Concrete binding, any legal
 decomposition that preserves the fixed divisor and special-value policy, backend lowering, and
 execution remain future work.
+
+### NCDHW Pool3d expressions
+
+`input.maxPool3d(maxAttrs)` and `input.averagePool3d(averageAttrs)` construct one first-class
+three-dimensional pooling occurrence over a floating rank-five tensor in NCDHW order: batch
+(`N`), channel (`C`), depth (`D`), height (`H`), then width (`W`). Model construction records
+geometry, numerical meaning, and provenance only. It does not read input values or produce a
+materialized numerical result.
+
+| Value | Required Shape and type | Result meaning |
+|---|---|---|
+| receiver input | `[N, C, D, H, W]`; BFLOAT16, FLOAT32, or FLOAT64 | one rank-five NCDHW source |
+| result | `[N, C, D_out, H_out, W_out]`; exact input type | exact input `N` and `C` Dimension references plus three derived spatial Dimensions |
+
+`MaxPool3dAttrs` and `AveragePool3dAttrs` are separate immutable thirteen-component records. In
+each record, kernel, stride, padding, and dilation fields use depth, height, then width order;
+`ceilMode` follows those twelve values. Kernel, stride, and dilation components are positive.
+Symmetric padding per side is non-negative. There is no geometry array, asymmetric intrinsic
+padding, adaptive/global mode, valid-sample average, or divisor override.
+
+For each spatial input extent `X`, kernel count `k`, symmetric padding per side `p`, dilation `d`,
+and stride `s`:
+
+```text
+effectiveKernel = d * (k - 1) + 1
+numerator       = X + 2 * p - effectiveKernel
+floor output    = floor(numerator / s) + 1
+ceil output     = ceil(numerator / s) + 1
+```
+
+`ceilMode == true` selects the literal ceiling formula independently for depth, height, and
+width. It does not remove a terminal window that begins wholly in trailing padding. Static
+arithmetic is checked in signed `long`, and a static negative numerator fails before producer
+creation. An unresolved extent retains the canonical add, matching floor-or-ceiling divide, and
+final add expression; a later concrete binding must still make its numerator non-negative.
+Validation and spatial derivation proceed depth, then height, then width.
+
+Maximum pooling excludes out-of-bounds positions from selection. Eligible logical kernel
+coordinates are ordered by increasing depth, then height, then width. An in-bounds not-a-number
+(NaN) dominates every non-NaN and the first eligible NaN wins. Otherwise ordinary maximum
+applies, positive zero ranks above negative zero, infinities use ordinary order, and equal
+candidates retain the first eligible occurrence. A window with no in-bounds coordinate has exact
+negative infinity in the input type. A selected non-NaN value keeps its represented input value;
+there is no accumulator or saved-index output.
+
+Average pooling uses the fixed positive mathematical divisor
+`kernelDepth * kernelHeight * kernelWidth`. Every logical kernel position counts. An in-bounds
+coordinate contributes its value once; an out-of-bounds coordinate contributes conceptual
+positive zero and still counts. Dilation changes coordinates, not the divisor, and Model
+construction does not materialize the three-factor product as a `long`. BFLOAT16 and FLOAT32
+accumulate and divide in FLOAT32, FLOAT64 uses FLOAT64, the sum is divided once, and BFLOAT16
+narrows once after division. Finite summation may be reassociated.
+
+For average pooling, an in-bounds NaN produces NaN. Opposing infinity signs produce NaN;
+otherwise an infinity retains its sign. An exact-zero finite mean is negative zero only when
+every divisor position is an in-bounds negative zero. Cancellation, any positive zero, or any
+padding contribution produces positive zero, so an all-padding window produces positive zero.
+No traversal, bitwise cross-backend result, or NaN representation is promised.
+
+#### Pool3d metadata example
+
+The goal is to inspect metadata for input Shape `[1, 2, 4, 5, 6]`. A `2 x 3 x 2` kernel,
+stride `(2, 2, 3)`, symmetric padding `(1, 1, 1)`, and unit dilation produce output Shape
+`[1, 2, 3, 3, 3]` in floor mode.
+
+```java
+import io.github.pho001.synaptik.model.datatype.DataType;
+import io.github.pho001.synaptik.model.operation.pooling.AveragePool3dAttrs;
+import io.github.pho001.synaptik.model.operation.pooling.MaxPool3dAttrs;
+import io.github.pho001.synaptik.model.shape.Shape;
+import io.github.pho001.synaptik.model.tensor.Tensor;
+import io.github.pho001.synaptik.model.tensor.TensorDescriptor;
+import io.github.pho001.synaptik.model.tensor.TensorFactory;
+import java.util.Optional;
+
+Tensor input = TensorFactory.create(new TensorDescriptor(
+        DataType.FLOAT32, Shape.of(1, 2, 4, 5, 6), Optional.empty(), true));
+MaxPool3dAttrs maxAttrs = new MaxPool3dAttrs(
+        2, 3, 2, 2, 2, 3, 1, 1, 1, 1, 1, 1, false);
+AveragePool3dAttrs averageAttrs = new AveragePool3dAttrs(
+        2, 3, 2, 2, 2, 3, 1, 1, 1, 1, 1, 1, false);
+
+Tensor maximum = input.maxPool3d(maxAttrs);
+Tensor average = input.averagePool3d(averageAttrs);
+
+System.out.println(maximum.descriptor().shape());
+System.out.println(average.descriptor().shape());
+System.out.println(maximum.provenance().orElseThrow().operation().kind());
+System.out.println(average.provenance().orElseThrow().operation().kind());
+System.out.println(maximum.provenance().orElseThrow().inputs().getFirst() == input);
+```
+
+It prints:
+
+```text
+Shape[1, 2, 3, 3, 3]
+Shape[1, 2, 3, 3, 3]
+MAX_POOL3D
+AVERAGE_POOL3D
+true
+```
+
+Each call creates a fresh, unlabeled, storage-free canonical Tensor with unresolved layout. The
+result retains the exact input type, batch/channel Dimension references, and gradient-request
+metadata. Provenance retains the exact supplied attributes reference, ordered input `[input]`,
+output index zero, and the canonical `producer.output(0)` wrapper. The example proves those
+current Model facts only. Draft Compiler 0006B1 owns forward capture/inference adoption and must
+initially reject backward-capable requests before derivative allocation. Draft Model 0025K owns
+general `unfold3d`/`fold3d` algebra, Draft Compiler 0006B2 owns exact gradients after it, and Draft
+CPU 0008G1 owns execution. No current backend support, graph capture, gradient, execution, or
+materialized numeric result follows from this Model API.
 
 ### Matrix-multiplication semantic kind
 

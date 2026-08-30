@@ -119,8 +119,11 @@ which adopted the shared partition DAG. Detailed
 is Complete. Before the previous CPU 0008H attention frontier, the user-requested pooling closure
 runs in the explicit cross-plan order Model 0025I -> Model 0025J -> Model 0025K -> Compiler
 0006B1 -> Compiler 0006B2 -> CPU 0008G1 -> CPU 0008H. Detailed
-[Model 0025I](modules/model/tasks/0025i-ncw-max-average-pool1d-composition.md) is Complete; every
-later inserted task remains Draft without a detailed specification. Pool1d is the exact visible
+[Model 0025I](modules/model/tasks/0025i-ncw-max-average-pool1d-composition.md) is Complete. Detailed
+[Model 0025J](modules/model/tasks/0025j-first-class-ncdhw-max-average-pool3d-semantics.md) is the
+completed first-class Model metadata step; every later inserted task remains Draft without a
+detailed specification.
+Pool1d is the exact visible
 `EXPAND_DIMS(axis 2) -> POOL2D -> SQUEEZE(axis 2)` composition, not a new operation kind. Pool3d
 is first-class because depth enumeration is not a bounded Shape-independent composition; Model
 0025K supplies the general 3D window/fold algebra required for its exact gradients. Pool1d's
@@ -185,8 +188,10 @@ remain code/config-defined; compiled, prepared, Runtime, backend, and device art
 
 Detailed
 [Model 0025I NCW max/average Pool1d composition](modules/model/tasks/0025i-ncw-max-average-pool1d-composition.md)
-is Complete. Model 0025J is the next Draft frontier; Model 0025J, 0025K, and 0026 remain Draft
-without detailed specifications, and no Model task is Ready or In progress.
+is Complete. Detailed
+[Model 0025J First-class NCDHW max/average Pool3d semantics](modules/model/tasks/0025j-first-class-ncdhw-max-average-pool3d-semantics.md)
+is Complete. Model 0025K is the next Draft frontier; Model 0025K and 0026 remain without detailed
+specifications, and no Model task is Ready or In progress.
 Detailed
 [Compiler 0006B Conv3d forward adoption and explicit gradient boundary](modules/compiler/tasks/0006b-conv3d-forward-adoption-and-explicit-gradient-boundary.md)
 is Complete as the separate forward consumer after 0025H; Compiler 0006C remains separate Draft
@@ -2786,7 +2791,7 @@ authorized Compile API status correction.
 | 130 | [0025G NCW Conv1d composition](modules/model/tasks/0025g-ncw-conv1d-composition.md) | Complete |
 | 131 | [0025H NCDHW Conv3d semantics and Tensor expressions](modules/model/tasks/0025h-ncdhw-conv3d-semantics-and-tensor-expressions.md) | Complete |
 | 132 | [0025I NCW max/average Pool1d composition](modules/model/tasks/0025i-ncw-max-average-pool1d-composition.md) | Complete |
-| 133 | 0025J First-class NCDHW max/average Pool3d semantics | Draft (no detailed specification) |
+| 133 | [0025J First-class NCDHW max/average Pool3d semantics](modules/model/tasks/0025j-first-class-ncdhw-max-average-pool3d-semantics.md) | Complete |
 | 134 | 0025K Public NCDHW unfold3d and fold3d window transforms | Draft (no detailed specification) |
 | 135 | 0026 IEEE FLOAT16 and mixed-precision semantic contracts | Draft (future interleave; no detailed specification) |
 

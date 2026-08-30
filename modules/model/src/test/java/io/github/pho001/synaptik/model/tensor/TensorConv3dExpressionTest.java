@@ -63,7 +63,7 @@ class TensorConv3dExpressionTest {
                 () -> assertEquals(Tensor.class, publicBiased.getReturnType()),
                 () -> assertFalse(Modifier.isStatic(publicUnbiased.getModifiers())),
                 () -> assertFalse(Modifier.isStatic(publicBiased.getModifiers())),
-                () -> assertEquals(208, Arrays.stream(Tensor.class.getDeclaredMethods())
+                () -> assertEquals(210, Arrays.stream(Tensor.class.getDeclaredMethods())
                         .filter(method -> Modifier.isPublic(method.getModifiers())).count()),
                 () -> assertEquals(2, Arrays.stream(Tensor.class.getDeclaredMethods())
                         .filter(method -> method.getName().equals("conv3d")).count()));
