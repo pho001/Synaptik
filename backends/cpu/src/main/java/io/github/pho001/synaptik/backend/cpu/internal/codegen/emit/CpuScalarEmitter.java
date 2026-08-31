@@ -23,6 +23,8 @@ import java.lang.constant.MethodTypeDesc;
  * numerical-policy decision.</p>
  */
 final class CpuScalarEmitter {
+    // Cephes ndtr.c ERF/ERFC coefficients and piecewise rational approximation.
+    // See the repository-root THIRD_PARTY_NOTICES.md for provenance and the applicable notice.
     private static final double[] ERF_T = {9.60497373987051638749E0,
             9.00260197203842689217E1, 2.23200534594684319226E3,
             7.00332514112805075473E3, 5.55923013010394962768E4};
