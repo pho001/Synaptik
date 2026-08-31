@@ -353,24 +353,25 @@ lets backend prepare fuse a profitable pattern without placing a fused variant i
 Scaled dot-product attention remains a named high-level operation. Query `[...batch, L, E]`, key
 `[...batch, S, E]`, and value `[...batch, S, Ev]` broadcast batch/head prefixes and produce
 `[..., L, Ev]`. One kind accepts ordered `[query, key, value]` or
-`[query, key, value, mask]` and produces exactly one output. Its immutable attributes carry an
-optional exact typed scale and causal flag; absent scale selects `1 / sqrt(E)`, while a present
-scale is finite, positive, floating, and exactly matches the promoted input type. A BOOL mask
-broadcasts to score Shape `[..., L, S]`, where true participates and false masks. Causal mode
-additionally retains positions `j <= i`, and softmax is over the final key axis.
-All-masked rows have zero weights and zero output. The initial operation has one output, exposes
-no attention weights, and has no dropout parameter. Graph RNG and dropout remain owned by task
-0019B; initial attention has no technical dependency on that task, and any later attention
-dropout must consume its explicit state.
+`[query, key, value, mask]` and produces either output slot zero alone or output plus canonical
+normalized weights at slot one. Its immutable attributes carry an optional exact typed scale and
+causal flag; absent scale selects `1 / sqrt(E)`, while a present scale is finite, positive,
+floating, and exactly matches the promoted input type. A BOOL mask broadcasts to score Shape
+`[..., L, S]`, where true participates and false masks. Causal mode additionally retains positions
+`j <= i`, and softmax is over the final key axis. All-masked rows have zero weights and zero
+output. Neither occurrence form has a dropout parameter. Graph RNG and dropout remain owned by
+task 0019B, and any later attention dropout must consume its explicit state.
 
-The selected public receiver surface is exactly four overloads: key/value with defaults,
-key/value with operation-specific attrs, key/value/mask with defaults, and key/value/mask with
-attrs. The public immutable attrs record is inspectable semantic state rather than a general
-options framework. Query/key/value ranks are at least two; their batch/head prefixes use exact
-three-way right-aligned broadcasting. Embedding equality/positivity, key/value sequence equality,
-batch singleton-or-equal, and mask singleton-or-equal obligations defer only when exact output
-Shape references remain derivable. Static-zero embedding is invalid; empty query, key sequence,
-value-width, and batch axes follow the task's explicit empty-domain results.
+The selected public receiver surface has two parallel four-overload families: output-only and
+explicit output-plus-weights, each with key/value defaults, operation-specific attrs, optional
+mask, and optional mask plus attrs. The public immutable attrs record is inspectable semantic
+state rather than a general options framework. The two-output result retains both exact wrappers
+from one shared producer rather than reconstructing weights. Query/key/value ranks are at least
+two; their batch/head prefixes use exact three-way right-aligned broadcasting. Embedding
+equality/positivity, key/value sequence equality, batch singleton-or-equal, and mask
+singleton-or-equal obligations defer only when exact output Shape references remain derivable.
+Static-zero embedding is invalid; empty query, key sequence, value-width, and batch axes follow
+the task's explicit empty-domain results.
 
 Eligible score NaN propagates through a row; positive-infinity score ties split unit weight;
 all-negative-infinity and all-masked rows produce positive-zero weights and output. Excluded

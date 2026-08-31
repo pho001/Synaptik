@@ -253,7 +253,7 @@ created by 0005A. All consume the common analysis above; none creates another ba
 | 0008F | [Portable MATMUL execution and bounded linear epilogues](tasks/0008f-portable-matmul-execution-and-bounded-linear-epilogues.md) | Complete | 0008E1; Model 0019/0019D; Compiler 0005D | Added complete static vector/matrix/batched/right-broadcast MATMUL across all current non-BOOL numeric promotions through four bounded portable generated realizations, a complete scalar fallback, full-K accumulation, independent output-work-unit parallelism, explicit candidate-only 0008E materializations, and exact 0008C bias/one-terminal fusion or safe split. The 182-test focused baseline, 576-test CPU checkpoint, Class-File scans, and five-fork `<= 1.15x` evidence passed at schema 54. No native route, K splitting, panel packing, or hot-path policy was added. |
 | 0008G | [Portable max/average Pool2d execution](tasks/0008g-portable-max-average-pool2d-execution.md) | Complete | 0008F; Model 0020A–0020A1; Compiler 0005D | Added first-class NCHW max and fixed-count average pooling through one generated scalar/parallel-scalar form with exact literal floor/ceil geometry, extrema/divisor/accumulator/special-value rules, static resolved layouts, array/segment carriers, disjoint output-cell ranges, zero workspace, schema-55 identity, and an optimal clean Java oracle. Focused and 596-test CPU validation, structural/schema scans, and five-fork `<= 1.15x` evidence passed; no pooling fusion or materialization was added. |
 | 0008G1 | [Portable Pool1d composition validation and Pool3d generated execution](tasks/0008g1-portable-pool1d-composition-validation-and-pool3d-generated-execution.md) | Complete | 0008G; Model 0025I–0025K; Compiler 0006B1–0006B2 | Recognizes only the exact visible NCW Pool1d singleton-height composition, keeps its rank edits virtual, and reuses byte-identical schema-55 Pool2d code without a Pool1d capability or artifact. Adds direct NCDHW max/average Pool3d scalar/caller-parallel complete-output-cell execution for static resolved BFLOAT16/FLOAT32/FLOAT64 carriers with zero workspace/materialization and schema 56. Focused 181-test and 618-test CPU validation, 24-family structural scans, and all five-fork ratios passed. |
-| 0008H | Portable scaled-dot-product attention execution | Draft | 0008G1; Model 0019E/0023F; Compiler 0005D | Add the current one- and two-output attention signatures with optional mask, stable score normalization, exact publication/resources, direct generated execution, and safe fallback without inferring decomposed attention. |
+| 0008H | [Portable scaled-dot-product attention execution](tasks/0008h-portable-scaled-dot-product-attention-execution.md) | Ready | 0008G1; Model 0019E/0023F; Compiler 0005D | Execute the exact current one- and two-output attention occurrences with optional right-broadcast BOOL mask, top-left causal eligibility, frozen stable score normalization, exact per-range score/weight workspace and publication, atomic partition-DAG boundaries, and schema-57 direct generated execution. Retain exhaustive inspection of all 11,880 specialization identities, then use their normalized loop/access equivalence map to gate a factor-complete 992-row matrix in five fresh fixed-heap forks rather than timing structurally redundant carrier permutations. |
 | 0008I | Portable loss-family execution | Draft | 0008H; Model 0022–0022B; Compiler 0005D | Add mean-squared error plus dense- and index-target categorical cross-entropy-with-logits across their current reductions, exceptional-value policies, publications, validation, and direct generated evidence. |
 | 0009 | Portable generated-coverage closure checkpoint | Draft | 0001–0008I, explicitly including 0005A–0005J, corrective 0007A0A–0007A1O and any later residual corrections selected before 0007A2, 0007A–0007F2 including 0007A1/0007A2 and 0007F/0007F1/0007F2, Prepare 0003A, CPU 0008E1, CPU 0008G1, and the ordered 0008A–0008I dimensional-convolution/decomposition/recognition/profitability/materialization/shared-DAG-adoption/heavy-family sequence; complete current selected Model semantic inventory | Prove the bytecode/Vector portable route is the truthful supported semantic baseline and fallback, including completed per-family generated/direct corrective evidence, dimensional-convolution execution before general DAG work, safe general DAG decomposition, bounded recognition/fusion, deterministic split fallback, bounded single/dual-input materialization with representation reuse, shared partition-DAG adoption without reconstruction drift, remaining heavy-family execution, and typed cold decision evidence. Classify metadata-only work, prove unsupported work fails closed, and close capability/conformance before native peer-route expansion. |
 | 0010 | Narrow OpenBLAS BLAS-compatible native route | Draft | 0005A; 0009; completed OpenBLAS provider | Add only `route.nativeblas.openblas` for eligible BLAS-compatible linear algebra, preserving portable alternatives and using shared lowering, representations, exact filtering, materialization accounting, and whole-plan transition cost; never treat OpenBLAS as universal or preferred. |
@@ -360,8 +360,9 @@ is `Complete`. Detailed CPU 0008 is `Complete` and establishes only the grouped
 NCHW Conv2d foundation plus its bounded family-local epilogue/split contract. MATMUL is implemented
 by detailed Complete [CPU 0008F](tasks/0008f-portable-matmul-execution-and-bounded-linear-epilogues.md) following Complete
 [CPU 0008E1](tasks/0008e1-shared-partition-dag-adoption-and-reconstruction-removal.md), which adopted the shared partition DAG. Detailed
-[CPU 0008G](tasks/0008g-portable-max-average-pool2d-execution.md) is `Complete`; attention and losses
-remain Draft CPU 0008H–0008I without detailed specifications. CPU 0008A is `Complete`: it validates Conv1d through the explicit Conv2d
+[CPU 0008G](tasks/0008g-portable-max-average-pool2d-execution.md) is `Complete`; detailed
+[CPU 0008H](tasks/0008h-portable-scaled-dot-product-attention-execution.md) is `Ready`, while loss
+execution remains Draft CPU 0008I without a detailed specification. CPU 0008A is `Complete`: it validates Conv1d through the explicit Conv2d
 composition and adds Conv3d execution before the general DAG. CPU 0008B, CPU 0008C, and CPU 0008D
 are `Complete`; detailed [CPU 0008E](tasks/0008e-bounded-multi-input-materialization-and-representation-reuse.md)
 is `Complete`. It closes the profitability and materialization sequence in CPU
@@ -389,8 +390,8 @@ CPU contiguous materialization plan, and Materialization glossary entries were s
 task prohibited glossary edits. The corrected maximum is 43 paths (14 production/Javadoc, 24
 test/evidence, and 5 documentation/planning), with exactly 36 actual paths after the guide and
 glossary were added. User-authorized Prepare 0003A, detailed CPU 0008E1, and CPU 0008F are
-`Complete`. Detailed CPU 0008G and CPU 0008G1 are `Complete`; 0008H
-follows it. The inserted pooling order is Model 0025I -> Model 0025J -> Model 0025K -> Compiler
+`Complete`. Detailed CPU 0008G and CPU 0008G1 are `Complete`; detailed CPU 0008H is `Ready`
+and follows them. The inserted pooling order is Model 0025I -> Model 0025J -> Model 0025K -> Compiler
 0006B1 -> Compiler 0006B2 -> CPU 0008G1 -> CPU 0008H. The existing order through Model 0025G,
 Model 0025H, Compiler 0006B, and CPU 0008–0008G remains unchanged; Compiler 0006C remains a
 separate gradient-closure task that does not block CPU forward execution. CPU
@@ -408,7 +409,9 @@ CPU counts. Clean documentation context `01a043d7-113c-7ee2-8257-42678c1a7be4` f
 shared public contract and evidence. CPU consumption and reconstruction removal are now detailed
 Complete CPU 0008E1, detailed Complete CPU 0008F, detailed Complete CPU 0008G, and Complete
 [CPU 0008G1](tasks/0008g1-portable-pool1d-composition-validation-and-pool3d-generated-execution.md)
-close the pooling execution frontier; Draft CPU 0008H follows without a detailed specification.
+close the pooling execution frontier; detailed
+[CPU 0008H](tasks/0008h-portable-scaled-dot-product-attention-execution.md) is the sole `Ready`
+CPU implementation frontier, and CPU 0008I remains Draft without a detailed specification.
 
 CPU 0008G1 retains the visible three-occurrence Pool1d graph while recognizing only the exact
 private singleton-height topology for schema-55 Pool2d reuse. Its first-class Pool3d implementation
@@ -880,8 +883,9 @@ CPU 0007A1C is `Complete`; CPU 0007A1D remains `Review needed`; detailed CPU 000
 and detailed CPU 0007E and CPU 0007F are `Complete`, while detailed CPU 0007F1 is `Complete`;
 detailed CPU 0007F2, detailed CPU 0008, detailed CPU 0008A, and detailed CPU 0008B are `Complete`;
 CPU 0008C, detailed CPU 0008D, detailed CPU 0008E, and detailed CPU 0008E1 are `Complete`;
-CPU 0008F, detailed CPU 0008G, and detailed CPU 0008G1 are `Complete`; CPU 0008H
-through 0017 remain Draft without later detailed specifications. Prepare 0003A is Complete.
+CPU 0008F, detailed CPU 0008G, and detailed CPU 0008G1 are `Complete`; detailed CPU 0008H is
+`Ready`, and CPU 0008I through 0017 remain Draft without later detailed specifications. Prepare
+0003A is Complete.
 CPU 0005C preserves that exact slice and implements cold selection among all four portable
 strategies. It uses the preferred Java 26 FLOAT64 species only for direct contiguous runs and
 scalar broadcasts, scalar tails and general-odometer fallback, configured/available parallelism
@@ -1283,8 +1287,9 @@ the work at the active frontier.
   activation/clamp epilogue with a deterministic family-local split. Complete CPU 0008E1
   adopted the shared Prepare partition DAG without changing CPU behavior; detailed Complete CPU 0008F
   delivers bounded portable MATMUL execution; detailed Complete CPU 0008G delivers Pool2d, and
-  detailed Complete CPU 0008G1 delivers Pool1d composition recognition plus direct Pool3d before Draft CPU
-  0008H–0008I retain attention and loss ownership without detailed specifications. This planning
+  detailed Complete CPU 0008G1 delivers Pool1d composition recognition plus direct Pool3d before
+  detailed Ready CPU 0008H owns attention execution; Draft CPU 0008I retains loss ownership
+  without a detailed specification. This planning
   refinement changes neither architecture nor the required 0008 -> 0008A -> 0008B -> 0008C ->
   0008D -> 0008E -> Prepare 0003A -> CPU 0008E1 -> CPU 0008F order.
 - CPU 0008 resolves its in-progress split contradiction locally. `CpuPartitionPreparationPlan`

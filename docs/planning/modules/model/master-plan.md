@@ -1964,6 +1964,8 @@ gradient closure remains downstream work. Detailed
 Detailed Compiler 0006B1 is Complete. Detailed
 [Compiler 0006B2](../compiler/tasks/0006b2-pool3d-and-3d-window-gradient-closure.md) is Complete;
 Detailed [CPU 0008G1](../../backends/cpu/tasks/0008g1-portable-pool1d-composition-validation-and-pool3d-generated-execution.md)
-is Complete. Draft CPU 0008H remains the next cross-plan frontier without a detailed specification.
+is Complete. Detailed
+[CPU 0008H](../../backends/cpu/tasks/0008h-portable-scaled-dot-product-attention-execution.md)
+is the Ready cross-plan frontier; CPU 0008I remains Draft without a detailed specification.
 The legacy branch must be consulted read-only for capability and test evidence when preparing each
 applicable capability task.
