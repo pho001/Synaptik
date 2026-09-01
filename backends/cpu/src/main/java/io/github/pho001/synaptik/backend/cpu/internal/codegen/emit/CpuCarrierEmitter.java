@@ -164,6 +164,41 @@ final class CpuCarrierEmitter {
     }
 
     /**
+     * Begins a frozen scalar load whose long element address will be emitted on the operand stack.
+     *
+     * @param type exact logical data type to load
+     * @param access generation-time-selected carrier form
+     * @param parameterSlot exact input-carrier parameter slot
+     */
+    void beginFrozenLoadAtStackAddress(
+            DataType type, CarrierAccess access, int parameterSlot) {
+        code.aload(parameterSlot);
+        if (access == CarrierAccess.MEMORY_SEGMENT) constantLayout(type);
+    }
+
+    /**
+     * Completes a frozen scalar load after its long element address has been emitted on the stack.
+     *
+     * @param type exact logical data type to load
+     * @param access generation-time-selected carrier form used by the matching begin call
+     */
+    void endFrozenLoadAtStackAddress(DataType type, CarrierAccess access) {
+        if (access != CarrierAccess.MEMORY_SEGMENT) {
+            code.l2i();
+            switch (type) {
+                case FLOAT64 -> code.daload(); case FLOAT32 -> code.faload();
+                case BFLOAT16 -> code.saload(); case INT32 -> code.iaload();
+                case INT64 -> code.laload(); case BOOL -> code.baload();
+                default -> throw new IllegalArgumentException("unsupported carrier data type");
+            }
+            return;
+        }
+        code.loadConstant((long) type.byteWidth()).lmul();
+        code.invokeinterface(SEGMENT, "get", MethodTypeDesc.of(primitive(type), layoutClass(type),
+                TypeKind.LONG.upperBound()));
+    }
+
+    /**
      * Emits one scalar store of the supplied type to a generation-time-selected carrier form.
      *
      * @param type non-null exact logical data type to store
@@ -240,6 +275,7 @@ final class CpuCarrierEmitter {
             case FLOAT64 -> "JAVA_DOUBLE_UNALIGNED";
             case FLOAT32 -> "JAVA_FLOAT_UNALIGNED";
             case BFLOAT16 -> "JAVA_SHORT_UNALIGNED";
+            case BOOL -> "JAVA_BYTE";
             default -> throw new IllegalArgumentException("unsupported frozen segment data type");
         };
         code.getstatic(VALUE_LAYOUT, field, layoutClass(type));

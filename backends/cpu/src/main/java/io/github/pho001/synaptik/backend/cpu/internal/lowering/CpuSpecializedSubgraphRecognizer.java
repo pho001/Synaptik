@@ -477,6 +477,7 @@ public final class CpuSpecializedSubgraphRecognizer {
             case SCATTER_PRODUCT -> WorkspaceRole.SCATTER_PRODUCT;
             case ORDERING_INDICES -> WorkspaceRole.ORDERING_INDICES;
             case AGGREGATE_EXACT_STATE -> WorkspaceRole.AGGREGATE_EXACT_STATE;
+            case ATTENTION_ROW_STATE -> WorkspaceRole.ATTENTION_ROW_STATE;
         };
         WorkspaceResourceFact workspace = declaration
                 .map(value -> new WorkspaceResourceFact(role, value.byteSize(),

@@ -243,8 +243,8 @@ public record CpuKernelSpecialization(CpuLoweringFingerprint loweringFingerprint
         scalarPowerRealizations = List.copyOf(scalarPowerRealizations);
         matmulIr = Objects.requireNonNull(matmulIr, "matmulIr");
         if (classIdentitySchema != 52 && classIdentitySchema != 54 && classIdentitySchema != 55
-                && classIdentitySchema != 56) {
-            throw new IllegalArgumentException("class identity schema must be 52, 54, 55, or 56");
+                && classIdentitySchema != 56 && classIdentitySchema != 57) {
+            throw new IllegalArgumentException("class identity schema must be 52, 54, 55, 56, or 57");
         }
         if ((classIdentitySchema == 54) != matmulIr.isPresent()
                 || classIdentitySchema == 55 && matmulIr.isPresent()) {

@@ -2,7 +2,7 @@
 
 ## Status
 
-Ready.
+Complete.
 
 ## Goal
 
@@ -628,15 +628,92 @@ implementation evidence.
 
 ## Validation evidence
 
-Not yet implemented. Record exact commands, test counts, retained evidence root and hashes,
-all 11,880 structural results, the 11,880-to-992 normalized equivalence map, all 992 five-fork
-performance results, CPU checkpoint, Javadoc/documentation checks, path inventory, status/order
-checks, and whitespace evidence here before changing status to Complete.
+Implementation evidence, supplied to and independently inspected by the documentation context:
+
+- Focused attention owner suites previously passed 64 tests with no failures. This documentation
+  pass reuses that evidence and does not rerun Java tests because it changes comments and Markdown
+  only.
+- Exhaustive structural evidence is retained at
+  `/tmp/synaptik-cpu-0008h-evidence/structural-delta-review-20260901a`: `BUILD SUCCESSFUL`,
+  11,880 generated classes, 992 timed rows, 456 normalized skeletons, and 312 ordered boundary
+  fragments. Verifier, member, constant-pool, call-owner, forbidden scan, and 11,880-to-992
+  skeleton/fragment coverage passed. Inventory SHA-256
+  `1d0dc5b397429da4e876252b82b05bf0e9e8a63b8100c9638aadfebea78921a2`; fragment inventory
+  `2614f63804ad5f5432498e33155779ce5e6b8faca430787cf8566bfad5699232`; loop skeleton
+  `8f192aed0dedf35283bfaf1647374fcdd24b0ccb6fa4f571dca91ae554cbb9b5`; timed components
+  `fb60a90a470503dc60e7f07b5c3408f2cb96a3149be43ebb74495517f418cb26`; manifest
+  `9f8fa203f5700528790c31382cff1270cdc4d2336e4c43d549738f583e7701e0`; and javap
+  `9e3c25237f9e2f82a93530c449ee8548de93ba23d32a6414e1dfaac9b3965860`. The 312 fragments are
+  broader valid compositional coverage, not a 252-fragment requirement.
+- Authoritative performance evidence is retained at
+  `/tmp/synaptik-cpu-0008h-evidence/performance-authoritative-final-20260901b`. With an explicit
+  evidence root, `SYNAPTIK_CPU_ATTENTION_PERFORMANCE=true`, `--no-daemon`, and `--rerun-tasks`,
+  `CpuAttentionPerformanceTest` completed `BUILD SUCCESSFUL` in 5h41m29s: five fresh forks times
+  992 rows equals 4,960 row/fork results and 992 aggregates. Every ratio was `<= 1.15`; the worst
+  individual ratio was `1.090399240` and the worst median aggregate ratio was `1.004388537`.
+  Generated/direct semantic equivalence and driver preparation passed. Manifest digest:
+  `e5fa969f3af2a6dfe728004fb3c9a0afdb1195cc41fdaca3b3fa01d56c2b98c7`.
+- An older CPU checkpoint reported 628 tests: 620 passed, 7 skipped, and one failure from a
+  missing retained historical CPU 0008E evidence CSV, not an attention assertion. It remains as
+  historical evidence only. The immediate pre-final discovery run also reported 628 tests with
+  two failures and seven skips: (1) the same missing retained historical CPU 0008E CSV/control
+  artifacts and (2) one unrelated noisy
+  `CpuPartitionDagGeneratedEvidenceTest` performance sample, where fork 0 had no accepted sample
+  at or below `1.15`. The latter was neither an attention-correctness failure nor a failure of
+  CPU 0008H's authoritative 992-row performance matrix.
+- The coordinator restored the exact immutable historical artifacts outside the worktree from the
+  original agent log: both CSV SHA-256 values matched their committed expectations, and the two
+  regenerated control Class-Files had their expected hashes. None is tracked or part of this
+  change. Both affected owners then passed together with `BUILD SUCCESSFUL in 8s`:
+  `./gradlew :backends:cpu:test --tests io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuRepresentationPlannerTest.retainedEvidenceAndGeneratedClassControlsRemainExactWithoutRerunningForks --tests io.github.pho001.synaptik.backend.cpu.internal.codegen.emit.CpuPartitionDagGeneratedEvidenceTest.fiveFixedHeapForksAndAggregateStayWithinGate`.
+  The final authoritative `./gradlew :backends:cpu:test` checkpoint then passed with `BUILD
+  SUCCESSFUL in 17s`: 127 suites, 628 tests, 0 failures, 0 errors, and 7 expected skips.
+
+Documentation context `01a05d40-07bf-7501-a9e1-41df7a43f793` selected the API/Javadoc, backend-guide, planning, general, and
+example profiles. It reviewed the complete implementation diff; all affected production types and
+surrounding contracts; attention tests and generated evidence owners; the CPU guide; Tensor and
+Compile API references; glossary; Model 0019E/0023F; Compiler 0005D; CPU 0007E/0008B/0008E1/
+0008F/0008G/0008G1; CPU master plan; roadmap; and architecture/planning rules. It finalizes the
+Javadoc and documentation described below. Final `./gradlew :backends:cpu:javadoc` was
+`BUILD SUCCESSFUL` (the module retains 87 pre-existing broad-record Javadoc warnings; no
+attention-specific warning remains). The repository Markdown validator passed the five changed
+non-Tensor Markdown files. Its full Tensor API run reports only that file's existing repeated
+example headings; a targeted equivalent local-link/fence/final-newline/trailing-whitespace check
+for the changed Tensor API passed. `git diff --check` passed.
 
 ## Implementation notes
 
-Not yet implemented.
+- CPU lowering keeps attention atomic and records only CPU-private direct-route identity and cold
+  geometry. Generated schema 57 is a direct scalar execution route, with one scratch slice per
+  selected range; it is not a Model semantic implementation, Compiler gradient path, or Runtime
+  route selector.
+- Documentation now distinguishes the Model's backend-independent construction, Compiler's
+  capture/inference/gradient ownership, and the current CPU forward subset. It explicitly excludes
+  dropout, dynamic shapes, negative strides, overlap/in-place execution, decomposed recognition,
+  fusion, materialization, vector/native/packed/flash routing, and universal-performance claims.
+- The CPU guide adds the current family; Tensor/Compile API and glossary wording no longer says
+  that all attention execution remains planned. Their public semantic and gradient contracts did
+  not change.
 
 ## Completion summary
 
-Not yet implemented.
+- Documentation/Javadoc pass: finalized the CPU-private attention emitter, mask validator, IR,
+  and lowering Javadocs; added the current bounded CPU route to the CPU guide; narrowed stale
+  Tensor/Compile API and glossary execution statements; and synchronized the CPU master-plan row
+  and roadmap status/order after the final checkpoint. Documentation-pass paths are
+  `CpuAttentionEmitter`, `CpuAttentionMaskValidator`, `CpuAttentionIr`, `CpuAttentionLowering`,
+  `CpuPartitionLowering`, `cpu-backend.md`, `tensor-api.md`, `compile-api.md`, `glossary.md`, the
+  CPU master plan, roadmap, and this task record.
+- No-change conclusions: `ARCHITECTURE.md`, architecture explanations/tests, backend-conformance,
+  integration, Gradle/build configuration, Model capabilities/master plan, and other modules need
+  no change. The architecture and dependency edges are unchanged; conformance/integration have no
+  callable attention harness; build configuration is unaffected; Model ownership/capability text
+  and Compiler public gradient text already describe the current semantic/gradient contracts.
+  CPU master-plan and roadmap status/order are synchronized: CPU 0008H is Complete, CPU 0008G1
+  remains Complete, CPU 0008I is the next Draft CPU family frontier without a task file, and Model 0019E/0023F plus Compiler
+  0005D remain Complete.
+- Documentation/Javadoc validation is complete. The final combined changed-path inventory is 46 paths (34 tracked
+  modifications and 12 new files), below the 69-path ceiling; the untracked files are only the
+  expected attention source/tests, and no retained `/tmp` evidence is tracked.
+- No unresolved issue or follow-up remains for CPU 0008H. CPU 0008I is the next separate Draft
+  loss-family task and intentionally has no detailed task file.

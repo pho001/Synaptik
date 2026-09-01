@@ -129,6 +129,20 @@ Shapes, resolved non-negative layouts, an injective output, exact floor/literal-
 non-gradient occurrences. It adds no pooling fusion, saved winners, general PoolNd bridge,
 unfold/fold execution, vector/native route, or dynamic geometry.
 
+The sixteenth family is exactly one first-class `SCALED_DOT_PRODUCT_ATTENTION` occurrence with
+three ordered query/key/value inputs and an optional right-broadcast canonical BOOL mask, and one
+output or same-occurrence normalized weights at output slot one. It accepts only fully static,
+resolved non-negative layouts and BFLOAT16, FLOAT32, or FLOAT64 query/key/value types. The direct
+schema-57 generated scalar body owns complete broadcast-batch/query rows, applies top-left causal
+eligibility (`j <= i`) together with the BOOL mask before reading excluded score/value data, and
+uses one exact score/weight scratch slice per selected range. The body has no MATMUL/SOFTMAX
+decomposition, external fusion, materialization, vector/native/packed/flash route, or interpreted
+fallback. CPU analysis declares the workspace before shared slot assignment; CPU finalization
+binds the selected generated artifact after assignment; Runtime invokes only the resulting
+prepared primitive state. This is current forward execution, not dropout or training execution,
+and it does not support dynamic shapes, negative strides, in-place/overlap layouts, FLOAT16,
+integral/quantized data, or a universal performance claim.
+
 Generated scalar and Java 26 Vector API entries accept primitive `start` and `end` bounds.
 Compatible concrete extents bind on the cold path and share identical class bytes and one
 process-local loaded compatibility identity. The pointwise semantic matrix uses exactly five

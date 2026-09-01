@@ -47,7 +47,8 @@ public sealed interface CpuFusionDecision permits CpuFusionDecision.LegalCandida
         /** Contiguous external-read copy. */ MATERIALIZATION,
         /** Exact scatter-product accumulation state. */ SCATTER_PRODUCT,
         /** Stable-ordering index state. */ ORDERING_INDICES,
-        /** Exact aggregate, reduction, normalization, or statistic state. */ AGGREGATE_EXACT_STATE
+        /** Exact aggregate, reduction, normalization, or statistic state. */ AGGREGATE_EXACT_STATE,
+        /** Per-row scaled-dot-product attention score state. */ ATTENTION_ROW_STATE
     }
 
     /** Closed attempted contraction relation. */

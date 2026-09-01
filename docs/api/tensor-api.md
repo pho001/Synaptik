@@ -10779,9 +10779,15 @@ eligibility in `ScaledDotProductAttentionAttrs`. The original family creates exa
 and no hidden weights or random-state output. The explicit family returns
 `ScaledDotProductAttentionResult` with output slot zero and normalized weights slot one from one
 exact shared producer. Deferred embedding, sequence, batch, and mask obligations are current
-package-private compiler-verification inputs and may remain for later concrete binding. Numerical
-execution, legal decomposition, gradient construction, saved-value lifetime, dropout, backend
-support, and runtime execution remain planned in their owning layers.
+package-private compiler-verification inputs and may remain for later concrete binding. The CPU
+backend currently executes a deliberately narrow forward subset: fully static, resolved,
+non-negative-layout BFLOAT16, FLOAT32, or FLOAT64 occurrences through one direct generated scalar
+route, with optional right-broadcast BOOL masking, top-left causal eligibility, and either public
+output count. That backend capability does not change this Tensor API's backend-independent
+meaning or imply dropout, dynamic shapes, negative strides, overlap/in-place execution,
+decomposed-attention recognition, fusion, vector/native/packed/flash routing, or universal
+performance. Gradient construction and saved-value lifetime remain owned by Compiler; dropout and
+other unsupported execution forms remain planned in their owning layers.
 Axis permutation, singleton-axis insertion, and selected singleton-axis removal semantic values
 are current. Public permutation, rank-two transpose, expand-dimensions, and squeeze expression
 construction is also current. Signed-step slice semantics and public general/single-axis slice and

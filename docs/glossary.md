@@ -256,8 +256,12 @@ hidden weights. The four `scaledDotProductAttentionWithWeights` forms instead re
 `ScaledDotProductAttentionResult(output, weights)` at shared producer slots zero and one. Both
 families accept floating query/key/value inputs and an optional exact BOOL mask, derive exact
 broadcast-batch, weights, and output metadata, and record ordered three- or four-input provenance.
-They expose no dropout state. Numerical evaluation, compiler capture and deferred-constraint
-proof, gradients, saved-value lifetime, lowering, backend support, and execution remain planned.
+They expose no dropout state. Compiler capture, deferred-constraint proof, and the current
+two-output gradient formulas have their own owners. CPU 0008H now supplies a narrow forward
+execution subset for fully static resolved non-negative BFLOAT16, FLOAT32, and FLOAT64 layouts;
+it does not make attention universally executable or add dropout, dynamic shapes, in-place or
+overlap execution, decomposed-attention recognition, fusion, vector/native/packed/flash routes,
+or saved-value lifetime.
 The parameterless `ContiguousKind` vocabulary is implemented with the sole `CONTIGUOUS` identity.
 It preserves logical values, Shape, DataType, and row-major element order while requesting
 canonical dense row-major, zero-logical-offset result geometry. It is a semantic request rather
@@ -2016,7 +2020,9 @@ Current public Tensor construction records ordered inputs `[query, key, value]` 
 no hidden weights. The explicit `WithWeights` family returns output slot zero and normalized
 [attention weights](#attention-weight) slot one from one exact shared producer. Neither form
 applies dropout, evaluates numbers, creates Model-owned gradients, proves deferred constraints,
-chooses a backend, or executes. Current package-private compiler autograd supports query, key, and
+or chooses a backend. CPU 0008H currently executes a narrow fully static resolved-layout forward
+subset; this Model meaning remains backend-independent and does not itself execute. Current
+package-private compiler autograd supports query, key, and
 value from slot zero and query and key from canonical weights slot one only for the exact
 two-output occurrence. The one-output occurrence fails closed, and a BOOL mask remains
 non-differentiable.

@@ -70,11 +70,14 @@ import io.github.pho001.synaptik.model.operation.pooling.AveragePool2dAttrs;
 import io.github.pho001.synaptik.model.operation.pooling.Pool3dKind;
 import io.github.pho001.synaptik.model.operation.pooling.MaxPool3dAttrs;
 import io.github.pho001.synaptik.model.operation.pooling.AveragePool3dAttrs;
+import io.github.pho001.synaptik.model.operation.attention.ScaledDotProductAttentionAttrs;
+import io.github.pho001.synaptik.model.operation.attention.ScaledDotProductAttentionKind;
 import io.github.pho001.synaptik.model.datatype.DataTypePromotion;
 import io.github.pho001.synaptik.model.shape.Shape;
 import io.github.pho001.synaptik.planning.capability.BackendCapabilityProvider;
 import io.github.pho001.synaptik.planning.capability.OperationCapabilityQuery;
 import java.util.Objects;
+import java.util.Arrays;
 
 /**
  * Reports the executable semantic coverage currently delivered by the CPU backend.
@@ -254,7 +257,9 @@ public final class CpuCapabilityProvider implements BackendCapabilityProvider {
         int expectedOutputs = requestedKind == TopKKind.TOP_K ? 2
                 : requestedKind == DropoutKind.DROPOUT ? 3
                 : requestedKind == BatchNormKind.BATCH_NORM_TRAINING ? 5 : 1;
-        if (query.outputs().size() != expectedOutputs || !query.inputs().stream().allMatch(CpuCapabilityProvider::staticResolved)
+        boolean attentionOutputs = requestedKind == ScaledDotProductAttentionKind.SCALED_DOT_PRODUCT_ATTENTION
+                && (query.outputs().size() == 1 || query.outputs().size() == 2);
+        if ((!attentionOutputs && query.outputs().size() != expectedOutputs) || !query.inputs().stream().allMatch(CpuCapabilityProvider::staticResolved)
                 || !query.outputs().stream().allMatch(CpuCapabilityProvider::staticResolved)) {
             return false;
         }
@@ -264,6 +269,8 @@ public final class CpuCapabilityProvider implements BackendCapabilityProvider {
         try {
             if (kind instanceof AggregateReductionKind aggregate)
                 return supportsAggregate(query, output, aggregate);
+            if (kind == ScaledDotProductAttentionKind.SCALED_DOT_PRODUCT_ATTENTION)
+                return supportsAttention(query);
             if (kind == MatmulKind.MATMUL) return supportsMatmul(query, output);
             if (kind instanceof Pool2dKind) return supportsPool2d(query, output);
             if (kind instanceof Pool3dKind) return supportsPool3d(query, output);
@@ -823,6 +830,54 @@ public final class CpuCapabilityProvider implements BackendCapabilityProvider {
         long[] exact = expected.stream().mapToLong(Long::longValue).toArray();
         return java.util.Arrays.equals(exact, output.shape().toLongArray());
     }
+
+    private static boolean supportsAttention(OperationCapabilityQuery query) {
+        if (!(query.operation().attrs() instanceof ScaledDotProductAttentionAttrs attrs)
+                || query.inputs().size() < 3 || query.inputs().size() > 4
+                || query.outputs().size() < 1 || query.outputs().size() > 2) return false;
+        TensorDescriptor q=query.inputs().get(0),k=query.inputs().get(1),v=query.inputs().get(2);
+        if(!normalizationFloating(q.dataType())||!normalizationFloating(k.dataType())
+                ||!normalizationFloating(v.dataType())||q.shape().rank()<2||k.shape().rank()<2
+                ||v.shape().rank()<2)return false;
+        long[] qs=q.shape().toLongArray(),ks=k.shape().toLongArray(),vs=v.shape().toLongArray();
+        if(qs[qs.length-1]<=0||qs[qs.length-1]!=ks[ks.length-1]
+                ||ks[ks.length-2]!=vs[vs.length-2])return false;
+        DataType result=DataTypePromotion.promoteFloating(
+                DataTypePromotion.promoteFloating(q.dataType(),k.dataType()),v.dataType());
+        if(attrs.scale().isPresent()&&attrs.scale().orElseThrow().dataType()!=result)return false;
+        int qb=qs.length-2,kb=ks.length-2,vb=vs.length-2,batch=Math.max(qb,Math.max(kb,vb));
+        long[] prefix=new long[batch];
+        for(int axis=0;axis<batch;axis++){
+            long a=axis<batch-qb?1:qs[axis-(batch-qb)];
+            long b=axis<batch-kb?1:ks[axis-(batch-kb)];
+            long c=axis<batch-vb?1:vs[axis-(batch-vb)];
+            long selected=Math.max(a,Math.max(b,c));
+            if((a!=1&&a!=selected)||(b!=1&&b!=selected)||(c!=1&&c!=selected))return false;
+            prefix[axis]=selected;
+        }
+        long[] out=new long[batch+2],score=new long[batch+2];
+        System.arraycopy(prefix,0,out,0,batch);System.arraycopy(prefix,0,score,0,batch);
+        out[batch]=qs[qs.length-2];out[batch+1]=vs[vs.length-1];
+        score[batch]=qs[qs.length-2];score[batch+1]=ks[ks.length-2];
+        TensorDescriptor output=query.outputs().get(0);
+        if(output.dataType()!=result||!Arrays.equals(out,output.shape().toLongArray())
+                ||output.requiresGrad()!=(q.requiresGrad()||k.requiresGrad()||v.requiresGrad())
+                ||!injective(out,output.layout().orElseThrow().strides()))return false;
+        if(query.outputs().size()==2){TensorDescriptor weights=query.outputs().get(1);
+            if(weights.dataType()!=result||!Arrays.equals(score,weights.shape().toLongArray())
+                    ||weights.requiresGrad()!=(q.requiresGrad()||k.requiresGrad())
+                    ||!injective(score,weights.layout().orElseThrow().strides()))return false;}
+        if(query.inputs().size()==4){TensorDescriptor mask=query.inputs().get(3);
+            long[] ms=mask.shape().toLongArray();if(mask.dataType()!=DataType.BOOL||ms.length>score.length
+                    ||mask.requiresGrad())return false;int shift=score.length-ms.length;
+            for(int axis=0;axis<ms.length;axis++)if(ms[axis]!=1&&ms[axis]!=score[axis+shift])return false;}
+        Math.multiplyExact(product(prefix),qs[qs.length-2]);
+        Math.multiplyExact(ks[ks.length-2],result==DataType.FLOAT64?8L:4L);
+        return true;
+    }
+
+    private static long product(long[] values){for(long value:values)if(value==0)return 0;
+        long result=1;for(long value:values)result=Math.multiplyExact(result,value);return result;}
 
     private static boolean supportsPool2d(OperationCapabilityQuery query, TensorDescriptor output) {
         if (query.inputs().size() != 1) return false;

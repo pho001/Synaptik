@@ -24,6 +24,7 @@ import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuMatmulLowering
 import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuConv3dLowering;
 import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuPool2dLowering;
 import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuPool3dLowering;
+import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuAttentionLowering;
 import io.github.pho001.synaptik.backend.cpu.internal.memory.CpuBufferArgument;
 import io.github.pho001.synaptik.backend.cpu.internal.memory.CpuBufferRepresentation;
 import io.github.pho001.synaptik.backend.cpu.internal.memory.CpuContiguousWorkspace;
@@ -94,6 +95,10 @@ import java.util.Optional;
  * Pool2d binding validates exact typed input/output spans and rejects physical overlap before any
  * output mutation or worker submission. Each range owns complete NCHW output cells and receives
  * immutable packed layout and window geometry; a pooling window is never divided among ranges.
+ * Scaled-dot-product-attention binding validates its optional canonical Boolean mask and all
+ * input/output/workspace overlap before mutation. Each range owns complete broadcast-batch/query
+ * rows and a disjoint aligned score slice; zero-score and zero-work forms retain the scratch-shaped
+ * entry without requiring a workspace.
  */
 public final class CpuPreparedExecutable extends PreparedExecutable {
     private final CpuGeneratedKernel artifact;
@@ -132,6 +137,7 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
     private final Optional<CpuMatmulLowering.Geometry> matmulGeometry;
     private final Optional<CpuPool2dLowering.Geometry> pool2dGeometry;
     private final Optional<CpuPool3dLowering.Geometry> pool3dGeometry;
+    private final Optional<CpuAttentionLowering.Geometry> attentionGeometry;
     private final int outputCount;
 
     /**
@@ -871,7 +877,7 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
                 argExtremaGeometry, maskedReductionGeometry, advancedReductionGeometry,
                 softmaxGeometry, trailingNormalizationGeometry, batchNormInferenceGeometry,
                 batchNormTrainingGeometry, conv2dGeometry, conv3dGeometry, matmulGeometry,
-                Optional.empty(), Optional.empty(), outputCount);
+                Optional.empty(), Optional.empty(), Optional.empty(), outputCount);
     }
 
     /**
@@ -916,6 +922,7 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
      * @param matmulGeometry non-null optional normalized full-K MATMUL geometry
      * @param pool2dGeometry non-null optional NCHW Pool2d boundary geometry
      * @param pool3dGeometry non-null optional NCDHW Pool3d boundary geometry
+     * @param attentionGeometry non-null optional scaled-dot-product-attention row geometry
      * @param outputCount positive number of trailing selections written by this unit
      * @throws NullPointerException if a required reference or list element is {@code null}
      * @throws IllegalArgumentException if representation plans/workspaces, memory, boundary,
@@ -949,7 +956,8 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
             Optional<CpuConv3dLowering.Geometry> conv3dGeometry,
             Optional<CpuMatmulLowering.Geometry> matmulGeometry,
             Optional<CpuPool2dLowering.Geometry> pool2dGeometry,
-            Optional<CpuPool3dLowering.Geometry> pool3dGeometry, int outputCount) {
+            Optional<CpuPool3dLowering.Geometry> pool3dGeometry,
+            Optional<CpuAttentionLowering.Geometry> attentionGeometry, int outputCount) {
         super(memoryPlan, selections, java.util.stream.Stream.concat(workspaceSelection.stream(),
                 representationWorkspaceSelections.stream()).toList(),
                 accesses(selections.size(), outputCount));
@@ -989,11 +997,14 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
         this.matmulGeometry = Objects.requireNonNull(matmulGeometry, "matmulGeometry");
         this.pool2dGeometry = Objects.requireNonNull(pool2dGeometry, "pool2dGeometry");
         this.pool3dGeometry = Objects.requireNonNull(pool3dGeometry, "pool3dGeometry");
+        this.attentionGeometry = Objects.requireNonNull(attentionGeometry, "attentionGeometry");
         this.outputCount = outputCount;
         if (outputCount <= 0 || outputCount > selections.size()) {
             throw new IllegalArgumentException("output boundary count is inconsistent");
         }
-        long count = this.pool3dGeometry.isPresent()
+        long count = this.attentionGeometry.isPresent()
+                ? this.attentionGeometry.orElseThrow().rowCount()
+                : this.pool3dGeometry.isPresent()
                 ? this.pool3dGeometry.orElseThrow().outputCount()
                 : this.pool2dGeometry.isPresent()
                 ? this.pool2dGeometry.orElseThrow().outputCount()
@@ -1073,6 +1084,7 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
         geometryCount += this.matmulGeometry.isPresent() ? 1 : 0;
         geometryCount += this.pool2dGeometry.isPresent() ? 1 : 0;
         geometryCount += this.pool3dGeometry.isPresent() ? 1 : 0;
+        geometryCount += this.attentionGeometry.isPresent() ? 1 : 0;
         if (geometryCount>1) {
             throw new IllegalArgumentException("affine, movement, indexing, scatter, and fold geometry are exclusive");
         }
@@ -1087,9 +1099,11 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
                 .filter(g -> g.scratchSliceBytes() > 0 && g.normalizedCount() > 0).isPresent();
         boolean trainingScratch=this.batchNormTrainingGeometry
                 .filter(g -> g.scratchSliceBytes() > 0 && g.channelCount() > 0).isPresent();
+        boolean attentionScratch=this.attentionGeometry
+                .filter(g -> g.scratchSliceBytes() > 0 && g.rowCount() > 0).isPresent();
         if (workspaceSelection.isPresent() != (scatterScratch
                 || aggregateScratch || maskedScratch || advancedScratch
-                || normalizationScratch || trainingScratch
+                || normalizationScratch || trainingScratch || attentionScratch
                 || this.orderingGeometry.isPresent())) {
             throw new IllegalArgumentException("workspace selection purpose is inconsistent");
         }
@@ -1177,7 +1191,55 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
                 argExtremaGeometry, maskedReductionGeometry, advancedReductionGeometry,
                 softmaxGeometry, trailingNormalizationGeometry, batchNormInferenceGeometry,
                 batchNormTrainingGeometry, conv2dGeometry, conv3dGeometry, matmulGeometry,
-                pool2dGeometry, pool3dGeometry, outputCount);
+                pool2dGeometry, pool3dGeometry, Optional.empty(), outputCount);
+    }
+
+    /**
+     * Creates the complete recipe variant that carries cold scaled-dot-product-attention geometry.
+     *
+     * @param attentionGeometry non-null optional attention geometry
+     * @param outputCount positive trailing output-boundary count
+     * @throws NullPointerException if a required reference is {@code null}
+     * @throws IllegalArgumentException if retained facts disagree
+     */
+    public CpuPreparedExecutable(PreparedMemoryPlan memoryPlan, List<BufferSelection> selections,
+            CpuGeneratedKernel artifact, List<CpuAccessPlan.Binding> bindings,
+            List<CarrierAccess> carrierPattern, List<CarrierAccess> generatedCarrierPattern,
+            long start, long end, int selectedRangeCount, long minimumElementsPerWorker,
+            CpuWorkerGroup workerGroup, Optional<CpuMaterializationPlan> materialization,
+            Optional<WorkspaceSelection> workspaceSelection, long[] affineAddressPairs,
+            Optional<CpuNonAffineMovementLowering.Geometry> movementGeometry,
+            Optional<CpuIndexingLowering.Geometry> indexingGeometry,
+            Optional<CpuScatterLowering.Geometry> scatterGeometry,
+            Optional<CpuFoldLowering.Geometry> foldGeometry,
+            Optional<CpuOrderingLowering.Geometry> orderingGeometry,
+            Optional<CpuRandomLowering.Geometry> randomGeometry,
+            Optional<CpuScanLowering.Geometry> scanGeometry,
+            Optional<CpuAggregateLowering.Geometry> aggregateGeometry,
+            Optional<CpuArgExtremaLowering.Geometry> argExtremaGeometry,
+            Optional<CpuMaskedReductionLowering.Geometry> maskedReductionGeometry,
+            Optional<CpuAdvancedReductionLowering.Geometry> advancedReductionGeometry,
+            Optional<CpuSoftmaxLowering.Geometry> softmaxGeometry,
+            Optional<CpuTrailingNormalizationLowering.Geometry> trailingNormalizationGeometry,
+            Optional<CpuBatchNormInferenceLowering.Geometry> batchNormInferenceGeometry,
+            Optional<CpuBatchNormTrainingLowering.Geometry> batchNormTrainingGeometry,
+            Optional<CpuConv2dLowering.Geometry> conv2dGeometry,
+            Optional<CpuConv3dLowering.Geometry> conv3dGeometry,
+            Optional<CpuMatmulLowering.Geometry> matmulGeometry,
+            Optional<CpuPool2dLowering.Geometry> pool2dGeometry,
+            Optional<CpuPool3dLowering.Geometry> pool3dGeometry,
+            Optional<CpuAttentionLowering.Geometry> attentionGeometry, int outputCount) {
+        this(memoryPlan, selections, artifact, bindings, carrierPattern, generatedCarrierPattern,
+                start, end, selectedRangeCount, minimumElementsPerWorker, workerGroup,
+                materialization.isPresent() ? Optional.empty() : workspaceSelection,
+                materialization.stream().toList(), materialization.isPresent()
+                        ? workspaceSelection.stream().toList() : List.of(),
+                affineAddressPairs, movementGeometry, indexingGeometry, scatterGeometry,
+                foldGeometry, orderingGeometry, randomGeometry, scanGeometry, aggregateGeometry,
+                argExtremaGeometry, maskedReductionGeometry, advancedReductionGeometry,
+                softmaxGeometry, trailingNormalizationGeometry, batchNormInferenceGeometry,
+                batchNormTrainingGeometry, conv2dGeometry, conv3dGeometry, matmulGeometry,
+                pool2dGeometry, pool3dGeometry, attentionGeometry, outputCount);
     }
 
     /**
@@ -1255,7 +1317,7 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
                 || batchNormInferenceGeometry.isPresent() || batchNormTrainingGeometry.isPresent()
                 || conv2dGeometry.isPresent() || conv3dGeometry.isPresent()
                 || matmulGeometry.isPresent() || pool2dGeometry.isPresent()
-                || pool3dGeometry.isPresent()) return bindings.getLast();
+                || pool3dGeometry.isPresent() || attentionGeometry.isPresent()) return bindings.getLast();
         return ranged(movementGeometry.isPresent() || indexingGeometry.isPresent()
                 || scatterGeometry.isPresent() || foldGeometry.isPresent() || orderingGeometry.isPresent()
                 || randomGeometry.isPresent()
@@ -1276,7 +1338,7 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
                 || batchNormInferenceGeometry.isPresent() || batchNormTrainingGeometry.isPresent()
                 || conv2dGeometry.isPresent() || conv3dGeometry.isPresent()
                 || matmulGeometry.isPresent() || pool2dGeometry.isPresent()
-                || pool3dGeometry.isPresent()) return bindings;
+                || pool3dGeometry.isPresent() || attentionGeometry.isPresent()) return bindings;
         if (movementGeometry.isPresent() || indexingGeometry.isPresent()
                 || scatterGeometry.isPresent() || foldGeometry.isPresent() || orderingGeometry.isPresent()
                 || randomGeometry.isPresent() || scanGeometry.isPresent()
@@ -1312,7 +1374,7 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
                 advancedReductionGeometry, softmaxGeometry, trailingNormalizationGeometry,
                 batchNormInferenceGeometry, batchNormTrainingGeometry, conv2dGeometry,
                 conv3dGeometry, matmulGeometry, pool2dGeometry, pool3dGeometry,
-                outputCount);
+                attentionGeometry, outputCount);
     }
 
     private CpuAccessPlan.Binding ranged(CpuAccessPlan.Binding source) {
@@ -1360,6 +1422,7 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
                     && orderingGeometry.isEmpty() && aggregateGeometry.isEmpty()
                     && maskedReductionGeometry.isEmpty() && advancedReductionGeometry.isEmpty()
                     && trailingNormalizationGeometry.isEmpty() && batchNormTrainingGeometry.isEmpty()
+                    && attentionGeometry.isEmpty()
                 ) return false;
         long bytes=scatterGeometry.filter(g -> g.scratchSliceBytes() > 0)
                         .map(g -> g.workspaceBytes(selectedRangeCount))
@@ -1373,8 +1436,10 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
                             .map(g -> g.workspaceBytes(selectedRangeCount))
                             .orElseGet(() -> batchNormTrainingGeometry
                             .map(g -> g.workspaceBytes(selectedRangeCount))
+                            .orElseGet(() -> attentionGeometry
+                            .map(g -> g.workspaceBytes(selectedRangeCount))
                             .orElseGet(() -> orderingGeometry.orElseThrow()
-                                .workspaceBytes(selectedRangeCount)))))));
+                                .workspaceBytes(selectedRangeCount))))))));
         long alignment=8L;
         return workspace.byteSize() == bytes && workspace.byteAlignment() == alignment
                 && workspace.writableSegment().address() % alignment == 0;
@@ -1392,6 +1457,8 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
                     && g.normalizedCount() > 0).isPresent()
                 || batchNormTrainingGeometry.filter(g -> g.scratchSliceBytes() > 0
                     && g.channelCount() > 0).isPresent()
+                || attentionGeometry.filter(g -> g.scratchSliceBytes() > 0
+                    && g.rowCount() > 0).isPresent()
                 || orderingGeometry.isPresent();
         int intrinsicCount = hasWorkspace ? 1 : 0;
         if (workspaces.length != intrinsicCount + representationMaterializations.size()) {
@@ -1436,7 +1503,7 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
                             || batchNormInferenceGeometry.isPresent() || batchNormTrainingGeometry.isPresent()
                             || conv2dGeometry.isPresent() || conv3dGeometry.isPresent()
                             || matmulGeometry.isPresent() || pool2dGeometry.isPresent()
-                            || pool3dGeometry.isPresent()
+                            || pool3dGeometry.isPresent() || attentionGeometry.isPresent()
                         ? overlaps(arguments.get(input), inputBinding,
                             arguments.get(firstOutputIndex), bindings.get(firstOutputIndex))
                         : overlaps(arguments.get(input), ranged(inputBinding),
@@ -1470,6 +1537,10 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
                         bindings.get(right)))
                     throw new IllegalArgumentException("outputs must not overlap");
         }
+        attentionGeometry.filter(g -> g.mask().isPresent()).ifPresent(g -> {
+            int mask = g.roleBoundaryPositions().get(3);
+            CpuAttentionMaskValidator.validate(arguments.get(mask), bindings.get(mask));
+        });
         validateCanonicalBooleanInputs(arguments);
         IndexValidation validation = indexingGeometry.map(g ->
                 new IndexValidation(arguments, g)).orElse(null);
@@ -1542,6 +1613,14 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
                         && trainingScratch.asOverlappingSlice(segment.segment()).isPresent())
                     throw new IllegalArgumentException("batch-normalization scratch must not overlap a buffer");
         }
+        if (attentionGeometry.filter(g -> g.scratchSliceBytes() > 0
+                && g.rowCount() > 0).isPresent()) {
+            MemorySegment attentionScratch = scratch(workspaces);
+            for (CpuBufferArgument argument : arguments)
+                if (argument instanceof CpuBufferArgument.Segment segment
+                        && attentionScratch.asOverlappingSlice(segment.segment()).isPresent())
+                    throw new IllegalArgumentException("attention scratch must not overlap a buffer");
+        }
         long length = end - start;
         KernelCall prologue = randomGeometry.isPresent() ? callFor(artifact.entryPoint(), arguments,
                 null, geometry(arguments, 0, 0, 0), 0, 0) : null;
@@ -1549,7 +1628,7 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
                 Math.toIntExact(1 + (length - 1) / minimumElementsPerWorker));
         if (chunkCount <= 1) {
             KernelCall call = length == 0 ? null : callFor(artifact.entryPoint(), arguments,
-                    artifact.specialization().scratchParameter() ? scratch(workspaces, 0) : null,
+                    scratchArgument(workspaces, 0),
                     geometry(arguments, start, end, 0), start, end);
             return new Invocation(state, validation, scatterValidation, prologue, call, null);
         }
@@ -1560,7 +1639,7 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
         for (int index = 0; index < chunkCount; index++) {
             long chunkEnd = chunkStart + quotient + (index < remainder ? 1 : 0);
             KernelCall call = callFor(artifact.entryPoint(), arguments,
-                    artifact.specialization().scratchParameter() ? scratch(workspaces, index) : null,
+                    scratchArgument(workspaces, index),
                     geometry(arguments, chunkStart, chunkEnd, index), chunkStart, chunkEnd);
             calls[index] = call::invoke;
             chunkStart = chunkEnd;
@@ -1583,6 +1662,14 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
 
     private long[] geometry(List<CpuBufferArgument> arguments, long rangeStart, long rangeEnd,
             int rangeIndex) {
+        if (attentionGeometry.isPresent()) {
+            long[] bases = new long[arguments.size()];
+            for (int index = 0; index < bases.length; index++) {
+                int width = artifact.specialization().boundaryDataTypes().get(index).byteWidth();
+                bases[index] = arguments.get(index).byteOffset() / width;
+            }
+            return attentionGeometry.orElseThrow().pack(bases);
+        }
         if (pool3dGeometry.isPresent()) {
             int width = artifact.specialization().boundaryDataTypes().getFirst().byteWidth();
             return pool3dGeometry.orElseThrow().pack(
@@ -1883,7 +1970,18 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
             long bytes = batchNormTrainingGeometry.orElseThrow().scratchSliceBytes();
             return whole.asSlice(Math.multiplyExact((long) rangeIndex, bytes), bytes);
         }
+        if (whole != null && attentionGeometry.filter(g -> g.scratchSliceBytes() > 0
+                && g.rowCount() > 0).isPresent()) {
+            long bytes = attentionGeometry.orElseThrow().scratchSliceBytes();
+            return whole.asSlice(Math.multiplyExact((long) rangeIndex, bytes), bytes);
+        }
         return whole;
+    }
+
+    private MemorySegment scratchArgument(WorkspaceRepresentation[] workspaces, int rangeIndex) {
+        if (!artifact.specialization().scratchParameter()) return null;
+        MemorySegment value = scratch(workspaces, rangeIndex);
+        return value == null && attentionGeometry.isPresent() ? MemorySegment.NULL : value;
     }
 
     private static void invokeVoid(MethodHandle target, long start, long end) throws Throwable {
@@ -1952,6 +2050,7 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
                     == io.github.pho001.synaptik.backend.cpu.internal.ir.CpuRandomIr.Family.DROPOUT
                     ? arguments.size() - 3 : 0).orElse(arguments.size() - 1);
         for (int index = 0; index < output; index++) {
+            if (attentionGeometry.isPresent()) continue;
             if (artifact.specialization().boundaryDataTypes().get(index)
                     != io.github.pho001.synaptik.model.datatype.DataType.BOOL) continue;
             if (affineCopy) {
@@ -1966,7 +2065,7 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
             }
             CpuAccessPlan.Binding binding = movementGeometry.isPresent() || indexingGeometry.isPresent()
                     || scatterGeometry.isPresent() || aggregateGeometry.isPresent()
-                    || maskedReductionGeometry.isPresent()
+                    || maskedReductionGeometry.isPresent() || attentionGeometry.isPresent()
                     ? bindings.get(index) : ranged(bindings.get(index));
             long[] extents = binding.extents().stream().mapToLong(Long::longValue).toArray();
             long[] strides = binding.effectiveStrides().stream().mapToLong(Long::longValue).toArray();

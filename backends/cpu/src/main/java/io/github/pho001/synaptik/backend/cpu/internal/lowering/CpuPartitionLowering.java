@@ -81,6 +81,7 @@ public final class CpuPartitionLowering {
     private final CpuMatmulLowering matmulLowering = new CpuMatmulLowering();
     private final CpuPool2dLowering pool2dLowering = new CpuPool2dLowering();
     private final CpuPool3dLowering pool3dLowering = new CpuPool3dLowering();
+    private final CpuAttentionLowering attentionLowering = new CpuAttentionLowering();
     private final CpuPool1dCompositionLowering pool1dCompositionLowering =
             new CpuPool1dCompositionLowering();
     private final CpuConv1dCompositionLowering conv1dCompositionLowering =
@@ -140,6 +141,11 @@ public final class CpuPartitionLowering {
         if (nodes.getFirst().operation().kind()
                 instanceof io.github.pho001.synaptik.model.operation.pooling.Pool3dKind) {
             return pool3dLowering.lower(context);
+        }
+        if (nodes.getFirst().operation().kind()
+                == io.github.pho001.synaptik.model.operation.attention.ScaledDotProductAttentionKind
+                        .SCALED_DOT_PRODUCT_ATTENTION) {
+            return attentionLowering.lower(context);
         }
         if (nodes.size() == 1) {
             Object kind = nodes.getFirst().operation().kind();
@@ -621,6 +627,7 @@ public final class CpuPartitionLowering {
      * @param matmulFacts typed code identity and compact cold normalized full-K MATMUL geometry
      * @param pool2dGeometry compact cold NCHW Pool2d boundary and window geometry
      * @param pool3dGeometry compact cold NCDHW Pool3d boundary and window geometry
+     * @param attentionGeometry compact cold scaled-dot-product-attention row geometry
      */
     public record LoweredPartition(CpuPortableKernelIr portableKernelIr, List<ValueId> boundaryValues,
             List<CpuAccessPlan.Binding> accessBindings, List<Long> referencedElementSpans,
@@ -645,7 +652,43 @@ public final class CpuPartitionLowering {
             Optional<CpuConv3dLowering.Geometry> conv3dGeometry,
             Optional<MatmulFacts> matmulFacts,
             Optional<CpuPool2dLowering.Geometry> pool2dGeometry,
-            Optional<CpuPool3dLowering.Geometry> pool3dGeometry) {
+            Optional<CpuPool3dLowering.Geometry> pool3dGeometry,
+            Optional<CpuAttentionLowering.Geometry> attentionGeometry) {
+
+        /** Preserves the schema-56 canonical constructor with no attention geometry. */
+        public LoweredPartition(CpuPortableKernelIr portableKernelIr, List<ValueId> boundaryValues,
+                List<CpuAccessPlan.Binding> accessBindings, List<Long> referencedElementSpans,
+                List<DataType> boundaryDataTypes, List<ValueId> virtualValues, long[] extents,
+                long elementCount, String fusionReason, long[] affineAddressPairs,
+                Optional<CpuNonAffineMovementLowering.Geometry> movementGeometry,
+                Optional<CpuIndexingLowering.Geometry> indexingGeometry,
+                Optional<CpuScatterLowering.Geometry> scatterGeometry,
+                Optional<CpuFoldLowering.Geometry> foldGeometry,
+                Optional<CpuOrderingLowering.Geometry> orderingGeometry,
+                Optional<CpuRandomLowering.Geometry> randomGeometry,
+                Optional<CpuScanLowering.Geometry> scanGeometry,
+                Optional<CpuAggregateLowering.Geometry> aggregateGeometry,
+                Optional<CpuArgExtremaLowering.Geometry> argExtremaGeometry,
+                Optional<CpuMaskedReductionLowering.Geometry> maskedReductionGeometry,
+                Optional<CpuAdvancedReductionLowering.Geometry> advancedReductionGeometry,
+                Optional<CpuSoftmaxLowering.Geometry> softmaxGeometry,
+                Optional<CpuTrailingNormalizationLowering.Geometry> trailingNormalizationGeometry,
+                Optional<CpuBatchNormInferenceLowering.Geometry> batchNormInferenceGeometry,
+                Optional<CpuBatchNormTrainingLowering.Geometry> batchNormTrainingGeometry,
+                Optional<CpuConv2dLowering.Geometry> conv2dGeometry,
+                Optional<CpuConv3dLowering.Geometry> conv3dGeometry,
+                Optional<MatmulFacts> matmulFacts,
+                Optional<CpuPool2dLowering.Geometry> pool2dGeometry,
+                Optional<CpuPool3dLowering.Geometry> pool3dGeometry) {
+            this(portableKernelIr,boundaryValues,accessBindings,referencedElementSpans,
+                    boundaryDataTypes,virtualValues,extents,elementCount,fusionReason,
+                    affineAddressPairs,movementGeometry,indexingGeometry,scatterGeometry,
+                    foldGeometry,orderingGeometry,randomGeometry,scanGeometry,aggregateGeometry,
+                    argExtremaGeometry,maskedReductionGeometry,advancedReductionGeometry,
+                    softmaxGeometry,trailingNormalizationGeometry,batchNormInferenceGeometry,
+                    batchNormTrainingGeometry,conv2dGeometry,conv3dGeometry,matmulFacts,
+                    pool2dGeometry,pool3dGeometry,Optional.empty());
+        }
 
         /**
          * Preserves the schema-55 and earlier constructor surface with no Pool3d geometry.
@@ -1406,24 +1449,32 @@ public final class CpuPartitionLowering {
             matmulFacts = Objects.requireNonNull(matmulFacts, "matmulFacts");
             pool2dGeometry = Objects.requireNonNull(pool2dGeometry, "pool2dGeometry");
             pool3dGeometry = Objects.requireNonNull(pool3dGeometry, "pool3dGeometry");
+            attentionGeometry = Objects.requireNonNull(attentionGeometry, "attentionGeometry");
             Objects.requireNonNull(fusionReason, "fusionReason");
             int size = boundaryValues.size();
             boolean pool2d = portableKernelIr
                     instanceof io.github.pho001.synaptik.backend.cpu.internal.ir.CpuPool2dIr;
             boolean pool3d = portableKernelIr
                     instanceof io.github.pho001.synaptik.backend.cpu.internal.ir.CpuPool3dIr;
+            boolean attention = portableKernelIr
+                    instanceof io.github.pho001.synaptik.backend.cpu.internal.ir.CpuAttentionIr;
             if (size < 1 || accessBindings.size() != size || referencedElementSpans.size() != size
                     || boundaryDataTypes.size() != size
                     || pool2d != pool2dGeometry.isPresent()
                     || pool3d != pool3dGeometry.isPresent()
+                    || attention != attentionGeometry.isPresent()
                     || pool2d && (matmulFacts.isPresent() || size != 2
                         || boundaryDataTypes.getFirst() != boundaryDataTypes.getLast()
                         || pool2dGeometry.orElseThrow().dataType() != boundaryDataTypes.getFirst()
                         || pool2dGeometry.orElseThrow().outputCount() != elementCount)
-                    || pool3d && (matmulFacts.isPresent() || pool2d || size != 2
+                    || pool3d && (matmulFacts.isPresent() || pool2d || attention || size != 2
                         || boundaryDataTypes.getFirst() != boundaryDataTypes.getLast()
                         || pool3dGeometry.orElseThrow().dataType() != boundaryDataTypes.getFirst()
-                        || pool3dGeometry.orElseThrow().outputCount() != elementCount)) {
+                        || pool3dGeometry.orElseThrow().outputCount() != elementCount)
+                    || attention && (matmulFacts.isPresent() || pool2d || pool3d
+                        || attentionGeometry.orElseThrow().rowCount() != elementCount
+                        || attentionGeometry.orElseThrow().uniqueInputCount()
+                            + attentionGeometry.orElseThrow().outputCount() != size)) {
                 throw new IllegalArgumentException("lowering boundary facts must agree");
             }
         }
@@ -1502,6 +1553,8 @@ public final class CpuPartitionLowering {
                                                         ? pool2d.encodedKernelIr()
                                                     : portableKernelIr instanceof io.github.pho001.synaptik.backend.cpu.internal.ir.CpuPool3dIr pool3d
                                                         ? pool3d.encodedKernelIr()
+                                                    : portableKernelIr instanceof io.github.pho001.synaptik.backend.cpu.internal.ir.CpuAttentionIr attention
+                                                        ? attention.encodedKernelIr()
                                                     : ((io.github.pho001.synaptik.backend.cpu.internal.ir.CpuAggregateIr)
                                                         portableKernelIr).encodedKernelIr();
         }

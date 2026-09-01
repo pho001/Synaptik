@@ -101,6 +101,9 @@ package io.github.pho001.synaptik.backend.cpu.internal.cache;
  * Schema 56 adds direct typed NCDHW MAX_POOL3D and AVERAGE_POOL3D identity, rank-five cold
  * geometry, depth-height-width generated loops, and the 24 type/carrier body families. Pool2d
  * retains schema-55 class identity, MATMUL retains schema 54, and unchanged families retain 52.
+ * Schema 57 adds direct scaled-dot-product-attention type, semantic-role alias, mask, causal,
+ * output-count, carrier, accumulator, and scratch-entry identity while retaining ranks, layouts,
+ * scale values, addresses, and ranges as cold invocation geometry.
  * The optional persistent envelope stores this version and has no legacy reader, migration path,
  * or converter. Schema 47 adds first-class stable softmax/log-softmax. Schema 48 adds the four
  * trailing Layer/RMS forms, ordered mixed-type boundaries, exact typed epsilon identity,
@@ -182,7 +185,7 @@ public final class CpuGeneratorSchema {
      * the schema-52 and schema-54 class projections for unchanged families.
      * Envelopes written for earlier schemas are incompatible misses.
      */
-    public static final int CURRENT_VERSION = 56;
+    public static final int CURRENT_VERSION = 57;
     /** Generated entry name. */ public static final String ENTRY_NAME = "invoke";
     private CpuGeneratorSchema() { }
 

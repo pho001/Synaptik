@@ -571,7 +571,9 @@ public record CpuPartitionPreparationPlan(List<ExecutionUnitPlan> units, Route r
         /** Per-range exact floating scatter-product accumulator slices. */ SCATTER_PRODUCT,
         /** Per-range two-region stable ordering indices. */ ORDERING_INDICES,
         /** Per-range exact floating ordinary-aggregate or masked-reduction state. */
-        AGGREGATE_EXACT_STATE
+        AGGREGATE_EXACT_STATE,
+        /** Per-range in-place attention score and normalized-weight state. */
+        ATTENTION_ROW_STATE
     }
     /** Validated whole-partition cardinality form. */
     public enum PlanForm {
@@ -599,6 +601,8 @@ public record CpuPartitionPreparationPlan(List<ExecutionUnitPlan> units, Route r
      * @param matmulGeometry exact normalized full-K MATMUL geometry for a MATMUL unit only
      * @param pool2dGeometry exact NCHW Pool2d geometry for a Pool2d unit only
      * @param pool3dGeometry exact NCDHW Pool3d geometry for a Pool3d unit only
+     * @param attentionGeometry exact scaled-dot-product-attention row geometry for an attention
+     *     unit only
      * @param outputCount positive count of trailing materialized output boundaries
      * @param fusionReason non-null cold diagnostic explanation of the selected fusion
      * @param dependencies non-null strictly earlier direct producer-unit indices; copied
@@ -617,9 +621,30 @@ public record CpuPartitionPreparationPlan(List<ExecutionUnitPlan> units, Route r
             Optional<CpuMatmulLowering.Geometry> matmulGeometry,
             Optional<CpuPool2dLowering.Geometry> pool2dGeometry,
             Optional<CpuPool3dLowering.Geometry> pool3dGeometry,
+            Optional<io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuAttentionLowering.Geometry> attentionGeometry,
             int outputCount,
             String fusionReason, List<Integer> dependencies, List<Integer> memberNodeOrdinals,
             UnitRuntimeFacts runtimeFacts) {
+
+        /** Preserves the schema-56 canonical unit constructor without attention geometry. */
+        public ExecutionUnitPlan(CpuPortableRoutePlan portablePlan,
+                List<ValueId> boundaryValues, List<CpuAccessPlan.Binding> accessBindings,
+                List<CarrierAccess> carrierPattern, List<CarrierAccess> generatedCarrierPattern,
+                long[] extents, long elementCount, ExecutionStrategy executionStrategy,
+                int selectedRangeCount, long minimumElementsPerWorker, int vectorSpeciesBitSize,
+                Optional<CpuConv2dLowering.Geometry> conv2dGeometry,
+                Optional<CpuConv3dLowering.Geometry> conv3dGeometry,
+                Optional<CpuMatmulLowering.Geometry> matmulGeometry,
+                Optional<CpuPool2dLowering.Geometry> pool2dGeometry,
+                Optional<CpuPool3dLowering.Geometry> pool3dGeometry,
+                int outputCount, String fusionReason, List<Integer> dependencies,
+                List<Integer> memberNodeOrdinals, UnitRuntimeFacts runtimeFacts) {
+            this(portablePlan,boundaryValues,accessBindings,carrierPattern,generatedCarrierPattern,
+                    extents,elementCount,executionStrategy,selectedRangeCount,
+                    minimumElementsPerWorker,vectorSpeciesBitSize,conv2dGeometry,conv3dGeometry,
+                    matmulGeometry,pool2dGeometry,pool3dGeometry,Optional.empty(),outputCount,
+                    fusionReason,dependencies,memberNodeOrdinals,runtimeFacts);
+        }
 
         /**
          * Preserves the schema-55 and earlier unit constructor with no Pool3d geometry.
@@ -904,6 +929,7 @@ public record CpuPartitionPreparationPlan(List<ExecutionUnitPlan> units, Route r
             matmulGeometry = Objects.requireNonNull(matmulGeometry, "matmulGeometry");
             pool2dGeometry = Objects.requireNonNull(pool2dGeometry, "pool2dGeometry");
             pool3dGeometry = Objects.requireNonNull(pool3dGeometry, "pool3dGeometry");
+            attentionGeometry = Objects.requireNonNull(attentionGeometry, "attentionGeometry");
             Objects.requireNonNull(fusionReason, "fusionReason");
             dependencies = List.copyOf(dependencies);
             memberNodeOrdinals = List.copyOf(memberNodeOrdinals);
@@ -914,6 +940,8 @@ public record CpuPartitionPreparationPlan(List<ExecutionUnitPlan> units, Route r
                     instanceof io.github.pho001.synaptik.backend.cpu.internal.ir.CpuPool2dIr;
             boolean pool3d = portablePlan.portableKernelIr()
                     instanceof io.github.pho001.synaptik.backend.cpu.internal.ir.CpuPool3dIr;
+            boolean attention = portablePlan.portableKernelIr()
+                    instanceof io.github.pho001.synaptik.backend.cpu.internal.ir.CpuAttentionIr;
             var materialized = generated.values().stream()
                     .filter(value -> value.kind() != CpuKernelIr.Value.Kind.VIRTUAL).toList();
             long checkedCount = 1;
@@ -950,6 +978,7 @@ public record CpuPartitionPreparationPlan(List<ExecutionUnitPlan> units, Route r
                     || matmul != matmulGeometry.isPresent()
                     || pool2d != pool2dGeometry.isPresent()
                     || pool3d != pool3dGeometry.isPresent()
+                    || attention != attentionGeometry.isPresent()
                     || pool2d != (portablePlan.specialization().classIdentitySchema() == 55)
                     || pool3d != (portablePlan.specialization().classIdentitySchema() == 56)
                     || matmul && (conv2dGeometry.isPresent() || conv3dGeometry.isPresent()
@@ -1089,6 +1118,9 @@ public record CpuPartitionPreparationPlan(List<ExecutionUnitPlan> units, Route r
     }
 
     private static boolean unitAccessesAgree(ExecutionUnitPlan unit) {
+        if (unit.portablePlan().portableKernelIr()
+                instanceof io.github.pho001.synaptik.backend.cpu.internal.ir.CpuAttentionIr)
+            return true;
         var values = unit.portablePlan().kernelIr().values().stream()
                 .filter(value -> value.kind() != CpuKernelIr.Value.Kind.VIRTUAL).toList();
         if (values.size() != unit.accessBindings().size()) return false;
@@ -1570,7 +1602,12 @@ public record CpuPartitionPreparationPlan(List<ExecutionUnitPlan> units, Route r
                                         ? WorkspaceUse.AGGREGATE_EXACT_STATE
                                         : batchNormTrainingGeometry.filter(g -> g.scratchSliceBytes() > 0
                                             && g.channelCount() > 0).isPresent()
-                                            ? WorkspaceUse.AGGREGATE_EXACT_STATE : WorkspaceUse.NONE;
+                                            ? WorkspaceUse.AGGREGATE_EXACT_STATE
+                                            : units.getFirst().attentionGeometry()
+                                                    .filter(g -> g.scratchSliceBytes() > 0
+                                                            && g.rowCount() > 0).isPresent()
+                                                    ? WorkspaceUse.ATTENTION_ROW_STATE
+                                                    : WorkspaceUse.NONE;
         if (workspaceUse != expectedUse
                 || workspaceDeclaration.isPresent() != (workspaceUse != WorkspaceUse.NONE)) {
             throw new IllegalArgumentException("workspace purpose and declaration must agree");
@@ -1604,6 +1641,13 @@ public record CpuPartitionPreparationPlan(List<ExecutionUnitPlan> units, Route r
             if (workspace.requirementId() != 0 || workspace.byteAlignment() != Long.BYTES
                     || workspace.byteSize() != expected)
                 throw new IllegalArgumentException("aggregate exact-state workspace facts disagree");
+        }
+        if (workspaceUse == WorkspaceUse.ATTENTION_ROW_STATE) {
+            var geometry = units.getFirst().attentionGeometry().orElseThrow();
+            var declared = workspaceDeclaration.orElseThrow();
+            if (declared.requirementId() != 0 || declared.byteAlignment() != Long.BYTES
+                    || declared.byteSize() != geometry.workspaceBytes(selectedRangeCount))
+                throw new IllegalArgumentException("attention row-state workspace facts disagree");
         }
         if (materialization.isPresent()) {
             var copy = materialization.orElseThrow();
@@ -1765,6 +1809,7 @@ public record CpuPartitionPreparationPlan(List<ExecutionUnitPlan> units, Route r
             case SCATTER_PRODUCT -> CpuFusionDecision.WorkspaceRole.SCATTER_PRODUCT;
             case ORDERING_INDICES -> CpuFusionDecision.WorkspaceRole.ORDERING_INDICES;
             case AGGREGATE_EXACT_STATE -> CpuFusionDecision.WorkspaceRole.AGGREGATE_EXACT_STATE;
+            case ATTENTION_ROW_STATE -> CpuFusionDecision.WorkspaceRole.ATTENTION_ROW_STATE;
             case NONE -> throw new IllegalArgumentException(
                     "retained recognition workspace has no decision role");
         };
@@ -1976,6 +2021,7 @@ public record CpuPartitionPreparationPlan(List<ExecutionUnitPlan> units, Route r
             case SCATTER_PRODUCT -> CpuFusionDecision.WorkspaceRole.SCATTER_PRODUCT;
             case ORDERING_INDICES -> CpuFusionDecision.WorkspaceRole.ORDERING_INDICES;
             case AGGREGATE_EXACT_STATE -> CpuFusionDecision.WorkspaceRole.AGGREGATE_EXACT_STATE;
+            case ATTENTION_ROW_STATE -> CpuFusionDecision.WorkspaceRole.ATTENTION_ROW_STATE;
             case NONE -> throw new IllegalArgumentException("workspace decision has no role");
         };
     }
@@ -2068,6 +2114,8 @@ public record CpuPartitionPreparationPlan(List<ExecutionUnitPlan> units, Route r
             case ORDERING_INDICES -> CpuSpecializedSubgraph.WorkspaceRole.ORDERING_INDICES;
             case AGGREGATE_EXACT_STATE ->
                     CpuSpecializedSubgraph.WorkspaceRole.AGGREGATE_EXACT_STATE;
+            case ATTENTION_ROW_STATE ->
+                    CpuSpecializedSubgraph.WorkspaceRole.ATTENTION_ROW_STATE;
         };
         CpuSpecializedSubgraph.WorkspaceResourceFact workspace = unit.runtimeFacts()
                 .workspaceDeclaration()

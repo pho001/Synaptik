@@ -1441,7 +1441,10 @@ Explicit attention output-and-weights construction uses the same foundation with
 or hidden output. `ScaledDotProductAttentionResult.output()` and `weights()` expose the exact
 wrappers for producer slots zero and one. If either wrapper is requested, current internal capture
 emits their shared producer once and creates both ordered graph values. Attention operand
-revalidation, backward preservation policy, adjoints, and lifetime policy remain planned.
+revalidation and adjoints are current Compiler responsibilities; backward preservation and
+saved-value lifetime remain planned. CPU 0008H separately provides only a fully-static
+resolved-layout forward execution subset. It does not alter Compiler capture, inference, gradient
+formulas, or this API's backend-neutral contract.
 
 ## Current compile-configuration inputs
 

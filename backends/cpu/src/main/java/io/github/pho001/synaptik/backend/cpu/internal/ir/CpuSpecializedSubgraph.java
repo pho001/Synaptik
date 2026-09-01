@@ -132,7 +132,8 @@ public sealed interface CpuSpecializedSubgraph permits CpuSpecializedSubgraph.Ma
         /** Contiguous-copy materialization. */ MATERIALIZATION,
         /** Scatter product state. */ SCATTER_PRODUCT,
         /** Ordering merge indices. */ ORDERING_INDICES,
-        /** Exact aggregate state. */ AGGREGATE_EXACT_STATE
+        /** Exact aggregate state. */ AGGREGATE_EXACT_STATE,
+        /** Per-row scaled-dot-product attention score state. */ ATTENTION_ROW_STATE
     }
     /** Closed route retained by every current recognition baseline. */
     enum BaselineRoute { /** Portable generated route. */ PORTABLE }
