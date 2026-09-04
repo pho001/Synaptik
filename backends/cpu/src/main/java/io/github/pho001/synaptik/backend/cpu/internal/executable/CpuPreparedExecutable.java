@@ -25,6 +25,7 @@ import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuConv3dLowering
 import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuPool2dLowering;
 import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuPool3dLowering;
 import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuAttentionLowering;
+import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuLossLowering;
 import io.github.pho001.synaptik.backend.cpu.internal.memory.CpuBufferArgument;
 import io.github.pho001.synaptik.backend.cpu.internal.memory.CpuBufferRepresentation;
 import io.github.pho001.synaptik.backend.cpu.internal.memory.CpuContiguousWorkspace;
@@ -95,6 +96,10 @@ import java.util.Optional;
  * Pool2d binding validates exact typed input/output spans and rejects physical overlap before any
  * output mutation or worker submission. Each range owns complete NCHW output cells and receives
  * immutable packed layout and window geometry; a pooling window is never divided among ranges.
+ * Direct loss binding validates every represented carrier, full logical geometry, injective
+ * output, and complete output/input span before it scans index targets. The index scan compares
+ * ignore before bounds and completes before it constructs a generated call or submits workers;
+ * MSE and dense categorical loss require no target-value scan. Losses declare no workspace.
  * Scaled-dot-product-attention binding validates its optional canonical Boolean mask and all
  * input/output/workspace overlap before mutation. Each range owns complete broadcast-batch/query
  * rows and a disjoint aligned score slice; zero-score and zero-work forms retain the scratch-shaped
@@ -138,6 +143,7 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
     private final Optional<CpuPool2dLowering.Geometry> pool2dGeometry;
     private final Optional<CpuPool3dLowering.Geometry> pool3dGeometry;
     private final Optional<CpuAttentionLowering.Geometry> attentionGeometry;
+    private final Optional<CpuLossLowering.Geometry> lossGeometry;
     private final int outputCount;
 
     /**
@@ -877,7 +883,7 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
                 argExtremaGeometry, maskedReductionGeometry, advancedReductionGeometry,
                 softmaxGeometry, trailingNormalizationGeometry, batchNormInferenceGeometry,
                 batchNormTrainingGeometry, conv2dGeometry, conv3dGeometry, matmulGeometry,
-                Optional.empty(), Optional.empty(), Optional.empty(), outputCount);
+                Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(), outputCount);
     }
 
     /**
@@ -923,6 +929,7 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
      * @param pool2dGeometry non-null optional NCHW Pool2d boundary geometry
      * @param pool3dGeometry non-null optional NCDHW Pool3d boundary geometry
      * @param attentionGeometry non-null optional scaled-dot-product-attention row geometry
+     * @param lossGeometry non-null optional direct loss rank/layout/base-packing geometry
      * @param outputCount positive number of trailing selections written by this unit
      * @throws NullPointerException if a required reference or list element is {@code null}
      * @throws IllegalArgumentException if representation plans/workspaces, memory, boundary,
@@ -957,7 +964,8 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
             Optional<CpuMatmulLowering.Geometry> matmulGeometry,
             Optional<CpuPool2dLowering.Geometry> pool2dGeometry,
             Optional<CpuPool3dLowering.Geometry> pool3dGeometry,
-            Optional<CpuAttentionLowering.Geometry> attentionGeometry, int outputCount) {
+            Optional<CpuAttentionLowering.Geometry> attentionGeometry,
+            Optional<CpuLossLowering.Geometry> lossGeometry, int outputCount) {
         super(memoryPlan, selections, java.util.stream.Stream.concat(workspaceSelection.stream(),
                 representationWorkspaceSelections.stream()).toList(),
                 accesses(selections.size(), outputCount));
@@ -998,11 +1006,12 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
         this.pool2dGeometry = Objects.requireNonNull(pool2dGeometry, "pool2dGeometry");
         this.pool3dGeometry = Objects.requireNonNull(pool3dGeometry, "pool3dGeometry");
         this.attentionGeometry = Objects.requireNonNull(attentionGeometry, "attentionGeometry");
+        this.lossGeometry = Objects.requireNonNull(lossGeometry, "lossGeometry");
         this.outputCount = outputCount;
         if (outputCount <= 0 || outputCount > selections.size()) {
             throw new IllegalArgumentException("output boundary count is inconsistent");
         }
-        long count = this.attentionGeometry.isPresent()
+        long count = this.lossGeometry.isPresent() ? end : this.attentionGeometry.isPresent()
                 ? this.attentionGeometry.orElseThrow().rowCount()
                 : this.pool3dGeometry.isPresent()
                 ? this.pool3dGeometry.orElseThrow().outputCount()
@@ -1085,6 +1094,7 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
         geometryCount += this.pool2dGeometry.isPresent() ? 1 : 0;
         geometryCount += this.pool3dGeometry.isPresent() ? 1 : 0;
         geometryCount += this.attentionGeometry.isPresent() ? 1 : 0;
+        geometryCount += this.lossGeometry.isPresent() ? 1 : 0;
         if (geometryCount>1) {
             throw new IllegalArgumentException("affine, movement, indexing, scatter, and fold geometry are exclusive");
         }
@@ -1191,13 +1201,48 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
                 argExtremaGeometry, maskedReductionGeometry, advancedReductionGeometry,
                 softmaxGeometry, trailingNormalizationGeometry, batchNormInferenceGeometry,
                 batchNormTrainingGeometry, conv2dGeometry, conv3dGeometry, matmulGeometry,
-                pool2dGeometry, pool3dGeometry, Optional.empty(), outputCount);
+                pool2dGeometry, pool3dGeometry, Optional.empty(), Optional.empty(), outputCount);
     }
 
     /**
-     * Creates the complete recipe variant that carries cold scaled-dot-product-attention geometry.
+     * Creates the complete recipe variant that carries cold attention or direct-loss geometry.
      *
+     * @param memoryPlan exact immutable prepared memory plan
+     * @param selections ordered input then trailing output buffer selections
+     * @param artifact verified generated artifact retained by this recipe
+     * @param bindings complete represented boundary geometry
+     * @param carrierPattern Runtime carrier forms in boundary order
+     * @param generatedCarrierPattern generated-entry carrier forms in boundary order
+     * @param start inclusive logical work bound
+     * @param end exclusive logical work bound
+     * @param selectedRangeCount positive maximum simultaneous range count
+     * @param minimumElementsPerWorker positive work threshold for a worker range
+     * @param workerGroup borrowed worker group, or {@code null} for serial execution
+     * @param materialization non-null optional retained representation-copy plan
+     * @param workspaceSelection non-null optional assigned workspace selection
+     * @param affineAddressPairs nullable affine-copy address pairs
+     * @param movementGeometry non-null optional movement geometry
+     * @param indexingGeometry non-null optional indexing geometry
+     * @param scatterGeometry non-null optional scatter geometry
+     * @param foldGeometry non-null optional fold geometry
+     * @param orderingGeometry non-null optional ordering geometry
+     * @param randomGeometry non-null optional explicit-state random geometry
+     * @param scanGeometry non-null optional cumulative-scan geometry
+     * @param aggregateGeometry non-null optional aggregate geometry
+     * @param argExtremaGeometry non-null optional arg-extrema geometry
+     * @param maskedReductionGeometry non-null optional masked-reduction geometry
+     * @param advancedReductionGeometry non-null optional advanced-reduction geometry
+     * @param softmaxGeometry non-null optional softmax geometry
+     * @param trailingNormalizationGeometry non-null optional trailing-normalization geometry
+     * @param batchNormInferenceGeometry non-null optional batch-normalization inference geometry
+     * @param batchNormTrainingGeometry non-null optional batch-normalization training geometry
+     * @param conv2dGeometry non-null optional grouped NCHW Conv2d geometry
+     * @param conv3dGeometry non-null optional grouped NCDHW Conv3d geometry
+     * @param matmulGeometry non-null optional full-K MATMUL geometry
+     * @param pool2dGeometry non-null optional NCHW Pool2d geometry
+     * @param pool3dGeometry non-null optional NCDHW Pool3d geometry
      * @param attentionGeometry non-null optional attention geometry
+     * @param lossGeometry non-null optional loss geometry, including the index pre-write domain
      * @param outputCount positive trailing output-boundary count
      * @throws NullPointerException if a required reference is {@code null}
      * @throws IllegalArgumentException if retained facts disagree
@@ -1228,7 +1273,8 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
             Optional<CpuMatmulLowering.Geometry> matmulGeometry,
             Optional<CpuPool2dLowering.Geometry> pool2dGeometry,
             Optional<CpuPool3dLowering.Geometry> pool3dGeometry,
-            Optional<CpuAttentionLowering.Geometry> attentionGeometry, int outputCount) {
+            Optional<CpuAttentionLowering.Geometry> attentionGeometry,
+            Optional<CpuLossLowering.Geometry> lossGeometry, int outputCount) {
         this(memoryPlan, selections, artifact, bindings, carrierPattern, generatedCarrierPattern,
                 start, end, selectedRangeCount, minimumElementsPerWorker, workerGroup,
                 materialization.isPresent() ? Optional.empty() : workspaceSelection,
@@ -1239,7 +1285,7 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
                 argExtremaGeometry, maskedReductionGeometry, advancedReductionGeometry,
                 softmaxGeometry, trailingNormalizationGeometry, batchNormInferenceGeometry,
                 batchNormTrainingGeometry, conv2dGeometry, conv3dGeometry, matmulGeometry,
-                pool2dGeometry, pool3dGeometry, attentionGeometry, outputCount);
+                pool2dGeometry, pool3dGeometry, attentionGeometry, lossGeometry, outputCount);
     }
 
     /**
@@ -1313,7 +1359,7 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
      * @return a new immutable ranged binding
      */
     public CpuAccessPlan.Binding binding() {
-        if (softmaxGeometry.isPresent() || trailingNormalizationGeometry.isPresent()
+        if (lossGeometry.isPresent() || softmaxGeometry.isPresent() || trailingNormalizationGeometry.isPresent()
                 || batchNormInferenceGeometry.isPresent() || batchNormTrainingGeometry.isPresent()
                 || conv2dGeometry.isPresent() || conv3dGeometry.isPresent()
                 || matmulGeometry.isPresent() || pool2dGeometry.isPresent()
@@ -1334,7 +1380,7 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
      * @return a new immutable list in boundary order with route-appropriate ranges
      */
     public List<CpuAccessPlan.Binding> accessBindings() {
-        if (softmaxGeometry.isPresent() || trailingNormalizationGeometry.isPresent()
+        if (lossGeometry.isPresent() || softmaxGeometry.isPresent() || trailingNormalizationGeometry.isPresent()
                 || batchNormInferenceGeometry.isPresent() || batchNormTrainingGeometry.isPresent()
                 || conv2dGeometry.isPresent() || conv3dGeometry.isPresent()
                 || matmulGeometry.isPresent() || pool2dGeometry.isPresent()
@@ -1374,7 +1420,7 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
                 advancedReductionGeometry, softmaxGeometry, trailingNormalizationGeometry,
                 batchNormInferenceGeometry, batchNormTrainingGeometry, conv2dGeometry,
                 conv3dGeometry, matmulGeometry, pool2dGeometry, pool3dGeometry,
-                attentionGeometry, outputCount);
+                attentionGeometry, lossGeometry, outputCount);
     }
 
     private CpuAccessPlan.Binding ranged(CpuAccessPlan.Binding source) {
@@ -1504,6 +1550,7 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
                             || conv2dGeometry.isPresent() || conv3dGeometry.isPresent()
                             || matmulGeometry.isPresent() || pool2dGeometry.isPresent()
                             || pool3dGeometry.isPresent() || attentionGeometry.isPresent()
+                            || lossGeometry.isPresent()
                         ? overlaps(arguments.get(input), inputBinding,
                             arguments.get(firstOutputIndex), bindings.get(firstOutputIndex))
                         : overlaps(arguments.get(input), ranged(inputBinding),
@@ -1571,6 +1618,12 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
         if (softmaxGeometry.isPresent()) {
             CpuSoftmaxInputValidator.validate(arguments.getFirst(), softmaxGeometry.orElseThrow());
         }
+        if (lossGeometry.filter(geometry -> geometry.axis() >= 0
+                && geometry.targetRank() == geometry.extents().length - 1).isPresent()) {
+            // Index loss has two distinct read boundaries: logits then integral targets. This
+            // cold scan intentionally precedes call construction and all worker submission.
+            CpuLossInputValidator.validate(arguments.get(1), lossGeometry.orElseThrow());
+        }
         if (aggregateGeometry.filter(g -> g.scratchSliceBytes() > 0
                 && g.outputCount() > 0).isPresent()) {
             MemorySegment aggregateScratch = scratch(workspaces);
@@ -1627,9 +1680,9 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
         int chunkCount = length == 0 ? 0 : Math.min(selectedRangeCount,
                 Math.toIntExact(1 + (length - 1) / minimumElementsPerWorker));
         if (chunkCount <= 1) {
-            KernelCall call = length == 0 ? null : callFor(artifact.entryPoint(), arguments,
-                    scratchArgument(workspaces, 0),
-                    geometry(arguments, start, end, 0), start, end);
+            long[] geometry = geometry(arguments, start, end, 0);
+            KernelCall call = length == 0 ? null : callFor(lossEntryPoint(geometry, start, end),
+                    arguments, scratchArgument(workspaces, 0), geometry, start, end);
             return new Invocation(state, validation, scatterValidation, prologue, call, null);
         }
         CpuWorkerGroup.RangeCall[] calls = new CpuWorkerGroup.RangeCall[chunkCount];
@@ -1638,13 +1691,125 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
         long chunkStart = start;
         for (int index = 0; index < chunkCount; index++) {
             long chunkEnd = chunkStart + quotient + (index < remainder ? 1 : 0);
-            KernelCall call = callFor(artifact.entryPoint(), arguments,
-                    scratchArgument(workspaces, index),
-                    geometry(arguments, chunkStart, chunkEnd, index), chunkStart, chunkEnd);
+            long[] geometry = geometry(arguments, chunkStart, chunkEnd, index);
+            KernelCall call = callFor(lossEntryPoint(geometry, chunkStart, chunkEnd), arguments,
+                    scratchArgument(workspaces, index), geometry, chunkStart, chunkEnd);
             calls[index] = call::invoke;
             chunkStart = chunkEnd;
         }
         return new Invocation(state, validation, scatterValidation, prologue, null, calls);
+    }
+
+    /**
+     * Resolves a loss helper once after binding has packed and validated its cold geometry.
+     *
+     * <p>Only loss artifacts contain these private members.  All other families retain their one
+     * public entry unchanged.  The proof deliberately mirrors the generated entry guard, so a
+     * failed or incomplete cold proof binds the public entry and its generic affine fallback;
+     * neither lookup nor selection is reachable from a generated loop.</p>
+     *
+     * @param geometry non-null packed invocation geometry
+     * @param rangeStart inclusive range supplied to the generated entry
+     * @param rangeEnd exclusive range supplied to the generated entry
+     * @return the public entry for non-loss or unproved geometry, otherwise the exact private
+     *     helper selected from the retained hidden-class lookup
+     * @throws IllegalArgumentException if a generated loss helper cannot be resolved
+     */
+    private MethodHandle lossEntryPoint(long[] geometry, long rangeStart, long rangeEnd) {
+        if (lossGeometry.isEmpty()) return artifact.entryPoint();
+        return artifact.lossEntryPointFor(contiguousLossGeometry(geometry, rangeStart, rangeEnd));
+    }
+
+    /**
+     * Reports whether one bound loss invocation may select the dedicated contiguous int-address
+     * body directly.
+     *
+     * <p>The check is cold binding-time proof only. It requires all packed geometry and the
+     * supplied half-open range to fit the direct body's {@code int} address domain, and rejects
+     * any negative, strided, or broadcast address fact. A {@code false} result retains the public
+     * entry, which dispatches to the generic affine body; it does not reject the invocation.</p>
+     *
+     * @param geometry non-null packed loss geometry in the generated entry's documented layout
+     * @param start inclusive logical range bound supplied to the generated entry
+     * @param end exclusive logical range bound supplied to the generated entry; must be no less
+     *     than {@code start} to qualify
+     * @return {@code true} only when the geometry and range prove the direct contiguous
+     *     int-address form; otherwise {@code false}
+     */
+    static boolean contiguousLossGeometry(long[] geometry, long start, long end) {
+        if (geometry.length < 10 || start < 0 || end < start || start > Integer.MAX_VALUE
+                || end > Integer.MAX_VALUE) return false;
+        for (int slot = 2; slot < geometry.length; slot++) {
+            if (slot == 7 || slot == 8) continue;
+            if (geometry[slot] < 0 || geometry[slot] > Integer.MAX_VALUE) return false;
+        }
+        int rank = (int) geometry[0];
+        if (rank < 0 || geometry.length != 10 + rank + rank + geometry[2] + geometry[3]) {
+            return false;
+        }
+        return geometry[1] < 0 ? contiguousMseGeometry(geometry, rank)
+                : contiguousCategoricalGeometry(geometry, rank, start, end);
+    }
+
+    private static boolean contiguousMseGeometry(long[] geometry, int rank) {
+        int targetRank = (int) geometry[2], outputRank = (int) geometry[3];
+        if (targetRank != rank || (outputRank != rank && outputRank != 0)) return false;
+        long expected = 1L;
+        for (int axis = rank - 1; axis >= 0; axis--) {
+            if (predictionStride(geometry, rank, axis) != expected
+                    || targetStride(geometry, rank, targetRank, axis) != expected
+                    || outputRank != 0 && outputStride(geometry, rank, targetRank, axis) != expected) {
+                return false;
+            }
+            expected *= geometry[10 + axis];
+        }
+        return basePlusCountFitsInt(geometry[4], expected)
+                && basePlusCountFitsInt(geometry[5], expected)
+                && (outputRank == 0 || basePlusCountFitsInt(geometry[6], expected));
+    }
+
+    private static boolean contiguousCategoricalGeometry(long[] geometry, int rank, long start,
+            long end) {
+        int axis = (int) geometry[1], targetRank = (int) geometry[2], outputRank = (int) geometry[3];
+        if (axis < 0 || axis >= rank || (targetRank != rank && targetRank != rank - 1)) return false;
+        boolean noneRange = start == 0 && end == geometry[9];
+        if (noneRange && outputRank != rank - 1) return false;
+        long expectedLogits = 1L, expectedSample = 1L;
+        for (int coordinate = rank - 1; coordinate >= 0; coordinate--) {
+            if (predictionStride(geometry, rank, coordinate) != expectedLogits) return false;
+            if (coordinate != axis) {
+                int targetCoordinate = targetRank == rank ? coordinate
+                        : coordinate < axis ? coordinate : coordinate - 1;
+                long targetExpected = targetRank == rank ? expectedLogits : expectedSample;
+                if (targetStride(geometry, rank, targetRank, targetCoordinate) != targetExpected) return false;
+                if (noneRange) {
+                    int outputCoordinate = coordinate < axis ? coordinate : coordinate - 1;
+                    if (outputStride(geometry, rank, targetRank, outputCoordinate) != expectedSample) return false;
+                }
+                expectedSample *= geometry[10 + coordinate];
+            }
+            expectedLogits *= geometry[10 + coordinate];
+        }
+        return basePlusCountFitsInt(geometry[4], expectedLogits)
+                && basePlusCountFitsInt(geometry[5], targetRank == rank
+                        ? expectedLogits : expectedSample)
+                && (outputRank == 0 || basePlusCountFitsInt(geometry[6], expectedSample));
+    }
+
+    private static long predictionStride(long[] geometry, int rank, int axis) {
+        return geometry[10 + rank + axis];
+    }
+
+    private static long targetStride(long[] geometry, int rank, int targetRank, int axis) {
+        return geometry[10 + 2 * rank + axis];
+    }
+
+    private static long outputStride(long[] geometry, int rank, int targetRank, int axis) {
+        return geometry[10 + 2 * rank + targetRank + axis];
+    }
+
+    private static boolean basePlusCountFitsInt(long base, long count) {
+        return base + count <= Integer.MAX_VALUE;
     }
 
     private static long advanceAddress(long address, long[] extents, long[] strides,
@@ -1745,6 +1910,21 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
                 bases[index] = arguments.get(index).byteOffset() / width;
             }
             return softmaxGeometry.orElseThrow().pack(bases);
+        }
+        if (lossGeometry.isPresent()) {
+            int output = bindings.size() - outputCount;
+            if (outputCount != 1 || bindings.size() < 2 || bindings.size() > 3) {
+                throw new IllegalArgumentException("loss boundaries must have two inputs and one output");
+            }
+            long[] bases = new long[3];
+            for (int index = 0; index < bindings.size() - 1; index++) {
+                int width = artifact.specialization().boundaryDataTypes().get(index).byteWidth();
+                bases[index] = arguments.get(index).byteOffset() / width;
+            }
+            if (bindings.size() == 2) bases[1] = bases[0];
+            int width = artifact.specialization().boundaryDataTypes().get(output).byteWidth();
+            bases[2] = arguments.get(output).byteOffset() / width;
+            return lossGeometry.orElseThrow().pack(bases);
         }
         if (advancedReductionGeometry.isPresent()) {
             long[] bases = new long[2];

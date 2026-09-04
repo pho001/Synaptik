@@ -148,7 +148,7 @@ structure, and five-fork generated-versus-direct `<= 1.15x` evidence. Detailed
 [CPU 0008H](backends/cpu/tasks/0008h-portable-scaled-dot-product-attention-execution.md) is
 `Complete`: its 11,880-specialization structural inspection, normalized-equivalence-backed
 992-row five-fork performance matrix, documentation/Javadoc pass, and final 127-suite/628-test
-CPU checkpoint all passed. CPU 0008I is now the next Draft CPU loss-family frontier without a
+CPU checkpoint all passed. CPU 0008I is now the sole next Ready CPU loss-family frontier with its
 detailed specification. CPU 0008A validates Conv1d through
 the visible Conv2d composition and adds direct Conv3d execution. CPU 0008B–0008E only then add
 general partition-DAG decomposition and bounded fusion, typed specialized-subgraph recognition,
@@ -226,7 +226,7 @@ is Complete. Detailed
 [CPU 0008G1](backends/cpu/tasks/0008g1-portable-pool1d-composition-validation-and-pool3d-generated-execution.md)
 are Complete. Detailed
 [CPU 0008H](backends/cpu/tasks/0008h-portable-scaled-dot-product-attention-execution.md) is
-Complete; CPU 0008I is the next Draft CPU implementation frontier without a detailed specification.
+Complete; CPU 0008I is the sole next Ready CPU implementation frontier with its detailed specification.
 
 CPU 0008F completes the fully static portable MATMUL family at schema 54 across all thirteen
 ordered non-BOOL numeric promotions, vector/matrix/batched/right-broadcast geometry, four bounded
@@ -429,7 +429,7 @@ owns batch training/statistic transition. CPU 0007F, CPU 0007F1, CPU 0007F2, and
 0008, 0008A, 0008B, 0008C, CPU 0008D, CPU 0008E, and Prepare 0003A are Complete; detailed CPU
 0008E1, detailed CPU 0008F, detailed CPU 0008G, and detailed CPU 0008G1 are Complete; detailed
 [CPU 0008H](backends/cpu/tasks/0008h-portable-scaled-dot-product-attention-execution.md) is Complete,
-and CPU 0008I is the next Draft CPU implementation frontier without a detailed specification.
+and CPU 0008I is the sole next Ready CPU implementation frontier with its detailed specification.
 A completed local
 bytecode/performance audit then inserted detailed
 [CPU 0007A0 generated hot-path parity correction](backends/cpu/tasks/0007a0-generated-hot-path-parity-correction.md)
@@ -786,7 +786,7 @@ CPU 0007A1O, CPU 0007A2, detailed CPU 0007B, and detailed CPU 0007C are `Complet
 `Complete`; detailed CPU 0008E, Prepare 0003A, and detailed CPU 0008E1 are `Complete`,
 CPU 0008F, detailed CPU 0008G, and detailed CPU 0008G1 are `Complete`; detailed
 [CPU 0008H](backends/cpu/tasks/0008h-portable-scaled-dot-product-attention-execution.md) is
-`Complete`; CPU 0008I is the next Draft CPU frontier without a detailed specification, and CPU
+`Complete`; CPU 0008I is the sole next Ready CPU frontier with its detailed specification, and CPU
 0008J through CPU 0017 remain Draft.
 CPU 0003
 implements a
@@ -1057,8 +1057,8 @@ geometry, numerical algorithms, resources, publication shapes, generated-loop bo
 performance evidence. Combining them would exceed one cohesive implementation session. Detailed
 Complete CPU 0008F and detailed Complete CPU 0008G retain MATMUL/linear-epilogue and Pool2d
 ownership. Complete detailed CPU 0008G1 owns Pool1d composition validation and Pool3d execution
-before detailed Complete CPU 0008H owns attention execution; Draft CPU 0008I is the next
-loss-family frontier without a detailed specification.
+before detailed Complete CPU 0008H owns attention execution; Ready CPU 0008I is the sole next
+loss-family frontier with its detailed specification.
 These family rows remain their
 implementation owners rather than being replaced by
 generic fusion planning.
@@ -1138,8 +1138,8 @@ CPU legality, recognition, or selection. Complete
 [CPU 0008E1](backends/cpu/tasks/0008e1-shared-partition-dag-adoption-and-reconstruction-removal.md)
 adopted the shared partition DAG without changing CPU policy or generated/hot code; detailed
 Complete CPU 0008F delivers MATMUL and detailed Complete CPU 0008G delivers pooling. Detailed
-Complete CPU 0008H owns attention execution; Draft CPU 0008I is the next separate cohesive
-loss-family frontier without a detailed specification.
+Complete CPU 0008H owns attention execution; Ready CPU 0008I is the sole next separate cohesive
+loss-family frontier with its detailed specification.
 CPU 0009 depends on the ordered CPU 0008A–0008E, Prepare 0003A, CPU 0008E1, and CPU 0008F–0008I
 sequence
 and closes dimensional convolution before the general decomposition, recognition, profitability,
@@ -1149,6 +1149,18 @@ peer-route choices. The required frontier order is CPU 0008 -> CPU 0008A -> CPU 
 0008C -> CPU 0008D -> CPU 0008E -> Prepare 0003A -> CPU 0008E1 -> CPU 0008F before those later
 family follow-ups. Those later routes consume the common decisions instead of creating competing
 graph interpreters or fusion planners.
+
+As its generated-coverage closure checkpoint, CPU 0009 inventories current generated families/forms
+and current Class-File hashes, then maps each current form to retained generated-versus-optimal-clean-
+Java performance evidence. It reuses retained evidence only when the timed generated Class-Files/forms
+remain byte-identical and the recorded protocol and scope apply, classifying each result as current,
+representative-only, stale, or missing. Fixed five-fork evidence is rerun only for missing, stale, or
+insufficiently representative hot paths, rather than indiscriminately for every historical task. An
+exhaustive matrix is required only when specialization materially changes generated code and the bounded
+inventory justifies it; otherwise, the checkpoint uses a justified representative matrix covering types,
+carriers, loop shapes, and algorithm branches. No whole-backend performance-parity claim closes until
+those gaps pass. CPU 0008I remains the current prerequisite/frontier, and detailed CPU 0009 planning
+follows only after CPU 0008I completes.
 
 Portable generation uses family-specific typed lowerers plus shared scalar, vector, heap,
 segment, range, tile, partial-reduction, and combine emitters rather than one god generator.
@@ -1272,8 +1284,8 @@ detailed CPU 0007A1E through CPU 0007A1O, CPU 0007A2, and detailed CPU 0007B are
 Detailed CPU 0007C, detailed CPU 0007D, detailed CPU 0007E, and detailed CPU 0007F are `Complete`.
 Detailed CPU 0007F1, CPU 0007F2, CPU 0008, CPU 0008A, CPU 0008B, CPU 0008C, and CPU 0008D are
 `Complete`; detailed CPU 0008E and CPU 0008E1 are `Complete`; CPU 0008F is
-`Complete`; detailed CPU 0008G, CPU 0008G1, and CPU 0008H are `Complete`; CPU 0008I is the next
-Draft CPU frontier without a detailed specification, while CPU 0008J–0017 and the refined Config,
+`Complete`; detailed CPU 0008G, CPU 0008G1, and CPU 0008H are `Complete`; CPU 0008I is the sole
+next Ready CPU frontier with its detailed specification, while CPU 0008J–0017 and the refined Config,
 Metal, and tuning rows remain `Draft`. Prepare 0003A is
 Complete.
 Completed OpenBLAS history and every completed project area remain unchanged.

@@ -104,6 +104,11 @@ package io.github.pho001.synaptik.backend.cpu.internal.cache;
  * Schema 57 adds direct scaled-dot-product-attention type, semantic-role alias, mask, causal,
  * output-count, carrier, accumulator, and scratch-entry identity while retaining ranks, layouts,
  * scale values, addresses, and ranges as cold invocation geometry.
+ * Schema 58 adds direct typed MSE, dense categorical, and index categorical loss bodies with
+ * role-to-unique-boundary mapping, represented operand/result types, reduction and index-ignore
+ * code shape, complete-reduction versus independent-domain ranges, and zero workspace. Normalized
+ * axes, rank/extent/layout facts, actual ignore bits, carrier bases, and invocation ranges remain
+ * cold geometry.
  * The optional persistent envelope stores this version and has no legacy reader, migration path,
  * or converter. Schema 47 adds first-class stable softmax/log-softmax. Schema 48 adds the four
  * trailing Layer/RMS forms, ordered mixed-type boundaries, exact typed epsilon identity,
@@ -183,9 +188,11 @@ public final class CpuGeneratorSchema {
      * bodies, cold layout and window geometry, complete-output-cell ranges, fixed-divisor average
      * semantics, conceptual zero padding, and exact NaN and signed-zero behavior while preserving
      * the schema-52 and schema-54 class projections for unchanged families.
+     * Schema 56 adds direct typed NCDHW Pool3d bodies, schema 57 adds direct typed attention
+     * bodies, and schema 58 adds direct typed loss bodies with cold per-invocation geometry.
      * Envelopes written for earlier schemas are incompatible misses.
      */
-    public static final int CURRENT_VERSION = 57;
+    public static final int CURRENT_VERSION = 58;
     /** Generated entry name. */ public static final String ENTRY_NAME = "invoke";
     private CpuGeneratorSchema() { }
 

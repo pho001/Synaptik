@@ -21,6 +21,18 @@ tasks.withType<JavaCompile>().configureEach {
 
 tasks.withType<Test>().configureEach {
     jvmArgs("--add-modules", "jdk.incubator.vector")
+    listOf(
+        "synaptik.cpu.loss.structuralEvidenceRoot",
+        "synaptik.cpu.loss.performanceEvidenceRoot",
+        "synaptik.cpu.loss.performance",
+        "synaptik.cpu.loss.performanceRepresentative",
+        "synaptik.cpu.loss.c2Evidence"
+    ).forEach { name ->
+        System.getProperty(name)?.let { systemProperty(name, it) }
+    }
+    System.getenv("SYNAPTIK_CPU_LOSS_PERFORMANCE")?.let {
+        environment("SYNAPTIK_CPU_LOSS_PERFORMANCE", it)
+    }
 }
 
 tasks.named<Javadoc>("javadoc") {

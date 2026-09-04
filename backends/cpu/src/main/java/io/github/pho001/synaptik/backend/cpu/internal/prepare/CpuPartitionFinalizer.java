@@ -29,7 +29,9 @@ import java.util.LinkedHashMap;
  * atomic sequential composite; a one-unit result remains the direct child recipe. When the exact
  * analyzed plan contains an explicitly chosen representation candidate, finalization also
  * realizes its one or two generated affine-copy artifacts before consumer artifacts. It does not
- * select among retained candidates.</p>
+ * select among retained candidates. For a selected direct loss unit, finalization passes only its
+ * already-proved cold loss geometry to the prepared recipe; it does not interpret targets or add
+ * the separate future pre-write index-validation lifecycle.</p>
  */
 public final class CpuPartitionFinalizer implements BackendPartitionFinalizer<CpuPartitionPreparationPlan> {
     private final CpuGeneratedKernelArtifactStore artifactStore;
@@ -160,6 +162,7 @@ public final class CpuPartitionFinalizer implements BackendPartitionFinalizer<Cp
                 plan.batchNormInferenceGeometry(), plan.batchNormTrainingGeometry(),
                 plan.conv2dGeometry(), unit.conv3dGeometry(), unit.matmulGeometry(),
                 unit.pool2dGeometry(), unit.pool3dGeometry(), unit.attentionGeometry(),
+                lossGeometry(unit),
                 unit.outputCount());
     }
 
@@ -263,6 +266,14 @@ public final class CpuPartitionFinalizer implements BackendPartitionFinalizer<Cp
                 facts.batchNormInferenceGeometry(), facts.batchNormTrainingGeometry(),
                 unit.conv2dGeometry(), unit.conv3dGeometry(), unit.matmulGeometry(),
                 unit.pool2dGeometry(), unit.pool3dGeometry(), unit.attentionGeometry(),
+                lossGeometry(unit),
                 unit.outputCount());
+    }
+
+    private static Optional<io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuLossLowering.Geometry>
+            lossGeometry(CpuPartitionPreparationPlan.ExecutionUnitPlan unit) {
+        return unit.portablePlan().portableKernelIr()
+                instanceof io.github.pho001.synaptik.backend.cpu.internal.ir.CpuLossIr loss
+                ? Optional.of(loss.geometry()) : Optional.empty();
     }
 }

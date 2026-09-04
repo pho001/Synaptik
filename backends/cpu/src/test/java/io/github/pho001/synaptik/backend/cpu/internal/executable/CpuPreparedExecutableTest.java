@@ -73,10 +73,26 @@ import io.github.pho001.synaptik.model.operation.layout.FoldAxisAttrs;
 import io.github.pho001.synaptik.model.operation.layout.SliceAttrs;
 import io.github.pho001.synaptik.model.operation.layout.SliceKind;
 import io.github.pho001.synaptik.model.operation.index.*;
+import io.github.pho001.synaptik.model.operation.loss.IndexCategoricalCrossEntropyWithLogitsAttrs;
+import io.github.pho001.synaptik.model.operation.loss.LossKind;
+import io.github.pho001.synaptik.model.operation.loss.LossReduction;
+import io.github.pho001.synaptik.model.operation.loss.MeanSquaredErrorAttrs;
 import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuIndexingLoweringTest;
 import java.lang.foreign.Arena;
 
 class CpuPreparedExecutableTest {
+    @Test
+    void coldLossGeometryProofSelectsDirectOnlyForContiguousLayouts() {
+        long[] contiguous = {1, -1, 1, 1, 0, 0, 0, 0, 0, 4, 4, 1, 1, 1};
+        long[] strided = contiguous.clone();
+        strided[11] = 2;
+        long[] broadcast = contiguous.clone();
+        broadcast[12] = 0;
+
+        assertAll(() -> assertTrue(CpuPreparedExecutable.contiguousLossGeometry(contiguous, 0, 4)),
+                () -> assertFalse(CpuPreparedExecutable.contiguousLossGeometry(strided, 0, 4)),
+                () -> assertFalse(CpuPreparedExecutable.contiguousLossGeometry(broadcast, 0, 4)));
+    }
     private static final ValueLayout.OfDouble DOUBLE =
             ValueLayout.JAVA_DOUBLE_UNALIGNED.withOrder(ByteOrder.nativeOrder());
     private static final ValueLayout.OfFloat FLOAT =
@@ -85,6 +101,101 @@ class CpuPreparedExecutableTest {
             ValueLayout.JAVA_INT_UNALIGNED.withOrder(ByteOrder.nativeOrder());
     private static final ValueLayout.OfLong LONG =
             ValueLayout.JAVA_LONG_UNALIGNED.withOrder(ByteOrder.nativeOrder());
+
+    @Test void parallelIndexLossRejectsDuringBindingBeforeWritesOrWorkerSubmission() {
+        int samples = 16;
+        Shape logitsShape = Shape.of(samples, 2);
+        var base = CpuScatterLoweringTest.context(new Operation(
+                        LossKind.INDEX_CATEGORICAL_CROSS_ENTROPY_WITH_LOGITS,
+                        new IndexCategoricalCrossEntropyWithLogitsAttrs(1, LossReduction.NONE,
+                                Optional.empty())), List.of(0, 1),
+                List.of(CpuScatterLoweringTest.desc(DataType.FLOAT32, logitsShape),
+                        CpuScatterLoweringTest.desc(DataType.INT32, Shape.of(samples))),
+                CpuScatterLoweringTest.desc(DataType.FLOAT32, Shape.of(samples)));
+        var config = new PortableExecutionConfig(ComputePreference.SCALAR, 4, 4, 1);
+        var context = new io.github.pho001.synaptik.prepare.analysis.PrepareContext<>(
+                base.partition(), base.nodes(), base.values(), base.memoryRequirements(),
+                base.constants(), new CpuPartitionAnalysisInputs(false, List.of(
+                        CarrierAccess.FLOAT_ARRAY, CarrierAccess.INT_ARRAY,
+                        CarrierAccess.FLOAT_ARRAY), config));
+        var analysis = new CpuPartitionPreparer().analyze(context);
+        assertAll(() -> assertEquals(4, analysis.plan().selectedRangeCount()),
+                () -> assertTrue(analysis.plan().workspaceDeclaration().isEmpty()));
+        try (var workers = new CpuWorkerGroup(4)) {
+            var executable = CpuPartitionFinalizerTest.finalizeExecutable(analysis,
+                    Optional.empty(), Optional.of(workers));
+            int[] targets = new int[samples];
+            targets[3] = 2;
+            float[] output = new float[samples];
+            Arrays.fill(output, 71.0f);
+            var run = state(executable, List.of(borrow(new float[samples * 2], 0, samples * 2),
+                    borrow(targets), borrow(output, 0, samples)));
+            try {
+                assertThrows(IndexOutOfBoundsException.class, () -> executable.bind(run));
+                float[] expected = new float[samples];
+                Arrays.fill(expected, 71.0f);
+                assertArrayEquals(expected, output);
+            } finally { run.close(); }
+
+            float[] logitsAndOutput = new float[samples * 2];
+            Arrays.fill(logitsAndOutput, 71.0f);
+            var logitsOverlap = state(executable, List.of(
+                    borrow(logitsAndOutput, 0, samples * 2), borrow(new int[samples]),
+                    borrow(logitsAndOutput, samples, samples)));
+            try {
+                assertThrows(IllegalArgumentException.class, () -> executable.bind(logitsOverlap));
+                for (float value : logitsAndOutput) assertEquals(71.0f, value);
+            } finally { logitsOverlap.close(); }
+
+            try (var arena = Arena.ofConfined()) {
+                MemorySegment targetAndOutput = arena.allocate(samples * (long) Integer.BYTES,
+                        Integer.BYTES);
+                for (long offset = 0; offset < targetAndOutput.byteSize(); offset += Integer.BYTES) {
+                    targetAndOutput.set(FLOAT, offset, 71.0f);
+                }
+                var targetOverlap = state(executable, List.of(
+                        borrow(new float[samples * 2], 0, samples * 2),
+                        borrowed(DataType.INT32, samples, targetAndOutput),
+                        borrowed(DataType.FLOAT32, samples, targetAndOutput)));
+                try {
+                    assertThrows(IllegalArgumentException.class,
+                            () -> executable.bind(targetOverlap));
+                    for (long offset = 0; offset < targetAndOutput.byteSize();
+                            offset += Integer.BYTES) {
+                        assertEquals(Float.floatToRawIntBits(71.0f),
+                                targetAndOutput.get(INT, offset));
+                    }
+                } finally { targetOverlap.close(); }
+            }
+        }
+    }
+
+    @Test void lossAllowsAliasedReadInputsButRejectsEveryOutputInputOverlapBeforeWrite() {
+        Shape shape = Shape.of(4);
+        var base = CpuScatterLoweringTest.context(new Operation(LossKind.MEAN_SQUARED_ERROR,
+                        new MeanSquaredErrorAttrs(LossReduction.NONE)), List.of(0, 0),
+                List.of(CpuScatterLoweringTest.desc(DataType.FLOAT32, shape)),
+                CpuScatterLoweringTest.desc(DataType.FLOAT32, shape));
+        var context = new io.github.pho001.synaptik.prepare.analysis.PrepareContext<>(
+                base.partition(), base.nodes(), base.values(), base.memoryRequirements(),
+                base.constants(), new CpuPartitionAnalysisInputs(false, List.of(
+                        CarrierAccess.FLOAT_ARRAY, CarrierAccess.FLOAT_ARRAY)));
+        var executable = CpuPartitionFinalizerTest.finalizeExecutable(
+                new CpuPartitionPreparer().analyze(context), Optional.empty());
+        float[] input = {1, -2, 3, -4};
+        float[] output = {71, 71, 71, 71};
+        var aliasedInputs = state(executable, List.of(borrow(input, 0, 4), borrow(output, 0, 4)));
+        try {
+            assertDoesNotThrow(() -> executable.bind(aliasedInputs).execute());
+            assertArrayEquals(new float[] {0, 0, 0, 0}, output);
+        } finally { aliasedInputs.close(); }
+        float[] shared = {71, 71, 71, 71};
+        var overlap = state(executable, List.of(borrow(shared, 0, 4), borrow(shared, 0, 4)));
+        try {
+            assertThrows(IllegalArgumentException.class, () -> executable.bind(overlap));
+            assertArrayEquals(new float[] {71, 71, 71, 71}, shared);
+        } finally { overlap.close(); }
+    }
 
     @Test void pool3dExecutesScalarAndParallelCompleteCellsAndRejectsOverlapBeforeWrite() {
         var base = CpuPool3dLoweringTest.context(Pool3dKind.MAX_POOL3D,

@@ -48,9 +48,10 @@ import java.util.Optional;
  * Model operation, shape, and layout contracts during analysis and maps every admitted unary kind
  * to one distinct CPU opcode without decomposition. Generated and Runtime code see only the
  * resulting CPU-private IR and cold bindings. Exact one-node movement, indexing, scatter, fold,
- * ordering, explicit-state random, cumulative-scan, aggregate, softmax, and trailing Layer/RMS
- * normalization families are delegated to focused lowerers; the movement family includes
- * functional slice update.</p>
+ * ordering, explicit-state random, cumulative-scan, aggregate, softmax, trailing Layer/RMS
+ * normalization, and atomic first-class loss families are delegated to focused lowerers; the
+ * movement family includes functional slice update. A loss lowerer preserves its two semantic
+ * input positions even when they share one physical read boundary.</p>
  */
 public final class CpuPartitionLowering {
     private final CpuCapabilityProvider capabilities = new CpuCapabilityProvider();
@@ -82,6 +83,7 @@ public final class CpuPartitionLowering {
     private final CpuPool2dLowering pool2dLowering = new CpuPool2dLowering();
     private final CpuPool3dLowering pool3dLowering = new CpuPool3dLowering();
     private final CpuAttentionLowering attentionLowering = new CpuAttentionLowering();
+    private final CpuLossLowering lossLowering = new CpuLossLowering();
     private final CpuPool1dCompositionLowering pool1dCompositionLowering =
             new CpuPool1dCompositionLowering();
     private final CpuConv1dCompositionLowering conv1dCompositionLowering =
@@ -149,6 +151,9 @@ public final class CpuPartitionLowering {
         }
         if (nodes.size() == 1) {
             Object kind = nodes.getFirst().operation().kind();
+            if (kind instanceof io.github.pho001.synaptik.model.operation.loss.LossKind) {
+                return lossLowering.lower(context);
+            }
             if (kind instanceof io.github.pho001.synaptik.model.operation.normalization.SoftmaxKind) {
                 return softmaxLowering.lower(context);
             }
@@ -1555,6 +1560,8 @@ public final class CpuPartitionLowering {
                                                         ? pool3d.encodedKernelIr()
                                                     : portableKernelIr instanceof io.github.pho001.synaptik.backend.cpu.internal.ir.CpuAttentionIr attention
                                                         ? attention.encodedKernelIr()
+                                                    : portableKernelIr instanceof io.github.pho001.synaptik.backend.cpu.internal.ir.CpuLossIr loss
+                                                        ? loss.encodedKernelIr()
                                                     : ((io.github.pho001.synaptik.backend.cpu.internal.ir.CpuAggregateIr)
                                                         portableKernelIr).encodedKernelIr();
         }

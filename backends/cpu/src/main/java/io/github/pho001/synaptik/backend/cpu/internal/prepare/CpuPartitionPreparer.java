@@ -513,7 +513,9 @@ public final class CpuPartitionPreparer implements BackendPartitionPreparer<
                             .filter(g -> g.scratchSliceBytes() > 0).isPresent()
                         || lowered.attentionGeometry().filter(g -> g.scratchSliceBytes() > 0)
                             .isPresent(),
-                attention ? 57 : pool3d ? 56 : pool2d ? 55 : matmul ? 54 : 52,
+                attention ? 57 : pool3d ? 56 : pool2d ? 55 : matmul ? 54
+                        : selectedPortableIr instanceof io.github.pho001.synaptik.backend.cpu.internal.ir.CpuLossIr
+                            ? 58 : 52,
                 lowered.matmulIr());
         selectedPortableIr = matmul||materialization.isPresent()?kernelIr:selectedPortableIr;
         var routePlan = new CpuPortableRoutePlan(selectedPortableIr, specialization);

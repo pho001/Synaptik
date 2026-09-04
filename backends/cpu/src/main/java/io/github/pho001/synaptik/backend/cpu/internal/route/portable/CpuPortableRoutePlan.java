@@ -22,11 +22,13 @@ import java.util.Objects;
  * geometry and scratch assignment stay cold. Ordinary aggregate IR is encoded for compatibility
  * while its generated entry remains a direct typed body. Softmax and trailing Layer/RMS
  * normalization similarly retain only code-shaping identity; concrete slice ranges, typed
- * carriers, and optional Layer scratch stay cold.
+ * carriers, and optional Layer scratch stay cold. Loss IR retains semantic role positions,
+ * represented types, reduction, ignore form, and range ownership only; its normalized axes,
+ * layouts, actual ignore bits, and bases stay cold.
  *
  * @param portableKernelIr non-null route-independent pointwise, affine, movement, indexing,
- *     functional-scatter, overlap-fold, ordering, random, cumulative-scan, aggregate, softmax, or
- *     trailing-normalization IR
+ *     functional-scatter, overlap-fold, ordering, random, cumulative-scan, aggregate, softmax,
+ *     trailing-normalization, or direct-loss IR
  * @param specialization non-null selected exact/default scalar or preferred-species vector
  *     Class-File specialization; parallel orchestration, if selected, remains outside the artifact
  */
@@ -36,8 +38,8 @@ public record CpuPortableRoutePlan(CpuPortableKernelIr portableKernelIr,
      * Validates one portable realization plan.
      *
      * @param portableKernelIr non-null route-independent pointwise, affine, movement, indexing,
-     *     scatter, fold, ordering, random, cumulative-scan, aggregate, softmax, or
-     *     trailing-normalization IR
+     *     scatter, fold, ordering, random, cumulative-scan, aggregate, softmax,
+     *     trailing-normalization, or direct-loss IR
      * @param specialization non-null matching scalar or vector generated specialization
      * @throws NullPointerException if either component is {@code null}
      * @throws IllegalArgumentException if the specialization does not match the canonical IR, or
@@ -117,6 +119,8 @@ public record CpuPortableRoutePlan(CpuPortableKernelIr portableKernelIr,
             return pool3d.encodedKernelIr();
         if (source instanceof io.github.pho001.synaptik.backend.cpu.internal.ir.CpuAttentionIr attention)
             return attention.encodedKernelIr();
+        if (source instanceof io.github.pho001.synaptik.backend.cpu.internal.ir.CpuLossIr loss)
+            return loss.encodedKernelIr();
         return ((io.github.pho001.synaptik.backend.cpu.internal.ir.CpuAggregateIr) source)
                 .encodedKernelIr();
     }

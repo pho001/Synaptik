@@ -34,7 +34,7 @@ import io.github.pho001.synaptik.model.operation.layout.FoldAxisAttrs;
 import io.github.pho001.synaptik.model.operation.layout.WindowTransformKind;
 
 class CpuKernelSpecializationTest {
-    @Test void schema57CompatibilityRetainsExactSchema52DirectPointwiseClassIdentity()
+    @Test void schema58CompatibilityRetainsExactSchema52DirectPointwiseClassIdentity()
             throws Exception {
         Shape shape = Shape.of(64, 64);
         var descriptor = new TensorDescriptor(DataType.FLOAT64, shape,
@@ -46,7 +46,7 @@ class CpuKernelSpecializationTest {
                 route.specialization(), route.kernelIr());
         assertAll(
                 () -> assertTrue(new String(route.specialization().compatibilityBytes(),
-                        java.nio.charset.StandardCharsets.US_ASCII).startsWith("57|")),
+                        java.nio.charset.StandardCharsets.US_ASCII).startsWith("58|")),
                 () -> assertTrue(new String(route.specialization().classIdentityBytes(),
                         java.nio.charset.StandardCharsets.US_ASCII).startsWith("52|")),
                 () -> assertEquals(
@@ -290,7 +290,7 @@ class CpuKernelSpecializationTest {
                                 otherExtents.kernelIr())),
                 () -> assertNotEquals(axisZero.specialization(), otherFamily.specialization()),
                 () -> assertNotEquals(axisZero.specialization(), otherCarrier.specialization()),
-                () -> assertEquals(57, CpuGeneratorSchema.CURRENT_VERSION),
+                () -> assertEquals(58, CpuGeneratorSchema.CURRENT_VERSION),
                 () -> assertEquals(-1, axisZero.specialization().materializedSourcePosition()));
     }
 

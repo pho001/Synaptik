@@ -10,6 +10,8 @@ import java.util.Objects;
  * class-byte snapshot. It owns no close lifecycle or persistent storage.
  */
 public final class CpuGeneratedKernel {
+    private static final String LOSS_CONTIGUOUS_INT = "lossContiguousInt";
+    private static final String LOSS_GENERIC_AFFINE = "lossGenericAffine";
     private final CpuKernelSpecialization specialization;
     private final MethodHandles.Lookup lookup;
     private final MethodHandle entryPoint;
@@ -46,6 +48,27 @@ public final class CpuGeneratedKernel {
     /** Returns the invocation target.
      * @return the non-null exact direct static entry handle */
     public MethodHandle entryPoint() { return entryPoint; }
+
+    /**
+     * Resolves one private loss helper through the retained defining lookup.
+     *
+     * <p>This is a cold binding operation for schema-58 loss artifacts only.  The caller proves
+     * the selected geometry before requesting the direct helper; the generated public entry
+     * remains available for all geometry and retains the generic affine fallback.</p>
+     *
+     * @param contiguousInt whether the caller proved the direct int-address contiguous form
+     * @return the private helper with the same exact type as {@link #entryPoint()}
+     * @throws IllegalArgumentException if this artifact has no matching private loss helper
+     */
+    public MethodHandle lossEntryPointFor(boolean contiguousInt) {
+        try {
+            return lookup.findStatic(lookup.lookupClass(), contiguousInt ? LOSS_CONTIGUOUS_INT
+                    : LOSS_GENERIC_AFFINE, entryPoint.type());
+        } catch (ReflectiveOperationException failure) {
+            throw new IllegalArgumentException("generated loss helper is unavailable", failure);
+        }
+    }
+
     /** Returns verified bytes.
      * @return a new defensive copy of deterministic class bytes */
     public byte[] classBytes() { return classBytes.clone(); }

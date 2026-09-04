@@ -244,7 +244,7 @@ class CpuAttentionEvidenceTest {
           if (k == v) result.add(new Mapping(List.of(q, k, v), List.of(0, 1, 1)));
           if (q == k && k == v) result.add(new Mapping(List.of(q, k, v), List.of(0, 0, 0)));
         }
-    assertEquals(57, result.size());
+    assertEquals(58, result.size());
     return result;
   }
 

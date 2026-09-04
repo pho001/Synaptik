@@ -138,14 +138,15 @@ final class CpuCarrierEmitter {
             return;
         }
         code.aload(parameterSlot); layout(type);
-        code.lload(addressLocal).loadConstant((long) type.byteWidth()).lmul();
+        if (intAddress) code.iload(addressLocal).i2l(); else code.lload(addressLocal);
+        code.loadConstant((long) type.byteWidth()).lmul();
         code.invokeinterface(SEGMENT, "get", MethodTypeDesc.of(primitive(type), layoutClass(type),
                 TypeKind.LONG.upperBound()));
     }
 
     /**
      * Emits a frozen native-order scalar load with a constant typed segment layout.
-     * @param type exact admitted floating data type
+     * @param type exact admitted scalar data type
      * @param access generation-time-selected carrier form
      * @param parameterSlot exact input-carrier parameter slot
      * @param addressLocal proved element-address local
@@ -158,7 +159,8 @@ final class CpuCarrierEmitter {
             return;
         }
         code.aload(parameterSlot); constantLayout(type);
-        code.lload(addressLocal).loadConstant((long) type.byteWidth()).lmul();
+        if (intAddress) code.iload(addressLocal).i2l(); else code.lload(addressLocal);
+        code.loadConstant((long) type.byteWidth()).lmul();
         code.invokeinterface(SEGMENT, "get", MethodTypeDesc.of(primitive(type), layoutClass(type),
                 TypeKind.LONG.upperBound()));
     }
@@ -196,6 +198,90 @@ final class CpuCarrierEmitter {
         code.loadConstant((long) type.byteWidth()).lmul();
         code.invokeinterface(SEGMENT, "get", MethodTypeDesc.of(primitive(type), layoutClass(type),
                 TypeKind.LONG.upperBound()));
+    }
+
+    /**
+     * Begins a frozen scalar load whose proved Java {@code int} element address will be emitted
+     * on the operand stack. This preserves direct heap-array indexing in int-address loops.
+     *
+     * @param type exact logical data type to load
+     * @param access generation-time-selected carrier form
+     * @param parameterSlot exact input-carrier parameter slot
+     */
+    void beginFrozenLoadAtStackIntAddress(DataType type, CarrierAccess access, int parameterSlot) {
+        code.aload(parameterSlot);
+        if (access == CarrierAccess.MEMORY_SEGMENT) constantLayout(type);
+    }
+
+    /**
+     * Completes a frozen scalar load after its Java {@code int} element address has been emitted
+     * on the operand stack. Segments widen that address once for byte-offset calculation; arrays
+     * retain their direct int index without a widen-and-narrow round trip.
+     *
+     * @param type exact logical data type to load
+     * @param access generation-time-selected carrier form used by the matching begin call
+     */
+    void endFrozenLoadAtStackIntAddress(DataType type, CarrierAccess access) {
+        if (access != CarrierAccess.MEMORY_SEGMENT) {
+            switch (type) {
+                case FLOAT64 -> code.daload(); case FLOAT32 -> code.faload();
+                case BFLOAT16 -> code.saload(); case INT32 -> code.iaload();
+                case INT64 -> code.laload(); case BOOL -> code.baload();
+                default -> throw new IllegalArgumentException("unsupported carrier data type");
+            }
+            return;
+        }
+        code.i2l().loadConstant((long) type.byteWidth()).lmul();
+        code.invokeinterface(SEGMENT, "get", MethodTypeDesc.of(primitive(type), layoutClass(type),
+                TypeKind.LONG.upperBound()));
+    }
+
+    /**
+     * Begins a frozen scalar store whose proved Java {@code int} element address is supplied on
+     * the operand stack immediately after this call.
+     *
+     * @param type exact logical data type to store
+     * @param access generation-time-selected carrier form
+     * @param parameterSlot exact output-carrier parameter slot
+     */
+    void beginFrozenStoreAtStackIntAddress(DataType type, CarrierAccess access, int parameterSlot) {
+        code.aload(parameterSlot);
+        if (access == CarrierAccess.MEMORY_SEGMENT) constantLayout(type);
+    }
+
+    /**
+     * Completes the address portion of a frozen scalar store. The caller must next supply the
+     * represented primitive value and call {@link #endFrozenStoreAtStackValue(DataType,
+     * CarrierAccess)}.
+     *
+     * @param type exact logical data type to store
+     * @param access generation-time-selected carrier form used by the matching begin call
+     */
+    void endFrozenStoreAtStackIntAddress(DataType type, CarrierAccess access) {
+        if (access == CarrierAccess.MEMORY_SEGMENT) {
+            code.i2l().loadConstant((long) type.byteWidth()).lmul();
+        }
+    }
+
+    /**
+     * Finishes a frozen scalar store after its carrier, address, and represented primitive value
+     * have been supplied on the operand stack.
+     *
+     * @param type exact logical data type to store
+     * @param access generation-time-selected carrier form used by the matching begin call
+     */
+    void endFrozenStoreAtStackValue(DataType type, CarrierAccess access) {
+        if (access != CarrierAccess.MEMORY_SEGMENT) {
+            switch (type) {
+                case FLOAT64 -> code.dastore(); case FLOAT32 -> code.fastore();
+                case BFLOAT16 -> code.sastore(); case INT32 -> code.iastore();
+                case INT64 -> code.lastore(); case BOOL -> code.bastore();
+                default -> throw new IllegalArgumentException("unsupported carrier data type");
+            }
+            return;
+        }
+        code.invokeinterface(SEGMENT, "set", MethodTypeDesc.of(TypeKind.VOID.upperBound(),
+                layoutClass(type), TypeKind.LONG.upperBound(), primitive(type)));
     }
 
     /**
@@ -242,7 +328,8 @@ final class CpuCarrierEmitter {
             return;
         }
         code.aload(parameterSlot); layout(type);
-        code.lload(addressLocal).loadConstant((long) type.byteWidth()).lmul();
+        if (intAddress) code.iload(addressLocal).i2l(); else code.lload(addressLocal);
+        code.loadConstant((long) type.byteWidth()).lmul();
         loadLocal(type, valueLocal);
         code.invokeinterface(SEGMENT, "set", MethodTypeDesc.of(TypeKind.VOID.upperBound(),
                 layoutClass(type), TypeKind.LONG.upperBound(), primitive(type)));
@@ -250,7 +337,7 @@ final class CpuCarrierEmitter {
 
     /**
      * Emits a frozen native-order scalar store with a constant typed segment layout.
-     * @param type exact admitted floating data type
+     * @param type exact admitted scalar data type
      * @param access generation-time-selected carrier form
      * @param parameterSlot exact output-carrier parameter slot
      * @param addressLocal proved element-address local
@@ -264,7 +351,8 @@ final class CpuCarrierEmitter {
             return;
         }
         code.aload(parameterSlot); constantLayout(type);
-        code.lload(addressLocal).loadConstant((long) type.byteWidth()).lmul();
+        if (intAddress) code.iload(addressLocal).i2l(); else code.lload(addressLocal);
+        code.loadConstant((long) type.byteWidth()).lmul();
         loadLocal(type, valueLocal);
         code.invokeinterface(SEGMENT, "set", MethodTypeDesc.of(TypeKind.VOID.upperBound(),
                 layoutClass(type), TypeKind.LONG.upperBound(), primitive(type)));
@@ -275,6 +363,8 @@ final class CpuCarrierEmitter {
             case FLOAT64 -> "JAVA_DOUBLE_UNALIGNED";
             case FLOAT32 -> "JAVA_FLOAT_UNALIGNED";
             case BFLOAT16 -> "JAVA_SHORT_UNALIGNED";
+            case INT32 -> "JAVA_INT_UNALIGNED";
+            case INT64 -> "JAVA_LONG_UNALIGNED";
             case BOOL -> "JAVA_BYTE";
             default -> throw new IllegalArgumentException("unsupported frozen segment data type");
         };

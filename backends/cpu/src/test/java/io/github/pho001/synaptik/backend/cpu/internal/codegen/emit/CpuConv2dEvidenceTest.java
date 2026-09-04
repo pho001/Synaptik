@@ -31,7 +31,7 @@ public final class CpuConv2dEvidenceTest {
             int classes) { }
 
     @Test void retainsClosedRepresentativeGeneratedInventory() throws Exception {
-        assertEquals(57, CpuGeneratorSchema.CURRENT_VERSION);
+        assertEquals(58, CpuGeneratorSchema.CURRENT_VERSION);
         List<Target> targets = targets();
         assertEquals(List.of("CONV-DENSE-F32", "CONV-GROUPED-F64", "CONV-DEPTHWISE-BF16",
                 "CONV-GENERAL-MIXED", "CONV-FUSED-ADD", "CONV-FUSED-ADD-RELU", "CONV-PARALLEL-F32",

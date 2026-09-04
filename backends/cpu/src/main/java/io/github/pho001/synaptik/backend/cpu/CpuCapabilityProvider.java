@@ -72,6 +72,11 @@ import io.github.pho001.synaptik.model.operation.pooling.MaxPool3dAttrs;
 import io.github.pho001.synaptik.model.operation.pooling.AveragePool3dAttrs;
 import io.github.pho001.synaptik.model.operation.attention.ScaledDotProductAttentionAttrs;
 import io.github.pho001.synaptik.model.operation.attention.ScaledDotProductAttentionKind;
+import io.github.pho001.synaptik.model.operation.loss.LossKind;
+import io.github.pho001.synaptik.model.operation.loss.LossReduction;
+import io.github.pho001.synaptik.model.operation.loss.MeanSquaredErrorAttrs;
+import io.github.pho001.synaptik.model.operation.loss.DenseCategoricalCrossEntropyWithLogitsAttrs;
+import io.github.pho001.synaptik.model.operation.loss.IndexCategoricalCrossEntropyWithLogitsAttrs;
 import io.github.pho001.synaptik.model.datatype.DataTypePromotion;
 import io.github.pho001.synaptik.model.shape.Shape;
 import io.github.pho001.synaptik.planning.capability.BackendCapabilityProvider;
@@ -157,6 +162,14 @@ import java.util.Arrays;
  * Shape/type/gradient eligibility, resolved non-negative layouts, and an injective output. The
  * CPU execution boundary separately rejects non-finite represented inputs and shifts before any
  * output mutation; that admitted subset is not a Model semantic promise.</p>
+
+ * <p>A separate one-node loss matrix admits mean-squared error plus dense-target and index-target
+ * categorical cross-entropy directly from logits for BFLOAT16, FLOAT32, and FLOAT64 prediction
+ * values.  MSE and dense targets are floating and retain the exact logits Shape; index targets
+ * are INT32 or INT64 and omit the normalized class axis.  The result has the promoted floating
+ * type for MSE/dense loss and the logits type for index loss, has either the corresponding
+ * unreduced Shape or a scalar Shape, and has an injective resolved layout.  Lowering owns cold
+ * stride, carrier, alias, ignore-index, and complete-domain realization facts.</p>
  *
  * <p>A separate trailing-normalization matrix admits only first-class Layer and RMS occurrences
  * over a positive-rank static normalized Shape. Layer supports input-only and exact
@@ -238,6 +251,11 @@ public final class CpuCapabilityProvider implements BackendCapabilityProvider {
      * valid static corrected denominator for statistics.
      * Softmax additionally requires its exact attributes, a rank-positive shape-preserving
      * floating descriptor pair, and a positive selected extent.
+     * Losses additionally require one exact current loss attribute form, two ordered inputs,
+     * one injective resolved output, static normalized class geometry where applicable, the
+     * Model result type/Shape/gradient relationship, BFLOAT16/FLOAT32/FLOAT64 floating operands,
+     * and INT32/INT64 index targets only for index categorical loss. Carrier bases, alias checks,
+     * actual ignore values, and direct traversal remain later CPU responsibilities.
      * Cross-type casts, dynamic
      * or unresolved geometry, negative-step extraction slices, non-injective
      * movement outputs, and all rows outside the implemented matrix return {@code false} without
@@ -271,6 +289,7 @@ public final class CpuCapabilityProvider implements BackendCapabilityProvider {
                 return supportsAggregate(query, output, aggregate);
             if (kind == ScaledDotProductAttentionKind.SCALED_DOT_PRODUCT_ATTENTION)
                 return supportsAttention(query);
+            if (kind instanceof LossKind loss) return supportsLoss(query, output, loss);
             if (kind == MatmulKind.MATMUL) return supportsMatmul(query, output);
             if (kind instanceof Pool2dKind) return supportsPool2d(query, output);
             if (kind instanceof Pool3dKind) return supportsPool3d(query, output);
@@ -378,6 +397,55 @@ public final class CpuCapabilityProvider implements BackendCapabilityProvider {
             }
         } catch (IllegalArgumentException | ArithmeticException incompatible) { return false; }
         return false;
+    }
+
+    private static boolean supportsLoss(OperationCapabilityQuery query, TensorDescriptor output,
+            LossKind kind) {
+        if (query.inputs().size() != 2 || query.outputs().size() != 1) return false;
+        TensorDescriptor prediction = query.inputs().getFirst();
+        TensorDescriptor target = query.inputs().getLast();
+        if (!lossFloating(prediction.dataType())) return false;
+        long[] predictionShape = prediction.shape().toLongArray();
+        LayoutDescriptor resultLayout = output.layout().orElseThrow();
+        if (resultLayout.storageOffset() < 0
+                || java.util.Arrays.stream(resultLayout.strides()).anyMatch(value -> value < 0)
+                || !injective(output.shape().toLongArray(), resultLayout.strides())) return false;
+        if (kind == LossKind.MEAN_SQUARED_ERROR) {
+            if (!(query.operation().attrs() instanceof MeanSquaredErrorAttrs attrs)
+                    || !lossFloating(target.dataType()) || !prediction.shape().equals(target.shape())
+                    || output.dataType() != DataTypePromotion.promoteFloating(
+                            prediction.dataType(), target.dataType())
+                    || output.requiresGrad() != (prediction.requiresGrad() || target.requiresGrad())) return false;
+            return attrs.reduction() == LossReduction.NONE
+                    ? output.shape().equals(prediction.shape()) : output.shape().equals(Shape.scalar());
+        }
+        if (kind == LossKind.DENSE_CATEGORICAL_CROSS_ENTROPY_WITH_LOGITS) {
+            if (!(query.operation().attrs() instanceof DenseCategoricalCrossEntropyWithLogitsAttrs attrs)
+                    || !lossFloating(target.dataType()) || attrs.axis() >= predictionShape.length
+                    || !prediction.shape().equals(target.shape())
+                    || output.dataType() != DataTypePromotion.promoteFloating(
+                            prediction.dataType(), target.dataType())
+                    || output.requiresGrad() != (prediction.requiresGrad() || target.requiresGrad())) return false;
+            return attrs.reduction() == LossReduction.NONE
+                    ? output.shape().equals(Shape.of(removeAxis(predictionShape, attrs.axis())))
+                    : output.shape().equals(Shape.scalar());
+        }
+        if (!(query.operation().attrs() instanceof IndexCategoricalCrossEntropyWithLogitsAttrs attrs)
+                || attrs.axis() >= predictionShape.length
+                || (target.dataType() != DataType.INT32 && target.dataType() != DataType.INT64)
+                || attrs.ignoreIndex().isPresent() && attrs.ignoreIndex().orElseThrow().dataType()
+                    != target.dataType() || output.dataType() != prediction.dataType()
+                || output.requiresGrad() != prediction.requiresGrad()
+                || !target.shape().equals(Shape.of(removeAxis(predictionShape, attrs.axis())))) return false;
+        return attrs.reduction() == LossReduction.NONE
+                ? output.shape().equals(target.shape()) : output.shape().equals(Shape.scalar());
+    }
+
+    private static long[] removeAxis(long[] source, int axis) {
+        long[] result = new long[source.length - 1];
+        System.arraycopy(source, 0, result, 0, axis);
+        System.arraycopy(source, axis + 1, result, axis, source.length - axis - 1);
+        return result;
     }
 
     private static boolean supportsConv2d(OperationCapabilityQuery query,
@@ -1488,6 +1556,16 @@ public final class CpuCapabilityProvider implements BackendCapabilityProvider {
 
     private static boolean floating(DataType type) {
         return type == DataType.FLOAT64 || type == DataType.FLOAT32;
+    }
+
+    /**
+     * Reports the represented floating matrix admitted by direct CPU loss lowering.
+     *
+     * @param type non-null candidate tensor element type
+     * @return {@code true} for BFLOAT16, FLOAT32, or FLOAT64; otherwise {@code false}
+     */
+    private static boolean lossFloating(DataType type) {
+        return type == DataType.FLOAT64 || type == DataType.FLOAT32 || type == DataType.BFLOAT16;
     }
 
     private static boolean normalizationFloating(DataType type) {
