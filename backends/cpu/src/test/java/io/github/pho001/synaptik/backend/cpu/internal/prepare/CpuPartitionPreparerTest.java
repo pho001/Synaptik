@@ -416,7 +416,7 @@ public class CpuPartitionPreparerTest {
                 () -> assertTrue(initial.workspaceDeclaration().isEmpty()),
                 () -> assertTrue(dropout.workspaceDeclaration().isEmpty()),
                 () -> assertTrue(dropout.randomGeometry().isPresent()),
-                () -> assertEquals(60, io.github.pho001.synaptik.backend.cpu.internal.cache
+                () -> assertEquals(61, io.github.pho001.synaptik.backend.cpu.internal.cache
                         .CpuGeneratorSchema.CURRENT_VERSION));
     }
     @Test void foldDeclaresExactlyTwoBuffersOneArtifactAndNoWorkspaceOrMaterialization() {
@@ -612,21 +612,35 @@ public class CpuPartitionPreparerTest {
         }
     }
 
-    @Test void selectsOnlyVirtualOrScalarBroadcastFloatingMaskTopologies() {
+    @Test void selectsVirtualScalarAndDenseFloatingMaskTopologiesWithIsolatedSchemas() {
         int count = FloatVector.SPECIES_PREFERRED.length() * 2;
         var vector = new PortableExecutionConfig(ComputePreference.VECTOR_IF_ELIGIBLE, 1, 1, 1);
         var parallel = new PortableExecutionConfig(ComputePreference.VECTOR_IF_ELIGIBLE, 2, 2, 1);
+        var virtual = analyze(maskWhereContext(count, vector)).plan();
+        var scalar = analyze(externalWhereContext(count, true, vector)).plan();
+        var reload = analyze(externalWhereContext(count, false, vector)).plan();
+        var publication = analyze(materializedComparisonContext(count, vector)).plan();
         assertAll(
-                () -> assertEquals("vector", analyze(maskWhereContext(count, vector)).plan()
-                        .executionStrategy().toString()),
+                () -> assertEquals("vector", virtual.executionStrategy().toString()),
+                () -> assertEquals(52, virtual.units().getFirst().portablePlan()
+                        .specialization().classIdentitySchema()),
                 () -> assertEquals("parallel-vector", analyze(maskWhereContext(count, parallel))
                         .plan().executionStrategy().toString()),
-                () -> assertEquals("vector", analyze(externalWhereContext(count, true, vector))
-                        .plan().executionStrategy().toString()),
-                () -> assertEquals("scalar", analyze(externalWhereContext(count, false, vector))
-                        .plan().executionStrategy().toString()),
-                () -> assertEquals("scalar", analyze(materializedComparisonContext(count, vector))
-                        .plan().executionStrategy().toString()));
+                () -> assertEquals("vector", scalar.executionStrategy().toString()),
+                () -> assertEquals(52, scalar.units().getFirst().portablePlan()
+                        .specialization().classIdentitySchema()),
+                () -> assertEquals("vector", reload.executionStrategy().toString()),
+                () -> assertEquals(61, reload.units().getFirst().portablePlan()
+                        .specialization().classIdentitySchema()),
+                () -> assertEquals("vector", publication.executionStrategy().toString()),
+                () -> assertEquals(61, publication.units().getFirst().portablePlan()
+                        .specialization().classIdentitySchema()),
+                () -> assertEquals("parallel-vector",
+                        analyze(externalWhereContext(count, false, parallel)).plan()
+                                .executionStrategy().toString()),
+                () -> assertEquals("parallel-vector",
+                        analyze(materializedComparisonContext(count, parallel)).plan()
+                                .executionStrategy().toString()));
     }
     @Test void formsOneFusedUnitAndDeclaresOnlyFourBoundaries() {
         var analysis = analyze(Shape.of(2, 3));

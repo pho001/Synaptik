@@ -20,8 +20,9 @@ import java.util.Objects;
  * Stateless Java 26 Class-File generator for one typed portable CPU unit.
  *
  * <p>It realizes the already-selected scalar body or eligible preferred-species
- * FLOAT32/FLOAT64, signed-integral, canonical-BOOL, or narrowly virtual floating-mask vector
- * body, and retains the scalar body for tails. BFLOAT16 pointwise work is scalar-only and keeps
+ * FLOAT32/FLOAT64, signed-integral, canonical-BOOL, or bounded dense floating-mask vector body,
+ * and retains the scalar body for tails. Unit-private masks remain virtual, while required dense
+ * BOOL boundaries use a fixed covering byte species. BFLOAT16 pointwise work is scalar-only and keeps
  * raw represented locals, decoding numerical inputs and encoding each producing logical node.
  * A pointwise topology containing cross-type CAST is likewise scalar-only: each CAST emits its
  * Model-defined conversion directly into the target-typed local, preserving explicit
@@ -203,6 +204,10 @@ public final class CpuClassFileKernelGenerator {
                                     == io.github.pho001.synaptik.backend.cpu.internal.prepare.CpuPartitionPreparationPlan.ExecutionStrategy.Compute.VECTOR) {
                                 DataType vectorType = vectorDataType(kernelIr);
                                 carriers.prepareVectorSpecies(vectorType);
+                                if (usesDenseFloatingMaskBoundary(kernelIr, vectorType)) {
+                                    carriers.prepareMaskByteBridge(specialization.vectorSpeciesBitSize()
+                                            / vectorType.bitWidth());
+                                }
                                 int[] vectorLocals = allocateVectorLocals(code, kernelIr);
                                 var vectorInstructions = new CpuVectorInstructionEmitter(
                                         code, kernelIr, vectorType);
@@ -297,7 +302,10 @@ public final class CpuClassFileKernelGenerator {
             if (value.kind() != CpuKernelIr.Value.Kind.INPUT
                     || !requiresInputLoad(ir, value.ordinal())) continue;
             if (value.dataType() == DataType.BOOL && vectorType != DataType.BOOL) {
-                carriers.scalarBoolMaskLoad(vectorType,
+                if (value.accessPlan().regime() == CpuAccessPlan.Regime.DENSE_LINEAR) {
+                    carriers.denseBoolMaskLoad(vectorType, specialization.carrierPattern().get(boundary),
+                            boundary, state.addresses()[boundary], state.intAddresses());
+                } else carriers.scalarBoolMaskLoad(vectorType,
                         specialization.carrierPattern().get(boundary), boundary,
                         state.addresses()[boundary], state.intAddresses());
             } else carriers.vectorLoad(vectorType,
@@ -311,9 +319,19 @@ public final class CpuClassFileKernelGenerator {
         for (CpuKernelIr.Store store : ir.stores()) {
             CpuKernelIr.Value value = ir.values().get(store.value());
             int boundary = boundaryIndex(boundaries, value.ordinal());
-            carriers.vectorStore(vectorType, specialization.carrierPattern().get(boundary), boundary,
+            if (value.dataType() == DataType.BOOL && vectorType != DataType.BOOL) {
+                carriers.denseBoolMaskStore(vectorType, specialization.carrierPattern().get(boundary),
+                        boundary, state.addresses()[boundary], locals[value.ordinal()], state.intAddresses());
+            } else carriers.vectorStore(vectorType, specialization.carrierPattern().get(boundary), boundary,
                     state.addresses()[boundary], locals[value.ordinal()], state.intAddresses());
         }
+    }
+
+    private static boolean usesDenseFloatingMaskBoundary(CpuKernelIr ir, DataType vectorType) {
+        return (vectorType == DataType.FLOAT32 || vectorType == DataType.FLOAT64)
+                && ir.values().stream().anyMatch(value -> value.dataType() == DataType.BOOL
+                    && value.kind() != CpuKernelIr.Value.Kind.VIRTUAL
+                    && value.accessPlan().regime() == CpuAccessPlan.Regime.DENSE_LINEAR);
     }
 
     private static int boundaryIndex(List<CpuKernelIr.Value> boundaries, int ordinal) {
@@ -446,7 +464,8 @@ public final class CpuClassFileKernelGenerator {
                 || pointwise && !crossTypeCast && bfloatPointwise
                     && specialization.classIdentitySchema() != 59
                 || pointwise && !crossTypeCast && !bfloatPointwise
-                    && specialization.classIdentitySchema() != 52
+                    && specialization.classIdentitySchema()
+                        != pointwiseSchema(specialization, kernelIr)
                 || (pointwise ? kernelIr.stores().isEmpty()
                     : kernelIr.stores().size() != expectedStores)) {
             throw new IllegalArgumentException("unsupported canonical pointwise IR");
@@ -531,6 +550,24 @@ public final class CpuClassFileKernelGenerator {
             throw new IllegalArgumentException(
                     "vector specialization requires one supported typed value or virtual-mask topology");
         }
+        DataType vectorType = vectorDataTypeOrNull(kernelIr);
+        if (specialization.executionStrategy().compute()
+                    == io.github.pho001.synaptik.backend.cpu.internal.prepare
+                        .CpuPartitionPreparationPlan.ExecutionStrategy.Compute.VECTOR
+                && usesDenseFloatingMaskBoundary(kernelIr, vectorType)
+                && specialization.vectorSpeciesBitSize() / vectorType.bitWidth() > Long.SIZE) {
+            throw new IllegalArgumentException(
+                    "floating mask bridge requires a preferred species of at most 64 lanes");
+        }
+    }
+
+    private static int pointwiseSchema(CpuKernelSpecialization specialization,
+            CpuKernelIr kernelIr) {
+        return specialization.executionStrategy().compute()
+                    == io.github.pho001.synaptik.backend.cpu.internal.prepare
+                        .CpuPartitionPreparationPlan.ExecutionStrategy.Compute.VECTOR
+                && usesDenseFloatingMaskBoundary(kernelIr, vectorDataTypeOrNull(kernelIr))
+                ? 61 : 52;
     }
 
     private static DataType vectorDataType(CpuKernelIr kernelIr) {
@@ -566,7 +603,7 @@ public final class CpuClassFileKernelGenerator {
                     && !(value.kind() == CpuKernelIr.Value.Kind.INPUT
                         && value.accessPlan().regime()
                             == io.github.pho001.synaptik.backend.cpu.internal.ir.CpuAccessPlan.Regime.SCALAR_ALL_ZERO)) {
-                return false;
+                if (value.accessPlan().regime() != CpuAccessPlan.Regime.DENSE_LINEAR) return false;
             }
         }
         for (CpuKernelIr.Instruction instruction : ir.instructions()) {
@@ -580,25 +617,27 @@ public final class CpuClassFileKernelGenerator {
                     if (!valueOpcodeEligible(instruction.opcode(), laneType)) return false;
                 }
                 case MASK_PRODUCER -> {
-                    if (!mixedMasks || ir.values().get(instruction.output()).kind()
-                            != CpuKernelIr.Value.Kind.VIRTUAL) return false;
+                    if (!mixedMasks || !isProducedFloatingMask(
+                            ir.values().get(instruction.output()))) return false;
                 }
                 case VALUE_OR_MASK -> {
                     boolean byteValues = laneType == DataType.BOOL;
-                    boolean virtualMasks = mixedMasks
+                    boolean floatingMasks = mixedMasks
                             && instruction.inputs().stream().allMatch(input ->
-                                ir.values().get(input).kind() == CpuKernelIr.Value.Kind.VIRTUAL)
-                            && ir.values().get(instruction.output()).kind()
-                                == CpuKernelIr.Value.Kind.VIRTUAL;
-                    if (!byteValues && !virtualMasks) return false;
+                                isProducedFloatingMask(ir.values().get(input)))
+                            && isProducedFloatingMask(ir.values().get(instruction.output()));
+                    if (!byteValues && !floatingMasks) return false;
                 }
                 case MASK_CONSUMER -> {
                     if (!mixedMasks) return false;
                     CpuKernelIr.Value condition = ir.values().get(instruction.inputs().getFirst());
-                    if (condition.kind() != CpuKernelIr.Value.Kind.VIRTUAL
+                    if (!isProducedFloatingMask(condition)
                             && !(condition.kind() == CpuKernelIr.Value.Kind.INPUT
                                 && condition.accessPlan().regime()
-                                    == io.github.pho001.synaptik.backend.cpu.internal.ir.CpuAccessPlan.Regime.SCALAR_ALL_ZERO)) {
+                                    == CpuAccessPlan.Regime.SCALAR_ALL_ZERO)
+                            && !(condition.kind() == CpuKernelIr.Value.Kind.INPUT
+                                && condition.accessPlan().regime()
+                                    == CpuAccessPlan.Regime.DENSE_LINEAR)) {
                         return false;
                     }
                 }
@@ -606,6 +645,13 @@ public final class CpuClassFileKernelGenerator {
             }
         }
         return true;
+    }
+
+    private static boolean isProducedFloatingMask(CpuKernelIr.Value value) {
+        return value.dataType() == DataType.BOOL
+                && (value.kind() == CpuKernelIr.Value.Kind.VIRTUAL
+                    || value.kind() == CpuKernelIr.Value.Kind.OUTPUT
+                        && value.accessPlan().regime() == CpuAccessPlan.Regime.DENSE_LINEAR);
     }
 
     private static boolean valueOpcodeEligible(CpuPointwiseOpcode opcode, DataType laneType) {

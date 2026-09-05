@@ -9,6 +9,7 @@ import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuPointwiseOpcode;
 import java.io.BufferedReader;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
 import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.HashMap;
@@ -20,9 +21,11 @@ import org.junit.jupiter.api.Test;
 
 /** Validates the versioned CPU 0007A1O replacement for the immutable A1C evidence ledger. */
 class CpuPointwiseLedgerEvidenceTest {
-    private static final String RESOURCE = "operation-family-form-ledger-v2.tsv";
+    private static final String RESOURCE = "operation-family-form-ledger-v3.tsv";
     private static final String ORIGINAL_SHA256 =
             "ab32cae447d85ee931d6cca1922266f9e0831363dfc2a5a7b0c0f919d6ef5e0a";
+    private static final String V2_SHA256 =
+            "41774384007bdb17b011cb8fbaae3b6928baa6ac8c04027a82540977f046031a";
     private static final String LEDGER_HEADER = "operation\tfamily\tform\tsemantic_test_owner"
             + "\tclassfile_category\tperformance_category\ttypes\tcarriers\taccess\taddress"
             + "\trange\tvector\tscratch\tequivalence_group\trealization\trepresented_type"
@@ -67,12 +70,14 @@ class CpuPointwiseLedgerEvidenceTest {
 
     @Test void replacementHasExactProvenanceInventoryAndSchema() throws Exception {
         Ledger ledger = read();
-        assertEquals("2", ledger.metadata().get("ledger-version"));
-        assertEquals(ORIGINAL_SHA256, ledger.metadata().get("replaces-sha256"));
-        assertEquals("CPU-0007A1O", ledger.metadata().get("replacement-task"));
+        assertEquals("3", ledger.metadata().get("ledger-version"));
+        assertEquals(V2_SHA256, ledger.metadata().get("replaces-sha256"));
+        assertEquals("CPU-0008L", ledger.metadata().get("replacement-task"));
+        assertEquals("CpuPointwiseMaskEvidenceTest,CpuPointwiseMaskPerformanceTest",
+                ledger.metadata().get("mask-closure-evidence"));
         int historicalSchema = Integer.parseInt(ledger.metadata().get("generated-schema"));
-        assertEquals(42, historicalSchema);
-        assertEquals(60, CpuGeneratorSchema.CURRENT_VERSION);
+        assertEquals(61, historicalSchema);
+        assertEquals(61, CpuGeneratorSchema.CURRENT_VERSION);
         assertTrue(historicalSchema <= CpuGeneratorSchema.CURRENT_VERSION);
         // The immutable artifact has 79 physical TSV lines: one header plus 78 inventory rows.
         assertEquals(79, ledger.rows().size() + 1);
@@ -116,6 +121,16 @@ class CpuPointwiseLedgerEvidenceTest {
         assertEquals(30, nonPointwiseForms.size());
         assertEquals(40, FRESH.size());
         assertEquals(8, RETAINED.size());
+        assertEquals(V2_SHA256, sha256("operation-family-form-ledger-v2.tsv"));
+    }
+
+    /** Returns a resource's exact immutable byte digest. */
+    private static String sha256(String resource) throws Exception {
+        try (var stream = CpuPointwiseLedgerEvidenceTest.class.getResourceAsStream(resource)) {
+            assertTrue(stream != null, () -> "missing test resource " + resource);
+            return java.util.HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256")
+                    .digest(stream.readAllBytes()));
+        }
     }
 
     private static Ledger read() throws Exception {

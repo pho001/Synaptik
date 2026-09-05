@@ -779,7 +779,32 @@ checks:
 | FLOAT32 or FLOAT64 values | `ADD`, `SUB`, `MUL`, `DIV`, `MIN`, `MAX`, `SCALAR_ADD`, `SCALAR_SUB`, `SCALAR_MUL`, `SCALAR_DIV`, eligible `SCALAR_POW`, `SCALAR_MIN`, `SCALAR_MAX`, `SCALAR_CLAMP`, `NEG`, `ABS`, `RECIPROCAL`, `LOG`, `LOG1P`, `EXP`, `EXPM1`, `ERF`, `SQRT`, `RSQRT`, `SIGN`, `RELU`, `TANH`, `GELU_EXACT`, and same-type `CAST` |
 | INT32 or INT64 values | `ADD`, `SUB`, `MUL`, `MIN`, `MAX`, `SCALAR_ADD`, `SCALAR_SUB`, `SCALAR_MUL`, `SCALAR_MIN`, `SCALAR_MAX`, and same-type `CAST` |
 | Canonical BOOL values | `LOGICAL_AND`, `LOGICAL_OR`, `LOGICAL_NOT`, and same-type `CAST` |
-| FLOAT32 or FLOAT64 with virtual BOOL masks | Six comparisons and three classifications may produce virtual masks; `LOGICAL_AND`, `LOGICAL_OR`, and `LOGICAL_NOT` combine them; floating `WHERE` consumes a matching virtual mask or scalar/all-zero BOOL broadcast |
+| FLOAT32 or FLOAT64 with BOOL masks | Six comparisons and three classifications may produce a virtual mask or publish dense canonical BOOL; `LOGICAL_AND`, `LOGICAL_OR`, and `LOGICAL_NOT` combine matching floating-lane masks and may publish their final mask; floating `WHERE` consumes a matching virtual mask, dense canonical BOOL input, or scalar/all-zero BOOL broadcast |
+
+For FLOAT32 and FLOAT64, a virtual mask is a `VectorMask` local that stays inside one generated
+unit. A materialized dense boundary is one canonical BOOL byte per logical lane: `0` for false and
+`1` for true. Publication packs the floating mask's lane bits, maps lane zero to the least-
+significant bit, blends byte one into a zero `ByteVector`, and writes only the numeric lane count.
+Reload reverses that mapping by loading the bounded bytes, comparing them with byte one, and
+constructing the matching floating `VectorMask`. The bridge uses the smallest fixed
+`ByteVector.SPECIES_64`, `SPECIES_128`, `SPECIES_256`, or `SPECIES_512` that covers the preferred
+numeric species. CPU analysis requires between two and 64 numeric lanes; otherwise it selects the
+existing scalar fallback before generated execution. BOOL segment offsets remain byte offsets,
+while numeric segment offsets retain element-width scaling and native byte order.
+
+`VECTOR` and `PARALLEL_VECTOR` use the same generated vector artifact. Complete numeric chunks use
+the bounded byte bridge, and the existing scalar body handles short ranges and remainders in lane
+order. A dense boundary may use its exact primitive array or `MemorySegment`, including ordered
+mixed carrier patterns. `LAST_AXIS_BIAS`, `BLOCK_OUTER`, and `GENERAL_ODOMETER` mask boundaries,
+external BOOL inputs to mixed floating logical operations, BFLOAT16, integral predicates, and
+other mixed floating-mask topologies remain scalar or fail closed according to the pre-existing
+route rules.
+
+Publication is still driven by graph and execution-unit boundaries. A private same-unit mask
+remains virtual and incurs no BOOL store or reload. If a mask is already required as an output or
+unit boundary and also feeds same-unit `WHERE`, one live `VectorMask` is stored once and reused by
+`WHERE`. A later unit reloads a materialized dense mask from its declared boundary; this support
+does not add a materialization policy, workspace, route, tuning input, or public capability.
 
 FLOAT32/FLOAT64 vector extrema retain NaN propagation and directional signed-zero selection;
 `SCALAR_CLAMP` remains lower `MAX` followed by upper `MIN`; ReLU is `MAX(input, +0)`; and sign
@@ -789,9 +814,9 @@ fixed-width modular operations, while their extrema use signed order. Same-type 
 identity for all five executable types and does not imply cross-type conversion.
 
 `SCALAR_POW` is vector-realizable only for `POSITIVE_ONE`, `IDENTITY`, `SQUARE`, and
-`RECIPROCAL`; `DIRECT` remains scalar. Materialized comparison/classification results, non-scalar
-external BOOL conditions for floating `WHERE`, and mixed or otherwise unsafe mask topologies also
-remain scalar. A chain containing one vector-ineligible instruction remains
+`RECIPROCAL`; `DIRECT` remains scalar. Non-dense materialized comparison/classification results,
+non-dense external BOOL conditions for floating `WHERE`, and mixed or otherwise unsafe mask
+topologies remain scalar. A chain containing one vector-ineligible instruction remains
 one unit and selects scalar or parallel-scalar; it is not split and does not extract individual
 lanes. Parallel-scalar remains available when cold orchestration selects more than one range. This
 fallback is a cold strategy decision, not an execution failure or a universal vectorization
@@ -3161,8 +3186,12 @@ output-cell, whole-arg-extrema-output-cell, whole-masked-reduction-output-cell, 
 reduction-output-cell, whole-softmax-slice, whole-trailing-normalization-slice, and selected
 channel or flattened non-channel batch-inference ranges and complete-channel batch-training
 ranges, plus complete Conv2d and Conv3d output-cell ranges; and the
-pointwise family retains its exact typed value-vector and virtual-mask parity matrix. Generator
-compatibility is family-specific. Schema 60 applies only to pointwise projections containing
+pointwise family retains its exact typed value-vector and bounded floating-mask matrix. Generator
+compatibility is family-specific. Schema 61 applies only to vector pointwise projections with at
+least one dense non-scalar FLOAT32/FLOAT64 BOOL input or materialized BOOL output. It records the
+changed fixed-byte-species publication/reload body through the existing complete IR, carrier,
+compute, and preferred numeric-species identity. Virtual-mask-only pointwise classes remain on
+schema 52 with byte-identical generated classes. Schema 60 applies only to pointwise projections containing
 cross-type CAST; it records ordered source/target types, carrier/access structure, scalar compute,
 and explicit conversion topology. Existing schema-52 and schema-59 projections and their
 generated bytes are unchanged. Schema 59 remains the identity only for BFLOAT16 pointwise
@@ -3220,9 +3249,20 @@ zero-resource identity, and direct running-variance body. Schema 49 was the comp
 envelope for that increment. Schema 50 adds five-output batch-normalization training, schema 51
 adds direct grouped NCHW Conv2d, schema 52 adds direct grouped NCDHW Conv3d, schema 54 adds MATMUL,
 schema 55 adds Pool2d, schema 56 adds Pool3d, schema 57 adds attention, schema 58 adds loss, and
-schema 59 adds BFLOAT16 pointwise, and schema 60 adds cross-type CAST. The current envelope version
-is 60; older envelopes are incompatible safe misses, while unchanged schema-52 and schema-59
+schema 59 adds BFLOAT16 pointwise, schema 60 adds cross-type CAST, and schema 61 adds only the
+dense FLOAT32/FLOAT64 vector-mask boundary classes described above. The current envelope version
+is 61; older envelopes are incompatible safe misses, while unchanged schema-52 and schema-59
 family projections retain their established structural bytes.
+
+CPU 0008L retained evidence verifies this boundary against the same-algorithm optimal clean Java
+oracle required for generated code. All 72 generated Class-Files and 72 `javap` reports passed
+structural inspection, including the fan-out class's single publication/blend/`toLong` sequence
+and live-mask reuse. All 540 randomized sample-pair ratios, 60 fork medians, and 12 aggregates
+passed `<= 1.15x`; the largest observed values were `0.8171099525620247x`,
+`0.7176738221779834x`, and `0.7030305670814165x`, respectively. The final CPU rerun passed 715
+tests with zero failures or errors and 18 expected opt-in skips. These results establish only the
+recorded dense FLOAT32/FLOAT64 mask-boundary forms; they do not broaden the fallback, capability,
+tuning, materialization, or route boundaries above.
 No excluded
 aggregate/scatter form or later semantic family,
 BFLOAT16 pointwise SIMD or dropout numerical operation,

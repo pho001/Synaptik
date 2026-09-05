@@ -4,6 +4,7 @@ import io.github.pho001.synaptik.backend.cpu.internal.cache.CpuKernelSpecializat
 import java.lang.classfile.CodeBuilder;
 import java.lang.classfile.TypeKind;
 import java.lang.constant.ClassDesc;
+import java.lang.constant.ConstantDescs;
 import java.lang.constant.MethodTypeDesc;
 import java.util.List;
 import io.github.pho001.synaptik.model.datatype.DataType;
@@ -36,9 +37,14 @@ final class CpuCarrierEmitter {
     private static final ClassDesc BYTE_VECTOR = ClassDesc.of("jdk.incubator.vector.ByteVector");
     private static final ClassDesc VECTOR_SPECIES = ClassDesc.of("jdk.incubator.vector.VectorSpecies");
     private static final ClassDesc VECTOR_MASK = ClassDesc.of("jdk.incubator.vector.VectorMask");
+    private static final ClassDesc VECTOR_OPERATORS = ClassDesc.of("jdk.incubator.vector.VectorOperators");
+    private static final ClassDesc COMPARISON =
+            ClassDesc.of("jdk.incubator.vector.VectorOperators$Comparison");
     private final CodeBuilder code;
     private final int layoutLocalBase;
     private int speciesLocal = -1;
+    private int maskByteSpeciesLocal = -1;
+    private int maskByteAccessLocal = -1;
     /**
      * Creates an emitter bound to one non-null generated method body.
      *
@@ -95,6 +101,110 @@ final class CpuCarrierEmitter {
         if (speciesLocal >= 0) return;
         speciesLocal = code.allocateLocal(TypeKind.REFERENCE);
         code.getstatic(vectorClass(type), "SPECIES_PREFERRED", VECTOR_SPECIES).astore(speciesLocal);
+    }
+
+    /**
+     * Prepares the invocation-local fixed byte species and access mask for a floating mask
+     * bridge. The mask covers exactly the numeric vector lanes; it is never a loop-tail mask.
+     *
+     * @param numericLanes exact preferred floating lane count, from two through sixty-four
+     */
+    void prepareMaskByteBridge(int numericLanes) {
+        if (maskByteSpeciesLocal >= 0) return;
+        if (numericLanes <= 1 || numericLanes > Long.SIZE) {
+            throw new IllegalArgumentException("floating mask bridge requires two through 64 lanes");
+        }
+        String field = numericLanes <= 8 ? "SPECIES_64" : numericLanes <= 16 ? "SPECIES_128"
+                : numericLanes <= 32 ? "SPECIES_256" : "SPECIES_512";
+        maskByteSpeciesLocal = code.allocateLocal(TypeKind.REFERENCE);
+        maskByteAccessLocal = code.allocateLocal(TypeKind.REFERENCE);
+        code.getstatic(BYTE_VECTOR, field, VECTOR_SPECIES).astore(maskByteSpeciesLocal);
+        code.aload(maskByteSpeciesLocal).loadConstant(lowBits(numericLanes)).invokestatic(VECTOR_MASK,
+                "fromLong", MethodTypeDesc.of(VECTOR_MASK, VECTOR_SPECIES, TypeKind.LONG.upperBound()))
+                .astore(maskByteAccessLocal);
+    }
+
+    /**
+     * Emits a bounded dense canonical BOOL reload as a matching floating {@code VectorMask}.
+     *
+     * @param laneType exact FLOAT32 or FLOAT64 numeric lane type
+     * @param access exact BOOL boundary carrier form
+     * @param parameterSlot local-variable slot holding the BOOL carrier
+     * @param addressLocal local-variable slot holding the byte-addressed BOOL element offset
+     * @param intAddress whether a heap-array address is represented as an {@code int}
+     */
+    void denseBoolMaskLoad(DataType laneType, CarrierAccess access, int parameterSlot,
+            int addressLocal, boolean intAddress) {
+        requireMaskBridge(laneType);
+        code.aload(maskByteSpeciesLocal).aload(parameterSlot);
+        if (access == CarrierAccess.BYTE_ARRAY) {
+            if (intAddress) code.iload(addressLocal); else code.lload(addressLocal).l2i();
+            code.aload(maskByteAccessLocal);
+            code.invokestatic(BYTE_VECTOR, "fromArray", MethodTypeDesc.of(BYTE_VECTOR,
+                    VECTOR_SPECIES, ConstantDescs.CD_byte.arrayType(), TypeKind.INT.upperBound(), VECTOR_MASK));
+        } else if (access == CarrierAccess.MEMORY_SEGMENT) {
+            code.lload(addressLocal);
+            code.invokestatic(BYTE_ORDER, "nativeOrder", MethodTypeDesc.of(BYTE_ORDER));
+            code.aload(maskByteAccessLocal);
+            code.invokestatic(BYTE_VECTOR, "fromMemorySegment", MethodTypeDesc.of(BYTE_VECTOR,
+                    VECTOR_SPECIES, SEGMENT, TypeKind.LONG.upperBound(), BYTE_ORDER, VECTOR_MASK));
+        } else throw new IllegalArgumentException("carrier does not match BOOL mask boundary");
+        code.getstatic(VECTOR_OPERATORS, "EQ", COMPARISON).loadConstant(1).i2b();
+        code.invokevirtual(BYTE_VECTOR, "compare", MethodTypeDesc.of(VECTOR_MASK,
+                COMPARISON, ConstantDescs.CD_byte));
+        code.invokevirtual(VECTOR_MASK, "toLong", MethodTypeDesc.of(TypeKind.LONG.upperBound()));
+        int bitsLocal = code.allocateLocal(TypeKind.LONG);
+        code.lstore(bitsLocal).aload(speciesLocal).lload(bitsLocal).invokestatic(VECTOR_MASK, "fromLong",
+                MethodTypeDesc.of(VECTOR_MASK, VECTOR_SPECIES, TypeKind.LONG.upperBound()));
+    }
+
+    /**
+     * Emits bounded canonical BOOL publication from a floating {@code VectorMask}.
+     *
+     * @param laneType exact FLOAT32 or FLOAT64 numeric lane type
+     * @param access exact writable BOOL boundary carrier form
+     * @param parameterSlot local-variable slot holding the BOOL carrier
+     * @param addressLocal local-variable slot holding the byte-addressed BOOL element offset
+     * @param maskLocal local-variable slot holding the live numeric-lane mask
+     * @param intAddress whether a heap-array address is represented as an {@code int}
+     */
+    void denseBoolMaskStore(DataType laneType, CarrierAccess access, int parameterSlot,
+            int addressLocal, int maskLocal, boolean intAddress) {
+        requireMaskBridge(laneType);
+        code.aload(maskByteSpeciesLocal).invokestatic(BYTE_VECTOR, "zero",
+                MethodTypeDesc.of(BYTE_VECTOR, VECTOR_SPECIES));
+        code.aload(maskByteSpeciesLocal).loadConstant(1).i2b().invokestatic(BYTE_VECTOR, "broadcast",
+                MethodTypeDesc.of(BYTE_VECTOR, VECTOR_SPECIES, ConstantDescs.CD_byte));
+        code.aload(maskByteSpeciesLocal).aload(maskLocal).invokevirtual(VECTOR_MASK, "toLong",
+                MethodTypeDesc.of(TypeKind.LONG.upperBound()));
+        code.invokestatic(VECTOR_MASK, "fromLong", MethodTypeDesc.of(VECTOR_MASK,
+                VECTOR_SPECIES, TypeKind.LONG.upperBound()));
+        code.invokevirtual(BYTE_VECTOR, "blend", MethodTypeDesc.of(BYTE_VECTOR,
+                ClassDesc.of("jdk.incubator.vector.Vector"), VECTOR_MASK));
+        code.aload(parameterSlot);
+        if (access == CarrierAccess.BYTE_ARRAY) {
+            if (intAddress) code.iload(addressLocal); else code.lload(addressLocal).l2i();
+            code.aload(maskByteAccessLocal);
+            code.invokevirtual(BYTE_VECTOR, "intoArray", MethodTypeDesc.of(TypeKind.VOID.upperBound(),
+                    ConstantDescs.CD_byte.arrayType(), TypeKind.INT.upperBound(), VECTOR_MASK));
+        } else if (access == CarrierAccess.MEMORY_SEGMENT) {
+            code.lload(addressLocal);
+            code.invokestatic(BYTE_ORDER, "nativeOrder", MethodTypeDesc.of(BYTE_ORDER));
+            code.aload(maskByteAccessLocal);
+            code.invokevirtual(BYTE_VECTOR, "intoMemorySegment", MethodTypeDesc.of(TypeKind.VOID.upperBound(),
+                    SEGMENT, TypeKind.LONG.upperBound(), BYTE_ORDER, VECTOR_MASK));
+        } else throw new IllegalArgumentException("carrier does not match BOOL mask boundary");
+    }
+
+    private void requireMaskBridge(DataType laneType) {
+        if ((laneType != DataType.FLOAT32 && laneType != DataType.FLOAT64) || speciesLocal < 0
+                || maskByteSpeciesLocal < 0) {
+            throw new IllegalArgumentException("floating mask bridge was not prepared");
+        }
+    }
+
+    private static long lowBits(int laneCount) {
+        return laneCount == Long.SIZE ? -1L : (1L << laneCount) - 1L;
     }
 
     /**

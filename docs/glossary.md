@@ -1095,6 +1095,19 @@ schema 60; same-type vector eligibility and unchanged schema-52/schema-59 class 
 stable. This adds no SIMD CAST, negative storage stride, materialization, native route, or
 automatic tuning policy.
 
+Completed CPU 0008L adds the bounded FLOAT32/FLOAT64 dense mask boundary inside this same route.
+A private same-unit predicate remains a virtual floating `VectorMask`. When graph publication or an
+execution-unit boundary already requires storage, vector and parallel-vector code publish exact
+canonical BOOL bytes through the smallest covering fixed `ByteVector` species and reload a dense
+canonical BOOL `WHERE` condition into the matching floating mask. Lane zero maps to the least-
+significant packed bit, complete numeric chunks access exactly the numeric lane count, and scalar
+tails preserve element order. Non-dense mask boundaries, mixed floating logical inputs, BFLOAT16,
+integral predicates, and a target whose preferred numeric species cannot prove two through 64
+lanes retain scalar fallback or fail closed. Schema 61 identifies only the changed dense floating-
+mask vector classes; schema 52 virtual-mask-only, schema 59 BFLOAT16, and schema 60 cross-type CAST
+class projections remain separate. This is generated-route closure, not a new public capability,
+materialization policy, tuning input, workspace, or route.
+
 Completed CPU 0006 adds one static resolved-layout affine-copy family through the same portable
 route. It composes bounded straight-line view chains during cold analysis, keeps eligible internal
 views virtual, and materializes only the final boundary through scalar or parallel-scalar

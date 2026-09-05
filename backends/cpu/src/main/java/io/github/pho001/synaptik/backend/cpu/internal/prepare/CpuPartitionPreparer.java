@@ -39,9 +39,9 @@ import jdk.incubator.vector.ByteVector;
  * materialized forms remain complete candidate data for later explicit pre-Runtime promotion.
  * Analysis then selects scalar or preferred-species vector compute and single-thread or bounded
  * parallel orchestration before shared resource assignment. Exact vector eligibility is
- * typed across floating, signed-integral, canonical-BOOL, and narrowly virtual floating-mask
- * topologies; every BFLOAT16 pointwise topology, direct power, and unsafe mask storage remain
- * scalar. Any pointwise topology containing cross-type CAST is also scalar-only, while same-type
+ * typed across floating, signed-integral, canonical-BOOL, and bounded dense floating-mask
+ * boundaries while preserving unit-private masks; every BFLOAT16 pointwise topology, direct
+ * power, and unsafe mask storage remain scalar. Any pointwise topology containing cross-type CAST is also scalar-only, while same-type
  * CAST retains its previous vector eligibility. Cross-type CAST adds no workspace,
  * materialization, or route and uses schema 60 only for its generated class identity. Analysis
  * measures nothing and performs no artifact or persistence access. Static affine
@@ -413,6 +413,7 @@ public final class CpuPartitionPreparer implements BackendPartitionPreparer<
                         == CpuPartitionAnalysisInputs.PortableExecutionConfig.ComputePreference.VECTOR_IF_ELIGIBLE
                 && vectorType != null && lanes > 1 && lowered.elementCount() >= lanes
                 && vectorTopologyEligible(kernelIr, vectorType)
+                && (!hasDenseFloatingMaskBoundary(kernelIr, vectorType) || lanes <= Long.SIZE)
                 && bindings.stream().allMatch(binding -> vectorEligible(binding, lanes));
         int usableParallelism = Math.min(config.configuredMaximumParallelism(),
                 config.availableParallelism());
@@ -529,6 +530,7 @@ public final class CpuPartitionPreparer implements BackendPartitionPreparer<
                 attention ? 57 : pool3d ? 56 : pool2d ? 55 : matmul ? 54
                         : selectedPortableIr instanceof io.github.pho001.synaptik.backend.cpu.internal.ir.CpuLossIr
                             ? 58 : kernelIr.familyIdentity().equals("pointwise") && crossTypeCast ? 60
+                            : vectorEligible && hasDenseFloatingMaskBoundary(kernelIr, vectorType) ? 61
                             : kernelIr.familyIdentity().equals("pointwise")
                                 && kernelIr.values().stream().anyMatch(value -> value.dataType()
                                     == DataType.BFLOAT16) ? 59 : 52,
@@ -836,7 +838,7 @@ public final class CpuPartitionPreparer implements BackendPartitionPreparer<
                     && value.kind() != CpuKernelIr.Value.Kind.VIRTUAL
                     && !(value.kind() == CpuKernelIr.Value.Kind.INPUT
                         && value.accessPlan().regime() == CpuAccessPlan.Regime.SCALAR_ALL_ZERO)) {
-                return false;
+                if (value.accessPlan().regime() != CpuAccessPlan.Regime.DENSE_LINEAR) return false;
             }
         }
         for (CpuKernelIr.Instruction instruction : ir.instructions()) {
@@ -850,30 +852,46 @@ public final class CpuPartitionPreparer implements BackendPartitionPreparer<
                     if (!valueOpcodeEligible(instruction.opcode(), laneType)) return false;
                 }
                 case MASK_PRODUCER -> {
-                    if (!mixedMasks || ir.values().get(instruction.output()).kind()
-                            != CpuKernelIr.Value.Kind.VIRTUAL) return false;
+                    if (!mixedMasks || !isProducedFloatingMask(
+                            ir.values().get(instruction.output()))) return false;
                 }
                 case VALUE_OR_MASK -> {
                     boolean byteValues = laneType == DataType.BOOL;
-                    boolean virtualMasks = mixedMasks
+                    boolean floatingMasks = mixedMasks
                             && instruction.inputs().stream().allMatch(input ->
-                                ir.values().get(input).kind() == CpuKernelIr.Value.Kind.VIRTUAL)
-                            && ir.values().get(instruction.output()).kind()
-                                == CpuKernelIr.Value.Kind.VIRTUAL;
-                    if (!byteValues && !virtualMasks) return false;
+                                isProducedFloatingMask(ir.values().get(input)))
+                            && isProducedFloatingMask(ir.values().get(instruction.output()));
+                    if (!byteValues && !floatingMasks) return false;
                 }
                 case MASK_CONSUMER -> {
                     if (!mixedMasks) return false;
                     CpuKernelIr.Value condition = ir.values().get(instruction.inputs().getFirst());
-                    if (condition.kind() != CpuKernelIr.Value.Kind.VIRTUAL
+                    if (!isProducedFloatingMask(condition)
                             && !(condition.kind() == CpuKernelIr.Value.Kind.INPUT
                                 && condition.accessPlan().regime()
-                                    == CpuAccessPlan.Regime.SCALAR_ALL_ZERO)) return false;
+                                    == CpuAccessPlan.Regime.SCALAR_ALL_ZERO)
+                            && !(condition.kind() == CpuKernelIr.Value.Kind.INPUT
+                                && condition.accessPlan().regime()
+                                    == CpuAccessPlan.Regime.DENSE_LINEAR)) return false;
                 }
                 case NONE -> { return false; }
             }
         }
         return true;
+    }
+
+    private static boolean isProducedFloatingMask(CpuKernelIr.Value value) {
+        return value.dataType() == DataType.BOOL
+                && (value.kind() == CpuKernelIr.Value.Kind.VIRTUAL
+                    || value.kind() == CpuKernelIr.Value.Kind.OUTPUT
+                        && value.accessPlan().regime() == CpuAccessPlan.Regime.DENSE_LINEAR);
+    }
+
+    private static boolean hasDenseFloatingMaskBoundary(CpuKernelIr ir, DataType laneType) {
+        return (laneType == DataType.FLOAT32 || laneType == DataType.FLOAT64)
+                && ir.values().stream().anyMatch(value -> value.dataType() == DataType.BOOL
+                    && value.kind() != CpuKernelIr.Value.Kind.VIRTUAL
+                    && value.accessPlan().regime() == CpuAccessPlan.Regime.DENSE_LINEAR);
     }
 
     private static boolean valueOpcodeEligible(
