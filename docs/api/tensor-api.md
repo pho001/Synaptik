@@ -2871,9 +2871,82 @@ gradient routing, graph capture, ONNX mapping, backend support, or execution.
 
 `Tensor.cast(targetDataType)` records an explicit request to convert each logical input value to a
 target data type. The method accepts every ordered pair formed from the six current `DataType`
-values, so all 36 source/target combinations are representable. Representability means the model
-can preserve the request; it does not define the numerical result or promise that a backend can
-execute every pair.
+values, so all 36 source/target combinations have the Model-owned value meaning below. A concrete
+backend still advertises and implements only the pairs it supports.
+
+The row is the source type and the column is the target type. `BITS` preserves the exact represented
+bits; `RNE` rounds directly to the target with round-to-nearest, ties-to-even; `WIDEN` preserves an
+exact finite value and applies the NaN mapping below; `TRUNC-SAT` truncates toward zero and then
+saturates; `SIGNEXT` sign-extends; `LOW32` retains the low 32 two's-complement bits; `01` maps false
+and true to positive zero and positive one; and `TRUTH` is false only for integer zero or either
+floating signed zero.
+
+| Source \\ Target | `FLOAT64` | `FLOAT32` | `BFLOAT16` | `INT64` | `INT32` | `BOOL` |
+|---|---:|---:|---:|---:|---:|---:|
+| `FLOAT64` | `BITS` | `RNE` | direct `RNE` | `TRUNC-SAT` | `TRUNC-SAT` | `TRUTH` |
+| `FLOAT32` | `WIDEN` | `BITS` | `RNE` | `TRUNC-SAT` | `TRUNC-SAT` | `TRUTH` |
+| `BFLOAT16` | `WIDEN` | exact `WIDEN` | `BITS` | `TRUNC-SAT` | `TRUNC-SAT` | `TRUTH` |
+| `INT64` | `RNE` | `RNE` | direct `RNE` | `BITS` | `LOW32` | `TRUTH` |
+| `INT32` | `RNE` | `RNE` | direct `RNE` | `SIGNEXT` | `BITS` | `TRUTH` |
+| `BOOL` | `01` | `01` | `01` | `01` | `01` | `BITS` |
+
+Same-type conversion preserves every raw bit, including floating sign, subnormal representation,
+and every NaN sign, quiet/signaling bit, and payload. `CastValueConversions.convert` returns the
+exact source `ScalarValue` reference for this scalar case. `Tensor.cast`, however, always creates a
+fresh expression occurrence; Tensor construction does not call the scalar oracle or evaluate
+storage.
+
+Finite floating-to-floating and integer-to-floating conversions choose the target value nearest
+to the exact represented source value, with an exact midpoint selecting the result whose least
+significant significand bit is zero. The conversion rounds once, directly to the requested target
+format. Overflow at or beyond the target rounding midpoint produces signed infinity. Underflow is
+gradual through target subnormals; an exact zero/least-subnormal midpoint selects signed zero, and
+the next representable source magnitude above it selects the signed least subnormal. Floating zero
+keeps its sign for every floating target, and floating infinity keeps its sign and classification.
+
+Lossy cross-floating conversion maps every NaN to the target's positive canonical quiet pattern:
+
+| Target | Canonical NaN bits |
+|---|---:|
+| `FLOAT64` | `0x7FF8000000000000` |
+| `FLOAT32` | `0x7FC00000` |
+| `BFLOAT16` | `0x7FC0` |
+
+No current lossy pair targets `FLOAT64`, but its canonical pattern is fixed for the family. The
+three lossless widening directions preserve NaN sign, quiet/signaling state, and complete source
+fraction by left-aligning that fraction and filling new low bits with zero:
+
+```text
+BFLOAT16 -> FLOAT32: targetFraction = sourceFraction << 16
+BFLOAT16 -> FLOAT64: targetFraction = sourceFraction << 45
+FLOAT32  -> FLOAT64: targetFraction = sourceFraction << 29
+```
+
+For example, BFLOAT16 `0x7F81` becomes FLOAT32 `0x7F810000`, negative BFLOAT16
+`0xFFC1` becomes FLOAT64 `0xFFF8200000000000`, and FLOAT32 `0x7FA12345` becomes
+FLOAT64 `0x7FF42468A0000000`. Floating NaN converts to integral zero and to BOOL `true`.
+
+Integral width conversion is exact sign extension from `INT32` to `INT64`; `INT64` to `INT32`
+retains the low 32 bits, equivalently reduction modulo `2^32`. Thus
+`0x0000000100000001L` becomes `1`, `Long.MIN_VALUE` becomes `0`, and `Long.MAX_VALUE` becomes
+`-1`. Floating-to-integral conversion interprets the represented source, truncates a finite value
+toward zero, and clamps it to the target's inclusive signed range. NaN becomes zero, positive
+infinity becomes the target maximum, and negative infinity becomes the target minimum. Examples
+include `2147483646.9 -> 2147483646`, `2147483647.9 -> Integer.MAX_VALUE`, binary64 bits
+`0x43E0000000000000 -> Long.MAX_VALUE`, and binary64 bits
+`0xC3E0000000000000 -> Long.MIN_VALUE`.
+
+BOOL false converts to numeric positive zero and BOOL true to numeric positive one. Numeric
+truthiness is false only for integer zero and floating `+0` or `-0`; every nonzero finite value,
+positive or negative subnormal, infinity, and NaN is true. `ScalarValue` supplies only canonical
+Boolean values, so this contract does not assign meaning to non-canonical backend BOOL bytes.
+
+Direct rounding matters for BFLOAT16. The exact binary64 value with bits
+`0x3FF0100000400000` (`1 + 2^-8 + 2^-30`) converts directly to BFLOAT16 `0x3F81`. A forbidden
+intermediate FLOAT32 conversion instead produces `0x3F808000`, which then rounds to BFLOAT16
+`0x3F80`. Likewise, exact binary64 `0x3FF02FFFFFC00000` converts directly to `0x3F81`, while a
+FLOAT32 intermediate `0x3F818000` would double-round to `0x3F82`. Integer-to-BFLOAT16 follows the
+same direct rule: INT32 `1077936129` converts to `0x4E81`, not the FLOAT32-mediated `0x4E80`.
 
 Cast changes the result data type but not its logical dimensions. The result descriptor therefore
 retains the input descriptor's exact immutable `Shape` reference. Its layout is always unresolved,
@@ -2884,9 +2957,11 @@ reused, copied, or materialized. The result has no label and no host storage.
 Result gradient eligibility is true exactly when the input already requests gradients and both
 the source and target data types are floating. This flag is descriptor metadata only. It neither
 creates a backward rule nor promises that a backend supports differentiation through the cast.
-Current package-private compiler autograd passes a cotangent through only when source, target, and
-output have the same exact floating type. Cross-floating and non-floating cast differentiation
-remain deferred.
+Current package-private Compiler autograd supports every floating-to-floating CAST: a same-type
+cast reuses the incoming cotangent, while a cross-floating cast creates one ordinary CAST back to
+the source floating type. That reverse cast uses this same forward conversion contract; there is
+no gradient-specific rounding or straight-through rule. A cast with an integral or BOOL source or
+target has no cotangent.
 
 Every call returns a fresh Tensor with a new factory identity. A same-type call is still an
 explicit `CAST` expression rather than an early return of the receiver. Repeated calls remain
@@ -2896,8 +2971,10 @@ Compiler optimization later owns any legal redundant-cast or cast-chain simplifi
 Provenance contains one `Operation` with `CastKind.CAST`, one fresh
 `CastAttrs(targetDataType)`, and the exact one-input list `[input]`. The source type is read from
 the input descriptor and is not duplicated in `CastAttrs`. Construction does not read or mutate
-input storage, convert a value, attach output storage, define rounding or overflow behavior,
-capture a graph, or execute work.
+input storage, convert a value, attach output storage, capture a graph, or execute work. The public
+stateless `CastValueConversions.convert(ScalarValue, DataType)` method is the scalar reference for
+the value policy; it is not a Tensor evaluator, storage adapter, backend capability query, or
+element-loop implementation.
 
 #### Complete cast-expression example
 
@@ -2983,9 +3060,10 @@ immediateInput=true
 
 The output proves fresh same-type identity, exact shape-reference retention, unresolved result
 layout, the gradient-eligibility boundary, absent result label/storage, typed target attributes,
-and immediate-input provenance. It does not prove how any `FLOAT32` value becomes `INT64`, whether
-rounding or saturation occurs, whether a compiler removes the first cast, or whether a backend can
-execute either request.
+and immediate-input provenance. The separate value contract specifies that a represented
+`FLOAT32` value becomes `INT64` by truncation and saturation, but this metadata-only example does
+not evaluate such a value, prove that a compiler removes the first cast, or establish backend
+support.
 
 ##### Failures and useful variations
 
@@ -9279,10 +9357,13 @@ A null target fails during `CastAttrs` construction with
 
 The current `Tensor.cast(DataType)` method separately owns source-descriptor inspection,
 exact shape retention, unresolved result layout, floating-only gradient eligibility, fresh
-same-type identity, and one-input provenance. Neither the semantic pair nor expression
-construction defines numerical conversion rules, gradient rules, compiler capture, execution, or
-backend availability. Accepting every target type is a representability contract, not a promise
-that every backend implements every conversion. Enum and record text remain diagnostic rather than
+same-type identity, and one-input provenance. `CastValueConversions` defines all 36 ordered pairs'
+scalar value meaning: same-type raw identity, direct target-format round-to-nearest ties-to-even,
+deterministic narrowing and widening NaNs, saturating floating-to-integral conversion, signed
+extension or low-bit integral width conversion, and canonical Boolean truthiness. Expression
+construction records but does not evaluate that meaning. Compiler owns the existing floating-only
+reverse rule, and backend availability remains separate; accepting every pair in Model is not a
+promise that every backend executes it. Enum and record text remain diagnostic rather than
 serialization or dispatch contracts.
 
 ### Aggregate reduction semantic kinds and attributes

@@ -10,6 +10,7 @@ import io.github.pho001.synaptik.model.operation.convolution.Conv3dAttrs;
 import io.github.pho001.synaptik.model.operation.elementwise.binary.BinaryArithmeticKind;
 import io.github.pho001.synaptik.model.operation.elementwise.cast.CastAttrs;
 import io.github.pho001.synaptik.model.operation.elementwise.cast.CastKind;
+import io.github.pho001.synaptik.model.operation.elementwise.cast.CastValueConversions;
 import io.github.pho001.synaptik.model.operation.elementwise.classification.FloatingClassificationKind;
 import io.github.pho001.synaptik.model.operation.elementwise.comparison.BinaryComparisonKind;
 import io.github.pho001.synaptik.model.operation.elementwise.logical.BooleanLogicalKind;
@@ -2834,11 +2835,19 @@ public final class Tensor {
      * tensor as its sole provenance input. Gradient eligibility remains true only when the
      * receiver already requests gradients and both source and target types are floating.</p>
      *
-     * <p>A same-type request deliberately creates a fresh explicit expression rather than
-     * returning this tensor. Compiler optimization later owns redundant-cast elimination. This
-     * method records model semantics only: it does not inspect or convert values, preserve
-     * resolved layout, allocate storage, define numerical conversion policy or a cast-back
-     * gradient rule, promise backend differentiability, capture a graph, or execute work.</p>
+     * <p>Each represented value follows {@link CastValueConversions}: same-type values preserve
+     * exact bits; finite floating and integer sources round directly to a floating target with
+     * round-to-nearest, ties-to-even; floating-to-integral conversion truncates toward zero and
+     * saturates; INT32-to-INT64 conversion sign-extends; INT64-to-INT32 conversion retains low
+     * bits; BOOL maps to positive zero or one; and numeric truthiness is false only for zero.
+     * Lossy floating narrowing canonicalizes NaNs, while lossless widening preserves their sign,
+     * quiet/signaling state, and left-aligned complete fraction. A same-type request still creates
+     * a fresh expression rather than returning this tensor.</p>
+     *
+     * <p>This method records those semantics only: it does not inspect or convert values,
+     * preserve resolved layout, allocate storage, define the Compiler-owned cast-back gradient
+     * rule, promise backend differentiability, capture a graph, or execute work. Compiler
+     * optimization later owns redundant-cast elimination.</p>
      *
      * @param targetDataType non-null requested result data type; the exact enum reference is
      *     retained in cast attributes

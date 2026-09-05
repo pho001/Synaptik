@@ -10,9 +10,9 @@ import java.util.Objects;
  * <p>The immutable record accepts every current {@link DataType} and retains the supplied enum
  * reference unchanged. The source data type is intentionally absent because it belongs to the
  * later input Tensor or graph value descriptor; duplicating it here would create two sources of
- * truth. Representing a target does not promise that a backend implements every conversion to
- * that target and does not define compatibility, same-type behavior, or numerical conversion
- * rules.</p>
+ * truth. Every current source and target pair is valid, and {@link CastValueConversions} defines
+ * its exact scalar value meaning. The attributes do not perform conversion or promise that a
+ * backend implements it.</p>
  *
  * <p>Record-generated equality and hashing use the target enum value. Record-generated text is
  * diagnostic only and is not a serialization, parsing, backend-dispatch, or conversion-policy
@@ -38,8 +38,8 @@ public record CastAttrs(DataType targetDataType) implements OperationAttrs {
     /**
      * Returns the exact target data type supplied at construction.
      *
-     * <p>The result carries no source-type knowledge and performs no conversion, compatibility
-     * check, or backend-capability validation.</p>
+     * <p>The result carries no source-type knowledge and performs no conversion or
+     * backend-capability validation.</p>
      *
      * @return the exact stored non-null target data type reference
      */

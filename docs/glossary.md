@@ -2135,9 +2135,17 @@ sole [provenance](#provenance) reference.
 
 Gradient eligibility survives only when it was already requested and both source and target are
 floating. That descriptor fact is not a gradient rule or backend differentiability promise.
-Numerical conversion, redundant-cast and cast-chain canonicalization, autograd expansion, backend
-support, and execution belong to later owning layers. A cast expression is therefore not converted
-storage, a compiler graph node, or proof that a requested conversion can execute.
+Model defines all 36 ordered current-type value conversions through the stateless
+`CastValueConversions` scalar reference: same-type casts preserve raw bits; floating and integral
+sources round directly to floating targets with round-to-nearest, ties-to-even; lossy floating NaNs
+canonicalize while lossless widening left-aligns the complete NaN fraction; floating-to-integral
+conversion truncates and saturates; integral narrowing retains low bits; and numeric truthiness is
+false only for zero. Tensor construction records this meaning without evaluating values or
+storage. Compiler's existing reverse rule applies only to floating-to-floating casts, reusing a
+same-type cotangent or constructing one ordinary cast back to the source type. Redundant-cast and
+cast-chain canonicalization, concrete backend support, and execution remain separate owning-layer
+concerns. A cast expression is therefore not converted storage, a compiler graph node, or proof
+that a requested conversion can execute. See [cast expressions](api/tensor-api.md#cast-expressions).
 
 ### Canonical workload signature
 

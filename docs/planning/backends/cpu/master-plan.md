@@ -256,7 +256,7 @@ created by 0005A. All consume the common analysis above; none creates another ba
 | 0008H | [Portable scaled-dot-product attention execution](tasks/0008h-portable-scaled-dot-product-attention-execution.md) | Complete | 0008G1; Model 0019E/0023F; Compiler 0005D | Implemented the exact static one-/two-output attention subset through schema-57 direct generated execution: optional right-broadcast BOOL mask, top-left causal eligibility, frozen stable normalization, exact per-range score/weight workspace, atomic partition-DAG boundaries, and publication. All 11,880 specializations passed exhaustive structural inspection; the normalized equivalence map supports the 992-row five-fork performance matrix, whose ratios passed; documentation/Javadoc validation passed; and the final CPU checkpoint passed 127 suites/628 tests with 0 failures/errors and 7 expected skips. |
 | 0008I | [Portable loss-family execution](tasks/0008i-portable-loss-family-execution.md) | Complete | 0008H; Model 0022–0022B; Compiler 0005D | Added schema-58 scalar loss execution and passed semantic plus complete 792-Class-File structural evidence. One old-protocol full fork failed 2/792 rows, and the corrected 792-class by five-fork gate was waived/closed by project decision rather than passed; that missing evidence transfers explicitly to CPU 0009. |
 | 0008J | [BFLOAT16 scalar pointwise closure](tasks/0008j-bfloat16-scalar-pointwise-closure.md) | Complete | 0008I; current Model pointwise contracts | Closed exactly 44 current BFLOAT16 pointwise forms through scalar/caller-parallel scalar arrays, segments, mixed carriers, and all five current access regimes. Raw BFLOAT16 virtual locals preserve one encode boundary per producing logical node; WHERE preserves selected bits and predicates emit canonical BOOL. Schema-59, semantic/Class-File, 132-suite/692-test CPU, and five-fork representative `<= 1.15x` evidence passed. No SIMD, CAST, mixed promotion, materialization policy, native route, or fallback was added. |
-| 0008K | Cross-type CAST execution | Draft | 0008J; future Model CAST conversion-semantics task | Implement only Model-defined F64/F32/BF16/I64/I32/BOOL conversions as scalar/parallel-scalar contiguous and affine loops. The prerequisite defines allowed directions, rounding, overflow/underflow, NaN, infinity, signed-zero, BFLOAT16, and BOOL behavior; SIMD is deferred. |
+| 0008K | Cross-type CAST execution | Draft | 0008J; completed [Model 0025L](../../modules/model/tasks/0025l-cross-type-cast-conversion-semantics.md) | Implement only Model-defined F64/F32/BF16/I64/I32/BOOL conversions as scalar/parallel-scalar contiguous and affine loops. Model 0025L defines all 36 ordered pairs, direct target-format rounding, overflow/underflow, deterministic NaN, infinity, signed-zero, integral, and BOOL behavior; SIMD is deferred. |
 | 0008L | Pointwise SIMD mask/output closure | Draft | 0008K; Java 26 Vector API mask support | Close FLOAT32/FLOAT64 dense-contiguous vector and parallel-vector predicate output: materialize canonical BOOL bytes and reload them as `VectorMask` for WHERE on arrays and segments, with scalar tails. Retain virtual masks. FLOOR/CEIL and SIGMOID/SILU/GELU/general POW SIMD remain excluded. |
 | 0008M | Vector MSE `NONE` | Draft | 0008L; 0008I | Add FLOAT32/FLOAT64 contiguous array/segment vector and parallel-vector MSE `NONE` with scalar tail. SUM/MEAN remain scalar because a horizontal vector reduction changes the defined accumulation order. |
 | 0008N | Conv FLOAT32/FLOAT64 SIMD accumulation | Draft | 0008M; benchmark axis spike | Vectorize only the measured profitable Conv2d/Conv3d inner accumulation axis for FLOAT32/FLOAT64, retaining scalar tails and existing output-cell parallelism. Conv1d remains the existing Conv2d composition rather than gaining an emitter; BFLOAT16 is deferred. |
@@ -390,7 +390,9 @@ by detailed Complete [CPU 0008F](tasks/0008f-portable-matmul-execution-and-bound
 [CPU 0008G](tasks/0008g-portable-max-average-pool2d-execution.md) is `Complete`; detailed
 [CPU 0008H](tasks/0008h-portable-scaled-dot-product-attention-execution.md) is `Complete`; CPU
 0008I is `Complete` with its corrected full performance gate explicitly waived/closed by project
-decision rather than passed. Detailed CPU 0008J is `Complete`, and CPU 0008K is the next Draft CPU frontier. CPU 0008A is `Complete`: it
+decision rather than passed. Detailed CPU 0008J and Model 0025L are `Complete`; CPU 0008K remains
+the next Draft CPU frontier with its semantic prerequisite satisfied.
+CPU 0008A is `Complete`: it
 validates Conv1d through the explicit Conv2d
 composition and adds Conv3d execution before the general DAG. CPU 0008B, CPU 0008C, and CPU 0008D
 are `Complete`; detailed [CPU 0008E](tasks/0008e-bounded-multi-input-materialization-and-representation-reuse.md)
@@ -420,7 +422,8 @@ task prohibited glossary edits. The corrected maximum is 43 paths (14 production
 test/evidence, and 5 documentation/planning), with exactly 36 actual paths after the guide and
 glossary were added. User-authorized Prepare 0003A, detailed CPU 0008E1, and CPU 0008F are
 `Complete`. Detailed CPU 0008G, CPU 0008G1, CPU 0008H, and CPU 0008I are `Complete`; detailed CPU
-0008J is `Complete`, and CPU 0008K is the next Draft CPU family frontier. The inserted pooling order is Model 0025I -> Model 0025J -> Model 0025K -> Compiler
+0008J and Model 0025L are `Complete`; CPU 0008K remains the next Draft CPU family frontier with
+its semantic prerequisite satisfied. The inserted pooling order is Model 0025I -> Model 0025J -> Model 0025K -> Compiler
 0006B1 -> Compiler 0006B2 -> CPU 0008G1 -> CPU 0008H. The existing order through Model 0025G,
 Model 0025H, Compiler 0006B, and CPU 0008–0008G remains unchanged; Compiler 0006C remains a
 separate gradient-closure task that does not block CPU forward execution. CPU
@@ -441,7 +444,8 @@ Complete CPU 0008E1, detailed Complete CPU 0008F, detailed Complete CPU 0008G, a
 close the pooling execution frontier; detailed
 [CPU 0008H](tasks/0008h-portable-scaled-dot-product-attention-execution.md) is `Complete`; CPU
 0008I is `Complete` with the recorded performance validation exception, detailed CPU 0008J is
-`Complete`, and CPU 0008K is the next Draft CPU implementation frontier.
+`Complete`; Model 0025L is `Complete`, and CPU 0008K remains the next Draft CPU implementation
+frontier with its semantic prerequisite satisfied.
 
 CPU 0008G1 retains the visible three-occurrence Pool1d graph while recognizing only the exact
 private singleton-height topology for schema-55 Pool2d reuse. Its first-class Pool3d implementation
@@ -914,7 +918,8 @@ and detailed CPU 0007E and CPU 0007F are `Complete`, while detailed CPU 0007F1 i
 detailed CPU 0007F2, detailed CPU 0008, detailed CPU 0008A, and detailed CPU 0008B are `Complete`;
 CPU 0008C, detailed CPU 0008D, detailed CPU 0008E, and detailed CPU 0008E1 are `Complete`;
 CPU 0008F, detailed CPU 0008G, detailed CPU 0008G1, detailed CPU 0008H, and CPU 0008I are
-`Complete`; detailed CPU 0008J is `Complete`, CPU 0008K is the next Draft frontier, CPU 0008K through 0008P are ordered Draft
+`Complete`; detailed CPU 0008J and Model 0025L are `Complete`, CPU 0008K remains the next Draft
+frontier with its semantic prerequisite satisfied, and CPU 0008K through 0008P are ordered Draft
 follow-ups, and CPU 0009 through 0017 remain Draft. Prepare
 0003A is Complete.
 CPU 0005C preserves that exact slice and implements cold selection among all four portable
@@ -1173,10 +1178,12 @@ the work at the active frontier.
   bounded vector work after CAST. Virtual masks remain the fusion form. Current Java 26 Vector API
   has no suitable FLOOR/CEIL operators, so those operations remain scalar; SIGMOID, SILU,
   GELU-TANH approximation, and general POW require a separate numerical and cost proof.
-- **CPU 0008K cross-type CAST** — exact CPU conversions wait for a Model-owned conversion-semantics
-  task defining source/target compatibility and observable rounding, truncation or saturation,
-  overflow, underflow, NaN, infinity, signed-zero, BFLOAT16, and BOOL behavior. Java primitive or
-  Vector API conversion availability is not that semantic authority.
+- **CPU 0008K cross-type CAST** — completed
+  [Model 0025L](../../modules/model/tasks/0025l-cross-type-cast-conversion-semantics.md) now defines
+  all 36 ordered current-type pairs and observable direct rounding,
+  truncation/saturation, overflow/underflow, deterministic NaN, infinity, signed-zero, integral,
+  BFLOAT16, and BOOL behavior. Java primitive or Vector API conversion availability is not that
+  semantic authority.
 
 ## Open questions
 
@@ -1320,7 +1327,8 @@ the work at the active frontier.
   detailed Complete CPU 0008G1 delivers Pool1d composition recognition plus direct Pool3d, and
   detailed Complete CPU 0008H delivers attention execution; CPU 0008I is Complete with its
   corrected full performance evidence missing/deferred to CPU 0009, detailed CPU 0008J is
-  `Complete`, and CPU 0008K is the next Draft frontier. This planning
+  `Complete`; Model 0025L is `Complete`, and CPU 0008K remains the next Draft frontier with its
+  semantic prerequisite satisfied. This planning
   refinement changes neither architecture nor the required 0008 -> 0008A -> 0008B -> 0008C ->
   0008D -> 0008E -> Prepare 0003A -> CPU 0008E1 -> CPU 0008F order.
 - CPU 0008 resolves its in-progress split contradiction locally. `CpuPartitionPreparationPlan`

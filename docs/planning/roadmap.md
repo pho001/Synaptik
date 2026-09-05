@@ -152,9 +152,11 @@ CPU checkpoint all passed. CPU 0008I is `Complete` with an explicit project-deci
 exception: semantic and complete 792-Class-File structural evidence passed, but one old-protocol
 full fork failed 2/792 rows and the corrected full 792-class by five-fork gate was waived/closed,
 not passed. Its missing corrected performance evidence transfers to CPU 0009. Detailed
-[CPU 0008J](backends/cpu/tasks/0008j-bfloat16-scalar-pointwise-closure.md) is `Complete`; CPU 0008K
-is the next Draft CPU frontier. The ordered post-0008I CPU plan is BFLOAT16 scalar
-pointwise closure, Model-defined cross-type CAST followed by scalar CPU casts, pointwise SIMD
+[CPU 0008J](backends/cpu/tasks/0008j-bfloat16-scalar-pointwise-closure.md) and
+[Model 0025L](modules/model/tasks/0025l-cross-type-cast-conversion-semantics.md) are `Complete`;
+CPU 0008K remains the next Draft CPU frontier with its semantic prerequisite satisfied.
+The ordered post-0008I CPU plan is BFLOAT16 scalar pointwise closure, Model-defined cross-type
+CAST semantics followed by scalar CPU casts, pointwise SIMD
 mask/output closure, MSE `NONE` SIMD, measured Conv SIMD, a stable-reduction numerical spike, then
 partial-reduction parallelism. CPU 0009 follows that sequence. CPU 0008A validates Conv1d through
 the visible Conv2d composition and adds direct Conv3d execution. CPU 0008B–0008E only then add
@@ -209,8 +211,10 @@ is Complete. Detailed
 [Model 0025J First-class NCDHW max/average Pool3d semantics](modules/model/tasks/0025j-first-class-ncdhw-max-average-pool3d-semantics.md)
 is Complete. Detailed
 [Model 0025K Public NCDHW unfold3d and fold3d window transforms](modules/model/tasks/0025k-public-ncdhw-unfold3d-and-fold3d-window-transforms.md)
-is Complete. Model 0026 remains Draft without a detailed specification, and no Model task is Ready
-or In progress. Detailed
+is Complete. Detailed
+[Model 0025L Cross-type CAST conversion semantics](modules/model/tasks/0025l-cross-type-cast-conversion-semantics.md)
+is `Complete` and unblocks Draft CPU 0008K. Model 0026 remains Draft without a detailed
+specification, and no Model task is Ready or In progress. Detailed
 [Compiler 0006B1 Pool3d and 3D-window forward adoption and explicit gradient boundary](modules/compiler/tasks/0006b1-pool3d-and-3d-window-forward-adoption-and-explicit-gradient-boundary.md)
 is Complete. Detailed
 [Compiler 0006B2 Pool3d and 3D-window gradient closure](modules/compiler/tasks/0006b2-pool3d-and-3d-window-gradient-closure.md)
@@ -234,8 +238,9 @@ is Complete. Detailed
 are Complete. Detailed
 [CPU 0008H](backends/cpu/tasks/0008h-portable-scaled-dot-product-attention-execution.md) and CPU
 0008I are Complete; CPU 0008I records the owner-waived performance exception, and detailed
-[CPU 0008J](backends/cpu/tasks/0008j-bfloat16-scalar-pointwise-closure.md) is `Complete`; CPU 0008K
-is the next Draft CPU implementation frontier.
+[CPU 0008J](backends/cpu/tasks/0008j-bfloat16-scalar-pointwise-closure.md) and Model 0025L are
+`Complete`; CPU 0008K remains the next Draft CPU implementation frontier with its semantic
+prerequisite satisfied.
 
 CPU 0008F completes the fully static portable MATMUL family at schema 54 across all thirteen
 ordered non-BOOL numeric promotions, vector/matrix/batched/right-broadcast geometry, four bounded
@@ -439,8 +444,9 @@ owns batch training/statistic transition. CPU 0007F, CPU 0007F1, CPU 0007F2, and
 0008E1, detailed CPU 0008F, detailed CPU 0008G, and detailed CPU 0008G1 are Complete; detailed
 [CPU 0008H](backends/cpu/tasks/0008h-portable-scaled-dot-product-attention-execution.md) and CPU
 0008I are Complete; detailed
-[CPU 0008J](backends/cpu/tasks/0008j-bfloat16-scalar-pointwise-closure.md) is `Complete`; CPU 0008K
-is the next Draft CPU implementation frontier.
+[CPU 0008J](backends/cpu/tasks/0008j-bfloat16-scalar-pointwise-closure.md) and Model 0025L are
+`Complete`; CPU 0008K remains the next Draft CPU implementation frontier with its semantic
+prerequisite satisfied.
 A completed local
 bytecode/performance audit then inserted detailed
 [CPU 0007A0 generated hot-path parity correction](backends/cpu/tasks/0007a0-generated-hot-path-parity-correction.md)
@@ -798,8 +804,9 @@ CPU 0007A1O, CPU 0007A2, detailed CPU 0007B, and detailed CPU 0007C are `Complet
 CPU 0008F, detailed CPU 0008G, and detailed CPU 0008G1 are `Complete`; detailed
 [CPU 0008H](backends/cpu/tasks/0008h-portable-scaled-dot-product-attention-execution.md) and CPU
 0008I are `Complete`; detailed
-[CPU 0008J](backends/cpu/tasks/0008j-bfloat16-scalar-pointwise-closure.md) is `Complete`, CPU 0008K
-is the next Draft frontier, CPU 0008K through CPU 0008P are ordered Draft follow-ups, and CPU 0009 through CPU 0017
+[CPU 0008J](backends/cpu/tasks/0008j-bfloat16-scalar-pointwise-closure.md) and Model 0025L are
+`Complete`, CPU 0008K remains the next Draft frontier with its semantic prerequisite satisfied, CPU 0008K through CPU
+0008P are ordered Draft follow-ups, and CPU 0009 through CPU 0017
 remain Draft.
 CPU 0003
 implements a
@@ -1071,8 +1078,8 @@ performance evidence. Combining them would exceed one cohesive implementation se
 Complete CPU 0008F and detailed Complete CPU 0008G retain MATMUL/linear-epilogue and Pool2d
 ownership. Complete detailed CPU 0008G1 owns Pool1d composition validation and Pool3d execution
 before detailed Complete CPU 0008H owns attention execution; CPU 0008I is Complete with its
-corrected full performance evidence missing/deferred, detailed CPU 0008J is `Complete`, and CPU
-0008K is the next Draft frontier.
+corrected full performance evidence missing/deferred, and detailed CPU 0008J and Model 0025L are
+`Complete`; CPU 0008K remains the next Draft frontier with its semantic prerequisite satisfied.
 These family rows remain their
 implementation owners rather than being replaced by
 generic fusion planning.
@@ -1153,8 +1160,8 @@ CPU legality, recognition, or selection. Complete
 adopted the shared partition DAG without changing CPU policy or generated/hot code; detailed
 Complete CPU 0008F delivers MATMUL and detailed Complete CPU 0008G delivers pooling. Detailed
 Complete CPU 0008H owns attention execution; CPU 0008I is Complete with an explicit owner-waived
-performance validation exception, detailed CPU 0008J is `Complete`, and CPU 0008K is the next
-separate Draft frontier.
+performance validation exception, and detailed CPU 0008J and Model 0025L are `Complete`; CPU 0008K
+remains the next separate Draft frontier with its semantic prerequisite satisfied.
 CPU 0009 depends on the ordered CPU 0008A–0008E, Prepare 0003A, CPU 0008E1, and CPU 0008F–0008P
 sequence
 and closes dimensional convolution before the general decomposition, recognition, profitability,
@@ -1176,7 +1183,8 @@ inventory justifies it; otherwise, the checkpoint uses a justified representativ
 carriers, loop shapes, and algorithm branches. CPU 0008I's corrected full 792-class by five-fork
 performance evidence is explicitly missing/deferred and must be classified and rerun at this
 checkpoint. No whole-backend performance-parity claim closes until those gaps pass. Detailed CPU
-0008J is `Complete`, CPU 0008K is the next Draft prerequisite/frontier, and detailed CPU 0009 planning follows only after
+0008J and Model 0025L are `Complete`, CPU 0008K remains the next Draft CPU frontier with its
+semantic prerequisite satisfied, and detailed CPU 0009 planning follows only after
 the ordered CPU 0008J–0008P sequence completes.
 
 Portable generation uses family-specific typed lowerers plus shared scalar, vector, heap,
@@ -1302,7 +1310,8 @@ Detailed CPU 0007C, detailed CPU 0007D, detailed CPU 0007E, and detailed CPU 000
 Detailed CPU 0007F1, CPU 0007F2, CPU 0008, CPU 0008A, CPU 0008B, CPU 0008C, and CPU 0008D are
 `Complete`; detailed CPU 0008E and CPU 0008E1 are `Complete`; CPU 0008F is
 `Complete`; detailed CPU 0008G, CPU 0008G1, CPU 0008H, and CPU 0008I are `Complete`; detailed CPU
-0008J is `Complete`, and CPU 0008K is the next Draft CPU frontier, while CPU 0008K–0017 and the refined Config,
+0008J and Model 0025L are `Complete`, and CPU 0008K remains the next Draft CPU frontier with its
+semantic prerequisite satisfied, while CPU 0008K–0017 and the refined Config,
 Metal, and tuning rows remain `Draft`. Prepare 0003A is
 Complete.
 Completed OpenBLAS history and every completed project area remain unchanged.
@@ -2850,7 +2859,8 @@ authorized Compile API status correction.
 | 132 | [0025I NCW max/average Pool1d composition](modules/model/tasks/0025i-ncw-max-average-pool1d-composition.md) | Complete |
 | 133 | [0025J First-class NCDHW max/average Pool3d semantics](modules/model/tasks/0025j-first-class-ncdhw-max-average-pool3d-semantics.md) | Complete |
 | 134 | [0025K Public NCDHW unfold3d and fold3d window transforms](modules/model/tasks/0025k-public-ncdhw-unfold3d-and-fold3d-window-transforms.md) | Complete |
-| 135 | 0026 IEEE FLOAT16 and mixed-precision semantic contracts | Draft (future interleave; no detailed specification) |
+| 135 | [0025L Cross-type CAST conversion semantics](modules/model/tasks/0025l-cross-type-cast-conversion-semantics.md) | Complete |
+| 136 | 0026 IEEE FLOAT16 and mixed-precision semantic contracts | Draft (future interleave; no detailed specification) |
 
 Task dependencies in the model master plan remain hard prerequisites. The table order is the default execution order even when a later task has no explicit dependency on an earlier task.
 

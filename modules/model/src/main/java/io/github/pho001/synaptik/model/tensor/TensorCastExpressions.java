@@ -4,6 +4,7 @@ import io.github.pho001.synaptik.model.datatype.DataType;
 import io.github.pho001.synaptik.model.operation.Operation;
 import io.github.pho001.synaptik.model.operation.elementwise.cast.CastAttrs;
 import io.github.pho001.synaptik.model.operation.elementwise.cast.CastKind;
+import io.github.pho001.synaptik.model.operation.elementwise.cast.CastValueConversions;
 import io.github.pho001.synaptik.model.shape.Shape;
 import java.util.List;
 import java.util.Objects;
@@ -19,10 +20,11 @@ import java.util.Optional;
  * one-input provenance, and delegates identity allocation exactly once to the central Tensor
  * factory.</p>
  *
- * <p>Construction is eager only for expression metadata. This helper does not inspect or convert
- * values or storage, preserve physical layout, define numerical or gradient rules, query backend
- * compatibility, capture a graph, or eliminate same-type and chained casts. A same-type request is
- * a fresh explicit expression because compiler optimization owns redundant-cast removal.</p>
+ * <p>Construction is eager only for expression metadata. Values follow the exact scalar contract
+ * in {@link CastValueConversions}, but this helper does not inspect or convert values or storage,
+ * preserve physical layout, define gradient rules, query backend compatibility, capture a graph,
+ * or eliminate same-type and chained casts. A same-type request is a fresh explicit expression
+ * because compiler optimization owns redundant-cast removal.</p>
  */
 final class TensorCastExpressions {
     /** Prevents instantiation because cast expression construction is stateless. */

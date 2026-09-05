@@ -17,9 +17,12 @@ import java.util.List;
  * io.github.pho001.synaptik.model.operation.Operation Operation} construction enforces that exact
  * pairing.</p>
  *
- * <p>This vocabulary requests conversion but does not define source-to-target compatibility,
- * same-type behavior, result inference, numerical conversion rules, gradients, execution, or
- * backend availability. Enum identity supplies typed equality and hashing. The inherited {@link
+ * <p>Every current source and target data-type pair is valid. {@link CastValueConversions}
+ * defines the exact scalar value meaning, including identity-preserving same-type conversion,
+ * direct floating rounding, deterministic NaN handling, saturating floating-to-integral
+ * conversion, integral width conversion, and Boolean truthiness. Tensor result inference and
+ * gradient eligibility belong to the expression contract; execution and backend availability
+ * remain backend-specific. Enum identity supplies typed equality and hashing. The inherited {@link
  * #name()} and {@link #toString()} text is diagnostic only, not a serialization, parsing,
  * registry, reflection, dispatch, or kernel contract.</p>
  */
@@ -28,9 +31,9 @@ public enum CastKind implements OperationKind {
      * Converts each value from one logical input to the target data type in {@link CastAttrs}.
      *
      * <p>The source data type remains a fact of the later input descriptor and is not duplicated
-     * in the operation attributes. Source-to-target compatibility, same-type handling, result
-     * inference, rounding and other numerical policy, gradient behavior, execution, and backend
-     * availability belong to later owning contracts.</p>
+     * in the operation attributes. All current source and target pairs use the value contract in
+     * {@link CastValueConversions}. Result inference and gradient behavior belong to the Tensor
+     * and Compiler contracts; execution and availability remain backend-specific.</p>
      */
     CAST;
 

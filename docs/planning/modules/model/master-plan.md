@@ -303,6 +303,7 @@ Operation-family subpackages are introduced only when a focused operation task d
 | 0025I | [NCW max/average Pool1d composition](tasks/0025i-ncw-max-average-pool1d-composition.md) | Complete | 0020A–0020A1; 0017F1; Compiler 0005D pooling gradients | Added rank-specific NCW max and fixed-count average pooling as exact visible `EXPAND_DIMS(axis 2) -> POOL2D -> SQUEEZE(axis 2)` composition, preserving literal width geometry, padding, exceptional values, accumulation/rounding, and Pool2d gradients without a Pool1d operation kind. |
 | 0025J | [First-class NCDHW max/average Pool3d semantics](tasks/0025j-first-class-ncdhw-max-average-pool3d-semantics.md) | Complete | 0025I; 0020A–0020A1; 0018K–0018N; 0018V | Added rank-specific first-class `MAX_POOL3D` and `AVERAGE_POOL3D` Model metadata with literal per-axis floor/ceil grids, excluded maximum padding, fixed count-padding average divisors, depth-height-width first-winner order, current floating policies, and canonical one-input provenance. |
 | 0025K | [Public NCDHW unfold3d and fold3d window transforms](tasks/0025k-public-ncdhw-unfold3d-and-fold3d-window-transforms.md) | Complete | 0025J; 0023D | Added canonical rank-three NCDHW window columns, direct positive-zero and exact typed padding, literal depth-height-width floor/ceil geometry, and exact target-Shape overlap fold with deterministic type-specific addition. No pooling-specific gradient primitive or generic WindowNd was added. |
+| 0025L | [Cross-type CAST conversion semantics](tasks/0025l-cross-type-cast-conversion-semantics.md) | Complete | 0025K; 0001; 0003A; 0015G–0015H; 0018N; 0018U; owner-approved conversion policy | Defined all 36 ordered current-type CAST meanings with exact same-type bits, direct RNE floating/integer conversion, deterministic NaNs, saturating floating-to-integral conversion, modulo integral narrowing, BOOL truthiness, one Model scalar conformance oracle, and the unchanged floating-only differentiation boundary; CPU 0008K is unblocked but remains Draft. |
 | 0026 | IEEE FLOAT16 and mixed-precision semantic contracts | Draft | 0001, 0018N, completed operation-family semantics; required before any backend advertises FLOAT16 | Preserve BFLOAT16, add distinct true IEEE-754 binary16 `FLOAT16`, and audit affected families for explicit input, accumulation/intermediate, and output types without adding backend support. |
 
 ## Milestones
@@ -376,6 +377,12 @@ Operation-family subpackages are introduced only when a focused operation task d
   complete Compiler 0006B1 adopts the two Pool3d and three 3D-window forward signatures,
   complete Model 0025K owns window algebra, Complete Compiler 0006B2 owns the detailed gradient
   closure, and Complete CPU 0008G1 supplies the bounded fully static Pool3d CPU execution subset.
+- Current-type CAST closure: detailed
+  [task 0025L](tasks/0025l-cross-type-cast-conversion-semantics.md) is Complete after 0025K and
+  before future 0026. It defines all 36 ordered current-type pairs,
+  direct target-format rounding, exact NaN/zero/infinity/integer/Boolean behavior, and one scalar
+  conformance oracle while preserving the existing floating-only Compiler gradient boundary.
+  CPU 0008K remains the next Draft CPU frontier with its Model prerequisite now complete.
 - Future mixed-precision semantic foundation: task 0026 remains Draft without a detailed
   specification. It must complete before any backend advertises FLOAT16, but it does not block
   current CPU generated-artifact caching, current-type portable analysis/finalization, or
@@ -1959,8 +1966,10 @@ Compiler 0006B independently adopts its Conv3d descriptor contract for forward-o
 gradient closure remains downstream work. Detailed
 [Model 0025I](tasks/0025i-ncw-max-average-pool1d-composition.md) and
 [Model 0025J](tasks/0025j-first-class-ncdhw-max-average-pool3d-semantics.md) are Complete. Detailed
-[Model 0025K](tasks/0025k-public-ncdhw-unfold3d-and-fold3d-window-transforms.md) is Complete. Model
-0026 remains Draft without a detailed specification; no Model task is Ready or In progress.
+[Model 0025K](tasks/0025k-public-ncdhw-unfold3d-and-fold3d-window-transforms.md) is Complete.
+Detailed [Model 0025L](tasks/0025l-cross-type-cast-conversion-semantics.md) is `Complete`; it
+unblocks Draft CPU 0008K. Model 0026 remains Draft without a detailed specification; no Model task
+is Ready or In progress.
 Detailed Compiler 0006B1 is Complete. Detailed
 [Compiler 0006B2](../compiler/tasks/0006b2-pool3d-and-3d-window-gradient-closure.md) is Complete;
 Detailed [CPU 0008G1](../../backends/cpu/tasks/0008g1-portable-pool1d-composition-validation-and-pool3d-generated-execution.md)

@@ -406,6 +406,15 @@ deterministic accumulation. `WHERE` applies this rule independently to its two b
 MATMUL applies it after its rank-specific formula and batch-unbroadcast step. The BOOL condition,
 mask, and other non-floating control roles receive no cotangent.
 
+For a forward `CAST`, the existing rule is similarly limited to floating source and target types.
+A same-type occurrence reuses the incoming cotangent; a cross-floating occurrence creates one
+ordinary `CAST` back to the source type. That generated expression uses the same Model-owned
+forward conversion contract documented in the [Tensor API](tensor-api.md#cast-expressions),
+including direct target-format rounding and deterministic NaN behavior. Compiler adds no
+gradient-specific rounding, saturation, straight-through estimator, or value evaluator. Any cast
+with an integral or BOOL source or target remains non-differentiable, and this documentation change
+adds no Compiler production behavior.
+
 Binary DIV constructs the left contribution as `g / right` and the right contribution in the
 exact order `-(g * left) / (right * right)`. Scalar DIV constructs `g / scalar`. These are
 ordinary Tensor expressions: they inherit the same division, multiplication, negation, NaN,
@@ -842,7 +851,10 @@ condition/true-branch/false-branch provenance. It constructs no selected values 
 `Tensor.cast` accepts every current source/target data-type pair, retains the exact input shape,
 leaves layout unresolved, and retains a true gradient request only for floating-to-floating casts.
 Every call remains a fresh explicit expression, including a same-type request, with typed target
-attributes and exact one-input provenance.
+attributes and exact one-input provenance. Model's
+[`CastValueConversions` contract](tensor-api.md#cast-expressions) now fixes the observable value
+meaning for all 36 pairs; Compiler continues only to preserve and validate the expression and to
+apply the existing floating-only reverse rule described above.
 `Tensor.sumToShape(Shape)` currently constructs one fresh numeric SUM expression whose descriptor
 and `SumToShapeAttrs` retain the exact target Shape. The target is right-aligned with the input:
 leading axes reduce, aligned target-one axes reduce and remain, and equal aligned axes preserve.
