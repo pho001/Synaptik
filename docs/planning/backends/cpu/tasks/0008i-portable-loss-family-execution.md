@@ -2,7 +2,7 @@
 
 ## Status
 
-In progress.
+Complete, with the corrected full performance gate waived/closed by project decision.
 
 ## Goal
 
@@ -240,6 +240,11 @@ package, route, public type, or module edge is needed, stop and propose a follow
 9. The mandatory documentation-focused pass independently finalizes affected Javadocs/docs/
    glossary/planning evidence and records reasoned no-change conclusions where applicable.
 
+Acceptance criterion 8 was not satisfied. The project owner explicitly accepted a validation
+exception and closed the remaining CPU 0008I performance forks so implementation can progress.
+This decision changes only the task-completion gate: it does not turn the failed old-protocol fork,
+the targeted diagnostics, or the unrun corrected full protocol into passing performance evidence.
+
 ## Tests / validation
 
 Tier 1: focused CPU capability, IR, lowering, frozen oracle, validator, generated binding,
@@ -278,8 +283,12 @@ Dependencies are Complete CPU 0008H; Model 0022–0022B; Compiler 0005D; and the
 
 ## Follow-up tasks
 
-- CPU 0009 remains the next Draft generated-coverage checkpoint. Do not create CPU 0008J or any
-  later task specification in this change.
+- CPU 0008J is the next Draft CPU frontier; its detailed task specification belongs to the next
+  separate planning context and is not created here.
+- CPU 0009 remains the later Draft generated-coverage checkpoint. Its evidence inventory must
+  classify CPU 0008I's corrected full 792-class by five-fork performance evidence as missing and
+  rerun it unless then-current evidence makes it stale or otherwise insufficient under CPU 0009's
+  explicit classification rules. This transfer does not establish whole-backend parity.
 
 ## Architecture impact
 
@@ -332,9 +341,59 @@ structural equivalence guard, not permission to make the Java oracle slower.
 
 Dynamic and unproved representations remain unsupported by this task and fail closed.
 
+The corrected synchronous-C2, 32-interleaved-sub-batch full 792-class by five-fork protocol was
+deliberately not run. Loss-family generated/direct near-parity therefore remains unproved across
+the complete schema-58 inventory. The retained measurements show moving timing outliers but do not
+prove that every outlier is environmental or exclude an undiscovered case-specific performance
+defect. CPU 0009 owns classification and rerun of this missing evidence before any whole-backend
+performance-parity claim.
+
 ## Validation evidence
 
-Empty until implemented.
+- Production loss implementation is committed at `4658a58f`. The final diagnostic and harness
+  correction changed no production generated code.
+- Existing semantic/focused validation passed, and the complete 792-Class-File evidence passed.
+  Retained structural evidence under
+  `/private/tmp/synaptik-cpu-0008i-correction-20260904/structural` reports all 792 schema-58 classes,
+  complete `javap -c -v -p`, and no hidden Synaptik helper/fallback, allocation, boxing,
+  reflection, method-handle/`invokedynamic`, collection/string dispatch, monitor, or
+  graph/layout/cache/route/resource/worker lookup defect.
+- A retained 24-row by five-fork preflight at
+  `/private/tmp/synaptik-cpu-0008i-retained-preflight-CEeO9Q` passed all rows; fork maxima were in
+  the approximately `1.03x` to `1.06x` range and the overall maximum was `1.060877345937x`.
+- One clean old-protocol full fork at
+  `/private/tmp/synaptik-cpu-0008i-full-performance-final-clean` completed all 792 rows in about
+  1 hour 31 minutes and failed 2 of 792: row 714 measured `1.2680900292x` and row 788 measured
+  `1.1972692830x`. It is failure evidence, not a performance pass; forks 2 through 5 were not run.
+- A retained targeted 16-row by five-fork diagnostic under
+  `/private/tmp/synaptik-cpu-0008i-correction-20260904/baseline` showed those original two rows
+  passing while a sibling row moved above the gate at `1.2196841898x`.
+- The retained JIT diagnostic at
+  `/private/tmp/synaptik-cpu-0008i-jit-diagnostic-20260904` covers 12 forks and 324 measurements
+  across targeted/all-loaded and tiered/C2-only modes. It records moving two-sided outliers,
+  normal and on-stack-replacement (OSR) C2 compilation of the target methods, no relevant uncommon
+  traps, and symmetric inlining/carrier adaptation. It proved no emitter defect.
+- The final uncommitted harness correction uses synchronous C2-only child JVMs and 32 alternating
+  equal-count generated/direct sub-batches. It adds no retry, discarded interval, threshold
+  weakening, oracle slowdown, specialization, or extra timed-loop work. The implementation-owned
+  focused non-performance run passed 12 tests with 2 opt-in performance skips, and its
+  `git diff --check` passed. This documentation context did not rerun stable Java or performance
+  suites because it changed no executable Java or Javadoc.
+- The corrected full 792-class by five-fork protocol was deliberately not rerun. By explicit
+  project-owner decision, that gate is waived/closed for CPU 0008I only and its evidence is
+  missing/deferred to CPU 0009; it did not pass.
+- Documentation-focused completion context `01a06d82-d72e-7c93-b762-ef8e43ff1976` reviewed
+  `AGENTS.md`, the architecture contract and focused performance-evidence explanation, the planning
+  guide, CPU master plan, roadmap, this task, the General/Planning/API-and-Javadoc profiles, the
+  final Java test diff, retained evidence, affected Javadocs, and glossary impact. Only planning
+  status/evidence documents required edits. Production Javadocs remain accurate because no
+  production Java behavior, API, invariant, lifecycle, parameter, return, failure, or ownership
+  contract changed. The test-only private harness Javadoc accurately describes its corrected
+  measurement behavior. No new or changed reusable project term requires a glossary edit.
+- Documentation validation passed: a Ruby local-link/heading-anchor check over the three edited
+  planning files, a Ruby heading-uniqueness check, a Ruby Markdown-fence check, `rg` stale-0008I-
+  status inspection, an exact `git diff --name-only -- docs` three-path check, and final
+  `git diff --check`. No Javadoc command ran because this pass changed no Java/Javadoc.
 
 ## Implementation notes
 
@@ -348,9 +407,10 @@ The subsequent generated-body segment added the CPU-private `CpuLossIr`, cold
 `CpuLossLowering.Geometry`, direct `CpuLossEmitter`, frozen test-only reference oracle, and
 schema-58 loss dispatch through the existing preparation/finalization/executable carrier path.
 It intentionally does not add the separately assigned `CpuLossInputValidator` pre-write
-lifecycle invocation or the complete 792-class structural/performance harness. Consequently this
-task remains `In progress`: the segment is not evidence that all index validation, complete
-inventory evidence, or the task-level acceptance criteria are complete. The required independent
+lifecycle invocation or the complete 792-class structural/performance harness. Consequently, at
+that implementation checkpoint the task remained `In progress`: the segment was not evidence that
+all index validation, complete inventory evidence, or the task-level acceptance criteria were
+complete. The required independent
 documentation pass reviewed the affected Javadocs. A narrow direct-emission correction also
 proves that a non-ignored invalid index throws before the generated body reads logits or writes
 the affected output; it is a defensive generated-body property, not a replacement for the still
@@ -395,10 +455,40 @@ glossary term, master-plan status, or roadmap status. The affected binding helpe
 documents that a failed contiguous proof uses the public generic-affine entry rather than
 rejecting a valid invocation. `./gradlew :backends:cpu:javadoc` passed after that edit (57
 pre-existing unrelated warnings); Markdown headings/fences, the task's no-link state, and
-whitespace/diff review passed. No Java test suite was rerun by this documentation-only pass. This
-task remains `In progress`: no complete 792-class structural inventory or required five-fork
-performance evidence has been recorded here.
+whitespace/diff review passed. No Java test suite was rerun by this documentation-only pass. At
+that documentation checkpoint the task remained `In progress`: no complete 792-class structural
+inventory or required five-fork performance evidence had yet been recorded.
+
+Final diagnostic work retained complete semantic and 792-Class-File structural evidence, one
+failed old-protocol 792-row fork, focused preflight/diagnostic measurements, and the 12-fork JIT
+analysis described above. It then corrected only the private performance harness to synchronous
+C2-only children and 32 alternating equal-count sub-batches. The project owner deliberately chose
+not to spend the additional time on the corrected full 792-class by five-fork run and explicitly
+accepted closure with that validation exception. CPU 0008I is therefore Complete without a
+performance-pass claim; CPU 0009 receives the corrected full evidence as missing/deferred.
 
 ## Completion summary
 
-In progress; no completion claim has been made.
+- Completed changes: the committed schema-58 portable loss implementation is closed, and the
+  final test-only harness correction plus truthful validation exception are recorded without
+  changing production generated code.
+- Files changed or created by this documentation pass:
+  `docs/planning/backends/cpu/tasks/0008i-portable-loss-family-execution.md`,
+  `docs/planning/backends/cpu/master-plan.md`, and `docs/planning/roadmap.md`.
+- Tests and validation: reused the implementation-owned 12-test focused pass with 2 opt-in skips,
+  complete 792-Class-File structural evidence, retained performance/JIT diagnostics, and prior
+  `git diff --check`; this pass ran documentation status/link/anchor/fence/path checks and final
+  `git diff --check` only.
+- Documentation-agent review: clean documentation completion context
+  `01a06d82-d72e-7c93-b762-ef8e43ff1976` finalized the task, CPU master-plan, and roadmap evidence.
+- Documentation impact: planning status, validation exception, residual risk, and CPU 0009
+  evidence transfer are synchronized; architecture and explanatory guides remain unchanged.
+- Javadoc review: no production Javadoc change is needed because the latest correction is confined
+  to private test-harness measurement behavior; its affected test Javadoc is accurate.
+- Glossary impact: none; no reusable project term or existing term boundary changed.
+- Unresolved issues: corrected full 792-class by five-fork generated/direct evidence is missing,
+  so complete loss-family near-parity and whole-backend performance parity are not established.
+- Follow-up required: CPU 0009 must classify this evidence as missing and rerun it when that
+  checkpoint reaches the frontier; CPU 0008J is the next separate planning task.
+
+Status: Complete

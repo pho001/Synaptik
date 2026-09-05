@@ -53,7 +53,9 @@ import org.junit.jupiter.api.io.TempDir;
  *
  * <p>The parent process only coordinates five fresh Java forks.  A fork constructs every exact
  * schema-58 identity, defines its Class-File, alternates generated and frozen-oracle trials, and
- * records all raw values without retry or discard.  The ordinary CPU suite skips this test unless
+ * records all raw values without retry or discard. Measured children use synchronous C2-only
+ * compilation so tier transitions and background compiler activity cannot favor one peer. The
+ * ordinary CPU suite skips this test unless
  * either {@code SYNAPTIK_CPU_LOSS_PERFORMANCE=true} or {@code -Dsynaptik.cpu.loss.performance=true}
  * and a caller-supplied evidence root are present.
  * The oracle selection occurs before timing; the measured oracle call is one family/type-specific
@@ -72,6 +74,7 @@ class CpuLossPerformanceTest {
     private static final int FORKS = 5;
     private static final int WARMUP_ROUNDS = 5;
     private static final int MEASUREMENTS = 9;
+    private static final int INTERLEAVED_SUB_BATCHES = 32;
     /*
      * A timed side adapts to elapsed time.  Without an equal-count warmup, the much faster
      * oracle reaches C2 compilation while the generated entry receives only a few hundred
@@ -273,6 +276,7 @@ class CpuLossPerformanceTest {
                 () -> assertEquals(5, WARMUP_ROUNDS),
                 () -> assertEquals(2_048, WARMUP_INVOCATIONS_PER_SIDE),
                 () -> assertEquals(9, MEASUREMENTS),
+                () -> assertEquals(32, INTERLEAVED_SUB_BATCHES),
                 () -> assertEquals(100_000_000L, MINIMUM_SIDE_BATCH_NANOS),
                 () -> assertEquals(1.15d, THRESHOLD),
                 () -> assertEquals(792, rows().size()),
@@ -285,15 +289,19 @@ class CpuLossPerformanceTest {
         Files.writeString(root.resolve("protocol.txt"), "forks=" + FORKS + "\nwarmups=" + WARMUP_ROUNDS + "\n"
                 + "warmup_invocations_per_side=" + WARMUP_INVOCATIONS_PER_SIDE + "\nmeasurements=" + MEASUREMENTS + "\n"
                 + "minimum_side_batch_ns=" + MINIMUM_SIDE_BATCH_NANOS
-                + "\nshared_adaptive_batch_count=true\nrows_per_fork=792\norder=seeded-alternation\n"
-                + "threshold=1.15\noracle=frozen allocation-free typed direct loops\n");
+                + "\nshared_adaptive_batch_count=true\ninterleaved_sub_batches="
+                + INTERLEAVED_SUB_BATCHES
+                + "\nrows_per_fork=792\norder=seeded-alternation\n"
+                + "jit=-XX:-TieredCompilation,-Xbatch\nthreshold=1.15\n"
+                + "oracle=frozen allocation-free typed direct loops\n");
         Files.writeString(root.resolve("machine.txt"), "java=" + System.getProperty("java.version")
                 + "\nvm=" + System.getProperty("java.vm.name") + "\nos="
                 + System.getProperty("os.name") + ' ' + System.getProperty("os.version")
                 + "\narchitecture=" + System.getProperty("os.arch") + "\nheap=-Xms1g,-Xmx1g\n");
         var forkChecksums = runFullForks(root, fork -> {
             List<String> command = List.of(Path.of(System.getProperty("java.home"), "bin", "java").toString(),
-                    "-Xms1g", "-Xmx1g", "--add-modules", "jdk.incubator.vector", "-cp",
+                    "-Xms1g", "-Xmx1g", "-XX:-TieredCompilation", "-Xbatch",
+                    "--add-modules", "jdk.incubator.vector", "-cp",
                     System.getProperty("java.class.path"), "-D" + ROOT + '=' + root,
                     CpuLossPerformanceTest.class.getName(), "--fork", Integer.toString(fork));
             Files.writeString(root.resolve("progress.txt"), "starting full fork " + fork + "\n",
@@ -354,8 +362,9 @@ class CpuLossPerformanceTest {
             long generated = 0L, direct = 0L;
             for (int measurement = 0; measurement < MEASUREMENTS; measurement++) {
                 boolean generatedFirst = random.nextBoolean();
-                if (generatedFirst) { generated += measure(value.generated(), iterations); direct += measure(value.direct(), iterations); }
-                else { direct += measure(value.direct(), iterations); generated += measure(value.generated(), iterations); }
+                PairMeasurement sample = measurePair(value, iterations, generatedFirst);
+                generated += sample.generatedNanosecondsPerInvocation();
+                direct += sample.directNanosecondsPerInvocation();
             }
             raw.append(ordinal++).append(',').append(row.key()).append(',').append(iterations).append(',').append(generated)
                     .append(',').append(direct).append(',').append((double) generated / direct).append(',')
@@ -374,11 +383,13 @@ class CpuLossPerformanceTest {
         List<Row> rows = indexMeanSegmentRows();
         Files.writeString(root.resolve("targeted-protocol.txt"), "forks=" + FORKS + "\nwarmups=" + WARMUP_ROUNDS + "\n"
                 + "measurements=" + MEASUREMENTS + "\nminimum_side_batch_ns=" + MINIMUM_SIDE_BATCH_NANOS
-                + "\nshared_adaptive_batch_count=true\norder=seeded-alternation\n"
-                + "threshold=1.15\nrows=" + rows.size() + "\nrequired_rows=index-mean-segment\n");
+                + "\nshared_adaptive_batch_count=true\ninterleaved_sub_batches="
+                + INTERLEAVED_SUB_BATCHES + "\norder=seeded-alternation\n"
+                + "jit=-XX:-TieredCompilation,-Xbatch\nthreshold=1.15\nrows=" + rows.size()
+                + "\nrequired_rows=index-mean-segment\n");
         for (int fork = 0; fork < FORKS; fork++) {
             var command = new ArrayList<String>(List.of(Path.of(System.getProperty("java.home"), "bin", "java").toString(),
-                    "-Xms1g", "-Xmx1g"));
+                    "-Xms1g", "-Xmx1g", "-XX:-TieredCompilation", "-Xbatch"));
             if (Boolean.getBoolean(C2_EVIDENCE)) {
                 command.addAll(List.of("-XX:+UnlockDiagnosticVMOptions", "-XX:+PrintCompilation",
                         "-XX:+LogCompilation", "-XX:LogFile="
@@ -428,8 +439,9 @@ class CpuLossPerformanceTest {
             int iterations = calibratedIterations(value);
             long generated = 0L, direct = 0L;
             for (int measurement = 0; measurement < MEASUREMENTS; measurement++) {
-                if (random.nextBoolean()) { generated += measure(value.generated(), iterations); direct += measure(value.direct(), iterations); }
-                else { direct += measure(value.direct(), iterations); generated += measure(value.generated(), iterations); }
+                PairMeasurement sample = measurePair(value, iterations, random.nextBoolean());
+                generated += sample.generatedNanosecondsPerInvocation();
+                direct += sample.directNanosecondsPerInvocation();
             }
             raw.append(ordinal++).append(',').append(row.key()).append(',').append(iterations).append(',').append(generated)
                     .append(',').append(direct).append(',').append((double) generated / direct).append(',')
@@ -445,12 +457,14 @@ class CpuLossPerformanceTest {
         List<Row> rows = retainedOutlierPreflightRows();
         Files.writeString(root.resolve("retained-outlier-protocol.txt"), "forks=" + FORKS + "\nwarmups=" + WARMUP_ROUNDS + "\n"
                 + "measurements=" + MEASUREMENTS + "\nminimum_side_batch_ns=" + MINIMUM_SIDE_BATCH_NANOS
-                + "\nshared_adaptive_batch_count=true\norder=seeded-alternation\n"
-                + "threshold=1.15\nrows=" + rows.size()
+                + "\nshared_adaptive_batch_count=true\ninterleaved_sub_batches="
+                + INTERLEAVED_SUB_BATCHES + "\norder=seeded-alternation\n"
+                + "jit=-XX:-TieredCompilation,-Xbatch\nthreshold=1.15\nrows=" + rows.size()
                 + "\nrequired_rows=all-retained-fork-0-outliers-plus-controls\n");
         for (int fork = 0; fork < FORKS; fork++) {
             List<String> command = List.of(Path.of(System.getProperty("java.home"), "bin", "java").toString(),
-                    "-Xms1g", "-Xmx1g", "--add-modules", "jdk.incubator.vector", "-cp",
+                    "-Xms1g", "-Xmx1g", "-XX:-TieredCompilation", "-Xbatch",
+                    "--add-modules", "jdk.incubator.vector", "-cp",
                     System.getProperty("java.class.path"), "-D" + ROOT + '=' + root,
                     CpuLossPerformanceTest.class.getName(), "--retained-outlier-fork", Integer.toString(fork));
             Process process = new ProcessBuilder(command)
@@ -480,8 +494,9 @@ class CpuLossPerformanceTest {
             int iterations = calibratedIterations(value);
             long generated = 0L, direct = 0L;
             for (int measurement = 0; measurement < MEASUREMENTS; measurement++) {
-                if (random.nextBoolean()) { generated += measure(value.generated(), iterations); direct += measure(value.direct(), iterations); }
-                else { direct += measure(value.direct(), iterations); generated += measure(value.generated(), iterations); }
+                PairMeasurement sample = measurePair(value, iterations, random.nextBoolean());
+                generated += sample.generatedNanosecondsPerInvocation();
+                direct += sample.directNanosecondsPerInvocation();
             }
             raw.append(ordinal++).append(',').append(row.key()).append(',').append(iterations).append(',')
                     .append(generated).append(',').append(direct).append(',')
@@ -498,9 +513,9 @@ class CpuLossPerformanceTest {
                 assertEquals(row, actual.ordinal());
                 assertEquals(expectedRows.get(row).key(), actual.key());
                 assertTrue(actual.generatedToDirectRatio() <= THRESHOLD,
-                        "retained outlier fork " + fork + " row " + row);
+                        "fork " + fork + " row " + row);
             }
-            assertEquals(null, reader.readLine(), "extra retained outlier record");
+            assertEquals(null, reader.readLine(), "extra row record");
         }
     }
 
@@ -531,8 +546,9 @@ class CpuLossPerformanceTest {
                 boolean generatedFirst = (measurement & 1) == 0;
                 long generated;
                 long direct;
-                if (generatedFirst) { generated = measure(value.generated(), iterations); direct = measure(value.direct(), iterations); }
-                else { direct = measure(value.direct(), iterations); generated = measure(value.generated(), iterations); }
+                PairMeasurement sample = measurePair(value, iterations, generatedFirst);
+                generated = sample.generatedNanosecondsPerInvocation();
+                direct = sample.directNanosecondsPerInvocation();
                 generatedSamples.add(generated);
                 directSamples.add(direct);
                 measurements.append(row.key()).append(',').append(measurement).append(',')
@@ -552,7 +568,9 @@ class CpuLossPerformanceTest {
         Files.writeString(root.resolve("representative-protocol.txt"), "warmups=" + WARMUP_ROUNDS + "\n"
                 + "warmup_invocations_per_side=" + WARMUP_INVOCATIONS_PER_SIDE + "\nmeasurements=" + MEASUREMENTS + "\n"
                 + "minimum_side_batch_ns=" + MINIMUM_SIDE_BATCH_NANOS
-                + "\nshared_adaptive_batch_count=true\norder=alternating-generated-first\n"
+                + "\nshared_adaptive_batch_count=true\ninterleaved_sub_batches="
+                + INTERLEAVED_SUB_BATCHES
+                + "\norder=alternating-generated-first\n"
                 + "statistic=independent-side-medians\nthreshold=1.15\nrows="
                 + representativeRows().size() + "\n");
     }
@@ -640,8 +658,34 @@ class CpuLossPerformanceTest {
         } while (true);
     }
 
-    private static long measure(TimedSide side, int iterations) throws Exception {
-        return elapsed(side, iterations) / iterations;
+    /**
+     * Measures equal invocation counts in alternating temporal sub-batches.
+     *
+     * <p>No elapsed interval is retried or discarded. Splitting only prevents an unrelated
+     * scheduler pause or background event from being charged to one complete 100-ms-plus side
+     * while its peer runs in a different machine-state interval. Calibration returns twice an
+     * invocation count for which each whole side already reached the 100-ms floor; subdivision
+     * retains that complete invocation count and floor for both sides.</p>
+     */
+    private static PairMeasurement measurePair(Case value, int iterations, boolean generatedFirst)
+            throws Exception {
+        int chunks = Math.min(INTERLEAVED_SUB_BATCHES, iterations);
+        int base = iterations / chunks;
+        int remainder = iterations % chunks;
+        long generated = 0L;
+        long direct = 0L;
+        for (int chunk = 0; chunk < chunks; chunk++) {
+            int count = base + (chunk < remainder ? 1 : 0);
+            boolean generatedLeads = (chunk & 1) == 0 ? generatedFirst : !generatedFirst;
+            if (generatedLeads) {
+                generated += elapsed(value.generated(), count);
+                direct += elapsed(value.direct(), count);
+            } else {
+                direct += elapsed(value.direct(), count);
+                generated += elapsed(value.generated(), count);
+            }
+        }
+        return new PairMeasurement(generated / iterations, direct / iterations);
     }
 
     /**
@@ -764,7 +808,7 @@ class CpuLossPerformanceTest {
                         DataType.INT32, LossReduction.NONE, true, List.of(0, 1), 0));
     }
 
-    /** All retained full-matrix failures, followed by non-failing controls for each affected family. */
+    /** All retained historical full-matrix failures, followed by matched family controls. */
     private static List<Row> retainedOutlierPreflightRows() {
         return List.of(
                 new Row(LossKind.MEAN_SQUARED_ERROR, DataType.FLOAT64, DataType.FLOAT32, LossReduction.NONE, false, List.of(0, 1), 0),
@@ -981,6 +1025,8 @@ class CpuLossPerformanceTest {
     }
     @FunctionalInterface private interface ForkLauncher { void launch(int fork) throws Exception; }
     private record RawRow(int ordinal, String key, double generatedToDirectRatio, long checksum) { }
+    private record PairMeasurement(long generatedNanosecondsPerInvocation,
+                                   long directNanosecondsPerInvocation) { }
 
     /**
      * Binds a typed output reader once for use by the symmetric timed sides.

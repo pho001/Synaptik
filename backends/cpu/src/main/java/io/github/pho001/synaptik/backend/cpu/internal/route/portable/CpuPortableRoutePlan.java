@@ -43,7 +43,7 @@ public record CpuPortableRoutePlan(CpuPortableKernelIr portableKernelIr,
      * @param specialization non-null matching scalar or vector generated specialization
      * @throws NullPointerException if either component is {@code null}
      * @throws IllegalArgumentException if the specialization does not match the canonical IR, or
-     *     a pointwise plan attempts to use BFLOAT16 or its affine-only {@code SHORT_ARRAY} carrier
+     *     a pointwise plan has an incompatible generated specialization
      */
     public CpuPortableRoutePlan {
         Objects.requireNonNull(portableKernelIr, "portableKernelIr");
@@ -52,13 +52,6 @@ public record CpuPortableRoutePlan(CpuPortableKernelIr portableKernelIr,
             throw new IllegalArgumentException("specialization must match canonical IR");
         }
         CpuKernelIr generated = encoded(portableKernelIr);
-        if (portableKernelIr instanceof CpuKernelIr && specialization.matmulIr().isEmpty()
-                && (generated.values().stream().anyMatch(value -> value.dataType()
-                        == io.github.pho001.synaptik.model.datatype.DataType.BFLOAT16)
-                || specialization.carrierPattern().contains(
-                        CpuKernelSpecialization.CarrierAccess.SHORT_ARRAY))) {
-            throw new IllegalArgumentException("BFLOAT16 carriers are affine-copy-only");
-        }
         var realizations = generated.instructions().stream()
                 .filter(instruction -> instruction.opcode()
                         == io.github.pho001.synaptik.backend.cpu.internal.ir.CpuPointwiseOpcode.SCALAR_POW)

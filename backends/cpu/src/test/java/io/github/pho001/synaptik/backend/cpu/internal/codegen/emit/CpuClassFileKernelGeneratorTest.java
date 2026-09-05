@@ -22,6 +22,35 @@ import jdk.incubator.vector.FloatVector;
 import org.junit.jupiter.api.Test;
 
 class CpuClassFileKernelGeneratorTest {
+    @Test void emitsAndDefinesAScalarBfloat16PointwiseChain() {
+        Shape shape = Shape.of(7);
+        var descriptor = new TensorDescriptor(DataType.BFLOAT16, shape,
+                Optional.of(LayoutDescriptor.contiguous(shape)), false);
+        var analysis = new CpuPartitionPreparer().analyze(CpuPartitionPreparerTest.context(
+                descriptor, descriptor, descriptor, descriptor,
+                new CpuPartitionAnalysisInputs(false, List.of(CarrierAccess.SHORT_ARRAY,
+                        CarrierAccess.MEMORY_SEGMENT, CarrierAccess.SHORT_ARRAY,
+                        CarrierAccess.MEMORY_SEGMENT))));
+        var route = analysis.plan().units().getFirst().portablePlan();
+        var generator = new CpuClassFileKernelGenerator();
+        byte[] bytes = generator.generateClassBytes(route.specialization(), route.kernelIr());
+
+        assertAll(
+                () -> assertEquals("scalar", analysis.plan().executionStrategy().toString()),
+                () -> assertEquals(59, route.specialization().classIdentitySchema()),
+                () -> assertDoesNotThrow(() -> generator.defineClassBytes(
+                        route.specialization(), bytes)),
+                () -> assertThrows(IllegalArgumentException.class, () -> generator.generateClassBytes(
+                        new io.github.pho001.synaptik.backend.cpu.internal.cache
+                                .CpuKernelSpecialization(route.specialization().loweringFingerprint(),
+                                route.specialization().numericalMode(),
+                                route.specialization().executionStrategy(),
+                                route.specialization().boundaryDataTypes(),
+                                route.specialization().carrierPattern(), 0, -1,
+                                route.specialization().scalarPowerRealizations(), false, 52),
+                        route.kernelIr())));
+    }
+
     @Test void emitsExactRandomEntryDescriptorsForRepresentativeCarrierAndAddressForms() {
         var heapInitial = randomRoute(CpuRandomLoweringTest.initialContext(1, 2),
                 List.of(CarrierAccess.LONG_ARRAY));

@@ -40,8 +40,9 @@ import jdk.incubator.vector.ByteVector;
  * Analysis then selects scalar or preferred-species vector compute and single-thread or bounded
  * parallel orchestration before shared resource assignment. Exact vector eligibility is
  * typed across floating, signed-integral, canonical-BOOL, and narrowly virtual floating-mask
- * topologies; direct power and unsafe mask storage remain scalar. Analysis measures nothing and
- * performs no artifact or persistence access. Static affine chains instead retain scalar compute,
+ * topologies; every BFLOAT16 pointwise topology, direct power, and unsafe mask storage remain
+ * scalar. Analysis measures nothing and performs no artifact or persistence access. Static affine
+ * chains instead retain scalar compute,
  * compose one exact distinct-write address domain, declare only source and final result buffers,
  * and use deterministic scalar fallback when vector compute was preferred.
  * One-node scatter, fold, and ordering plans remain scalar compute and use disjoint output or
@@ -515,7 +516,9 @@ public final class CpuPartitionPreparer implements BackendPartitionPreparer<
                             .isPresent(),
                 attention ? 57 : pool3d ? 56 : pool2d ? 55 : matmul ? 54
                         : selectedPortableIr instanceof io.github.pho001.synaptik.backend.cpu.internal.ir.CpuLossIr
-                            ? 58 : 52,
+                            ? 58 : kernelIr.familyIdentity().equals("pointwise")
+                                && kernelIr.values().stream().anyMatch(value -> value.dataType()
+                                    == DataType.BFLOAT16) ? 59 : 52,
                 lowered.matmulIr());
         selectedPortableIr = matmul||materialization.isPresent()?kernelIr:selectedPortableIr;
         var routePlan = new CpuPortableRoutePlan(selectedPortableIr, specialization);

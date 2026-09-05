@@ -7,14 +7,15 @@ import java.util.Objects;
 /**
  * Classifies one already-validated exact floating scalar exponent into a CPU realization plan.
  *
- * <p>The classification compares the represented FLOAT32 or FLOAT64 bits directly. Both signed
+ * <p>The classification compares the represented BFLOAT16, FLOAT32, or FLOAT64 bits directly.
+ * Both signed
  * zeros select {@link CpuKernelIr.PowerRealization#POSITIVE_ONE}; the direct power contract
  * returns positive one for every base, including NaN, signed zero, and infinities. Exact positive
- * one selects {@code IDENTITY}, which preserves every represented base classification and zero
- * sign. Exact positive two selects {@code SQUARE}; one primitive typed multiplication is the one
- * correctly rounded operation for the mathematical square. Exact negative one selects
- * {@code RECIPROCAL}; one primitive typed division of positive one by the base is the one
- * correctly rounded reciprocal and preserves the required zero and infinity signs.</p>
+ * one selects {@code IDENTITY}. Exact positive two selects {@code SQUARE}, and exact negative one
+ * selects {@code RECIPROCAL}. BFLOAT16 realizations decode the represented base, perform the
+ * FLOAT32-domain operation, and apply the required BFLOAT16 result encoding; identity therefore
+ * preserves signed zero and infinity but canonicalizes a NaN at the producing operation boundary.
+ * FLOAT32 and FLOAT64 square and reciprocal use one primitive operation in their result type.</p>
  *
  * <p>Every other bit pattern, including fractional and other integral values, infinities, and all
  * NaN payloads, selects {@code DIRECT}. Multi-step multiplication or reciprocal chains would add
@@ -23,6 +24,10 @@ import java.util.Objects;
  * nor inspects graphs, routes, configuration, or generated code.</p>
  */
 public final class CpuScalarPowerAnalysis {
+    private static final long BFLOAT16_SIGN = 0x8000L;
+    private static final long BFLOAT16_ONE = 0x3f80L;
+    private static final long BFLOAT16_TWO = 0x4000L;
+    private static final long BFLOAT16_NEGATIVE_ONE = 0xbf80L;
     private static final long FLOAT32_SIGN = 0x8000_0000L;
     private static final long FLOAT32_ONE = 0x3f80_0000L;
     private static final long FLOAT32_TWO = 0x4000_0000L;
@@ -39,14 +44,25 @@ public final class CpuScalarPowerAnalysis {
     /**
      * Selects the unique proved realization for one exact floating scalar immediate.
      *
-     * @param exponent non-null exact FLOAT32 or FLOAT64 exponent retained by canonical CPU IR
+     * @param exponent non-null exact BFLOAT16, FLOAT32, or FLOAT64 exponent retained by canonical
+     *     CPU IR
      * @return the non-null deterministic realization selected from the exact represented bits
      * @throws NullPointerException if {@code exponent} is {@code null}
-     * @throws IllegalArgumentException if the exponent type is not FLOAT32 or FLOAT64
+     * @throws IllegalArgumentException if the exponent type is not BFLOAT16, FLOAT32, or FLOAT64
      */
     public CpuKernelIr.PowerRealization analyze(CpuKernelIr.ScalarImmediate exponent) {
         Objects.requireNonNull(exponent, "exponent");
         long bits = exponent.bits();
+        if (exponent.dataType() == DataType.BFLOAT16) {
+            bits &= 0xffffL;
+            if (bits == 0L || bits == BFLOAT16_SIGN) {
+                return CpuKernelIr.PowerRealization.POSITIVE_ONE;
+            }
+            if (bits == BFLOAT16_ONE) return CpuKernelIr.PowerRealization.IDENTITY;
+            if (bits == BFLOAT16_TWO) return CpuKernelIr.PowerRealization.SQUARE;
+            if (bits == BFLOAT16_NEGATIVE_ONE) return CpuKernelIr.PowerRealization.RECIPROCAL;
+            return CpuKernelIr.PowerRealization.DIRECT;
+        }
         if (exponent.dataType() == DataType.FLOAT32) {
             bits &= 0xffff_ffffL;
             if (bits == 0L || bits == FLOAT32_SIGN) {
@@ -66,6 +82,7 @@ public final class CpuScalarPowerAnalysis {
             if (bits == FLOAT64_NEGATIVE_ONE) return CpuKernelIr.PowerRealization.RECIPROCAL;
             return CpuKernelIr.PowerRealization.DIRECT;
         }
-        throw new IllegalArgumentException("scalar power exponent must be FLOAT32 or FLOAT64");
+        throw new IllegalArgumentException(
+                "scalar power exponent must be BFLOAT16, FLOAT32, or FLOAT64");
     }
 }

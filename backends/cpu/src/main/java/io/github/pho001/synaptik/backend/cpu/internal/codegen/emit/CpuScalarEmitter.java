@@ -17,7 +17,9 @@ import java.lang.constant.MethodTypeDesc;
  * {@link StrictMath} calls. The ERF, sigmoid, exact and tanh-approximation GELU, and SiLU formulas
  * are emitted directly into the generated class rather than invoked through a Synaptik runtime
  * helper. FLOAT32 widens one represented value to {@code double} where the selected formula or JDK
- * operation requires it and narrows the result once. The FLOAT32 reciprocal-square-root path
+ * operation requires it and narrows the result once. BFLOAT16 locals retain raw represented
+ * bits, expand to FLOAT32 only at a numerical consumer, and inline one ties-to-even narrowing
+ * after every BFLOAT16-producing logical instruction. The FLOAT32 reciprocal-square-root path
  * performs both the square root and reciprocal after that widening, then narrows only their
  * combined result. The emitter consumes typed IR only and makes no capability, route, or
  * numerical-policy decision.</p>
@@ -128,7 +130,7 @@ final class CpuScalarEmitter {
         switch (type) {
             case FLOAT64 -> { if (add) code.dadd(); else if (sub) code.dsub();
                 else if (div) code.ddiv(); else code.dmul(); }
-            case FLOAT32 -> { if (add) code.fadd(); else if (sub) code.fsub();
+            case FLOAT32, BFLOAT16 -> { if (add) code.fadd(); else if (sub) code.fsub();
                 else if (div) code.fdiv(); else code.fmul(); }
             case INT32 -> { if (div) throw new IllegalArgumentException("integral division unsupported");
                 if (add) code.iadd(); else if (sub) code.isub(); else code.imul(); }
@@ -140,12 +142,12 @@ final class CpuScalarEmitter {
 
     private void emitTensorPower(CpuKernelIr.Instruction instruction, int[] locals, DataType type) {
         load(type, locals[instruction.inputs().get(0)]);
-        if (type == DataType.FLOAT32) code.f2d();
+        if (floatLike(type)) code.f2d();
         load(type, locals[instruction.inputs().get(1)]);
-        if (type == DataType.FLOAT32) code.f2d();
+        if (floatLike(type)) code.f2d();
         code.invokestatic(STRICT_MATH, "pow", MethodTypeDesc.of(ConstantDescs.CD_double,
                 ConstantDescs.CD_double, ConstantDescs.CD_double));
-        if (type == DataType.FLOAT32) code.d2f();
+        if (floatLike(type)) code.d2f();
     }
 
     private void extrema(boolean minimum, DataType type) {
@@ -154,7 +156,7 @@ final class CpuScalarEmitter {
         ClassDesc primitive;
         switch (type) {
             case FLOAT64 -> { owner = MATH; primitive = ConstantDescs.CD_double; }
-            case FLOAT32 -> { owner = MATH; primitive = ConstantDescs.CD_float; }
+            case FLOAT32, BFLOAT16 -> { owner = MATH; primitive = ConstantDescs.CD_float; }
             case INT32 -> { owner = INTEGER; primitive = ConstantDescs.CD_int; }
             case INT64 -> { owner = LONG; primitive = ConstantDescs.CD_long; }
             default -> throw new IllegalArgumentException("unsupported extrema type");
@@ -188,29 +190,29 @@ final class CpuScalarEmitter {
             }
             case DIRECT -> {
                 load(type, base);
-                if (type == DataType.FLOAT32) code.f2d();
+                if (floatLike(type)) code.f2d();
                 loadImmediate(instruction.scalarImmediate());
-                if (type == DataType.FLOAT32) code.f2d();
+                if (floatLike(type)) code.f2d();
                 code.invokestatic(STRICT_MATH, "pow", MethodTypeDesc.of(ConstantDescs.CD_double,
                         ConstantDescs.CD_double, ConstantDescs.CD_double));
-                if (type == DataType.FLOAT32) code.d2f();
+                if (floatLike(type)) code.d2f();
             }
         }
     }
 
     private void loadPositiveOne(DataType type) {
         if (type == DataType.FLOAT64) code.loadConstant(1.0d);
-        else if (type == DataType.FLOAT32) code.loadConstant(1.0f);
+        else if (floatLike(type)) code.loadConstant(1.0f);
         else throw new IllegalArgumentException("scalar power requires floating type");
     }
 
     private void unary(CpuPointwiseOpcode opcode, DataType type) {
         if (opcode == CpuPointwiseOpcode.NEG) {
-            if (type == DataType.FLOAT64) code.dneg(); else if (type == DataType.FLOAT32) code.fneg();
+            if (type == DataType.FLOAT64) code.dneg(); else if (floatLike(type)) code.fneg();
             else throw new IllegalArgumentException("unsupported unary type");
             return;
         }
-        if (opcode == CpuPointwiseOpcode.RSQRT && type == DataType.FLOAT32) {
+        if (opcode == CpuPointwiseOpcode.RSQRT && floatLike(type)) {
             code.f2d();
             code.invokestatic(STRICT_MATH, "sqrt", MethodTypeDesc.of(ConstantDescs.CD_double,
                     ConstantDescs.CD_double));
@@ -258,7 +260,7 @@ final class CpuScalarEmitter {
     }
 
     private void emitActivation(CpuPointwiseOpcode opcode, DataType type) {
-        if (type == DataType.FLOAT32) code.f2d();
+        if (floatLike(type)) code.f2d();
         int value = code.allocateLocal(TypeKind.DOUBLE);
         code.dstore(value);
         switch (opcode) {
@@ -269,7 +271,7 @@ final class CpuScalarEmitter {
             case SILU -> emitSilu(value);
             default -> throw new AssertionError(opcode);
         }
-        if (type == DataType.FLOAT32) code.d2f();
+        if (floatLike(type)) code.d2f();
     }
 
     private void emitSigmoid(int value) {
@@ -389,10 +391,10 @@ final class CpuScalarEmitter {
     }
 
     private void invokeDoubleUnary(DataType type, ClassDesc owner, String method) {
-        if (type == DataType.FLOAT32) code.f2d();
+        if (floatLike(type)) code.f2d();
         code.invokestatic(owner, method, MethodTypeDesc.of(ConstantDescs.CD_double,
                 ConstantDescs.CD_double));
-        if (type == DataType.FLOAT32) code.d2f();
+        if (floatLike(type)) code.d2f();
     }
 
     private void classification(CpuPointwiseOpcode opcode, DataType type) {
@@ -409,7 +411,7 @@ final class CpuScalarEmitter {
         if (type == DataType.FLOAT64) {
             if (opcode == CpuPointwiseOpcode.GREATER_THAN
                     || opcode == CpuPointwiseOpcode.GREATER_OR_EQUAL) code.dcmpl(); else code.dcmpg();
-        } else if (type == DataType.FLOAT32) {
+        } else if (floatLike(type)) {
             if (opcode == CpuPointwiseOpcode.GREATER_THAN
                     || opcode == CpuPointwiseOpcode.GREATER_OR_EQUAL) code.fcmpl(); else code.fcmpg();
         } else if (type == DataType.INT64) code.lcmp();
@@ -437,6 +439,13 @@ final class CpuScalarEmitter {
         var whenFalse = code.newLabel();
         var done = code.newLabel();
         code.iload(locals[instruction.inputs().get(0)]).branch(Opcode.IFEQ, whenFalse);
+        if (resultType == DataType.BFLOAT16) {
+            code.iload(locals[instruction.inputs().get(1)]).istore(locals[instruction.output()]);
+            code.branch(Opcode.GOTO, done).labelBinding(whenFalse);
+            code.iload(locals[instruction.inputs().get(2)]).istore(locals[instruction.output()]);
+            code.labelBinding(done);
+            return;
+        }
         load(resultType, locals[instruction.inputs().get(1)]);
         store(resultType, locals[instruction.output()]);
         code.branch(Opcode.GOTO, done).labelBinding(whenFalse);
@@ -449,6 +458,9 @@ final class CpuScalarEmitter {
         switch (immediate.dataType()) {
             case FLOAT64 -> code.loadConstant(Double.longBitsToDouble(immediate.bits()));
             case FLOAT32 -> code.loadConstant(Float.intBitsToFloat((int) immediate.bits()));
+            case BFLOAT16 -> code.loadConstant((int) immediate.bits()).loadConstant(16).ishl()
+                    .invokestatic(FLOAT, "intBitsToFloat", MethodTypeDesc.of(
+                            ConstantDescs.CD_float, ConstantDescs.CD_int));
             case INT32 -> code.loadConstant((int) immediate.bits());
             case INT64 -> code.loadConstant(immediate.bits());
             default -> throw new IllegalArgumentException("unsupported scalar immediate");
@@ -458,6 +470,9 @@ final class CpuScalarEmitter {
     private void load(DataType type, int local) {
         switch (type) {
             case FLOAT64 -> code.dload(local); case FLOAT32 -> code.fload(local);
+            case BFLOAT16 -> code.iload(local).loadConstant(16).ishl().invokestatic(FLOAT,
+                    "intBitsToFloat", MethodTypeDesc.of(ConstantDescs.CD_float,
+                            ConstantDescs.CD_int));
             case INT32, BOOL -> code.iload(local); case INT64 -> code.lload(local);
             default -> throw new IllegalArgumentException("unsupported value type");
         }
@@ -466,8 +481,27 @@ final class CpuScalarEmitter {
     private void store(DataType type, int local) {
         switch (type) {
             case FLOAT64 -> code.dstore(local); case FLOAT32 -> code.fstore(local);
+            case BFLOAT16 -> encodeBfloat(local);
             case INT32, BOOL -> code.istore(local); case INT64 -> code.lstore(local);
             default -> throw new IllegalArgumentException("unsupported value type");
         }
+    }
+
+    private static boolean floatLike(DataType type) {
+        return type == DataType.FLOAT32 || type == DataType.BFLOAT16;
+    }
+
+    /** Emits the established inline RNE/canonical-NaN FLOAT32-to-BFLOAT16 boundary. */
+    private void encodeBfloat(int local) {
+        int bits = code.allocateLocal(TypeKind.INT);
+        code.invokestatic(FLOAT, "floatToRawIntBits", MethodTypeDesc.of(ConstantDescs.CD_int,
+                ConstantDescs.CD_float)).istore(bits);
+        var finite = code.newLabel();
+        var rounded = code.newLabel();
+        code.iload(bits).loadConstant(0x7fffffff).iand().loadConstant(0x7f800000)
+                .branch(Opcode.IF_ICMPLE, finite).loadConstant(0x7fc0).istore(local)
+                .branch(Opcode.GOTO, rounded).labelBinding(finite).iload(bits)
+                .loadConstant(0x7fff).iadd().iload(bits).loadConstant(16).iushr().loadConstant(1)
+                .iand().iadd().loadConstant(16).iushr().istore(local).labelBinding(rounded);
     }
 }

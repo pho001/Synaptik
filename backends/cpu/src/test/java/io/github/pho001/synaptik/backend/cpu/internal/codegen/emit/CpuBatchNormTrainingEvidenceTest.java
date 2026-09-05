@@ -25,7 +25,7 @@ public final class CpuBatchNormTrainingEvidenceTest {
             List<LayoutDescriptor> layouts, int parallelism) { }
 
     @Test void frozenEightTargetInventoryHasClosedGeneratedShapeAndMembers() throws Exception {
-        assertEquals(58, CpuGeneratorSchema.CURRENT_VERSION);
+        assertEquals(59, CpuGeneratorSchema.CURRENT_VERSION);
         List<Target> targets = targets();
         assertEquals(List.of("BNT-BF16-A1", "BNT-F32-A1", "BNT-F64-A1", "BNT-F32-A0",
                 "BNT-F32-A2", "BNT-MIX-F64", "BNT-MIX-F32", "BNT-REPEAT"),

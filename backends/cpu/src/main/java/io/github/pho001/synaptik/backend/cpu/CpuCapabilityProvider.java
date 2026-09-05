@@ -90,8 +90,9 @@ import java.util.Arrays;
  * <p>The provider has a stable CPU ownership identity and advertises the bounded, fully static
  * pointwise matrix implemented by the portable route: selected same-type arithmetic including
  * extrema and floating Tensor power, exact scalar arithmetic and floating range clamp,
- * canonical-BOOL logic, all nineteen same-typed FLOAT32/FLOAT64 unary semantics, floating
- * classification, comparisons, floating {@code WHERE}, and same-type {@code CAST}. Every
+ * canonical-BOOL logic, all nineteen same-typed BFLOAT16/FLOAT32/FLOAT64 unary semantics,
+ * floating classification, comparisons, floating {@code WHERE}, and same-type {@code CAST}
+ * excluding BFLOAT16. Every
  * descriptor has a resolved layout, and results obey the
  * Model family's shape rule. The provider also admits the exact one-input, one-output, fully
  * static and resolved-layout occurrences of {@code CONTIGUOUS}, {@code RESHAPE}, {@code EXPAND},
@@ -324,16 +325,16 @@ public final class CpuCapabilityProvider implements BackendCapabilityProvider {
                             || arithmetic == BinaryArithmeticKind.MIN
                             || arithmetic == BinaryArithmeticKind.MAX
                             || arithmetic == BinaryArithmeticKind.POW
-                                && floating(output.dataType())
+                                && pointwiseFloating(output.dataType())
                             || arithmetic == BinaryArithmeticKind.DIV
-                                && floating(output.dataType()))
-                        && sameNumeric(query.inputs(), output)
+                                && pointwiseFloating(output.dataType()))
+                        && samePointwiseNumeric(query.inputs(), output)
                         && broadcast(query.inputs().get(0), query.inputs().get(1), output);
             }
             if (kind instanceof ScalarElementwiseKind scalar) {
                 if (scalar == ScalarElementwiseKind.CLAMP) {
                     return attrs instanceof ClampRangeAttrs range
-                            && query.inputs().size() == 1 && floating(output.dataType())
+                            && query.inputs().size() == 1 && pointwiseFloating(output.dataType())
                             && sameTypeAndShape(query.inputs().getFirst(), output)
                             && range.minValue().dataType() == output.dataType()
                             && range.maxValue().dataType() == output.dataType();
@@ -345,8 +346,8 @@ public final class CpuCapabilityProvider implements BackendCapabilityProvider {
                             || scalar == ScalarElementwiseKind.MAX
                             || (scalar == ScalarElementwiseKind.DIV
                                 || scalar == ScalarElementwiseKind.POW)
-                                && floating(output.dataType()))
-                        && query.inputs().size() == 1 && supportedNumeric(query.inputs().getFirst().dataType())
+                                && pointwiseFloating(output.dataType()))
+                        && query.inputs().size() == 1 && supportedPointwiseNumeric(query.inputs().getFirst().dataType())
                         && sameTypeAndShape(query.inputs().getFirst(), output)
                         && value.value().dataType() == output.dataType();
             }
@@ -363,18 +364,18 @@ public final class CpuCapabilityProvider implements BackendCapabilityProvider {
             }
             if (kind instanceof UnaryElementwiseKind unary) {
                 return attrs == NoOperationAttrs.INSTANCE && query.inputs().size() == 1
-                        && floating(query.inputs().getFirst().dataType())
+                        && pointwiseFloating(query.inputs().getFirst().dataType())
                         && sameTypeAndShape(query.inputs().getFirst(), output);
             }
             if (kind instanceof FloatingClassificationKind) {
                 return attrs == NoOperationAttrs.INSTANCE && query.inputs().size() == 1
-                        && floating(query.inputs().getFirst().dataType())
+                        && pointwiseFloating(query.inputs().getFirst().dataType())
                         && output.dataType() == DataType.BOOL
                         && output.shape().equals(query.inputs().getFirst().shape());
             }
             if (kind instanceof BinaryComparisonKind) {
                 return attrs == NoOperationAttrs.INSTANCE && query.inputs().size() == 2
-                        && sameNumericInputs(query.inputs()) && output.dataType() == DataType.BOOL
+                        && samePointwiseNumericInputs(query.inputs()) && output.dataType() == DataType.BOOL
                         && ShapeBroadcast.broadcast(query.inputs().get(0).shape(),
                                 query.inputs().get(1).shape()).equals(output.shape());
             }
@@ -383,7 +384,7 @@ public final class CpuCapabilityProvider implements BackendCapabilityProvider {
                         || query.inputs().get(0).dataType() != DataType.BOOL) return false;
                 TensorDescriptor whenTrue = query.inputs().get(1);
                 TensorDescriptor whenFalse = query.inputs().get(2);
-                if (!floating(whenTrue.dataType()) || whenTrue.dataType() != whenFalse.dataType()
+                if (!pointwiseFloating(whenTrue.dataType()) || whenTrue.dataType() != whenFalse.dataType()
                         || output.dataType() != whenTrue.dataType()) return false;
                 var branches = ShapeBroadcast.broadcast(whenTrue.shape(), whenFalse.shape());
                 return ShapeBroadcast.broadcast(query.inputs().get(0).shape(), branches)
@@ -1574,6 +1575,25 @@ public final class CpuCapabilityProvider implements BackendCapabilityProvider {
 
     private static boolean supportedNumeric(DataType type) {
         return floating(type) || type == DataType.INT32 || type == DataType.INT64;
+    }
+
+    private static boolean pointwiseFloating(DataType type) {
+        return floating(type) || type == DataType.BFLOAT16;
+    }
+
+    private static boolean supportedPointwiseNumeric(DataType type) {
+        return pointwiseFloating(type) || type == DataType.INT32 || type == DataType.INT64;
+    }
+
+    private static boolean samePointwiseNumeric(java.util.List<TensorDescriptor> inputs,
+            TensorDescriptor output) {
+        return inputs.size() == 2 && samePointwiseNumericInputs(inputs)
+                && output.dataType() == inputs.getFirst().dataType();
+    }
+
+    private static boolean samePointwiseNumericInputs(java.util.List<TensorDescriptor> inputs) {
+        return inputs.size() == 2 && supportedPointwiseNumeric(inputs.getFirst().dataType())
+                && inputs.get(1).dataType() == inputs.getFirst().dataType();
     }
 
     private static boolean supportedCast(DataType type) {

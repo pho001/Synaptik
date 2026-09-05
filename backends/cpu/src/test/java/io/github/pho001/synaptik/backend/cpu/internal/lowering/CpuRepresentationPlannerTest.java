@@ -52,10 +52,19 @@ import io.github.pho001.synaptik.runtime.run.BufferRepresentationBinding;
 import io.github.pho001.synaptik.runtime.run.RunResourceOwnership;
 import io.github.pho001.synaptik.runtime.run.RunState;
 import io.github.pho001.synaptik.runtime.execution.PreparedExecutable;
+import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.Test;
 
-/** Focused bounded-enumeration, typed-fact, and two-copy integration tests for CPU 0008E. */
+/**
+ * Focused bounded-enumeration, typed-fact, and two-copy integration tests for CPU 0008E.
+ *
+ * <p>Assertions against the historical external evidence corpus are opt-in through
+ * {@value #RETAINED_EVIDENCE_PROPERTY}; ordinary module validation does not depend on a
+ * machine-local {@code /private/tmp} archive.</p>
+ */
 class CpuRepresentationPlannerTest {
+    private static final String RETAINED_EVIDENCE_PROPERTY =
+            "synaptik.cpu.0008e.retainedEvidence";
     private static final Path RETAINED_PREDECESSOR = Path.of(
             "/private/tmp/synaptik-cpu-0008e-retained-evidence-20260827");
     private static final Path EVIDENCE = Path.of(
@@ -316,6 +325,8 @@ class CpuRepresentationPlannerTest {
 
     @Test void retainedEvidenceAndGeneratedClassControlsRemainExactWithoutRerunningForks()
             throws Exception {
+        Assumptions.assumeTrue(Boolean.getBoolean(RETAINED_EVIDENCE_PROPERTY),
+                "historical CPU 0008E evidence verification is opt-in");
         Path controls = EVIDENCE.resolve("controls");
         Path final2 = EVIDENCE.resolve("forks/fork-0.csv");
         Path coConsumed = Path.of("/private/tmp/"

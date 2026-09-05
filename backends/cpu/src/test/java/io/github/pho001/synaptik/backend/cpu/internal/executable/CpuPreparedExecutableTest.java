@@ -12,6 +12,7 @@ import io.github.pho001.synaptik.backend.cpu.internal.prepare.CpuPartitionPrepar
 import io.github.pho001.synaptik.backend.cpu.internal.prepare.CpuPartitionFinalizerTest;
 import io.github.pho001.synaptik.backend.cpu.internal.reference.CpuScalarReferenceKernel;
 import io.github.pho001.synaptik.model.datatype.DataType;
+import io.github.pho001.synaptik.model.datatype.BFloat16Bits;
 import io.github.pho001.synaptik.model.shape.Shape;
 import io.github.pho001.synaptik.model.layout.LayoutDescriptor;
 import io.github.pho001.synaptik.model.tensor.TensorDescriptor;
@@ -1138,6 +1139,19 @@ class CpuPreparedExecutableTest {
                     floatCount, mask, floatConfigurations.get(strategy),
                     strategy == 0 ? "vector" : "parallel-vector", DataType.FLOAT32);
         }
+        // BFLOAT16 has no vector body.  These two representative boundary assignments prove that
+        // the same generated scalar entry is used for scalar and caller-parallel execution, with
+        // each logical ADD, GELU, and MUL result rounded before its next consumer.
+        int bfloatCount = 97;
+        Shape bfloatShape = Shape.of(bfloatCount);
+        var bfloatDescriptor = new TensorDescriptor(DataType.BFLOAT16, bfloatShape,
+                Optional.of(LayoutDescriptor.contiguous(bfloatShape)), false);
+        executeCarrierPattern(bfloatDescriptor, bfloatCount, 0,
+                new PortableExecutionConfig(ComputePreference.VECTOR_IF_ELIGIBLE, 1, 1, 1),
+                "scalar", DataType.BFLOAT16);
+        executeCarrierPattern(bfloatDescriptor, bfloatCount, 0b0101,
+                new PortableExecutionConfig(ComputePreference.VECTOR_IF_ELIGIBLE, 3, 2, 1),
+                "parallel-scalar", DataType.BFLOAT16);
     }
 
     private static void executeCarrierPattern(TensorDescriptor descriptor, int count, int mask,
@@ -1145,6 +1159,7 @@ class CpuPreparedExecutableTest {
             var pattern = new ArrayList<CarrierAccess>();
             for (int i = 0; i < 4; i++) pattern.add((mask & (1 << i)) != 0
                     ? dataType == DataType.FLOAT32 ? CarrierAccess.FLOAT_ARRAY
+                            : dataType == DataType.BFLOAT16 ? CarrierAccess.SHORT_ARRAY
                             : CarrierAccess.DOUBLE_ARRAY : CarrierAccess.MEMORY_SEGMENT);
             var analysis = CpuPartitionPreparerTest.analyze(descriptor, descriptor, descriptor,
                     descriptor, new CpuPartitionAnalysisInputs(false, pattern, config));
@@ -1161,7 +1176,9 @@ class CpuPreparedExecutableTest {
                 if (pattern.get(i) != CarrierAccess.MEMORY_SEGMENT) {
                     var storage = new MemorySegmentStorage(dataType, count,
                             dataType == DataType.FLOAT32 ? MemorySegment.ofArray(new float[count])
-                                    : MemorySegment.ofArray(new double[count]));
+                                    : dataType == DataType.BFLOAT16
+                                            ? MemorySegment.ofArray(new short[count])
+                                            : MemorySegment.ofArray(new double[count]));
                     resource = CpuBorrowedBuffer.borrow(storage);
                     ownership = RunResourceOwnership.BORROWED;
                 } else {
@@ -1179,6 +1196,16 @@ class CpuPreparedExecutableTest {
                         segment(resources.get(0)).set(FLOAT, i * 4L, i - 1.0f);
                         segment(resources.get(1)).set(FLOAT, i * 4L, 0.5f);
                         segment(resources.get(2)).set(FLOAT, i * 4L, 2.0f);
+                    } else if (dataType == DataType.BFLOAT16) {
+                        segment(resources.get(0)).set(ValueLayout.JAVA_SHORT_UNALIGNED
+                                .withOrder(ByteOrder.nativeOrder()), i * 2L,
+                                BFloat16Bits.fromFloat(i - 1.0f));
+                        segment(resources.get(1)).set(ValueLayout.JAVA_SHORT_UNALIGNED
+                                .withOrder(ByteOrder.nativeOrder()), i * 2L,
+                                BFloat16Bits.fromFloat(.5f));
+                        segment(resources.get(2)).set(ValueLayout.JAVA_SHORT_UNALIGNED
+                                .withOrder(ByteOrder.nativeOrder()), i * 2L,
+                                BFloat16Bits.fromFloat(2.0f));
                     } else {
                         segment(resources.get(0)).set(DOUBLE, i * 8L, i - 1.0);
                         segment(resources.get(1)).set(DOUBLE, i * 8L, 0.5);
@@ -1193,6 +1220,14 @@ class CpuPreparedExecutableTest {
                         assertEquals(expected, segment(resources.get(3)).get(FLOAT, i * 4L),
                                 Math.max(2e-5f, 2e-5f * Math.abs(expected)),
                                 expectedStrategy + " carrier mask " + mask + " index " + i);
+                    } else if (dataType == DataType.BFLOAT16) {
+                        short sum = BFloat16Bits.fromFloat((i - 1.0f) + .5f);
+                        short gelu = BFloat16Bits.fromFloat((float) CpuScalarReferenceKernel.gelu(
+                                BFloat16Bits.toFloat(sum)));
+                        short expected = BFloat16Bits.fromFloat(BFloat16Bits.toFloat(gelu) * 2.0f);
+                        assertEquals(expected, segment(resources.get(3)).get(
+                                ValueLayout.JAVA_SHORT_UNALIGNED.withOrder(ByteOrder.nativeOrder()),
+                                i * 2L), expectedStrategy + " carrier mask " + mask + " index " + i);
                     } else assertEquals(CpuScalarReferenceKernel.gelu(i - 0.5) * 2.0,
                             segment(resources.get(3)).get(DOUBLE, i * 8L),
                             2e-7 * Math.max(1.0, Math.abs(i - 0.5)),

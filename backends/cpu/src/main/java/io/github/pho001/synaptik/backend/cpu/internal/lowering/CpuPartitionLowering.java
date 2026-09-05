@@ -438,6 +438,7 @@ public final class CpuPartitionLowering {
         long bits = switch (value.dataType()) {
             case FLOAT64 -> Double.doubleToRawLongBits(value.float64Value());
             case FLOAT32 -> Float.floatToRawIntBits(value.float32Value()) & 0xffff_ffffL;
+            case BFLOAT16 -> Short.toUnsignedLong(value.bfloat16Bits());
             case INT32 -> value.int32Value() & 0xffff_ffffL;
             case INT64 -> value.int64Value();
             default -> throw new IllegalArgumentException("unsupported scalar immediate type");
@@ -464,6 +465,7 @@ public final class CpuPartitionLowering {
         long bits = switch (value.dataType()) {
             case FLOAT64 -> Double.doubleToRawLongBits(value.float64Value());
             case FLOAT32 -> Float.floatToRawIntBits(value.float32Value()) & 0xffff_ffffL;
+            case BFLOAT16 -> Short.toUnsignedLong(value.bfloat16Bits());
             case INT32 -> value.int32Value() & 0xffff_ffffL;
             case INT64 -> value.int64Value();
             default -> throw new IllegalArgumentException("unsupported scalar immediate type");

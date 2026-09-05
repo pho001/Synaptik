@@ -40,7 +40,8 @@ import jdk.incubator.vector.LongVector;
  * @param scratchParameter whether the generated entry accepts one exact CPU scratch segment
  * @param classIdentitySchema schema projection used only for the generated class identity;
  *     {@code 52} for unchanged families, {@code 54} for MATMUL, {@code 55} for Pool2d,
- *     {@code 56} for Pool3d, {@code 57} for attention, and {@code 58} for direct loss bodies
+ *     {@code 56} for Pool3d, {@code 57} for attention, {@code 58} for direct loss bodies,
+ *     and {@code 59} for scalar BFLOAT16 pointwise bodies
  * @param matmulIr exact typed MATMUL code-shaping facts, or empty for every unchanged family
  */
 public record CpuKernelSpecialization(CpuLoweringFingerprint loweringFingerprint,
@@ -61,8 +62,9 @@ public record CpuKernelSpecialization(CpuLoweringFingerprint loweringFingerprint
         /** Observable direct {@code double[]} access. */ DOUBLE_ARRAY,
         /** Observable direct {@code float[]} access. */ FLOAT_ARRAY,
         /**
-         * Observable direct opaque {@code short[]} access for represented-bit BFLOAT16 affine
-         * copies only; it supplies no numerical or vector semantics.
+         * Observable direct {@code short[]} access for represented-bit BFLOAT16 boundaries.
+         * Scalar pointwise bodies may decode these bits for numerical work; no BFLOAT16 vector
+         * lane semantics are implied.
          */ SHORT_ARRAY,
         /** Observable direct {@code int[]} access. */ INT_ARRAY,
         /** Observable direct {@code long[]} access. */ LONG_ARRAY,
@@ -244,8 +246,8 @@ public record CpuKernelSpecialization(CpuLoweringFingerprint loweringFingerprint
         matmulIr = Objects.requireNonNull(matmulIr, "matmulIr");
         if (classIdentitySchema != 52 && classIdentitySchema != 54 && classIdentitySchema != 55
                 && classIdentitySchema != 56 && classIdentitySchema != 57
-                && classIdentitySchema != 58) {
-            throw new IllegalArgumentException("class identity schema must be 52, 54, 55, 56, 57, or 58");
+                && classIdentitySchema != 58 && classIdentitySchema != 59) {
+            throw new IllegalArgumentException("class identity schema must be 52, 54, 55, 56, 57, 58, or 59");
         }
         if ((classIdentitySchema == 54) != matmulIr.isPresent()
                 || classIdentitySchema == 55 && matmulIr.isPresent()) {

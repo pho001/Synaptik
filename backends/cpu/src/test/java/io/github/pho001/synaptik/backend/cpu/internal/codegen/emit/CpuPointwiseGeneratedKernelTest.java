@@ -8,6 +8,7 @@ import io.github.pho001.synaptik.backend.cpu.internal.memory.CpuBufferArgument;
 import io.github.pho001.synaptik.backend.cpu.internal.prepare.CpuPartitionPreparationPlan;
 import io.github.pho001.synaptik.backend.cpu.internal.reference.CpuScalarReferenceKernel;
 import io.github.pho001.synaptik.model.datatype.DataType;
+import io.github.pho001.synaptik.model.datatype.BFloat16Bits;
 import java.util.*;
 import org.junit.jupiter.api.Test;
 import jdk.incubator.vector.DoubleVector;
@@ -18,6 +19,8 @@ import jdk.incubator.vector.ByteVector;
 import java.lang.foreign.Arena;
 import java.lang.foreign.ValueLayout;
 import java.nio.ByteOrder;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.lang.classfile.ClassFile;
 import java.lang.classfile.Instruction;
 import java.lang.classfile.Opcode;
@@ -29,6 +32,101 @@ class CpuPointwiseGeneratedKernelTest {
     private static final List<CpuPointwiseOpcode> SELF_CONTAINED_ACTIVATIONS = List.of(
             CpuPointwiseOpcode.ERF, CpuPointwiseOpcode.SIGMOID, CpuPointwiseOpcode.GELU_EXACT,
             CpuPointwiseOpcode.GELU_TANH_APPROXIMATION, CpuPointwiseOpcode.SILU);
+
+    @Test void retainsBfloat16GeneratedClassFileEvidenceWhenExplicitlyRequested() throws Exception {
+        String requested = System.getProperty("synaptik.cpu.0008j.evidenceRoot");
+        org.junit.jupiter.api.Assumptions.assumeTrue(requested != null && !requested.isBlank());
+        Path root = Path.of(requested);
+        Files.createDirectories(root.resolve("generated-classes"));
+        var generator = new CpuClassFileKernelGenerator();
+        List<CpuKernelIr> fixtures = List.of(ir(new Case(CpuPointwiseOpcode.GELU_EXACT,
+                DataType.BFLOAT16)), ir(new Case(CpuPointwiseOpcode.POW, DataType.BFLOAT16)),
+                bfloatGeneralClampEvidenceIr(), bfloatBroadcastComparisonEvidenceIr(),
+                bfloatAccessRegimeIr());
+        List<List<CpuKernelSpecialization.CarrierAccess>> carrierPatterns = List.of(
+                List.of(CpuKernelSpecialization.CarrierAccess.SHORT_ARRAY,
+                        CpuKernelSpecialization.CarrierAccess.SHORT_ARRAY),
+                Collections.nCopies(3, CpuKernelSpecialization.CarrierAccess.MEMORY_SEGMENT),
+                List.of(CpuKernelSpecialization.CarrierAccess.SHORT_ARRAY,
+                        CpuKernelSpecialization.CarrierAccess.MEMORY_SEGMENT),
+                List.of(CpuKernelSpecialization.CarrierAccess.SHORT_ARRAY,
+                        CpuKernelSpecialization.CarrierAccess.SHORT_ARRAY,
+                        CpuKernelSpecialization.CarrierAccess.BYTE_ARRAY),
+                Collections.nCopies(5, CpuKernelSpecialization.CarrierAccess.SHORT_ARRAY));
+        String[] names = {"gelu", "pow", "clamp", "comparison", "fused-access"};
+        for (int index = 0; index < fixtures.size(); index++) {
+            CpuKernelIr fixture = fixtures.get(index);
+            List<DataType> types = fixture.values().stream().filter(value -> value.kind()
+                    != CpuKernelIr.Value.Kind.VIRTUAL).map(CpuKernelIr.Value::dataType).toList();
+            List<CpuKernelSpecialization.CarrierAccess> carriers = carrierPatterns.get(index);
+            var specialization = new CpuKernelSpecialization(CpuLoweringFingerprint.fromHex(
+                    fixture.structuralKey()), CpuKernelSpecialization.NumericalMode.EXACT_DEFAULT,
+                    CpuPartitionPreparationPlan.ExecutionStrategy.SCALAR, types, carriers, 0, -1,
+                    fixture.instructions().stream().filter(instruction -> instruction.opcode()
+                            == CpuPointwiseOpcode.SCALAR_POW)
+                            .map(CpuKernelIr.Instruction::powerRealization).toList(), false, 59);
+            Files.write(root.resolve("generated-classes").resolve(names[index] + ".class"),
+                    generator.generateClassBytes(specialization, fixture));
+        }
+    }
+
+    @Test void fusedBfloat16NodesRoundBeforeTheirConsumersAndWhereCopiesRawBits()
+            throws Throwable {
+        CpuKernelIr ir = new CpuKernelIr(List.of(
+                new CpuKernelIr.Value(0, DataType.BFLOAT16, CpuKernelIr.Value.Kind.INPUT,
+                        dense(CpuAccessPlan.AccessKind.READ)),
+                new CpuKernelIr.Value(1, DataType.BFLOAT16, CpuKernelIr.Value.Kind.INPUT,
+                        dense(CpuAccessPlan.AccessKind.READ)),
+                new CpuKernelIr.Value(2, DataType.BFLOAT16, CpuKernelIr.Value.Kind.INPUT,
+                        dense(CpuAccessPlan.AccessKind.READ)),
+                new CpuKernelIr.Value(3, DataType.BFLOAT16, CpuKernelIr.Value.Kind.VIRTUAL,
+                        dense(CpuAccessPlan.AccessKind.READ)),
+                new CpuKernelIr.Value(4, DataType.BOOL, CpuKernelIr.Value.Kind.VIRTUAL,
+                        dense(CpuAccessPlan.AccessKind.READ)),
+                new CpuKernelIr.Value(5, DataType.BFLOAT16, CpuKernelIr.Value.Kind.VIRTUAL,
+                        dense(CpuAccessPlan.AccessKind.READ)),
+                new CpuKernelIr.Value(6, DataType.BFLOAT16, CpuKernelIr.Value.Kind.OUTPUT,
+                        dense(CpuAccessPlan.AccessKind.WRITE))), List.of(
+                new CpuKernelIr.Instruction(CpuPointwiseOpcode.ADD, List.of(0, 1), 3),
+                new CpuKernelIr.Instruction(CpuPointwiseOpcode.IS_FINITE, List.of(3), 4),
+                new CpuKernelIr.Instruction(CpuPointwiseOpcode.SIGMOID, List.of(3), 5),
+                new CpuKernelIr.Instruction(CpuPointwiseOpcode.WHERE, List.of(4, 5, 2), 6)),
+                new CpuKernelIr.Loop("start", "end"), List.of(new CpuKernelIr.Store(6, 0)));
+        List<DataType> boundaryTypes = List.of(DataType.BFLOAT16, DataType.BFLOAT16,
+                DataType.BFLOAT16, DataType.BFLOAT16);
+        var specialization = new CpuKernelSpecialization(CpuLoweringFingerprint.fromHex(
+                ir.structuralKey()), CpuKernelSpecialization.NumericalMode.EXACT_DEFAULT,
+                CpuPartitionPreparationPlan.ExecutionStrategy.SCALAR, boundaryTypes,
+                Collections.nCopies(4, CpuKernelSpecialization.CarrierAccess.SHORT_ARRAY), 0, -1,
+                List.of(), false, 59);
+        var generator = new CpuClassFileKernelGenerator();
+        byte[] bytes = generator.generateClassBytes(specialization, ir);
+        var artifact = generator.defineClassBytes(specialization, bytes);
+        short[] left = {(short) 0x3f81, (short) 0x7f80, (short) 0x7fc1};
+        short[] right = {(short) 0x3d80, (short) 0x3f80, (short) 0x3f80};
+        short[] otherwise = {(short) 0xffff, (short) 0x8000, (short) 0x1234};
+        short[] actual = new short[3];
+        artifact.entryPoint().invokeExact(left, right, otherwise, actual, geometry(4, 3), 0L, 3L);
+        short[] expected = new short[3];
+        for (int index = 0; index < expected.length; index++) {
+            short sum = BFloat16Bits.fromFloat(BFloat16Bits.toFloat(left[index])
+                    + BFloat16Bits.toFloat(right[index]));
+            float value = BFloat16Bits.toFloat(sum);
+            short sigmoid = BFloat16Bits.fromFloat((float) (value >= 0.0f
+                    ? 1.0d / (1.0d + StrictMath.exp(-(double) value))
+                    : StrictMath.exp((double) value) / (1.0d + StrictMath.exp((double) value))));
+            expected[index] = Float.isFinite(value) ? sigmoid : otherwise[index];
+        }
+        var model = ClassFile.of().parse(bytes);
+        List<MemberRefEntry> members = java.util.stream.StreamSupport.stream(
+                model.constantPool().spliterator(), false).filter(MemberRefEntry.class::isInstance)
+                .map(MemberRefEntry.class::cast).toList();
+        assertAll(
+                () -> assertArrayEquals(expected, actual),
+                () -> assertTrue(members.stream().noneMatch(member -> member.owner().asInternalName()
+                        .startsWith("io/github/pho001/synaptik"))),
+                () -> assertGeneratedClassShape(model, false));
+    }
 
     @Test void guardedFrozenScalarGeneralMatchesDirectRangesAndRetainsFallback()
             throws Throwable {
@@ -230,23 +328,25 @@ class CpuPointwiseGeneratedKernelTest {
         var cases = new ArrayList<Case>();
         for (CpuPointwiseOpcode opcode : List.of(CpuPointwiseOpcode.ADD, CpuPointwiseOpcode.SUB,
                 CpuPointwiseOpcode.MUL)) for (DataType type : numericTypes()) cases.add(new Case(opcode, type));
-        for (DataType type : List.of(DataType.FLOAT64, DataType.FLOAT32))
+        for (DataType type : List.of(DataType.FLOAT64, DataType.FLOAT32, DataType.BFLOAT16))
             cases.add(new Case(CpuPointwiseOpcode.DIV, type));
         for (CpuPointwiseOpcode opcode : List.of(CpuPointwiseOpcode.MIN, CpuPointwiseOpcode.MAX))
             for (DataType type : numericTypes()) cases.add(new Case(opcode, type));
-        for (DataType type : List.of(DataType.FLOAT64, DataType.FLOAT32))
+        for (DataType type : List.of(DataType.FLOAT64, DataType.FLOAT32, DataType.BFLOAT16))
             cases.add(new Case(CpuPointwiseOpcode.POW, type));
         for (CpuPointwiseOpcode opcode : List.of(CpuPointwiseOpcode.SCALAR_ADD,
                 CpuPointwiseOpcode.SCALAR_SUB, CpuPointwiseOpcode.SCALAR_MUL))
             for (DataType type : numericTypes()) cases.add(new Case(opcode, type));
-        for (DataType type : List.of(DataType.FLOAT64, DataType.FLOAT32))
+        for (DataType type : List.of(DataType.FLOAT64, DataType.FLOAT32, DataType.BFLOAT16))
             cases.add(new Case(CpuPointwiseOpcode.SCALAR_DIV, type));
+        for (DataType type : List.of(DataType.FLOAT64, DataType.FLOAT32, DataType.BFLOAT16))
+            cases.add(new Case(CpuPointwiseOpcode.SCALAR_POW, type));
         for (CpuPointwiseOpcode opcode : List.of(CpuPointwiseOpcode.SCALAR_MIN,
                 CpuPointwiseOpcode.SCALAR_MAX)) for (DataType type : numericTypes())
             cases.add(new Case(opcode, type));
-        for (DataType type : List.of(DataType.FLOAT64, DataType.FLOAT32))
+        for (DataType type : List.of(DataType.FLOAT64, DataType.FLOAT32, DataType.BFLOAT16))
             cases.add(new Case(CpuPointwiseOpcode.SCALAR_CLAMP, type));
-        for (DataType type : List.of(DataType.FLOAT64, DataType.FLOAT32)) {
+        for (DataType type : List.of(DataType.FLOAT64, DataType.FLOAT32, DataType.BFLOAT16)) {
             for (CpuPointwiseOpcode opcode : CpuPointwiseOpcode.values())
                 if (opcode.family() == CpuPointwiseOpcode.Family.UNARY) cases.add(new Case(opcode, type));
             for (CpuPointwiseOpcode opcode : List.of(CpuPointwiseOpcode.IS_FINITE,
@@ -259,6 +359,7 @@ class CpuPointwiseGeneratedKernelTest {
             cases.add(new Case(opcode, type));
         cases.add(new Case(CpuPointwiseOpcode.WHERE, DataType.FLOAT64));
         cases.add(new Case(CpuPointwiseOpcode.WHERE, DataType.FLOAT32));
+        cases.add(new Case(CpuPointwiseOpcode.WHERE, DataType.BFLOAT16));
         cases.add(new Case(CpuPointwiseOpcode.LOGICAL_AND, DataType.BOOL));
         cases.add(new Case(CpuPointwiseOpcode.LOGICAL_OR, DataType.BOOL));
         cases.add(new Case(CpuPointwiseOpcode.LOGICAL_NOT, DataType.BOOL));
@@ -266,7 +367,7 @@ class CpuPointwiseGeneratedKernelTest {
                 DataType.INT64, DataType.BOOL)) cases.add(new Case(CpuPointwiseOpcode.CAST, type));
 
         for (Case one : cases) assertCase(one);
-        assertEquals(126, cases.size());
+        assertEquals(172, cases.size());
     }
 
     @Test void float64NumericSubsetUsesVectorBodiesWithScalarTails() throws Throwable {
@@ -515,6 +616,57 @@ class CpuPointwiseGeneratedKernelTest {
                         "base=" + floatBases[index] + " exponent=" + exponent);
             }
         }
+
+        short[] bfloatExponents = {(short) 0x0000, (short) 0x8000, (short) 0x3f80,
+                (short) 0x4000, (short) 0xbf80, (short) 0x4040, (short) 0x3f00,
+                (short) 0x7fc1};
+        short[] bfloatBases = {(short) 0x0000, (short) 0x8000, (short) 0x0001,
+                (short) 0x8001, (short) 0x3f80, (short) 0xbf80, (short) 0x7f7f,
+                (short) 0xff7f, (short) 0x7f80, (short) 0xff80, (short) 0x7f81,
+                (short) 0xffc1};
+        for (short exponentBits : bfloatExponents) {
+            CpuKernelIr ir = powerIr(DataType.BFLOAT16, Short.toUnsignedLong(exponentBits));
+            var artifact = powerArtifact(ir, DataType.BFLOAT16,
+                    CpuPartitionPreparationPlan.ExecutionStrategy.SCALAR);
+            short[] output = new short[bfloatBases.length];
+            artifact.entryPoint().invokeExact(bfloatBases, output,
+                    geometry(2, bfloatBases.length), 0L, (long) bfloatBases.length);
+            float exponent = BFloat16Bits.toFloat(exponentBits);
+            for (int index = 0; index < bfloatBases.length; index++) {
+                short expected = BFloat16Bits.fromFloat((float) StrictMath.pow(
+                        BFloat16Bits.toFloat(bfloatBases[index]), exponent));
+                assertEquals(expected, output[index], "base=0x"
+                        + Integer.toHexString(Short.toUnsignedInt(bfloatBases[index]))
+                        + " exponent=0x" + Integer.toHexString(Short.toUnsignedInt(exponentBits)));
+            }
+        }
+    }
+
+    @Test void bfloat16EncodingUsesTiesToEvenCanonicalNanOverflowAndSignedUnderflow()
+            throws Throwable {
+        CpuKernelIr add = ir(new Case(CpuPointwiseOpcode.ADD, DataType.BFLOAT16));
+        var addArtifact = artifact(add, List.of(DataType.BFLOAT16, DataType.BFLOAT16,
+                DataType.BFLOAT16), Collections.nCopies(3,
+                        CpuKernelSpecialization.CarrierAccess.SHORT_ARRAY));
+        short[] left = {(short) 0x3f80, (short) 0x3f81, (short) 0x7f7f,
+                (short) 0x7f81, (short) 0xff81};
+        short[] right = {(short) 0x3b80, (short) 0x3b80, (short) 0x7f7f,
+                (short) 0x3f80, (short) 0x3f80};
+        short[] added = new short[left.length];
+        addArtifact.entryPoint().invokeExact(left, right, added, geometry(3, left.length), 0L,
+                (long) left.length);
+        assertArrayEquals(new short[] {(short) 0x3f80, (short) 0x3f82, (short) 0x7f80,
+                (short) 0x7fc0, (short) 0x7fc0}, added);
+
+        CpuKernelIr multiply = ir(new Case(CpuPointwiseOpcode.MUL, DataType.BFLOAT16));
+        var multiplyArtifact = artifact(multiply, List.of(DataType.BFLOAT16, DataType.BFLOAT16,
+                DataType.BFLOAT16), Collections.nCopies(3,
+                        CpuKernelSpecialization.CarrierAccess.SHORT_ARRAY));
+        short[] multiplied = new short[2];
+        multiplyArtifact.entryPoint().invokeExact(new short[] {1, (short) 0x8001},
+                new short[] {(short) 0x3f00, (short) 0x3f00}, multiplied,
+                geometry(3, 2), 0L, 2L);
+        assertArrayEquals(new short[] {0, (short) 0x8000}, multiplied);
     }
 
     @Test void generatedBinaryAndScalarDivisionMatchPrimitiveOracleEdges() throws Throwable {
@@ -713,6 +865,61 @@ class CpuPointwiseGeneratedKernelTest {
         }
     }
 
+    /** Exercises the complete BFLOAT16 pointwise inventory through segment and mixed boundaries. */
+    @Test void everyBfloat16PointwiseFormPreservesRawReferenceResultsAcrossSegmentRanges()
+            throws Throwable {
+        var forms = new ArrayList<CpuPointwiseOpcode>();
+        forms.addAll(List.of(CpuPointwiseOpcode.ADD, CpuPointwiseOpcode.SUB, CpuPointwiseOpcode.MUL,
+                CpuPointwiseOpcode.DIV, CpuPointwiseOpcode.MIN, CpuPointwiseOpcode.MAX,
+                CpuPointwiseOpcode.POW, CpuPointwiseOpcode.SCALAR_ADD,
+                CpuPointwiseOpcode.SCALAR_SUB, CpuPointwiseOpcode.SCALAR_MUL,
+                CpuPointwiseOpcode.SCALAR_DIV, CpuPointwiseOpcode.SCALAR_MIN,
+                CpuPointwiseOpcode.SCALAR_MAX, CpuPointwiseOpcode.SCALAR_POW,
+                CpuPointwiseOpcode.SCALAR_CLAMP));
+        for (CpuPointwiseOpcode opcode : CpuPointwiseOpcode.values())
+            if (opcode.family() == CpuPointwiseOpcode.Family.UNARY) forms.add(opcode);
+        forms.addAll(List.of(CpuPointwiseOpcode.GREATER_THAN,
+                CpuPointwiseOpcode.GREATER_OR_EQUAL, CpuPointwiseOpcode.LESS_THAN,
+                CpuPointwiseOpcode.LESS_OR_EQUAL, CpuPointwiseOpcode.EQUAL,
+                CpuPointwiseOpcode.NOT_EQUAL, CpuPointwiseOpcode.IS_FINITE,
+                CpuPointwiseOpcode.IS_NAN, CpuPointwiseOpcode.IS_INF, CpuPointwiseOpcode.WHERE));
+        assertEquals(44, forms.size());
+        try (Arena arena = Arena.ofConfined()) {
+            for (int ordinal = 0; ordinal < forms.size(); ordinal++)
+                assertBfloatSegmentCase(new Case(forms.get(ordinal), DataType.BFLOAT16), arena,
+                        ordinal % 2 == 0);
+        }
+    }
+
+    @Test void bfloat16GeneralAddressingUsesEveryLegalAccessRegimeAndPartialRanges()
+            throws Throwable {
+        CpuKernelIr ir = bfloatAccessRegimeIr();
+        List<DataType> types = List.of(DataType.BFLOAT16, DataType.BFLOAT16, DataType.BFLOAT16,
+                DataType.BFLOAT16, DataType.BFLOAT16);
+        var artifact = artifact(ir, types, List.of(CpuKernelSpecialization.CarrierAccess.SHORT_ARRAY,
+                CpuKernelSpecialization.CarrierAccess.MEMORY_SEGMENT,
+                CpuKernelSpecialization.CarrierAccess.SHORT_ARRAY,
+                CpuKernelSpecialization.CarrierAccess.MEMORY_SEGMENT,
+                CpuKernelSpecialization.CarrierAccess.SHORT_ARRAY));
+        short[] input = bfloats(-2f, -.25f, .25f, 1f, 2f, 4f);
+        short[] scalar = bfloats(.5f);
+        short[] bias = bfloats(-1, .5f, 3);
+        short[] otherwise = new short[8]; Arrays.fill(otherwise, (short) 0x7fa1);
+        short[] output = new short[8]; Arrays.fill(output, (short) 0x5a5a);
+        long[] geometry = bfloatAccessRegimeGeometry(1);
+        artifact.entryPoint().invokeExact(input, segmentOf(scalar), bias, segmentOf(otherwise),
+                output, geometry, 1L, 5L);
+        short[] expected = new short[8]; Arrays.fill(expected, (short) 0x5a5a);
+        for (int ordinal = 1; ordinal < 5; ordinal++) {
+            short sum = BFloat16Bits.fromFloat(BFloat16Bits.toFloat(input[ordinal])
+                    + BFloat16Bits.toFloat(scalar[0]));
+            int column = ordinal % 3;
+            expected[(ordinal / 3) * 5 + column] = BFloat16Bits.toFloat(sum)
+                    > BFloat16Bits.toFloat(bias[column]) ? sum : otherwise[0];
+        }
+        assertArrayEquals(expected, output);
+    }
+
     @Test void preferredTypedVectorsUseSegmentAndMixedCarriers() throws Throwable {
         try (Arena arena = Arena.ofConfined()) {
             for (DataType type : List.of(DataType.FLOAT64, DataType.FLOAT32, DataType.INT32,
@@ -748,7 +955,11 @@ class CpuPointwiseGeneratedKernelTest {
         var specialization = new CpuKernelSpecialization(
                 CpuLoweringFingerprint.fromHex(ir.structuralKey()),
                 CpuKernelSpecialization.NumericalMode.EXACT_DEFAULT,
-                CpuPartitionPreparationPlan.ExecutionStrategy.SCALAR, types, carriers, 0, -1);
+                CpuPartitionPreparationPlan.ExecutionStrategy.SCALAR, types, carriers, 0, -1,
+                ir.instructions().stream()
+                        .filter(instruction -> instruction.opcode() == CpuPointwiseOpcode.SCALAR_POW)
+                        .map(CpuKernelIr.Instruction::powerRealization).toList(), false,
+                types.contains(DataType.BFLOAT16) ? 59 : 52);
         var generator = new CpuClassFileKernelGenerator();
         return generator.defineClassBytes(specialization,
                 generator.generateClassBytes(specialization, ir));
@@ -988,7 +1199,8 @@ class CpuPointwiseGeneratedKernelTest {
                 CpuLoweringFingerprint.fromHex(ir.structuralKey()),
                 CpuKernelSpecialization.NumericalMode.EXACT_DEFAULT, strategy,
                 List.of(type, type), List.of(heapCarrier(type), heapCarrier(type)), species, -1,
-                List.of(ir.instructions().getFirst().powerRealization()));
+                List.of(ir.instructions().getFirst().powerRealization()), false,
+                type == DataType.BFLOAT16 ? 59 : 52);
         var generator = new CpuClassFileKernelGenerator();
         return generator.defineClassBytes(specialization,
                 generator.generateClassBytes(specialization, ir));
@@ -1032,6 +1244,83 @@ class CpuPointwiseGeneratedKernelTest {
                         new CpuKernelIr.Instruction(CpuPointwiseOpcode.SIGMOID, List.of(3), 4),
                         new CpuKernelIr.Instruction(CpuPointwiseOpcode.MUL, List.of(4, 2), 5)),
                 new CpuKernelIr.Loop("start", "end"), List.of(new CpuKernelIr.Store(5, 0)));
+    }
+
+    private static CpuKernelIr bfloatGeneralClampEvidenceIr() {
+        var input = new CpuAccessPlan(CpuAccessPlan.AccessKind.READ,
+                CpuAccessPlan.Regime.DENSE_LINEAR, 2,
+                List.of(CpuAccessPlan.AxisRole.CONTIGUOUS,
+                        CpuAccessPlan.AxisRole.CONTIGUOUS), 2);
+        var output = new CpuAccessPlan(CpuAccessPlan.AccessKind.WRITE,
+                CpuAccessPlan.Regime.GENERAL_ODOMETER, 2,
+                List.of(CpuAccessPlan.AxisRole.STRIDED,
+                        CpuAccessPlan.AxisRole.STRIDED), 0);
+        return new CpuKernelIr(List.of(
+                new CpuKernelIr.Value(0, DataType.BFLOAT16, CpuKernelIr.Value.Kind.INPUT, input),
+                new CpuKernelIr.Value(1, DataType.BFLOAT16, CpuKernelIr.Value.Kind.OUTPUT, output)),
+                List.of(new CpuKernelIr.Instruction(CpuPointwiseOpcode.SCALAR_CLAMP,
+                        List.of(0), 1, new CpuKernelIr.ClampImmediate(
+                                new CpuKernelIr.ScalarImmediate(DataType.BFLOAT16, 0xbf80),
+                                new CpuKernelIr.ScalarImmediate(DataType.BFLOAT16, 0x3f80)))),
+                new CpuKernelIr.Loop("start", "end"), List.of(new CpuKernelIr.Store(1, 0)));
+    }
+
+    private static CpuKernelIr bfloatBroadcastComparisonEvidenceIr() {
+        var scalar = new CpuAccessPlan(CpuAccessPlan.AccessKind.READ,
+                CpuAccessPlan.Regime.SCALAR_ALL_ZERO, 1,
+                List.of(CpuAccessPlan.AxisRole.BROADCAST), 0);
+        return new CpuKernelIr(List.of(
+                new CpuKernelIr.Value(0, DataType.BFLOAT16, CpuKernelIr.Value.Kind.INPUT,
+                        dense(CpuAccessPlan.AccessKind.READ)),
+                new CpuKernelIr.Value(1, DataType.BFLOAT16, CpuKernelIr.Value.Kind.INPUT, scalar),
+                new CpuKernelIr.Value(2, DataType.BOOL, CpuKernelIr.Value.Kind.OUTPUT,
+                        dense(CpuAccessPlan.AccessKind.WRITE))),
+                List.of(new CpuKernelIr.Instruction(CpuPointwiseOpcode.GREATER_THAN,
+                        List.of(0, 1), 2)), new CpuKernelIr.Loop("start", "end"),
+                List.of(new CpuKernelIr.Store(2, 0)));
+    }
+
+    private static CpuKernelIr bfloatAccessRegimeIr() {
+        var dense = new CpuAccessPlan(CpuAccessPlan.AccessKind.READ,
+                CpuAccessPlan.Regime.DENSE_LINEAR, 2, List.of(CpuAccessPlan.AxisRole.CONTIGUOUS,
+                CpuAccessPlan.AxisRole.CONTIGUOUS), 2);
+        var scalar = new CpuAccessPlan(CpuAccessPlan.AccessKind.READ,
+                CpuAccessPlan.Regime.SCALAR_ALL_ZERO, 2, List.of(CpuAccessPlan.AxisRole.BROADCAST,
+                CpuAccessPlan.AxisRole.BROADCAST), 0);
+        var bias = new CpuAccessPlan(CpuAccessPlan.AccessKind.READ,
+                CpuAccessPlan.Regime.LAST_AXIS_BIAS, 2, List.of(CpuAccessPlan.AxisRole.BROADCAST,
+                CpuAccessPlan.AxisRole.CONTIGUOUS), 1);
+        var block = new CpuAccessPlan(CpuAccessPlan.AccessKind.READ,
+                CpuAccessPlan.Regime.BLOCK_OUTER, 2, List.of(CpuAccessPlan.AxisRole.STRIDED,
+                CpuAccessPlan.AxisRole.CONTIGUOUS), 1);
+        var general = new CpuAccessPlan(CpuAccessPlan.AccessKind.WRITE,
+                CpuAccessPlan.Regime.GENERAL_ODOMETER, 2, List.of(CpuAccessPlan.AxisRole.STRIDED,
+                CpuAccessPlan.AxisRole.STRIDED), 0);
+        return new CpuKernelIr(List.of(
+                new CpuKernelIr.Value(0, DataType.BFLOAT16, CpuKernelIr.Value.Kind.INPUT, dense),
+                new CpuKernelIr.Value(1, DataType.BFLOAT16, CpuKernelIr.Value.Kind.INPUT, scalar),
+                new CpuKernelIr.Value(2, DataType.BFLOAT16, CpuKernelIr.Value.Kind.INPUT, bias),
+                new CpuKernelIr.Value(3, DataType.BFLOAT16, CpuKernelIr.Value.Kind.INPUT, block),
+                new CpuKernelIr.Value(4, DataType.BFLOAT16, CpuKernelIr.Value.Kind.VIRTUAL, general),
+                new CpuKernelIr.Value(5, DataType.BOOL, CpuKernelIr.Value.Kind.VIRTUAL, general),
+                new CpuKernelIr.Value(6, DataType.BFLOAT16, CpuKernelIr.Value.Kind.OUTPUT, general)),
+                List.of(new CpuKernelIr.Instruction(CpuPointwiseOpcode.ADD, List.of(0, 1), 4),
+                        new CpuKernelIr.Instruction(CpuPointwiseOpcode.GREATER_THAN, List.of(4, 2), 5),
+                        new CpuKernelIr.Instruction(CpuPointwiseOpcode.WHERE, List.of(5, 4, 3), 6)),
+                new CpuKernelIr.Loop("start", "end"), List.of(new CpuKernelIr.Store(6, 0)));
+    }
+
+    private static long[] bfloatAccessRegimeGeometry(long start) {
+        long row = start / 3, column = start % 3;
+        return new long[] {2, 3, row, column, start, 0, column, start,
+                row * 5 + column, 3, 1, 0, 0, 0, 1, 3, 1, 5, 1, 0, 0, column, column,
+                0, 0, 0, 0, 0};
+    }
+
+    private static short[] bfloats(float... values) {
+        short[] result = new short[values.length];
+        for (int index = 0; index < values.length; index++) result[index] = BFloat16Bits.fromFloat(values[index]);
+        return result;
     }
 
     private static long[] frozenScalarGeneralGeometry(long start) {
@@ -1134,6 +1423,7 @@ class CpuPointwiseGeneratedKernelTest {
     private static java.lang.foreign.MemorySegment segmentOf(Object array) {
         if (array instanceof double[] value) return java.lang.foreign.MemorySegment.ofArray(value);
         if (array instanceof float[] value) return java.lang.foreign.MemorySegment.ofArray(value);
+        if (array instanceof short[] value) return java.lang.foreign.MemorySegment.ofArray(value);
         if (array instanceof int[] value) return java.lang.foreign.MemorySegment.ofArray(value);
         if (array instanceof long[] value) return java.lang.foreign.MemorySegment.ofArray(value);
         return java.lang.foreign.MemorySegment.ofArray((byte[]) array);
@@ -1145,6 +1435,8 @@ class CpuPointwiseGeneratedKernelTest {
             switch (type) {
                 case FLOAT64 -> segment.set(ValueLayout.JAVA_DOUBLE_UNALIGNED.withOrder(ByteOrder.nativeOrder()), offset, i - 1.5);
                 case FLOAT32 -> segment.set(ValueLayout.JAVA_FLOAT_UNALIGNED.withOrder(ByteOrder.nativeOrder()), offset, i - 1.5f);
+                case BFLOAT16 -> segment.set(ValueLayout.JAVA_SHORT_UNALIGNED.withOrder(ByteOrder.nativeOrder()),
+                        offset, BFloat16Bits.fromFloat(i - 1.5f));
                 case INT32 -> segment.set(ValueLayout.JAVA_INT_UNALIGNED.withOrder(ByteOrder.nativeOrder()), offset, i * 17);
                 case INT64 -> segment.set(ValueLayout.JAVA_LONG_UNALIGNED.withOrder(ByteOrder.nativeOrder()), offset, (long) i * Long.MAX_VALUE);
                 case BOOL -> segment.set(ValueLayout.JAVA_BYTE, offset, (byte) (i & 1));
@@ -1162,7 +1454,11 @@ class CpuPointwiseGeneratedKernelTest {
         var specialization = new CpuKernelSpecialization(
                 CpuLoweringFingerprint.fromHex(ir.structuralKey()),
                 CpuKernelSpecialization.NumericalMode.EXACT_DEFAULT,
-                CpuPartitionPreparationPlan.ExecutionStrategy.SCALAR, types, carriers, 0, -1);
+                CpuPartitionPreparationPlan.ExecutionStrategy.SCALAR, types, carriers, 0, -1,
+                ir.instructions().stream().filter(instruction -> instruction.opcode()
+                        == CpuPointwiseOpcode.SCALAR_POW)
+                        .map(CpuKernelIr.Instruction::powerRealization).toList(), false,
+                types.contains(DataType.BFLOAT16) ? 59 : 52);
         var artifact = new CpuClassFileKernelGenerator().defineClassBytes(specialization,
                 new CpuClassFileKernelGenerator().generateClassBytes(specialization, ir));
         List<Object> inputArrays = inputs(one);
@@ -1180,6 +1476,47 @@ class CpuPointwiseGeneratedKernelTest {
                 one.opcode() + " " + one.type());
     }
 
+    private static void assertBfloatSegmentCase(Case one, Arena arena, boolean mixed)
+            throws Throwable {
+        CpuKernelIr ir = ir(one);
+        List<CpuKernelIr.Value> boundaries = ir.values().stream().filter(value -> value.kind()
+                != CpuKernelIr.Value.Kind.VIRTUAL).toList();
+        List<DataType> types = boundaries.stream().map(CpuKernelIr.Value::dataType).toList();
+        List<Object> heapInputs = inputs(one);
+        Object expected = array(one.outputType(), 4, false);
+        // The reference invocation owns a separate output so it cannot alias an input carrier.
+        var referenceArgs = new ArrayList<CpuBufferArgument>();
+        for (int index = 0; index < heapInputs.size(); index++)
+            referenceArgs.add(argument(heapInputs.get(index), types.get(index)));
+        referenceArgs.add(argument(expected, one.outputType()));
+        CpuScalarReferenceKernel.execute(ir, referenceArgs, bindings(boundaries.size()), 0, 4);
+        var carriers = new ArrayList<CpuKernelSpecialization.CarrierAccess>();
+        var generated = new ArrayList<Object>();
+        for (int index = 0; index < heapInputs.size(); index++) {
+            boolean heap = mixed && index == 0;
+            carriers.add(heap ? heapCarrier(types.get(index))
+                    : CpuKernelSpecialization.CarrierAccess.MEMORY_SEGMENT);
+            generated.add(heap ? heapInputs.get(index) : segmentOf(heapInputs.get(index)));
+        }
+        var output = arena.allocate((long) 4 * one.outputType().byteWidth(),
+                one.outputType().byteWidth());
+        carriers.add(CpuKernelSpecialization.CarrierAccess.MEMORY_SEGMENT);
+        generated.add(output);
+        var artifact = artifact(ir, types, carriers);
+        var call = new ArrayList<Object>(generated);
+        call.add(geometry(boundaries.size(), 4)); call.add(0L); call.add(4L);
+        artifact.entryPoint().invokeWithArguments(call);
+        assertPrimitiveArrayEquals(expected, arrayFromSegment(one.outputType(), output, 4),
+                one.opcode() + " segment/mixed raw result");
+    }
+
+    private static Object arrayFromSegment(DataType type, java.lang.foreign.MemorySegment segment,
+            int count) {
+        Object result = array(type, count, false);
+        segmentOf(result).copyFrom(segment.asSlice(0, (long) count * type.byteWidth()));
+        return result;
+    }
+
     private static CpuKernelIr ir(Case one) {
         List<DataType> inputs = one.inputTypes();
         var values = new ArrayList<CpuKernelIr.Value>();
@@ -1194,9 +1531,11 @@ class CpuPointwiseGeneratedKernelTest {
                 ? new CpuKernelIr.ClampImmediate(
                         new CpuKernelIr.ScalarImmediate(one.type(), negativeZero(one.type())),
                         new CpuKernelIr.ScalarImmediate(one.type(), positiveZero(one.type()))) : null;
+        CpuKernelIr.PowerRealization power = one.opcode() == CpuPointwiseOpcode.SCALAR_POW
+                ? CpuKernelIr.PowerRealization.POSITIVE_ONE : null;
         return new CpuKernelIr(values, List.of(new CpuKernelIr.Instruction(one.opcode(),
                 java.util.stream.IntStream.range(0, inputs.size()).boxed().toList(), output,
-                immediate, null, clamp)),
+                immediate, power, clamp)),
                 new CpuKernelIr.Loop("start", "end"), List.of(new CpuKernelIr.Store(output, 0)));
     }
 
@@ -1214,6 +1553,9 @@ class CpuPointwiseGeneratedKernelTest {
                     : new double[] {0.0, Double.POSITIVE_INFINITY, -2, Double.MIN_VALUE};
             case FLOAT32 -> second ? new float[] {-0.0f, Float.NaN, 3, -4}
                     : new float[] {0.0f, Float.POSITIVE_INFINITY, -2, Float.MIN_VALUE};
+            case BFLOAT16 -> second ? new short[] {(short) 0x8000, (short) 0x7fc1,
+                    (short) 0x4040, (short) 0xc080}
+                    : new short[] {0, (short) 0x7f80, (short) 0xc000, 1};
             case INT32 -> second ? new int[] {1, -1, Integer.MAX_VALUE, 3}
                     : new int[] {Integer.MAX_VALUE, Integer.MIN_VALUE, -2, 7};
             case INT64 -> second ? new long[] {1, -1, Long.MAX_VALUE, 3}
@@ -1226,6 +1568,7 @@ class CpuPointwiseGeneratedKernelTest {
     private static Object array(DataType type, int size, boolean ignored) {
         return switch (type) {
             case FLOAT64 -> new double[size]; case FLOAT32 -> new float[size];
+            case BFLOAT16 -> new short[size];
             case INT32 -> new int[size]; case INT64 -> new long[size]; case BOOL -> new byte[size];
             default -> throw new IllegalArgumentException("unsupported test type");
         };
@@ -1235,6 +1578,7 @@ class CpuPointwiseGeneratedKernelTest {
         return new CpuKernelIr.ScalarImmediate(type, switch (type) {
             case FLOAT64 -> Double.doubleToRawLongBits(-0.0d);
             case FLOAT32 -> Float.floatToRawIntBits(-0.0f) & 0xffff_ffffL;
+            case BFLOAT16 -> 0x8000L;
             case INT32 -> 0xffff_ffffL; case INT64 -> -1L;
             default -> throw new IllegalArgumentException("unsupported immediate");
         });
@@ -1242,6 +1586,7 @@ class CpuPointwiseGeneratedKernelTest {
 
     private static long negativeZero(DataType type) {
         return type == DataType.FLOAT64 ? Double.doubleToRawLongBits(-0.0d)
+                : type == DataType.BFLOAT16 ? 0x8000L
                 : Float.floatToRawIntBits(-0.0f) & 0xffff_ffffL;
     }
 
@@ -1279,6 +1624,7 @@ class CpuPointwiseGeneratedKernelTest {
         return switch (type) {
             case FLOAT64 -> new CpuBufferArgument.Doubles((double[]) value, 0, bytes, false);
             case FLOAT32 -> new CpuBufferArgument.Floats((float[]) value, 0, bytes, false);
+            case BFLOAT16 -> new CpuBufferArgument.Shorts((short[]) value, 0, bytes, false);
             case INT32 -> new CpuBufferArgument.Ints((int[]) value, 0, bytes, false);
             case INT64 -> new CpuBufferArgument.Longs((long[]) value, 0, bytes, false);
             case BOOL -> new CpuBufferArgument.Bytes((byte[]) value, 0, bytes, false);
@@ -1290,6 +1636,7 @@ class CpuPointwiseGeneratedKernelTest {
         return switch (type) {
             case FLOAT64 -> CpuKernelSpecialization.CarrierAccess.DOUBLE_ARRAY;
             case FLOAT32 -> CpuKernelSpecialization.CarrierAccess.FLOAT_ARRAY;
+            case BFLOAT16 -> CpuKernelSpecialization.CarrierAccess.SHORT_ARRAY;
             case INT32 -> CpuKernelSpecialization.CarrierAccess.INT_ARRAY;
             case INT64 -> CpuKernelSpecialization.CarrierAccess.LONG_ARRAY;
             case BOOL -> CpuKernelSpecialization.CarrierAccess.BYTE_ARRAY;
@@ -1298,12 +1645,14 @@ class CpuPointwiseGeneratedKernelTest {
     }
 
     private static List<DataType> numericTypes() {
-        return List.of(DataType.FLOAT64, DataType.FLOAT32, DataType.INT32, DataType.INT64);
+        return List.of(DataType.FLOAT64, DataType.FLOAT32, DataType.BFLOAT16,
+                DataType.INT32, DataType.INT64);
     }
 
     private static void assertPrimitiveArrayEquals(Object expected, Object actual, String message) {
         if (expected instanceof double[] value) assertArrayEquals(value, (double[]) actual, message);
         else if (expected instanceof float[] value) assertArrayEquals(value, (float[]) actual, message);
+        else if (expected instanceof short[] value) assertArrayEquals(value, (short[]) actual, message);
         else if (expected instanceof int[] value) assertArrayEquals(value, (int[]) actual, message);
         else if (expected instanceof long[] value) assertArrayEquals(value, (long[]) actual, message);
         else assertArrayEquals((byte[]) expected, (byte[]) actual, message);

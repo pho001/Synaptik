@@ -30,6 +30,15 @@ class CpuScalarPowerAnalysisTest {
 
     private static Stream<Arguments> classifications() {
         return Stream.of(
+                bfloat(0x0000, CpuKernelIr.PowerRealization.POSITIVE_ONE),
+                bfloat(0x8000, CpuKernelIr.PowerRealization.POSITIVE_ONE),
+                bfloat(0x3f80, CpuKernelIr.PowerRealization.IDENTITY),
+                bfloat(0x4000, CpuKernelIr.PowerRealization.SQUARE),
+                bfloat(0xbf80, CpuKernelIr.PowerRealization.RECIPROCAL),
+                bfloat(0x3f00, CpuKernelIr.PowerRealization.DIRECT),
+                bfloat(0x4040, CpuKernelIr.PowerRealization.DIRECT),
+                bfloat(0x7f80, CpuKernelIr.PowerRealization.DIRECT),
+                bfloat(0x7fc1, CpuKernelIr.PowerRealization.DIRECT),
                 f32(+0.0f, CpuKernelIr.PowerRealization.POSITIVE_ONE),
                 f32(-0.0f, CpuKernelIr.PowerRealization.POSITIVE_ONE),
                 f32(1.0f, CpuKernelIr.PowerRealization.IDENTITY),
@@ -52,6 +61,10 @@ class CpuScalarPowerAnalysisTest {
                 f64(Double.NEGATIVE_INFINITY, CpuKernelIr.PowerRealization.DIRECT),
                 Arguments.of(DataType.FLOAT64, 0x7ff8_0000_0000_0001L,
                         CpuKernelIr.PowerRealization.DIRECT));
+    }
+
+    private static Arguments bfloat(int bits, CpuKernelIr.PowerRealization realization) {
+        return Arguments.of(DataType.BFLOAT16, (long) bits, realization);
     }
 
     private static Arguments f32(float value, CpuKernelIr.PowerRealization realization) {

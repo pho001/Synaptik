@@ -34,7 +34,7 @@ import io.github.pho001.synaptik.model.operation.layout.FoldAxisAttrs;
 import io.github.pho001.synaptik.model.operation.layout.WindowTransformKind;
 
 class CpuKernelSpecializationTest {
-    @Test void schema58CompatibilityRetainsExactSchema52DirectPointwiseClassIdentity()
+    @Test void schema59CompatibilityRetainsExactSchema52DirectPointwiseClassIdentity()
             throws Exception {
         Shape shape = Shape.of(64, 64);
         var descriptor = new TensorDescriptor(DataType.FLOAT64, shape,
@@ -46,7 +46,7 @@ class CpuKernelSpecializationTest {
                 route.specialization(), route.kernelIr());
         assertAll(
                 () -> assertTrue(new String(route.specialization().compatibilityBytes(),
-                        java.nio.charset.StandardCharsets.US_ASCII).startsWith("58|")),
+                        java.nio.charset.StandardCharsets.US_ASCII).startsWith("59|")),
                 () -> assertTrue(new String(route.specialization().classIdentityBytes(),
                         java.nio.charset.StandardCharsets.US_ASCII).startsWith("52|")),
                 () -> assertEquals(
@@ -256,7 +256,15 @@ class CpuKernelSpecializationTest {
                                         .CpuPartitionPreparationPlan.ExecutionStrategy.SCALAR,
                                 List.of(DataType.FLOAT32, DataType.FLOAT32),
                                 List.of(CarrierAccess.SHORT_ARRAY, CarrierAccess.FLOAT_ARRAY),
-                                0, -1, List.of())));
+                                0, -1, List.of())),
+                () -> assertThrows(IllegalArgumentException.class,
+                        () -> new CpuKernelSpecialization(fingerprint,
+                                CpuKernelSpecialization.NumericalMode.EXACT_DEFAULT,
+                                io.github.pho001.synaptik.backend.cpu.internal.prepare
+                                        .CpuPartitionPreparationPlan.ExecutionStrategy.VECTOR,
+                                List.of(DataType.BFLOAT16, DataType.BFLOAT16),
+                                List.of(CarrierAccess.SHORT_ARRAY, CarrierAccess.SHORT_ARRAY),
+                                128, -1, List.of(), false, 59)));
     }
 
     @Test void indexingIdentityIncludesStructureAndExcludesCompatibleColdGeometry() {
@@ -290,7 +298,7 @@ class CpuKernelSpecializationTest {
                                 otherExtents.kernelIr())),
                 () -> assertNotEquals(axisZero.specialization(), otherFamily.specialization()),
                 () -> assertNotEquals(axisZero.specialization(), otherCarrier.specialization()),
-                () -> assertEquals(58, CpuGeneratorSchema.CURRENT_VERSION),
+                () -> assertEquals(59, CpuGeneratorSchema.CURRENT_VERSION),
                 () -> assertEquals(-1, axisZero.specialization().materializedSourcePosition()));
     }
 

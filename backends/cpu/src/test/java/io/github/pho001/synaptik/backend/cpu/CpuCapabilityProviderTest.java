@@ -575,9 +575,9 @@ class CpuCapabilityProviderTest {
         for (var kind : UnaryElementwiseKind.values()) {
             assertTrue(provider.supports(query(kind, List.of(f64), f64)), kind + " FLOAT64");
             assertTrue(provider.supports(query(kind, List.of(f32), f32)), kind + " FLOAT32");
-            assertFalse(provider.supports(query(kind, List.of(bf16), bf16)), kind + " BFLOAT16");
+            assertTrue(provider.supports(query(kind, List.of(bf16), bf16)), kind + " BFLOAT16");
         }
-        for (var type : List.of(f64, f32, i32, i64)) {
+        for (var type : List.of(f64, f32, bf16, i32, i64)) {
             for (var kind : List.of(BinaryArithmeticKind.ADD, BinaryArithmeticKind.SUB,
                     BinaryArithmeticKind.MUL)) assertTrue(provider.supports(query(kind,
                     NoOperationAttrs.INSTANCE, List.of(type, type), type)));
@@ -609,7 +609,7 @@ class CpuCapabilityProviderTest {
                         NoOperationAttrs.INSTANCE, List.of(f32, f32), f32))),
                 () -> assertFalse(provider.supports(query(BinaryArithmeticKind.DIV,
                         NoOperationAttrs.INSTANCE, List.of(i32, i32), i32))),
-                () -> assertFalse(provider.supports(query(BinaryArithmeticKind.DIV,
+                () -> assertTrue(provider.supports(query(BinaryArithmeticKind.DIV,
                         NoOperationAttrs.INSTANCE, List.of(bf16, bf16), bf16))),
                 () -> assertTrue(provider.supports(query(ScalarElementwiseKind.DIV,
                         new ScalarValueAttrs(ScalarValue.float32(-0.0f)), List.of(f32), f32))),
@@ -619,7 +619,7 @@ class CpuCapabilityProviderTest {
                         new ScalarValueAttrs(ScalarValue.float64(2.0d)), List.of(f32), f32))),
                 () -> assertFalse(provider.supports(query(ScalarElementwiseKind.POW,
                         new ScalarValueAttrs(ScalarValue.int32(2)), List.of(i32), i32))),
-                () -> assertFalse(provider.supports(query(ScalarElementwiseKind.POW,
+                () -> assertTrue(provider.supports(query(ScalarElementwiseKind.POW,
                         new ScalarValueAttrs(ScalarValue.bfloat16(2.0f)), List.of(bf16), bf16))),
                 () -> assertTrue(provider.supports(query(BinaryArithmeticKind.MIN,
                         NoOperationAttrs.INSTANCE, List.of(i64, i64), i64))),

@@ -189,10 +189,12 @@ public final class CpuGeneratorSchema {
      * semantics, conceptual zero padding, and exact NaN and signed-zero behavior while preserving
      * the schema-52 and schema-54 class projections for unchanged families.
      * Schema 56 adds direct typed NCDHW Pool3d bodies, schema 57 adds direct typed attention
-     * bodies, and schema 58 adds direct typed loss bodies with cold per-invocation geometry.
-     * Envelopes written for earlier schemas are incompatible misses.
+     * bodies, schema 58 adds direct typed loss bodies with cold per-invocation geometry, and
+     * schema 59 adds scalar BFLOAT16 pointwise bodies with raw represented locals and one
+     * FLOAT32-to-BFLOAT16 rounding boundary per logical producing instruction. Envelopes written
+     * for earlier schemas are incompatible misses.
      */
-    public static final int CURRENT_VERSION = 58;
+    public static final int CURRENT_VERSION = 59;
     /** Generated entry name. */ public static final String ENTRY_NAME = "invoke";
     private CpuGeneratorSchema() { }
 

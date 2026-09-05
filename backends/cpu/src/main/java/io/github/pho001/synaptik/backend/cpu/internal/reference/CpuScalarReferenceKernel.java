@@ -32,14 +32,17 @@ import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuMaskedReductio
 import io.github.pho001.synaptik.model.operation.index.ScatterReduction;
 import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuPointwiseOpcode;
 import io.github.pho001.synaptik.model.datatype.DataType;
+import io.github.pho001.synaptik.model.datatype.BFloat16Bits;
 
 /**
  * Scalar conformance realization for the bounded typed CPU portable semantics.
  * It evaluates already-lowered primitive arithmetic, exact extrema and clamp, direct Tensor
- * power, canonical-BOOL logic, the closed FLOAT32/FLOAT64 unary matrix, and the selected
- * scalar-power plan. Direct power uses {@link StrictMath#pow(double, double)} without
- * reclassifying an exponent. Unary evaluation preserves the specified exceptional-value
- * classifications, widens represented FLOAT32 values where required, and narrows once. It also
+ * power, canonical-BOOL logic, the closed BFLOAT16/FLOAT32/FLOAT64 unary matrix, and the selected
+ * scalar-power plan. BFLOAT16 numerical inputs decode from raw bits, every producing logical node
+ * encodes once, and {@code WHERE} copies selected raw bits. Direct power uses
+ * {@link StrictMath#pow(double, double)} without reclassifying an exponent. Unary evaluation
+ * preserves the specified exceptional-value classifications, widens represented FLOAT32 values
+ * where required, and narrows once. It also
  * evaluates already-lowered affine, movement, indexing, functional slice-update,
  * functional-scatter, overlap-fold, stable ordering, explicit-state random, cumulative-scan, and
  * ordinary and right-aligned SUM-to-Shape aggregate mappings for differential tests. Numerical
@@ -1411,7 +1414,12 @@ public final class CpuScalarReferenceKernel {
         Object right = instruction.inputs().size() > 1 ? values[instruction.inputs().get(1)] : null;
         Object scalar = instruction.scalarImmediate() == null ? null
                 : immediate(instruction.scalarImmediate());
-        return switch (instruction.opcode()) {
+        if (type == DataType.BFLOAT16 && instruction.opcode() != CpuPointwiseOpcode.WHERE) {
+            if (left != null) left = Float.valueOf(BFloat16Bits.toFloat((short) left));
+            if (right != null) right = Float.valueOf(BFloat16Bits.toFloat((short) right));
+            if (scalar != null) scalar = Float.valueOf(BFloat16Bits.toFloat((short) scalar));
+        }
+        Object result = switch (instruction.opcode()) {
             case ADD -> arithmetic(type, left, right, 0);
             case SUB -> arithmetic(type, left, right, 1);
             case MUL -> arithmetic(type, left, right, 2);
@@ -1427,9 +1435,15 @@ public final class CpuScalarReferenceKernel {
                     instruction.powerRealization());
             case SCALAR_MIN -> extrema(type, left, scalar, true);
             case SCALAR_MAX -> extrema(type, left, scalar, false);
-            case SCALAR_CLAMP -> extrema(type,
-                    extrema(type, left, immediate(instruction.clampImmediate().lower()), false),
-                    immediate(instruction.clampImmediate().upper()), true);
+            case SCALAR_CLAMP -> {
+                Object lower = immediate(instruction.clampImmediate().lower());
+                Object upper = immediate(instruction.clampImmediate().upper());
+                if (type == DataType.BFLOAT16) {
+                    lower = Float.valueOf(BFloat16Bits.toFloat((short) lower));
+                    upper = Float.valueOf(BFloat16Bits.toFloat((short) upper));
+                }
+                yield extrema(type, extrema(type, left, lower, false), upper, true);
+            }
             case NEG -> { if (type == DataType.FLOAT64) yield Double.valueOf(-(double) left);
                 yield Float.valueOf(-(float) left); }
             case ABS, RECIPROCAL, LOG, LOG1P, EXP, EXPM1, ERF, SQRT, RSQRT, FLOOR, CEIL,
@@ -1452,6 +1466,9 @@ public final class CpuScalarReferenceKernel {
                     : values[instruction.inputs().get(2)];
             case CAST -> left;
         };
+        return type == DataType.BFLOAT16 && instruction.opcode() != CpuPointwiseOpcode.WHERE
+                && ir.values().get(instruction.output()).dataType()
+                == DataType.BFLOAT16 ? BFloat16Bits.fromFloat((float) result) : result;
     }
 
     private static Object unary(CpuPointwiseOpcode opcode, DataType type, Object input) {
@@ -1485,6 +1502,8 @@ public final class CpuScalarReferenceKernel {
                     : Math.max((double) left, (double) right);
             case FLOAT32 -> minimum ? Math.min((float) left, (float) right)
                     : Math.max((float) left, (float) right);
+            case BFLOAT16 -> minimum ? Math.min((float) left, (float) right)
+                    : Math.max((float) left, (float) right);
             case INT32 -> minimum ? Math.min((int) left, (int) right)
                     : Math.max((int) left, (int) right);
             case INT64 -> minimum ? Math.min((long) left, (long) right)
@@ -1499,6 +1518,9 @@ public final class CpuScalarReferenceKernel {
                 yield operation == 0 ? a + b : operation == 1 ? a - b
                         : operation == 2 ? a * b : a / b; }
             case FLOAT32 -> { float a = (float) left, b = (float) right;
+                yield operation == 0 ? a + b : operation == 1 ? a - b
+                        : operation == 2 ? a * b : a / b; }
+            case BFLOAT16 -> { float a = (float) left, b = (float) right;
                 yield operation == 0 ? a + b : operation == 1 ? a - b
                         : operation == 2 ? a * b : a / b; }
             case INT32 -> { int a = (int) left, b = (int) right;
@@ -1526,7 +1548,9 @@ public final class CpuScalarReferenceKernel {
         float value = base == null ? Float.NaN : (float) base;
         return switch (realization) {
             case DIRECT -> (float) StrictMath.pow((double) value,
-                    (double) Float.intBitsToFloat((int) exponent.bits()));
+                    (double) (type == DataType.BFLOAT16
+                            ? BFloat16Bits.toFloat((short) exponent.bits())
+                            : Float.intBitsToFloat((int) exponent.bits())));
             case POSITIVE_ONE -> 1.0f;
             case IDENTITY -> value;
             case SQUARE -> value * value;
@@ -1555,6 +1579,8 @@ public final class CpuScalarReferenceKernel {
                     : (double) left == (double) right ? 0 : 2;
             case FLOAT32 -> (float) left > (float) right ? 1 : (float) left < (float) right ? -1
                     : (float) left == (float) right ? 0 : 2;
+            case BFLOAT16 -> (float) left > (float) right ? 1 : (float) left < (float) right ? -1
+                    : (float) left == (float) right ? 0 : 2;
             case INT32 -> Integer.compare((int) left, (int) right);
             case INT64 -> Long.compare((long) left, (long) right);
             default -> throw new IllegalArgumentException("unsupported comparison type");
@@ -1570,6 +1596,7 @@ public final class CpuScalarReferenceKernel {
         return switch (type) {
             case FLOAT64 -> (double) left == (double) right;
             case FLOAT32 -> (float) left == (float) right;
+            case BFLOAT16 -> (float) left == (float) right;
             case INT32 -> (int) left == (int) right;
             case INT64 -> (long) left == (long) right;
             default -> throw new IllegalArgumentException("unsupported comparison type");
@@ -1582,6 +1609,7 @@ public final class CpuScalarReferenceKernel {
         return switch (value.dataType()) {
             case FLOAT64 -> Double.longBitsToDouble(value.bits());
             case FLOAT32 -> Float.intBitsToFloat((int) value.bits());
+            case BFLOAT16 -> (short) value.bits();
             case INT32 -> (int) value.bits(); case INT64 -> value.bits();
             default -> throw new IllegalArgumentException("unsupported immediate type");
         };

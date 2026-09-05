@@ -56,15 +56,16 @@ current [`PreparedPublication`](#prepared-publication--preparedpublication) reci
 borrowed and run-owned native buffer representations plus bounded fully static pointwise and
 affine-copy families. Its forty-eight-opcode pointwise vocabulary includes same-typed binary/scalar extrema, floating
 Tensor/Tensor DIV and POW, Tensor/scalar DIV and POW, first-class floating range CLAMP,
-canonical-BOOL AND/OR/NOT, all nineteen FLOAT32/FLOAT64 unary kinds, and three separate floating
+canonical-BOOL AND/OR/NOT, all nineteen FLOAT32/FLOAT64/BFLOAT16 unary kinds, and three separate floating
 classifications, while its normalized access plans cover resolved
 right-broadcastable scalar/rank/singleton/multi-axis inputs, zero extents, offsets, positive and
 broadcast-zero strides, injective output layouts, and derived heap/segment carrier patterns.
 Connected pointwise chains contain one through eight occurrences, keep single-use intermediates
 virtual, and produce one final store. The affine family composes one-through-eight resolved-layout
 CONTIGUOUS, RESHAPE, EXPAND, PERMUTE, EXPAND_DIMS, SQUEEZE, SELECT, or positive-step SLICE
-occurrences into one represented-bit source/result boundary copy. It accepts all six data types;
-BFLOAT16 remains opaque two-byte movement rather than numerical execution. Preferred-species
+occurrences into one represented-bit source/result boundary copy. It accepts all six data types.
+Exactly 44 pointwise forms also admit BFLOAT16 through generated scalar or caller-parallel scalar
+execution, with one BFLOAT16 rounding boundary per producing logical node. Preferred-species
 vector execution covers selected FLOAT32/FLOAT64
 value rows, INT32/INT64 arithmetic and extrema, canonical BOOL logic, and virtual floating
 predicate masks through logical masks into WHERE. Other operation topologies, types, strategies,
@@ -1070,7 +1071,7 @@ supports, although a scalar reference remains available separately for conforman
 checking. Metadata-only work may require no generated class. Task 0005A implemented the portable
 scalar proving slice and `internal.route.portable`; completed CPU 0005C added preferred-species
 FLOAT64 vector compute and explicit CPU-private parallel orchestration. Completed CPU 0005E now
-uses that route for a bounded five-type pointwise matrix and connected one-to-eight-occurrence
+uses that route for a bounded pointwise matrix and connected one-to-eight-occurrence
 chains. CPU 0005G completes the selected exact algebraic/logical increment through scalar or
 parallel-scalar compute. CPU 0005H closes all nineteen same-typed FLOAT32/FLOAT64 unary kinds and
 keeps the three floating classifications separate. CPU 0005I gives preferred-species FLOAT32 and
@@ -1078,6 +1079,12 @@ FLOAT64 parity to its original twenty-one eligible opcodes. Completed CPU 0005J 
 floating extrema/clamp/ReLU/sign/cast, signed-integral arithmetic/extrema/cast, canonical-BOOL
 logic/cast, and virtual floating-mask-to-WHERE vector rows; every other admitted row or ineligible
 access pattern retains deterministic scalar or parallel-scalar fallback.
+
+Completed CPU 0008J adds exactly 44 BFLOAT16 pointwise forms through generated scalar and caller-
+parallel scalar execution. Numerical consumers decode raw represented bits to FLOAT32, and every
+BFLOAT16-producing logical node encodes once with ties-to-even rounding and canonical produced
+NaN; `WHERE` preserves selected raw bits and predicates produce canonical BOOL. This adds no
+BFLOAT16 SIMD, CAST conversion, mixed promotion, native route, or generic fallback.
 
 Completed CPU 0006 adds one static resolved-layout affine-copy family through the same portable
 route. It composes bounded straight-line view chains during cold analysis, keeps eligible internal
@@ -1289,7 +1296,7 @@ pair attempts and applies deterministic no-measurement profitability selection. 
 wins incomplete enumeration, uncertainty, insufficient margin, and a tie with the best comparable
 alternative. Multi-input external representation selection remains CPU 0008E work.
 
-Cross-type cast, general BFLOAT16 pointwise arithmetic, FLOAT16 execution, relaxed math,
+Cross-type cast, BFLOAT16 pointwise SIMD, FLOAT16 execution, relaxed math,
 native/vendor realization, dynamic layouts, Vector API scatter, fold, ordering, scan, or ordinary
 aggregate execution, gradients, and universal backend support are not part of this route
 increment.

@@ -217,7 +217,17 @@ class CpuPointwisePartitionLoweringTest {
                 () -> assertEquals(CpuKernelIr.PowerRealization.RECIPROCAL,
                         power(ScalarValue.float32(-1.0f)).powerRealization()),
                 () -> assertEquals(CpuKernelIr.PowerRealization.DIRECT,
-                        power(ScalarValue.float64(0.5d)).powerRealization()));
+                        power(ScalarValue.float64(0.5d)).powerRealization()),
+                () -> assertEquals(CpuKernelIr.PowerRealization.POSITIVE_ONE,
+                        power(ScalarValue.bfloat16Bits((short) 0x8000)).powerRealization()),
+                () -> assertEquals(CpuKernelIr.PowerRealization.IDENTITY,
+                        power(ScalarValue.bfloat16Bits((short) 0x3f80)).powerRealization()),
+                () -> assertEquals(CpuKernelIr.PowerRealization.SQUARE,
+                        power(ScalarValue.bfloat16Bits((short) 0x4000)).powerRealization()),
+                () -> assertEquals(CpuKernelIr.PowerRealization.RECIPROCAL,
+                        power(ScalarValue.bfloat16Bits((short) 0xbf80)).powerRealization()),
+                () -> assertEquals(CpuKernelIr.PowerRealization.DIRECT,
+                        power(ScalarValue.bfloat16Bits((short) 0x3f00)).powerRealization()));
     }
 
     @Test void directPowerForcesScalarComputeWhileSpecialPowerRetainsVectorEligibility() {
@@ -230,6 +240,8 @@ class CpuPointwisePartitionLoweringTest {
                 Shape.of(count), inputs)).plan();
         var square = new CpuPartitionPreparer().analyze(singlePower(ScalarValue.float64(2.0d),
                 Shape.of(count), inputs)).plan();
+        var bfloatSquare = new CpuPartitionPreparer().analyze(singlePower(
+                ScalarValue.bfloat16Bits((short) 0x4000), Shape.of(count), inputs)).plan();
         assertAll(
                 () -> assertEquals("parallel-scalar", direct.executionStrategy().toString()),
                 () -> assertEquals(0, direct.vectorSpeciesBitSize()),
@@ -238,7 +250,11 @@ class CpuPointwisePartitionLoweringTest {
                         direct.units().getFirst().portablePlan().specialization()
                                 .scalarPowerRealizations()),
                 () -> assertTrue(direct.loweringManifest().contains("power=[DIRECT]")),
-                () -> assertTrue(square.loweringManifest().contains("power=[SQUARE]")));
+                () -> assertTrue(square.loweringManifest().contains("power=[SQUARE]")),
+                () -> assertEquals("parallel-scalar", bfloatSquare.executionStrategy().toString()),
+                () -> assertEquals(0, bfloatSquare.vectorSpeciesBitSize()),
+                () -> assertEquals(59, bfloatSquare.units().getFirst().portablePlan()
+                        .specialization().classIdentitySchema()));
     }
 
     @Test void lowersExtremaClampTensorPowerAndLogicalOccurrencesWithoutDecomposition() {

@@ -145,13 +145,12 @@ integral/quantized data, or a universal performance claim.
 
 Generated scalar and Java 26 Vector API entries accept primitive `start` and `end` bounds.
 Compatible concrete extents bind on the cold path and share identical class bytes and one
-process-local loaded compatibility identity. The pointwise semantic matrix uses exactly five
-executable types—FLOAT64, FLOAT32, INT32, INT64, and BOOL—and one forty-eight-opcode CPU-private
-vocabulary. Affine copies accept all six current Model data types and transfer represented bits
-without conversion. Outside the cumulative-scan, ordinary-aggregate, and overlap-fold families
-described below,
-BFLOAT16 uses the existing raw `short[]` representation or native-order two-byte segment access
-only; raw movement support is not general BFLOAT16 arithmetic or numerical support. The access
+process-local loaded compatibility identity. The pointwise semantic matrix uses one forty-eight-
+opcode CPU-private vocabulary across FLOAT64, FLOAT32, BFLOAT16, INT32, INT64, and BOOL. Exactly
+44 forms currently admit BFLOAT16 through scalar or caller-parallel scalar execution; this does
+not make every opcode or mixed-type occurrence executable. Affine copies accept all six current
+Model data types and transfer represented bits without conversion. BFLOAT16 pointwise boundaries
+use raw `short[]` representation or native-order two-byte segment access. The access
 family covers scalar/rank/singleton/multi-axis
 broadcasting, zero extents, offsets, positive and broadcast-zero strides, and ordered
 heap/segment/mixed carrier patterns for the derived boundaries. CPU 0005H closes all nineteen
@@ -168,8 +167,8 @@ work. Each copy candidate owns a declared run workspace and explicit generated a
 compatible repeated and cross-unit uses share one copy. Ordinary preparation selects direct and
 declares none of those candidate-only resources. Capability and lowering fail closed for every other
 operation, type, shape, layout, parameter, alias, fan-out, publication, carrier, or route. In
-particular, CAST is same-type only and BFLOAT16 remains representation-only for affine movement;
-CPU does not invent cross-type conversion semantics. Native, tuning, excluded pointwise rows,
+particular, CAST remains same-type only and excludes BFLOAT16; CPU does not invent cross-type
+conversion semantics. Native, tuning, excluded pointwise rows,
 native routes, model-autotuning promotion, and other operation families remain planned.
 CPU-private specialized-subgraph recognition is current only
 as the cold, recognition-only boundary described below. Functional scatter,
@@ -756,16 +755,21 @@ operation-specific lowerer, emitter, executable, or registry class:
 
 | Family | Current admitted semantics and exact types |
 |---|---|
-| Binary arithmetic | Same-type `ADD`, `SUB`, `MUL`, `MIN`, and `MAX` for FLOAT64, FLOAT32, INT32, and INT64; same-type `DIV` and direct Tensor/Tensor `POW` for FLOAT64 and FLOAT32 |
-| Scalar arithmetic and range | Exact typed scalar `ADD`, `SUB`, `MUL`, `MIN`, and `MAX` for the same four numeric types; exact typed scalar `DIV` and `POW` plus first-class range `CLAMP` for FLOAT64 and FLOAT32 |
-| Unary | All nineteen `UnaryElementwiseKind` values for same-typed FLOAT64/FLOAT32: `ABS`, `NEG`, `RECIPROCAL`, `LOG`, `LOG1P`, `EXP`, `EXPM1`, `ERF`, `SQRT`, `RSQRT`, `FLOOR`, `CEIL`, `SIGN`, `RELU`, `SIGMOID`, `TANH`, `GELU`, `GELU_TANH_APPROXIMATION`, and `SILU` |
-| Classification | `IS_FINITE`, `IS_NAN`, and `IS_INF` for FLOAT64/FLOAT32 to BOOL |
-| Comparison | All six ordered/equality comparisons for the four numeric types to BOOL |
+| Binary arithmetic | Same-type `ADD`, `SUB`, `MUL`, `MIN`, and `MAX` for FLOAT64, FLOAT32, BFLOAT16, INT32, and INT64; same-type `DIV` and direct Tensor/Tensor `POW` for FLOAT64, FLOAT32, and BFLOAT16 |
+| Scalar arithmetic and range | Exact typed scalar `ADD`, `SUB`, `MUL`, `MIN`, and `MAX` for the same five numeric types; exact typed scalar `DIV` and `POW` plus first-class range `CLAMP` for FLOAT64, FLOAT32, and BFLOAT16 |
+| Unary | All nineteen `UnaryElementwiseKind` values for same-typed FLOAT64/FLOAT32/BFLOAT16: `ABS`, `NEG`, `RECIPROCAL`, `LOG`, `LOG1P`, `EXP`, `EXPM1`, `ERF`, `SQRT`, `RSQRT`, `FLOOR`, `CEIL`, `SIGN`, `RELU`, `SIGMOID`, `TANH`, `GELU`, `GELU_TANH_APPROXIMATION`, and `SILU` |
+| Classification | `IS_FINITE`, `IS_NAN`, and `IS_INF` for FLOAT64/FLOAT32/BFLOAT16 to BOOL |
+| Comparison | All six ordered/equality comparisons for FLOAT64, FLOAT32, BFLOAT16, INT32, and INT64 to BOOL |
 | Logical | Canonical-BOOL `AND`, `OR`, and `NOT` |
-| Selection | BOOL-conditioned `WHERE` with same-type FLOAT64 or FLOAT32 branches |
-| Cast | Represented-value-preserving same-type `CAST` for all five executable types |
+| Selection | BOOL-conditioned `WHERE` with same-type FLOAT64, FLOAT32, or BFLOAT16 branches |
+| Cast | Represented-value-preserving same-type `CAST` for FLOAT64, FLOAT32, INT32, INT64, and BOOL |
 
-Scalar and parallel-scalar generated execution cover every row. Vector and parallel-vector require
+Scalar and parallel-scalar generated execution cover every row. BFLOAT16 contributes exactly 44
+forms: seven binary, eight scalar/range, nineteen unary, six comparison, three classification,
+and one `WHERE`. These forms support `short[]`, native-order `MemorySegment`, and mixed carriers
+under `DENSE_LINEAR`, read-only `SCALAR_ALL_ZERO`, `LAST_AXIS_BIAS`, `BLOCK_OUTER`, and
+`GENERAL_ODOMETER`. They are scalar only; caller-parallel execution reuses the same scalar
+generated entry, and no BFLOAT16 Vector API route is current. Vector and parallel-vector require
 one exact lane type, an eligible value/mask topology, and the completed contiguous-run access
 checks:
 
@@ -795,6 +799,22 @@ claim.
 These operation and access rules also apply inside the bounded pointwise DAG model. A selected
 unit may be a vertical chain or a horizontally fused same-domain branch set with multiple stores;
 barrier edges remain materialized between units.
+
+BFLOAT16 fusion preserves each logical operation boundary even when no intermediate buffer is
+materialized. A producing node stores raw 16-bit bits in its virtual local; each numerical
+consumer decodes those bits to FLOAT32, and each producing node performs one inline
+round-to-nearest-ties-to-even encode with canonical produced NaN. For example:
+
+```text
+raw a, raw b -> decode -> ADD -> encode raw sum
+raw sum      -> decode -> SIGMOID -> encode raw activation
+BOOL condition, raw activation, raw alternative -> WHERE -> selected raw output
+```
+
+Rounding only at the final store would change this chain and is not permitted. `WHERE` performs
+no encode: it preserves the selected branch's raw bits. Comparisons and classifications instead
+emit canonical BOOL `0` or `1`. If a contraction cannot prove this raw-local round trip, CPU keeps
+the legal materialized split or fails closed when no supported split exists.
 
 Schema 40 adds one bounded body inside the existing scalar pointwise artifact for the frozen
 FLOAT32 `[512,512]` `DIV -> SIGMOID -> MUL` chain. Its ordered carriers are `MemorySegment`,
@@ -3113,7 +3133,11 @@ reduction-output-cell, whole-softmax-slice, whole-trailing-normalization-slice, 
 channel or flattened non-channel batch-inference ranges and complete-channel batch-training
 ranges, plus complete Conv2d and Conv3d output-cell ranges; and the
 pointwise family retains its exact typed value-vector and virtual-mask parity matrix. Generator
-schema 52 distinguishes pointwise,
+compatibility is family-specific. Existing pre-0008J projections and their generated bytes are
+unchanged. Schema 59 applies only to BFLOAT16 pointwise projections; it records their raw-local
+per-node encode boundary, exact carriers, access form, and scalar strategy. The earlier schemas
+described below remain the identity of their unchanged family projections. Generator schema 52
+distinguishes pointwise,
 affine, movement, indexing, scatter, fold, ordering, random, scan, aggregate, arg-extrema, and
 masked-reduction, advanced-reduction, softmax, trailing-normalization, batch-inference,
 batch-training, grouped NCHW Conv2d, and grouped NCDHW Conv3d structures,
@@ -3161,14 +3185,15 @@ normalized geometry, pass/resource identity, direct numerical bodies, and static
 layouts. Schema 49 adds the five-input batch-inference identity, arbitrary channel axis, ordered
 promotion and exact epsilon, unique-boundary mapping, selected channel/non-channel range form,
 zero-resource identity, and direct running-variance body. Schema 49 was the compatible artifact
-envelope for that increment. Schema 50 adds five-output batch-normalization
-training, schema 51 adds direct grouped NCHW Conv2d and its typed output-cell entry, and schema 52
-adds direct grouped NCDHW Conv3d and its rank-five typed output-cell entry. Schema 52 is the only
-current compatible artifact envelope; schema 51 and earlier envelopes are
-incompatible safe misses.
+envelope for that increment. Schema 50 adds five-output batch-normalization training, schema 51
+adds direct grouped NCHW Conv2d, schema 52 adds direct grouped NCDHW Conv3d, schema 54 adds MATMUL,
+schema 55 adds Pool2d, schema 56 adds Pool3d, schema 57 adds attention, schema 58 adds loss, and
+schema 59 adds BFLOAT16 pointwise. The current envelope version is 59; older envelopes are
+incompatible safe misses, while unchanged older family projections retain their established
+structural bytes.
 No excluded
 aggregate/scatter form or later semantic family,
-general BFLOAT16 pointwise or dropout numerical operation,
+BFLOAT16 pointwise SIMD or dropout numerical operation,
 cross-type CAST, dynamic layout, vector affine/scatter/fold/ordering execution, native fallback, backend-conformance
 result, public Engine integration, hardware-intrinsic guarantee, or performance result is
 implemented or promised.

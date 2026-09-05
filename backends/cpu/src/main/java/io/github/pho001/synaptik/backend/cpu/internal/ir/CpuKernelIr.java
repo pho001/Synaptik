@@ -180,15 +180,17 @@ public record CpuKernelIr(
     public enum PowerRealization {
         /** Invoke the direct typed power realization. */ DIRECT,
         /** Produce exact positive typed one without reading the base. */ POSITIVE_ONE,
-        /** Forward the represented base for exact positive-one exponent. */ IDENTITY,
-        /** Multiply the represented base by itself once in the result type. */ SQUARE,
-        /** Divide exact positive typed one by the represented base once. */ RECIPROCAL
+        /** Produce the identity result for exact positive-one exponent. */ IDENTITY,
+        /** Square the numerical base once before the required result-type boundary. */ SQUARE,
+        /** Divide exact positive typed one by the base before the required result-type boundary. */
+        RECIPROCAL
     }
 
     /**
      * Exact typed primitive bits retained for one scalar arithmetic instruction.
      *
-     * @param dataType non-null exact scalar type; lowering admits FLOAT64, FLOAT32, INT32, or INT64
+     * @param dataType non-null exact scalar type; lowering admits BFLOAT16, FLOAT64, FLOAT32,
+     *     INT32, or INT64
      * @param bits raw primitive bits in the low width of the selected type
      */
     public record ScalarImmediate(DataType dataType, long bits) {
@@ -206,7 +208,7 @@ public record CpuKernelIr(
      * Exact ordered typed primitive bounds retained by one first-class clamp instruction.
      *
      * @param lower non-null exact lower bound
-     * @param upper non-null exact upper bound of the same FLOAT32 or FLOAT64 type
+     * @param upper non-null exact upper bound of the same BFLOAT16, FLOAT32, or FLOAT64 type
      */
     public record ClampImmediate(ScalarImmediate lower, ScalarImmediate upper) {
         /**
@@ -214,13 +216,14 @@ public record CpuKernelIr(
          * @param lower non-null exact lower bound
          * @param upper non-null exact upper bound
          * @throws NullPointerException if either bound is {@code null}
-         * @throws IllegalArgumentException if their types differ or are not FLOAT32/FLOAT64
+         * @throws IllegalArgumentException if their types differ or are not BFLOAT16/FLOAT32/FLOAT64
          */
         public ClampImmediate {
             Objects.requireNonNull(lower, "lower");
             Objects.requireNonNull(upper, "upper");
             if (lower.dataType() != upper.dataType()
-                    || lower.dataType() != DataType.FLOAT32 && lower.dataType() != DataType.FLOAT64) {
+                    || lower.dataType() != DataType.FLOAT32 && lower.dataType() != DataType.FLOAT64
+                    && lower.dataType() != DataType.BFLOAT16) {
                 throw new IllegalArgumentException("clamp bounds must have one floating data type");
             }
         }
@@ -337,31 +340,36 @@ public record CpuKernelIr(
         CpuPointwiseOpcode opcode = instruction.opcode();
         boolean same = inputs.stream().allMatch(inputs.getFirst()::equals);
         boolean numeric = inputs.stream().allMatch(type -> type == DataType.FLOAT64
-                || type == DataType.FLOAT32 || type == DataType.INT32 || type == DataType.INT64);
+                || type == DataType.FLOAT32 || type == DataType.BFLOAT16
+                || type == DataType.INT32 || type == DataType.INT64);
+        boolean floating = output == DataType.FLOAT64 || output == DataType.FLOAT32
+                || output == DataType.BFLOAT16;
         boolean valid = switch (opcode.family()) {
             case BINARY_ARITHMETIC -> same && numeric && output == inputs.getFirst()
                     && (opcode != CpuPointwiseOpcode.DIV && opcode != CpuPointwiseOpcode.POW
-                        || output == DataType.FLOAT64 || output == DataType.FLOAT32);
+                        || floating);
             case SCALAR_ARITHMETIC -> numeric && output == inputs.getFirst()
                     && instruction.scalarImmediate().dataType() == output
                     && ((opcode != CpuPointwiseOpcode.SCALAR_DIV
                             && opcode != CpuPointwiseOpcode.SCALAR_POW)
-                        || output == DataType.FLOAT64 || output == DataType.FLOAT32)
+                        || floating)
                     && (opcode != CpuPointwiseOpcode.SCALAR_POW
                         || powerRealizationMatches(instruction));
             case SCALAR_RANGE -> output == inputs.getFirst()
-                    && (output == DataType.FLOAT64 || output == DataType.FLOAT32)
+                    && floating
                     && instruction.clampImmediate().lower().dataType() == output;
             case UNARY -> output == inputs.getFirst()
-                    && (output == DataType.FLOAT64 || output == DataType.FLOAT32);
+                    && floating;
             case CLASSIFICATION -> (inputs.getFirst() == DataType.FLOAT64
-                    || inputs.getFirst() == DataType.FLOAT32) && output == DataType.BOOL;
+                    || inputs.getFirst() == DataType.FLOAT32
+                    || inputs.getFirst() == DataType.BFLOAT16) && output == DataType.BOOL;
             case COMPARISON -> same && numeric && output == DataType.BOOL;
             case LOGICAL -> inputs.stream().allMatch(type -> type == DataType.BOOL)
                     && output == DataType.BOOL;
             case SELECTION -> inputs.get(0) == DataType.BOOL
                     && inputs.get(1) == inputs.get(2) && output == inputs.get(1)
-                    && (output == DataType.FLOAT64 || output == DataType.FLOAT32);
+                    && (output == DataType.FLOAT64 || output == DataType.FLOAT32
+                        || output == DataType.BFLOAT16);
             case CAST -> inputs.getFirst() == output && (output == DataType.FLOAT64
                     || output == DataType.FLOAT32 || output == DataType.INT32
                     || output == DataType.INT64 || output == DataType.BOOL);
@@ -373,7 +381,14 @@ public record CpuKernelIr(
         ScalarImmediate immediate = instruction.scalarImmediate();
         long bits = immediate.bits();
         PowerRealization expected;
-        if (immediate.dataType() == DataType.FLOAT32) {
+        if (immediate.dataType() == DataType.BFLOAT16) {
+            bits &= 0xffffL;
+            expected = bits == 0L || bits == 0x8000L ? PowerRealization.POSITIVE_ONE
+                    : bits == 0x3f80L ? PowerRealization.IDENTITY
+                    : bits == 0x4000L ? PowerRealization.SQUARE
+                    : bits == 0xbf80L ? PowerRealization.RECIPROCAL
+                    : PowerRealization.DIRECT;
+        } else if (immediate.dataType() == DataType.FLOAT32) {
             bits &= 0xffff_ffffL;
             expected = bits == 0L || bits == 0x8000_0000L ? PowerRealization.POSITIVE_ONE
                     : bits == 0x3f80_0000L ? PowerRealization.IDENTITY

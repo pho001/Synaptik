@@ -21,8 +21,9 @@ import java.util.Objects;
  *
  * <p>It realizes the already-selected scalar body or eligible preferred-species
  * FLOAT32/FLOAT64, signed-integral, canonical-BOOL, or narrowly virtual floating-mask vector
- * body, and retains the scalar body for tails. It does not choose capability, numerical
- * semantics, access structure, strategy, or fallback.</p>
+ * body, and retains the scalar body for tails. BFLOAT16 pointwise work is scalar-only and keeps
+ * raw represented locals, decoding numerical inputs and encoding each producing logical node.
+ * It does not choose capability, numerical semantics, access structure, strategy, or fallback.</p>
  * Instruction-free affine, movement, indexing, scatter, fold, ordering, explicit-state random,
  * cumulative-scan, ordinary aggregate, and first-class loss forms delegate to their focused
  * emitters after
@@ -268,7 +269,7 @@ public final class CpuClassFileKernelGenerator {
         for (CpuKernelIr.Value value : ir.values()) result[value.ordinal()] = code.allocateLocal(
                 switch (value.dataType()) {
                     case FLOAT64 -> TypeKind.DOUBLE; case FLOAT32 -> TypeKind.FLOAT;
-                    case INT32, BOOL -> TypeKind.INT; case INT64 -> TypeKind.LONG;
+                    case BFLOAT16, INT32, BOOL -> TypeKind.INT; case INT64 -> TypeKind.LONG;
                     default -> throw new IllegalArgumentException("unsupported generated type");
                 });
         return result;
@@ -410,7 +411,7 @@ public final class CpuClassFileKernelGenerator {
     private static void store(java.lang.classfile.CodeBuilder code, DataType type, int local) {
         switch (type) {
             case FLOAT64 -> code.dstore(local); case FLOAT32 -> code.fstore(local);
-            case INT32, BOOL -> code.istore(local); case INT64 -> code.lstore(local);
+            case BFLOAT16, INT32, BOOL -> code.istore(local); case INT64 -> code.lstore(local);
             default -> throw new IllegalArgumentException("unsupported generated type");
         }
     }
@@ -425,11 +426,15 @@ public final class CpuClassFileKernelGenerator {
                 .filter(value -> value.kind() != CpuKernelIr.Value.Kind.VIRTUAL)
                 .map(CpuKernelIr.Value::dataType).toList();
         boolean pointwise = kernelIr.familyIdentity().equals("pointwise");
+        boolean bfloatPointwise = pointwise && kernelIr.values().stream().anyMatch(value ->
+                value.dataType() == io.github.pho001.synaptik.model.datatype.DataType.BFLOAT16);
         int expectedStores = kernelIr.familyIdentity()
                 .startsWith("batch-normalization-training:") ? 5
                 : kernelIr.familyIdentity().contains(":outputs=2:") ? 2 : 1;
         if (!boundaryTypes.equals(specialization.boundaryDataTypes())
                 || kernelIr.instructions().size() > 8
+                || bfloatPointwise && specialization.classIdentitySchema() != 59
+                || !bfloatPointwise && specialization.classIdentitySchema() == 59
                 || (pointwise ? kernelIr.stores().isEmpty()
                     : kernelIr.stores().size() != expectedStores)) {
             throw new IllegalArgumentException("unsupported canonical pointwise IR");
@@ -497,8 +502,8 @@ public final class CpuClassFileKernelGenerator {
         if (!kernelIr.familyIdentity().equals("pointwise")
                 || kernelIr.values().stream().anyMatch(value -> value.dataType()
                         == io.github.pho001.synaptik.model.datatype.DataType.BFLOAT16)
-                || specialization.carrierPattern().contains(
-                        CpuKernelSpecialization.CarrierAccess.SHORT_ARRAY)) {
+                    && specialization.executionStrategy().compute()
+                        != io.github.pho001.synaptik.backend.cpu.internal.prepare.CpuPartitionPreparationPlan.ExecutionStrategy.Compute.SCALAR) {
             throw new IllegalArgumentException("unsupported canonical pointwise IR");
         }
         List<CpuKernelIr.PowerRealization> realizations = kernelIr.instructions().stream()
