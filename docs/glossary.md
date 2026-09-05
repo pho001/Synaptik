@@ -1108,6 +1108,17 @@ mask vector classes; schema 52 virtual-mask-only, schema 59 BFLOAT16, and schema
 class projections remain separate. This is generated-route closure, not a new public capability,
 materialization policy, tuning input, workspace, or route.
 
+Completed CPU 0008M adds preferred-species vector and parallel-vector compute only for same-typed,
+contiguous FLOAT32/FLOAT64 mean-squared error with reduction `NONE`. Full chunks subtract
+prediction minus target and multiply that difference by itself; scalar tails use the same typed
+formula. Array, native-order segment, and ordered mixed-carrier boundaries are admitted with
+cold offsets and arbitrary valid ranges. `VECTOR` and `PARALLEL_VECTOR` share one schema-62
+artifact because range count and worker orchestration are not class-shaping facts. MSE `SUM` and
+`MEAN` retain increasing-order, left-associated scalar accumulation, and every BFLOAT16,
+mixed-type, non-contiguous, categorical, or shorter-than-one-species loss form retains scalar or
+parallel-scalar fallback. Scalar loss identity and bytes remain on schema 58. This changes no
+public capability, architecture boundary, materialization policy, or tuning policy.
+
 Completed CPU 0006 adds one static resolved-layout affine-copy family through the same portable
 route. It composes bounded straight-line view chains during cold analysis, keeps eligible internal
 views virtual, and materializes only the final boundary through scalar or parallel-scalar

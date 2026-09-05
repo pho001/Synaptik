@@ -34,7 +34,10 @@ import java.util.Objects;
  *     payload
  * @param rangeForm direct independent-domain or single-complete-reduction range form
  * @param geometry non-null cold normalized rank, layout, stride, offset, base-packing, and
- *     ignore-value facts consumed only when the generated entry is invoked
+ *     ignore-value facts consumed only when the generated entry is invoked. Vector eligibility
+ *     remains a CPU-analysis fact for same-typed contiguous FLOAT32/FLOAT64 MSE {@code NONE};
+ *     this route-independent identity and its historical {@code DIRECT_SCALAR} token remain
+ *     unchanged for schema-58 compatibility
  */
 public record CpuLossIr(LossKind kind, DataType predictionType, DataType targetType,
         DataType resultType, LossReduction reduction, boolean indexIgnorePresent,

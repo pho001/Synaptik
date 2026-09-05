@@ -77,7 +77,7 @@ class CpuPointwiseLedgerEvidenceTest {
                 ledger.metadata().get("mask-closure-evidence"));
         int historicalSchema = Integer.parseInt(ledger.metadata().get("generated-schema"));
         assertEquals(61, historicalSchema);
-        assertEquals(61, CpuGeneratorSchema.CURRENT_VERSION);
+        assertEquals(62, CpuGeneratorSchema.CURRENT_VERSION);
         assertTrue(historicalSchema <= CpuGeneratorSchema.CURRENT_VERSION);
         // The immutable artifact has 79 physical TSV lines: one header plus 78 inventory rows.
         assertEquals(79, ledger.rows().size() + 1);

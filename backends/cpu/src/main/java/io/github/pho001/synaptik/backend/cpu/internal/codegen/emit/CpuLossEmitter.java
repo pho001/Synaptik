@@ -17,7 +17,7 @@ import java.lang.constant.MethodTypeDesc;
 import java.lang.reflect.AccessFlag;
 
 /**
- * Emits field-free, direct scalar Class-File bodies for the CPU loss family.
+ * Emits field-free direct Class-File bodies for the CPU loss family.
  *
  * <p>The generated entry receives only typed carriers, a cold primitive geometry array, and a
  * range. It decodes ordered semantic input roles from the loss identity, so equal MSE or dense
@@ -28,7 +28,9 @@ import java.lang.reflect.AccessFlag;
  * <p>MSE visits increasing elements. Categorical forms visit increasing non-class samples and
  * then increasing classes, use the frozen max/shifted-exponential/log-sum-exp traversal, and do
  * not call an external Synaptik helper, reference kernel, bridge, or dispatcher from generated
- * code.
+ * code. Same-typed contiguous FLOAT32/FLOAT64 MSE {@code NONE} may instead use unmasked preferred-
+ * species subtraction and self-multiplication for complete chunks followed by this same scalar
+ * formula for the remainder. Reduced MSE and categorical forms always remain scalar.
  * BFLOAT16 and FLOAT32 bodies use binary32 accumulator locals; FLOAT64 bodies use binary64.
  * Index targets are loaded and compared to a present ignore value before any logits load. The
  * prepared executable's cold pre-write validator proves every non-ignored target is in range
@@ -43,6 +45,7 @@ public final class CpuLossEmitter {
     static final String GENERIC_AFFINE_NAME = "lossGenericAffine";
     private static final ClassDesc STRICT_MATH = ClassDesc.of(StrictMath.class.getName());
     private static final ClassDesc FLOAT = ClassDesc.of(Float.class.getName());
+    private static final ClassDesc VECTOR = ClassDesc.of("jdk.incubator.vector.Vector");
 
     /** Creates a stateless generation-time loss emitter. */
     public CpuLossEmitter() { }
@@ -53,7 +56,8 @@ public final class CpuLossEmitter {
      * @param classBuilder non-null Class-File builder receiving the generated body
      * @param owner non-null generated class that declares the direct entry and private bodies
      * @param type non-null typed descriptor shared by the generated entry and both private bodies
-     * @param specialization non-null schema-58 scalar carrier specialization
+     * @param specialization non-null schema-58 scalar or schema-62 vector MSE carrier
+     *     specialization
      * @param ir non-null canonical loss identity with no executable instructions
      * @throws NullPointerException if any parameter is {@code null}
      * @throws IllegalArgumentException if the supplied facts do not describe one direct loss form
@@ -115,6 +119,12 @@ public final class CpuLossEmitter {
         int[] roles = roles(ir.familyIdentity());
         int geometry = specialization.boundaryDataTypes().size();
         boolean f64 = resultType == DataType.FLOAT64;
+        if (kind == LossKind.MEAN_SQUARED_ERROR && reduction == LossReduction.NONE
+                && specialization.executionStrategy().compute() == Compute.VECTOR) {
+            emitVectorMseInt(code, specialization, predictionType, targetType, resultType,
+                    roles[0], roles[1], geometry - 1, f64);
+            return;
+        }
         if (kind == LossKind.INDEX_CATEGORICAL_CROSS_ENTROPY_WITH_LOGITS
                 && reduction == LossReduction.NONE
                 && exactContiguousIndexNone(specialization, predictionType, targetType, resultType)) {
@@ -556,9 +566,14 @@ public final class CpuLossEmitter {
         boolean indexIgnorePresent = Boolean.parseBoolean(field(ir.familyIdentity(), "indexIgnore="));
         int[] roles = roles(ir.familyIdentity());
         int boundaryCount = specialization.boundaryDataTypes().size();
-        if (specialization.classIdentitySchema() != 58
-                || specialization.executionStrategy().compute() != Compute.SCALAR
-                || specialization.scratchParameter()
+        boolean scalar = specialization.classIdentitySchema() == 58
+                && specialization.executionStrategy().compute() == Compute.SCALAR;
+        boolean vectorMse = specialization.classIdentitySchema() == 62
+                && specialization.executionStrategy().compute() == Compute.VECTOR
+                && kind == LossKind.MEAN_SQUARED_ERROR && reduction == LossReduction.NONE
+                && predictionType == targetType && predictionType == resultType
+                && (resultType == DataType.FLOAT32 || resultType == DataType.FLOAT64);
+        if ((!scalar && !vectorMse) || specialization.scratchParameter()
                 || boundaryCount < 2 || boundaryCount > 3
                 || roles.length != 2 || roles[0] < 0 || roles[1] < 0
                 || roles[0] >= boundaryCount - 1 || roles[1] >= boundaryCount - 1
@@ -846,6 +861,82 @@ public final class CpuLossEmitter {
             geometry(code, geometry, 6).l2i().istore(outputAddress);
             store(code, carriers, specialization, resultType, outputBoundary, outputAddress, reduced, true);
         }
+    }
+
+    /** Emits same-typed dense MSE vector chunks and the existing scalar remainder formula. */
+    private static void emitVectorMseInt(CodeBuilder code,
+            CpuKernelSpecialization specialization, DataType predictionType, DataType targetType,
+            DataType resultType, int predictionBoundary, int targetBoundary, int outputBoundary,
+            boolean f64) {
+        int boundaryCount = specialization.boundaryDataTypes().size();
+        if (specialization.classIdentitySchema() != 62 || specialization.scratchParameter()
+                || predictionType != targetType || predictionType != resultType
+                || predictionType != DataType.FLOAT32 && predictionType != DataType.FLOAT64) {
+            throw new IllegalArgumentException("vector MSE generated facts disagree");
+        }
+        var carriers = new CpuCarrierEmitter(code);
+        int predictionAddress = code.allocateLocal(TypeKind.LONG);
+        int targetAddress = code.allocateLocal(TypeKind.LONG);
+        int outputAddress = code.allocateLocal(TypeKind.LONG);
+        int ordinal = code.allocateLocal(TypeKind.LONG);
+        int predictionVector = code.allocateLocal(TypeKind.REFERENCE);
+        int targetVector = code.allocateLocal(TypeKind.REFERENCE);
+        int differenceVector = code.allocateLocal(TypeKind.REFERENCE);
+        int resultVector = code.allocateLocal(TypeKind.REFERENCE);
+        int predictionValue = code.allocateLocal(arithmeticKind(f64));
+        int targetValue = code.allocateLocal(arithmeticKind(f64));
+        int loss = code.allocateLocal(arithmeticKind(f64));
+        int lanes = specialization.vectorSpeciesBitSize() / (resultType.byteWidth() * Byte.SIZE);
+        ClassDesc vector = ClassDesc.of(f64 ? "jdk.incubator.vector.DoubleVector"
+                : "jdk.incubator.vector.FloatVector");
+
+        geometry(code, boundaryCount, 4).lload(boundaryCount + 1).ladd()
+                .lstore(predictionAddress);
+        geometry(code, boundaryCount, 5).lload(boundaryCount + 1).ladd().lstore(targetAddress);
+        geometry(code, boundaryCount, 6).lload(boundaryCount + 1).ladd().lstore(outputAddress);
+        code.lload(boundaryCount + 1).lstore(ordinal);
+
+        Label vectorLoop = code.newLabel();
+        Label scalarLoop = code.newLabel();
+        Label done = code.newLabel();
+        code.labelBinding(vectorLoop).lload(ordinal).loadConstant((long) lanes).ladd()
+                .lload(boundaryCount + 3).lcmp().branch(Opcode.IFGT, scalarLoop);
+        carriers.vectorLoad(resultType, specialization.carrierPattern().get(predictionBoundary),
+                predictionBoundary, predictionAddress, false);
+        code.astore(predictionVector);
+        carriers.vectorLoad(resultType, specialization.carrierPattern().get(targetBoundary),
+                targetBoundary, targetAddress, false);
+        code.astore(targetVector);
+        code.aload(predictionVector).aload(targetVector).invokevirtual(vector, "sub",
+                MethodTypeDesc.of(vector, VECTOR)).astore(differenceVector);
+        code.aload(differenceVector).aload(differenceVector).invokevirtual(vector, "mul",
+                MethodTypeDesc.of(vector, VECTOR)).astore(resultVector);
+        carriers.vectorStore(resultType, specialization.carrierPattern().get(outputBoundary),
+                outputBoundary, outputAddress, resultVector);
+        advance(code, predictionAddress, lanes);
+        advance(code, targetAddress, lanes);
+        advance(code, outputAddress, lanes);
+        advance(code, ordinal, lanes);
+        code.branch(Opcode.GOTO, vectorLoop);
+
+        code.labelBinding(scalarLoop).lload(ordinal).lload(boundaryCount + 3).lcmp()
+                .branch(Opcode.IFGE, done);
+        loadFloating(code, carriers, specialization, predictionType, predictionBoundary,
+                predictionAddress, -1, predictionValue, f64);
+        loadFloating(code, carriers, specialization, targetType, targetBoundary,
+                targetAddress, -1, targetValue, f64);
+        subtract(code, f64, predictionValue, targetValue, loss);
+        multiply(code, f64, loss, loss, loss);
+        store(code, carriers, specialization, resultType, outputBoundary, outputAddress, loss);
+        advance(code, predictionAddress, 1);
+        advance(code, targetAddress, 1);
+        advance(code, outputAddress, 1);
+        advance(code, ordinal, 1);
+        code.branch(Opcode.GOTO, scalarLoop).labelBinding(done);
+    }
+
+    private static void advance(CodeBuilder code, int local, int amount) {
+        code.lload(local).loadConstant((long) amount).ladd().lstore(local);
     }
 
     /** Emits the allocation-free linear MSE loop selected by the cold contiguous proof. */

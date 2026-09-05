@@ -109,7 +109,7 @@ class CpuPointwiseMaskEvidenceTest {
     }
 
     @Test void priorSchemaProjectionsRemainExplicitlySeparated() {
-        assertEquals(61, CpuGeneratorSchema.CURRENT_VERSION);
+        assertEquals(62, CpuGeneratorSchema.CURRENT_VERSION);
         CpuKernelIr virtual = virtualWhere(DataType.FLOAT32);
         assertEquals(52, specialization(virtual, DataType.FLOAT32, arrayCarriers(virtual), 52)
                 .classIdentitySchema());

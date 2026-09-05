@@ -33,7 +33,10 @@ tasks.withType<Test>().configureEach {
         "synaptik.cpu.pointwiseMask.structuralEvidenceRoot",
         "synaptik.cpu.pointwiseMask.performance",
         "synaptik.cpu.pointwiseMask.performanceEvidenceRoot",
-        "synaptik.cpu.pointwiseMask.performanceDiagnostic"
+        "synaptik.cpu.pointwiseMask.performanceDiagnostic",
+        "synaptik.cpu.vectorMse.structuralEvidenceRoot",
+        "synaptik.cpu.vectorMse.performance",
+        "synaptik.cpu.vectorMse.performanceEvidenceRoot"
     ).forEach { name ->
         System.getProperty(name)?.let { systemProperty(name, it) }
     }

@@ -44,7 +44,13 @@ import jdk.incubator.vector.ByteVector;
  * power, and unsafe mask storage remain scalar. Any pointwise topology containing cross-type CAST is also scalar-only, while same-type
  * CAST retains its previous vector eligibility. Cross-type CAST adds no workspace,
  * materialization, or route and uses schema 60 only for its generated class identity. Analysis
- * measures nothing and performs no artifact or persistence access. Static affine
+ * admits loss vector compute only for MSE {@code NONE} with same-typed FLOAT32 or FLOAT64
+ * prediction, target, and result, dense-linear occurrence accesses and resolved bindings, an
+ * available multi-lane preferred species with at least one full vector, and an explicit vector
+ * preference. MSE {@code SUM}, MSE {@code MEAN}, and every ineligible loss retain scalar or
+ * parallel-scalar compute under the existing range policy. Only the admitted vector loss uses
+ * class-identity schema 62; scalar loss artifacts retain schema 58.
+ * Analysis measures nothing and performs no artifact or persistence access. Static affine
  * chains instead retain scalar compute,
  * compose one exact distinct-write address domain, declare only source and final result buffers,
  * and use deterministic scalar fallback when vector compute was preferred.
@@ -376,6 +382,8 @@ public final class CpuPartitionPreparer implements BackendPartitionPreparer<
         boolean pool2d = lowered.pool2dGeometry().isPresent();
         boolean pool3d = lowered.pool3dGeometry().isPresent();
         boolean attention = lowered.attentionGeometry().isPresent();
+        boolean loss = lowered.portableKernelIr()
+                instanceof io.github.pho001.synaptik.backend.cpu.internal.ir.CpuLossIr;
         Optional<CpuMaterializationPlan> materialization = Optional.empty();
         var declarations = new ArrayList<PreparationResourceRequirement.Buffer>(lowered.boundaryValues().size());
         for (int i = 0; i < lowered.boundaryValues().size(); i++) declarations.add(
@@ -405,7 +413,13 @@ public final class CpuPartitionPreparer implements BackendPartitionPreparer<
                 == io.github.pho001.synaptik.backend.cpu.internal.ir.CpuMatmulIr.Realization.DIRECT_N_VECTOR
                 ||lowered.matmulIr().orElseThrow().realization()
                 == io.github.pho001.synaptik.backend.cpu.internal.ir.CpuMatmulIr.Realization.TILED_N_VECTOR_2X2);
-        boolean vectorEligible = matmulVector || !matmul && !pool2d && !pool3d && !attention && !affineCopy && !movement
+        boolean lossVector = loss && config.computePreference()
+                == CpuPartitionAnalysisInputs.PortableExecutionConfig.ComputePreference.VECTOR_IF_ELIGIBLE
+                && vectorType != null && lanes > 1 && lowered.elementCount() >= lanes
+                && vectorLossEligible((io.github.pho001.synaptik.backend.cpu.internal.ir.CpuLossIr)
+                        lowered.portableKernelIr(), bindings);
+        boolean vectorEligible = matmulVector || lossVector
+                || !loss && !matmul && !pool2d && !pool3d && !attention && !affineCopy && !movement
                 && !indexing && !scatter && !fold && !ordering && !random && !scan && !aggregate
                 && !argExtrema && !maskedReduction && !advancedReduction && !softmax
                 && !trailingNormalization && !batchNormalization && !batchNormTraining
@@ -529,7 +543,8 @@ public final class CpuPartitionPreparer implements BackendPartitionPreparer<
                             .isPresent(),
                 attention ? 57 : pool3d ? 56 : pool2d ? 55 : matmul ? 54
                         : selectedPortableIr instanceof io.github.pho001.synaptik.backend.cpu.internal.ir.CpuLossIr
-                            ? 58 : kernelIr.familyIdentity().equals("pointwise") && crossTypeCast ? 60
+                            ? vectorEligible ? 62 : 58
+                            : kernelIr.familyIdentity().equals("pointwise") && crossTypeCast ? 60
                             : vectorEligible && hasDenseFloatingMaskBoundary(kernelIr, vectorType) ? 61
                             : kernelIr.familyIdentity().equals("pointwise")
                                 && kernelIr.values().stream().anyMatch(value -> value.dataType()
@@ -964,6 +979,22 @@ public final class CpuPartitionPreparer implements BackendPartitionPreparer<
             case DENSE_LINEAR -> true;
             case LAST_AXIS_BIAS, BLOCK_OUTER -> contiguousRun(binding) >= lanes;
         };
+    }
+
+    private static boolean vectorLossEligible(
+            io.github.pho001.synaptik.backend.cpu.internal.ir.CpuLossIr loss,
+            List<io.github.pho001.synaptik.backend.cpu.internal.ir.CpuAccessPlan.Binding> bindings) {
+        return loss.kind() == io.github.pho001.synaptik.model.operation.loss.LossKind.MEAN_SQUARED_ERROR
+                && loss.reduction()
+                    == io.github.pho001.synaptik.model.operation.loss.LossReduction.NONE
+                && (loss.predictionType() == DataType.FLOAT32
+                    || loss.predictionType() == DataType.FLOAT64)
+                && loss.predictionType() == loss.targetType()
+                && loss.predictionType() == loss.resultType()
+                && loss.boundaryAccesses().stream().allMatch(access -> access.regime()
+                    == io.github.pho001.synaptik.backend.cpu.internal.ir.CpuAccessPlan.Regime.DENSE_LINEAR)
+                && bindings.stream().allMatch(binding -> binding.plan().regime()
+                    == io.github.pho001.synaptik.backend.cpu.internal.ir.CpuAccessPlan.Regime.DENSE_LINEAR);
     }
 
     private static long contiguousRun(
