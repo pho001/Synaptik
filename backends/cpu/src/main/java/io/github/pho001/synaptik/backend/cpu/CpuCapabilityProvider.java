@@ -91,8 +91,10 @@ import java.util.Arrays;
  * pointwise matrix implemented by the portable route: selected same-type arithmetic including
  * extrema and floating Tensor power, exact scalar arithmetic and floating range clamp,
  * canonical-BOOL logic, all nineteen same-typed BFLOAT16/FLOAT32/FLOAT64 unary semantics,
- * floating classification, comparisons, floating {@code WHERE}, and same-type {@code CAST}
- * excluding BFLOAT16. Every
+ * floating classification, comparisons, floating {@code WHERE}, and all 36 ordered {@code CAST}
+ * pairs among FLOAT64, FLOAT32, BFLOAT16, INT64, INT32, and BOOL. CAST capability validates the
+ * source, target attribute, output type, equal static Shape, and resolved non-negative layouts;
+ * it cannot inspect carrier bytes, so canonical BOOL storage remains an execution precondition. Every
  * descriptor has a resolved layout, and results obey the
  * Model family's shape rule. The provider also admits the exact one-input, one-output, fully
  * static and resolved-layout occurrences of {@code CONTIGUOUS}, {@code RESHAPE}, {@code EXPAND},
@@ -221,8 +223,9 @@ public final class CpuCapabilityProvider implements BackendCapabilityProvider {
     /**
      * Reports whether an occurrence belongs to the exact implemented semantic set.
      * Binary and comparison results must equal the current right-aligned broadcast result;
-     * unary, classification, scalar-arithmetic, range-clamp, logical-NOT, and same-type-cast
-     * results preserve shape; binary logical rows use the same right-aligned broadcast rule;
+     * unary, classification, scalar-arithmetic, range-clamp, logical-NOT, and cast results
+     * preserve shape; all 36 ordered casts require an exact target/output-type match but need not
+     * preserve the input type. Binary logical rows use the same right-aligned broadcast rule;
      * {@code WHERE} applies branch-first then condition broadcasting. Admitted affine operations
      * require one input, one output, the same data type, fully static Shapes, resolved layouts,
      * and their exact current attributes and descriptor relationship. Admitted movement
@@ -257,8 +260,7 @@ public final class CpuCapabilityProvider implements BackendCapabilityProvider {
      * Model result type/Shape/gradient relationship, BFLOAT16/FLOAT32/FLOAT64 floating operands,
      * and INT32/INT64 index targets only for index categorical loss. Carrier bases, alias checks,
      * actual ignore values, and direct traversal remain later CPU responsibilities.
-     * Cross-type casts, dynamic
-     * or unresolved geometry, negative-step extraction slices, non-injective
+     * Dynamic or unresolved geometry, negative-step extraction slices, non-injective
      * movement outputs, and all rows outside the implemented matrix return {@code false} without
      * defining conversion or fallback behavior. Negative and non-unit steps are supported for
      * {@code SLICE_UPDATE}; they describe logical placement and do not create a negative storage
@@ -393,8 +395,9 @@ public final class CpuCapabilityProvider implements BackendCapabilityProvider {
             if (kind == CastKind.CAST) {
                 return attrs instanceof CastAttrs cast && query.inputs().size() == 1
                         && supportedCast(query.inputs().getFirst().dataType())
-                        && cast.targetDataType() == query.inputs().getFirst().dataType()
-                        && sameTypeAndShape(query.inputs().getFirst(), output);
+                        && supportedCast(cast.targetDataType())
+                        && cast.targetDataType() == output.dataType()
+                        && output.shape().equals(query.inputs().getFirst().shape());
             }
         } catch (IllegalArgumentException | ArithmeticException incompatible) { return false; }
         return false;
@@ -1597,7 +1600,8 @@ public final class CpuCapabilityProvider implements BackendCapabilityProvider {
     }
 
     private static boolean supportedCast(DataType type) {
-        return supportedNumeric(type) || type == DataType.BOOL;
+        return type == DataType.FLOAT64 || type == DataType.FLOAT32 || type == DataType.BFLOAT16
+                || type == DataType.INT64 || type == DataType.INT32 || type == DataType.BOOL;
     }
 
     private static boolean sameNumeric(java.util.List<TensorDescriptor> inputs,

@@ -21,8 +21,10 @@ import java.lang.constant.MethodTypeDesc;
  * bits, expand to FLOAT32 only at a numerical consumer, and inline one ties-to-even narrowing
  * after every BFLOAT16-producing logical instruction. The FLOAT32 reciprocal-square-root path
  * performs both the square root and reciprocal after that widening, then narrows only their
- * combined result. The emitter consumes typed IR only and makes no capability, route, or
- * numerical-policy decision.</p>
+ * combined result. Cross-type CAST delegates only generation-time instruction construction to
+ * {@link CpuCastEmitter}; generated code writes the target representation to its destination
+ * local before a later instruction can consume it. The emitter consumes typed IR only and makes
+ * no capability, route, or numerical-policy decision.</p>
  */
 final class CpuScalarEmitter {
     // Cephes ndtr.c ERF/ERFC coefficients and piecewise rational approximation.
@@ -58,20 +60,23 @@ final class CpuScalarEmitter {
     private static final ClassDesc DOUBLE = ClassDesc.of(Double.class.getName());
     private static final ClassDesc FLOAT = ClassDesc.of(Float.class.getName());
     private final CodeBuilder code;
+    private final CpuCastEmitter casts;
 
     /**
      * Creates an emitter bound to one non-null generated method body.
      *
-     * @param code non-null Class-File API code builder retained for generation only
+     * @param code non-null Class-File API code builder retained for generation only; generated
+     *     code retains no reference to it
      */
-    CpuScalarEmitter(CodeBuilder code) { this.code = code; }
+    CpuScalarEmitter(CodeBuilder code) { this.code = code; this.casts = new CpuCastEmitter(code); }
 
     /**
      * Emits one already-typed instruction into its preallocated topology-local output.
      *
      * @param ir non-null typed canonical IR owning the instruction values
      * @param instruction non-null instruction already validated by {@code ir}
-     * @param locals non-null value-ordinal-to-local-slot mapping
+     * @param locals non-null value-ordinal-to-local-slot mapping; CAST stores its exact target
+     *     representation in the mapped output slot
      */
     void emit(CpuKernelIr ir, CpuKernelIr.Instruction instruction, int[] locals) {
         CpuPointwiseOpcode opcode = instruction.opcode();
@@ -98,6 +103,14 @@ final class CpuScalarEmitter {
             loadImmediate(instruction.clampImmediate().upper());
             extrema(true, inputType);
             store(outputType, locals[instruction.output()]);
+            return;
+        }
+        if (opcode == CpuPointwiseOpcode.CAST) {
+            casts.emit(inputType, outputType, locals[instruction.inputs().getFirst()]);
+            // CAST to BFLOAT16 already leaves its raw represented short bits on the stack.
+            // Other BFLOAT16-producing pointwise operators leave FLOAT32 and use store's RNE edge.
+            if (outputType == DataType.BFLOAT16) code.istore(locals[instruction.output()]);
+            else store(outputType, locals[instruction.output()]);
             return;
         }
         load(inputType, locals[instruction.inputs().getFirst()]);
@@ -172,6 +185,7 @@ final class CpuScalarEmitter {
             default -> throw new AssertionError(opcode);
         }
     }
+
 
     private void emitPower(CpuKernelIr.Instruction instruction, int[] locals, DataType type) {
         int base = locals[instruction.inputs().getFirst()];

@@ -41,7 +41,10 @@ import jdk.incubator.vector.ByteVector;
  * parallel orchestration before shared resource assignment. Exact vector eligibility is
  * typed across floating, signed-integral, canonical-BOOL, and narrowly virtual floating-mask
  * topologies; every BFLOAT16 pointwise topology, direct power, and unsafe mask storage remain
- * scalar. Analysis measures nothing and performs no artifact or persistence access. Static affine
+ * scalar. Any pointwise topology containing cross-type CAST is also scalar-only, while same-type
+ * CAST retains its previous vector eligibility. Cross-type CAST adds no workspace,
+ * materialization, or route and uses schema 60 only for its generated class identity. Analysis
+ * measures nothing and performs no artifact or persistence access. Static affine
  * chains instead retain scalar compute,
  * compose one exact distinct-write address domain, declare only source and final result buffers,
  * and use deterministic scalar fallback when vector compute was preferred.
@@ -494,6 +497,15 @@ public final class CpuPartitionPreparer implements BackendPartitionPreparer<
         var artifactStrategy = vectorEligible
                 ? CpuPartitionPreparationPlan.ExecutionStrategy.VECTOR
                 : CpuPartitionPreparationPlan.ExecutionStrategy.SCALAR;
+        boolean crossTypeCast = false;
+        for (CpuKernelIr.Instruction instruction : kernelIr.instructions()) {
+            if (instruction.opcode() == io.github.pho001.synaptik.backend.cpu.internal.ir.CpuPointwiseOpcode.CAST
+                    && kernelIr.values().get(instruction.inputs().getFirst()).dataType()
+                    != kernelIr.values().get(instruction.output()).dataType()) {
+                crossTypeCast = true;
+                break;
+            }
+        }
         var specialization = new CpuKernelSpecialization(
                 CpuLoweringFingerprint.fromHex(kernelIr.structuralKey()),
                 CpuKernelSpecialization.NumericalMode.EXACT_DEFAULT,
@@ -516,7 +528,8 @@ public final class CpuPartitionPreparer implements BackendPartitionPreparer<
                             .isPresent(),
                 attention ? 57 : pool3d ? 56 : pool2d ? 55 : matmul ? 54
                         : selectedPortableIr instanceof io.github.pho001.synaptik.backend.cpu.internal.ir.CpuLossIr
-                            ? 58 : kernelIr.familyIdentity().equals("pointwise")
+                            ? 58 : kernelIr.familyIdentity().equals("pointwise") && crossTypeCast ? 60
+                            : kernelIr.familyIdentity().equals("pointwise")
                                 && kernelIr.values().stream().anyMatch(value -> value.dataType()
                                     == DataType.BFLOAT16) ? 59 : 52,
                 lowered.matmulIr());
@@ -812,6 +825,10 @@ public final class CpuPartitionPreparer implements BackendPartitionPreparer<
 
     private static boolean vectorTopologyEligible(CpuKernelIr ir, DataType laneType) {
         if (laneType == null) return false;
+        if (ir.instructions().stream().anyMatch(instruction ->
+                instruction.opcode() == io.github.pho001.synaptik.backend.cpu.internal.ir.CpuPointwiseOpcode.CAST
+                        && ir.values().get(instruction.inputs().getFirst()).dataType()
+                                != ir.values().get(instruction.output()).dataType())) return false;
         boolean mixedMasks = laneType == DataType.FLOAT32 || laneType == DataType.FLOAT64
                 ? ir.values().stream().anyMatch(value -> value.dataType() == DataType.BOOL) : false;
         for (CpuKernelIr.Value value : ir.values()) {

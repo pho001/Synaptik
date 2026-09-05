@@ -1084,7 +1084,16 @@ Completed CPU 0008J adds exactly 44 BFLOAT16 pointwise forms through generated s
 parallel scalar execution. Numerical consumers decode raw represented bits to FLOAT32, and every
 BFLOAT16-producing logical node encodes once with ties-to-even rounding and canonical produced
 NaN; `WHERE` preserves selected raw bits and predicates produce canonical BOOL. This adds no
-BFLOAT16 SIMD, CAST conversion, mixed promotion, native route, or generic fallback.
+BFLOAT16 SIMD, mixed promotion, native route, or generic fallback.
+
+Completed CPU 0008K adds all 36 Model-defined CAST pairs through generated scalar and caller-
+parallel scalar arrays, native-order segments, and mixed carriers over dense, positive-strided,
+and rank-zero access. Each cross-type CAST writes an exact target-typed local, so bounded
+pointwise directed acyclic graphs preserve intermediate conversion boundaries without helper
+calls or materialized intermediates. Cross-type CAST makes its unit scalar-only and selects
+schema 60; same-type vector eligibility and unchanged schema-52/schema-59 class bytes remain
+stable. This adds no SIMD CAST, negative storage stride, materialization, native route, or
+automatic tuning policy.
 
 Completed CPU 0006 adds one static resolved-layout affine-copy family through the same portable
 route. It composes bounded straight-line view chains during cold analysis, keeps eligible internal
@@ -1296,7 +1305,7 @@ pair attempts and applies deterministic no-measurement profitability selection. 
 wins incomplete enumeration, uncertainty, insufficient margin, and a tie with the best comparable
 alternative. Multi-input external representation selection remains CPU 0008E work.
 
-Cross-type cast, BFLOAT16 pointwise SIMD, FLOAT16 execution, relaxed math,
+Cross-type CAST SIMD, BFLOAT16 pointwise SIMD, FLOAT16 execution, relaxed math,
 native/vendor realization, dynamic layouts, Vector API scatter, fold, ordering, scan, or ordinary
 aggregate execution, gradients, and universal backend support are not part of this route
 increment.

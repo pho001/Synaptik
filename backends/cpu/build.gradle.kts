@@ -26,7 +26,10 @@ tasks.withType<Test>().configureEach {
         "synaptik.cpu.loss.performanceEvidenceRoot",
         "synaptik.cpu.loss.performance",
         "synaptik.cpu.loss.performanceRepresentative",
-        "synaptik.cpu.loss.c2Evidence"
+        "synaptik.cpu.loss.c2Evidence",
+        "synaptik.cpu.cast.structuralEvidenceRoot",
+        "synaptik.cpu.cast.performance",
+        "synaptik.cpu.cast.performanceEvidenceRoot"
     ).forEach { name ->
         System.getProperty(name)?.let { systemProperty(name, it) }
     }

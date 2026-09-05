@@ -53,7 +53,13 @@
  * are separate first-class static families. Batch training preserves five explicit inputs and
  * outputs, assigns complete channels to scalar or parallel-scalar ranges, uses one exact-state
  * slice per active range, and publishes next and saved statistics without hidden state.
- * The provider exposes no route, carrier, preparation, or execution API.
+ * Pointwise CAST covers all 36 ordered pairs among FLOAT64, FLOAT32, BFLOAT16, INT64, INT32, and
+ * BOOL through generated scalar or caller-parallel scalar execution. It follows the Model's exact
+ * represented-bit, rounding, NaN, saturation, narrowing, and canonical-BOOL rules over arrays,
+ * native-order segments, and mixed carriers. A cross-type CAST keeps its explicit boundary inside
+ * a bounded pointwise directed acyclic graph and disables vector compute for that unit; same-type
+ * vector eligibility is unchanged. The provider exposes no route, carrier, preparation, or
+ * execution API.
  *
  * <p>The {@code internal} namespace contains unsupported implementation contracts for complete-
  * partition lowering, code generation, storage, and execution. No type in that namespace is a

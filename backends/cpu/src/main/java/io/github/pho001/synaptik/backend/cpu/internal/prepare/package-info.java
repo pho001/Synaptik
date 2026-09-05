@@ -9,7 +9,11 @@
  * or unit-private floating-mask preferred-species vector body plus single-thread or bounded
  * parallel orchestration, and
  * declares each boundary's exact referenced storage span plus at most one workspace before shared
- * assignment. Finalization verifies all assignments and any required borrowed worker group before
+ * assignment. A pointwise unit containing cross-type CAST stays intact and selects scalar
+ * compute, with caller-parallel scalar orchestration when eligible; it adds no workspace,
+ * materialization, representation, or route. Same-type CAST retains its existing vector
+ * eligibility, while class-identity schema 60 is selected only for cross-type CAST. Finalization
+ * verifies all assignments and any required borrowed worker group before
  * one artifact-store call, realizes the already-selected
  * scalar or vector artifact, and constructs one partition executable. It must not reinterpret
  * graph semantics, change fusion, route, strategy, or species selection, or introduce an

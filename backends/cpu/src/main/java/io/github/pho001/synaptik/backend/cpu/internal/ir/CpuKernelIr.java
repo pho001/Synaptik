@@ -17,6 +17,9 @@ import java.util.Objects;
  * role so generated code may represent eligible virtual floating masks without changing storage.
  * Values use topology-local ordinals, so graph identities, extents, slots, routes, generator
  * versions, segment instances, and invocation bindings cannot enter canonical identity.
+ * CAST remains one opcode; its source and target types come from the ordered input and output
+ * values, allowing all 36 Model pairs while keeping each conversion boundary explicit in a
+ * bounded pointwise DAG.
  * When analysis selects one contiguous input copy, it derives a second canonical consumer form
  * whose copied input has dense access; that structural change belongs to the lowering fingerprint,
  * while the source binding, workspace, costs, and concrete geometry remain outside this IR.
@@ -75,7 +78,8 @@ public record CpuKernelIr(
     /**
      * One exact ordered pointwise computation over topology-local values.
      *
-     * @param opcode non-null family-oriented exact operation semantic
+     * @param opcode non-null family-oriented exact operation semantic; CAST uses the input and
+     *     output value types as its complete ordered conversion identity
      * @param inputs non-null ordered input ordinals; copied defensively
      * @param output non-negative output ordinal
      * @param scalarImmediate exact typed primitive bits when required by {@code opcode}, otherwise
@@ -370,8 +374,11 @@ public record CpuKernelIr(
                     && inputs.get(1) == inputs.get(2) && output == inputs.get(1)
                     && (output == DataType.FLOAT64 || output == DataType.FLOAT32
                         || output == DataType.BFLOAT16);
-            case CAST -> inputs.getFirst() == output && (output == DataType.FLOAT64
-                    || output == DataType.FLOAT32 || output == DataType.INT32
+            case CAST -> (inputs.getFirst() == DataType.FLOAT64 || inputs.getFirst() == DataType.FLOAT32
+                    || inputs.getFirst() == DataType.BFLOAT16 || inputs.getFirst() == DataType.INT32
+                    || inputs.getFirst() == DataType.INT64 || inputs.getFirst() == DataType.BOOL)
+                    && (output == DataType.FLOAT64 || output == DataType.FLOAT32
+                    || output == DataType.BFLOAT16 || output == DataType.INT32
                     || output == DataType.INT64 || output == DataType.BOOL);
         };
         if (!valid) throw new IllegalArgumentException("instruction data types do not match opcode");

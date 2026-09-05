@@ -11,6 +11,9 @@
  * an independently selectable numerical route. Its pure error-function and activation helpers are
  * also callable by generated scalar bytecode, so the generated and reference realizations share
  * one fixed formula and exceptional-value policy.
+ * Cross-type CAST evaluation uses the Model-owned scalar conversion reference only in this cold
+ * oracle, returning exact target primitive carriers and canonical BOOL bytes. Generated CAST
+ * execution independently emits the conversion and does not call that reference.
  * The reference realization also evaluates compact static movement and window mappings plus
  * functional SLICE_UPDATE over unique boundary carriers for generated/reference differential
  * tests; it copies represented bits, selects base outside the update region, and does not define

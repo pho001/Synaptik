@@ -127,6 +127,7 @@ class CpuInternalPackageInventoryTest {
                         "internal/codegen/emit/CpuExactSumEmitter.java",
                         "internal/codegen/emit/CpuExactProductEmitter.java",
                         "internal/codegen/emit/CpuClassFileKernelGenerator.java",
+                        "internal/codegen/emit/CpuCastEmitter.java",
                         "internal/codegen/emit/CpuGeneratedKernel.java",
                         "internal/codegen/emit/CpuLoopEmitter.java",
                         "internal/codegen/emit/CpuScalarEmitter.java",

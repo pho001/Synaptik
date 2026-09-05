@@ -11,6 +11,9 @@
  * offset, effective strides, start coordinates/address, and exact half-open accessed span. It deliberately
  * excludes routes, slots, graph identities, concrete extents, segment instances, generator
  * versions, and invocation bindings so structurally compatible shapes can share one artifact.
+ * CAST uses the ordered source and output value types as its complete conversion identity, so one
+ * opcode represents all 36 Model-defined pairs without hiding an intermediate conversion in a
+ * fused pointwise topology.
  * A selected contiguous copy produces an adjusted canonical consumer access structure for the
  * generated artifact, while its concrete extent, source binding, workspace, and cost evidence
  * remain instance facts outside canonical identity.

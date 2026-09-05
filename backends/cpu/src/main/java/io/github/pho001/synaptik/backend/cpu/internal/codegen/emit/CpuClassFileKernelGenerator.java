@@ -23,6 +23,9 @@ import java.util.Objects;
  * FLOAT32/FLOAT64, signed-integral, canonical-BOOL, or narrowly virtual floating-mask vector
  * body, and retains the scalar body for tails. BFLOAT16 pointwise work is scalar-only and keeps
  * raw represented locals, decoding numerical inputs and encoding each producing logical node.
+ * A pointwise topology containing cross-type CAST is likewise scalar-only: each CAST emits its
+ * Model-defined conversion directly into the target-typed local, preserving explicit
+ * intermediate conversion boundaries without a generated Synaptik helper call.
  * It does not choose capability, numerical semantics, access structure, strategy, or fallback.</p>
  * Instruction-free affine, movement, indexing, scatter, fold, ordering, explicit-state random,
  * cumulative-scan, ordinary aggregate, and first-class loss forms delegate to their focused
@@ -63,7 +66,9 @@ public final class CpuClassFileKernelGenerator {
      * @param kernelIr non-null canonical typed CPU kernel IR matching the specialization
      * @return a new deterministic verified class-byte array
      * @throws NullPointerException if an argument is {@code null}
-     * @throws IllegalArgumentException if specialization and IR facts disagree
+     * @throws IllegalArgumentException if specialization and IR facts disagree, including a
+     *     cross-type CAST paired with a non-scalar strategy or a class-identity schema other than
+     *     {@code 60}
      */
     public byte[] generateClassBytes(CpuKernelSpecialization specialization, CpuKernelIr kernelIr) {
         validate(specialization, kernelIr);
@@ -428,13 +433,20 @@ public final class CpuClassFileKernelGenerator {
         boolean pointwise = kernelIr.familyIdentity().equals("pointwise");
         boolean bfloatPointwise = pointwise && kernelIr.values().stream().anyMatch(value ->
                 value.dataType() == io.github.pho001.synaptik.model.datatype.DataType.BFLOAT16);
+        boolean crossTypeCast = pointwise && kernelIr.instructions().stream().anyMatch(instruction ->
+                instruction.opcode() == CpuPointwiseOpcode.CAST
+                        && kernelIr.values().get(instruction.inputs().getFirst()).dataType()
+                                != kernelIr.values().get(instruction.output()).dataType());
         int expectedStores = kernelIr.familyIdentity()
                 .startsWith("batch-normalization-training:") ? 5
                 : kernelIr.familyIdentity().contains(":outputs=2:") ? 2 : 1;
         if (!boundaryTypes.equals(specialization.boundaryDataTypes())
                 || kernelIr.instructions().size() > 8
-                || bfloatPointwise && specialization.classIdentitySchema() != 59
-                || !bfloatPointwise && specialization.classIdentitySchema() == 59
+                || crossTypeCast && specialization.classIdentitySchema() != 60
+                || pointwise && !crossTypeCast && bfloatPointwise
+                    && specialization.classIdentitySchema() != 59
+                || pointwise && !crossTypeCast && !bfloatPointwise
+                    && specialization.classIdentitySchema() != 52
                 || (pointwise ? kernelIr.stores().isEmpty()
                     : kernelIr.stores().size() != expectedStores)) {
             throw new IllegalArgumentException("unsupported canonical pointwise IR");
@@ -500,8 +512,9 @@ public final class CpuClassFileKernelGenerator {
             return;
         }
         if (!kernelIr.familyIdentity().equals("pointwise")
-                || kernelIr.values().stream().anyMatch(value -> value.dataType()
+                || (kernelIr.values().stream().anyMatch(value -> value.dataType()
                         == io.github.pho001.synaptik.model.datatype.DataType.BFLOAT16)
+                    || crossTypeCast)
                     && specialization.executionStrategy().compute()
                         != io.github.pho001.synaptik.backend.cpu.internal.prepare.CpuPartitionPreparationPlan.ExecutionStrategy.Compute.SCALAR) {
             throw new IllegalArgumentException("unsupported canonical pointwise IR");
@@ -541,6 +554,10 @@ public final class CpuClassFileKernelGenerator {
     }
 
     private static boolean vectorTopologyEligible(CpuKernelIr ir, DataType laneType) {
+        if (ir.instructions().stream().anyMatch(instruction ->
+                instruction.opcode() == CpuPointwiseOpcode.CAST
+                        && ir.values().get(instruction.inputs().getFirst()).dataType()
+                                != ir.values().get(instruction.output()).dataType())) return false;
         boolean mixedMasks = (laneType == DataType.FLOAT32 || laneType == DataType.FLOAT64)
                 && ir.values().stream().anyMatch(value -> value.dataType() == DataType.BOOL);
         for (CpuKernelIr.Value value : ir.values()) {

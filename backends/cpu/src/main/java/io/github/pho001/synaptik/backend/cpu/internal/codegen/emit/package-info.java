@@ -6,7 +6,11 @@
  * exact ordered typed primitive-array or {@code MemorySegment} carrier pattern. Proved dense
  * heap-array pointwise entries narrow their universal long bounds and bases once, then use
  * integer loop/address locals; other forms retain checked long state. Scalar generation
- * covers the admitted FLOAT64, FLOAT32, INT32, INT64, and BOOL pointwise rows. A separate scalar
+ * covers the admitted FLOAT64, FLOAT32, INT32, INT64, and BOOL pointwise rows. The focused CAST
+ * emitter additionally writes every Model-defined source/target pair directly into a target-
+ * typed local. It preserves represented-bit identities and explicit intermediate boundaries,
+ * performs direct BFLOAT16 rounding, and emits no Synaptik conversion-helper call. Cross-type
+ * CAST bodies are scalar-only; caller-parallel orchestration reuses the same generated entry. A separate scalar
  * affine emitter copies represented bits for all six Model data types, including opaque BFLOAT16
  * through {@code short[]} or native-order two-byte {@code MemorySegment} access. Vector generation covers the
  * bounded typed value matrix plus unit-private floating masks and scalar-broadcast BOOL conditions;

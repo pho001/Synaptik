@@ -33,6 +33,8 @@ import io.github.pho001.synaptik.model.operation.index.ScatterReduction;
 import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuPointwiseOpcode;
 import io.github.pho001.synaptik.model.datatype.DataType;
 import io.github.pho001.synaptik.model.datatype.BFloat16Bits;
+import io.github.pho001.synaptik.model.datatype.ScalarValue;
+import io.github.pho001.synaptik.model.operation.elementwise.cast.CastValueConversions;
 
 /**
  * Scalar conformance realization for the bounded typed CPU portable semantics.
@@ -50,7 +52,10 @@ import io.github.pho001.synaptik.model.datatype.BFloat16Bits;
  * independent {@link BigInteger} integer/rational conversion rather than generated emitter
  * rounding logic. The
  * ordering oracle uses an independent primitive-index insertion algorithm while preserving the
- * same Model order and represented output bits. This is an unsupported cold-test/reference
+ * same Model order and represented output bits. Cross-type CAST delegates in this cold oracle to
+ * the Model-owned {@code CastValueConversions} reference and returns the exact target primitive
+ * carrier, including raw BFLOAT16 bits and canonical BOOL bytes; generated execution does not call
+ * that reference. This is an unsupported cold-test/reference
  * contract and is never a Runtime IR interpreter.
  */
 public final class CpuScalarReferenceKernel {
@@ -1414,7 +1419,8 @@ public final class CpuScalarReferenceKernel {
         Object right = instruction.inputs().size() > 1 ? values[instruction.inputs().get(1)] : null;
         Object scalar = instruction.scalarImmediate() == null ? null
                 : immediate(instruction.scalarImmediate());
-        if (type == DataType.BFLOAT16 && instruction.opcode() != CpuPointwiseOpcode.WHERE) {
+        if (type == DataType.BFLOAT16 && instruction.opcode() != CpuPointwiseOpcode.WHERE
+                && instruction.opcode() != CpuPointwiseOpcode.CAST) {
             if (left != null) left = Float.valueOf(BFloat16Bits.toFloat((short) left));
             if (right != null) right = Float.valueOf(BFloat16Bits.toFloat((short) right));
             if (scalar != null) scalar = Float.valueOf(BFloat16Bits.toFloat((short) scalar));
@@ -1464,11 +1470,50 @@ public final class CpuScalarReferenceKernel {
             case LOGICAL_NOT -> bool((byte) left == 0);
             case WHERE -> ((byte) left) == 1 ? values[instruction.inputs().get(1)]
                     : values[instruction.inputs().get(2)];
-            case CAST -> left;
+            case CAST -> cast(type, left, ir.values().get(instruction.output()).dataType());
         };
         return type == DataType.BFLOAT16 && instruction.opcode() != CpuPointwiseOpcode.WHERE
+                && instruction.opcode() != CpuPointwiseOpcode.CAST
                 && ir.values().get(instruction.output()).dataType()
                 == DataType.BFLOAT16 ? BFloat16Bits.fromFloat((float) result) : result;
+    }
+
+    /**
+     * Applies the Model-defined conversion in the cold differential oracle.
+     *
+     * @param source represented source type
+     * @param value boxed source carrier value
+     * @param target requested represented result type
+     * @return the boxed target carrier value, with BOOL encoded as canonical zero or one
+     */
+    private static Object cast(DataType source, Object value, DataType target) {
+        ScalarValue converted = CastValueConversions.convert(scalarValue(source, value), target);
+        return switch (target) {
+            case FLOAT64 -> converted.float64Value();
+            case FLOAT32 -> converted.float32Value();
+            case BFLOAT16 -> converted.bfloat16Bits();
+            case INT64 -> converted.int64Value();
+            case INT32 -> converted.int32Value();
+            case BOOL -> (byte) (converted.booleanValue() ? 1 : 0);
+        };
+    }
+
+    /**
+     * Reconstructs one Model scalar from the reference carrier representation.
+     *
+     * @param type represented carrier type
+     * @param value boxed carrier value
+     * @return the exact Model scalar, preserving raw BFLOAT16 bits
+     */
+    private static ScalarValue scalarValue(DataType type, Object value) {
+        return switch (type) {
+            case FLOAT64 -> ScalarValue.float64((double) value);
+            case FLOAT32 -> ScalarValue.float32((float) value);
+            case BFLOAT16 -> ScalarValue.bfloat16Bits((short) value);
+            case INT64 -> ScalarValue.int64((long) value);
+            case INT32 -> ScalarValue.int32((int) value);
+            case BOOL -> ScalarValue.bool((byte) value == 1);
+        };
     }
 
     private static Object unary(CpuPointwiseOpcode opcode, DataType type, Object input) {

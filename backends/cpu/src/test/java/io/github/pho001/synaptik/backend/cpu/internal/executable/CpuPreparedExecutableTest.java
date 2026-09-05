@@ -1384,6 +1384,46 @@ class CpuPreparedExecutableTest {
         } finally { boolRun.close(); }
     }
 
+    @Test void boolPreflightRejectsEveryDirectCarrierPatternBeforeWorkerWriteOrPublication() {
+        var base = CpuNonAffineMovementLoweringTest.context(
+                new Operation(WindowTransformKind.UNFOLD_AXIS, new UnfoldAxisAttrs(0, 2, 1)),
+                List.of(0), List.of(CpuNonAffineMovementLoweringTest.descriptor(
+                        DataType.BOOL, Shape.of(3))),
+                CpuNonAffineMovementLoweringTest.descriptor(DataType.BOOL, Shape.of(2, 2)));
+        var parallel = new PortableExecutionConfig(ComputePreference.SCALAR, 2, 2, 1);
+        for (boolean inputSegment : List.of(false, true)) for (boolean outputSegment : List.of(false, true)) {
+            var pattern = List.of(inputSegment ? CarrierAccess.MEMORY_SEGMENT : CarrierAccess.BYTE_ARRAY,
+                    outputSegment ? CarrierAccess.MEMORY_SEGMENT : CarrierAccess.BYTE_ARRAY);
+            var context = new io.github.pho001.synaptik.prepare.analysis.PrepareContext<>(
+                    base.partition(), base.nodes(), base.values(), base.memoryRequirements(),
+                    base.constants(), new CpuPartitionAnalysisInputs(false, pattern, parallel));
+            var analysis = new CpuPartitionPreparer().analyze(context);
+            assertEquals("parallel-scalar", analysis.plan().executionStrategy().toString(),
+                    "preflight must precede the selected worker path for " + pattern);
+            try (var workers = new CpuWorkerGroup(2)) {
+                var executable = CpuPartitionFinalizerTest.finalizeExecutable(analysis,
+                        Optional.empty(), Optional.of(workers));
+                byte[] inputBytes = {1, 2, 0}; byte[] outputBytes = {0x5a, 0x5a, 0x5a, 0x5a};
+                var input = inputSegment ? CpuNativeBuffer.allocate(DataType.BOOL, 3, 1)
+                        : borrow(inputBytes);
+                var output = outputSegment ? CpuNativeBuffer.allocate(DataType.BOOL, 4, 1)
+                        : borrow(outputBytes);
+                if (inputSegment) for (int i = 0; i < inputBytes.length; i++)
+                    segment(input).setAtIndex(ValueLayout.JAVA_BYTE, i, inputBytes[i]);
+                if (outputSegment) for (int i = 0; i < outputBytes.length; i++)
+                    segment(output).setAtIndex(ValueLayout.JAVA_BYTE, i, outputBytes[i]);
+                var run = state(executable, List.of(input, output));
+                try {
+                    assertThrows(IllegalArgumentException.class, () -> executable.bind(run),
+                            "canonical BOOL preflight " + pattern);
+                    for (int i = 0; i < outputBytes.length; i++) assertEquals((byte) 0x5a,
+                            segment(output).getAtIndex(ValueLayout.JAVA_BYTE, i),
+                            "no worker write or publication for " + pattern + " at " + i);
+                } finally { run.close(); }
+            }
+        }
+    }
+
     @Test void sliceUpdateExecutesParallelMixedCarriersWithArbitraryResolvedLayouts() {
         Shape baseShape = Shape.of(3, 4), updateShape = Shape.of(2, 2);
         var baseDescriptor = new TensorDescriptor(DataType.INT32, baseShape,

@@ -147,8 +147,9 @@ Generated scalar and Java 26 Vector API entries accept primitive `start` and `en
 Compatible concrete extents bind on the cold path and share identical class bytes and one
 process-local loaded compatibility identity. The pointwise semantic matrix uses one forty-eight-
 opcode CPU-private vocabulary across FLOAT64, FLOAT32, BFLOAT16, INT32, INT64, and BOOL. Exactly
-44 forms currently admit BFLOAT16 through scalar or caller-parallel scalar execution; this does
-not make every opcode or mixed-type occurrence executable. Affine copies accept all six current
+44 same-typed forms admit BFLOAT16, and CAST additionally admits all 36 ordered source/target
+pairs through scalar or caller-parallel scalar execution; this does not make every opcode or
+mixed-type occurrence executable. Affine copies accept all six current
 Model data types and transfer represented bits without conversion. BFLOAT16 pointwise boundaries
 use raw `short[]` representation or native-order two-byte segment access. The access
 family covers scalar/rank/singleton/multi-axis
@@ -167,8 +168,8 @@ work. Each copy candidate owns a declared run workspace and explicit generated a
 compatible repeated and cross-unit uses share one copy. Ordinary preparation selects direct and
 declares none of those candidate-only resources. Capability and lowering fail closed for every other
 operation, type, shape, layout, parameter, alias, fan-out, publication, carrier, or route. In
-particular, CAST remains same-type only and excludes BFLOAT16; CPU does not invent cross-type
-conversion semantics. Native, tuning, excluded pointwise rows,
+particular, cross-type CAST follows the completed Model conversion contract and does not infer a
+promotion or conversion mode. Native, tuning, excluded pointwise rows,
 native routes, model-autotuning promotion, and other operation families remain planned.
 CPU-private specialized-subgraph recognition is current only
 as the cold, recognition-only boundary described below. Functional scatter,
@@ -762,7 +763,7 @@ operation-specific lowerer, emitter, executable, or registry class:
 | Comparison | All six ordered/equality comparisons for FLOAT64, FLOAT32, BFLOAT16, INT32, and INT64 to BOOL |
 | Logical | Canonical-BOOL `AND`, `OR`, and `NOT` |
 | Selection | BOOL-conditioned `WHERE` with same-type FLOAT64, FLOAT32, or BFLOAT16 branches |
-| Cast | Represented-value-preserving same-type `CAST` for FLOAT64, FLOAT32, INT32, INT64, and BOOL |
+| Cast | All 36 ordered `CAST` pairs among FLOAT64, FLOAT32, BFLOAT16, INT64, INT32, and BOOL; cross-type forms are scalar-only |
 
 Scalar and parallel-scalar generated execution cover every row. BFLOAT16 contributes exactly 44
 forms: seven binary, eight scalar/range, nineteen unary, six comparison, three classification,
@@ -845,8 +846,8 @@ The two intermediate values receive no CPU buffer declaration or Runtime slot. T
 entry has four boundary arguments only because this example has three external reads and one
 output; another legal chain derives a different count. The BOOL store is canonical byte `0` or
 `1`, and cold binding validates every BOOL input boundary before hot invocation. This example
-demonstrates family lowering, virtuality, and derived boundary cardinality; it does not add
-cross-type conversion, general DAG fusion, or another operation family.
+demonstrates family lowering, virtuality, and derived boundary cardinality; it does not by itself
+demonstrate cross-type conversion, general DAG fusion, or another operation family.
 
 Complete-partition analysis admits one through eight supported stored occurrences in acyclic
 producer-before-consumer order. Side inputs become external boundaries. Eligible unpublished
@@ -856,11 +857,39 @@ multi-store unit; other disconnected or mixed-family work remains separate suppo
 Malformed topology, more than eight occurrences, or an independently unsupported seed fails
 before declaration or artifact access.
 
-Same-type CAST is intentionally narrow. Current Model construction represents all source/target
-pairs but leaves cross-type numerical conversion—rounding, overflow, saturation, NaN, and BOOL
-conversion—separately owned. CPU therefore executes only represented-value identity when input,
-target attribute, and output type are identical. It does not remove the cast from the compiled
-graph or imply a compiler canonicalization rule.
+CAST follows the Model-owned 36-pair value contract. Same-type pairs preserve represented bits,
+including signed zero and every NaN pattern. Cross-type conversion uses these categories:
+
+| Source/target category | CPU result |
+|---|---|
+| Floating or integral to floating | Direct target-format round-to-nearest, ties-to-even; FLOAT64/integral to BFLOAT16 never passes through FLOAT32 |
+| Lossy floating NaN conversion | Positive canonical quiet NaN in the target format |
+| BFLOAT16/FLOAT32 widening | Exact finite widening and the Model-defined left-aligned NaN fraction mapping |
+| Floating to INT64/INT32 | Truncate toward zero, saturate infinities/out-of-range values, and map NaN to zero |
+| INT32 to INT64 / INT64 to INT32 | Sign extension / retention of the low 32 two's-complement bits |
+| BOOL conversion | False/true becomes positive zero/one; numeric zero of either floating sign becomes false and every other numeric value becomes true |
+
+For example, FLOAT64 bits `0x3FF0100000400000` convert directly to BFLOAT16 bits `0x3F81`.
+Rounding through FLOAT32 would incorrectly produce `0x3F80`; the generated conversion therefore
+reads the original binary64 value. This demonstrates the explicit conversion boundary, not
+BFLOAT16 SIMD or implicit promotion.
+
+Cross-type CAST supports primitive arrays, native-order `MemorySegment` carriers, and mixed
+array/segment boundaries. Canonical contiguous and offset-dense layouts use `DENSE_LINEAR`;
+positive non-unit layouts use `BLOCK_OUTER` or `GENERAL_ODOMETER`; and rank-zero reads use
+`SCALAR_ALL_ZERO` with a dense injective output. Negative storage strides remain unrepresentable
+and unsupported. A negative slice step is an operation coordinate rule and does not create a
+negative storage stride.
+
+A bounded pointwise directed acyclic graph containing cross-type CAST stays one scalar or
+caller-parallel scalar unit. Each CAST stores the target primitive or raw BFLOAT16 bits in its
+virtual local before a consumer executes, so `FLOAT64 -> BFLOAT16 -> FLOAT64` preserves the
+BFLOAT16 rounding boundary even without a materialized intermediate. The generated class is
+final, field-free, and has one typed static entry; generated element work calls no Synaptik
+conversion helper. Same-type CAST keeps its established vector eligibility. No current CAST path
+adds SIMD conversion, native execution, materialization, workspace, route selection, or
+autotuning policy, and CPU does not remove CAST from the graph or define a Compiler
+canonicalization rule.
 
 Partition lowering, fusion legality/profitability, canonical IR, access plans, materialization
 accounting, numerical/determinism checks, and representation planning are common across routes.
@@ -3133,10 +3162,13 @@ reduction-output-cell, whole-softmax-slice, whole-trailing-normalization-slice, 
 channel or flattened non-channel batch-inference ranges and complete-channel batch-training
 ranges, plus complete Conv2d and Conv3d output-cell ranges; and the
 pointwise family retains its exact typed value-vector and virtual-mask parity matrix. Generator
-compatibility is family-specific. Existing pre-0008J projections and their generated bytes are
-unchanged. Schema 59 applies only to BFLOAT16 pointwise projections; it records their raw-local
-per-node encode boundary, exact carriers, access form, and scalar strategy. The earlier schemas
-described below remain the identity of their unchanged family projections. Generator schema 52
+compatibility is family-specific. Schema 60 applies only to pointwise projections containing
+cross-type CAST; it records ordered source/target types, carrier/access structure, scalar compute,
+and explicit conversion topology. Existing schema-52 and schema-59 projections and their
+generated bytes are unchanged. Schema 59 remains the identity only for BFLOAT16 pointwise
+projections without cross-type CAST; it records their raw-local per-node encode boundary, exact
+carriers, access form, and scalar strategy. The earlier schemas described below remain the identity
+of their unchanged family projections. Generator schema 52
 distinguishes pointwise,
 affine, movement, indexing, scatter, fold, ordering, random, scan, aggregate, arg-extrema, and
 masked-reduction, advanced-reduction, softmax, trailing-normalization, batch-inference,
@@ -3188,13 +3220,13 @@ zero-resource identity, and direct running-variance body. Schema 49 was the comp
 envelope for that increment. Schema 50 adds five-output batch-normalization training, schema 51
 adds direct grouped NCHW Conv2d, schema 52 adds direct grouped NCDHW Conv3d, schema 54 adds MATMUL,
 schema 55 adds Pool2d, schema 56 adds Pool3d, schema 57 adds attention, schema 58 adds loss, and
-schema 59 adds BFLOAT16 pointwise. The current envelope version is 59; older envelopes are
-incompatible safe misses, while unchanged older family projections retain their established
-structural bytes.
+schema 59 adds BFLOAT16 pointwise, and schema 60 adds cross-type CAST. The current envelope version
+is 60; older envelopes are incompatible safe misses, while unchanged schema-52 and schema-59
+family projections retain their established structural bytes.
 No excluded
 aggregate/scatter form or later semantic family,
 BFLOAT16 pointwise SIMD or dropout numerical operation,
-cross-type CAST, dynamic layout, vector affine/scatter/fold/ordering execution, native fallback, backend-conformance
+cross-type CAST SIMD, dynamic layout, vector affine/scatter/fold/ordering execution, native fallback, backend-conformance
 result, public Engine integration, hardware-intrinsic guarantee, or performance result is
 implemented or promised.
 Ordinary provider tests
