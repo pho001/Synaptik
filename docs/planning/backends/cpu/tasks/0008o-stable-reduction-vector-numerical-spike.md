@@ -2,7 +2,7 @@
 
 ## Status
 
-Ready
+Cancelled
 
 ## Goal
 
@@ -302,6 +302,11 @@ for the required targeted review and final planning/documentation validation.
   `V/S <= 0.95x` gate rather than treating `<= 1.00x` as a gain.
 - Stage A distinguishes a vector map with scalar ordered folding from a lane-reordered reduction;
   only the latter requires explicit reassociation permission.
+- The user chose to stop Stage C after the retained bounded result rather than run replacement or
+  additional forks.  Cancellation applies only to the unfinished five-fork acceptance protocol:
+  it does not erase Stage A, Stage B, or the valid fork-0 `KEEP_SCALAR` decision for candidate 2.
+  CPU 0008P is therefore the next valid Draft task; this cancellation authorizes neither a SIMD
+  production task nor a claim that the five-fork acceptance gate passed.
 
 ## Known limitations
 
@@ -309,15 +314,79 @@ for the required targeted review and final planning/documentation validation.
   behavior, native routes, or a cross-backend numerical promise.
 - The exact candidate inventory may shrink only through a recorded `N/A`, `INELIGIBLE`, or
   `STOPPED` reason; it may not grow within this bounded spike.
+- Candidate 2 has only fork 0. Fork 1 was externally interrupted and forks 2--4 did not run, so
+  the required five-fork medians and median-of-fork-medians do not exist. Candidates 3 and 4
+  remain `STOP_MODEL_OR_ARCHITECTURE_DECISION`; the cancellation does not resolve their Model or
+  architecture permission boundary.
 
 ## Validation evidence
 
-Empty until implemented.
+- Reused implementation context: `01a0779d-2c07-7690-b18e-a5cf037e016d`.
+- Reused focused CPU command:
+  `./gradlew :backends:cpu:test --tests 'io.github.pho001.synaptik.backend.cpu.internal.codegen.emit.CpuStableReduction*'`
+  completed successfully: 24 tests, 23 passed, and one opt-in Stage-C measurement skipped.
+  The focused opt-in Stage-C smoke also completed successfully. The documentation pass did not
+  rerun Java tests because it changed no executable Java and must not repeat the implementation
+  evidence.
+- Stage B retained 40 contiguous probes and 32 normalized dossiers, with no indexed body. Its
+  normalized inventory SHA-256 is
+  `a0c8630ec4635b40122f250fd8ead9236ae062e524f05094eefdd4c51ce5dc21`.
+- Stage C's immutable fork-0 raw CSV SHA-256 is
+  `6613a62c9c31f4ca45df0aec8e23050076ffc3daca69af74ca565ede385879c2`.
+  It contains 20 row/fork executions, 360 retained pairs, and 1,440 timed sides; every side is
+  at least 25 ms. Of 180 V/S pairs, 2 pass and 178 fail the `<= 0.95x` gate; all 20 fork-0 V/S
+  medians fail. All 180 V/D pairs pass `<= 1.15x`.
+- Other immutable Stage-C identities retained by the manifest are inputs
+  `fa1f0db4ff37343f48c1ddb47a273cc09792683bdc1392bd0dd1bdf6ba82e9c9`, environment
+  `cfc3da5185cbc40356df6376d7c2875e66d404a2757951f5ccc13e36d0b5c349`, harness class content
+  `5ad91b7e6a9f18c3635b23d83832285e0a814f9b9dbb7f1fbc3fe13196a5f7a2`, and direct-control
+  class content `60b7a7ecc6b2aa4058af70087f33fc94d95d6dd4100b72f2f13337baeab51eef` (SHA-256).
+- Documentation context: `01a077a1-2cca-7ed1-a047-a622a15fb949`; selected profile: Planning.
+  Final documentation validation: local Markdown links, heading anchors, and fences checked;
+  `git diff --check` passed after the documentation edit. The manifest was inspected as the
+  immutable evidence index.
 
 ## Implementation notes
 
-Empty until implemented.
+- No production path changed. The implementation added seven CPU-private `CpuStableReduction*`
+  test/evidence harness files and the immutable retained-evidence manifest; all seven harness
+  files and the manifest were reviewed by this documentation pass.
+- Stage A permits only candidate 2, `VECTOR_MAP_ORDERED_FOLD`, for contiguous vector loads/map
+  with increasing-logical-order scalar folds. It did not prove indexed Vector API access.
+  Candidates 3 and 4 require an ungranted reassociation permission and remain
+  `STOP_MODEL_OR_ARCHITECTURE_DECISION`.
+- Stage B recorded the 40-probe/32-dossier structural result above. Stage C uses the frozen
+  candidate-2 20-row contiguous matrix. Fork 0 decisively assigns `KEEP_SCALAR`: its 178 failed
+  V/S pairs violate the acceptance rule that every retained V/S pair passes. This is a bounded
+  candidate decision, not five-fork acceptance.
+- Fork 1 was externally interrupted; forks 2--4 were not run. Thus only 20 of 100 executions,
+  360 of 1,800 retained pairs, and 1,440 of 7,200 timed sides exist. No raw timing was rerun,
+  replaced, discarded, or post-processed.
+- The test-only Stage-C evaluator was corrected for future/replay use: it evaluates every V/S
+  and V/D pair, every fork median, and the median-of-fork-medians before it can assign
+  `ELIGIBLE_FOR_SEPARATE_PRODUCTION_TASK`; any failed gate assigns `KEEP_SCALAR`. It cannot be
+  applied to this partial capture because it truthfully requires all five raw fork files. The
+  correction changes neither frozen source/class identity nor the retained raw CSV.
 
 ## Completion summary
 
-Empty until implemented.
+- Completed changes: recorded the retained Stage-A/B/fork-0 evidence, its candidate-2
+  `KEEP_SCALAR` decision, the incomplete five-fork protocol, and the user's decision to stop it.
+  Marked this task `Cancelled`, not `Complete`; cancellation concerns the unfinished protocol,
+  not the retained evidence.
+- Files changed or created: CPU-private test/evidence harnesses and the immutable manifest were
+  implementation-owned; this documentation pass finalizes this task, the CPU master plan, and
+  the roadmap.
+- Tests and validation: reused the successful focused CPU and Stage-C smoke evidence above;
+  performed planning-document, glossary, Markdown link/anchor/fence, final-diff, and whitespace
+  review. No Java suite was rerun because no executable Java changed in this pass.
+- Javadoc impact: none. No public API, production implementation, or behavior changed.
+- Glossary impact: none. `KEEP_SCALAR`, the five-fork protocol, and this evidence disposition are
+  task-local planning terms, not reusable domain terminology.
+- Unresolved issues: the exact five-fork acceptance counts were not and will not be met; no
+  aggregate five-fork result exists. Candidate 3/4 permission remains unresolved.
+- Follow-up required: CPU 0008P is the next valid Draft task. CPU 0009 may inventory this
+  retained evidence as incomplete/cancelled evidence; it must not classify it as a passed
+  five-fork result.
+
+Status: Cancelled

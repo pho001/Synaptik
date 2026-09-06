@@ -1,0 +1,63 @@
+CPU 0008O stable-reduction vector numerical spike: immutable retained-evidence manifest
+Recorded: 2026-09-06
+
+Scope and immutability
+----------------------
+This manifest records, but does not copy or modify, the immutable retained evidence roots below.
+It is a frozen reference to their inputs and raw measurements. No Stage-C fork was rerun,
+replaced, discarded, or post-processed into new raw timing data while producing this manifest.
+
+Stage A
+-------
+Result: PASS for candidate 2 only: VECTOR_MAP_ORDERED_FOLD, contiguous vector loads/map and
+increasing-logical-order scalar folds. Candidates 3 and 4 are
+STOP_MODEL_OR_ARCHITECTURE_DECISION because current Model permission does not allow the required
+reassociation. Candidate 2 does not establish indexed Vector API access.
+
+Stage B
+-------
+Root: /private/tmp/synaptik-cpu-0008o-stage-b-20260906
+Candidate: VECTOR_MAP_ORDERED_FOLD
+Raw contiguous probes: 40
+Indexed bodies: 0 (Stage A did not prove legal indexed/gather access)
+Normalized dossiers: 32
+normalized-inventory.tsv SHA-256: a0c8630ec4635b40122f250fd8ead9236ae062e524f05094eefdd4c51ce5dc21
+stage-b-decision.txt SHA-256: 63ca99838a5bd49b25c7ed943931edf5ba77168dfefb054aef52559e5486f4ad
+stage-a-semantic-invocation.tsv SHA-256: b93827eb2c8335ef2c98e73cba059addbb38aadb096e6d38612822e92036055b
+
+Stage C frozen capture
+----------------------
+Root: /private/tmp/synaptik-cpu-0008o-stage-c-20260906
+Candidate: 2 VECTOR_MAP_ORDERED_FOLD
+Protocol: five child JVM forks, -Xms1g -Xmx1g -XX:-TieredCompilation -Xbatch; five warmups,
+shared calibration >=50 ms, nine randomized symmetric four-timing pairs per V/S and V/D,
+minimum timed side 25 ms; V/S <=0.95 and V/D <=1.15.
+Rows: 20 contiguous rows; F32 exact=AA, tail=AS; F64 exact=SS, tail=SA.
+No indexed rows: Stage A did not prove indexed access.
+Frozen input SHA-256: fa1f0db4ff37343f48c1ddb47a273cc09792683bdc1392bd0dd1bdf6ba82e9c9
+Frozen environment SHA-256: cfc3da5185cbc40356df6376d7c2875e66d404a2757951f5ccc13e36d0b5c349
+Frozen harness class-content SHA-256: 5ad91b7e6a9f18c3635b23d83832285e0a814f9b9dbb7f1fbc3fe13196a5f7a2
+Frozen direct-control class-content SHA-256: 60b7a7ecc6b2aa4058af70087f33fc94d95d6dd4100b72f2f13337baeab51eef
+Frozen fork-0 raw CSV SHA-256: 6613a62c9c31f4ca45df0aec8e23050076ffc3daca69af74ca565ede385879c2
+
+Fork 0 completed: 20 row/fork executions, 360 retained pairs, and 1,440 timed sides.
+All 1,440 retained timed sides meet the 25 ms minimum. Of 180 V/S pairs, 2 are <=0.95 and
+178 are >0.95; all 20 V/S fork-0 row medians are >0.95. All 180 V/D pairs are <=1.15.
+Therefore candidate 2 is decisively KEEP_SCALAR under the every-retained-V/S-pair rule. This
+is a candidate decision from retained fork-0 evidence, not a completed five-fork acceptance.
+
+Completeness status
+-------------------
+Fork 1 was externally interrupted. Forks 2, 3, and 4 did not run. The required five-fork
+matrix is incomplete: only 20 of 100 row/fork executions, 360 of 1,800 retained pairs, and
+1,440 of 7,200 timed sides exist. Consequently no five-fork medians or median-of-fork-medians
+exist, and this task must not be represented as Complete.
+
+Replay-evaluation correction
+----------------------------
+The source capture above predates a correction to the test-only Stage-C aggregation logic.
+The corrected live harness now evaluates every retained V/S and V/D pair, every fork median,
+and every median-of-fork-medians before assigning ELIGIBLE; a failed gate produces KEEP_SCALAR.
+It does not alter the frozen source/class identity, raw CSV, or measured result. Applying the
+corrected evaluator to the frozen partial capture is intentionally impossible because it
+truthfully requires all five raw fork files.
