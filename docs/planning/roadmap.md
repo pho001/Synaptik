@@ -855,7 +855,7 @@ CPU 0008F, detailed CPU 0008G, and detailed CPU 0008G1 are `Complete`; detailed
 bounded scalar stop, CPU 0008N1 is Complete, CPU 0008O is `Cancelled` with retained fork-0
 `KEEP_SCALAR` evidence but no completed five-fork acceptance, and CPU 0008P is Complete with its
 modular partial/combine implementation fail-closed at `KEEP_WHOLE_CELL`, not floating reassociation,
-and CPU 0009 through CPU 0017
+and CPU 0009 is [`Ready`](backends/cpu/tasks/0009-portable-generated-coverage-closure-checkpoint.md); CPU 0010 through CPU 0017
 remain Draft.
 CPU 0003
 implements a
@@ -1244,8 +1244,7 @@ checkpoint. No whole-backend performance-parity claim closes until those gaps pa
 [CPU 0008M](backends/cpu/tasks/0008m-vector-mse-none.md) is `Complete`, CPU 0008N ended with a
 bounded scalar stop, CPU 0008N1 is Complete, CPU 0008O is `Cancelled` with retained fork-0
 `KEEP_SCALAR` evidence but no completed five-fork acceptance, and CPU 0008P is Complete with its
-modular partial/combine implementation fail-closed at `KEEP_WHOLE_CELL`, not floating reassociation. Detailed CPU 0009 planning follows only after
-the ordered CPU 0008J–0008P sequence completes.
+modular partial/combine implementation fail-closed at `KEEP_WHOLE_CELL`, not floating reassociation. The ordered CPU 0008J–0008P sequence is complete and detailed [CPU 0009](backends/cpu/tasks/0009-portable-generated-coverage-closure-checkpoint.md) is Ready.
 
 Portable generation uses family-specific typed lowerers plus shared scalar, vector, heap,
 segment, range, tile, partial-reduction, and combine emitters rather than one god generator.
@@ -1374,7 +1373,7 @@ Detailed CPU 0007F1, CPU 0007F2, CPU 0008, CPU 0008A, CPU 0008B, CPU 0008C, and 
 detailed [CPU 0008M](backends/cpu/tasks/0008m-vector-mse-none.md) is `Complete`; CPU 0008N ended
 with a bounded scalar stop, CPU 0008N1 is Complete, CPU 0008O is `Cancelled` with retained fork-0
 `KEEP_SCALAR` evidence but no completed five-fork acceptance, and CPU 0008P is Complete with its
-modular partial/combine implementation fail-closed at `KEEP_WHOLE_CELL`, not floating reassociation, while CPU 0009–0017 and the refined Config, Metal, and tuning rows remain
+modular partial/combine implementation fail-closed at `KEEP_WHOLE_CELL`, not floating reassociation, while CPU 0009 is [`Ready`](backends/cpu/tasks/0009-portable-generated-coverage-closure-checkpoint.md) and CPU 0010–0017 and the refined Config, Metal, and tuning rows remain
 `Draft`. Prepare 0003A is
 Complete.
 Completed OpenBLAS history and every completed project area remain unchanged.
