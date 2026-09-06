@@ -6,16 +6,16 @@ Blocked
 
 ## Goal
 
-Close the portable CPU generated-coverage checkpoint with a reproducible, source-derived ledger. It remains blocked because completed CPU 0008Q supplies only a strict BFLOAT16 scalar-MUL projection mechanism, not the required complete scalar-immediate/clamp operation/type/carrier/layout/strategy/shape matrix. A future separately planned matrix task and its documentation-focused pass are required before this checkpoint can become `Ready`.
+Close the portable CPU generated-coverage checkpoint with a reproducible, source-derived ledger. It remains blocked because completed CPU 0008Q supplies only a strict BFLOAT16 scalar-MUL projection mechanism, not the required complete scalar-immediate/clamp operation/type/carrier/layout/strategy/shape matrix. Complete [CPU 0008Q1](0008q1-finite-scalar-immediate-clamp-matrix.md) and its documentation-focused pass are required before this checkpoint can become `Ready`.
 
 ## Scope
 
 - Add a checkpoint test and checked TSV/JSON resources deriving one row per currently supported CPU family/form from `CpuCapabilityProvider`, `CpuPartitionPreparer`, family lowerers, `CpuClassFileKernelGenerator`, and schema 63. A row names operation/family/form, applicable FLOAT64/FLOAT32/BFLOAT16/INT32/INT64/BOOL types, ordered heap primitive-array/native-order `MemorySegment`/mixed carrier pattern, contiguous/general layout, materialized/direct disposition, available scalar/vector/parallel-scalar/parallel-vector strategies, fallback, admission, and production selection.
 - Cover pointwise/cast/view/movement; indexing, scatter, fold, ordering, random, scans, ordinary/masked/advanced reductions and arg extrema; softmax/log-softmax, Layer/RMS and batch normalization; Conv1d composition, Conv2d/Conv3d, pools, MATMUL, attention, and losses. Metadata-only and zero-work views get `NO_GENERATED_HOT_LOOP`, not timing obligations. Provider-positive but whole-partition-inadmissible occurrences are not counted as selected generation.
 - Generate each finite fixture and retain binary name, entry descriptor, schema, SHA-256, code-shaping facts, normalized body identity, semantic oracle, structural dossier, and evidence disposition: `CURRENT`, `REPRESENTATIVE_ONLY`, `STALE`, `MISSING`, `NON_PASSING`, or `WAIVED`. Reuse requires matching actual hash/form plus protocol scope.
-- Inventory every finite code-shaping form and every unit proved by the future complete scalar-immediate/clamp matrix task, recording exact class hashes for representative fixtures and exact member-hash provenance for every projected fixture. Do not claim enumeration of arbitrary scalar-immediate or clamp bit patterns. Project only a checked `PROVED_CONSTANTS_ONLY` unit whose automated normalization proves constants-only variance; otherwise record a distinct finite form or fail closed.
+- Inventory every finite code-shaping form and every unit proved by CPU 0008Q1, recording exact class hashes for representative fixtures and exact member-hash provenance for every projected fixture. Do not claim enumeration of arbitrary scalar-immediate or clamp bit patterns. Project only a checked `PROVED_CONSTANTS_ONLY` unit whose automated normalization proves constants-only variance; otherwise record a distinct finite form or fail closed.
 - Preserve CPU 0008I corrected 792-class five-fork evidence as `MISSING` (waived, not passed), CPU 0008O as cancelled `NON_PASSING` (only fork 0; `KEEP_SCALAR`; 178/180 V/S failures), and CPU 0008P as `NON_PASSING` pre-seal profitability evidence with production `KEEP_WHOLE_CELL`. Neither admits SIMD or partial selection.
-- Freeze a finite gap matrix only for missing, stale, or materially non-representative hot forms. Group only identical normalized body, carrier access, loop shape, numerical algorithm, strategy, and provenance from the future complete scalar-immediate/clamp matrix task; otherwise split. Distinct opcode/type/carrier/layout/strategy, scalar-power realization, structurally relevant constant encoding category, edge-value semantic category, or materially distinct shape remains distinct. Each timed row uses the matching optimal clean Java oracle, semantic comparison, Class-File/decompilation dossier, forbidden helper/allocation/boxing/reflection/dispatch scan, and immutable five-fork protocol/gates. Failed, interrupted, unsealed, or unproved-projection rows remain fail-closed.
+- Freeze a finite gap matrix only for missing, stale, or materially non-representative hot forms. Group only identical normalized body, carrier access, loop shape, numerical algorithm, strategy, and provenance from CPU 0008Q1; otherwise split. Distinct opcode/type/carrier/layout/strategy, scalar-power realization, structurally relevant constant encoding category, edge-value semantic category, or materially distinct shape remains distinct. Each timed row uses the matching optimal clean Java oracle, semantic comparison, Class-File/decompilation dossier, forbidden helper/allocation/boxing/reflection/dispatch scan, and immutable five-fork protocol/gates. Failed, interrupted, unsealed, or unproved-projection rows remain fail-closed.
 - Add provider/admission/selection closure and unsupported fail-closed tests. Finalize affected Javadocs, CPU guide, glossary conclusion, and planning evidence in the same change through a separate documentation-focused pass.
 
 ## Out of scope
@@ -67,9 +67,9 @@ Stop without changing production behavior and leave the task `Blocked` or `Incom
 
 ## Acceptance criteria
 
-- The checked inventory is reconciled from current source and has an accountable row for every provider-supported family/form, every finite code-shaping form, and every unit proved by the future complete scalar-immediate/clamp matrix task; capability, admission, and selection are distinct.
+- The checked inventory is reconciled from current source and has an accountable row for every provider-supported family/form, every finite code-shaping form, and every unit proved by CPU 0008Q1; capability, admission, and selection are distinct.
 - Rows truthfully record type/carrier/layout/materialization/strategy/fallback. Vector strategies appear only where the current preparer admits them; scalar or caller-parallel fallback is explicit otherwise.
-- Every generated row has reproducible Class-File identity and semantic/structural/oracle mapping. Reused performance evidence is byte-identical at normalized-body and class-hash/form levels with matching protocol scope; projected scalar-immediate/clamp coverage additionally cites exact unit/member hashes and constants-only proof from the future complete matrix task. Otherwise it is classified without a pass claim.
+- Every generated row has reproducible Class-File identity and semantic/structural/oracle mapping. Reused performance evidence is byte-identical at normalized-body and class-hash/form levels with matching protocol scope; projected scalar-immediate/clamp coverage additionally cites exact unit/member hashes and constants-only proof from CPU 0008Q1. Otherwise it is classified without a pass claim.
 - 0008I, 0008O, and 0008P retain exactly the stated non-passing dispositions. Forged/incomplete evidence cannot select a route; unsupported provider queries and mixed partitions fail closed.
 - The finite gap matrix gives a body-level reason and checked projection provenance for each grouping. Required fresh rows pass sealed five forks or the production form remains fail-closed and this checkpoint is not Complete.
 - A separate documentation-focused pass finalizes documentation/Javadoc/glossary impact and explicit no-change conclusions.
@@ -95,7 +95,7 @@ Validate TSV/JSON parsing, manifest, Markdown links/anchors/fences, whitespace, 
 ## Dependencies
 
 - Complete CPU 0005A–0005J, 0006–0007F2, 0008–0008P, Prepare 0003A, and their ledgers; especially 0008I, 0008M, 0008N/0008N1, 0008O, and 0008P.
-- A future separately planned complete scalar-immediate/clamp operation/type/carrier/layout/strategy/shape matrix task and its documentation pass, including exact fixture hashes and automated constants-only normalization proof.
+- Complete CPU 0008Q1 and its documentation pass, including exact fixture hashes and automated constants-only normalization proof.
 - Current Java 26 Class-File/Vector toolchain and a writable external evidence root.
 
 ## Follow-up tasks
@@ -117,11 +117,11 @@ Read AGENTS.md, ARCHITECTURE.md, the Planning Guide, CPU master plan, and this t
 
 - 0009 remains one cohesive checkpoint: it has one output contract, the source-derived inventory and evidence disposition, and changes no production behavior. A family failure is a follow-up, not a backend rewrite.
 - `WAIVED` is an owner-approved absence, never passing or production eligibility.
-- CPU 0009 is `Blocked` because the preceding attempt reached its explicit unbounded-reachable-form stop condition. Completed CPU 0008Q supplies only a narrow two-fixture scalar-MUL mechanism, not the permitted complete scalar-immediate/clamp projection basis. Return CPU 0009 to `Ready` only after a future separately planned complete matrix task and its documentation pass are complete.
+- CPU 0009 is `Blocked` because the preceding attempt reached its explicit unbounded-reachable-form stop condition. Completed CPU 0008Q supplies only a narrow two-fixture scalar-MUL mechanism, not the permitted complete scalar-immediate/clamp projection basis. Return CPU 0009 to `Ready` only after CPU 0008Q1 and its documentation pass are complete.
 
 ## Known limitations
 
-Planning has not generated the inventory or run fresh gaps. Current retained evidence is only source input; the task becomes Complete only after every required current row and checkpoint validation pass. It cannot begin while the future complete scalar-immediate/clamp matrix projection is unproved.
+Planning has not generated the inventory or run fresh gaps. Current retained evidence is only source input; the task becomes Complete only after every required current row and checkpoint validation pass. It cannot begin while CPU 0008Q1's complete scalar-immediate/clamp matrix projection is unproved.
 
 ## Validation evidence
 

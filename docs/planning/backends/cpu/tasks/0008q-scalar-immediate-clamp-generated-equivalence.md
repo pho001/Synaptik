@@ -97,7 +97,7 @@ Also validate resource parsing; exact fixture/Class-File SHA-256 values; binary 
 
 ## Follow-up tasks
 
-- A future separately planned complete scalar-immediate/clamp operation/type/carrier/layout/strategy/shape matrix task, with its own documentation pass, is required before CPU 0009 can become `Ready`.
+- [CPU 0008Q1](0008q1-finite-scalar-immediate-clamp-matrix.md), with its own documentation pass, is required before CPU 0009 can become `Ready`.
 - Any non-equivalent immediate/code-shaping form becomes a family-specific Draft task and must not be asserted into this contract or CPU 0009.
 
 ## Architecture impact
@@ -118,7 +118,7 @@ Read AGENTS.md, ARCHITECTURE.md, the Planning Guide, CPU master plan, CPU 0009, 
 
 ## Known limitations
 
-No finite fixture set can establish behavior for every arbitrary immediate. The task stops at relations mechanically proved from Class-Files. The complete scalar-immediate/clamp matrix remains a future separately planned task; its completion and documentation pass are prerequisites of CPU 0009.
+No finite fixture set can establish behavior for every arbitrary immediate. The task stops at relations mechanically proved from Class-Files. The complete scalar-immediate/clamp matrix is CPU 0008Q1; its completion and documentation pass are prerequisites of CPU 0009.
 
 ## Validation evidence
 
@@ -183,10 +183,9 @@ Documentation impact: planning documents only; the reasoned no-change conclusion
 above for Javadoc, backend guides, glossary, architecture, ADRs, architecture tests,
 conformance/integration tests, Gradle, and production documentation.
 
-Unresolved issues: the complete scalar-immediate/clamp operation/type/carrier/layout/strategy/
-shape matrix remains unimplemented.
+Unresolved issues: CPU 0008Q1's complete scalar-immediate/clamp operation/type/carrier/layout/
+strategy/shape matrix remains unimplemented.
 
-Follow-up required: create and complete that separately planned matrix task, including its
-documentation pass, before CPU 0009 can become `Ready`.
+Follow-up required: complete CPU 0008Q1, including its documentation pass, before CPU 0009 can become `Ready`.
 
 Status: Complete
