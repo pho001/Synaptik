@@ -164,7 +164,10 @@ Its 72-Class-File structural gate, all 540 generated/optimal-clean-Java sample p
 [CPU 0008N](backends/cpu/tasks/0008n-measured-profitable-float32-float64-conv2d-conv3d-simd-accumulation.md)
 ended with a bounded scalar stop: the first actual-generated Conv2d FLOAT32 array diagnostic
 passed `V/S` at `0.265215012x` but failed `V/D` at `1.775769426x > 1.15x`. Schema remains 62,
-all Conv execution remains scalar, and CPU 0008N1 is the next Draft remediation frontier.
+all production Conv execution remains scalar. [CPU 0008N1](backends/cpu/tasks/0008n1-generated-conv-nested-width-block-loop-dataflow-parity.md)
+is the next Ready remediation frontier: its Stage A may generate only a distinct provisional
+schema-63 test/evidence class; current schema, production selection, and artifact compatibility
+remain 62/scalar until all gates pass.
 The completed 0008M change is bounded to same-typed contiguous FLOAT32/FLOAT64 MSE `NONE`:
 array, native-order segment, and mixed carriers use one schema-62 artifact for vector and
 parallel-vector ranges, with scalar tails. Scalar schema-58 loss bytes and scalar `SUM`/`MEAN`
@@ -234,7 +237,7 @@ are `Complete`; detailed
 [CPU 0008L](backends/cpu/tasks/0008l-pointwise-simd-mask-output-closure.md) is also `Complete`.
 Detailed [CPU 0008M](backends/cpu/tasks/0008m-vector-mse-none.md) is `Complete`; detailed
 [CPU 0008N](backends/cpu/tasks/0008n-measured-profitable-float32-float64-conv2d-conv3d-simd-accumulation.md)
-ended with a bounded scalar stop; CPU 0008N1 is the next Draft remediation frontier.
+ended with a bounded scalar stop; CPU 0008N1 is the next Ready remediation frontier.
 Model 0026 remains Draft without a detailed
 specification, and no Model task is Ready or In progress. Detailed
 [Compiler 0006B1 Pool3d and 3D-window forward adoption and explicit gradient boundary](modules/compiler/tasks/0006b1-pool3d-and-3d-window-forward-adoption-and-explicit-gradient-boundary.md)
@@ -263,7 +266,7 @@ are Complete. Detailed
 [CPU 0008J](backends/cpu/tasks/0008j-bfloat16-scalar-pointwise-closure.md) and Model 0025L are
 `Complete`; detailed CPU 0008K and CPU 0008L are `Complete`; detailed
 [CPU 0008M](backends/cpu/tasks/0008m-vector-mse-none.md) is `Complete`; CPU 0008N ended with a
-bounded scalar stop and CPU 0008N1 is the next Draft remediation frontier.
+bounded scalar stop and CPU 0008N1 is the next Ready remediation frontier.
 
 CPU 0008F completes the fully static portable MATMUL family at schema 54 across all thirteen
 ordered non-BOOL numeric promotions, vector/matrix/batched/right-broadcast geometry, four bounded
@@ -470,7 +473,7 @@ owns batch training/statistic transition. CPU 0007F, CPU 0007F1, CPU 0007F2, and
 [CPU 0008J](backends/cpu/tasks/0008j-bfloat16-scalar-pointwise-closure.md) and Model 0025L are
 `Complete`; detailed CPU 0008K and CPU 0008L are `Complete`; detailed
 [CPU 0008M](backends/cpu/tasks/0008m-vector-mse-none.md) is `Complete`; CPU 0008N ended with a
-bounded scalar stop and CPU 0008N1 is the next Draft remediation frontier.
+bounded scalar stop and CPU 0008N1 is the next Ready remediation frontier.
 A completed local
 bytecode/performance audit then inserted detailed
 [CPU 0007A0 generated hot-path parity correction](backends/cpu/tasks/0007a0-generated-hot-path-parity-correction.md)
@@ -831,7 +834,7 @@ CPU 0008F, detailed CPU 0008G, and detailed CPU 0008G1 are `Complete`; detailed
 [CPU 0008J](backends/cpu/tasks/0008j-bfloat16-scalar-pointwise-closure.md) and Model 0025L are
 `Complete`, detailed CPU 0008K and CPU 0008L are `Complete`; detailed
 [CPU 0008M](backends/cpu/tasks/0008m-vector-mse-none.md) is `Complete`; CPU 0008N ended with a
-bounded scalar stop, CPU 0008N1 is its Draft remediation, and CPU 0008O through CPU 0008P are
+bounded scalar stop, CPU 0008N1 is its Ready remediation, and CPU 0008O through CPU 0008P are
 ordered Draft follow-ups,
 and CPU 0009 through CPU 0017
 remain Draft.
@@ -1108,7 +1111,7 @@ before detailed Complete CPU 0008H owns attention execution; CPU 0008I is Comple
 corrected full performance evidence missing/deferred, and detailed CPU 0008J and Model 0025L are
 `Complete`; detailed CPU 0008K and CPU 0008L are `Complete`; detailed
 [CPU 0008M](backends/cpu/tasks/0008m-vector-mse-none.md) is `Complete`; CPU 0008N ended with a
-bounded scalar stop and CPU 0008N1 is the next Draft remediation frontier.
+bounded scalar stop and CPU 0008N1 is the next Ready remediation frontier.
 These family rows remain their
 implementation owners rather than being replaced by
 generic fusion planning.
@@ -1192,7 +1195,7 @@ Complete CPU 0008H owns attention execution; CPU 0008I is Complete with an expli
 performance validation exception, and detailed CPU 0008J and Model 0025L are `Complete`; CPU
 0008K and detailed CPU 0008L are `Complete`; detailed
 [CPU 0008M](backends/cpu/tasks/0008m-vector-mse-none.md) is `Complete`; CPU 0008N ended with a
-bounded scalar stop and CPU 0008N1 is the next Draft remediation frontier.
+bounded scalar stop and CPU 0008N1 is the next Ready remediation frontier.
 CPU 0009 depends on the ordered CPU 0008A–0008E, Prepare 0003A, CPU 0008E1, and CPU 0008F–0008P
 sequence
 and closes dimensional convolution before the general decomposition, recognition, profitability,
@@ -1216,7 +1219,7 @@ performance evidence is explicitly missing/deferred and must be classified and r
 checkpoint. No whole-backend performance-parity claim closes until those gaps pass. Detailed CPU
 0008J and Model 0025L are `Complete`, detailed CPU 0008K and CPU 0008L are `Complete`; detailed
 [CPU 0008M](backends/cpu/tasks/0008m-vector-mse-none.md) is `Complete`, CPU 0008N ended with a
-bounded scalar stop, CPU 0008N1 is the next Draft remediation frontier, and
+bounded scalar stop, CPU 0008N1 is the next Ready remediation frontier, and
 detailed CPU 0009 planning follows only after
 the ordered CPU 0008J–0008P sequence completes.
 
@@ -1345,7 +1348,7 @@ Detailed CPU 0007F1, CPU 0007F2, CPU 0008, CPU 0008A, CPU 0008B, CPU 0008C, and 
 `Complete`; detailed CPU 0008G, CPU 0008G1, CPU 0008H, and CPU 0008I are `Complete`; detailed CPU
 0008J and Model 0025L are `Complete`, and detailed CPU 0008K and CPU 0008L are `Complete`;
 detailed [CPU 0008M](backends/cpu/tasks/0008m-vector-mse-none.md) is `Complete`; CPU 0008N ended
-with a bounded scalar stop and CPU 0008N1 is the next Draft remediation frontier, while CPU
+with a bounded scalar stop and CPU 0008N1 is the next Ready remediation frontier, while CPU
 0008O–0017 and the refined Config, Metal, and tuning rows remain
 `Draft`. Prepare 0003A is
 Complete.
