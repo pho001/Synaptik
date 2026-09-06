@@ -187,7 +187,7 @@ preservation, focused/full CPU validation, and corrected preparer Javadoc passed
 The ordered post-0008I CPU plan is BFLOAT16 scalar pointwise closure, Model-defined cross-type
 CAST semantics followed by scalar CPU casts, pointwise SIMD mask/output closure, MSE `NONE` SIMD,
 the bounded Conv SIMD spike, its required generated width-block/dataflow parity re-spike, a stable-
-reduction numerical spike, then partial-reduction parallelism. CPU 0009 follows that sequence. CPU
+reduction numerical spike, then partial-reduction parallelism. CPU 0008Q now follows as the finite scalar-immediate/clamp generated-code equivalence frontier; CPU 0009 is Blocked on 0008Q and becomes Ready only after its completion. CPU
 0008A validates Conv1d through
 the visible Conv2d composition and adds direct Conv3d execution. CPU 0008B–0008E only then add
 general partition-DAG decomposition and bounded fusion, typed specialized-subgraph recognition,
@@ -855,7 +855,7 @@ CPU 0008F, detailed CPU 0008G, and detailed CPU 0008G1 are `Complete`; detailed
 bounded scalar stop, CPU 0008N1 is Complete, CPU 0008O is `Cancelled` with retained fork-0
 `KEEP_SCALAR` evidence but no completed five-fork acceptance, and CPU 0008P is Complete with its
 modular partial/combine implementation fail-closed at `KEEP_WHOLE_CELL`, not floating reassociation,
-and CPU 0009 is [`Ready`](backends/cpu/tasks/0009-portable-generated-coverage-closure-checkpoint.md); CPU 0010 through CPU 0017
+and CPU 0008Q is [`Ready`](backends/cpu/tasks/0008q-scalar-immediate-clamp-generated-equivalence.md), while CPU 0009 is [`Blocked`](backends/cpu/tasks/0009-portable-generated-coverage-closure-checkpoint.md) on 0008Q; CPU 0010 through CPU 0017
 remain Draft.
 CPU 0003
 implements a
@@ -1219,7 +1219,7 @@ performance validation exception, and detailed CPU 0008J and Model 0025L are `Co
 bounded scalar stop, CPU 0008N1 is Complete, CPU 0008O is `Cancelled` with retained fork-0
 `KEEP_SCALAR` evidence but no completed five-fork acceptance, and CPU 0008P is Complete with its
 modular partial/combine implementation fail-closed at `KEEP_WHOLE_CELL`, not floating reassociation.
-CPU 0009 depends on the ordered CPU 0008A–0008E, Prepare 0003A, CPU 0008E1, and CPU 0008F–0008P
+CPU 0009 depends on CPU 0008Q's finite scalar-immediate/clamp constants-only projection proof as well as the ordered CPU 0008A–0008E, Prepare 0003A, CPU 0008E1, and CPU 0008F–0008P
 sequence
 and closes dimensional convolution before the general decomposition, recognition, profitability,
 and bounded single/dual-input materialization foundations—including direct/materialized parity,
@@ -1229,22 +1229,12 @@ peer-route choices. The required frontier order is CPU 0008 -> CPU 0008A -> CPU 
 family follow-ups. Those later routes consume the common decisions instead of creating competing
 graph interpreters or fusion planners.
 
-As its generated-coverage closure checkpoint, CPU 0009 inventories current generated families/forms
-and current Class-File hashes, then maps each current form to retained generated-versus-optimal-clean-
-Java performance evidence. It reuses retained evidence only when the timed generated Class-Files/forms
-remain byte-identical and the recorded protocol and scope apply, classifying each result as current,
-representative-only, stale, or missing. Fixed five-fork evidence is rerun only for missing, stale, or
-insufficiently representative hot paths, rather than indiscriminately for every historical task. An
-exhaustive matrix is required only when specialization materially changes generated code and the bounded
-inventory justifies it; otherwise, the checkpoint uses a justified representative matrix covering types,
-carriers, loop shapes, and algorithm branches. CPU 0008I's corrected full 792-class by five-fork
-performance evidence is explicitly missing/deferred and must be classified and rerun at this
-checkpoint. No whole-backend performance-parity claim closes until those gaps pass. Detailed CPU
+CPU 0008Q first proves finite scalar-immediate/clamp equivalence units from exact fixture hashes and automated constants-only Class-File normalization; it neither enumerates arbitrary immediate bits nor changes production identity. It is the active CPU frontier. CPU 0009 is Blocked until CPU 0008Q completes, then inventories current generated families/forms, finite code-shaping forms, proven equivalence units, and current Class-File hashes. It maps each current form to retained generated-versus-optimal-clean-Java performance evidence and reuses evidence only when timed generated Class-Files/forms remain byte-identical with matching protocol/scope and, for projected immediate/clamp forms, exact CPU 0008Q provenance. Fixed five-fork evidence is rerun only for missing, stale, or insufficiently representative hot paths. An exhaustive matrix is required only when specialization materially changes generated code and the bounded inventory justifies it; otherwise the checkpoint uses a justified representative matrix covering types, carriers, loop shapes, algorithm branches, and the finite proof boundary. CPU 0008I's corrected full 792-class by five-fork performance evidence is explicitly missing/deferred and must be classified and rerun at this checkpoint. No whole-backend performance-parity claim closes until those gaps pass. Detailed CPU
 0008J and Model 0025L are `Complete`, detailed CPU 0008K and CPU 0008L are `Complete`; detailed
 [CPU 0008M](backends/cpu/tasks/0008m-vector-mse-none.md) is `Complete`, CPU 0008N ended with a
 bounded scalar stop, CPU 0008N1 is Complete, CPU 0008O is `Cancelled` with retained fork-0
 `KEEP_SCALAR` evidence but no completed five-fork acceptance, and CPU 0008P is Complete with its
-modular partial/combine implementation fail-closed at `KEEP_WHOLE_CELL`, not floating reassociation. The ordered CPU 0008J–0008P sequence is complete and detailed [CPU 0009](backends/cpu/tasks/0009-portable-generated-coverage-closure-checkpoint.md) is Ready.
+modular partial/combine implementation fail-closed at `KEEP_WHOLE_CELL`, not floating reassociation. The ordered CPU 0008J–0008P sequence is complete; detailed [CPU 0008Q](backends/cpu/tasks/0008q-scalar-immediate-clamp-generated-equivalence.md) is Ready, and detailed [CPU 0009](backends/cpu/tasks/0009-portable-generated-coverage-closure-checkpoint.md) is Blocked on it.
 
 Portable generation uses family-specific typed lowerers plus shared scalar, vector, heap,
 segment, range, tile, partial-reduction, and combine emitters rather than one god generator.
@@ -1373,7 +1363,7 @@ Detailed CPU 0007F1, CPU 0007F2, CPU 0008, CPU 0008A, CPU 0008B, CPU 0008C, and 
 detailed [CPU 0008M](backends/cpu/tasks/0008m-vector-mse-none.md) is `Complete`; CPU 0008N ended
 with a bounded scalar stop, CPU 0008N1 is Complete, CPU 0008O is `Cancelled` with retained fork-0
 `KEEP_SCALAR` evidence but no completed five-fork acceptance, and CPU 0008P is Complete with its
-modular partial/combine implementation fail-closed at `KEEP_WHOLE_CELL`, not floating reassociation, while CPU 0009 is [`Ready`](backends/cpu/tasks/0009-portable-generated-coverage-closure-checkpoint.md) and CPU 0010–0017 and the refined Config, Metal, and tuning rows remain
+modular partial/combine implementation fail-closed at `KEEP_WHOLE_CELL`, not floating reassociation, while CPU 0008Q is [`Ready`](backends/cpu/tasks/0008q-scalar-immediate-clamp-generated-equivalence.md) and CPU 0009 is [`Blocked`](backends/cpu/tasks/0009-portable-generated-coverage-closure-checkpoint.md) on it; CPU 0010–0017 and the refined Config, Metal, and tuning rows remain
 `Draft`. Prepare 0003A is
 Complete.
 Completed OpenBLAS history and every completed project area remain unchanged.
