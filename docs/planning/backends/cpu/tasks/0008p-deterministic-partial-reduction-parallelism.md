@@ -20,7 +20,7 @@ Implement exactly this first admitted realization:
 | layout/carriers | fully static resolved dense-linear input and injective dense-linear output; primitive heap `int[]`/`long[]` boundaries only |
 | topology | one direct aggregate computation unit, one input and one output, no fusion/materialization |
 | modes | existing scalar and caller-parallel complete-output-cell modes, plus selected `PARTIAL_REDUCTION_PARALLEL` only |
-| partial eligibility | non-empty domain, at least one output cell, at least two prepared partial ranges, every partial meets the existing `CpuPartitionAnalysisInputs.minimumElementsPerWorker()` fact, and checked workspace geometry fits |
+| partial eligibility | non-empty domain, at least one output cell, `P` exactly 2 or 4 (`4` is the maximum admitted partial count), every partial meets the existing `CpuPartitionAnalysisInputs.minimumElementsPerWorker()` fact, checked workspace geometry fits, and the matching frozen performance row passed |
 
 The selector is cold, deterministic, and fail-closed. Every zero-domain identity, zero-output Shape, small domain, non-dense access, segment/mixed carrier, BFLOAT16, or unlisted occurrence keeps the current whole-cell path. A one-cell output is eligible when its selected domain supplies the required partial work.
 
@@ -55,7 +55,7 @@ The result is deterministic because modular `SUM`/`PROD` reassociation produces 
 - Model owns mathematics and reassociation permission; CPU owns truthful lowering, cold selection, generated realization, workspace, and execution. Never manufacture floating permission or a tolerance.
 - Analysis declares one exact workspace before shared assignment. Finalization uses that slot without changing route, partial count, or size. Runtime only binds/releases run-owned workspace and executes the prepared recipe.
 - Prepared execution remains immutable/reusable; each RunState gets distinct workspace. Inputs are borrowed, workspace is run-owned, and failure cleanup releases only still-run-owned resources.
-- Freeze partial count `P`, range formula, output order, partial order, state layout, and combine algorithm in preparation. `P >= 2` and is at most worker capacity and valid partial-work count. The recipe fixes result construction, but does not fix worker scheduling; modular semantics make the admitted result bit-identical across valid `P` and worker counts.
+- Freeze partial count `P`, range formula, output order, partial order, state layout, and combine algorithm in preparation. `P` is exactly `2` or `4`, and `4` is the maximum admitted count; it is also at most worker capacity and valid partial-work count. The recipe fixes result construction, but does not fix worker scheduling; modular semantics make the admitted result bit-identical across valid `P` and worker counts.
 - Borrow `CpuWorkerGroup` once for one flat indexed partial-work list. No worker submits, closes, or waits on it. Existing failure ordering, cancellation, interruption, accessibility, and join rules remain authoritative. Failure prevents combine/publication.
 - Let `C` be output cells, `P` partial count, and `S = 8` be one aligned state slice: the `INT32` payload occupies its low 4 bytes and `INT64` its 8-byte payload. Declare `alignUpExact(C * P * S, 8)` with checked multiplication; no partial workspace unless this route is selected. Each aligned `state(c,p)` is non-overlapping and lives from binding through combine completion. Validate span/alignment/accessibility and workspace/input/output non-overlap before submission.
 
@@ -86,6 +86,13 @@ Planning paths are exactly:
 - `docs/planning/backends/cpu/master-plan.md`; and
 - `docs/planning/roadmap.md`.
 
+The implementation evidence root is one caller-supplied, initially empty directory outside the
+repository, named `synaptik-cpu-0008p-<run-id>`. It is not a repository path and counts as zero of
+the 20-path repository budget; its required files are nevertheless part of the acceptance
+inventory below. No evidence artifact may be silently added under a source, test, or planning
+directory. If retained evidence must be tracked in the repository, stop and re-plan the path
+budget before writing it.
+
 ## Maximum scope
 
 At most 20 paths: these three planning paths, eleven production CPU paths, and six focused CPU
@@ -98,12 +105,114 @@ If a shared Prepare/Runtime contract, second workspace type, Model change, anoth
 ## Acceptance criteria
 
 1. A separate partial-reduction IR expresses partial body/state/combine/fixed partition/final publication; `CpuAggregateIr` retains complete output-cell range meaning.
-2. Lowering selects it only for the exact scope table; all exclusions, overflow, and absent worker proof retain scalar/caller-parallel whole-cell execution.
+2. Lowering selects it only for the exact scope table and the complete passing profitability
+   evidence for the matching form and `P` (`P=2` or `P=4`, the prepared maximum in the four-worker
+   admission configuration); all exclusions, overflow, absent worker proof, or incomplete/failed
+   evidence retain scalar/caller-parallel whole-cell execution.
 3. Analysis/finalization declares/validates exact aligned `C * P * S` workspace; partials own disjoint state, combine owns writes, publication follows successful ordered combines.
 4. Generated partial/combine and frozen clean-Java oracle are equivalent direct typed algorithms. Generated/decompiled inspection proves no helper/dispatch, allocation, boxing, reflection, carrier lookup, route selection, or worker submission in hot loops.
 5. Focused semantics cover both identities, modular overflow, negative operands, empty/zero output fallback, full/single/multi forms, P=2/maximum P, coverage/no overlap, scalar/whole-cell/partial bit identity across valid `P` and worker counts, replay, cancellation/failure/no output publication, interruption, and concurrent RunState isolation.
-6. A named finite generated-identity matrix covers both types and kinds, forms, dense offsets where proof permits, P=2/maximum, scalar/whole-cell/partial strategy, and all admitted array signatures. A proportional five-fork generated-versus-frozen-direct performance matrix proves partial and combine, retains raw samples, and sets justified per-case gates before timing.
+6. A named finite generated-identity matrix covers both types and kinds, forms, dense offsets where proof permits, `P=2`/maximum, scalar/whole-cell/partial strategy, and all admitted array signatures. The timed admission matrix and its five-fork protocol below are frozen before the first fork; it is the only profitability evidence permitted for production selection.
 7. A separate documentation-focused agent finalizes Javadocs, CPU guide/glossary impact, task/master/roadmap, and reasoned no-change conclusions in the same change.
+
+### Frozen partial-reduction profitability protocol
+
+This protocol answers one narrow question: whether the exact generated primitive-array partial
+body plus ordinal combine is profitable enough to replace the existing generated complete-output-
+cell route for the covered prepared facts. It does not add semantic coverage; ordinary focused
+tests own identities, overflow, cancellation, range coverage, `P` boundaries, and RunState
+isolation.
+
+Before timing, encode and assert this exact 24-row inventory. `C` is output-cell count and `D` is
+selected-domain elements per output cell. Every row has one fully static dense `int[]` or `long[]`
+input and injective dense output, zero base offsets, at least four available worker slots, and
+both fixed partial counts shown. The test fixture must also derive a positive-offset identity row
+for every type/kind/form outside timing; offset is not a timed profitability variable.
+
+| Form | Input shape and axes | `C` | `D` | `P` values |
+|---|---|---:|---:|---|
+| `FULL` | `[524288]`, all axes | 1 | 524288 | 2, 4 |
+| `SINGLE_AXIS` | `[64, 8192]`, axis `1` | 64 | 8192 | 2, 4 |
+| `MULTI_AXIS` | `[4, 16, 2048]`, axes `1,2` | 4 | 32768 | 2, 4 |
+
+```text
+2 types (INT32, INT64) * 2 kinds (SUM, PROD) * 3 forms * 2 P values = 24 rows
+```
+
+For each row, the harness uses four independently named, shape-polymorphic implementations with
+identical typed array signatures, input values, output geometry, fixed range formula, `P`, result
+consumption, and cold facts:
+
+- `Wg`: the current generated whole-cell route. It is the production baseline.
+- `Dw`: frozen optimal clean Java for that same whole-cell algorithm. `Wg/Dw` proves that the
+  baseline itself has not acquired generated overhead which could make an apparent partial gain
+  meaningless.
+- `Gp`: the candidate generated partial-body plus generated ordered-combine route. It is the only
+  implementation whose selection is being considered.
+- `Dp`: frozen optimal clean Java for the same partial ranges, modular state transition, ordinal
+  combine, and direct array signatures as `Gp`. `Gp/Dp` proves generated partial/combine parity.
+
+`Gp/Wg` proves profitability of partial execution including combine and worker-group overhead,
+not merely an isolated body. `Gp/Dp <= 1.15x` and `Wg/Dw <= 1.15x` are generated-versus-optimal-
+Java parity controls; `Gp/Wg <= 0.90x` requires at least a ten-percent end-to-end gain. Ten percent
+is deliberately above ordinary run-to-run noise and compensates for the route's workspace and
+join complexity; 15% permits normal generated-class versus `javac` variation but rejects a hidden
+algorithmic or dispatch penalty. Every individual retained pair, every per-fork median, and the
+median of five fork medians must meet its applicable gate. A missing full `P=4` worker proof, a
+failed parity gate, or any missed profitability gate is `KEEP_WHOLE_CELL` for that exact row.
+For one symmetric pair, its ratio is the sum of the two `A` side durations divided by the sum of
+the two `B` side durations in execution order; the fork statistic is the median of its nine pair
+ratios, and the row aggregate is the median of its five fork medians. No mean, best sample, or
+cross-row aggregate participates in admission.
+
+Use exactly five fresh Java 26 child JVM forks per row, with
+`-Xms1g -Xmx1g -XX:-TieredCompilation -Xbatch`. Each fork runs five randomized symmetric warmup
+pairs for each of `Gp/Wg`, `Gp/Dp`, and `Wg/Dw`; each pair is either `A-B-B-A` or `B-A-A-B`.
+After warmup, double one shared iteration count until two invocations of each of `Wg`, `Dw`, `Gp`,
+and `Dp` take at least 50 ms. Retain exactly nine randomized symmetric pairs for each comparison;
+all four timed sides of every pair must individually take at least 25 ms. Thus the immutable
+inventory is:
+
+```text
+24 rows * 5 forks * 9 pairs * 3 comparisons = 3,240 retained pairs
+3,240 pairs * 4 timed sides = 12,960 timings
+24 rows * 5 forks * 3 comparisons = 360 fork medians
+24 rows * 3 comparisons = 72 median-of-fork-medians aggregates
+```
+
+The order generator is SplitMix64 with base seed `0x0000000000080050L`; derive the row seed from
+the canonical row identifier and the fork seed from `(row seed, fork ordinal)`. Generate input
+values from that seed with a fixed documented mapping to the signed values `[-3, 3]`; record the
+SHA-256 of each canonical little-endian typed input byte sequence and of every consumed output
+sequence. The implementation source snapshot, generated class bytes, compiled `Dp`/`Dw` class
+bytes, and exact command lines are hashed before fork zero. The fixture must reject a changed
+seed, class/source hash, row inventory, JVM flags, gates, calibration rule, sample count, or input
+hash before it launches a timed fork.
+
+The evidence root contains immutable `protocol.json`, append-only `forks/row-<id>-fork-<0..4>.csv`,
+`environment.json`, `classes.json`, `inputs.json`, `summary.json`, and `SHA256SUMS`. `protocol.json`
+has schema `synaptik.cpu.partial-reduction-performance.v1` and records the 24 canonical row IDs,
+comparison definitions, gates, warmup/measured counts, flags, seed derivation, and file schemas.
+Each CSV has one row per timed side with `row_id,fork,comparison,pair,side,order,iterations,ns,
+input_sha256,output_sha256`; it is written only in prescribed pair/side order. `environment.json`
+records OS/version/architecture, CPU model and logical processors, JDK vendor/version/build,
+JVM flags, heap, available workers, affinity/governor facts when available (otherwise explicit
+`unavailable`), and wall-clock timestamps. `classes.json` records all source/class hashes and
+direct descriptors; `inputs.json` records canonical geometry, `P`, seed, mapping, and hashes;
+`summary.json` records every pair ratio, fork median, aggregate, gate result, and row decision.
+`SHA256SUMS` covers every completed file. The harness verifies an existing root before append and
+refuses changed or missing prior hashes.
+
+There is one one-shot run: rows/forks execute in canonical row then fork order; no retry, discard,
+replacement, outlier filtering, rerun-to-pass, fixture change, post-hoc batching, threshold change,
+or partial-fork substitution is allowed. An interruption, timing-floor failure, calibration failure,
+missing metadata/hash, corrupted artifact, or 30-minute whole-protocol wall-clock limit records
+the precise failure and makes every unfinished or unverifiable row `KEEP_WHOLE_CELL`. Results from
+another root never supplement this run. Production admission is fail-closed: only a complete,
+hash-valid root in which all 24 rows pass every stated gate permits this route's selector for the
+exact covered `INT32`/`INT64` `SUM`/`PROD`, form, and `P` facts. Otherwise the selector must keep
+the existing whole-cell route; it may not extrapolate one row's pass to another form, type, kind,
+or partial count.
 
 ## Tests / validation
 
@@ -115,7 +224,10 @@ Run focused CPU IR/lowering/emitter/executable tests, then:
 git diff --check
 ```
 
-Add generated Class-File/decompilation and import/manual scans, checked resource/range matrix, and retained five-fork direct-oracle evidence. Repository-wide validation is deferred to CPU 0009/CI because no shared contract changes.
+Add generated Class-File/decompilation and import/manual scans, checked resource/range matrix,
+and the frozen 24-row/5-fork evidence protocol above. The performance command must require the
+empty external evidence root and fail before timing if its protocol seal cannot be created.
+Repository-wide validation is deferred to CPU 0009/CI because no shared contract changes.
 
 ## Dependencies
 
@@ -140,10 +252,13 @@ You are working in the Synaptik repository. Read AGENTS.md, ARCHITECTURE.md,
 docs/planning/planning-guide.md, docs/planning/backends/cpu/master-plan.md, and
 docs/planning/backends/cpu/tasks/0008p-deterministic-partial-reduction-parallelism.md.
 Implement CPU 0008P exactly as specified. Do not broaden family/carrier/layout scope or alter
-architecture/shared contracts. Stop on architecture or Model-permission conflict. Run the specified
-CPU validation and hand the final diff plus exact evidence to a separate clean documentation-focused
-agent under docs/developer-guide/documentation-rules.md. Do not commit or push. Update evidence and
-status only after that pass completes.
+architecture/shared contracts. Stop on architecture or Model-permission conflict. Before any timed
+fork, implement and seal the exact 24-row, three-comparison, five-fork protocol in this task; do
+not substitute an open-ended benchmark or reuse evidence from another root. Admit only covered
+form/`P` facts after every hash-valid gate passes; otherwise keep the whole-cell route. Run the
+specified CPU validation and hand the final diff plus exact evidence to a separate clean
+documentation-focused agent under docs/developer-guide/documentation-rules.md. Do not commit or
+push. Update evidence and status only after that pass completes.
 ```
 
 ## Local decisions
@@ -156,6 +271,9 @@ status only after that pass completes.
   partitioned within each complete output-cell domain.
 - `P` and worker capacity are prepared facts. Modular arithmetic makes result bits independent of
   valid `P`, but no schedule, assignment, timing, or cross-backend identity is part of the route.
+- The profitability protocol deliberately times `P=2` and `P=4` only. The fixture supplies four
+  worker slots, making `P=4` its maximum; production must fail closed rather than infer admission
+  for another prepared partial count from these measurements.
 
 ## Known limitations
 
@@ -199,6 +317,17 @@ status only after that pass completes.
   `iadd`/`imul` and `ladd`/`lmul` modular semantics, so a separate partial IR remains required.
 - `git diff --check` passed; a local relative-link scan found no missing task-link target. No Java
   or Javadoc command was run because this review changes planning files only.
+- Protocol-finalization review (this separate clean documentation/planning context): read the ADR
+  and retained CPU 0008M, 0008N, 0008N1, and 0008O evidence conventions in addition to the
+  governing files above. The new protocol freezes a finite matrix, three explicit comparisons,
+  warmup/calibration/sample arithmetic, numeric gates, external immutable-evidence schemas,
+  seed/hash identity, one-shot rules, and fail-closed selection before timing. Glossary impact is
+  none: these are task-local evidence terms, not a changed reusable domain term.
+- Protocol-finalization validation passed: `git diff --check`; `rg -n '[[:blank:]]+$'
+  docs/planning/backends/cpu/tasks/0008p-deterministic-partial-reduction-parallelism.md` (no
+  output); and a `test -f` scan of every local Markdown target on lines 48--51 (all targets
+  exist). The arithmetic is explicitly `2*2*3*2=24`, `24*5*9*3=3240`, `3240*4=12960`,
+  `24*5*3=360`, and `24*3=72`. No Java or Javadoc command applies to this planning-only edit.
 
 ## Implementation notes
 
