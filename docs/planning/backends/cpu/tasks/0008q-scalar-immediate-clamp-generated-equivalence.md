@@ -2,20 +2,20 @@
 
 ## Status
 
-Ready
+Complete
 
 ## Goal
 
-Establish a finite, fail-closed generated-code coverage-equivalence contract for the current portable pointwise scalar-immediate and floating-clamp forms. The task proves equivalence only for a finite fixture set when automated Class-File normalization proves that changing an admitted immediate changes constants only, while preserving generated opcode, control flow, invokes, carrier access, hot loop, and dataflow shape. It supplies the finite evidence unit CPU 0009 needs before it can inventory coverage honestly.
+Establish the smallest source-derived, fail-closed generated-code projection mechanism that CPU 0009 can later extend: the exact BFLOAT16 scalar-MUL represented-immediate pair on the current contiguous heap scalar route. This task does not establish a coverage-equivalence contract for every scalar-immediate or clamp form; 0009 remains blocked pending the separate complete matrix task.
 
 ## Scope
 
-- Add focused CPU test support and checked resources for a finite fixture matrix covering scalar ADD/SUB/MUL/DIV/MIN/MAX/POW and CLAMP across every currently admitted type, carrier, layout/addressing, execution strategy, and materially distinct pointwise shape reached by selected fixtures.
+- Add focused CPU test support and checked resources for exactly BFLOAT16 scalar MUL, `SHORT_ARRAY` input/output carriers, contiguous layout, scalar strategy, and shape `[8]`. It is a complete two-immediate mechanism fixture, not a projection for unrepresented dimensions.
 - Keep distinct opcode/type/carrier/layout/strategy, scalar-power realization, structurally relevant constant encoding category, edge-value semantic category, and materially distinct shape as separate evidence units. Clamp retains ordered lower/upper categories.
 - Record each fixture's exact production binary name, specialization structural key, Class-File SHA-256, fixture-resource SHA-256, entry descriptor, schema, and normalization result. Do not alter `CpuKernelIr`, `CpuKernelSpecialization`, lowering, preparation, generation, naming, or identity projection.
 - Implement a test-only automated Class-File normalizer. A unit is accepted only when differing code/constant operands decode to declared immediate(s), every non-immediate constant matches, and opcode/control-flow/invoke/carrier/hot-loop/dataflow shape matches. Exact class hashes remain fixture-specific.
 - Add semantic tests against an optimal clean Java oracle with the same typed operation, numerical order, immediate conversion, branch behavior, carrier access, and hot-loop/dataflow shape. Add structural tests rejecting allocation, boxing, reflection, maps, string dispatch, hidden Synaptik helpers, and avoidable dispatch on proved hot paths.
-- Emit a checked coverage-projection resource naming every finite unit, exact member fixture/hash, normalizer version, fixture provenance, and `PROVED_CONSTANTS_ONLY` or a fail-closed non-equivalent disposition. CPU 0009 may consume only this provenance.
+- Emit a checked mechanism-projection resource with exact member hashes, normalizer version, full dimensions, and canonical fixture-resource SHA-256. CPU 0009 may not consume it until a later task supplies the omitted matrix.
 
 ## Out of scope
 
@@ -72,13 +72,13 @@ layout, strategy, immediate category, fixture hash, and required family-specific
 
 ## Acceptance criteria
 
-- The checked fixture resource is finite, gives exact fixture hashes, and records every retained distinction.
+- The checked fixture resource is finite, gives exact fixture hashes, and records every dimension of its explicitly bounded mechanism.
 - Each fixture regenerates its exact existing binary name, class-identity/structural key, entry descriptor, schema, and Class-File SHA-256. No production identity or bytes change.
 - A `PROVED_CONSTANTS_ONLY` unit contains only fixtures for which automated normalization proves declared immediate constants are the sole difference. Failed or ambiguous comparisons are explicitly ungrouped and cannot be projected by CPU 0009.
 - The projection resource rejects duplicate members, missing hashes, missing shape dimensions, unrecognized normalizer versions, and a representative standing in for a member with no exact hash.
 - Semantic tests cover every fixture against the matching optimal clean Java oracle; structural tests cover every proved unit and reject prohibited hot-path structure.
-- CPU 0009 can return to `Ready` only after this task is `Complete`; this task never claims arbitrary-immediate enumeration.
-- A separate documentation-focused pass reviews the final planning-only diff and records no production Javadoc, backend-guide, or glossary change because it changes only tests and planning coordination.
+- CPU 0009 remains `Blocked`: this task supplies a strict projection mechanism only, not the promised operation/type/carrier/layout/strategy/shape matrix; this task never claims arbitrary-immediate enumeration.
+- A separate documentation-focused pass reviews the final test/evidence and planning diff, and records the reasoned no-change conclusions for public/production Javadoc, backend guides, glossary, architecture documents, ADRs, architecture tests, conformance/integration tests, Gradle, and production documentation.
 
 ## Tests / validation
 
@@ -97,7 +97,7 @@ Also validate resource parsing; exact fixture/Class-File SHA-256 values; binary 
 
 ## Follow-up tasks
 
-- CPU 0009 consumes only proved finite units and returns to `Ready` after this task completes.
+- A future separately planned complete scalar-immediate/clamp operation/type/carrier/layout/strategy/shape matrix task, with its own documentation pass, is required before CPU 0009 can become `Ready`.
 - Any non-equivalent immediate/code-shaping form becomes a family-specific Draft task and must not be asserted into this contract or CPU 0009.
 
 ## Architecture impact
@@ -118,16 +118,75 @@ Read AGENTS.md, ARCHITECTURE.md, the Planning Guide, CPU master plan, CPU 0009, 
 
 ## Known limitations
 
-No finite fixture set can establish behavior for every arbitrary immediate. The task stops at relations mechanically proved from Class-Files.
+No finite fixture set can establish behavior for every arbitrary immediate. The task stops at relations mechanically proved from Class-Files. The complete scalar-immediate/clamp matrix remains a future separately planned task; its completion and documentation pass are prerequisites of CPU 0009.
 
 ## Validation evidence
 
-Planning-only evidence: reviewed the required architecture/planning documents, `CpuKernelIr` immediate/clamp identity, `CpuKernelSpecialization` class identity, pointwise lowering/preparation/generation, and pointwise structural-evidence tests. No Java, Class-File, Javadoc, or performance command was run for this planning change.
+Reviewed the required architecture/planning documents, `CpuKernelIr` immediate/clamp identity,
+`CpuKernelSpecialization` class identity, and pointwise lowering/preparation/generation. The
+following forced focused validation passed after the implementation repair:
+
+```bash
+./gradlew :backends:cpu:test --tests '*ScalarImmediateClampEquivalence*' --tests '*CpuPointwiseGeneratedKernelTest' --tests '*CpuPointwisePartitionLoweringTest' --tests '*CpuScalarPowerAnalysisTest' --rerun-tasks
+```
+
+The task matrix is included in `*ScalarImmediateClampEquivalence*`: it regenerates exact hashes,
+parses strict tab-separated resources, executes the generated hidden classes, compares raw
+BFLOAT16 results with clean Java, and runs normalizer/structural mutation controls. `git diff
+--check`, path/status checks, literal-escape rejection, and exact 16/13-column TSV checks passed.
+No full CPU rerun was performed: the prior result was 789 tests, 25 skips, and one unrelated
+historical timing failure, so this task makes no full-CPU-green claim.
+
+Documentation-focused context ID: `/root`. It independently reviewed the final diff using the General and
+Planning documentation profiles. It confirmed the two exact BFLOAT16 scalar-MUL represented
+immediates on contiguous `SHORT_ARRAY` shape `[8]`, rather than an arbitrary-immediate or full
+scalar/clamp claim. It ran local link/anchor/fence/profile, status/dependency, changed-path, TSV
+tab/column, and whitespace checks. No executable Java changed after the recorded focused run.
+
+No-change conclusions: public/production Javadoc and production documentation are unaffected
+because no production Java or public behavior changed; backend guides and the glossary have no
+new reusable user-facing term or workflow; `ARCHITECTURE.md` and architecture explanations need
+no update because ownership, dependencies, and lifecycle are unchanged; ADRs are unnecessary
+because no decision changed; architecture, conformance, and integration tests do not apply
+because no boundary, backend behavior, or end-to-end behavior changed; and Gradle is unchanged
+because no build configuration changed.
 
 ## Implementation notes
 
-Empty until implemented.
+The checked pair derives from a real PrepareContext, CpuPartitionPreparer, lowering, selected
+portable route, and generator. Its strict normalizer admits a difference only at its declared
+immediate instruction location and compares every other instruction operand, member structure,
+and prohibited hot-path feature. Generated classes execute against independent typed clean-Java
+loops with ordinary, NaN, signed-zero, and infinity inputs. A full scalar/clamp matrix was not
+possible under this task's three-source/two-resource ceiling without inventing fixture families;
+it is intentionally deferred and 0009 remains blocked.
 
 ## Completion summary
 
-Empty until implemented.
+Completed changes: added the bounded test-only source-derived projection evidence for exactly two
+BFLOAT16 scalar-MUL represented immediates, and finalized the matching planning coordination.
+
+Files changed or created: three focused CPU test sources, two checked TSV resources, this task,
+CPU master plan, CPU 0009, and roadmap.
+
+Tests and validation: reused the recorded passing forced focused Gradle command; task-matrix
+resource/hash/provenance, local Markdown link/anchor/fence/profile, status/dependency,
+changed-path, TSV tab/column, and `git diff --check` checks passed. No Java tests were rerun by
+this documentation pass because executable Java did not change. The prior full CPU observation
+remains 789 tests, 25 skips, and one unrelated historical timing failure; no full-CPU-green claim
+is made.
+
+Documentation-agent review: clean documentation-focused context ID `/root` completed the targeted
+General + Planning profile review.
+
+Documentation impact: planning documents only; the reasoned no-change conclusions are recorded
+above for Javadoc, backend guides, glossary, architecture, ADRs, architecture tests,
+conformance/integration tests, Gradle, and production documentation.
+
+Unresolved issues: the complete scalar-immediate/clamp operation/type/carrier/layout/strategy/
+shape matrix remains unimplemented.
+
+Follow-up required: create and complete that separately planned matrix task, including its
+documentation pass, before CPU 0009 can become `Ready`.
+
+Status: Complete

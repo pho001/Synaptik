@@ -1,0 +1,2 @@
+unit	normalizer-version	disposition	operation	type	input-carrier	output-carrier	layout	strategy	shape	fixture-resource-sha256	exact-fixture-members	exact-member-sha256
+bf16-scalar-mul-represented	instruction-normalizer-v2	PROVED_CONSTANTS_ONLY	MUL	BFLOAT16	SHORT_ARRAY	SHORT_ARRAY	CONTIGUOUS	SCALAR	[8]	70215eab0738640761fb9818cf8a0a547b2fac2a331630b287c0504912079680	bf16-mul-one,bf16-mul-two	782330bb36e95a432dc3745a92b2f49e15c7aedc3e7a16d0670834d65821d41f,56aa667c9ae4bef25b64d03afc6fd9e03c3a6e48b793c1521f9d06e9ce1ceef0
