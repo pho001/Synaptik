@@ -80,6 +80,136 @@ import jdk.incubator.vector.LongVector;
 import jdk.incubator.vector.ByteVector;
 
 public class CpuPartitionPreparerTest {
+    @Test void conv2dProductionVectorSelectionAcceptsAllProvedCarrierCombinations() {
+        var base = io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuConv2dLoweringTest
+                .context(List.of(DataType.FLOAT32, DataType.FLOAT32),
+                        Shape.of(1, 1, 5, 67), Shape.of(2, 1, 3, 3), Shape.of(1, 2, 3, 65),
+                        io.github.pho001.synaptik.model.operation.convolution.Conv2dAttrs.defaults(),
+                        null);
+        var vector = new PortableExecutionConfig(ComputePreference.VECTOR_IF_ELIGIBLE, 1, 1, 1);
+        for (var carriers : List.of(
+                List.of(CarrierAccess.FLOAT_ARRAY, CarrierAccess.FLOAT_ARRAY,
+                        CarrierAccess.FLOAT_ARRAY),
+                List.of(CarrierAccess.MEMORY_SEGMENT, CarrierAccess.MEMORY_SEGMENT,
+                        CarrierAccess.MEMORY_SEGMENT),
+                List.of(CarrierAccess.FLOAT_ARRAY, CarrierAccess.MEMORY_SEGMENT,
+                        CarrierAccess.FLOAT_ARRAY))) {
+            var plan = analyzeWith(base, carriers, vector);
+            assertAll(() -> assertEquals(CpuPartitionPreparationPlan.ExecutionStrategy.VECTOR,
+                            plan.executionStrategy()),
+                    () -> assertEquals(63, plan.units().getFirst().portablePlan()
+                            .specialization().classIdentitySchema()),
+                    () -> assertEquals(carriers, plan.generatedCarrierPattern()),
+                    () -> assertTrue(plan.vectorSpeciesBitSize() > 0));
+        }
+    }
+
+    @Test void convolutionParallelSelectionAndWidthOnlyGeometryBoundaryAreExact() {
+        var parallel = new PortableExecutionConfig(
+                ComputePreference.VECTOR_IF_ELIGIBLE, 4, 4, 1);
+        var carriers = List.of(CarrierAccess.FLOAT_ARRAY, CarrierAccess.FLOAT_ARRAY,
+                CarrierAccess.FLOAT_ARRAY);
+        var nonWidth2d = io.github.pho001.synaptik.backend.cpu.internal.lowering
+                .CpuConv2dLoweringTest.context(List.of(DataType.FLOAT32, DataType.FLOAT32),
+                        Shape.of(1, 1, 9, 67), Shape.of(2, 1, 2, 3), Shape.of(1, 2, 4, 65),
+                        new io.github.pho001.synaptik.model.operation.convolution.Conv2dAttrs(
+                                2, 1, 0, 0, 2, 1, 1), null);
+        var widthStride2d = io.github.pho001.synaptik.backend.cpu.internal.lowering
+                .CpuConv2dLoweringTest.context(List.of(DataType.FLOAT32, DataType.FLOAT32),
+                        Shape.of(1, 1, 5, 67), Shape.of(2, 1, 3, 3), Shape.of(1, 2, 3, 33),
+                        new io.github.pho001.synaptik.model.operation.convolution.Conv2dAttrs(
+                                1, 2, 0, 0, 1, 1, 1), null);
+        var nonWidth3d = io.github.pho001.synaptik.backend.cpu.internal.lowering
+                .CpuConv3dLoweringTest.context(List.of(DataType.FLOAT32, DataType.FLOAT32),
+                        Shape.of(1, 1, 7, 9, 67), Shape.of(2, 1, 2, 2, 3),
+                        Shape.of(1, 2, 3, 4, 65),
+                        new io.github.pho001.synaptik.model.operation.convolution.Conv3dAttrs(
+                                2, 2, 1, 0, 0, 0, 2, 2, 1, 1), null);
+        var widthDilation3d = io.github.pho001.synaptik.backend.cpu.internal.lowering
+                .CpuConv3dLoweringTest.context(List.of(DataType.FLOAT32, DataType.FLOAT32),
+                        Shape.of(1, 1, 4, 5, 67), Shape.of(2, 1, 2, 3, 3),
+                        Shape.of(1, 2, 3, 3, 63),
+                        new io.github.pho001.synaptik.model.operation.convolution.Conv3dAttrs(
+                                1, 1, 1, 0, 0, 0, 1, 1, 2, 1), null);
+
+        var vector2d = analyzeWith(nonWidth2d, carriers, parallel);
+        var scalar2d = analyzeWith(widthStride2d, carriers, parallel);
+        var vector3d = analyzeWith(nonWidth3d, carriers, parallel);
+        var scalar3d = analyzeWith(widthDilation3d, carriers, parallel);
+        assertAll(
+                () -> assertEquals(CpuPartitionPreparationPlan.ExecutionStrategy.PARALLEL_VECTOR,
+                        vector2d.executionStrategy()),
+                () -> assertEquals(63, vector2d.units().getFirst().portablePlan()
+                        .specialization().classIdentitySchema()),
+                () -> assertEquals(CpuPartitionPreparationPlan.ExecutionStrategy.PARALLEL_SCALAR,
+                        scalar2d.executionStrategy()),
+                () -> assertEquals(52, scalar2d.units().getFirst().portablePlan()
+                        .specialization().classIdentitySchema()),
+                () -> assertEquals(CpuPartitionPreparationPlan.ExecutionStrategy.PARALLEL_VECTOR,
+                        vector3d.executionStrategy()),
+                () -> assertEquals(63, vector3d.units().getFirst().portablePlan()
+                        .specialization().classIdentitySchema()),
+                () -> assertEquals(CpuPartitionPreparationPlan.ExecutionStrategy.PARALLEL_SCALAR,
+                        scalar3d.executionStrategy()),
+                () -> assertEquals(52, scalar3d.units().getFirst().portablePlan()
+                        .specialization().classIdentitySchema()));
+    }
+
+    @Test void convolutionUnprovedTypesLayoutsAndWidthDomainsRemainScalar() {
+        var vector = new PortableExecutionConfig(ComputePreference.VECTOR_IF_ELIGIBLE, 1, 1, 1);
+        var floatCarriers = List.of(CarrierAccess.FLOAT_ARRAY, CarrierAccess.FLOAT_ARRAY,
+                CarrierAccess.FLOAT_ARRAY);
+        var shortWidth = io.github.pho001.synaptik.backend.cpu.internal.lowering
+                .CpuConv2dLoweringTest.context(List.of(DataType.FLOAT32, DataType.FLOAT32),
+                        Shape.of(1, 1, 3, 3), Shape.of(2, 1, 3, 3), Shape.of(1, 2, 1, 1),
+                        io.github.pho001.synaptik.model.operation.convolution.Conv2dAttrs.defaults(),
+                        null);
+        Shape inputShape = Shape.of(1, 1, 5, 67);
+        Shape weightShape = Shape.of(2, 1, 3, 3);
+        Shape outputShape = Shape.of(1, 2, 3, 65);
+        var strided = io.github.pho001.synaptik.backend.cpu.internal.lowering
+                .CpuConv2dLoweringTest.context(List.of(DataType.FLOAT32, DataType.FLOAT32),
+                        inputShape, weightShape, outputShape,
+                        io.github.pho001.synaptik.model.operation.convolution.Conv2dAttrs.defaults(),
+                        List.of(LayoutDescriptor.of(inputShape, new long[]{400, 400, 70, 1}, 0,
+                                        false),
+                                LayoutDescriptor.contiguous(weightShape),
+                                LayoutDescriptor.contiguous(outputShape)));
+        var bfloat = io.github.pho001.synaptik.backend.cpu.internal.lowering
+                .CpuConv2dLoweringTest.context(List.of(DataType.BFLOAT16, DataType.BFLOAT16),
+                        inputShape, weightShape, outputShape,
+                        io.github.pho001.synaptik.model.operation.convolution.Conv2dAttrs.defaults(),
+                        null);
+
+        var shortPlan = analyzeWith(shortWidth, floatCarriers, vector);
+        var stridedPlan = analyzeWith(strided, floatCarriers, vector);
+        var bfloatPlan = analyzeWith(bfloat,
+                List.of(CarrierAccess.MEMORY_SEGMENT, CarrierAccess.MEMORY_SEGMENT,
+                        CarrierAccess.MEMORY_SEGMENT), vector);
+        assertAll(
+                () -> assertEquals(CpuPartitionPreparationPlan.ExecutionStrategy.SCALAR,
+                        shortPlan.executionStrategy()),
+                () -> assertEquals(CpuPartitionPreparationPlan.ExecutionStrategy.SCALAR,
+                        stridedPlan.executionStrategy()),
+                () -> assertEquals(CpuPartitionPreparationPlan.ExecutionStrategy.SCALAR,
+                        bfloatPlan.executionStrategy()),
+                () -> assertEquals(52, shortPlan.units().getFirst().portablePlan()
+                        .specialization().classIdentitySchema()),
+                () -> assertEquals(52, stridedPlan.units().getFirst().portablePlan()
+                        .specialization().classIdentitySchema()),
+                () -> assertEquals(52, bfloatPlan.units().getFirst().portablePlan()
+                        .specialization().classIdentitySchema()));
+    }
+
+    private static CpuPartitionPreparationPlan analyzeWith(
+            PrepareContext<CpuPartitionAnalysisInputs> base, List<CarrierAccess> carriers,
+            PortableExecutionConfig config) {
+        var context = new PrepareContext<>(base.partition(), base.nodes(), base.values(),
+                base.memoryRequirements(), base.constants(),
+                new CpuPartitionAnalysisInputs(false, carriers, config));
+        return new CpuPartitionPreparer().analyze(context).plan();
+    }
+
     @Test void pool3dRemainsDirectScalarWhenVectorExecutionIsPreferred() {
         var base=io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuPool3dLoweringTest
                 .context(io.github.pho001.synaptik.model.operation.pooling.Pool3dKind.MAX_POOL3D,
@@ -416,7 +546,7 @@ public class CpuPartitionPreparerTest {
                 () -> assertTrue(initial.workspaceDeclaration().isEmpty()),
                 () -> assertTrue(dropout.workspaceDeclaration().isEmpty()),
                 () -> assertTrue(dropout.randomGeometry().isPresent()),
-                () -> assertEquals(62, io.github.pho001.synaptik.backend.cpu.internal.cache
+                () -> assertEquals(63, io.github.pho001.synaptik.backend.cpu.internal.cache
                         .CpuGeneratorSchema.CURRENT_VERSION));
     }
     @Test void foldDeclaresExactlyTwoBuffersOneArtifactAndNoWorkspaceOrMaterialization() {

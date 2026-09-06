@@ -51,7 +51,12 @@
  * FLOAT32, and BFLOAT16. It embeds the optional intrinsic bias and legal ADD or ADD-plus-RELU
  * epilogue, visits group-local input channels and kernel coordinates directly, and performs no
  * im2col, packing, helper dispatch, workspace access, or partial/combine step. Schema 51 adds this
- * family and its direct typed entry shape.
+ * family and its direct typed entry shape. Eligible direct same-typed dense FLOAT32/FLOAT64
+ * Conv2d and Conv3d forms additionally use schema-63 preferred-species output-width chunks. Only
+ * width stride and dilation must be one; non-width stride and dilation remain eligible. Arrays,
+ * native-order segments, and ordered mixed carriers are supported, with scalar borders, range
+ * fragments, and tails. BFLOAT16, external epilogues, non-dense access, short or interior-free
+ * widths, and Conv1d composition retain scalar execution and historical schema-52 class identity.
  * A separate movement emitter consumes compact cold geometry for one static PAD, TILE, CONCAT,
  * STACK, window-extraction, or functional SLICE_UPDATE occurrence and emits a direct
  * represented-bit scalar loop. Proved dense heap-array movement bodies hoist their primitive

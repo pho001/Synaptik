@@ -2,7 +2,7 @@
 
 ## Status
 
-Ready
+Complete
 
 ## Goal
 
@@ -232,10 +232,14 @@ Do not mark complete before that pass.
 
 ## Limitations
 
-Until every gate passes, production Conv is scalar at schema 62; a Stage A-only, non-persisted,
-test/evidence-generated provisional schema-63 class is not production support. Conv1d composition,
-BF16, mixed types, non-dense access, external suffixes, width stride/dilation other than one, and
-non-width SIMD axes remain scalar/deferred.
+Production schema 63 selects output-width `VECTOR` or `PARALLEL_VECTOR` only for direct,
+same-typed, dense `FLOAT32`/`FLOAT64` Conv2d/Conv3d with width stride and width dilation equal to
+one, a preferred species wider than one lane, and at least one full in-bounds width block.
+Non-width stride and dilation remain eligible. Scalar code handles borders, worker-range fragments,
+and tails. Arrays, native-order segments, and ordered mixed carriers are supported. BF16, external
+Conv2d epilogues, mixed element types, non-dense access, short/no-interior-block shapes, width
+stride or dilation other than one, non-width SIMD axes, and Conv1d composition remain scalar.
+Broad validation remains CPU 0009/CI scope.
 
 ## Evidence
 
@@ -255,8 +259,49 @@ proves a branch-wide result nor assigns the gap to an individual operation.
 
 ## Implementation notes
 
-<!-- Intentionally empty until implementation. -->
+Generated Conv2d/Conv3d now uses nested output-coordinate loops with scalar borders/fragments and
+output-width vector interiors. Selection, carrier realization, and persisted-artifact compatibility
+remain CPU-owned; no shared Prepare, Runtime, public API, dependency, or architecture boundary
+changed.
 
 ## Completion summary
 
-<!-- Intentionally empty until implementation and the separate documentation pass finish. -->
+Stage B semantic/structural evidence at
+`/private/tmp/synaptik-cpu-0008n1-stage-b-20260906-owned` passed 48 semantic rows and 24 structural
+dossiers. Full performance evidence at
+`/private/tmp/synaptik-cpu-0008n1-stage-b-performance-20260906/cpu-conv-simd-performance/full-1788687867286-pid89091`
+passed 16 rows, five fresh forks, 1,440 pairs, 5,760 positive finite sides (minimum
+`30,135,541 ns`), 160 fork medians, 32 aggregates, and 1,803 verified manifest hashes. Maximum
+pair ratios were `V/S=0.525369171498` and `V/D=0.959638121325`; maximum aggregate ratios were
+`V/S=0.403144684278` and `V/D=0.932440944620`, within the `0.90` and `1.15` limits.
+
+Production uses `CURRENT_VERSION=63`; eligible direct Conv2d/Conv3d routes select `VECTOR` or
+`PARALLEL_VECTOR`, schema-63 artifacts publish/reload, stale schema 62 is rejected, and scalar Conv
+retains historical schema 52. The focused integration suite passed 80 tests, CPU Javadoc passed,
+backend conformance reported `NO-SOURCE`, and diff checks passed. Javadoc reported 53 pre-existing
+missing-`@param` warnings in unrelated records.
+
+The additional full CPU suite was not green: 751 tests yielded 725 passes, 24 intentional opt-in
+skips, and two unrelated failures. The historical default-running 0008B F64 NEG DAG case was
+semantically successful, but all fork-zero timing attempts were `1.1788` through `1.2251`, above
+`1.15`; the unchanged worker-close race failed once and passed in isolation. These require separate
+default-timing and worker-lifecycle reliability follow-up. No broad-suite pass is claimed; broad
+validation remains CPU 0009/CI scope.
+
+The historical Stage A root at `/private/tmp/synaptik-cpu-0008n1-stage-a-20260906b` remains failed
+structural evidence: its `stop.txt` records `decision=BOUNDED_SCALAR_STOP`,
+`structural_result=FAIL`, and `stage_b=NOT_RUN_AFTER_DECISIVE_STAGE_A_STOP`. It is explicitly
+superseded by the final Stage B `C2_F32_ARRAY` row, which strictly contains the intended Stage A
+proof. The passing structural dossier and full performance evidence contain the byte-identical
+final vector class SHA-256
+`6f5a183436eeeff189b1bb29812f65afe1c99f62872394276c8886e05e063c65` under schema-63 key
+`c05914f7b0aa747f48e0acc1a0015ef15157f03b7078e64b60d546d7b11a356f`. Its final performance row
+passed five forks, 90 pairs, and 360 positive finite sides with minimum `39,300,417 ns`, maximum
+pair `V/S=0.150326995238421` and `V/D=0.896607513278599`, and aggregate
+`V/S=0.14074463702810028` and `V/D=0.8497156751688318`. No semantic or performance suite was
+rerun during evidence reconciliation.
+
+CPU 0008O is restored as the next Draft task. The historical default-timing and worker-close
+lifecycle reliability observations remain separate backlog concerns and do not block 0008N1.
+
+Status: Complete

@@ -44,7 +44,9 @@ import jdk.incubator.vector.LongVector;
  *     {@code 59} for scalar BFLOAT16 pointwise bodies without cross-type CAST, and {@code 60}
  *     exactly for pointwise bodies containing cross-type CAST, and {@code 61} only for vector
  *     pointwise bodies with a dense FLOAT32/FLOAT64 BOOL mask boundary, and {@code 62} only for
- *     same-typed contiguous FLOAT32/FLOAT64 MSE {@code NONE} vector bodies
+ *     same-typed contiguous FLOAT32/FLOAT64 MSE {@code NONE} vector bodies, and {@code 63} only
+ *     for the proved direct dense FLOAT32/FLOAT64 Conv2d/Conv3d output-width vector realization;
+ *     width stride and dilation are one, while non-width stride and dilation remain eligible
  * @param matmulIr exact typed MATMUL code-shaping facts, or empty for every unchanged family
  */
 public record CpuKernelSpecialization(CpuLoweringFingerprint loweringFingerprint,
@@ -119,7 +121,8 @@ public record CpuKernelSpecialization(CpuLoweringFingerprint loweringFingerprint
      * @param classIdentitySchema class projection schema; must be one of the accepted current
      *     family projections, including {@code 60} for matching cross-type CAST IR and
      *     {@code 61} for matching dense floating-mask vector IR, and {@code 62} for matching
-     *     vector MSE {@code NONE} IR
+     *     vector MSE {@code NONE} IR, and {@code 63} for matching direct dense FLOAT32/FLOAT64
+     *     Conv2d/Conv3d output-width vector IR with unit width stride and dilation
      */
     public CpuKernelSpecialization(CpuLoweringFingerprint loweringFingerprint,
             NumericalMode numericalMode,
@@ -253,9 +256,10 @@ public record CpuKernelSpecialization(CpuLoweringFingerprint loweringFingerprint
         if (classIdentitySchema != 52 && classIdentitySchema != 54 && classIdentitySchema != 55
                 && classIdentitySchema != 56 && classIdentitySchema != 57
                 && classIdentitySchema != 58 && classIdentitySchema != 59 && classIdentitySchema != 60
-                && classIdentitySchema != 61 && classIdentitySchema != 62) {
+                && classIdentitySchema != 61 && classIdentitySchema != 62
+                && classIdentitySchema != 63) {
             throw new IllegalArgumentException(
-                    "class identity schema must be 52, 54, 55, 56, 57, 58, 59, 60, 61, or 62");
+                    "class identity schema must be 52, 54, 55, 56, 57, 58, 59, 60, 61, 62, or 63");
         }
         if ((classIdentitySchema == 54) != matmulIr.isPresent()
                 || classIdentitySchema == 55 && matmulIr.isPresent()) {

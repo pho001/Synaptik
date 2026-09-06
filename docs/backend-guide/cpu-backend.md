@@ -2447,9 +2447,13 @@ The route accepts exact typed primitive arrays, native-order `MemorySegment` val
 carrier patterns. Fully static layouts may use non-negative offsets and strides; the output must
 be injective. Cold binding validates carrier type, accessibility, alignment, exact spans,
 writability, and every output/input overlap before generated work or worker submission. Scalar
-execution uses the caller thread; parallel-scalar execution partitions only complete output
-cells, so ranges require no atomics, partial sums, combine step, packing, im2col buffer, or hidden
-workspace.
+Eligible direct same-typed dense FLOAT32/FLOAT64 forms may instead select output-width vector or
+parallel-vector execution when width stride and dilation are one and at least one preferred-species
+block is fully in bounds. Non-width stride and dilation remain eligible. Scalar work handles
+padding borders, worker-range fragments, and tails. Arrays, native-order segments, and ordered
+mixed carriers are supported. BFLOAT16, external epilogues, mixed types, non-dense access,
+short/no-interior-block shapes, and other width geometry remain scalar. Ranges require no atomics,
+partial sums, combine step, packing, im2col buffer, or hidden workspace.
 
 A non-fusible suffix is represented by the general materialized multi-unit plan. It contains the
 direct Conv2d unit, one independently generated pointwise suffix unit, and one ordinary
@@ -2501,8 +2505,11 @@ positive zero through ordinary multiplication, so an infinite stored weight can 
 NaN. Optional intrinsic bias initializes the accumulator once. FLOAT64 output accumulates in
 FLOAT64; FLOAT32 and BFLOAT16 output accumulate in FLOAT32; BFLOAT16 narrows once at the store.
 
-Both scalar and bounded parallel-scalar orchestration invoke the same generated body. Parallel
-ranges contain complete output cells with one writer each, so Conv3d declares no workspace,
+Eligible direct same-typed dense FLOAT32/FLOAT64 forms may select output-width vector or
+parallel-vector execution under the same width-only geometry and full-block conditions as
+Conv2d; non-width stride and dilation remain eligible. Scalar work handles borders, fragments,
+and tails, while BFLOAT16, mixed types, non-dense access, short/no-interior-block shapes, and other
+width geometry remain scalar. Parallel ranges retain one writer per cell, so Conv3d declares no workspace,
 packing, im2col buffer, partial sum, atomic, or combine phase. Empty output invokes no generated
 entry and submits no worker work. Cold binding accepts exact typed primitive arrays,
 native-order accessible `MemorySegment` values, and mixed carriers. Before any write or worker
@@ -2537,7 +2544,7 @@ The Conv3d epilogue boundary is exact: only the occurrence's intrinsic rank-one 
 An external ADD, activation, clamp, fan-out, or other Conv3d-led suffix fails this specialized
 path and cannot select the Conv2d-only fused or materialized-suffix forms. Backward/training
 execution, general partition-DAG decomposition, external Conv3d epilogues, pooling,
-attention, losses, vector/native convolution, packing, autotuning, dynamic or symbolic Shapes,
+attention, losses, native convolution, packing, autotuning, dynamic or symbolic Shapes,
 unresolved layouts, public Engine integration, and cross-backend bitwise identity remain outside
 this current CPU capability.
 
@@ -3315,9 +3322,10 @@ envelope for that increment. Schema 50 adds five-output batch-normalization trai
 adds direct grouped NCHW Conv2d, schema 52 adds direct grouped NCDHW Conv3d, schema 54 adds MATMUL,
 schema 55 adds Pool2d, schema 56 adds Pool3d, schema 57 adds attention, schema 58 adds loss, and
 schema 59 adds BFLOAT16 pointwise, schema 60 adds cross-type CAST, schema 61 adds only the dense
-FLOAT32/FLOAT64 vector-mask boundary classes described above, and schema 62 adds only the
-same-typed contiguous FLOAT32/FLOAT64 MSE `NONE` vector classes. The current envelope version is
-62; older envelopes are incompatible safe misses, while scalar loss remains on schema 58 and
+FLOAT32/FLOAT64 vector-mask boundary classes described above, schema 62 adds only the same-typed
+contiguous FLOAT32/FLOAT64 MSE `NONE` vector classes, and schema 63 adds eligible direct dense
+FLOAT32/FLOAT64 Conv2d/Conv3d output-width vector classes. The current envelope version is 63;
+older envelopes are incompatible safe misses, while scalar Conv retains schema 52, scalar loss remains on schema 58, and
 unchanged prior-family projections retain their established structural bytes.
 
 CPU 0008L retained evidence verifies this boundary against the same-algorithm optimal clean Java

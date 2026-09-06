@@ -27,7 +27,11 @@ import java.util.Objects;
  * A pointwise topology containing cross-type CAST is likewise scalar-only: each CAST emits its
  * Model-defined conversion directly into the target-typed local, preserving explicit
  * intermediate conversion boundaries without a generated Synaptik helper call.
- * It does not choose capability, numerical semantics, access structure, strategy, or fallback.</p>
+ * Eligible direct dense same-typed FLOAT32/FLOAT64 Conv2d and Conv3d schema-63 specializations
+ * instead emit output-width vector chunks with ordered scalar borders, range fragments, and tails;
+ * width stride and dilation alone must be one. Ineligible convolution retains its historical
+ * schema-52 scalar class projection. The generator does not choose capability, numerical
+ * semantics, access structure, strategy, or fallback.</p>
  * Instruction-free affine, movement, indexing, scatter, fold, ordering, explicit-state random,
  * cumulative-scan, ordinary aggregate, and first-class loss forms delegate to their focused
  * emitters after
@@ -69,7 +73,8 @@ public final class CpuClassFileKernelGenerator {
      * @throws NullPointerException if an argument is {@code null}
      * @throws IllegalArgumentException if specialization and IR facts disagree, including a
      *     cross-type CAST paired with a non-scalar strategy or a class-identity schema other than
-     *     {@code 60}
+     *     {@code 60}, or a vector Conv2d/Conv3d specialization without class-identity schema
+     *     {@code 63}
      */
     public byte[] generateClassBytes(CpuKernelSpecialization specialization, CpuKernelIr kernelIr) {
         validate(specialization, kernelIr);
@@ -525,6 +530,7 @@ public final class CpuClassFileKernelGenerator {
                     || random && kernelIr.values().size() != 1 && kernelIr.values().size() != 5
                     || !matmul && !loss && specialization.executionStrategy().compute()
                         != io.github.pho001.synaptik.backend.cpu.internal.prepare.CpuPartitionPreparationPlan.ExecutionStrategy.Compute.SCALAR
+                        && !(specialization.classIdentitySchema() == 63 && (conv2d || conv3d))
                     || !specialization.scalarPowerRealizations().isEmpty()) {
                 throw new IllegalArgumentException("unsupported canonical affine copy IR");
             }

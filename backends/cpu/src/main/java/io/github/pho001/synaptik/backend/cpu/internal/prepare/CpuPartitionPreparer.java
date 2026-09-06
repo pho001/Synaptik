@@ -50,6 +50,14 @@ import jdk.incubator.vector.ByteVector;
  * preference. MSE {@code SUM}, MSE {@code MEAN}, and every ineligible loss retain scalar or
  * parallel-scalar compute under the existing range policy. Only the admitted vector loss uses
  * class-identity schema 62; scalar loss artifacts retain schema 58.
+ * Direct Conv2d/Conv3d selects preferred-species output-width vector compute only for the proved
+ * same-typed FLOAT32/FLOAT64 dense-layout subset with width stride and width dilation equal to one
+ * and at least one statically in-bounds full-width block. Non-width stride and dilation remain
+ * eligible. Array, native-order segment, and ordered mixed-carrier patterns may qualify. Conv2d
+ * external epilogues, BFLOAT16, non-dense access, short or interior-free widths, and every other
+ * failed proof retain scalar or parallel-scalar compute. Conv1d composition remains scalar. Only
+ * the admitted convolution vector realization uses class-identity schema 63; scalar Conv2d/Conv3d
+ * artifacts retain their historical schema-52 class projection.
  * Analysis measures nothing and performs no artifact or persistence access. Static affine
  * chains instead retain scalar compute,
  * compose one exact distinct-write address domain, declare only source and final result buffers,
@@ -418,7 +426,17 @@ public final class CpuPartitionPreparer implements BackendPartitionPreparer<
                 && vectorType != null && lanes > 1 && lowered.elementCount() >= lanes
                 && vectorLossEligible((io.github.pho001.synaptik.backend.cpu.internal.ir.CpuLossIr)
                         lowered.portableKernelIr(), bindings);
-        boolean vectorEligible = matmulVector || lossVector
+        boolean directConvOperation = !context.nodes().isEmpty()
+                && (conv2d && context.nodes().getFirst().operation().kind()
+                    == io.github.pho001.synaptik.model.operation.convolution.Conv2dKind.CONV2D
+                || conv3d && context.nodes().getFirst().operation().kind()
+                    == io.github.pho001.synaptik.model.operation.convolution.Conv3dKind.CONV3D);
+        boolean convVector = directConvOperation
+                && config.computePreference()
+                    == CpuPartitionAnalysisInputs.PortableExecutionConfig.ComputePreference.VECTOR_IF_ELIGIBLE
+                && vectorType != null && lanes > 1 && lowered.elementCount() >= lanes
+                && convVectorEligible(lowered, bindings, lanes);
+        boolean vectorEligible = matmulVector || lossVector || convVector
                 || !loss && !matmul && !pool2d && !pool3d && !attention && !affineCopy && !movement
                 && !indexing && !scatter && !fold && !ordering && !random && !scan && !aggregate
                 && !argExtrema && !maskedReduction && !advancedReduction && !softmax
@@ -541,7 +559,7 @@ public final class CpuPartitionPreparer implements BackendPartitionPreparer<
                             .filter(g -> g.scratchSliceBytes() > 0).isPresent()
                         || lowered.attentionGeometry().filter(g -> g.scratchSliceBytes() > 0)
                             .isPresent(),
-                attention ? 57 : pool3d ? 56 : pool2d ? 55 : matmul ? 54
+                convVector ? 63 : attention ? 57 : pool3d ? 56 : pool2d ? 55 : matmul ? 54
                         : selectedPortableIr instanceof io.github.pho001.synaptik.backend.cpu.internal.ir.CpuLossIr
                             ? vectorEligible ? 62 : 58
                             : kernelIr.familyIdentity().equals("pointwise") && crossTypeCast ? 60
@@ -995,6 +1013,59 @@ public final class CpuPartitionPreparer implements BackendPartitionPreparer<
                     == io.github.pho001.synaptik.backend.cpu.internal.ir.CpuAccessPlan.Regime.DENSE_LINEAR)
                 && bindings.stream().allMatch(binding -> binding.plan().regime()
                     == io.github.pho001.synaptik.backend.cpu.internal.ir.CpuAccessPlan.Regime.DENSE_LINEAR);
+    }
+
+    private static boolean convVectorEligible(CpuPartitionLowering.LoweredPartition lowered,
+            List<CpuAccessPlan.Binding> bindings, int lanes) {
+        if (bindings.stream().anyMatch(binding -> binding.plan().regime()
+                != CpuAccessPlan.Regime.DENSE_LINEAR)) {
+            return false;
+        }
+        if (lowered.portableKernelIr()
+                instanceof io.github.pho001.synaptik.backend.cpu.internal.ir.CpuConv2dIr conv) {
+            if (conv.epilogue()
+                    != io.github.pho001.synaptik.backend.cpu.internal.ir.CpuConv2dIr.Epilogue.NONE
+                    || !sameVectorConvType(conv.inputTypes(), conv.resultType())
+                    || conv.strideWidth() != 1 || conv.dilationWidth() != 1) {
+                return false;
+            }
+            var boundaries = lowered.conv2dGeometry().orElseThrow().boundaries();
+            return hasInteriorWidthBlock(boundaries.getFirst().extents()[3],
+                    boundaries.get(1).extents()[3], boundaries.getLast().extents()[3],
+                    conv.paddingWidth(), lanes);
+        }
+        if (lowered.portableKernelIr()
+                instanceof io.github.pho001.synaptik.backend.cpu.internal.ir.CpuConv3dIr conv) {
+            if (!sameVectorConvType(conv.inputTypes(), conv.resultType())
+                    || conv.strideWidth() != 1 || conv.dilationWidth() != 1) {
+                return false;
+            }
+            var boundaries = lowered.conv3dGeometry().orElseThrow().boundaries();
+            return hasInteriorWidthBlock(boundaries.getFirst().extents()[4],
+                    boundaries.get(1).extents()[4], boundaries.getLast().extents()[4],
+                    conv.paddingWidth(), lanes);
+        }
+        return false;
+    }
+
+    private static boolean sameVectorConvType(List<DataType> inputTypes, DataType resultType) {
+        return (resultType == DataType.FLOAT32 || resultType == DataType.FLOAT64)
+                && inputTypes.stream().allMatch(type -> type == resultType);
+    }
+
+    private static boolean hasInteriorWidthBlock(long inputWidth, long kernelWidth,
+            long outputWidth, long paddingWidth, int lanes) {
+        try {
+            long first = Math.max(0L, paddingWidth);
+            long lastByOutput = Math.subtractExact(outputWidth, lanes);
+            long lastByInput = Math.addExact(inputWidth, paddingWidth);
+            lastByInput = Math.subtractExact(lastByInput, lanes);
+            lastByInput = Math.subtractExact(lastByInput, kernelWidth);
+            lastByInput = Math.addExact(lastByInput, 1L);
+            return first <= Math.min(lastByOutput, lastByInput);
+        } catch (ArithmeticException incompatibleGeometry) {
+            return false;
+        }
     }
 
     private static long contiguousRun(

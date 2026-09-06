@@ -81,7 +81,35 @@ public class CpuPartitionFinalizerTest {
         var base=CpuConv3dLoweringTest.context(List.of(DataType.FLOAT32,DataType.FLOAT32),Shape.of(1,2,4,3,3),Shape.of(2,2,2,2,2),Shape.of(1,2,3,2,2),Conv3dAttrs.defaults(),null);
         var context=new io.github.pho001.synaptik.prepare.analysis.PrepareContext<>(base.partition(),base.nodes(),base.values(),base.memoryRequirements(),base.constants(),new CpuPartitionAnalysisInputs(false,List.of(CarrierAccess.MEMORY_SEGMENT,CarrierAccess.FLOAT_ARRAY,CarrierAccess.FLOAT_ARRAY)));
         var analysis=new CpuPartitionPreparer().analyze(context);Path artifactRoot=root.resolve("conv3d");var executable=finalizeExecutable(analysis,Optional.of(artifactRoot));
-        try(var files=Files.list(artifactRoot)){assertAll(()->assertEquals(3,executable.bufferSelectionCount()),()->assertTrue(executable.memoryPlan().workspaces().isEmpty()),()->assertEquals(62,io.github.pho001.synaptik.backend.cpu.internal.cache.CpuGeneratorSchema.CURRENT_VERSION),()->assertEquals(1,files.filter(path->path.getFileName().toString().endsWith(".artifact")).count()));}
+        try(var files=Files.list(artifactRoot)){assertAll(()->assertEquals(3,executable.bufferSelectionCount()),()->assertTrue(executable.memoryPlan().workspaces().isEmpty()),()->assertEquals(52,executable.artifact().specialization().classIdentitySchema()),()->assertEquals(63,io.github.pho001.synaptik.backend.cpu.internal.cache.CpuGeneratorSchema.CURRENT_VERSION),()->assertEquals(1,files.filter(path->path.getFileName().toString().endsWith(".artifact")).count()));}
+    }
+
+    @Test void conv3dVectorRouteFinalizesAndPublishesOneSchema63Artifact() throws Exception {
+        var base = CpuConv3dLoweringTest.context(List.of(DataType.FLOAT64, DataType.FLOAT64),
+                Shape.of(1, 1, 4, 5, 67), Shape.of(2, 1, 2, 3, 3),
+                Shape.of(1, 2, 3, 3, 65), Conv3dAttrs.defaults(), null);
+        var inputs = new CpuPartitionAnalysisInputs(false,
+                List.of(CarrierAccess.DOUBLE_ARRAY, CarrierAccess.MEMORY_SEGMENT,
+                        CarrierAccess.DOUBLE_ARRAY),
+                new PortableExecutionConfig(ComputePreference.VECTOR_IF_ELIGIBLE, 1, 1, 1));
+        var context = new io.github.pho001.synaptik.prepare.analysis.PrepareContext<>(
+                base.partition(), base.nodes(), base.values(), base.memoryRequirements(),
+                base.constants(), inputs);
+        var analysis = new CpuPartitionPreparer().analyze(context);
+        Path artifactRoot = root.resolve("conv3d-vector");
+        var executable = finalizeExecutable(analysis, Optional.of(artifactRoot));
+        try (var files = Files.list(artifactRoot)) {
+            assertAll(
+                    () -> assertEquals(CpuPartitionPreparationPlan.ExecutionStrategy.VECTOR,
+                            analysis.plan().executionStrategy()),
+                    () -> assertEquals(63, executable.artifact().specialization()
+                            .classIdentitySchema()),
+                    () -> assertEquals(CpuPartitionPreparationPlan.ExecutionStrategy.VECTOR,
+                            executable.artifact().specialization().executionStrategy()),
+                    () -> assertTrue(executable.memoryPlan().workspaces().isEmpty()),
+                    () -> assertEquals(1, files.filter(path -> path.getFileName().toString()
+                            .endsWith(".artifact")).count()));
+        }
     }
 
     @Test void advancedNormFinalizesTwoBuffersNoWorkspaceAndOneSchema46Artifact()
@@ -100,7 +128,7 @@ public class CpuPartitionFinalizerTest {
         try (var files = Files.list(artifactRoot)) {
             assertAll(() -> assertEquals(2, executable.bufferSelectionCount()),
                     () -> assertTrue(executable.memoryPlan().workspaces().isEmpty()),
-                    () -> assertEquals(62, io.github.pho001.synaptik.backend.cpu.internal.cache
+                    () -> assertEquals(63, io.github.pho001.synaptik.backend.cpu.internal.cache
                             .CpuGeneratorSchema.CURRENT_VERSION),
                     () -> assertEquals(1, files.filter(path -> path.getFileName().toString()
                             .endsWith(".artifact")).count()));
@@ -124,7 +152,7 @@ public class CpuPartitionFinalizerTest {
             assertAll(() -> assertEquals(3, executable.bufferSelectionCount()),
                     () -> assertEquals(3, executable.memoryPlan().buffers().size()),
                     () -> assertEquals(1, executable.memoryPlan().workspaces().size()),
-                    () -> assertEquals(62, io.github.pho001.synaptik.backend.cpu.internal.cache
+                    () -> assertEquals(63, io.github.pho001.synaptik.backend.cpu.internal.cache
                             .CpuGeneratorSchema.CURRENT_VERSION),
                     () -> assertEquals(1, files.filter(path -> path.getFileName().toString()
                             .endsWith(".artifact")).count()));
@@ -321,7 +349,7 @@ public class CpuPartitionFinalizerTest {
             assertAll(() -> assertEquals(2, executable.bufferSelectionCount()),
                     () -> assertEquals(2, executable.memoryPlan().buffers().size()),
                     () -> assertTrue(executable.memoryPlan().workspaces().isEmpty()),
-                    () -> assertEquals(62, io.github.pho001.synaptik.backend.cpu.internal.cache
+                    () -> assertEquals(63, io.github.pho001.synaptik.backend.cpu.internal.cache
                             .CpuGeneratorSchema.CURRENT_VERSION),
                     () -> assertEquals(1, files.filter(path -> path.getFileName().toString()
                             .endsWith(".artifact")).count()));
@@ -364,7 +392,7 @@ public class CpuPartitionFinalizerTest {
             assertAll(() -> assertEquals(2, executable.bufferSelectionCount()),
                     () -> assertEquals(2, executable.memoryPlan().buffers().size()),
                     () -> assertTrue(executable.memoryPlan().workspaces().isEmpty()),
-                    () -> assertEquals(62, io.github.pho001.synaptik.backend.cpu.internal.cache
+                    () -> assertEquals(63, io.github.pho001.synaptik.backend.cpu.internal.cache
                             .CpuGeneratorSchema.CURRENT_VERSION),
                     () -> assertEquals(1, files.filter(path -> path.getFileName().toString()
                             .endsWith(".artifact")).count()));

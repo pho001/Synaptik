@@ -43,6 +43,7 @@ final class CpuCarrierEmitter {
     private final CodeBuilder code;
     private final int layoutLocalBase;
     private int speciesLocal = -1;
+    private int vectorByteOrderLocal = -1;
     private int maskByteSpeciesLocal = -1;
     private int maskByteAccessLocal = -1;
     /**
@@ -101,6 +102,17 @@ final class CpuCarrierEmitter {
         if (speciesLocal >= 0) return;
         speciesLocal = code.allocateLocal(TypeKind.REFERENCE);
         code.getstatic(vectorClass(type), "SPECIES_PREFERRED", VECTOR_SPECIES).astore(speciesLocal);
+    }
+
+    /**
+     * Emits and retains the native byte order once for repeated direct segment vector access.
+     * Array-only generated bodies do not call this method or allocate the local.
+     */
+    void prepareVectorByteOrder() {
+        if (vectorByteOrderLocal >= 0) return;
+        vectorByteOrderLocal = code.allocateLocal(TypeKind.REFERENCE);
+        code.invokestatic(BYTE_ORDER, "nativeOrder", MethodTypeDesc.of(BYTE_ORDER))
+                .astore(vectorByteOrderLocal);
     }
 
     /**
@@ -517,7 +529,11 @@ final class CpuCarrierEmitter {
         if (speciesLocal < 0) prepareVectorSpecies(type);
         code.aload(speciesLocal);
         if (broadcast) {
-            load(type, access, parameterSlot, addressLocal, intAddress);
+            if (vectorByteOrderLocal >= 0) {
+                loadFrozen(type, access, parameterSlot, addressLocal, intAddress);
+            } else {
+                load(type, access, parameterSlot, addressLocal, intAddress);
+            }
             code.invokestatic(vector, "broadcast", MethodTypeDesc.of(vector,
                     VECTOR_SPECIES, primitive(type)));
             return;
@@ -530,7 +546,8 @@ final class CpuCarrierEmitter {
                     TypeKind.INT.upperBound()));
         } else if (access == CarrierAccess.MEMORY_SEGMENT) {
             code.lload(addressLocal).loadConstant((long) type.byteWidth()).lmul();
-            code.invokestatic(BYTE_ORDER, "nativeOrder", MethodTypeDesc.of(BYTE_ORDER));
+            if (vectorByteOrderLocal >= 0) code.aload(vectorByteOrderLocal);
+            else code.invokestatic(BYTE_ORDER, "nativeOrder", MethodTypeDesc.of(BYTE_ORDER));
             code.invokestatic(vector, "fromMemorySegment", MethodTypeDesc.of(vector,
                     VECTOR_SPECIES, SEGMENT, TypeKind.LONG.upperBound(), BYTE_ORDER));
         } else throw new IllegalArgumentException("carrier does not match vector data type");
@@ -577,7 +594,8 @@ final class CpuCarrierEmitter {
                     TypeKind.INT.upperBound()));
         } else if (access == CarrierAccess.MEMORY_SEGMENT) {
             code.lload(addressLocal).loadConstant((long) type.byteWidth()).lmul();
-            code.invokestatic(BYTE_ORDER, "nativeOrder", MethodTypeDesc.of(BYTE_ORDER));
+            if (vectorByteOrderLocal >= 0) code.aload(vectorByteOrderLocal);
+            else code.invokestatic(BYTE_ORDER, "nativeOrder", MethodTypeDesc.of(BYTE_ORDER));
             code.invokevirtual(vector, "intoMemorySegment", MethodTypeDesc.of(
                     TypeKind.VOID.upperBound(), SEGMENT, TypeKind.LONG.upperBound(), BYTE_ORDER));
         } else throw new IllegalArgumentException("carrier does not match vector data type");

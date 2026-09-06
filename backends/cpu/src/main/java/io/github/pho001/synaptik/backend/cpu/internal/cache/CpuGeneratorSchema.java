@@ -117,6 +117,14 @@ package io.github.pho001.synaptik.backend.cpu.internal.cache;
  * schema 52 for virtual-mask-only pointwise classes.
  * Schema 62 adds direct preferred-species FLOAT32/FLOAT64 MSE {@code NONE} vector chunks with
  * scalar tails while preserving schema 58 for every scalar loss class.
+ * Schema 63 adds the {@code OUTPUT_WIDTH_LANE_PARALLEL_V1} nested-loop realization for direct,
+ * same-typed, dense FLOAT32/FLOAT64 Conv2d and Conv3d. The realization uses preferred-species
+ * output-width lanes, scalar range fragments and borders, and the existing ordered per-cell
+ * accumulation. Width stride and dilation must be one; non-width stride and dilation remain
+ * eligible. Array, native-order segment, and ordered mixed-carrier forms share this selective
+ * schema, while BFLOAT16, external epilogues, non-dense access, short or interior-free widths,
+ * and Conv1d composition retain scalar fallback. Scalar convolution classes retain their
+ * historical schema-52 class projection.
  * The optional persistent envelope stores this version and has no legacy reader, migration path,
  * or converter. Schema 47 adds first-class stable softmax/log-softmax. Schema 48 adds the four
  * trailing Layer/RMS forms, ordered mixed-type boundaries, exact typed epsilon identity,
@@ -204,10 +212,13 @@ public final class CpuGeneratorSchema {
      * for unchanged pointwise forms. Schema 61 adds only dense FLOAT32/FLOAT64 vector-mask BOOL
      * publication and reload classes; virtual-only and scalar pointwise projections remain on
      * their prior class schemas. Schema 62 adds only same-typed contiguous FLOAT32/FLOAT64 MSE
-     * {@code NONE} vector bodies; scalar losses retain schema 58. Envelopes written for earlier
-     * schemas are incompatible misses.
+     * {@code NONE} vector bodies; scalar losses retain schema 58. Schema 63 adds only the proved
+     * {@code OUTPUT_WIDTH_LANE_PARALLEL_V1} direct dense FLOAT32/FLOAT64 Conv2d/Conv3d vector
+     * classes; width stride and dilation are one while non-width geometry remains eligible.
+     * Every scalar convolution retains its historical schema-52 class projection. Envelopes
+     * written for earlier schemas are incompatible misses.
      */
-    public static final int CURRENT_VERSION = 62;
+    public static final int CURRENT_VERSION = 63;
     /** Generated entry name. */ public static final String ENTRY_NAME = "invoke";
     private CpuGeneratorSchema() { }
 

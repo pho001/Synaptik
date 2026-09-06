@@ -3,6 +3,7 @@ package io.github.pho001.synaptik.backend.cpu.internal.codegen.emit;
 import static org.junit.jupiter.api.Assertions.*;
 
 import io.github.pho001.synaptik.backend.cpu.internal.cache.CpuKernelSpecialization.CarrierAccess;
+import io.github.pho001.synaptik.backend.cpu.internal.cache.CpuKernelSpecialization;
 import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuConv2dLoweringTest;
 import io.github.pho001.synaptik.backend.cpu.internal.prepare.CpuPartitionAnalysisInputs;
 import io.github.pho001.synaptik.backend.cpu.internal.prepare.CpuPartitionPreparer;
@@ -31,10 +32,14 @@ import java.lang.foreign.ValueLayout;
 import java.nio.ByteOrder;
 import java.lang.reflect.AccessFlag;
 import java.util.List;
+import jdk.incubator.vector.DoubleVector;
+import jdk.incubator.vector.FloatVector;
 import org.junit.jupiter.api.Test;
 
 class CpuConv2dGeneratedKernelTest {
     private static final ValueLayout.OfFloat FLOAT = ValueLayout.JAVA_FLOAT_UNALIGNED
+            .withOrder(ByteOrder.nativeOrder());
+    private static final ValueLayout.OfDouble DOUBLE = ValueLayout.JAVA_DOUBLE_UNALIGNED
             .withOrder(ByteOrder.nativeOrder());
     @Test void emitsDeterministicDirectGroupedFloatBody() throws Throwable {
         var base = CpuConv2dLoweringTest.context(
@@ -147,6 +152,167 @@ class CpuConv2dGeneratedKernelTest {
                 () -> assertTrue(Double.isNaN(output[8])));
     }
 
+    @Test void provisionalNestedFloatVectorMatchesGroupedBiasedScalarForSubrange() throws Throwable {
+        var base = CpuConv2dLoweringTest.context(
+                List.of(DataType.FLOAT32, DataType.FLOAT32, DataType.FLOAT32),
+                Shape.of(2, 4, 3, 18), Shape.of(6, 2, 2, 3), Shape.of(2, 6, 4, 18),
+                new Conv2dAttrs(1, 1, 1, 1, 1, 1, 2), null);
+        var plan = new CpuPartitionPreparer().analyze(withInputs(base,
+                new CpuPartitionAnalysisInputs(false,
+                        java.util.Collections.nCopies(4, CarrierAccess.FLOAT_ARRAY)))).plan();
+        var route = plan.units().getFirst().portablePlan();
+        var vector = provisionalVector(route.specialization(),
+                FloatVector.SPECIES_PREFERRED.vectorBitSize());
+        var generator = new CpuClassFileKernelGenerator();
+        var scalarHandle = generator.defineClassBytes(route.specialization(),
+                generator.generateClassBytes(route.specialization(), route.kernelIr())).entryPoint();
+        byte[] vectorBytes = generator.generateClassBytes(vector, route.kernelIr());
+        var vectorHandle = generator.defineClassBytes(vector, vectorBytes).entryPoint();
+        float[] input = new float[2 * 4 * 3 * 18];
+        float[] weight = new float[6 * 2 * 2 * 3];
+        float[] bias = {.25f, -.5f, 1f, -2f, .125f, -.75f};
+        for (int i = 0; i < input.length; i++) input[i] = (i % 37 - 18) * .03125f;
+        for (int i = 0; i < weight.length; i++) weight[i] = (i % 17 - 8) * .0625f;
+        int count = 2 * 6 * 4 * 18;
+        float[] scalar = new float[count];
+        float[] actual = new float[count];
+        java.util.Arrays.fill(scalar, 91.25f);
+        java.util.Arrays.fill(actual, 91.25f);
+        long[] geometry = plan.conv2dGeometry().orElseThrow().pack(new long[4]);
+        long start = 5;
+        long end = count - 7L;
+        scalarHandle.invokeExact(input, weight, bias, scalar, geometry, start, end);
+        vectorHandle.invokeExact(input, weight, bias, actual, geometry, start, end);
+        assertArrayEquals(rawBits(scalar), rawBits(actual));
+        assertVectorMembers(vectorBytes, "FloatVector");
+    }
+
+    @Test void provisionalNestedDoubleVectorMatchesHeightStrideAndDilationScalar()
+            throws Throwable {
+        var base = CpuConv2dLoweringTest.context(List.of(DataType.FLOAT64, DataType.FLOAT64),
+                Shape.of(2, 3, 9, 18), Shape.of(4, 3, 3, 3), Shape.of(2, 4, 4, 18),
+                new Conv2dAttrs(2, 1, 1, 1, 2, 1, 1), null);
+        var plan = new CpuPartitionPreparer().analyze(withInputs(base,
+                new CpuPartitionAnalysisInputs(false,
+                        java.util.Collections.nCopies(3, CarrierAccess.DOUBLE_ARRAY)))).plan();
+        var route = plan.units().getFirst().portablePlan();
+        var vector = provisionalVector(route.specialization(),
+                DoubleVector.SPECIES_PREFERRED.vectorBitSize());
+        var generator = new CpuClassFileKernelGenerator();
+        var scalarHandle = generator.defineClassBytes(route.specialization(),
+                generator.generateClassBytes(route.specialization(), route.kernelIr())).entryPoint();
+        byte[] vectorBytes = generator.generateClassBytes(vector, route.kernelIr());
+        var vectorHandle = generator.defineClassBytes(vector, vectorBytes).entryPoint();
+        double[] input = new double[2 * 3 * 9 * 18];
+        double[] weight = new double[4 * 3 * 3 * 3];
+        for (int i = 0; i < input.length; i++) input[i] = (i % 41 - 20) * .015625;
+        for (int i = 0; i < weight.length; i++) weight[i] = (i % 19 - 9) * .03125;
+        int count = 2 * 4 * 4 * 18;
+        double[] scalar = new double[count];
+        double[] actual = new double[count];
+        java.util.Arrays.fill(scalar, -73.5);
+        java.util.Arrays.fill(actual, -73.5);
+        long[] geometry = plan.conv2dGeometry().orElseThrow().pack(new long[3]);
+        long start = 3;
+        long end = count - 5L;
+        scalarHandle.invokeExact(input, weight, scalar, geometry, start, end);
+        vectorHandle.invokeExact(input, weight, actual, geometry, start, end);
+        assertArrayEquals(rawBits(scalar), rawBits(actual));
+        assertVectorMembers(vectorBytes, "DoubleVector");
+    }
+
+    @Test void provisionalNestedFloatVectorSupportsOffsetNativeSegments() throws Throwable {
+        Shape inputShape = Shape.of(1, 2, 3, 18);
+        Shape weightShape = Shape.of(3, 2, 2, 3);
+        Shape outputShape = Shape.of(1, 3, 4, 18);
+        var layouts = List.of(offsetLayout(inputShape, 3), offsetLayout(weightShape, 2),
+                offsetLayout(Shape.of(3), 1), offsetLayout(outputShape, 4));
+        var base = CpuConv2dLoweringTest.context(
+                List.of(DataType.FLOAT32, DataType.FLOAT32, DataType.FLOAT32), inputShape,
+                weightShape, outputShape, new Conv2dAttrs(1, 1, 1, 1, 1, 1, 1), layouts);
+        var plan = new CpuPartitionPreparer().analyze(withInputs(base,
+                new CpuPartitionAnalysisInputs(false,
+                        java.util.Collections.nCopies(4, CarrierAccess.MEMORY_SEGMENT)))).plan();
+        var route = plan.units().getFirst().portablePlan();
+        var vector = provisionalVector(route.specialization(),
+                FloatVector.SPECIES_PREFERRED.vectorBitSize());
+        var generator = new CpuClassFileKernelGenerator();
+        var scalarHandle = generator.defineClassBytes(route.specialization(),
+                generator.generateClassBytes(route.specialization(), route.kernelIr())).entryPoint();
+        byte[] vectorBytes = generator.generateClassBytes(vector, route.kernelIr());
+        var vectorHandle = generator.defineClassBytes(vector, vectorBytes).entryPoint();
+        try (Arena arena = Arena.ofConfined()) {
+            var input = arena.allocate((3 + 1 * 2 * 3 * 18L) * Float.BYTES, Float.BYTES);
+            var weight = arena.allocate((2 + 3 * 2 * 2 * 3L) * Float.BYTES, Float.BYTES);
+            var bias = arena.allocate((1 + 3L) * Float.BYTES, Float.BYTES);
+            var scalar = arena.allocate((4 + 1 * 3 * 4 * 18L) * Float.BYTES, Float.BYTES);
+            var actual = arena.allocate(scalar.byteSize(), Float.BYTES);
+            for (long i = 0; i < input.byteSize() / Float.BYTES; i++)
+                input.set(FLOAT, i * Float.BYTES, (i % 29 - 14) * .03125f);
+            for (long i = 0; i < weight.byteSize() / Float.BYTES; i++)
+                weight.set(FLOAT, i * Float.BYTES, (i % 13 - 6) * .0625f);
+            for (long i = 0; i < bias.byteSize() / Float.BYTES; i++)
+                bias.set(FLOAT, i * Float.BYTES, (i - 2) * .25f);
+            scalar.fill((byte) 0x5a);
+            actual.fill((byte) 0x5a);
+            long[] geometry = plan.conv2dGeometry().orElseThrow().pack(new long[4]);
+            // Row zero supplies consecutive scalar padding cells; row one then supplies a scalar
+            // left border followed by a legal full vector block, exposing bias-seed state leaks.
+            long start = 0;
+            long end = 3L * 4 * 18 - 5;
+            scalarHandle.invokeExact(input, weight, bias, scalar, geometry, start, end);
+            vectorHandle.invokeExact(input, weight, bias, actual, geometry, start, end);
+            assertArrayEquals(scalar.toArray(ValueLayout.JAVA_BYTE),
+                    actual.toArray(ValueLayout.JAVA_BYTE));
+        }
+        assertVectorMembers(vectorBytes, "FloatVector");
+    }
+
+    @Test void provisionalNestedDoubleVectorSupportsOrderedMixedCarriers() throws Throwable {
+        Shape inputShape = Shape.of(1, 2, 5, 18);
+        Shape weightShape = Shape.of(2, 2, 2, 3);
+        Shape outputShape = Shape.of(1, 2, 3, 18);
+        var layouts = List.of(offsetLayout(inputShape, 2), offsetLayout(weightShape, 3),
+                offsetLayout(Shape.of(2), 1), offsetLayout(outputShape, 4));
+        var base = CpuConv2dLoweringTest.context(
+                List.of(DataType.FLOAT64, DataType.FLOAT64, DataType.FLOAT64), inputShape,
+                weightShape, outputShape, new Conv2dAttrs(2, 1, 1, 1, 1, 1, 1), layouts);
+        var carriers = List.of(CarrierAccess.DOUBLE_ARRAY, CarrierAccess.MEMORY_SEGMENT,
+                CarrierAccess.DOUBLE_ARRAY, CarrierAccess.MEMORY_SEGMENT);
+        var plan = new CpuPartitionPreparer().analyze(withInputs(base,
+                new CpuPartitionAnalysisInputs(false, carriers))).plan();
+        var route = plan.units().getFirst().portablePlan();
+        var vector = provisionalVector(route.specialization(),
+                DoubleVector.SPECIES_PREFERRED.vectorBitSize());
+        var generator = new CpuClassFileKernelGenerator();
+        var scalarHandle = generator.defineClassBytes(route.specialization(),
+                generator.generateClassBytes(route.specialization(), route.kernelIr())).entryPoint();
+        byte[] vectorBytes = generator.generateClassBytes(vector, route.kernelIr());
+        var vectorHandle = generator.defineClassBytes(vector, vectorBytes).entryPoint();
+        double[] input = new double[2 + 1 * 2 * 5 * 18];
+        double[] bias = new double[3];
+        for (int i = 0; i < input.length; i++) input[i] = (i % 31 - 15) * .015625;
+        bias[1] = .25;
+        bias[2] = -.5;
+        try (Arena arena = Arena.ofConfined()) {
+            var weight = arena.allocate((3 + 2 * 2 * 2 * 3L) * Double.BYTES, Double.BYTES);
+            var scalar = arena.allocate((4 + 1 * 2 * 3 * 18L) * Double.BYTES, Double.BYTES);
+            var actual = arena.allocate(scalar.byteSize(), Double.BYTES);
+            for (long i = 0; i < weight.byteSize() / Double.BYTES; i++)
+                weight.set(DOUBLE, i * Double.BYTES, (i % 17 - 8) * .03125);
+            scalar.fill((byte) 0x39);
+            actual.fill((byte) 0x39);
+            long[] geometry = plan.conv2dGeometry().orElseThrow().pack(new long[4]);
+            long start = 5;
+            long end = 2L * 3 * 18 - 3;
+            scalarHandle.invokeExact(input, weight, bias, scalar, geometry, start, end);
+            vectorHandle.invokeExact(input, weight, bias, actual, geometry, start, end);
+            assertArrayEquals(scalar.toArray(ValueLayout.JAVA_BYTE),
+                    actual.toArray(ValueLayout.JAVA_BYTE));
+        }
+        assertVectorMembers(vectorBytes, "DoubleVector");
+    }
+
     @Test void fusesExternalAddAndReluAfterRepresentedConvolutionBoundary() throws Throwable {
         var base = fusedContext();
         var context = withInputs(base, new CpuPartitionAnalysisInputs(false,
@@ -170,8 +336,36 @@ class CpuConv2dGeneratedKernelTest {
         assertTrue(plan.workspaceDeclaration().isEmpty());
     }
 
+    @Test void productionSelectionRejectsExternalEpilogueAtVectorEligibleWidth() {
+        var base = fusedContext(67);
+        var vector = new CpuPartitionAnalysisInputs.PortableExecutionConfig(
+                CpuPartitionAnalysisInputs.PortableExecutionConfig.ComputePreference
+                        .VECTOR_IF_ELIGIBLE,
+                1, 1, 1);
+        var context = withInputs(base, new CpuPartitionAnalysisInputs(false,
+                java.util.Collections.nCopies(5, CarrierAccess.FLOAT_ARRAY), vector));
+        var plan = new CpuPartitionPreparer().analyze(context).plan();
+
+        assertAll(
+                () -> assertEquals(io.github.pho001.synaptik.backend.cpu.internal.ir.CpuConv2dIr
+                                .Epilogue.ADD_RELU,
+                        ((io.github.pho001.synaptik.backend.cpu.internal.ir.CpuConv2dIr)
+                                plan.units().getFirst().portablePlan().portableKernelIr())
+                                .epilogue()),
+                () -> assertEquals(io.github.pho001.synaptik.backend.cpu.internal.prepare
+                                .CpuPartitionPreparationPlan.ExecutionStrategy.SCALAR,
+                        plan.executionStrategy()),
+                () -> assertEquals(52, plan.units().getFirst().portablePlan()
+                        .specialization().classIdentitySchema()),
+                () -> assertEquals(0, plan.vectorSpeciesBitSize()));
+    }
+
     static PrepareContext<CpuPartitionAnalysisInputs> fusedContext() {
-        Shape shape = Shape.of(1, 1, 2, 2), weightShape = Shape.of(1, 1, 1, 1);
+        return fusedContext(2);
+    }
+
+    private static PrepareContext<CpuPartitionAnalysisInputs> fusedContext(int width) {
+        Shape shape = Shape.of(1, 1, 2, width), weightShape = Shape.of(1, 1, 1, 1);
         TensorDescriptor tensor = new TensorDescriptor(DataType.FLOAT32, shape,
                 Optional.of(LayoutDescriptor.contiguous(shape)), false);
         TensorDescriptor weight = new TensorDescriptor(DataType.FLOAT32, weightShape,
@@ -207,6 +401,55 @@ class CpuConv2dGeneratedKernelTest {
 
     private static short bf16(float value) {
         return (short) (Float.floatToRawIntBits(value) >>> 16);
+    }
+
+    private static CpuKernelSpecialization provisionalVector(CpuKernelSpecialization scalar,
+            int speciesBits) {
+        return new CpuKernelSpecialization(scalar.loweringFingerprint(), scalar.numericalMode(),
+                io.github.pho001.synaptik.backend.cpu.internal.prepare
+                        .CpuPartitionPreparationPlan.ExecutionStrategy.VECTOR,
+                scalar.boundaryDataTypes(), scalar.carrierPattern(), speciesBits, -1,
+                scalar.scalarPowerRealizations(), false, 63);
+    }
+
+    private static int[] rawBits(float[] values) {
+        int[] bits = new int[values.length];
+        for (int i = 0; i < values.length; i++) bits[i] = Float.floatToRawIntBits(values[i]);
+        return bits;
+    }
+
+    private static LayoutDescriptor offsetLayout(Shape shape, long offset) {
+        long[] extents = shape.toLongArray();
+        long[] strides = new long[extents.length];
+        long stride = 1;
+        for (int axis = extents.length - 1; axis >= 0; axis--) {
+            strides[axis] = stride;
+            stride = Math.multiplyExact(stride, extents[axis]);
+        }
+        return LayoutDescriptor.of(shape, strides, offset, true);
+    }
+
+    private static long[] rawBits(double[] values) {
+        long[] bits = new long[values.length];
+        for (int i = 0; i < values.length; i++) bits[i] = Double.doubleToRawLongBits(values[i]);
+        return bits;
+    }
+
+    private static void assertVectorMembers(byte[] bytes, String vectorClass) {
+        String members = java.util.stream.StreamSupport.stream(
+                        ClassFile.of().parse(bytes).constantPool().spliterator(), false)
+                .filter(MemberRefEntry.class::isInstance).map(MemberRefEntry.class::cast)
+                .map(member -> member.owner().asInternalName() + '.' + member.name().stringValue())
+                .collect(java.util.stream.Collectors.joining("\n"));
+        assertAll(() -> assertTrue(members.contains(vectorClass + ".fromArray")
+                        || members.contains(vectorClass + ".fromMemorySegment")),
+                () -> assertTrue(members.contains(vectorClass + ".broadcast")),
+                () -> assertTrue(members.contains(vectorClass + ".mul")),
+                () -> assertTrue(members.contains(vectorClass + ".add")),
+                () -> assertTrue(members.contains(vectorClass + ".intoArray")
+                        || members.contains(vectorClass + ".intoMemorySegment")),
+                () -> assertFalse(members.contains("Math.fma")),
+                () -> assertFalse(members.contains("synaptik")));
     }
 
     private static PrepareContext<CpuPartitionAnalysisInputs> withInputs(

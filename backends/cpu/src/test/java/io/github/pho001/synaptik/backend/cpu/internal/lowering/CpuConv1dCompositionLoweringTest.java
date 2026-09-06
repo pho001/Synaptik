@@ -41,8 +41,33 @@ class CpuConv1dCompositionLoweringTest {
 
     @Test void wrongAxisFailsClosed(){assertThrows(IllegalArgumentException.class,()->new CpuPartitionLowering().lower(context(1)));}
 
+    @Test void productionSelectionRemainsScalarForAnOtherwiseVectorEligibleWidth() {
+        var base = context(2, 67);
+        var vector = new CpuPartitionAnalysisInputs.PortableExecutionConfig(
+                CpuPartitionAnalysisInputs.PortableExecutionConfig.ComputePreference
+                        .VECTOR_IF_ELIGIBLE,
+                1, 1, 1);
+        var context = new PrepareContext<>(base.partition(), base.nodes(), base.values(),
+                base.memoryRequirements(), base.constants(), new CpuPartitionAnalysisInputs(false,
+                        List.of(CarrierAccess.FLOAT_ARRAY, CarrierAccess.FLOAT_ARRAY,
+                                CarrierAccess.FLOAT_ARRAY, CarrierAccess.FLOAT_ARRAY), vector));
+        var plan = new CpuPartitionPreparer().analyze(context).plan();
+
+        assertAll(
+                () -> assertEquals(io.github.pho001.synaptik.backend.cpu.internal.prepare
+                                .CpuPartitionPreparationPlan.ExecutionStrategy.SCALAR,
+                        plan.executionStrategy()),
+                () -> assertEquals(52, plan.units().getFirst().portablePlan()
+                        .specialization().classIdentitySchema()),
+                () -> assertEquals(0, plan.vectorSpeciesBitSize()));
+    }
+
     static PrepareContext<CpuPartitionAnalysisInputs> context(int axis){
-        Shape x=Shape.of(1,2,4),w=Shape.of(2,2,3),b=Shape.of(2),ex=Shape.of(1,2,1,4),ew=Shape.of(2,2,1,3),cy=Shape.of(1,2,1,4),y=Shape.of(1,2,4);
+        return context(axis, 4);
+    }
+
+    static PrepareContext<CpuPartitionAnalysisInputs> context(int axis, int width){
+        Shape x=Shape.of(1,2,width),w=Shape.of(2,2,3),b=Shape.of(2),ex=Shape.of(1,2,1,width),ew=Shape.of(2,2,1,3),cy=Shape.of(1,2,1,width),y=Shape.of(1,2,width);
         List<Shape> shapes=List.of(x,w,b,ex,ew,cy,y);List<DataType> types=java.util.Collections.nCopies(7,DataType.FLOAT32);List<ValueId> ids=java.util.stream.LongStream.range(0,7).mapToObj(ValueId::new).toList();
         List<CompiledNode> nodes=List.of(new CompiledNode(new NodeId(0),new Operation(AxisTransformKind.EXPAND_DIMS,new AxisTransformAttrs(axis)),List.of(ids.get(0)),List.of(ids.get(3))),new CompiledNode(new NodeId(1),new Operation(AxisTransformKind.EXPAND_DIMS,new AxisTransformAttrs(2)),List.of(ids.get(1)),List.of(ids.get(4))),new CompiledNode(new NodeId(2),new Operation(Conv2dKind.CONV2D,new Conv2dAttrs(1,1,0,1,1,1,1)),List.of(ids.get(3),ids.get(4),ids.get(2)),List.of(ids.get(5))),new CompiledNode(new NodeId(3),new Operation(AxisTransformKind.SQUEEZE,new AxisTransformAttrs(2)),List.of(ids.get(5)),List.of(ids.get(6))));
         var partition=new PlannedPartition(CpuCapabilityProvider.CPU_BACKEND_ID,nodes.stream().map(CompiledNode::id).toList());var values=new ArrayList<GraphValue>();var memory=new ArrayList<LogicalMemoryRequirement>();

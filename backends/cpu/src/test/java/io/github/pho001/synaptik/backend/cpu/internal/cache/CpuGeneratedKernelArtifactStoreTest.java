@@ -23,6 +23,68 @@ import jdk.incubator.vector.DoubleVector;
 class CpuGeneratedKernelArtifactStoreTest {
     @TempDir Path root;
 
+    @Test void publishesReloadsSchema63ConvAndRejectsStaleSchema62Envelope() throws Exception {
+        var base = io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuConv2dLoweringTest
+                .context(List.of(io.github.pho001.synaptik.model.datatype.DataType.FLOAT32,
+                                io.github.pho001.synaptik.model.datatype.DataType.FLOAT32),
+                        Shape.of(1, 1, 5, 67), Shape.of(2, 1, 3, 3), Shape.of(1, 2, 3, 65),
+                        io.github.pho001.synaptik.model.operation.convolution.Conv2dAttrs.defaults(),
+                        null);
+        var carriers = List.of(CpuKernelSpecialization.CarrierAccess.FLOAT_ARRAY,
+                CpuKernelSpecialization.CarrierAccess.MEMORY_SEGMENT,
+                CpuKernelSpecialization.CarrierAccess.FLOAT_ARRAY);
+        var vectorInputs = new CpuPartitionAnalysisInputs(false, carriers,
+                new PortableExecutionConfig(ComputePreference.VECTOR_IF_ELIGIBLE, 1, 1, 1));
+        var scalarInputs = new CpuPartitionAnalysisInputs(false, carriers,
+                new PortableExecutionConfig(ComputePreference.SCALAR, 1, 1, 1));
+        var vectorContext = new io.github.pho001.synaptik.prepare.analysis.PrepareContext<>(
+                base.partition(), base.nodes(), base.values(), base.memoryRequirements(),
+                base.constants(), vectorInputs);
+        var scalarContext = new io.github.pho001.synaptik.prepare.analysis.PrepareContext<>(
+                base.partition(), base.nodes(), base.values(), base.memoryRequirements(),
+                base.constants(), scalarInputs);
+        var preparer = new io.github.pho001.synaptik.backend.cpu.internal.prepare
+                .CpuPartitionPreparer();
+        var vectorRoute = preparer.analyze(vectorContext).plan().units().getFirst().portablePlan();
+        var scalarRoute = preparer.analyze(scalarContext).plan().units().getFirst().portablePlan();
+        var store = new CpuGeneratedKernelArtifactStore(Optional.of(root));
+
+        CpuGeneratedKernelArtifactStore.clearLoadedForTests();
+        var generated = store.loadOrGenerateObserved(vectorRoute.specialization(),
+                vectorRoute.kernelIr());
+        Path envelope = root.resolve(vectorRoute.specialization().structuralKey() + ".artifact");
+        CpuGeneratedKernelArtifactStore.clearLoadedForTests();
+        var reloaded = store.loadOrGenerateObserved(vectorRoute.specialization(),
+                vectorRoute.kernelIr());
+        byte[] stale = Files.readAllBytes(envelope);
+        java.nio.ByteBuffer.wrap(stale).putInt(4, 62);
+        Files.write(envelope, stale);
+        CpuGeneratedKernelArtifactStore.clearLoadedForTests();
+        var recovered = store.loadOrGenerateObserved(vectorRoute.specialization(),
+                vectorRoute.kernelIr());
+
+        assertAll(
+                () -> assertEquals(63, CpuGeneratorSchema.CURRENT_VERSION),
+                () -> assertEquals(63, vectorRoute.specialization().classIdentitySchema()),
+                () -> assertEquals(52, scalarRoute.specialization().classIdentitySchema()),
+                () -> assertNotEquals(scalarRoute.specialization().structuralKey(),
+                        vectorRoute.specialization().structuralKey()),
+                () -> assertFalse(Arrays.equals(scalarRoute.specialization().compatibilityBytes(),
+                        vectorRoute.specialization().compatibilityBytes())),
+                () -> assertEquals(CpuGeneratedKernelArtifactStore.RealizationSource.GENERATED,
+                        generated.source()),
+                () -> assertEquals(CpuGeneratedKernelArtifactStore.RealizationSource.PERSISTED_HIT,
+                        reloaded.source()),
+                () -> assertArrayEquals(generated.artifact().classBytes(),
+                        reloaded.artifact().classBytes()),
+                () -> assertEquals(CpuGeneratedKernelArtifactStore.RealizationSource.GENERATED,
+                        recovered.source()),
+                () -> assertArrayEquals(generated.artifact().classBytes(),
+                        recovered.artifact().classBytes()),
+                () -> assertEquals(63, java.nio.ByteBuffer.wrap(Files.readAllBytes(envelope))
+                        .getInt(4)));
+    }
+
     @Test void supportsNoRootCurrentSchemaHitsAndCorruptRootFallback() throws Exception {
         var route = CpuPartitionPreparerTest.analyze(Shape.of(8)).plan().units().getFirst().portablePlan();
         CpuGeneratedKernelArtifactStore.clearLoadedForTests();
@@ -40,7 +102,7 @@ class CpuGeneratedKernelArtifactStoreTest {
                 route.specialization(), route.kernelIr());
         var hit = hitResult.artifact();
         assertAll(
-                () -> assertEquals(62, CpuGeneratorSchema.CURRENT_VERSION),
+                () -> assertEquals(63, CpuGeneratorSchema.CURRENT_VERSION),
                 () -> assertTrue(Files.exists(root.resolve("legacy-v1.class"))),
                 () -> assertArrayEquals(memoryOnly.classBytes(), persisted.classBytes()),
                 () -> assertTrue(Files.size(current) > persisted.classBytes().length),
@@ -126,7 +188,7 @@ class CpuGeneratedKernelArtifactStoreTest {
                             recovered.source()),
                     () -> assertArrayEquals(seed.artifact().classBytes(),
                             recovered.artifact().classBytes()),
-                    () -> assertEquals(62, java.nio.ByteBuffer.wrap(Files.readAllBytes(file))
+                    () -> assertEquals(63, java.nio.ByteBuffer.wrap(Files.readAllBytes(file))
                             .getInt(4)),
                     () -> assertTrue(Files.size(file) <=
                             CpuGeneratedKernelArtifactStore.MAX_ENVELOPE_BYTES));
