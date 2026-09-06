@@ -2,11 +2,11 @@
 
 ## Status
 
-Ready
+Blocked
 
 ## Goal
 
-Establish the complete, finite, source-derived projection basis for every currently admitted CPU scalar-immediate operation and floating clamp before CPU 0009 inventories generated coverage. Prove generated execution equivalent to the matching optimal clean Java 26 specialization for each distinct form, and project only members whose Class-Files mechanically differ in declared constant locations. Do not enumerate arbitrary immediate bit patterns.
+Establish the complete, finite, source-derived projection basis for every currently admitted CPU scalar-immediate operation and floating clamp before CPU 0009 inventories generated coverage. Prove generated execution equivalent to the matching optimal clean Java 26 specialization for each distinct form, and project only members whose Class-Files mechanically differ in declared constant locations. Do not enumerate arbitrary immediate bit patterns. Implementation is blocked on [CPU 0008Q1A](0008q1a-vector-scalar-power-hot-path-self-containment.md), which must first remove the independently observed Synaptik helper calls from generated vector scalar-power hot paths and regenerate compatible artifacts under its own evidence gate.
 
 ## Scope
 
@@ -33,6 +33,7 @@ Establish the complete, finite, source-derived projection basis for every curren
 - [Planning Guide](../../../planning-guide.md): status, bounded scope, validation, and documentation handoff.
 - [CPU master plan](../master-plan.md): CPU package ownership, four strategies, and task order.
 - [CPU 0005F](0005f-floating-division-and-exact-scalar-power-realization.md), [CPU 0005G](0005g-extrema-clamp-tensor-power-and-logical-coverage.md), [CPU 0005J](0005j-bounded-pointwise-coverage-and-parity-hardening.md), [CPU 0008J](0008j-bfloat16-scalar-pointwise-closure.md), [CPU 0008L](0008l-pointwise-simd-mask-output-closure.md), and [CPU 0008Q](0008q-scalar-immediate-clamp-generated-equivalence.md).
+- [CPU 0008Q1A](0008q1a-vector-scalar-power-hot-path-self-containment.md): required production remediation discovered by this task's independent structural test.
 
 ## Architecture constraints
 
@@ -77,7 +78,7 @@ At most five CPU test sources, three checked matrix resources, three documentati
 
 ## Stop conditions
 
-Stop and leave this task `Incomplete` if any reachable finite category cannot be classified from source; an admitted form lacks an independent optimal clean-Java oracle; a required carrier/layout/strategy witness changes unaccounted code shape; a normalizer permits a nonconstant difference; source capability/admission/selection facts contradict one another; a semantic/structural test fails; or work needs production, architecture, schema, or selection changes. Record exact form, source predicate, fixture/hash where available, and required follow-up. Do not make CPU 0009 `Ready`.
+Do not resume implementation until CPU 0008Q1A and its documentation pass are `Complete`. After resumption, stop and leave this task `Incomplete` if any reachable finite category cannot be classified from source; an admitted form lacks an independent optimal clean-Java oracle; a required carrier/layout/strategy witness changes unaccounted code shape; a normalizer permits a nonconstant difference; source capability/admission/selection facts contradict one another; a semantic/structural test fails; or work needs another production, architecture, schema, or selection change. Record exact form, source predicate, fixture/hash where available, and required follow-up. Do not make CPU 0009 `Ready`.
 
 ## Acceptance criteria
 
@@ -107,7 +108,7 @@ Validate exact TSV headers/columns/tabs/digests; hashes; bidirectional fixture/p
 
 ## Dependencies
 
-- Complete CPU 0005F, 0005G, 0005J, 0008J, 0008L, and 0008Q; current schema-63 pointwise lowering/preparation/generation; Java 26 Class-File/Vector toolchain.
+- Complete CPU 0005F, 0005G, 0005J, 0008J, 0008L, 0008Q, and CPU 0008Q1A with its separate documentation pass; then-current pointwise lowering/preparation/generation schema; Java 26 Class-File/Vector toolchain.
 - Current source is the only matrix authority. This task cannot infer a missing operation, carrier, layout, vector route, or materialization form from history.
 
 ## Follow-up tasks
@@ -122,7 +123,7 @@ Expected impact: None. Stop for an architecture, dependency, production-identity
 ## Implementation prompt
 
 ```text
-You are working in the Synaptik repository. Read AGENTS.md, ARCHITECTURE.md, the Planning Guide, the CPU master plan, CPU 0008Q, CPU 0009, and this task. Implement this test/resource matrix exactly as specified; do not change production behavior or enumerate arbitrary immediate bits. Stop for architecture or scope conflict. Do not commit or push. After executable validation, hand the stable diff and exact evidence to a separate clean documentation-focused context. That pass must follow `docs/developer-guide/documentation-rules.md` and finalize planning/Javadoc/glossary review. Update this task with results; do not mark it Complete before that pass finishes.
+You are working in the Synaptik repository after CPU 0008Q1A and its documentation pass are Complete. Read AGENTS.md, ARCHITECTURE.md, the Planning Guide, the CPU master plan, CPU 0008Q, CPU 0008Q1A, CPU 0009, and this task. Implement this test/resource matrix exactly as specified; do not change production behavior or enumerate arbitrary immediate bits. Stop for architecture or scope conflict. Do not commit or push. After executable validation, hand the stable diff and exact evidence to a separate clean documentation-focused context. That pass must follow `docs/developer-guide/documentation-rules.md` and finalize planning/Javadoc/glossary review. Update this task with results; do not mark it Complete before that pass finishes.
 ```
 
 ## Local decisions
@@ -130,14 +131,17 @@ You are working in the Synaptik repository. Read AGENTS.md, ARCHITECTURE.md, the
 - The finite matrix composes source-derived dimensions rather than a manually maintained product. Composition is allowed only after executable proof that the omitted dimension cannot change instructions, control flow, invokes, carrier access, loop/dataflow, numerical order, or semantics.
 - A finite immediate category is an emitted-code and semantic boundary, not a decimal-value bucket. `SCALAR_POW` realizations are separate before normalization; clamp bounds retain lower-then-upper order.
 - Completed 0008Q is a reusable normalizer/test seed for two BFLOAT16 scalar-MUL members, not a representative fixture for a new form or complete matrix evidence.
+- The failed vector positive-one fixture is not weakened, excluded, or reclassified. CPU 0008Q1A must correct the complete currently generated vector scalar-power family before this matrix is regenerated and resumed.
 
 ## Known limitations
 
-The matrix proves finite source-reachable categories, not all raw immediate bit patterns. It has no performance result and cannot change selection. A new source category, generator change, or incompatible hash invalidates the relevant projection until regenerated.
+The matrix proves finite source-reachable categories, not all raw immediate bit patterns. It has no performance result and cannot change selection. A new source category, generator change, or incompatible hash invalidates the relevant projection until regenerated. The six current untracked test/resource paths predate CPU 0008Q1A and remain incomplete evidence; they must not be treated as accepted hashes or projections.
 
 ## Validation evidence
 
-Planning-only evidence: reviewed the required architecture/planning contracts, CPU master plan, 0008Q, blocked 0009, current scalar lowering/IR/power analysis/preparation/generator, and focused 0005F/0005G/0005J/0008J/0008L/0008Q test evidence. Current source admits the operation/type boundary, five access regimes, exact carrier specialization, four strategy names, and source-owned power realizations recorded above. No Java, Javadoc, Class-File, or performance command ran for this planning change.
+Planning-only evidence initially reviewed the required architecture/planning contracts, CPU master plan, 0008Q, blocked 0009, current scalar lowering/IR/power analysis/preparation/generator, and focused 0005F/0005G/0005J/0008J/0008L/0008Q test evidence. Current source admits the operation/type boundary, five access regimes, exact carrier specialization, four strategy names, and source-owned power realizations recorded above.
+
+The later independent planning/documentation review ran `./gradlew :backends:cpu:test --tests '*ScalarImmediateClampMatrixStructuralTest' --rerun-tasks`. Two tests executed and one failed at `CpuScalarImmediateClampMatrixStructuralTest.java:32`: `FIXTURE-POW-FLOAT32-POSITIVE_ONE contains io/github/pho001/synaptik`. Source inspection confirmed generated vector positive-one and reciprocal scalar power call `CpuVectorMath`; therefore this task reached its existing production-change stop condition and is now `Blocked` on CPU 0008Q1A. No protected untracked path was modified.
 
 ## Implementation notes
 
