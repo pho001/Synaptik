@@ -73,7 +73,12 @@ Packages added or changed: none. Expected placement is `CpuPartialReductionIr`, 
 
 ## Affected files
 
-Expected implementation paths (at most 16 CPU source/test paths) include aggregate IR/lowering, partition lowering/preparer/finalizer, prepared executable, generated emitter/generator, workspace binding, new partial IR/emitter/reference, and focused tests mirroring their owners.
+Expected implementation paths (at most 17 CPU source/test paths) include aggregate lowering,
+partition lowering/DAG/preparer/finalizer handoff, prepared executable, generated
+emitter/generator, workspace binding, a new partial IR/emitter/reference, and focused tests
+mirroring their owners. `CpuAggregateIr` continues to mean a complete output-cell range; the
+separate partial IR and its generated partial/combine route therefore cannot truthfully be folded
+into the existing ordinary-emitter path merely to meet a smaller file count.
 
 Planning paths are exactly:
 
@@ -83,7 +88,12 @@ Planning paths are exactly:
 
 ## Maximum scope
 
-At most 19 paths: these three planning paths, ten production CPU paths, and six focused CPU test paths. If a shared Prepare/Runtime contract, second workspace type, Model change, another family, or a 20th path is needed, stop and create a separately scoped follow-up.
+At most 20 paths: these three planning paths, eleven production CPU paths, and six focused CPU
+test paths. The eleven production paths are the minimum coherent current-topology budget: the
+separate `CpuPartialReductionIr` and generated partial/combine route require their own path in
+addition to the existing cold lowering, preparation/finalization, and execution handoff owners.
+If a shared Prepare/Runtime contract, second workspace type, Model change, another family, or a
+21st path is needed, stop and create a separately scoped follow-up.
 
 ## Acceptance criteria
 
@@ -159,6 +169,26 @@ status only after that pass completes.
 
 ## Validation evidence
 
+- Planning/documentation review context: `01a07813-7d52-7873-b11a-57f95d169ba9` (independent
+  clean-context path-budget review).
+- Re-read the architecture contract, current architecture navigation, planning guide, roadmap,
+  CPU master plan, this task, documentation rules, and General and Planning profiles. Inspected
+  the current CPU aggregate IR, aggregate lowering, partition-lowering/DAG/preparation/finalization
+  handoff, prepared executable, generated-kernel generator, and schema-specialization topology.
+  `CpuAggregateIr` fixes complete output-cell ranges and the aggregate emitter owns that existing
+  route; a partial route consequently requires a separate partial IR plus a distinct generated
+  partial/combine path and the owners that carry its cold geometry, workspace, and execution
+  recipe. The existing ten-production-path ceiling therefore prevented the task's mandatory
+  coherent implementation before editing. Eleven is the smallest truthful production-path budget;
+  no scope, family, carrier, semantic, performance, shared-contract, or architecture constraint
+  was broadened or weakened.
+- Glossary impact: none. `partial reduction`, workspace, and generated route are task-local
+  planning descriptions here; this correction creates no new reusable project term or changes an
+  existing term's meaning.
+- Documentation validation in this context passed: `git diff --check`; a local relative-link
+  target scan of this task; and `rg -n "[[:blank:]]+$"
+  docs/planning/backends/cpu/tasks/0008p-deterministic-partial-reduction-parallelism.md` (no
+  output). No Java or Javadoc command applies because this pass changes planning text only.
 - Planning/documentation review context: `01a0780a-0b6e-7153-afdb-0c3d6c3037e6` (independent clean-context review).
 - Read and checked the architecture contract, current architecture navigation, planning guide,
   CPU master plan/roadmap, Model 0018U1 and 0018V, CPU 0007A1/0008B/0008O, current aggregate IR
@@ -172,9 +202,12 @@ status only after that pass completes.
 
 ## Implementation notes
 
-No implementation has begun. The implementation agent must record generated artifact/schema impact,
-tests, structural evidence, performance gates, and documentation handoff evidence here before
-requesting final review.
+No implementation has begun. A first clean implementation attempt stopped before editing because
+the former ten-production-path ceiling conflicted with the required separate partial IR and
+generated partial/combine route. This clean-context planning/documentation pass corrected the
+minimum coherent budget to eleven production paths; it made no executable change. The
+implementation agent must record generated artifact/schema impact, tests, structural evidence,
+performance gates, and documentation handoff evidence here before requesting final review.
 
 ## Completion summary
 
