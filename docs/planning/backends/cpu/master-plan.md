@@ -261,7 +261,7 @@ created by 0005A. All consume the common analysis above; none creates another ba
 | 0008M | [Vector MSE `NONE`](tasks/0008m-vector-mse-none.md) | Complete | 0008L; 0008I | Added same-typed FLOAT32/FLOAT64 contiguous array/segment/mixed-carrier vector and parallel-vector MSE `NONE`, sharing one schema-62 artifact and retaining scalar tails. Schema-58 scalar bytes, SUM/MEAN order, all 24 structural dossiers, 540 performance pairs, and the 730-test CPU suite passed. |
 | 0008N | [Measured profitable FLOAT32/FLOAT64 Conv2d/Conv3d SIMD accumulation](tasks/0008n-measured-profitable-float32-float64-conv2d-conv3d-simd-accumulation.md) | Incomplete (bounded scalar stop) | 0008M; bounded implementation-time axis/profitability spike | Source-level output-width lanes were semantically viable, but the first actual generated Conv2d FLOAT32 array diagnostic failed generated/direct parity at `1.775769426x > 1.15x` despite passing generated/scalar at `0.265215012x`. Schema remains 62 and every Conv route remains scalar. |
 | 0008N1 | [Generated Conv nested width-block loop/dataflow parity re-spike](tasks/0008n1-generated-conv-nested-width-block-loop-dataflow-parity.md) | Complete | 0008N bounded stop | Implemented production schema-63 direct dense FLOAT32/FLOAT64 Conv2d/Conv3d output-width `VECTOR`/`PARALLEL_VECTOR` routes. Stage B passed 48 semantic rows, 24 structural dossiers, all 16 five-fork performance rows within `V/S <= 0.90x` and `V/D <= 1.15x`, and 80 focused integration tests. The historical failed Stage A structural artifact is explicitly superseded by the byte-identical final Stage B `C2_F32_ARRAY` structural/performance proof. The extra full CPU suite is not claimed green; its unrelated historical timing and worker-close observations remain separate reliability follow-up and broad validation remains 0009/CI. |
-| 0008O | Stable-reduction vector numerical spike | Draft | 0008N1 | Establish a CPU-local numerical eligibility contract and benchmark evidence before any SIMD inner loop for softmax, categorical loss, or attention. It must preserve existing Model semantics and stop for a Model decision if those semantics are insufficient. |
+| 0008O | [Stable-reduction vector numerical spike](tasks/0008o-stable-reduction-vector-numerical-spike.md) | Ready | 0008N1 | Bounded test/evidence-only FLOAT32/FLOAT64 spike: broad one-JVM Stage-A numerical permission testing, deduplicated structural dossiers, then 20 contiguous plus conditionally 10 indexed five-fork rows per permitted candidate. It stops unpermitted lane-reordered reductions and enables neither production SIMD nor partial combines. |
 | 0008P | Deterministic partial-reduction parallelism | Draft | 0008O | Add the separately scoped architecture of partial IR body, per-worker workspace, parallel partial ranges, deterministic combine kernel, and final publication for selected large reductions; do not treat it as an ordinary emitter extension. |
 | 0009 | Portable generated-coverage closure checkpoint | Draft | 0001–0008P, explicitly including 0005A–0005J, corrective 0007A0A–0007A1O and any later residual corrections selected before 0007A2, 0007A–0007F2 including 0007A1/0007A2 and 0007F/0007F1/0007F2, Prepare 0003A, CPU 0008E1, CPU 0008G1, and the ordered 0008A–0008P sequence; complete current selected Model semantic inventory | Prove the bytecode/Vector portable route is the truthful supported semantic baseline and fallback, including completed per-family generated/direct corrective evidence, dimensional-convolution execution before general DAG work, safe general DAG decomposition, bounded recognition/fusion, deterministic split fallback, bounded single/dual-input materialization with representation reuse, shared partition-DAG adoption without reconstruction drift, and typed cold decision evidence. Inventory current generated families/forms and current Class-File hashes; map each current form to retained generated-versus-optimal-clean-Java performance evidence; reuse retained evidence only when the timed generated Class-Files/forms remain byte-identical and the protocol/scope applies; and classify evidence as current, representative-only, stale, or missing. CPU 0008I's corrected full 792-class by five-fork evidence enters this inventory explicitly as missing/deferred, not passed. Rerun fixed five-fork evidence only for missing, stale, or insufficiently representative hot paths, not indiscriminately for every historical task. Require exhaustive matrices only where specialization materially changes generated code and the bounded inventory justifies them; otherwise require a justified representative matrix covering types, carriers, loop shapes, and algorithm branches. Do not make a whole-backend performance-parity claim until these gaps pass. Detailed 0009 planning follows only after the ordered 0008I–0008P sequence completes. Classify metadata-only work, prove unsupported work fails closed, and close capability/conformance before native peer-route expansion. |
 | 0010 | Narrow OpenBLAS BLAS-compatible native route | Draft | 0005A; 0009; completed OpenBLAS provider | Add only `route.nativeblas.openblas` for eligible BLAS-compatible linear algebra, preserving portable alternatives and using shared lowering, representations, exact filtering, materialization accounting, and whole-plan transition cost; never treat OpenBLAS as universal or preferred. |
@@ -398,7 +398,8 @@ ended with a bounded scalar stop after the actual generated Conv2d FLOAT32 array
 generated/direct parity at `1.775769426x`.
 [CPU 0008N1](tasks/0008n1-generated-conv-nested-width-block-loop-dataflow-parity.md) is Complete:
 the final Stage B `C2_F32_ARRAY` structural/performance proof explicitly supersedes the historical
-failed Stage A structural artifact. CPU 0008O is the next Draft task.
+failed Stage A structural artifact. [CPU 0008O](tasks/0008o-stable-reduction-vector-numerical-spike.md)
+is the next Ready task.
 CPU 0008A is `Complete`: it
 validates Conv1d through the explicit Conv2d
 composition and adds Conv3d execution before the general DAG. CPU 0008B, CPU 0008C, and CPU 0008D
@@ -433,7 +434,7 @@ glossary were added. User-authorized Prepare 0003A, detailed CPU 0008E1, and CPU
 [CPU 0008L](tasks/0008l-pointwise-simd-mask-output-closure.md) are `Complete`; detailed
 [CPU 0008M](tasks/0008m-vector-mse-none.md) is `Complete`; detailed
 [CPU 0008N](tasks/0008n-measured-profitable-float32-float64-conv2d-conv3d-simd-accumulation.md)
-ended with a bounded scalar stop; CPU 0008N1 is Complete and CPU 0008O is the next Draft task.
+ended with a bounded scalar stop; CPU 0008N1 is Complete and CPU 0008O is the next Ready task.
 The inserted pooling order is Model 0025I -> Model 0025J -> Model 0025K -> Compiler
 0006B1 -> Compiler 0006B2 -> CPU 0008G1 -> CPU 0008H. The existing order through Model 0025G,
 Model 0025H, Compiler 0006B, and CPU 0008–0008G remains unchanged; Compiler 0006C remains a
@@ -459,7 +460,7 @@ close the pooling execution frontier; detailed
 [CPU 0008L](tasks/0008l-pointwise-simd-mask-output-closure.md) are `Complete`; detailed
 [CPU 0008M](tasks/0008m-vector-mse-none.md) is `Complete`; detailed
 [CPU 0008N](tasks/0008n-measured-profitable-float32-float64-conv2d-conv3d-simd-accumulation.md)
-is Incomplete after its bounded scalar stop; CPU 0008N1 is Complete and CPU 0008O is the next Draft task.
+is Incomplete after its bounded scalar stop; CPU 0008N1 is Complete and CPU 0008O is the next Ready task.
 
 CPU 0008G1 retains the visible three-occurrence Pool1d graph while recognizing only the exact
 private singleton-height topology for schema-55 Pool2d reuse. Its first-class Pool3d implementation
@@ -934,7 +935,8 @@ CPU 0008C, detailed CPU 0008D, detailed CPU 0008E, and detailed CPU 0008E1 are `
 CPU 0008F, detailed CPU 0008G, detailed CPU 0008G1, detailed CPU 0008H, and CPU 0008I are
 `Complete`; detailed CPU 0008J, Model 0025L, CPU 0008K, and CPU 0008L are `Complete`; detailed
 [CPU 0008M](tasks/0008m-vector-mse-none.md) is `Complete`; CPU 0008N ended with a bounded scalar
-stop, CPU 0008N1 is Complete, and CPU 0008O and CPU 0008P remain ordered Draft follow-ups,
+stop, CPU 0008N1 is Complete, CPU 0008O is the next Ready task, and CPU 0008P remains its ordered
+Draft follow-up,
 and CPU 0009 through 0017 remain Draft. Prepare
 0003A is Complete.
 CPU 0005C preserves that exact slice and implements cold selection among all four portable
@@ -1185,7 +1187,7 @@ changing executable Java.
 CPU 0008K and detailed
 [CPU 0008L](tasks/0008l-pointwise-simd-mask-output-closure.md) are `Complete`; detailed
 [CPU 0008M](tasks/0008m-vector-mse-none.md) is `Complete`; CPU 0008N ended with a bounded scalar
-stop, CPU 0008N1 is Complete, and CPU 0008O is the next Draft task.
+stop, CPU 0008N1 is Complete, and CPU 0008O is the next Ready task.
 These notes do
 not alter the ordered task rows or completed earlier CPU families.
 
@@ -1360,7 +1362,7 @@ not alter the ordered task rows or completed earlier CPU families.
   [CPU 0008M](tasks/0008m-vector-mse-none.md) is `Complete`; detailed
   [CPU 0008N](tasks/0008n-measured-profitable-float32-float64-conv2d-conv3d-simd-accumulation.md)
   ended with a bounded scalar stop at generated/direct `1.775769426x`; CPU 0008N1 is Complete and
-  CPU 0008O is the next Draft task. This planning
+  CPU 0008O is the next Ready task. This planning
   refinement changes neither architecture nor the required 0008 -> 0008A -> 0008B -> 0008C ->
   0008D -> 0008E -> Prepare 0003A -> CPU 0008E1 -> CPU 0008F order.
 - CPU 0008 resolves its in-progress split contradiction locally. `CpuPartitionPreparationPlan`
