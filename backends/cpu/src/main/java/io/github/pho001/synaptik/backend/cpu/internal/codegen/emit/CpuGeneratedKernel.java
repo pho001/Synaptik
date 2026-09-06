@@ -1,8 +1,10 @@
 package io.github.pho001.synaptik.backend.cpu.internal.codegen.emit;
 
 import io.github.pho001.synaptik.backend.cpu.internal.cache.CpuKernelSpecialization;
+import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuPartialReductionIr;
 import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;
+import java.lang.invoke.MethodType;
 import java.util.Objects;
 
 /**
@@ -72,4 +74,55 @@ public final class CpuGeneratedKernel {
     /** Returns verified bytes.
      * @return a new defensive copy of deterministic class bytes */
     public byte[] classBytes() { return classBytes.clone(); }
+
+    /**
+     * Strong owner of the two cold-bound direct methods for one partial-reduction identity.
+     *
+     * <p>The partial handle is exactly {@code (primitive[], int, int, MemorySegment, long)void}; its
+     * begin/end and state slot are invocation primitives.  The combine handle is exactly
+     * {@code (MemorySegment, int, int, primitive[], int)void}; its cell range and output base are
+     * invocation geometry while
+     * state count, operation, and represented width are baked into the hidden class.</p>
+     *
+     * @param ir non-null admitted immutable partial identity
+     * @param lookup non-null lookup strongly retaining the hidden class
+     * @param partialBody non-null exact direct typed partial-body handle
+     * @param orderedCombine non-null exact direct typed combine handle
+     * @param classBytes non-null deterministic class bytes, copied defensively
+     */
+    public record PartialReductionArtifact(CpuPartialReductionIr ir, MethodHandles.Lookup lookup,
+            MethodHandle partialBody, MethodHandle orderedCombine, byte[] classBytes) {
+        /** Validates ownership and the fixed generated partial/combine ABI. */
+        public PartialReductionArtifact {
+            Objects.requireNonNull(ir, "ir"); Objects.requireNonNull(lookup, "lookup");
+            Objects.requireNonNull(partialBody, "partialBody");
+            Objects.requireNonNull(orderedCombine, "orderedCombine");
+            Objects.requireNonNull(classBytes, "classBytes");
+            classBytes = classBytes.clone();
+            Class<?> primitiveArray = ir.dataType()
+                    == io.github.pho001.synaptik.model.datatype.DataType.INT32 ? int[].class
+                    : long[].class;
+            if (!partialBody.type().equals(MethodType.methodType(void.class, primitiveArray,
+                    int.class, int.class, java.lang.foreign.MemorySegment.class, long.class))
+                    || !orderedCombine.type().equals(MethodType.methodType(void.class,
+                            java.lang.foreign.MemorySegment.class, int.class, int.class,
+                            primitiveArray, int.class))) {
+                throw new IllegalArgumentException("partial-reduction handles have the wrong ABI");
+            }
+        }
+
+        /**
+         * Returns the hidden class retained by this artifact.
+         *
+         * @return the non-null hidden generated class
+         */
+        public Class<?> hiddenClass() { return lookup.lookupClass(); }
+
+        /**
+         * Returns a defensive copy of deterministic bytes.
+         *
+         * @return a new non-null copy of the generated class bytes
+         */
+        @Override public byte[] classBytes() { return classBytes.clone(); }
+    }
 }

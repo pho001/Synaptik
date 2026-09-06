@@ -17,6 +17,7 @@ import java.util.BitSet;
 import java.util.Objects;
 import java.util.Optional;
 import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuMaterializationPlan;
+import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuPartialReductionIr;
 import io.github.pho001.synaptik.backend.cpu.internal.cache.CpuSpecializationBudget;
 import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuNonAffineMovementLowering;
 import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuIndexingLowering;
@@ -118,6 +119,8 @@ import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuPool3dLowering
  * @param representationDecisions non-null bounded closed representation variants and final
  *     ordinary selection; copied defensively; materialized variants remain candidate-only unless
  *     a later owner explicitly supplies a compatible complete choice before finalization
+ * @param partialReductionRecipe non-null optional private partial-reduction finalization handoff;
+ *     current production preparation keeps it empty until trusted complete evidence exists
  */
 public record CpuPartitionPreparationPlan(List<ExecutionUnitPlan> units, Route route,
         ExecutionStrategy executionStrategy,
@@ -151,8 +154,55 @@ public record CpuPartitionPreparationPlan(List<ExecutionUnitPlan> units, Route r
         List<Integer> publicationBoundaryPositions,
         List<CpuMaterializationPlan> materializations,
         List<RepresentationUnitPlan> representationUnits,
-        List<CpuRepresentationDecision> representationDecisions)
+        List<CpuRepresentationDecision> representationDecisions,
+        Optional<PartialReductionRecipe> partialReductionRecipe)
         implements BackendPreparationPlan {
+
+    /** Preserves the pre-partial-reduction canonical construction surface. */
+    public CpuPartitionPreparationPlan(List<ExecutionUnitPlan> units, Route route,
+            ExecutionStrategy executionStrategy,
+            List<PreparationResourceRequirement.Buffer> bufferDeclarations,
+            List<ValueId> boundaryValues, List<CpuAccessPlan.Binding> accessBindings,
+            List<CarrierAccess> carrierPattern, List<CarrierAccess> generatedCarrierPattern,
+            long[] extents, long elementCount, long[] affineAddressPairs,
+            int selectedRangeCount, long minimumElementsPerWorker, int vectorSpeciesBitSize,
+            String loweringManifest, Optional<CpuMaterializationPlan> materialization,
+            Optional<PreparationResourceRequirement.Workspace> workspaceDeclaration,
+            WorkspaceUse workspaceUse, CpuSpecializationBudget specializationBudget,
+            Optional<CpuNonAffineMovementLowering.Geometry> movementGeometry,
+            Optional<CpuIndexingLowering.Geometry> indexingGeometry,
+            Optional<CpuScatterLowering.Geometry> scatterGeometry,
+            Optional<CpuFoldLowering.Geometry> foldGeometry,
+            Optional<CpuOrderingLowering.Geometry> orderingGeometry,
+            Optional<CpuRandomLowering.Geometry> randomGeometry,
+            Optional<CpuScanLowering.Geometry> scanGeometry,
+            Optional<CpuAggregateLowering.Geometry> aggregateGeometry,
+            Optional<CpuArgExtremaLowering.Geometry> argExtremaGeometry,
+            Optional<CpuMaskedReductionLowering.Geometry> maskedReductionGeometry,
+            Optional<CpuAdvancedReductionLowering.Geometry> advancedReductionGeometry,
+            Optional<CpuSoftmaxLowering.Geometry> softmaxGeometry,
+            Optional<CpuTrailingNormalizationLowering.Geometry> trailingNormalizationGeometry,
+            Optional<CpuBatchNormInferenceLowering.Geometry> batchNormInferenceGeometry,
+            Optional<CpuBatchNormTrainingLowering.Geometry> batchNormTrainingGeometry,
+            Optional<CpuConv2dLowering.Geometry> conv2dGeometry,
+            List<CpuSpecializedSubgraph> specializedSubgraphs,
+            List<CpuFusionDecision> fusionDecisions,
+            List<Integer> publicationBoundaryPositions,
+            List<CpuMaterializationPlan> materializations,
+            List<RepresentationUnitPlan> representationUnits,
+            List<CpuRepresentationDecision> representationDecisions) {
+        this(units, route, executionStrategy, bufferDeclarations, boundaryValues, accessBindings,
+                carrierPattern, generatedCarrierPattern, extents, elementCount, affineAddressPairs,
+                selectedRangeCount, minimumElementsPerWorker, vectorSpeciesBitSize,
+                loweringManifest, materialization, workspaceDeclaration, workspaceUse,
+                specializationBudget, movementGeometry, indexingGeometry, scatterGeometry,
+                foldGeometry, orderingGeometry, randomGeometry, scanGeometry, aggregateGeometry,
+                argExtremaGeometry, maskedReductionGeometry, advancedReductionGeometry,
+                softmaxGeometry, trailingNormalizationGeometry, batchNormInferenceGeometry,
+                batchNormTrainingGeometry, conv2dGeometry, specializedSubgraphs, fusionDecisions,
+                publicationBoundaryPositions, materializations, representationUnits,
+                representationDecisions, Optional.empty());
+    }
 
     /**
      * Creates a plan carrying 0008C recognition but no 0008D decision facts. This compatibility
@@ -235,7 +285,7 @@ public record CpuPartitionPreparationPlan(List<ExecutionUnitPlan> units, Route r
                 argExtremaGeometry, maskedReductionGeometry, advancedReductionGeometry,
                 softmaxGeometry, trailingNormalizationGeometry, batchNormInferenceGeometry,
                 batchNormTrainingGeometry, conv2dGeometry, specializedSubgraphs, List.of(),
-                List.of(), List.of(), List.of(), List.of());
+                List.of(), List.of(), List.of(), List.of(), Optional.empty());
     }
 
     /**
@@ -574,6 +624,34 @@ public record CpuPartitionPreparationPlan(List<ExecutionUnitPlan> units, Route r
         AGGREGATE_EXACT_STATE,
         /** Per-range in-place attention score and normalized-weight state. */
         ATTENTION_ROW_STATE
+    }
+
+    /**
+     * Immutable finalization handoff for an admitted modular partial reduction.
+     *
+     * @param ir non-null validated partial body/state/combine geometry
+     * @param generatedArtifactIdentity non-empty deterministic identity the finalizer must use
+     *     when it cold-generates or retrieves the two direct methods
+     */
+    public record PartialReductionRecipe(CpuPartialReductionIr ir, String generatedArtifactIdentity) {
+        /** Validates the immutable partial-reduction finalization contract. */
+        public PartialReductionRecipe {
+            Objects.requireNonNull(ir, "ir");
+            Objects.requireNonNull(generatedArtifactIdentity, "generatedArtifactIdentity");
+            if (generatedArtifactIdentity.isBlank())
+                throw new IllegalArgumentException("partial-reduction artifact identity is blank");
+        }
+
+        /**
+         * Returns the deterministic v1 generated-artifact identity for the supplied IR.
+         * @param ir non-null partial-reduction identity
+         * @return non-empty identity containing every code-shaping IR fact
+         */
+        public static String artifactIdentity(CpuPartialReductionIr ir) {
+            Objects.requireNonNull(ir, "ir");
+            return "partial-reduction-v1:" + ir.dataType() + ':' + ir.kind() + ':' + ir.form()
+                    + ':' + ir.outputCount() + ':' + ir.domainCount() + ':' + ir.partialCount();
+        }
     }
     /** Validated whole-partition cardinality form. */
     public enum PlanForm {
@@ -1267,6 +1345,8 @@ public record CpuPartitionPreparationPlan(List<ExecutionUnitPlan> units, Route r
         materializations = List.copyOf(materializations);
         representationUnits = List.copyOf(representationUnits);
         representationDecisions = List.copyOf(representationDecisions);
+        partialReductionRecipe = Objects.requireNonNull(partialReductionRecipe,
+                "partialReductionRecipe");
         if (materializations.size() > 2
                 || materializations.stream().map(CpuMaterializationPlan::sourceBoundaryIndex)
                     .distinct().count() != materializations.size()
@@ -1351,6 +1431,28 @@ public record CpuPartitionPreparationPlan(List<ExecutionUnitPlan> units, Route r
                 instanceof io.github.pho001.synaptik.backend.cpu.internal.ir.CpuScanIr;
         boolean aggregate = units.getFirst().portablePlan().portableKernelIr()
                 instanceof io.github.pho001.synaptik.backend.cpu.internal.ir.CpuAggregateIr;
+        if (partialReductionRecipe.isPresent()) {
+            var recipe = partialReductionRecipe.orElseThrow();
+            if (split || !aggregate || materialization.isPresent()
+                    || bufferDeclarations.size() != 2
+                    || executionStrategy != ExecutionStrategy.PARALLEL_SCALAR
+                    || selectedRangeCount != recipe.ir().partialCount()
+                    || workspaceUse != WorkspaceUse.AGGREGATE_EXACT_STATE
+                    || workspaceDeclaration.isEmpty()
+                    || workspaceDeclaration.orElseThrow().byteSize() != recipe.ir().workspaceBytes()
+                    || workspaceDeclaration.orElseThrow().byteAlignment() != Long.BYTES) {
+                throw new IllegalArgumentException("partial-reduction recipe facts disagree");
+            }
+            var aggregateIr = (io.github.pho001.synaptik.backend.cpu.internal.ir.CpuAggregateIr)
+                    units.getFirst().portablePlan().portableKernelIr();
+            if (recipe.ir().kind() != CpuPartialReductionIr.Kind.valueOf(aggregateIr.kind().name())
+                    || recipe.ir().dataType() != aggregateIr.dataType()
+                    || recipe.ir().form() != aggregateIr.form()
+                    || recipe.ir().outputCount() != elementCount
+                    || recipe.ir().domainCount() != aggregateIr.domainCount()) {
+                throw new IllegalArgumentException("partial-reduction identity disagrees with aggregate");
+            }
+        }
         boolean argExtrema = units.getFirst().portablePlan().portableKernelIr()
                 instanceof io.github.pho001.synaptik.backend.cpu.internal.ir.CpuArgExtremaIr;
         boolean maskedReduction = units.getFirst().portablePlan().portableKernelIr()
@@ -1584,7 +1686,9 @@ public record CpuPartitionPreparationPlan(List<ExecutionUnitPlan> units, Route r
                     != vectorSpeciesBitSize) {
             throw new IllegalArgumentException("portable strategy facts are inconsistent");
         }
-        WorkspaceUse expectedUse = materialization.isPresent() ? WorkspaceUse.MATERIALIZATION
+        WorkspaceUse expectedUse = partialReductionRecipe.isPresent()
+                ? WorkspaceUse.AGGREGATE_EXACT_STATE
+                : materialization.isPresent() ? WorkspaceUse.MATERIALIZATION
                 : scatterGeometry.filter(g -> g.scratchSliceBytes() > 0).isPresent()
                     ? WorkspaceUse.SCATTER_PRODUCT
                     : orderingGeometry.isPresent()
@@ -1629,15 +1733,17 @@ public record CpuPartitionPreparationPlan(List<ExecutionUnitPlan> units, Route r
         }
         if (workspaceUse == WorkspaceUse.AGGREGATE_EXACT_STATE) {
             var workspace = workspaceDeclaration.orElseThrow();
-            long expected = aggregateGeometry.isPresent()
-                    ? aggregateGeometry.orElseThrow().workspaceBytes(selectedRangeCount)
-                    : maskedReductionGeometry.isPresent()
-                        ? maskedReductionGeometry.orElseThrow().workspaceBytes(selectedRangeCount)
-                        : advancedReductionGeometry.isPresent()
-                            ? advancedReductionGeometry.orElseThrow().workspaceBytes(selectedRangeCount)
-                            : trailingNormalizationGeometry.isPresent()
-                                ? trailingNormalizationGeometry.orElseThrow().workspaceBytes(selectedRangeCount)
-                                : batchNormTrainingGeometry.orElseThrow().workspaceBytes(selectedRangeCount);
+            long expected = partialReductionRecipe.isPresent()
+                    ? partialReductionRecipe.orElseThrow().ir().workspaceBytes()
+                    : aggregateGeometry.isPresent()
+                        ? aggregateGeometry.orElseThrow().workspaceBytes(selectedRangeCount)
+                        : maskedReductionGeometry.isPresent()
+                            ? maskedReductionGeometry.orElseThrow().workspaceBytes(selectedRangeCount)
+                            : advancedReductionGeometry.isPresent()
+                                ? advancedReductionGeometry.orElseThrow().workspaceBytes(selectedRangeCount)
+                                : trailingNormalizationGeometry.isPresent()
+                                    ? trailingNormalizationGeometry.orElseThrow().workspaceBytes(selectedRangeCount)
+                                    : batchNormTrainingGeometry.orElseThrow().workspaceBytes(selectedRangeCount);
             if (workspace.requirementId() != 0 || workspace.byteAlignment() != Long.BYTES
                     || workspace.byteSize() != expected)
                 throw new IllegalArgumentException("aggregate exact-state workspace facts disagree");

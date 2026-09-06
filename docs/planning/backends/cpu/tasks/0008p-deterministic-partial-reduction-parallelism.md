@@ -2,7 +2,7 @@
 
 ## Status
 
-Ready
+Complete
 
 ## Goal
 
@@ -73,12 +73,26 @@ Packages added or changed: none. Expected placement is `CpuPartialReductionIr`, 
 
 ## Affected files
 
-Expected implementation paths (at most 17 CPU source/test paths) include aggregate lowering,
+Expected implementation paths (at most 18 CPU source/test paths) include aggregate lowering,
 partition lowering/DAG/preparer/finalizer handoff, prepared executable, generated
 emitter/generator, workspace binding, a new partial IR/emitter/reference, and focused tests
 mirroring their owners. `CpuAggregateIr` continues to mean a complete output-cell range; the
 separate partial IR and its generated partial/combine route therefore cannot truthfully be folded
 into the existing ordinary-emitter path merely to meet a smaller file count.
+
+The exactly seven permitted focused CPU test paths are:
+
+- `backends/cpu/src/test/java/io/github/pho001/synaptik/backend/cpu/internal/codegen/emit/CpuPartialReductionGeneratedKernelTest.java`;
+- `backends/cpu/src/test/java/io/github/pho001/synaptik/backend/cpu/internal/executable/CpuPartialReductionExecutionTest.java`;
+- `backends/cpu/src/test/java/io/github/pho001/synaptik/backend/cpu/internal/ir/CpuPartialReductionIrTest.java`;
+- `backends/cpu/src/test/java/io/github/pho001/synaptik/backend/cpu/internal/lowering/CpuPartialReductionLoweringTest.java`;
+- `backends/cpu/src/test/java/io/github/pho001/synaptik/backend/cpu/internal/executable/CpuPreparedExecutableTest.java`;
+- `backends/cpu/src/test/java/io/github/pho001/synaptik/backend/cpu/internal/prepare/CpuPartitionPreparerTest.java`; and
+- `backends/cpu/src/test/java/io/github/pho001/synaptik/backend/cpu/CpuInternalPackageInventoryTest.java`.
+
+The last path is mandatory rather than discretionary: its exact authorized-production-file set
+must name each of this task's four new internal production types for the CPU module test suite to
+admit them.
 
 Planning paths are exactly:
 
@@ -95,12 +109,15 @@ budget before writing it.
 
 ## Maximum scope
 
-At most 20 paths: these three planning paths, eleven production CPU paths, and six focused CPU
-test paths. The eleven production paths are the minimum coherent current-topology budget: the
-separate `CpuPartialReductionIr` and generated partial/combine route require their own path in
-addition to the existing cold lowering, preparation/finalization, and execution handoff owners.
-If a shared Prepare/Runtime contract, second workspace type, Model change, another family, or a
-21st path is needed, stop and create a separately scoped follow-up.
+At most 21 paths: these three planning paths, eleven production CPU paths, and exactly seven
+focused CPU test paths. The eleven production paths are the minimum coherent current-topology
+budget: the separate `CpuPartialReductionIr` and generated partial/combine route require their
+own path in addition to the existing cold lowering, preparation/finalization, and execution
+handoff owners. The seventh test path is the mandatory CPU internal-package inventory update;
+without it, the full CPU validation rejects the four required new production types. This is the
+minimum coherent correction and does not broaden implementation, semantic, or architectural
+scope. If a shared Prepare/Runtime contract, second workspace type, Model change, another family,
+or a 22nd path is needed, stop and create a separately scoped follow-up.
 
 ## Acceptance criteria
 
@@ -287,6 +304,58 @@ push. Update evidence and status only after that pass completes.
 
 ## Validation evidence
 
+- Documentation-finalization context: this mandatory independent clean-context pass. Read
+  `AGENTS.md`, `ARCHITECTURE.md`, the current architecture navigation, documentation rules and
+  General/Java-Javadoc/Planning profiles, the planning guide, roadmap, CPU master plan, this
+  task, changed production/test sources, relevant CPU package documentation and CPU guide, the
+  glossary, and the complete actual diff. The direct implementation and focused tests establish
+  the separate partial IR, quotient/remainder ranges, aligned run-owned state, generated partial
+  fold plus ascending caller combine, and the fail-closed prepared selector. The generated-code
+  oracle result is structural/semantic parity with the specified direct typed algorithm; it does
+  not claim JIT assembly identity or a measured speed result.
+- The sole allowed evidence root remains
+  `/private/tmp/synaptik-cpu-0008p-20260906-L4XZed`. It contains only `protocol.json` and the
+  initial `environment.json`; it failed before sealing, forks, timings, or summaries because the
+  then-current harness used a Gradle-working-directory-relative source path. It is immutable,
+  non-passing, and may not be retried, appended, replaced, or supplemented. The later harness
+  correction is for future work only. Accordingly, every production selection is deliberately
+  `KEEP_WHOLE_CELL`, including when a caller forges a diagnostic `PartialReductionEvidence`.
+- Reused implementation evidence: focused IR, lowering, generated-kernel, execution, preparation,
+  prepared-executable, and inventory tests passed after final code changes. An earlier full CPU
+  run had three failures: the now-corrected required inventory omission, the existing
+  `CpuPartitionDagGeneratedEvidenceTest` fork-2 no-accepted-sample timing failure, and the
+  existing `CpuWorkerGroupTest` close-race failure. This task does not claim a final full CPU
+  suite pass; that validation is separately pending after this documentation pass.
+- Documentation decisions: finalized affected production Javadocs document the CPU-private,
+  cold/prepared boundary, typed partial invocation, and non-admitted route. The CPU guide and
+  relevant package documentation remain accurate because no optimization is admitted and this
+  task may not edit those paths. The glossary needs no change: partial-reduction protocol labels
+  and `KEEP_WHOLE_CELL` are task-local, not reusable project terminology.
+- Documentation validation: `./gradlew :backends:cpu:javadoc` completed successfully after the
+  final Javadoc edits. It retained 94 pre-existing Javadoc warnings in unrelated broad records
+  plus incubating-Vector notices; it reported no warning from this task's added documentation.
+  `git diff --check`, a trailing-whitespace scan of all three permitted planning files, the
+  planning-link/anchor review, and the exact-path inventory check passed; the inventory is exactly
+  21 paths (3 planning, 11 production, and 7 tests).
+
+- Planning/documentation review context: this independent clean-context correction. Read the
+  governing architecture, planning, and documentation contracts; inspected the current diff and
+  `CpuInternalPackageInventoryTest`. Its exact production-file allowlist omits
+  `CpuPartialReductionEmitter`, `CpuPartialReductionExecution`, `CpuPartialReductionIr`, and
+  `CpuPartialReductionLowering`, so `:backends:cpu:test` requires the explicitly authorized
+  seventh test path. The scope therefore changes only from 20 to 21 paths and from six to exactly
+  seven focused test paths; Java was not edited in this context.
+- Frozen evidence outcome: the sole authorized root
+  `/private/tmp/synaptik-cpu-0008p-20260906-L4XZed` contains only `protocol.json` and the initial
+  `environment.json`. Its parent failed before the protocol seal, child forks, timings, or
+  summaries because the then-current harness resolved its source hash through a
+  Gradle-working-directory-relative path. This root is incomplete and non-passing; it must not be
+  deleted, appended, retried, replaced, or treated as passing. The harness source-location logic
+  has since been corrected for future work, but CPU 0008P authorizes no new evidence run. The
+  actual production admission decision remains `KEEP_WHOLE_CELL`.
+- Glossary impact: none. This correction changes neither reusable project terminology nor a term
+  boundary; `KEEP_WHOLE_CELL` and the evidence-root names remain task-local protocol labels.
+
 - Planning/documentation review context: `01a07813-7d52-7873-b11a-57f95d169ba9` (independent
   clean-context path-budget review).
 - Re-read the architecture contract, current architecture navigation, planning guide, roadmap,
@@ -331,14 +400,16 @@ push. Update evidence and status only after that pass completes.
 
 ## Implementation notes
 
-No implementation has begun. A first clean implementation attempt stopped before editing because
-the former ten-production-path ceiling conflicted with the required separate partial IR and
-generated partial/combine route. This clean-context planning/documentation pass corrected the
-minimum coherent budget to eleven production paths; it made no executable change. The
-implementation agent must record generated artifact/schema impact, tests, structural evidence,
-performance gates, and documentation handoff evidence here before requesting final review.
+Implementation completed within the 21-path budget: three planning paths, eleven production CPU
+paths, and seven focused test paths. The generated partial/combine machinery is present and tested,
+but the sole authorized profitability root is non-passing; the prepared production selector is
+therefore intentionally unreachable and retains the existing whole-cell execution route.
 
 ## Completion summary
 
-Pending implementation. This planning review is complete, but CPU 0008P itself remains `Ready`,
-not `Complete`.
+CPU 0008P is complete as a bounded fail-closed outcome. It delivers the private generated
+partial/combine architecture and its direct tests while admitting no optimization: the immutable
+non-passing profitability record mandates `KEEP_WHOLE_CELL`. Full CPU validation is not claimed
+here; its three earlier failures are recorded above for the separately scheduled final validation.
+
+Status: Complete

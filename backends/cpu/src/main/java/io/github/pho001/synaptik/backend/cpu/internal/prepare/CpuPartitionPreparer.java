@@ -9,8 +9,10 @@ import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuSpecializedSub
 import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuFusionProfitabilitySelector;
 import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuMaterializationPlan;
 import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuRepresentationPlanner;
+import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuPartialReductionLowering;
 import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuAccessPlan;
 import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuKernelIr;
+import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuAggregateIr;
 import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuSpecializedSubgraph;
 import io.github.pho001.synaptik.backend.cpu.internal.route.portable.CpuPortableRoutePlan;
 import io.github.pho001.synaptik.model.datatype.DataType;
@@ -88,6 +90,8 @@ public final class CpuPartitionPreparer implements BackendPartitionPreparer<
             new CpuFusionProfitabilitySelector();
     private final CpuRepresentationPlanner representationPlanner =
             new CpuRepresentationPlanner();
+    private final CpuPartialReductionLowering partialReductionLowering =
+            new CpuPartialReductionLowering();
 
     /** Creates a preparer with the permanent common lowering owner. */
     public CpuPartitionPreparer() { this(new CpuPartitionLowering()); }
@@ -217,7 +221,7 @@ public final class CpuPartitionPreparer implements BackendPartitionPreparer<
                 plan.conv2dGeometry(), plan.specializedSubgraphs(), plan.fusionDecisions(),
                 plan.publicationBoundaryPositions(), representation.materializations(),
                 representation.materializations().isEmpty() ? List.of() : representedUnits,
-                representation.decisions());
+                representation.decisions(), plan.partialReductionRecipe());
         return new BackendPartitionAnalysis<>(analysis.partition(), representedPlan, requirements);
     }
 
@@ -257,7 +261,8 @@ public final class CpuPartitionPreparer implements BackendPartitionPreparer<
                 allowMaterialization ? context.backendInputs().materializationPolicy()
                         : CpuPartitionAnalysisInputs.MaterializationPolicy.DISABLED,
                 allowMaterialization
-                        && context.backendInputs().conv2dMaterializedSuffixUnit());
+                        && context.backendInputs().conv2dMaterializedSuffixUnit(),
+                context.backendInputs().partialReductionEvidence());
     }
 
     private static boolean sameTopology(List<CpuPartitionDagDecomposer.Unit> left,
@@ -295,7 +300,7 @@ public final class CpuPartitionPreparer implements BackendPartitionPreparer<
                 plan.batchNormInferenceGeometry(), plan.batchNormTrainingGeometry(),
                 plan.conv2dGeometry(), facts, decisions, publicationBoundaryPositions,
                 plan.materializations(), plan.representationUnits(),
-                plan.representationDecisions());
+                plan.representationDecisions(), plan.partialReductionRecipe());
         return new BackendPartitionAnalysis<>(analysis.partition(), enriched,
                 analysis.requirements());
     }
@@ -335,7 +340,10 @@ public final class CpuPartitionPreparer implements BackendPartitionPreparer<
                 plan.maskedReductionGeometry(), plan.advancedReductionGeometry(),
                 plan.softmaxGeometry(), plan.trailingNormalizationGeometry(),
                 plan.batchNormInferenceGeometry(), plan.batchNormTrainingGeometry(),
-                plan.conv2dGeometry(), List.of());
+                plan.conv2dGeometry(), plan.specializedSubgraphs(), plan.fusionDecisions(),
+                plan.publicationBoundaryPositions(), plan.materializations(),
+                plan.representationUnits(), plan.representationDecisions(),
+                plan.partialReductionRecipe());
         return new BackendPartitionAnalysis<>(analysis.partition(), annotated,
                 analysis.requirements());
     }
@@ -521,6 +529,40 @@ public final class CpuPartitionPreparer implements BackendPartitionPreparer<
                     Math.toIntExact(Math.min(Integer.MAX_VALUE,
                             ceilDiv(iterationCount, minimumRangeItemsPerWorker))));
         }
+        Optional<CpuPartitionPreparationPlan.PartialReductionRecipe> partialRecipe = Optional.empty();
+        if (aggregate && lowered.boundaryValues().size() == 2
+                && lowered.virtualValues().isEmpty() && bindings.size() == 2
+                && bindings.stream().allMatch(binding -> binding.plan().regime()
+                    == CpuAccessPlan.Regime.DENSE_LINEAR)) {
+            var aggregateIr = (CpuAggregateIr) lowered.portableKernelIr();
+            var evidence = context.backendInputs().partialReductionEvidence();
+            /*
+             * 0008P has no valid, frozen evidence root.  Analysis inputs are supplied by normal
+             * callers and are therefore not an evidence-verification boundary: accepting their
+             * boolean would let a caller manufacture a passing profitability result.  Leave the
+             * recipe unreachable until a later, separately scoped trusted-evidence reader is
+             * implemented and binds every required hash-valid row to this exact selector.
+             */
+            boolean matchingEvidence = false;
+            boolean primitiveArrays = aggregateIr.dataType() == DataType.INT32
+                    ? carriers.equals(List.of(CpuKernelSpecialization.CarrierAccess.INT_ARRAY,
+                            CpuKernelSpecialization.CarrierAccess.INT_ARRAY))
+                    : carriers.equals(List.of(CpuKernelSpecialization.CarrierAccess.LONG_ARRAY,
+                            CpuKernelSpecialization.CarrierAccess.LONG_ARRAY));
+            if (matchingEvidence && primitiveArrays) {
+                partialRecipe = partialReductionLowering.admit(
+                        new CpuPartialReductionLowering.AdmissionInputs(aggregateIr.kind(),
+                                aggregateIr.dataType(), aggregateIr.form(), lowered.elementCount(),
+                                aggregateIr.domainCount(), evidence.partialCount(),
+                                config.minimumElementsPerWorker(), usableParallelism, true, true,
+                                true, true)).map(ir -> new CpuPartitionPreparationPlan
+                                        .PartialReductionRecipe(ir,
+                                                CpuPartitionPreparationPlan.PartialReductionRecipe
+                                                        .artifactIdentity(ir)));
+            }
+        }
+        if (partialRecipe.isPresent()) selectedRangeCount = partialRecipe.orElseThrow().ir()
+                .partialCount();
         boolean parallel = selectedRangeCount >= 2;
         var strategy = vectorEligible
                 ? (parallel ? CpuPartitionPreparationPlan.ExecutionStrategy.PARALLEL_VECTOR
@@ -530,6 +572,10 @@ public final class CpuPartitionPreparer implements BackendPartitionPreparer<
         var artifactStrategy = vectorEligible
                 ? CpuPartitionPreparationPlan.ExecutionStrategy.VECTOR
                 : CpuPartitionPreparationPlan.ExecutionStrategy.SCALAR;
+        if (partialRecipe.isPresent()) {
+            strategy = CpuPartitionPreparationPlan.ExecutionStrategy.PARALLEL_SCALAR;
+            artifactStrategy = CpuPartitionPreparationPlan.ExecutionStrategy.SCALAR;
+        }
         boolean crossTypeCast = false;
         for (CpuKernelIr.Instruction instruction : kernelIr.instructions()) {
             if (instruction.opcode() == io.github.pho001.synaptik.backend.cpu.internal.ir.CpuPointwiseOpcode.CAST
@@ -577,7 +623,9 @@ public final class CpuPartitionPreparer implements BackendPartitionPreparer<
                 + ";route=PORTABLE;strategy=" + strategy + ";speciesBits="
                 + (vectorEligible ? speciesBits : 0) + ";power="
                 + powerRealizations(kernelIr) + ";key="
-                + specialization.structuralKey() + ";buffers=" + lowered.boundaryValues();
+                + specialization.structuralKey() + ";buffers=" + lowered.boundaryValues()
+                + partialRecipe.map(recipe -> ";partialReduction="
+                        + recipe.generatedArtifactIdentity()).orElse("");
         Optional<PreparationResourceRequirement.Workspace> workspace = materialization.map(copy ->
                     new PreparationResourceRequirement.Workspace(copy.workspaceRequirementId(),
                             copy.byteCount(), copy.byteAlignment()));
@@ -649,6 +697,11 @@ public final class CpuPartitionPreparer implements BackendPartitionPreparer<
             workspace=Optional.of(new PreparationResourceRequirement.Workspace(workspaceRequirementId,
                     geometry.workspaceBytes(selectedRangeCount),Long.BYTES));
         }
+        if (partialRecipe.isPresent()) {
+            long partialBytes = partialRecipe.orElseThrow().ir().workspaceBytes();
+            workspace = Optional.of(new PreparationResourceRequirement.Workspace(workspaceRequirementId,
+                    partialBytes, Long.BYTES));
+        }
         var workspaceUse = materialization.isPresent()
                 ? CpuPartitionPreparationPlan.WorkspaceUse.MATERIALIZATION
                 : workspace.isPresent() ? CpuPartitionPreparationPlan.WorkspaceUse.SCATTER_PRODUCT
@@ -671,6 +724,8 @@ public final class CpuPartitionPreparer implements BackendPartitionPreparer<
             workspaceUse = CpuPartitionPreparationPlan.WorkspaceUse.AGGREGATE_EXACT_STATE;
         if (lowered.attentionGeometry().filter(g -> g.scratchSliceBytes() > 0).isPresent())
             workspaceUse = CpuPartitionPreparationPlan.WorkspaceUse.ATTENTION_ROW_STATE;
+        if (partialRecipe.isPresent())
+            workspaceUse = CpuPartitionPreparationPlan.WorkspaceUse.AGGREGATE_EXACT_STATE;
         var plan = new CpuPartitionPreparationPlan(
                 List.of(new CpuPartitionPreparationPlan.ExecutionUnitPlan(
                         routePlan, lowered.boundaryValues(), bindings, requestedCarriers, carriers,
@@ -697,7 +752,8 @@ public final class CpuPartitionPreparer implements BackendPartitionPreparer<
                 lowered.maskedReductionGeometry(), lowered.advancedReductionGeometry(),
                 lowered.softmaxGeometry(), lowered.trailingNormalizationGeometry(),
                 selectedBatchGeometry, selectedTrainingGeometry, lowered.conv2dGeometry(),
-                List.of());
+                List.of(), List.of(), List.of(), List.of(), List.of(), List.of(),
+                partialRecipe);
 
         var requirements = new ArrayList<PreparationResourceRequirement>(declarations);
         plan.workspaceDeclaration().ifPresent(requirements::add);
@@ -810,7 +866,8 @@ public final class CpuPartitionPreparer implements BackendPartitionPreparer<
                 Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(),
                 Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(),
                 Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(),
-                Optional.empty(), Optional.empty(), List.of());
+                Optional.empty(), Optional.empty(), List.of(), List.of(), List.of(), List.of(),
+                List.of(), List.of(), Optional.empty());
         return new BackendPartitionAnalysis<>(context.partition(), combined, requirements);
     }
 

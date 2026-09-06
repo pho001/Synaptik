@@ -54,6 +54,7 @@ import io.github.pho001.synaptik.model.operation.normalization.SoftmaxKind;
 import io.github.pho001.synaptik.model.operation.reduction.AggregateReductionKind;
 import io.github.pho001.synaptik.model.operation.reduction.ArgExtremaTiePolicy;
 import io.github.pho001.synaptik.model.operation.reduction.AxisReductionAttrs;
+import io.github.pho001.synaptik.model.operation.NoOperationAttrs;
 import io.github.pho001.synaptik.model.operation.reduction.SumToShapeAttrs;
 import io.github.pho001.synaptik.model.operation.reduction.StatisticalReductionAttrs;
 import io.github.pho001.synaptik.model.operation.convolution.Conv3dAttrs;
@@ -82,6 +83,41 @@ import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuIndexingLoweri
 import java.lang.foreign.Arena;
 
 class CpuPreparedExecutableTest {
+    @Test void untrustedAnalysisEvidenceCannotSelectPartialReduction() {
+        var intBase = CpuAggregateLoweringTest.context(AggregateReductionKind.SUM, DataType.INT32,
+                Shape.of(16), NoOperationAttrs.INSTANCE, Shape.scalar());
+        var intAnalysis = new CpuPartitionPreparer().analyze(
+                new io.github.pho001.synaptik.prepare.analysis.PrepareContext<>(
+                        intBase.partition(), intBase.nodes(), intBase.values(),
+                        intBase.memoryRequirements(), intBase.constants(), new CpuPartitionAnalysisInputs(
+                                false, List.of(CarrierAccess.INT_ARRAY, CarrierAccess.INT_ARRAY),
+                                new PortableExecutionConfig(ComputePreference.SCALAR, 4, 4, 4),
+                                CpuPartitionAnalysisInputs.MaterializationPolicy.DISABLED, false,
+                                new CpuPartitionAnalysisInputs.PartialReductionEvidence(true,
+                                        io.github.pho001.synaptik.backend.cpu.internal.ir.CpuAggregateIr.Kind.SUM,
+                                        DataType.INT32,
+                                        io.github.pho001.synaptik.backend.cpu.internal.ir.CpuAggregateIr.Form.FULL,
+                                        2))));
+        var longBase = CpuAggregateLoweringTest.context(AggregateReductionKind.PROD, DataType.INT64,
+                Shape.of(2, 16), new AxisReductionAttrs(1, false), Shape.of(2));
+        var longAnalysis = new CpuPartitionPreparer().analyze(
+                new io.github.pho001.synaptik.prepare.analysis.PrepareContext<>(
+                        longBase.partition(), longBase.nodes(), longBase.values(),
+                        longBase.memoryRequirements(), longBase.constants(), new CpuPartitionAnalysisInputs(
+                                false, List.of(CarrierAccess.LONG_ARRAY, CarrierAccess.LONG_ARRAY),
+                                new PortableExecutionConfig(ComputePreference.SCALAR, 4, 4, 4),
+                                CpuPartitionAnalysisInputs.MaterializationPolicy.DISABLED, false,
+                                new CpuPartitionAnalysisInputs.PartialReductionEvidence(true,
+                                        io.github.pho001.synaptik.backend.cpu.internal.ir.CpuAggregateIr.Kind.PROD,
+                                        DataType.INT64,
+                                        io.github.pho001.synaptik.backend.cpu.internal.ir.CpuAggregateIr.Form.SINGLE_AXIS,
+                                        4))));
+        assertTrue(intAnalysis.plan().partialReductionRecipe().isEmpty());
+        assertTrue(longAnalysis.plan().partialReductionRecipe().isEmpty());
+        assertTrue(intAnalysis.plan().workspaceDeclaration().isEmpty());
+        assertTrue(longAnalysis.plan().workspaceDeclaration().isEmpty());
+    }
+
     @Test
     void coldLossGeometryProofSelectsDirectOnlyForContiguousLayouts() {
         long[] contiguous = {1, -1, 1, 1, 0, 0, 0, 0, 0, 4, 4, 1, 1, 1};

@@ -3,6 +3,7 @@ package io.github.pho001.synaptik.backend.cpu.internal.prepare;
 import io.github.pho001.synaptik.backend.contract.BackendId;
 import io.github.pho001.synaptik.backend.cpu.CpuCapabilityProvider;
 import io.github.pho001.synaptik.backend.cpu.internal.cache.CpuGeneratedKernelArtifactStore;
+import io.github.pho001.synaptik.backend.cpu.internal.codegen.emit.CpuClassFileKernelGenerator;
 import io.github.pho001.synaptik.backend.cpu.internal.executable.CpuPreparedExecutable;
 import io.github.pho001.synaptik.backend.cpu.internal.executable.CpuPreparedPartitionExecutable;
 import io.github.pho001.synaptik.backend.cpu.internal.executable.CpuWorkerGroup;
@@ -35,6 +36,8 @@ import java.util.LinkedHashMap;
  */
 public final class CpuPartitionFinalizer implements BackendPartitionFinalizer<CpuPartitionPreparationPlan> {
     private final CpuGeneratedKernelArtifactStore artifactStore;
+    private final CpuClassFileKernelGenerator partialReductionGenerator =
+            new CpuClassFileKernelGenerator();
     private final Optional<CpuWorkerGroup> workerGroup;
 
     /** Creates the default in-memory-only finalizer for single-thread plans. */
@@ -146,11 +149,27 @@ public final class CpuPartitionFinalizer implements BackendPartitionFinalizer<Cp
         }
         var artifact = artifactStore.loadOrGenerate(unit.portablePlan().specialization(),
                 unit.portablePlan().kernelIr());
+        var partialRecipe = plan.partialReductionRecipe();
+        Optional<io.github.pho001.synaptik.backend.cpu.internal.codegen.emit.CpuGeneratedKernel.PartialReductionArtifact>
+                partialArtifact = Optional.empty();
+        if (partialRecipe.isPresent()) {
+            var recipe = partialRecipe.orElseThrow();
+            if (!recipe.generatedArtifactIdentity().equals(
+                    CpuPartitionPreparationPlan.PartialReductionRecipe.artifactIdentity(recipe.ir()))
+                    || selectedWorkers == null || plan.workspaceDeclaration().isEmpty()
+                    || plan.workspaceDeclaration().orElseThrow().byteSize()
+                            != recipe.ir().workspaceBytes()
+                    || plan.workspaceDeclaration().orElseThrow().byteAlignment() != Long.BYTES
+                    || plan.selectedRangeCount() != recipe.ir().partialCount()) {
+                throw new IllegalArgumentException("partial-reduction finalization facts disagree");
+            }
+            partialArtifact = Optional.of(partialReductionGenerator.generatePartialReduction(recipe.ir()));
+        }
         return new CpuPreparedExecutable(finalization.memoryPlan(), selections, artifact,
                 plan.accessBindings(), plan.carrierPattern(), plan.generatedCarrierPattern(),
                 0, plan.elementCount(),
                 plan.selectedRangeCount(), plan.minimumElementsPerWorker(), selectedWorkers,
-                plan.materialization(), plan.workspaceDeclaration().map(workspaceSelections::get),
+                plan.workspaceDeclaration().map(workspaceSelections::get), List.of(), List.of(),
                 plan.units().getFirst().portablePlan().portableKernelIr()
                         instanceof io.github.pho001.synaptik.backend.cpu.internal.ir.CpuAffineCopyIr
                         ? plan.affineAddressPairs() : null,
@@ -163,7 +182,7 @@ public final class CpuPartitionFinalizer implements BackendPartitionFinalizer<Cp
                 plan.conv2dGeometry(), unit.conv3dGeometry(), unit.matmulGeometry(),
                 unit.pool2dGeometry(), unit.pool3dGeometry(), unit.attentionGeometry(),
                 lossGeometry(unit),
-                unit.outputCount());
+                unit.outputCount(), partialArtifact);
     }
 
     private PreparedExecutable finalizeComposite(
@@ -267,7 +286,7 @@ public final class CpuPartitionFinalizer implements BackendPartitionFinalizer<Cp
                 unit.conv2dGeometry(), unit.conv3dGeometry(), unit.matmulGeometry(),
                 unit.pool2dGeometry(), unit.pool3dGeometry(), unit.attentionGeometry(),
                 lossGeometry(unit),
-                unit.outputCount());
+                unit.outputCount(), Optional.empty());
     }
 
     private static Optional<io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuLossLowering.Geometry>

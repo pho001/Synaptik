@@ -262,7 +262,7 @@ created by 0005A. All consume the common analysis above; none creates another ba
 | 0008N | [Measured profitable FLOAT32/FLOAT64 Conv2d/Conv3d SIMD accumulation](tasks/0008n-measured-profitable-float32-float64-conv2d-conv3d-simd-accumulation.md) | Incomplete (bounded scalar stop) | 0008M; bounded implementation-time axis/profitability spike | Source-level output-width lanes were semantically viable, but the first actual generated Conv2d FLOAT32 array diagnostic failed generated/direct parity at `1.775769426x > 1.15x` despite passing generated/scalar at `0.265215012x`. Schema remains 62 and every Conv route remains scalar. |
 | 0008N1 | [Generated Conv nested width-block loop/dataflow parity re-spike](tasks/0008n1-generated-conv-nested-width-block-loop-dataflow-parity.md) | Complete | 0008N bounded stop | Implemented production schema-63 direct dense FLOAT32/FLOAT64 Conv2d/Conv3d output-width `VECTOR`/`PARALLEL_VECTOR` routes. Stage B passed 48 semantic rows, 24 structural dossiers, all 16 five-fork performance rows within `V/S <= 0.90x` and `V/D <= 1.15x`, and 80 focused integration tests. The historical failed Stage A structural artifact is explicitly superseded by the byte-identical final Stage B `C2_F32_ARRAY` structural/performance proof. The extra full CPU suite is not claimed green; its unrelated historical timing and worker-close observations remain separate reliability follow-up and broad validation remains 0009/CI. |
 | 0008O | [Stable-reduction vector numerical spike](tasks/0008o-stable-reduction-vector-numerical-spike.md) | Cancelled | 0008N1 | Stage A permitted only contiguous candidate-2 `VECTOR_MAP_ORDERED_FOLD`; candidates 3/4 stopped for Model/architecture permission. Stage B retained 40 probes/32 dossiers (inventory `a0c8630ec4635b40122f250fd8ead9236ae062e524f05094eefdd4c51ce5dc21`). Fork 0's immutable raw CSV (`6613a62c9c31f4ca45df0aec8e23050076ffc3daca69af74ca565ede385879c2`) has 178/180 failed V/S pairs, decisively `KEEP_SCALAR`; fork 1 was interrupted and forks 2--4 did not run. The cancelled unfinished five-fork protocol is not a passed acceptance result and enables no SIMD production route. |
-| 0008P | [Deterministic modular partial-reduction parallelism](tasks/0008p-deterministic-partial-reduction-parallelism.md) | Ready | 0008O (Cancelled; retained evidence recorded); 0007A1 | Bounded to dense-array INT32/INT64 ordinary SUM/PROD: separate partial IR/state/combine architecture, fixed parallel partial ranges, same-width modular run-owned workspace, deterministic result construction, and final publication. Model 0018U1 currently permits this reassociation; Model 0018V supplies no floating tolerance and grants no floating route. It is not an ordinary emitter extension and grants no SIMD. |
+| 0008P | [Deterministic modular partial-reduction parallelism](tasks/0008p-deterministic-partial-reduction-parallelism.md) | Complete | 0008O (Cancelled; retained evidence recorded); 0007A1 | Implemented the dense-array INT32/INT64 ordinary SUM/PROD partial IR/state/combine architecture, fixed ranges, aligned run-owned workspace, generated direct bodies, and focused structural/semantic tests. The only authorized profitability root failed before seal/forks/timings and is immutable; production is intentionally fail-closed at `KEEP_WHOLE_CELL`, including forged diagnostic evidence. No speed or JIT-assembly claim is made; final full CPU validation remains separately pending. |
 | 0009 | Portable generated-coverage closure checkpoint | Draft | 0001–0008P, explicitly including 0005A–0005J, corrective 0007A0A–0007A1O and any later residual corrections selected before 0007A2, 0007A–0007F2 including 0007A1/0007A2 and 0007F/0007F1/0007F2, Prepare 0003A, CPU 0008E1, CPU 0008G1, and the ordered 0008A–0008P sequence; complete current selected Model semantic inventory | Prove the bytecode/Vector portable route is the truthful supported semantic baseline and fallback, including completed per-family generated/direct corrective evidence, dimensional-convolution execution before general DAG work, safe general DAG decomposition, bounded recognition/fusion, deterministic split fallback, bounded single/dual-input materialization with representation reuse, shared partition-DAG adoption without reconstruction drift, and typed cold decision evidence. Inventory current generated families/forms and current Class-File hashes; map each current form to retained generated-versus-optimal-clean-Java performance evidence; reuse retained evidence only when the timed generated Class-Files/forms remain byte-identical and the protocol/scope applies; and classify evidence as current, representative-only, stale, or missing. CPU 0008I's corrected full 792-class by five-fork evidence enters this inventory explicitly as missing/deferred, not passed. Rerun fixed five-fork evidence only for missing, stale, or insufficiently representative hot paths, not indiscriminately for every historical task. Require exhaustive matrices only where specialization materially changes generated code and the bounded inventory justifies them; otherwise require a justified representative matrix covering types, carriers, loop shapes, and algorithm branches. Do not make a whole-backend performance-parity claim until these gaps pass. Detailed 0009 planning follows only after the ordered 0008I–0008P sequence completes. Classify metadata-only work, prove unsupported work fails closed, and close capability/conformance before native peer-route expansion. |
 | 0010 | Narrow OpenBLAS BLAS-compatible native route | Draft | 0005A; 0009; completed OpenBLAS provider | Add only `route.nativeblas.openblas` for eligible BLAS-compatible linear algebra, preserving portable alternatives and using shared lowering, representations, exact filtering, materialization accounting, and whole-plan transition cost; never treat OpenBLAS as universal or preferred. |
 | 0011 | Intel oneMKL BLAS and VML peer routes | Draft | 0005A; 0009; concrete Intel CPU use case and supported oneMKL ABI evidence | Add distinct `route.nativeblas.mkl` BLAS and `route.nativeops.mkl` VML leaves over shared analysis, without duplicating graph interpretation, fusion, access planning, or lifecycle ownership. |
@@ -401,9 +401,9 @@ the final Stage B `C2_F32_ARRAY` structural/performance proof explicitly superse
 failed Stage A structural artifact. [CPU 0008O](tasks/0008o-stable-reduction-vector-numerical-spike.md)
 is `Cancelled`: retained Stage-A/B and fork-0 evidence gives candidate 2 a decisive
 `KEEP_SCALAR`, but the user stopped the unfinished five-fork protocol after fork 1 was
-interrupted and forks 2--4 were not run. CPU 0008P is the next valid Ready task, limited to
-Model-allowed modular INT32/INT64 ordinary SUM/PROD partial reduction; it does not authorize a
-floating reassociation route because Model 0018V's conformance tolerance remains future.
+interrupted and forks 2--4 were not run. CPU 0008P is Complete as a bounded fail-closed result:
+its modular INT32/INT64 partial/combine implementation is present, but the immutable non-passing
+root admits no production route; Model 0018V's floating conformance tolerance remains future.
 CPU 0008A is `Complete`: it
 validates Conv1d through the explicit Conv2d
 composition and adds Conv3d execution before the general DAG. CPU 0008B, CPU 0008C, and CPU 0008D
@@ -439,8 +439,9 @@ glossary were added. User-authorized Prepare 0003A, detailed CPU 0008E1, and CPU
 [CPU 0008M](tasks/0008m-vector-mse-none.md) is `Complete`; detailed
 [CPU 0008N](tasks/0008n-measured-profitable-float32-float64-conv2d-conv3d-simd-accumulation.md)
 ended with a bounded scalar stop; CPU 0008N1 is Complete; CPU 0008O is `Cancelled` with retained
-fork-0 `KEEP_SCALAR` evidence and no completed five-fork acceptance; CPU 0008P is the next valid
-Ready task for modular INT32/INT64 ordinary SUM/PROD only, not floating reassociation.
+fork-0 `KEEP_SCALAR` evidence and no completed five-fork acceptance; CPU 0008P is Complete with
+generated modular partial/combine machinery but an immutable non-passing root, so production
+remains `KEEP_WHOLE_CELL` and no floating reassociation is admitted.
 The inserted pooling order is Model 0025I -> Model 0025J -> Model 0025K -> Compiler
 0006B1 -> Compiler 0006B2 -> CPU 0008G1 -> CPU 0008H. The existing order through Model 0025G,
 Model 0025H, Compiler 0006B, and CPU 0008–0008G remains unchanged; Compiler 0006C remains a
@@ -468,7 +469,8 @@ close the pooling execution frontier; detailed
 [CPU 0008N](tasks/0008n-measured-profitable-float32-float64-conv2d-conv3d-simd-accumulation.md)
 is Incomplete after its bounded scalar stop; CPU 0008N1 is Complete; CPU 0008O is `Cancelled`
 with retained fork-0 `KEEP_SCALAR` evidence and no completed five-fork acceptance; CPU 0008P is
-the next valid Ready task for modular INT32/INT64 ordinary SUM/PROD only, not floating reassociation.
+Complete with its generated modular partial/combine machinery fail-closed at `KEEP_WHOLE_CELL`,
+not floating reassociation.
 
 CPU 0008G1 retains the visible three-occurrence Pool1d graph while recognizing only the exact
 private singleton-height topology for schema-55 Pool2d reuse. Its first-class Pool3d implementation
@@ -944,8 +946,8 @@ CPU 0008F, detailed CPU 0008G, detailed CPU 0008G1, detailed CPU 0008H, and CPU 
 `Complete`; detailed CPU 0008J, Model 0025L, CPU 0008K, and CPU 0008L are `Complete`; detailed
 [CPU 0008M](tasks/0008m-vector-mse-none.md) is `Complete`; CPU 0008N ended with a bounded scalar
 stop, CPU 0008N1 is Complete, CPU 0008O is `Cancelled` with retained fork-0 `KEEP_SCALAR`
-evidence but no completed five-fork acceptance, and CPU 0008P is the next valid Ready task for
-modular INT32/INT64 ordinary SUM/PROD only, not floating reassociation,
+evidence but no completed five-fork acceptance, and CPU 0008P is Complete with its modular
+partial/combine implementation fail-closed at `KEEP_WHOLE_CELL`, not floating reassociation,
 and CPU 0009 through 0017 remain Draft. Prepare
 0003A is Complete.
 CPU 0005C preserves that exact slice and implements cold selection among all four portable
@@ -1197,8 +1199,8 @@ CPU 0008K and detailed
 [CPU 0008L](tasks/0008l-pointwise-simd-mask-output-closure.md) are `Complete`; detailed
 [CPU 0008M](tasks/0008m-vector-mse-none.md) is `Complete`; CPU 0008N ended with a bounded scalar
 stop, CPU 0008N1 is Complete, CPU 0008O is `Cancelled` with retained fork-0 `KEEP_SCALAR`
-evidence but no completed five-fork acceptance, and CPU 0008P is the next valid Ready task for
-modular INT32/INT64 ordinary SUM/PROD only, not floating reassociation.
+evidence but no completed five-fork acceptance, and CPU 0008P is Complete with its modular
+partial/combine implementation fail-closed at `KEEP_WHOLE_CELL`, not floating reassociation.
 These notes do
 not alter the ordered task rows or completed earlier CPU families.
 
@@ -1374,8 +1376,8 @@ not alter the ordered task rows or completed earlier CPU families.
   [CPU 0008N](tasks/0008n-measured-profitable-float32-float64-conv2d-conv3d-simd-accumulation.md)
   ended with a bounded scalar stop at generated/direct `1.775769426x`; CPU 0008N1 is Complete,
   CPU 0008O is `Cancelled` with retained fork-0 `KEEP_SCALAR` evidence but no completed five-fork
-  acceptance, and CPU 0008P is the next valid Ready task for modular INT32/INT64 ordinary
-  SUM/PROD only, not floating reassociation. This planning
+  acceptance, and CPU 0008P is Complete with its modular partial/combine implementation
+  fail-closed at `KEEP_WHOLE_CELL`, not floating reassociation. This planning
   refinement changes neither architecture nor the required 0008 -> 0008A -> 0008B -> 0008C ->
   0008D -> 0008E -> Prepare 0003A -> CPU 0008E1 -> CPU 0008F order.
 - CPU 0008 resolves its in-progress split contradiction locally. `CpuPartitionPreparationPlan`

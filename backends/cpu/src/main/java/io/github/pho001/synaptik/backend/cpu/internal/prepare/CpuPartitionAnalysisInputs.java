@@ -1,5 +1,7 @@
 package io.github.pho001.synaptik.backend.cpu.internal.prepare;
 
+import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuAggregateIr;
+import io.github.pho001.synaptik.model.datatype.DataType;
 import io.github.pho001.synaptik.prepare.analysis.BackendAnalysisInputs;
 import io.github.pho001.synaptik.backend.cpu.internal.cache.CpuKernelSpecialization.CarrierAccess;
 import java.util.List;
@@ -17,18 +19,77 @@ import java.util.List;
  *     candidates but still selects direct execution
  * @param conv2dMaterializedSuffixUnit whether this input belongs to the sole tagged pointwise
  *     suffix unit of a two-unit Conv2d plan
+ * @param partialReductionEvidence non-null diagnostic partial-reduction evidence; current
+ *     production preparation treats it as non-authoritative and remains fail-closed
  */
 public record CpuPartitionAnalysisInputs(boolean loweringManifestEnabled,
         List<CarrierAccess> carrierPattern, PortableExecutionConfig portableExecution,
-        MaterializationPolicy materializationPolicy, boolean conv2dMaterializedSuffixUnit)
+        MaterializationPolicy materializationPolicy, boolean conv2dMaterializedSuffixUnit,
+        PartialReductionEvidence partialReductionEvidence)
         implements BackendAnalysisInputs {
+    /**
+     * Compatibility constructor that deliberately admits no partial route.
+     *
+     * @param loweringManifestEnabled whether diagnostics are retained
+     * @param carrierPattern requested carrier forms
+     * @param portableExecution cold execution limits
+     * @param materializationPolicy cold materialization policy
+     * @param conv2dMaterializedSuffixUnit tagged Conv2d suffix marker
+     */
+    public CpuPartitionAnalysisInputs(boolean loweringManifestEnabled,
+            List<CarrierAccess> carrierPattern, PortableExecutionConfig portableExecution,
+            MaterializationPolicy materializationPolicy, boolean conv2dMaterializedSuffixUnit) {
+        this(loweringManifestEnabled, carrierPattern, portableExecution, materializationPolicy,
+                conv2dMaterializedSuffixUnit, PartialReductionEvidence.NONE);
+    }
     /**
      * Default input: manifest and materialization disabled, scalar single-thread execution, and
      * one exact-segment carrier selected for every boundary derived by lowering.
      */
     public static final CpuPartitionAnalysisInputs DEFAULT = new CpuPartitionAnalysisInputs(false,
             List.of(),
-            PortableExecutionConfig.DEFAULT, MaterializationPolicy.DISABLED, false);
+            PortableExecutionConfig.DEFAULT, MaterializationPolicy.DISABLED, false,
+            PartialReductionEvidence.NONE);
+
+    /**
+     * Immutable diagnostic record for the deliberately narrow partial-reduction route.
+     *
+     * <p>This record is not a production admission credential.  Until a separately scoped
+     * trusted reader verifies a complete frozen evidence root, the current selector ignores even
+     * a syntactically passing instance and keeps the whole-cell route.</p>
+     *
+     * @param passed claimed matching-evidence outcome; it cannot authorize the current selector
+     * @param kind exact ordinary aggregate kind authorized by a passing row
+     * @param dataType exact represented primitive type authorized by a passing row
+     * @param form exact aggregate form authorized by a passing row
+     * @param partialCount exact prepared count, restricted to two or four when passed
+     */
+    public record PartialReductionEvidence(boolean passed, CpuAggregateIr.Kind kind,
+            DataType dataType, CpuAggregateIr.Form form, int partialCount) {
+        /** Fail-closed default with no admitted partial count. */
+        public static final PartialReductionEvidence NONE = new PartialReductionEvidence(false,
+                null, null, null, 0);
+        /**
+         * Compatibility constructor for the former untyped evidence shape.
+         *
+         * <p>Only the fail-closed {@link #NONE} form is meaningful without an aggregate identity.
+         * A passing row must name the exact kind, type, and form that it authorizes.</p>
+         *
+         * @param passed whether the evidence row passed
+         * @param partialCount requested partial count
+         */
+        public PartialReductionEvidence(boolean passed, int partialCount) {
+            this(passed, null, null, null, partialCount);
+        }
+        /** Validates the diagnostic shape without performing measurement or admission. */
+        public PartialReductionEvidence {
+            if (passed && (kind == null || dataType == null || form == null
+                    || partialCount != 2 && partialCount != 4)
+                    || !passed && (kind != null || dataType != null || form != null
+                    || partialCount != 0))
+                throw new IllegalArgumentException("partial-reduction evidence facts disagree");
+        }
+    }
 
     /**
      * Creates ordinary analysis inputs outside the tagged Conv2d suffix exception.
@@ -44,7 +105,7 @@ public record CpuPartitionAnalysisInputs(boolean loweringManifestEnabled,
             List<CarrierAccess> carrierPattern, PortableExecutionConfig portableExecution,
             MaterializationPolicy materializationPolicy) {
         this(loweringManifestEnabled, carrierPattern, portableExecution, materializationPolicy,
-                false);
+                false, PartialReductionEvidence.NONE);
     }
 
     /**
@@ -141,7 +202,7 @@ public record CpuPartitionAnalysisInputs(boolean loweringManifestEnabled,
     public CpuPartitionAnalysisInputs(boolean loweringManifestEnabled,
             List<CarrierAccess> carrierPattern) {
         this(loweringManifestEnabled, carrierPattern, PortableExecutionConfig.DEFAULT,
-                MaterializationPolicy.DISABLED, false);
+                MaterializationPolicy.DISABLED, false, PartialReductionEvidence.NONE);
     }
 
     /**
@@ -156,7 +217,7 @@ public record CpuPartitionAnalysisInputs(boolean loweringManifestEnabled,
     public CpuPartitionAnalysisInputs(boolean loweringManifestEnabled,
             List<CarrierAccess> carrierPattern, PortableExecutionConfig portableExecution) {
         this(loweringManifestEnabled, carrierPattern, portableExecution,
-                MaterializationPolicy.DISABLED, false);
+                MaterializationPolicy.DISABLED, false, PartialReductionEvidence.NONE);
     }
 
     /**
@@ -174,5 +235,6 @@ public record CpuPartitionAnalysisInputs(boolean loweringManifestEnabled,
         carrierPattern = List.copyOf(carrierPattern);
         java.util.Objects.requireNonNull(portableExecution, "portableExecution");
         java.util.Objects.requireNonNull(materializationPolicy, "materializationPolicy");
+        java.util.Objects.requireNonNull(partialReductionEvidence, "partialReductionEvidence");
     }
 }

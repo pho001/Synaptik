@@ -9,6 +9,7 @@ import io.github.pho001.synaptik.backend.cpu.internal.cache.CpuKernelSpecializat
 import io.github.pho001.synaptik.backend.cpu.internal.cache.CpuLoweringFingerprint;
 import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuSpecializedSubgraph;
 import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuAccessPlan;
+import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuAggregateIr;
 import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuAffineCopyIr;
 import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuRepresentationDecision;
 import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuSpecializedSubgraph.BaselineExecutionFact;
@@ -34,6 +35,7 @@ import io.github.pho001.synaptik.model.operation.Operation;
 import io.github.pho001.synaptik.model.operation.OperationKind;
 import io.github.pho001.synaptik.model.operation.reduction.AggregateReductionKind;
 import io.github.pho001.synaptik.model.operation.reduction.AxisReductionAttrs;
+import io.github.pho001.synaptik.model.operation.reduction.MultiAxisReductionAttrs;
 import io.github.pho001.synaptik.model.operation.reduction.SumToShapeAttrs;
 import io.github.pho001.synaptik.model.operation.reduction.StatisticalReductionAttrs;
 import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuAggregateLoweringTest;
@@ -80,6 +82,64 @@ import jdk.incubator.vector.LongVector;
 import jdk.incubator.vector.ByteVector;
 
 public class CpuPartitionPreparerTest {
+    @Test void partialReductionAdmissionKeepsWholeCellRouteWithoutTrustedEvidenceReader() {
+        record Case(AggregateReductionKind kind, DataType type,
+                    io.github.pho001.synaptik.model.operation.OperationAttrs attrs,
+                    Shape input, Shape output, CpuAggregateIr.Form form, int partialCount) { }
+        var cases = List.of(
+                new Case(AggregateReductionKind.SUM, DataType.INT32, NoOperationAttrs.INSTANCE,
+                        Shape.of(16), Shape.scalar(), CpuAggregateIr.Form.FULL, 2),
+                new Case(AggregateReductionKind.PROD, DataType.INT64,
+                        new AxisReductionAttrs(1, false), Shape.of(2, 16), Shape.of(2),
+                        CpuAggregateIr.Form.SINGLE_AXIS, 4),
+                new Case(AggregateReductionKind.SUM, DataType.INT32,
+                        new MultiAxisReductionAttrs(List.of(1, 2), false), Shape.of(2, 2, 16),
+                        Shape.of(2), CpuAggregateIr.Form.MULTI_AXIS, 2),
+                new Case(AggregateReductionKind.PROD, DataType.INT64,
+                        new MultiAxisReductionAttrs(List.of(1, 2), false), Shape.of(2, 2, 16),
+                        Shape.of(2), CpuAggregateIr.Form.MULTI_AXIS, 4));
+        var config = new PortableExecutionConfig(ComputePreference.SCALAR, 4, 4, 4);
+        for (var value : cases) {
+            var base = CpuAggregateLoweringTest.context(value.kind(), value.type(), value.input(),
+                    value.attrs(), value.output());
+            var aggregateKind = CpuAggregateIr.Kind.valueOf(value.kind().name());
+            var carrier = value.type() == DataType.INT32 ? CarrierAccess.INT_ARRAY
+                    : CarrierAccess.LONG_ARRAY;
+            var inputs = new CpuPartitionAnalysisInputs(true, List.of(carrier, carrier), config,
+                    CpuPartitionAnalysisInputs.MaterializationPolicy.DISABLED, false,
+                    new CpuPartitionAnalysisInputs.PartialReductionEvidence(true, aggregateKind,
+                            value.type(), value.form(), value.partialCount()));
+            var context = new PrepareContext<>(base.partition(), base.nodes(), base.values(),
+                    base.memoryRequirements(), base.constants(), inputs);
+            var analysis = new CpuPartitionPreparer().analyze(context);
+            var plan = analysis.plan();
+            assertAll(() -> assertTrue(plan.partialReductionRecipe().isEmpty()),
+                    () -> assertTrue(plan.workspaceDeclaration().isEmpty()),
+                    () -> assertEquals(CpuPartitionPreparationPlan.ExecutionStrategy.SCALAR,
+                            plan.executionStrategy()));
+        }
+        var base = CpuAggregateLoweringTest.context(AggregateReductionKind.SUM, DataType.INT32,
+                Shape.of(16), NoOperationAttrs.INSTANCE, Shape.scalar());
+        var fallback = new PrepareContext<>(base.partition(), base.nodes(), base.values(),
+                base.memoryRequirements(), base.constants(), new CpuPartitionAnalysisInputs(false,
+                        List.of(CarrierAccess.INT_ARRAY, CarrierAccess.INT_ARRAY), config));
+        var fallbackPlan = new CpuPartitionPreparer().analyze(fallback).plan();
+        var mismatched = new PrepareContext<>(base.partition(), base.nodes(), base.values(),
+                base.memoryRequirements(), base.constants(), new CpuPartitionAnalysisInputs(false,
+                        List.of(CarrierAccess.MEMORY_SEGMENT, CarrierAccess.MEMORY_SEGMENT), config,
+                        CpuPartitionAnalysisInputs.MaterializationPolicy.DISABLED, false,
+                        new CpuPartitionAnalysisInputs.PartialReductionEvidence(true,
+                                CpuAggregateIr.Kind.SUM, DataType.INT32,
+                                CpuAggregateIr.Form.FULL, 2)));
+        var mismatchedPlan = new CpuPartitionPreparer().analyze(mismatched).plan();
+        assertAll(() -> assertTrue(fallbackPlan.partialReductionRecipe().isEmpty()),
+                () -> assertTrue(fallbackPlan.workspaceDeclaration().isEmpty()),
+                () -> assertEquals(CpuPartitionPreparationPlan.ExecutionStrategy.SCALAR,
+                        fallbackPlan.executionStrategy()),
+                () -> assertTrue(mismatchedPlan.partialReductionRecipe().isEmpty()),
+                () -> assertTrue(mismatchedPlan.workspaceDeclaration().isEmpty()));
+    }
+
     @Test void conv2dProductionVectorSelectionAcceptsAllProvedCarrierCombinations() {
         var base = io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuConv2dLoweringTest
                 .context(List.of(DataType.FLOAT32, DataType.FLOAT32),

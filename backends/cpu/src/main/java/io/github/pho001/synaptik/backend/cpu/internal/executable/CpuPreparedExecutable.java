@@ -2,6 +2,7 @@ package io.github.pho001.synaptik.backend.cpu.internal.executable;
 
 import io.github.pho001.synaptik.backend.cpu.internal.cache.CpuKernelSpecialization.CarrierAccess;
 import io.github.pho001.synaptik.backend.cpu.internal.codegen.emit.CpuGeneratedKernel;
+import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuPartialReductionIr;
 import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuAccessPlan;
 import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuMaterializationPlan;
 import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuNonAffineMovementLowering;
@@ -107,6 +108,7 @@ import java.util.Optional;
  */
 public final class CpuPreparedExecutable extends PreparedExecutable {
     private final CpuGeneratedKernel artifact;
+    private final Optional<CpuGeneratedKernel.PartialReductionArtifact> partialReductionArtifact;
     private final List<CpuAccessPlan.Binding> bindings;
     private final List<CarrierAccess> carrierPattern;
     private final List<CarrierAccess> generatedCarrierPattern;
@@ -883,7 +885,8 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
                 argExtremaGeometry, maskedReductionGeometry, advancedReductionGeometry,
                 softmaxGeometry, trailingNormalizationGeometry, batchNormInferenceGeometry,
                 batchNormTrainingGeometry, conv2dGeometry, conv3dGeometry, matmulGeometry,
-                Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(), outputCount);
+                Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(), outputCount,
+                Optional.empty());
     }
 
     /**
@@ -931,6 +934,8 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
      * @param attentionGeometry non-null optional scaled-dot-product-attention row geometry
      * @param lossGeometry non-null optional direct loss rank/layout/base-packing geometry
      * @param outputCount positive number of trailing selections written by this unit
+     * @param partialReductionArtifact non-null optional cold-bound partial/combine artifact;
+     *     when present it requires the matching private aligned workspace and worker geometry
      * @throws NullPointerException if a required reference or list element is {@code null}
      * @throws IllegalArgumentException if representation plans/workspaces, memory, boundary,
      *     carrier, range, worker, route, output-count, workspace, or specialization facts disagree
@@ -965,12 +970,15 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
             Optional<CpuPool2dLowering.Geometry> pool2dGeometry,
             Optional<CpuPool3dLowering.Geometry> pool3dGeometry,
             Optional<CpuAttentionLowering.Geometry> attentionGeometry,
-            Optional<CpuLossLowering.Geometry> lossGeometry, int outputCount) {
+            Optional<CpuLossLowering.Geometry> lossGeometry, int outputCount,
+            Optional<CpuGeneratedKernel.PartialReductionArtifact> partialReductionArtifact) {
         super(memoryPlan, selections, java.util.stream.Stream.concat(workspaceSelection.stream(),
                 representationWorkspaceSelections.stream()).toList(),
                 accesses(selections.size(), outputCount));
         if (selections.isEmpty()) throw new IllegalArgumentException("at least one buffer required");
         this.artifact = Objects.requireNonNull(artifact, "artifact");
+        this.partialReductionArtifact = Objects.requireNonNull(partialReductionArtifact,
+                "partialReductionArtifact");
         this.bindings = List.copyOf(bindings);
         this.carrierPattern = List.copyOf(carrierPattern);
         this.generatedCarrierPattern = List.copyOf(generatedCarrierPattern);
@@ -1062,6 +1070,21 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
         this.selectedRangeCount = selectedRangeCount;
         this.minimumElementsPerWorker = minimumElementsPerWorker;
         this.workerGroup = workerGroup;
+        if (this.partialReductionArtifact.isPresent()) {
+            var partial = this.partialReductionArtifact.orElseThrow();
+            if (bindings.size() != 2 || outputCount != 1 || this.carrierPattern.size() != 2
+                    || (partial.ir().dataType()
+                            == io.github.pho001.synaptik.model.datatype.DataType.INT32
+                            ? !this.carrierPattern.equals(List.of(CarrierAccess.INT_ARRAY,
+                                    CarrierAccess.INT_ARRAY))
+                            : !this.carrierPattern.equals(List.of(CarrierAccess.LONG_ARRAY,
+                                    CarrierAccess.LONG_ARRAY)))
+                    || selectedRangeCount != partial.ir().partialCount()
+                    || workerGroup == null || workerGroup.workerCount() < partial.ir().partialCount()
+                    || end - start != partial.ir().outputCount()) {
+                throw new IllegalArgumentException("partial-reduction prepared facts disagree");
+            }
+        }
         this.materialization = Optional.empty();
         this.workspaceSelection = Objects.requireNonNull(workspaceSelection, "workspaceSelection");
         this.representationMaterializations = List.copyOf(representationMaterializations);
@@ -1114,7 +1137,7 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
         if (workspaceSelection.isPresent() != (scatterScratch
                 || aggregateScratch || maskedScratch || advancedScratch
                 || normalizationScratch || trainingScratch || attentionScratch
-                || this.orderingGeometry.isPresent())) {
+                || this.orderingGeometry.isPresent() || this.partialReductionArtifact.isPresent())) {
             throw new IllegalArgumentException("workspace selection purpose is inconsistent");
         }
         this.representationMaterializationPositions = representationPositions(
@@ -1201,7 +1224,8 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
                 argExtremaGeometry, maskedReductionGeometry, advancedReductionGeometry,
                 softmaxGeometry, trailingNormalizationGeometry, batchNormInferenceGeometry,
                 batchNormTrainingGeometry, conv2dGeometry, conv3dGeometry, matmulGeometry,
-                pool2dGeometry, pool3dGeometry, Optional.empty(), Optional.empty(), outputCount);
+                pool2dGeometry, pool3dGeometry, Optional.empty(), Optional.empty(), outputCount,
+                Optional.empty());
     }
 
     /**
@@ -1285,7 +1309,8 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
                 argExtremaGeometry, maskedReductionGeometry, advancedReductionGeometry,
                 softmaxGeometry, trailingNormalizationGeometry, batchNormInferenceGeometry,
                 batchNormTrainingGeometry, conv2dGeometry, conv3dGeometry, matmulGeometry,
-                pool2dGeometry, pool3dGeometry, attentionGeometry, lossGeometry, outputCount);
+                pool2dGeometry, pool3dGeometry, attentionGeometry, lossGeometry, outputCount,
+                Optional.empty());
     }
 
     /**
@@ -1420,7 +1445,7 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
                 advancedReductionGeometry, softmaxGeometry, trailingNormalizationGeometry,
                 batchNormInferenceGeometry, batchNormTrainingGeometry, conv2dGeometry,
                 conv3dGeometry, matmulGeometry, pool2dGeometry, pool3dGeometry,
-                attentionGeometry, lossGeometry, outputCount);
+                attentionGeometry, lossGeometry, outputCount, partialReductionArtifact);
     }
 
     private CpuAccessPlan.Binding ranged(CpuAccessPlan.Binding source) {
@@ -1455,6 +1480,13 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
             WorkspaceRepresentation representation) {
         if (!(representation instanceof CpuContiguousWorkspace workspace)
                 || !workspace.isAccessible()) return false;
+        if (partialReductionArtifact.isPresent()) {
+            var partial = partialReductionArtifact.orElseThrow();
+            return index == 0 && workspace.byteSize() == partial.ir().workspaceBytes()
+                    && workspace.byteAlignment() == CpuPartialReductionIr.STATE_SLICE_BYTES
+                    && workspace.writableSegment().address() % CpuPartialReductionIr.STATE_SLICE_BYTES
+                            == 0;
+        }
         int intrinsicCount = workspaceSelection.isPresent() ? 1 : 0;
         if (index >= intrinsicCount) {
             int copyIndex = index - intrinsicCount;
@@ -1493,6 +1525,10 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
 
     @Override protected BoundInvocation bindCompatible(RunState state,
             BufferRepresentation[] buffers, WorkspaceRepresentation[] workspaces) {
+        if (partialReductionArtifact.isPresent()) {
+            return bindPartialReduction(state, buffers, workspaces,
+                    partialReductionArtifact.orElseThrow());
+        }
         boolean hasWorkspace=scatterGeometry.filter(g->g.scratchSliceBytes()>0).isPresent()
                 || aggregateGeometry.filter(g -> g.scratchSliceBytes() > 0
                     && g.outputCount() > 0).isPresent()
@@ -1698,6 +1734,75 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
             chunkStart = chunkEnd;
         }
         return new Invocation(state, validation, scatterValidation, prologue, null, calls);
+    }
+
+    /** Binds the already-selected direct-array partial route without reselecting a kernel. */
+    private BoundInvocation bindPartialReduction(RunState state, BufferRepresentation[] buffers,
+            WorkspaceRepresentation[] workspaces,
+            CpuGeneratedKernel.PartialReductionArtifact partial) {
+        if (buffers.length != 2 || workspaces.length != 1 || workerGroup == null
+                || !workerGroup.isOpen() || workerGroup.workerCount() < partial.ir().partialCount()) {
+            throw new IllegalArgumentException("partial-reduction binding facts disagree");
+        }
+        CpuBufferArgument input = ((CpuBufferRepresentation) buffers[0]).argument();
+        CpuBufferArgument output = ((CpuBufferRepresentation) buffers[1]).argument();
+        MemorySegment workspace = ((CpuContiguousWorkspace) workspaces[0]).writableSegment();
+        if (!workspace.scope().isAlive() || !workspace.isAccessibleBy(Thread.currentThread())
+                || workspace.byteSize() != partial.ir().workspaceBytes()
+                || workspace.address() % CpuPartialReductionIr.STATE_SLICE_BYTES != 0
+                || !workerGroup.workersCanAccess(workspace)) {
+            throw new IllegalArgumentException("partial-reduction workspace is incompatible");
+        }
+        if (partial.ir().dataType() == io.github.pho001.synaptik.model.datatype.DataType.INT32
+                && input instanceof CpuBufferArgument.Ints values
+                && output instanceof CpuBufferArgument.Ints result && !result.readOnly()) {
+            int inputBase = arrayBase(values.byteOffset(), Integer.BYTES, values.byteSize(),
+                    values.carrier().length, partial.ir().outputCount(), partial.ir().domainCount());
+            int outputBase = arrayBase(result.byteOffset(), Integer.BYTES, result.byteSize(),
+                    result.carrier().length, partial.ir().outputCount(), 1);
+            rejectPartialWorkspaceOverlap(workspace, MemorySegment.ofArray(values.carrier()),
+                    MemorySegment.ofArray(result.carrier()));
+            KernelCall call = () -> CpuPartialReductionExecution.executeInt(partial,
+                    values.carrier(), inputBase, result.carrier(), outputBase, workspace, workerGroup);
+            return new Invocation(state, null, null, null, call, null);
+        }
+        if (partial.ir().dataType() == io.github.pho001.synaptik.model.datatype.DataType.INT64
+                && input instanceof CpuBufferArgument.Longs values
+                && output instanceof CpuBufferArgument.Longs result && !result.readOnly()) {
+            int inputBase = arrayBase(values.byteOffset(), Long.BYTES, values.byteSize(),
+                    values.carrier().length, partial.ir().outputCount(), partial.ir().domainCount());
+            int outputBase = arrayBase(result.byteOffset(), Long.BYTES, result.byteSize(),
+                    result.carrier().length, partial.ir().outputCount(), 1);
+            rejectPartialWorkspaceOverlap(workspace, MemorySegment.ofArray(values.carrier()),
+                    MemorySegment.ofArray(result.carrier()));
+            KernelCall call = () -> CpuPartialReductionExecution.executeLong(partial,
+                    values.carrier(), inputBase, result.carrier(), outputBase, workspace, workerGroup);
+            return new Invocation(state, null, null, null, call, null);
+        }
+        throw new IllegalArgumentException("partial-reduction requires direct matching primitive arrays");
+    }
+
+    private static int arrayBase(long byteOffset, int width, long byteSize, int arrayLength,
+            long outputCount, long elementsPerOutput) {
+        if (byteOffset % width != 0 || byteSize % width != 0) {
+            throw new IllegalArgumentException("partial-reduction array offset is not aligned");
+        }
+        long base = byteOffset / width;
+        long required = Math.multiplyExact(outputCount, elementsPerOutput);
+        if (base > Integer.MAX_VALUE || required > Integer.MAX_VALUE
+                || required > byteSize / width
+                || base + required > arrayLength || base + required > Integer.MAX_VALUE) {
+            throw new IllegalArgumentException("partial-reduction array span exceeds direct ABI");
+        }
+        return (int) base;
+    }
+
+    private static void rejectPartialWorkspaceOverlap(MemorySegment workspace,
+            MemorySegment input, MemorySegment output) {
+        if (workspace.asOverlappingSlice(input).isPresent()
+                || workspace.asOverlappingSlice(output).isPresent()) {
+            throw new IllegalArgumentException("partial-reduction workspace must not overlap a buffer");
+        }
     }
 
     /**
