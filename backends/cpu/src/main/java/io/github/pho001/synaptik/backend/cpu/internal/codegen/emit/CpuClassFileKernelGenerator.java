@@ -32,7 +32,11 @@ import java.util.Objects;
  * Eligible direct dense same-typed FLOAT32/FLOAT64 Conv2d and Conv3d schema-63 specializations
  * instead emit output-width vector chunks with ordered scalar borders, range fragments, and tails;
  * width stride and dilation alone must be one. Ineligible convolution retains its historical
- * schema-52 scalar class projection. The generator does not choose capability, numerical
+ * schema-52 scalar class projection. Proved vector scalar-power bodies prepare reusable constants
+ * and, only for an accessed segment vector, its byte order before execution. They choose a dense
+ * loop from the boundaries the body actually accesses, compute its vector bound once, and omit
+ * positive-one base-address work; arbitrary ranges and scalar tails remain explicit. The
+ * generator does not choose capability, numerical
  * semantics, access structure, strategy, or fallback.</p>
  * Instruction-free affine, movement, indexing, scatter, fold, ordering, explicit-state random,
  * cumulative-scan, ordinary aggregate, and first-class loss forms delegate to their focused
@@ -120,7 +124,9 @@ public final class CpuClassFileKernelGenerator {
                                     && !kernelIr.familyIdentity().startsWith("attention:")) {
                                 CpuCarrierEmitter.prepareSegmentLayouts(code,
                                         specialization.boundaryDataTypes(),
-                                        specialization.carrierPattern());
+                                        hasProvedVectorScalarPower(specialization, kernelIr)
+                                                ? accessedCarrierPattern(kernelIr, specialization)
+                                                : specialization.carrierPattern());
                             }
                             if (kernelIr.instructions().isEmpty()) {
                                 if (kernelIr.familyIdentity().startsWith("attention:")) {
@@ -214,6 +220,12 @@ public final class CpuClassFileKernelGenerator {
                                     == io.github.pho001.synaptik.backend.cpu.internal.prepare.CpuPartitionPreparationPlan.ExecutionStrategy.Compute.VECTOR) {
                                 DataType vectorType = vectorDataType(kernelIr);
                                 carriers.prepareVectorSpecies(vectorType);
+                                boolean provedScalarPower = hasProvedVectorScalarPower(
+                                        specialization, kernelIr);
+                                if (provedScalarPower && requiresVectorByteOrder(kernelIr,
+                                        boundaries, specialization.carrierPattern())) {
+                                    carriers.prepareVectorByteOrder();
+                                }
                                 if (usesDenseFloatingMaskBoundary(kernelIr, vectorType)) {
                                     carriers.prepareMaskByteBridge(specialization.vectorSpeciesBitSize()
                                             / vectorType.bitWidth());
@@ -222,9 +234,33 @@ public final class CpuClassFileKernelGenerator {
                                 var vectorInstructions = new CpuVectorInstructionEmitter(
                                         code, kernelIr, vectorType);
                                 int lanes = specialization.vectorSpeciesBitSize() / vectorType.bitWidth();
-                                if (specialization.loopAddressing(kernelIr)
-                                        == CpuKernelSpecialization.LoopAddressing.DENSE_HEAP_ARRAY_INT)
+                                boolean[] accessed = provedScalarPower
+                                        ? accessedBoundaries(kernelIr, boundaries) : null;
+                                boolean accessedDense = provedScalarPower
+                                        && allAccessedBoundariesAreDense(plans, accessed);
+                                boolean denseArrayInt = provedScalarPower
+                                        ? accessedDense && usesOnlyArrayVectorCarriers(kernelIr,
+                                                boundaries, specialization.carrierPattern())
+                                        : specialization.loopAddressing(kernelIr)
+                                                == CpuKernelSpecialization.LoopAddressing
+                                                        .DENSE_HEAP_ARRAY_INT;
+                                if (denseArrayInt && provedScalarPower)
+                                    loops.emitDenseArrayIntVector(plans, accessed, lanes,
+                                            state -> emitVectorBody(code, carriers, vectorInstructions,
+                                                    specialization, kernelIr, boundaries, state,
+                                                    vectorLocals, vectorType), scalarBody);
+                                else if (denseArrayInt)
                                     loops.emitDenseArrayIntVector(plans, lanes,
+                                            state -> emitVectorBody(code, carriers, vectorInstructions,
+                                                    specialization, kernelIr, boundaries, state,
+                                                    vectorLocals, vectorType), scalarBody);
+                                else if (provedScalarPower && accessedDense)
+                                    loops.emitDenseLongVector(plans, accessed, lanes,
+                                            state -> emitVectorBody(code, carriers, vectorInstructions,
+                                                    specialization, kernelIr, boundaries, state,
+                                                    vectorLocals, vectorType), scalarBody);
+                                else if (provedScalarPower)
+                                    loops.emitVector(plans, accessed, lanes,
                                             state -> emitVectorBody(code, carriers, vectorInstructions,
                                                     specialization, kernelIr, boundaries, state,
                                                     vectorLocals, vectorType), scalarBody);
@@ -426,6 +462,97 @@ public final class CpuClassFileKernelGenerator {
                 && ir.values().stream().anyMatch(value -> value.dataType() == DataType.BOOL
                     && value.kind() != CpuKernelIr.Value.Kind.VIRTUAL
                     && value.accessPlan().regime() == CpuAccessPlan.Regime.DENSE_LINEAR);
+    }
+
+    private static boolean hasProvedVectorScalarPower(CpuKernelSpecialization specialization,
+            CpuKernelIr ir) {
+        if (specialization.executionStrategy().compute()
+                != io.github.pho001.synaptik.backend.cpu.internal.prepare
+                    .CpuPartitionPreparationPlan.ExecutionStrategy.Compute.VECTOR) return false;
+        DataType vectorType = vectorDataTypeOrNull(ir);
+        return (vectorType == DataType.FLOAT32 || vectorType == DataType.FLOAT64)
+                && ir.instructions().stream().anyMatch(instruction ->
+                instruction.opcode() == CpuPointwiseOpcode.SCALAR_POW
+                && instruction.powerRealization() != CpuKernelIr.PowerRealization.DIRECT);
+    }
+
+    private static boolean usesOnlyArrayVectorCarriers(CpuKernelIr ir,
+            List<CpuKernelIr.Value> boundaries,
+            List<CpuKernelSpecialization.CarrierAccess> carriers) {
+        for (int boundary = 0; boundary < boundaries.size(); boundary++) {
+            CpuKernelIr.Value value = boundaries.get(boundary);
+            boolean accessed = value.kind() == CpuKernelIr.Value.Kind.INPUT
+                    ? requiresInputLoad(ir, value.ordinal())
+                    : ir.stores().stream().anyMatch(store -> store.value() == value.ordinal());
+            if (accessed && carriers.get(boundary)
+                    == CpuKernelSpecialization.CarrierAccess.MEMORY_SEGMENT) return false;
+        }
+        return true;
+    }
+
+    private static boolean requiresVectorByteOrder(CpuKernelIr ir,
+            List<CpuKernelIr.Value> boundaries,
+            List<CpuKernelSpecialization.CarrierAccess> carriers) {
+        for (int boundary = 0; boundary < boundaries.size(); boundary++) {
+            if (carriers.get(boundary)
+                    != CpuKernelSpecialization.CarrierAccess.MEMORY_SEGMENT) continue;
+            CpuKernelIr.Value value = boundaries.get(boundary);
+            if (value.dataType() == DataType.BOOL) continue;
+            if (value.kind() == CpuKernelIr.Value.Kind.INPUT) {
+                if (requiresInputLoad(ir, value.ordinal())
+                        && value.accessPlan().regime() != CpuAccessPlan.Regime.SCALAR_ALL_ZERO) {
+                    return true;
+                }
+            } else if (ir.stores().stream().anyMatch(
+                    store -> store.value() == value.ordinal())) return true;
+        }
+        return false;
+    }
+
+    private static boolean allAccessedBoundariesAreDense(List<CpuAccessPlan> plans,
+            boolean[] accessed) {
+        for (int boundary = 0; boundary < plans.size(); boundary++) {
+            if (!accessed[boundary]) continue;
+            CpuAccessPlan.Regime regime = plans.get(boundary).regime();
+            if (regime != CpuAccessPlan.Regime.DENSE_LINEAR
+                    && regime != CpuAccessPlan.Regime.SCALAR_ALL_ZERO) return false;
+        }
+        return true;
+    }
+
+    private static boolean[] accessedBoundaries(CpuKernelIr ir,
+            List<CpuKernelIr.Value> boundaries) {
+        boolean[] result = new boolean[boundaries.size()];
+        for (int boundary = 0; boundary < boundaries.size(); boundary++) {
+            CpuKernelIr.Value value = boundaries.get(boundary);
+            result[boundary] = value.kind() == CpuKernelIr.Value.Kind.INPUT
+                    ? requiresInputLoad(ir, value.ordinal())
+                    : ir.stores().stream().anyMatch(store -> store.value() == value.ordinal());
+        }
+        return result;
+    }
+
+    private static List<CpuKernelSpecialization.CarrierAccess> accessedCarrierPattern(
+            CpuKernelIr ir, CpuKernelSpecialization specialization) {
+        List<CpuKernelIr.Value> boundaries = ir.values().stream()
+                .filter(value -> value.kind() != CpuKernelIr.Value.Kind.VIRTUAL).toList();
+        var result = new java.util.ArrayList<>(specialization.carrierPattern());
+        for (int boundary = 0; boundary < boundaries.size(); boundary++) {
+            CpuKernelIr.Value value = boundaries.get(boundary);
+            boolean accessed = value.kind() == CpuKernelIr.Value.Kind.INPUT
+                    ? requiresInputLoad(ir, value.ordinal())
+                    : ir.stores().stream().anyMatch(store -> store.value() == value.ordinal());
+            if (!accessed && result.get(boundary)
+                    == CpuKernelSpecialization.CarrierAccess.MEMORY_SEGMENT) {
+                result.set(boundary, switch (value.dataType()) {
+                    case FLOAT32 -> CpuKernelSpecialization.CarrierAccess.FLOAT_ARRAY;
+                    case FLOAT64 -> CpuKernelSpecialization.CarrierAccess.DOUBLE_ARRAY;
+                    default -> throw new IllegalArgumentException(
+                            "proved scalar power requires a floating boundary");
+                });
+            }
+        }
+        return List.copyOf(result);
     }
 
     private static int boundaryIndex(List<CpuKernelIr.Value> boundaries, int ordinal) {

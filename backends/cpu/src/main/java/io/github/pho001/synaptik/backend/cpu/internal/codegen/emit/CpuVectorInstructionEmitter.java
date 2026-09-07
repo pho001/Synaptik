@@ -17,7 +17,9 @@ import java.util.Locale;
  * BOOL vector type. Eligible floating predicates use unit-private {@code VectorMask} values that
  * may be combined logically and consumed by floating {@code WHERE}; they are never materialized
  * or exposed as a boundary representation. Loop, carrier, tail, route, and fallback decisions
- * remain outside this type.</p>
+ * remain outside this type. Proved scalar-power realizations are emitted entirely through direct
+ * typed Vector API operations so generated hot entries do not invoke a Synaptik helper; the
+ * positive-one vector used by constant and reciprocal forms is prepared once before the loop.</p>
  */
 final class CpuVectorInstructionEmitter {
     private static final ClassDesc VECTOR_BASE = ClassDesc.of("jdk.incubator.vector.Vector");
@@ -26,12 +28,15 @@ final class CpuVectorInstructionEmitter {
     private static final ClassDesc COMPARISON =
             ClassDesc.of("jdk.incubator.vector.VectorOperators$Comparison");
     private static final ClassDesc TEST = ClassDesc.of("jdk.incubator.vector.VectorOperators$Test");
+    private static final ClassDesc VECTOR_SPECIES =
+            ClassDesc.of("jdk.incubator.vector.VectorSpecies");
     private static final ClassDesc MATH = ClassDesc.of(CpuVectorMath.class.getName());
     private final CodeBuilder code;
     private final CpuKernelIr ir;
     private final DataType laneType;
     private final ClassDesc vector;
     private final ClassDesc primitive;
+    private final int positiveOneLocal;
 
     /**
      * Creates an emitter for one validated lane type and topology.
@@ -61,6 +66,17 @@ final class CpuVectorInstructionEmitter {
             case BOOL -> ConstantDescs.CD_byte;
             default -> throw new IllegalArgumentException("unsupported vector data type");
         };
+        boolean needsPositiveOne = ir.instructions().stream().anyMatch(instruction ->
+                instruction.opcode() == CpuPointwiseOpcode.SCALAR_POW
+                        && (instruction.powerRealization()
+                            == CpuKernelIr.PowerRealization.POSITIVE_ONE
+                        || instruction.powerRealization()
+                            == CpuKernelIr.PowerRealization.RECIPROCAL));
+        if (needsPositiveOne) {
+            positiveOneLocal = code.allocateLocal(java.lang.classfile.TypeKind.REFERENCE);
+            emitPositiveOne();
+            code.astore(positiveOneLocal);
+        } else positiveOneLocal = -1;
     }
 
     /**
@@ -183,15 +199,24 @@ final class CpuVectorInstructionEmitter {
 
     private void emitPower(CpuKernelIr.PowerRealization realization) {
         switch (realization) {
-            case POSITIVE_ONE -> code.invokestatic(MATH,
-                    laneType == DataType.FLOAT32 ? "positiveOneFloat" : "positiveOne",
-                    MethodTypeDesc.of(vector));
+            case POSITIVE_ONE -> code.aload(positiveOneLocal);
             case IDENTITY -> { }
             case SQUARE -> code.dup().invokevirtual(vector, "mul",
                     MethodTypeDesc.of(vector, VECTOR_BASE));
-            case RECIPROCAL -> math("reciprocal");
+            case RECIPROCAL -> {
+                code.aload(positiveOneLocal);
+                code.swap().invokevirtual(vector, "div", MethodTypeDesc.of(vector, VECTOR_BASE));
+            }
             case DIRECT -> throw new IllegalArgumentException("direct scalar power is not vector eligible");
         }
+    }
+
+    private void emitPositiveOne() {
+        code.getstatic(vector, "SPECIES_PREFERRED", VECTOR_SPECIES);
+        if (laneType == DataType.FLOAT32) code.loadConstant(1.0f);
+        else if (laneType == DataType.FLOAT64) code.loadConstant(1.0d);
+        else throw new IllegalArgumentException("scalar power requires a floating vector type");
+        code.invokestatic(vector, "broadcast", MethodTypeDesc.of(vector, VECTOR_SPECIES, primitive));
     }
 
     private void math(String method) {

@@ -23,7 +23,7 @@ import jdk.incubator.vector.DoubleVector;
 class CpuGeneratedKernelArtifactStoreTest {
     @TempDir Path root;
 
-    @Test void publishesReloadsSchema63ConvAndRejectsStaleSchema62Envelope() throws Exception {
+    @Test void publishesReloadsSchema64ConvAndRejectsStaleSchema63Envelope() throws Exception {
         var base = io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuConv2dLoweringTest
                 .context(List.of(io.github.pho001.synaptik.model.datatype.DataType.FLOAT32,
                                 io.github.pho001.synaptik.model.datatype.DataType.FLOAT32),
@@ -57,14 +57,14 @@ class CpuGeneratedKernelArtifactStoreTest {
         var reloaded = store.loadOrGenerateObserved(vectorRoute.specialization(),
                 vectorRoute.kernelIr());
         byte[] stale = Files.readAllBytes(envelope);
-        java.nio.ByteBuffer.wrap(stale).putInt(4, 62);
+        java.nio.ByteBuffer.wrap(stale).putInt(4, 63);
         Files.write(envelope, stale);
         CpuGeneratedKernelArtifactStore.clearLoadedForTests();
         var recovered = store.loadOrGenerateObserved(vectorRoute.specialization(),
                 vectorRoute.kernelIr());
 
         assertAll(
-                () -> assertEquals(63, CpuGeneratorSchema.CURRENT_VERSION),
+                () -> assertEquals(64, CpuGeneratorSchema.CURRENT_VERSION),
                 () -> assertEquals(63, vectorRoute.specialization().classIdentitySchema()),
                 () -> assertEquals(52, scalarRoute.specialization().classIdentitySchema()),
                 () -> assertNotEquals(scalarRoute.specialization().structuralKey(),
@@ -81,7 +81,7 @@ class CpuGeneratedKernelArtifactStoreTest {
                         recovered.source()),
                 () -> assertArrayEquals(generated.artifact().classBytes(),
                         recovered.artifact().classBytes()),
-                () -> assertEquals(63, java.nio.ByteBuffer.wrap(Files.readAllBytes(envelope))
+                () -> assertEquals(64, java.nio.ByteBuffer.wrap(Files.readAllBytes(envelope))
                         .getInt(4)));
     }
 
@@ -102,7 +102,7 @@ class CpuGeneratedKernelArtifactStoreTest {
                 route.specialization(), route.kernelIr());
         var hit = hitResult.artifact();
         assertAll(
-                () -> assertEquals(63, CpuGeneratorSchema.CURRENT_VERSION),
+                () -> assertEquals(64, CpuGeneratorSchema.CURRENT_VERSION),
                 () -> assertTrue(Files.exists(root.resolve("legacy-v1.class"))),
                 () -> assertArrayEquals(memoryOnly.classBytes(), persisted.classBytes()),
                 () -> assertTrue(Files.size(current) > persisted.classBytes().length),
@@ -188,7 +188,7 @@ class CpuGeneratedKernelArtifactStoreTest {
                             recovered.source()),
                     () -> assertArrayEquals(seed.artifact().classBytes(),
                             recovered.artifact().classBytes()),
-                    () -> assertEquals(63, java.nio.ByteBuffer.wrap(Files.readAllBytes(file))
+                    () -> assertEquals(64, java.nio.ByteBuffer.wrap(Files.readAllBytes(file))
                             .getInt(4)),
                     () -> assertTrue(Files.size(file) <=
                             CpuGeneratedKernelArtifactStore.MAX_ENVELOPE_BYTES));

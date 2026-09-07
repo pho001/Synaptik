@@ -74,7 +74,7 @@ final class CpuConvSimdEvidenceTest {
             CpuKernelSpecialization vector, byte[] vectorBytes) { }
 
     @Test void stageBSemanticMatrixExecutesExactlyFortyEightRawBitRows() throws Throwable {
-        assertEquals(63, CpuGeneratorSchema.CURRENT_VERSION);
+        assertEquals(64, CpuGeneratorSchema.CURRENT_VERSION);
         List<SemanticRow> rows = semanticRows();
         assertEquals(48, rows.size());
         assertEquals(48, rows.stream().distinct().count());

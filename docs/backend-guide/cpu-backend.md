@@ -2861,6 +2861,17 @@ Common lowering classifies each exact scalar-power exponent once:
 | negative one | `RECIPROCAL` | One typed division, `+1.0 / base` |
 | every other finite value, infinity, or NaN | `DIRECT` | Direct power realization |
 
+When the existing vector eligibility gates select FLOAT32 or FLOAT64, the four special
+realizations are self-contained generated bodies: positive one is a prepared typed broadcast,
+identity forwards the loaded vector, square multiplies it by itself, and reciprocal divides the
+prepared positive-one vector by it. These bodies call only the typed Vector API, not a Synaptik
+helper. Positive one does not read or advance its semantically unused base. Dense-loop choice and
+the single precomputed vector bound consider only accessed boundaries; an accessed non-dense fused
+boundary retains the boundary-aware vector loop, including `LAST_AXIS_BIAS`. Segment byte order is
+prepared only when the vector portion actually accesses a non-scalar segment. Arbitrary ranges and
+scalar tails remain unchanged. This is the proved special-realization exception, not generic
+vector support for `DIRECT`, BFLOAT16, Tensor/Tensor power, or another access form.
+
 The reciprocal row is still `SCALAR_POW(-1)`, not binary or scalar DIV. Its opcode, exact
 immediate bits, realization, canonical IR identity, specialization metadata, and cold manifest
 remain power facts. Exponents such as `0.5`, `3`, and `-2` stay direct: square-root substitution,
@@ -3323,8 +3334,10 @@ adds direct grouped NCHW Conv2d, schema 52 adds direct grouped NCDHW Conv3d, sch
 schema 55 adds Pool2d, schema 56 adds Pool3d, schema 57 adds attention, schema 58 adds loss, and
 schema 59 adds BFLOAT16 pointwise, schema 60 adds cross-type CAST, schema 61 adds only the dense
 FLOAT32/FLOAT64 vector-mask boundary classes described above, schema 62 adds only the same-typed
-contiguous FLOAT32/FLOAT64 MSE `NONE` vector classes, and schema 63 adds eligible direct dense
-FLOAT32/FLOAT64 Conv2d/Conv3d output-width vector classes. The current envelope version is 63;
+contiguous FLOAT32/FLOAT64 MSE `NONE` vector classes, schema 63 adds eligible direct dense
+FLOAT32/FLOAT64 Conv2d/Conv3d output-width vector classes, and schema 64 makes the four proved
+FLOAT32/FLOAT64 vector scalar-power realizations self-contained without changing their semantic
+or specialization identity fields. The current envelope version is 64;
 older envelopes are incompatible safe misses, while scalar Conv retains schema 52, scalar loss remains on schema 58, and
 unchanged prior-family projections retain their established structural bytes.
 

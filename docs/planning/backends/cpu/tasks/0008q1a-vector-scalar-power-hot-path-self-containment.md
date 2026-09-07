@@ -2,7 +2,7 @@
 
 ## Status
 
-Ready
+Complete
 
 ## Goal
 
@@ -66,31 +66,45 @@ Type placement:
 
 ## Affected files
 
-Expected production and contract paths:
+Changed production and contract paths:
 
 - `backends/cpu/src/main/java/io/github/pho001/synaptik/backend/cpu/internal/codegen/emit/CpuVectorInstructionEmitter.java`
-- `backends/cpu/src/main/java/io/github/pho001/synaptik/backend/cpu/internal/codegen/emit/CpuVectorMath.java` only if its Javadoc or now-unused scalar-power-only members require correction
+- `backends/cpu/src/main/java/io/github/pho001/synaptik/backend/cpu/internal/codegen/emit/CpuClassFileKernelGenerator.java`
+- `backends/cpu/src/main/java/io/github/pho001/synaptik/backend/cpu/internal/codegen/emit/CpuLoopEmitter.java`
 - `backends/cpu/src/main/java/io/github/pho001/synaptik/backend/cpu/internal/codegen/emit/package-info.java`
 - `backends/cpu/src/main/java/io/github/pho001/synaptik/backend/cpu/internal/cache/CpuGeneratorSchema.java`
-- `backends/cpu/src/main/java/io/github/pho001/synaptik/backend/cpu/internal/cache/package-info.java` only if its current-schema description changes
 
-Expected test paths:
+Changed build and test paths:
 
-- one new focused semantic/Class-File test and at most one package-private clean-Java oracle in `backends/cpu/src/test/java/io/github/pho001/synaptik/backend/cpu/internal/codegen/emit/`
-- one opt-in performance harness in that package if the structural test cannot host the external-evidence protocol cleanly
-- existing `CpuPointwiseGeneratedKernelTest`, `CpuFusedGeneratedKernelTest`, `CpuVectorMathTest`, current-schema artifact-store/specialization tests, and `CpuPartitionPreparerTest` only where needed to lock the affected forms
+- `backends/cpu/build.gradle.kts`
+- `backends/cpu/src/test/java/io/github/pho001/synaptik/backend/cpu/internal/codegen/emit/CpuVectorScalarPowerSelfContainmentTest.java`
+- `backends/cpu/src/test/java/io/github/pho001/synaptik/backend/cpu/internal/codegen/emit/CpuVectorScalarPowerPerformanceTest.java`
+- `backends/cpu/src/test/java/io/github/pho001/synaptik/backend/cpu/internal/cache/CpuGeneratedKernelArtifactStoreTest.java`
+- `backends/cpu/src/test/java/io/github/pho001/synaptik/backend/cpu/internal/cache/CpuKernelSpecializationTest.java`
+- `backends/cpu/src/test/java/io/github/pho001/synaptik/backend/cpu/internal/codegen/emit/CpuBatchNormTrainingEvidenceTest.java`
+- `backends/cpu/src/test/java/io/github/pho001/synaptik/backend/cpu/internal/codegen/emit/CpuConv2dEvidenceTest.java`
+- `backends/cpu/src/test/java/io/github/pho001/synaptik/backend/cpu/internal/codegen/emit/CpuConv3dEvidenceTest.java`
+- `backends/cpu/src/test/java/io/github/pho001/synaptik/backend/cpu/internal/codegen/emit/CpuConvSimdEvidenceTest.java`
+- `backends/cpu/src/test/java/io/github/pho001/synaptik/backend/cpu/internal/codegen/emit/CpuPartitionDagGeneratedEvidenceTest.java`
+- `backends/cpu/src/test/java/io/github/pho001/synaptik/backend/cpu/internal/codegen/emit/CpuPointwiseLedgerEvidenceTest.java`
+- `backends/cpu/src/test/java/io/github/pho001/synaptik/backend/cpu/internal/codegen/emit/CpuPointwiseMaskEvidenceTest.java`
+- `backends/cpu/src/test/java/io/github/pho001/synaptik/backend/cpu/internal/prepare/CpuPartitionFinalizerTest.java`
+- `backends/cpu/src/test/java/io/github/pho001/synaptik/backend/cpu/internal/prepare/CpuPartitionPreparerTest.java`
 
-Expected documentation and planning paths:
+Changed documentation and planning paths:
 
-- `docs/backend-guide/cpu-backend.md` if its generated-vector boundary statement requires correction
-- `docs/glossary.md` only if a reusable term changes
-- this task, [CPU 0008Q1](0008q1-finite-scalar-immediate-clamp-matrix.md), [CPU 0009](0009-portable-generated-coverage-closure-checkpoint.md), [CPU master plan](../master-plan.md), and [roadmap](../../../roadmap.md)
+- `docs/backend-guide/cpu-backend.md`
+- this task
+- [CPU 0008Q1](0008q1-finite-scalar-immediate-clamp-matrix.md)
+- [CPU 0009](0009-portable-generated-coverage-closure-checkpoint.md)
+- [CPU master plan](../master-plan.md)
+- [roadmap](../../../roadmap.md)
 
 The six existing untracked CPU 0008Q1 test/resource paths are evidence inputs owned by 0008Q1 and must not be edited by this remediation task.
 
 ## Maximum scope
 
-At most five production/Javadoc paths, eight test paths, two explanatory-documentation paths, and five planning paths; at most 20 repository paths total. Performance sources, generated classes, decompilation, raw fork output, and manifests live only beneath one fresh caller-supplied untracked `/private/tmp/synaptik-cpu-0008q1a-*` root. Stop if another module, public API, capability/selection change, more than one new production type, or edits to the six protected 0008Q1 paths are required.
+The planned limit was five production/Javadoc paths, eight test paths, two explanatory-documentation paths, five planning paths, and 20 repository paths total. The completed change has five production/Javadoc paths, thirteen test paths, one build path, one explanatory guide, and five planning paths: 25 repository paths. This source-derived exception was necessary because the schema-63-to-64 migration required all eleven repository assertions of the global `CURRENT_VERSION` to move atomically, in addition to the two new task tests. It did not broaden production behavior, public API, dependencies, or module scope. Performance output remains only beneath the fresh caller-supplied `/private/tmp/synaptik-cpu-0008q1a-*` root, and none of the six protected CPU 0008Q1 paths changed.
 
 ## Acceptance criteria
 
@@ -170,18 +184,22 @@ Update this task with decisions, limitations, exact evidence, implementation not
 
 ## Validation evidence
 
-Planning-only evidence: clean planning/documentation context independently read the required architecture, planning, documentation, CPU 0008Q/0008Q1/0009, scalar-power, emitter, `CpuVectorMath`, generator, and preparation sources. It ran:
+The final focused implementation command passed 90 tests with zero failures and two opt-in skips. The final CPU suite ran 812 tests with 26 skips and two failures; both are the protected CPU 0008Q1 fixture/schema expectations that intentionally remain stale until that task regenerates its six owned files, not regressions in this task. The CPU Javadoc command passed with 94 unrelated pre-existing warnings. The implementation review was clean after fixing unsafe fused `LAST_AXIS_BIAS` dense-loop selection, full-output comparison before benchmark timing, and the segment byte-order contract.
 
-```bash
-./gradlew :backends:cpu:test --tests '*ScalarImmediateClampMatrixStructuralTest' --rerun-tasks
-```
+Fresh five-fork evidence is sealed at `/private/tmp/synaptik-cpu-0008q1a-review.YQyVfS`. Its 342-entry manifest verifies and its seal is `39dc67f426bb2040dda848effe6527c5d926d8201cab25485a61d715bf6a9cb8`. All 160 fork rows and all 32 aggregate rows are at most `1.15x`; the maximum individual ratio is `1.140150714x` and the maximum aggregate ratio is `1.078991870x`. The structural evidence covers all four realizations, both floating types, four ordered carrier pairs, arbitrary ranges and tails, representative fusion including `LAST_AXIS_BIAS`, and both vector orchestration modes. It proves the generated entries contain no Synaptik member reference and retain the required direct Vector API shape.
 
-The command executed two tests and failed one at `CpuScalarImmediateClampMatrixStructuralTest.java:32`: `FIXTURE-POW-FLOAT32-POSITIVE_ONE contains io/github/pho001/synaptik`. Inspection of `CpuVectorInstructionEmitter.emitPower` confirmed `POSITIVE_ONE` invokes `CpuVectorMath.positiveOneFloat/positiveOne`, `RECIPROCAL` invokes `CpuVectorMath.reciprocal`, `IDENTITY` forwards directly, `SQUARE` emits direct multiply, and `DIRECT` is vector-ineligible. No production, Javadoc, performance, or architecture validation ran in this planning pass.
+Clean documentation context `01a07963-3511-73e1-aa79-9beb7500d1d8` reviewed the affected Javadocs, package summary, CPU guide, glossary, schema wording, tasks, master plan, roadmap, implementation diff, tests, and sealed evidence without rerunning successful Java, CPU, or performance commands. `./gradlew :backends:cpu:javadoc` passed again with the same 94 unrelated pre-existing warnings. Local Markdown links, heading anchors, and fences passed; the final task path inventory contains exactly 25 paths; all six protected CPU 0008Q1 paths remain separate untracked files; status/schema searches are consistent; the 342-entry evidence manifest and seal verify; and `git diff --check` passes.
 
 ## Implementation notes
 
-Empty until implemented.
+- FLOAT32/FLOAT64 `POSITIVE_ONE`, `IDENTITY`, `SQUARE`, and `RECIPROCAL` now emit direct typed Vector API operations. `DIRECT`, BFLOAT16, ordinary vector reciprocal, and non-vector behavior are unchanged.
+- Dense vector bounds are computed once. Loop selection considers only boundaries the body accesses; accessed non-dense fused boundaries retain the safe boundary-aware loop. Segment byte order is prepared only for actual non-scalar vector segment access, and positive-one omits unused base-address work.
+- Schema 64 records the generated-byte change while preserving semantic realization and specialization identity fields. Earlier envelopes remain incompatible safe misses.
+- No glossary term or identity meaning changed. `CpuVectorMath` remains the owner of unrelated pure vector formulas, so its implementation and Javadoc remain accurate.
+- No architecture/ADR/architecture-test, public API, conformance/integration, other-module, dependency, or build-structure update is required. The only build change forwards the two opt-in performance properties.
 
 ## Completion summary
 
-Empty until implemented.
+Completed the self-contained scalar-power vector bodies, safe accessed-boundary loop selection, exact structural/semantic tests, and sealed five-fork performance proof. Finalized the affected Javadocs, code-generation package summary, CPU guide, and synchronized planning records. The eleven global schema assertion migrations are an explicit necessary scope exception. CPU 0008Q1 is now `Ready` and owns regeneration of its six protected files; CPU 0009 remains `Blocked` on completed CPU 0008Q1 and its documentation pass.
+
+Status: Complete

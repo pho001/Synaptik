@@ -2,11 +2,11 @@
 
 ## Status
 
-Blocked
+Ready
 
 ## Goal
 
-Establish the complete, finite, source-derived projection basis for every currently admitted CPU scalar-immediate operation and floating clamp before CPU 0009 inventories generated coverage. Prove generated execution equivalent to the matching optimal clean Java 26 specialization for each distinct form, and project only members whose Class-Files mechanically differ in declared constant locations. Do not enumerate arbitrary immediate bit patterns. Implementation is blocked on [CPU 0008Q1A](0008q1a-vector-scalar-power-hot-path-self-containment.md), which must first remove the independently observed Synaptik helper calls from generated vector scalar-power hot paths and regenerate compatible artifacts under its own evidence gate.
+Establish the complete, finite, source-derived projection basis for every currently admitted CPU scalar-immediate operation and floating clamp before CPU 0009 inventories generated coverage. Prove generated execution equivalent to the matching optimal clean Java 26 specialization for each distinct form, and project only members whose Class-Files mechanically differ in declared constant locations. Do not enumerate arbitrary immediate bit patterns. Completed [CPU 0008Q1A](0008q1a-vector-scalar-power-hot-path-self-containment.md) removed the independently observed Synaptik helper calls from generated vector scalar-power hot paths under schema 64; this task is now the next CPU task and must regenerate its owned fixtures against that schema.
 
 ## Scope
 
@@ -78,7 +78,7 @@ At most five CPU test sources, three checked matrix resources, three documentati
 
 ## Stop conditions
 
-Do not resume implementation until CPU 0008Q1A and its documentation pass are `Complete`. After resumption, stop and leave this task `Incomplete` if any reachable finite category cannot be classified from source; an admitted form lacks an independent optimal clean-Java oracle; a required carrier/layout/strategy witness changes unaccounted code shape; a normalizer permits a nonconstant difference; source capability/admission/selection facts contradict one another; a semantic/structural test fails; or work needs another production, architecture, schema, or selection change. Record exact form, source predicate, fixture/hash where available, and required follow-up. Do not make CPU 0009 `Ready`.
+Stop and leave this task `Incomplete` if any reachable finite category cannot be classified from source; an admitted form lacks an independent optimal clean-Java oracle; a required carrier/layout/strategy witness changes unaccounted code shape; a normalizer permits a nonconstant difference; source capability/admission/selection facts contradict one another; a semantic/structural test fails; or work needs another production, architecture, schema, or selection change. Record exact form, source predicate, fixture/hash where available, and required follow-up. Do not make CPU 0009 `Ready`.
 
 ## Acceptance criteria
 
@@ -131,7 +131,7 @@ You are working in the Synaptik repository after CPU 0008Q1A and its documentati
 - The finite matrix composes source-derived dimensions rather than a manually maintained product. Composition is allowed only after executable proof that the omitted dimension cannot change instructions, control flow, invokes, carrier access, loop/dataflow, numerical order, or semantics.
 - A finite immediate category is an emitted-code and semantic boundary, not a decimal-value bucket. `SCALAR_POW` realizations are separate before normalization; clamp bounds retain lower-then-upper order.
 - Completed 0008Q is a reusable normalizer/test seed for two BFLOAT16 scalar-MUL members, not a representative fixture for a new form or complete matrix evidence.
-- The failed vector positive-one fixture is not weakened, excluded, or reclassified. CPU 0008Q1A must correct the complete currently generated vector scalar-power family before this matrix is regenerated and resumed.
+- The failed vector positive-one fixture is not weakened, excluded, or reclassified. Completed CPU 0008Q1A corrected the complete currently generated vector scalar-power family; this task must now regenerate and re-prove that fixture and every affected projection under schema 64.
 
 ## Known limitations
 
@@ -141,7 +141,7 @@ The matrix proves finite source-reachable categories, not all raw immediate bit 
 
 Planning-only evidence initially reviewed the required architecture/planning contracts, CPU master plan, 0008Q, blocked 0009, current scalar lowering/IR/power analysis/preparation/generator, and focused 0005F/0005G/0005J/0008J/0008L/0008Q test evidence. Current source admits the operation/type boundary, five access regimes, exact carrier specialization, four strategy names, and source-owned power realizations recorded above.
 
-The later independent planning/documentation review ran `./gradlew :backends:cpu:test --tests '*ScalarImmediateClampMatrixStructuralTest' --rerun-tasks`. Two tests executed and one failed at `CpuScalarImmediateClampMatrixStructuralTest.java:32`: `FIXTURE-POW-FLOAT32-POSITIVE_ONE contains io/github/pho001/synaptik`. Source inspection confirmed generated vector positive-one and reciprocal scalar power call `CpuVectorMath`; therefore this task reached its existing production-change stop condition and is now `Blocked` on CPU 0008Q1A. No protected untracked path was modified.
+The later independent planning/documentation review ran `./gradlew :backends:cpu:test --tests '*ScalarImmediateClampMatrixStructuralTest' --rerun-tasks`. Two tests executed and one failed at `CpuScalarImmediateClampMatrixStructuralTest.java:32`: `FIXTURE-POW-FLOAT32-POSITIVE_ONE contains io/github/pho001/synaptik`. That failure selected CPU 0008Q1A. The remediation is now `Complete`: its focused suite passed 90 tests, its sealed five-fork evidence passed all 160 fork and 32 aggregate rows, and its full CPU suite's only two failures are these protected stale fixture/schema expectations. None of this task's six protected untracked paths was modified. This task is therefore `Ready`, and regeneration of those files is its first implementation step.
 
 ## Implementation notes
 

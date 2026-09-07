@@ -6,7 +6,7 @@ Blocked
 
 ## Goal
 
-Close the portable CPU generated-coverage checkpoint with a reproducible, source-derived ledger. It remains blocked because completed CPU 0008Q supplies only a strict BFLOAT16 scalar-MUL projection mechanism, while [CPU 0008Q1](0008q1-finite-scalar-immediate-clamp-matrix.md) stopped on an independently observed vector scalar-power helper call. Complete corrective [CPU 0008Q1A](0008q1a-vector-scalar-power-hot-path-self-containment.md), CPU 0008Q1, and both documentation-focused passes before this checkpoint can become `Ready`.
+Close the portable CPU generated-coverage checkpoint with a reproducible, source-derived ledger. It remains blocked because completed CPU 0008Q supplies only a strict BFLOAT16 scalar-MUL projection mechanism and [CPU 0008Q1](0008q1-finite-scalar-immediate-clamp-matrix.md) has not yet regenerated and completed the finite matrix under schema 64. Corrective [CPU 0008Q1A](0008q1a-vector-scalar-power-hot-path-self-containment.md) and its documentation pass are complete; CPU 0008Q1 and its documentation-focused pass must complete before this checkpoint can become `Ready`.
 
 ## Scope
 
@@ -95,12 +95,12 @@ Validate TSV/JSON parsing, manifest, Markdown links/anchors/fences, whitespace, 
 ## Dependencies
 
 - Complete CPU 0005A–0005J, 0006–0007F2, 0008–0008P, Prepare 0003A, and their ledgers; especially 0008I, 0008M, 0008N/0008N1, 0008O, and 0008P.
-- Complete CPU 0008Q1A and its documentation pass, then CPU 0008Q1 and its documentation pass, including regenerated exact fixture hashes and automated constants-only normalization proof.
+- Complete CPU 0008Q1 and its documentation pass, including regenerated exact fixture hashes and automated constants-only normalization proof. CPU 0008Q1A and its documentation pass are complete.
 - Current Java 26 Class-File/Vector toolchain and a writable external evidence root.
 
 ## Follow-up tasks
 
-- A hot form or scalar-immediate/clamp relation that cannot fit the finite matrix, lacks future complete-matrix provenance, or fails its gate becomes one family-specific Draft remediation task; do not enlarge this checkpoint. CPU 0008Q1A is the current such remediation and precedes the resumed matrix.
+- A hot form or scalar-immediate/clamp relation that cannot fit the finite matrix, lacks future complete-matrix provenance, or fails its gate becomes one family-specific Draft remediation task; do not enlarge this checkpoint. CPU 0008Q1A is the completed remediation selected by the first matrix attempt and precedes the resumed matrix.
 - CPU 0010–0015 consume no non-passing or waived performance claim.
 
 ## Architecture impact
@@ -117,11 +117,11 @@ Read AGENTS.md, ARCHITECTURE.md, the Planning Guide, CPU master plan, completed 
 
 - 0009 remains one cohesive checkpoint: it has one output contract, the source-derived inventory and evidence disposition, and changes no production behavior. A family failure is a follow-up, not a backend rewrite.
 - `WAIVED` is an owner-approved absence, never passing or production eligibility.
-- CPU 0009 is `Blocked` because completed CPU 0008Q supplies only a narrow two-fixture scalar-MUL mechanism and CPU 0008Q1 reached its explicit production-change stop condition: the vector positive-one scalar-power fixture contains a Synaptik helper invocation, and source review found reciprocal power uses the same helper boundary. Return CPU 0009 to `Ready` only after CPU 0008Q1A, CPU 0008Q1, and both documentation passes are complete.
+- CPU 0009 remains `Blocked` solely on completing CPU 0008Q1 and its documentation pass. CPU 0008Q1A closed the generated vector scalar-power helper boundary and is complete; its evidence does not substitute for the finite scalar-immediate/clamp matrix.
 
 ## Known limitations
 
-Planning has not generated the inventory or run fresh gaps. Current retained evidence is only source input; the task becomes Complete only after every required current row and checkpoint validation pass. It cannot begin while CPU 0008Q1A is incomplete and CPU 0008Q1's regenerated complete scalar-immediate/clamp matrix projection is unproved.
+Planning has not generated the inventory or run fresh gaps. Current retained evidence is only source input; the task becomes Complete only after every required current row and checkpoint validation pass. It cannot begin while CPU 0008Q1's regenerated complete scalar-immediate/clamp matrix projection is unproved.
 
 ## Validation evidence
 

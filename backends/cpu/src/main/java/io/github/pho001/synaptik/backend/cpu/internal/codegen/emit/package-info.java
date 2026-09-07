@@ -17,7 +17,9 @@
  * materialized or general external masks remain scalar. Every unary opcode has a scalar body;
  * FLOOR, CEIL, SIGMOID, GELU tanh approximation, and SiLU remain scalar-compute only. Vector
  * instruction bytecode emission is separate from pure typed vector mathematics. General Tensor
- * power and direct scalar power are also scalar-compute only. FLOAT32 reciprocal square root
+ * power and direct scalar power are also scalar-compute only. The four proved FLOAT32/FLOAT64
+ * scalar-power realizations instead use self-contained typed Vector API operations when their
+ * existing vector gates pass; they invoke no Synaptik helper from the generated entry. FLOAT32 reciprocal square root
  * widens before both {@code StrictMath.sqrt} and the reciprocal and narrows their combined result
  * once. Direct FLOAT32 power widens the represented base and exponent exactly, invokes
  * {@code StrictMath.pow}, and narrows once. Scalar segment access normally initializes each
@@ -190,9 +192,11 @@
  * extrema/Boolean combination are emitted directly. Those per-element bodies therefore have no
  * runtime reference to another Synaptik class. The selected bounded movement classes likewise
  * contain their primitive geometry, cursor, carrier access, and represented-bit store work
- * directly. The separate {@code CpuVectorMath} call remains
- * limited to one call per emitted vector instruction per vector chunk; scalar tails use the same
- * direct scalar formulas as scalar-only artifacts.</p>
+ * directly. Where a vector opcode uses {@code CpuVectorMath}, its generated body makes at most one
+ * such call per emitted vector instruction and vector chunk. Proved scalar-power vector bodies are
+ * the explicit exception: positive one, identity, square, and reciprocal use direct typed Vector
+ * API operations, while scalar tails use the same direct scalar formulas as scalar-only
+ * artifacts.</p>
  *
  * <p>Generation and verification are cold-path operations. Only the resolved static entry handle
  * executes on the Runtime hot path. Parallel plans reuse that direct scalar or vector entry for
