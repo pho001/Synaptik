@@ -2,11 +2,11 @@
 
 ## Status
 
-Ready
+Complete
 
 ## Goal
 
-Establish the complete, finite, source-derived projection basis for every currently admitted CPU scalar-immediate operation and floating clamp before CPU 0009 inventories generated coverage. Prove generated execution equivalent to the matching optimal clean Java 26 specialization for each distinct form, and project only members whose Class-Files mechanically differ in declared constant locations. Do not enumerate arbitrary immediate bit patterns. Completed [CPU 0008Q1A](0008q1a-vector-scalar-power-hot-path-self-containment.md) removed the independently observed Synaptik helper calls from generated vector scalar-power hot paths under schema 64; this task is now the next CPU task and must regenerate its owned fixtures against that schema.
+Establish the complete, finite, source-derived projection basis for every currently admitted CPU scalar-immediate operation and floating clamp before CPU 0009 inventories generated coverage. Prove generated execution equivalent to the matching optimal clean Java 26 specialization for each distinct form, and project only mechanically proved relations. Do not enumerate arbitrary immediate bit patterns. Completed [CPU 0008Q1A](0008q1a-vector-scalar-power-hot-path-self-containment.md) removed the independently observed Synaptik helper calls from generated vector scalar-power hot paths under schema 64; this task regenerated and closed its matrix against that schema.
 
 ## Scope
 
@@ -135,18 +135,46 @@ You are working in the Synaptik repository after CPU 0008Q1A and its documentati
 
 ## Known limitations
 
-The matrix proves finite source-reachable categories, not all raw immediate bit patterns. It has no performance result and cannot change selection. A new source category, generator change, or incompatible hash invalidates the relevant projection until regenerated. The six current untracked test/resource paths predate CPU 0008Q1A and remain incomplete evidence; they must not be treated as accepted hashes or projections.
+The matrix proves finite source-reachable categories, not all raw immediate bit patterns. It has no performance result, does not establish whole-backend generated/direct performance parity, and cannot change production selection. A new source category, generator change, or incompatible hash invalidates the relevant fixture or projection until regenerated. Non-finite inputs are semantic oracle cases, but non-finite immediates and bounds remain outside this finite projection boundary.
 
 ## Validation evidence
 
 Planning-only evidence initially reviewed the required architecture/planning contracts, CPU master plan, 0008Q, blocked 0009, current scalar lowering/IR/power analysis/preparation/generator, and focused 0005F/0005G/0005J/0008J/0008L/0008Q test evidence. Current source admits the operation/type boundary, five access regimes, exact carrier specialization, four strategy names, and source-owned power realizations recorded above.
 
-The later independent planning/documentation review ran `./gradlew :backends:cpu:test --tests '*ScalarImmediateClampMatrixStructuralTest' --rerun-tasks`. Two tests executed and one failed at `CpuScalarImmediateClampMatrixStructuralTest.java:32`: `FIXTURE-POW-FLOAT32-POSITIVE_ONE contains io/github/pho001/synaptik`. That failure selected CPU 0008Q1A. The remediation is now `Complete`: its focused suite passed 90 tests, its sealed five-fork evidence passed all 160 fork and 32 aggregate rows, and its full CPU suite's only two failures are these protected stale fixture/schema expectations. None of this task's six protected untracked paths was modified. This task is therefore `Ready`, and regeneration of those files is its first implementation step.
+The later independent planning/documentation review ran `./gradlew :backends:cpu:test --tests '*ScalarImmediateClampMatrixStructuralTest' --rerun-tasks`. Two tests executed and one failed at `CpuScalarImmediateClampMatrixStructuralTest.java:32`: `FIXTURE-POW-FLOAT32-POSITIVE_ONE contains io/github/pho001/synaptik`. That failure selected CPU 0008Q1A. The remediation completed with schema-64 self-contained vector scalar-power bodies before this task resumed.
+
+The implementation context then finalized exactly six test/evidence paths: three new Java test/oracle files and three canonical tab-separated value (TSV) resources. The resources contain 203 semantic fixtures: 28 each for ADD, SUB, MUL, MIN, and MAX; 18 for DIV; 21 for POW; and 24 for CLAMP. Type counts are 51 each for BFLOAT16, FLOAT32, and FLOAT64 and 25 each for INT32 and INT64. The 21 finite code-shaping categories include JVM constant encodings, raw signed zero, seven power categories, and eight ordered clamp-bound pairs. Explicit adjacent exclusions cover BOOL, mixed boundary types, mixed immediate types, integral DIV/POW/CLAMP, and the finite/non-finite immediate or bound boundary.
+
+The compositional ledger contains 256 forms covering all four ordered carrier pairs per numeric type, all five access regimes, rank-zero and zero-work Shapes, contiguous and non-contiguous layouts, and every selected strategy identity. Selected-strategy counts are 11 scalar, 75 parallel-scalar, one vector, and 169 parallel-vector. Exactly four forms expose a materialization candidate, zero select it, and 252 are direct-only. A separate BFLOAT16 assertion proves candidate absence. Candidate availability is therefore evidence about a complete alternative, not an active selected optimization.
+
+Every generated artifact uses current generator schema 64. The unchanged family-specific class-identity distribution is 196 schema-52 and 60 schema-59 artifacts. Exactly two safe projections are retained, both byte-identical caller-orchestration pairs: scalar with parallel-scalar and vector with parallel-vector. No constants-only, fusion-topology, or unsafe projection is claimed.
+
+The retained inspection root `/private/tmp/synaptik-cpu-0008q1-inspection-final` contains 256 generated classes, 256 normalized dossiers, and 256 complete `javap -c -v` reports. Its 257-line manifest has SHA-256 `01c4c8b1a077c5a0acaee59c50210ba5d9b5b730d760c45d17d31267a33a7cd9`. Structural inspection found zero Synaptik method references, `invokedynamic`, reflection, map/string dispatch, boxing, or allocation. It confirmed exact array/segment access, backward ranges, lower-maximum-then-upper-minimum clamp order, scalar tails, and only permitted Vector API or Foreign Function and Memory API calls.
+
+Review strengthened the optimal clean-Java oracle so operation selection occurs outside hot loops and inputs include BFLOAT16 subnormal/raw-NaN and integral-overflow cases. It also enforced canonical TSV LF/final-newline/order and added direct assertions for source closure, schema provenance, materialization counts, signed-zero realizations, and all power realizations. These review changes affected only test/oracle rigor, not the generated inventory or retained evidence.
+
+Validation chronology from the implementation context: the sealed exact-method run passed; the final matrix/review run executed 19 tests with 18 passes and one expected opt-in retained-inspection skip; the pre-review focused command passed eight suites, 96 tests, and two expected skips; and the genuine unfiltered pre-review `cleanTest` plus CPU run passed 157 suites and 818 tests with 27 expected skips and zero failures. After review changed only tests, the focused 19-test run passed, so the full CPU suite was not repeated under the Planning Guide's non-duplication rule. One earlier unrelated `CpuWorkerGroup` race did not recur in its isolated run or either of two later unfiltered runs. `git diff --check` passed. No implementation issue remains.
+
+Clean documentation-focused context `01a0799a-8d14-7870-b032-8e77bcf29feb` independently reviewed the final six paths, retained metadata, architecture/planning contracts, CPU guide, public and code-generation package Javadocs, and glossary using the General, API/Javadoc, Planning, Backend Guide, Developer Guide, and example-format profiles. It changed planning documentation only and did not rerun Java, full CPU, Javadoc, or performance evidence because executable behavior and Javadoc did not change.
 
 ## Implementation notes
 
-Empty until implemented.
+- The finite basis is compositional but fail-closed: semantic categories retain exact artifacts, while carrier, access, Shape, materialization-candidate, and selected-strategy witnesses close source-derived dimensions without claiming an arbitrary Cartesian projection.
+- Exact generated bytes and hashes remain distinct except for the two proved byte-identical caller-orchestration pairs. No constants-only projection survived the completed matrix.
+- All generated envelopes use schema 64, while schema 52 and schema 59 remain intentional unchanged class-identity projections for their respective forms.
+- No production, schema, dependency, architecture, API, build, capability, lowering, preparation, selection, or Runtime behavior changed.
 
 ## Completion summary
 
-Empty until implemented.
+- Completed changes: added and independently reviewed the complete finite scalar-immediate and clamp test/evidence matrix with 203 semantic fixtures, 256 generated forms, strict semantic/structural oracles, canonical sealed resources, and two safe byte-identical orchestration projections.
+- Files changed or created: three CPU test sources, three CPU TSV resources, this task, CPU master plan, CPU 0009, and roadmap.
+- Tests and validation: reused the implementation context's sealed exact-method pass, focused 8-suite/96-test pre-review pass, final 19-test matrix/review result with 18 passes and one expected opt-in skip, and genuine unfiltered 157-suite/818-test/27-expected-skip clean CPU pass. The documentation pass ran Markdown link/anchor/fence, status/dependency, exact-path, newline/whitespace, retained-manifest, and `git diff --check` checks only.
+- Documentation-agent review: clean context `01a0799a-8d14-7870-b032-8e77bcf29feb` completed the targeted review and synchronized CPU 0008Q1/0009 planning status.
+- Documentation impact: planning documents only. The CPU guide already explains current scalar/clamp semantics, candidate-only materialization, selected strategies, schema-64 vector scalar-power behavior, and the absence of whole-backend performance claims; adding a test-ledger inventory would not change its explanatory contract.
+- Javadoc review: public CPU and code-generation package Javadocs remain accurate because no production type, contract, behavior, or schema changed; Javadoc generation was therefore not run.
+- Glossary impact: no reusable domain term or existing definition changed. Current entries already distinguish scalar-power realization, exact scalar/clamp identity facts, portable strategy, and candidate-only materialization from selected work.
+- Architecture and broader validation impact: none. `ARCHITECTURE.md`, current architecture explanations, ADRs, architecture tests, public API, conformance/integration tests, other modules, production Javadocs, dependencies, Gradle, and schema require no change because this task adds test/evidence closure only.
+- Unresolved issues: None.
+- Follow-up required: CPU 0009 is now the next Ready task and may reuse this completed finite matrix provenance. Its full generated-coverage and performance closure remains its own scope.
+
+Status: Complete

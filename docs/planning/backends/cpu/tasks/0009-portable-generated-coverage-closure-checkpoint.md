@@ -2,15 +2,15 @@
 
 ## Status
 
-Blocked
+Ready
 
 ## Goal
 
-Close the portable CPU generated-coverage checkpoint with a reproducible, source-derived ledger. It remains blocked because completed CPU 0008Q supplies only a strict BFLOAT16 scalar-MUL projection mechanism and [CPU 0008Q1](0008q1-finite-scalar-immediate-clamp-matrix.md) has not yet regenerated and completed the finite matrix under schema 64. Corrective [CPU 0008Q1A](0008q1a-vector-scalar-power-hot-path-self-containment.md) and its documentation pass are complete; CPU 0008Q1 and its documentation-focused pass must complete before this checkpoint can become `Ready`.
+Close the portable CPU generated-coverage checkpoint with a reproducible, source-derived ledger. Completed [CPU 0008Q1](0008q1-finite-scalar-immediate-clamp-matrix.md) now supplies the schema-64 finite matrix and its documentation-focused pass is complete; corrective [CPU 0008Q1A](0008q1a-vector-scalar-power-hot-path-self-containment.md) is also complete. This checkpoint is the next CPU task and may reuse 0008Q1's exact finite provenance while independently closing the broader generated-coverage and performance ledger.
 
 ## Scope
 
-- Add a checkpoint test and checked TSV/JSON resources deriving one row per currently supported CPU family/form from `CpuCapabilityProvider`, `CpuPartitionPreparer`, family lowerers, `CpuClassFileKernelGenerator`, and schema 63. A row names operation/family/form, applicable FLOAT64/FLOAT32/BFLOAT16/INT32/INT64/BOOL types, ordered heap primitive-array/native-order `MemorySegment`/mixed carrier pattern, contiguous/general layout, materialized/direct disposition, available scalar/vector/parallel-scalar/parallel-vector strategies, fallback, admission, and production selection.
+- Add a checkpoint test and checked TSV/JSON resources deriving one row per currently supported CPU family/form from `CpuCapabilityProvider`, `CpuPartitionPreparer`, family lowerers, `CpuClassFileKernelGenerator`, and current generator schema 64. A row names operation/family/form, applicable FLOAT64/FLOAT32/BFLOAT16/INT32/INT64/BOOL types, ordered heap primitive-array/native-order `MemorySegment`/mixed carrier pattern, contiguous/general layout, materialized/direct disposition, available scalar/vector/parallel-scalar/parallel-vector strategies, fallback, admission, and production selection.
 - Cover pointwise/cast/view/movement; indexing, scatter, fold, ordering, random, scans, ordinary/masked/advanced reductions and arg extrema; softmax/log-softmax, Layer/RMS and batch normalization; Conv1d composition, Conv2d/Conv3d, pools, MATMUL, attention, and losses. Metadata-only and zero-work views get `NO_GENERATED_HOT_LOOP`, not timing obligations. Provider-positive but whole-partition-inadmissible occurrences are not counted as selected generation.
 - Generate each finite fixture and retain binary name, entry descriptor, schema, SHA-256, code-shaping facts, normalized body identity, semantic oracle, structural dossier, and evidence disposition: `CURRENT`, `REPRESENTATIVE_ONLY`, `STALE`, `MISSING`, `NON_PASSING`, or `WAIVED`. Reuse requires matching actual hash/form plus protocol scope.
 - Inventory every finite code-shaping form and every unit proved by CPU 0008Q1, recording exact class hashes for representative fixtures and exact member-hash provenance for every projected fixture. Do not claim enumeration of arbitrary scalar-immediate or clamp bit patterns. Project only a checked `PROVED_CONSTANTS_ONLY` unit whose automated normalization proves constants-only variance; otherwise record a distinct finite form or fail closed.
@@ -27,7 +27,7 @@ Close the portable CPU generated-coverage checkpoint with a reproducible, source
 ## Architecture references
 
 - [`ARCHITECTURE.md`](../../../../../ARCHITECTURE.md): generated-kernel, direct-carrier, four-strategy, fail-closed, oracle, and evidence rules.
-- [CPU master plan](../master-plan.md): ownership, schema-63 identity, and frontier.
+- [CPU master plan](../master-plan.md): ownership, current schema-64 compatibility, family-specific identity projections, and frontier.
 - [Planning Guide](../../../planning-guide.md): checkpoint validation and status requirements.
 - [Performance evidence and tuning](../../../../architecture/performance-evidence-and-tuning.md).
 
@@ -117,15 +117,15 @@ Read AGENTS.md, ARCHITECTURE.md, the Planning Guide, CPU master plan, completed 
 
 - 0009 remains one cohesive checkpoint: it has one output contract, the source-derived inventory and evidence disposition, and changes no production behavior. A family failure is a follow-up, not a backend rewrite.
 - `WAIVED` is an owner-approved absence, never passing or production eligibility.
-- CPU 0009 remains `Blocked` solely on completing CPU 0008Q1 and its documentation pass. CPU 0008Q1A closed the generated vector scalar-power helper boundary and is complete; its evidence does not substitute for the finite scalar-immediate/clamp matrix.
+- CPU 0009 is `Ready`: CPU 0008Q1 and its documentation pass supplied 203 semantic fixtures and 256 generated forms under generator schema 64, including exact hashes, schema provenance, source-closure assertions, and two byte-identical caller-orchestration projections. This provenance may be reused only within its recorded finite scope; it does not substitute for this checkpoint's broader family inventory or performance closure.
 
 ## Known limitations
 
-Planning has not generated the inventory or run fresh gaps. Current retained evidence is only source input; the task becomes Complete only after every required current row and checkpoint validation pass. It cannot begin while CPU 0008Q1's regenerated complete scalar-immediate/clamp matrix projection is unproved.
+Planning has not generated the broader inventory or run fresh gaps. CPU 0008Q1's completed matrix is valid finite source input, not this checkpoint's completion evidence. This task becomes Complete only after every required current row and checkpoint validation pass.
 
 ## Validation evidence
 
-Planning-only evidence: reviewed required contracts; current provider/preparer/schema sources; `CpuKernelIr` scalar/clamp immediates; `CpuKernelSpecialization` class identity; pointwise lowering/preparation/generation and structural evidence tests; CPU 0008I, 0008M, 0008N/0008N1, 0008O, and 0008P ledgers; master-plan row; roadmap; and recent CPU history. No Java, Javadoc, Class-File, or performance command was run for this planning change.
+Planning-only evidence: reviewed required contracts; current provider/preparer/schema sources; `CpuKernelIr` scalar/clamp immediates; `CpuKernelSpecialization` class identity; pointwise lowering/preparation/generation and structural evidence tests; CPU 0008I, 0008M, 0008N/0008N1, 0008O, and 0008P ledgers; master-plan row; roadmap; and recent CPU history. CPU 0008Q1 is Complete with 203 semantic fixtures and 256 schema-64 forms; selected strategies are 11 scalar, 75 parallel-scalar, one vector, and 169 parallel-vector; four materialization candidates exist but none is selected; and its only projections are two byte-identical caller-orchestration pairs. No Java, Javadoc, Class-File generation, or performance command was run for this planning status change.
 
 ## Implementation notes
 
