@@ -14,9 +14,9 @@ the unfinished program of universal generated-versus-clean-Java structural closu
 ## Scope
 
 Completed 0009A--C/D1/D1A/D2/D3/D4 remain historical completed evidence; they are not migration
-targets merely because a later family adopts direct Java. D4 completed its retained generated-route
-decision, so parent 0009D is Complete and 0009E1 partial integral reduction is the Ready next
-frontier. The 0009E parent and E1A--E3 remain master-plan summaries.
+targets merely because a later family adopts direct Java. D4 and E1 completed retained
+generated-route decisions, so parent 0009D is Complete and E1A masked reduction is the sole next
+summary frontier. The 0009E parent and E1A--E3 remain master-plan summaries.
 
 The default classification, subject to the active family's code review, is:
 
@@ -75,8 +75,10 @@ planning revision validates Markdown/status consistency and `git diff --check`; 
 - 0009D is Complete: D1 aggregate, D2 scan, D3 ordering, and D4 fold are retained-generated-route
   decisions. D4 retains all 32 fold rows because a direct replacement would cost more to implement
   and verify.
-- 0009E1: the sole detailed Ready partial integral-reduction route decision. E1A masked, E1B
-  advanced, E1C softmax-style, E2 normalization, and E3 loss remain ordered master-plan summaries.
+- 0009E1 is Complete: it retained the finite typed generated partial integral route because direct
+  migration would increase selection, binding, replacement, and retirement-proof work without a
+  performance gate. E1A masked is the sole next summary frontier; E1B advanced, E1C softmax-style,
+  E2 normalization, and E3 loss remain ordered master-plan summaries.
 - 0009F: per-family hybrid decision children for MATMUL/convolution/pooling/attention/batch norm.
 - 0009G: final support, correctness, hygiene, inventory, and documentation checkpoint.
 
@@ -109,10 +111,11 @@ planning revision.
 ## Validation evidence
 
 D4's specified eight-class command passed on 2026-09-09: 131 tests, zero failures, errors, or
-skips. It covered lowering, IR, generated-fold and semantic-closure, preparation, finalization,
-prepared execution, and generated-coverage checkpoint evidence. Documentation-focused context
-`/root/cpu_0009d4_docs` completed the corresponding planning review/static checks; no behavior
-changed.
+skips. E1's specified six-class command passed on 2026-09-09: 110 tests, zero failures, errors, or
+skips. E1 retained its generated partial/combine implementation after source and test inspection,
+not performance evidence; it made no Java change. Its clean documentation-focused finalization
+reused that evidence, verified the current unselected generated candidate and whole-cell fallback,
+and synchronized the four planning records without rerunning Java.
 
 ## Implementation notes
 
@@ -122,7 +125,8 @@ None.
 
 CPU 0009 remains Ready. Parent 0009D is Complete: D1 through D4 are retained-generated-route
 decisions; the D4 fold result preserves the full 32-row generated family because a complete direct
-Java replacement would increase total implementation and verification work. CPU 0009E1 partial
-integral reduction is now the sole detailed Ready frontier; later E summaries remain unexpanded.
+Java replacement would increase total implementation and verification work. CPU 0009E1 is Complete
+as a retained generated partial-integral route decision; E1A masked is now the sole next summary
+frontier and later E summaries remain unexpanded.
 
 Status: Ready

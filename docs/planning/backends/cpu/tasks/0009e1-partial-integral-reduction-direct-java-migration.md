@@ -2,7 +2,7 @@
 
 ## Status
 
-Ready
+Complete
 
 ## Goal
 
@@ -132,15 +132,17 @@ After executable code stabilizes, run:
 
 Add direct-route/no-selected-reference/retirement tests before deletion. Run backend conformance
 only if covered behavior changes; no integration suite absent an end-to-end impact. No benchmark,
-fresh timing protocol, generated/direct ratio, or JIT claim is a gate. The documentation pass runs
-`./gradlew :backends:cpu:javadoc`, validates links/anchors/fences/terminology/glossary and exact
-scope, then runs `git diff --check`. Repository-wide validation is deferred to 0009G/CI.
+fresh timing protocol, generated/direct ratio, or JIT claim is a gate. The documentation pass
+validates current route owners and focused-test evidence, links/anchors/fences, terminology,
+glossary impact, exact scope, and `git diff --check`; no Javadoc generation is required because
+this retained-route decision changes no Java or Javadoc. Repository-wide validation is deferred to
+0009G/CI.
 
 ## Dependencies and follow-up tasks
 
-0009D4 is Complete. This is the sole detailed Ready task at the 0009E frontier. After it
-completes, the master plan orders summary-only E1A masked, E1B advanced, E1C softmax-style, E2
-normalization, and E3 loss. Do not detail those tasks before they become the frontier.
+0009D4 is Complete. E1 retained the generated route, so E1A masked is the sole next summary
+frontier. The master plan orders summary-only E1B advanced, E1C softmax-style, E2 normalization,
+and E3 loss after E1A. Do not detail any later E task before it becomes the frontier.
 
 ## Architecture impact
 
@@ -173,19 +175,54 @@ The 0008P evidence root remains historical and non-passing.
 
 ## Validation evidence
 
-Planning context `/root` read the architecture, planning, and documentation contracts; CPU
-master/0009/D/D1--D4 and 0008P; current capability, partial lowering/IR, generator,
-prepare/finalize/executable, tests, inventory, reference, and prior masked/advanced/softmax
-evidence. It found partial integral reduction is the only cohesive E1 slice: its generated
-candidate is fail-closed by historical performance evidence, whereas the three remaining groups
-have incompatible numerical, carrier, and workspace contracts. This planning pass makes no Java
-change and runs no Java/Javadoc command. Replace this with final implementation evidence before
-marking Complete.
+Implementation context `/root` inspected the complete admitted matrix and its current owners:
+`CpuPartialReductionLowering`, `CpuPartialReductionIr`, `CpuPartitionPreparer`,
+`CpuPartitionPreparationPlan`, `CpuPartitionFinalizer`, `CpuPreparedExecutable`,
+`CpuPartialReductionExecution`, `CpuPartialReductionEmitter`, and
+`CpuClassFileKernelGenerator`, together with their partial IR/lowering/execution,
+preparer/finalizer/prepared-executable, and generated-artifact tests. The route decision is to
+retain the bounded generated partial implementation. It is not a performance decision: its one
+partial emitter already contains the complete four typed modular fold bodies and four typed
+ordered combines for `INT32`/`INT64` × `SUM`/`PROD`; form and partial count are immutable IR facts.
+A direct replacement would additionally need cold direct-route identity and selection, a typed
+prepared invocation carrier, finalizer wiring, replacement semantics and malformed-binding
+coverage, and retirement/no-selected-reference proof. That is more implementation and
+verification work than retaining the existing self-contained generated realization. The current
+generated candidate remains unselected behind 0008P's historical fail-closed evidence; that
+historical evidence is neither rerun nor used as this decision's admission gate, and the
+established whole-cell route remains the fallback.
+
+The implementation context ran the specified focused CPU command after the no-code route decision:
+110 tests passed with zero failures, errors, or skips across the six requested
+IR/lowering/execution/preparer/finalizer/prepared-executable classes. This documentation-focused
+context reused that evidence and did not rerun it because no executable Java changed afterward.
+It independently checked the current lowering, IR, preparation, finalization, executable, emitter,
+and focused tests; local Markdown links, anchors, and fences; synchronized E1/0009/master/roadmap
+statuses and dependencies; terminology and glossary impact; the exact four changed planning paths;
+and `git diff --check`. No benchmark, repository-wide, Javadoc, conformance, or integration command
+was run: this is a planning-only decision with no Java or public Javadoc change.
 
 ## Implementation notes
 
-None; this task is Ready.
+No production or test edit is warranted by the retained-route decision. E1A masked reduction is
+the sole next summary frontier; E1B--E3 remain ordered later summaries.
 
 ## Completion summary
 
-Pending implementation, validation, and the required separate documentation-focused pass.
+- Completed changes: Finalized the retained generated-route decision and synchronized its current
+  selection, status, dependency, and frontier evidence.
+- Files changed or created: This task and the three synchronized planning records only.
+- Tests and validation: Reused the implementation context's focused six-class CPU result (110
+  tests; zero failures, errors, or skips); this context validated the current route owners/tests,
+  Markdown links/anchors/fences, terminology, exact scope, and `git diff --check`.
+- Documentation-agent review: This clean documentation-focused context finalized the planning
+  diff without rerunning Java because no executable behavior changed.
+- Documentation impact: Planning records updated; no public documentation change is needed.
+- Javadoc review: No Javadoc changed because no Java API or implementation contract changed.
+- Glossary impact: No glossary change; this decision introduces no reusable term or changed term
+  meaning.
+- Unresolved issues: The generated partial route remains intentionally unselected until a separate
+  trusted-evidence mechanism is scoped; E1A masked remains the sole next summary frontier.
+- Follow-up required: None for E1.
+
+Status: Complete
