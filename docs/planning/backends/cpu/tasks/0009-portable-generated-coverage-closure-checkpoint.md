@@ -19,7 +19,7 @@ generated-route decisions, so parent 0009D is Complete and E1A masked reduction 
 The 0009E parent remains a master-plan summary. E1B is Complete: its three material numerical
 owners, E1B1 log-sum-exp, E1B2 corrected statistics, and E1B3 norms, retain bounded generated
 execution because direct replacement would increase implementation and verification work. E1C
-softmax-style is the sole next Draft summary frontier; E2 and E3 remain later Draft summaries.
+softmax-style is the sole detailed Ready frontier; E2 and E3 remain later Draft summaries.
 
 The default classification, subject to the active family's code review, is:
 
@@ -85,8 +85,8 @@ planning revision validates Markdown/status consistency and `git diff --check`; 
   mask, selected exact-state, binding, invocation, inventory, and retirement work. E1B1 is
   Complete as a retained generated log-sum-exp route, E1B2 is Complete as a retained generated
   corrected statistical route, and E1B3 is Complete as a retained generated L1/L2 norm route.
-  E1B is Complete. E1C softmax-style is the sole next Draft summary frontier, followed by E2
-  normalization and E3 loss; do not create a detailed E1C task yet.
+  E1B is Complete. E1C softmax-style is the sole detailed Ready frontier, followed by E2
+  normalization and E3 loss; do not create a detailed E2 task yet.
 - 0009F: per-family hybrid decision children for MATMUL/convolution/pooling/attention/batch norm.
 - 0009G: final support, correctness, hygiene, inventory, and documentation checkpoint.
 
@@ -142,7 +142,7 @@ because a complete direct Java replacement would increase total implementation a
 work. CPU 0009E1 and E1A are Complete retained-generated-route decisions; E1A retains the
 complete masked SUM/MEAN route because a direct replacement would increase implementation and
 verification work. E1B is Complete: E1B1 retains generated log-sum-exp, E1B2 retains generated
-corrected statistics, and E1B3 retains generated L1/L2 norms. E1C softmax-style is the sole next
-Draft summary frontier; no detailed E1C task exists yet.
+corrected statistics, and E1B3 retains generated L1/L2 norms. E1C softmax-style is the sole
+detailed Ready frontier; no detailed E2 task exists yet.
 
 Status: Ready
