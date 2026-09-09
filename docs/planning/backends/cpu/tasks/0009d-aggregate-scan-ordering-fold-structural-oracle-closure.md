@@ -19,10 +19,10 @@ The active family sequence is:
 | 0009D1 aggregate | Complete | 0009C, 0009D1A | Retain the complete ordinary aggregate family on its supported generated route; the direct migration attempts are decision research, not implementation. |
 | 0009D2 scan | Complete | D1 | Retains the complete generated scan route: replacing typed carrier/layout bodies, BFLOAT16 per-value rounding, range ownership, and guarded segment specialization would increase implementation and verification work. |
 | 0009D3 ordering | Complete | D2 | Retains complete generated SORT/ARGSORT/TOP_K: a direct replacement would duplicate the 192-row typed carrier/layout, stable-comparison, logical-index, scratch, cold-binding, and retirement-proof topology. |
-| 0009D4 fold | Draft | D3 | Direct typed Java migration for finite fold/window accumulation. |
+| 0009D4 fold | Ready | D3 | Sole detailed frontier: all-or-nothing fold/window route-decision gate; direct typed Java only when it lowers total implementation and verification work, otherwise retain generation. |
 
-D4 is Draft and the next summary-only frontier, so this parent remains Ready. Create no detailed
-D4 specification until it reaches the frontier. Each uses current clean Java/reference algorithms first and may inspect
+D4 is the sole detailed Ready frontier, so this parent remains Ready until D4 execution completes.
+Each child uses current clean Java/reference algorithms first and may inspect
 `legacy/pre-rewrite` solely for capabilities, observable behavior, algorithm ideas, and tests;
 none may copy legacy source, packages, dependencies, runtime coupling, or shortcuts.
 
@@ -39,8 +39,8 @@ runtime-dispatch loop. Dispatch is cold; element loops have proportionate hot-lo
 
 ## Acceptance criteria
 
-- D1, D2, and D3 are Complete generated-route retention decisions; D4 is Draft and remains the
-  next summary-only frontier.
+- D1, D2, and D3 are Complete generated-route retention decisions; D4 is the sole detailed Ready
+  frontier.
 - Each family has an explicit direct-migration or retained-generated-route decision. Migration
   removes generated implementation and associated evidence only after replacement semantics,
   invocation/conformance, and no-selected-reference checks pass.
@@ -57,7 +57,7 @@ executable and documentation validation.
 
 ## Dependencies and follow-up tasks
 
-0009D follows completed 0009C and D1A. D1 → D2 → D3 → D4, then 0009E. No D5 reconciliation gate
+0009D follows completed 0009C and D1A. D1 → D2 → D3 → detailed D4, then summary-only 0009E. No D5 reconciliation gate
 is planned: explicit route decisions and semantic/invocation coverage replace structural promotion.
 
 ## Architecture impact
@@ -94,7 +94,7 @@ behavior changed, so it did not repeat Java tests.
 
 ## Implementation notes
 
-D2 and D3 retain generation without a performance claim. D4 remains Draft and summary-only, so
+D2 and D3 retain generation without a performance claim. D4 is the sole detailed Ready frontier, so
 the parent remains Ready and D4 must not receive a detailed specification yet.
 
 ## Completion summary

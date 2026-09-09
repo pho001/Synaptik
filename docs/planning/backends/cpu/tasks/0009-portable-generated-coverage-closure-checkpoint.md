@@ -15,8 +15,8 @@ the unfinished program of universal generated-versus-clean-Java structural closu
 
 Completed 0009A--C/D1/D1A/D2/D3 remain historical completed evidence; they are not migration
 targets merely because a later family adopts direct Java. D3 has completed its retained
-generated-route decision; D4 remains Draft and is the next summary-only frontier, so parent
-0009D remains Ready.
+generated-route decision; detailed D4 is the sole Ready fold/window frontier, so parent 0009D
+remains Ready until D4 execution completes.
 
 The default classification, subject to the active family's code review, is:
 
@@ -73,7 +73,7 @@ planning revision validates Markdown/status consistency and `git diff --check`; 
 ## Dependencies and follow-up tasks
 
 - 0009D remains Ready: D1 aggregate, D2 scan, and D3 ordering are Complete retained-generated-
-  route decisions; D4 fold is Draft and the next summary-only frontier.
+  route decisions; D4 fold is the sole detailed Ready frontier.
 - 0009E: separate summary children for static direct-Java reductions, normalization, and loss.
 - 0009F: per-family hybrid decision children for MATMUL/convolution/pooling/attention/batch norm.
 - 0009G: final support, correctness, hygiene, inventory, and documentation checkpoint.
@@ -118,6 +118,6 @@ None.
 ## Completion summary
 
 CPU 0009 remains Ready. Parent 0009D remains Ready because D1, D2, and D3 are Complete
-retained-generated-route decisions while D4 is Draft and the next summary-only frontier.
+retained-generated-route decisions while D4 is the sole detailed Ready frontier.
 
 Status: Ready
