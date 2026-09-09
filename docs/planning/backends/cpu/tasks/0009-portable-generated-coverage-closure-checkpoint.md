@@ -85,8 +85,8 @@ planning revision validates Markdown/status consistency and `git diff --check`; 
   mask, selected exact-state, binding, invocation, inventory, and retirement work. E1B is a
   summary parent because its shared geometry has distinct numerical owners. E1B1 is Complete as a
   retained generated log-sum-exp route, and E1B2 is Complete as a retained generated corrected
-  statistical route because direct replacement would cost more to implement and verify. E1B3
-  norms is the sole next Draft summary, followed by E1C softmax-style, E2 normalization, and E3
+  statistical route because direct replacement would cost more to implement and verify. [E1B3
+  norms](0009e1b3-norm-reduction-route-decision.md) is the sole next Ready detailed child, followed by E1C softmax-style, E2 normalization, and E3
   loss.
 - 0009F: per-family hybrid decision children for MATMUL/convolution/pooling/attention/batch norm.
 - 0009G: final support, correctness, hygiene, inventory, and documentation checkpoint.
@@ -139,6 +139,6 @@ are Complete retained generated-route decisions; E1A retains the complete masked
 because a direct replacement would increase implementation and verification work. E1B is a Draft
 parent split by distinct numerical ownership; E1B1 is Complete as a retained generated
 log-sum-exp route and E1B2 is Complete as a retained generated corrected statistical route.
-E1B3 norms is the sole next Draft summary.
+[E1B3 norms](0009e1b3-norm-reduction-route-decision.md) is the sole next Ready detailed child.
 
 Status: Ready
