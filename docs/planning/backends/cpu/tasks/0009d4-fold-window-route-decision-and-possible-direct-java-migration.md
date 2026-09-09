@@ -2,7 +2,7 @@
 
 ## Status
 
-Ready
+Complete
 
 ## Goal
 
@@ -88,21 +88,21 @@ disposition rows only after full replacement semantics, invocation, conformance,
 reference checks pass. Do not remove shared owners still selected elsewhere. Retain generation or
 stop and replan rather than leave a partial topology or cross the bound.
 
-## Acceptance criteria
+## Decision and acceptance criteria
 
-- The gate selects direct Java or retained generation for the whole 32-row fold family, recording
-  a concrete comparison of total implementation and evidence work.
-- A selected direct route covers every supported form and exact rejection: positive-zero
-  initialization, canonical input-row-major addition, BFLOAT16 per-addition rounding, integral
-  wraparound, padding/ceil/dilation exclusion, ranges, injectivity, and cold overlap rejection.
-- Carrier/layout/range selection is cold; selected entries are typed and hot-loop dispatch-free,
-  preserve dense rank-one/general-address behavior, and introduce no workspace.
-- Retire generated selection, inventory, ledger/disposition, and structural evidence only after
-  focused replacement semantics, prepared invocation, relevant conformance, no-selected-reference,
-  and retirement checks. A retained outcome leaves them intact and records why.
-- The implementation reviews affected Javadoc/docs; a clean documentation-focused context
-  finalizes Javadoc/docs/glossary impact and reasoned no-change conclusions. Add no benchmark gate.
-- Parent 0009D stays Ready until D4 execution completes. 0009E and its children stay summary-only.
+- The gate retains generation for the entire 32-row fold family. A complete direct implementation
+  would duplicate five typed axis and three typed 2D bodies across four carrier combinations,
+  dense/general forms, cold selection/binding, output ranges, exact mapping/rejections,
+  BFLOAT16 per-addition rounding, integral wraparound, and replacement/invocation/retirement
+  evidence. That is more implementation and verification work than retaining the coherent route.
+- The existing route continues to provide positive-zero initialization, canonical input-row-major
+  addition, BFLOAT16 per-addition rounding, integral wraparound, padding/ceil/dilation exclusion,
+  ranges, injectivity, cold overlap rejection, and exact unsupported-form rejection.
+- Generated selection, inventory, ledger/disposition, and structural evidence remain intact; no
+  direct route, duplicate topology, benchmark gate, or executable change is introduced.
+- A clean documentation-focused context finalizes planning, Javadoc/docs/glossary review, and
+  reasoned no-change conclusions. Parent 0009D completes; CPU 0009 remains Ready, and 0009E and
+  its children remain summary-only.
 
 ## Tests / validation
 
@@ -131,8 +131,8 @@ validate status/order, exact scope, and `git diff --check`.
 
 ## Dependencies and follow-up tasks
 
-D1, D1A, D2, and D3 are Complete. This is the sole detailed Ready frontier and must complete its
-cohesive all-or-nothing route decision before summary-only 0009E. Do not create an 0009E child.
+D1, D1A, D2, and D3 are Complete. This task completes the all-or-nothing retained-generation
+decision before summary-only 0009E. Do not create an 0009E child.
 
 ## Architecture impact
 
@@ -166,27 +166,50 @@ evidence to inspect, not a mandate for a universal structural oracle or benchmar
 
 ## Known limitations
 
-No direct route is presumed selected. Existing performance facts remain historical; neither
-outcome makes a performance claim.
+Existing performance facts remain historical. The retained route makes no new performance claim;
+it is selected solely because a direct replacement would cost more to implement and verify.
 
 ## Validation evidence
 
-Planning creation evidence on 2026-09-09: source/test inspection established the exact five-type
-axis/three-type NCHW matrix, four carrier combinations, output-owned range semantics, zero
-workspace, positive-zero/canonical-addition policy, and checked 20+12 inventory projection. This
-planning-only context runs no Java or conformance command; the implementation context must record
-the focused command and any replacement evidence. This documentation-focused planning context
-validates final five-record scope, local links/anchors/fences, terminology, status/order, and
-`git diff --check` after synchronization.
+The implementation context ran the specified eight-class command on 2026-09-09: 131 tests,
+zero failures, zero errors, and zero skips (3 lowering, 2 IR, 12 generated-fold, 2 semantic
+closure, 29 preparer, 16 finalizer, 58 executable, and 9 checkpoint). It established the exact
+five-type axis/three-type NCHW matrix, four carrier combinations, output-owned range semantics,
+zero workspace, positive-zero/canonical-addition policy, and checked 20+12 inventory projection.
+
+Documentation-focused context `/root/cpu_0009d4_docs` independently inspected the complete fold
+lowering/IR/emitter/generator/preparer/finalizer/prepared-executable/scalar-reference/test and
+inventory/evidence ownership. It reused that stabilized executable evidence because no Java,
+test, resource, or behavioral change followed it. It validated the final five-record scope, local
+links, heading anchors, fences, terminology, status and dependency order, and `git diff --check`.
+No Javadoc generation or conformance/integration command ran: neither Java APIs nor covered
+behavior changed.
 
 ## Implementation notes
 
-None. This Ready specification changes no executable Java, tests, architecture, Javadoc, glossary,
-or generated inventory.
+Retain the generated route for the complete `FOLD_AXIS`/`FOLD2D` family. `CpuFoldLowering`,
+`CpuFoldIr`, `CpuFoldEmitter`, `CpuClassFileKernelGenerator`, preparation/finalization, prepared
+execution, scalar reference, focused tests, and the 32-row inventory remain selected and intact.
+No executable Java, test, resource, architecture, public API, Javadoc, glossary, Gradle,
+conformance/integration, or other-module change is needed.
 
 ## Completion summary
 
-Pending execution. Status remains Ready until route decision, any authorized implementation,
-validation, and the separate documentation-focused pass are recorded.
+- Completed changes: Recorded the complete retained-generated-route decision for all 32 fold
+  rows and synchronized the five CPU planning records.
+- Files changed or created: This task, parent 0009D, parent 0009, CPU master plan, and roadmap.
+- Tests and validation: Reused the implementation context's specified eight-class CPU command:
+  131 tests, zero failures, errors, or skips. This documentation pass checked links, anchors,
+  fences, terminology, status/dependency order, exact changed-path scope, and `git diff --check`.
+- Documentation-agent review: Clean context `/root/cpu_0009d4_docs` applied the General and
+  Planning documentation profiles and independently reviewed route ownership and evidence.
+- Documentation impact: Planning records only. Architecture/ADR, Gradle, backend conformance,
+  integration, and other modules remain unchanged because behavior and ownership do not change.
+- Javadoc review: No change; Java behavior and contracts are unchanged, so Javadoc was not run.
+- Glossary impact: No change; fold, carrier, range ownership, and canonical addition retain their
+  established meanings.
+- Unresolved issues: None.
+- Follow-up required: CPU 0009E remains the summary-only next frontier; do not create child specs
+  until it becomes actionable.
 
-Status: Ready
+Status: Complete

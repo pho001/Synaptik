@@ -13,10 +13,9 @@ the unfinished program of universal generated-versus-clean-Java structural closu
 
 ## Scope
 
-Completed 0009A--C/D1/D1A/D2/D3 remain historical completed evidence; they are not migration
-targets merely because a later family adopts direct Java. D3 has completed its retained
-generated-route decision; detailed D4 is the sole Ready fold/window frontier, so parent 0009D
-remains Ready until D4 execution completes.
+Completed 0009A--C/D1/D1A/D2/D3/D4 remain historical completed evidence; they are not migration
+targets merely because a later family adopts direct Java. D4 completed its retained generated-route
+decision, so parent 0009D is Complete and 0009E is the summary-only next frontier.
 
 The default classification, subject to the active family's code review, is:
 
@@ -72,8 +71,9 @@ planning revision validates Markdown/status consistency and `git diff --check`; 
 
 ## Dependencies and follow-up tasks
 
-- 0009D remains Ready: D1 aggregate, D2 scan, and D3 ordering are Complete retained-generated-
-  route decisions; D4 fold is the sole detailed Ready frontier.
+- 0009D is Complete: D1 aggregate, D2 scan, D3 ordering, and D4 fold are retained-generated-route
+  decisions. D4 retains all 32 fold rows because a direct replacement would cost more to implement
+  and verify.
 - 0009E: separate summary children for static direct-Java reductions, normalization, and loss.
 - 0009F: per-family hybrid decision children for MATMUL/convolution/pooling/attention/batch norm.
 - 0009G: final support, correctness, hygiene, inventory, and documentation checkpoint.
@@ -106,10 +106,11 @@ planning revision.
 
 ## Validation evidence
 
-D2's focused seven-class command passed 65 tests with zero failures, errors, or skips. It
-validated the 160-row scan matrix's generation, invocation, independent-reference semantics,
-range ownership, and inventory join. Documentation-focused context `/root/cpu_0009d2_docs`
-completed the corresponding planning review/static checks; no behavior changed.
+D4's specified eight-class command passed on 2026-09-09: 131 tests, zero failures, errors, or
+skips. It covered lowering, IR, generated-fold and semantic-closure, preparation, finalization,
+prepared execution, and generated-coverage checkpoint evidence. Documentation-focused context
+`/root/cpu_0009d4_docs` completed the corresponding planning review/static checks; no behavior
+changed.
 
 ## Implementation notes
 
@@ -117,7 +118,9 @@ None.
 
 ## Completion summary
 
-CPU 0009 remains Ready. Parent 0009D remains Ready because D1, D2, and D3 are Complete
-retained-generated-route decisions while D4 is the sole detailed Ready frontier.
+CPU 0009 remains Ready. Parent 0009D is Complete: D1 through D4 are retained-generated-route
+decisions; the D4 fold result preserves the full 32-row generated family because a complete direct
+Java replacement would increase total implementation and verification work. CPU 0009E remains
+summary-only until it becomes the actionable frontier.
 
 Status: Ready
