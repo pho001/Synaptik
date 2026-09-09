@@ -17,12 +17,12 @@ The active family sequence is:
 | Child | Status | Dependency | Decision |
 |---|---|---|---|
 | 0009D1 aggregate | Complete | 0009C, 0009D1A | Retain the complete ordinary aggregate family on its supported generated route; the direct migration attempts are decision research, not implementation. |
-| 0009D2 scan | Ready | D1 | Detailed route-decision gate: migrate only if full direct typed Java is genuinely cheaper to implement and verify; otherwise retain generation explicitly. |
+| 0009D2 scan | Complete | D1 | Retains the complete generated scan route: replacing typed carrier/layout bodies, BFLOAT16 per-value rounding, range ownership, and guarded segment specialization would increase implementation and verification work. |
 | 0009D3 ordering | Draft | D2 | Direct typed Java migration for ordering/index/scratch topology. |
 | 0009D4 fold | Draft | D3 | Direct typed Java migration for finite fold/window accumulation. |
 
-Only D2 has a detailed specification. D3--D4 remain named summary tasks until they reach the
-frontier. Each uses current clean Java/reference algorithms first and may inspect
+No child after D2 has a detailed specification. D3--D4 remain named summary tasks until they
+reach the frontier. Each uses current clean Java/reference algorithms first and may inspect
 `legacy/pre-rewrite` solely for capabilities, observable behavior, algorithm ideas, and tests;
 none may copy legacy source, packages, dependencies, runtime coupling, or shortcuts.
 
@@ -39,8 +39,8 @@ runtime-dispatch loop. Dispatch is cold; element loops have proportionate hot-lo
 
 ## Acceptance criteria
 
-- D1 is Complete as a generated-route retention decision; D2 is the sole detailed and actionable
-  next task, while D3--D4 are sequenced summary-only tasks.
+- D1 and D2 are Complete generated-route retention decisions; D3--D4 remain sequenced
+  summary-only tasks, with D3 the next frontier.
 - Each family has an explicit direct-migration or retained-generated-route decision. Migration
   removes generated implementation and associated evidence only after replacement semantics,
   invocation/conformance, and no-selected-reference checks pass.
@@ -75,7 +75,9 @@ typed, use legacy only read-only as allowed evidence, and do not create later de
 
 The old 684-row structural-oracle denominator is historical accounting, not a route-decision
 criterion. D1 retains aggregate generation because migration would duplicate exact-state machinery
-or add a more complex partial split.
+or add a more complex partial split. D2 retains scan generation because its typed dense/general,
+carrier, BFLOAT16, range, and guarded segment bodies are already one cohesive generated route;
+direct replacement would multiply implementation and retirement-evidence work.
 
 ## Known limitations
 
@@ -84,11 +86,16 @@ concrete correctness regression is found.
 
 ## Validation evidence
 
-Planning replan only; no executable behavior changed.
+D2's focused 65-test scan/lowering/preparation/generated-route command passed with zero failures,
+errors, or skips. Documentation-focused context `/root/cpu_0009d2_docs` independently reviewed
+the retained-route evidence and final planning diff, then checked links, headings used as anchors,
+fences, terminology, scope/order/status synchronization, and `git diff --check`. No executable
+behavior changed, so it did not repeat Java tests.
 
 ## Implementation notes
 
-None.
+D2 retains generation without a performance claim. D3 is now the next summary-only frontier; do
+not create its detailed specification until it becomes actionable.
 
 ## Completion summary
 

@@ -13,8 +13,9 @@ the unfinished program of universal generated-versus-clean-Java structural closu
 
 ## Scope
 
-Completed 0009A--C/D1/D1A remain historical completed evidence; they are not migration targets
-merely because a later family adopts direct Java. The active frontier is D2 scan.
+Completed 0009A--C/D1/D1A/D2 remain historical completed evidence; they are not migration targets
+merely because a later family adopts direct Java. D2 has completed its retained generated-route
+decision; D3 is the next summary-only frontier and is not yet actionable.
 
 The default classification, subject to the active family's code review, is:
 
@@ -70,8 +71,8 @@ planning revision validates Markdown/status consistency and `git diff --check`; 
 
 ## Dependencies and follow-up tasks
 
-- 0009D: D1 aggregate (Complete retained-route decision), then D2 scan (Ready detailed decision
-  gate), D3 ordering, and D4 fold (summary only).
+- 0009D: D1 aggregate and D2 scan (Complete retained-generated-route decisions), then D3 ordering
+  and D4 fold (summary only).
 - 0009E: separate summary children for static direct-Java reductions, normalization, and loss.
 - 0009F: per-family hybrid decision children for MATMUL/convolution/pooling/attention/batch norm.
 - 0009G: final support, correctness, hygiene, inventory, and documentation checkpoint.
@@ -104,8 +105,10 @@ planning revision.
 
 ## Validation evidence
 
-Planning replan only. Reviewed the relevant CPU routes, current generated/clean-Java structural
-work, completed 0009A--C/D1A records, and read-only legacy references. No behavior changed.
+D2's focused seven-class command passed 65 tests with zero failures, errors, or skips. It
+validated the 160-row scan matrix's generation, invocation, independent-reference semantics,
+range ownership, and inventory join. Documentation-focused context `/root/cpu_0009d2_docs`
+completed the corresponding planning review/static checks; no behavior changed.
 
 ## Implementation notes
 
@@ -113,7 +116,7 @@ None.
 
 ## Completion summary
 
-CPU 0009 remains Ready. D1 is Complete as a retained generated-route decision. D2 is the only
-detailed Ready child; later work is summary-only until it becomes the frontier.
+CPU 0009 remains Ready. D1 and D2 are Complete retained-generated-route decisions. D3 is the next
+summary-only work and has no detailed specification.
 
 Status: Ready
