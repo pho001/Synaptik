@@ -15,8 +15,9 @@ the unfinished program of universal generated-versus-clean-Java structural closu
 
 Completed 0009A--C/D1/D1A/D2/D3/D4 remain historical completed evidence; they are not migration
 targets merely because a later family adopts direct Java. D4 and E1 completed retained
-generated-route decisions, so parent 0009D is Complete and detailed E1A masked reduction is the
-sole next Ready frontier. The 0009E parent remains a master-plan summary; E1B--E3 remain summaries.
+generated-route decisions, so parent 0009D is Complete and E1A masked reduction is Complete.
+The 0009E parent remains a master-plan summary; E1B advanced is the sole next summary frontier,
+and E1C--E3 remain later summaries.
 
 The default classification, subject to the active family's code review, is:
 
@@ -77,8 +78,11 @@ planning revision validates Markdown/status consistency and `git diff --check`; 
   and verify.
 - 0009E1 is Complete: it retained the finite typed generated partial integral route because direct
   migration would increase selection, binding, replacement, and retirement-proof work without a
-  performance gate. Detailed E1A masked is the sole next Ready frontier; E1B advanced, E1C
-  softmax-style, E2 normalization, and E3 loss remain ordered master-plan summaries.
+  performance gate. E1A is Complete: it retained the complete generated FLOAT64/FLOAT32/BFLOAT16
+  masked SUM/MEAN route because direct Java would duplicate typed carrier/layout, directional
+  mask, selected exact-state, binding, invocation, inventory, and retirement work. E1B advanced
+  is the sole next summary frontier; E1C softmax-style, E2 normalization, and E3 loss remain
+  ordered master-plan summaries.
 - 0009F: per-family hybrid decision children for MATMUL/convolution/pooling/attention/batch norm.
 - 0009G: final support, correctness, hygiene, inventory, and documentation checkpoint.
 
@@ -125,8 +129,9 @@ None.
 
 CPU 0009 remains Ready. Parent 0009D is Complete: D1 through D4 are retained-generated-route
 decisions; the D4 fold result preserves the full 32-row generated family because a complete direct
-Java replacement would increase total implementation and verification work. CPU 0009E1 is Complete
-as a retained generated partial-integral route decision; detailed E1A masked is now the sole Ready
-frontier and later E summaries remain unexpanded.
+Java replacement would increase total implementation and verification work. CPU 0009E1 and E1A
+are Complete retained generated-route decisions; E1A retains the complete masked SUM/MEAN route
+because a direct replacement would increase implementation and verification work. E1B advanced is
+the sole next summary frontier and later E summaries remain unexpanded.
 
 Status: Ready

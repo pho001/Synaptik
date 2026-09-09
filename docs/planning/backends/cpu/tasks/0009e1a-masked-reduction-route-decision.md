@@ -2,7 +2,7 @@
 
 ## Status
 
-Ready
+Complete
 
 ## Goal
 
@@ -117,12 +117,68 @@ The current family remains static one-axis axis-removing floating masked `SUM`/`
 
 ## Validation evidence
 
-Planning context inspected the current masked IR, lowering, generated emitter, exact-sum seam, preparation/finalization/executable wiring, reference/semantic/inventory tests, and generated coverage resources before fixing scope. No command has been run for this Ready task and no executable behavior has changed. Implementation and documentation contexts must replace this section with exact commands, outcomes, route evidence, documentation review, and no-change conclusions where applicable.
+The route remains generated. The current emitter is already the finite typed specialization for
+the complete admitted family: its cold specialization fixes the three carrier roles, type,
+layout regime, and artifact identity, while its generated entry has direct carrier loads/stores
+and no Synaptik runtime helper reference. Replacing it requires a second finite direct-Java
+matrix for FLOAT64/FLOAT32/BFLOAT16, heap/segment/mixed carriers, dense/general layouts, and
+SUM/MEAN; cold route selection/binding; the current exact-state and selected-count seam; and
+replacement, invocation, inventory, and no-selected-generated-route retirement proof. That is
+strictly more implementation and verification work than retaining the one selected route.
+
+The implementation context reviewed `CpuMaskedReductionIr`,
+`CpuMaskedReductionLowering.Geometry`, `CpuMaskedReductionEmitter`,
+`CpuExactSumEmitter`, generator dispatch, preparer/finalizer wiring, immutable executable
+binding/validation, the independent scalar reference, focused semantic tests, and the
+coverage inventory. The emitter loads the BOOL mask, branches on false, then loads and
+classifies data only for true values; it increments a primitive invocation-local selected count
+only on that true branch and passes it to exact mean finalization. Lowering/preparation retain
+ordered data/mask/output boundaries, injective output validation, complete output-cell ranges,
+and one aligned range-private exact-state slice with no mask/count/partial workspace.
+
+`./gradlew :backends:cpu:test --tests io.github.pho001.synaptik.backend.cpu.internal.ir.CpuMaskedReductionIrTest --tests io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuMaskedReductionLoweringTest --tests io.github.pho001.synaptik.backend.cpu.internal.codegen.emit.CpuMaskedReductionGeneratedKernelTest --tests io.github.pho001.synaptik.backend.cpu.internal.codegen.emit.CpuMaskedAdvancedReductionSemanticClosureTest --tests io.github.pho001.synaptik.backend.cpu.internal.codegen.emit.CpuSpecializedGeneratedMatrixTest --tests io.github.pho001.synaptik.backend.cpu.internal.prepare.CpuPartitionPreparerTest --tests io.github.pho001.synaptik.backend.cpu.internal.prepare.CpuPartitionFinalizerTest --tests io.github.pho001.synaptik.backend.cpu.internal.executable.CpuPreparedExecutableTest`
+passed: 119 tests, zero failures, errors, or skips. The generated-kernel Class-File test
+independently verifies deterministic field-free public static entry shape, no Synaptik member
+references or bootstrap methods, and mask-load/false-branch/data-load order. The semantic
+closure test invokes every inventory owner against its independent oracle; the checked
+inventory has 90 `MASKED_SUM` and 90 `MASKED_MEAN` owners. No benchmark was run or claimed.
+
+Clean documentation-focused context `/root` independently reviewed the stable four-path planning
+diff against the architecture contract, Planning Guide, General and Planning profiles, CPU master,
+parent 0009, completed E1/E1A/0007C evidence, current masked source, and focused tests. It
+confirmed local links, headings, fenced commands, terminology, exact paths, status/dependency
+order, whitespace, and `git diff --check`. No Java/Javadoc change is needed: no executable API or
+implementation contract changed. No glossary change is needed: this decision introduces no new
+reusable term or changed term boundary. The focused 119-test evidence is reused because no Java
+changed after that successful run; no benchmark is claimed.
 
 ## Implementation notes
 
-None. This is the sole detailed Ready frontier after completed E1.
+No production or test change is warranted: generation is retained, so no direct route, duplicate
+binding, retirement consumer, or new Javadoc contract is introduced. E1B advanced reduction is
+now the sole next summary frontier; it remains Draft and receives no detailed specification here.
 
 ## Completion summary
 
-Pending implementation and the separate documentation-focused pass.
+- Completed changes: Retained the complete current generated masked FLOAT64/FLOAT32/BFLOAT16
+  SUM/MEAN route after proportional source, generated-member/Class-File, semantic/inventory,
+  and focused invocation review; synchronized task/frontier status.
+- Files changed or created: This task and the synchronized CPU master plan, parent CPU 0009,
+  and roadmap only. No production, test, resource, Javadoc, public, shared, or architecture
+  path changed.
+- Tests and validation: The required focused eight-class CPU command passed 119 tests with zero
+  failures, errors, or skips. Generated-Class-File inspection and the independent semantic
+  closure cover mask-before-data-load, artifact invocation, typed carrier forms, and all 180
+  masked inventory owners. No benchmark or repository-wide suite was run.
+- Documentation impact: The separate clean documentation-focused pass finalized this planning-only
+  diff, including Markdown/link/anchor/fence, status/order, terminology, glossary, exact-path,
+  whitespace, and `git diff --check` validation. No Javadoc change is needed because executable
+  behavior and its contracts are unchanged; no glossary change is needed because terminology did
+  not change.
+- Architecture impact: None.
+- Unresolved issues: None for E1A. Parent CPU 0009 and parent E remain incomplete; E1B is the
+  sole next summary frontier and remains Draft.
+- Follow-up required: E1B remains the sole next Draft summary frontier; no E1B specification is
+  created by this task.
+
+Status: Complete
