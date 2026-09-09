@@ -2,7 +2,7 @@
 
 ## Status
 
-Ready
+Complete
 
 ## Goal
 
@@ -106,8 +106,125 @@ Before creating this Ready task, the planning context inspected required archite
 
 ## Implementation notes
 
-Empty until implemented.
+Draft implementation decision: retain the bounded generated route unchanged for both
+`SoftmaxKind.SOFTMAX` and `SoftmaxKind.LOG_SOFTMAX`.
+
+The confirmed admitted matrix is exactly one first-class shape-preserving node with
+`SoftmaxAttrs`, identical `FLOAT64`, `FLOAT32`, or `BFLOAT16` boundaries, a normalized axis with
+positive selected width, static non-negative resolved layouts, non-injective input reads and
+injective output writes, heap/segment/ordered-mixed carriers, and scalar or disjoint
+complete-slice parallel ranges. It has zero workspace and immutable invocation binding. An empty
+non-selected extent is a no-op. Cold lowering, carrier/span/alignment/overlap checks, range and
+worker validation, and `CpuSoftmaxInputValidator` reject every excluded semantic or binding fact,
+including non-finite represented inputs and maximum shifts, before output mutation or worker
+submission.
+
+This satisfies the task's comparable-candidate prerequisite: the existing route preserves the
+three full slice passes (maximum, compensated shifted-exponential sum, final result), represented
+narrowing, one final typed store per output, and the distinct final forms (division for softmax;
+one logarithm then subtraction for log-softmax). A direct candidate would need to preserve all of
+those facts before it could be compared.
+
+Auditable non-performance cost comparison:
+
+1. Retained-generation maintenance is bounded: `CpuSoftmaxEmitter` already cold-specializes the
+   kind, three represented types, typed heap/segment/mixed carriers, and dense/general geometry;
+   `CpuSoftmaxInputValidator`, lowering geometry, immutable generated binding, artifact/cache,
+   and `CpuSoftmaxReferenceKernel` already own validation, invocation, and independent-oracle
+   evidence.
+2. Direct Java would require a new finite CPU-private owner plus cold typed carrier and
+   dense/general selection/binding for both kinds and all three representations, while duplicating
+   the stable three-pass/Kahan/narrowing/store bodies and preserving the no-write rejection
+   boundary.
+3. Direct retirement would additionally require removing generated selection and proving the
+   replacement across artifact/cache identity, finalization, immutable invocation, package and
+   coverage inventory, oracle, rejection/canary, and generated-route retirement evidence.
+
+Buckets 2 plus 3 are not demonstrably strictly lower than bucket 1; they are materially larger
+because all currently verified finite route and retirement seams would need replacement. The rule
+therefore selects retention. This is an implementation-and-verification-cost decision only, not a
+benchmark or performance claim.
+
+Generated-route inspection found a generation-time kind-specialized, typed static entry with the
+same three-pass dataflow and final-store shape as the independent clean-Java oracle. The actual
+representative generated Class-Files parsed by `CpuSoftmaxGeneratedKernelTest` have one typed
+entry, no fields, and no `io/github/pho001/synaptik` member reference; the log form alone refers
+to `java/lang/Math.log`. The emitted hot loops directly perform typed carrier loads, maximum,
+compensated exponential accumulation, and one typed output store; no hidden Synaptik helper call,
+allocation, boxing, reflection, map/collection, string/generic dispatch, or virtual semantic
+dispatch occurs in those loops. This inspection makes no literal Class-File, JIT, or performance
+identity assertion.
+
+No executable Java or Javadoc changed. The implementation context ran the following focused
+validation on 2026-09-09 after an earlier broader invocation selected environment-owned
+coverage-ledger/checkpoint tests without their canonical resources:
+
+```bash
+./gradlew --no-daemon --no-parallel --no-configuration-cache :backends:cpu:test --rerun-tasks \
+  --tests io.github.pho001.synaptik.backend.cpu.CpuCapabilityProviderTest \
+  --tests io.github.pho001.synaptik.backend.cpu.CpuInternalPackageInventoryTest \
+  --tests io.github.pho001.synaptik.backend.cpu.internal.ir.CpuSoftmaxIrTest \
+  --tests io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuSoftmaxLoweringTest \
+  --tests io.github.pho001.synaptik.backend.cpu.internal.codegen.emit.CpuSoftmaxGeneratedKernelTest \
+  --tests io.github.pho001.synaptik.backend.cpu.internal.executable.CpuSoftmaxInputValidatorTest \
+  --tests io.github.pho001.synaptik.backend.cpu.internal.reference.CpuSoftmaxReferenceTest \
+  --tests io.github.pho001.synaptik.backend.cpu.internal.codegen.emit.CpuSpecializedGeneratedMatrixTest \
+  --tests io.github.pho001.synaptik.backend.cpu.internal.codegen.emit.CpuGeneratedDirectEvidenceClosureTest \
+  --tests io.github.pho001.synaptik.backend.cpu.internal.prepare.CpuPartitionPreparerTest \
+  --tests io.github.pho001.synaptik.backend.cpu.internal.prepare.CpuPartitionFinalizerTest \
+  --tests io.github.pho001.synaptik.backend.cpu.internal.executable.CpuPreparedExecutableTest \
+  --tests io.github.pho001.synaptik.backend.cpu.internal.cache.CpuGeneratedKernelArtifactStoreTest \
+  --tests io.github.pho001.synaptik.backend.cpu.internal.cache.CpuGeneratedKernelPersistenceEvidenceTest
+```
+
+The 14 selected XML reports record 164 tests, zero failures, zero errors, and one expected
+opt-in persistence-evidence skip. The first broader attempt also selected the two
+environment-owned coverage-ledger/checkpoint tests; they failed only because their canonical
+ledger/gap-matrix resources were absent from that invocation, so they are not recorded as route
+validation. No benchmark or repository-wide suite ran.
+
+The separate clean documentation-focused context independently read the governing contracts, the
+focused source/Javadocs/tests, and fresh softmax XML. It applied the General and Planning profiles.
+The current XML for `CpuSoftmaxGeneratedKernelTest` records five tests with zero failures or
+errors; the implementation context's recorded 14-report serialized run remains the route-validation
+evidence described above. The initial broader run is deliberately retained as a non-passing,
+environment-owned coverage-ledger/checkpoint invocation, not presented as route validation.
+
+No Javadoc, explanatory guide, glossary, architecture, build, architecture-test,
+backend-conformance, or integration-test change is required: this decision changes neither
+executable Java nor a public, cross-backend, shared Prepare/Runtime, dependency, module, or
+configuration contract. Existing CPU-private Javadocs accurately state the generated emitter,
+validator, and independent oracle boundaries; existing terminology adds no reusable term or
+changed meaning. Architecture and architecture tests remain accurate because no boundary changed;
+backend conformance and integration remain deferred to CPU 0009/CI because no cross-backend or
+end-to-end promise changed. The existing Gradle/Java configuration remains accurate because no
+build input changed.
+
+Documentation validation checked the four permitted planning records for synchronized status and
+frontier, local Markdown links and heading anchors, code fences, terminology, final newlines, and
+whitespace. `git diff --check` passed; `git status --short -uall` confirmed that this planning
+change is the only uncommitted work. No Java test was rerun because executable Java did not change
+and the recorded focused evidence is not contradicted by the fresh softmax XML.
 
 ## Completion summary
 
-Empty until implemented.
+- Completed changes: Retained the complete bounded generated CPU `SOFTMAX`/`LOG_SOFTMAX` route;
+  no executable route change was warranted. The verified admission/rejection, stable three-pass,
+  zero-workspace, immutable invocation, carrier/layout, complete-slice, one-store, and generated
+  hot-loop/oracle boundaries remain intact.
+- Files changed or created: this task plus the synchronized CPU master plan, parent CPU 0009 task,
+  and roadmap; no source, Javadoc, glossary, explanatory, architecture, build, or test path changed.
+- Tests and validation: Reused the implementation context's serialized 14-report focused run
+  (164 tests, zero failures/errors, one expected opt-in skip); accurately retained its preceding
+  overbroad resource-dependent failure as non-route evidence. Independently inspected fresh
+  `CpuSoftmaxGeneratedKernelTest` XML (5 tests, zero failures/errors), source/tests, links,
+  anchors, fences, terminology, status/frontier, exact paths, `git diff --check`, and status.
+- Documentation-agent review: the separate clean documentation-focused context applied the General
+  and Planning profiles;
+  Javadocs, explanatory documentation, and glossary were reviewed and remain accurate unchanged.
+- Architecture impact: None.
+- Unresolved issues: None for E1C. CPU 0009 remains Ready and incomplete; E1B remains Complete.
+- Follow-up required: E2 normalization is the sole next Draft summary frontier; no detailed E2
+  task is created here.
+
+Status: Complete
