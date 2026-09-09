@@ -15,7 +15,8 @@ the unfinished program of universal generated-versus-clean-Java structural closu
 
 Completed 0009A--C/D1/D1A/D2/D3/D4 remain historical completed evidence; they are not migration
 targets merely because a later family adopts direct Java. D4 completed its retained generated-route
-decision, so parent 0009D is Complete and 0009E is the summary-only next frontier.
+decision, so parent 0009D is Complete and 0009E1 partial integral reduction is the Ready next
+frontier. The 0009E parent and E1A--E3 remain master-plan summaries.
 
 The default classification, subject to the active family's code review, is:
 
@@ -25,7 +26,7 @@ The default classification, subject to the active family's code review, is:
 | Dense MATMUL, Conv inner loops, and similarly compute-intensive integral generation | Retain generation when it remains the simpler specialized route. |
 | Aggregate | Retain the current supported generated route: its exact numerical matrix is not a cheap static-loop migration. |
 | Scan, ordering, fold | Use a route-decision gate; prefer finite direct typed Java only where it is genuinely cheaper to implement and verify. |
-| General reductions, normalizations, loss | Split into bounded direct-Java summary children in 0009E. |
+| General reductions, normalizations, loss | Begin with bounded 0009E1 partial integral route decision; masked, advanced, softmax, normalization, and loss remain ordered summaries. |
 | Pooling, attention, batch norm | Decide per family in 0009F: migrate orchestration/static loops; retain an already-good generated compute kernel when replacement increases work. |
 
 For every direct route, prepare cold-selects one typed array/segment, dense/general, scalar/vector
@@ -74,7 +75,8 @@ planning revision validates Markdown/status consistency and `git diff --check`; 
 - 0009D is Complete: D1 aggregate, D2 scan, D3 ordering, and D4 fold are retained-generated-route
   decisions. D4 retains all 32 fold rows because a direct replacement would cost more to implement
   and verify.
-- 0009E: separate summary children for static direct-Java reductions, normalization, and loss.
+- 0009E1: the sole detailed Ready partial integral-reduction route decision. E1A masked, E1B
+  advanced, E1C softmax-style, E2 normalization, and E3 loss remain ordered master-plan summaries.
 - 0009F: per-family hybrid decision children for MATMUL/convolution/pooling/attention/batch norm.
 - 0009G: final support, correctness, hygiene, inventory, and documentation checkpoint.
 
@@ -120,7 +122,7 @@ None.
 
 CPU 0009 remains Ready. Parent 0009D is Complete: D1 through D4 are retained-generated-route
 decisions; the D4 fold result preserves the full 32-row generated family because a complete direct
-Java replacement would increase total implementation and verification work. CPU 0009E remains
-summary-only until it becomes the actionable frontier.
+Java replacement would increase total implementation and verification work. CPU 0009E1 partial
+integral reduction is now the sole detailed Ready frontier; later E summaries remain unexpanded.
 
 Status: Ready
