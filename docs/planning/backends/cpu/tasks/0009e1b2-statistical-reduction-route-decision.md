@@ -2,7 +2,7 @@
 
 ## Status
 
-Ready
+Complete
 
 ## Goal
 
@@ -96,11 +96,107 @@ This is a route decision, not a numerical redesign, public API change, or perfor
 
 ## Validation evidence
 
-Empty until implemented.
+The implementation context's unchanged executable evidence was independently reviewed by the
+mandatory clean-context documentation-finalization pass on 2026-09-09. No executable Java changed
+after that run, so the pass reused rather than reran the focused CPU command.
+
+The implementation review retained generated execution for both `VARIANCE` and
+`STANDARD_DEVIATION`. No executable source or test changed. The retained route is the lower total
+implementation-and-verification-cost option: `CpuStatisticalReductionEmitter` already generates
+the exact two-pass typed body for all three represented types and every cold-selected heap,
+`MemorySegment`, and mixed carrier form. Its generated entry consumes the existing packed
+dense/general geometry, complete-cell range, and per-range exact-state slice. Replacing it would
+require a new finite typed direct owner plus a second maintenance representation of the large
+exact-sum/mean state algorithm, or moving that algorithm out of the generation-only emitter;
+either option would additionally require a complete direct-entry carrier/layout matrix and
+retirement proof for the generator dispatch, schema/artifact identity, artifact store, finalizer,
+immutable binding, invocation, inventory, and evidence owners. That is more implementation and
+verification work, with no task-authorized performance result. This is a cost decision only, not a
+performance claim.
+
+Source and generated-Class-File review found that the retained body keeps the required algorithm:
+it resets one invocation-private exact state per owned output cell, forms the represented exact
+mean in the first pass, then performs compensated deviations and squares in the second pass,
+applies the correction expression and optional `Math.sqrt`, resolves canonical-NaN/infinity
+priority, narrows once, and stores once. `CpuGeneratedDirectEvidenceClosureTest` parses generated
+`VARIANCE` and `STANDARD_DEVIATION` representatives and verifies one typed static entry, no
+fields, `Object`, bootstrap methods, method handles, reflection, or collection/map member
+references; its representative inspection also verifies segment-layout construction is hoisted
+before segment access. `CpuAdvancedReductionGeneratedKernelTest` verifies numerical-emitter
+ownership and the finite, special-value, correction, type, carrier, and point-domain cases. The
+independent reference oracle separately implements the corrected two-pass mathematical order
+without lowering, packed geometry, generated helpers, or exact-state workspace. This is
+proportionate generated-body and oracle evidence under the architecture rule; it does not claim
+literal Class-File identity, JIT assembly identity, or a performance result.
+
+The implementation context ran the following focused command on 2026-09-09:
+
+```bash
+./gradlew :backends:cpu:test \
+  --tests io.github.pho001.synaptik.backend.cpu.CpuCapabilityProviderTest \
+  --tests io.github.pho001.synaptik.backend.cpu.CpuInternalPackageInventoryTest \
+  --tests io.github.pho001.synaptik.backend.cpu.internal.ir.CpuAdvancedReductionIrTest \
+  --tests io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuAdvancedReductionLoweringTest \
+  --tests io.github.pho001.synaptik.backend.cpu.internal.codegen.emit.CpuAdvancedReductionGeneratedKernelTest \
+  --tests io.github.pho001.synaptik.backend.cpu.internal.codegen.emit.CpuSpecializedGeneratedMatrixTest \
+  --tests io.github.pho001.synaptik.backend.cpu.internal.codegen.emit.CpuGeneratedDirectEvidenceClosureTest \
+  --tests io.github.pho001.synaptik.backend.cpu.internal.reference.CpuAdvancedReductionReferenceTest \
+  --tests io.github.pho001.synaptik.backend.cpu.internal.prepare.CpuPartitionPreparerTest \
+  --tests io.github.pho001.synaptik.backend.cpu.internal.prepare.CpuPartitionFinalizerTest \
+  --tests io.github.pho001.synaptik.backend.cpu.internal.executable.CpuPreparedExecutableTest \
+  --tests io.github.pho001.synaptik.backend.cpu.internal.cache.CpuGeneratedKernelArtifactStoreTest \
+  --tests io.github.pho001.synaptik.backend.cpu.internal.cache.CpuGeneratedKernelPersistenceEvidenceTest
+```
+
+The corresponding Gradle XML files under `backends/cpu/build/test-results/test/` record exactly
+168 tests, zero failures, zero errors, and one skip. The skip is the expected opt-in
+`CpuGeneratedKernelPersistenceEvidenceTest`; no benchmark or repository-wide suite ran.
+The selected owners cover capability admission, IR/lowering, special values and narrowing,
+carrier/layout/range and scratch isolation, preparation/finalization, immutable invocation,
+reference behavior, generated artifact/cache, and generated/inventory evidence.
+
+The documentation-finalization pass reviewed the Planning and General profiles; this task, the
+CPU master plan, parent CPU 0009 task, and roadmap; current generated emitter/exact-state,
+lowering/geometry, generator/schema/artifact-cache, finalization/binding, reference-oracle, and
+focused-test seams; and the final changed-path scope. Markdown links, anchors, fences,
+terminology, statuses, dependencies, and the E1B frontier are consistent. `git diff --check` and
+`git status --short -uall` passed during this pass. Javadoc, explanatory documentation, glossary,
+architecture documentation, Gradle/build configuration, backend-conformance tests, and integration
+tests require no update: this retains an unchanged CPU-private generated route behind existing
+public, shared Prepare, Runtime, and backend contracts, and introduces no term, dependency,
+resource kind, build behavior, or cross-backend/end-to-end behavior.
 ## Implementation notes
 
-Empty until implemented.
+Retain the bounded generated statistical route unchanged. The current
+lowering declares exactly two borrowed boundary buffers and the existing aligned exact-state
+workspace only when output cells exist; finalization preserves artifact identity, and binding
+packs cold bases/geometry before invoking immutable typed entries. Complete output-cell ranges
+receive disjoint run-owned scratch slices, and cold overlap validation precedes writes or worker
+submission. Direct replacement and generator retirement would add a finite carrier/layout route
+matrix and duplicate the statistical state algorithm, binding, artifact/cache, invocation,
+inventory, and retirement proof; that has greater implementation and verification cost. This is
+not a performance claim and has no benchmark gate.
 
 ## Completion summary
 
-Empty until implemented.
+- Completed changes: Finalized the decision to retain the current generated `VARIANCE` and
+  `STANDARD_DEVIATION` route because direct replacement has greater implementation and
+  verification cost; no executable behavior changed.
+- Files changed or created: This task, the CPU master plan, parent CPU 0009 task, and the global
+  roadmap.
+- Tests and validation: Reused the implementation context's focused 13-class CPU command; its
+  XML results total 168 tests, zero failures, zero errors, and one expected opt-in skip. The
+  documentation pass checked planning consistency, Markdown links/anchors/fences, terminology,
+  changed paths, `git diff --check`, and `git status --short -uall`; no benchmark,
+  repository-wide, architecture, conformance, or integration suite ran.
+- Documentation-agent review: The mandatory independent clean-context documentation-finalization
+  pass completed this review without changing executable Java.
+- Documentation impact: No Javadoc, explanatory, glossary, architecture, or build update is
+  needed because the CPU-private route and all public/shared contracts remain unchanged.
+- Javadoc review: Current Javadoc remains accurate; no Java API or implementation contract changed.
+- Glossary impact: None; no reusable terminology changed or was introduced.
+- Unresolved issues: None.
+- Follow-up required: E1B3 norms is the sole next Draft summary; do not create its detailed task
+  until it reaches the implementation frontier.
+
+Status: Complete
