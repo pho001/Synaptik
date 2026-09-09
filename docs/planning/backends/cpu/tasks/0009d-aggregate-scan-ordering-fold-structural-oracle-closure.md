@@ -18,11 +18,11 @@ The active family sequence is:
 |---|---|---|---|
 | 0009D1 aggregate | Complete | 0009C, 0009D1A | Retain the complete ordinary aggregate family on its supported generated route; the direct migration attempts are decision research, not implementation. |
 | 0009D2 scan | Complete | D1 | Retains the complete generated scan route: replacing typed carrier/layout bodies, BFLOAT16 per-value rounding, range ownership, and guarded segment specialization would increase implementation and verification work. |
-| 0009D3 ordering | Draft | D2 | Direct typed Java migration for ordering/index/scratch topology. |
+| 0009D3 ordering | Ready | D2 | [Detailed route decision](0009d3-ordering-index-scratch-direct-java-migration.md) for complete SORT/ARGSORT/TOP_K ordering/index/scratch topology. |
 | 0009D4 fold | Draft | D3 | Direct typed Java migration for finite fold/window accumulation. |
 
-No child after D2 has a detailed specification. D3--D4 remain named summary tasks until they
-reach the frontier. Each uses current clean Java/reference algorithms first and may inspect
+D3 is the sole detailed Ready frontier. D4 remains a named summary task until it reaches the
+frontier. Each uses current clean Java/reference algorithms first and may inspect
 `legacy/pre-rewrite` solely for capabilities, observable behavior, algorithm ideas, and tests;
 none may copy legacy source, packages, dependencies, runtime coupling, or shortcuts.
 
@@ -39,8 +39,8 @@ runtime-dispatch loop. Dispatch is cold; element loops have proportionate hot-lo
 
 ## Acceptance criteria
 
-- D1 and D2 are Complete generated-route retention decisions; D3--D4 remain sequenced
-  summary-only tasks, with D3 the next frontier.
+- D1 and D2 are Complete generated-route retention decisions; D3 is the sole detailed Ready
+  frontier and D4 remains sequenced summary-only work.
 - Each family has an explicit direct-migration or retained-generated-route decision. Migration
   removes generated implementation and associated evidence only after replacement semantics,
   invocation/conformance, and no-selected-reference checks pass.
@@ -94,8 +94,8 @@ behavior changed, so it did not repeat Java tests.
 
 ## Implementation notes
 
-D2 retains generation without a performance claim. D3 is now the next summary-only frontier; do
-not create its detailed specification until it becomes actionable.
+D2 retains generation without a performance claim. D3 is now the sole detailed Ready frontier;
+D4 remains summary-only and must not receive a detailed specification yet.
 
 ## Completion summary
 
