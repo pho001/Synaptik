@@ -24,8 +24,10 @@ import java.util.Arrays;
  * primitive address or coordinate cursors, while geometry that cannot be bounded retains the
  * typed long-address loop. A proved canonical-BOOL axis-zero STACK copies each encounter-order
  * occurrence with one direct primitive address loop, including repeated input occurrences;
- * unproved STACK geometry retains the same typed long-address fallback. Emitted hot loops contain
- * no Model interpretation, reflection, map
+ * unproved STACK geometry retains the same typed long-address fallback. Affected general-long
+ * CONCAT and STACK segment loads and shared stores use generation-fixed typed native-order layouts
+ * so layout construction is not repeated in their hot loops. Emitted hot loops contain no Model
+ * interpretation, reflection, map
  * lookup, per-element allocation, division, or modulo.</p>
  */
 final class CpuDataMovementEmitter {
@@ -258,8 +260,16 @@ final class CpuDataMovementEmitter {
                     inputBases, strideOffsets);
             default -> throw new IllegalArgumentException("unsupported movement family");
         }
-        carriers.store(type, specialization.carrierPattern().get(uniqueInputs), uniqueInputs,
-                outputAddress, value);
+        if (parsed.family.equals("CONCAT") || parsed.family.equals("STACK")) {
+            // Composition entries have a generation-time-fixed carrier and lane type.  Retain
+            // the typed constant layout at the segment call site so C2 can recognize the same
+            // get/set shape as the independently compiled direct composition oracle.
+            carriers.storeFrozen(type, specialization.carrierPattern().get(uniqueInputs), uniqueInputs,
+                    outputAddress, value, false);
+        } else {
+            carriers.store(type, specialization.carrierPattern().get(uniqueInputs), uniqueInputs,
+                    outputAddress, value);
+        }
         if (tileCoordinates != null) {
             emitTileAdvance(code, geometrySlot, coordinates, outputAddress, tileCoordinates,
                     variant, 2 * rank + 1);
@@ -660,8 +670,9 @@ final class CpuDataMovementEmitter {
         code.labelBinding(sourceReady);
         var loaded = code.newLabel();
         for (int occurrence = 0; occurrence < parsed.mapping.length; occurrence++) {
-            var next = code.newLabel();
-            code.iload(occurrenceLocal).loadConstant(occurrence)
+            boolean terminal = occurrence == parsed.mapping.length - 1;
+            var next = terminal ? null : code.newLabel();
+            if (!terminal) code.iload(occurrenceLocal).loadConstant(occurrence)
                     .branch(Opcode.IF_ICMPNE, next);
             int boundary = parsed.mapping[occurrence];
             emitBoundedLoad(code, type, specialization.carrierPattern().get(boundary), boundary,
@@ -670,10 +681,11 @@ final class CpuDataMovementEmitter {
             if (inputRank > 0) code.lload(sourceAddress)
                     .iload(geometry[strideOffsets[boundary] + inputRank - 1]).i2l().ladd()
                     .lstore(sourceAddress);
-            code.branch(Opcode.GOTO, loaded);
-            code.labelBinding(next);
+            if (!terminal) {
+                code.branch(Opcode.GOTO, loaded);
+                code.labelBinding(next);
+            }
         }
-        emitMovementFailure(code, "composition coordinate has no segment");
         code.labelBinding(loaded);
         emitBoundedStore(code, type, specialization.carrierPattern().get(outputSlot), outputSlot,
                 outputAddress, value);
@@ -812,8 +824,9 @@ final class CpuDataMovementEmitter {
         }
         var ready = code.newLabel();
         for (int occurrence = 0; occurrence < parsed.mapping.length; occurrence++) {
-            var next = code.newLabel();
-            code.iload(selected).iload(geometry[variant + 2 + occurrence])
+            boolean terminal = occurrence == parsed.mapping.length - 1;
+            var next = terminal ? null : code.newLabel();
+            if (!terminal) code.iload(selected).iload(geometry[variant + 2 + occurrence])
                     .branch(Opcode.IF_ICMPGE, next);
             int boundary = parsed.mapping[occurrence];
             code.loadConstant(occurrence).istore(occurrenceLocal);
@@ -832,10 +845,11 @@ final class CpuDataMovementEmitter {
                 code.i2l().iload(geometry[strideOffsets[boundary] + axis]).i2l().lmul()
                         .ladd().lstore(sourceAddress);
             }
-            code.branch(Opcode.GOTO, ready);
-            code.labelBinding(next);
+            if (!terminal) {
+                code.branch(Opcode.GOTO, ready);
+                code.labelBinding(next);
+            }
         }
-        emitMovementFailure(code, "composition coordinate has no segment");
         code.labelBinding(ready);
     }
 
@@ -1468,8 +1482,9 @@ final class CpuDataMovementEmitter {
         int selected = emitDenseSelectedCoordinate(code, geometry[variant], coordinates);
         var loaded = code.newLabel();
         for (int occurrence = 0; occurrence < parsed.mapping.length; occurrence++) {
-            var next = code.newLabel();
-            code.iload(selected).iload(geometry[variant + 2 + occurrence])
+            boolean terminal = occurrence == parsed.mapping.length - 1;
+            var next = terminal ? null : code.newLabel();
+            if (!terminal) code.iload(selected).iload(geometry[variant + 2 + occurrence])
                     .branch(Opcode.IF_ICMPGE, next);
             int boundary = parsed.mapping[occurrence];
             code.iload(geometry[inputBases + boundary]).istore(sourceAddress);
@@ -1483,10 +1498,11 @@ final class CpuDataMovementEmitter {
             carriers.load(type, specialization.carrierPattern().get(boundary), boundary,
                     sourceAddress, true);
             storeValue(code, type, value);
-            code.branch(Opcode.GOTO, loaded);
-            code.labelBinding(next);
+            if (!terminal) {
+                code.branch(Opcode.GOTO, loaded);
+                code.labelBinding(next);
+            }
         }
-        emitMovementFailure(code, "composition coordinate has no segment");
         code.labelBinding(loaded);
     }
 
@@ -1497,8 +1513,9 @@ final class CpuDataMovementEmitter {
         int selected = emitDenseSelectedCoordinate(code, geometry[variant], coordinates);
         var loaded = code.newLabel();
         for (int occurrence = 0; occurrence < parsed.mapping.length; occurrence++) {
-            var next = code.newLabel();
-            code.iload(selected).loadConstant(occurrence).branch(Opcode.IF_ICMPNE, next);
+            boolean terminal = occurrence == parsed.mapping.length - 1;
+            var next = terminal ? null : code.newLabel();
+            if (!terminal) code.iload(selected).loadConstant(occurrence).branch(Opcode.IF_ICMPNE, next);
             int boundary = parsed.mapping[occurrence];
             code.iload(geometry[inputBases + boundary]).istore(sourceAddress);
             for (int axis = 0; axis < inputRank; axis++) {
@@ -1519,10 +1536,11 @@ final class CpuDataMovementEmitter {
             carriers.load(type, specialization.carrierPattern().get(boundary), boundary,
                     sourceAddress, true);
             storeValue(code, type, value);
-            code.branch(Opcode.GOTO, loaded);
-            code.labelBinding(next);
+            if (!terminal) {
+                code.branch(Opcode.GOTO, loaded);
+                code.labelBinding(next);
+            }
         }
-        emitMovementFailure(code, "stack coordinate has no input");
         code.labelBinding(loaded);
     }
 
@@ -1919,8 +1937,9 @@ final class CpuDataMovementEmitter {
         int axisCoordinate = selectedCoordinate(code, geometrySlot, variant, coordinates);
         var loaded = code.newLabel();
         for (int occurrence = 0; occurrence < parsed.mapping.length; occurrence++) {
-            var next = code.newLabel();
-            code.lload(axisCoordinate).aload(geometrySlot)
+            boolean terminal = occurrence == parsed.mapping.length - 1;
+            var next = terminal ? null : code.newLabel();
+            if (!terminal) code.lload(axisCoordinate).aload(geometrySlot)
                     .loadConstant(variant + 2 + occurrence).laload().lcmp()
                     .branch(Opcode.IFGE, next);
             int boundary = parsed.mapping[occurrence];
@@ -1933,17 +1952,14 @@ final class CpuDataMovementEmitter {
                         .loadConstant(strideOffsets[boundary] + axis).laload()
                         .lmul().ladd().lstore(sourceAddress);
             }
-            carriers.load(type, specialization.carrierPattern().get(boundary), boundary,
-                    sourceAddress);
+            carriers.loadFrozen(type, specialization.carrierPattern().get(boundary), boundary,
+                    sourceAddress, false);
             storeValue(code, type, value);
-            code.branch(Opcode.GOTO, loaded);
-            code.labelBinding(next);
+            if (!terminal) {
+                code.branch(Opcode.GOTO, loaded);
+                code.labelBinding(next);
+            }
         }
-        code.new_(ClassDesc.of("java.lang.IllegalStateException")).dup()
-                .loadConstant("composition coordinate has no segment")
-                .invokespecial(ClassDesc.of("java.lang.IllegalStateException"), "<init>",
-                        MethodTypeDesc.ofDescriptor("(Ljava/lang/String;)V"))
-                .athrow();
         code.labelBinding(loaded);
     }
 
@@ -1954,8 +1970,9 @@ final class CpuDataMovementEmitter {
         int occurrenceCoordinate = selectedCoordinate(code, geometrySlot, variant, coordinates);
         var loaded = code.newLabel();
         for (int occurrence = 0; occurrence < parsed.mapping.length; occurrence++) {
-            var next = code.newLabel();
-            code.lload(occurrenceCoordinate).loadConstant((long) occurrence).lcmp()
+            boolean terminal = occurrence == parsed.mapping.length - 1;
+            var next = terminal ? null : code.newLabel();
+            if (!terminal) code.lload(occurrenceCoordinate).loadConstant((long) occurrence).lcmp()
                     .branch(Opcode.IFNE, next);
             int boundary = parsed.mapping[occurrence];
             geometry(code, geometrySlot, inputBases + boundary).lstore(sourceAddress);
@@ -1966,17 +1983,14 @@ final class CpuDataMovementEmitter {
                         .loadConstant(strideOffsets[boundary] + inputAxis).laload()
                         .lmul().ladd().lstore(sourceAddress);
             }
-            carriers.load(type, specialization.carrierPattern().get(boundary), boundary,
-                    sourceAddress);
+            carriers.loadFrozen(type, specialization.carrierPattern().get(boundary), boundary,
+                    sourceAddress, false);
             storeValue(code, type, value);
-            code.branch(Opcode.GOTO, loaded);
-            code.labelBinding(next);
+            if (!terminal) {
+                code.branch(Opcode.GOTO, loaded);
+                code.labelBinding(next);
+            }
         }
-        code.new_(ClassDesc.of("java.lang.IllegalStateException")).dup()
-                .loadConstant("stack coordinate has no input")
-                .invokespecial(ClassDesc.of("java.lang.IllegalStateException"), "<init>",
-                        MethodTypeDesc.ofDescriptor("(Ljava/lang/String;)V"))
-                .athrow();
         code.labelBinding(loaded);
     }
 

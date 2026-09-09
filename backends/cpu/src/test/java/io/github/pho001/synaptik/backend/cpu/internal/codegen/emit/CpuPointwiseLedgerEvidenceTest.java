@@ -25,7 +25,7 @@ class CpuPointwiseLedgerEvidenceTest {
     private static final String ORIGINAL_SHA256 =
             "ab32cae447d85ee931d6cca1922266f9e0831363dfc2a5a7b0c0f919d6ef5e0a";
     private static final String V2_SHA256 =
-            "41774384007bdb17b011cb8fbaae3b6928baa6ac8c04027a82540977f046031a";
+            "c42248ff3eaa9d72e1532fbc52f0a445d8938aaa75fa4512f881c84e29842529";
     private static final String LEDGER_HEADER = "operation\tfamily\tform\tsemantic_test_owner"
             + "\tclassfile_category\tperformance_category\ttypes\tcarriers\taccess\taddress"
             + "\trange\tvector\tscratch\tequivalence_group\trealization\trepresented_type"
@@ -64,7 +64,7 @@ class CpuPointwiseLedgerEvidenceTest {
             "retained-gather-elements", "I-GATHER-ND", "retained-one-hot",
             "S-GENERAL-MIN+retained", "retained-scatter-add", "retained-fold-axis",
             "F-FOLD2D", "retained-sort", "O-ARGSORT", "retained-top-k",
-            "STRUCTURAL_ONLY:fixed-two-word-work", "R-DROPOUT-GENERAL", "retained-scan",
+            "R-INITIAL-STATE-GENERATED", "R-DROPOUT-GENERAL", "retained-scan",
             "C-SCAN-GENERAL", "X-MIN-MULTI", "X-ANY-SINGLE", "retained-numerical",
             "N-MEAN-GENERAL", "N-PROD-MULTI");
 
@@ -77,7 +77,7 @@ class CpuPointwiseLedgerEvidenceTest {
                 ledger.metadata().get("mask-closure-evidence"));
         int historicalSchema = Integer.parseInt(ledger.metadata().get("generated-schema"));
         assertEquals(61, historicalSchema);
-        assertEquals(64, CpuGeneratorSchema.CURRENT_VERSION);
+        assertEquals(66, CpuGeneratorSchema.CURRENT_VERSION);
         assertTrue(historicalSchema <= CpuGeneratorSchema.CURRENT_VERSION);
         // The immutable artifact has 79 physical TSV lines: one header plus 78 inventory rows.
         assertEquals(79, ledger.rows().size() + 1);
@@ -111,10 +111,8 @@ class CpuPointwiseLedgerEvidenceTest {
                         () -> "duplicate non-pointwise form " + formKey);
                 assertTrue(NON_POINTWISE_CATEGORIES.contains(row.performanceCategory()),
                         () -> "unknown non-pointwise category " + row.performanceCategory());
-                if (row.performanceCategory().startsWith("STRUCTURAL_ONLY:")) {
-                    assertEquals("INITIAL_STATE", row.operation());
-                    assertEquals("authorized-structural", row.evidenceProvenance());
-                }
+                if (row.operation().equals("INITIAL_STATE")) assertEquals(
+                        "generated-hot-loop-boundary", row.evidenceProvenance());
             }
         }
         assertEquals(EnumSet.allOf(CpuPointwiseOpcode.class), seen);

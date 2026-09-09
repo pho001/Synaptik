@@ -1,0 +1,3 @@
+java.version=26.0.1
+os.arch=aarch64
+os.name=Mac OS X

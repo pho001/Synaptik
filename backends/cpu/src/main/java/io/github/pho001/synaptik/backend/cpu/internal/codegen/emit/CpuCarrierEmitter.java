@@ -58,7 +58,11 @@ final class CpuCarrierEmitter {
 
     /**
      * Reserves the fixed typed-layout local block and initializes every layout required by a
-     * segment boundary once at generated-entry invocation setup.
+     * segment boundary once at generated-entry invocation setup. Aggregate scalar and
+     * parallel-scalar entries retain the typed predefined unaligned native-endian layout directly:
+     * recreating it with
+     * {@code withOrder(nativeOrder())} would only add entry work without changing FFM access
+     * semantics.
      *
      * <p>The fixed block lets independently focused family emitters construct carrier emitters
      * without sharing mutable generation state. Array-only specializations reserve the same local
@@ -67,11 +71,14 @@ final class CpuCarrierEmitter {
      * @param code non-null Class-File API code builder positioned at the start of the entry body
      * @param boundaryTypes non-null ordered exact boundary data types
      * @param carrierPattern non-null ordered exact carrier forms matching {@code boundaryTypes}
+     * @param directNativePredefinedLayouts whether this entry's required typed predefined
+     *     unaligned layouts must be retained directly rather than recreated with the native byte
+     *     order; aggregate scalar and parallel-scalar entries pass {@code true}
      * @throws IllegalArgumentException if the boundary lists disagree or the layout block is not
      *     the first generated-local allocation
      */
     static void prepareSegmentLayouts(CodeBuilder code, List<DataType> boundaryTypes,
-            List<CarrierAccess> carrierPattern) {
+            List<CarrierAccess> carrierPattern, boolean directNativePredefinedLayouts) {
         if (boundaryTypes.size() != carrierPattern.size()) {
             throw new IllegalArgumentException("boundary types and carriers must have equal size");
         }
@@ -90,7 +97,8 @@ final class CpuCarrierEmitter {
         }
         for (DataType type : DataType.values()) {
             int offset = layoutLocalOffset(type);
-            if (required[offset]) emitLayout(code, type).astore(base + offset);
+            if (required[offset]) emitLayout(code, type, directNativePredefinedLayouts)
+                    .astore(base + offset);
         }
     }
 
@@ -645,7 +653,8 @@ final class CpuCarrierEmitter {
         code.aload(layoutLocalBase + layoutLocalOffset(type));
     }
 
-    private static CodeBuilder emitLayout(CodeBuilder code, DataType type) {
+    private static CodeBuilder emitLayout(CodeBuilder code, DataType type,
+            boolean directNativePredefinedLayouts) {
         String field = switch (type) {
             case FLOAT64 -> "JAVA_DOUBLE_UNALIGNED"; case FLOAT32 -> "JAVA_FLOAT_UNALIGNED";
             case BFLOAT16 -> "JAVA_SHORT_UNALIGNED";
@@ -654,7 +663,7 @@ final class CpuCarrierEmitter {
         };
         ClassDesc layout = layoutClass(type);
         code.getstatic(VALUE_LAYOUT, field, layout);
-        if (type == DataType.BOOL) return code;
+        if (type == DataType.BOOL || directNativePredefinedLayouts) return code;
         code.invokestatic(BYTE_ORDER, "nativeOrder", MethodTypeDesc.of(BYTE_ORDER));
         code.invokeinterface(VALUE_LAYOUT, "withOrder", MethodTypeDesc.of(VALUE_LAYOUT, BYTE_ORDER));
         return code.checkcast(layout);

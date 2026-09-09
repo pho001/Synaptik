@@ -194,8 +194,26 @@ a Synaptik helper call in generated vector positive-one scalar power, with recip
 that source boundary. [CPU 0008Q1A](backends/cpu/tasks/0008q1a-vector-scalar-power-hot-path-self-containment.md)
 is Complete with schema-64 self-contained typed Vector API bodies, semantic/Class-File coverage,
 sealed five-fork evidence, and its documentation pass. CPU 0008Q1 is Complete with 203 semantic
-fixtures, 256 source-derived generated forms, exact finite provenance, and its documentation pass;
-CPU 0009 is Ready, unblocked, and next. CPU
+fixtures, 256 source-derived generated forms, exact finite provenance, and its documentation pass.
+CPU 0009 is Ready and next: its canonical 17,636-row inventory (17,463 generated plus 173 exact
+rejections) has complete joined semantic-fixture closure, but every generated row remains partial
+for a clean-Java structural oracle and representative benchmark. CPU 0009A is Complete: all 256
+finite scalar-immediate/clamp forms have exact provenance, generation/load/invocation, independently
+`javac`-compiled typed clean-Java semantics, bit-exact range execution, and exact-member closed
+invocation/overhead allowlists. This is not a formal CFG/full structural-equivalence or performance
+promotion; rows outside exact completed child projections retain both partial dispositions. Detailed [CPU 0009B ordinary
+pointwise and CAST structural-oracle closure](backends/cpu/tasks/0009b-ordinary-pointwise-and-cast-structural-oracle-closure.md)
+is Complete for 845 generated rows (665 ordinary pointwise and 180 CAST). The 173 cross-category
+rejections are 152 `rejected:pointwise` rows plus 21 rejected rows in other categories. CPU 0009C1
+is [Complete](backends/cpu/tasks/0009c1-concat-stack-generated-entry-hot-path-hygiene.md): it
+removed selected-entry terminal allocation/constructor/`ATHROW` paths, advanced schema 65, and
+retained sealed fallback-performance evidence for eight representatives. CPU 0009C is Complete
+for its detailed 2,252 generated rows (1,536 affine, 128 non-fold movement, 152 indexing, 416
+scatter, and 20 random); parent [CPU 0009D](backends/cpu/tasks/0009d-aggregate-scan-ordering-fold-structural-oracle-closure.md) and detailed [CPU 0009D1 aggregate](backends/cpu/tasks/0009d1-aggregate-structural-oracle-closure.md) are Ready. D1 migrates aggregate routes to cold-selected finite typed Java and retires selected generation plus incomplete structural scaffolding only after semantics, invocation, conformance, and no-reference validation. D2 scan, D3 ordering, and D4 fold are summary-only direct-Java migrations in order; 0009E splits static reductions, normalization, and loss; 0009F makes family-specific hybrid decisions; 0009G is the final support/correctness/hygiene/inventory checkpoint. Existing performance facts remain reported, but no new benchmark gate blocks correctness closure.
+Loss fork 0's 19 failures
+out of 792 (maximum 1.3861164205039096 at
+INDEX_CATEGORICAL_CROSS_ENTROPY_WITH_LOGITS-BFLOAT16-INT32-MEAN-false-roles0_1-0) remain
+NON_PASSING; forks 1--4 were closed without rerun by user decision. CPU
 0008A validates Conv1d through
 the visible Conv2d composition and adds direct Conv3d execution. CPU 0008B–0008E only then add
 general partition-DAG decomposition and bounded fusion, typed specialized-subgraph recognition,
@@ -863,8 +881,11 @@ CPU 0008F, detailed CPU 0008G, and detailed CPU 0008G1 are `Complete`; detailed
 bounded scalar stop, CPU 0008N1 is Complete, CPU 0008O is `Cancelled` with retained fork-0
 `KEEP_SCALAR` evidence but no completed five-fork acceptance, and CPU 0008P is Complete with its
 modular partial/combine implementation fail-closed at `KEEP_WHOLE_CELL`, not floating reassociation,
-and CPU 0008Q is [`Complete`](backends/cpu/tasks/0008q-scalar-immediate-clamp-generated-equivalence.md) as a strict two-fixture BFLOAT16 scalar-MUL mechanism, CPU 0008Q1A is [`Complete`](backends/cpu/tasks/0008q1a-vector-scalar-power-hot-path-self-containment.md), CPU 0008Q1 is [`Complete`](backends/cpu/tasks/0008q1-finite-scalar-immediate-clamp-matrix.md), and CPU 0009 is [`Ready`](backends/cpu/tasks/0009-portable-generated-coverage-closure-checkpoint.md) and next; CPU 0010 through CPU 0017
+and CPU 0008Q is [`Complete`](backends/cpu/tasks/0008q-scalar-immediate-clamp-generated-equivalence.md) as a strict two-fixture BFLOAT16 scalar-MUL mechanism, CPU 0008Q1A is [`Complete`](backends/cpu/tasks/0008q1a-vector-scalar-power-hot-path-self-containment.md), CPU 0008Q1 is [`Complete`](backends/cpu/tasks/0008q1-finite-scalar-immediate-clamp-matrix.md), and CPU 0009 is [`Ready`](backends/cpu/tasks/0009-portable-generated-coverage-closure-checkpoint.md): completed 0009A--C/D1A remain historical evidence, while parent D and detailed D1 are Ready for aggregate direct-Java migration and staged generated retirement. D2 scan, D3 ordering, D4 fold, split 0009E reductions/normalization/loss, hybrid 0009F, and final 0009G remain ordered summary tasks. The retained loss fork-0 failure remains NON_PASSING historical performance debt; CPU 0010 through CPU 0017
 remain Draft.
+
+Current correction: parent CPU 0009D and [CPU 0009D1 aggregate](backends/cpu/tasks/0009d1-aggregate-structural-oracle-closure.md) are Ready. D1 replaces unfinished structural-oracle closure with direct typed aggregate Java; 0009D1A stays completed historical hygiene evidence. Scan, ordering, and fold remain ordered summary-only direct-Java follow-ups.
+
 CPU 0003
 implements a
 model-independent filesystem store beneath an explicit
@@ -1237,12 +1258,14 @@ peer-route choices. The required frontier order is CPU 0008 -> CPU 0008A -> CPU 
 family follow-ups. Those later routes consume the common decisions instead of creating competing
 graph interpreters or fusion planners.
 
-CPU 0008Q completed a narrow two-fixture BFLOAT16 scalar-MUL represented-immediate mechanism from exact fixture hashes and automated constants-only Class-File normalization; it neither enumerates arbitrary immediate bits nor changes production identity. CPU 0008Q1's independent structural command then failed because `FIXTURE-POW-FLOAT32-POSITIVE_ONE` contains a Synaptik-owned invocation; source inspection also found vector reciprocal scalar power calls `CpuVectorMath`. [CPU 0008Q1A](backends/cpu/tasks/0008q1a-vector-scalar-power-hot-path-self-containment.md) is Complete after correcting every current FLOAT32/FLOAT64 special vector realization across array, segment, and mixed carriers with semantic, Class-File, and sealed five-fork generated/direct evidence. [CPU 0008Q1](backends/cpu/tasks/0008q1-finite-scalar-immediate-clamp-matrix.md) is Complete with 203 semantic fixtures and 256 source-derived schema-64 generated forms across the finite operation/type/carrier/layout/strategy/shape basis. Its exact hashes, schema provenance, candidate-versus-selected materialization facts, and two byte-identical caller-orchestration projections are now reusable inputs to CPU 0009. CPU 0009 is Ready and next. It inventories current generated families/forms, finite code-shaping forms, proven equivalence units, and current Class-File hashes. It maps each current form to retained generated-versus-optimal-clean-Java performance evidence and reuses evidence only when timed generated Class-Files/forms remain byte-identical with matching protocol/scope and, for projected immediate/clamp forms, exact complete-matrix provenance. Fixed five-fork evidence is rerun only for missing, stale, or insufficiently representative hot paths. An exhaustive matrix is required only when specialization materially changes generated code and the bounded inventory justifies it; otherwise the checkpoint uses a justified representative matrix covering types, carriers, loop shapes, algorithm branches, and the finite proof boundary. CPU 0008I's corrected full 792-class by five-fork performance evidence is explicitly missing/deferred and must be classified and rerun at this checkpoint. No whole-backend performance-parity claim closes until those gaps pass. Detailed CPU
+CPU 0008Q completed a narrow two-fixture BFLOAT16 scalar-MUL represented-immediate mechanism from exact fixture hashes and automated constants-only Class-File normalization; it neither enumerates arbitrary immediate bits nor changes production identity. CPU 0008Q1A and CPU 0008Q1 are Complete with their recorded finite schema-64 evidence. CPU 0009 remains Ready and incomplete: its proportional structural promotion is comparator-backed, not a literal CFG proof, and representative performance remains separate. CPU 0009B is Complete for 845 rows and CPU 0009C is Complete for its exact 2,252 rows; exactly 2,252 generated rows are oracle-proved, while all 17,463 remain performance-partial. Parent CPU 0009D is Draft for fold, aggregate, scan, and ordering; CPU 0009D1A is Complete, while D1 remains unpromoted pending non-tautological per-owner clean-method/projection binding and operation-specific accumulator/conversion proof. The 173 cross-category rejections remain 152 `rejected:pointwise` plus 21 other-category rows. The fresh loss fork 0 failed 19 of 792 rows; that is retained NON_PASSING performance debt for the concise post-0009 remediation row, not a semantic or structural support failure. No whole-backend performance-parity claim closes. Detailed CPU
 0008J and Model 0025L are `Complete`, detailed CPU 0008K and CPU 0008L are `Complete`; detailed
 [CPU 0008M](backends/cpu/tasks/0008m-vector-mse-none.md) is `Complete`, CPU 0008N ended with a
 bounded scalar stop, CPU 0008N1 is Complete, CPU 0008O is `Cancelled` with retained fork-0
 `KEEP_SCALAR` evidence but no completed five-fork acceptance, and CPU 0008P is Complete with its
-modular partial/combine implementation fail-closed at `KEEP_WHOLE_CELL`, not floating reassociation. The ordered CPU 0008J–0008P sequence is complete; detailed [CPU 0008Q](backends/cpu/tasks/0008q-scalar-immediate-clamp-generated-equivalence.md) is Complete as the narrow two-fixture mechanism, detailed [CPU 0008Q1A](backends/cpu/tasks/0008q1a-vector-scalar-power-hot-path-self-containment.md) is Complete, detailed [CPU 0008Q1](backends/cpu/tasks/0008q1-finite-scalar-immediate-clamp-matrix.md) is Complete, and detailed [CPU 0009](backends/cpu/tasks/0009-portable-generated-coverage-closure-checkpoint.md) is Ready and next.
+modular partial/combine implementation fail-closed at `KEEP_WHOLE_CELL`, not floating reassociation. The ordered CPU 0008J–0008P sequence is complete; completed 0009A--C/D1A remain historical evidence. CPU 0009D/D1 are Ready for direct-Java aggregate migration; D2--D4 are ordered summary-only direct-Java migrations, 0009E is split into reductions/normalization/loss, 0009F uses explicit hybrid family decisions, and 0009G is the final support/correctness/hygiene checkpoint. Loss fork 0 remains NON_PASSING historical evidence after user closure of forks 1--4; it is not a migration gate.
+
+Current correction: parent CPU 0009D and CPU 0009D1 are Ready. D1 directly migrates aggregate routes and retires selected generation only after replacement evidence; completed D1A remains historical. Scan, ordering, and fold are ordered summary-only direct-Java children; no conditional structural reconciliation child remains.
 
 Portable generation uses family-specific typed lowerers plus shared scalar, vector, heap,
 segment, range, tile, partial-reduction, and combine emitters rather than one god generator.
@@ -1371,8 +1394,12 @@ Detailed CPU 0007F1, CPU 0007F2, CPU 0008, CPU 0008A, CPU 0008B, CPU 0008C, and 
 detailed [CPU 0008M](backends/cpu/tasks/0008m-vector-mse-none.md) is `Complete`; CPU 0008N ended
 with a bounded scalar stop, CPU 0008N1 is Complete, CPU 0008O is `Cancelled` with retained fork-0
 `KEEP_SCALAR` evidence but no completed five-fork acceptance, and CPU 0008P is Complete with its
-modular partial/combine implementation fail-closed at `KEEP_WHOLE_CELL`, not floating reassociation, while CPU 0008Q is [`Complete`](backends/cpu/tasks/0008q-scalar-immediate-clamp-generated-equivalence.md) as the narrow two-fixture mechanism, CPU 0008Q1A is [`Complete`](backends/cpu/tasks/0008q1a-vector-scalar-power-hot-path-self-containment.md), CPU 0008Q1 is [`Complete`](backends/cpu/tasks/0008q1-finite-scalar-immediate-clamp-matrix.md), and CPU 0009 is [`Ready`](backends/cpu/tasks/0009-portable-generated-coverage-closure-checkpoint.md) and next; CPU 0010–0017 and the refined Config, Metal, and tuning rows remain
-`Draft`. Prepare 0003A is
+modular partial/combine implementation fail-closed at `KEEP_WHOLE_CELL`, not floating reassociation, while CPU 0008Q is [`Complete`](backends/cpu/tasks/0008q-scalar-immediate-clamp-generated-equivalence.md) as the narrow two-fixture mechanism, CPU 0008Q1A is [`Complete`](backends/cpu/tasks/0008q1a-vector-scalar-power-hot-path-self-containment.md), CPU 0008Q1 is [`Complete`](backends/cpu/tasks/0008q1-finite-scalar-immediate-clamp-matrix.md), CPU 0009 is [`Ready`](backends/cpu/tasks/0009-portable-generated-coverage-closure-checkpoint.md), and completed 0009A--C/D1A remain historical evidence. Parent CPU 0009D and detailed D1 are Ready for direct-Java aggregate migration; later direct-Java and hybrid decisions remain summary-only in order. The complete semantic inventory and 6,009 catalog remain historical inspection evidence, while retained loss fork-0 evidence remains NON_PASSING and fresh profiling is non-blocking absent a correctness regression; CPU 0010–0017 and the refined Config, Metal, and tuning rows remain
+`Draft`.
+
+Current correction: parent CPU 0009D and [CPU 0009D1 aggregate](backends/cpu/tasks/0009d1-aggregate-structural-oracle-closure.md) are Ready; D1A remains Complete historical evidence. Later scan, ordering, and fold are direct-Java summary children with no detailed specifications yet. Reductions/normalization/loss and the hybrid compute-family decisions remain later summary work.
+
+Prepare 0003A is
 Complete.
 Completed OpenBLAS history and every completed project area remain unchanged.
 

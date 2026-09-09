@@ -4,6 +4,7 @@ import io.github.pho001.synaptik.backend.cpu.CpuCapabilityProvider;
 import io.github.pho001.synaptik.backend.cpu.internal.cache.CpuGeneratorSchema;
 import io.github.pho001.synaptik.backend.cpu.internal.cache.CpuKernelSpecialization;
 import io.github.pho001.synaptik.backend.cpu.internal.prepare.CpuPartitionAnalysisInputs;
+import io.github.pho001.synaptik.backend.cpu.internal.prepare.CpuPartitionPreparationPlan;
 import io.github.pho001.synaptik.backend.cpu.internal.prepare.CpuPartitionPreparer;
 import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuAccessPlan;
 import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuKernelIr;
@@ -58,8 +59,8 @@ final class CpuScalarImmediateClampMatrixOracle {
                 Shape outputShape, LayoutDescriptor outputLayout, String shape, String layout,
                 CpuAccessPlan.Regime accessRegime,
                 CpuPartitionAnalysisInputs.MaterializationPolicy materializationPolicy) { }
-    record FormArtifact(Form form, Artifact artifact, int materializationCandidates,
-                        int materializationSelected) { }
+    record FormArtifact(Form form, Artifact artifact, String selectedStrategy,
+                        int materializationCandidates, int materializationSelected) { }
 
     static List<Fixture> fixtures() {
         var result = new java.util.ArrayList<Fixture>();
@@ -117,12 +118,26 @@ final class CpuScalarImmediateClampMatrixOracle {
         Shape shape = Shape.of(32);
         var descriptor = new TensorDescriptor(fixture.type(), shape,
                 Optional.of(LayoutDescriptor.contiguous(shape)), false);
+        return capability(fixture, descriptor, descriptor);
+    }
+
+    /** Queries the real provider with the exact descriptor pair used by a generated form. */
+    static boolean capability(Form form) {
+        var input = new TensorDescriptor(form.fixture().type(), form.inputShape(),
+                Optional.of(form.inputLayout()), false);
+        var output = new TensorDescriptor(form.fixture().type(), form.outputShape(),
+                Optional.of(form.outputLayout()), false);
+        return capability(form.fixture(), input, output);
+    }
+
+    private static boolean capability(Fixture fixture, TensorDescriptor input,
+            TensorDescriptor output) {
         Operation operation = fixture.operation() == ScalarElementwiseKind.CLAMP
                 ? new Operation(fixture.operation(), new ClampRangeAttrs(
                         fixture.immediate(), fixture.upper()))
                 : new Operation(fixture.operation(), new ScalarValueAttrs(fixture.immediate()));
         return new CpuCapabilityProvider().supports(new OperationCapabilityQuery(
-                operation, List.of(descriptor), List.of(descriptor)));
+                operation, List.of(input), List.of(output)));
     }
 
     /**
@@ -198,8 +213,9 @@ final class CpuScalarImmediateClampMatrixOracle {
     }
 
     static FormArtifact formArtifact(Form form) {
-        var plan = new CpuPartitionPreparer().analyze(contextFor(form.fixture(), form.inputShape(), form.inputLayout(),
-                form.outputShape(), form.outputLayout(), form.materializationPolicy())).plan();
+        var context = contextFor(form.fixture(), form.inputShape(), form.inputLayout(),
+                form.outputShape(), form.outputLayout(), form.materializationPolicy());
+        var plan = new CpuPartitionPreparer().analyze(context).plan();
         var route = plan.units().getFirst().portablePlan();
         var artifact = new Artifact(form.fixture(), new CpuClassFileKernelGenerator().generateClassBytes(
                 route.specialization(), route.kernelIr()), "", route.specialization().entryType().descriptorString(),
@@ -210,13 +226,23 @@ final class CpuScalarImmediateClampMatrixOracle {
         artifact = new Artifact(artifact.fixture(), artifact.bytes(), sha256(artifact.bytes()), artifact.descriptor(),
                 artifact.strategy(), artifact.generatorSchema(), artifact.classIdentitySchema(),
                 artifact.structuralKey());
+        CpuGeneratedCoverageEvidenceRegistry.generated("scalar-immediate:" + form.id(), context, plan);
         int materializationCandidates = Math.toIntExact(plan.representationDecisions().stream()
                 .filter(CpuRepresentationDecision.Variant.class::isInstance)
                 .map(CpuRepresentationDecision.Variant.class::cast)
                 .filter(candidate -> !candidate.identity().materializations().isEmpty())
                 .count());
-        return new FormArtifact(form, artifact, materializationCandidates,
+        return new FormArtifact(form, artifact, strategyName(plan.executionStrategy()), materializationCandidates,
                 plan.materializations().size());
+    }
+
+    private static String strategyName(
+            CpuPartitionPreparationPlan.ExecutionStrategy strategy) {
+        if (strategy.equals(CpuPartitionPreparationPlan.ExecutionStrategy.SCALAR)) return "SCALAR";
+        if (strategy.equals(CpuPartitionPreparationPlan.ExecutionStrategy.PARALLEL_SCALAR)) return "PARALLEL_SCALAR";
+        if (strategy.equals(CpuPartitionPreparationPlan.ExecutionStrategy.VECTOR)) return "VECTOR";
+        if (strategy.equals(CpuPartitionPreparationPlan.ExecutionStrategy.PARALLEL_VECTOR)) return "PARALLEL_VECTOR";
+        throw new AssertionError(strategy);
     }
 
     private static Form form(String id, Fixture fixture, Shape shape, LayoutDescriptor layout, String shapeName,
@@ -372,23 +398,52 @@ final class CpuScalarImmediateClampMatrixOracle {
                         materializationPolicy));
     }
 
-    /** Packs direct pointwise geometry exactly as the prepared executable does for a full range. */
-    static long[] geometryFor(PrepareContext<CpuPartitionAnalysisInputs> context) {
+    /**
+     * Packs direct pointwise geometry exactly as {@code CpuPreparedExecutable} cold binding does
+     * for one logical half-open range.  The entry's {@code start}/{@code end} remain global
+     * logical ordinals; every boundary base and coordinate is already positioned at
+     * {@code start}.
+     */
+    static long[] geometryFor(PrepareContext<CpuPartitionAnalysisInputs> context, long start,
+            long end) {
         var bindings = new CpuPartitionPreparer().analyze(context).plan().units().getFirst().accessBindings();
         int rank = bindings.getFirst().plan().iterationRank(); int count = bindings.size();
         long[] geometry = new long[2 * rank + count + count * rank + 2 * count];
-        for (int axis = 0; axis < rank; axis++) geometry[axis] = bindings.getFirst().extents().get(axis);
+        var first = ranged(bindings.getFirst(), start, end);
+        for (int axis = 0; axis < rank; axis++) {
+            geometry[axis] = first.extents().get(axis);
+            geometry[rank + axis] = first.startCoordinates().get(axis);
+        }
         for (int value = 0; value < count; value++) {
-            var binding = bindings.get(value);
+            var binding = ranged(bindings.get(value), start, end);
             geometry[2 * rank + value] = binding.startAddress();
             for (int axis = 0; axis < rank; axis++)
                 geometry[2 * rank + count + value * rank + axis] = binding.effectiveStrides().get(axis);
+            long innerPosition = 0;
             long innerSize = 1;
-            for (int axis = rank - binding.plan().contiguousSuffix(); axis < rank; axis++)
+            for (int axis = rank - binding.plan().contiguousSuffix(); axis < rank; axis++) {
+                innerPosition = Math.addExact(Math.multiplyExact(innerPosition,
+                        binding.extents().get(axis)), binding.startCoordinates().get(axis));
                 innerSize = Math.multiplyExact(innerSize, binding.extents().get(axis));
+            }
+            geometry[2 * rank + count + count * rank + value] = innerPosition;
             geometry[2 * rank + count + count * rank + count + value] = innerSize;
         }
         return geometry;
+    }
+
+    static long[] geometryFor(PrepareContext<CpuPartitionAnalysisInputs> context) {
+        long count = new CpuPartitionPreparer().analyze(context).plan().units().getFirst()
+                .accessBindings().getFirst().elementCount();
+        return geometryFor(context, 0L, count);
+    }
+
+    private static CpuAccessPlan.Binding ranged(CpuAccessPlan.Binding source, long start,
+            long end) {
+        return CpuAccessPlan.Binding.create(source.plan(), source.extents().stream()
+                        .mapToLong(Long::longValue).toArray(), source.baseElementOffset(),
+                source.effectiveStrides().stream().mapToLong(Long::longValue).toArray(),
+                source.elementCount(), start, end, source.referencedElementSpan());
     }
     private static Object input(DataType type) { return switch (type) {
         case BFLOAT16 -> {

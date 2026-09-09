@@ -126,7 +126,8 @@ public final class CpuClassFileKernelGenerator {
                                         specialization.boundaryDataTypes(),
                                         hasProvedVectorScalarPower(specialization, kernelIr)
                                                 ? accessedCarrierPattern(kernelIr, specialization)
-                                                : specialization.carrierPattern());
+                                                : specialization.carrierPattern(),
+                                        kernelIr.familyIdentity().startsWith("aggregate:"));
                             }
                             if (kernelIr.instructions().isEmpty()) {
                                 if (kernelIr.familyIdentity().startsWith("attention:")) {

@@ -1,0 +1,12 @@
+task=0009C1
+forks=5
+warmups=5
+measured_rounds=7
+minimum_sample_ns=25000000
+fixed_heap=-Xms1g,-Xmx1g
+compiler=-XX:-TieredCompilation,-Xbatch
+order=seeded-alternating-generated-direct
+retry=false
+discard=false
+threshold=1.15
+cases=[CONCAT_DENSE_HEAP, CONCAT_BOUNDED_HEAP, CONCAT_BOUNDED_SEGMENT, CONCAT_BOUNDED_MIXED, STACK_DENSE_HEAP, STACK_GENERAL_HEAP, STACK_GENERAL_SEGMENT, STACK_GENERAL_MIXED]

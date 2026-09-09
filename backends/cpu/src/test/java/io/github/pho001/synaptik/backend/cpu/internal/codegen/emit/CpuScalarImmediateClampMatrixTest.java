@@ -67,7 +67,7 @@ class CpuScalarImmediateClampMatrixTest {
             assertEquals(Integer.toString(fixture.parallelism()), row.get("parallelism"), fixture.id());
             assertEquals(artifact.descriptor(), row.get("entry-descriptor"), fixture.id());
             assertEquals(artifact.strategy(), row.get("strategy"), fixture.id());
-            assertEquals("64", artifact.generatorSchema(), fixture.id());
+            assertEquals("66", artifact.generatorSchema(), fixture.id());
             assertEquals(artifact.generatorSchema(), row.get("generator-schema"), fixture.id());
             assertEquals(artifact.classIdentitySchema(), row.get("class-identity-schema"), fixture.id());
             assertEquals(artifact.structuralKey(), row.get("structural-key"), fixture.id());
@@ -171,7 +171,7 @@ class CpuScalarImmediateClampMatrixTest {
                     form.inputLayout(), form.outputShape(), form.outputLayout(), form.materializationPolicy())).plan().units().getFirst().executionStrategy()), row.get("selected-strategy"), form.id());
             assertEquals(artifact.strategy(), row.get("artifact-strategy"), form.id());
             assertEquals(artifact.descriptor(), row.get("entry-descriptor"), form.id());
-            assertEquals("64", artifact.generatorSchema(), form.id());
+            assertEquals("66", artifact.generatorSchema(), form.id());
             assertEquals(artifact.generatorSchema(), row.get("generator-schema"), form.id());
             assertEquals(artifact.classIdentitySchema(), row.get("class-identity-schema"), form.id());
             assertEquals(artifact.structuralKey(), row.get("structural-key"), form.id());
@@ -261,7 +261,7 @@ class CpuScalarImmediateClampMatrixTest {
             assertEquals(64, artifact.hash().length(), fixture.id());
             assertFalse(artifact.descriptor().isBlank(), fixture.id());
             assertTrue(List.of("scalar", "vector").contains(artifact.strategy()), fixture.id());
-            assertEquals("64", artifact.generatorSchema(), fixture.id());
+            assertEquals("66", artifact.generatorSchema(), fixture.id());
             assertEquals(fixture.type() == DataType.BFLOAT16 ? "59" : "52",
                     artifact.classIdentitySchema(), fixture.id());
         }

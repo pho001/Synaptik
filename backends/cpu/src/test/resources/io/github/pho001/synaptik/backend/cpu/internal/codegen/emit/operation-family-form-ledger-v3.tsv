@@ -1,5 +1,5 @@
 # ledger-version=3
-# replaces-sha256=41774384007bdb17b011cb8fbaae3b6928baa6ac8c04027a82540977f046031a
+# replaces-sha256=c42248ff3eaa9d72e1532fbc52f0a445d8938aaa75fa4512f881c84e29842529
 # replacement-task=CPU-0008L
 # generated-schema=61
 # mask-closure-evidence=CpuPointwiseMaskEvidenceTest,CpuPointwiseMaskPerformanceTest
@@ -73,7 +73,7 @@ FOLD2D	fold	nchw	CpuFoldGeneratedKernelTest	dense/general	F-FOLD2D	floating	arra
 SORT	ordering	values	CpuOrderingGeneratedKernelTest	dense/general	retained-sort	all6	arrays/segment/mixed	general	int/long	slice-ranges	no	merge	ordering:values	retained-schema42	as-ledger	as-ledger	as-ledger	as-ledger	as-ledger	as-ledger	as-ledger	allocation+boxing+reflection+dispatch+dynamic	a1n-schema42-retained
 ARGSORT	ordering	indices	CpuOrderingGeneratedKernelTest	dense/general	O-ARGSORT	all6	arrays/segment/mixed	general	int/long	slice-ranges	no	merge	ordering:indices	retained-schema42	as-ledger	as-ledger	as-ledger	as-ledger	as-ledger	as-ledger	as-ledger	allocation+boxing+reflection+dispatch+dynamic	a1n-schema42-retained
 TOP_K	ordering	values+indices	CpuOrderingGeneratedKernelTest	dense/general	retained-top-k	all6	arrays/segment/mixed	general	int/long	slice-ranges	no	merge	ordering:values+indices	retained-schema42	as-ledger	as-ledger	as-ledger	as-ledger	as-ledger	as-ledger	as-ledger	allocation+boxing+reflection+dispatch+dynamic	a1n-schema42-retained
-INITIAL_STATE	random	state	CpuRandomGeneratedKernelTest	dense/general	STRUCTURAL_ONLY:fixed-two-word-work	INT64	array/segment	general	int/long	partial/empty	no	none	random:state	retained-schema42	as-ledger	as-ledger	as-ledger	as-ledger	as-ledger	as-ledger	as-ledger	allocation+boxing+reflection+dispatch+dynamic	authorized-structural
+INITIAL_STATE	random	state	CpuRandomGeneratedKernelTest	dense/general	R-INITIAL-STATE-GENERATED	INT64	array/segment	general	int/long	partial/empty	no	none	random:state	retained-schema42	as-ledger	as-ledger	as-ledger	as-ledger	as-ledger	as-ledger	as-ledger	allocation+boxing+reflection+dispatch+dynamic	generated-hot-loop-boundary
 DROPOUT	random	float32/float64	CpuRandomGeneratedKernelTest	dense/general	R-DROPOUT-GENERAL	FLOAT64/FLOAT32	arrays/segment/mixed	general	int/long	partial/empty	no	state	random:float32/float64	retained-schema42	as-ledger	as-ledger	as-ledger	as-ledger	as-ledger	as-ledger	as-ledger	allocation+boxing+reflection+dispatch+dynamic	a1n-schema42-retained
 CUM_SUM	scan	inclusive/exclusive/forward/reverse	CpuScanGeneratedKernelTest	dense/general	retained-scan	five numeric	arrays/segment/mixed	general	int/long	slice-ranges	no	none	scan:inclusive/exclusive/forward/reverse	retained-schema42	as-ledger	as-ledger	as-ledger	as-ledger	as-ledger	as-ledger	as-ledger	allocation+boxing+reflection+dispatch+dynamic	a1n-schema42-retained
 CUM_PROD	scan	inclusive/exclusive/forward/reverse	CpuScanGeneratedKernelTest	dense/general	C-SCAN-GENERAL	five numeric	arrays/segment/mixed	general	int/long	slice-ranges	no	none	scan:inclusive/exclusive/forward/reverse	retained-schema42	as-ledger	as-ledger	as-ledger	as-ledger	as-ledger	as-ledger	as-ledger	allocation+boxing+reflection+dispatch+dynamic	a1n-schema42-retained

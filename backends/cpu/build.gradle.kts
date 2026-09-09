@@ -30,6 +30,8 @@ tasks.withType<Test>().configureEach {
         "synaptik.cpu.cast.structuralEvidenceRoot",
         "synaptik.cpu.cast.performance",
         "synaptik.cpu.cast.performanceEvidenceRoot",
+        "synaptik.cpu.concatStack.performance",
+        "synaptik.cpu.concatStack.performanceEvidenceRoot",
         "synaptik.cpu.pointwiseMask.structuralEvidenceRoot",
         "synaptik.cpu.pointwiseMask.performance",
         "synaptik.cpu.pointwiseMask.performanceEvidenceRoot",
