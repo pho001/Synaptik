@@ -18,11 +18,11 @@ The active family sequence is:
 |---|---|---|---|
 | 0009D1 aggregate | Complete | 0009C, 0009D1A | Retain the complete ordinary aggregate family on its supported generated route; the direct migration attempts are decision research, not implementation. |
 | 0009D2 scan | Complete | D1 | Retains the complete generated scan route: replacing typed carrier/layout bodies, BFLOAT16 per-value rounding, range ownership, and guarded segment specialization would increase implementation and verification work. |
-| 0009D3 ordering | Ready | D2 | [Detailed route decision](0009d3-ordering-index-scratch-direct-java-migration.md) for complete SORT/ARGSORT/TOP_K ordering/index/scratch topology. |
+| 0009D3 ordering | Complete | D2 | Retains complete generated SORT/ARGSORT/TOP_K: a direct replacement would duplicate the 192-row typed carrier/layout, stable-comparison, logical-index, scratch, cold-binding, and retirement-proof topology. |
 | 0009D4 fold | Draft | D3 | Direct typed Java migration for finite fold/window accumulation. |
 
-D3 is the sole detailed Ready frontier. D4 remains a named summary task until it reaches the
-frontier. Each uses current clean Java/reference algorithms first and may inspect
+D4 is Draft and the next summary-only frontier, so this parent remains Ready. Create no detailed
+D4 specification until it reaches the frontier. Each uses current clean Java/reference algorithms first and may inspect
 `legacy/pre-rewrite` solely for capabilities, observable behavior, algorithm ideas, and tests;
 none may copy legacy source, packages, dependencies, runtime coupling, or shortcuts.
 
@@ -39,8 +39,8 @@ runtime-dispatch loop. Dispatch is cold; element loops have proportionate hot-lo
 
 ## Acceptance criteria
 
-- D1 and D2 are Complete generated-route retention decisions; D3 is the sole detailed Ready
-  frontier and D4 remains sequenced summary-only work.
+- D1, D2, and D3 are Complete generated-route retention decisions; D4 is Draft and remains the
+  next summary-only frontier.
 - Each family has an explicit direct-migration or retained-generated-route decision. Migration
   removes generated implementation and associated evidence only after replacement semantics,
   invocation/conformance, and no-selected-reference checks pass.
@@ -94,9 +94,26 @@ behavior changed, so it did not repeat Java tests.
 
 ## Implementation notes
 
-D2 retains generation without a performance claim. D3 is now the sole detailed Ready frontier;
-D4 remains summary-only and must not receive a detailed specification yet.
+D2 and D3 retain generation without a performance claim. D4 remains Draft and summary-only, so
+the parent remains Ready and D4 must not receive a detailed specification yet.
 
 ## Completion summary
+
+- Completed changes: D1, D2, and D3 are Complete retained-generated-route decisions. D4 remains
+  Draft and summary-only, so this parent remains Ready.
+- Files changed or created: This parent and synchronized CPU 0009 planning records only.
+- Tests and validation: Reused D3's recorded 66-test focused CPU evidence; this planning-only
+  status correction checks task/master/roadmap synchronization, local Markdown links, headings
+  used as anchors, fences, exact changed-path scope, stale status claims, and `git diff --check`.
+- Documentation-agent review: Clean documentation-focused context finalized the planning records
+  using the General and Planning documentation profiles.
+- Documentation impact: Planning status records only; public/API Javadoc, guides, glossary,
+  architecture/ADR, Gradle, conformance/integration, and other modules remain unchanged because
+  Java behavior, contracts, and reusable terminology are unchanged.
+- Javadoc review: No change; no Java contract or implementation changed.
+- Glossary impact: No change; no reusable terminology changed.
+- Unresolved issues: None.
+- Follow-up required: Complete or otherwise resolve Draft D4 before completing this parent; do not
+  create a detailed D4 specification until it becomes actionable.
 
 Status: Ready

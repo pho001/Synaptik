@@ -2,7 +2,7 @@
 
 ## Status
 
-Ready
+Complete
 
 ## Goal
 
@@ -88,7 +88,9 @@ links/anchors/fences, status/dependency order, exact changed-path scope, and `gi
 
 ## Dependencies and follow-up tasks
 
-D1, D1A, and D2 are Complete. D3 is the sole detailed Ready frontier. D4 fold follows D3 but is summary-only; CPU 0009E follows D4. No D4 specification may be created here.
+D1, D1A, D2, and D3 are Complete. D4 fold is Draft and the next summary-only frontier; parent
+0009D remains Ready until D4 is resolved, then CPU 0009E follows. No D4 specification may be
+created here.
 
 ## Architecture impact
 
@@ -105,22 +107,67 @@ You are the clean implementation agent for Synaptik CPU 0009D3. Read AGENTS.md, 
 
 “Ordering/index/scratch topology” means only the current `CpuOrderingIr` family, not the separate `CpuIndexingIr` gather/one-hot family or scatter. The two INT64 merge regions are part of one cohesive ordering route and must be decided with its comparison, output, and invocation topology. The present 192-row generated inventory is evidence to inspect, not a requirement to recreate a universal structural oracle or benchmark gate.
 
+Retain the generated ordering route. A complete finite direct-Java replacement would need all six
+represented types across `SORT`, `ARGSORT`, and both sorted forms of `TOP_K`, with ascending/
+descending selection; typed array, `MemorySegment`, and mixed-carrier bindings; dense and general
+addressing; scalar and parallel-scalar entries; stable floating comparison (NaN-last in either
+direction and signed-zero/represented-bit preservation); logical-axis indices; unsorted `TOP_K`;
+cold overlap validation; complete-slice ownership; and two disjoint INT64 merge-scratch regions
+per active range. It would also require new route-selection, semantics, invocation, hygiene,
+inventory, generated-route replacement, and retirement proof. That is not lower total
+implementation or verification work than the established 192-row generated specializations,
+which already embody those typed bodies and cold facts. This is a retention decision, not a
+performance claim.
+
 ## Known limitations
 
 No new performance claim follows from either decision. Existing performance evidence remains historical. Direct Java is not presumed to be selected.
 
 ## Validation evidence
 
-Planning baseline: repository inspection identifies `CpuOrderingLowering`, `CpuOrderingIr`, `CpuOrderingEmitter`, `CpuClassFileKernelGenerator`, `CpuPartitionPreparer`, `CpuPartitionFinalizer`, `CpuPreparedExecutable`, `CpuOrderingGeneratedKernelTest`, `CpuIndexingOrderingSemanticClosureTest`, and generated coverage inventory/evidence owners as the current route. The current inventory contains 192 ordering rows. This planning-only task must record implementation-context executable evidence when its route decision is completed.
+The focused ordering route command specified above passed on 2026-09-09: 66 tests, zero failures,
+zero errors, and zero skips. It covers lowering/IR admission and exact rejection, generated
+all-type ordering semantics against the independent scalar reference, stable ties/NaN-last/
+signed-zero behavior, logical indices and both `TOP_K` orders, dense/general and carrier forms,
+complete-slice ranges, exact scratch, cold binding, preparation/finalization, and generated
+inventory coverage. Repository inspection confirms that `CpuOrderingLowering`, `CpuOrderingIr`,
+`CpuOrderingEmitter`, `CpuClassFileKernelGenerator`, `CpuPartitionPreparer`,
+`CpuPartitionFinalizer`, and `CpuPreparedExecutable` still select and invoke that route; no
+generated owner is retired. Documentation-focused context `/root/cpu_0009d3_docs` independently
+inspected those route owners, focused tests/results, 192-row inventory/evidence owners, and the
+final planning diff; it reused the successful executable evidence because this decision changes
+no executable Java.
 
 ## Implementation notes
 
-The scalar reference is an independent semantic oracle, not a Runtime interpreter. Current generated rows already use scalar or parallel-scalar selection; “vector” request labels in the catalogue do not authorize a vector ordering hot loop.
+No executable Java changed. The scalar reference remains an independent semantic oracle, not a
+Runtime interpreter. `CpuClassFileKernelGenerator` continues to select `CpuOrderingEmitter`; the
+prepared executable continues to invoke the bound typed entry. Current generated rows use scalar
+or parallel-scalar selection; “vector” request labels in the catalogue do not authorize a vector
+ordering hot loop.
 
 ## Completion summary
 
-Ready for implementation. On completion, record the route decision, changed files, exact test
-commands/results, documentation-focused context and review, no-change conclusions, unresolved
-issues, follow-up, and final status here.
+- Completed changes: Recorded the complete ordering route-decision gate and retained the existing
+  generated `SORT`/`ARGSORT`/`TOP_K` route; no production, test, generated artifact, inventory,
+  or Javadoc path changed.
+- Files changed or created: This task and synchronized CPU 0009 planning records only.
+- Tests and validation: Reused the implementation context's seven-class focused CPU command,
+  which passed 66 tests with zero failures, errors, or skips. This documentation-focused context
+  checked local Markdown links, headings used as anchors, fences, terminology,
+  task/dependency/status synchronization, exact changed-path scope, and `git diff --check`. It
+  did not rerun Java tests because executable behavior did not change.
+- Documentation-agent review: Clean documentation-focused context `/root/cpu_0009d3_docs`
+  finalized these planning records using the General and Planning documentation profiles.
+- Documentation impact: Planning records are revised; public/API Javadoc, guides, glossary,
+  architecture/ADR, Gradle, conformance/integration, and other modules have no change because
+  public behavior, Java contracts, architecture, and reusable terminology are unchanged.
+- Javadoc review: No change; no Java contract or implementation changed, so CPU Javadoc was not
+  generated.
+- Glossary impact: No change; ordering, logical-axis index, and scratch retain their established
+  meanings and boundaries.
+- Unresolved issues: None.
+- Follow-up required: D4 fold is the next summary-only frontier; do not create its detailed
+  specification until it becomes actionable.
 
-Status: Ready
+Status: Complete
