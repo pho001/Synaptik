@@ -13,8 +13,8 @@ the unfinished program of universal generated-versus-clean-Java structural closu
 
 ## Scope
 
-Completed 0009A--C and 0009D1A remain historical completed evidence; they are not migration
-targets merely because a later family adopts direct Java. The active frontier is D1 aggregate.
+Completed 0009A--C/D1/D1A remain historical completed evidence; they are not migration targets
+merely because a later family adopts direct Java. The active frontier is D2 scan.
 
 The default classification, subject to the active family's code review, is:
 
@@ -22,7 +22,8 @@ The default classification, subject to the active family's code review, is:
 |---|---|
 | Bounded fused pointwise DAGs and genuinely dynamic fused/specialized compositions | Retain bounded generation. |
 | Dense MATMUL, Conv inner loops, and similarly compute-intensive integral generation | Retain generation when it remains the simpler specialized route. |
-| Aggregate, scan, ordering, fold | Prefer finite direct typed Java in D1--D4. |
+| Aggregate | Retain the current supported generated route: its exact numerical matrix is not a cheap static-loop migration. |
+| Scan, ordering, fold | Use a route-decision gate; prefer finite direct typed Java only where it is genuinely cheaper to implement and verify. |
 | General reductions, normalizations, loss | Split into bounded direct-Java summary children in 0009E. |
 | Pooling, attention, batch norm | Decide per family in 0009F: migrate orchestration/static loops; retain an already-good generated compute kernel when replacement increases work. |
 
@@ -69,7 +70,8 @@ planning revision validates Markdown/status consistency and `git diff --check`; 
 
 ## Dependencies and follow-up tasks
 
-- 0009D: D1 aggregate (Ready), then D2 scan, D3 ordering, D4 fold (summary only).
+- 0009D: D1 aggregate (Complete retained-route decision), then D2 scan (Ready detailed decision
+  gate), D3 ordering, and D4 fold (summary only).
 - 0009E: separate summary children for static direct-Java reductions, normalization, and loss.
 - 0009F: per-family hybrid decision children for MATMUL/convolution/pooling/attention/batch norm.
 - 0009G: final support, correctness, hygiene, inventory, and documentation checkpoint.
@@ -111,7 +113,7 @@ None.
 
 ## Completion summary
 
-CPU 0009 remains Ready. D1 is the only detailed Ready child; later work is summary-only until it
-becomes the frontier.
+CPU 0009 remains Ready. D1 is Complete as a retained generated-route decision. D2 is the only
+detailed Ready child; later work is summary-only until it becomes the frontier.
 
 Status: Ready
