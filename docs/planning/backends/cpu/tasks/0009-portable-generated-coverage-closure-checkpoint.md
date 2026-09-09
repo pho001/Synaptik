@@ -17,8 +17,9 @@ Completed 0009A--C/D1/D1A/D2/D3/D4 remain historical completed evidence; they ar
 targets merely because a later family adopts direct Java. D4 and E1 completed retained
 generated-route decisions, so parent 0009D is Complete and E1A masked reduction is Complete.
 The 0009E parent remains a master-plan summary. E1B is split only by material numerical ownership:
-E1B1 log-sum-exp is the sole detailed Ready frontier, while E1B2 statistics, E1B3 norms, and
-E1C--E3 remain later summaries.
+E1B1 is Complete as a retained generated log-sum-exp route; E1B2 statistics is the sole next
+Draft summary, while E1B3 norms and E1C--E3 remain later
+summaries.
 
 The default classification, subject to the active family's code review, is:
 
@@ -82,9 +83,9 @@ planning revision validates Markdown/status consistency and `git diff --check`; 
   performance gate. E1A is Complete: it retained the complete generated FLOAT64/FLOAT32/BFLOAT16
   masked SUM/MEAN route because direct Java would duplicate typed carrier/layout, directional
   mask, selected exact-state, binding, invocation, inventory, and retirement work. E1B is a
-  summary parent because its shared geometry has distinct numerical owners: E1B1 log-sum-exp is
-  the sole Ready frontier; E1B2 statistics and E1B3 norms, then E1C softmax-style, E2
-  normalization, and E3 loss remain ordered summaries.
+  summary parent because its shared geometry has distinct numerical owners. E1B1 is Complete as a
+  retained generated log-sum-exp route; E1B2 statistics is the sole next Draft summary, followed
+  by E1B3 norms, E1C softmax-style, E2 normalization, and E3 loss.
 - 0009F: per-family hybrid decision children for MATMUL/convolution/pooling/attention/batch norm.
 - 0009G: final support, correctness, hygiene, inventory, and documentation checkpoint.
 
@@ -134,7 +135,7 @@ decisions; the D4 fold result preserves the full 32-row generated family because
 Java replacement would increase total implementation and verification work. CPU 0009E1 and E1A
 are Complete retained generated-route decisions; E1A retains the complete masked SUM/MEAN route
 because a direct replacement would increase implementation and verification work. E1B is a Draft
-parent split by distinct numerical ownership; E1B1 log-sum-exp is the sole detailed Ready
-frontier, while E1B2/E1B3 and later E summaries remain unexpanded.
+parent split by distinct numerical ownership; E1B1 is Complete as a retained generated
+log-sum-exp route, while E1B2 is the sole next Draft summary.
 
 Status: Ready

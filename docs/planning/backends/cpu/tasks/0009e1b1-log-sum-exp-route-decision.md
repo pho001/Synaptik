@@ -2,7 +2,7 @@
 
 ## Status
 
-Ready
+Complete
 
 ## Goal
 
@@ -130,12 +130,70 @@ Implement exactly this route decision. Choose finite direct typed Java only if i
 
 ## Validation evidence
 
-Planning-only creation: source and focused-test seams were inspected before setting this task Ready. No Java command is run because this change creates no executable behavior. The implementing and documentation contexts must replace this section with exact selected-route evidence before marking the task Complete.
+Implementation context, 2026-09-09: retained the current generated `LOG_SUM_EXP` route after
+reviewing the advanced IR/lowering, emitter/shared traversal and carrier helpers, generator,
+artifact identity, preparation/finalization, typed executable binding, reference oracle,
+inventory/evidence owners, and focused tests. A finite direct replacement would need to duplicate
+three represented types, four heap/segment carrier pairs, dense and general selected-domain loops,
+keep/remove-dimension mapping, cold typed selection and validation, immutable invocation, and
+route/cache/inventory retirement proof. Retention instead preserves one specialized generated
+entry per existing carrier pattern, with no executable-path change.
+
+The following focused command passed: `./gradlew :backends:cpu:test --tests
+io.github.pho001.synaptik.backend.cpu.CpuCapabilityProviderTest --tests
+io.github.pho001.synaptik.backend.cpu.CpuInternalPackageInventoryTest --tests
+io.github.pho001.synaptik.backend.cpu.internal.ir.CpuAdvancedReductionIrTest --tests
+io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuAdvancedReductionLoweringTest --tests
+io.github.pho001.synaptik.backend.cpu.internal.codegen.emit.CpuAdvancedReductionGeneratedKernelTest
+--tests io.github.pho001.synaptik.backend.cpu.internal.reference.CpuAdvancedReductionReferenceTest
+--tests io.github.pho001.synaptik.backend.cpu.internal.codegen.emit.CpuSpecializedGeneratedMatrixTest
+--tests io.github.pho001.synaptik.backend.cpu.internal.codegen.emit.CpuGeneratedDirectEvidenceClosureTest
+--tests io.github.pho001.synaptik.backend.cpu.internal.codegen.emit.CpuGeneratedCoverageCheckpointTest
+--tests io.github.pho001.synaptik.backend.cpu.internal.codegen.emit.CpuGeneratedStructuralOracleCatalogTest`.
+It ran 69 tests with zero failures, errors, or skips. The generated-class tests and the direct
+evidence closure inspect field-free typed static entry shape, closed member ownership, no bootstrap
+methods, no runtime numerical helper, and no object/reflection/method-handle/collection dispatch.
+Source inspection of `CpuLogSumExpEmitter` confirms direct primitive carrier loads, dense and
+odometer selected-domain traversal, two max-shift passes, primitive compensated sum, and exactly
+one final typed store per owned output cell. No benchmark was run or claimed.
+
+Documentation-focused finalization context, 2026-09-09: applied the General and Planning
+documentation profiles to this planning-only change. Independently reviewed the current advanced
+IR/lowering, log-sum-exp emitter and helpers, generator, preparation/finalization and executable
+binding seams, reference oracle, generated inventory/evidence owners, and focused tests. This
+confirms the retained selected generated forms are finite and typed for exactly FLOAT64, FLOAT32,
+and BFLOAT16 across dense/general, heap/segment/mixed, scalar/parallel complete-cell forms. They
+use zero workspace, the two-pass max-shift plus compensated exponential sum, the existing
+singleton, empty, special-value, and narrowing behavior, and one final store. The current hot
+loop has no Synaptik numerical helper or reflective/object dispatch. The implementation context's
+ten-class CPU command is reused unchanged: it passed 69 tests with zero failures, errors, or
+skips, and no Java changed afterward. No Javadoc, glossary, architecture, public API, build,
+resource, executable-test, conformance, or integration update is needed because this finalization
+changes only planning status and evidence; the existing contracts remain accurate.
 
 ## Implementation notes
 
-Empty until implemented.
+Decision: retain generation. `CpuLogSumExpEmitter` is the numerical owner selected by
+`CpuClassFileKernelGenerator`; `CpuAdvancedReductionIr` and
+`CpuAdvancedReductionLowering.Geometry` retain the two-buffer, zero-workspace, complete-cell
+contract. The existing cold preparation/finalization and immutable typed invocation bind the exact
+array/segment carrier pattern. The reference oracle remains independent and generated inventory/
+evidence ownership remains valid. A direct route would add parallel production/binding/test paths
+before retiring all of those owners, so it has higher total implementation and verification cost.
+
+No production Java, Javadoc, glossary, executable tests, inventory, schema, cache, Prepare,
+Runtime, Model, Compiler, architecture, build, conformance, or integration path changed. Statistics
+and norms remain untouched. Direct replacement would duplicate selection, binding, invocation,
+inventory, and retirement proof before removing the current generated owners. This separate
+documentation-focused context finalized the planning-only diff, no-change Javadoc/glossary
+conclusion, links, status synchronization, and recorded Java evidence.
 
 ## Completion summary
 
-Empty until implemented.
+Retained the complete current generated `LOG_SUM_EXP` route. Focused semantic, special-value,
+carrier/layout, range/canary, lowering, reference, generated-entry, inventory, and evidence checks
+passed. The separate documentation-focused pass independently verified the selected generated
+route, final planning evidence, terminology, links, status synchronization, and no-change
+conclusions. No executable change requires Javadoc generation.
+
+Status: Complete
