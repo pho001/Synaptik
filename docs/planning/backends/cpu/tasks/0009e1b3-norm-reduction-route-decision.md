@@ -2,7 +2,7 @@
 
 ## Status
 
-Ready
+Complete
 
 ## Goal
 
@@ -111,12 +111,105 @@ This is a route decision, not a numerical redesign, public API change, or perfor
 
 ## Validation evidence
 
-Pending implementation. This planning specification was checked for local links, anchors, fences, terminology, task status/dependencies/frontier consistency, changed-path scope, and whitespace. No Gradle command is needed to establish this planning assertion.
+Implementation evidence finalized by the separate documentation-focused context.
+
+The implementation review retains the bounded generated route for both `L1_NORM` and
+`L2_NORM`. This is an implementation-plus-verification-cost decision, not a performance claim.
+`CpuNormEmitter` already produces the finite typed entries for FLOAT64, FLOAT32, and BFLOAT16
+over the cold-selected heap, `MemorySegment`, and mixed carrier forms and the packed
+dense-linear/general-odometer geometry. Its immutable generated entry consumes the existing
+complete-output-cell range binding. L1 additionally reuses the existing per-range exact-state
+slice and `CpuExactSumEmitter`; L2 uses its existing scaled-squares state and declares no
+workspace. A direct replacement would need a new finite typed executable owner, duplicate both
+different numerical bodies (including L1's exact represented absolute sum and one ties-to-even
+narrowing), and prove the full carrier/layout/range matrix. It would also require retirement
+proof and corresponding changes for generator selection, artifact identity/cache, finalization,
+immutable invocation, inventory, and generated-evidence owners. That is greater total work than
+retaining the verified route.
+
+Source, generated-Class-File, and test-owner inspection found that the selected route retains
+the required hot-loop shape: typed carrier loads and final typed store are emitted directly;
+generated artifacts have one typed static entry and no Synaptik member references, fields,
+bootstrap methods, reflection, collection/map ownership, or per-element semantic dispatch.
+The generated L1 body resets and uses only its invocation-private exact-state slice, classifies
+special values, sums represented absolute factors exactly, narrows once, and stores once. The L2
+body uses scaled squares followed by the final square root, has zero scratch, preserves the
+current special-value priority, and stores once. `CpuAdvancedReductionReferenceKernel` remains a
+separate clean-Java oracle: it does not consume lowering geometry, packed invocation data,
+generated helpers, or exact-state workspace. This evidence makes no literal Class-File, JIT, or
+performance assertion.
+
+The implementation context ran this focused command on 2026-09-09:
+
+```bash
+./gradlew :backends:cpu:test --rerun-tasks \
+  --tests io.github.pho001.synaptik.backend.cpu.CpuCapabilityProviderTest \
+  --tests io.github.pho001.synaptik.backend.cpu.CpuInternalPackageInventoryTest \
+  --tests io.github.pho001.synaptik.backend.cpu.internal.ir.CpuAdvancedReductionIrTest \
+  --tests io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuAdvancedReductionLoweringTest \
+  --tests io.github.pho001.synaptik.backend.cpu.internal.codegen.emit.CpuAdvancedReductionGeneratedKernelTest \
+  --tests io.github.pho001.synaptik.backend.cpu.internal.codegen.emit.CpuSpecializedGeneratedMatrixTest \
+  --tests io.github.pho001.synaptik.backend.cpu.internal.codegen.emit.CpuGeneratedDirectEvidenceClosureTest \
+  --tests io.github.pho001.synaptik.backend.cpu.internal.reference.CpuAdvancedReductionReferenceTest \
+  --tests io.github.pho001.synaptik.backend.cpu.internal.prepare.CpuPartitionPreparerTest \
+  --tests io.github.pho001.synaptik.backend.cpu.internal.prepare.CpuPartitionFinalizerTest \
+  --tests io.github.pho001.synaptik.backend.cpu.internal.executable.CpuPreparedExecutableTest \
+  --tests io.github.pho001.synaptik.backend.cpu.internal.cache.CpuGeneratedKernelArtifactStoreTest \
+  --tests io.github.pho001.synaptik.backend.cpu.internal.cache.CpuGeneratedKernelPersistenceEvidenceTest
+```
+
+The 13 selected Gradle XML reports record 168 tests, zero failures, zero errors, and one expected
+opt-in skip (`CpuGeneratedKernelPersistenceEvidenceTest`). No benchmark or repository-wide suite
+ran. The selected owners cover capability admission, IR/lowering, finite and special values,
+type narrowing, layouts/carriers, complete-cell ranges and canaries, L1 scratch isolation, L2
+zero-workspace, preparation/finalization, immutable invocation, independent reference behavior,
+artifact/cache, inventory, and generated-entry evidence.
+
+No executable Java changed. The current Java and Javadoc remain accurate; no explanatory,
+glossary, architecture, build, conformance, or integration update is indicated because the route
+is CPU-private and all public/shared contracts remain unchanged. This separate documentation
+context independently finalized that assessment, planning consistency, and task status.
 
 ## Implementation notes
 
-Empty until implemented.
+Retain generated execution for `L1_NORM` and `L2_NORM` unchanged. Their shared cold typed
+carrier/layout and immutable artifact/binding mechanics do not make their numerical owners
+interchangeable: L1 owns exact represented absolute summation with isolated exact-state slices;
+L2 owns scaled squares and final square root with zero workspace. Direct migration would increase
+implementation and verification cost while requiring generator-route retirement across existing
+artifact, cache, finalizer, invocation, inventory, and evidence seams. No performance claim or
+benchmark gate supports this decision.
 
 ## Completion summary
 
-Empty until implemented.
+- Completed changes: Finalized the retained bounded-generated-execution decision for
+  `L1_NORM` and `L2_NORM`. A finite direct replacement would duplicate their distinct numerical
+  bodies and typed carrier/layout/range binding, then require generated-route retirement proof
+  across artifact/cache, finalization, immutable invocation, inventory, and evidence owners.
+- Files changed or created: This task and the three synchronized CPU planning records only.
+- Tests and validation: Reused the implementation context's 2026-09-09 focused CPU evidence:
+  168 tests, zero failures or errors, and one expected opt-in persistence-evidence skip across
+  the 13 recorded XML reports. This documentation context inspected the norm emitter, exact-state
+  emitter, advanced IR/lowering, generator, immutable invocation and scratch binding, reference
+  oracle, and focused test owners; it also checked local links, anchors, fences, terminology,
+  task dependencies/frontier, exact changed-path scope, `git diff --check`, and `git status
+  --short -uall`. It did not rerun Java tests because executable Java did not change.
+- Documentation-agent review: This clean documentation-focused context finalized the route
+  decision under the General and Planning profiles without changing executable code.
+- Documentation impact: The four planning records now record the completed norm decision and
+  advance the summary frontier to E1C. No explanatory documentation update is needed because
+  CPU-private execution and public/shared behavior are unchanged.
+- Javadoc review: No Javadoc change is needed: the inspected CPU-private contracts accurately
+  describe the existing generated route and this decision changes neither a Java API nor an
+  implementation contract.
+- Glossary impact: No glossary change is needed; this decision introduces no reusable term or
+  changes an existing term's meaning.
+- No-change review: `ARCHITECTURE.md` and explanatory architecture documentation remain correct
+  because module ownership and dependency direction are unchanged. Gradle/build configuration,
+  architecture tests, backend-conformance tests, and integration tests need no update because
+  there is no executable, shared-boundary, backend-contract, or end-to-end behavior change.
+- Unresolved issues: None for E1B3. CPU 0009 remains Ready and incomplete; E1C is the sole next
+  Draft summary frontier.
+- Follow-up required: None for E1B3.
+
+Status: Complete

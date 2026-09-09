@@ -16,10 +16,10 @@ the unfinished program of universal generated-versus-clean-Java structural closu
 Completed 0009A--C/D1/D1A/D2/D3/D4 remain historical completed evidence; they are not migration
 targets merely because a later family adopts direct Java. D4 and E1 completed retained
 generated-route decisions, so parent 0009D is Complete and E1A masked reduction is Complete.
-The 0009E parent remains a master-plan summary. E1B is split only by material numerical ownership:
-E1B1 and E1B2 are Complete retained generated routes: E1B2 retains corrected statistical
-execution because direct replacement has greater implementation and verification cost. E1B3 norms
-is the sole next Draft summary, while E1C--E3 remain Draft summaries.
+The 0009E parent remains a master-plan summary. E1B is Complete: its three material numerical
+owners, E1B1 log-sum-exp, E1B2 corrected statistics, and E1B3 norms, retain bounded generated
+execution because direct replacement would increase implementation and verification work. E1C
+softmax-style is the sole next Draft summary frontier; E2 and E3 remain later Draft summaries.
 
 The default classification, subject to the active family's code review, is:
 
@@ -82,12 +82,11 @@ planning revision validates Markdown/status consistency and `git diff --check`; 
   migration would increase selection, binding, replacement, and retirement-proof work without a
   performance gate. E1A is Complete: it retained the complete generated FLOAT64/FLOAT32/BFLOAT16
   masked SUM/MEAN route because direct Java would duplicate typed carrier/layout, directional
-  mask, selected exact-state, binding, invocation, inventory, and retirement work. E1B is a
-  summary parent because its shared geometry has distinct numerical owners. E1B1 is Complete as a
-  retained generated log-sum-exp route, and E1B2 is Complete as a retained generated corrected
-  statistical route because direct replacement would cost more to implement and verify. [E1B3
-  norms](0009e1b3-norm-reduction-route-decision.md) is the sole next Ready detailed child, followed by E1C softmax-style, E2 normalization, and E3
-  loss.
+  mask, selected exact-state, binding, invocation, inventory, and retirement work. E1B1 is
+  Complete as a retained generated log-sum-exp route, E1B2 is Complete as a retained generated
+  corrected statistical route, and E1B3 is Complete as a retained generated L1/L2 norm route.
+  E1B is Complete. E1C softmax-style is the sole next Draft summary frontier, followed by E2
+  normalization and E3 loss; do not create a detailed E1C task yet.
 - 0009F: per-family hybrid decision children for MATMUL/convolution/pooling/attention/batch norm.
 - 0009G: final support, correctness, hygiene, inventory, and documentation checkpoint.
 
@@ -124,7 +123,12 @@ skips. E1's specified six-class command passed on 2026-09-09: 110 tests, zero fa
 skips. E1 retained its generated partial/combine implementation after source and test inspection,
 not performance evidence; it made no Java change. Its clean documentation-focused finalization
 reused that evidence, verified the current unselected generated candidate and whole-cell fallback,
-and synchronized the four planning records without rerunning Java.
+and synchronized the four planning records without rerunning Java. E1B3's implementation context
+ran its recorded 13-class focused command on 2026-09-09; the XML reports record 168 tests, zero
+failures or errors, and one expected opt-in persistence-evidence skip. Its documentation-focused
+finalization reused that evidence because no executable Java changed, inspected the norm route and
+its evidence owners, and synchronized the four planning records without benchmarking or running a
+repository-wide suite.
 
 ## Implementation notes
 
@@ -132,13 +136,13 @@ None.
 
 ## Completion summary
 
-CPU 0009 remains Ready. Parent 0009D is Complete: D1 through D4 are retained-generated-route
-decisions; the D4 fold result preserves the full 32-row generated family because a complete direct
-Java replacement would increase total implementation and verification work. CPU 0009E1 and E1A
-are Complete retained generated-route decisions; E1A retains the complete masked SUM/MEAN route
-because a direct replacement would increase implementation and verification work. E1B is a Draft
-parent split by distinct numerical ownership; E1B1 is Complete as a retained generated
-log-sum-exp route and E1B2 is Complete as a retained generated corrected statistical route.
-[E1B3 norms](0009e1b3-norm-reduction-route-decision.md) is the sole next Ready detailed child.
+CPU 0009 remains Ready and incomplete. Parent 0009D is Complete: D1 through D4 are
+retained-generated-route decisions; the D4 fold result preserves the full 32-row generated family
+because a complete direct Java replacement would increase total implementation and verification
+work. CPU 0009E1 and E1A are Complete retained-generated-route decisions; E1A retains the
+complete masked SUM/MEAN route because a direct replacement would increase implementation and
+verification work. E1B is Complete: E1B1 retains generated log-sum-exp, E1B2 retains generated
+corrected statistics, and E1B3 retains generated L1/L2 norms. E1C softmax-style is the sole next
+Draft summary frontier; no detailed E1C task exists yet.
 
 Status: Ready
