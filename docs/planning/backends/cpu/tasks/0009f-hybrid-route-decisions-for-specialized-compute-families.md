@@ -20,7 +20,7 @@ family boundary before making a route decision.
 
 | Child | Status | Family boundary and decision responsibility |
 | --- | --- | --- |
-| 0009F1 | Ready | [MATMUL and convolution route decisions](0009f1-matmul-and-convolution-route-decisions.md). Decide MATMUL separately from Conv1d's visible composition and the direct Conv2d/Conv3d generated bodies; retain dense specialized compute unless a complete replacement is strictly cheaper. |
+| 0009F1 | Complete | [MATMUL and convolution route decisions](0009f1-matmul-and-convolution-route-decisions.md). Separately retained MATMUL, Conv1d visible composition, and direct Conv2d/Conv3d generated bodies after source/test-backed complete-route decisions; no performance or JIT claim. |
 | 0009F2 | Draft | Pooling. Decide exact Pool1d composition separately from direct Pool2d and Pool3d max/average window bodies. |
 | 0009F3 | Draft | Attention and batch normalization. Decide scaled-dot-product attention, BatchNorm inference, and BatchNorm training/statistic transition independently; they do not share a route mandate. |
 
@@ -161,8 +161,8 @@ in the same child.
 - Depends on Complete CPU 0009E3 and the established family evidence: CPU 0008F (MATMUL),
   0008/0008A (Conv2d/Conv1d/Conv3d), 0008G/0008G1 (pooling), 0008H (attention), and
   0007F1/0007F2 (BatchNorm inference/training).
-- 0009F1 is the sole Ready detailed frontier. F2 remains a Draft summary and depends on F1; F3
-  remains a Draft summary and depends on F2.
+- 0009F1 is Complete. F2 pooling is the sole next Draft summary frontier and depends on F1; do not
+  detail it yet. F3 remains a later Draft summary and depends on F2.
 - CPU 0009G remains Draft and follows F3. Do not detail 0009G here.
 
 ## Architecture impact
@@ -187,20 +187,29 @@ Complete until that pass is recorded.
 
 ## Local decisions
 
-Empty until implemented.
+F1 independently retained generated MATMUL, visible virtual Conv1d-through-Conv2d composition,
+and direct generated Conv2d and Conv3d. The decisions are separate; Conv1d is not a generated or
+direct kernel family, and no performance/JIT conclusion is made.
 
 ## Known limitations
 
-Empty until implemented.
+F1 changes no executable source, Javadoc, architecture, glossary, build, conformance, or
+integration contract. Its clean documentation-focused review reused stable focused Java evidence
+after independent source/test inspection, as permitted when no executable Java changes.
 
 ## Validation evidence
 
-Empty until implemented.
+F1's clean documentation-focused context finalized its decision record, removed dependence on a
+temporary evidence path, checked the planning links/status/frontier/scope, and ran final diff and
+status checks. No focused Java suite was rerun because no executable Java changed and no concrete
+discrepancy was found.
 
 ## Implementation notes
 
-Empty until implemented.
+F1 is complete. This parent remains Ready and incomplete until F2 then F3 complete.
 
 ## Completion summary
 
-Empty until implemented.
+F1 retained all four current routes without migration or retirement. F2 pooling is the sole next
+Draft summary frontier; F3 and 0009G remain later Draft and are not detailed. No unresolved issue
+from F1.

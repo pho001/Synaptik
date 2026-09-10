@@ -2,7 +2,7 @@
 
 ## Status
 
-Ready
+Complete
 
 ## Goal
 
@@ -145,6 +145,48 @@ not mark Complete until that pass is recorded.
 ## Local decisions
 
 - The task is decision-first and does not presume a migration.
+- **MATMUL — retain the generated family.** `CpuMatmulLowering`,
+  `CpuMatmulCandidateSelector`, `CpuMatmulIr`, and `CpuMatmulEmitter` implement four distinct
+  full-K forms (direct scalar, N-vector, 2x2 scalar, and 2x2 N-vector), with the closed ordered
+  ADD/terminal suffix.  Their cold geometry covers the normalized rank-one M/N cases, batches and
+  right-broadcast batches, non-negative arbitrary layouts, exact numeric promotion, typed array
+  and segment carriers, legal empty work, aliases/overlap validation, and per-form half-open
+  ranges.  `CpuPartitionPreparer` selects the form and workers cold; finalization realizes the
+  selected keyed artifact, and `CpuPreparedExecutable` packs checked bindings before invocation.
+  Replacing this with direct Java would have to reimplement all four forms, carrier/layout
+  binding, epilogues, range ownership, artifact/cache/inventory retirement, and the corresponding
+  negative and semantic coverage.  That is more than the existing retained family and is not a
+  strictly cheaper complete route.  No migration or generated-route retirement is selected.
+- **Conv1d visible composition — retain the existing finite composition.**
+  `CpuConv1dCompositionLowering` accepts only the two private `EXPAND_DIMS(axis 2)` branches,
+  `CONV2D`, and `SQUEEZE(axis 2)`; it proves the singleton height is an address-preserving virtual
+  view and delegates to the already selected Conv2d family.  It creates no Conv1d IR, emitter,
+  specialization, artifact/cache entry, inventory row, workspace, or vector route.  Its sole
+  prepared unit inherits Conv2d's grouped/batched geometry, intrinsic bias, promotion, carriers,
+  aliases/overlap checks, empty behavior, and half-open ranges.  A direct surrounding change would
+  either duplicate those cold and generated-route responsibilities or introduce the prohibited
+  direct Conv1d family; neither is strictly cheaper.  No migration is selected.
+- **Direct Conv2d body — retain the generated family.** `CpuConv2dLowering`,
+  `CpuConv2dIr`, and `CpuConv2dEmitter` keep grouped/depthwise NCHW cross-correlation, ordered
+  FLOAT64/FLOAT32/BFLOAT16 promotion, optional intrinsic bias, array/native-order-segment/mixed
+  carriers, checked geometry and aliases/overlap before writes, empty/special scalar behavior,
+  zero workspace, half-open output-cell ranges, and only `NONE`/same-type right-broadcast
+  `ADD`/`ADD_RELU` external suffixes.  `CpuPartitionPreparer` cold-selects the scalar or
+  schema-63 width-vector realization only for the proved dense same-type FLOAT32/FLOAT64 subset;
+  current generator-envelope schema is 66, while schema 63 remains the convolution-vector class
+  identity.  A direct replacement would need all scalar/vector bodies and suffixes plus lowering,
+  identity, artifact/cache, invocation, inventory, and test/evidence retirement.  It is not
+  strictly cheaper, so no migration or selected fallback exists.
+- **Direct Conv3d body — retain the generated family.** `CpuConv3dLowering`, `CpuConv3dIr`, and
+  `CpuConv3dEmitter` independently own the NCDHW rank-five version: grouped/depthwise,
+  batch-aware floating cross-correlation with ordered promotion, intrinsic bias, geometry,
+  layouts/carriers, aliases/overlap, empty/special behavior, zero workspace, and half-open
+  output-cell ranges.  It deliberately has no external epilogue.  Its cold selection and
+  finalization use the same bounded artifact lifecycle but a separate IR/emitter/geometry; the
+  schema-63 vector identity is restricted to the proved dense same-type FLOAT32/FLOAT64
+  width-block subset.  A direct replacement would retain all of those obligations and additionally
+  retire the rank-specific generated lifecycle and evidence, so it is not demonstrably strictly
+  cheaper.  No migration is selected.
 - Conv1d composition is separate because it owns rank-edit orchestration, not independent
   generated compute; it is neither evidence for nor a fallback of direct Conv2d/Conv3d.
 
@@ -155,18 +197,84 @@ not mark Complete until that pass is recorded.
 
 ## Validation evidence
 
-Planning creation context read the required architecture, planning, parent/completed tasks,
-documentation profiles, and directly relevant current CPU owners/tests/evidence. No Gradle or
-executable/Javadoc edit was run. Glossary impact: no change; this planning task introduces no new
-reusable project term or altered term boundary. Final planning checks are recorded at finalization.
+The implementation context read the required architecture, planning, parent/completed tasks,
+documentation profiles, and the current family lowerers, IRs, emitters, references, preparer,
+finalizer, executable, artifact store, focused tests, and inventory. The audit found no
+architecture, API, dependency, workspace, schema, or build change.
+
+- MATMUL evidence inspected: `CpuMatmulReferenceKernel` and `CpuMatmulReferenceTest` supply the
+  typed full-K, increasing-K, single-store clean-Java oracle (including arbitrary non-negative
+  strides, empty work, promotion, and integral wrapping). `CpuMatmulGeneratedKernelTest` covers
+  the four realization bodies, typed/segment carriers, epilogues, tails, and generated-body
+  hygiene; `CpuMatmulSemanticClosureTest` constructs, defines, and invokes all 390 MATMUL
+  inventory rows against its independent test-local oracle. `CpuMatmulLoweringTest` and
+  `CpuMatmulCandidateSelectorTest` cover admission and cold selection. The current
+  `CpuMatmulEmitter` preserves full-K accumulators and one final represented store per owned
+  output or microtile lane; its repository-resident generated-kernel test checks the relevant
+  generated-body hygiene. This decision does not depend on a temporary evidence directory or on
+  a materialization-candidate record.
+- Conv1d evidence inspected: `CpuConv1dCompositionLowering` and
+  `CpuConv1dCompositionLoweringTest` prove the exact topology, virtual values, one Conv2d unit,
+  zero workspace/materialization, wrong-axis failure, and scalar-only selection even when vector
+  configuration is requested. Repository search found no Conv1d IR/emitter/reference/cache or
+  generated-coverage inventory family. Therefore there is no generated Conv1d route to retire.
+- Conv2d evidence inspected: `CpuConv2dReferenceKernel`, `CpuConv2dLoweringTest`,
+  `CpuConv2dGeneratedKernelTest`, `CpuConv2dEvidenceTest`, and
+  `CpuConvolutionSemanticClosureTest` cover the direct and bounded-suffix boundary. The clean
+  oracle uses the same logical NCHW output-cell traversal, initialized accumulator, ordered kernel
+  traversal, and one store. `CpuConv2dEvidenceTest` generates and parses representative classes and
+  checks a final field-free class with one static `invoke` method; its constant-pool scan rejects
+  Synaptik helpers, reflection, invoke dispatch, `java.util`, and boxing. The retained
+  CPU 0008N1 and current `CpuPartitionPreparer` establish the separate schema-63 vector identity
+  and nested width-block route; scalar routes retain schema 52. Current evidence tests assert
+  envelope schema 66, distinct from the convolution-vector class identity.
+- Conv3d evidence inspected: `CpuConv3dReferenceKernel`, `CpuConv3dLoweringTest`,
+  `CpuConv3dGeneratedKernelTest`, `CpuConv3dEvidenceTest`, `CpuConvSimdEvidenceTest`, and
+  `CpuConvolutionSemanticClosureTest` cover the rank-specific direct boundary and schema-63
+  width-vector subset. The reference has the same NCDHW output-cell/kernel traversal and one
+  store. `CpuConv3dEvidenceTest` performs the same parsed Class-File hygiene checks over dense,
+  grouped/bias, depthwise BF16, segment, mixed-layout, and parallel representatives.
+- The generator dispatch (`CpuClassFileKernelGenerator`), artifact store
+  (`CpuGeneratedKernelArtifactStore`), finalizer (`CpuPartitionFinalizer`), and prepared
+  invocation (`CpuPreparedExecutable`) were inspected. Selection is cold in preparation,
+  finalization realizes only the selected keyed artifact after assignment validation, the store
+  verifies compatible generated/persisted bytes, and invocation binds typed carriers and
+  run-owned ranges without selecting a route. The generated coverage inventory was inspected for
+  MATMUL/Conv2d/Conv3d ownership; no Conv1d generated row exists.
+
+This clean documentation-focused context independently inspected the retained source and test
+owners. Reuse without rerun is permitted by the Planning Guide and documentation rules because no
+executable Java changed after the recorded focused evidence and this review found no concrete
+discrepancy or cross-check risk. Accordingly, no Gradle command was run. It checked the F1 and
+parent/master/roadmap links, headings, fences, statuses, dependencies, frontiers, exact five-path
+scope, final newlines, and terminology.
+
+No-change conclusions: the reviewed Java/Javadocs remain accurate because neither public nor
+implementation behavior changed; explanatory and architecture documentation need no revision
+because no boundary or workflow changed; the glossary needs no entry because this records no new
+or altered reusable term; build, architecture, conformance, integration, and executable-test
+owners need no change because no source, dependency, capability, or end-to-end behavior changed.
 
 ## Implementation notes
 
-This is a Ready execution contract, not an implementation result. The execution context must add
-the four final route decisions, exact inspected source/test/evidence paths, any selected
-retirement work, and focused validation evidence here before changing task status.
+All four decisions retain their current routes. Consequently no Java, test, cache, inventory, or
+route-retirement edit is warranted, and no generated/direct dual route was introduced. This task's
+only implementation is the finalized F1 decision/evidence record.
 
 ## Completion summary
 
-Not complete. Completion requires all four decisions, any required complete migration or explicit
-retention rationale, the clean documentation-focused pass, and recorded validation evidence.
+Completed changes: independently finalized four retained-route decisions and replaced the
+non-durable temporary-path evidence wording with repository-resident source/test evidence.
+
+Changed paths: this task plus its parent 0009F, CPU master plan, parent CPU 0009, and roadmap.
+
+Validation: independently inspected the current lowerers, IRs, emitters, clean-Java references,
+preparer/finalizer/executable/artifact owners, focused tests, and generated-coverage inventory;
+reviewed Javadocs, explanatory documentation, glossary, architecture, build, conformance, and
+integration impact; reused existing focused Java evidence as permitted; and passed the final
+planning checks (`git diff --check` and `git status --short -uall`).
+
+Unresolved/follow-up: no unresolved issue. 0009F remains Ready and incomplete; 0009F2 pooling is
+the sole next Draft summary frontier. F3 and 0009G remain later Draft and are not detailed here.
+
+Status: Complete

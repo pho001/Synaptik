@@ -21,8 +21,8 @@ owners, E1B1 log-sum-exp, E1B2 corrected statistics, and E1B3 norms, retain boun
 execution because direct replacement would increase implementation and verification work. E1C
 softmax-style and E2 normalization are Complete retained generated routes. E3 separately retains
 the bounded generated MSE, dense categorical, and index categorical loss routes after complete
-non-performance cost decisions. CPU 0009 remains Ready and incomplete; 0009F1 is the sole next
-Ready detailed frontier under parent 0009F.
+non-performance cost decisions. CPU 0009 remains Ready and incomplete; 0009F1 is Complete, and
+0009F2 pooling is the sole next Draft summary frontier under parent 0009F.
 
 The default classification, subject to the active family's code review, is:
 
@@ -89,10 +89,11 @@ planning revision validates Markdown/status consistency and `git diff --check`; 
   Complete as a retained generated log-sum-exp route, E1B2 is Complete as a retained generated
   corrected statistical route, and E1B3 is Complete as a retained generated L1/L2 norm route.
   E1B, E1C, E2, and E3 are Complete retained-generated-route decisions. CPU 0009 remains Ready
-  and incomplete; 0009F1 is the sole next Ready detailed frontier under parent 0009F.
-- 0009F: Ready parent for per-family hybrid decisions covering MATMUL/convolution, pooling,
-  attention, and batch normalization. [F1](0009f1-matmul-and-convolution-route-decisions.md) is
-  the sole next Ready detailed frontier; F2 and F3 remain ordered Draft summaries.
+  and incomplete; 0009F1 is Complete and 0009F2 pooling is the sole next Draft summary frontier
+  under parent 0009F.
+- 0009F: Ready incomplete parent for per-family hybrid decisions covering MATMUL/convolution,
+  pooling, attention, and batch normalization. [F1](0009f1-matmul-and-convolution-route-decisions.md)
+  is Complete; F2 pooling is the sole next Draft summary frontier, while F3 remains later Draft.
 - 0009G: final support, correctness, hygiene, inventory, and documentation checkpoint.
 
 ## Architecture impact
@@ -150,7 +151,7 @@ verification work. E1B is Complete: E1B1 retains generated log-sum-exp, E1B2 ret
 corrected statistics, and E1B3 retains generated L1/L2 norms. E1C retains the complete stable
 SOFTMAX/LOG_SOFTMAX generated route. E2 retains the complete static Layer/RMS generated route;
 E3 separately retains the complete bounded generated MSE, dense categorical, and index
-categorical routes. CPU 0009 remains Ready and incomplete; F1 is the sole next Ready detailed
-frontier under Ready parent F, and G remains later Draft.
+categorical routes. F1 is Complete; CPU 0009 and parent F remain Ready and incomplete. F2 pooling
+is the sole next Draft summary frontier, while F3 and G remain later Draft.
 
 Status: Ready
