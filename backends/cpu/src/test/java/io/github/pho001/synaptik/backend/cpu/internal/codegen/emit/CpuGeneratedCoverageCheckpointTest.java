@@ -29,7 +29,7 @@ class CpuGeneratedCoverageCheckpointTest {
     private static final String POST_TERMINAL_PRE_FROZEN_LAYOUT_INVENTORY_SHA256 =
             "2e9f07e30b47429387c8c1043207ee6e8feae327f09ac24a7a8f8c51821918fb";
     private static final String FROZEN_LAYOUT_INVENTORY_SHA256 =
-            "527f36de41b64c228dd215c6f3182138b4c70db24c915117c4d7f82743ac41cc";
+            "1dcb69796c00fe3793d86f3f4cc3e816176062a45312ddbbaadfba9f8036cf20";
     private static final String HEADER = "owner-id\tevidence-key\toperation-form\tlowered-ir-family"
             + "\tdescriptor-alias-roles\tordered-boundary-values\tvirtual-values\tunit-count"
             + "\taffine-address-pairs\tordered-carriers\tlayout-access\trequested-strategy"
@@ -60,15 +60,15 @@ class CpuGeneratedCoverageCheckpointTest {
                 assertEquals("N/A_NO_GENERATED_CODE", row[26], entry.getKey());
             }
         }
-        assertEquals(17_463L, observed.values().stream().filter(record -> record.outcome().equals("GENERATED")).count());
+        assertEquals(17_470L, observed.values().stream().filter(record -> record.outcome().equals("GENERATED")).count());
         assertEquals(173L, observed.values().stream().filter(record -> !record.outcome().equals("GENERATED")).count());
         assertEquals(845L, observed.keySet().stream().filter(id -> id.startsWith("pointwise-matrix:")).count());
-        assertEquals(256L, observed.keySet().stream().filter(id -> id.startsWith("scalar-immediate:")).count());
+        assertEquals(263L, observed.keySet().stream().filter(id -> id.startsWith("scalar-immediate:")).count());
         assertTrue(observed.keySet().stream().anyMatch(id -> id.startsWith("ordinary:")));
         assertTrue(observed.keySet().stream().anyMatch(id -> id.startsWith("specialized:")));
         assertTrue(observed.keySet().stream().anyMatch(id -> id.startsWith("composition:conv1d/")));
         assertTrue(observed.keySet().stream().anyMatch(id -> id.startsWith("composition:pool1d/")));
-        assertEquals(17_463L, rows.values().stream().filter(row -> row[21].equals("GENERATED"))
+        assertEquals(17_470L, rows.values().stream().filter(row -> row[21].equals("GENERATED"))
                 .filter(row -> !row[25].equals("PENDING") && !row[26].equals("PENDING")).count());
         assertLiveDispositionResolution(observed);
     }
@@ -233,6 +233,57 @@ class CpuGeneratedCoverageCheckpointTest {
         assertEquals(selected, observedSelected, "each selected strategy has an exact owner");
     }
 
+    @Test void everyLiveScalarMeaningfulScalarImmediateFormIsCoveredAndDirectWitnessBasisIsExact()
+            throws Exception {
+        Set<String> liveScalarForms = CpuScalarImmediateClampMatrixOracle.forms().stream()
+                .map(CpuScalarImmediateClampMatrixOracle::formArtifact)
+                .filter(artifact -> artifact.selectedStrategy().equals("SCALAR"))
+                .map(artifact -> "SCALAR_" + artifact.form().fixture().operation().name())
+                .collect(java.util.stream.Collectors.toUnmodifiableSet());
+        Map<String, String[]> inventory = parse(resource("generated-coverage-inventory.tsv"));
+        Set<String> inventoryScalarForms = inventory.entrySet().stream()
+                .filter(entry -> entry.getKey().startsWith("scalar-immediate:"))
+                .filter(entry -> entry.getValue()[12].equals("scalar"))
+                .filter(entry -> entry.getValue()[21].equals("GENERATED"))
+                .map(entry -> entry.getValue()[2])
+                .collect(java.util.stream.Collectors.toUnmodifiableSet());
+        Set<String> missingScalarForms = new java.util.TreeSet<>(liveScalarForms);
+        missingScalarForms.removeAll(inventoryScalarForms);
+        assertTrue(missingScalarForms.isEmpty(),
+                "live scalar-meaningful forms require selected-scalar generated owners: " + missingScalarForms);
+
+        Map<String, String> expectedWitnessForms = Map.of(
+                "scalar-immediate:ORCHESTRATION-SCALAR", "SCALAR_ADD",
+                "scalar-immediate:SCALAR-WITNESS-SUB", "SCALAR_SUB",
+                "scalar-immediate:SCALAR-WITNESS-MUL", "SCALAR_MUL",
+                "scalar-immediate:SCALAR-WITNESS-DIV", "SCALAR_DIV",
+                "scalar-immediate:SCALAR-WITNESS-MIN", "SCALAR_MIN",
+                "scalar-immediate:SCALAR-WITNESS-MAX", "SCALAR_MAX",
+                "scalar-immediate:SCALAR-WITNESS-POW", "SCALAR_POW",
+                "scalar-immediate:SCALAR-WITNESS-CLAMP", "SCALAR_CLAMP");
+        Map<String, String[]> witnesses = inventory.entrySet().stream()
+                .filter(entry -> entry.getKey().equals("scalar-immediate:ORCHESTRATION-SCALAR")
+                        || entry.getKey().startsWith("scalar-immediate:SCALAR-WITNESS-"))
+                .collect(java.util.stream.Collectors.toUnmodifiableMap(Map.Entry::getKey, Map.Entry::getValue));
+        assertEquals(expectedWitnessForms.keySet(), witnesses.keySet(), "exact direct scalar witness owners");
+        for (var expected : expectedWitnessForms.entrySet()) {
+            String[] row = witnesses.get(expected.getKey());
+            assertEquals(expected.getValue(), row[2], expected.getKey());
+            assertEquals("scalar", row[12], expected.getKey());
+            assertEquals("false", row[13], expected.getKey());
+            assertEquals("0", row[14], expected.getKey());
+            assertEquals("true", row[15], expected.getKey());
+            assertEquals("true", row[16], expected.getKey());
+            assertEquals("GENERATED", row[21], expected.getKey());
+            assertEquals("SELECTED_GENERATED_DIRECT", row[23], expected.getKey());
+        }
+        assertEquals(expectedWitnessForms.values().stream().collect(
+                        java.util.stream.Collectors.toUnmodifiableSet()),
+                witnesses.values().stream().map(row -> row[2]).collect(
+                        java.util.stream.Collectors.toUnmodifiableSet()),
+                "one direct selected-scalar witness per operation form");
+    }
+
     private static void assertGeneratedOwnerPartitions(Map<String, String[]> rows) {
         Map<String, Long> expected = Map.of(
                 "specialized", 12_850L,
@@ -240,7 +291,7 @@ class CpuGeneratedCoverageCheckpointTest {
                 "ordinary", 1_400L,
                 "pointwise-matrix", 845L,
                 "composition", 576L,
-                "scalar-immediate", 256L);
+                "scalar-immediate", 263L);
         Map<String, Long> actual = new TreeMap<>();
         for (var entry : rows.entrySet()) {
             if (!entry.getValue()[21].equals("GENERATED")) continue;
@@ -249,7 +300,7 @@ class CpuGeneratedCoverageCheckpointTest {
             actual.merge(partition, 1L, Long::sum);
         }
         assertEquals(expected, actual, "generated owner partitions must be complete and disjoint");
-        assertEquals(17_463L, actual.values().stream().mapToLong(Long::longValue).sum());
+        assertEquals(17_470L, actual.values().stream().mapToLong(Long::longValue).sum());
         assertEquals(173L, rows.size() - actual.values().stream().mapToLong(Long::longValue).sum(),
                 "provider/preparer rejects remain outside generated semantic closure");
     }
@@ -407,7 +458,7 @@ class CpuGeneratedCoverageCheckpointTest {
      */
     @Test void scatterProjectionIsExactCompleteAndBoundToTheCurrentInventoryBytes() throws Exception {
         String inventory = resource("generated-coverage-inventory.tsv");
-        assertEquals("527f36de41b64c228dd215c6f3182138b4c70db24c915117c4d7f82743ac41cc",
+        assertEquals("1dcb69796c00fe3793d86f3f4cc3e816176062a45312ddbbaadfba9f8036cf20",
                 hex(MessageDigest.getInstance("SHA-256").digest(inventory.getBytes(StandardCharsets.UTF_8))));
         Map<String, String[]> rows = parse(inventory);
         var scatter = rows.entrySet().stream().filter(entry -> entry.getKey().startsWith("ordinary:"))
@@ -442,7 +493,7 @@ class CpuGeneratedCoverageCheckpointTest {
      */
     @Test void aggregateAndScanProjectionHasExactlyThe460ExecutableOwners() throws Exception {
         String inventory = resource("generated-coverage-inventory.tsv");
-        assertEquals("527f36de41b64c228dd215c6f3182138b4c70db24c915117c4d7f82743ac41cc",
+        assertEquals("1dcb69796c00fe3793d86f3f4cc3e816176062a45312ddbbaadfba9f8036cf20",
                 hex(MessageDigest.getInstance("SHA-256").digest(inventory.getBytes(StandardCharsets.UTF_8))));
         Map<String, String[]> rows = parse(inventory);
         Set<String> forms = Set.of("SUM", "MEAN", "PROD", "AGGREGATE_MIN", "AGGREGATE_MAX",
@@ -482,7 +533,7 @@ class CpuGeneratedCoverageCheckpointTest {
     @Test void indexingAndOrderingProjectionHasExactlyThe336ExecutableOwners() throws Exception {
         String inventory = resource("generated-coverage-inventory.tsv");
         String digest = hex(MessageDigest.getInstance("SHA-256").digest(inventory.getBytes(StandardCharsets.UTF_8)));
-        assertEquals("527f36de41b64c228dd215c6f3182138b4c70db24c915117c4d7f82743ac41cc", digest);
+        assertEquals("1dcb69796c00fe3793d86f3f4cc3e816176062a45312ddbbaadfba9f8036cf20", digest);
         Map<String, String[]> rows = parse(inventory);
         Set<String> forms = Set.of("GATHER", "GATHER_ELEMENTS", "GATHER_ND", "SORT", "ARGSORT", "TOP_K");
         Set<String> projected = rows.entrySet().stream().filter(entry -> entry.getKey().startsWith("ordinary:"))
@@ -562,8 +613,8 @@ class CpuGeneratedCoverageCheckpointTest {
             performancePartial++;
         }
         assertEquals(2_252L, proved);
-        assertEquals(15_211L, partial);
-        assertEquals(17_463L, performancePartial);
+        assertEquals(15_218L, partial);
+        assertEquals(17_470L, performancePartial);
         var scoped = observed.values().stream().filter(CpuGeneratedCoverageCheckpointTest::isCpu0009cOwner)
                 .findFirst().orElseThrow();
         var reversed = new java.util.ArrayList<>(CpuGeneratedCoverageDispositionRegistry.entries());

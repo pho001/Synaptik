@@ -167,7 +167,25 @@ final class CpuScalarImmediateClampMatrixOracle {
         forms.add(form("ORCHESTRATION-PARALLEL_VECTOR", with(base, "ORCHESTRATION-PARALLEL_VECTOR", List.of(array, array),
                 CpuPartitionAnalysisInputs.PortableExecutionConfig.ComputePreference.VECTOR_IF_ELIGIBLE, 4), Shape.of(32),
                 LayoutDescriptor.contiguous(Shape.of(32)), "R1_32", "CONTIGUOUS", CpuAccessPlan.Regime.DENSE_LINEAR));
+        for (ScalarElementwiseKind operation : List.of(ScalarElementwiseKind.SUB,
+                ScalarElementwiseKind.MUL, ScalarElementwiseKind.DIV, ScalarElementwiseKind.MIN,
+                ScalarElementwiseKind.MAX, ScalarElementwiseKind.POW, ScalarElementwiseKind.CLAMP)) {
+            var scalarFixture = fixture(scalarWitnessFixtureId(operation));
+            forms.add(form("SCALAR-WITNESS-" + operation, with(scalarFixture,
+                    "SCALAR-WITNESS-" + operation, scalarFixture.carriers(),
+                    CpuPartitionAnalysisInputs.PortableExecutionConfig.ComputePreference.SCALAR, 1),
+                    Shape.of(32), LayoutDescriptor.contiguous(Shape.of(32)), "R1_32", "CONTIGUOUS",
+                    CpuAccessPlan.Regime.DENSE_LINEAR));
+        }
         return List.copyOf(forms);
+    }
+
+    private static String scalarWitnessFixtureId(ScalarElementwiseKind operation) {
+        return switch (operation) {
+            case POW -> "POW-FLOAT32-DIRECT_FRACTIONAL";
+            case CLAMP -> "CLAMP-FLOAT32-CLAMP_EQUAL_OTHER";
+            default -> operation + "-FLOAT32-OTHER";
+        };
     }
 
     private static void addTypedForms(List<Form> forms, DataType type) {
@@ -303,6 +321,7 @@ final class CpuScalarImmediateClampMatrixOracle {
     /** Independent oracle for each extra compositional form; fixture forms use the full oracle. */
     static Object cleanJava(Form form) {
         if (form.id().startsWith("FIXTURE-")) return cleanJava(form.fixture());
+        if (form.id().startsWith("SCALAR-WITNESS-")) return cleanJava(form.fixture());
         if (form.fixture().operation() != ScalarElementwiseKind.ADD
                 || form.fixture().category() != Category.OTHER)
             throw new AssertionError("missing compositional oracle for " + form.id());

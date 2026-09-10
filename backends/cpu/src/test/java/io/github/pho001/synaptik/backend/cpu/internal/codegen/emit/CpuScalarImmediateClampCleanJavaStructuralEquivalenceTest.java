@@ -18,7 +18,7 @@ import org.junit.jupiter.api.Test;
 class CpuScalarImmediateClampCleanJavaStructuralEquivalenceTest {
     @Test void everyExactFiniteFormHasIndependentTypedCounterpartAndTypedProvenance() {
         var forms = CpuScalarImmediateClampMatrixOracle.forms();
-        assertEquals(256, forms.size());
+        assertEquals(263, forms.size());
         var compiled = CpuScalarImmediateClampCleanJavaOracle.compile(forms);
         var repeat = CpuScalarImmediateClampCleanJavaOracle.compile(forms);
         assertEquals(CpuScalarImmediateClampMatrixOracle.sha256(compiled.classBytes()),
@@ -37,8 +37,8 @@ class CpuScalarImmediateClampCleanJavaStructuralEquivalenceTest {
             clean.computeIfAbsent(List.of(binding.cleanSelectedMethodName(), binding.cleanSelectedMethodDescriptor(),
                     binding.cleanMemberSchemaHash(), binding.cleanSourcePolicyHash()), ignored -> new ArrayList<>()).add(form.id());
         }
-        assertEquals(256, generated.values().stream().mapToLong(List::size).sum());
-        assertEquals(256, clean.values().stream().mapToLong(List::size).sum());
+        assertEquals(263, generated.values().stream().mapToLong(List::size).sum());
+        assertEquals(263, clean.values().stream().mapToLong(List::size).sum());
         assertTrue(generated.values().stream().allMatch(rows -> !rows.isEmpty()));
         assertTrue(clean.values().stream().allMatch(rows -> !rows.isEmpty()));
     }

@@ -1,5 +1,5 @@
-# source-inventory-sha256=527f36de41b64c228dd215c6f3182138b4c70db24c915117c4d7f82743ac41cc
-# source-inventory-generated-rows=1101
+# source-inventory-sha256=1dcb69796c00fe3793d86f3f4cc3e816176062a45312ddbbaadfba9f8036cf20
+# source-inventory-generated-rows=1108
 operation	raw-generated-rows	semantic-owner
 ABS	15	pointwise
 ADD	25	pointwise
@@ -35,13 +35,13 @@ RECIPROCAL	15	pointwise
 RELU	15	pointwise
 RSQRT	15	pointwise
 SCALAR_ADD	81	scalar-immediate
-SCALAR_CLAMP	24	scalar-immediate
-SCALAR_DIV	18	scalar-immediate
-SCALAR_MAX	28	scalar-immediate
-SCALAR_MIN	28	scalar-immediate
-SCALAR_MUL	28	scalar-immediate
-SCALAR_POW	21	scalar-immediate
-SCALAR_SUB	28	scalar-immediate
+SCALAR_CLAMP	25	scalar-immediate
+SCALAR_DIV	19	scalar-immediate
+SCALAR_MAX	29	scalar-immediate
+SCALAR_MIN	29	scalar-immediate
+SCALAR_MUL	29	scalar-immediate
+SCALAR_POW	22	scalar-immediate
+SCALAR_SUB	29	scalar-immediate
 SIGMOID	15	pointwise
 SIGN	15	pointwise
 SILU	15	pointwise

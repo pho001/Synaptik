@@ -23,7 +23,7 @@ import org.junit.jupiter.api.Test;
 /** Direct generated-entry semantic closure for every current generated Pool1d composition row. */
 class CpuPool1dCompositionSemanticClosureTest {
     private static final String RESOURCE = "/io/github/pho001/synaptik/backend/cpu/internal/codegen/emit/generated-coverage-inventory.tsv";
-    private static final String INVENTORY_SHA256 = "527f36de41b64c228dd215c6f3182138b4c70db24c915117c4d7f82743ac41cc";
+    private static final String INVENTORY_SHA256 = "1dcb69796c00fe3793d86f3f4cc3e816176062a45312ddbbaadfba9f8036cf20";
     private static final List<DataType> TYPES = List.of(DataType.BFLOAT16, DataType.FLOAT32, DataType.FLOAT64);
     private static final List<String> GEOMETRIES = List.of("max-floor", "max-ceil", "average-floor", "average-ceil");
     private static final List<String> REQUESTS = List.of("HEAP_GENERAL_MATERIALIZATION", "HEAP_GENERAL_PARALLEL_SCALAR", "MIXED_GENERAL_PARALLEL_VECTOR");

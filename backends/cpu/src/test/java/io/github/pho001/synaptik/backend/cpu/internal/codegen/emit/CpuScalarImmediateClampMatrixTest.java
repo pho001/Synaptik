@@ -147,7 +147,7 @@ class CpuScalarImmediateClampMatrixTest {
     }
     private static Map<String, CpuScalarImmediateClampMatrixOracle.Artifact> validateFormRows(
             Map<String, Map<String, String>> rows) {
-        assertEquals(256, rows.size(), "finite compositional artifact ledger");
+        assertEquals(263, rows.size(), "finite compositional artifact ledger");
         Map<String, CpuScalarImmediateClampMatrixOracle.Artifact> actual = new LinkedHashMap<>();
         for (var form : CpuScalarImmediateClampMatrixOracle.forms()) {
             var formArtifact = CpuScalarImmediateClampMatrixOracle.formArtifact(form);

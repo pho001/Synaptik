@@ -27,7 +27,7 @@ class CpuPointwiseSemanticClosureManifestTest {
     private static final String INVENTORY = "generated-coverage-inventory.tsv";
     private static final String MANIFEST = "generated-pointwise-semantic-closure.tsv";
     private static final String INVENTORY_SHA256 =
-            "527f36de41b64c228dd215c6f3182138b4c70db24c915117c4d7f82743ac41cc";
+            "1dcb69796c00fe3793d86f3f4cc3e816176062a45312ddbbaadfba9f8036cf20";
 
     @Test void manifestIsCurrentExactAndAccountsForEveryGeneratedPointwiseRow() throws Exception {
         Closure closure = parseManifest(resource(MANIFEST));
@@ -38,10 +38,10 @@ class CpuPointwiseSemanticClosureManifestTest {
         Map<CpuPointwiseOpcode, Integer> actual = generatedPointwiseCounts(inventory);
         assertEquals(EnumSet.allOf(CpuPointwiseOpcode.class), actual.keySet());
         assertEquals(actual, closure.counts(), "orphan, stale, or unowned generated pointwise row");
-        assertEquals(1_101, actual.values().stream().mapToInt(Integer::intValue).sum());
+        assertEquals(1_108, actual.values().stream().mapToInt(Integer::intValue).sum());
         assertEquals(845, closure.countFor("pointwise") + closure.countFor("cast"));
-        assertEquals(256, closure.countFor("scalar-immediate"));
-        assertEquals(1_101, closure.declaredGeneratedRows());
+        assertEquals(263, closure.countFor("scalar-immediate"));
+        assertEquals(1_108, closure.declaredGeneratedRows());
     }
 
     @Test void manifestParserFailsClosedForDuplicateOrphanStaleAndMutatedEntries() throws Exception {
@@ -89,7 +89,7 @@ class CpuPointwiseSemanticClosureManifestTest {
         assertTrue(text.endsWith("\n") && !text.contains("\r"), "canonical LF manifest");
         String[] lines = text.split("\\n", -1);
         assertEquals("# source-inventory-sha256=" + INVENTORY_SHA256, lines[0]);
-        assertEquals("# source-inventory-generated-rows=1101", lines[1]);
+        assertEquals("# source-inventory-generated-rows=1108", lines[1]);
         assertEquals("operation\traw-generated-rows\tsemantic-owner", lines[2]);
         Map<CpuPointwiseOpcode, Integer> counts = new EnumMap<>(CpuPointwiseOpcode.class);
         Map<CpuPointwiseOpcode, String> owners = new EnumMap<>(CpuPointwiseOpcode.class);
@@ -113,7 +113,7 @@ class CpuPointwiseSemanticClosureManifestTest {
             owners.put(opcode, row[2]);
         }
         assertEquals(EnumSet.allOf(CpuPointwiseOpcode.class), counts.keySet(), "missing manifest operation");
-        return new Closure(INVENTORY_SHA256, 1_101, Map.copyOf(counts), Map.copyOf(owners));
+        return new Closure(INVENTORY_SHA256, 1_108, Map.copyOf(counts), Map.copyOf(owners));
     }
 
     private static String resource(String name) throws Exception {

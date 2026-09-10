@@ -389,8 +389,8 @@ class CpuGeneratedDirectEvidenceClosureTest {
             assertTrue(stream != null);
             var rows = new String(stream.readAllBytes(), java.nio.charset.StandardCharsets.UTF_8).lines()
                     .filter(line -> !line.startsWith("# ")).skip(1).map(line -> line.split("\\t", -1)).toList();
-            assertEquals(256, rows.size());
-            assertEquals(256, rows.stream().map(row -> row[0]).distinct().count());
+            assertEquals(263, rows.size());
+            assertEquals(263, rows.stream().map(row -> row[0]).distinct().count());
             var linked = rows.stream().map(row -> row[1]).collect(java.util.stream.Collectors.toSet());
             assertEquals(EnumSet.allOf(ScalarElementwiseKind.class).stream().map(Enum::name)
                     .collect(java.util.stream.Collectors.toSet()), linked);
