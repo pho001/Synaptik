@@ -22,7 +22,7 @@ execution because direct replacement would increase implementation and verificat
 softmax-style and E2 normalization are Complete retained generated routes. E3 separately retains
 the bounded generated MSE, dense categorical, and index categorical loss routes after complete
 non-performance cost decisions. CPU 0009 remains Ready and incomplete; 0009F is the sole next
-Draft summary frontier.
+Ready detailed frontier.
 
 The default classification, subject to the active family's code review, is:
 
@@ -89,9 +89,10 @@ planning revision validates Markdown/status consistency and `git diff --check`; 
   Complete as a retained generated log-sum-exp route, E1B2 is Complete as a retained generated
   corrected statistical route, and E1B3 is Complete as a retained generated L1/L2 norm route.
   E1B, E1C, E2, and E3 are Complete retained-generated-route decisions. CPU 0009 remains Ready
-  and incomplete; 0009F is the sole next Draft summary frontier.
-- 0009F: sole next Draft summary frontier for per-family hybrid decisions covering
-  MATMUL/convolution/pooling/attention/batch norm.
+  and incomplete; 0009F is the sole next Ready detailed frontier.
+- 0009F: sole next Ready detailed frontier for per-family hybrid decisions covering
+  MATMUL/convolution, pooling, attention, and batch normalization. Its F1, F2, and F3 child
+  summaries remain ordered Draft work until each becomes the current frontier.
 - 0009G: final support, correctness, hygiene, inventory, and documentation checkpoint.
 
 ## Architecture impact
@@ -149,7 +150,7 @@ verification work. E1B is Complete: E1B1 retains generated log-sum-exp, E1B2 ret
 corrected statistics, and E1B3 retains generated L1/L2 norms. E1C retains the complete stable
 SOFTMAX/LOG_SOFTMAX generated route. E2 retains the complete static Layer/RMS generated route;
 E3 separately retains the complete bounded generated MSE, dense categorical, and index
-categorical routes. CPU 0009 remains Ready and incomplete; F is the sole next Draft summary
+categorical routes. CPU 0009 remains Ready and incomplete; F is the sole next Ready detailed
 frontier and G remains later Draft.
 
 Status: Ready
