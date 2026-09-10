@@ -19,8 +19,8 @@ generated-route decisions, so parent 0009D is Complete and E1A masked reduction 
 The 0009E parent remains a master-plan summary. E1B is Complete: its three material numerical
 owners, E1B1 log-sum-exp, E1B2 corrected statistics, and E1B3 norms, retain bounded generated
 execution because direct replacement would increase implementation and verification work. E1C
-softmax-style is Complete as a retained generated route; [E2 normalization](0009e2-normalization-route-decision-and-possible-direct-java-migration.md) is the sole Ready detailed
-frontier, and E3 remains a later Draft summary.
+softmax-style and E2 normalization are Complete retained generated routes. E3 loss is the sole
+next Draft summary frontier.
 
 The default classification, subject to the active family's code review, is:
 
@@ -86,8 +86,8 @@ planning revision validates Markdown/status consistency and `git diff --check`; 
   mask, selected exact-state, binding, invocation, inventory, and retirement work. E1B1 is
   Complete as a retained generated log-sum-exp route, E1B2 is Complete as a retained generated
   corrected statistical route, and E1B3 is Complete as a retained generated L1/L2 norm route.
-  E1B and E1C are Complete. E2 normalization is the sole Ready detailed frontier, followed by
-  E3 loss.
+  E1B, E1C, and E2 are Complete retained-generated-route decisions. E3 loss is the sole next
+  Draft summary frontier.
 - 0009F: per-family hybrid decision children for MATMUL/convolution/pooling/attention/batch norm.
 - 0009G: final support, correctness, hygiene, inventory, and documentation checkpoint.
 
@@ -144,7 +144,7 @@ work. CPU 0009E1 and E1A are Complete retained-generated-route decisions; E1A re
 complete masked SUM/MEAN route because a direct replacement would increase implementation and
 verification work. E1B is Complete: E1B1 retains generated log-sum-exp, E1B2 retains generated
 corrected statistics, and E1B3 retains generated L1/L2 norms. E1C retains the complete stable
-SOFTMAX/LOG_SOFTMAX generated route. E2 normalization is the sole Ready detailed frontier;
-E3, F, and G remain Draft summaries.
+SOFTMAX/LOG_SOFTMAX generated route. E2 retains the complete static Layer/RMS generated route;
+E3 is the sole next Draft summary frontier, while F and G remain later Draft summaries.
 
 Status: Ready

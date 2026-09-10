@@ -2,7 +2,7 @@
 
 ## Status
 
-Ready
+Complete
 
 ## Goal
 
@@ -205,7 +205,12 @@ reduction families.
 
 ## Local decisions
 
-Empty until implemented.
+Retain the complete bounded generated CPU Layer/RMS-normalization route. Direct Java is selected
+only when its implementation, verification, and generated-route-retirement cost is demonstrably
+strictly lower than retention; equality, uncertainty, or incomplete evidence retains generation.
+The current evidence does not satisfy that strict condition. Layer retains one disjoint
+exact-state workspace slice per simultaneously used range; RMS retains zero workspace. Batch
+normalization remains exclusively later CPU 0009F.
 
 ## Known limitations
 
@@ -215,15 +220,112 @@ batch normalization remain excluded.
 
 ## Validation evidence
 
-Planning-only: inspected the governing architecture/planning/documentation records, completed
-E1--E1C and 0007F, and current Model/Compiler and CPU normalization source/tests. Confirmed that
-E2 owns only static first-class Layer/RMS normalization and that batch normalization is later
-0009F. No Gradle or benchmark ran.
+The implementation context recorded this evidence before the separate documentation context
+finalized the task. Inspection of the current `CpuTrailingNormalizationIr` and
+`CpuTrailingNormalizationLowering` confirms the complete E2 boundary: exactly one first-class
+`LAYER_NORM` or `RMS_NORM` occurrence, the four ordered forms, supported floating promotion and
+typed positive finite epsilon, positive static rank and matching trailing normalized Shape,
+resolved non-negative layouts, an injective distinct output, checked spans, and ordered
+first-occurrence input-boundary deduplication. The lowerer emits complete leading-slice ranges;
+an empty leading or normalized extent emits no range and no Layer scratch. It neither recognizes
+decompositions nor adds an input-finiteness policy. Batch normalization is not inspected as an
+E2 candidate and remains 0009F.
+
+The three non-performance cost buckets retain generated execution for the complete Layer and RMS
+families. (1) Retention already has two dedicated finite typed emitters, cold-specialized heap,
+native-order `MemorySegment`, and mixed-carrier entries, packed dense/general geometry, immutable
+prepared invocation, generated-artifact identity/cache, and the independent
+`CpuTrailingNormalizationReferenceKernel`. Layer additionally has its disjoint per-active-range
+exact-state slice; RMS declares zero workspace. (2) A direct replacement would need two new
+finite typed executable owners, each reproducing its distinct numerical passes, type/store
+boundaries, all carrier/layout combinations, cold validators, and immutable range bindings.
+(3) It would then also need complete retirement proof and changes to generator selection,
+artifact/cache identity, finalization, invocation, inventory, generated evidence, semantic and
+rejection tests, and the oracle comparison. Buckets (2) plus (3) are not demonstrably strictly
+smaller than (1); under the task rule, the retained generated route is selected. This is neither
+a benchmark nor a performance or JIT conclusion.
+
+Source and actual generated-Class-File test inspection supports that retained decision.
+`CpuLayerNormEmitter` emits the three-pass exact-mean, corrected centered-square, standardize,
+optional-affine body with its one final typed store; `CpuRmsNormEmitter` emits the two-pass
+scaled-square/root, optional-scale body with one final typed store. The clean-Java oracle has the
+same family-specific pass/dataflow/store shape while remaining independent of lowering geometry,
+generated invocation data, and Layer exact-state storage. The focused generated-artifact tests
+construct and parse actual class bytes for every form and result type: entries are typed static,
+have no fields, and contain no Synaptik member reference; the RMS evidence confirms `Math.hypot`.
+The cross-family Class-File closure test further rejects fields, object-typed entry arguments,
+bootstrap methods, method handles, dynamic constants, reflection/invoke/collection members, and
+unexpected Synaptik helper ownership. Together with the emitter inspection this establishes no
+hidden Synaptik semantic helper call, allocation, boxing, reflection, map/string/generic dispatch,
+or virtual semantic dispatch in the generated hot body. It does not assert literal Class-File
+identity, JIT behavior, or performance.
+
+The implementation context ran only the focused normalization owners on 2026-09-09:
+
+```bash
+./gradlew :backends:cpu:test --rerun-tasks \
+  --tests io.github.pho001.synaptik.backend.cpu.CpuCapabilityProviderTest \
+  --tests io.github.pho001.synaptik.backend.cpu.CpuInternalPackageInventoryTest \
+  --tests io.github.pho001.synaptik.backend.cpu.internal.ir.CpuTrailingNormalizationIrTest \
+  --tests io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuTrailingNormalizationLoweringTest \
+  --tests io.github.pho001.synaptik.backend.cpu.internal.codegen.emit.CpuLayerNormGeneratedKernelTest \
+  --tests io.github.pho001.synaptik.backend.cpu.internal.codegen.emit.CpuRmsNormGeneratedKernelTest \
+  --tests io.github.pho001.synaptik.backend.cpu.internal.codegen.emit.CpuNormalizationSemanticClosureTest \
+  --tests io.github.pho001.synaptik.backend.cpu.internal.codegen.emit.CpuTrailingNormalizationEvidenceTest \
+  --tests io.github.pho001.synaptik.backend.cpu.internal.codegen.emit.CpuGeneratedDirectEvidenceClosureTest \
+  --tests io.github.pho001.synaptik.backend.cpu.internal.codegen.emit.CpuGeneratedCoverageEvidenceTest \
+  --tests io.github.pho001.synaptik.backend.cpu.internal.reference.CpuTrailingNormalizationReferenceTest \
+  --tests io.github.pho001.synaptik.backend.cpu.internal.prepare.CpuPartitionPreparerTest \
+  --tests io.github.pho001.synaptik.backend.cpu.internal.prepare.CpuPartitionFinalizerTest \
+  --tests io.github.pho001.synaptik.backend.cpu.internal.executable.CpuPreparedExecutableTest \
+  --tests io.github.pho001.synaptik.backend.cpu.internal.cache.CpuGeneratedKernelArtifactStoreTest \
+  --tests io.github.pho001.synaptik.backend.cpu.internal.cache.CpuGeneratedKernelPersistenceEvidenceTest
+```
+
+The 16 selected XML reports record 169 tests, zero failures, zero errors, and one expected
+opt-in persistence-evidence skip. They cover capability/inventory, IR/lowering admission,
+all forms/types, dense/general and heap/segment/mixed carriers, numerical and special-value
+classes, range/canary/no-write behavior, Layer scratch/RMS zero workspace, preparation,
+finalization, immutable invocation, artifact/cache, reference, and generated evidence. No
+benchmark or repository-wide suite ran.
 
 ## Implementation notes
 
-Empty until implemented.
+Retain the existing bounded generated route without executable changes. The Layer and RMS routes
+remain separate numerical owners but one cohesive E2 decision: their retained cold binding and
+artifact mechanics are shared, while Layer exact-state isolation and RMS zero-workspace make a
+full direct replacement and generated-route retirement more costly than the already-auditable
+generated route. Documentation finalization, including any final planning-status change, remains
+outside this implementation context.
 
 ## Completion summary
 
-Empty until implemented.
+- Completed changes: Finalized the retained generated-route decision for all four current
+  first-class Layer/RMS forms; no executable Java change was warranted. Updated this task, the CPU
+  master plan, parent CPU 0009, and roadmap so E2 is Complete and E3 is the sole next Draft
+  summary frontier.
+- Files changed: `docs/planning/backends/cpu/tasks/0009e2-normalization-route-decision-and-possible-direct-java-migration.md`,
+  `docs/planning/backends/cpu/master-plan.md`,
+  `docs/planning/backends/cpu/tasks/0009-portable-generated-coverage-closure-checkpoint.md`, and
+  `docs/planning/roadmap.md`. No production, test, Javadoc, glossary, explanatory, architecture,
+  build, architecture-test, backend-conformance, or integration-test path changed.
+- Validation: Reused the implementation context's focused 16-suite CPU result recorded on
+  2026-09-09: 169 tests, zero failures, zero errors, and one expected opt-in
+  persistence-evidence skip. Independently inspected the current IR/lowering, both emitters,
+  reference oracle, generated-artifact structural tests, and their XML reports; checked the four
+  planning records for status/frontier consistency, local links/anchors, code fences,
+  terminology, final newlines, exact paths, `git diff --check`, and `git status --short -uall`.
+  No Java suite was rerun because no executable Java changed and the recorded evidence was
+  available and consistent with the inspected source/tests.
+- Documentation/Javadoc review: Applied the General and Planning profiles. Existing CPU-private
+  Javadocs accurately describe the retained emitters, lowering, and independent oracle; no public
+  API or behavior changed. Explanatory documentation and the glossary already define Layer/RMS
+  normalization, exact-state workspace, and epsilon accurately, so no change was required.
+  Architecture and architecture tests remain accurate because no boundary changed;
+  backend-conformance and integration coverage remain deferred to CPU 0009G/CI because no
+  cross-backend or end-to-end contract changed.
+- Unresolved issues: None for E2. CPU 0009 remains Ready and incomplete.
+- Follow-up required: E3 loss is the sole next Draft summary frontier; no detailed E3 task is
+  created by this decision. Batch normalization remains under Draft CPU 0009F.
+
+Status: Complete
