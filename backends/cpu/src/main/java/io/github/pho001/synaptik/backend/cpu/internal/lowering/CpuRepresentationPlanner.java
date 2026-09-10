@@ -41,6 +41,50 @@ public final class CpuRepresentationPlanner {
     public CpuRepresentationPlanner() { }
 
     /**
+     * Builds the existing exact affine-copy plan for one selected OpenBLAS input transition.
+     * Unlike ordinary representation enumeration, this route-specific query also admits a dense
+     * heap carrier because the copy may be required solely to obtain native storage. It performs
+     * no provider query, allocation, route selection, or graph interpretation.
+     *
+     * @param plan non-null common one-unit portable plan retained as the semantic baseline
+     * @param sourceBoundaryIndex zero-based left or right external-read boundary position
+     * @param policy non-null enabled materialization policy supplying copy cost and byte limits
+     * @return the complete immutable copy plan when the existing affine-copy framework can
+     *     represent it within the configured byte ceiling; otherwise empty
+     * @throws NullPointerException if {@code plan} or {@code policy} is {@code null}
+     * @throws ArithmeticException if exact copy geometry or cost arithmetic overflows
+     */
+    public Optional<CpuMaterializationPlan> openBlasInputMaterialization(
+            CpuPartitionPreparationPlan plan, int sourceBoundaryIndex,
+            CpuPartitionAnalysisInputs.MaterializationPolicy policy) {
+        Objects.requireNonNull(plan, "plan");
+        Objects.requireNonNull(policy, "policy");
+        if (!policy.enabled() || plan.units().size() != 1 || sourceBoundaryIndex < 0
+                || sourceBoundaryIndex >= 2 || plan.boundaryValues().size() != 3) {
+            return Optional.empty();
+        }
+        var unit = plan.units().getFirst();
+        var source = unit.accessBindings().get(sourceBoundaryIndex);
+        if (source.plan().accessKind() != CpuAccessPlan.AccessKind.READ
+                || source.start() != 0 || source.end() != source.elementCount()
+                || source.elementCount() <= 0) {
+            return Optional.empty();
+        }
+        DataType type = unit.portablePlan().specialization().boundaryDataTypes()
+                .get(sourceBoundaryIndex);
+        if (type != DataType.FLOAT32 && type != DataType.FLOAT64) return Optional.empty();
+        CpuAccessPlan.Binding dense = denseBinding(source.extents().stream()
+                .mapToLong(Long::longValue).toArray(), source.elementCount());
+        var consumer = new CpuRepresentationDecision.ConsumerPosition(0, sourceBoundaryIndex, 1);
+        CpuMaterializationPlan copy = withWorkspace(materialization(sourceBoundaryIndex, type,
+                unit.carrierPattern().get(sourceBoundaryIndex), source, dense, List.of(consumer),
+                1, new CpuPartitionAnalysisInputs(false, unit.carrierPattern(),
+                        CpuPartitionAnalysisInputs.PortableExecutionConfig.DEFAULT, policy)), 8);
+        return copy.byteCount() <= policy.maximumAdditionalBytes()
+                ? Optional.of(copy) : Optional.empty();
+    }
+
+    /**
      * Selected candidate, its realized copies, and all retained representation facts.
      *
      * @param candidateIndex non-negative selected CPU 0008D topology index

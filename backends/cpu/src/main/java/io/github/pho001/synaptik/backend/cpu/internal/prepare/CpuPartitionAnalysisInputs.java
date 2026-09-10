@@ -5,6 +5,9 @@ import io.github.pho001.synaptik.model.datatype.DataType;
 import io.github.pho001.synaptik.prepare.analysis.BackendAnalysisInputs;
 import io.github.pho001.synaptik.backend.cpu.internal.cache.CpuKernelSpecialization.CarrierAccess;
 import java.util.List;
+import java.util.Optional;
+import java.util.OptionalInt;
+import java.util.OptionalLong;
 
 /**
  * Checked immutable CPU inputs that do not contain graph semantics or instance resources.
@@ -21,12 +24,35 @@ import java.util.List;
  *     suffix unit of a two-unit Conv2d plan
  * @param partialReductionEvidence non-null diagnostic partial-reduction evidence; current
  *     production preparation treats it as non-authoritative and remains fail-closed
+ * @param boundaryStorageFacts non-null ordered expected storage-provenance and alignment facts;
+ *     an empty list supplies no OpenBLAS qualification, and no entry retains a physical segment
+ * @param openBlasRoute non-null disabled-by-default OpenBLAS qualification and cost snapshot
  */
 public record CpuPartitionAnalysisInputs(boolean loweringManifestEnabled,
         List<CarrierAccess> carrierPattern, PortableExecutionConfig portableExecution,
         MaterializationPolicy materializationPolicy, boolean conv2dMaterializedSuffixUnit,
-        PartialReductionEvidence partialReductionEvidence)
+        PartialReductionEvidence partialReductionEvidence,
+        List<BoundaryStorageFact> boundaryStorageFacts, OpenBlasRouteConfig openBlasRoute)
         implements BackendAnalysisInputs {
+    /**
+     * Preserves the complete pre-OpenBLAS construction surface and disables native routing.
+     *
+     * @param loweringManifestEnabled whether cold diagnostics should retain a lowering manifest
+     * @param carrierPattern non-null ordered direct carrier forms; copied defensively
+     * @param portableExecution non-null immutable cold execution inputs
+     * @param materializationPolicy non-null dimensionless cold materialization policy
+     * @param conv2dMaterializedSuffixUnit whether this is the tagged Conv2d suffix unit
+     * @param partialReductionEvidence non-null diagnostic partial-reduction evidence
+     * @throws NullPointerException if a required reference or list entry is {@code null}
+     */
+    public CpuPartitionAnalysisInputs(boolean loweringManifestEnabled,
+            List<CarrierAccess> carrierPattern, PortableExecutionConfig portableExecution,
+            MaterializationPolicy materializationPolicy, boolean conv2dMaterializedSuffixUnit,
+            PartialReductionEvidence partialReductionEvidence) {
+        this(loweringManifestEnabled, carrierPattern, portableExecution, materializationPolicy,
+                conv2dMaterializedSuffixUnit, partialReductionEvidence, List.of(),
+                OpenBlasRouteConfig.DISABLED);
+    }
     /**
      * Compatibility constructor that deliberately admits no partial route.
      *
@@ -40,7 +66,8 @@ public record CpuPartitionAnalysisInputs(boolean loweringManifestEnabled,
             List<CarrierAccess> carrierPattern, PortableExecutionConfig portableExecution,
             MaterializationPolicy materializationPolicy, boolean conv2dMaterializedSuffixUnit) {
         this(loweringManifestEnabled, carrierPattern, portableExecution, materializationPolicy,
-                conv2dMaterializedSuffixUnit, PartialReductionEvidence.NONE);
+                conv2dMaterializedSuffixUnit, PartialReductionEvidence.NONE, List.of(),
+                OpenBlasRouteConfig.DISABLED);
     }
     /**
      * Default input: manifest and materialization disabled, scalar single-thread execution, and
@@ -49,7 +76,192 @@ public record CpuPartitionAnalysisInputs(boolean loweringManifestEnabled,
     public static final CpuPartitionAnalysisInputs DEFAULT = new CpuPartitionAnalysisInputs(false,
             List.of(),
             PortableExecutionConfig.DEFAULT, MaterializationPolicy.DISABLED, false,
-            PartialReductionEvidence.NONE);
+            PartialReductionEvidence.NONE, List.of(), OpenBlasRouteConfig.DISABLED);
+
+    /**
+     * Immutable expected boundary-storage fact used only during cold native-route analysis.
+     * It promises provenance and minimum alignment but retains no segment or runtime resource.
+     *
+     * @param nativeSegment whether composition expects a genuine native memory segment
+     * @param byteAlignment positive power-of-two minimum address alignment in bytes
+     */
+    public record BoundaryStorageFact(boolean nativeSegment, long byteAlignment) {
+        /** Unknown/non-native fail-closed storage expectation. */
+        public static final BoundaryStorageFact UNKNOWN = new BoundaryStorageFact(false, 1);
+
+        /**
+         * Validates one immutable expected storage fact.
+         *
+         * @param nativeSegment whether composition expects a genuine native memory segment
+         * @param byteAlignment positive power-of-two minimum address alignment in bytes
+         * @throws IllegalArgumentException if {@code byteAlignment} is not a positive power of two
+         */
+        public BoundaryStorageFact {
+            if (byteAlignment <= 0 || (byteAlignment & (byteAlignment - 1)) != 0) {
+                throw new IllegalArgumentException(
+                        "boundary byte alignment must be a positive power of two");
+            }
+        }
+    }
+
+    /**
+     * Disabled-by-default immutable OpenBLAS route qualification and whole-plan cost snapshot.
+     * Missing cost or threshold components are representable so analysis can fail closed without
+     * guessing. The snapshot owns no provider, native handle, segment, slot, or measured result.
+     *
+     * @param availability explicit unavailable or CPU-checkpoint-qualified provider fact
+     * @param threadConfiguration selected externally coordinated thread configuration, if known
+     * @param portableCosts complete or incomplete portable whole-plan cost terms
+     * @param openBlasCosts complete or incomplete OpenBLAS whole-plan cost terms
+     * @param minimumNetBenefitCostUnits optional non-negative absolute benefit threshold
+     * @param minimumBenefitBasisPoints optional relative threshold in {@code [0, 10_000]}
+     */
+    public record OpenBlasRouteConfig(Availability availability,
+            Optional<ThreadConfiguration> threadConfiguration, CostTerms portableCosts,
+            CostTerms openBlasCosts, OptionalLong minimumNetBenefitCostUnits,
+            OptionalInt minimumBenefitBasisPoints) {
+        /** Explicit provider qualification state. */
+        public enum Availability {
+            /** No compatible provider is qualified for CPU route use. */ UNAVAILABLE,
+            /** The exact provider binary passed the bounded CPU-native checkpoint. */ QUALIFIED
+        }
+
+        /** Closed initial provider-thread configuration vocabulary. */
+        public enum ThreadConfiguration {
+            /** One provider thread, installed and externally coordinated by composition. */
+            SINGLE_THREAD
+        }
+
+        /** Fail-closed route input used by every compatibility constructor. */
+        public static final OpenBlasRouteConfig DISABLED = new OpenBlasRouteConfig(
+                Availability.UNAVAILABLE, Optional.empty(), CostTerms.MISSING, CostTerms.MISSING,
+                OptionalLong.empty(), OptionalInt.empty());
+
+        /**
+         * Creates one complete qualified single-thread route snapshot.
+         *
+         * @param portableFixed non-negative portable fixed cost per run
+         * @param portablePerOutput non-negative portable cost per output element
+         * @param portablePerMac non-negative portable cost per multiply-accumulate
+         * @param openBlasFixed non-negative native transition and call cost per run
+         * @param openBlasPerOutput non-negative OpenBLAS cost per output element
+         * @param openBlasPerMac non-negative OpenBLAS cost per multiply-accumulate
+         * @param absoluteThreshold non-negative minimum absolute benefit
+         * @param relativeBasisPoints relative benefit threshold in {@code [0, 10_000]}
+         * @return a complete immutable qualified configuration
+         * @throws IllegalArgumentException if a cost or threshold is negative or the relative
+         *     threshold is greater than 10,000 basis points
+         */
+        public static OpenBlasRouteConfig qualifiedSingleThread(long portableFixed,
+                long portablePerOutput, long portablePerMac, long openBlasFixed,
+                long openBlasPerOutput, long openBlasPerMac, long absoluteThreshold,
+                int relativeBasisPoints) {
+            return new OpenBlasRouteConfig(Availability.QUALIFIED,
+                    Optional.of(ThreadConfiguration.SINGLE_THREAD),
+                    CostTerms.complete(portableFixed, portablePerOutput, portablePerMac),
+                    CostTerms.complete(openBlasFixed, openBlasPerOutput, openBlasPerMac),
+                    OptionalLong.of(absoluteThreshold), OptionalInt.of(relativeBasisPoints));
+        }
+
+        /**
+         * Validates one immutable qualification snapshot without making it complete.
+         *
+         * @param availability non-null provider qualification state
+         * @param threadConfiguration non-null optional externally coordinated thread mode
+         * @param portableCosts non-null complete or incomplete portable cost terms
+         * @param openBlasCosts non-null complete or incomplete OpenBLAS cost terms
+         * @param minimumNetBenefitCostUnits non-null optional absolute threshold
+         * @param minimumBenefitBasisPoints non-null optional relative threshold
+         * @throws NullPointerException if a required reference is {@code null}
+         * @throws IllegalArgumentException if a present threshold is negative or the relative
+         *     threshold is greater than 10,000 basis points
+         */
+        public OpenBlasRouteConfig {
+            java.util.Objects.requireNonNull(availability, "availability");
+            threadConfiguration = java.util.Objects.requireNonNull(threadConfiguration,
+                    "threadConfiguration");
+            java.util.Objects.requireNonNull(portableCosts, "portableCosts");
+            java.util.Objects.requireNonNull(openBlasCosts, "openBlasCosts");
+            java.util.Objects.requireNonNull(minimumNetBenefitCostUnits,
+                    "minimumNetBenefitCostUnits");
+            java.util.Objects.requireNonNull(minimumBenefitBasisPoints,
+                    "minimumBenefitBasisPoints");
+            if (minimumNetBenefitCostUnits.isPresent()
+                    && minimumNetBenefitCostUnits.getAsLong() < 0) {
+                throw new IllegalArgumentException("OpenBLAS absolute threshold is negative");
+            }
+            if (minimumBenefitBasisPoints.isPresent()
+                    && (minimumBenefitBasisPoints.getAsInt() < 0
+                        || minimumBenefitBasisPoints.getAsInt() > 10_000)) {
+                throw new IllegalArgumentException("OpenBLAS basis-point threshold is invalid");
+            }
+        }
+
+        /** Reports whether every qualification and cost component is present.
+         * @return whether selection may evaluate the complete snapshot */
+        public boolean complete() {
+            return availability == Availability.QUALIFIED
+                    && threadConfiguration.equals(Optional.of(
+                            ThreadConfiguration.SINGLE_THREAD))
+                    && portableCosts.complete() && openBlasCosts.complete()
+                    && minimumNetBenefitCostUnits.isPresent()
+                    && minimumBenefitBasisPoints.isPresent();
+        }
+    }
+
+    /**
+     * Three checked dimensionless cost coefficients for one route.
+     *
+     * @param fixedCostUnits optional non-negative fixed cost per run
+     * @param costUnitsPerOutput optional non-negative cost per logical output element
+     * @param costUnitsPerMac optional non-negative cost per multiply-accumulate
+     */
+    public record CostTerms(OptionalLong fixedCostUnits, OptionalLong costUnitsPerOutput,
+            OptionalLong costUnitsPerMac) {
+        /** Deliberately incomplete fail-closed term set. */
+        public static final CostTerms MISSING = new CostTerms(OptionalLong.empty(),
+                OptionalLong.empty(), OptionalLong.empty());
+
+        /**
+         * Creates complete non-negative terms.
+         * @param fixed non-negative fixed cost per run
+         * @param perOutput non-negative cost per output element
+         * @param perMac non-negative cost per multiply-accumulate
+         * @return complete immutable terms
+         * @throws IllegalArgumentException if a cost is negative
+         */
+        public static CostTerms complete(long fixed, long perOutput, long perMac) {
+            return new CostTerms(OptionalLong.of(fixed), OptionalLong.of(perOutput),
+                    OptionalLong.of(perMac));
+        }
+
+        /**
+         * Validates every present cost term.
+         *
+         * @param fixedCostUnits non-null optional fixed cost per run
+         * @param costUnitsPerOutput non-null optional cost per logical output
+         * @param costUnitsPerMac non-null optional cost per multiply-accumulate
+         * @throws NullPointerException if an optional reference is {@code null}
+         * @throws IllegalArgumentException if a present cost is negative
+         */
+        public CostTerms {
+            java.util.Objects.requireNonNull(fixedCostUnits, "fixedCostUnits");
+            java.util.Objects.requireNonNull(costUnitsPerOutput, "costUnitsPerOutput");
+            java.util.Objects.requireNonNull(costUnitsPerMac, "costUnitsPerMac");
+            if (fixedCostUnits.isPresent() && fixedCostUnits.getAsLong() < 0
+                    || costUnitsPerOutput.isPresent() && costUnitsPerOutput.getAsLong() < 0
+                    || costUnitsPerMac.isPresent() && costUnitsPerMac.getAsLong() < 0) {
+                throw new IllegalArgumentException("OpenBLAS cost terms must be non-negative");
+            }
+        }
+
+        /** Reports whether all three coefficients are present.
+         * @return whether exact whole-plan arithmetic can consume these terms */
+        public boolean complete() {
+            return fixedCostUnits.isPresent() && costUnitsPerOutput.isPresent()
+                    && costUnitsPerMac.isPresent();
+        }
+    }
 
     /**
      * Immutable diagnostic record for the deliberately narrow partial-reduction route.
@@ -105,7 +317,7 @@ public record CpuPartitionAnalysisInputs(boolean loweringManifestEnabled,
             List<CarrierAccess> carrierPattern, PortableExecutionConfig portableExecution,
             MaterializationPolicy materializationPolicy) {
         this(loweringManifestEnabled, carrierPattern, portableExecution, materializationPolicy,
-                false, PartialReductionEvidence.NONE);
+                false, PartialReductionEvidence.NONE, List.of(), OpenBlasRouteConfig.DISABLED);
     }
 
     /**
@@ -202,7 +414,8 @@ public record CpuPartitionAnalysisInputs(boolean loweringManifestEnabled,
     public CpuPartitionAnalysisInputs(boolean loweringManifestEnabled,
             List<CarrierAccess> carrierPattern) {
         this(loweringManifestEnabled, carrierPattern, PortableExecutionConfig.DEFAULT,
-                MaterializationPolicy.DISABLED, false, PartialReductionEvidence.NONE);
+                MaterializationPolicy.DISABLED, false, PartialReductionEvidence.NONE, List.of(),
+                OpenBlasRouteConfig.DISABLED);
     }
 
     /**
@@ -217,7 +430,8 @@ public record CpuPartitionAnalysisInputs(boolean loweringManifestEnabled,
     public CpuPartitionAnalysisInputs(boolean loweringManifestEnabled,
             List<CarrierAccess> carrierPattern, PortableExecutionConfig portableExecution) {
         this(loweringManifestEnabled, carrierPattern, portableExecution,
-                MaterializationPolicy.DISABLED, false, PartialReductionEvidence.NONE);
+                MaterializationPolicy.DISABLED, false, PartialReductionEvidence.NONE, List.of(),
+                OpenBlasRouteConfig.DISABLED);
     }
 
     /**
@@ -228,13 +442,18 @@ public record CpuPartitionAnalysisInputs(boolean loweringManifestEnabled,
      *     exact-segment-per-boundary policy; copied defensively
      * @param portableExecution non-null immutable cold execution inputs
      * @param materializationPolicy non-null dimensionless cold materialization policy
-     * @throws NullPointerException if {@code carrierPattern}, an entry, or
-     *     either policy/configuration component is {@code null}
+     * @param conv2dMaterializedSuffixUnit whether this is the tagged Conv2d suffix unit
+     * @param partialReductionEvidence non-null diagnostic partial-reduction evidence
+     * @param boundaryStorageFacts non-null ordered expected native-storage facts; copied
+     * @param openBlasRoute non-null disabled or complete OpenBLAS route snapshot
+     * @throws NullPointerException if a required reference or list entry is {@code null}
      */
     public CpuPartitionAnalysisInputs {
         carrierPattern = List.copyOf(carrierPattern);
         java.util.Objects.requireNonNull(portableExecution, "portableExecution");
         java.util.Objects.requireNonNull(materializationPolicy, "materializationPolicy");
         java.util.Objects.requireNonNull(partialReductionEvidence, "partialReductionEvidence");
+        boundaryStorageFacts = List.copyOf(boundaryStorageFacts);
+        java.util.Objects.requireNonNull(openBlasRoute, "openBlasRoute");
     }
 }

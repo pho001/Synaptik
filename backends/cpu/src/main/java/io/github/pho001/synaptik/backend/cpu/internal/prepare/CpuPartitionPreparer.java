@@ -15,6 +15,8 @@ import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuKernelIr;
 import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuAggregateIr;
 import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuSpecializedSubgraph;
 import io.github.pho001.synaptik.backend.cpu.internal.route.portable.CpuPortableRoutePlan;
+import io.github.pho001.synaptik.backend.cpu.internal.route.nativeblas.openblas.CpuOpenBlasRoutePlan;
+import io.github.pho001.synaptik.backend.cpu.internal.route.nativeblas.openblas.CpuOpenBlasRouteSelector;
 import io.github.pho001.synaptik.model.datatype.DataType;
 import io.github.pho001.synaptik.model.graph.ValueId;
 import io.github.pho001.synaptik.prepare.analysis.BackendPartitionAnalysis;
@@ -79,6 +81,10 @@ import jdk.incubator.vector.ByteVector;
  * One-node trailing Layer/RMS plans likewise keep scalar compute and partition complete leading
  * slices. Layer declares one exact-state slice per simultaneous range; RMS declares no workspace.
  * Neither family selects materialization, partial values, or combine state.
+ * After all common lowering and ordinary representation decisions, an explicitly qualified and
+ * strictly cheaper bare rank-two FLOAT32/FLOAT64 MATMUL may select the narrow OpenBLAS route.
+ * That post-lowering decision uses only immutable storage, thread-configuration, and cost facts;
+ * it retains the complete portable realization and performs no provider query or allocation.
  */
 public final class CpuPartitionPreparer implements BackendPartitionPreparer<
         CpuPartitionAnalysisInputs, CpuPartitionPreparationPlan> {
@@ -90,6 +96,7 @@ public final class CpuPartitionPreparer implements BackendPartitionPreparer<
             new CpuFusionProfitabilitySelector();
     private final CpuRepresentationPlanner representationPlanner =
             new CpuRepresentationPlanner();
+    private final CpuOpenBlasRouteSelector openBlasSelector = new CpuOpenBlasRouteSelector();
     private final CpuPartialReductionLowering partialReductionLowering =
             new CpuPartialReductionLowering();
 
@@ -119,6 +126,8 @@ public final class CpuPartitionPreparer implements BackendPartitionPreparer<
      *     those facts do not alter declarations, artifact identity, finalization, or execution.
      *     The plan also retains the authoritative logical-memory graph-publication boundary
      *     positions solely so its selected boundary roles can be independently recomputed.
+     *     A qualifying exact MATMUL may additionally retain one OpenBLAS plan and at most one
+     *     exact native copy-workspace declaration after the common portable plan is complete.
      * @throws NullPointerException if {@code context} is {@code null}
      * @throws IllegalArgumentException if complete-partition lowering rejects the occurrence or
      *     declared resource geometry is invalid
@@ -150,7 +159,37 @@ public final class CpuPartitionPreparer implements BackendPartitionPreparer<
                 candidates, selected.decisions());
         BackendPartitionAnalysis<CpuPartitionPreparationPlan> represented = withRepresentation(
                 analyses.get(representation.candidateIndex()), representation);
-        return withMetadata(context, represented, recognition, selected.decisions());
+        BackendPartitionAnalysis<CpuPartitionPreparationPlan> portable = withMetadata(
+                context, represented, recognition, selected.decisions());
+        return openBlasSelector.select(context, portable.plan(), representationPlanner)
+                .map(nativePlan -> withOpenBlas(portable, nativePlan)).orElse(portable);
+    }
+
+    private static BackendPartitionAnalysis<CpuPartitionPreparationPlan> withOpenBlas(
+            BackendPartitionAnalysis<CpuPartitionPreparationPlan> analysis,
+            CpuOpenBlasRoutePlan nativePlan) {
+        var plan = analysis.plan();
+        var selected = new CpuPartitionPreparationPlan(plan.units(),
+                CpuPartitionPreparationPlan.Route.OPENBLAS, plan.executionStrategy(),
+                plan.bufferDeclarations(), plan.boundaryValues(), plan.accessBindings(),
+                plan.carrierPattern(), plan.generatedCarrierPattern(), plan.extents(),
+                plan.elementCount(), plan.affineAddressPairs(), plan.selectedRangeCount(),
+                plan.minimumElementsPerWorker(), plan.vectorSpeciesBitSize(),
+                plan.loweringManifest(), plan.materialization(), plan.workspaceDeclaration(),
+                plan.workspaceUse(), plan.specializationBudget(), plan.movementGeometry(),
+                plan.indexingGeometry(), plan.scatterGeometry(), plan.foldGeometry(),
+                plan.orderingGeometry(), plan.randomGeometry(), plan.scanGeometry(),
+                plan.aggregateGeometry(), plan.argExtremaGeometry(),
+                plan.maskedReductionGeometry(), plan.advancedReductionGeometry(),
+                plan.softmaxGeometry(), plan.trailingNormalizationGeometry(),
+                plan.batchNormInferenceGeometry(), plan.batchNormTrainingGeometry(),
+                plan.conv2dGeometry(), plan.specializedSubgraphs(), plan.fusionDecisions(),
+                plan.publicationBoundaryPositions(), plan.materializations(),
+                plan.representationUnits(), plan.representationDecisions(),
+                plan.partialReductionRecipe(), Optional.of(nativePlan));
+        var requirements = new ArrayList<PreparationResourceRequirement>(analysis.requirements());
+        nativePlan.workspaceRequirement().ifPresent(requirements::add);
+        return new BackendPartitionAnalysis<>(analysis.partition(), selected, requirements);
     }
 
     private static BackendPartitionAnalysis<CpuPartitionPreparationPlan> withRepresentation(

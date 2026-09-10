@@ -27,11 +27,12 @@ import java.lang.invoke.MethodHandles;
  * in list order, stopping at the first failure. An explicitly selected representation candidate
  * contributes at most two generated affine-copy units. Binding validates all copy resources
  * before mutation; execution invokes each copy exactly once before all represented consumers, so
- * compatible repeated and cross-unit uses share the completed workspace. Runtime owns the
+ * compatible repeated and cross-unit uses share the completed workspace. A child may be the
+ * narrow native MATMUL recipe when the already-selected route uses one copy. Runtime owns the
  * surrounding atomic validity transition and each run's resources and never selects a candidate.
  */
 public final class CpuPreparedPartitionExecutable extends PreparedExecutable {
-    private final List<CpuPreparedExecutable> children;
+    private final List<PreparedExecutable> children;
     private final List<List<Integer>> dependencies;
     private final List<CopyUnit> copies;
 
@@ -52,7 +53,7 @@ public final class CpuPreparedPartitionExecutable extends PreparedExecutable {
      */
     public CpuPreparedPartitionExecutable(PreparedMemoryPlan memoryPlan,
             List<BufferSelection> buffers, List<WorkspaceSelection> workspaces,
-            List<BufferAccess> accesses, List<CpuPreparedExecutable> children,
+            List<BufferAccess> accesses, List<? extends PreparedExecutable> children,
             List<List<Integer>> dependencies) {
         this(memoryPlan, buffers, workspaces, accesses, List.of(), children, dependencies);
     }
@@ -77,7 +78,7 @@ public final class CpuPreparedPartitionExecutable extends PreparedExecutable {
     public CpuPreparedPartitionExecutable(PreparedMemoryPlan memoryPlan,
             List<BufferSelection> buffers, List<WorkspaceSelection> workspaces,
             List<BufferAccess> accesses, List<CopyUnit> copies,
-            List<CpuPreparedExecutable> children, List<List<Integer>> dependencies) {
+            List<? extends PreparedExecutable> children, List<List<Integer>> dependencies) {
         super(memoryPlan, buffers, workspaces, accesses);
         this.copies = List.copyOf(copies);
         this.children = List.copyOf(children);
@@ -87,7 +88,7 @@ public final class CpuPreparedPartitionExecutable extends PreparedExecutable {
             throw new IllegalArgumentException("CPU partition composite facts disagree");
         }
         for (int index = 0; index < this.children.size(); index++) {
-            CpuPreparedExecutable child = this.children.get(index);
+            PreparedExecutable child = this.children.get(index);
             if (child.memoryPlan() != memoryPlan) {
                 throw new IllegalArgumentException("CPU child memory plan disagrees");
             }
@@ -130,10 +131,15 @@ public final class CpuPreparedPartitionExecutable extends PreparedExecutable {
         }
     }
 
-    /** Returns the retained topological child recipes without transferring ownership.
-     * @return the non-null immutable, non-empty child list
+    /**
+     * Returns the retained portable child recipes for compatibility inspection.
+     *
+     * @return the non-null immutable, non-empty portable child list
+     * @throws ClassCastException if this is a native-route composite
      */
-    public List<CpuPreparedExecutable> children() { return children; }
+    public List<CpuPreparedExecutable> children() {
+        return children.stream().map(CpuPreparedExecutable.class::cast).toList();
+    }
 
     /** Returns diagnostic topology facts; hot execution does not schedule from this graph.
      * @return the non-null immutable direct producer-index lists aligned with {@link #children()}
@@ -185,7 +191,7 @@ public final class CpuPreparedPartitionExecutable extends PreparedExecutable {
                                 "CPU partition workspaces must be distinct and disjoint");
         }
         var bound = new ArrayList<BoundInvocation>(children.size());
-        for (CpuPreparedExecutable child : children) bound.add(child.bind(state));
+        for (PreparedExecutable child : children) bound.add(child.bind(state));
         List<BoundInvocation> invocations = List.copyOf(bound);
         var copyCalls = new ArrayList<GeneratedCopyCall>(copies.size());
         for (CopyUnit copy : copies) {

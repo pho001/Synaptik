@@ -1,6 +1,7 @@
 package io.github.pho001.synaptik.backend.cpu.internal.prepare;
 
 import io.github.pho001.synaptik.backend.cpu.internal.route.portable.CpuPortableRoutePlan;
+import io.github.pho001.synaptik.backend.cpu.internal.route.nativeblas.openblas.CpuOpenBlasRoutePlan;
 import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuAccessPlan;
 import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuKernelIr;
 import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuSpecializedSubgraph;
@@ -121,6 +122,8 @@ import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuPool3dLowering
  *     a later owner explicitly supplies a compatible complete choice before finalization
  * @param partialReductionRecipe non-null optional private partial-reduction finalization handoff;
  *     current production preparation keeps it empty until trusted complete evidence exists
+ * @param openBlasPlan non-null optional exact post-lowering OpenBLAS route plan; present exactly
+ *     when {@code route} is {@link Route#OPENBLAS}
  */
 public record CpuPartitionPreparationPlan(List<ExecutionUnitPlan> units, Route route,
         ExecutionStrategy executionStrategy,
@@ -155,8 +158,103 @@ public record CpuPartitionPreparationPlan(List<ExecutionUnitPlan> units, Route r
         List<CpuMaterializationPlan> materializations,
         List<RepresentationUnitPlan> representationUnits,
         List<CpuRepresentationDecision> representationDecisions,
-        Optional<PartialReductionRecipe> partialReductionRecipe)
+        Optional<PartialReductionRecipe> partialReductionRecipe,
+        Optional<CpuOpenBlasRoutePlan> openBlasPlan)
         implements BackendPreparationPlan {
+
+    /**
+     * Preserves the complete pre-0010 construction surface with no OpenBLAS route plan.
+     *
+     * @param units non-null ordered computation units
+     * @param route non-null route, which must remain portable through this overload
+     * @param executionStrategy non-null selected execution strategy
+     * @param bufferDeclarations non-null ordered buffer declarations
+     * @param boundaryValues non-null ordered materialized boundary identities
+     * @param accessBindings non-null ordered normalized boundary bindings
+     * @param carrierPattern non-null ordered direct carrier forms
+     * @param generatedCarrierPattern non-null ordered generated-consumer carrier forms
+     * @param extents non-null compatible iteration extents
+     * @param elementCount checked logical element count
+     * @param affineAddressPairs non-null alternating affine addresses, or empty
+     * @param selectedRangeCount positive selected range count
+     * @param minimumElementsPerWorker positive minimum items per worker
+     * @param vectorSpeciesBitSize positive vector species size, or zero for scalar
+     * @param loweringManifest non-null optional diagnostic text
+     * @param materialization non-null optional selected one-input copy
+     * @param workspaceDeclaration non-null optional one-unit workspace declaration
+     * @param workspaceUse non-null workspace purpose
+     * @param specializationBudget non-null enforced specialization budget
+     * @param movementGeometry non-null optional movement geometry
+     * @param indexingGeometry non-null optional indexing geometry
+     * @param scatterGeometry non-null optional scatter geometry
+     * @param foldGeometry non-null optional fold geometry
+     * @param orderingGeometry non-null optional ordering geometry
+     * @param randomGeometry non-null optional random geometry
+     * @param scanGeometry non-null optional scan geometry
+     * @param aggregateGeometry non-null optional aggregate geometry
+     * @param argExtremaGeometry non-null optional arg-extrema geometry
+     * @param maskedReductionGeometry non-null optional masked-reduction geometry
+     * @param advancedReductionGeometry non-null optional advanced-reduction geometry
+     * @param softmaxGeometry non-null optional softmax geometry
+     * @param trailingNormalizationGeometry non-null optional trailing-normalization geometry
+     * @param batchNormInferenceGeometry non-null optional batch-inference geometry
+     * @param batchNormTrainingGeometry non-null optional batch-training geometry
+     * @param conv2dGeometry non-null optional Conv2d geometry
+     * @param specializedSubgraphs non-null ordered recognition facts
+     * @param fusionDecisions non-null ordered fusion decisions
+     * @param publicationBoundaryPositions non-null ordered publication-boundary positions
+     * @param materializations non-null ordered realized representation copies
+     * @param representationUnits non-null ordered representation-adjusted unit plans
+     * @param representationDecisions non-null ordered representation decisions
+     * @param partialReductionRecipe non-null optional partial-reduction handoff
+     * @throws NullPointerException if a required reference or list entry is {@code null}
+     * @throws IllegalArgumentException if the supplied complete plan facts disagree
+     */
+    public CpuPartitionPreparationPlan(List<ExecutionUnitPlan> units, Route route,
+            ExecutionStrategy executionStrategy,
+            List<PreparationResourceRequirement.Buffer> bufferDeclarations,
+            List<ValueId> boundaryValues, List<CpuAccessPlan.Binding> accessBindings,
+            List<CarrierAccess> carrierPattern, List<CarrierAccess> generatedCarrierPattern,
+            long[] extents, long elementCount, long[] affineAddressPairs,
+            int selectedRangeCount, long minimumElementsPerWorker, int vectorSpeciesBitSize,
+            String loweringManifest, Optional<CpuMaterializationPlan> materialization,
+            Optional<PreparationResourceRequirement.Workspace> workspaceDeclaration,
+            WorkspaceUse workspaceUse, CpuSpecializationBudget specializationBudget,
+            Optional<CpuNonAffineMovementLowering.Geometry> movementGeometry,
+            Optional<CpuIndexingLowering.Geometry> indexingGeometry,
+            Optional<CpuScatterLowering.Geometry> scatterGeometry,
+            Optional<CpuFoldLowering.Geometry> foldGeometry,
+            Optional<CpuOrderingLowering.Geometry> orderingGeometry,
+            Optional<CpuRandomLowering.Geometry> randomGeometry,
+            Optional<CpuScanLowering.Geometry> scanGeometry,
+            Optional<CpuAggregateLowering.Geometry> aggregateGeometry,
+            Optional<CpuArgExtremaLowering.Geometry> argExtremaGeometry,
+            Optional<CpuMaskedReductionLowering.Geometry> maskedReductionGeometry,
+            Optional<CpuAdvancedReductionLowering.Geometry> advancedReductionGeometry,
+            Optional<CpuSoftmaxLowering.Geometry> softmaxGeometry,
+            Optional<CpuTrailingNormalizationLowering.Geometry> trailingNormalizationGeometry,
+            Optional<CpuBatchNormInferenceLowering.Geometry> batchNormInferenceGeometry,
+            Optional<CpuBatchNormTrainingLowering.Geometry> batchNormTrainingGeometry,
+            Optional<CpuConv2dLowering.Geometry> conv2dGeometry,
+            List<CpuSpecializedSubgraph> specializedSubgraphs,
+            List<CpuFusionDecision> fusionDecisions,
+            List<Integer> publicationBoundaryPositions,
+            List<CpuMaterializationPlan> materializations,
+            List<RepresentationUnitPlan> representationUnits,
+            List<CpuRepresentationDecision> representationDecisions,
+            Optional<PartialReductionRecipe> partialReductionRecipe) {
+        this(units, route, executionStrategy, bufferDeclarations, boundaryValues, accessBindings,
+                carrierPattern, generatedCarrierPattern, extents, elementCount, affineAddressPairs,
+                selectedRangeCount, minimumElementsPerWorker, vectorSpeciesBitSize,
+                loweringManifest, materialization, workspaceDeclaration, workspaceUse,
+                specializationBudget, movementGeometry, indexingGeometry, scatterGeometry,
+                foldGeometry, orderingGeometry, randomGeometry, scanGeometry, aggregateGeometry,
+                argExtremaGeometry, maskedReductionGeometry, advancedReductionGeometry,
+                softmaxGeometry, trailingNormalizationGeometry, batchNormInferenceGeometry,
+                batchNormTrainingGeometry, conv2dGeometry, specializedSubgraphs, fusionDecisions,
+                publicationBoundaryPositions, materializations, representationUnits,
+                representationDecisions, partialReductionRecipe, Optional.empty());
+    }
 
     /** Preserves the pre-partial-reduction canonical construction surface. */
     public CpuPartitionPreparationPlan(List<ExecutionUnitPlan> units, Route route,
@@ -1209,9 +1307,22 @@ public record CpuPartitionPreparationPlan(List<ExecutionUnitPlan> units, Route r
         }
         return true;
     }
+
+    private static boolean openBlasCanonical(CpuAccessPlan.Binding binding, long rows,
+            long columns, CpuAccessPlan.AccessKind accessKind) {
+        long elements = Math.multiplyExact(rows, columns);
+        return binding.plan().accessKind() == accessKind
+                && binding.plan().regime() == CpuAccessPlan.Regime.DENSE_LINEAR
+                && binding.plan().iterationRank() == 2 && binding.baseElementOffset() == 0
+                && binding.extents().equals(List.of(rows, columns))
+                && binding.effectiveStrides().equals(List.of(columns, 1L))
+                && binding.elementCount() == elements && binding.start() == 0
+                && binding.end() == elements && binding.referencedElementSpan() == elements;
+    }
     /** Route selected after common lowering. */
     public enum Route {
-        /** Java 26 Class-File portable route selected after common lowering. */ PORTABLE
+        /** Java 26 Class-File portable route selected after common lowering. */ PORTABLE,
+        /** Narrow borrowed-provider OpenBLAS SGEMM or DGEMM route. */ OPENBLAS
     }
     /**
      * Orthogonal compute/orchestration vocabulary.
@@ -1262,7 +1373,7 @@ public record CpuPartitionPreparationPlan(List<ExecutionUnitPlan> units, Route r
      *
      * @param units non-null one-through-eight computation-unit list in stable topological order;
      *     copied defensively
-     * @param route non-null selected portable route
+     * @param route non-null selected portable or narrow OpenBLAS route
      * @param executionStrategy non-null selected compute/orchestration strategy
      * @param bufferDeclarations non-null derived-boundary declarations; copied defensively
      * @param boundaryValues non-null materialized values in declaration order; copied
@@ -1297,10 +1408,20 @@ public record CpuPartitionPreparationPlan(List<ExecutionUnitPlan> units, Route r
      * @param trailingNormalizationGeometry non-null optional trailing Layer/RMS geometry
      * @param batchNormInferenceGeometry non-null optional zero-workspace batch-normalization
      *     inference geometry
+     * @param batchNormTrainingGeometry non-null optional batch-normalization training geometry
+     * @param conv2dGeometry non-null optional grouped NCHW Conv2d geometry
+     * @param specializedSubgraphs non-null ordered CPU-private recognition facts
+     * @param fusionDecisions non-null ordered CPU-private fusion decisions
+     * @param publicationBoundaryPositions non-null ordered graph-publication boundary positions
+     * @param materializations non-null ordered realized representation copies
+     * @param representationUnits non-null ordered representation-adjusted consumer plans
+     * @param representationDecisions non-null ordered representation decisions
+     * @param partialReductionRecipe non-null optional partial-reduction finalization handoff
+     * @param openBlasPlan non-null optional exact OpenBLAS route plan
      * @throws NullPointerException if a required component is {@code null}
-     * @throws IllegalArgumentException if the plan is not one through eight portable units with
-     *     matching derived boundary and stable dependency facts, or if strategy, range,
-     *     materialization, workspace, species, or budget facts disagree
+     * @throws IllegalArgumentException if the plan is not one through eight valid CPU units with
+     *     matching route, boundary, dependency, strategy, range, materialization, workspace,
+     *     species, specialization, and optional OpenBLAS facts
      */
     public CpuPartitionPreparationPlan {
         units = List.copyOf(units);
@@ -1347,6 +1468,7 @@ public record CpuPartitionPreparationPlan(List<ExecutionUnitPlan> units, Route r
         representationDecisions = List.copyOf(representationDecisions);
         partialReductionRecipe = Objects.requireNonNull(partialReductionRecipe,
                 "partialReductionRecipe");
+        openBlasPlan = Objects.requireNonNull(openBlasPlan, "openBlasPlan");
         if (materializations.size() > 2
                 || materializations.stream().map(CpuMaterializationPlan::sourceBoundaryIndex)
                     .distinct().count() != materializations.size()
@@ -1368,13 +1490,58 @@ public record CpuPartitionPreparationPlan(List<ExecutionUnitPlan> units, Route r
             throw new IllegalArgumentException("CPU representation plan facts disagree");
         }
         boolean split = units.size() > 1;
-        if (units.isEmpty() || units.size() > 8 || route != Route.PORTABLE
+        if (units.isEmpty() || units.size() > 8
                 || bufferDeclarations.isEmpty()
                 || boundaryValues.size() != bufferDeclarations.size()
                 || accessBindings.size() != bufferDeclarations.size()
                 || carrierPattern.size() != bufferDeclarations.size()
                 || generatedCarrierPattern.size() != bufferDeclarations.size()) {
                 throw new IllegalArgumentException("CPU plan must contain one portable unit and matching boundaries");
+        }
+        if ((route == Route.OPENBLAS) != openBlasPlan.isPresent()) {
+            throw new IllegalArgumentException("CPU route and OpenBLAS plan must agree");
+        }
+        if (openBlasPlan.isPresent()) {
+            CpuOpenBlasRoutePlan nativePlan = openBlasPlan.orElseThrow();
+            var unit = units.getFirst();
+            var matmul = unit.portablePlan().specialization().matmulIr();
+            int copied = nativePlan.copiedBoundaryPosition();
+            if (units.size() != 1 || bufferDeclarations.size() != 3
+                    || unit.boundaryValues().size() != 3 || unit.outputCount() != 1
+                    || matmul.isEmpty() || unit.matmulGeometry().isEmpty()
+                    || matmul.orElseThrow().leftType() != nativePlan.dataType()
+                    || matmul.orElseThrow().rightType() != nativePlan.dataType()
+                    || matmul.orElseThrow().resultType() != nativePlan.dataType()
+                    || unit.matmulGeometry().orElseThrow().m() != nativePlan.m()
+                    || unit.matmulGeometry().orElseThrow().n() != nativePlan.n()
+                    || unit.matmulGeometry().orElseThrow().k() != nativePlan.k()
+                    || unit.matmulGeometry().orElseThrow().batchExtents().length != 0
+                    || unit.matmulGeometry().orElseThrow().batchCount() != 1
+                    || unit.matmulGeometry().orElseThrow().removedM()
+                    || unit.matmulGeometry().orElseThrow().removedN()
+                    || !matmul.orElseThrow().epilogue().equals(
+                            io.github.pho001.synaptik.backend.cpu.internal.ir.CpuMatmulIr
+                                    .Epilogue.none())
+                    || unit.portablePlan().specialization().numericalMode()
+                            != io.github.pho001.synaptik.backend.cpu.internal.cache
+                                    .CpuKernelSpecialization.NumericalMode.EXACT_DEFAULT
+                    || !openBlasCanonical(unit.accessBindings().get(2), nativePlan.m(),
+                            nativePlan.n(), CpuAccessPlan.AccessKind.WRITE)
+                    || copied != 0 && !openBlasCanonical(unit.accessBindings().get(0),
+                            nativePlan.m(), nativePlan.k(), CpuAccessPlan.AccessKind.READ)
+                    || copied != 1 && !openBlasCanonical(unit.accessBindings().get(1),
+                            nativePlan.k(), nativePlan.n(), CpuAccessPlan.AccessKind.READ)
+                    || copied >= 0 && (!nativePlan.materialization().orElseThrow()
+                            .sourceBinding().equals(unit.accessBindings().get(copied))
+                            || !openBlasCanonical(nativePlan.materialization().orElseThrow()
+                                    .consumerBinding(), copied == 0 ? nativePlan.m() : nativePlan.k(),
+                                    copied == 0 ? nativePlan.k() : nativePlan.n(),
+                                    CpuAccessPlan.AccessKind.READ))
+                    || materialization.isPresent() || workspaceDeclaration.isPresent()
+                    || !materializations.isEmpty() || !representationUnits.isEmpty()
+                    || partialReductionRecipe.isPresent()) {
+                throw new IllegalArgumentException("CPU OpenBLAS route facts disagree");
+            }
         }
         if (!bufferDeclarations.stream().map(PreparationResourceRequirement.Buffer::valueId)
                 .toList().equals(boundaryValues)

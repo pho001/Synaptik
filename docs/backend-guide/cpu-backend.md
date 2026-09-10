@@ -169,8 +169,9 @@ compatible repeated and cross-unit uses share one copy. Ordinary preparation sel
 declares none of those candidate-only resources. Capability and lowering fail closed for every other
 operation, type, shape, layout, parameter, alias, fan-out, publication, carrier, or route. In
 particular, cross-type CAST follows the completed Model conversion contract and does not infer a
-promotion or conversion mode. Native, tuning, excluded pointwise rows,
-native routes, model-autotuning promotion, and other operation families remain planned.
+promotion or conversion mode. Tuning, excluded pointwise rows, broader native routes,
+model-autotuning promotion, and other operation families remain planned. The one current native
+exception is the exact OpenBLAS MATMUL route described below.
 CPU-private specialized-subgraph recognition is current only
 as the cold, recognition-only boundary described below. Functional scatter,
 overlap fold, stable ordering, explicit-state random, cumulative-scan, and ordinary-aggregate
@@ -181,9 +182,9 @@ universal backend coverage.
 
 The lower-level OpenBLAS provider separately implements explicit library loading, required-symbol
 binding, a caller-owned lookup lifetime, low-level FLOAT32/FLOAT64 dense row-major general matrix
-multiplication (GEMM), and direct positive thread-count query/control. Those leaf capabilities do
-not make OpenBLAS a CPU route until a later CPU prepare task supplies truthful eligibility,
-normalization, fallback, and executable integration.
+multiplication (GEMM), and direct positive thread-count query/control. CPU preparation now
+consumes that leaf through one narrow qualified MATMUL route; the provider still does not own
+graph interpretation, route selection, materialization, fallback, or Runtime lifetime.
 
 ## Prerequisites and terms
 
@@ -204,7 +205,7 @@ deployment JVM permission for restricted native access.
 
 The CPU backend owns capability reporting, physical CPU representations, whole-partition lowering,
 specialization, fusion, route selection, executable units, and typed tracing.
-The Class-File/Vector portable baseline, narrow OpenBLAS fallback, and exact-capability vendor peers
+The Class-File/Vector portable baseline, narrow OpenBLAS route, and exact-capability vendor peers
 remain routes within one CPU owner. Fusion and specialization describe common lowering or a route
 configuration; they are not additional backend identities or provider-owned graph pipelines. The
 architecture does not require a particular bytecode-generation API.
@@ -694,8 +695,9 @@ fallback; it is not an `Operation` or IR interpreter inside Runtime.
 
 The portable route is bytecode-first Java 26 Class-File generation plus the Vector API and remains
 the always-available semantic fallback for every occurrence it supports. CPU 0005C completes all
-four execution strategies for the proving slice. OpenBLAS is a narrow cross-platform native fallback for eligible
-BLAS-compatible linear algebra, not the universal or preferred CPU route. Vendor/platform peers
+four execution strategies for the proving slice. OpenBLAS is a narrow cross-platform native route
+for eligible BLAS-compatible linear algebra, not the universal or preferred CPU route.
+Vendor/platform peers
 include Accelerate BLAS/vDSP/vForce on Apple CPU, distinct oneMKL BLAS/VML and oneDNN families on
 Intel, and distinct AOCL-BLAS/AOCL-LibM and optional ZenDNN families on AMD.
 
@@ -2618,6 +2620,68 @@ individual ratio was `1.002573`. The two complete materialization companion medi
 Java version, host, and protocol—not a permanent performance guarantee, universal speedup, native
 route claim, or cross-backend bitwise promise.
 
+### Current narrow OpenBLAS MATMUL route
+
+CPU preparation may replace the already-complete portable plan with one qualified OpenBLAS route
+only for a bare, one-node, one-unit, positive rank-two matrix product. `A[m,k]`, `B[k,n]`, and
+`C[m,n]` must all be FLOAT32 or all be FLOAT64; `m`, `n`, and `k` must fit the provider's signed
+32-bit `blasint` dimensions. The operation must use the exact default numerical mode, have no
+broadcast batch, inserted or removed vector axis, bias, terminal, or other epilogue, and produce a
+canonical dense row-major zero-offset output. Every failure or uncertain fact leaves the portable
+plan selected and declares no OpenBLAS-only workspace.
+
+The direct form requires expected native, type-width-aligned `MemorySegment` storage for all three
+matrices. Alternatively, CPU may use exactly one existing affine-copy plan to convert `A` or `B`
+from an admitted non-negative affine layout or heap carrier into one exact aligned, native,
+run-owned contiguous workspace. `C` is never copied, both inputs cannot be copied, and this route
+does not pack panels, transpose, batch, broadcast, or allocate provider-side storage. Common CPU
+lowering remains authoritative, and the selected plan retains the complete portable realization
+as analysis evidence; finalization and Runtime cannot reselect it as a fallback.
+
+Selection uses caller-supplied immutable qualification, expected storage, single-thread, and
+dimensionless cost facts. Let `O = m * n`, `W = m * n * k`, `R` be expected runs, and `E` be the
+copied input's logical element count, or zero for direct execution. Checked costs are:
+
+```text
+portable = R * (portableFixed + portablePerOutput * O + portablePerMac * W)
+
+openblas = R * (openblasFixed + openblasPerOutput * O + openblasPerMac * W
+                + copyFixed(if E > 0) + copyPerElement * E)
+```
+
+OpenBLAS wins only when its complete cost is strictly lower and the difference meets both the
+configured absolute and relative basis-point thresholds. Overflow, missing terms, equality, an
+invalid relative denominator, or insufficient benefit fails closed. Among eligible candidates,
+lower cost wins; an exact tie prefers fewer copies, then fewer workspace bytes, then stable order
+direct, copy `A`, copy `B`. Analysis performs no native query, benchmark, cache lookup, machine
+probe, allocation, or fixed vendor-priority choice.
+
+Composition owns the exact `OpenBlasLibrary` and must qualify the supplied 32-bit-`blasint`
+binary, install thread count one, exclude competing OpenBLAS calls and thread writers throughout
+prepared use, keep the handle open, and restore state afterward if desired. CPU finalization only
+borrows a strongly retained provider-free invocation adapter. Finalization and every cold bind
+require an open provider and observed count one. Cold binding then validates types, native
+segments, accessibility, alignment, complete spans, output writability, workspace geometry, and
+all output/workspace overlaps before any copy or provider mutation. The hot invocation makes
+exactly one `sgemm` or `dgemm` call on the invoking thread with `alpha = 1` and `beta = 0`. Closure,
+thread drift, binding failure, copy failure, or provider failure propagates; no selected native
+plan retries or falls back to portable execution.
+
+The explicit CPU checkpoint evaluates FLOAT32 and FLOAT64 direct and one-copy prepared routes
+against a higher-precision sum-of-products oracle. For unit roundoff `u` (`2^-24` for FLOAT32 or
+`2^-53` for FLOAT64), it requires `2 * k * u < 1`, defines
+`gamma = (2 * k * u) / (1 - 2 * k * u)`, and accepts finite absolute error no greater than:
+
+```text
+max(gamma * sumAbs, 4 * ulp(target-rounded higher-precision result))
+```
+
+Here `sumAbs` is the higher-precision sum of absolute exact products, and the ULP belongs to the
+target type. Separate bounded cases check one-NaN, sole-sign infinity, and unambiguous positive-
+zero classes. This is qualification evidence for the supplied binary, process, thread setting,
+and cases only; it is not a general OpenBLAS accuracy, determinism, compatibility, or performance
+claim.
+
 ### Current portable NCHW Pool2d family
 
 The portable CPU route accepts one fully static, resolved-layout `MAX_POOL2D` or
@@ -3049,9 +3113,10 @@ The reset replaces the flat execution package with unsupported `.internal` packa
 prepare, lowering, IR, portable code generation/emission, `route.portable`, cache, executable, and
 reference responsibilities. Java subpackages are not friends, so only the minimum collaboration
 contracts are technically public below `.internal`; `CpuCapabilityProvider` remains the sole
-supported public CPU API. CPU 0005A creates no native placeholder package. Later concrete tasks own
-`route.nativeblas` leaves for OpenBLAS/Accelerate/oneMKL/AOCL and `route.nativeops` leaves for
-vDSP/vForce/VML/oneDNN/AOCL-LibM/ZenDNN.
+supported public CPU API. CPU 0005A created no native placeholder package. CPU 0010 now owns the
+exact `route.nativeblas.openblas` leaf described above; later concrete tasks own distinct
+Accelerate/oneMKL/AOCL `route.nativeblas` leaves and vDSP/vForce/VML/oneDNN/AOCL-LibM/ZenDNN
+`route.nativeops` leaves.
 
 ### Generated class-byte persistence and evidence
 
@@ -3158,11 +3223,11 @@ borrowed for the call: the provider does not allocate, copy, retain, reinterpret
 Concurrent calls require caller-managed nonconflicting segment access, and callers must not race
 `close()` with invocation.
 
-This is an invocation boundary, not a CPU route. A later CPU prepare implementation must still
-decide whether OpenBLAS is eligible, normalize MATMUL and higher-level operations into this exact
-geometry, materialize transpose or layout conversions, pack when required, allocate and bind storage,
-construct prepared execution, choose and safely coordinate threads, and provide scalar or other
-fallback. Direct provider thread control does not perform any of those CPU decisions.
+This provider surface is an invocation boundary, not route selection. The current CPU route
+described above separately decides its exact bare-MATMUL eligibility, optional one-input affine
+copy, whole-plan cost, resource declarations, and prepared execution. Every broader transpose,
+packing, batch, higher-level operation, thread candidate, or fallback policy remains future CPU or
+composition work. Direct provider thread control does not perform any of those CPU decisions.
 
 ### Direct thread control
 
@@ -3229,8 +3294,9 @@ invocation completed without a reported failure. It does not establish particula
 |---|---|---|
 | Loading fails immediately for a short name | The operating-system loader cannot resolve the exact supplied name. | Supply an installed name the loader recognizes or use the absolute-path overload. |
 | Opening reports missing required symbols | The selected binary is incompatible or incomplete for the four-symbol contract. | Supply a compatible OpenBLAS C library; do not treat a partial binding as available. |
-| A caller expects scalar fallback after `OpenBlasLoadException` | Fallback policy was placed mentally in the leaf provider. | Handle policy in later CPU/composition code; the provider only reports loading failure. |
-| A caller passes batched, transposed, strided, offset, or tensor-shaped data directly to `sgemm`/`dgemm` | The low-level call was mistaken for CPU normalization. | Normalize and materialize the exact dense row-major product in future CPU prepare/execution code. |
+| A caller expects scalar fallback after `OpenBlasLoadException` | Fallback policy was placed mentally in the leaf provider. | Qualify availability before CPU analysis or handle loading in composition; the provider only reports loading failure. |
+| A caller passes batched, transposed, strided, offset, or tensor-shaped data directly to `sgemm`/`dgemm` | The low-level call was mistaken for CPU normalization. | Use the bounded current CPU route only for its exact eligible form; broader normalization remains future work. |
+| A selected CPU route silently falls back after provider closure or thread drift | Analysis-time ineligibility was confused with post-selection failure. | Keep the borrowed provider open and externally single-threaded; a selected native plan fails without reselection. |
 | A caller expects the provider to allocate or return `C` | The borrowed in-place ABI boundary was mistaken for a storage API. | Supply a writable, sufficiently large native `C` segment and retain its ownership. |
 | Two Java handles appear to have independent thread counts | Both may refer to the same loaded binary and mutable library/process state. | Conservatively coordinate their thread mutations together; do not infer sharing across independent copies or namespaces. |
 | A temporary thread setting remains after the Java owner closes | The provider owns only local lookup lifetime and does not retain or restore a prior value. | Capture a positive count, exclude competing native work, and restore explicitly through a still-open owner. |
@@ -3255,6 +3321,14 @@ deterministic fake handles. The isolated real-native checkpoint subsequently pas
 supplied compatible arm64 OpenBLAS 0.3.33 library, including shared thread-count observation,
 fixed SGEMM/DGEMM cases, and restoration of the original thread count. The ordered repository and
 architecture capability checkpoint then passed, and the provider milestone is complete.
+
+The separate CPU-route checkpoint later passed against the caller-supplied
+`/opt/homebrew/Cellar/openblas/0.3.34/lib/libopenblasp-r0.3.34.dylib`. It exercised FLOAT32 and
+FLOAT64 direct and one-copy prepared routes through CPU analysis, finalization, cold binding, and
+execution; the process reported `CPU OpenBLAS native checkpoint passed; restored thread count 16`.
+No alternate path was discovered or substituted. This bounded result uses the formula and
+exceptional-class checks in the current route section and does not supersede the provider's
+historical 0.3.33 evidence.
 
 The current CPU foundation provides the bounded fully static pointwise matrix, static
 resolved-layout affine family, and one-node static movement, indexing, functional-scatter,
@@ -3353,8 +3427,8 @@ tuning, materialization, or route boundaries above.
 No excluded
 aggregate/scatter form or later semantic family,
 BFLOAT16 pointwise SIMD or dropout numerical operation,
-cross-type CAST SIMD, dynamic layout, vector affine/scatter/fold/ordering execution, native fallback, backend-conformance
-result, public Engine integration, hardware-intrinsic guarantee, or performance result is
+cross-type CAST SIMD, dynamic layout, vector affine/scatter/fold/ordering execution, broader
+native fallback, public Engine integration, hardware-intrinsic guarantee, or performance result is
 implemented or promised.
 Ordinary provider tests
 prove Java validation and exact ABI forwarding, not installed-library numerical correctness. The

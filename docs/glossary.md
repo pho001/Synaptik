@@ -1334,18 +1334,19 @@ native/vendor realization, dynamic layouts, Vector API scatter, fold, ordering, 
 aggregate execution, gradients, and universal backend support are not part of this route
 increment.
 
-OpenBLAS is not another meaning of portable route. It is a narrow cross-platform native fallback
+OpenBLAS is not another meaning of portable route. It is a narrow cross-platform native route
 for eligible BLAS-compatible linear algebra. It is neither a universal fallback nor preferred over
 generated code by library identity.
 
-### CPU native peer route (planned)
+### CPU native peer route
 
 An exact-capability native realization compared with the portable route by CPU Prepare using
-whole-plan cost. Families include OpenBLAS for narrow BLAS-compatible work; Accelerate
-BLAS/vDSP/vForce on Apple CPU; distinct oneMKL BLAS/VML and oneDNN routes on Intel; and distinct
-AOCL-BLAS/AOCL-LibM and optional ZenDNN routes on AMD. Apple Silicon may use Accelerate, while
-other ARM targets retain portable code generation unless a later task supplies an explicitly
-verified provider. ARM itself does not name one native library.
+whole-plan cost. The current first realization is OpenBLAS for one qualified positive rank-two,
+same-type FLOAT32/FLOAT64 bare MATMUL, using direct native matrices or one existing affine input
+copy. Every uncertain or ineligible case remains portable during analysis; a selected native plan
+does not fall back later. Accelerate BLAS/vDSP/vForce on Apple CPU, distinct oneMKL BLAS/VML and
+oneDNN routes on Intel, and distinct AOCL-BLAS/AOCL-LibM and optional ZenDNN routes on AMD remain
+planned. ARM itself does not name one native library.
 
 Planning still selects one CPU backend owner. Common partition lowering, fusion legality and
 profitability, canonical CPU IR, access plans, materialization accounting, numerical/determinism
@@ -3488,9 +3489,10 @@ normalized call; it does not own Tensor rank adaptation, batching, broadcasting,
 layout conversion, packing, storage allocation, CPU route selection, or fallback.
 
 GEMM is therefore a native invocation primitive, not Synaptik's backend-independent
-[`MATMUL`](#matrix-multiplication--matmul) semantic contract. Future CPU lowering may use one or
-more GEMM calls to implement MATMUL, linear projection, attention, or convolution, but this
-provider surface alone does not implement those operations.
+[`MATMUL`](#matrix-multiplication--matmul) semantic contract. The current narrow CPU OpenBLAS route
+uses one GEMM call for its exact eligible MATMUL subset. Broader CPU lowering may later use one or
+more calls for other MATMUL forms, linear projection, attention, or convolution, but the provider
+surface alone does not implement those operations.
 
 ### OpenBLAS library handle / `OpenBlasLibrary`
 
@@ -3515,8 +3517,10 @@ provider-defined winner, thread changes are not serialized with GEMM, and close 
 the count. Callers own coordination and any restoration through a still-open owner.
 
 Caller matrix segments remain borrowed and the handle promises no OpenBLAS numerical policy. CPU
-prepare later owns OpenBLAS route selection and normalization, while CPU or composition policy
-owns configuration and fallback. See the [CPU backend guide](backend-guide/cpu-backend.md#current-low-level-openblas-foundation).
+prepare now owns one narrow qualified OpenBLAS MATMUL route, while composition owns provider
+selection, thread-state coordination, lifetime, and any restoration. Every broader normalization
+or fallback policy remains separately owned. See the [CPU backend
+guide](backend-guide/cpu-backend.md#current-narrow-openblas-matmul-route).
 
 ### Layout
 
@@ -3732,9 +3736,13 @@ It uses a complete scalar fallback plus bounded direct-N-vector, scalar-2x2, and
 forms. Each output or microtile traverses full K; parallel ranges own only independent output
 cells, rows, or M/N tiles. Exact FLOAT32/FLOAT64 rank-one bias and one recognized terminal may be
 fused when proved, otherwise the canonical split remains executable. Whole-value one-input
-materializations are retained candidates, while ordinary preparation remains direct; no native
-MATMUL route, K split, packed panel, or automatic materialization policy is current. See
-[the current portable MATMUL family](backend-guide/cpu-backend.md#current-portable-matmul-family)
+materializations remain general portable candidates, while ordinary portable preparation remains
+direct. Separately, the current narrow OpenBLAS route accepts only a qualified positive rank-two
+same-type FLOAT32/FLOAT64 bare MATMUL and may select direct native storage or exactly one existing
+affine input materialization by checked whole-plan cost. It adds no rank-one, batch, promotion,
+epilogue, K split, packed panel, automatic tuning, or late fallback. See
+[the current portable MATMUL family](backend-guide/cpu-backend.md#current-portable-matmul-family),
+[the current narrow OpenBLAS MATMUL route](backend-guide/cpu-backend.md#current-narrow-openblas-matmul-route),
 and
 [Matrix-multiplication expressions](api/tensor-api.md#matrix-multiplication-expressions).
 

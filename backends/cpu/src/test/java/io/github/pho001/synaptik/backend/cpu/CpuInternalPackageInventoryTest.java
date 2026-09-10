@@ -27,7 +27,7 @@ class CpuInternalPackageInventoryTest {
                 () -> assertEquals(Set.of("", "internal", "internal/memory", "internal/prepare",
                         "internal/lowering", "internal/ir", "internal/codegen/emit",
                         "internal/route/portable", "internal/cache", "internal/executable",
-                        "internal/reference"), packages),
+                        "internal/reference", "internal/route/nativeblas/openblas"), packages),
                 () -> assertEquals(Set.of(
                         "CpuCapabilityProvider.java", "package-info.java", "internal/package-info.java",
                         "internal/memory/CpuBorrowedBuffer.java", "internal/memory/CpuBufferArgument.java",
@@ -139,6 +139,11 @@ class CpuInternalPackageInventoryTest {
                         "internal/codegen/emit/package-info.java",
                         "internal/route/portable/CpuPortableRoutePlan.java",
                         "internal/route/portable/package-info.java",
+                        "internal/route/nativeblas/openblas/CpuOpenBlasRouteSelector.java",
+                        "internal/route/nativeblas/openblas/CpuOpenBlasRoutePlan.java",
+                        "internal/route/nativeblas/openblas/CpuOpenBlasInvocation.java",
+                        "internal/route/nativeblas/openblas/CpuOpenBlasPreparedExecutable.java",
+                        "internal/route/nativeblas/openblas/package-info.java",
                         "internal/cache/CpuGeneratedKernelArtifactStore.java",
                         "internal/cache/CpuGeneratorSchema.java", "internal/cache/CpuKernelSpecialization.java",
                         "internal/cache/CpuSpecializationBudget.java",
@@ -171,7 +176,6 @@ class CpuInternalPackageInventoryTest {
                         assertEquals(0, old.filter(Files::isRegularFile).count());
                     }
                 },
-                () -> assertFalse(Files.exists(root.resolve("internal/route/nativeblas"))),
                 () -> assertFalse(Files.exists(root.resolve("internal/route/nativeops"))));
     }
 }

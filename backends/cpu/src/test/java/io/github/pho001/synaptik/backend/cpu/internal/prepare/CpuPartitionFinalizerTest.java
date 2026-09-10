@@ -13,6 +13,9 @@ import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuAggregateLower
 import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuOrderingLoweringTest;
 import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuRandomLoweringTest;
 import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuMaterializationPlan;
+import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuMatmulLoweringTest;
+import io.github.pho001.synaptik.backend.cpu.internal.route.nativeblas.openblas.CpuOpenBlasInvocation;
+import io.github.pho001.synaptik.backend.cpu.internal.route.nativeblas.openblas.CpuOpenBlasPreparedExecutable;
 import io.github.pho001.synaptik.backend.cpu.internal.cache.CpuKernelSpecialization.CarrierAccess;
 import io.github.pho001.synaptik.model.operation.Operation;
 import io.github.pho001.synaptik.model.operation.layout.CompositionAxisAttrs;
@@ -48,11 +51,26 @@ import io.github.pho001.synaptik.model.operation.index.AxisScatterKind;
 import io.github.pho001.synaptik.model.operation.index.ScatterElementsAttrs;
 import io.github.pho001.synaptik.model.operation.index.ScatterReduction;
 import java.nio.file.Files;
+import java.lang.foreign.MemorySegment;
 import io.github.pho001.synaptik.model.operation.reduction.MultiAxisReductionAttrs;
 import io.github.pho001.synaptik.model.operation.convolution.Conv3dAttrs;
 
 public class CpuPartitionFinalizerTest {
     @TempDir Path root;
+
+    @Test void openBlasFinalizationRequiresTheSelectedOpenSingleThreadInvocation() {
+        var analysis = openBlasAnalysis();
+        var finalization = finalization(analysis);
+        assertThrows(IllegalArgumentException.class,
+                () -> new CpuPartitionFinalizer().finalizePartition(finalization));
+        assertThrows(IllegalStateException.class, () -> new CpuPartitionFinalizer(Optional.empty(),
+                Optional.empty(), Optional.of(invocation(false, 1))).finalizePartition(finalization));
+        assertThrows(IllegalStateException.class, () -> new CpuPartitionFinalizer(Optional.empty(),
+                Optional.empty(), Optional.of(invocation(true, 2))).finalizePartition(finalization));
+        assertInstanceOf(CpuOpenBlasPreparedExecutable.class,
+                new CpuPartitionFinalizer(Optional.empty(), Optional.empty(),
+                        Optional.of(invocation(true, 1))).finalizePartition(finalization));
+    }
 
     @Test void pool3dFinalizesExactBuffersNoWorkspaceAndOneSchema56Artifact() throws Exception {
         var base=io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuPool3dLoweringTest
@@ -497,5 +515,60 @@ public class CpuPartitionFinalizerTest {
         var memoryPlan = new PreparedMemoryPlan(entries, workspaceEntries);
         return new CpuPartitionFinalizer(root, workerGroup).finalizePartition(
                 new BackendPartitionFinalization<>(analysis, memoryPlan, assignments));
+    }
+
+    private static io.github.pho001.synaptik.prepare.analysis.BackendPartitionAnalysis<
+            CpuPartitionPreparationPlan> openBlasAnalysis() {
+        var base = CpuMatmulLoweringTest.context(DataType.FLOAT32, Shape.of(2, 3),
+                Shape.of(3, 2), Shape.of(2, 2));
+        var facts = java.util.Collections.nCopies(3,
+                new CpuPartitionAnalysisInputs.BoundaryStorageFact(true, Float.BYTES));
+        var inputs = new CpuPartitionAnalysisInputs(false,
+                java.util.Collections.nCopies(3, CarrierAccess.MEMORY_SEGMENT),
+                CpuPartitionAnalysisInputs.PortableExecutionConfig.DEFAULT,
+                CpuPartitionAnalysisInputs.MaterializationPolicy.DISABLED, false,
+                CpuPartitionAnalysisInputs.PartialReductionEvidence.NONE, facts,
+                CpuPartitionAnalysisInputs.OpenBlasRouteConfig.qualifiedSingleThread(
+                        100, 2, 10, 1, 1, 1, 1, 1));
+        var context = new io.github.pho001.synaptik.prepare.analysis.PrepareContext<>(
+                base.partition(), base.nodes(), base.values(), base.memoryRequirements(),
+                base.constants(), inputs);
+        return new CpuPartitionPreparer().analyze(context);
+    }
+
+    private static BackendPartitionFinalization<CpuPartitionPreparationPlan> finalization(
+            io.github.pho001.synaptik.prepare.analysis.BackendPartitionAnalysis<
+                    CpuPartitionPreparationPlan> analysis) {
+        var buffers = new ArrayList<PreparedMemoryPlan.BufferEntry>();
+        var workspaces = new ArrayList<PreparedMemoryPlan.WorkspaceEntry>();
+        var assignments = new ArrayList<PreparationResourceAssignment>();
+        for (var requirement : analysis.requirements()) {
+            if (requirement instanceof PreparationResourceRequirement.Buffer buffer) {
+                var slot = new BufferSlot(buffers.size());
+                buffers.add(new PreparedMemoryPlan.BufferEntry(slot, buffer.byteSize(),
+                        buffer.byteAlignment()));
+                assignments.add(new PreparationResourceAssignment.Buffer(buffer, slot,
+                        buffers.size() - 1));
+            } else if (requirement instanceof PreparationResourceRequirement.Workspace workspace) {
+                var slot = new WorkspaceSlot(workspaces.size());
+                workspaces.add(new PreparedMemoryPlan.WorkspaceEntry(slot, workspace.byteSize(),
+                        workspace.byteAlignment()));
+                assignments.add(new PreparationResourceAssignment.Workspace(workspace, slot,
+                        workspaces.size() - 1));
+            }
+        }
+        return new BackendPartitionFinalization<>(analysis,
+                new PreparedMemoryPlan(buffers, workspaces), assignments);
+    }
+
+    private static CpuOpenBlasInvocation invocation(boolean open, int threads) {
+        return new CpuOpenBlasInvocation() {
+            @Override public boolean isOpen() { return open; }
+            @Override public int threadCount() { return threads; }
+            @Override public void sgemm(int m, int n, int k, float alpha, MemorySegment a,
+                    MemorySegment b, float beta, MemorySegment c) { }
+            @Override public void dgemm(int m, int n, int k, double alpha, MemorySegment a,
+                    MemorySegment b, double beta, MemorySegment c) { }
+        };
     }
 }

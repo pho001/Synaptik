@@ -8,6 +8,8 @@ import io.github.pho001.synaptik.backend.cpu.internal.executable.CpuPreparedExec
 import io.github.pho001.synaptik.backend.cpu.internal.executable.CpuPreparedPartitionExecutable;
 import io.github.pho001.synaptik.backend.cpu.internal.executable.CpuWorkerGroup;
 import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuAccessPlan;
+import io.github.pho001.synaptik.backend.cpu.internal.route.nativeblas.openblas.CpuOpenBlasInvocation;
+import io.github.pho001.synaptik.backend.cpu.internal.route.nativeblas.openblas.CpuOpenBlasPreparedExecutable;
 import io.github.pho001.synaptik.prepare.BackendPartitionFinalization;
 import io.github.pho001.synaptik.prepare.BackendPartitionFinalizer;
 import io.github.pho001.synaptik.prepare.PreparationResourceAssignment;
@@ -23,8 +25,10 @@ import java.util.LinkedHashMap;
  * Post-assignment verification, artifact realization, and partition executable finalization.
  *
  * <p>Every deduplicated partition buffer assignment and every unit-local exact workspace
- * assignment is resolved and checked before the first artifact-store call. Finalization then
- * realizes one already-selected artifact per unit in stable order. It cannot change unit
+ * assignment is resolved and checked before the first artifact-store call. Portable finalization
+ * then realizes one already-selected artifact per unit in stable order. A selected OpenBLAS route
+ * instead requires an open borrowed single-thread invocation and realizes only its selected
+ * affine-copy artifact, when present. Finalization cannot change unit
  * topology, dependencies, materialization, generated carrier patterns, route, strategy,
  * specialization, or declaration geometry. A multi-unit result is wrapped in one CPU-private
  * atomic sequential composite; a one-unit result remains the direct child recipe. When the exact
@@ -39,9 +43,10 @@ public final class CpuPartitionFinalizer implements BackendPartitionFinalizer<Cp
     private final CpuClassFileKernelGenerator partialReductionGenerator =
             new CpuClassFileKernelGenerator();
     private final Optional<CpuWorkerGroup> workerGroup;
+    private final Optional<CpuOpenBlasInvocation> openBlasInvocation;
 
     /** Creates the default in-memory-only finalizer for single-thread plans. */
-    public CpuPartitionFinalizer() { this(Optional.empty(), Optional.empty()); }
+    public CpuPartitionFinalizer() { this(Optional.empty(), Optional.empty(), Optional.empty()); }
     /**
      * Creates a finalizer with optional trusted class-byte persistence.
      * @param trustedArtifactRoot non-null optional trusted local root; empty selects in-memory-only
@@ -49,7 +54,7 @@ public final class CpuPartitionFinalizer implements BackendPartitionFinalizer<Cp
      * @throws NullPointerException if {@code trustedArtifactRoot} is {@code null}
      */
     public CpuPartitionFinalizer(Optional<Path> trustedArtifactRoot) {
-        this(trustedArtifactRoot, Optional.empty());
+        this(trustedArtifactRoot, Optional.empty(), Optional.empty());
     }
 
     /**
@@ -63,8 +68,25 @@ public final class CpuPartitionFinalizer implements BackendPartitionFinalizer<Cp
      */
     public CpuPartitionFinalizer(Optional<Path> trustedArtifactRoot,
             Optional<CpuWorkerGroup> workerGroup) {
+        this(trustedArtifactRoot, workerGroup, Optional.empty());
+    }
+
+    /**
+     * Creates a finalizer with optional persistence and explicitly borrowed execution resources.
+     * Neither the worker group nor the OpenBLAS invocation is configured, restored, or closed.
+     *
+     * @param trustedArtifactRoot non-null optional trusted local artifact root
+     * @param workerGroup non-null optional caller-owned CPU worker group
+     * @param openBlasInvocation non-null optional caller-owned qualified OpenBLAS invocation
+     * @throws NullPointerException if an optional reference is {@code null}
+     */
+    public CpuPartitionFinalizer(Optional<Path> trustedArtifactRoot,
+            Optional<CpuWorkerGroup> workerGroup,
+            Optional<CpuOpenBlasInvocation> openBlasInvocation) {
         artifactStore = new CpuGeneratedKernelArtifactStore(trustedArtifactRoot);
         this.workerGroup = Objects.requireNonNull(workerGroup, "workerGroup");
+        this.openBlasInvocation = Objects.requireNonNull(openBlasInvocation,
+                "openBlasInvocation");
     }
 
     /** @return the stable non-null CPU ownership identity */
@@ -75,10 +97,13 @@ public final class CpuPartitionFinalizer implements BackendPartitionFinalizer<Cp
      * changing analysis.
      * @param finalization non-null complete shared post-assignment handoff
      * @return one immutable direct or composite partition-level executable that strongly retains
-     *     every selected artifact and only immutable prepared geometry; never {@code null}
+     *     every selected artifact or borrowed native invocation and only immutable prepared
+     *     geometry; never {@code null}
      * @throws NullPointerException if {@code finalization} is {@code null}
      * @throws IllegalArgumentException if ownership, assignments, specialization, or artifact
      *     realization is incompatible with the analyzed plan
+     * @throws IllegalStateException if a selected OpenBLAS invocation is closed or no longer has
+     *     the selected single-thread configuration
      */
     @Override public PreparedExecutable finalizePartition(
             BackendPartitionFinalization<CpuPartitionPreparationPlan> finalization) {
@@ -135,6 +160,9 @@ public final class CpuPartitionFinalizer implements BackendPartitionFinalizer<Cp
         if (assignedWorkspaces != workspaceDeclarations.size()) {
             throw new IllegalArgumentException("CPU finalization requires the exact workspace set");
         }
+        if (plan.route() == CpuPartitionPreparationPlan.Route.OPENBLAS) {
+            return finalizeOpenBlas(finalization, selections, workspaceSelections);
+        }
         if (plan.units().size() > 1 || !plan.materializations().isEmpty()) {
             return finalizeComposite(finalization, selections, workspaceSelections);
         }
@@ -183,6 +211,43 @@ public final class CpuPartitionFinalizer implements BackendPartitionFinalizer<Cp
                 unit.pool2dGeometry(), unit.pool3dGeometry(), unit.attentionGeometry(),
                 lossGeometry(unit),
                 unit.outputCount(), partialArtifact);
+    }
+
+    private PreparedExecutable finalizeOpenBlas(
+            BackendPartitionFinalization<CpuPartitionPreparationPlan> finalization,
+            List<PreparedExecutable.BufferSelection> selections,
+            java.util.Map<io.github.pho001.synaptik.prepare.analysis.PreparationResourceRequirement.Workspace,
+                    PreparedExecutable.WorkspaceSelection> workspaceSelections) {
+        var plan = finalization.analysis().plan();
+        var route = plan.openBlasPlan().orElseThrow(() -> new IllegalArgumentException(
+                "selected OpenBLAS route has no exact route plan"));
+        CpuOpenBlasInvocation invocation = openBlasInvocation.orElseThrow(() ->
+                new IllegalArgumentException("selected OpenBLAS route requires an invocation"));
+        if (!invocation.isOpen()) throw new IllegalStateException(
+                "borrowed OpenBLAS provider is closed");
+        if (invocation.threadCount() != 1) throw new IllegalStateException(
+                "borrowed OpenBLAS provider must be single-threaded");
+        List<PreparedExecutable.WorkspaceSelection> routeWorkspaces =
+                route.workspaceRequirement().stream().map(requirement -> {
+                    PreparedExecutable.WorkspaceSelection selection =
+                            workspaceSelections.get(requirement);
+                    if (selection == null) throw new IllegalArgumentException(
+                            "selected OpenBLAS workspace assignment is absent");
+                    return selection;
+                }).toList();
+        var nativeExecutable = new CpuOpenBlasPreparedExecutable(finalization.memoryPlan(),
+                selections, routeWorkspaces, route, invocation);
+        if (route.materialization().isEmpty()) return nativeExecutable;
+        var copy = route.materialization().orElseThrow();
+        var copyArtifact = artifactStore.loadOrGenerate(copy.copySpecialization(),
+                copy.copyIr().encodedKernelIr());
+        var copyUnit = new CpuPreparedPartitionExecutable.CopyUnit(copy, copyArtifact,
+                copy.sourceBoundaryIndex(), 0);
+        return new CpuPreparedPartitionExecutable(finalization.memoryPlan(), selections,
+                routeWorkspaces, List.of(PreparedExecutable.BufferAccess.READ_ONLY,
+                        PreparedExecutable.BufferAccess.READ_ONLY,
+                        PreparedExecutable.BufferAccess.WRITE_ONLY), List.of(copyUnit),
+                List.of(nativeExecutable), List.of(List.of()));
     }
 
     private PreparedExecutable finalizeComposite(
