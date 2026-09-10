@@ -22,7 +22,7 @@ family boundary before making a route decision.
 | --- | --- | --- |
 | 0009F1 | Complete | [MATMUL and convolution route decisions](0009f1-matmul-and-convolution-route-decisions.md). Separately retained MATMUL, Conv1d visible composition, and direct Conv2d/Conv3d generated bodies after source/test-backed complete-route decisions; no performance or JIT claim. |
 | 0009F2 | Complete | [Pooling route decisions](0009f2-pooling-route-decisions.md). Independently retained exact Pool1d composition and the separate direct generated Pool2d/Pool3d routes; no performance or JIT claim. |
-| 0009F3 | Draft | Sole next summary frontier; do not detail it early. |
+| 0009F3 | Ready | [Attention and BatchNorm route decisions](0009f3-attention-and-batch-normalization-route-decisions.md). Sole detailed frontier: independently retains current generated attention, inference BatchNorm, and training/statistic-transition BatchNorm on complete non-performance cost grounds. |
 
 The current source-backed boundaries are deliberately narrow:
 
@@ -161,8 +161,7 @@ in the same child.
 - Depends on Complete CPU 0009E3 and the established family evidence: CPU 0008F (MATMUL),
   0008/0008A (Conv2d/Conv1d/Conv3d), 0008G/0008G1 (pooling), 0008H (attention), and
   0007F1/0007F2 (BatchNorm inference/training).
-- 0009F1 and F2 are Complete. F3 is the sole next Draft summary frontier, depends on F2, and must
-  not be detailed yet.
+- 0009F1 and F2 are Complete. F3 is Ready, the sole detailed frontier, and depends on F2.
 - CPU 0009G remains Draft and follows F3. Do not detail 0009G here.
 
 ## Architecture impact
@@ -206,12 +205,11 @@ discrepancy was found.
 
 ## Implementation notes
 
-F1 and F2 are complete. F3 is the sole next Draft summary frontier. This parent remains Ready and
+F1 and F2 are complete. F3 is Ready and the sole detailed frontier. This parent remains Ready and
 incomplete until F3 completes.
 
 ## Completion summary
 
 F1 retained all four current routes and F2 retained exact Pool1d composition plus separate
-Pool2d/Pool3d generated routes, without migration or retirement. F3 is the sole next Draft
-summary frontier; 0009G remains later Draft and neither is detailed. No unresolved issue remains
-from F1/F2.
+Pool2d/Pool3d generated routes, without migration or retirement. F3 is the sole detailed Ready
+frontier; 0009G remains later Draft and is not detailed. No unresolved issue remains from F1/F2.
