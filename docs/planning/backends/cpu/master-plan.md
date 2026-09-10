@@ -294,7 +294,7 @@ created by 0005A. All consume the common analysis above; none creates another ba
 | 0009G | [Final support, correctness, hygiene, and inventory checkpoint](tasks/0009g-final-support-correctness-hygiene-and-inventory-checkpoint.md) | Complete | 0009F3 | Reconciled every live form to the readable ledger and exact generated/rejected accounting, with dense/general layout presence and meaningful selected-strategy facts. It preserves fail-closed pointwise validation for non-enum live forms. Existing performance facts remain historical; no universal strategy, structural, or performance proof is claimed. |
 | 0009G1 | [Scalar-strategy evidence correction](tasks/0009g1-scalar-strategy-evidence-correction.md) | Complete | 0009G | Added seven operation-specific selected-scalar witnesses while retaining ADD as the orchestration basis; the checkpoint now derives every live scalar-meaningful form and separately seals the exact eight-owner direct witness basis. No production, schema, selection-policy, or performance change. |
 | 0010 | [Narrow OpenBLAS BLAS-compatible native route](tasks/0010-narrow-openblas-blas-compatible-native-route.md) | Complete | 0005A; 0009G1; completed OpenBLAS provider | Added only `route.nativeblas.openblas` for positive rank-two same-type FLOAT32/FLOAT64 bare MATMUL, with direct native or one-input affine materialization, explicit provider/thread qualification, preserved portable plans, exact filtering, deterministic whole-plan transition cost, and native-free backend conformance through the staged preparation/finalization boundary; OpenBLAS is neither universal nor preferred. |
-| 0011 | Intel oneMKL BLAS and VML peer routes | Draft | 0005A; 0009; concrete Intel CPU use case and supported oneMKL ABI evidence | Add distinct `route.nativeblas.mkl` BLAS and `route.nativeops.mkl` VML leaves over shared analysis, without duplicating graph interpretation, fusion, access planning, or lifecycle ownership. |
+| 0011 | Intel oneMKL BLAS and VML peer routes | Blocked | 0005A; 0009; concrete Intel CPU use case and supported oneMKL ABI evidence | CPU 0005A and CPU 0009 are Complete, but the repository supplies neither external gate. Once both exist, add distinct `route.nativeblas.mkl` BLAS and `route.nativeops.mkl` VML leaves over shared analysis while preserving portable Java as the semantic fallback. |
 | 0012 | Intel oneDNN partition peer routes | Draft | 0005A; 0009; stable common CPU lowering; concrete DNN/ML use case and supported oneDNN ABI evidence | Add `route.nativeops.onednn` as a distinct eligible partition route over common lowering/IR and whole-plan cost, without collapsing it into oneMKL or portable code generation. |
 | 0013 | Apple Accelerate peer routes | Draft | 0005A; 0009; concrete Apple CPU use case and supported Accelerate ABI evidence | Add `route.nativeblas.accelerate` for BLAS and `route.nativeops.accelerate` for vDSP/vForce over shared analysis; Apple Silicon is capability-selected, while MPSGraph and Metal kernels remain outside CPU. |
 | 0014 | AMD AOCL-BLAS and AOCL-LibM peer routes | Draft | 0005A; 0009; concrete AMD CPU use case and supported AOCL ABI evidence | Add distinct `route.nativeblas.aocl` and `route.nativeops.aocl` leaves over shared analysis and whole-plan cost, preserving the portable fallback and avoiding provider-owned lowering. |
@@ -984,7 +984,28 @@ power. Corrective CPU 0008Q1A is now Complete with schema-64 self-contained bodi
 current FLOAT32/FLOAT64 special vector realization and carrier form, sealed semantic, structural,
 and five-fork evidence, and a completed documentation pass. CPU 0008Q1 is Complete with 203
 semantic fixtures, 256 generated forms, exact schema/hash/materialization provenance, and a
-completed documentation pass. CPU 0009 is Complete. Completed 0009A--G remain historical evidence. Parent CPU 0009D is Complete: D1--D4 retained generated routes. E1 retains partial integral, E1A retains masked, E1B1 retains log-sum-exp, E1B2 retains FLOAT64/FLOAT32/BFLOAT16 VARIANCE/STANDARD_DEVIATION, E1B3 retains FLOAT64/FLOAT32/BFLOAT16 L1_NORM/L2_NORM, E1C retains FLOAT64/FLOAT32/BFLOAT16 SOFTMAX/LOG_SOFTMAX, E2 retains static Layer/RMS, and E3 separately retains MSE, dense categorical, and index categorical generated routes because direct Java would increase implementation and verification work. E1B, E1C, E2, and E3 are Complete; parent 0009F and F1--F3 are Complete. 0009G reconciles all 120 live operation forms with meaningful selected-strategy facts, exact rejections, and proportionate hygiene, without universal structural or performance promotion. CPU 0009G1 is Complete: seven operation-specific selected-scalar witnesses now complement the unchanged ADD orchestration basis, every live scalar-meaningful form is covered, and the exact eight-owner direct witness basis is sealed. The corrected inventory contains 17,470 generated rows and 173 rejected rows, with SHA-256 `1dcb69796c00fe3793d86f3f4cc3e816176062a45312ddbbaadfba9f8036cf20`. Existing performance evidence, including the loss fork-0 NON_PASSING result and user-closed forks 1--4, is retained but fresh benchmarking is non-blocking. CPU 0010 is Complete with the qualified narrow OpenBLAS MATMUL route, its native-free staged-boundary conformance case, and the required real-native and documentation checkpoints. CPU 0011 is the next `Draft` CPU frontier; CPU 0012 through 0017 remain `Draft`. Prepare
+completed documentation pass. CPU 0009 is Complete. Completed 0009A--G remain historical evidence.
+Parent CPU 0009D is Complete: D1--D4 retained generated routes. E1 retains partial integral, E1A
+retains masked, E1B1 retains log-sum-exp, E1B2 retains FLOAT64/FLOAT32/BFLOAT16
+VARIANCE/STANDARD_DEVIATION, E1B3 retains FLOAT64/FLOAT32/BFLOAT16 L1_NORM/L2_NORM, E1C retains
+FLOAT64/FLOAT32/BFLOAT16 SOFTMAX/LOG_SOFTMAX, E2 retains static Layer/RMS, and E3 separately
+retains MSE, dense categorical, and index categorical generated routes because direct Java would
+increase implementation and verification work. E1B, E1C, E2, and E3 are Complete; parent 0009F
+and F1--F3 are Complete. 0009G reconciles all 120 live operation forms with meaningful selected-
+strategy facts, exact rejections, and proportionate hygiene, without universal structural or
+performance promotion. CPU 0009G1 is Complete: seven operation-specific selected-scalar witnesses
+now complement the unchanged ADD orchestration basis, every live scalar-meaningful form is
+covered, and the exact eight-owner direct witness basis is sealed. The corrected inventory
+contains 17,470 generated rows and 173 rejected rows, with SHA-256
+`1dcb69796c00fe3793d86f3f4cc3e816176062a45312ddbbaadfba9f8036cf20`. Existing performance
+evidence, including the loss fork-0 NON_PASSING result and user-closed forks 1--4, is retained but
+fresh benchmarking is non-blocking. CPU 0010 is Complete with the qualified narrow OpenBLAS
+MATMUL route, its native-free staged-boundary conformance case, and the required real-native and
+documentation checkpoints. CPU 0011 remains the ordered CPU frontier but is `Blocked`: CPU 0005A
+and CPU 0009 satisfy its repository dependencies, while no concrete Intel CPU use case or
+supported oneMKL BLAS/VML ABI evidence is present. No detailed CPU 0011 or inserted prerequisite
+specification is justified, and CPU 0012 through 0017 remain `Draft` rather than silently
+leapfrogging it. Prepare
 0003A is Complete.
 CPU 0005C preserves that exact slice and implements cold selection among all four portable
 strategies. It uses the preferred Java 26 FLOAT64 species only for direct contiguous runs and
@@ -1267,6 +1288,14 @@ not alter the ordered task rows or completed earlier CPU families.
 
 ## Open questions
 
+- CPU 0011 is blocked until external evidence supplies both a concrete Intel CPU target/workload
+  that bounds the BLAS/VML capability and supported oneMKL ABI evidence for the selected calls,
+  carriers, integer interface, calling convention, lifecycle/thread behavior, and exact numerical
+  contract. The repository contains no oneMKL provider plan, package, dependency, or compatible-
+  library checkpoint, and CPU 0010's OpenBLAS evidence is provider- and Darwin-arm64-specific.
+  A speculative repository-only spike cannot supply the missing use case or Intel environment, so
+  no prerequisite is inserted and no later CPU task advances out of order. Reassess CPU 0011 and
+  create its one detailed specification only after those inputs are supplied.
 - Exact route-specific configuration records, target fingerprints, and candidate-schema versions
   wait for implemented CPU routes and the shared opaque orchestration consumer.
 - Vendor ABI/lifetime layers remain inside the CPU backend unless a later explicit architecture
