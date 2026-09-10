@@ -22,7 +22,7 @@ execution because direct replacement would increase implementation and verificat
 softmax-style and E2 normalization are Complete retained generated routes. E3 separately retains
 the bounded generated MSE, dense categorical, and index categorical loss routes after complete
 non-performance cost decisions. CPU 0009 remains Ready and incomplete; parent 0009F is Complete,
-including F1, F2, and F3. CPU 0009G is the sole next Draft frontier.
+including F1, F2, and F3. CPU 0009G is the sole next Ready frontier.
 
 The default classification, subject to the active family's code review, is:
 
@@ -93,8 +93,8 @@ planning revision validates Markdown/status consistency and `git diff --check`; 
 - 0009F: Complete parent for per-family hybrid decisions covering MATMUL/convolution, pooling,
   attention, and batch normalization. [F1](0009f1-matmul-and-convolution-route-decisions.md),
   [F2 pooling](0009f2-pooling-route-decisions.md), and [F3 attention and BatchNorm](0009f3-attention-and-batch-normalization-route-decisions.md) are Complete.
-- 0009G: the sole next Draft frontier for final support, correctness, hygiene, inventory, and
-  documentation checkpoint.
+- 0009G: the sole next Ready frontier for final support, correctness, hygiene, inventory, and
+  documentation checkpoint: [final support, correctness, hygiene, and inventory checkpoint](0009g-final-support-correctness-hygiene-and-inventory-checkpoint.md).
 
 ## Architecture impact
 
@@ -152,6 +152,6 @@ corrected statistics, and E1B3 retains generated L1/L2 norms. E1C retains the co
 SOFTMAX/LOG_SOFTMAX generated route. E2 retains the complete static Layer/RMS generated route;
 E3 separately retains the complete bounded generated MSE, dense categorical, and index
 categorical routes. Parent F and F1--F3 are Complete; CPU 0009 remains Ready and incomplete, and
-G is the sole next Draft frontier.
+G is the sole next Ready frontier.
 
 Status: Ready
