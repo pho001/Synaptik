@@ -2,7 +2,7 @@
 
 ## Status
 
-Ready
+Complete
 
 ## Goal
 
@@ -123,24 +123,54 @@ its review is recorded.
 
 ## Local decisions
 
-Implementation draft—retain all three current generated routes independently:
+Decision — all three independent decisions are **retain current generated route**.
 
-- **Attention:** retain schema-57 generation. One/two outputs, mask/causal eligibility, stable
-  score/weight/output flow, broadcast/general layouts, typed carriers, aliases, range-private
-  scratch, canonical-mask cold validation, pre-write overlap failure, and prepared artifact/cache
-  invocation are one complete boundary. Equivalent direct bodies plus their proof and complete
-  retirement are greater work, not strictly cheaper. `CpuAttentionReferenceKernel` and actual
-  Class-File/decompilation evidence remain mandatory; no fallback/dual route is selected.
-- **Inference BatchNorm:** retain generation. Its five/one arbitrary-axis formula, channel-hoisted
-  range forms, broadcast vectors, promotion, carrier/layout matrix, empty/special validation, zero
-  workspace, overlap proof, cold binding, artifact/cache, and invocation would all be duplicated
-  before generated-route retirement. It is therefore not strictly cheaper; its reference and
-  generated-class evidence remain independent. No fallback/dual route is selected.
-- **Training BatchNorm/statistic transition:** retain generation. Its five/five three-pass,
-  exact-state scratch, corrected statistic transition, momentum/epsilon, five-output publication,
-  and mutation/overlap contract requires distinct direct-route and full-retirement proof. It is not
-  demonstrably strictly cheaper. Its reference and generated-class evidence remain independent; no
-  fallback/dual route is selected.
+- **Scaled-dot-product attention — retain schema-57 generation.** `CpuAttentionLowering`,
+  `CpuAttentionIr`, `CpuAttentionEmitter`, and `CpuAttentionReferenceKernel` are a single
+  selected route, not interchangeable implementation fragments. They retain both one-output and
+  ordered two-output entry shapes; right-broadcast canonical-BOOL mask and top-left causal
+  eligibility; finite explicit/default scale; promoted BFLOAT16/FLOAT32/FLOAT64 arithmetic;
+  static broadcast-batch/query/key/value geometry; normalized layouts; typed array,
+  native-order-segment, and mixed carriers; and first-occurrence role aliases. The row owns stable
+  score classification, weight formation, output stores, NaN/infinite/signed-zero outcomes,
+  complete-row ranges, and aligned range-private score/weight scratch. `S == 0` result-only work
+  remains a legal zero range. Cold binding validates every distinct mask coordinate and every
+  input/output/workspace overlap before workers or writes; finalization realizes only the selected
+  artifact and cache identity after assignment; prepared invocation receives typed carriers,
+  packed geometry, range, and scratch without selecting a route. A direct finite typed Java body
+  would have to reproduce that boundary and then retire the lowering, IR, emitter selection,
+  binding, invocation, schema-57 specialization/artifact/cache, inventory, and generated evidence.
+  That is greater work than retention, not strictly cheaper. No fallback or dual route is selected.
+
+- **BatchNorm inference — retain schema-49 generation.** `CpuBatchNormInferenceLowering`,
+  `CpuBatchNormInferenceIr`, `CpuBatchNormInferenceEmitter`, and
+  `CpuBatchNormInferenceReferenceKernel` separately own the five-input/one-output arbitrary-axis
+  formula. The retained body preserves channel-hoisted channel-range or flattened non-channel
+  range ownership; promoted BFLOAT16/FLOAT32/FLOAT64 arithmetic; finite positive epsilon;
+  broadcast vectors; dense/general non-negative layouts; typed array/segment/mixed carriers;
+  empty output or channel work; and the frozen special-value and signed-zero behavior. It declares
+  zero workspace and materialization, rejects every input/output overlap before writes, then
+  cold-selects and invokes the compatible generated artifact using exact carrier/layout/alias/range
+  facts. A direct replacement would duplicate the complete formula/access/range/validation body
+  and retire all lowerer/IR/emitter, cold binding/invocation, schema-49 artifact/cache, inventory,
+  and evidence paths. That complete migration is greater work than retention, not strictly
+  cheaper. No fallback or dual route is selected.
+
+- **BatchNorm training/statistic transition — retain schema-50 generation.**
+  `CpuBatchNormTrainingLowering`, `CpuBatchNormTrainingIr`,
+  `CpuBatchNormTrainingEmitter`, and `CpuBatchNormTrainingReferenceKernel` retain the independent
+  five-input/five-output transition. Each channel range owns its complete three-pass reduction,
+  corrected biased/unbiased variance computation, momentum transition, epsilon/inverse-standard-
+  deviation order, four scalar-statistic publications, and normalized-affine output pass. Every
+  non-empty range receives a private exact-state scratch slice; empty channel work has no limbs or
+  slice. The route preserves promoted BFLOAT16/FLOAT32/FLOAT64 arithmetic, arbitrary axis and
+  layout/carrier addressing, special values, all five injective outputs, and every input/output,
+  output/output, and workspace overlap rejection before publication writes. Cold analysis declares
+  the five buffers and exact workspace; finalization realizes the selected schema-50 artifact/cache
+  after assignment; typed prepared invocation publishes all five outputs without route selection.
+  A direct replacement must duplicate all of this and fully retire the selected lowerer/IR/emitter,
+  binding/invocation, schema/cache/artifact, inventory, and generated-only evidence. It is greater
+  work than retention and not demonstrably strictly cheaper. No fallback or dual route is selected.
 
 ## Known limitations
 
@@ -149,17 +179,52 @@ neither BatchNorm route becomes Layer/RMS normalization or a generic reduction.
 
 ## Validation evidence
 
-The planning context read the required architecture/planning/documentation sources and current
-Model/Compiler attention and BatchNorm contracts; CPU lowerers, IRs, emitters, references, tests,
-workspace/preparation/finalization/executable paths, artifact/cache/schema, and inventory. It
-found no architecture uncertainty. No executable or Javadoc source changed during planning, so no
-Gradle command was run. Completion evidence is empty until separate implementation and
-documentation contexts finish.
+The separate clean documentation-focused context read the required architecture and planning
+contracts, documentation rules and General/Planning profiles, CPU 0009/F/F1/F2/F3, and relevant
+attention and BatchNorm contracts, sources, and tests. The three retained routes have independent
+clean-Java oracle and generated evidence owners: attention is schema 57, inference BatchNorm is
+schema 49, and training BatchNorm is schema 50. Complete direct replacement would duplicate each
+family's lowering/IR/emitter, cold validation and binding, invocation, artifact/cache/inventory,
+and retirement proof, so it is not strictly cheaper. No fallback or dual route is selected.
+
+The coordinating implementation context ran the focused Gradle command once with
+`JAVA_TOOL_OPTIONS` propagating `synaptik.cpu.attention.structuralEvidenceRoot`; it completed
+`BUILD SUCCESSFUL` in 1m16s (22 tasks). XML records one passing
+`emitsAndScansExactElevenThousandEightHundredEightyInventory` test in 66.768 seconds, with zero
+failures, errors, or skips. This pass independently inspected
+`/private/tmp/synaptik-cpu-0009f3-attention-gradle.bRpgDy`: its manifest validates and has
+SHA-256 `b75ad1aee6c2503a3cc2aad1a0477e63b85e9f0e65f8d7eded83829ffe282e39`; it contains 11,880
+class files. `summary.txt` agrees on 11,880 classes, 992 rows, 456 skeletons, 312 fragments,
+inventory hash `1d0dc5b397429da4e876252b82b05bf0e9e8a63b8100c9638aadfebea78921a2`, and `javap` hash
+`6b827dee6c1a953c4e3ac7a20834632e62795c239b5fd609539ed4e36fd3ec84`.
+
+The attention correction is limited to the inventory assertion and its comment: the loop has 57
+legal mappings—27 distinct-role, 27 two-role-alias, and three all-role-alias
+(`27 + 9 + 9 + 9 + 3`)—rather than 58. It changes neither a generated route nor numerical
+behavior. Separately generated BatchNorm evidence was inspected: inference has eight classes and
+manifest hash `d29041359f916941395bea4f3855fc2983c738fc88c27f5275a640c259728467`; training has
+eight classes and manifest hash
+`995ad93566225b7dfb452b0836edbd732d8fab9201c80b74434b92c7e304176e`.
+
+No Java test was rerun by this documentation pass. No benchmark, timing mode, performance fork,
+broad validation, architecture test, backend-conformance test, or integration test ran: the
+correction changes no shared boundary, conformance contract, or end-to-end behavior. Javadoc,
+glossary, architecture, production source, Model/Compiler/Training APIs, shared lifecycle, build,
+conformance, and integration documentation were reviewed and need no change because neither
+behavior nor reusable terminology changed.
 
 ## Implementation notes
 
-Empty until implemented.
+No Java migration is selected. The documentation pass finalized the parent/master/roadmap status
+records. The attention assertion now matches the legal 57-mapping inventory; no generated route is
+changed.
 
 ## Completion summary
 
-Empty until implemented.
+Completed independent retained-route decisions: schema-57 attention, schema-49 BatchNorm
+inference, and schema-50 BatchNorm training remain generated because complete direct replacement,
+verification, and retirement are not strictly cheaper. Corrected the attention inventory from 58
+to the legal 57-row role-alias partition. No production Javadoc, glossary, architecture, build,
+conformance, or integration update is needed. CPU 0009G is the sole next Draft frontier.
+
+Status: Complete

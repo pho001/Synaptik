@@ -244,7 +244,10 @@ class CpuAttentionEvidenceTest {
           if (k == v) result.add(new Mapping(List.of(q, k, v), List.of(0, 1, 1)));
           if (q == k && k == v) result.add(new Mapping(List.of(q, k, v), List.of(0, 0, 0)));
         }
-    assertEquals(58, result.size());
+    // CPU 0008H's closed inventory is 27 distinct-role, 27 two-role-alias, and three
+    // all-role-alias mappings. The loop above deliberately enumerates that exact 57-row
+    // partition, including all five legal role partitions when q, k, and v share a type.
+    assertEquals(57, result.size());
     return result;
   }
 
