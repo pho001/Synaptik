@@ -2,7 +2,7 @@
 
 ## Status
 
-Ready
+Complete
 
 ## Goal
 
@@ -21,8 +21,9 @@ owners, E1B1 log-sum-exp, E1B2 corrected statistics, and E1B3 norms, retain boun
 execution because direct replacement would increase implementation and verification work. E1C
 softmax-style and E2 normalization are Complete retained generated routes. E3 separately retains
 the bounded generated MSE, dense categorical, and index categorical loss routes after complete
-non-performance cost decisions. CPU 0009 remains Ready and incomplete; parent 0009F is Complete,
-including F1, F2, and F3. CPU 0009G is the sole next Ready frontier.
+non-performance cost decisions. Parent 0009F, including F1, F2, and F3, is Complete. 0009G
+completed the final support, correctness, hygiene, and inventory accounting checkpoint, closing
+CPU 0009 without a universal strategy, structural-oracle, or performance claim.
 
 The default classification, subject to the active family's code review, is:
 
@@ -88,13 +89,14 @@ planning revision validates Markdown/status consistency and `git diff --check`; 
   mask, selected exact-state, binding, invocation, inventory, and retirement work. E1B1 is
   Complete as a retained generated log-sum-exp route, E1B2 is Complete as a retained generated
   corrected statistical route, and E1B3 is Complete as a retained generated L1/L2 norm route.
-  E1B, E1C, E2, and E3 are Complete retained-generated-route decisions. CPU 0009 remains Ready
-  and incomplete; parent 0009F is Complete, including F1, F2, and F3.
+  E1B, E1C, E2, and E3 are Complete retained-generated-route decisions. Parent 0009F is
+  Complete, including F1, F2, and F3.
 - 0009F: Complete parent for per-family hybrid decisions covering MATMUL/convolution, pooling,
   attention, and batch normalization. [F1](0009f1-matmul-and-convolution-route-decisions.md),
   [F2 pooling](0009f2-pooling-route-decisions.md), and [F3 attention and BatchNorm](0009f3-attention-and-batch-normalization-route-decisions.md) are Complete.
-- 0009G: the sole next Ready frontier for final support, correctness, hygiene, inventory, and
-  documentation checkpoint: [final support, correctness, hygiene, and inventory checkpoint](0009g-final-support-correctness-hygiene-and-inventory-checkpoint.md).
+- 0009G is Complete: its [final support, correctness, hygiene, and inventory checkpoint](0009g-final-support-correctness-hygiene-and-inventory-checkpoint.md)
+  reconciles all 120 live operation forms with the readable ledger and records selected strategy
+  facts only where they are meaningful.
 
 ## Architecture impact
 
@@ -136,13 +138,18 @@ finalization reused that evidence because no executable Java changed, inspected 
 its evidence owners, and synchronized the four planning records without benchmarking or running a
 repository-wide suite.
 
+0009G's specified focused command passed after its final test/resource edits;
+`:backends:cpu:test` passed with 931 tests, 28 skipped, and zero failures or errors,
+`:backends:cpu:javadoc` passed, and root `test` passed on 2026-09-10. Its documentation-focused
+pass made Markdown-only status/evidence edits and reused those results.
+
 ## Implementation notes
 
 None.
 
 ## Completion summary
 
-CPU 0009 remains Ready and incomplete. Parent 0009D is Complete: D1 through D4 are
+CPU 0009 is Complete. Parent 0009D is Complete: D1 through D4 are
 retained-generated-route decisions; the D4 fold result preserves the full 32-row generated family
 because a complete direct Java replacement would increase total implementation and verification
 work. CPU 0009E1 and E1A are Complete retained-generated-route decisions; E1A retains the
@@ -151,7 +158,8 @@ verification work. E1B is Complete: E1B1 retains generated log-sum-exp, E1B2 ret
 corrected statistics, and E1B3 retains generated L1/L2 norms. E1C retains the complete stable
 SOFTMAX/LOG_SOFTMAX generated route. E2 retains the complete static Layer/RMS generated route;
 E3 separately retains the complete bounded generated MSE, dense categorical, and index
-categorical routes. Parent F and F1--F3 are Complete; CPU 0009 remains Ready and incomplete, and
-G is the sole next Ready frontier.
+categorical routes. Parent F and F1--F3 are Complete. 0009G reconciles every live operation form
+with the readable ledger, exact generated/rejected accounting, meaningful selected strategies,
+and existing evidence owners. It does not promote partial structural or performance evidence.
 
-Status: Ready
+Status: Complete

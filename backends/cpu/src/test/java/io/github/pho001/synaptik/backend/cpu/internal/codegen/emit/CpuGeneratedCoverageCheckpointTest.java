@@ -187,6 +187,52 @@ class CpuGeneratedCoverageCheckpointTest {
                 .everyLossInventoryRowDefinesAndInvokesItsActualGeneratedEntryAgainstIndependentOracle();
     }
 
+    @Test void familyLedgerClassifiesEveryLiveOperationFormAndEveryMeaningfulExecutionFact()
+            throws Exception {
+        Map<String, String[]> rows = parse(resource("generated-coverage-inventory.tsv"));
+        Map<String, String[]> ledger = parseFamilyLedger(resource("operation-family-form-ledger-v3.tsv"));
+        Set<String> liveForms = rows.values().stream().map(row -> row[2])
+                .collect(java.util.stream.Collectors.toUnmodifiableSet());
+
+        assertEquals(liveForms, ledger.keySet().stream().filter(liveForms::contains)
+                .collect(java.util.stream.Collectors.toUnmodifiableSet()),
+                "every provider/preparer form has one readable ledger classification");
+        assertEquals(Set.of("ALL+ANY", "MIN+MAX",
+                        "RESHAPE+EXPAND+PERMUTE+EXPAND_DIMS+SQUEEZE+SELECT+SLICE"),
+                ledger.keySet().stream().filter(form -> !liveForms.contains(form))
+                        .collect(java.util.stream.Collectors.toUnmodifiableSet()),
+                "only explicit historical summary rows may be broader than one live form");
+
+        Set<String> requested = Set.of("SCALAR", "VECTOR_IF_ELIGIBLE");
+        Set<String> selected = Set.of("scalar", "vector", "parallel-scalar", "parallel-vector");
+        boolean dense = false;
+        boolean general = false;
+        Set<String> observedSelected = new java.util.TreeSet<>();
+        for (var entry : rows.entrySet()) {
+            String owner = entry.getKey();
+            String[] row = entry.getValue();
+            assertFalse(row[2].isBlank() || row[4].isBlank() || row[9].isBlank() || row[10].isBlank(), owner);
+            dense |= row[10].contains("DENSE") || row[10].contains("CONTIGUOUS");
+            general |= row[10].contains("GENERAL") || row[10].contains("BLOCK") || row[10].contains("LAST_AXIS");
+            if ("GENERATED".equals(row[21])) {
+                assertTrue(requested.stream().anyMatch(strategy -> row[11].startsWith(strategy + ':')), owner);
+                assertTrue(selected.contains(row[12]), owner);
+                assertFalse(row[9].contains("N/A_") || row[10].contains("N/A_")
+                        || row[18].contains("N/A_") || row[19].contains("N/A_"), owner);
+                observedSelected.add(row[12]);
+            } else {
+                assertTrue(row[11].startsWith("N/A_") || requested.stream()
+                        .anyMatch(strategy -> row[11].startsWith(strategy + ':')), owner);
+                assertTrue(row[12].startsWith("N/A_"), owner);
+                assertEquals("N/A_NO_GENERATED_CODE", row[25], owner);
+                assertEquals("N/A_NO_GENERATED_CODE", row[26], owner);
+            }
+        }
+        assertTrue(dense, "contiguous/dense forms remain represented");
+        assertTrue(general, "non-contiguous/general forms remain represented");
+        assertEquals(selected, observedSelected, "each selected strategy has an exact owner");
+    }
+
     private static void assertGeneratedOwnerPartitions(Map<String, String[]> rows) {
         Map<String, Long> expected = Map.of(
                 "specialized", 12_850L,
@@ -252,6 +298,21 @@ class CpuGeneratedCoverageCheckpointTest {
                     fixture.operationForm(), fixture.context(), fixture.reason());
         }
         return new TreeMap<>(CpuGeneratedCoverageEvidenceRegistry.snapshot());
+    }
+
+    private static Map<String, String[]> parseFamilyLedger(String text) {
+        String[] lines = text.split("\n", -1);
+        Map<String, String[]> ledger = new TreeMap<>();
+        for (String line : lines) {
+            if (line.startsWith("#") || line.isBlank()) continue;
+            if (line.startsWith("operation\t")) continue;
+            String[] row = line.split("\t", -1);
+            assertEquals(24, row.length, "ledger row");
+            for (String field : row) assertFalse(field.isBlank(), "ledger field for " + row[0]);
+            assertNull(ledger.put(row[0], row), "duplicate ledger operation " + row[0]);
+        }
+        assertEquals(123, ledger.size(), "readable ledger forms including three historical summaries");
+        return ledger;
     }
 
     @Test void exactOwnerRejectsEveryJoinDimensionAndStaticRegistryState() {

@@ -362,7 +362,9 @@ class CpuGeneratedDirectEvidenceClosureTest {
             assertTrue(stream != null);
             var rows = new String(stream.readAllBytes(), java.nio.charset.StandardCharsets.UTF_8).lines()
                     .filter(line -> !line.startsWith("# ")).skip(1).map(line -> line.split("\\t", -1)).toList();
-            var ledger = rows.stream().filter(row -> row[1].equals("pointwise")).map(row -> row[0]).toList();
+            var ledger = rows.stream().filter(row -> row[1].equals("pointwise"))
+                    .map(row -> row[0]).filter(CpuGeneratedDirectEvidenceClosureTest::isPointwiseOpcode)
+                    .toList();
             assertEquals(CpuPointwiseOpcode.values().length, ledger.size());
             assertEquals(CpuPointwiseOpcode.values().length, ledger.stream().distinct().count());
             assertEquals(EnumSet.allOf(CpuPointwiseOpcode.class), ledger.stream()
@@ -397,6 +399,15 @@ class CpuGeneratedDirectEvidenceClosureTest {
                 assertTrue(inventoryForeignKeys.containsKey(opcode), kind + " inventory foreign key");
                 assertTrue(rows.stream().anyMatch(row -> row[1].equals(kind.name())), kind + " scalar row foreign key");
             }
+        }
+    }
+
+    private static boolean isPointwiseOpcode(String operation) {
+        try {
+            CpuPointwiseOpcode.valueOf(operation);
+            return true;
+        } catch (IllegalArgumentException ignored) {
+            return false;
         }
     }
 

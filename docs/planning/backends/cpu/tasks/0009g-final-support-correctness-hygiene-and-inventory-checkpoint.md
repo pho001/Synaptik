@@ -2,7 +2,7 @@
 
 ## Status
 
-Ready
+Complete
 
 ## Goal
 
@@ -209,12 +209,47 @@ facts remain historical fail-closed evidence and cannot be relabelled as passing
 
 ## Validation evidence
 
-Empty until implemented.
+The implementation context ran the specified six-class focused CPU command after the final
+test/resource edits; it passed. The final CPU capability checkpoint also passed on 2026-09-10:
+`./gradlew :backends:cpu:test` reported 931 tests, 28 skipped, and zero failures or errors, and
+`./gradlew :backends:cpu:javadoc` passed. Repository validation, `./gradlew test`, passed. The
+implementation context also reported `git diff --check` passing before this documentation pass.
+
+The separate documentation-focused context
+`01a08bb5-c7ad-79a1-98aa-b047cd6ffd64` reviewed the final four-file implementation diff, the
+live-inventory checkpoint and its evidence owners, the parent and completed 0009A--F3
+records, the CPU master plan, roadmap, CPU guide, glossary, current Javadocs, and the applicable
+General, Planning, and Javadoc profiles. It did not rerun Java/Gradle tests because its edits are
+Markdown only and the supplied executable evidence is current. It verified that the new readable
+ledger rows cover all 120 live operation forms; dense/general layout presence and the four
+actually selected strategies are asserted, while unsupported or non-meaningful strategies are
+not represented as universal support. The checkpoint remains proportional hygiene and
+support-accounting evidence, not universal clean-Java-oracle or performance proof.
+
+No CPU guide update is needed: no CPU capability, route, user workflow, or public behavior
+changed. No Javadoc update or generation rerun is needed: production Java and its contracts did
+not change, and the supplied CPU Javadoc generation passed. No glossary update is needed:
+"requested strategy", "selected strategy", dense/general layout, and generated route are
+existing terms whose meanings did not change. No architecture, build, backend-conformance, or
+integration documentation/test update is needed: the diff changes neither dependencies nor
+backend or end-to-end behavior.
 
 ## Implementation notes
 
-Empty until implemented.
+The readable ledger is deliberately an accountable summary of the finite live inventory, rather
+than a claim that every form supports every strategy. The 45 added rows classify previously
+unrepresented live forms; the three pre-existing broad historical summary rows remain explicit.
+No direct/generated route changed.
 
 ## Completion summary
 
-Empty until implemented.
+CPU 0009G completes the final truthful CPU support/correctness checkpoint. The four changed
+test/resource paths reconcile all 120 live operation forms with the readable ledger, preserve the
+17,463 generated plus 173 exact rejected owner partition, prove dense/general layout presence,
+and observe all four actually selected strategies. Pointwise ledger validation remains
+fail-closed while accepting live pointwise forms outside the opcode enum. The result does not
+claim universal strategy availability, universal structural-oracle coverage, or performance
+success. Historical CPU 0008I fork-0 NON_PASSING evidence (19 of 792 above 1.15; worst
+1.3861164205039096) and user-closed forks 1--4 remain unchanged. No follow-up is required.
+
+Status: Complete

@@ -66,7 +66,7 @@ class CpuPointwiseLedgerEvidenceTest {
             "F-FOLD2D", "retained-sort", "O-ARGSORT", "retained-top-k",
             "R-INITIAL-STATE-GENERATED", "R-DROPOUT-GENERAL", "retained-scan",
             "C-SCAN-GENERAL", "X-MIN-MULTI", "X-ANY-SINGLE", "retained-numerical",
-            "N-MEAN-GENERAL", "N-PROD-MULTI");
+            "N-MEAN-GENERAL", "N-PROD-MULTI", "retained-generated");
 
     @Test void replacementHasExactProvenanceInventoryAndSchema() throws Exception {
         Ledger ledger = read();
@@ -79,13 +79,14 @@ class CpuPointwiseLedgerEvidenceTest {
         assertEquals(61, historicalSchema);
         assertEquals(66, CpuGeneratorSchema.CURRENT_VERSION);
         assertTrue(historicalSchema <= CpuGeneratorSchema.CURRENT_VERSION);
-        // The immutable artifact has 79 physical TSV lines: one header plus 78 inventory rows.
-        assertEquals(79, ledger.rows().size() + 1);
+        // CPU 0009G retains the original 78 rows and adds one exact readable row for each
+        // previously unrepresented live form; the three historic summary rows remain explicit.
+        assertEquals(124, ledger.rows().size() + 1);
 
         Set<CpuPointwiseOpcode> seen = EnumSet.noneOf(CpuPointwiseOpcode.class);
         Set<String> nonPointwiseForms = new HashSet<>();
         for (Row row : ledger.rows()) {
-            if (row.family().equals("pointwise")) {
+            if (row.family().equals("pointwise") && isPointwiseOpcode(row.operation())) {
                 CpuPointwiseOpcode opcode = CpuPointwiseOpcode.valueOf(row.operation());
                 assertTrue(seen.add(opcode), () -> "duplicate pointwise opcode " + opcode);
                 assertFalse(row.performanceCategory().startsWith("STRUCTURAL_ONLY:"));
@@ -116,7 +117,7 @@ class CpuPointwiseLedgerEvidenceTest {
             }
         }
         assertEquals(EnumSet.allOf(CpuPointwiseOpcode.class), seen);
-        assertEquals(30, nonPointwiseForms.size());
+        assertEquals(75, nonPointwiseForms.size());
         assertEquals(40, FRESH.size());
         assertEquals(8, RETAINED.size());
         assertEquals(V2_SHA256, sha256("operation-family-form-ledger-v2.tsv"));
@@ -169,6 +170,15 @@ class CpuPointwiseLedgerEvidenceTest {
             String valueFlow, String operationFormula, String branchShape,
             String carrierAccessRange, String storeShape, String forbiddenHotPath,
             String evidenceProvenance) { }
+
+    private static boolean isPointwiseOpcode(String operation) {
+        try {
+            CpuPointwiseOpcode.valueOf(operation);
+            return true;
+        } catch (IllegalArgumentException ignored) {
+            return false;
+        }
+    }
 
     private static PointwiseExpectation expected(CpuPointwiseOpcode opcode) {
         String tag = "scalar-f32-dense-array";
