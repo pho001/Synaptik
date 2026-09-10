@@ -2,7 +2,7 @@
 
 ## Status
 
-Ready
+Complete
 
 ## Goal
 
@@ -117,7 +117,22 @@ You are the clean implementation agent for Synaptik CPU 0009E3. Do not commit, p
 
 ## Local decisions
 
-No implementation-local route decision has been made. The strict per-family cost rule governs implementation.
+All three families retain bounded generated execution. This is three independent decisions, not
+one family-wide shortcut:
+
+| Family | Decision | Non-performance cost result |
+|---|---|---|
+| `MEAN_SQUARED_ERROR` | Retain generated | The existing emitter owns the complete nine ordered floating-pair matrix, three reductions, legal equal-role alias mapping, dense-int and general-affine bodies, three carrier modes, promoted binary32/binary64 arithmetic, and cold range binding in one schema-58 artifact. A finite direct replacement would have to reproduce those typed carrier/layout entries and add a new cold selection/binding route, then retire the generated emitter selection, helper lookup, artifact/cache projection, 252-row inventory portion, and generated-only structural evidence. The replacement and retirement proof is strictly larger than reviewing the existing generated body and its retained oracle/evidence. |
+| `DENSE_CATEGORICAL_CROSS_ENTROPY_WITH_LOGITS` | Retain generated | The emitter already specializes all nine ordered floating pairs, `NONE`/`SUM`/`MEAN`, legal aliases, carrier combinations, and both contiguous and general geometry while retaining the three-pass stable classification/log-sum-exp/contribution traversal, zero-target non-finite exclusion, and one final reduction division. A direct owner would duplicate the highest-complexity typed carrier/layout matrix plus exact float/double/BFLOAT16 narrowing and the dense loop-carried denominator shape. It would also require complete generated-route/cache/inventory/evidence retirement for 252 current structural forms. That work is demonstrably larger than the existing emitter/Class-File/oracle review. |
+| `INDEX_CATEGORICAL_CROSS_ENTROPY_WITH_LOGITS` | Retain generated | The current route includes three logits representations, two exact index widths, absent/present ignore forms, three reductions, carrier combinations, contiguous/general geometry, cold complete pre-write index validation, `C == 0`/all-ignored handling, and non-ignored-count mean. A finite direct implementation would need the same complete typed target/carrier binding and preserve validation-before-submission while replacing the generated helper bridge and retiring 288 inventory forms, cache/artifact projection, and generated evidence. It is strictly more implementation and verification work than retention. |
+
+The common generated boundary is already intentionally bounded: `CpuLossIr` freezes only
+family/type/reduction/ignore/role/carrier/range facts in schema-58 identity, while axis, rank,
+extent, layouts, addresses, ignore value, and range remain cold geometry. `CpuLossLowering`,
+preparation, finalization, artifact cache, and immutable executable binding use that same
+identity. Replacing only the hot loops would leave a prohibited dual maintained route; replacing
+the complete route would add the direct route's selection and typed invocation work before its
+generated-route retirement proof. Neither candidate is strictly cheaper.
 
 ## Known limitations
 
@@ -125,12 +140,105 @@ No E3 result may claim speed, generated/direct parity, JIT behavior, or whole-ba
 
 ## Validation evidence
 
-Planning inspection confirmed the current three-family matrix, schema-58 generated entry and geometry boundary, pre-write index validator, independent reference oracle, 792-class inventory, and generated artifact/cache/invocation seams. Fork 0 is `NON_PASSING` with 19 of 792 ratios above 1.15; forks 1--4 are user-closed. No executable Java, benchmark, or Gradle validation ran for this planning task.
+The implementation context inspected the complete loss boundary: `CpuLossIr`,
+`CpuLossLowering`, `CpuLossEmitter`, `CpuLossInputValidator`, `CpuLossReferenceKernel`,
+`CpuPartitionPreparer`, `CpuPartitionFinalizer`, `CpuPreparedExecutable`,
+`CpuGeneratedKernel`, `CpuClassFileKernelGenerator`, the portable route and generated-artifact
+cache seams, plus their focused capability, semantic, structural, lifecycle, cache, and
+persistence-evidence tests.
+
+The retained generated route has a schema-58, 792-class structural matrix: MSE 252, dense
+categorical 252, and index categorical 288. The actual `CpuLossEvidenceTest` Class-File
+inspection checks the loss artifact's private direct helpers, primitive array loads/stores and
+branches, stable categorical `StrictMath` calls, and cold-geometry byte stability. Its complete
+evidence protocol rejects generated allocation, boxing, `invokedynamic`, monitors, collections,
+reflection, method handles, strings, Synaptik helper/fallback calls, graph/layout/cache/route/
+resource/worker lookups, and generic semantic dispatch from all 792 generated classes. The
+retained clean-Java oracle has the same increasing MSE traversal and categorical
+classification/shifted-exponential/log-sum-exp/contribution passes, arithmetic widths, narrowing,
+stores, and reduction ownership. Manual source review found no deviation from that oracle in the
+emitter's selected dense-int/general-affine bodies. This is a structural and semantic conclusion,
+not a literal-bytecode, JIT, generated/direct parity, or speed claim.
+
+After stabilization, this context ran the focused loss-owner suite once on 2026-09-10:
+
+```bash
+./gradlew :backends:cpu:test --rerun-tasks \
+  --tests io.github.pho001.synaptik.backend.cpu.CpuCapabilityProviderTest \
+  --tests io.github.pho001.synaptik.backend.cpu.CpuInternalPackageInventoryTest \
+  --tests io.github.pho001.synaptik.backend.cpu.internal.codegen.emit.CpuLossGeneratedKernelTest \
+  --tests io.github.pho001.synaptik.backend.cpu.internal.codegen.emit.CpuLossSemanticClosureTest \
+  --tests io.github.pho001.synaptik.backend.cpu.internal.codegen.emit.CpuLossEvidenceTest \
+  --tests io.github.pho001.synaptik.backend.cpu.internal.codegen.emit.CpuGeneratedCoverageCheckpointTest \
+  --tests io.github.pho001.synaptik.backend.cpu.internal.codegen.emit.CpuGeneratedCoverageEvidenceTest \
+  --tests io.github.pho001.synaptik.backend.cpu.internal.codegen.emit.CpuGeneratedDirectEvidenceClosureTest \
+  --tests io.github.pho001.synaptik.backend.cpu.internal.codegen.emit.CpuGeneratedKernelShapeTest \
+  --tests io.github.pho001.synaptik.backend.cpu.internal.codegen.emit.CpuGeneratedStructuralOracleCatalogTest \
+  --tests io.github.pho001.synaptik.backend.cpu.internal.executable.CpuLossInputValidatorTest \
+  --tests io.github.pho001.synaptik.backend.cpu.internal.prepare.CpuPartitionPreparerTest \
+  --tests io.github.pho001.synaptik.backend.cpu.internal.prepare.CpuPartitionFinalizerTest \
+  --tests io.github.pho001.synaptik.backend.cpu.internal.executable.CpuPreparedExecutableTest \
+  --tests io.github.pho001.synaptik.backend.cpu.internal.cache.CpuGeneratedKernelArtifactStoreTest \
+  --tests io.github.pho001.synaptik.backend.cpu.internal.cache.CpuGeneratedKernelPersistenceEvidenceTest
+```
+
+The 16 XML reports record 193 tests, zero failures, zero errors, and two expected opt-in skips:
+the unarmed 792-class structural-artifact writer and the unconfigured persistent-artifact
+evidence protocol. All ordinary selected tests passed. They cover capability/package inventory,
+loss admission and lowering through production preparation, forms/types/reductions, dense/general
+layouts, heap/segment/mixed carriers, legal aliases, empty/special/narrowing cases, independent
+ranges and scalar reductions, canaries/no-write failure behavior, complete index prevalidation,
+finalization, immutable invocation, artifact/cache shape, generated coverage, and the frozen
+reference/structural-oracle seam. No benchmark, old five-fork run, repository-wide suite,
+architecture, conformance, or integration suite ran.
+
+Fork 0 remains historical `NON_PASSING`: 19 of 792 ratios exceeded 1.15, with maximum
+`1.3861164205039096` at row 536
+`INDEX_CATEGORICAL_CROSS_ENTROPY_WITH_LOGITS-BFLOAT16-INT32-MEAN-false-roles0_1-0`.
+Forks 1--4 remain user-closed without rerun. Neither fact gates this route decision or is
+promoted to a performance claim.
 
 ## Implementation notes
 
-Empty until implemented.
+No production, test, Javadoc, generated artifact, cache, inventory, or architecture path changed:
+all three complete family matrices retain their existing bounded generated route. This independent
+documentation review finalized the planning record and synchronized its parent, master-plan, and
+roadmap status. It found no Javadoc or explanatory-document change necessary because no API,
+behavior, terminology, architecture boundary, or build contract changed; the glossary likewise
+needs no update. Architecture, build, architecture-test, backend-conformance, and integration
+paths remain unchanged because this decision neither changes a dependency boundary nor observable
+end-to-end behavior.
 
 ## Completion summary
 
-Empty until implemented.
+Completed changes: separately retained bounded generated execution for MSE, dense categorical,
+and index categorical losses after full-matrix non-performance cost decisions; no partial
+migration or dual route was introduced. This documentation-focused review corrected the
+implementation-context label, finalized this task, and synchronized the parent, CPU master plan,
+and roadmap.
+
+Paths changed: this task; `docs/planning/backends/cpu/master-plan.md`;
+`docs/planning/backends/cpu/tasks/0009-portable-generated-coverage-closure-checkpoint.md`; and
+`docs/planning/roadmap.md`.
+
+Validation: independently inspected the current loss IR/lowering/emitter/validator/reference,
+preparation/finalization/invocation, generated-artifact/cache, inventory, focused tests, and XML
+reports. Reused the recorded focused 16-report result of 193 tests, zero failures/errors, and two
+expected opt-in skips; no Java suite, benchmark, or fork was rerun because no executable Java
+changed. Checked planning links, headings, fences, terminology/glossary impact, path scope,
+status/frontier consistency, final newlines, `git diff --check`, and `git status --short -uall`.
+Documentation-focused context: mandatory clean-context E3 documentation review.
+
+No-change documentation/Javadoc conclusions: no production or test Javadoc, explanatory
+documentation, glossary, architecture, build, architecture-test, backend-conformance, or
+integration update is warranted: the task records a CPU-private route decision only and changes
+none of their contracts.
+
+Unresolved issues/follow-up: the historical loss performance evidence remains `NON_PASSING`;
+fork 0 has 19 of 792 ratios above 1.15, with maximum `1.3861164205039096` at row 536
+`INDEX_CATEGORICAL_CROSS_ENTROPY_WITH_LOGITS-BFLOAT16-INT32-MEAN-false-roles0_1-0`; forks 1--4
+remain user-closed without rerun. These facts are not a performance claim or a route-decision
+gate. CPU 0009 remains Ready and incomplete. CPU 0009F is the sole next Draft summary frontier;
+it is not detailed here.
+
+Status: Complete
