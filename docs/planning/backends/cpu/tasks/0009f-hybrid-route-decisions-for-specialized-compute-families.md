@@ -21,7 +21,7 @@ family boundary before making a route decision.
 | Child | Status | Family boundary and decision responsibility |
 | --- | --- | --- |
 | 0009F1 | Complete | [MATMUL and convolution route decisions](0009f1-matmul-and-convolution-route-decisions.md). Separately retained MATMUL, Conv1d visible composition, and direct Conv2d/Conv3d generated bodies after source/test-backed complete-route decisions; no performance or JIT claim. |
-| 0009F2 | Draft | Pooling. Decide exact Pool1d composition separately from direct Pool2d and Pool3d max/average window bodies. |
+| 0009F2 | Ready | [Pooling route decisions](0009f2-pooling-route-decisions.md). Sole detailed frontier: decide exact Pool1d composition separately from direct Pool2d and Pool3d max/fixed-count-average window bodies. |
 | 0009F3 | Draft | Attention and batch normalization. Decide scaled-dot-product attention, BatchNorm inference, and BatchNorm training/statistic transition independently; they do not share a route mandate. |
 
 The current source-backed boundaries are deliberately narrow:
@@ -161,8 +161,8 @@ in the same child.
 - Depends on Complete CPU 0009E3 and the established family evidence: CPU 0008F (MATMUL),
   0008/0008A (Conv2d/Conv1d/Conv3d), 0008G/0008G1 (pooling), 0008H (attention), and
   0007F1/0007F2 (BatchNorm inference/training).
-- 0009F1 is Complete. F2 pooling is the sole next Draft summary frontier and depends on F1; do not
-  detail it yet. F3 remains a later Draft summary and depends on F2.
+- 0009F1 is Complete. F2 pooling is the sole detailed Ready frontier and depends on F1. F3 remains
+  a later Draft summary and depends on F2; do not detail it yet.
 - CPU 0009G remains Draft and follows F3. Do not detail 0009G here.
 
 ## Architecture impact
@@ -206,10 +206,11 @@ discrepancy was found.
 
 ## Implementation notes
 
-F1 is complete. This parent remains Ready and incomplete until F2 then F3 complete.
+F1 is complete. F2 is the sole detailed Ready frontier. This parent remains Ready and incomplete
+until F2 then F3 complete.
 
 ## Completion summary
 
-F1 retained all four current routes without migration or retirement. F2 pooling is the sole next
-Draft summary frontier; F3 and 0009G remain later Draft and are not detailed. No unresolved issue
+F1 retained all four current routes without migration or retirement. F2 pooling is the sole
+detailed Ready frontier; F3 and 0009G remain later Draft and are not detailed. No unresolved issue
 from F1.
