@@ -20,7 +20,7 @@ family boundary before making a route decision.
 
 | Child | Status | Family boundary and decision responsibility |
 | --- | --- | --- |
-| 0009F1 | Draft | MATMUL and convolution. Decide MATMUL separately from Conv1d's visible composition and the direct Conv2d/Conv3d generated bodies; retain dense specialized compute unless a complete replacement is strictly cheaper. |
+| 0009F1 | Ready | [MATMUL and convolution route decisions](0009f1-matmul-and-convolution-route-decisions.md). Decide MATMUL separately from Conv1d's visible composition and the direct Conv2d/Conv3d generated bodies; retain dense specialized compute unless a complete replacement is strictly cheaper. |
 | 0009F2 | Draft | Pooling. Decide exact Pool1d composition separately from direct Pool2d and Pool3d max/average window bodies. |
 | 0009F3 | Draft | Attention and batch normalization. Decide scaled-dot-product attention, BatchNorm inference, and BatchNorm training/statistic transition independently; they do not share a route mandate. |
 
@@ -161,7 +161,8 @@ in the same child.
 - Depends on Complete CPU 0009E3 and the established family evidence: CPU 0008F (MATMUL),
   0008/0008A (Conv2d/Conv1d/Conv3d), 0008G/0008G1 (pooling), 0008H (attention), and
   0007F1/0007F2 (BatchNorm inference/training).
-- 0009F1 is the next detailed child. F2 depends on F1; F3 depends on F2.
+- 0009F1 is the sole Ready detailed frontier. F2 remains a Draft summary and depends on F1; F3
+  remains a Draft summary and depends on F2.
 - CPU 0009G remains Draft and follows F3. Do not detail 0009G here.
 
 ## Architecture impact
