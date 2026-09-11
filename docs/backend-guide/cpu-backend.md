@@ -186,6 +186,12 @@ multiplication (GEMM), and direct positive thread-count query/control. CPU prepa
 consumes that leaf through one narrow qualified MATMUL route; the provider still does not own
 graph interpretation, route selection, materialization, fallback, or Runtime lifetime.
 
+CPU also has an internal cold discovery foundation for composition code. It accepts disabled,
+automatic, exact-name, or exact-absolute-path intent and returns immutable attempt metadata plus a
+separate closeable session when loading succeeds. This is unsupported package-private machinery,
+not a public configuration or Engine integration point. Loading proves only that the provider's
+required symbols bound; it does not qualify, select, cache, or publish the OpenBLAS route.
+
 ## Prerequisites and terms
 
 Contributors need JDK 26 and the ownership rules in the [architecture
@@ -2667,6 +2673,13 @@ exactly one `sgemm` or `dgemm` call on the invoking thread with `alpha = 1` and 
 thread drift, binding failure, copy failure, or provider failure propagates; no selected native
 plan retries or falls back to portable execution.
 
+The current package-private discovery session can supply that owned lifetime before preparation,
+but a `LOADED` discovery result does not supply any qualification, expected-storage,
+single-thread, or cost fact above. Disabled or exhausted discovery supplies no invocation and
+leaves portable composition available. A failed exact-name or exact-path request is exclusive: it
+does not continue with automatic candidates. Public Config intent, Engine lifecycle integration,
+and automatic installed-binary qualification remain future work.
+
 The explicit CPU checkpoint evaluates FLOAT32 and FLOAT64 direct and one-copy prepared routes
 against a higher-precision sum-of-products oracle. For unit roundoff `u` (`2^-24` for FLOAT32 or
 `2^-53` for FLOAT64), it requires `2 * k * u < 1`, defines
@@ -3158,9 +3171,46 @@ specifications remain preserved as Superseded evidence.
 
 ## Current low-level OpenBLAS foundation
 
+CPU separates its internal discovery policy and lifetime session from the provider's public exact
+loader. The first boundary chooses what to try; the second owns one loaded provider.
+
+### Internal automatic discovery and lifetime
+
+The CPU backend now has a package-private discovery operation intended for future composition.
+Calling it explicitly is the first point at which it reads platform properties or attempts a
+native load; constructing request values has no such side effect. Disabled mode performs neither
+operation. Exact-name and exact-absolute-path modes try only their unchanged selection. Automatic
+mode snapshots the operating-system and architecture tokens once, then tries a fixed ordered
+table: conventional OpenBLAS loader names on every recognized platform and, on macOS, the stable
+Homebrew `/opt/homebrew/opt` and `/usr/local/opt` library paths in architecture-dependent order.
+It performs no directory search, environment mutation, package-manager invocation, download, or
+background refresh.
+
+Each failed attempt retains only its position, exact typed selection, failure type name, and
+optional message. The immutable result retains no exception or native resource. On the first
+successful complete provider load, a separate session owns the provider lifetime and exposes a
+borrowed CPU invocation until the caller closes the session. Close is idempotent and does not
+query, change, or restore the OpenBLAS thread count; composition must quiesce every borrower before
+closing it.
+
+The distinction is deliberate:
+
+```text
+LOADED discovery result
+  = exact selection loaded and four required symbols bound
+
+qualified selected OpenBLAS route
+  = separate ABI/numerical, storage, thread, and whole-plan-cost facts all permit selection
+```
+
+Automatic exhaustion and failed exact override produce an unavailable result instead of enabling
+another native choice. That lets later composition retain the independently established portable
+plan. This internal seam is not automatic route selection, a public availability API, packaged
+native binaries, or fallback during prepare or execution.
+
 [`OpenBlasLibrary`](../glossary.md#openblas-library-handle--openblaslibrary) is the current public
-lifetime boundary. A caller opens exactly one supplied operating-system library name or one
-absolute path:
+provider-lifetime boundary. A caller opens exactly one supplied operating-system library name or
+one absolute path:
 
 The first example proves only that the supplied library loaded, exported the complete required
 symbol set, and remained open inside one caller-owned scope. It assumes that the loader resolves
@@ -3182,9 +3232,11 @@ try-with-resources block closes the lookup lifetime, including when the body fai
 observable state is a closed Java owner; this proves loading, binding, and cleanup only, not a
 GEMM result or viable CPU route.
 
-The input is explicit: the provider does not choose a platform filename, inspect configuration,
-read an environment variable or system property, search directories, or decide fallback. The
-path overload requires an absolute path and passes it unchanged to the JDK lookup.
+The provider input is explicit: the provider does not choose a platform filename, inspect
+configuration, read an environment variable or system property, search directories, or decide
+fallback. CPU's separate internal discovery policy chooses each candidate before delegating it
+unchanged. The provider path overload requires an absolute path and passes it unchanged to the JDK
+lookup.
 
 Opening succeeds only after the provider binds this complete ordered set:
 
@@ -3322,12 +3374,13 @@ supplied compatible arm64 OpenBLAS 0.3.33 library, including shared thread-count
 fixed SGEMM/DGEMM cases, and restoration of the original thread count. The ordered repository and
 architecture capability checkpoint then passed, and the provider milestone is complete.
 
-The separate CPU-route checkpoint later passed against the caller-supplied
-`/opt/homebrew/Cellar/openblas/0.3.34/lib/libopenblasp-r0.3.34.dylib`. It exercised FLOAT32 and
-FLOAT64 direct and one-copy prepared routes through CPU analysis, finalization, cold binding, and
+The CPU-route checkpoint now also accepts `--auto`. Automatic discovery selected
+`/opt/homebrew/opt/openblas/lib/libopenblas.dylib`, the checkpoint closed the discovery session,
+reopened that exact selection, and confirmed OpenBLAS 0.3.34. It exercised FLOAT32 and FLOAT64
+direct and one-copy prepared routes through CPU analysis, finalization, cold binding, and
 execution; the process reported `CPU OpenBLAS native checkpoint passed; restored thread count 16`.
-No alternate path was discovered or substituted. This bounded result uses the formula and
-exceptional-class checks in the current route section and does not supersede the provider's
+This bounded result uses the formula and exceptional-class checks in the current route section.
+It does not qualify another binary, make discovery a route decision, or supersede the provider's
 historical 0.3.33 evidence.
 
 The current CPU foundation provides the bounded fully static pointwise matrix, static

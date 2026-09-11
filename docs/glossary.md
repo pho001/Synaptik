@@ -3494,12 +3494,30 @@ uses one GEMM call for its exact eligible MATMUL subset. Broader CPU lowering ma
 more calls for other MATMUL forms, linear projection, attention, or convolution, but the provider
 surface alone does not implement those operations.
 
+### OpenBLAS discovery result and session
+
+CPU-private composition values that separate immutable native-loading evidence from ownership of
+a live OpenBLAS provider. An explicit discovery call may be disabled, try a bounded deterministic
+platform table, or try one exclusive exact name or absolute path. Its immutable result records the
+requested mode, automatic-mode platform snapshot, ordered exact attempts, immutable failure
+strings, and any loaded selection. It retains no provider, exception, route decision,
+qualification, cost, storage, or thread state.
+
+When a selection loads, the separate closeable session owns that provider lifetime and lends one
+CPU invocation view. Closing the session is idempotent, does not restore thread state, and must not
+race use of the borrowed invocation. `LOADED` means only that the provider opened and bound its
+four required symbols; it does not qualify or select the native route. Disabled or unavailable
+discovery exposes no invocation, so composition can retain the independently valid portable plan.
+The current types are unsupported package-private CPU internals, not public Config, Engine, or
+provider APIs. See the [CPU backend guide](backend-guide/cpu-backend.md#internal-automatic-discovery-and-lifetime).
+
 ### OpenBLAS library handle / `OpenBlasLibrary`
 
 The implemented caller-owned lifetime for one explicitly selected OpenBLAS native library lookup
 and its complete required symbol bindings. A caller supplies either one nonblank operating-system
 library name or one absolute path. The provider does not discover a platform filename, search a
-path, read configuration, or choose fallback.
+path, read configuration, or choose fallback; CPU's separate internal discovery operation may
+choose a candidate and delegates it unchanged to this exact loader.
 
 A successful open binds `cblas_sgemm`, `cblas_dgemm`, `openblas_set_num_threads`, and
 `openblas_get_num_threads` under the ordinary 32-bit-`blasint` C interface. Each open returns a

@@ -2,7 +2,7 @@
 
 ## Status
 
-Ready
+Complete
 
 ## Goal
 
@@ -406,7 +406,8 @@ git status --short -uall
 
 It also renders and inspects the affected Javadoc, validates local Markdown links and anchors,
 heading order/uniqueness, balanced fences, LF/final newlines, terminology, the exact 13-path
-ceiling, internal/public inventory, `0010A Ready` plus `0010B`–`0010E Draft` ordering, unchanged
+ceiling, internal/public inventory, final `0010A Complete` plus `0010B`–`0010E Draft` ordering,
+unchanged
 `0011 Blocked`, and absence of any detailed 0010B–0010E task file.
 
 Repository-wide validation is deferred to the 0010A–0010E capability checkpoint or CI unless the
@@ -509,24 +510,93 @@ notes, exact evidence, completion summary, and final status only after that pass
 
 ## Validation evidence
 
-- Final CPU and focused-test evidence: pending implementation.
-- Automatic native checkpoint evidence and selected exact name/path: pending implementation.
-- Javadoc, rendered documentation, Markdown, surface, status, exact-scope, and whitespace
-  evidence: pending implementation and the clean documentation pass.
+- Implementation context `01a08f99-6951-7ad1-825f-08912ba2f037` ran
+  `./gradlew :backends:cpu:test`: passed 189 suites and 958 tests with zero failures or errors and
+  28 existing conditional skips. `CpuOpenBlasDiscoveryTest` passed all 16 tests. Executable Java
+  and tests did not change afterward; documentation context
+  `01a08fd1-151c-7111-b094-a1140cf7ed04` therefore reused this evidence without repeating the
+  suite.
+- The implementation context ran `./gradlew :backends:cpu:testClasses`: passed. It then ran the
+  specified `CpuOpenBlasNativeCheckpoint --auto` command with native access enabled. Automatic
+  discovery selected `/opt/homebrew/opt/openblas/lib/libopenblas.dylib`, the checkpoint reopened
+  that exact selection, confirmed OpenBLAS 0.3.34, exercised FLOAT32/FLOAT64 direct and one-copy
+  prepared routes, and reported `CPU OpenBLAS native checkpoint passed; restored thread count 16`.
+- The implementation context's Class-File inspection confirmed that all four new top-level types
+  are package-private and `CpuOpenBlasDiscovery` is field-free. Its `git diff --check` passed.
+- Documentation context `01a08fd1-151c-7111-b094-a1140cf7ed04` applied the General,
+  API/Javadoc, Backend Guide, Planning, and Example profiles, inspected all eight executable paths
+  and the complete diff, and changed only Javadoc plus the five authorized documentation/planning
+  paths. No executable statement or test behavior changed.
+- The documentation context ran `./gradlew :backends:cpu:javadoc`: passed with two incubating-
+  module warnings and 92 unrelated pre-existing missing-`@param` warnings in
+  `CpuPartitionLowering.LoweredPartition` and `CpuPartitionPreparationPlan` records. Generated
+  package and discovery/request/result/session pages were inspected for request precedence,
+  immutable diagnostics, failure contracts, route non-enablement, ownership, idempotent close,
+  post-close metadata, borrowed invocation, and thread/lifecycle boundaries.
+- The documentation context ran
+  `python3 /tmp/validate_synaptik_markdown.py docs/backend-guide/cpu-backend.md docs/glossary.md docs/planning/backends/cpu/tasks/0010a-automatic-openblas-discovery-and-internal-composition-foundation.md docs/planning/backends/cpu/master-plan.md docs/planning/roadmap.md`:
+  passed with `validated 5 Markdown files`, covering local links and anchors, unique headings,
+  balanced fences, LF/final newlines, and trailing whitespace.
+- Final manual checks confirmed the exact 13 authorized worktree paths; four new package-private
+  production types; immutable automatic attempt metadata; exclusive exact overrides; no provider,
+  route, configuration, Engine, Prepare, Runtime, generated-artifact, architecture, dependency, or
+  Gradle change; synchronized 0010A `Complete`; 0010B–0010E `Draft`; 0011 `Blocked`; and no
+  detailed 0010B–0010E task file. The final combined
+  `git status --short -uall`/tracked-plus-untracked path check reported exactly those 13 paths, and
+  `git diff --check` passed with no output. A separate `rg` trailing-whitespace scan and final-byte
+  newline check passed for all five untracked Java files, which Git's unstaged diff does not cover.
+- No-change conclusions: provider API/documentation remain accurate because CPU delegates exact
+  selections unchanged and adds no provider behavior; public Config, Engine, Tensor, Compile, and
+  Training APIs expose no discovery or route activation; shared Prepare and Runtime receive no
+  discovery work or lifetime; architecture/ADRs and architecture tests need no update because
+  ownership, lifecycle boundaries, and module dependencies are unchanged; backend-conformance and
+  integration need no update because executable route semantics and public end-to-end composition
+  are unchanged; generated artifacts and schemas are unaffected; and other modules, Gradle, root
+  settings, native packaging, and environment configuration remain unchanged.
 
 ## Implementation notes
 
-- Implemented request/result/discovery/session behavior and deviations: pending implementation.
-- Final lifecycle, fallback, failure, and native-checkpoint observations: pending implementation.
-- Documentation changes and reasoned no-change conclusions: pending the clean documentation pass.
+- Added immutable disabled/automatic/exact-name/exact-path request and result contracts, bounded
+  platform classification and candidate ordering, immutable attempt diagnostics, and exact loader
+  delegation. No deviation from the specified table or precedence was required.
+- Added a separate caller-owned session that retains one loaded provider-equivalent resource,
+  exposes the borrowed invocation without qualifying a route, and atomically claims close once.
+  Disabled and unavailable sessions remain resource-free.
+- Extended the isolated CPU checkpoint with `--auto`; it closes discovery ownership and reopens
+  only the selected exact name/path before the existing qualification-style route checks and
+  caller-coordinated thread restoration.
+- Finalized implementation-contract Javadocs, the OpenBLAS package summary, CPU guide, glossary
+  terminology, task evidence, master-plan frontier, and roadmap status without changing executable
+  behavior.
 
 ## Completion summary
 
-- Completed changes: pending implementation.
-- Files changed or created: pending final exact-scope inspection.
-- Tests and validation performed: pending implementation and documentation evidence.
-- Documentation impact: pending the clean documentation pass.
-- Unresolved issues: pending final review.
-- Required follow-up: pending final review.
-- Completion status: replace with the exact required `Status: Complete` or `Status: Incomplete`
-  form after implementation and documentation validation.
+- Completed changes: implemented the exact bounded CPU-private OpenBLAS discovery request, result,
+  operation, and lifetime session; extended the native checkpoint; and finalized Javadocs,
+  explanatory documentation, glossary terminology, and planning status.
+- Files changed or created: exactly the 13 authorized paths—four new discovery production types,
+  OpenBLAS package documentation, discovery tests, native checkpoint, CPU package inventory, CPU
+  backend guide, glossary, this task, CPU master plan, and roadmap.
+- Tests and validation performed: reused the implementation context's passing 189-suite/958-test
+  CPU run, passing test-class compilation, automatic native checkpoint, Class-File visibility/
+  field scan, and whitespace result; the documentation context passed CPU Javadoc, generated-page
+  inspection, five-file Markdown validation, exact-scope/status/frontier/manual checks, and final
+  `git diff --check`.
+- Documentation-agent review: clean documentation context
+  `01a08fd1-151c-7111-b094-a1140cf7ed04` independently reviewed the final code/tests and finalized
+  all affected Javadocs and documentation. It made no executable behavior change and did not
+  duplicate the stable Java suite or native checkpoint.
+- Documentation impact: the CPU guide and glossary now distinguish bounded loading evidence,
+  immutable metadata, session ownership, later qualification, route selection, and public
+  composition. Task, master plan, and roadmap consistently close 0010A without advancing 0010B.
+- Javadoc review: every new production type and explicit constructor/method documents purpose,
+  inputs, results, failures, immutability, ownership, lifecycle, concurrency, and thread-state
+  boundaries as applicable; the changed checkpoint entry points document their exact inputs and
+  failures.
+- Glossary impact: added the reusable OpenBLAS discovery-result/session distinction and clarified
+  that CPU discovery delegates to the unchanged exact-loading provider.
+- Unresolved issues: None.
+- Follow-up required: None for 0010A. CPU 0010B is the next planning frontier and remains `Draft`;
+  CPU 0010C–0010E remain `Draft`, and CPU 0011 remains `Blocked`.
+
+Status: Complete

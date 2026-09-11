@@ -47,24 +47,24 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
-/** Explicit real-native checkpoint for one caller-supplied CPU-qualified OpenBLAS binary. */
+/** Explicit real-native checkpoint for one exact or automatically discovered OpenBLAS binary. */
 public final class CpuOpenBlasNativeCheckpoint {
+    /** Prevents construction of the command-line checkpoint namespace. */
     private CpuOpenBlasNativeCheckpoint() { }
 
     /**
      * Runs direct and one-copy prepared routes and restores the caller-coordinated thread count.
      *
-     * @param args exactly one absolute compatible OpenBLAS shared-library path
+     * @param args exactly {@code --auto} or one absolute compatible OpenBLAS shared-library path
      * @throws Throwable if input, loading, thread control, preparation, execution, numerical
      *     validation, restoration, verification, or cleanup fails
      */
     public static void main(String[] args) throws Throwable {
         if (args.length != 1) throw new IllegalArgumentException(
-                "expected exactly one absolute OpenBLAS library path argument");
-        Path path = Path.of(args[0]);
-        if (!path.isAbsolute() || !Files.isRegularFile(path)) throw new IllegalArgumentException(
-                "OpenBLAS library path must be an existing absolute file: " + path);
-        try (OpenBlasLibrary library = OpenBlasLibrary.open(path)) {
+                "expected exactly one --auto or absolute OpenBLAS library path argument");
+        CpuOpenBlasDiscoveryResult.Selection selection = args[0].equals("--auto")
+                ? automaticSelection() : exactPathSelection(args[0]);
+        try (OpenBlasLibrary library = open(selection)) {
             int original = library.threadCount();
             Throwable primary = null;
             try {
@@ -93,6 +93,71 @@ public final class CpuOpenBlasNativeCheckpoint {
             System.out.println("CPU OpenBLAS native checkpoint passed; restored thread count "
                     + original);
         }
+    }
+
+    /**
+     * Discovers, records, and returns the exact automatic selection after closing its session.
+     *
+     * @return the exact loaded name or absolute path to reopen; never {@code null}
+     * @throws IllegalStateException if every bounded automatic candidate is unavailable
+     */
+    private static CpuOpenBlasDiscoveryResult.Selection automaticSelection() {
+        CpuOpenBlasDiscoveryResult.Selection selection;
+        try (CpuOpenBlasDiscoverySession session = CpuOpenBlasDiscovery.discover(
+                CpuOpenBlasDiscoveryRequest.automatic())) {
+            if (session.result().status() != CpuOpenBlasDiscoveryResult.Status.LOADED) {
+                throw new IllegalStateException("automatic OpenBLAS discovery unavailable: "
+                        + session.result().attempts());
+            }
+            selection = session.result().selected().orElseThrow();
+        }
+        System.out.println("CPU OpenBLAS automatic discovery selected " + describe(selection));
+        return selection;
+    }
+
+    /**
+     * Validates and preserves the checkpoint's exact absolute-path argument.
+     *
+     * @param argument the caller-supplied path text
+     * @return the exact existing absolute-path selection; never {@code null}
+     * @throws java.nio.file.InvalidPathException if {@code argument} has invalid path syntax
+     * @throws IllegalArgumentException if the path is relative or not a regular file
+     */
+    private static CpuOpenBlasDiscoveryResult.Selection exactPathSelection(String argument) {
+        Path path = Path.of(argument);
+        if (!path.isAbsolute() || !Files.isRegularFile(path)) throw new IllegalArgumentException(
+                "OpenBLAS library path must be an existing absolute file: " + path);
+        return new CpuOpenBlasDiscoveryResult.AbsoluteLibraryPath(path);
+    }
+
+    /**
+     * Reopens exactly the selection returned by discovery or explicit path validation.
+     *
+     * @param selection the exact non-null name or absolute-path selection
+     * @return a fresh caller-owned provider lifetime; never {@code null}
+     * @throws io.github.pho001.synaptik.backend.provider.openblas.OpenBlasLoadException if the
+     *     exact selection cannot load and bind the required symbols
+     */
+    private static OpenBlasLibrary open(CpuOpenBlasDiscoveryResult.Selection selection) {
+        return switch (selection) {
+            case CpuOpenBlasDiscoveryResult.LibraryName name -> OpenBlasLibrary.open(name.value());
+            case CpuOpenBlasDiscoveryResult.AbsoluteLibraryPath path ->
+                    OpenBlasLibrary.open(path.value());
+        };
+    }
+
+    /**
+     * Formats one exact selection for checkpoint diagnostics without resolving it.
+     *
+     * @param selection the exact non-null name or path selection
+     * @return a diagnostic description containing the unchanged selection value
+     */
+    private static String describe(CpuOpenBlasDiscoveryResult.Selection selection) {
+        return switch (selection) {
+            case CpuOpenBlasDiscoveryResult.LibraryName name -> "name '" + name.value() + "'";
+            case CpuOpenBlasDiscoveryResult.AbsoluteLibraryPath path ->
+                    "path '" + path.value() + "'";
+        };
     }
 
     private static void checkFinite(DataType type, boolean copyLeft,
