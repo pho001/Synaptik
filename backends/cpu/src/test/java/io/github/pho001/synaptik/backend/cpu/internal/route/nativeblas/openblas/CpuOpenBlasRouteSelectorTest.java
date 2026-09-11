@@ -271,7 +271,7 @@ final class CpuOpenBlasRouteSelectorTest {
                         analyze(qualified(DataType.FLOAT32, false, 1, overflowConfig)).route()));
     }
 
-    private static CpuPartitionPreparationPlan analyze(CpuPartitionAnalysisInputs inputs) {
+    static CpuPartitionPreparationPlan analyze(CpuPartitionAnalysisInputs inputs) {
         return new CpuPartitionPreparer().analyze(context(DataType.FLOAT32,
                 dense(Shape.of(2, 3)), dense(Shape.of(3, 4)), dense(Shape.of(2, 4)), inputs)).plan();
     }
@@ -282,25 +282,25 @@ final class CpuOpenBlasRouteSelectorTest {
                         qualification(), 100, 2, 10, 1, 1, 1, 1, 1));
     }
 
-    private static CpuPartitionAnalysisInputs.OpenBlasRouteConfig defaultConfig() {
+    static CpuPartitionAnalysisInputs.OpenBlasRouteConfig defaultConfig() {
         return CpuPartitionAnalysisInputs.OpenBlasRouteConfig.qualifiedSingleThread(
                 qualification(), 100, 2, 10, 1, 1, 1, 0, 0);
     }
 
-    private static CpuOpenBlasQualification qualification() {
+    static CpuOpenBlasQualification qualification() {
         return new CpuOpenBlasQualification(CpuOpenBlasQualification.Scope.SESSION_ONLY,
                 CpuOpenBlasQualifier.target("Linux", "x86_64", 64,
                         java.nio.ByteOrder.LITTLE_ENDIAN), Optional.empty(),
                 new CpuOpenBlasQualification.SessionKey());
     }
 
-    private static CpuPartitionAnalysisInputs.OpenBlasRouteConfig.ThreadCandidate candidate(
+    static CpuPartitionAnalysisInputs.OpenBlasRouteConfig.ThreadCandidate candidate(
             int threads, long fixed) {
         return new CpuPartitionAnalysisInputs.OpenBlasRouteConfig.ThreadCandidate(threads,
                 CpuPartitionAnalysisInputs.CostTerms.complete(fixed, 0, 0));
     }
 
-    private static CpuPartitionAnalysisInputs maskInputs(DataType type, boolean left,
+    static CpuPartitionAnalysisInputs maskInputs(DataType type, boolean left,
             boolean right, boolean output, long runs,
             CpuPartitionAnalysisInputs.OpenBlasRouteConfig config) {
         int width = type.byteWidth();
@@ -365,7 +365,7 @@ final class CpuOpenBlasRouteSelectorTest {
                 false);
     }
 
-    private static PrepareContext<CpuPartitionAnalysisInputs> context(DataType type,
+    static PrepareContext<CpuPartitionAnalysisInputs> context(DataType type,
             TensorDescriptor left, TensorDescriptor right, TensorDescriptor output,
             CpuPartitionAnalysisInputs inputs) {
         left = typed(type, left); right = typed(type, right); output = typed(type, output);

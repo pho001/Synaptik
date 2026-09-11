@@ -2210,7 +2210,11 @@ The compatibility key for one local tunable workload. It includes operation sema
 attributes, input and output data types, shapes, layouts, relevant policies, and target
 compatibility. Identical signatures can reuse one workload tuning result across occurrences and
 models. Operation family only selects the candidate generator and is not itself a universal cache
-key. The contract remains planned.
+key. The first implemented internal instance is the CPU exact/default FLOAT32/FLOAT64 OpenBLAS
+MATMUL signature. It additionally retains qualification scope, caller-supplied CPU identity,
+expected-use cohort, concurrency, route/resource inputs, and policy versions. Session-only
+qualification has no persistent projection; persistently reusable compatibility requires the
+qualified binary identity. Shared transport, measurement, and persistent cache use remain planned.
 
 ### Candidate generator
 
@@ -2219,7 +2223,18 @@ complete valid tuning candidates from target capabilities, workload facts, and a
 Concrete backend generators are colocated with their routes and own private configuration
 vocabulary. Shared tuning and prepare orchestration sees candidates opaquely; it does not use a
 generic parameter map, string dispatch, reflective annotations, or a central knob registry. The
-contract remains planned.
+first implemented internal generator is the CPU exact/default FLOAT32/FLOAT64 OpenBLAS MATMUL
+producer. It emits the complete portable alternative followed by every realizable copy-mask and
+fitting configured-thread combination. Shared transport and tuning orchestration remain planned.
+
+### Selected tuning decision
+
+An immutable reference to one exact candidate-schema version, canonical workload signature, and
+candidate identity. The owning candidate generator accepts the decision only when it names a
+member of a freshly generated compatible batch; absence or any mismatch is a miss that retains a
+safe heuristic path. The first implemented internal instance belongs to the CPU OpenBLAS MATMUL
+route. A selected tuning decision contains no measurement, cache representation, executable,
+provider, native address, or Runtime state.
 
 ### Compile
 

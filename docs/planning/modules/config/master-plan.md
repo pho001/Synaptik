@@ -72,7 +72,7 @@ inventing a public surface now.
 | 0004 | Planning cost-profile contract | Draft | 0001–0003, planning 0001–0003, stable backend-neutral cost classification | Define only immutable backend-neutral estimates required by the concrete ownership-scoring consumer; do not encode backend route or model-autotuning values. |
 | 0005 | Compile configuration aggregate | Draft | 0001–0004 | Compose compile mode, backend intent, optimization, scoring, and any justified planning-cost inputs without compiler orchestration. |
 | 0006 | Prepare numerical and determinism permission | Draft | 0005, stable exact concrete-backend prepare eligibility boundary | Define the smallest immutable backend-neutral prepare permission needed to filter numerical/determinism candidates; the default grants no relaxed/fast-math behavior, and the contract names no backend, provider, kernel, approximation, compiler pass, or operation-specific rewrite. |
-| 0006A | Model-autotuning request configuration | Draft | 0006, stable prepare/tuning consumers | Define only the immutable objective, budget, constraints, representative profiles, fallback policy, and explicit-cache inputs required by stable consumers; do not expose backend candidate fields or own search/persistence. |
+| 0006A | Model-autotuning request configuration | Draft | 0006; stable implemented tuning consumer | Define only the immutable objective, budget, constraints, representative profiles, fallback policy, and explicit-cache inputs required by the stable consumer; do not expose backend candidate fields or own search/persistence. The first exact/default FLOAT32/FLOAT64 tuning slice may use explicit tool-local inputs and does not depend on this row. |
 | 0007 | Run and publication configuration | Draft | 0005 | Define immutable invocation and publication options without runtime state or execution. |
 | 0008 | Configuration contract closure | Draft | 0001–0007, including 0006A | Audit validation, package/API cohesion, documentation, and dependency boundaries before planning begins. |
 
@@ -110,6 +110,9 @@ compile entry, so Config 0004 remains Draft and no config status advances.
   and units before Config 0004 can become Ready.
 - Model-autotuning request inputs wait for stable prepare and tuning consumers. Workload and plan
   cache schemas, measurement evidence, and persistence remain with their lifecycle/tooling owners.
+- Config 0004–0006 are not prerequisites for the first exact/default FLOAT32/FLOAT64 OpenBLAS
+  tuning slice. Config 0006 remains necessary only before relaxed candidates exist; Config 0006A
+  follows an implemented stable tuning consumer instead of defining that consumer in advance.
 - Exact/default numerical semantics are the current candidate-eligibility boundary. A future
   explicit policy must define any relaxed or fast-math permission; Config must not infer that
   permission from platform, provider availability, workload size, or a performance objective.

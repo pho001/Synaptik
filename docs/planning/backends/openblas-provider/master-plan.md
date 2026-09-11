@@ -77,7 +77,8 @@ native framework, registry, manager, configuration package, or CPU route owner.
 
 ## Current status
 
-Blocked. Tasks 0001–0003 remain Complete and provide explicit caller-directed loading, complete required-symbol
+The mandatory provider baseline is Complete; optional task 0004 is Blocked and deferred as a
+capability side branch. Tasks 0001–0003 remain Complete and provide explicit caller-directed loading, complete required-symbol
 binding, caller-owned lookup lifetime, validated FLOAT32/FLOAT64 dense row-major no-transpose GEMM
 invocation, and direct positive thread-count query/control over the already-bound handles. The
 ordinary provider suite passed 5 suites and 50 tests. The isolated native checkpoint passed
@@ -88,15 +89,16 @@ repository/architecture capability checkpoint then passed with 54 actionable tas
 status, later-specification, and whitespace gates passed. That original provider milestone remains
 closed.
 
-Detailed task 0004 is the blocked provider frontier. Pinned OpenBLAS v0.3.31 does not establish
-`cblas_bgemm` in its official shared-library C export lists, and its driver/kernel path narrows
+Detailed task 0004 is the blocked/deferred optional provider side branch. Pinned OpenBLAS v0.3.31
+does not establish `cblas_bgemm` in its official shared-library C export lists, and its driver/kernel path narrows
 BFLOAT16 output between sufficiently large contraction panels rather than accumulating the full
 contraction in FLOAT32 before one final BFLOAT16 conversion. The local 0.3.34 installation
 independently confirms only optional absence: its header declares `cblas_bgemm`, but its binary
 exports `cblas_sbgemm` and not `cblas_bgemm`. No optional capability was exposed, and the completed
 FLOAT32/FLOAT64/thread baseline remains usable. CPU 0010D1 remains a dependent, non-executable
-master-plan-only `Draft`; CPU 0010E remains after it. No later provider task may advance while
-both proof gates remain unresolved.
+blocked/deferred optional side branch. It does not precede or block FLOAT32/FLOAT64 CPU 0010E,
+Prepare 0004, or tools/tuning 0001. Provider 0004 may resume only when both proof gates have new
+concrete evidence.
 
 ## Open questions
 
@@ -128,6 +130,8 @@ both proof gates remain unresolved.
 - CPU 0010D1 owns exact installed-binary numerical qualification, route eligibility, fallback,
   materialization, fingerprint compatibility, and execution after provider 0004. The provider
   capability by itself is not a CPU qualification credential.
+- The failed optional BFLOAT16 proof does not change Model or portable CPU BFLOAT16 support and
+  does not gate existing FLOAT32/FLOAT64 OpenBLAS development or model-autotuning work.
 - Broad or baseline FLOAT16 support must not be assumed; any such future route also waits for
   Model task 0026.
 - One caller-owned public library handle encapsulates the shared FFM arena and package-private

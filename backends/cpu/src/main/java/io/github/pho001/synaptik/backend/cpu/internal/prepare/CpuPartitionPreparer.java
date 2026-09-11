@@ -126,8 +126,9 @@ public final class CpuPartitionPreparer implements BackendPartitionPreparer<
      *     those facts do not alter declarations, artifact identity, finalization, or execution.
      *     The plan also retains the authoritative logical-memory graph-publication boundary
      *     positions solely so its selected boundary roles can be independently recomputed.
-     *     A qualifying exact MATMUL may additionally retain one OpenBLAS plan and at most one
-     *     exact native copy-workspace declaration after the common portable plan is complete.
+     *     An eligible exact MATMUL additionally retains one complete portable-first tuning batch;
+     *     a compatible decision or the safe heuristic may select one OpenBLAS plan with up to
+     *     three exact native copy-workspace declarations after the portable plan is complete.
      * @throws NullPointerException if {@code context} is {@code null}
      * @throws IllegalArgumentException if complete-partition lowering rejects the occurrence or
      *     declared resource geometry is invalid
@@ -161,16 +162,19 @@ public final class CpuPartitionPreparer implements BackendPartitionPreparer<
                 analyses.get(representation.candidateIndex()), representation);
         BackendPartitionAnalysis<CpuPartitionPreparationPlan> portable = withMetadata(
                 context, represented, recognition, selected.decisions());
-        return openBlasSelector.select(context, portable.plan(), representationPlanner)
-                .map(nativePlan -> withOpenBlas(portable, nativePlan)).orElse(portable);
+        return openBlasSelector.evaluate(context, portable.plan(), representationPlanner)
+                .map(result -> withOpenBlasEvaluation(portable, result)).orElse(portable);
     }
 
-    private static BackendPartitionAnalysis<CpuPartitionPreparationPlan> withOpenBlas(
+    private static BackendPartitionAnalysis<CpuPartitionPreparationPlan> withOpenBlasEvaluation(
             BackendPartitionAnalysis<CpuPartitionPreparationPlan> analysis,
-            CpuOpenBlasRoutePlan nativePlan) {
+            CpuOpenBlasRouteSelector.Result result) {
         var plan = analysis.plan();
+        Optional<CpuOpenBlasRoutePlan> nativePlan = result.selectedOpenBlasPlan();
         var selected = new CpuPartitionPreparationPlan(plan.units(),
-                CpuPartitionPreparationPlan.Route.OPENBLAS, plan.executionStrategy(),
+                nativePlan.isPresent() ? CpuPartitionPreparationPlan.Route.OPENBLAS
+                        : CpuPartitionPreparationPlan.Route.PORTABLE,
+                plan.executionStrategy(),
                 plan.bufferDeclarations(), plan.boundaryValues(), plan.accessBindings(),
                 plan.carrierPattern(), plan.generatedCarrierPattern(), plan.extents(),
                 plan.elementCount(), plan.affineAddressPairs(), plan.selectedRangeCount(),
@@ -186,9 +190,10 @@ public final class CpuPartitionPreparer implements BackendPartitionPreparer<
                 plan.conv2dGeometry(), plan.specializedSubgraphs(), plan.fusionDecisions(),
                 plan.publicationBoundaryPositions(), plan.materializations(),
                 plan.representationUnits(), plan.representationDecisions(),
-                plan.partialReductionRecipe(), Optional.of(nativePlan));
+                plan.partialReductionRecipe(), nativePlan, Optional.of(result.batch()),
+                Optional.of(result.selected().identity()));
         var requirements = new ArrayList<PreparationResourceRequirement>(analysis.requirements());
-        requirements.addAll(nativePlan.workspaceRequirements());
+        nativePlan.ifPresent(value -> requirements.addAll(value.workspaceRequirements()));
         return new BackendPartitionAnalysis<>(analysis.partition(), selected, requirements);
     }
 

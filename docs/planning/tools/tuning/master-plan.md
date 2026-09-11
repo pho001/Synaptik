@@ -62,7 +62,7 @@ measures bounded complete plan candidates, and writes explicit persistent artifa
 
 | ID | Task | Status | Depends on | Summary |
 |---|---|---|---|---|
-| 0001 | Model-guided workload tuning and reusable cache | Draft | Stable model/target identity, Prepare opaque candidate handoff, current exact/default numerical contract or later applicable explicit policy, concrete backend typed candidate generators, and artifact compatibility contracts | Extract actual workloads, form canonical signatures, reject semantically incompatible candidates before measurement, deduplicate with occurrence context, reuse compatible explicit cache hits, measure only misses, and atomically persist compact results while retaining separate rich evidence. |
+| 0001 | Exact/default model-guided workload tuning and reusable cache | Draft | CPU 0010E; Prepare 0004; stable model identity and operational cold measurement path | Consume opaque CPU-owned FLOAT32/FLOAT64 candidate batches, deduplicate canonical compatible workloads with occurrence context, reject corrupt or incompatible explicit cache entries, measure cache misses only, select by the explicit objective and budget, atomically persist compact results, and retain separate rich evidence. Tool-local explicit request inputs precede any later Config facade. |
 | 0002 | Bounded graph and plan tuning | Draft | 0001, compiler graph candidates, planning ownership/partition candidates, complete prepare candidates, and operational engine paths | Measure a budget-bounded set of complete valid candidates end to end, reuse local results without repeating local search, and select an explicit model plan or prepared artifact. |
 | 0003 | Cache and plan inspection | Draft | 0001–0002, stable artifact schemas | Inspect compatibility, provenance summaries, invalidation reasons, selected plans, and separate measurement evidence without executing payloads or mutating runtime state. |
 
@@ -75,8 +75,10 @@ measures bounded complete plan candidates, and writes explicit persistent artifa
 ## Current status
 
 Draft. The former broad platform-calibration row is retired. No tuning task is Ready, and no
-detailed task specification exists. These rows wait for the actual compiler, planning, prepare,
-engine, concrete backend candidate, and artifact-lifecycle contracts.
+detailed task specification exists. The ordered path to task 0001 is CPU 0010E followed by
+Prepare 0004. The initial slice is exact/default and FLOAT32/FLOAT64 only, so it does not wait for
+the blocked BFLOAT16 side branch or unfinished relaxed numerical configuration. Config may add a
+public immutable request facade only after this consumer is stable.
 
 ## Open questions
 

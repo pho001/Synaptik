@@ -39,8 +39,9 @@ import java.util.Optional;
  * @param outputCopiedElements exact copied output elements, or zero
  * @param portableCost checked total portable cost across expected runs
  * @param openBlasCost checked total OpenBLAS and representation cost across expected runs
- * @param netBenefit exact positive {@code portableCost - openBlasCost}
- * @param benefitBasisPoints floored relative benefit in {@code [0, 10_000]}
+ * @param netBenefit exact signed {@code portableCost - openBlasCost}; a tuning decision may
+ *     select a candidate that the safe heuristic estimate does not favor
+ * @param benefitBasisPoints signed floored relative benefit, or zero when portable cost is zero
  * @param qualification exact successful session credential retained for live finalization
  */
 public record CpuOpenBlasRoutePlan(DataType dataType, int m, int n, int k,
@@ -214,12 +215,10 @@ public record CpuOpenBlasRoutePlan(DataType dataType, int m, int n, int k,
                 || workspaceRequirements.size() != representation.copyCount()
                 || expectedRunCount <= 0 || workspaceBytes < 0 || inputCopiedElements < 0
                 || outputCopiedElements < 0 || portableCost < 0 || openBlasCost < 0
-                || openBlasCost >= portableCost || netBenefit <= 0
                 || netBenefit != Math.subtractExact(portableCost, openBlasCost)
-                || benefitBasisPoints < 0 || benefitBasisPoints > 10_000
-                || portableCost == 0
-                || benefitBasisPoints != Math.toIntExact(Math.floorDiv(
-                        Math.multiplyExact(10_000L, netBenefit), portableCost))) {
+                || benefitBasisPoints != (portableCost == 0 ? 0
+                    : Math.toIntExact(Math.floorDiv(
+                            Math.multiplyExact(10_000L, netBenefit), portableCost)))) {
             throw new IllegalArgumentException("OpenBLAS route-plan facts disagree");
         }
         var copies = new ArrayList<CpuMaterializationPlan>(2);

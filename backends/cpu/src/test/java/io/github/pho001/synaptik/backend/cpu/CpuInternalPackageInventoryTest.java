@@ -141,6 +141,8 @@ class CpuInternalPackageInventoryTest {
                         "internal/route/portable/package-info.java",
                         "internal/route/nativeblas/openblas/CpuOpenBlasRouteSelector.java",
                         "internal/route/nativeblas/openblas/CpuOpenBlasRoutePlan.java",
+                        "internal/route/nativeblas/openblas/CpuOpenBlasTuningBatch.java",
+                        "internal/route/nativeblas/openblas/CpuOpenBlasTuningDecision.java",
                         "internal/route/nativeblas/openblas/CpuOpenBlasOutputCopyPlan.java",
                         "internal/route/nativeblas/openblas/CpuOpenBlasInvocation.java",
                         "internal/route/nativeblas/openblas/CpuOpenBlasPreparedExecutable.java",

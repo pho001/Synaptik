@@ -43,5 +43,15 @@
  * exactly one typed GEMM, and finally copies the result when selected. Prepared recipes may be
  * reused, but every {@code RunState} owns distinct physical workspaces. Execution never performs
  * discovery, configuration, restoration, late route selection, or fallback.</p>
+ *
+ * <p>For an eligible exact/default FLOAT32 or FLOAT64 workload, cold CPU analysis also produces
+ * one versioned portable-first batch containing every realizable representation mask crossed with
+ * every configured OpenBLAS thread count that fits the shared CPU capacity. Candidate identities
+ * contain only typed deterministic CPU facts. A caller-supplied decision is consumed only when its
+ * schema, complete workload signature, qualification reuse scope, and candidate identity match the
+ * fresh batch; every miss uses the existing safe heuristic. Session qualifications remain bound
+ * to their exact credential, while only path-qualified binary evidence has a persistent
+ * projection. Candidate production and consumption perform no timing, objective selection, host
+ * discovery, cache access, persistence, provider query, or runtime choice.</p>
  */
 package io.github.pho001.synaptik.backend.cpu.internal.route.nativeblas.openblas;

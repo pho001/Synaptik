@@ -2655,6 +2655,13 @@ broadcast batch, inserted or removed vector axis, bias, terminal, or other epilo
 complete proved rank-two output binding. Every failure or uncertain fact leaves the portable plan
 selected and declares no OpenBLAS-only workspace.
 
+BFLOAT16 remains a supported Model and portable CPU data type, but it has no current OpenBLAS
+MATMUL route. The deferred direct-BFLOAT16 side branch requires a concrete capability proving
+BFLOAT16 inputs and output, FLOAT32 accumulation across the complete contraction, and exactly one
+final BFLOAT16 narrowing. `cblas_sbgemm`, conversion staging, a temporary FLOAT32 output matrix,
+platform inference, and relaxed semantics do not satisfy that requirement. Its absence does not
+block the FLOAT32/FLOAT64 route or its tuning work.
+
 The direct form requires expected native, type-width-aligned `MemorySegment` storage and canonical
 zero-offset dense row-major access for all three matrices. For each boundary that is not direct,
 CPU selects exactly one generated affine copy and one distinct exact-size, type-width-aligned,
@@ -2696,10 +2703,32 @@ every expected run; prepared declarations and generated artifacts do not make co
 persistent. Overflow, missing terms, equality, a combined workspace-byte ceiling failure, an
 invalid relative denominator, or insufficient benefit fails closed. Among passing thread
 candidates, lower total cost wins, followed by lower thread count and then original candidate-list
-order. This tie-break conserves permits without claiming that fewer threads are faster. Boundary
-facts determine the single required mask, so CPU never adds a speculative copy to create another
-candidate. Analysis performs no native query, benchmark, cache lookup, machine probe, allocation,
-assumed thread scaling, or fixed vendor-priority choice.
+order. This tie-break conserves permits without claiming that fewer threads are faster.
+
+For every eligible workload, cold analysis now retains one immutable, versioned tuning batch. Its
+first member is the complete portable realization. The remaining members cross every realizable
+one of the eight copy masks with every configured positive OpenBLAS thread count that fits the
+shared CPU capacity, in copy-mask order and then caller-supplied thread order. A mask is realizable
+only when every uncopied boundary is already direct, every requested copy plan can be constructed,
+and the complete workspace set fits the configured byte ceiling. Each member carries the exact
+route plan and graph-identity-free resource facts needed to prove that selecting it declares the
+same workspaces.
+
+The batch's canonical workload signature includes operation semantics, exact types, Shapes,
+resolved layouts, carrier and access facts, numerical and determinism modes, target qualification,
+caller-supplied CPU identity and expected-use cohort, concurrency, portable strategy, thread and
+cost inputs, and route/artifact policy versions. A selected decision is an immutable reference to
+one exact schema, workload signature, and candidate identity. CPU accepts it only when all three
+match a freshly generated batch; an absent or incompatible decision is an explicit miss and uses
+the safe heuristic above. Session-only qualification binds compatibility to the exact session,
+while a persistently reusable projection exists only for qualified binary content. Neither form
+contains measurements, cache bytes, provider handles, native addresses, or Runtime state.
+
+Candidate production and decision consumption perform no native query, benchmark, objective
+comparison, cache access, serialization, host discovery, allocation, assumed thread scaling, or
+fixed vendor-priority choice. Shared Prepare does not yet transport these CPU-owned values, and
+applications cannot yet request tuning through Config or Engine. Runtime receives only the
+selected prepared result and never sees or reselects a tuning candidate.
 
 The implemented qualified path has an explicit internal composition boundary:
 

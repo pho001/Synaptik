@@ -2,6 +2,7 @@ package io.github.pho001.synaptik.backend.cpu.internal.prepare;
 
 import io.github.pho001.synaptik.backend.cpu.internal.route.portable.CpuPortableRoutePlan;
 import io.github.pho001.synaptik.backend.cpu.internal.route.nativeblas.openblas.CpuOpenBlasRoutePlan;
+import io.github.pho001.synaptik.backend.cpu.internal.route.nativeblas.openblas.CpuOpenBlasTuningBatch;
 import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuAccessPlan;
 import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuKernelIr;
 import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuSpecializedSubgraph;
@@ -124,6 +125,10 @@ import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuPool3dLowering
  *     current production preparation keeps it empty until trusted complete evidence exists
  * @param openBlasPlan non-null optional exact post-lowering OpenBLAS route plan; present exactly
  *     when {@code route} is {@link Route#OPENBLAS}
+ * @param openBlasTuningBatch non-null optional complete eligible tuning batch retained only in
+ *     cold CPU preparation state
+ * @param selectedOpenBlasTuningCandidate non-null optional exact selected candidate identity;
+ *     present exactly with {@code openBlasTuningBatch}
  */
 public record CpuPartitionPreparationPlan(List<ExecutionUnitPlan> units, Route route,
         ExecutionStrategy executionStrategy,
@@ -159,7 +164,9 @@ public record CpuPartitionPreparationPlan(List<ExecutionUnitPlan> units, Route r
         List<RepresentationUnitPlan> representationUnits,
         List<CpuRepresentationDecision> representationDecisions,
         Optional<PartialReductionRecipe> partialReductionRecipe,
-        Optional<CpuOpenBlasRoutePlan> openBlasPlan)
+        Optional<CpuOpenBlasRoutePlan> openBlasPlan,
+        Optional<CpuOpenBlasTuningBatch> openBlasTuningBatch,
+        Optional<CpuOpenBlasTuningBatch.CandidateIdentity> selectedOpenBlasTuningCandidate)
         implements BackendPreparationPlan {
 
     /**
@@ -253,7 +260,8 @@ public record CpuPartitionPreparationPlan(List<ExecutionUnitPlan> units, Route r
                 softmaxGeometry, trailingNormalizationGeometry, batchNormInferenceGeometry,
                 batchNormTrainingGeometry, conv2dGeometry, specializedSubgraphs, fusionDecisions,
                 publicationBoundaryPositions, materializations, representationUnits,
-                representationDecisions, partialReductionRecipe, Optional.empty());
+                representationDecisions, partialReductionRecipe, Optional.empty(),
+                Optional.empty(), Optional.empty());
     }
 
     /** Preserves the pre-partial-reduction canonical construction surface. */
@@ -1418,6 +1426,10 @@ public record CpuPartitionPreparationPlan(List<ExecutionUnitPlan> units, Route r
      * @param representationDecisions non-null ordered representation decisions
      * @param partialReductionRecipe non-null optional partial-reduction finalization handoff
      * @param openBlasPlan non-null optional exact OpenBLAS route plan
+     * @param openBlasTuningBatch non-null optional immutable complete eligible candidate batch
+     *     retained in cold preparation state
+     * @param selectedOpenBlasTuningCandidate non-null optional immutable selected identity,
+     *     present exactly when {@code openBlasTuningBatch} is present and naming one of its members
      * @throws NullPointerException if a required component is {@code null}
      * @throws IllegalArgumentException if the plan is not one through eight valid CPU units with
      *     matching route, boundary, dependency, strategy, range, materialization, workspace,
@@ -1469,6 +1481,10 @@ public record CpuPartitionPreparationPlan(List<ExecutionUnitPlan> units, Route r
         partialReductionRecipe = Objects.requireNonNull(partialReductionRecipe,
                 "partialReductionRecipe");
         openBlasPlan = Objects.requireNonNull(openBlasPlan, "openBlasPlan");
+        openBlasTuningBatch = Objects.requireNonNull(openBlasTuningBatch,
+                "openBlasTuningBatch");
+        selectedOpenBlasTuningCandidate = Objects.requireNonNull(
+                selectedOpenBlasTuningCandidate, "selectedOpenBlasTuningCandidate");
         if (materializations.size() > 2
                 || materializations.stream().map(CpuMaterializationPlan::sourceBoundaryIndex)
                     .distinct().count() != materializations.size()
@@ -1500,6 +1516,19 @@ public record CpuPartitionPreparationPlan(List<ExecutionUnitPlan> units, Route r
         }
         if ((route == Route.OPENBLAS) != openBlasPlan.isPresent()) {
             throw new IllegalArgumentException("CPU route and OpenBLAS plan must agree");
+        }
+        if (openBlasTuningBatch.isPresent() != selectedOpenBlasTuningCandidate.isPresent()
+                || openBlasTuningBatch.isPresent()
+                    && openBlasTuningBatch.orElseThrow()
+                        .find(selectedOpenBlasTuningCandidate.orElseThrow()).isEmpty()
+                || openBlasPlan.isPresent() != (openBlasTuningBatch.isPresent()
+                    && openBlasTuningBatch.orElseThrow()
+                        .find(selectedOpenBlasTuningCandidate.orElseThrow()).orElseThrow()
+                        .route() == CpuOpenBlasTuningBatch.RouteKind.OPENBLAS)
+                || openBlasPlan.isPresent() && !openBlasPlan.equals(openBlasTuningBatch.orElseThrow()
+                        .find(selectedOpenBlasTuningCandidate.orElseThrow()).orElseThrow()
+                        .openBlasPlan())) {
+            throw new IllegalArgumentException("CPU OpenBLAS tuning facts disagree");
         }
         if (openBlasPlan.isPresent()) {
             CpuOpenBlasRoutePlan nativePlan = openBlasPlan.orElseThrow();

@@ -256,7 +256,7 @@ created by 0005A. All consume the common analysis above; none creates another ba
 | 0008B | [General partition-DAG computation-unit decomposition and bounded fusion](tasks/0008b-general-partition-dag-computation-unit-decomposition-and-bounded-fusion.md) | Complete | 0006–0008A | Added deterministic one-to-eight-unit partition-DAG decomposition, bounded vertical/horizontal ordinary-pointwise fusion, exact materialized split buffers, final-index unit workspaces, general atomic sequential finalization, and direct multi-store Class-File/performance evidence. The final CPU suite passed 99 suites/512 tests with three expected skips; all five accepted generated/direct forks and their aggregate passed `<= 1.15x`, while all six rejected samples remain retained. |
 | 0008C | [Typed specialized-subgraph and epilogue recognition](tasks/0008c-typed-specialized-subgraph-and-epilogue-recognition.md) | Complete | 0007F2–0008B | Added recognition-only CPU-private typed facts for exact MATMUL, Conv1d/Conv2d/Conv3d, selected floating-reduction epilogues, and already first-class softmax/normalization kernels. The uniform suffix is optional external ADD plus at most one exact activation/CLAMP. Only CPU 0008's existing Conv2d ADD/ADD-RELU form is already specialized; MATMUL stays unsupported until 0008F and every other recognized epilogue retains the exact 0008B split. Schema 52, artifact identity, capability, generated code, and public/shared contracts remain unchanged; exact baseline and no-leakage evidence passed. |
 | 0008D | [Bounded fusion profitability and typed decision facts](tasks/0008d-bounded-fusion-profitability-and-typed-decision-facts.md) | Complete | 0008B–0008C | Implemented the complete admitted bounded set, deterministic checked integer ranking, best-only tie fallback, graph-identity-free typed facts, shared typed contraction outcomes, exact retained-recognition overlap validation, and independent publication/write role recomputation. The authoritative CPU suite passed 536 tests in 103 suites with 3 skips and no failures/errors; both retained runs kept all 45 samples per comparison, schema 52 and generated forms remain unchanged, and the clean documentation pass finalized Javadocs, guide, glossary, and planning evidence. |
-| 0008E | [Bounded multi-input materialization and representation reuse](tasks/0008e-bounded-multi-input-materialization-and-representation-reuse.md) | Complete | 0008D | Preserved complete bounded direct/single/disjoint-pair candidates, `CO_CONSUMED_PAIR`, resources, generated copy units, reuse, schema 53, and execution-equivalence evidence while making every materialized form candidate-only for ordinary preparation. Ordinary preparation selects CPU 0008D direct; future CPU 0010E, Prepare 0004, narrowed CPU 0016, and Tuning 0001–0002 own compatible end-to-end promotion, and Runtime never selects. The corrective implementation passed 115 focused tests and the final 544-test/104-suite CPU run with 3 expected skips and no failures/errors; clean documentation context `01a04317-b784-76e3-a93b-ff35106284b9` finalized Javadocs, guide, glossary, and planning evidence. |
+| 0008E | [Bounded multi-input materialization and representation reuse](tasks/0008e-bounded-multi-input-materialization-and-representation-reuse.md) | Complete | 0008D | Preserved complete bounded direct/single/disjoint-pair candidates, `CO_CONSUMED_PAIR`, resources, generated copy units, reuse, schema 53, and execution-equivalence evidence while making every materialized form candidate-only for ordinary preparation. Ordinary preparation selects CPU 0008D direct; future CPU 0010E, Prepare 0004, Tuning 0001, narrowed CPU 0016, and Tuning 0002 own compatible staged end-to-end promotion, and Runtime never selects. The corrective implementation passed 115 focused tests and the final 544-test/104-suite CPU run with 3 expected skips and no failures/errors; clean documentation context `01a04317-b784-76e3-a93b-ff35106284b9` finalized Javadocs, guide, glossary, and planning evidence. |
 | 0008E1 | [Shared partition-DAG adoption and reconstruction removal](tasks/0008e1-shared-partition-dag-adoption-and-reconstruction-removal.md) | Complete | Prepare 0003A; 0008E | Adopted Prepare's immutable partition-local DAG across CPU decomposition, pointwise and affine lowering, recognition, and profitability boundary accounting while preserving CPU-owned unit/candidate/IR facts. The focused six-suite matrix passed 63 tests; the authoritative CPU rerun passed 547 tests across 104 suites with 3 expected skips and no failures/errors. Schema 53 and generated/cache/executable/finalizer production paths remain unchanged. |
 | 0008F | [Portable MATMUL execution and bounded linear epilogues](tasks/0008f-portable-matmul-execution-and-bounded-linear-epilogues.md) | Complete | 0008E1; Model 0019/0019D; Compiler 0005D | Added complete static vector/matrix/batched/right-broadcast MATMUL across all current non-BOOL numeric promotions through four bounded portable generated realizations, a complete scalar fallback, full-K accumulation, independent output-work-unit parallelism, explicit candidate-only 0008E materializations, and exact 0008C bias/one-terminal fusion or safe split. The 182-test focused baseline, 576-test CPU checkpoint, Class-File scans, and five-fork `<= 1.15x` evidence passed at schema 54. No native route, K splitting, panel packing, or hot-path policy was added. |
 | 0008G | [Portable max/average Pool2d execution](tasks/0008g-portable-max-average-pool2d-execution.md) | Complete | 0008F; Model 0020A–0020A1; Compiler 0005D | Added first-class NCHW max and fixed-count average pooling through one generated scalar/parallel-scalar form with exact literal floor/ceil geometry, extrema/divisor/accumulator/special-value rules, static resolved layouts, array/segment carriers, disjoint output-cell ranges, zero workspace, schema-55 identity, and an optimal clean Java oracle. Focused and 596-test CPU validation, structural/schema scans, and five-fork `<= 1.15x` evidence passed; no pooling fusion or materialization was added. |
@@ -306,26 +306,34 @@ created by 0005A. All consume the common analysis above; none creates another ba
 | 0010B | [Bounded OpenBLAS MATMUL representation expansion](tasks/0010b-bounded-openblas-matmul-representation-expansion.md) | Complete | 0010A; 0008E | Added all eight proved copy masks around the unchanged non-transposed provider call, with zero through two CPU-owned input copies, optional route-local output copy, distinct run-owned workspaces, complete checked representation/GEMM/expected-run cost, pre-write binding validation, and native/conformance evidence. Empty/zero-K, batch, broadcast, epilogue, packing, threading, qualification, tuning, and provider API expansion remain excluded. |
 | 0010C | [Coordinated OpenBLAS thread candidates and shared CPU thread budget](tasks/0010c-coordinated-openblas-thread-candidates-and-shared-cpu-thread-budget.md) | Complete | 0010B; stable CPU worker orchestration | Added composition-owned provider-state exclusion/restoration and typed positive OpenBLAS thread-count candidates under one explicit fair CPU concurrency budget shared with portable workers and concurrent independent GEMMs. Configuration is selected and installed cold, and execution uses fixed prepared permit demand without per-call query/set. Its transitional externally excluded count-one path was later closed for qualified routes by 0010D. |
 | 0010D | [Installed OpenBLAS qualification and target fingerprinting](tasks/0010d-installed-openblas-qualification-and-target-fingerprinting.md) | Complete | 0010C | Added immutable per-load-session qualification after supported target/header, exact four-symbol ordinary 32-bit-`blasint`, count-one, and bounded SGEMM/DGEMM checks. Absolute-path loads receive versioned SHA-256 binary/target compatibility identity; name loads remain session-only. Exact coordinator association is checked before provider mutation or recipe construction. This is compatibility evidence, not authentication or broad ABI, numerical, determinism, or performance certification. |
-| 0010D1 | Qualified direct BFLOAT16-output OpenBLAS MATMUL route | Draft | 0010D; OpenBLAS provider 0004 | Consume only the provider's proved optional direct BFLOAT16-input/BFLOAT16-output capability, add CPU-owned installed-binary numerical qualification and capability identity, and admit bounded same-type BFLOAT16 rank-two MATMUL only when its accumulation and direct result semantics match Model; otherwise retain portable Java without changing FLOAT32/FLOAT64. |
-| 0010E | OpenBLAS tuning candidates and compatible selection evidence | Draft | 0010D1; Config 0006A; Prepare 0004; stable Tuning 0001 artifact contract | Add typed/versioned portable-versus-OpenBLAS thread and representation candidates plus canonical target/hardware, provider/binary, optional direct-BFLOAT16 capability/proof, operation, type, shape/layout/carrier, numerical/determinism, and worker/thread compatibility and Prepare-time consumption of an explicit selected decision. `tools/tuning` measures complete candidates and owns persistent cache loading/mutation; CPU owns validity, signatures, safe heuristic fallback, and no Runtime choice. |
+| 0010D1 | Qualified direct BFLOAT16-output OpenBLAS MATMUL route | Blocked (deferred optional side branch) | 0010D; OpenBLAS provider 0004 | Retain the failed proof as durable evidence and resume only for a concrete direct capability proving BFLOAT16 inputs/output, complete FP32 contraction accumulation, and exactly one final BFLOAT16 narrowing. Portable BFLOAT16 and existing FLOAT32/FLOAT64 routes remain unchanged. |
+| 0010E | [FLOAT32/FLOAT64 OpenBLAS tuning candidates and compatible decisions](tasks/0010e-float32-float64-openblas-tuning-candidates-and-compatible-decisions.md) | Complete | 0010D | Added typed/versioned complete portable-versus-OpenBLAS thread and representation candidates, canonical CPU/workload compatibility facts, and deterministic consumption of one matching selected decision. Exact/default FLOAT32/FLOAT64 only; CPU performs no measurement or persistence and safe heuristic preparation remains available. Final validation passed 194 suites and 991 tests with 28 skips and zero failures/errors; the focused three-class run passed 3 suites and 20 tests. |
 | 0011 | Intel oneMKL BLAS and VML peer routes | Blocked | 0010E; 0005A; 0009; concrete Intel CPU use case and supported oneMKL ABI evidence | The ordered OpenBLAS sequence now precedes this row, and the repository still supplies neither Intel external gate. Once all dependencies exist, add distinct `route.nativeblas.mkl` BLAS and `route.nativeops.mkl` VML leaves over shared analysis while preserving portable Java as the semantic fallback. |
 | 0012 | Intel oneDNN partition peer routes | Draft | 0005A; 0009; stable common CPU lowering; concrete DNN/ML use case and supported oneDNN ABI evidence | Add `route.nativeops.onednn` as a distinct eligible partition route over common lowering/IR and whole-plan cost, without collapsing it into oneMKL or portable code generation. |
 | 0013 | Apple Accelerate peer routes | Draft | 0005A; 0009; concrete Apple CPU use case and supported Accelerate ABI evidence | Add `route.nativeblas.accelerate` for BLAS and `route.nativeops.accelerate` for vDSP/vForce over shared analysis; Apple Silicon is capability-selected, while MPSGraph and Metal kernels remain outside CPU. |
 | 0014 | AMD AOCL-BLAS and AOCL-LibM peer routes | Draft | 0005A; 0009; concrete AMD CPU use case and supported AOCL ABI evidence | Add distinct `route.nativeblas.aocl` and `route.nativeops.aocl` leaves over shared analysis and whole-plan cost, preserving the portable fallback and avoiding provider-owned lowering. |
 | 0015 | Optional AMD ZenDNN partition peer routes | Draft | 0014; 0005A; 0009; stable common CPU lowering; concrete ZenDNN use case and integration evidence | Add `route.nativeops.zendnn` only for verified eligible DNN partitions, distinct from AOCL and portable generation and without another backend identity. |
-| 0016 | Cross-route CPU tuning-cache integration | Draft | 0010E; Prepare 0004; 0011–0015 as implemented; stable tuning-artifact compatibility | Generalize the 0010E-proved workload signature, compatibility, and selected-decision consumption across implemented portable and vendor peer routes. Do not repeat OpenBLAS candidate/schema/persistence work, keep generated-class storage distinct, and add no measurement or tuning-cache mutation to CPU prepare. |
+| 0016 | Cross-route CPU tuning-cache integration | Draft | 0010E; Prepare 0004; tools/tuning 0001; 0011–0015 as implemented | Generalize the 0010E-proved workload signature, compatibility, and selected-decision consumption across implemented portable and vendor peer routes. Do not repeat OpenBLAS candidate/schema/persistence work, keep generated-class storage distinct, and add no measurement or tuning-cache mutation to CPU prepare. |
 | 0017 | Explicit relaxed numerical candidate consumption | Draft | Config 0006; 0005F; stable exact portable and implemented peer-route consumers | Admit and compare relaxed portable or vendor candidates only under explicit caller permission, keep common analysis authoritative for eligibility and selected realization plans, and include numerical mode in compatibility/manifests without hot-path policy lookup. |
 
 ## OpenBLAS development sequence before CPU 0011
 
-CPU 0010A through 0010E, including inserted 0010D1, are an ordered OpenBLAS program after
-completed CPU 0010 and before blocked CPU 0011. The insertion is user-authorized and does not
-reopen or renumber task 0010. Detailed CPU 0010B, 0010C, and
-[CPU 0010D](tasks/0010d-installed-openblas-qualification-and-target-fingerprinting.md) are
-`Complete` after completed 0010A. OpenBLAS provider 0004 is the blocked detailed frontier after
-its exported-ABI and one-final-narrowing proof gates failed. CPU 0010D1 remains a dependent,
-non-executable master-plan-only `Draft`, and CPU 0010E follows it as another master-plan-only
-`Draft`; neither receives a detailed specification or advances out of order.
+CPU 0010A through 0010D are the completed OpenBLAS foundation after CPU 0010. CPU 0010D1 is an
+intentional optional side branch, not a mainline prerequisite: provider 0004's failed exported-
+ABI and one-final-narrowing proof keeps it Blocked and deferred without changing portable
+BFLOAT16. The acyclic FLOAT32/FLOAT64 tuning mainline is:
+
+```text
+CPU 0010E typed candidates and compatible-decision consumption
+  -> Prepare 0004 opaque candidate/decision transport
+  -> tools/tuning 0001 measurement, selection, cache persistence, and rich evidence
+```
+
+CPU 0010E is Complete. It confirms the earlier CPU-first direction while narrowing it: CPU
+stabilizes the values owned by the concrete backend before Prepare can carry them or tuning can
+persist them. Prepare 0004 is now the next Draft planning frontier; it has no detailed task and is
+not yet Ready. Tools/tuning 0001 and Config 0006A remain staged Draft work. This first slice uses
+exact/default semantics and tooling-local explicit request inputs, and Runtime never selects.
 
 CPU 0010A can proceed without Engine because the discovery request, immutable result, bounded
 loader, and provider-lifetime session stay package-private under
@@ -389,19 +397,24 @@ alongside target, binary, session, operation, type, shape, layout, carrier, repr
 thread, and resource facts. Platform labels remain ordinary target-ABI validation inputs, never
 capability selectors. This task makes no tuning or performance claim.
 
-CPU 0010E is the OpenBLAS-specific proving slice for the architecture's model-autotuning
+CPU 0010E is the first OpenBLAS-specific producer for the architecture's model-autotuning
 boundary. CPU owns typed complete route/configuration candidates, canonical workload and target
-facts, candidate-schema versioning, compatibility rejection, and Prepare-time consumption of one
-explicit selected decision. Compatibility covers the exact target/hardware fingerprint, qualified
-provider and binary identity/version evidence, optional direct-BFLOAT16 capability/proof schema,
-operation semantics, input/accumulation/output types, shapes, layouts, carriers and
-materializations, numerical and determinism modes, CPU worker budget, portable-worker count,
-OpenBLAS thread count, expected reuse/workload cohort, objective, and every schema or cost-policy
-version that can change candidate meaning. Candidates cover the safe portable alternative and every eligible
-OpenBLAS thread/representation plan, with complete copy and execution resources. `tools/tuning`
-owns measurement, objective/budget comparison, persistent cache loading and atomic mutation, and
-rich evidence. Ordinary CPU prepare performs no measurement or cache mutation and falls back to
-safe exact filtering/heuristics on absence, corruption, or incompatibility.
+facts, candidate-schema versioning, exact compatibility rejection, and deterministic consumption
+of one explicit selected decision. The first schema covers only the completed exact/default
+FLOAT32/FLOAT64 route: target/hardware and qualified provider/binary identity, operation semantics,
+input/accumulation/output types, shapes, layouts, carriers and materializations, numerical and
+determinism modes, CPU worker budget, portable-worker count, OpenBLAS thread count, expected reuse
+cohort, and every CPU schema or cost-policy version that can change candidate meaning. Candidates
+cover the safe portable alternative and every eligible OpenBLAS thread/representation plan with
+complete resources. Prepare 0004 later transports these values opaquely. `tools/tuning` 0001 then
+owns measurement, objective/budget comparison, persistent cache loading and atomic mutation,
+corruption/incompatibility rejection, and rich evidence. Ordinary CPU preparation performs none
+of that work and retains safe exact heuristics when no matching selected decision is supplied.
+
+The first schema deliberately contains no placeholder BFLOAT16 capability bit. If provider 0004
+and CPU 0010D1 later complete, a versioned CPU follow-up must add the proved direct-BFLOAT16
+semantics and proof identity explicitly. It must not infer compatibility from this
+FLOAT32/FLOAT64 schema.
 
 CPU 0016 is consequently narrowed to cross-route integration after 0010E. It extends the proven
 contract to whichever oneMKL, oneDNN, Accelerate, AOCL, and ZenDNN peers actually exist; it does
@@ -1112,10 +1125,10 @@ documentation checkpoints. Detailed CPU 0010A is `Complete`: it establishes boun
 OpenBLAS discovery plus an internal composition lifetime without Engine or public Config. CPU
 0010B, detailed CPU 0010C, and detailed
 [CPU 0010D](tasks/0010d-installed-openblas-qualification-and-target-fingerprinting.md) are
-`Complete`. OpenBLAS provider 0004 is the blocked detailed frontier; dependent CPU 0010D1 remains
-non-executable and then CPU 0010E remains ordered after it, both as master-plan-only `Draft` rows
-without detailed files. CPU 0011 remains
-`Blocked` after that sequence because no concrete Intel CPU use case or supported oneMKL BLAS/VML
+`Complete`. OpenBLAS provider 0004 and CPU 0010D1 remain a blocked/deferred optional BFLOAT16 side
+branch. Detailed CPU 0010E is `Complete` for the independent exact/default FLOAT32/FLOAT64 slice;
+Prepare 0004 is the next Draft planning frontier and tools/tuning 0001 remains staged after it.
+CPU 0011 remains `Blocked` because no concrete Intel CPU use case or supported oneMKL BLAS/VML
 ABI evidence is present; CPU 0012 through 0017 remain `Draft`. Prepare
 0003A is Complete.
 CPU 0005C preserves that exact slice and implements cold selection among all four portable
@@ -1405,9 +1418,9 @@ not alter the ordered task rows or completed earlier CPU families.
   carriers, integer interface, calling convention, lifecycle/thread behavior, and exact numerical
   contract. The repository contains no oneMKL provider plan, package, dependency, or compatible-
   library checkpoint, and CPU 0010's OpenBLAS evidence is provider- and Darwin-arm64-specific.
-  The user-authorized CPU 0010A–0010D1–0010E OpenBLAS sequence now precedes 0011 but does not satisfy
-  either Intel gate. Reassess CPU 0011 and create its one detailed specification only after the
-  ordered OpenBLAS sequence and both external inputs are complete.
+  The mainline CPU 0010A–0010E OpenBLAS sequence precedes 0011, while blocked CPU 0010D1 is an
+  optional side branch; neither satisfies either Intel gate. Reassess CPU 0011 only after CPU
+  0010E and both external Intel inputs are complete.
 - Vendor ABI/lifetime layers remain inside the CPU backend unless a later explicit architecture
   decision authorizes another provider module and dependency edge. This plan does not add such a
   module.
@@ -1431,7 +1444,7 @@ not alter the ordered task rows or completed earlier CPU families.
 
 ## Decisions made
 
-- CPU 0010D1 consumes only OpenBLAS provider 0004's qualified, versioned direct
+- Blocked/deferred CPU 0010D1 consumes only OpenBLAS provider 0004's qualified, versioned direct
   BFLOAT16-input/BFLOAT16-output capability. It must preserve raw BFLOAT16 storage end to end,
   reject the native route unless installed-binary numerical evidence proves Model-compatible
   FLOAT32 accumulation and direct BFLOAT16 result semantics, and retain portable BFLOAT16 plus the
@@ -1621,10 +1634,10 @@ not alter the ordered task rows or completed earlier CPU families.
   the exact 0008B comparison baseline and immutable 0008C recognition snapshots, while canonical
   split wins ties, uncertainty, or incomplete bounded enumeration. It adds no generated/hot form,
   Trace payload, public registry, measurement, cache, or Runtime choice. Later
-  Config 0006A supplies declarative model-autotuning inputs, Prepare 0004 carries candidates and
-  compatible decisions opaquely, CPU 0010E proves OpenBLAS-specific candidate and compatible-
-  decision consumption, CPU 0016 generalizes that contract across implemented CPU routes, and
-  Tuning 0001–0002 may measure eligible complete candidates when the user explicitly requests
+  CPU 0010E first proves exact/default FLOAT32/FLOAT64 OpenBLAS-specific candidates and compatible-
+  decision consumption, Prepare 0004 then carries candidates and decisions opaquely, Tuning 0001
+  measures and persists that initial slice, CPU 0016 generalizes the contract across implemented
+  CPU routes, and Tuning 0002 may measure eligible complete plans when the user explicitly requests
   model autotuning. Autotuning is not the default fusion-profitability mechanism, and no search,
   cache mutation, or choice occurs in Runtime. CPU 0008D's typed cold decision facts remain
   CPU-owned; later Trace backend payloads and tuning inspection may translate or consume them

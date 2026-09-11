@@ -22,45 +22,85 @@ import java.util.Objects;
 import java.util.Optional;
 
 /**
- * Field-free cold selector for the exact bounded OpenBLAS MATMUL route.
- * It consumes only common lowering, representation, expected storage, qualification, and cost
- * facts. An incomplete configuration, ineligible route, tie with portable cost,
- * insufficient benefit, or arithmetic overflow retains the already-valid portable plan. Among
- * eligible native candidates, lower complete cost wins, followed by lower thread count and then
- * stable input order. The three direct/copy decisions are determined by the proved boundary facts,
- * so selection creates exactly the required one of eight masks rather than speculative extra
- * copies.
+ * Field-free cold producer and selector for exact/default FLOAT32/FLOAT64 OpenBLAS MATMUL
+ * candidates. It derives one batch from common lowering and route facts, validates an optional
+ * exact decision, and otherwise applies the unchanged safe heuristic. It performs no provider
+ * query, host discovery, measurement, objective comparison, serialization, or cache I/O.
  */
 public final class CpuOpenBlasRouteSelector {
-    /** Creates a stateless selector with no provider, cache, or measurement state. */
+    /** Creates a stateless selector with no resources or lifecycle. */
     public CpuOpenBlasRouteSelector() { }
 
     /**
-     * Selects an OpenBLAS plan only when exact eligibility, the combined workspace ceiling, and
-     * both benefit thresholds hold. Checked-arithmetic or malformed-candidate failure is treated
-     * as uncertainty and returns empty; the method performs no provider query or allocation.
-     *
+     * Complete eligible cold outcome.
+     * @param batch freshly generated candidate batch
+     * @param selected selected member after decision or heuristic handling
+     */
+    public record Result(CpuOpenBlasTuningBatch batch,
+            CpuOpenBlasTuningBatch.Candidate selected) {
+        /**
+         * Validates exact batch membership. The immutable batch and selected member are retained
+         * without mutation or resource ownership.
+         *
+         * @throws NullPointerException if either component is {@code null}
+         * @throws IllegalArgumentException if {@code selected} is not a member of {@code batch}
+         */
+        public Result {
+            Objects.requireNonNull(batch, "batch");
+            Objects.requireNonNull(selected, "selected");
+            if (batch.find(selected.identity()).isEmpty()) {
+                throw new IllegalArgumentException("selected candidate is outside batch");
+            }
+        }
+        /**
+         * Returns the selected native plan view without changing the selection.
+         *
+         * @return non-null optional containing the retained OpenBLAS plan, or empty for portable
+         *     selection
+         */
+        public Optional<CpuOpenBlasRoutePlan> selectedOpenBlasPlan() {
+            return selected.openBlasPlan();
+        }
+    }
+
+    /**
+     * Produces all valid candidates and applies one compatible decision or the safe heuristic.
      * @param context non-null complete CPU analysis projection
-     * @param portablePlan non-null already-selected common portable partition plan
-     * @param representationPlanner non-null existing affine-copy planning owner
-     * @return the selected immutable native plan, or empty to retain portable execution
+     * @param portablePlan non-null already-selected portable plan
+     * @param representationPlanner non-null existing representation owner
+     * @return complete outcome, or empty when the workload/configuration is ineligible
      * @throws NullPointerException if an argument is {@code null}
      */
-    public Optional<CpuOpenBlasRoutePlan> select(
-            PrepareContext<CpuPartitionAnalysisInputs> context,
+    public Optional<Result> evaluate(PrepareContext<CpuPartitionAnalysisInputs> context,
             CpuPartitionPreparationPlan portablePlan,
             CpuRepresentationPlanner representationPlanner) {
         Objects.requireNonNull(context, "context");
         Objects.requireNonNull(portablePlan, "portablePlan");
         Objects.requireNonNull(representationPlanner, "representationPlanner");
         try {
-            return selectChecked(context, portablePlan, representationPlanner);
+            return evaluateChecked(context, portablePlan, representationPlanner);
         } catch (ArithmeticException | IllegalArgumentException uncertain) {
             return Optional.empty();
         }
     }
 
-    private static Optional<CpuOpenBlasRoutePlan> selectChecked(
+    /**
+     * Compatibility view of only the selected native plan.
+     * @param context non-null complete CPU analysis projection; retained nowhere
+     * @param portablePlan non-null already-selected portable plan; not mutated
+     * @param representationPlanner non-null existing representation owner; not retained
+     * @return non-null optional containing the selected immutable native plan, or empty when the
+     *     workload is ineligible or portable is selected
+     * @throws NullPointerException if an argument is {@code null}
+     */
+    public Optional<CpuOpenBlasRoutePlan> select(PrepareContext<CpuPartitionAnalysisInputs> context,
+            CpuPartitionPreparationPlan portablePlan,
+            CpuRepresentationPlanner representationPlanner) {
+        return evaluate(context, portablePlan, representationPlanner)
+                .flatMap(Result::selectedOpenBlasPlan);
+    }
+
+    private static Optional<Result> evaluateChecked(
             PrepareContext<CpuPartitionAnalysisInputs> context,
             CpuPartitionPreparationPlan plan, CpuRepresentationPlanner representationPlanner) {
         var config = context.backendInputs().openBlasRoute();
@@ -69,9 +109,7 @@ public final class CpuOpenBlasRouteSelector {
                 || context.nodes().getFirst().operation().kind()
                     != io.github.pho001.synaptik.model.operation.linalg.MatmulKind.MATMUL
                 || plan.bufferDeclarations().size() != 3 || !plan.materializations().isEmpty()
-                || plan.partialReductionRecipe().isPresent()) {
-            return Optional.empty();
-        }
+                || plan.partialReductionRecipe().isPresent()) return Optional.empty();
         var unit = plan.units().getFirst();
         Optional<CpuMatmulIr> maybeIr = unit.portablePlan().specialization().matmulIr();
         if (maybeIr.isEmpty() || unit.matmulGeometry().isEmpty()
@@ -83,36 +121,32 @@ public final class CpuOpenBlasRouteSelector {
         CpuMatmulIr ir = maybeIr.orElseThrow();
         var geometry = unit.matmulGeometry().orElseThrow();
         DataType type = ir.resultType();
-        if (!ir.epilogue().equals(CpuMatmulIr.Epilogue.none())
-                || ir.leftType() != type || ir.rightType() != type
+        if (!ir.epilogue().equals(CpuMatmulIr.Epilogue.none()) || ir.leftType() != type
+                || ir.rightType() != type
                 || type != DataType.FLOAT32 && type != DataType.FLOAT64
                 || unit.portablePlan().specialization().numericalMode()
                     != CpuKernelSpecialization.NumericalMode.EXACT_DEFAULT
                 || geometry.batchExtents().length != 0 || geometry.batchCount() != 1
-                || geometry.removedM() || geometry.removedN()
-                || geometry.m() <= 0 || geometry.n() <= 0 || geometry.k() <= 0
-                || geometry.m() > Integer.MAX_VALUE || geometry.n() > Integer.MAX_VALUE
-                || geometry.k() > Integer.MAX_VALUE) {
+                || geometry.removedM() || geometry.removedN() || geometry.m() <= 0
+                || geometry.n() <= 0 || geometry.k() <= 0 || geometry.m() > Integer.MAX_VALUE
+                || geometry.n() > Integer.MAX_VALUE || geometry.k() > Integer.MAX_VALUE) {
             return Optional.empty();
         }
         Map<ValueId, GraphValue> values = new LinkedHashMap<>();
         for (GraphValue value : context.values()) values.put(value.id(), value);
         for (ValueId boundary : unit.boundaryValues()) {
             GraphValue value = values.get(boundary);
-            if (value == null || value.descriptor().shape().rank() != 2) return Optional.empty();
+            if (value == null || value.descriptor().shape().rank() != 2
+                    || value.descriptor().layout().isEmpty()) return Optional.empty();
         }
-        int m = Math.toIntExact(geometry.m());
-        int n = Math.toIntExact(geometry.n());
+        int m = Math.toIntExact(geometry.m()), n = Math.toIntExact(geometry.n());
         int k = Math.toIntExact(geometry.k());
         if ((!canonical(unit.accessBindings().get(0), m, k, CpuAccessPlan.AccessKind.READ)
                 && !copyable(unit.accessBindings().get(0), m, k))
                 || (!canonical(unit.accessBindings().get(1), k, n, CpuAccessPlan.AccessKind.READ)
                     && !copyable(unit.accessBindings().get(1), k, n))
-                || (!canonical(unit.accessBindings().get(2), m, n,
-                        CpuAccessPlan.AccessKind.WRITE)
-                    && !copyableOutput(unit.accessBindings().get(2), m, n))) {
-            return Optional.empty();
-        }
+                || (!canonical(unit.accessBindings().get(2), m, n, CpuAccessPlan.AccessKind.WRITE)
+                    && !copyableOutput(unit.accessBindings().get(2), m, n))) return Optional.empty();
         List<CpuPartitionAnalysisInputs.BoundaryStorageFact> storage =
                 context.backendInputs().boundaryStorageFacts();
         if (storage.size() != 3) return Optional.empty();
@@ -122,144 +156,185 @@ public final class CpuOpenBlasRouteSelector {
                 CpuAccessPlan.AccessKind.READ) && directBoundary(unit, storage, 1, type);
         boolean outputDirect = canonical(unit.accessBindings().get(2), m, n,
                 CpuAccessPlan.AccessKind.WRITE) && directBoundary(unit, storage, 2, type);
-
-        long outputElements = Math.multiplyExact((long) m, n);
-        long multiplyAccumulates = Math.multiplyExact(outputElements, k);
+        long outputs = Math.multiplyExact((long) m, n);
+        long macs = Math.multiplyExact(outputs, k);
         long runs = context.backendInputs().materializationPolicy().expectedRunCount();
-        long portableCost = total(config.portableCosts(), outputElements,
-                multiplyAccumulates, runs);
-        var policy = context.backendInputs().materializationPolicy();
-        int nextWorkspace = 8;
-        Optional<CpuMaterializationPlan> left = leftDirect ? Optional.empty()
-                : representationPlanner.openBlasInputMaterialization(plan, 0, policy,
-                        nextWorkspace++);
-        if (!leftDirect && left.isEmpty()) return Optional.empty();
-        Optional<CpuMaterializationPlan> right = rightDirect ? Optional.empty()
-                : representationPlanner.openBlasInputMaterialization(plan, 1, policy,
-                        nextWorkspace++);
-        if (!rightDirect && right.isEmpty()) return Optional.empty();
-        Optional<CpuOpenBlasOutputCopyPlan> output = outputDirect ? Optional.empty()
-                : representationPlanner.openBlasOutputCopy(plan, nextWorkspace);
-        if (!outputDirect && output.isEmpty()) return Optional.empty();
-        CpuOpenBlasRoutePlan.Representation representation = representation(
-                left.isPresent(), right.isPresent(), output.isPresent());
-        return candidate(representation, left, right, output, type, m, n, k, config,
-                outputElements, multiplyAccumulates, portableCost, runs,
-                policy.maximumAdditionalBytes(),
-                context.backendInputs().portableExecution().availableParallelism());
+        long portableCost = total(config.portableCosts(), outputs, macs, runs);
+        int capacity = context.backendInputs().portableExecution().availableParallelism();
+        var candidates = new ArrayList<CpuOpenBlasTuningBatch.Candidate>();
+        candidates.add(new CpuOpenBlasTuningBatch.Candidate(
+                CpuOpenBlasTuningBatch.RouteKind.PORTABLE,
+                new CpuOpenBlasTuningBatch.PortableIdentity(plan.executionStrategy(),
+                        plan.selectedRangeCount(), plan.minimumElementsPerWorker(),
+                        plan.vectorSpeciesBitSize(),
+                        unit.portablePlan().specialization().classIdentitySchema(),
+                        unit.portablePlan().portableKernelIr().structuralKey(),
+                        plan.bufferDeclarations().stream().map(value ->
+                                new CpuOpenBlasTuningBatch.ResourceIdentity(value.byteSize(),
+                                        value.byteAlignment())).toList()), Optional.empty()));
+        for (var representation : CpuOpenBlasRoutePlan.Representation.values()) {
+            if (!representation.copiesLeft() && !leftDirect
+                    || !representation.copiesRight() && !rightDirect
+                    || !representation.copiesOutput() && !outputDirect) continue;
+            Optional<CpuMaterializationPlan> left = representation.copiesLeft()
+                    ? representationPlanner.openBlasInputMaterialization(plan, 0,
+                            context.backendInputs().materializationPolicy(), 8) : Optional.empty();
+            int next = 8 + (representation.copiesLeft() ? 1 : 0);
+            Optional<CpuMaterializationPlan> right = representation.copiesRight()
+                    ? representationPlanner.openBlasInputMaterialization(plan, 1,
+                            context.backendInputs().materializationPolicy(), next++) : Optional.empty();
+            Optional<CpuOpenBlasOutputCopyPlan> output = representation.copiesOutput()
+                    ? representationPlanner.openBlasOutputCopy(plan, next) : Optional.empty();
+            if (representation.copiesLeft() != left.isPresent()
+                    || representation.copiesRight() != right.isPresent()
+                    || representation.copiesOutput() != output.isPresent()) continue;
+            append(candidates, representation, left, right, output, type, m, n, k, config,
+                    outputs, macs, portableCost, runs,
+                    context.backendInputs().materializationPolicy().maximumAdditionalBytes(),
+                    capacity);
+        }
+        if (candidates.size() == 1) return Optional.empty();
+        var batch = new CpuOpenBlasTuningBatch(CpuOpenBlasTuningBatch.SCHEMA_VERSION,
+                workload(context, plan, values, config, type, storage, capacity), candidates);
+        var decided = context.backendInputs().openBlasTuningDecision()
+                .flatMap(decision -> decision.match(batch));
+        return Optional.of(new Result(batch, decided.orElseGet(() -> heuristic(batch, config))));
     }
 
-    private static Optional<CpuOpenBlasRoutePlan> candidate(
+    private static CpuOpenBlasTuningBatch.WorkloadSignature workload(
+            PrepareContext<CpuPartitionAnalysisInputs> context,
+            CpuPartitionPreparationPlan plan, Map<ValueId, GraphValue> values,
+            CpuPartitionAnalysisInputs.OpenBlasRouteConfig config, DataType type,
+            List<CpuPartitionAnalysisInputs.BoundaryStorageFact> storage, int capacity) {
+        var unit = plan.units().getFirst();
+        var boundaries = new ArrayList<CpuOpenBlasTuningBatch.BoundarySignature>(3);
+        for (int index = 0; index < 3; index++) {
+            var descriptor = values.get(unit.boundaryValues().get(index)).descriptor();
+            boundaries.add(new CpuOpenBlasTuningBatch.BoundarySignature(type, descriptor.shape(),
+                    descriptor.layout().orElseThrow(), unit.carrierPattern().get(index),
+                    storage.get(index), unit.accessBindings().get(index)));
+        }
+        return new CpuOpenBlasTuningBatch.WorkloadSignature(
+                CpuOpenBlasTuningBatch.OperationKind.MATMUL,
+                CpuOpenBlasTuningBatch.OperationAttributes.NONE, type, type, type,
+                type, boundaries, CpuOpenBlasTuningBatch.NumericalMode.EXACT_DEFAULT,
+                CpuOpenBlasTuningBatch.DeterminismMode.DEFAULT,
+                new CpuOpenBlasTuningBatch.QualificationScope(config.qualification().orElseThrow()),
+                context.backendInputs().cpuHardwareIdentity(), capacity,
+                context.backendInputs().portableExecution(), plan.executionStrategy(),
+                plan.selectedRangeCount(), plan.vectorSpeciesBitSize(),
+                config.threadCandidates().stream().map(
+                        CpuPartitionAnalysisInputs.OpenBlasRouteConfig.ThreadCandidate::threadCount)
+                        .toList(), context.backendInputs().workloadCohort(),
+                context.backendInputs().materializationPolicy(), config.portableCosts(),
+                config.representationCosts(), config.threadCandidates(),
+                config.minimumNetBenefitCostUnits().orElseThrow(),
+                config.minimumBenefitBasisPoints().orElseThrow(),
+                unit.portablePlan().specialization().classIdentitySchema(),
+                CpuOpenBlasTuningBatch.ROUTE_POLICY_VERSION,
+                CpuOpenBlasTuningBatch.COST_POLICY_VERSION);
+    }
+
+    private static void append(List<CpuOpenBlasTuningBatch.Candidate> candidates,
             CpuOpenBlasRoutePlan.Representation representation,
-            Optional<CpuMaterializationPlan> left,
-            Optional<CpuMaterializationPlan> right,
-            Optional<CpuOpenBlasOutputCopyPlan> output, DataType type,
-            int m, int n, int k,
-            CpuPartitionAnalysisInputs.OpenBlasRouteConfig config,
-            long outputElements, long multiplyAccumulates, long portableCost,
-            long runs, long maximumAdditionalBytes, int analysisCapacity) {
+            Optional<CpuMaterializationPlan> left, Optional<CpuMaterializationPlan> right,
+            Optional<CpuOpenBlasOutputCopyPlan> output, DataType type, int m, int n, int k,
+            CpuPartitionAnalysisInputs.OpenBlasRouteConfig config, long outputs, long macs,
+            long portableCost, long runs, long byteCeiling, int capacity) {
         var requirements = new ArrayList<PreparationResourceRequirement.Workspace>();
         left.map(CpuOpenBlasRouteSelector::workspace).ifPresent(requirements::add);
         right.map(CpuOpenBlasRouteSelector::workspace).ifPresent(requirements::add);
         output.map(CpuOpenBlasRouteSelector::workspace).ifPresent(requirements::add);
-        long workspaceBytes = requirements.stream().mapToLong(
+        long bytes = requirements.stream().mapToLong(
                 PreparationResourceRequirement.Workspace::byteSize).reduce(0, Math::addExact);
-        if (workspaceBytes > maximumAdditionalBytes) return Optional.empty();
+        if (bytes > byteCeiling) return;
         long inputElements = Math.addExact(left.map(CpuMaterializationPlan::elementCount).orElse(0L),
                 right.map(CpuMaterializationPlan::elementCount).orElse(0L));
-        long outputCopiedElements = output.map(CpuOpenBlasOutputCopyPlan::elementCount).orElse(0L);
+        long outputElements = output.map(CpuOpenBlasOutputCopyPlan::elementCount).orElse(0L);
         long representationCost = representationCost(config.representationCosts(),
-                requirements.size(), workspaceBytes,
-                (left.isPresent() ? 1 : 0) + (right.isPresent() ? 1 : 0),
-                inputElements, output.isPresent() ? 1 : 0, outputCopiedElements);
-        CpuOpenBlasRoutePlan selected = null;
+                requirements.size(), bytes, (left.isPresent() ? 1 : 0) + (right.isPresent() ? 1 : 0),
+                inputElements, output.isPresent() ? 1 : 0, outputElements);
         for (int order = 0; order < config.threadCandidates().size(); order++) {
             var thread = config.threadCandidates().get(order);
-            if (thread.threadCount() > analysisCapacity) continue;
-            long openBlasCost = Math.multiplyExact(runs, Math.addExact(
-                    perRun(thread.openBlasCosts(), outputElements, multiplyAccumulates),
-                    representationCost));
-            if (openBlasCost >= portableCost) continue;
-            long benefit = Math.subtractExact(portableCost, openBlasCost);
-            if (benefit < config.minimumNetBenefitCostUnits().orElseThrow()) continue;
-            int threshold = config.minimumBenefitBasisPoints().orElseThrow();
-            if (portableCost == 0 && threshold != 0) continue;
+            if (thread.threadCount() > capacity) continue;
+            long nativeCost = Math.multiplyExact(runs, Math.addExact(
+                    perRun(thread.openBlasCosts(), outputs, macs), representationCost));
+            long benefit = Math.subtractExact(portableCost, nativeCost);
             int basis = portableCost == 0 ? 0 : Math.toIntExact(Math.floorDiv(
                     Math.multiplyExact(10_000L, benefit), portableCost));
-            if (basis < threshold) continue;
-            var candidate = new CpuOpenBlasRoutePlan(type, m, n, k, 0, 1, 2,
-                    thread, thread.threadCount(), thread.threadCount(), analysisCapacity, order,
-                    representation, left, right, output, requirements, runs, workspaceBytes,
-                    inputElements, outputCopiedElements, portableCost, openBlasCost, benefit,
-                    basis, config.qualification());
-            if (selected == null || candidate.openBlasCost() < selected.openBlasCost()
-                    || candidate.openBlasCost() == selected.openBlasCost()
-                        && candidate.threadCount() < selected.threadCount()
-                    || candidate.openBlasCost() == selected.openBlasCost()
-                        && candidate.threadCount() == selected.threadCount()
-                        && candidate.candidateOrder() < selected.candidateOrder()) {
+            var routePlan = new CpuOpenBlasRoutePlan(type, m, n, k, 0, 1, 2, thread,
+                    thread.threadCount(), thread.threadCount(), capacity, order, representation,
+                    left, right, output, requirements, runs, bytes, inputElements, outputElements,
+                    portableCost, nativeCost, benefit, basis, config.qualification());
+            var identity = new CpuOpenBlasTuningBatch.OpenBlasIdentity(representation,
+                    thread.threadCount(), thread.threadCount(), order,
+                    requirements.stream().map(
+                            PreparationResourceRequirement.Workspace::requirementId).toList(),
+                    bytes, inputElements, outputElements);
+            candidates.add(new CpuOpenBlasTuningBatch.Candidate(
+                    CpuOpenBlasTuningBatch.RouteKind.OPENBLAS, identity, Optional.of(routePlan)));
+        }
+    }
+
+    private static CpuOpenBlasTuningBatch.Candidate heuristic(CpuOpenBlasTuningBatch batch,
+            CpuPartitionAnalysisInputs.OpenBlasRouteConfig config) {
+        CpuOpenBlasTuningBatch.Candidate selected = batch.candidates().getFirst();
+        CpuOpenBlasRoutePlan best = null;
+        for (var candidate : batch.candidates()) {
+            if (candidate.route() != CpuOpenBlasTuningBatch.RouteKind.OPENBLAS) continue;
+            CpuOpenBlasRoutePlan plan = candidate.openBlasPlan().orElseThrow();
+            if (plan.openBlasCost() >= plan.portableCost()
+                    || plan.netBenefit() < config.minimumNetBenefitCostUnits().orElseThrow()
+                    || plan.benefitBasisPoints()
+                            < config.minimumBenefitBasisPoints().orElseThrow()) continue;
+            if (best == null || plan.openBlasCost() < best.openBlasCost()
+                    || plan.openBlasCost() == best.openBlasCost()
+                        && plan.threadCount() < best.threadCount()
+                    || plan.openBlasCost() == best.openBlasCost()
+                        && plan.threadCount() == best.threadCount()
+                        && plan.candidateOrder() < best.candidateOrder()) {
+                best = plan;
                 selected = candidate;
             }
         }
-        return Optional.ofNullable(selected);
+        return selected;
     }
 
     private static PreparationResourceRequirement.Workspace workspace(CpuMaterializationPlan copy) {
         return new PreparationResourceRequirement.Workspace(copy.workspaceRequirementId(),
                 copy.byteCount(), copy.byteAlignment());
     }
-
-    private static PreparationResourceRequirement.Workspace workspace(
-            CpuOpenBlasOutputCopyPlan copy) {
+    private static PreparationResourceRequirement.Workspace workspace(CpuOpenBlasOutputCopyPlan copy) {
         return new PreparationResourceRequirement.Workspace(copy.workspaceRequirementId(),
                 copy.byteCount(), copy.byteAlignment());
     }
-
-    private static long total(CpuPartitionAnalysisInputs.CostTerms costs, long outputElements,
-            long multiplyAccumulates, long runs) {
-        return Math.multiplyExact(runs, perRun(costs, outputElements, multiplyAccumulates));
+    private static long total(CpuPartitionAnalysisInputs.CostTerms costs, long outputs,
+            long macs, long runs) { return Math.multiplyExact(runs, perRun(costs, outputs, macs)); }
+    private static long perRun(CpuPartitionAnalysisInputs.CostTerms costs, long outputs, long macs) {
+        return Math.addExact(Math.addExact(costs.fixedCostUnits().orElseThrow(),
+                Math.multiplyExact(costs.costUnitsPerOutput().orElseThrow(), outputs)),
+                Math.multiplyExact(costs.costUnitsPerMac().orElseThrow(), macs));
     }
-
-    private static long perRun(CpuPartitionAnalysisInputs.CostTerms costs, long outputElements,
-            long multiplyAccumulates) {
-        long perRun = Math.addExact(costs.fixedCostUnits().orElseThrow(),
-                Math.multiplyExact(costs.costUnitsPerOutput().orElseThrow(), outputElements));
-        perRun = Math.addExact(perRun,
-                Math.multiplyExact(costs.costUnitsPerMac().orElseThrow(), multiplyAccumulates));
-        return perRun;
-    }
-
     private static long representationCost(CpuPartitionAnalysisInputs.RepresentationCostTerms c,
-            int workspaceCount, long workspaceBytes, int inputCopyCount, long inputElements,
-            int outputCopyCount, long outputElements) {
-        long cost = Math.multiplyExact(c.workspaceAllocationAndBindingFixed().orElseThrow(),
-                workspaceCount);
-        cost = Math.addExact(cost, Math.multiplyExact(c.workspaceCostPerByte().orElseThrow(),
-                workspaceBytes));
-        cost = Math.addExact(cost, Math.multiplyExact(c.copyInFixed().orElseThrow(),
-                inputCopyCount));
-        cost = Math.addExact(cost, Math.multiplyExact(c.copyInPerElement().orElseThrow(),
-                inputElements));
-        cost = Math.addExact(cost, Math.multiplyExact(c.copyOutFixed().orElseThrow(),
-                outputCopyCount));
-        return Math.addExact(cost, Math.multiplyExact(c.copyOutPerElement().orElseThrow(),
-                outputElements));
+            int workspaceCount, long bytes, int inputCopies, long inputElements,
+            int outputCopies, long outputElements) {
+        long cost = Math.multiplyExact(c.workspaceAllocationAndBindingFixed().orElseThrow(), workspaceCount);
+        cost = Math.addExact(cost, Math.multiplyExact(c.workspaceCostPerByte().orElseThrow(), bytes));
+        cost = Math.addExact(cost, Math.multiplyExact(c.copyInFixed().orElseThrow(), inputCopies));
+        cost = Math.addExact(cost, Math.multiplyExact(c.copyInPerElement().orElseThrow(), inputElements));
+        cost = Math.addExact(cost, Math.multiplyExact(c.copyOutFixed().orElseThrow(), outputCopies));
+        return Math.addExact(cost, Math.multiplyExact(c.copyOutPerElement().orElseThrow(), outputElements));
     }
-
-    private static boolean directBoundary(
-            CpuPartitionPreparationPlan.ExecutionUnitPlan unit,
-            List<CpuPartitionAnalysisInputs.BoundaryStorageFact> storage,
-            int boundary, DataType type) {
+    private static boolean directBoundary(CpuPartitionPreparationPlan.ExecutionUnitPlan unit,
+            List<CpuPartitionAnalysisInputs.BoundaryStorageFact> storage, int boundary, DataType type) {
         var fact = storage.get(boundary);
-        return unit.carrierPattern().get(boundary)
-                    == CpuKernelSpecialization.CarrierAccess.MEMORY_SEGMENT
+        return unit.carrierPattern().get(boundary) == CpuKernelSpecialization.CarrierAccess.MEMORY_SEGMENT
                 && fact.nativeSegment() && fact.byteAlignment() >= type.byteWidth();
     }
-
     private static boolean canonical(CpuAccessPlan.Binding binding, long rows, long columns,
-            CpuAccessPlan.AccessKind accessKind) {
+            CpuAccessPlan.AccessKind kind) {
         long count = Math.multiplyExact(rows, columns);
-        return binding.plan().accessKind() == accessKind
+        return binding.plan().accessKind() == kind
                 && binding.plan().regime() == CpuAccessPlan.Regime.DENSE_LINEAR
                 && binding.plan().iterationRank() == 2 && binding.baseElementOffset() == 0
                 && binding.extents().equals(List.of(rows, columns))
@@ -267,54 +342,32 @@ public final class CpuOpenBlasRouteSelector {
                 && binding.elementCount() == count && binding.start() == 0
                 && binding.end() == count && binding.referencedElementSpan() == count;
     }
-
     private static boolean copyable(CpuAccessPlan.Binding binding, long rows, long columns) {
         long count = Math.multiplyExact(rows, columns);
         return binding.plan().accessKind() == CpuAccessPlan.AccessKind.READ
                 && binding.plan().iterationRank() == 2
                 && binding.extents().equals(List.of(rows, columns))
-                && binding.elementCount() == count && binding.start() == 0
-                && binding.end() == count;
+                && binding.elementCount() == count && binding.start() == 0 && binding.end() == count;
     }
-
     private static boolean copyableOutput(CpuAccessPlan.Binding binding, long rows, long columns) {
         long count = Math.multiplyExact(rows, columns);
         return binding.plan().accessKind() == CpuAccessPlan.AccessKind.WRITE
                 && binding.plan().iterationRank() == 2
                 && binding.extents().equals(List.of(rows, columns))
-                && binding.elementCount() == count && binding.start() == 0
-                && binding.end() == count;
-    }
-
-    private static CpuOpenBlasRoutePlan.Representation representation(boolean left,
-            boolean right, boolean output) {
-        if (left && right && output) return CpuOpenBlasRoutePlan.Representation.COPY_LEFT_RIGHT_OUTPUT;
-        if (left && right) return CpuOpenBlasRoutePlan.Representation.COPY_LEFT_RIGHT;
-        if (left && output) return CpuOpenBlasRoutePlan.Representation.COPY_LEFT_OUTPUT;
-        if (right && output) return CpuOpenBlasRoutePlan.Representation.COPY_RIGHT_OUTPUT;
-        if (left) return CpuOpenBlasRoutePlan.Representation.COPY_LEFT;
-        if (right) return CpuOpenBlasRoutePlan.Representation.COPY_RIGHT;
-        if (output) return CpuOpenBlasRoutePlan.Representation.COPY_OUTPUT;
-        return CpuOpenBlasRoutePlan.Representation.DIRECT;
+                && binding.elementCount() == count && binding.start() == 0 && binding.end() == count;
     }
 
     /**
-     * Creates the finalization-only production adapter for a caller-owned provider handle.
-     * The adapter strongly retains the handle, forwards lifecycle queries and typed calls, and
-     * never loads, configures, restores, or closes it.
-     *
-     * @param library non-null open or closed caller-owned provider handle to borrow
-     * @return a non-null provider-free invocation view that retains {@code library}
-     * @throws NullPointerException if {@code library} is {@code null}
+     * Creates the finalization-only adapter for a caller-owned provider handle.
+     * @param library non-null provider handle to borrow
+     * @return provider-free invocation view that retains the handle
      */
     static CpuOpenBlasInvocation borrowedInvocation(OpenBlasLibrary library) {
         Objects.requireNonNull(library, "library");
         return new CpuOpenBlasInvocation() {
             @Override public boolean isOpen() { return library.isOpen(); }
             @Override public int threadCount() { return library.threadCount(); }
-            @Override public void setThreadCount(int threadCount) {
-                library.setThreadCount(threadCount);
-            }
+            @Override public void setThreadCount(int count) { library.setThreadCount(count); }
             @Override public void sgemm(int m, int n, int k, float alpha, MemorySegment a,
                     MemorySegment b, float beta, MemorySegment c) {
                 library.sgemm(m, n, k, alpha, a, b, beta, c);
@@ -325,5 +378,4 @@ public final class CpuOpenBlasRouteSelector {
             }
         };
     }
-
 }

@@ -4,6 +4,8 @@ import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuAggregateIr;
 import io.github.pho001.synaptik.model.datatype.DataType;
 import io.github.pho001.synaptik.prepare.analysis.BackendAnalysisInputs;
 import io.github.pho001.synaptik.backend.cpu.internal.cache.CpuKernelSpecialization.CarrierAccess;
+import io.github.pho001.synaptik.backend.cpu.internal.route.nativeblas.openblas.CpuOpenBlasTuningBatch;
+import io.github.pho001.synaptik.backend.cpu.internal.route.nativeblas.openblas.CpuOpenBlasTuningDecision;
 import java.util.List;
 import java.util.Optional;
 import java.util.OptionalInt;
@@ -27,12 +29,21 @@ import java.util.OptionalLong;
  * @param boundaryStorageFacts non-null ordered expected storage-provenance and alignment facts;
  *     an empty list supplies no OpenBLAS qualification, and no entry retains a physical segment
  * @param openBlasRoute non-null disabled-by-default OpenBLAS qualification and cost snapshot
+ * @param cpuHardwareIdentity non-null caller-supplied canonical cold CPU identity; analysis never
+ *     discovers or normalizes host facts
+ * @param workloadCohort non-null expected-use cohort whose run count must agree with the existing
+ *     materialization policy whenever OpenBLAS candidate generation is enabled
+ * @param openBlasTuningDecision non-null optional explicit decision to validate against a freshly
+ *     generated candidate batch; incompatibility is a miss, not an error
  */
 public record CpuPartitionAnalysisInputs(boolean loweringManifestEnabled,
         List<CarrierAccess> carrierPattern, PortableExecutionConfig portableExecution,
         MaterializationPolicy materializationPolicy, boolean conv2dMaterializedSuffixUnit,
         PartialReductionEvidence partialReductionEvidence,
-        List<BoundaryStorageFact> boundaryStorageFacts, OpenBlasRouteConfig openBlasRoute)
+        List<BoundaryStorageFact> boundaryStorageFacts, OpenBlasRouteConfig openBlasRoute,
+        CpuOpenBlasTuningBatch.HardwareIdentity cpuHardwareIdentity,
+        CpuOpenBlasTuningBatch.WorkloadCohort workloadCohort,
+        Optional<CpuOpenBlasTuningDecision> openBlasTuningDecision)
         implements BackendAnalysisInputs {
     /**
      * Preserves the complete pre-OpenBLAS construction surface and disables native routing.
@@ -51,7 +62,8 @@ public record CpuPartitionAnalysisInputs(boolean loweringManifestEnabled,
             PartialReductionEvidence partialReductionEvidence) {
         this(loweringManifestEnabled, carrierPattern, portableExecution, materializationPolicy,
                 conv2dMaterializedSuffixUnit, partialReductionEvidence, List.of(),
-                OpenBlasRouteConfig.DISABLED);
+                OpenBlasRouteConfig.DISABLED, CpuOpenBlasTuningBatch.HardwareIdentity.UNSPECIFIED,
+                CpuOpenBlasTuningBatch.WorkloadCohort.DEFAULT, Optional.empty());
     }
     /**
      * Compatibility constructor that deliberately admits no partial route.
@@ -67,7 +79,8 @@ public record CpuPartitionAnalysisInputs(boolean loweringManifestEnabled,
             MaterializationPolicy materializationPolicy, boolean conv2dMaterializedSuffixUnit) {
         this(loweringManifestEnabled, carrierPattern, portableExecution, materializationPolicy,
                 conv2dMaterializedSuffixUnit, PartialReductionEvidence.NONE, List.of(),
-                OpenBlasRouteConfig.DISABLED);
+                OpenBlasRouteConfig.DISABLED, CpuOpenBlasTuningBatch.HardwareIdentity.UNSPECIFIED,
+                CpuOpenBlasTuningBatch.WorkloadCohort.DEFAULT, Optional.empty());
     }
     /**
      * Default input: manifest and materialization disabled, scalar single-thread execution, and
@@ -76,7 +89,9 @@ public record CpuPartitionAnalysisInputs(boolean loweringManifestEnabled,
     public static final CpuPartitionAnalysisInputs DEFAULT = new CpuPartitionAnalysisInputs(false,
             List.of(),
             PortableExecutionConfig.DEFAULT, MaterializationPolicy.DISABLED, false,
-            PartialReductionEvidence.NONE, List.of(), OpenBlasRouteConfig.DISABLED);
+            PartialReductionEvidence.NONE, List.of(), OpenBlasRouteConfig.DISABLED,
+            CpuOpenBlasTuningBatch.HardwareIdentity.UNSPECIFIED,
+            CpuOpenBlasTuningBatch.WorkloadCohort.DEFAULT, Optional.empty());
 
     /**
      * Immutable expected boundary-storage fact used only during cold native-route analysis.
@@ -448,7 +463,10 @@ public record CpuPartitionAnalysisInputs(boolean loweringManifestEnabled,
             List<CarrierAccess> carrierPattern, PortableExecutionConfig portableExecution,
             MaterializationPolicy materializationPolicy) {
         this(loweringManifestEnabled, carrierPattern, portableExecution, materializationPolicy,
-                false, PartialReductionEvidence.NONE, List.of(), OpenBlasRouteConfig.DISABLED);
+                false, PartialReductionEvidence.NONE, List.of(), OpenBlasRouteConfig.DISABLED,
+                CpuOpenBlasTuningBatch.HardwareIdentity.UNSPECIFIED,
+                new CpuOpenBlasTuningBatch.WorkloadCohort(1, "ordinary",
+                        materializationPolicy.expectedRunCount()), Optional.empty());
     }
 
     /**
@@ -546,7 +564,8 @@ public record CpuPartitionAnalysisInputs(boolean loweringManifestEnabled,
             List<CarrierAccess> carrierPattern) {
         this(loweringManifestEnabled, carrierPattern, PortableExecutionConfig.DEFAULT,
                 MaterializationPolicy.DISABLED, false, PartialReductionEvidence.NONE, List.of(),
-                OpenBlasRouteConfig.DISABLED);
+                OpenBlasRouteConfig.DISABLED, CpuOpenBlasTuningBatch.HardwareIdentity.UNSPECIFIED,
+                CpuOpenBlasTuningBatch.WorkloadCohort.DEFAULT, Optional.empty());
     }
 
     /**
@@ -562,7 +581,34 @@ public record CpuPartitionAnalysisInputs(boolean loweringManifestEnabled,
             List<CarrierAccess> carrierPattern, PortableExecutionConfig portableExecution) {
         this(loweringManifestEnabled, carrierPattern, portableExecution,
                 MaterializationPolicy.DISABLED, false, PartialReductionEvidence.NONE, List.of(),
-                OpenBlasRouteConfig.DISABLED);
+                OpenBlasRouteConfig.DISABLED, CpuOpenBlasTuningBatch.HardwareIdentity.UNSPECIFIED,
+                CpuOpenBlasTuningBatch.WorkloadCohort.DEFAULT, Optional.empty());
+    }
+
+    /**
+     * Preserves the complete pre-0010E construction surface while supplying typed compatibility
+     * defaults and no explicit tuning decision.
+     *
+     * @param loweringManifestEnabled whether cold diagnostics retain a lowering manifest
+     * @param carrierPattern ordered derived-boundary carriers; copied defensively
+     * @param portableExecution immutable portable execution inputs
+     * @param materializationPolicy immutable materialization and expected-run policy
+     * @param conv2dMaterializedSuffixUnit whether this is the tagged Conv2d suffix unit
+     * @param partialReductionEvidence immutable diagnostic partial-reduction evidence
+     * @param boundaryStorageFacts ordered expected native-storage facts; copied defensively
+     * @param openBlasRoute disabled or complete qualified OpenBLAS route snapshot
+     * @throws NullPointerException if a required reference or list entry is {@code null}
+     */
+    public CpuPartitionAnalysisInputs(boolean loweringManifestEnabled,
+            List<CarrierAccess> carrierPattern, PortableExecutionConfig portableExecution,
+            MaterializationPolicy materializationPolicy, boolean conv2dMaterializedSuffixUnit,
+            PartialReductionEvidence partialReductionEvidence,
+            List<BoundaryStorageFact> boundaryStorageFacts, OpenBlasRouteConfig openBlasRoute) {
+        this(loweringManifestEnabled, carrierPattern, portableExecution, materializationPolicy,
+                conv2dMaterializedSuffixUnit, partialReductionEvidence, boundaryStorageFacts,
+                openBlasRoute, CpuOpenBlasTuningBatch.HardwareIdentity.UNSPECIFIED,
+                new CpuOpenBlasTuningBatch.WorkloadCohort(1, "ordinary",
+                        materializationPolicy.expectedRunCount()), Optional.empty());
     }
 
     /**
@@ -577,7 +623,12 @@ public record CpuPartitionAnalysisInputs(boolean loweringManifestEnabled,
      * @param partialReductionEvidence non-null diagnostic partial-reduction evidence
      * @param boundaryStorageFacts non-null ordered expected native-storage facts; copied
      * @param openBlasRoute non-null disabled or complete OpenBLAS route snapshot
+     * @param cpuHardwareIdentity non-null caller-supplied canonical CPU identity
+     * @param workloadCohort non-null caller-supplied expected-use cohort
+     * @param openBlasTuningDecision non-null optional explicit matching decision
      * @throws NullPointerException if a required reference or list entry is {@code null}
+     * @throws IllegalArgumentException if the workload cohort and materialization policy have
+     *     different expected-run counts
      */
     public CpuPartitionAnalysisInputs {
         carrierPattern = List.copyOf(carrierPattern);
@@ -586,5 +637,13 @@ public record CpuPartitionAnalysisInputs(boolean loweringManifestEnabled,
         java.util.Objects.requireNonNull(partialReductionEvidence, "partialReductionEvidence");
         boundaryStorageFacts = List.copyOf(boundaryStorageFacts);
         java.util.Objects.requireNonNull(openBlasRoute, "openBlasRoute");
+        java.util.Objects.requireNonNull(cpuHardwareIdentity, "cpuHardwareIdentity");
+        java.util.Objects.requireNonNull(workloadCohort, "workloadCohort");
+        openBlasTuningDecision = java.util.Objects.requireNonNull(openBlasTuningDecision,
+                "openBlasTuningDecision");
+        if (workloadCohort.expectedRunCount() != materializationPolicy.expectedRunCount()) {
+            throw new IllegalArgumentException(
+                    "workload cohort and materialization expected-run counts disagree");
+        }
     }
 }

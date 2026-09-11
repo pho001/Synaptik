@@ -81,7 +81,7 @@ target/backend capabilities, configuration, and compatible cached decisions. It 
 | 0002 | [Backend partition finalization handoff](tasks/0002-backend-partition-finalization-handoff.md) | Complete | 0001; Runtime 0002–0004 | Assigns deterministic conservative shared slots across the complete ordered analyses, retains exact source associations, and finalizes each typed backend plan into the minimal prepared partition/executable association. |
 | 0003 | [Prepare orchestration and validation](tasks/0003-prepare-orchestration-and-validation.md) | Complete | 0001–0002; Compiler 0006; Planning 0006; Runtime 0002–0014 | Composes exact compile projection, typed backend analysis/finalization, initialized constant representations, prepared-memory assignment, complete schedule assembly/validation, and final prepared execution without concrete backend logic. |
 | 0003A | [Immutable partition-local DAG analysis projection](tasks/0003a-immutable-partition-local-dag-analysis-projection.md) | Complete | 0001–0003; CPU 0008B–0008E as downstream evidence | Added one public immutable Prepare-owned projection for exactly one planned partition, made it `PrepareContext`'s sole node/topology source, precomputed precise structural occurrences and adjacency, and kept the complete cross-backend model DAG out of concrete backends. |
-| 0004 | Opaque backend-candidate and tuning-artifact handoff | Draft | 0001–0003A; at least one concrete backend typed-candidate producer; stable tuning-artifact compatibility | Expose complete backend candidates per occurrence or partition opaquely, pass compatible tuning-cache decisions into deterministic analysis, and preserve backend-owned filtering/selection without interpreting route, generated-artifact, storage, or vendor fields. |
+| 0004 | Opaque backend-candidate and selected-decision handoff | Draft | 0001–0003A; CPU 0010E | Transport complete backend-owned candidate batches and already validated selected decisions opaquely between concrete backend analysis and tuning tooling. Prepare performs no measurement, persistence, corruption recovery, compatibility interpretation, or route selection. |
 
 ## Milestones
 
@@ -154,9 +154,11 @@ no failures or errors. Clean documentation context
 `01a043d7-113c-7ee2-8257-42678c1a7be4` finalized Javadocs, public and backend guidance, glossary,
 and planning evidence.
 
-Future task 0004 remains Draft without a detailed specification. It follows 0003A without
-renumbering and remains the deferred opaque candidate/tuning handoff. CPU 0008E1 and CPU 0008F
-also remain Draft without detailed specifications.
+Future task 0004 remains Draft without a detailed specification. It follows the new executable
+CPU 0010E producer and then becomes the next cross-area stage in the acyclic tuning sequence. Its
+consumer-facing contract does not wait for a tuning artifact schema: CPU validates candidate and
+decision compatibility, while tools/tuning later owns artifact decoding, corruption rejection,
+measurement, and persistence.
 
 ## Open questions
 
@@ -166,9 +168,9 @@ also remain Draft without detailed specifications.
 - A zero-node pass-through graph cannot currently obtain byte geometry from a backend analysis.
   Task 0003 fails closed on a requested value with no prepared buffer assignment instead of
   inventing a shared allocation rule.
-- The smallest opaque candidate and artifact-lifecycle boundary waits for stable compiler,
-  planning, backend, engine, and persistence consumers. No Java declaration or file format is
-  selected here.
+- The smallest opaque candidate handoff waits only for CPU 0010E's concrete typed producer and
+  selected-decision contract. No Java declaration or file format is selected here; persistence
+  and artifact validation remain downstream tools/tuning work.
 - The future handoff must carry complete typed candidates for the exact operation occurrence or
   partition and workload. Concrete backend analysis filters platform/provider availability,
   operation attributes, data type, `Shape`, layout, numerical/determinism compatibility, and

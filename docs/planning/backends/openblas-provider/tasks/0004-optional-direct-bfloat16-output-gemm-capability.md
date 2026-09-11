@@ -93,7 +93,7 @@ incomplete. Do not substitute a conversion pipeline.
   supporting ILP64
 - architecture-contract, ADR, dependency, Gradle, architecture-test, backend-conformance, or
   integration-test changes
-- a detailed CPU 0010D1 specification or CPU 0010E implementation
+- a detailed CPU 0010D1 specification or any FLOAT32/FLOAT64 CPU tuning implementation
 
 ## Architecture references
 
@@ -385,10 +385,10 @@ git status --short -uall
 
 It must inspect rendered Javadocs; validate local Markdown links, anchors, unique headings,
 balanced fences, final newlines, and terminology; verify the exact path ceiling and public/package-
-private surface; and confirm provider 0004 is the only detailed unfinished provider task, CPU
-0010D1 remains master-plan-only `Draft`, and CPU 0010E remains after 0010D1.
+private surface; and confirm provider 0004 remains the only detailed unfinished provider task and
+CPU 0010D1 remains a blocked/deferred optional side branch.
 
-Repository-wide validation is deferred to the dependent CPU 0010D1 capability checkpoint or CI.
+Repository-wide validation is deferred to a future resumed CPU 0010D1 capability checkpoint or CI.
 This task changes one JDK-only leaf without a module edge or architecture rule.
 
 ## Dependencies
@@ -406,11 +406,12 @@ review-only here, and dependent CPU 0010D1 cannot start until this provider task
 
 ## Follow-up tasks
 
-- CPU 0010D1 remains a master-plan-only `Draft`. It consumes only a provider capability that is
+- CPU 0010D1 remains a master-plan-only blocked/deferred optional side branch. It consumes only a provider capability that is
   both present and CPU-qualified, extends qualification/fingerprints with versioned direct-BF16
   evidence, and adds the exact BFLOAT16 MATMUL route while retaining portable fallback.
-- CPU 0010E remains after 0010D1 and must include the optional direct-BF16 capability schema and
-  evidence in tuning compatibility.
+- CPU 0010E proceeds independently for the completed FLOAT32/FLOAT64 route. A later resumed
+  BFLOAT16 capability must extend compatibility explicitly rather than being inferred from that
+  FLOAT32/FLOAT64 schema.
 - No follow-up may replace failed direct-BF16 proof with SBGEMM or conversion staging.
 
 ## Architecture impact
@@ -480,6 +481,8 @@ or a concrete stale-evidence risk is recorded. Do not mark 0004 Complete until e
   proved remain unsupported for this capability.
 - The provider operation alone does not make CPU BFLOAT16 MATMUL eligible. CPU 0010D1 remains
   responsible for qualification, Model compatibility, route resources, fallback, and execution.
+- This blocked task does not change supported Model or portable CPU BFLOAT16 behavior and is not a
+  prerequisite for existing FLOAT32/FLOAT64 OpenBLAS candidates, preparation, or tuning.
 
 ## Validation evidence
 
@@ -531,7 +534,7 @@ or a concrete stale-evidence risk is recorded. Do not mark 0004 Complete until e
   selected optimized kernel source. It also reproduced the six-target Clang descriptor lowering
   and confirmed that the local arm64 0.3.34 binary exports the mandatory four symbols and
   `cblas_sbgemm`, but not `cblas_bgemm`.
-- That documentation context changed only this task, the provider master plan, the CPU master
+- At that checkpoint, the documentation context changed only this task, the provider master
   plan, and the roadmap. Its four-file Markdown validation passed local links, anchors, unique
   headings, balanced fences, final newlines, and trailing-whitespace checks. Exact-path,
   stale-`Ready`, status, dependency/order, task-file-absence, unchanged-`ARCHITECTURE.md`, and
@@ -578,11 +581,11 @@ or a concrete stale-evidence risk is recorded. Do not mark 0004 Complete until e
 - Glossary impact: none; no new usable capability or project term was introduced.
 - Unresolved issues: upstream v0.3.31 does not export `cblas_bgemm` through its official C symbol
   lists and its BGEMM driver/kernel path performs intermediate BFLOAT16 narrowing across K blocks.
-- Follow-up required: obtain and pin an upstream direct-BGEMM ABI/implementation that both exports
+- Follow-up required for the optional side branch: obtain and pin an upstream direct-BGEMM ABI/implementation that both exports
   the C symbol and proves complete FLOAT32 contraction accumulation with one final BFLOAT16
-  conversion, or make a separate explicit Model/architecture decision. Until then CPU 0010D1 is
-  non-executable, CPU 0010E remains after it, and the global ordered frontier has no next in-scope
-  task. Neither substitute is authorized here.
+  conversion. Until then CPU 0010D1 is non-executable. The approved FLOAT32/FLOAT64 CPU 0010E ->
+  Prepare 0004 -> tools/tuning 0001 mainline proceeds independently. No semantic relaxation or
+  substitute implementation is authorized here.
 
 Status: Incomplete
 Follow-up required: resolve the failed exported-ABI and one-final-narrowing proof gates before any production capability is added.
