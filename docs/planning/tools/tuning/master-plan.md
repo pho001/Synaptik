@@ -86,14 +86,17 @@ checkpoint. This makes the local workflow operational without a
 concrete CPU dependency, shared interpretation, Runtime work, or an invented Engine facade.
 
 The initial slice remains exact/default and FLOAT32/FLOAT64 only. It does not wait for the blocked
-BFLOAT16 side branch or unfinished relaxed numerical configuration. Config 0006A is now the next
-Draft task and may add a public immutable request facade around this stable consumer. Tuning 0002
-and 0003 remain Draft without detailed specifications.
+BFLOAT16 side branch or unfinished relaxed numerical configuration. Config 0006A is Complete and
+its public immutable objective, bounded sampling budget, representative-profile identity,
+fallback policy, and explicit workload-cache path are current declarative vocabulary. Mapping
+those values into tuning 0001 and supplying the missing model and execution facts remain deferred
+to later composition. Tuning 0002 and 0003 remain Draft without detailed specifications.
 
 ## Open questions
 
-- Exact public Config vocabulary and Engine composition remain deferred until their consumers and
-  lifecycle paths are implemented.
+- Config 0006A's exact public request vocabulary is current. Its explicit translation into tuning
+  0001 and Engine or other outer composition remain deferred until those lifecycle paths are
+  implemented.
 - Prepared-executable serialization remains deliberately unresolved.
 - Task 0002's graph/plan budget and end-to-end Engine measurement boundary remain unresolved.
 
@@ -147,6 +150,9 @@ and 0003 remain Draft without detailed specifications.
 - Persistent generated class bytes are not part of the initial tuning workflow. They remain
   deferred until strict Synaptik-build, generator-schema, classfile/JDK, Vector API, target,
   validation, and corruption-handling compatibility is designed by the owning lifecycle.
+- Config 0006A owns the current declarative request vocabulary only. Later outer composition owns
+  its explicit mapping to tool-local tuning values, actual model and representative execution
+  facts, and fallback control flow; tuning 0002 and 0003 remain Draft.
 
 ## Risks
 

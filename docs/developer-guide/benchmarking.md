@@ -55,10 +55,35 @@ evidence retains raw measured samples separately; cache-hit evidence has an empt
 and retains only the compact stored winner summary.
 
 This is a composition contract, not an out-of-the-box CPU or model API. There is no supported CPU
-adapter, Engine integration, or Config facade yet. The caller must supply complete execution and
-stable identities, while the backend retains semantic, compatibility, candidate-generation,
-decision-validation, route, and resource ownership. The current tool does not extract workloads
-from a model or perform the second graph/plan phase of model autotuning.
+adapter or Engine integration. The caller must supply complete execution and stable identities,
+while the backend retains semantic, compatibility, candidate-generation, decision-validation,
+route, and resource ownership. The current tool does not extract workloads from a model or perform
+the second graph/plan phase of model autotuning.
+
+## Current declarative Config request
+
+`modules/config` now provides `ModelAutotuningConfig`, an immutable request facade separate from
+the operational tool-local `WorkloadTuningRequest`. Possessing the Config value means tuning was
+requested; there is no enabled flag, disabled sentinel, implicit default, or default cache path.
+It stores exactly five user-owned inputs: the minimum-median-elapsed-nanoseconds objective, a
+four-count sampling budget, one opaque schema-versioned representative-profile identity, a
+fallback policy, and an explicit workload-cache path.
+
+The Config value stores identity and policy, not work or execution state. Its representative
+profile is an immutable byte snapshot that identifies evidence; actual representative inputs,
+Shapes, model fingerprint, occurrences, backend candidate batches, cache contents, and execution
+resources do not enter Config. Constructing the facade performs no cache I/O, measurement,
+selection, preparation, Engine orchestration, or Runtime work.
+
+A later outer composition layer may depend on both modules. It can map the objective and four
+budget counts explicitly, construct the tool-local profile fingerprint from a Config accessor
+copy, and pass the exact requested path. That layer must separately supply the model fingerprint,
+occurrences, representative execution, and eligible candidates. It also owns fallback control
+flow: `REQUIRE_TUNED_RESULT` is strict, while `ALLOW_SAFE_HEURISTIC` permits abandoning a tuning
+transaction that cannot yield a complete result and continuing through ordinary safe heuristic
+preparation. Safe fallback does not make corrupt or incompatible cache data a hit, admit a
+candidate, relax numerical requirements, accept a partial result, or suppress an unrelated
+preparation failure. This mapping and control flow are planned, not current Engine behavior.
 
 ## Benchmark workloads and reports
 
@@ -141,12 +166,12 @@ governs later harness and reporting work.
 ## Limitations and boundaries
 
 The benchmark harness and report, full two-phase model-autotuning workflow, planning-cost model,
-and concrete runtime-profile payloads remain planned. The generic caller-supplied workload tuner
-and bounded persistent workload cache are current, but supported CPU/Engine/Config integration,
-model extraction, complete graph/plan search, concurrent writers, cache migration, and inspection
-remain deferred.
-`modules/config` may later store immutable declarative outputs, but it will not own the runner,
-search algorithm, live discovery, or mutable evidence. No benchmark runs in the runtime hot path.
+and concrete runtime-profile payloads remain planned. The generic caller-supplied workload tuner,
+bounded persistent workload cache, and separate immutable Config request facade are current, but
+their supported CPU/Engine composition, model extraction, complete graph/plan search, concurrent
+writers, cache migration, and inspection remain deferred. Config owns request inputs only; it does
+not own the runner, search algorithm, cache behavior, live discovery, or mutable evidence. No
+benchmark runs in the runtime hot path.
 
 ## Related documentation
 

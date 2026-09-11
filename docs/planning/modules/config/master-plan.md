@@ -54,13 +54,14 @@ io.github.pho001.synaptik.config/
   prepare/  later public backend-neutral and backend-class prepare configuration
   run/      later public invocation and publication configuration
   profile/  later immutable planning-cost inputs with a stable consumer
+  tuning/   public immutable model-autotuning request policy and profile identity
 ```
 
 The module root is not a catch-all facade. Each package owns immutable declarative values for one
 lifecycle concern. This map is progressive: task 0001 opens only `compile` with hard-requirement
 intent, and later rows may refine their package contents before becoming Ready. Package placement
-for model-autotuning request inputs waits for the stable prepare/tuning consumer rather than
-inventing a public surface now.
+for model-autotuning request inputs is now fixed by task 0006A after the stable tuning 0001
+consumer. The `tuning` package remains declarative and does not depend on the outer tool.
 
 ## Task list
 
@@ -72,7 +73,7 @@ inventing a public surface now.
 | 0004 | Planning cost-profile contract | Draft | 0001–0003, planning 0001–0003, stable backend-neutral cost classification | Define only immutable backend-neutral estimates required by the concrete ownership-scoring consumer; do not encode backend route or model-autotuning values. |
 | 0005 | Compile configuration aggregate | Draft | 0001–0004 | Compose compile mode, backend intent, optimization, scoring, and any justified planning-cost inputs without compiler orchestration. |
 | 0006 | Prepare numerical and determinism permission | Draft | 0005, stable exact concrete-backend prepare eligibility boundary | Define the smallest immutable backend-neutral prepare permission needed to filter numerical/determinism candidates; the default grants no relaxed/fast-math behavior, and the contract names no backend, provider, kernel, approximation, compiler pass, or operation-specific rewrite. |
-| 0006A | Model-autotuning request configuration | Draft | 0006; stable implemented tuning consumer | Define only the immutable objective, budget, constraints, representative profiles, fallback policy, and explicit-cache inputs required by the stable consumer; do not expose backend candidate fields or own search/persistence. The first exact/default FLOAT32/FLOAT64 tuning slice may use explicit tool-local inputs and does not depend on this row. |
+| 0006A | [Model-autotuning request configuration](tasks/0006a-model-autotuning-request-configuration.md) | Complete | 0001–0003; tools/tuning 0001; explicit staged ordering exception around Draft 0004–0006 | Added one immutable Config-owned objective, bounded sampling budget, representative-profile identity, fallback policy, and explicit workload-cache path. Config neither depends on tuning nor owns candidates, measurement, selection, cache behavior, or lifecycle orchestration. |
 | 0007 | Run and publication configuration | Draft | 0005 | Define immutable invocation and publication options without runtime state or execution. |
 | 0008 | Configuration contract closure | Draft | 0001–0007, including 0006A | Audit validation, package/API cohesion, documentation, and dependency boundaries before planning begins. |
 
@@ -90,29 +91,38 @@ unimplemented Config 0004 fixed-plus-linear platform/backend/tuning profile spec
 retired because it conflated planning cost with backend tuning and averaged unrelated workloads.
 Config 0004 is again a Draft row without a detailed specification. It follows a stable planning
 cost consumer and backend-neutral cost classification. Planning task 0003 is Complete, and its
-exact baseline intentionally consumes no cost value or classification. Tasks 0005–0008 remain
-Draft, including inserted task 0006A. Planning task 0004 is Complete with maximal consecutive same-owner grouping over completed
+exact baseline intentionally consumes no cost value or classification. Tasks 0004–0006 and
+0007–0008 remain Draft. Detailed task 0006A is Complete after the explicit staged ordering
+exception: completed tools/tuning 0001 stabilized its exact/default user-owned request inputs,
+and its separate `config.tuning` package and ten paths did not overlap those earlier Draft rows.
+The completed exception closes without selecting or making another task Ready. Planning task
+0004 is Complete with maximal consecutive same-owner grouping over completed
 per-occurrence `BackendId` ownership and the current immutable model graph. It creates no cost-
 bearing consumer. Planning task 0005 is Complete with logical materialization and memory
 requirements derived without numeric cost, element/byte estimates, or profile input. Config 0004
-therefore remains Draft without a detailed specification and no config task is Ready. Planning
+therefore remains Draft without a detailed specification; the independent Config 0006A task is
+Complete. Planning
 0006 is Complete with a `CLOSED` documentation-only audit verdict. That closure does not define
 the cost-bearing consumer or make Config 0004 Ready. Compiler task 0005 now consumes all four
 completed standalone leaves through its package-private complete artifact entry: compile mode and
 optimization configure graph work, while backend intent and scoring preference are passed to
 Planning once per final node. It adds no config type, aggregate, default, profile, or public
-compile entry, so Config 0004 remains Draft and no config status advances.
+compile entry, so Config 0004 remains Draft. It did not block the separately justified, now
+completed Config 0006A request facade.
 
 ## Open questions
 
 - Planning 0003 has stabilized the cost-free baseline ownership consumer. The first later concrete
   cost-bearing planning consumer must still establish the exact backend-neutral classification
   and units before Config 0004 can become Ready.
-- Model-autotuning request inputs wait for stable prepare and tuning consumers. Workload and plan
-  cache schemas, measurement evidence, and persistence remain with their lifecycle/tooling owners.
+- The stable tuning 0001 consumer now justifies Config 0006A's objective, bounded sampling budget,
+  representative-profile identity, fallback policy, and explicit workload-cache path. Workload
+  and plan cache schemas, measurement evidence, and persistence remain with their
+  lifecycle/tooling owners.
 - Config 0004–0006 are not prerequisites for the first exact/default FLOAT32/FLOAT64 OpenBLAS
   tuning slice. Config 0006 remains necessary only before relaxed candidates exist; Config 0006A
-  follows an implemented stable tuning consumer instead of defining that consumer in advance.
+  follows the implemented stable tuning consumer through an explicit non-overlapping staged
+  ordering exception instead of defining that consumer in advance.
 - Exact/default numerical semantics are the current candidate-eligibility boundary. A future
   explicit policy must define any relaxed or fast-math permission; Config must not infer that
   permission from platform, provider availability, workload size, or a performance objective.
@@ -178,6 +188,14 @@ compile entry, so Config 0004 remains Draft and no config status advances.
   threads, chunks, tiles, and kernels belong to backend-owned candidate configurations.
 - No stable shared production `OperationFamily` or workload-bucket contract exists. Config does
   not invent one, and it owns no runner, search algorithm, live discovery, or mutable evidence.
+- Task 0006A uses one public `ModelAutotuningConfig` record in `config.tuning`. Its nested values
+  own only the sole elapsed-time objective, the stable four-field sampling budget, one opaque
+  representative-profile identity, and required-result versus safe-heuristic fallback; the record
+  also retains one explicit workload-cache `Path`.
+- Config 0006A excludes model fingerprints, actual representative inputs, occurrences, backend
+  candidates/decisions, cache schemas or behavior, and translation code. A later outer
+  composition layer can depend on Config and tuning and translate the independent types without a
+  reverse Config dependency.
 - Complete Planning task 0003 consumes `PartitionScoringConfig` internally after hard eligibility.
   Its preferred-class-first/provider-order baseline needs no candidate record, numeric score,
   cost input, or new config type, so Config 0004 remains Draft.
@@ -221,9 +239,9 @@ ordering interleave, not a new config Gradle/module dependency or architecture c
 tasks 0001–0002 remain Complete, and planning 0001 changed no config Java or build file. Planning
 0001 is now Complete after its single final root suite passed. The following planning step made
 only config task 0003 Ready with one detailed specification; that task is now Complete. Config
-tasks 0004–0008 remain Draft without detailed specifications. Reassess the frontier rather than
-assuming planning scoring can proceed while profile data remains undefined or assuming config
-task 0004 is automatically next.
+tasks 0004–0006 and 0007–0008 remain Draft without detailed specifications. Detailed Config
+0006A is the completed explicitly justified exception; it did not advance Config 0004 or another
+Draft row.
 
 Task 0003 passed its final 17-test/four-suite config module run with no failures, errors, or skips.
 Its separate documentation pass finalized the new type and package Javadocs, current-status
@@ -242,3 +260,13 @@ grouping; it consumes no cost input and therefore does not advance Config 0004. 
 reassessment made Planning 0005 Ready with a descriptor- and relationship-retaining logical plan.
 That task is now Complete and likewise adds no cost quantity or configuration input, so Config
 0004 remains Draft. No next task was made Ready as part of its implementation.
+
+Task 0006A passed its final 28-test/five-suite Config module run with no failures, errors, or
+skips after the focused 11-test public-surface run. Its separate documentation pass changed no
+executable Java or tests and therefore reused that evidence. The pass finalized the current
+Public API, benchmarking guide, glossary, and planning status; reviewed the complete package and
+type Javadocs without requiring source changes; and passed Config Javadoc, rendered-text
+inspection of the package plus all five declaration pages, changed-Markdown checks, exact
+ten-path/public-shape/dependency/status checks, and final whitespace validation. Config
+0004–0006 and 0007–0008 remain Draft without detailed specifications, and no next task was
+selected or made Ready when the staged exception closed.

@@ -889,7 +889,9 @@ compatibility and candidate identities, complete candidate enumeration, a decisi
 complete candidate execution. The tool performs cache-first deduplication, bounded warmup and
 sampling, integer-middle-median selection with encounter-order ties, and atomic workload-cache
 publication while returning richer raw evidence separately. There is no supported CPU adapter,
-model extraction, Engine integration, Config facade, or second-phase graph/plan tuning yet.
+model extraction, Engine integration, or second-phase graph/plan tuning yet. A separate current
+Config request facade holds only stable user-owned request data and performs none of this
+operational work.
 
 Tuning is optional for correctness and never runs in the runtime hot path. Running the same
 workflow over a representative model corpus may eventually pre-seed the same workload cache; this
@@ -904,6 +906,41 @@ state is published by same-directory atomic replacement. Raw samples remain only
 evidence. A **model plan cache** or **prepared-plan record** is the planned model-specific artifact
 for the selected complete plan. Neither role is hidden global state, Java object serialization, or
 an assumed executable payload.
+
+### Model-autotuning request facade / `ModelAutotuningConfig`
+
+The implemented immutable Config-owned value that records one request for later model-autotuning
+composition. Possessing it means tuning was requested; it has no enabled flag, disabled sentinel,
+implicit default, or default cache location. It contains exactly an objective, bounded sampling
+budget, [`representative-profile identity`](#representative-profile-identity),
+[`fallback policy`](#model-autotuning-fallback-policy), and explicit workload-cache path.
+
+The facade is declarative data. It retains the exact non-null path without normalization or I/O
+and owns no model fingerprint, representative inputs, occurrences, candidates, cache behavior,
+translation, measurement, selection, preparation, Engine integration, or Runtime state. A later
+outer composition owner may explicitly translate its matching values into the independent
+tool-local request while supplying the missing model and execution facts.
+
+### Representative-profile identity
+
+A caller-defined, schema-versioned opaque byte identity for the one representative profile named
+by a [`ModelAutotuningConfig`](#model-autotuning-request-facade--modelautotuningconfig). It
+identifies the profile attached to later tuning evidence; it is not the profile's Tensor values,
+Shapes, input map, resources, description, model fingerprint, or proof of equivalent execution.
+Construction snapshots a non-empty byte sequence, access returns a fresh copy, and equality and
+hashing compare the positive schema version and byte content.
+
+### Model-autotuning fallback policy
+
+The declarative distinction between requiring a complete tuning result and allowing ordinary safe
+heuristic preparation when a tuning transaction is unavailable or fails. `REQUIRE_TUNED_RESULT`
+is strict: later composition reports failure when the requested transaction cannot produce a
+complete selected result. `ALLOW_SAFE_HEURISTIC` permits that composition to abandon the tuning
+transaction and continue through the ordinary safe path.
+
+Safe heuristic fallback is not relaxed mathematics. It grants no candidate eligibility, cache
+compatibility, partial-result acceptance, or permission to suppress an unrelated preparation
+failure. Config only records this choice; later composition implements the control flow.
 
 ### Auxiliary mask
 

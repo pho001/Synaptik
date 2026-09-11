@@ -27,10 +27,12 @@ contract also contains an immutable caller-supplied availability snapshot; it is
 discovery or liveness API. A sealed requirement family can now name one hard eligibility target.
 The current config module can record that hard-target optionality, requested graph scope,
 permission for optional semantics-preserving compiler optimization, and one optional soft coarse
-device-class preference. The internal baseline consumes that preference after hard eligibility.
-The complete Compiler entry consumes all four config leaves directly but remains package-private;
-no current `CompileConfig`, public capability-matrix or eligibility surface, numeric scoring
-evaluator, or public compile lifecycle is callable by users. APIs may change through the ordered
+device-class preference. It can also hold one explicit immutable model-autotuning request as
+declarative data. The internal baseline consumes the compile preference after hard eligibility.
+The complete Compiler entry consumes all four compile-config leaves directly but remains
+package-private; no current `CompileConfig`, public capability-matrix or eligibility surface,
+numeric scoring evaluator, or public compile lifecycle is callable by users. The model-autotuning
+request likewise has no current Engine or tuning integration. APIs may change through the ordered
 planning process.
 [`ARCHITECTURE.md`](../../ARCHITECTURE.md) defines module boundaries, not source or binary
 compatibility.
@@ -231,6 +233,53 @@ perform compiler, prepare, runtime, or execution work. Current Planning interpre
 optional class preference through a cost-free provider-order baseline, and package-private
 Compiler supplies that value per final graph node. `CompileConfig`, immutable cost profiles,
 public graph-wide planning, and every public lifecycle consumer remain planned.
+
+The implemented `config.tuning` package contains one separate declarative facade,
+`ModelAutotuningConfig`. Possessing this value means that model autotuning was requested; there is
+no `enabled` component, disabled sentinel, implicit default, or default cache location. Its five
+inputs are:
+
+- the sole current objective, `MIN_MEDIAN_ELAPSED_NANOS`;
+- positive cache-miss and per-miss candidate maxima plus non-negative warmup and positive odd
+  timed-sample counts;
+- one caller-defined, schema-versioned representative-profile identity whose opaque bytes are
+  snapshotted on construction and access;
+- either `REQUIRE_TUNED_RESULT` or `ALLOW_SAFE_HEURISTIC`; and
+- one explicit workload-cache `Path`, retained exactly without normalization or I/O.
+
+For example, this current code constructs request data only:
+
+```java
+import io.github.pho001.synaptik.config.tuning.ModelAutotuningConfig;
+import java.nio.file.Path;
+
+ModelAutotuningConfig request =
+        new ModelAutotuningConfig(
+                ModelAutotuningConfig.Objective.MIN_MEDIAN_ELAPSED_NANOS,
+                new ModelAutotuningConfig.Budget(8, 16, 2, 5),
+                new ModelAutotuningConfig.RepresentativeProfileIdentity(
+                        1, new byte[] {0x2a, 0x11}),
+                ModelAutotuningConfig.FallbackPolicy.REQUIRE_TUNED_RESULT,
+                Path.of("cache", "workloads.bin"));
+```
+
+The concrete inputs permit at most eight distinct workload-cache misses, at most sixteen complete
+candidates for each miss, two untimed warmup executions, and five timed executions per candidate.
+The profile bytes identify the caller's representative profile; they are not representative input
+values. Construction validates and retains policy data but does not inspect the path, run tuning,
+read or write a cache, enumerate candidates, prepare an executable, or perform Engine or Runtime
+work.
+
+Later outer composition may depend on Config and `tools/tuning` and map the objective and four
+budget values one-for-one, construct the tool-local profile fingerprint from the Config snapshot,
+and pass the requested cache path. That composition must separately supply the actual model
+fingerprint, tunable occurrences, representative input values and execution, and exact/default
+eligible backend candidates. It also interprets the fallback policy: strict mode reports the
+failed or unavailable complete tuning result, while safe-heuristic mode may continue through
+ordinary safe heuristic preparation. The latter grants no candidate eligibility, numerical
+relaxation, cache compatibility, partial-result acceptance, or suppression of an unrelated
+preparation failure. No such translation, fallback control flow, supported CPU adapter, or Engine
+integration is implemented yet; bounded graph/plan tuning also remains planned.
 
 The public `modules:planning` surface contains eight backend-neutral compile-time declarations:
 

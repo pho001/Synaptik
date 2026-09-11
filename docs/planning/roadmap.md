@@ -62,9 +62,11 @@ and rich evidence. CPU 0010E and Prepare 0004 are `Complete`. Detailed
 is `Complete`: explicit composition supplies stable model/profile identity, the typed opaque backend
 collaboration, and complete cold candidate execution, while tuning owns timing, selection, cache
 coordination, evidence, and atomic persistence. This does not claim an Engine facade or a
-supported public CPU adapter. Tuning 0002–0003 remain `Draft` without specifications, and Config
-0006A is the next staged `Draft` task. Optional OpenBLAS provider
-0004 and CPU 0010D1 remain `Blocked` and deferred.
+supported public CPU adapter. Tuning 0002–0003 remain `Draft` without specifications. Detailed
+[Config 0006A](modules/config/tasks/0006a-model-autotuning-request-configuration.md) is the sole
+`Complete` Config request facade delivered through the recorded non-overlapping staged ordering
+exception. The exception is now closed without selecting or making another task Ready. Optional
+OpenBLAS provider 0004 and CPU 0010D1 remain `Blocked` and deferred.
 Runtime never selects.
 
 The Data/Text/Vision and Checkpoint rows are user-authorized future planning, not architecture
@@ -1447,10 +1449,20 @@ Complete.
 Completed OpenBLAS tasks and original milestone history remain unchanged. Optional OpenBLAS
 provider 0004 and dependent CPU 0010D1 remain blocked/deferred BFLOAT16 side-branch work. They do
 not alter completed CPU 0010E or Prepare 0004, or block the FLOAT32/FLOAT64 mainline toward the
-completed tools/tuning 0001 capability. Config 0006A is the next Draft task.
+completed tools/tuning 0001 capability. Detailed
+[Config 0006A model-autotuning request configuration](modules/config/tasks/0006a-model-autotuning-request-configuration.md)
+is now `Complete` after the explicit staged ordering exception around Draft Config 0004–0006. The
+completed consumer fixes its exact/default user-owned request vocabulary, while the separate
+`config.tuning` package and bounded paths do not overlap the earlier Draft rows or change
+dependency direction.
 
 CPU 0010E, detailed Prepare 0004, and detailed tools/tuning 0001 are Complete. Tuning 0002–0003
-remain Draft without specifications; Config 0006A is the next Draft task.
+remain Draft without specifications. Config 0006A now supplies one immutable Config request with
+the sole objective, bounded sampling budget, representative-profile identity, fallback policy,
+and explicit workload-cache path. It adds no Config-to-tuning dependency, candidate/cache
+behavior, or Engine/Runtime orchestration. Config 0004–0006 and 0007–0008 remain Draft without
+detailed specifications. Closing this non-overlapping exception selected no next task and made no
+Draft row Ready.
 CPU 0005A through CPU 0006 are `Complete`, detailed
 CPU 0006A, detailed CPU 0006A1, detailed CPU 0006A2, and detailed CPU 0006B are `Complete`.
 Detailed CPU 0006B1, CPU 0006B2, CPU 0006C, CPU 0006D, CPU 0007, and detailed
