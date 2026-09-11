@@ -48,9 +48,10 @@ measures bounded complete plan candidates, and writes explicit persistent artifa
 
 ## Allowed dependencies
 
-- modules/config for stable immutable user request inputs
+- modules/config for later stable immutable user request inputs
 - modules/compiler and modules/planning through candidate contracts owned by those modules
-- modules/prepare and modules/engine through the future public opaque orchestration boundary
+- modules/prepare through the current public opaque candidate/decision roles and handoff
+- modules/engine through a later public lifecycle orchestration boundary
 - other explicitly required public lifecycle and trace contracts
 
 ## Forbidden dependencies
@@ -62,7 +63,7 @@ measures bounded complete plan candidates, and writes explicit persistent artifa
 
 | ID | Task | Status | Depends on | Summary |
 |---|---|---|---|---|
-| 0001 | Exact/default model-guided workload tuning and reusable cache | Draft | CPU 0010E; Prepare 0004; stable model identity and operational cold measurement path | Consume opaque CPU-owned FLOAT32/FLOAT64 candidate batches, deduplicate canonical compatible workloads with occurrence context, reject corrupt or incompatible explicit cache entries, measure cache misses only, select by the explicit objective and budget, atomically persist compact results, and retain separate rich evidence. Tool-local explicit request inputs precede any later Config facade. |
+| 0001 | [Exact/default model-guided workload tuning and reusable cache](tasks/0001-exact-default-model-guided-workload-tuning-and-reusable-cache.md) | Complete | CPU 0010E; Prepare 0004; caller-supplied stable identity, typed opaque collaboration, and operational cold measurement | Added the generic caller-supplied cold workload tuner, exact compatible-occurrence deduplication, bounded miss-only measurement, deterministic median selection, reusable bounded persistent cache, and separate rich evidence. Tool-local request inputs precede any later Config facade. |
 | 0002 | Bounded graph and plan tuning | Draft | 0001, compiler graph candidates, planning ownership/partition candidates, complete prepare candidates, and operational engine paths | Measure a budget-bounded set of complete valid candidates end to end, reuse local results without repeating local search, and select an explicit model plan or prepared artifact. |
 | 0003 | Cache and plan inspection | Draft | 0001–0002, stable artifact schemas | Inspect compatibility, provenance summaries, invalidation reasons, selected plans, and separate measurement evidence without executing payloads or mutating runtime state. |
 
@@ -74,18 +75,27 @@ measures bounded complete plan candidates, and writes explicit persistent artifa
 
 ## Current status
 
-Draft. The former broad platform-calibration row is retired. No tuning task is Ready, and no
-detailed task specification exists. The ordered path to task 0001 is CPU 0010E followed by
-Prepare 0004. The initial slice is exact/default and FLOAT32/FLOAT64 only, so it does not wait for
-the blocked BFLOAT16 side branch or unfinished relaxed numerical configuration. Config may add a
-public immutable request facade only after this consumer is stable.
+Task 0001 is Complete. CPU 0010E and Prepare 0004 remain Complete. The current repository has no
+Engine facade or general operational model-execution path, so task 0001 uses a narrow typed generic cold
+collaboration supplied explicitly by composition: the caller supplies stable model/profile
+identity, opaque candidate enumeration and decision encoding/decoding, and one complete
+candidate execution action; tuning owns timing, validation, deduplication, cache coordination,
+selection, evidence, and atomic persistence. The implementation passed its 24-test module gate,
+clean Javadoc and rendered-text inspection, documentation checks, and the 3,032-test repository
+checkpoint. This makes the local workflow operational without a
+concrete CPU dependency, shared interpretation, Runtime work, or an invented Engine facade.
+
+The initial slice remains exact/default and FLOAT32/FLOAT64 only. It does not wait for the blocked
+BFLOAT16 side branch or unfinished relaxed numerical configuration. Config 0006A is now the next
+Draft task and may add a public immutable request facade around this stable consumer. Tuning 0002
+and 0003 remain Draft without detailed specifications.
 
 ## Open questions
 
-- Exact canonical signature, target fingerprint, model fingerprint, objective, constraint,
-  measurement-summary, and candidate-schema fields wait for their stable producers and consumers.
-- The physical file encoding and prepared-executable serialization remain deliberately unresolved.
-- The budget policy and end-to-end measurement boundary wait for operational lifecycle paths.
+- Exact public Config vocabulary and Engine composition remain deferred until their consumers and
+  lifecycle paths are implemented.
+- Prepared-executable serialization remains deliberately unresolved.
+- Task 0002's graph/plan budget and end-to-end Engine measurement boundary remain unresolved.
 
 ## Decisions made
 
@@ -107,6 +117,22 @@ public immutable request facade only after this consumer is stable.
   JDK Vector API candidate even when a compatible native provider is installed.
 - Compiler, planning, prepare, and concrete backends generate complete valid candidates for their
   own decisions. Tuning coordinates measurement and selection only.
+- Task 0001 accepts one typed caller collaboration parameterized by the method-free Prepare batch
+  and decision roles. The collaborator enumerates a backend-owned complete batch, supplies opaque
+  compatibility and candidate identities, constructs decisions, and encodes/decodes them. The
+  tool never reflects on, downcasts, or imports a concrete backend value.
+- Task 0001 accepts stable model and representative-profile fingerprints as explicit immutable
+  tool-local request values. They identify evidence and do not create a Model or Engine identity
+  contract. Workload compatibility remains supplied by the backend-aware collaborator so the
+  workload cache can reuse identical results across models.
+- The task-0001 cold measurement action performs one complete comparable candidate execution per
+  invocation. Tuning owns warmup/sample counts, monotonic timing, elapsed-sample validation,
+  median comparison, deterministic encounter-order tie breaking, and fail-before-measurement
+  budget checks. Runtime and report-only benchmarks are not used.
+- The first compact workload cache uses one bounded versioned binary format with length-prefixed
+  opaque keys and decisions, fixed numeric objective/sampling fields, compact summaries, a whole-
+  file checksum, deterministic ordering, and same-directory forced temporary-file plus atomic-
+  move publication. Rich per-candidate samples remain only in the returned evidence.
 - Backend candidate generators are typed, version-controlled, tested, and colocated with routes.
   They do not use `Map<String,Object>`, string dispatch, reflection annotations, a central knob
   registry, a generic config language, or arbitrary vector-lane promises.

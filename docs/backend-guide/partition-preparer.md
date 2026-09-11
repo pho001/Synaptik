@@ -13,6 +13,12 @@ batch and an optional backend-owned selected decision. The transport keeps both 
 ties them to one exact planned partition, but it is not part of `PrepareContext`, analysis,
 assignment, or finalization and performs no tuning work.
 
+The current `tools/tuning` module can consume these handoffs through a generic caller-supplied cold
+collaboration. That tool performs cache-first deduplication, bounded warmup and sampling,
+deterministic median selection, and atomic workload-cache publication without adding methods to
+Prepare's opaque roles or interpreting backend fields. There is no supported CPU adapter,
+graph-preparation integration, Engine composition, or Config facade yet.
+
 Public `GraphPreparation.prepare(...)` now coordinates the package-internal batch assignment and
 validates one complete schedule supplied by an explicit assembler. Physical allocation, backend
 registration, production schedule assembly, and end-to-end Engine execution remain planned. The
@@ -82,6 +88,14 @@ The tuning handoff is a side transport around this lifecycle, not another arrow 
 backend produces the complete immutable batch and later validates any supplied decision against a
 fresh batch. Shared Prepare retains exact references only. It does not enumerate the batch,
 match the decision, serialize either value, or insert them into Runtime.
+
+An owning composition may pass the handoff to `WorkloadTuning` together with a
+`BackendWorkloadTuning<C, D, K>` implementation and a `ColdCandidateMeasurement<C, K>` action.
+The collaboration supplies backend-owned compatibility and candidate identities, complete
+candidate enumeration, decision construction and codec operations; the measurement action runs
+one complete candidate on equivalent representative inputs. Tuning returns a new handoff for each
+original occurrence with the selected decision present. The concrete backend must still validate
+that decision against a freshly generated compatible batch before it can affect analysis.
 
 ## Current-contract example
 
@@ -460,10 +474,13 @@ For the current shared contract, run:
 
 ## Limitations and related documentation
 
-The current API has no dynamic-dimension binding, workspace reuse, physical resource, production
-Engine composition, or model-autotuning workflow. It does have the narrow opaque candidate-batch
-and decision transport, but no measurement, selection, cache, persistence, model aggregation, or
-graph-preparation integration for it. Slot
+The current Prepare API has no dynamic-dimension binding, workspace reuse, physical resource,
+production Engine composition, or direct tuning integration. The separate tuning tool now
+provides generic caller-supplied local measurement, selection, reusable bounded persistence, and
+rich evidence around the narrow opaque handoff. Prepare itself still performs no measurement,
+selection, cache access, persistence, model aggregation, or tuning-aware graph preparation. There
+is no supported CPU adapter, Config facade, workload extraction, or bounded complete graph/plan
+tuning yet. Slot
 assignment, finalization input/collaboration, prepared partition, explicit schedule assembly and
 validation, prepared-execution construction, and shared runner contracts are current. Compatible
 cached decisions may be explicit immutable backend inputs, but analysis neither loads nor mutates

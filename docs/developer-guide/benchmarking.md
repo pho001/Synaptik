@@ -3,7 +3,8 @@
 ## What you will learn
 
 This guide defines the evidence expected from future Synaptik benchmarks and separates
-benchmarking from model autotuning, planning cost, and runtime profiling. The
+benchmarking from workload tuning, the broader model-autotuning roadmap, planning cost, and
+runtime profiling. The
 `tools/benchmarks` project exists structurally, but no harness, `BenchmarkReport`, or workload is
 implemented.
 
@@ -16,8 +17,10 @@ designing a harness.
 - **Benchmarking** runs a fixed reproducible workload and reports measurements without changing
   production settings.
 - A **benchmark report** is the rich immutable evidence from one recorded benchmark run.
-- **Model autotuning** explicitly reuses or measures actual model workloads, then compares a
-  bounded set of complete valid model plans.
+- **Workload tuning** currently reuses or measures caller-supplied exact compatible workloads and
+  records selected backend-owned decisions in an explicit persistent cache.
+- **Model autotuning** is the broader two-phase roadmap: model-guided workload extraction and
+  reuse followed by bounded comparison of complete valid model plans.
 - **Runtime profiling** passively observes actual prepared execution.
 
 ## Mental model
@@ -25,12 +28,37 @@ designing a harness.
 ```text
 correctness tests -> is the result valid?
 benchmark report  -> how did this fixed workload behave here?
+workload tuning   -> which supplied complete local candidate has the lowest median elapsed time?
 model autotuning  -> which compatible local results and complete plan best meet the objective?
 runtime profiling -> what happened during actual prepared execution?
 ```
 
 A benchmark answers only the second question. It never substitutes for unit, conformance, or
 integration tests and never installs the fastest measured setting.
+
+## Current workload-tuning capability
+
+`tools/tuning` currently provides a generic caller-supplied cold workload tuner and a reusable,
+bounded persistent workload cache. The caller supplies stable model and representative-profile
+evidence identities, original occurrence contexts and weights, backend-owned compatibility and
+candidate identities, complete candidate enumeration, a decision codec, and one complete
+candidate execution action on equivalent representative inputs.
+
+The tuner loads and validates the complete explicit cache before candidate enumeration or
+execution. It deduplicates exact compatible occurrences in encounter order. Compatible persistent
+hits reuse the backend-decoded decision without enumerating or executing candidates. For each
+miss, the tuner validates the complete batch against the budget, performs the configured complete
+warmup and timed executions, calculates each candidate's integer-middle median, and retains the
+first encountered candidate when medians tie. A successfully encoded decision must decode back to
+an equal compatible decision before same-directory atomic cache publication. Returned rich
+evidence retains raw measured samples separately; cache-hit evidence has an empty candidate list
+and retains only the compact stored winner summary.
+
+This is a composition contract, not an out-of-the-box CPU or model API. There is no supported CPU
+adapter, Engine integration, or Config facade yet. The caller must supply complete execution and
+stable identities, while the backend retains semantic, compatibility, candidate-generation,
+decision-validation, route, and resource ownership. The current tool does not extract workloads
+from a model or perform the second graph/plan phase of model autotuning.
 
 ## Benchmark workloads and reports
 
@@ -74,13 +102,13 @@ or aggregated samples, and summary statistic.
 
 Running the same report definition on two commits permits a performance comparison. The faster
 result does not update a CPU route threshold, vector strategy, thread count, workload tuning
-cache, or model plan. A separate explicit model-autotuning workflow may consume compatible
-measurement machinery, run a declared bounded search, and produce its own explicit cache and plan
-artifacts.
+cache, or model plan. The current explicit workload tuner may instead run a caller-supplied
+bounded local search and publish its own compact cache entry. It does not mutate settings as a
+consequence of this benchmark report, and it does not yet produce a model plan.
 
-## Model-autotuning candidate spaces
+## Workload-tuning candidate spaces
 
-Model autotuning belongs to `tools/tuning`, not the benchmark suite. A concrete backend owns typed,
+Workload tuning belongs to `tools/tuning`, not the benchmark suite. A concrete backend owns typed,
 version-controlled candidate generators beside its routes. An operation family selects the
 appropriate generator, but cache reuse uses a canonical workload signature that also includes
 semantics and attributes, data types, shapes, layouts, relevant policies, and target
@@ -112,7 +140,11 @@ governs later harness and reporting work.
 
 ## Limitations and boundaries
 
-Benchmark, model-autotuning, planning-cost, and runtime-profile contracts remain planned.
+The benchmark harness and report, full two-phase model-autotuning workflow, planning-cost model,
+and concrete runtime-profile payloads remain planned. The generic caller-supplied workload tuner
+and bounded persistent workload cache are current, but supported CPU/Engine/Config integration,
+model extraction, complete graph/plan search, concurrent writers, cache migration, and inspection
+remain deferred.
 `modules/config` may later store immutable declarative outputs, but it will not own the runner,
 search algorithm, live discovery, or mutable evidence. No benchmark runs in the runtime hot path.
 

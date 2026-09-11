@@ -883,18 +883,27 @@ measures only misses. Its second phase measures a bounded set of complete valid 
 candidates end to end and selects an explicit model plan or prepared artifact without repeating
 local route-parameter search.
 
-The caller supplies representative input or shape profiles, objective, budget, constraints, and
-explicit cache locations. Tuning is optional for correctness and never runs in the runtime hot
-path. Running the same workflow over a representative model corpus may pre-seed the same workload
-cache; this is not a separate platform-calibration subsystem. The workflow and artifact contracts
-remain planned.
+The current task-0001 boundary is a generic caller-supplied cold workload tuner. Its caller
+supplies stable model/profile evidence identities, already formed occurrences, backend-owned
+compatibility and candidate identities, complete candidate enumeration, a decision codec, and
+complete candidate execution. The tool performs cache-first deduplication, bounded warmup and
+sampling, integer-middle-median selection with encounter-order ties, and atomic workload-cache
+publication while returning richer raw evidence separately. There is no supported CPU adapter,
+model extraction, Engine integration, Config facade, or second-phase graph/plan tuning yet.
 
-A **workload tuning cache** is the explicit file-backed reusable artifact keyed by canonical
-workload and target compatibility. A **model plan cache** or **prepared-plan record** is the
-model-specific artifact for the selected complete plan. Compatible hits are reused; misses may be
-tuned and atomically persisted. Both roles require explicit schema and backend candidate-schema
-versions, fingerprints, objective and constraints, and a compact measurement summary. They are
-not hidden global state, Java object serialization, or assumed executable payloads.
+Tuning is optional for correctness and never runs in the runtime hot path. Running the same
+workflow over a representative model corpus may eventually pre-seed the same workload cache; this
+is not a separate platform-calibration subsystem. The full two-phase workflow and model-plan
+artifact remain planned.
+
+A **workload tuning cache** is the current explicit bounded file-backed reusable artifact keyed by
+backend-supplied canonical workload/target compatibility plus objective and sampling policy. Its
+versioned deterministic binary entries contain opaque decision and winner identities and a compact
+minimum/median/maximum/count summary; checksum and structure validation precede reuse, and changed
+state is published by same-directory atomic replacement. Raw samples remain only in returned rich
+evidence. A **model plan cache** or **prepared-plan record** is the planned model-specific artifact
+for the selected complete plan. Neither role is hidden global state, Java object serialization, or
+an assumed executable payload.
 
 ### Auxiliary mask
 
@@ -2214,8 +2223,9 @@ key. The first implemented internal instance is the CPU exact/default FLOAT32/FL
 MATMUL signature. It additionally retains qualification scope, caller-supplied CPU identity,
 expected-use cohort, concurrency, route/resource inputs, and policy versions. Session-only
 qualification has no persistent projection; persistently reusable compatibility requires the
-qualified binary identity. The shared exact-partition opaque transport is implemented;
-measurement and persistent cache use remain planned.
+qualified binary identity. The shared exact-partition opaque transport and generic tuning tool's
+exact-value deduplication, measurement, and bounded persistent-cache use are implemented.
+Producing this identity through a supported CPU adapter or model/Engine path remains planned.
 
 ### Candidate generator
 
@@ -2226,8 +2236,10 @@ vocabulary. Shared tuning and prepare orchestration sees candidates opaquely; it
 generic parameter map, string dispatch, reflective annotations, or a central knob registry. The
 first implemented internal generator is the CPU exact/default FLOAT32/FLOAT64 OpenBLAS MATMUL
 producer. It emits the complete portable alternative followed by every realizable copy-mask and
-fitting configured-thread combination. The shared exact-partition opaque transport is
-implemented; tuning orchestration remains planned.
+fitting configured-thread combination. The shared exact-partition opaque transport and generic
+caller-supplied workload-tuning orchestration are implemented. A backend-aware caller still
+supplies enumeration and identity; supported CPU/Engine integration and complete graph/plan
+orchestration remain planned.
 
 ### Selected tuning decision
 

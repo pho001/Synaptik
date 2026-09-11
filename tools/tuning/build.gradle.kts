@@ -1,4 +1,4 @@
 dependencies {
-    implementation(project(":modules:config"))
+    api(project(":modules:prepare"))
     implementation(project(":modules:planning"))
 }
