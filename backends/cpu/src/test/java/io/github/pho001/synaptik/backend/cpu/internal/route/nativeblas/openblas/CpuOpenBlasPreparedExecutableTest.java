@@ -3,6 +3,7 @@ package io.github.pho001.synaptik.backend.cpu.internal.route.nativeblas.openblas
 import static org.junit.jupiter.api.Assertions.*;
 
 import io.github.pho001.synaptik.backend.cpu.internal.memory.CpuBorrowedBuffer;
+import io.github.pho001.synaptik.backend.cpu.internal.executable.CpuConcurrencyBudget;
 import io.github.pho001.synaptik.backend.cpu.internal.prepare.CpuPartitionAnalysisInputs;
 import io.github.pho001.synaptik.model.datatype.DataType;
 import io.github.pho001.synaptik.model.storage.MemorySegmentStorage;
@@ -19,6 +20,35 @@ import java.util.Optional;
 import org.junit.jupiter.api.Test;
 
 final class CpuOpenBlasPreparedExecutableTest {
+    @Test void coordinatedBindingIsColdAndExecutionUsesOneFixedAdmission() {
+        DataType type = DataType.FLOAT32;
+        long bytes = 4L * type.byteWidth();
+        var fake = new RecordingInvocation();
+        var coordinator = new CpuOpenBlasCoordinator(fake, () -> fake.open = false,
+                new CpuConcurrencyBudget(2));
+        coordinator.configure(2);
+        int queries = fake.queries;
+        int sets = fake.sets;
+        var memory = memory(type, bytes);
+        var candidate = new CpuPartitionAnalysisInputs.OpenBlasRouteConfig.ThreadCandidate(2,
+                CpuPartitionAnalysisInputs.CostTerms.complete(0, 0, 0));
+        var route = new CpuOpenBlasRoutePlan(type, 2, 2, 2, 0, 1, 2, candidate,
+                2, 2, 2, 0, CpuOpenBlasRoutePlan.Representation.DIRECT, Optional.empty(),
+                Optional.empty(), Optional.empty(), List.of(), 1, 0, 0, 0,
+                100, 10, 90, 9_000);
+        var executable = new CpuOpenBlasPreparedExecutable(memory, selections(), List.of(), route,
+                null, coordinator, List.of(), Optional.empty());
+        try (Arena arena = Arena.ofConfined(); RunState state = state(memory, type,
+                arena.allocate(bytes, type.byteWidth()), arena.allocate(bytes, type.byteWidth()),
+                arena.allocate(bytes, type.byteWidth()))) {
+            var bound = executable.bind(state);
+            assertAll(() -> assertEquals(queries, fake.queries),
+                    () -> assertEquals(sets, fake.sets));
+            bound.execute();
+            assertEquals(1, fake.sgemmCalls);
+        } finally { coordinator.close(); }
+    }
+
     @Test void bindsExactNativeSegmentsAndExecutesOneTypedCall() {
         for (DataType type : List.of(DataType.FLOAT32, DataType.FLOAT64)) {
             try (Arena arena = Arena.ofConfined()) {
@@ -131,19 +161,28 @@ final class CpuOpenBlasPreparedExecutableTest {
 
     private static CpuOpenBlasPreparedExecutable executable(DataType type,
             CpuOpenBlasInvocation invocation, long bytes) {
-        var memory = new PreparedMemoryPlan(List.of(
+        var memory = memory(type, bytes);
+        var route = new CpuOpenBlasRoutePlan(type, 2, 2, 2, 0, 1, 2,
+                new CpuPartitionAnalysisInputs.OpenBlasRouteConfig.ThreadCandidate(1,
+                        CpuPartitionAnalysisInputs.CostTerms.complete(0, 0, 0)),
+                CpuOpenBlasRoutePlan.Representation.DIRECT, Optional.empty(), Optional.empty(),
+                100, 10, 90, 9_000);
+        return new CpuOpenBlasPreparedExecutable(memory, selections(), List.of(), route, invocation);
+    }
+
+    private static PreparedMemoryPlan memory(DataType type, long bytes) {
+        return new PreparedMemoryPlan(List.of(
                 new PreparedMemoryPlan.BufferEntry(new BufferSlot(0), bytes, type.byteWidth()),
                 new PreparedMemoryPlan.BufferEntry(new BufferSlot(1), bytes, type.byteWidth()),
                 new PreparedMemoryPlan.BufferEntry(new BufferSlot(2), bytes, type.byteWidth())),
                 List.of());
-        var route = new CpuOpenBlasRoutePlan(type, 2, 2, 2, 0, 1, 2,
-                CpuPartitionAnalysisInputs.OpenBlasRouteConfig.ThreadConfiguration.SINGLE_THREAD,
-                CpuOpenBlasRoutePlan.Representation.DIRECT, Optional.empty(), Optional.empty(),
-                100, 10, 90, 9_000);
-        return new CpuOpenBlasPreparedExecutable(memory, List.of(
+    }
+
+    private static List<PreparedExecutable.BufferSelection> selections() {
+        return List.of(
                 new PreparedExecutable.BufferSelection(0, 0),
                 new PreparedExecutable.BufferSelection(1, 0),
-                new PreparedExecutable.BufferSelection(2, 0)), List.of(), route, invocation);
+                new PreparedExecutable.BufferSelection(2, 0));
     }
 
     private static RunState state(PreparedMemoryPlan plan, DataType type, MemorySegment left,
@@ -180,9 +219,12 @@ final class CpuOpenBlasPreparedExecutableTest {
         MemorySegment right;
         MemorySegment output;
         RuntimeException failure;
+        int queries;
+        int sets;
 
         @Override public boolean isOpen() { return open; }
-        @Override public int threadCount() { return threads; }
+        @Override public int threadCount() { queries++; return threads; }
+        @Override public void setThreadCount(int threadCount) { sets++; threads = threadCount; }
         @Override public void sgemm(int m, int n, int k, float alpha, MemorySegment a,
                 MemorySegment b, float beta, MemorySegment c) {
             sgemmCalls++; record(m, n, k, alpha, a, b, beta, c);

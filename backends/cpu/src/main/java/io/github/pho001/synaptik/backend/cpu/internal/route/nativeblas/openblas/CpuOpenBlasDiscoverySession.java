@@ -8,9 +8,10 @@ import java.util.concurrent.atomic.AtomicReference;
  * CPU-private owner that keeps one successfully discovered provider lifetime alive.
  *
  * <p>The immutable result is always available. A loaded session additionally exposes one
- * borrowed invocation and owns its matching close action. Closing atomically claims that action
- * once; it does not query or restore OpenBLAS thread state. Callers must keep the session open
- * until every use of the borrowed invocation is quiescent and must not race close with use.</p>
+ * borrowed invocation and initially owns its matching close action. The owner may atomically
+ * transfer that pair once to a coordinator; immutable result and invocation views remain readable,
+ * while later session close cannot affect the transferred resource. Without transfer, closing
+ * atomically claims the action once and does not query or restore thread state.</p>
  */
 final class CpuOpenBlasDiscoverySession implements AutoCloseable {
     private final CpuOpenBlasDiscoveryResult result;
@@ -57,6 +58,23 @@ final class CpuOpenBlasDiscoverySession implements AutoCloseable {
      */
     Optional<CpuOpenBlasInvocation> invocation() {
         return invocation;
+    }
+
+    /**
+     * Transfers the loaded invocation and its close action exactly once into a coordinator.
+     *
+     * @param budget non-null borrowed budget used by the coordinator
+     * @return the new sole provider-lifetime owner
+     * @throws NullPointerException if {@code budget} is {@code null}
+     * @throws IllegalStateException if this session has no unclaimed loaded resource
+     */
+    CpuOpenBlasCoordinator transferToCoordinator(
+            io.github.pho001.synaptik.backend.cpu.internal.executable.CpuConcurrencyBudget budget) {
+        Objects.requireNonNull(budget, "budget");
+        OwnedResource resource = ownedResource.getAndSet(null);
+        if (resource == null) throw new IllegalStateException(
+                "OpenBLAS discovery resource is unavailable, closed, or already transferred");
+        return new CpuOpenBlasCoordinator(resource.invocation(), resource.closeAction(), budget);
     }
 
     /**

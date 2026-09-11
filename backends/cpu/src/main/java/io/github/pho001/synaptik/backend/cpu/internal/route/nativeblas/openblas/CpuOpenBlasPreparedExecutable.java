@@ -25,11 +25,14 @@ import java.util.Optional;
  * Immutable reusable OpenBLAS copy-in/GEMM/copy-out recipe. Cold binding validates the complete
  * provider, buffer, workspace, affine-copy, and overlap contract before returning an invocation.
  * Hot execution performs selected input copies left then right, exactly one typed provider call,
- * and the optional output copy, with no route decision or late fallback.
+ * and the optional output copy, with no route decision or late fallback. Coordinated execution
+ * admits that complete sequence once under the plan's fixed permit demand; compatibility
+ * execution retains the externally excluded count-one contract.
  */
 public final class CpuOpenBlasPreparedExecutable extends PreparedExecutable {
     private final CpuOpenBlasRoutePlan plan;
     private final CpuOpenBlasInvocation invocation;
+    private final CpuOpenBlasCoordinator coordinator;
     private final List<CpuGeneratedKernel> inputCopyArtifacts;
     private final Optional<CpuGeneratedKernel> outputCopyArtifact;
 
@@ -55,10 +58,39 @@ public final class CpuOpenBlasPreparedExecutable extends PreparedExecutable {
             CpuOpenBlasRoutePlan plan, CpuOpenBlasInvocation invocation,
             List<CpuGeneratedKernel> inputCopyArtifacts,
             Optional<CpuGeneratedKernel> outputCopyArtifact) {
+        this(memoryPlan, buffers, workspaces, plan, invocation, null, inputCopyArtifacts,
+                outputCopyArtifact);
+    }
+
+    /**
+     * Creates a reusable native sequence that borrows one coordinator. Finalization is responsible
+     * for installing the selected count before publication; execution rechecks it atomically at
+     * admission and admits the complete copy-in/GEMM/copy-out sequence under the fixed demand.
+     *
+     * @param memoryPlan exact shared memory plan containing every selected resource
+     * @param buffers exactly three ordered left, right, and output selections
+     * @param workspaces ordered selections for every route workspace declaration
+     * @param plan immutable analysis-selected OpenBLAS route and thread facts
+     * @param invocation {@code null}; direct invocation is retained by {@code coordinator}
+     * @param coordinator non-null configured coordinator borrowed for the recipe lifetime
+     * @param inputCopyArtifacts ordered left-then-right artifacts for selected copies
+     * @param outputCopyArtifact copy-out artifact exactly when output copy is selected
+     * @throws NullPointerException if a required reference or collection element is {@code null}
+     * @throws IllegalArgumentException if invocation mode, resource cardinality, or artifact
+     *     specialization disagrees with the selected route
+     */
+    public CpuOpenBlasPreparedExecutable(PreparedMemoryPlan memoryPlan,
+            List<BufferSelection> buffers, List<WorkspaceSelection> workspaces,
+            CpuOpenBlasRoutePlan plan, CpuOpenBlasInvocation invocation,
+            CpuOpenBlasCoordinator coordinator, List<CpuGeneratedKernel> inputCopyArtifacts,
+            Optional<CpuGeneratedKernel> outputCopyArtifact) {
         super(memoryPlan, buffers, workspaces, List.of(BufferAccess.READ_ONLY,
                 BufferAccess.READ_ONLY, BufferAccess.WRITE_ONLY));
         this.plan = Objects.requireNonNull(plan, "plan");
-        this.invocation = Objects.requireNonNull(invocation, "invocation");
+        if ((invocation == null) == (coordinator == null)) throw new IllegalArgumentException(
+                "exactly one OpenBLAS invocation mode is required");
+        this.invocation = invocation;
+        this.coordinator = coordinator;
         this.inputCopyArtifacts = List.copyOf(inputCopyArtifacts);
         this.outputCopyArtifact = Objects.requireNonNull(outputCopyArtifact,
                 "outputCopyArtifact");
@@ -159,15 +191,20 @@ public final class CpuOpenBlasPreparedExecutable extends PreparedExecutable {
      *     copy according to the immutable route plan
      * @throws IllegalArgumentException if any exact representation, geometry, writability, or
      *     overlap invariant disagrees
-     * @throws IllegalStateException if the borrowed provider is closed or not single-threaded
+     * @throws IllegalStateException if the compatibility provider is closed or not at count one,
+     *     or the coordinator is already closed
      * @throws ArithmeticException if exact bound address or span arithmetic overflows
      */
     @Override protected BoundInvocation bindCompatible(RunState state,
             BufferRepresentation[] buffers, WorkspaceRepresentation[] workspaces) {
-        if (!invocation.isOpen()) throw new IllegalStateException(
-                "borrowed OpenBLAS provider is closed");
-        if (invocation.threadCount() != 1) throw new IllegalStateException(
-                "borrowed OpenBLAS provider must remain single-threaded");
+        if (coordinator == null) {
+            if (!invocation.isOpen()) throw new IllegalStateException(
+                    "borrowed OpenBLAS provider is closed");
+            if (invocation.threadCount() != 1) throw new IllegalStateException(
+                    "borrowed OpenBLAS provider must remain single-threaded");
+        } else if (!coordinator.isOpen()) {
+            throw new IllegalStateException("OpenBLAS coordinator is closed");
+        }
         var arguments = new CpuBufferArgument[3];
         for (int index = 0; index < arguments.length; index++) {
             CpuBufferRepresentation cpu = (CpuBufferRepresentation) buffers[index];
@@ -228,21 +265,34 @@ public final class CpuOpenBlasPreparedExecutable extends PreparedExecutable {
         List<GeneratedCopyCall> copies = List.copyOf(inputCalls);
         return new BoundInvocation(state) {
             @Override protected void executeBound() {
+                Runnable sequence = () -> executeSequence(copies, outputCall, left, right, output);
+                if (coordinator != null) {
+                    coordinator.execute(plan.threadCount(), plan.permitDemand(), sequence);
+                    return;
+                }
+                sequence.run();
+            }
+        };
+    }
+
+    private void executeSequence(List<GeneratedCopyCall> copies,
+            Optional<GeneratedCopyCall> outputCall, MemorySegment left, MemorySegment right,
+            MemorySegment output) {
                 try {
                     for (GeneratedCopyCall copy : copies) copy.invoke();
+                    CpuOpenBlasInvocation selected = coordinator == null ? invocation
+                            : coordinator.invocation();
                     if (plan.dataType() == DataType.FLOAT32) {
-                        invocation.sgemm(plan.m(), plan.n(), plan.k(), 1.0f,
+                        selected.sgemm(plan.m(), plan.n(), plan.k(), 1.0f,
                                 left, right, 0.0f, output);
                     } else {
-                        invocation.dgemm(plan.m(), plan.n(), plan.k(), 1.0d,
+                        selected.dgemm(plan.m(), plan.n(), plan.k(), 1.0d,
                                 left, right, 0.0d, output);
                     }
                     if (outputCall.isPresent()) outputCall.orElseThrow().invoke();
                 } catch (RuntimeException | Error failure) { throw failure; }
                 catch (Throwable failure) { throw new IllegalStateException(
                         "generated OpenBLAS representation copy failed", failure); }
-            }
-        };
     }
 
     private boolean copied(int position) {

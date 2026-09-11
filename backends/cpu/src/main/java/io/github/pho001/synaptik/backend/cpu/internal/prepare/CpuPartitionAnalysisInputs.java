@@ -110,16 +110,15 @@ public record CpuPartitionAnalysisInputs(boolean loweringManifestEnabled,
      * guessing. The snapshot owns no provider, native handle, segment, slot, or measured result.
      *
      * @param availability explicit unavailable or CPU-checkpoint-qualified provider fact
-     * @param threadConfiguration selected externally coordinated thread configuration, if known
+     * @param threadCandidates immutable bounded positive provider-thread candidates
      * @param portableCosts complete or incomplete portable whole-plan cost terms
-     * @param openBlasCosts complete or incomplete OpenBLAS whole-plan cost terms
      * @param representationCosts complete or incomplete per-run representation cost terms
      * @param minimumNetBenefitCostUnits optional non-negative absolute benefit threshold
      * @param minimumBenefitBasisPoints optional relative threshold in {@code [0, 10_000]}
      */
     public record OpenBlasRouteConfig(Availability availability,
-            Optional<ThreadConfiguration> threadConfiguration, CostTerms portableCosts,
-            CostTerms openBlasCosts, RepresentationCostTerms representationCosts,
+            List<ThreadCandidate> threadCandidates, CostTerms portableCosts,
+            RepresentationCostTerms representationCosts,
             OptionalLong minimumNetBenefitCostUnits,
             OptionalInt minimumBenefitBasisPoints) {
         /** Explicit provider qualification state. */
@@ -128,15 +127,31 @@ public record CpuPartitionAnalysisInputs(boolean loweringManifestEnabled,
             /** The exact provider binary passed the bounded CPU-native checkpoint. */ QUALIFIED
         }
 
-        /** Closed initial provider-thread configuration vocabulary. */
-        public enum ThreadConfiguration {
-            /** One provider thread, installed and externally coordinated by composition. */
-            SINGLE_THREAD
+        /**
+         * One immutable positive provider-thread candidate. Incomplete cost terms are retained so
+         * route analysis can reject the containing configuration without guessing.
+         *
+         * @param threadCount positive provider count and fixed permit demand
+         * @param openBlasCosts complete or deliberately incomplete non-negative cost terms for
+         *     this exact count
+         */
+        public record ThreadCandidate(int threadCount, CostTerms openBlasCosts) {
+            /**
+             * Validates one candidate without converting missing costs into zero.
+             *
+             * @throws NullPointerException if {@code openBlasCosts} is {@code null}
+             * @throws IllegalArgumentException if {@code threadCount} is not positive
+             */
+            public ThreadCandidate {
+                if (threadCount <= 0) throw new IllegalArgumentException(
+                        "OpenBLAS candidate thread count must be positive");
+                java.util.Objects.requireNonNull(openBlasCosts, "openBlasCosts");
+            }
         }
 
         /** Fail-closed route input used by every compatibility constructor. */
         public static final OpenBlasRouteConfig DISABLED = new OpenBlasRouteConfig(
-                Availability.UNAVAILABLE, Optional.empty(), CostTerms.MISSING, CostTerms.MISSING,
+                Availability.UNAVAILABLE, List.of(), CostTerms.MISSING,
                 RepresentationCostTerms.MISSING, OptionalLong.empty(), OptionalInt.empty());
 
         /**
@@ -159,9 +174,9 @@ public record CpuPartitionAnalysisInputs(boolean loweringManifestEnabled,
                 long openBlasPerOutput, long openBlasPerMac, long absoluteThreshold,
                 int relativeBasisPoints) {
             return new OpenBlasRouteConfig(Availability.QUALIFIED,
-                    Optional.of(ThreadConfiguration.SINGLE_THREAD),
+                    List.of(new ThreadCandidate(1,
+                            CostTerms.complete(openBlasFixed, openBlasPerOutput, openBlasPerMac))),
                     CostTerms.complete(portableFixed, portablePerOutput, portablePerMac),
-                    CostTerms.complete(openBlasFixed, openBlasPerOutput, openBlasPerMac),
                     RepresentationCostTerms.ZERO,
                     OptionalLong.of(absoluteThreshold), OptionalInt.of(relativeBasisPoints));
         }
@@ -184,7 +199,7 @@ public record CpuPartitionAnalysisInputs(boolean loweringManifestEnabled,
                 CostTerms openBlasCosts, RepresentationCostTerms representationCosts,
                 long absoluteThreshold, int relativeBasisPoints) {
             return new OpenBlasRouteConfig(Availability.QUALIFIED,
-                    Optional.of(ThreadConfiguration.SINGLE_THREAD), portableCosts, openBlasCosts,
+                    List.of(new ThreadCandidate(1, openBlasCosts)), portableCosts,
                     representationCosts, OptionalLong.of(absoluteThreshold),
                     OptionalInt.of(relativeBasisPoints));
         }
@@ -193,22 +208,26 @@ public record CpuPartitionAnalysisInputs(boolean loweringManifestEnabled,
          * Validates one immutable qualification snapshot without making it complete.
          *
          * @param availability non-null provider qualification state
-         * @param threadConfiguration non-null optional externally coordinated thread mode
+         * @param threadCandidates non-null ordered candidates, copied defensively; at most 32,
+         *     with unique positive counts
          * @param portableCosts non-null complete or incomplete portable cost terms
-         * @param openBlasCosts non-null complete or incomplete OpenBLAS cost terms
          * @param representationCosts non-null complete or incomplete workspace and copy terms
          * @param minimumNetBenefitCostUnits non-null optional absolute threshold
          * @param minimumBenefitBasisPoints non-null optional relative threshold
          * @throws NullPointerException if a required reference is {@code null}
-         * @throws IllegalArgumentException if a present threshold is negative or the relative
-         *     threshold is greater than 10,000 basis points
+         * @throws IllegalArgumentException if more than 32 candidates are supplied, candidate
+         *     counts repeat, a present threshold is negative, or the relative threshold is
+         *     greater than 10,000 basis points
          */
         public OpenBlasRouteConfig {
             java.util.Objects.requireNonNull(availability, "availability");
-            threadConfiguration = java.util.Objects.requireNonNull(threadConfiguration,
-                    "threadConfiguration");
+            threadCandidates = List.copyOf(threadCandidates);
+            if (threadCandidates.size() > 32) throw new IllegalArgumentException(
+                    "OpenBLAS thread-candidate count exceeds 32");
+            if (threadCandidates.stream().map(ThreadCandidate::threadCount).distinct().count()
+                    != threadCandidates.size()) throw new IllegalArgumentException(
+                    "OpenBLAS thread-candidate counts must be unique");
             java.util.Objects.requireNonNull(portableCosts, "portableCosts");
-            java.util.Objects.requireNonNull(openBlasCosts, "openBlasCosts");
             java.util.Objects.requireNonNull(representationCosts, "representationCosts");
             java.util.Objects.requireNonNull(minimumNetBenefitCostUnits,
                     "minimumNetBenefitCostUnits");
@@ -229,9 +248,8 @@ public record CpuPartitionAnalysisInputs(boolean loweringManifestEnabled,
          * @return whether selection may evaluate the complete snapshot */
         public boolean complete() {
             return availability == Availability.QUALIFIED
-                    && threadConfiguration.equals(Optional.of(
-                            ThreadConfiguration.SINGLE_THREAD))
-                    && portableCosts.complete() && openBlasCosts.complete()
+                    && !threadCandidates.isEmpty() && portableCosts.complete()
+                    && threadCandidates.stream().allMatch(value -> value.openBlasCosts().complete())
                     && representationCosts.complete()
                     && minimumNetBenefitCostUnits.isPresent()
                     && minimumBenefitBasisPoints.isPresent();

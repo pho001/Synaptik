@@ -1338,6 +1338,21 @@ OpenBLAS is not another meaning of portable route. It is a narrow cross-platform
 for eligible BLAS-compatible linear algebra. It is neither a universal fallback nor preferred over
 generated code by library identity.
 
+### CPU concurrency budget / `CpuConcurrencyBudget`
+
+An explicit CPU-private fair permit capacity borrowed by work that composition chooses to
+coordinate. The implemented budget owns no threads and has no close lifecycle. Inline portable
+work consumes one permit, a portable worker submission consumes its exact participant count once,
+and a coordinated OpenBLAS plan consumes its selected positive provider thread count around the
+complete copy-in/GEMM/copy-out transition. An idempotent lease releases exactly its acquired
+demand on every outcome.
+
+Only work sharing the exact budget object participates in the capacity guarantee. Fair permit
+acquisition prevents barging among queued acquisitions but does not promise operating-system
+scheduling order, proportional performance, or coordination with external native consumers. The
+type is unsupported internal composition machinery, not a public Config setting, executor, pool,
+or Runtime resource.
+
 ### CPU native peer route
 
 An exact-capability native realization compared with the portable route by CPU Prepare using
@@ -1346,9 +1361,13 @@ same-type FLOAT32/FLOAT64 bare MATMUL, using direct native matrices or one exist
 copy per non-direct input plus a distinct route-local canonical output workspace and copy-out when
 the logical result is non-direct. The eight bounded masks range from no copies through both input
 copies plus output copy; each copied boundary owns one declared run-owned workspace. Output
-copy-out is not general external-read materialization. Every uncertain, overflowing, tied,
-insufficient-benefit, or ineligible case remains portable during analysis; a selected native plan
-does not fall back later. Accelerate BLAS/vDSP/vForce on Apple CPU, distinct oneMKL BLAS/VML and
+copy-out is not general external-read materialization. CPU accepts at most 32 explicit unique
+positive OpenBLAS thread candidates and evaluates only counts that fit the analysis-time capacity.
+Each carries its own cost triple; if any triple or shared cost input is incomplete, the entire route
+configuration fails closed. Otherwise lower complete cost, then lower count, then configured order
+selects among passing candidates without assuming thread scaling. Every uncertain, overflowing,
+tied-with-portable, insufficient-benefit, or ineligible case remains portable during analysis; a
+selected native plan does not fall back later. Accelerate BLAS/vDSP/vForce on Apple CPU, distinct oneMKL BLAS/VML and
 oneDNN routes on Intel, and distinct AOCL-BLAS/AOCL-LibM and optional ZenDNN routes on AMD remain
 planned. ARM itself does not name one native library.
 
@@ -3508,12 +3527,33 @@ strings, and any loaded selection. It retains no provider, exception, route deci
 qualification, cost, storage, or thread state.
 
 When a selection loads, the separate closeable session owns that provider lifetime and lends one
-CPU invocation view. Closing the session is idempotent, does not restore thread state, and must not
-race use of the borrowed invocation. `LOADED` means only that the provider opened and bound its
-four required symbols; it does not qualify or select the native route. Disabled or unavailable
-discovery exposes no invocation, so composition can retain the independently valid portable plan.
-The current types are unsupported package-private CPU internals, not public Config, Engine, or
-provider APIs. See the [CPU backend guide](backend-guide/cpu-backend.md#internal-automatic-discovery-and-lifetime).
+CPU invocation view. Composition may close the retained owner after quiescing borrowers or transfer
+the invocation and close action exactly once to an [OpenBLAS coordinator](#openblas-coordinator--cpuopenblascoordinator).
+After transfer, immutable discovery metadata and the borrowed invocation view remain readable, but
+session close cannot affect the transferred resource. Without transfer, closing the session is
+idempotent, does not restore thread state, and must not race use of the borrowed invocation.
+`LOADED` means only that the provider opened and bound its four required symbols; it does not
+qualify or select the native route. Disabled or unavailable discovery exposes no invocation, so
+composition can retain the independently valid portable plan. The current types are unsupported
+package-private CPU internals, not public Config, Engine, or provider APIs. See the [CPU backend
+guide](backend-guide/cpu-backend.md#internal-automatic-discovery-and-lifetime).
+
+### OpenBLAS coordinator / `CpuOpenBlasCoordinator`
+
+The CPU-private sole owner of one invocation/close pair transferred from an OpenBLAS discovery
+session. It borrows one exact [CPU concurrency budget](#cpu-concurrency-budget--cpuconcurrencybudget),
+excludes its admitted matrix calls from thread-configuration writers, and captures one positive
+original provider thread count. Cold configuration installs and verifies an analysis-selected
+positive count while calls are quiescent. Execution admits the plan only when its fixed count and
+permit demand match the installed state, then covers the complete copy-in/GEMM/copy-out sequence
+without a per-call thread query or setter.
+
+Close prevents new admission, waits for admitted calls and any writer, restores and verifies the
+captured original count through the still-open invocation, and then closes the transferred
+owner. Failure cleanup retains restoration as the primary failure and suppresses a later close
+failure. The coordinator controls only callers explicitly sharing that exact object; it does not
+control another handle, class loader, coordinator, or arbitrary native code. This is an internal
+composition primitive, not a singleton or supported public Engine/Config/CPU API.
 
 ### OpenBLAS library handle / `OpenBlasLibrary`
 

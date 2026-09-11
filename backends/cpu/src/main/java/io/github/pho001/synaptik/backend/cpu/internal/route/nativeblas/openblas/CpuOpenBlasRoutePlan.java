@@ -21,7 +21,12 @@ import java.util.Optional;
  * @param leftBoundaryPosition stable left-input boundary position, exactly zero
  * @param rightBoundaryPosition stable right-input boundary position, exactly one
  * @param outputBoundaryPosition stable output boundary position, exactly two
- * @param threadConfiguration externally coordinated single-thread provider configuration
+ * @param threadCandidate complete selected provider-thread cost candidate retained by identity
+ * @param threadCount fixed positive provider thread count
+ * @param permitDemand fixed positive shared-budget demand, identical to {@code threadCount}
+ * @param analysisCapacity positive analysis-time CPU capacity snapshot
+ * @param candidateOrder stable zero-based position in the configured candidate list, used only
+ *     as the final tie-break after cost and lower thread count
  * @param representation exact three-boundary copy mask
  * @param leftMaterialization optional external-read copy for the left input
  * @param rightMaterialization optional external-read copy for the right input
@@ -39,7 +44,8 @@ import java.util.Optional;
  */
 public record CpuOpenBlasRoutePlan(DataType dataType, int m, int n, int k,
         int leftBoundaryPosition, int rightBoundaryPosition, int outputBoundaryPosition,
-        CpuPartitionAnalysisInputs.OpenBlasRouteConfig.ThreadConfiguration threadConfiguration,
+        CpuPartitionAnalysisInputs.OpenBlasRouteConfig.ThreadCandidate threadCandidate,
+        int threadCount, int permitDemand, int analysisCapacity, int candidateOrder,
         Representation representation, Optional<CpuMaterializationPlan> leftMaterialization,
         Optional<CpuMaterializationPlan> rightMaterialization,
         Optional<CpuOpenBlasOutputCopyPlan> outputCopy,
@@ -58,7 +64,7 @@ public record CpuOpenBlasRoutePlan(DataType dataType, int m, int n, int k,
      * @param leftBoundaryPosition left boundary position, exactly zero
      * @param rightBoundaryPosition right boundary position, exactly one
      * @param outputBoundaryPosition output boundary position, exactly two
-     * @param threadConfiguration externally coordinated single-thread configuration
+     * @param threadCandidate externally coordinated count-one candidate
      * @param representation direct, copy-left, or copy-right representation
      * @param materialization selected sole input copy, if any
      * @param workspaceRequirement selected sole workspace, if any
@@ -73,12 +79,12 @@ public record CpuOpenBlasRoutePlan(DataType dataType, int m, int n, int k,
      */
     public CpuOpenBlasRoutePlan(DataType dataType, int m, int n, int k,
             int leftBoundaryPosition, int rightBoundaryPosition, int outputBoundaryPosition,
-            CpuPartitionAnalysisInputs.OpenBlasRouteConfig.ThreadConfiguration threadConfiguration,
+            CpuPartitionAnalysisInputs.OpenBlasRouteConfig.ThreadCandidate threadCandidate,
             Representation representation, Optional<CpuMaterializationPlan> materialization,
             Optional<PreparationResourceRequirement.Workspace> workspaceRequirement,
             long portableCost, long openBlasCost, long netBenefit, int benefitBasisPoints) {
         this(dataType, m, n, k, leftBoundaryPosition, rightBoundaryPosition,
-                outputBoundaryPosition, threadConfiguration, representation,
+                outputBoundaryPosition, threadCandidate, 1, 1, 1, 0, representation,
                 representation == Representation.COPY_LEFT ? materialization : Optional.empty(),
                 representation == Representation.COPY_RIGHT ? materialization : Optional.empty(),
                 Optional.empty(), workspaceRequirement.stream().toList(),
@@ -132,7 +138,7 @@ public record CpuOpenBlasRoutePlan(DataType dataType, int m, int n, int k,
      */
     public CpuOpenBlasRoutePlan {
         Objects.requireNonNull(dataType, "dataType");
-        Objects.requireNonNull(threadConfiguration, "threadConfiguration");
+        Objects.requireNonNull(threadCandidate, "threadCandidate");
         Objects.requireNonNull(representation, "representation");
         leftMaterialization = Objects.requireNonNull(leftMaterialization,
                 "leftMaterialization");
@@ -144,9 +150,9 @@ public record CpuOpenBlasRoutePlan(DataType dataType, int m, int n, int k,
                 || m <= 0 || n <= 0 || k <= 0
                 || leftBoundaryPosition != 0 || rightBoundaryPosition != 1
                 || outputBoundaryPosition != 2
-                || threadConfiguration
-                    != CpuPartitionAnalysisInputs.OpenBlasRouteConfig.ThreadConfiguration
-                            .SINGLE_THREAD
+                || threadCount <= 0 || permitDemand != threadCount
+                || threadCount > analysisCapacity || analysisCapacity <= 0 || candidateOrder < 0
+                || threadCandidate.threadCount() != threadCount
                 || leftMaterialization.isPresent() != representation.copiesLeft()
                 || rightMaterialization.isPresent() != representation.copiesRight()
                 || outputCopy.isPresent() != representation.copiesOutput()

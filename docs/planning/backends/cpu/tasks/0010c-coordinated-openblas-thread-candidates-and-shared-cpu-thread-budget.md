@@ -2,7 +2,7 @@
 
 ## Status
 
-Ready
+Complete
 
 ## Goal
 
@@ -436,9 +436,10 @@ change. If another path or top-level type is required, stop and return the task 
    verifies one selected positive count while calls/writers are excluded, and close restores and
    verifies the original through the still-open owner before provider close. Failure cleanup and
    suppression are proved with fakes.
-6. Candidate facts are typed, immutable, unique by positive count, bounded to 32, and complete.
-   Analysis filters against exact capacity and current 0010B eligibility and generates no native
-   candidate from missing, overflowing, unqualified, or ineligible facts.
+6. Candidate facts are typed, immutable, unique by positive count, and bounded to 32. Deliberately
+   incomplete cost terms remain representable so the complete configuration fails closed without
+   guessing. Analysis filters against exact capacity and current 0010B eligibility and generates
+   no native candidate from missing, overflowing, unqualified, or ineligible facts.
 7. Candidate cost uses the exact per-count terms and unchanged complete representation cost.
    Tests cover multiple counts, over-capacity filtering, all missing terms, overflow, thresholds,
    portable ties, native ties, lower-count tie-break, and stable-order final tie-break without a
@@ -625,15 +626,90 @@ specified gate succeed.
 
 ## Validation evidence
 
-Empty until implemented. Record exact implementation and documentation context IDs, commands,
-test counts/results, native binary/path/version evidence, restored count, reused evidence, Javadoc
-inspection, Markdown checks, scope/status checks, and reasoned no-change conclusions.
+Implementation context `01a0901c-f6bc-76d1-848e-521e1fb0644b` completed executable work from clean
+baseline `69e21ec4` without commit or push. The final affected-project command
+`./gradlew :backends:cpu:test :testing:backend-conformance:test` passed: CPU reported 973 tests,
+28 skipped, zero failures/errors; backend conformance reported eight tests with zero skips,
+failures, or errors. An earlier full affected run exposed the worker-close publication race; after
+the lifecycle-monitor correction, its focused rerun and the final full affected rerun passed.
+
+`./gradlew :backends:cpu:testClasses` passed. The required checkpoint path
+`/opt/homebrew/opt/openblas/lib/libopenblas.dylib` resolved to
+`/opt/homebrew/Cellar/openblas/0.3.34/lib/libopenblasp-r0.3.34.dylib`. The exact prescribed Java
+checkpoint command passed for selected counts one and two, compatible overlapping count-one calls,
+writer exclusion, FLOAT32/FLOAT64 results across all eight representation masks, and restoration
+to the captured original count 16. The final repository-wide `./gradlew test` gate passed.
+
+Implementation scope was 20 paths including this task. Documentation context
+`01a09049-3b8e-7ed2-8554-6d6362a73f9b` independently inspected the implementation and tests, then
+finalized the affected API and package Javadocs, CPU backend guide, glossary, this task, CPU master
+plan, and roadmap without changing executable Java behavior or tests. Final scope is 24 paths,
+below the 29-path ceiling, with exactly two new top-level production types and their two matching
+new tests. Source inventory and `javap -public` confirmed that both new types remain in unsupported
+internal packages and that `CpuCapabilityProvider` remains the only supported top-level CPU API.
+
+`./gradlew :backends:cpu:javadoc` passed after the final Javadoc edits. It reported 94 existing
+missing-`@param` warnings in unchanged `CpuPartitionLowering.LoweredPartition` and
+`CpuPartitionPreparationPlan` declarations, plus the existing incubating-module warnings; no
+warning originated in a declaration changed by this task. The documentation context rendered and
+inspected every changed generated Javadoc page: `CpuConcurrencyBudget` and its nested exception and
+lease, `CpuPreparedExecutable`, `CpuWorkerGroup`, `CpuPartitionAnalysisInputs` and its changed
+nested route records, `CpuPartitionFinalizer`, `CpuOpenBlasDiscoverySession`,
+`CpuOpenBlasInvocation`, `CpuOpenBlasPreparedExecutable`, `CpuOpenBlasRoutePlan`,
+`CpuOpenBlasRouteSelector`, `CpuOpenBlasCoordinator`, and the OpenBLAS package summary.
+
+The repository Markdown validator passed for the five changed Markdown files, covering local
+links and anchors, duplicate headings, balanced fences, LF/final-newline/trailing-whitespace
+hygiene, and changed-document terminology. Heading order and new conceptual diagrams/examples were
+also inspected: the guide's new flow is explicitly an internal lifecycle model, not a supported API
+example. Final inventory checks found no detailed CPU 0010D or 0010E task file and confirmed the
+ordered state: 0010C `Complete`, 0010D the next master-plan-only `Draft` frontier, 0010E a
+master-plan-only `Draft` behind it, and CPU 0011 `Blocked`.
+
+Because the documentation pass changed no executable behavior or tests, it reused the successful
+affected-project, repository-wide, and exact native checkpoint evidence above rather than rerunning
+those gates. Final `git diff --check`, exact path-scope, newline/whitespace, and
+`git status --short -uall` checks passed.
+
+No architecture rule or dependency boundary changed, so `ARCHITECTURE.md`, the current
+architecture plan, ADRs, and architecture tests required no update. The OpenBLAS provider API and
+provider documentation still accurately describe caller-owned handle lifetime and externally
+coordinated process-global thread state, so they required no change. Shared Prepare, Runtime,
+Planning, Config, and Engine contracts also required no change: candidate selection, finalization,
+coordination, and execution remain CPU-private, while Engine remains the future supported
+composition root. Generated code, generator schema/fingerprint/evidence, build files, integration
+tests, other backends, benchmarks, and tuning artifacts were unaffected. The glossary did require
+a focused update because the CPU concurrency budget and OpenBLAS coordinator are reusable terms;
+it adds only their current CPU-private meanings and does not imply a public construction surface.
 
 ## Implementation notes
 
-Empty until implemented.
+Added a fair explicit CPU permit budget and integrated it with inline portable execution and exact
+worker participants. Added transferable discovery ownership and one fair-lock OpenBLAS coordinator
+whose guarded state, writer exclusion, admitted calls, verified configuration, failure rollback,
+restoration, and close ordering remain CPU-private. Provider query/set operations occur outside the
+Java lock and execution performs no per-GEMM thread mutation.
+
+Replaced the closed count-one analysis representation with bounded, immutable, unique positive
+thread candidates carrying per-count complete costs. Selection filters by the analysis capacity
+and uses complete cost, lower count, then stable input order. The route plan fixes identical thread
+and permit demand. Coordinated finalization validates live budget identity/capacity and installs the
+selected count before artifact construction; compatibility constructors retain count-one behavior.
+Prepared native execution admits the complete copy-in/GEMM/copy-out sequence once.
+
+The implementation preserved the eight 0010B representation masks and changed no provider,
+shared Prepare/Runtime, Planning, Config, Engine, architecture, ADR, dependency, Gradle,
+generated-code/schema, benchmark, integration-test, or other-backend path. The separate
+documentation context finalized the affected Javadocs, OpenBLAS package description, CPU guide,
+glossary, and planning records and validated their rendered and source forms.
 
 ## Completion summary
 
-Empty until implemented. Do not mark `Complete` before the distinct implementation and
-documentation-focused contexts and every required validation gate finish.
+Executable implementation and validation are complete. The mandatory separate documentation pass
+is also complete: affected contracts and user-facing explanations are finalized, implementation
+evidence is retained, all documentation gates pass, and no unresolved issue or follow-up is
+required for CPU 0010C.
+
+```text
+Status: Complete
+```

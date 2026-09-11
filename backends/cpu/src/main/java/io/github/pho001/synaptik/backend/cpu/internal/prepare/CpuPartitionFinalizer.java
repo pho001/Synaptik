@@ -6,9 +6,11 @@ import io.github.pho001.synaptik.backend.cpu.internal.cache.CpuGeneratedKernelAr
 import io.github.pho001.synaptik.backend.cpu.internal.codegen.emit.CpuClassFileKernelGenerator;
 import io.github.pho001.synaptik.backend.cpu.internal.executable.CpuPreparedExecutable;
 import io.github.pho001.synaptik.backend.cpu.internal.executable.CpuPreparedPartitionExecutable;
+import io.github.pho001.synaptik.backend.cpu.internal.executable.CpuConcurrencyBudget;
 import io.github.pho001.synaptik.backend.cpu.internal.executable.CpuWorkerGroup;
 import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuAccessPlan;
 import io.github.pho001.synaptik.backend.cpu.internal.route.nativeblas.openblas.CpuOpenBlasInvocation;
+import io.github.pho001.synaptik.backend.cpu.internal.route.nativeblas.openblas.CpuOpenBlasCoordinator;
 import io.github.pho001.synaptik.backend.cpu.internal.route.nativeblas.openblas.CpuOpenBlasPreparedExecutable;
 import io.github.pho001.synaptik.prepare.BackendPartitionFinalization;
 import io.github.pho001.synaptik.prepare.BackendPartitionFinalizer;
@@ -26,9 +28,10 @@ import java.util.LinkedHashMap;
  *
  * <p>Every deduplicated partition buffer assignment and every unit-local exact workspace
  * assignment is resolved and checked before the first artifact-store call. Portable finalization
- * then realizes one already-selected artifact per unit in stable order. A selected OpenBLAS route
- * instead requires an open borrowed single-thread invocation and realizes only its selected
- * affine-copy artifact, when present. Finalization cannot change unit
+ * then realizes one already-selected artifact per unit in stable order. A compatibility OpenBLAS
+ * route requires an open borrowed count-one invocation. An explicitly coordinated route validates
+ * the shared budget snapshot and installs its selected count before realizing any selected
+ * affine-copy artifact. Finalization cannot change unit
  * topology, dependencies, materialization, generated carrier patterns, route, strategy,
  * specialization, or declaration geometry. A multi-unit result is wrapped in one CPU-private
  * atomic sequential composite; a one-unit result remains the direct child recipe. When the exact
@@ -44,6 +47,8 @@ public final class CpuPartitionFinalizer implements BackendPartitionFinalizer<Cp
             new CpuClassFileKernelGenerator();
     private final Optional<CpuWorkerGroup> workerGroup;
     private final Optional<CpuOpenBlasInvocation> openBlasInvocation;
+    private final Optional<CpuConcurrencyBudget> concurrencyBudget;
+    private final Optional<CpuOpenBlasCoordinator> openBlasCoordinator;
 
     /** Creates the default in-memory-only finalizer for single-thread plans. */
     public CpuPartitionFinalizer() { this(Optional.empty(), Optional.empty(), Optional.empty()); }
@@ -87,6 +92,35 @@ public final class CpuPartitionFinalizer implements BackendPartitionFinalizer<Cp
         this.workerGroup = Objects.requireNonNull(workerGroup, "workerGroup");
         this.openBlasInvocation = Objects.requireNonNull(openBlasInvocation,
                 "openBlasInvocation");
+        concurrencyBudget = Optional.empty();
+        openBlasCoordinator = Optional.empty();
+    }
+
+    /**
+     * Creates an explicitly coordinated finalizer borrowing one exact shared CPU budget.
+     *
+     * @param trustedArtifactRoot non-null optional trusted artifact root
+     * @param workerGroup non-null optional worker group; when present it must borrow {@code budget}
+     * @param budget non-null shared budget matching analysis capacity
+     * @param coordinator non-null optional OpenBLAS coordinator borrowing {@code budget}
+     * @throws NullPointerException if a required reference is {@code null}
+     * @throws IllegalArgumentException if a supplied worker group or coordinator does not borrow
+     *     the exact same budget object
+     */
+    public CpuPartitionFinalizer(Optional<Path> trustedArtifactRoot,
+            Optional<CpuWorkerGroup> workerGroup, CpuConcurrencyBudget budget,
+            Optional<CpuOpenBlasCoordinator> coordinator) {
+        artifactStore = new CpuGeneratedKernelArtifactStore(trustedArtifactRoot);
+        this.workerGroup = Objects.requireNonNull(workerGroup, "workerGroup");
+        this.concurrencyBudget = Optional.of(Objects.requireNonNull(budget, "budget"));
+        this.openBlasCoordinator = Objects.requireNonNull(coordinator, "coordinator");
+        this.openBlasInvocation = Optional.empty();
+        if (workerGroup.isPresent() && workerGroup.orElseThrow().concurrencyBudget() != budget) {
+            throw new IllegalArgumentException("CPU worker group must share finalizer budget");
+        }
+        if (coordinator.isPresent() && coordinator.orElseThrow().budget() != budget) {
+            throw new IllegalArgumentException("OpenBLAS coordinator must share finalizer budget");
+        }
     }
 
     /** @return the stable non-null CPU ownership identity */
@@ -102,8 +136,10 @@ public final class CpuPartitionFinalizer implements BackendPartitionFinalizer<Cp
      * @throws NullPointerException if {@code finalization} is {@code null}
      * @throws IllegalArgumentException if ownership, assignments, specialization, or artifact
      *     realization is incompatible with the analyzed plan
-     * @throws IllegalStateException if a selected OpenBLAS invocation is closed or no longer has
-     *     the selected single-thread configuration
+     * @throws IllegalStateException if a compatibility OpenBLAS invocation is closed or not at
+     *     count one, or coordinated configuration, verification, or restoration fails
+     * @throws CpuConcurrencyBudget.CpuCoordinationException if interrupted while waiting for a
+     *     coordinated configuration transition; interrupt status is restored
      */
     @Override public PreparedExecutable finalizePartition(
             BackendPartitionFinalization<CpuPartitionPreparationPlan> finalization) {
@@ -169,6 +205,10 @@ public final class CpuPartitionFinalizer implements BackendPartitionFinalizer<Cp
         var unit = plan.units().getFirst();
         CpuWorkerGroup selectedWorkers = null;
         if (plan.selectedRangeCount() >= 2) {
+            if (concurrencyBudget.isPresent()
+                    && plan.selectedRangeCount() > concurrencyBudget.orElseThrow().capacity()) {
+                throw new IllegalArgumentException("parallel CPU plan exceeds shared budget");
+            }
             selectedWorkers = workerGroup.orElseThrow(() -> new IllegalArgumentException(
                     "parallel CPU plan requires a worker group"));
             if (!selectedWorkers.isOpen() || selectedWorkers.workerCount() < plan.selectedRangeCount()) {
@@ -210,7 +250,8 @@ public final class CpuPartitionFinalizer implements BackendPartitionFinalizer<Cp
                 plan.conv2dGeometry(), unit.conv3dGeometry(), unit.matmulGeometry(),
                 unit.pool2dGeometry(), unit.pool3dGeometry(), unit.attentionGeometry(),
                 lossGeometry(unit),
-                unit.outputCount(), partialArtifact);
+                unit.outputCount(), partialArtifact,
+                selectedWorkers == null ? concurrencyBudget.orElse(null) : null);
     }
 
     private PreparedExecutable finalizeOpenBlas(
@@ -221,12 +262,23 @@ public final class CpuPartitionFinalizer implements BackendPartitionFinalizer<Cp
         var plan = finalization.analysis().plan();
         var route = plan.openBlasPlan().orElseThrow(() -> new IllegalArgumentException(
                 "selected OpenBLAS route has no exact route plan"));
-        CpuOpenBlasInvocation invocation = openBlasInvocation.orElseThrow(() ->
-                new IllegalArgumentException("selected OpenBLAS route requires an invocation"));
-        if (!invocation.isOpen()) throw new IllegalStateException(
-                "borrowed OpenBLAS provider is closed");
-        if (invocation.threadCount() != 1) throw new IllegalStateException(
-                "borrowed OpenBLAS provider must be single-threaded");
+        CpuOpenBlasInvocation invocation = openBlasInvocation.orElse(null);
+        CpuOpenBlasCoordinator coordinator = openBlasCoordinator.orElse(null);
+        if (coordinator != null) {
+            CpuConcurrencyBudget budget = concurrencyBudget.orElseThrow();
+            if (coordinator.budget() != budget || coordinator.capacity() != route.analysisCapacity()
+                    || budget.capacity() != route.analysisCapacity()) {
+                throw new IllegalArgumentException("OpenBLAS plan and live CPU budget disagree");
+            }
+            coordinator.configure(route.threadCount());
+        } else {
+            if (route.threadCount() != 1 || invocation == null) throw new IllegalArgumentException(
+                    "uncoordinated OpenBLAS finalization supports only count one");
+            if (!invocation.isOpen()) throw new IllegalStateException(
+                    "borrowed OpenBLAS provider is closed");
+            if (invocation.threadCount() != 1) throw new IllegalStateException(
+                    "borrowed OpenBLAS provider must be single-threaded");
+        }
         List<PreparedExecutable.WorkspaceSelection> routeWorkspaces =
                 route.workspaceRequirements().stream().map(requirement -> {
                     PreparedExecutable.WorkspaceSelection selection =
@@ -242,7 +294,7 @@ public final class CpuPartitionFinalizer implements BackendPartitionFinalizer<Cp
                 outputArtifact = route.outputCopy().map(copy -> artifactStore.loadOrGenerate(
                         copy.copySpecialization(), copy.copyIr().encodedKernelIr()));
         return new CpuOpenBlasPreparedExecutable(finalization.memoryPlan(), selections,
-                routeWorkspaces, route, invocation, inputArtifacts, outputArtifact);
+                routeWorkspaces, route, invocation, coordinator, inputArtifacts, outputArtifact);
     }
 
     private PreparedExecutable finalizeComposite(
@@ -309,6 +361,10 @@ public final class CpuPartitionFinalizer implements BackendPartitionFinalizer<Cp
 
     private CpuWorkerGroup workers(CpuPartitionPreparationPlan.ExecutionUnitPlan unit) {
         if (unit.selectedRangeCount() < 2) return null;
+        if (concurrencyBudget.isPresent()
+                && unit.selectedRangeCount() > concurrencyBudget.orElseThrow().capacity()) {
+            throw new IllegalArgumentException("parallel CPU split unit exceeds shared budget");
+        }
         CpuWorkerGroup selected = workerGroup.orElseThrow(() -> new IllegalArgumentException(
                 "parallel CPU split unit requires a worker group"));
         if (!selected.isOpen() || selected.workerCount() < unit.selectedRangeCount()) {
@@ -317,7 +373,7 @@ public final class CpuPartitionFinalizer implements BackendPartitionFinalizer<Cp
         return selected;
     }
 
-    private static CpuPreparedExecutable unitExecutable(
+    private CpuPreparedExecutable unitExecutable(
             BackendPartitionFinalization<CpuPartitionPreparationPlan> finalization,
             CpuPartitionPreparationPlan.ExecutionUnitPlan unit,
             CpuPartitionPreparationPlan.RepresentationUnitPlan represented,
@@ -346,7 +402,8 @@ public final class CpuPartitionFinalizer implements BackendPartitionFinalizer<Cp
                 unit.conv2dGeometry(), unit.conv3dGeometry(), unit.matmulGeometry(),
                 unit.pool2dGeometry(), unit.pool3dGeometry(), unit.attentionGeometry(),
                 lossGeometry(unit),
-                unit.outputCount(), Optional.empty());
+                unit.outputCount(), Optional.empty(),
+                workers == null ? concurrencyBudget.orElse(null) : null);
     }
 
     private static Optional<io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuLossLowering.Geometry>

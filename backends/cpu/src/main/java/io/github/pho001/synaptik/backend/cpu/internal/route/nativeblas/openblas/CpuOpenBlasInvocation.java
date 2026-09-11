@@ -3,10 +3,11 @@ package io.github.pho001.synaptik.backend.cpu.internal.route.nativeblas.openblas
 import java.lang.foreign.MemorySegment;
 
 /**
- * Minimal borrowed OpenBLAS invocation seam consumed by the prepared CPU route.
- * Implementations retain their caller-owned provider but do not load, configure, discover,
- * restore, or close it. The provider-free method signatures keep native-free backend-conformance
- * fakes independent of the OpenBLAS provider project.
+ * Minimal borrowed OpenBLAS invocation seam consumed by the prepared CPU route and coordinator.
+ * Implementations retain their caller-owned provider but do not independently choose a thread
+ * count, discover, restore, or close it. The coordinator may use the direct query/set operations
+ * under its explicit writer protocol. The provider-free method signatures keep native-free
+ * backend-conformance fakes independent of the OpenBLAS provider project.
  */
 public interface CpuOpenBlasInvocation {
     /** Reports whether the borrowed provider owner remains open.
@@ -17,6 +18,18 @@ public interface CpuOpenBlasInvocation {
      * @return the observed positive thread count
      * @throws IllegalStateException if the provider is closed or the query fails */
     int threadCount();
+
+    /**
+     * Installs one positive provider thread count. Callers must externally exclude provider calls
+     * and writers; this method neither verifies the effective value nor retains a restore target.
+     * @param threadCount positive count to install
+     * @throws IllegalArgumentException if the count is not positive
+     * @throws IllegalStateException if the provider is closed or the setter fails
+     * @throws UnsupportedOperationException if this compatibility invocation has no setter
+     */
+    default void setThreadCount(int threadCount) {
+        throw new UnsupportedOperationException("OpenBLAS thread setter is unavailable");
+    }
 
     /**
      * Performs one dense row-major FLOAT32 GEMM call.

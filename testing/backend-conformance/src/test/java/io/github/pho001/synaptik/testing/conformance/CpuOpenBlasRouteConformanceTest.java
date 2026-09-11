@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.*;
 
 import io.github.pho001.synaptik.backend.cpu.CpuCapabilityProvider;
 import io.github.pho001.synaptik.backend.cpu.internal.cache.CpuKernelSpecialization;
+import io.github.pho001.synaptik.backend.cpu.internal.executable.CpuConcurrencyBudget;
 import io.github.pho001.synaptik.backend.cpu.internal.memory.CpuBorrowedBuffer;
 import io.github.pho001.synaptik.backend.cpu.internal.memory.CpuContiguousWorkspace;
 import io.github.pho001.synaptik.backend.cpu.internal.prepare.CpuPartitionAnalysisInputs;
@@ -11,6 +12,7 @@ import io.github.pho001.synaptik.backend.cpu.internal.prepare.CpuPartitionPrepar
 import io.github.pho001.synaptik.backend.cpu.internal.prepare.CpuPartitionFinalizer;
 import io.github.pho001.synaptik.backend.cpu.internal.prepare.CpuPartitionPreparer;
 import io.github.pho001.synaptik.backend.cpu.internal.route.nativeblas.openblas.CpuOpenBlasInvocation;
+import io.github.pho001.synaptik.backend.cpu.internal.route.nativeblas.openblas.CpuOpenBlasCoordinator;
 import io.github.pho001.synaptik.backend.cpu.internal.route.nativeblas.openblas.CpuOpenBlasRoutePlan;
 import io.github.pho001.synaptik.model.datatype.DataType;
 import io.github.pho001.synaptik.model.graph.CompiledNode;
@@ -53,6 +55,30 @@ import org.junit.jupiter.api.Test;
 
 /** Native-free staged-boundary conformance for the borrowed OpenBLAS CPU route. */
 final class CpuOpenBlasRouteConformanceTest {
+    @Test void coordinatedCountTwoRunsAndRestoresThroughNativeFreeStagedBoundary()
+            throws Exception {
+        DataType type = DataType.FLOAT32;
+        var analysis = new CpuPartitionPreparer().analyze(context(type, false, false, false, 2));
+        var fake = new ComputingInvocation(type);
+        fake.threads = 3;
+        var budget = new CpuConcurrencyBudget(2);
+        CpuOpenBlasCoordinator coordinator = coordinator(fake, budget);
+        PreparedExecutable executable = finalize(analysis, coordinator, budget);
+        try (Arena arena = Arena.ofConfined()) {
+            MemorySegment left = arena.allocate(6L * Float.BYTES, Float.BYTES);
+            MemorySegment right = arena.allocate(6L * Float.BYTES, Float.BYTES);
+            MemorySegment output = arena.allocate(4L * Float.BYTES, Float.BYTES);
+            put(type, left, new double[] {1, 2, 3, 4, 5, 6});
+            put(type, right, new double[] {7, 8, 9, 10, 11, 12});
+            try (RunState state = state(executable.memoryPlan(), type, left, right, output)) {
+                executable.bind(state).execute();
+            }
+            assertArrayEquals(new double[] {58, 64, 139, 154}, get(type, output));
+        } finally { coordinator.close(); }
+        assertAll(() -> assertEquals(3, fake.threads), () -> assertFalse(fake.open),
+                () -> assertEquals(1, fake.calls));
+    }
+
     @Test void preparesFinalizesBindsAndExecutesDirectFloat32AndFloat64Routes() {
         for (DataType type : List.of(DataType.FLOAT32, DataType.FLOAT64)) {
             BackendPartitionAnalysis<CpuPartitionPreparationPlan> analysis =
@@ -288,6 +314,11 @@ final class CpuOpenBlasRouteConformanceTest {
 
     private static PrepareContext<CpuPartitionAnalysisInputs> context(DataType type,
             boolean copyLeft, boolean copyRight, boolean copyOutput) {
+        return context(type, copyLeft, copyRight, copyOutput, 1);
+    }
+
+    private static PrepareContext<CpuPartitionAnalysisInputs> context(DataType type,
+            boolean copyLeft, boolean copyRight, boolean copyOutput, int threads) {
         var node = new CompiledNode(new NodeId(0),
                 new Operation(MatmulKind.MATMUL, NoOperationAttrs.INSTANCE),
                 List.of(new ValueId(0), new ValueId(1)), List.of(new ValueId(2)));
@@ -332,12 +363,19 @@ final class CpuOpenBlasRouteConformanceTest {
                 1, 1, 10, 0, 2, 1_000_000, 0, 0)
                 : CpuPartitionAnalysisInputs.MaterializationPolicy.DISABLED;
         var inputs = new CpuPartitionAnalysisInputs(false, carriers,
-                CpuPartitionAnalysisInputs.PortableExecutionConfig.DEFAULT,
+                new CpuPartitionAnalysisInputs.PortableExecutionConfig(
+                        CpuPartitionAnalysisInputs.PortableExecutionConfig.ComputePreference.SCALAR,
+                        threads, threads, 1),
                 policy, false,
                 CpuPartitionAnalysisInputs.PartialReductionEvidence.NONE,
                 storage,
-                CpuPartitionAnalysisInputs.OpenBlasRouteConfig.qualifiedSingleThread(
-                        100, 2, 10, 1, 1, 1, 1, 1));
+                new CpuPartitionAnalysisInputs.OpenBlasRouteConfig(
+                        CpuPartitionAnalysisInputs.OpenBlasRouteConfig.Availability.QUALIFIED,
+                        List.of(new CpuPartitionAnalysisInputs.OpenBlasRouteConfig.ThreadCandidate(
+                                threads, CpuPartitionAnalysisInputs.CostTerms.complete(1, 1, 1))),
+                        CpuPartitionAnalysisInputs.CostTerms.complete(100, 2, 10),
+                        CpuPartitionAnalysisInputs.RepresentationCostTerms.ZERO,
+                        java.util.OptionalLong.of(1), java.util.OptionalInt.of(1)));
         return new PrepareContext<>(partition, List.of(node), values, memory, Map.of(), inputs);
     }
 
@@ -371,6 +409,48 @@ final class CpuOpenBlasRouteConformanceTest {
         return new CpuPartitionFinalizer(Optional.empty(), Optional.empty(),
                 Optional.of(invocation)).finalizePartition(
                         new BackendPartitionFinalization<>(analysis, memory, assignments));
+    }
+
+    private static PreparedExecutable finalize(
+            BackendPartitionAnalysis<CpuPartitionPreparationPlan> analysis,
+            CpuOpenBlasCoordinator coordinator, CpuConcurrencyBudget budget) {
+        var buffers = new ArrayList<PreparedMemoryPlan.BufferEntry>();
+        var workspaces = new ArrayList<PreparedMemoryPlan.WorkspaceEntry>();
+        var assignments = new ArrayList<PreparationResourceAssignment>();
+        for (PreparationResourceRequirement requirement : analysis.requirements()) {
+            if (requirement instanceof PreparationResourceRequirement.Buffer buffer) {
+                var slot = new BufferSlot(buffers.size());
+                buffers.add(new PreparedMemoryPlan.BufferEntry(slot, buffer.byteSize(),
+                        buffer.byteAlignment()));
+                assignments.add(new PreparationResourceAssignment.Buffer(buffer, slot,
+                        buffers.size() - 1));
+            } else if (requirement instanceof PreparationResourceRequirement.Workspace workspace) {
+                var slot = new WorkspaceSlot(workspaces.size());
+                workspaces.add(new PreparedMemoryPlan.WorkspaceEntry(slot, workspace.byteSize(),
+                        workspace.byteAlignment()));
+                assignments.add(new PreparationResourceAssignment.Workspace(workspace, slot,
+                        workspaces.size() - 1));
+            }
+        }
+        return new CpuPartitionFinalizer(Optional.empty(), Optional.empty(), budget,
+                Optional.of(coordinator)).finalizePartition(new BackendPartitionFinalization<>(
+                        analysis, new PreparedMemoryPlan(buffers, workspaces), assignments));
+    }
+
+    private static CpuOpenBlasCoordinator coordinator(ComputingInvocation invocation,
+            CpuConcurrencyBudget budget) throws Exception {
+        Class<?> closeAction = Class.forName(
+                "io.github.pho001.synaptik.backend.cpu.internal.route.nativeblas.openblas."
+                        + "CpuOpenBlasDiscoverySession$CloseAction");
+        Object close = java.lang.reflect.Proxy.newProxyInstance(closeAction.getClassLoader(),
+                new Class<?>[] {closeAction}, (proxy, method, args) -> {
+                    invocation.open = false;
+                    return null;
+                });
+        var constructor = CpuOpenBlasCoordinator.class.getDeclaredConstructor(
+                CpuOpenBlasInvocation.class, closeAction, CpuConcurrencyBudget.class);
+        constructor.setAccessible(true);
+        return constructor.newInstance(invocation, close, budget);
     }
 
     private static RunState state(PreparedMemoryPlan plan, DataType type, MemorySegment left,
@@ -424,10 +504,13 @@ final class CpuOpenBlasRouteConformanceTest {
         MemorySegment left;
         MemorySegment right;
         MemorySegment output;
+        int threads = 1;
+        boolean open = true;
 
         ComputingInvocation(DataType type) { this.type = type; }
-        @Override public boolean isOpen() { return true; }
-        @Override public int threadCount() { return 1; }
+        @Override public boolean isOpen() { return open; }
+        @Override public int threadCount() { return threads; }
+        @Override public void setThreadCount(int count) { threads = count; }
         @Override public void sgemm(int m, int n, int k, float alpha, MemorySegment a,
                 MemorySegment b, float beta, MemorySegment c) {
             assertEquals(DataType.FLOAT32, type); execute(m, n, k, alpha, a, b, beta, c);

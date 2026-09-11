@@ -14,8 +14,11 @@ import java.util.concurrent.atomic.AtomicInteger;
  * <p>Construction starts exactly the requested named daemon platform workers. External callers
  * may submit concurrently; each submission is isolated, returns only after all started ranges
  * quiesce, and chooses failures deterministically by ascending range index. A detected failure,
- * interruption, or racing close cancels only unclaimed ranges. The owner must close the group;
- * prepared executables and bound invocations only borrow it.
+ * interruption, or racing close cancels only unclaimed ranges. When constructed with a shared
+ * concurrency budget, one submission acquires its exact participant count before publishing any
+ * worker job and releases that demand only after all started ranges quiesce. Workers never acquire
+ * nested permits. The owner must close the group; prepared executables and bound invocations only
+ * borrow it.
  *
  * <p>This unsupported internal type is not an executor facade, common pool, virtual-thread
  * scheduler, Runtime service, or shared prepared-execution lifecycle owner.
@@ -46,6 +49,7 @@ public final class CpuWorkerGroup implements AutoCloseable {
     private static final Job STOP = new Job(new RangeCall[0], 0);
     private final BlockingQueue<Job> queue = new LinkedBlockingQueue<>();
     private final Thread[] workers;
+    private final CpuConcurrencyBudget concurrencyBudget;
     private final Set<Job> active = ConcurrentHashMap.newKeySet();
     private final AtomicBoolean closed = new AtomicBoolean();
     private final Object lifecycle = new Object();
@@ -57,7 +61,26 @@ public final class CpuWorkerGroup implements AutoCloseable {
      * @throws IllegalArgumentException if {@code workerCount} is not positive
      */
     public CpuWorkerGroup(int workerCount) {
+        this(workerCount, null, false);
+    }
+
+    /**
+     * Creates workers whose complete submissions borrow the explicit shared CPU budget.
+     *
+     * @param workerCount positive fixed worker count
+     * @param concurrencyBudget non-null borrowed budget charged for actual submission participants
+     * @throws NullPointerException if {@code concurrencyBudget} is {@code null}
+     * @throws IllegalArgumentException if {@code workerCount} is not positive
+     */
+    public CpuWorkerGroup(int workerCount, CpuConcurrencyBudget concurrencyBudget) {
+        this(workerCount, concurrencyBudget, true);
+    }
+
+    private CpuWorkerGroup(int workerCount, CpuConcurrencyBudget concurrencyBudget,
+            boolean coordinated) {
         if (workerCount <= 0) throw new IllegalArgumentException("worker count must be positive");
+        this.concurrencyBudget = coordinated ? java.util.Objects.requireNonNull(
+                concurrencyBudget, "concurrencyBudget") : null;
         workers = new Thread[workerCount];
         for (int index = 0; index < workerCount; index++) {
             Thread worker = new Thread(this::workerLoop, "synaptik-cpu-worker-" + index);
@@ -74,11 +97,19 @@ public final class CpuWorkerGroup implements AutoCloseable {
      */
     public int workerCount() { return workers.length; }
     /**
+     * Returns the exact budget identity borrowed by coordinated submissions.
+     *
+     * @return the borrowed budget, or {@code null} when this group uses compatibility mode
+     */
+    public CpuConcurrencyBudget concurrencyBudget() { return concurrencyBudget; }
+    /**
      * Reports whether this group still accepts submissions.
      *
      * @return {@code true} before close begins; otherwise {@code false}
      */
-    public boolean isOpen() { return !closed.get(); }
+    public boolean isOpen() {
+        synchronized (lifecycle) { return !closed.get(); }
+    }
 
     /**
      * Returns whether every owned worker can access a segment selected for parallel execution.
@@ -104,6 +135,7 @@ public final class CpuWorkerGroup implements AutoCloseable {
      * @param calls non-null ordered range calls; the array is cloned and must contain at least two
      * @throws NullPointerException if {@code calls} is {@code null}
      * @throws IllegalArgumentException if fewer than two calls are supplied
+     *     or the actual participant count exceeds the coordinated budget capacity
      * @throws IllegalStateException if invoked by one of this group's workers
      * @throws CpuParallelExecutionException if the submission is interrupted, cancelled by close,
      *     or a worker throws a checked failure
@@ -114,32 +146,42 @@ public final class CpuWorkerGroup implements AutoCloseable {
             throw new IllegalStateException("CPU worker must not submit parallel work");
         }
         Job job = new Job(calls.clone(), Math.min(workers.length, calls.length));
-        synchronized (lifecycle) {
-            if (closed.get()) throw new CpuParallelExecutionException(
+        CpuConcurrencyBudget.Lease lease;
+        try {
+            lease = concurrencyBudget == null ? null : concurrencyBudget.acquire(job.participants);
+        } catch (CpuConcurrencyBudget.CpuCoordinationException failure) {
+            throw new CpuParallelExecutionException("CPU parallel execution interrupted", failure);
+        }
+        try {
+            synchronized (lifecycle) {
+                if (closed.get()) throw new CpuParallelExecutionException(
+                        "CPU parallel execution cancelled by worker-group close");
+                active.add(job);
+                for (int index = 0; index < job.participants; index++) queue.add(job);
+            }
+            boolean interrupted = false;
+            while (true) {
+                try { job.done.await(); break; }
+                catch (InterruptedException failure) { interrupted = true; job.cancelled.set(true); }
+            }
+            active.remove(job);
+            Throwable primary = primary(job.failures);
+            if (interrupted) {
+                Thread.currentThread().interrupt();
+                var failure = new CpuParallelExecutionException(
+                        "CPU parallel execution interrupted", new InterruptedException());
+                suppress(failure, job.failures, null);
+                throw failure;
+            }
+            if (primary != null) {
+                suppress(primary, job.failures, primary);
+                rethrow(primary);
+            }
+            if (job.cancelled.get()) throw new CpuParallelExecutionException(
                     "CPU parallel execution cancelled by worker-group close");
-            active.add(job);
-            for (int index = 0; index < job.participants; index++) queue.add(job);
+        } finally {
+            if (lease != null) lease.close();
         }
-        boolean interrupted = false;
-        while (true) {
-            try { job.done.await(); break; }
-            catch (InterruptedException failure) { interrupted = true; job.cancelled.set(true); }
-        }
-        active.remove(job);
-        Throwable primary = primary(job.failures);
-        if (interrupted) {
-            Thread.currentThread().interrupt();
-            var failure = new CpuParallelExecutionException(
-                    "CPU parallel execution interrupted", new InterruptedException());
-            suppress(failure, job.failures, null);
-            throw failure;
-        }
-        if (primary != null) {
-            suppress(primary, job.failures, primary);
-            rethrow(primary);
-        }
-        if (job.cancelled.get()) throw new CpuParallelExecutionException(
-                "CPU parallel execution cancelled by worker-group close");
     }
 
     /**

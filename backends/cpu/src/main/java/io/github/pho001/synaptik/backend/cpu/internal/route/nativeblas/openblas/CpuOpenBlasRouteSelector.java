@@ -24,10 +24,12 @@ import java.util.Optional;
 /**
  * Field-free cold selector for the exact bounded OpenBLAS MATMUL route.
  * It consumes only common lowering, representation, expected storage, qualification, and cost
- * facts. Any incomplete, ineligible, tied, insufficient-benefit, or overflowing candidate is
- * rejected without changing the already-valid portable plan. The three direct/copy decisions are
- * determined by the proved boundary facts, so selection creates exactly the required one of eight
- * masks rather than speculative extra copies.
+ * facts. An incomplete configuration, ineligible route, tie with portable cost,
+ * insufficient benefit, or arithmetic overflow retains the already-valid portable plan. Among
+ * eligible native candidates, lower complete cost wins, followed by lower thread count and then
+ * stable input order. The three direct/copy decisions are determined by the proved boundary facts,
+ * so selection creates exactly the required one of eight masks rather than speculative extra
+ * copies.
  */
 public final class CpuOpenBlasRouteSelector {
     /** Creates a stateless selector with no provider, cache, or measurement state. */
@@ -143,7 +145,8 @@ public final class CpuOpenBlasRouteSelector {
                 left.isPresent(), right.isPresent(), output.isPresent());
         return candidate(representation, left, right, output, type, m, n, k, config,
                 outputElements, multiplyAccumulates, portableCost, runs,
-                policy.maximumAdditionalBytes());
+                policy.maximumAdditionalBytes(),
+                context.backendInputs().portableExecution().availableParallelism());
     }
 
     private static Optional<CpuOpenBlasRoutePlan> candidate(
@@ -154,7 +157,7 @@ public final class CpuOpenBlasRouteSelector {
             int m, int n, int k,
             CpuPartitionAnalysisInputs.OpenBlasRouteConfig config,
             long outputElements, long multiplyAccumulates, long portableCost,
-            long runs, long maximumAdditionalBytes) {
+            long runs, long maximumAdditionalBytes, int analysisCapacity) {
         var requirements = new ArrayList<PreparationResourceRequirement.Workspace>();
         left.map(CpuOpenBlasRouteSelector::workspace).ifPresent(requirements::add);
         right.map(CpuOpenBlasRouteSelector::workspace).ifPresent(requirements::add);
@@ -169,21 +172,36 @@ public final class CpuOpenBlasRouteSelector {
                 requirements.size(), workspaceBytes,
                 (left.isPresent() ? 1 : 0) + (right.isPresent() ? 1 : 0),
                 inputElements, output.isPresent() ? 1 : 0, outputCopiedElements);
-        long openBlasCost = Math.multiplyExact(runs, Math.addExact(
-                perRun(config.openBlasCosts(), outputElements, multiplyAccumulates),
-                representationCost));
-        if (openBlasCost >= portableCost) return Optional.empty();
-        long benefit = Math.subtractExact(portableCost, openBlasCost);
-        if (benefit < config.minimumNetBenefitCostUnits().orElseThrow()) return Optional.empty();
-        int threshold = config.minimumBenefitBasisPoints().orElseThrow();
-        if (portableCost == 0 && threshold != 0) return Optional.empty();
-        int basis = portableCost == 0 ? 0 : Math.toIntExact(Math.floorDiv(
-                Math.multiplyExact(10_000L, benefit), portableCost));
-        if (basis < threshold) return Optional.empty();
-        return Optional.of(new CpuOpenBlasRoutePlan(type, m, n, k, 0, 1, 2,
-                config.threadConfiguration().orElseThrow(), representation, left, right, output,
-                requirements, runs, workspaceBytes, inputElements, outputCopiedElements,
-                portableCost, openBlasCost, benefit, basis));
+        CpuOpenBlasRoutePlan selected = null;
+        for (int order = 0; order < config.threadCandidates().size(); order++) {
+            var thread = config.threadCandidates().get(order);
+            if (thread.threadCount() > analysisCapacity) continue;
+            long openBlasCost = Math.multiplyExact(runs, Math.addExact(
+                    perRun(thread.openBlasCosts(), outputElements, multiplyAccumulates),
+                    representationCost));
+            if (openBlasCost >= portableCost) continue;
+            long benefit = Math.subtractExact(portableCost, openBlasCost);
+            if (benefit < config.minimumNetBenefitCostUnits().orElseThrow()) continue;
+            int threshold = config.minimumBenefitBasisPoints().orElseThrow();
+            if (portableCost == 0 && threshold != 0) continue;
+            int basis = portableCost == 0 ? 0 : Math.toIntExact(Math.floorDiv(
+                    Math.multiplyExact(10_000L, benefit), portableCost));
+            if (basis < threshold) continue;
+            var candidate = new CpuOpenBlasRoutePlan(type, m, n, k, 0, 1, 2,
+                    thread, thread.threadCount(), thread.threadCount(), analysisCapacity, order,
+                    representation, left, right, output, requirements, runs, workspaceBytes,
+                    inputElements, outputCopiedElements, portableCost, openBlasCost, benefit,
+                    basis);
+            if (selected == null || candidate.openBlasCost() < selected.openBlasCost()
+                    || candidate.openBlasCost() == selected.openBlasCost()
+                        && candidate.threadCount() < selected.threadCount()
+                    || candidate.openBlasCost() == selected.openBlasCost()
+                        && candidate.threadCount() == selected.threadCount()
+                        && candidate.candidateOrder() < selected.candidateOrder()) {
+                selected = candidate;
+            }
+        }
+        return Optional.ofNullable(selected);
     }
 
     private static PreparationResourceRequirement.Workspace workspace(CpuMaterializationPlan copy) {
@@ -294,6 +312,9 @@ public final class CpuOpenBlasRouteSelector {
         return new CpuOpenBlasInvocation() {
             @Override public boolean isOpen() { return library.isOpen(); }
             @Override public int threadCount() { return library.threadCount(); }
+            @Override public void setThreadCount(int threadCount) {
+                library.setThreadCount(threadCount);
+            }
             @Override public void sgemm(int m, int n, int k, float alpha, MemorySegment a,
                     MemorySegment b, float beta, MemorySegment c) {
                 library.sgemm(m, n, k, alpha, a, b, beta, c);

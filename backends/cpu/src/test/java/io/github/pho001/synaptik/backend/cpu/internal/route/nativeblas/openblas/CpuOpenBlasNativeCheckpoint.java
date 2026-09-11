@@ -2,13 +2,13 @@ package io.github.pho001.synaptik.backend.cpu.internal.route.nativeblas.openblas
 
 import io.github.pho001.synaptik.backend.cpu.CpuCapabilityProvider;
 import io.github.pho001.synaptik.backend.cpu.internal.cache.CpuKernelSpecialization;
+import io.github.pho001.synaptik.backend.cpu.internal.executable.CpuConcurrencyBudget;
 import io.github.pho001.synaptik.backend.cpu.internal.memory.CpuBorrowedBuffer;
 import io.github.pho001.synaptik.backend.cpu.internal.memory.CpuContiguousWorkspace;
 import io.github.pho001.synaptik.backend.cpu.internal.prepare.CpuPartitionAnalysisInputs;
 import io.github.pho001.synaptik.backend.cpu.internal.prepare.CpuPartitionPreparationPlan;
 import io.github.pho001.synaptik.backend.cpu.internal.prepare.CpuPartitionFinalizer;
 import io.github.pho001.synaptik.backend.cpu.internal.prepare.CpuPartitionPreparer;
-import io.github.pho001.synaptik.backend.provider.openblas.OpenBlasLibrary;
 import io.github.pho001.synaptik.model.datatype.DataType;
 import io.github.pho001.synaptik.model.graph.CompiledNode;
 import io.github.pho001.synaptik.model.graph.GraphValue;
@@ -46,8 +46,11 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.CyclicBarrier;
+import java.util.concurrent.atomic.AtomicReference;
 
-/** Explicit real-native checkpoint for one exact or automatically discovered OpenBLAS binary. */
+/** Explicit real-native checkpoint for one caller-supplied exact OpenBLAS 0.3.34 binary. */
 public final class CpuOpenBlasNativeCheckpoint {
     /** Prevents construction of the command-line checkpoint namespace. */
     private CpuOpenBlasNativeCheckpoint() { }
@@ -55,63 +58,95 @@ public final class CpuOpenBlasNativeCheckpoint {
     /**
      * Runs direct and one-copy prepared routes and restores the caller-coordinated thread count.
      *
-     * @param args exactly {@code --auto} or one absolute compatible OpenBLAS shared-library path
+     * @param args exactly one absolute OpenBLAS 0.3.34 shared-library path
      * @throws Throwable if input, loading, thread control, preparation, execution, numerical
      *     validation, restoration, verification, or cleanup fails
      */
     public static void main(String[] args) throws Throwable {
-        if (args.length != 1) throw new IllegalArgumentException(
-                "expected exactly one --auto or absolute OpenBLAS library path argument");
-        CpuOpenBlasDiscoveryResult.Selection selection = args[0].equals("--auto")
-                ? automaticSelection() : exactPathSelection(args[0]);
-        try (OpenBlasLibrary library = open(selection)) {
-            int original = library.threadCount();
-            Throwable primary = null;
-            try {
-                library.setThreadCount(1);
-                require(library.threadCount() == 1, "OpenBLAS thread count did not become one");
-                CpuOpenBlasInvocation invocation =
-                        CpuOpenBlasRouteSelector.borrowedInvocation(library);
+        if (args.length != 1 || args[0].equals("--auto")) throw new IllegalArgumentException(
+                "expected exactly one absolute OpenBLAS 0.3.34 library path argument");
+        Path path = ((CpuOpenBlasDiscoveryResult.AbsoluteLibraryPath)
+                exactPathSelection(args[0])).value();
+        require(path.toRealPath().toString().contains("0.3.34"),
+                "checkpoint path does not resolve to OpenBLAS 0.3.34: " + path.toRealPath());
+        CpuOpenBlasDiscoverySession session = CpuOpenBlasDiscovery.discover(
+                CpuOpenBlasDiscoveryRequest.exactAbsolutePath(path));
+        require(session.result().status() == CpuOpenBlasDiscoveryResult.Status.LOADED,
+                "exact OpenBLAS library did not load");
+        CpuOpenBlasInvocation invocation = session.invocation().orElseThrow();
+        int original = invocation.threadCount();
+        require(original > 0, "OpenBLAS original thread count was not positive");
+        CpuConcurrencyBudget budget = new CpuConcurrencyBudget(2);
+        CpuOpenBlasCoordinator coordinator = session.transferToCoordinator(budget);
+        try {
+                coordinator.configure(1);
+                require(invocation.threadCount() == 1, "OpenBLAS thread count did not become one");
                 for (DataType type : List.of(DataType.FLOAT32, DataType.FLOAT64)) {
-                    checkFinite(type, invocation);
-                    checkSpecial(type, invocation);
+                    checkFinite(type, coordinator, budget, 1);
+                    checkSpecial(type, coordinator, budget, 1);
                 }
-            } catch (Throwable failure) {
-                primary = failure;
-                throw failure;
-            } finally {
-                try {
-                    library.setThreadCount(original);
-                    require(library.threadCount() == original,
-                            "OpenBLAS thread count was not restored");
-                } catch (Throwable restorationFailure) {
-                    if (primary == null) throw restorationFailure;
-                    if (restorationFailure != primary) primary.addSuppressed(restorationFailure);
+                checkOverlappingCountOneCallsAndWriterExclusion(coordinator, invocation);
+                coordinator.configure(2);
+                require(invocation.threadCount() == 2, "OpenBLAS thread count did not become two");
+                for (DataType type : List.of(DataType.FLOAT32, DataType.FLOAT64)) {
+                    checkFinite(type, coordinator, budget, 2);
                 }
-            }
+        } finally {
+            coordinator.close();
             System.out.println("CPU OpenBLAS native checkpoint passed; restored thread count "
                     + original);
         }
     }
 
-    /**
-     * Discovers, records, and returns the exact automatic selection after closing its session.
-     *
-     * @return the exact loaded name or absolute path to reopen; never {@code null}
-     * @throws IllegalStateException if every bounded automatic candidate is unavailable
-     */
-    private static CpuOpenBlasDiscoveryResult.Selection automaticSelection() {
-        CpuOpenBlasDiscoveryResult.Selection selection;
-        try (CpuOpenBlasDiscoverySession session = CpuOpenBlasDiscovery.discover(
-                CpuOpenBlasDiscoveryRequest.automatic())) {
-            if (session.result().status() != CpuOpenBlasDiscoveryResult.Status.LOADED) {
-                throw new IllegalStateException("automatic OpenBLAS discovery unavailable: "
-                        + session.result().attempts());
+    private static void checkOverlappingCountOneCallsAndWriterExclusion(
+            CpuOpenBlasCoordinator coordinator, CpuOpenBlasInvocation invocation) throws Exception {
+        try (Arena arena = Arena.ofShared()) {
+            var barrier = new CyclicBarrier(2);
+            var admitted = new CountDownLatch(2);
+            var release = new CountDownLatch(1);
+            var failure = new AtomicReference<Throwable>();
+            Runnable call = () -> coordinator.execute(1, 1, () -> {
+                try {
+                    MemorySegment left = arena.allocate(Float.BYTES, Float.BYTES);
+                    MemorySegment right = arena.allocate(Float.BYTES, Float.BYTES);
+                    MemorySegment output = arena.allocate(Float.BYTES, Float.BYTES);
+                    left.set(ValueLayout.JAVA_FLOAT, 0, 2.0f);
+                    right.set(ValueLayout.JAVA_FLOAT, 0, 3.0f);
+                    admitted.countDown();
+                    barrier.await();
+                    release.await();
+                    invocation.sgemm(1, 1, 1, 1.0f, left, right, 0.0f, output);
+                    require(output.get(ValueLayout.JAVA_FLOAT, 0) == 6.0f,
+                            "overlapping count-one GEMM result disagrees");
+                } catch (Throwable actual) { throw new RuntimeException(actual); }
+            });
+            Thread first = Thread.ofPlatform().start(() -> runChecked(call, failure));
+            Thread second = Thread.ofPlatform().start(() -> runChecked(call, failure));
+            require(admitted.await(5, java.util.concurrent.TimeUnit.SECONDS),
+                    "compatible count-one calls did not overlap admission");
+            Thread writer = Thread.ofPlatform().start(() -> {
+                try { coordinator.configure(2); }
+                catch (Throwable actual) { failure.compareAndSet(null, actual); }
+            });
+            long deadline = System.nanoTime() + 5_000_000_000L;
+            while (writer.getState() != Thread.State.WAITING && System.nanoTime() < deadline) {
+                Thread.onSpinWait();
             }
-            selection = session.result().selected().orElseThrow();
+            require(writer.getState() == Thread.State.WAITING,
+                    "OpenBLAS configuration writer did not wait for admitted calls");
+            release.countDown();
+            first.join(); second.join(); writer.join();
+            if (failure.get() != null) throw new AssertionError("overlap checkpoint failed",
+                    failure.get());
+            require(invocation.threadCount() == 2,
+                    "writer did not install count two after admitted calls quiesced");
+            coordinator.configure(1);
         }
-        System.out.println("CPU OpenBLAS automatic discovery selected " + describe(selection));
-        return selection;
+    }
+
+    private static void runChecked(Runnable action, AtomicReference<Throwable> failure) {
+        try { action.run(); }
+        catch (Throwable actual) { failure.compareAndSet(null, actual); }
     }
 
     /**
@@ -129,60 +164,32 @@ public final class CpuOpenBlasNativeCheckpoint {
         return new CpuOpenBlasDiscoveryResult.AbsoluteLibraryPath(path);
     }
 
-    /**
-     * Reopens exactly the selection returned by discovery or explicit path validation.
-     *
-     * @param selection the exact non-null name or absolute-path selection
-     * @return a fresh caller-owned provider lifetime; never {@code null}
-     * @throws io.github.pho001.synaptik.backend.provider.openblas.OpenBlasLoadException if the
-     *     exact selection cannot load and bind the required symbols
-     */
-    private static OpenBlasLibrary open(CpuOpenBlasDiscoveryResult.Selection selection) {
-        return switch (selection) {
-            case CpuOpenBlasDiscoveryResult.LibraryName name -> OpenBlasLibrary.open(name.value());
-            case CpuOpenBlasDiscoveryResult.AbsoluteLibraryPath path ->
-                    OpenBlasLibrary.open(path.value());
-        };
-    }
-
-    /**
-     * Formats one exact selection for checkpoint diagnostics without resolving it.
-     *
-     * @param selection the exact non-null name or path selection
-     * @return a diagnostic description containing the unchanged selection value
-     */
-    private static String describe(CpuOpenBlasDiscoveryResult.Selection selection) {
-        return switch (selection) {
-            case CpuOpenBlasDiscoveryResult.LibraryName name -> "name '" + name.value() + "'";
-            case CpuOpenBlasDiscoveryResult.AbsoluteLibraryPath path ->
-                    "path '" + path.value() + "'";
-        };
-    }
-
-    private static void checkFinite(DataType type, CpuOpenBlasInvocation invocation) {
+    private static void checkFinite(DataType type, CpuOpenBlasCoordinator coordinator,
+            CpuConcurrencyBudget budget, int threadCount) {
         double[] left = {1, -2, 3, 4, 5, -6};
         double[] right = {7, 8, -9, 10, 11, 12};
         boolean[][] cases = {{false, false, false}, {true, false, false},
                 {false, true, false}, {true, true, false}, {false, false, true},
-                {true, true, true}};
+                {true, false, true}, {false, true, true}, {true, true, true}};
         for (boolean[] copy : cases) {
             double[] actual = execute(type, 2, 2, 3, left, right,
-                    copy[0], copy[1], copy[2], invocation);
+                    copy[0], copy[1], copy[2], coordinator, budget, threadCount);
             checkFiniteOracle(type, 2, 2, 3, left, right, actual);
         }
     }
 
-    private static void checkSpecial(DataType type, CpuOpenBlasInvocation invocation) {
+    private static void checkSpecial(DataType type, CpuOpenBlasCoordinator coordinator,
+            CpuConcurrencyBudget budget, int threadCount) {
         double nan = execute(type, 1, 1, 3, new double[] {Double.NaN, 0, 0},
-                new double[] {1, 1, 1}, false, false, false, invocation)[0];
+                new double[] {1, 1, 1}, false, false, false, coordinator, budget, threadCount)[0];
         double positiveInfinity = execute(type, 1, 1, 2,
                 new double[] {Double.POSITIVE_INFINITY, 1}, new double[] {1, 1}, false, false, false,
-                invocation)[0];
+                coordinator, budget, threadCount)[0];
         double negativeInfinity = execute(type, 1, 1, 2,
                 new double[] {Double.NEGATIVE_INFINITY, 1}, new double[] {1, 1}, false, false, false,
-                invocation)[0];
+                coordinator, budget, threadCount)[0];
         double positiveZero = execute(type, 1, 1, 2, new double[] {0, 0},
-                new double[] {1, 2}, false, false, false, invocation)[0];
+                new double[] {1, 2}, false, false, false, coordinator, budget, threadCount)[0];
         require(Double.isNaN(nan), type + " did not preserve the one-NaN product class");
         require(positiveInfinity == Double.POSITIVE_INFINITY,
                 type + " did not preserve sole positive infinity");
@@ -194,16 +201,16 @@ public final class CpuOpenBlasNativeCheckpoint {
 
     private static double[] execute(DataType type, int m, int n, int k, double[] leftValues,
             double[] rightValues, boolean copyLeft, boolean copyRight, boolean copyOutput,
-            CpuOpenBlasInvocation invocation) {
+            CpuOpenBlasCoordinator coordinator, CpuConcurrencyBudget budget, int threadCount) {
         BackendPartitionAnalysis<CpuPartitionPreparationPlan> analysis =
                 new CpuPartitionPreparer().analyze(context(type, m, n, k, copyLeft, copyRight,
-                        copyOutput));
+                        copyOutput, threadCount));
         require(analysis.plan().route() == CpuPartitionPreparationPlan.Route.OPENBLAS,
                 "analysis did not select OpenBLAS");
         require(analysis.plan().openBlasPlan().orElseThrow().representation()
                         == representation(copyLeft, copyRight, copyOutput),
                 "analysis selected the wrong representation");
-        PreparedExecutable executable = finalize(analysis, invocation);
+        PreparedExecutable executable = finalize(analysis, coordinator, budget);
         try (Arena arena = Arena.ofConfined()) {
             MemorySegment left;
             if (copyLeft) {
@@ -243,7 +250,8 @@ public final class CpuOpenBlasNativeCheckpoint {
     }
 
     private static PrepareContext<CpuPartitionAnalysisInputs> context(DataType type,
-            int m, int n, int k, boolean copyLeft, boolean copyRight, boolean copyOutput) {
+            int m, int n, int k, boolean copyLeft, boolean copyRight, boolean copyOutput,
+            int threadCount) {
         var node = new CompiledNode(new NodeId(0),
                 new Operation(MatmulKind.MATMUL, NoOperationAttrs.INSTANCE),
                 List.of(new ValueId(0), new ValueId(1)), List.of(new ValueId(2)));
@@ -287,10 +295,17 @@ public final class CpuOpenBlasNativeCheckpoint {
                 1, 1, 10, 0, 2, 1_000_000, 0, 0)
                 : CpuPartitionAnalysisInputs.MaterializationPolicy.DISABLED;
         var inputs = new CpuPartitionAnalysisInputs(false, carriers,
-                CpuPartitionAnalysisInputs.PortableExecutionConfig.DEFAULT, policy, false,
+                new CpuPartitionAnalysisInputs.PortableExecutionConfig(
+                        CpuPartitionAnalysisInputs.PortableExecutionConfig.ComputePreference.SCALAR,
+                        2, 2, 1), policy, false,
                 CpuPartitionAnalysisInputs.PartialReductionEvidence.NONE, storage,
-                CpuPartitionAnalysisInputs.OpenBlasRouteConfig.qualifiedSingleThread(
-                        1_000, 10, 100, 1, 1, 1, 1, 1));
+                new CpuPartitionAnalysisInputs.OpenBlasRouteConfig(
+                        CpuPartitionAnalysisInputs.OpenBlasRouteConfig.Availability.QUALIFIED,
+                        List.of(new CpuPartitionAnalysisInputs.OpenBlasRouteConfig.ThreadCandidate(
+                                threadCount, CpuPartitionAnalysisInputs.CostTerms.complete(1, 1, 1))),
+                        CpuPartitionAnalysisInputs.CostTerms.complete(1_000, 10, 100),
+                        CpuPartitionAnalysisInputs.RepresentationCostTerms.ZERO,
+                        java.util.OptionalLong.of(1), java.util.OptionalInt.of(1)));
         return new PrepareContext<>(partition, List.of(node), values, memory, Map.of(), inputs);
     }
 
@@ -301,7 +316,7 @@ public final class CpuOpenBlasNativeCheckpoint {
 
     private static PreparedExecutable finalize(
             BackendPartitionAnalysis<CpuPartitionPreparationPlan> analysis,
-            CpuOpenBlasInvocation invocation) {
+            CpuOpenBlasCoordinator coordinator, CpuConcurrencyBudget budget) {
         var buffers = new ArrayList<PreparedMemoryPlan.BufferEntry>();
         var workspaces = new ArrayList<PreparedMemoryPlan.WorkspaceEntry>();
         var assignments = new ArrayList<PreparationResourceAssignment>();
@@ -321,8 +336,8 @@ public final class CpuOpenBlasNativeCheckpoint {
             }
         }
         PreparedMemoryPlan memory = new PreparedMemoryPlan(buffers, workspaces);
-        return new CpuPartitionFinalizer(Optional.empty(), Optional.empty(),
-                Optional.of(invocation)).finalizePartition(
+        return new CpuPartitionFinalizer(Optional.empty(), Optional.empty(), budget,
+                Optional.of(coordinator)).finalizePartition(
                         new BackendPartitionFinalization<>(analysis, memory, assignments));
     }
 

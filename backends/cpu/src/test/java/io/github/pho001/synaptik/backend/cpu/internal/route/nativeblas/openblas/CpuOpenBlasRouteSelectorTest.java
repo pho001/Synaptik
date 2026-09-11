@@ -29,6 +29,47 @@ import java.util.Optional;
 import org.junit.jupiter.api.Test;
 
 final class CpuOpenBlasRouteSelectorTest {
+    @Test void selectsCompleteFittingThreadCandidateByCostThenLowerCount() {
+        var config = new CpuPartitionAnalysisInputs.OpenBlasRouteConfig(
+                CpuPartitionAnalysisInputs.OpenBlasRouteConfig.Availability.QUALIFIED,
+                List.of(candidate(8, 0), candidate(4, 5), candidate(2, 5), candidate(1, 9)),
+                CpuPartitionAnalysisInputs.CostTerms.complete(100, 2, 10),
+                CpuPartitionAnalysisInputs.RepresentationCostTerms.ZERO,
+                java.util.OptionalLong.of(0), java.util.OptionalInt.of(0));
+        var base = qualified(DataType.FLOAT32, false, 1, config);
+        var inputs = new CpuPartitionAnalysisInputs(base.loweringManifestEnabled(),
+                base.carrierPattern(), new CpuPartitionAnalysisInputs.PortableExecutionConfig(
+                        CpuPartitionAnalysisInputs.PortableExecutionConfig.ComputePreference.SCALAR,
+                        4, 4, 1), base.materializationPolicy(), false,
+                base.partialReductionEvidence(), base.boundaryStorageFacts(), config);
+        var route = analyze(inputs).openBlasPlan().orElseThrow();
+        assertAll(() -> assertEquals(2, route.threadCount()),
+                () -> assertEquals(2, route.permitDemand()),
+                () -> assertEquals(4, route.analysisCapacity()),
+                () -> assertEquals(2, route.candidateOrder()),
+                () -> assertEquals(route.threadCandidate(), config.threadCandidates().get(2)));
+    }
+
+    @Test void validatesBoundedUniqueCompleteCandidateFacts() {
+        var duplicate = List.of(candidate(1, 1), candidate(1, 2));
+        assertAll(() -> assertThrows(IllegalArgumentException.class,
+                        () -> candidate(0, 1)),
+                () -> assertThrows(IllegalArgumentException.class,
+                        () -> new CpuPartitionAnalysisInputs.OpenBlasRouteConfig(
+                                CpuPartitionAnalysisInputs.OpenBlasRouteConfig.Availability.QUALIFIED,
+                                duplicate, CpuPartitionAnalysisInputs.CostTerms.complete(1, 1, 1),
+                                CpuPartitionAnalysisInputs.RepresentationCostTerms.ZERO,
+                                java.util.OptionalLong.of(0), java.util.OptionalInt.of(0))),
+                () -> assertThrows(IllegalArgumentException.class,
+                        () -> new CpuPartitionAnalysisInputs.OpenBlasRouteConfig(
+                                CpuPartitionAnalysisInputs.OpenBlasRouteConfig.Availability.QUALIFIED,
+                                java.util.stream.IntStream.rangeClosed(1, 33)
+                                        .mapToObj(value -> candidate(value, value)).toList(),
+                                CpuPartitionAnalysisInputs.CostTerms.complete(1, 1, 1),
+                                CpuPartitionAnalysisInputs.RepresentationCostTerms.ZERO,
+                                java.util.OptionalLong.of(0), java.util.OptionalInt.of(0))));
+    }
+
     @Test void selectsExactDirectFloatRoutesAndRetainsPortableOracle() {
         for (DataType type : List.of(DataType.FLOAT32, DataType.FLOAT64)) {
             var analysis = new CpuPartitionPreparer().analyze(context(type, dense(Shape.of(2, 3)),
@@ -133,9 +174,9 @@ final class CpuOpenBlasRouteSelectorTest {
                 () -> assertEquals(2, route.expectedRunCount()));
         var missing = new CpuPartitionAnalysisInputs.OpenBlasRouteConfig(
                 CpuPartitionAnalysisInputs.OpenBlasRouteConfig.Availability.QUALIFIED,
-                Optional.of(CpuPartitionAnalysisInputs.OpenBlasRouteConfig.ThreadConfiguration
-                        .SINGLE_THREAD), CpuPartitionAnalysisInputs.CostTerms.complete(1_000, 0, 0),
-                CpuPartitionAnalysisInputs.CostTerms.complete(0, 0, 0),
+                List.of(new CpuPartitionAnalysisInputs.OpenBlasRouteConfig.ThreadCandidate(1,
+                        CpuPartitionAnalysisInputs.CostTerms.complete(0, 0, 0))),
+                CpuPartitionAnalysisInputs.CostTerms.complete(1_000, 0, 0),
                 CpuPartitionAnalysisInputs.RepresentationCostTerms.MISSING,
                 java.util.OptionalLong.of(0), java.util.OptionalInt.of(0));
         assertEquals(CpuPartitionPreparationPlan.Route.PORTABLE,
@@ -239,6 +280,12 @@ final class CpuOpenBlasRouteSelectorTest {
     private static CpuPartitionAnalysisInputs.OpenBlasRouteConfig defaultConfig() {
         return CpuPartitionAnalysisInputs.OpenBlasRouteConfig.qualifiedSingleThread(
                 100, 2, 10, 1, 1, 1, 0, 0);
+    }
+
+    private static CpuPartitionAnalysisInputs.OpenBlasRouteConfig.ThreadCandidate candidate(
+            int threads, long fixed) {
+        return new CpuPartitionAnalysisInputs.OpenBlasRouteConfig.ThreadCandidate(threads,
+                CpuPartitionAnalysisInputs.CostTerms.complete(fixed, 0, 0));
     }
 
     private static CpuPartitionAnalysisInputs maskInputs(DataType type, boolean left,

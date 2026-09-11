@@ -117,6 +117,7 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
     private final int selectedRangeCount;
     private final long minimumElementsPerWorker;
     private final CpuWorkerGroup workerGroup;
+    private final CpuConcurrencyBudget concurrencyBudget;
     private final Optional<CpuMaterializationPlan> materialization;
     private final Optional<WorkspaceSelection> workspaceSelection;
     private final List<CpuMaterializationPlan> representationMaterializations;
@@ -886,7 +887,7 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
                 softmaxGeometry, trailingNormalizationGeometry, batchNormInferenceGeometry,
                 batchNormTrainingGeometry, conv2dGeometry, conv3dGeometry, matmulGeometry,
                 Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(), outputCount,
-                Optional.empty());
+                Optional.empty(), null);
     }
 
     /**
@@ -936,6 +937,8 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
      * @param outputCount positive number of trailing selections written by this unit
      * @param partialReductionArtifact non-null optional cold-bound partial/combine artifact;
      *     when present it requires the matching private aligned workspace and worker geometry
+     * @param concurrencyBudget borrowed coordinated budget for inline execution, or {@code null}
+     *     for compatibility or when {@code workerGroup} owns parallel acquisition
      * @throws NullPointerException if a required reference or list element is {@code null}
      * @throws IllegalArgumentException if representation plans/workspaces, memory, boundary,
      *     carrier, range, worker, route, output-count, workspace, or specialization facts disagree
@@ -971,7 +974,8 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
             Optional<CpuPool3dLowering.Geometry> pool3dGeometry,
             Optional<CpuAttentionLowering.Geometry> attentionGeometry,
             Optional<CpuLossLowering.Geometry> lossGeometry, int outputCount,
-            Optional<CpuGeneratedKernel.PartialReductionArtifact> partialReductionArtifact) {
+            Optional<CpuGeneratedKernel.PartialReductionArtifact> partialReductionArtifact,
+            CpuConcurrencyBudget concurrencyBudget) {
         super(memoryPlan, selections, java.util.stream.Stream.concat(workspaceSelection.stream(),
                 representationWorkspaceSelections.stream()).toList(),
                 accesses(selections.size(), outputCount));
@@ -1070,6 +1074,10 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
         this.selectedRangeCount = selectedRangeCount;
         this.minimumElementsPerWorker = minimumElementsPerWorker;
         this.workerGroup = workerGroup;
+        this.concurrencyBudget = concurrencyBudget;
+        if (workerGroup != null && concurrencyBudget != null) {
+            throw new IllegalArgumentException("parallel execution acquires only through worker group");
+        }
         if (this.partialReductionArtifact.isPresent()) {
             var partial = this.partialReductionArtifact.orElseThrow();
             if (bindings.size() != 2 || outputCount != 1 || this.carrierPattern.size() != 2
@@ -1225,7 +1233,7 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
                 softmaxGeometry, trailingNormalizationGeometry, batchNormInferenceGeometry,
                 batchNormTrainingGeometry, conv2dGeometry, conv3dGeometry, matmulGeometry,
                 pool2dGeometry, pool3dGeometry, Optional.empty(), Optional.empty(), outputCount,
-                Optional.empty());
+                Optional.empty(), null);
     }
 
     /**
@@ -1310,7 +1318,7 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
                 softmaxGeometry, trailingNormalizationGeometry, batchNormInferenceGeometry,
                 batchNormTrainingGeometry, conv2dGeometry, conv3dGeometry, matmulGeometry,
                 pool2dGeometry, pool3dGeometry, attentionGeometry, lossGeometry, outputCount,
-                Optional.empty());
+                Optional.empty(), null);
     }
 
     /**
@@ -1445,7 +1453,8 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
                 advancedReductionGeometry, softmaxGeometry, trailingNormalizationGeometry,
                 batchNormInferenceGeometry, batchNormTrainingGeometry, conv2dGeometry,
                 conv3dGeometry, matmulGeometry, pool2dGeometry, pool3dGeometry,
-                attentionGeometry, lossGeometry, outputCount, partialReductionArtifact);
+                attentionGeometry, lossGeometry, outputCount, partialReductionArtifact,
+                concurrencyBudget);
     }
 
     private CpuAccessPlan.Binding ranged(CpuAccessPlan.Binding source) {
@@ -2612,6 +2621,8 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
             this.call = call; this.calls = calls;
         }
         @Override protected void executeBound() {
+            CpuConcurrencyBudget.Lease lease = call != null && concurrencyBudget != null
+                    ? concurrencyBudget.acquire(1) : null;
             try {
                 if (validation != null) validation.validate();
                 if (scatterValidation != null) scatterValidation.validate();
@@ -2621,6 +2632,7 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
             }
             catch (RuntimeException | Error failure) { throw failure; }
             catch (Throwable failure) { throw new IllegalStateException("generated CPU invocation failed", failure); }
+            finally { if (lease != null) lease.close(); }
         }
     }
 }
