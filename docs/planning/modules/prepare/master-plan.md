@@ -16,8 +16,8 @@ Define and validate the shared transition from immutable compile artifacts to pr
 - backend partition preparer contract
 - prepared partitions
 - coverage, memory, and schedule validation
-- a future narrow opaque-candidate orchestration boundary for model tuning, only after compiler,
-  planning, concrete backend, and cache contracts are stable
+- a narrow opaque-candidate transport boundary for later model tuning, after concrete backend
+  candidate contracts are stable
 - explicit workload-cache and model-plan artifact load/fallback handoff before runtime
 
 ## Out of scope
@@ -81,7 +81,7 @@ target/backend capabilities, configuration, and compatible cached decisions. It 
 | 0002 | [Backend partition finalization handoff](tasks/0002-backend-partition-finalization-handoff.md) | Complete | 0001; Runtime 0002–0004 | Assigns deterministic conservative shared slots across the complete ordered analyses, retains exact source associations, and finalizes each typed backend plan into the minimal prepared partition/executable association. |
 | 0003 | [Prepare orchestration and validation](tasks/0003-prepare-orchestration-and-validation.md) | Complete | 0001–0002; Compiler 0006; Planning 0006; Runtime 0002–0014 | Composes exact compile projection, typed backend analysis/finalization, initialized constant representations, prepared-memory assignment, complete schedule assembly/validation, and final prepared execution without concrete backend logic. |
 | 0003A | [Immutable partition-local DAG analysis projection](tasks/0003a-immutable-partition-local-dag-analysis-projection.md) | Complete | 0001–0003; CPU 0008B–0008E as downstream evidence | Added one public immutable Prepare-owned projection for exactly one planned partition, made it `PrepareContext`'s sole node/topology source, precomputed precise structural occurrences and adjacency, and kept the complete cross-backend model DAG out of concrete backends. |
-| 0004 | Opaque backend-candidate and selected-decision handoff | Draft | 0001–0003A; CPU 0010E | Transport complete backend-owned candidate batches and already validated selected decisions opaquely between concrete backend analysis and tuning tooling. Prepare performs no measurement, persistence, corruption recovery, compatibility interpretation, or route selection. |
+| 0004 | [Opaque backend candidate-batch and selected-decision handoff](tasks/0004-opaque-backend-candidate-batch-and-selected-decision-handoff.md) | Complete | 0001–0003A; CPU 0010E | Added two method-free opaque roles and one immutable typed exact-partition handoff, then adopted them on CPU 0010E's existing batch and decision without shared interpretation, measurement, persistence, compatibility handling, or route selection. |
 
 ## Milestones
 
@@ -154,11 +154,11 @@ no failures or errors. Clean documentation context
 `01a043d7-113c-7ee2-8257-42678c1a7be4` finalized Javadocs, public and backend guidance, glossary,
 and planning evidence.
 
-Future task 0004 remains Draft without a detailed specification. It follows the new executable
-CPU 0010E producer and then becomes the next cross-area stage in the acyclic tuning sequence. Its
-consumer-facing contract does not wait for a tuning artifact schema: CPU validates candidate and
-decision compatibility, while tools/tuning later owns artifact decoding, corruption rejection,
-measurement, and persistence.
+[Task 0004](tasks/0004-opaque-backend-candidate-batch-and-selected-decision-handoff.md) is Complete.
+It adds only method-free opaque candidate-batch and decision roles plus one generic exact-partition
+transport. CPU retains and validates candidate and decision meaning, while tools/tuning later owns
+artifact decoding, corruption rejection, measurement, selection, and persistence. Tools/tuning
+0001 is now the next Draft planning frontier; no detailed tuning task specification was created.
 
 ## Open questions
 
@@ -168,9 +168,9 @@ measurement, and persistence.
 - A zero-node pass-through graph cannot currently obtain byte geometry from a backend analysis.
   Task 0003 fails closed on a requested value with no prepared buffer assignment instead of
   inventing a shared allocation rule.
-- The smallest opaque candidate handoff waits only for CPU 0010E's concrete typed producer and
-  selected-decision contract. No Java declaration or file format is selected here; persistence
-  and artifact validation remain downstream tools/tuning work.
+- The smallest opaque candidate handoff is implemented by Complete task 0004. It exposes only
+  nominal marker roles and one typed exact-partition transport; persistence and artifact
+  validation remain downstream tools/tuning work.
 - The future handoff must carry complete typed candidates for the exact operation occurrence or
   partition and workload. Concrete backend analysis filters platform/provider availability,
   operation attributes, data type, `Shape`, layout, numerical/determinism compatibility, and

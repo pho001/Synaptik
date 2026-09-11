@@ -8,6 +8,11 @@ partition and returns an opaque backend plan plus exact shared buffer and worksp
 After shared Prepare assigns Runtime slots, finalization consumes those exact assignments and
 constructs an immutable executable recipe.
 
+Prepare also exposes a separate cold transport for a complete backend-owned tuning candidate
+batch and an optional backend-owned selected decision. The transport keeps both values typed and
+ties them to one exact planned partition, but it is not part of `PrepareContext`, analysis,
+assignment, or finalization and performs no tuning work.
+
 Public `GraphPreparation.prepare(...)` now coordinates the package-internal batch assignment and
 validates one complete schedule supplied by an explicit assembler. Physical allocation, backend
 registration, production schedule assembly, and end-to-end Engine execution remain planned. The
@@ -42,6 +47,9 @@ backend types, not a production backend or runnable engine.
 - An [opaque backend analysis role](../glossary.md#opaque-backend-analysis-roles) keeps
   backend-specific input and selected-plan fields typed without making shared Prepare interpret
   them.
+- An [opaque backend tuning handoff](../glossary.md#opaque-backend-tuning-handoff) retains one
+  exact partition, one typed candidate batch, and an optional typed decision without exposing
+  backend fields.
 
 ## Ownership and lifecycle
 
@@ -69,6 +77,11 @@ backend responsibilities.
 This division keeps `CompileArtifacts` and other Compiler-owned types out of the concrete backend
 surface. It also keeps route selection, measurement, cache mutation, allocation, and graph
 inspection out of Runtime.
+
+The tuning handoff is a side transport around this lifecycle, not another arrow in it. A concrete
+backend produces the complete immutable batch and later validates any supplied decision against a
+fresh batch. Shared Prepare retains exact references only. It does not enumerate the batch,
+match the decision, serialize either value, or insert them into Runtime.
 
 ## Current-contract example
 
@@ -163,6 +176,40 @@ workspace:      local ID 0,      64 bytes, 16-byte alignment
 The result proves that one supported deterministic analysis is available and tells shared
 preparation exactly which resources a later slot plan must cover. It does not assign a slot,
 allocate memory, create an executable, perform a measurement, or execute the operation.
+
+### Optional opaque candidate transport
+
+The following current API shape illustrates the separate transport. The records are illustrative
+backend-owned values; their fields are invisible through the method-free shared roles.
+
+```java
+import io.github.pho001.synaptik.prepare.analysis.BackendPartitionTuningHandoff;
+import io.github.pho001.synaptik.prepare.analysis.BackendTuningCandidateBatch;
+import io.github.pho001.synaptik.prepare.analysis.BackendTuningDecision;
+import java.util.List;
+import java.util.Optional;
+
+record CpuCandidates(List<String> routes) implements BackendTuningCandidateBatch {
+    CpuCandidates {
+        routes = List.copyOf(routes);
+    }
+}
+
+record CpuDecision(String route) implements BackendTuningDecision {}
+
+CpuCandidates candidates = new CpuCandidates(List.of("scalar", "vector"));
+CpuDecision decision = new CpuDecision("vector");
+var handoff = new BackendPartitionTuningHandoff<>(
+        context.partition(), candidates, Optional.of(decision));
+```
+
+`handoff.partition()` is the exact `context.partition()` reference,
+`handoff.candidateBatch()` is the exact `candidates` reference, and the optional contains the
+exact `decision` reference. The record snapshots no route list itself; the backend-owned batch is
+responsible for its own immutability. This result proves only type-safe partition association and
+transport. It does not prove that `"vector"` is present, valid, compatible, measured, or selected
+for execution. The owning backend must validate those meanings against a freshly generated
+complete batch.
 
 ### Failure variation
 
@@ -369,6 +416,9 @@ interference are not represented by the current API.
   cached decision before producing an analysis result.
 - Treat backend input and plan implementations as immutable values. Shared Prepare retains their
   exact references and does not copy or synchronize backend-private state.
+- Treat tuning-batch and decision implementations as immutable values. Their shared marker roles
+  expose no method, and the handoff rejects a null partition, batch, or optional container while
+  retaining exact references and acquiring no ownership.
 - Make `analyze` deterministic from its complete context. Do not measure candidates, mutate a
   cache, allocate physical resources, compile native executables, or retain per-run bindings.
 - Do not return a `PreparedExecutable`, slot, address, storage handle, or resource lifetime from
@@ -411,10 +461,13 @@ For the current shared contract, run:
 ## Limitations and related documentation
 
 The current API has no dynamic-dimension binding, workspace reuse, physical resource, production
-concrete backend implementation, Engine composition, or model-autotuning workflow. Slot
+Engine composition, or model-autotuning workflow. It does have the narrow opaque candidate-batch
+and decision transport, but no measurement, selection, cache, persistence, model aggregation, or
+graph-preparation integration for it. Slot
 assignment, finalization input/collaboration, prepared partition, explicit schedule assembly and
-validation, prepared-execution construction, and shared runner contracts are current. Compatible cached decisions may be explicit
-immutable backend inputs, but analysis neither loads nor mutates a cache.
+validation, prepared-execution construction, and shared runner contracts are current. Compatible
+cached decisions may be explicit immutable backend inputs, but analysis neither loads nor mutates
+a cache.
 
 See the [Runtime/Prepare/Backend boundary](../architecture/runtime-prepare-backend-boundary.md),
 [Planning ownership and partition scoring](../architecture/partition-scoring.md), and

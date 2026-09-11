@@ -18,9 +18,53 @@ import java.lang.reflect.Type;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import org.junit.jupiter.api.Test;
 
 class AnalysisPublicShapeTest {
+    @Test
+    void exposesOnlyTheOpaqueTuningRolesAndExactTypedHandoffShape() {
+        Class<BackendTuningCandidateBatch> batchRole = BackendTuningCandidateBatch.class;
+        Class<BackendTuningDecision> decisionRole = BackendTuningDecision.class;
+        Class<BackendPartitionTuningHandoff> handoff = BackendPartitionTuningHandoff.class;
+        var typeParameters = handoff.getTypeParameters();
+        var components = handoff.getRecordComponents();
+
+        assertAll(
+                () -> assertTrue(batchRole.isInterface()),
+                () -> assertTrue(Modifier.isPublic(batchRole.getModifiers())),
+                () -> assertFalse(batchRole.isSealed()),
+                () -> assertEquals(0, batchRole.getDeclaredMethods().length),
+                () -> assertEquals(0, batchRole.getInterfaces().length),
+                () -> assertTrue(decisionRole.isInterface()),
+                () -> assertTrue(Modifier.isPublic(decisionRole.getModifiers())),
+                () -> assertFalse(decisionRole.isSealed()),
+                () -> assertEquals(0, decisionRole.getDeclaredMethods().length),
+                () -> assertEquals(0, decisionRole.getInterfaces().length),
+                () -> assertTrue(Modifier.isPublic(handoff.getModifiers())),
+                () -> assertTrue(Modifier.isFinal(handoff.getModifiers())),
+                () -> assertTrue(handoff.isRecord()),
+                () -> assertEquals(2, typeParameters.length),
+                () -> assertArrayEquals(
+                        new Type[] {batchRole}, typeParameters[0].getBounds()),
+                () -> assertArrayEquals(
+                        new Type[] {decisionRole}, typeParameters[1].getBounds()),
+                () -> assertEquals(
+                        List.of("partition", "candidateBatch", "selectedDecision"),
+                        Arrays.stream(components).map(component -> component.getName()).toList()),
+                () -> assertEquals(PlannedPartition.class, components[0].getType()),
+                () -> assertEquals(typeParameters[0], components[1].getGenericType()),
+                () -> assertOptionalArgument(components[2].getGenericType(), typeParameters[1]),
+                () -> assertEquals(
+                        List.of("candidateBatch", "equals", "hashCode", "partition",
+                                "selectedDecision", "toString"),
+                        Arrays.stream(handoff.getDeclaredMethods())
+                                .filter(method -> Modifier.isPublic(method.getModifiers()))
+                                .map(method -> method.getName())
+                                .sorted()
+                                .toList()));
+    }
+
     @Test
     void exposesTheExactMarkerRolesPartitionDagAndFiveComponentContextRecord() {
         Class<BackendAnalysisInputs> inputs = BackendAnalysisInputs.class;
@@ -204,5 +248,11 @@ class AnalysisPublicShapeTest {
         ParameterizedType type = (ParameterizedType) supplied;
         assertEquals(Map.class, type.getRawType());
         assertArrayEquals(new Type[] {key, value}, type.getActualTypeArguments());
+    }
+
+    private static void assertOptionalArgument(Type supplied, Type argument) {
+        ParameterizedType type = (ParameterizedType) supplied;
+        assertEquals(Optional.class, type.getRawType());
+        assertArrayEquals(new Type[] {argument}, type.getActualTypeArguments());
     }
 }

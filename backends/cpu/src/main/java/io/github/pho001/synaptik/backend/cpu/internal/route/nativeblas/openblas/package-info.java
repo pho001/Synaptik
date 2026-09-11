@@ -53,5 +53,10 @@
  * to their exact credential, while only path-qualified binary evidence has a persistent
  * projection. Candidate production and consumption perform no timing, objective selection, host
  * discovery, cache access, persistence, provider query, or runtime choice.</p>
+ *
+ * <p>The batch and decision implement Prepare's corresponding method-free opaque roles. This
+ * nominal adoption changes no CPU schema or behavior: typed composition can associate their exact
+ * references with a planned partition, while CPU alone continues to inspect and validate their
+ * contents.</p>
  */
 package io.github.pho001.synaptik.backend.cpu.internal.route.nativeblas.openblas;

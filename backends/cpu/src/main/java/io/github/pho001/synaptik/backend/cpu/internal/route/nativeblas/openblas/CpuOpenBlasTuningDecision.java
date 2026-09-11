@@ -1,11 +1,14 @@
 package io.github.pho001.synaptik.backend.cpu.internal.route.nativeblas.openblas;
 
+import io.github.pho001.synaptik.prepare.analysis.BackendTuningDecision;
 import java.util.Objects;
 
 /**
  * Immutable explicit selection reference for one CPU OpenBLAS tuning batch. It contains only the
  * exact schema, canonical workload signature, and deterministic candidate identity. It owns no
  * timing, objective, cache location, serialized data, executable, provider, or runtime state.
+ * Its method-free {@link BackendTuningDecision} role permits shared Prepare code to transport the
+ * exact decision opaquely; CPU remains its sole interpreter and validator.
  *
  * @param candidateSchemaVersion exact batch schema version
  * @param workload exact canonical workload signature used during selection
@@ -13,7 +16,8 @@ import java.util.Objects;
  */
 public record CpuOpenBlasTuningDecision(int candidateSchemaVersion,
         CpuOpenBlasTuningBatch.WorkloadSignature workload,
-        CpuOpenBlasTuningBatch.CandidateIdentity selectedCandidate) {
+        CpuOpenBlasTuningBatch.CandidateIdentity selectedCandidate)
+        implements BackendTuningDecision {
     /**
      * Validates a structurally complete selection reference. Both immutable compatibility values
      * are retained by reference; construction owns no candidate plan or resource.

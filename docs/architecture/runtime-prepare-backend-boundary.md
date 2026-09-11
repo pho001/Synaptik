@@ -13,7 +13,8 @@ explicit buffer-copy validity, the array-backed one-run `RunState` lifecycle, im
 publication binding, the whole-`RunState` `RunResult` lease, the immutable two-component
 `PreparedExecution` root, explicit executable buffer-access declarations, and the stateless
 prepared-execution runner. Prepare
-currently implements the analysis-side projection, opaque marker roles, exact resource
+currently implements the analysis-side projection, opaque analysis and tuning marker roles, the
+exact-partition opaque tuning handoff, exact resource
 declarations, analysis result, preparer collaboration, deterministic complete-set slot assignment,
 typed backend finalization input/collaboration, the minimal prepared-partition association, exact
 compile projection, one immutable partition-local directed acyclic graph (DAG) per backend
@@ -74,7 +75,7 @@ positions without moving graph objects or physical storage into the Runtime hot-
 ## Current analysis foundation
 
 The current `modules/prepare` production surface is the
-`io.github.pho001.synaptik.prepare.analysis` package. Its exact seven top-level declarations are:
+`io.github.pho001.synaptik.prepare.analysis` package. Its exact ten top-level declarations are:
 
 - `BackendAnalysisInputs`, the marker role for one concrete backend's immutable target,
   capability, configuration, and compatible cached-decision inputs;
@@ -83,8 +84,14 @@ The current `modules/prepare` production surface is the
 - `PartitionDag`, the immutable topology-only projection for exactly one planned partition;
 - `PrepareContext`, the validated partition projection;
 - `PreparationResourceRequirement`, the sealed buffer/workspace declaration family;
-- `BackendPartitionAnalysis`, the immutable selected-plan and requirement result; and
-- `BackendPartitionPreparer`, the typed backend analysis collaboration.
+- `BackendPartitionAnalysis`, the immutable selected-plan and requirement result;
+- `BackendPartitionPreparer`, the typed backend analysis collaboration;
+- `BackendTuningCandidateBatch`, the method-free role for one backend-owned immutable complete
+  candidate batch;
+- `BackendTuningDecision`, the method-free role for one backend-owned immutable selected-decision
+  reference; and
+- `BackendPartitionTuningHandoff`, the three-component generic association between one exact
+  partition, one typed candidate batch, and an optional typed decision.
 
 `PartitionDag` retains the exact planned-partition reference and exact `CompiledNode` references
 in validated stable topological order. It derives producer/output-port, consumer/input-port, and
@@ -115,8 +122,8 @@ to occur in a node input or output.
 
 All projected Shapes must be fully static. An immutable logical-splat constant may be projected
 only for a projected graph input, and its exact `ScalarValue` type must match that input's
-descriptor. Neither the context nor either marker role exposes `CompileArtifacts` or another
-Compiler-owned type.
+descriptor. Neither the context nor any marker role exposes `CompileArtifacts` or another
+Compiler-owned aggregate.
 
 The sealed resource family has two immutable records. `Buffer` associates one projected
 `ValueId` with an exact non-negative byte size and positive power-of-two byte alignment.
@@ -127,8 +134,29 @@ per-run binding.
 
 `BackendPartitionPreparer.analyze` must be deterministic from the complete context and return the
 exact context partition reference. Analysis performs no measurement, tuning search, cache
-mutation, allocation, executable construction, or slot assignment. No concrete backend currently
-implements this collaboration.
+mutation, allocation, executable construction, or slot assignment. The CPU backend currently
+implements this collaboration internally for its supported partitions; that does not make CPU
+types part of the shared Prepare surface.
+
+### Current opaque tuning transport
+
+`BackendPartitionTuningHandoff<C, D>` is cold, immutable transport state separate from
+`PrepareContext` and `BackendPartitionAnalysis`. `C` must implement
+`BackendTuningCandidateBatch`, and `D` must implement `BackendTuningDecision`. The record retains
+the exact non-null `PlannedPartition` and candidate-batch references plus a non-null `Optional`
+that is either empty or contains the exact decision reference. It copies no backend state and
+acquires no ownership.
+
+The two roles are deliberately method-free. Shared Prepare can preserve the caller's concrete
+generic types, associate the values with one partition, and transport them, but it cannot
+enumerate candidates, interpret compatibility, choose a winner, or apply a decision. The current
+CPU OpenBLAS batch and decision adopt these nominal roles without changing their components,
+schema, candidate generation, matching, heuristic fallback, or execution behavior. CPU remains
+the only layer that validates the decision against a freshly generated CPU batch.
+
+This record is not wired into graph preparation, tuning measurement, or persistence. It contains
+no model-wide aggregation, cache schema, serialized form, corruption handling, executable, or
+Runtime state. Those operational collaborations remain downstream work.
 
 ## The staged prepare handoff
 
@@ -425,10 +453,12 @@ not a cache key for one universal family-wide setting. Hardware and supported JD
 species constrain CPU vector candidates, so no candidate can promise an arbitrary physical lane
 count.
 
-A future narrow prepare/tuning boundary exposes complete backend candidates opaquely to shared
-orchestration. Shared code does not interpret route, vector, thread, tile, kernel, or other private
-fields. During ordinary preparation, the backend may reuse a compatible entry from an explicit
-workload cache or apply safe heuristics. Model autotuning remains optional for correctness.
+The current narrow Prepare transport can associate a complete backend candidate batch and an
+optional selected decision with one exact partition. Shared code does not interpret route,
+vector, thread, tile, kernel, or other private fields. Future tuning orchestration may use this
+transport while the backend remains responsible for compatibility validation. During ordinary
+preparation, the backend may reuse a compatible entry from an explicit workload cache or apply
+safe heuristics. Model autotuning remains optional for correctness.
 
 The model-specific tuning result is an explicit prepared plan or artifact, not hidden global
 state. Its persistent plan record and the reusable workload cache are loaded and updated outside

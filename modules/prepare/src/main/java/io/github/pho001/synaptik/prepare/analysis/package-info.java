@@ -10,6 +10,10 @@
  * lowering and route in an opaque
  * {@link io.github.pho001.synaptik.prepare.analysis.BackendPreparationPlan}, and returns exact
  * {@link io.github.pho001.synaptik.prepare.analysis.PreparationResourceRequirement} declarations.
+ * A {@link io.github.pho001.synaptik.prepare.analysis.BackendPartitionTuningHandoff} can separately
+ * associate one exact partition with a backend-owned complete candidate batch and an optional
+ * backend-owned selected decision. The two tuning roles are method-free, so shared Prepare may
+ * transport those values but cannot interpret their private candidate or decision vocabulary.
  * Shared slot assignment and backend executable finalization remain later lifecycle stages and
  * are intentionally absent from this package. The current contracts also contain no dynamic
  * binding, physical resource, measurement, cache mutation, schedule, or Runtime execution

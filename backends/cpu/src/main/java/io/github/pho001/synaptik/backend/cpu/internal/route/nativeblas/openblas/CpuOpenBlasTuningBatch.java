@@ -7,6 +7,7 @@ import io.github.pho001.synaptik.backend.cpu.internal.prepare.CpuPartitionPrepar
 import io.github.pho001.synaptik.model.datatype.DataType;
 import io.github.pho001.synaptik.model.layout.LayoutDescriptor;
 import io.github.pho001.synaptik.model.shape.Shape;
+import io.github.pho001.synaptik.prepare.analysis.BackendTuningCandidateBatch;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
@@ -18,12 +19,15 @@ import java.util.Optional;
  * configured-thread order. This unsupported internal value contains no measurements, cache I/O,
  * provider handle, native address, physical workspace, or runtime state.
  *
+ * <p>Its method-free {@link BackendTuningCandidateBatch} role permits shared Prepare code to
+ * transport the exact batch opaquely without changing or exposing its CPU-owned schema.</p>
+ *
  * @param schemaVersion exact candidate schema, currently {@value #SCHEMA_VERSION}
  * @param workload canonical immutable workload and compatibility signature
  * @param candidates immutable non-empty ordered candidates, beginning with portable
  */
 public record CpuOpenBlasTuningBatch(int schemaVersion, WorkloadSignature workload,
-        List<Candidate> candidates) {
+        List<Candidate> candidates) implements BackendTuningCandidateBatch {
     /** Current meaning of the candidate and decision values in this package. */
     public static final int SCHEMA_VERSION = 1;
     /** Current CPU OpenBLAS route-policy meaning. */

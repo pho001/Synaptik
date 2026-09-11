@@ -9,6 +9,9 @@ import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuAccessPlan;
 import io.github.pho001.synaptik.model.datatype.DataType;
 import io.github.pho001.synaptik.model.layout.LayoutDescriptor;
 import io.github.pho001.synaptik.model.shape.Shape;
+import io.github.pho001.synaptik.prepare.analysis.BackendPartitionTuningHandoff;
+import io.github.pho001.synaptik.prepare.analysis.BackendTuningCandidateBatch;
+import io.github.pho001.synaptik.prepare.analysis.BackendTuningDecision;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.RecordComponent;
 import java.nio.ByteOrder;
@@ -21,6 +24,40 @@ import org.junit.jupiter.api.Test;
 final class CpuOpenBlasTuningBatchTest {
     private record WorkloadMutation(String component,
             CpuOpenBlasTuningBatch.WorkloadSignature workload) { }
+
+    @Test void adoptsOpaquePrepareRolesWithoutChangingCpuValueShape() {
+        var inputs = CpuOpenBlasRouteSelectorTest.maskInputs(DataType.FLOAT32, false, false,
+                false, 1, CpuOpenBlasRouteSelectorTest.defaultConfig());
+        var context = CpuOpenBlasRouteSelectorTest.context(
+                DataType.FLOAT32, dense(Shape.of(2, 3)), dense(Shape.of(3, 4)),
+                dense(Shape.of(2, 4)), inputs);
+        CpuOpenBlasTuningBatch batch = new CpuPartitionPreparer().analyze(context).plan()
+                .openBlasTuningBatch().orElseThrow();
+        CpuOpenBlasTuningDecision decision = new CpuOpenBlasTuningDecision(
+                batch.schemaVersion(), batch.workload(), batch.candidates().getFirst().identity());
+        Optional<CpuOpenBlasTuningDecision> present = Optional.of(decision);
+        BackendPartitionTuningHandoff<CpuOpenBlasTuningBatch, CpuOpenBlasTuningDecision> absent =
+                new BackendPartitionTuningHandoff<>(context.partition(), batch, Optional.empty());
+        BackendPartitionTuningHandoff<CpuOpenBlasTuningBatch, CpuOpenBlasTuningDecision> selected =
+                new BackendPartitionTuningHandoff<>(context.partition(), batch, present);
+
+        assertAll(
+                () -> assertEquals(List.of(BackendTuningCandidateBatch.class),
+                        List.of(CpuOpenBlasTuningBatch.class.getInterfaces())),
+                () -> assertEquals(List.of(BackendTuningDecision.class),
+                        List.of(CpuOpenBlasTuningDecision.class.getInterfaces())),
+                () -> assertRecordComponents(CpuOpenBlasTuningBatch.class,
+                        "schemaVersion", "workload", "candidates"),
+                () -> assertRecordComponents(CpuOpenBlasTuningDecision.class,
+                        "candidateSchemaVersion", "workload", "selectedCandidate"),
+                () -> assertSame(context.partition(), absent.partition()),
+                () -> assertSame(batch, absent.candidateBatch()),
+                () -> assertTrue(absent.selectedDecision().isEmpty()),
+                () -> assertSame(context.partition(), selected.partition()),
+                () -> assertSame(batch, selected.candidateBatch()),
+                () -> assertSame(present, selected.selectedDecision()),
+                () -> assertSame(decision, selected.selectedDecision().orElseThrow()));
+    }
 
     @Test void emitsPortableThenEveryRepresentationAndFittingThreadInStableOrder() {
         var config = config(CpuOpenBlasRouteSelectorTest.qualification(), List.of(

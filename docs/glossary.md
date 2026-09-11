@@ -2214,7 +2214,8 @@ key. The first implemented internal instance is the CPU exact/default FLOAT32/FL
 MATMUL signature. It additionally retains qualification scope, caller-supplied CPU identity,
 expected-use cohort, concurrency, route/resource inputs, and policy versions. Session-only
 qualification has no persistent projection; persistently reusable compatibility requires the
-qualified binary identity. Shared transport, measurement, and persistent cache use remain planned.
+qualified binary identity. The shared exact-partition opaque transport is implemented;
+measurement and persistent cache use remain planned.
 
 ### Candidate generator
 
@@ -2225,7 +2226,8 @@ vocabulary. Shared tuning and prepare orchestration sees candidates opaquely; it
 generic parameter map, string dispatch, reflective annotations, or a central knob registry. The
 first implemented internal generator is the CPU exact/default FLOAT32/FLOAT64 OpenBLAS MATMUL
 producer. It emits the complete portable alternative followed by every realizable copy-mask and
-fitting configured-thread combination. Shared transport and tuning orchestration remain planned.
+fitting configured-thread combination. The shared exact-partition opaque transport is
+implemented; tuning orchestration remains planned.
 
 ### Selected tuning decision
 
@@ -2235,6 +2237,22 @@ member of a freshly generated compatible batch; absence or any mismatch is a mis
 safe heuristic path. The first implemented internal instance belongs to the CPU OpenBLAS MATMUL
 route. A selected tuning decision contains no measurement, cache representation, executable,
 provider, native address, or Runtime state.
+
+### Opaque backend tuning handoff
+
+The implemented Prepare-owned `BackendPartitionTuningHandoff<C, D>` record associates one exact
+`PlannedPartition` reference with one exact backend-owned candidate-batch reference and a non-null
+`Optional` containing either no decision or one exact backend-owned selected-decision reference.
+`C` extends the method-free `BackendTuningCandidateBatch` role, and `D` extends the method-free
+`BackendTuningDecision` role. The record retains references without copying backend state or
+acquiring ownership.
+
+Shared Prepare can preserve a caller's concrete generic types and transport the values, but it
+cannot enumerate candidates, interpret compatibility, select a winner, apply a decision, or
+serialize either value through these roles. The handoff is cold point-in-time state, not part of
+`PrepareContext`, `BackendPartitionAnalysis`, graph preparation, a tuning cache, a measurement
+result, an executable, or Runtime state. The current CPU OpenBLAS batch and decision implement the
+roles nominally; CPU alone continues to validate and interpret their contents.
 
 ### Compile
 
