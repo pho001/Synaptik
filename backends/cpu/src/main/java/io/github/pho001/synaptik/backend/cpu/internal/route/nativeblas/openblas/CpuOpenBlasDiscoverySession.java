@@ -74,7 +74,8 @@ final class CpuOpenBlasDiscoverySession implements AutoCloseable {
         OwnedResource resource = ownedResource.getAndSet(null);
         if (resource == null) throw new IllegalStateException(
                 "OpenBLAS discovery resource is unavailable, closed, or already transferred");
-        return new CpuOpenBlasCoordinator(resource.invocation(), resource.closeAction(), budget);
+        return new CpuOpenBlasCoordinator(resource.invocation(), resource.closeAction(), budget,
+                resource.sessionKey());
     }
 
     /**
@@ -98,18 +99,29 @@ final class CpuOpenBlasDiscoverySession implements AutoCloseable {
      *
      * @param invocation the borrowed invocation view
      * @param closeAction the one-shot unchecked close action
+     * @param sessionKey opaque per-load association transferred unchanged to the coordinator
      */
-    record OwnedResource(CpuOpenBlasInvocation invocation, CloseAction closeAction) {
+    record OwnedResource(CpuOpenBlasInvocation invocation, CloseAction closeAction,
+            CpuOpenBlasQualification.SessionKey sessionKey) {
+        /**
+         * Creates a loaded resource with one fresh opaque per-load association.
+         * @param invocation the borrowed invocation view
+         * @param closeAction the one-shot unchecked close action
+         */
+        OwnedResource(CpuOpenBlasInvocation invocation, CloseAction closeAction) {
+            this(invocation, closeAction, new CpuOpenBlasQualification.SessionKey());
+        }
         /**
          * Validates one owned resource pair.
          *
          * @param invocation the required borrowed invocation
          * @param closeAction the required close action for its retained owner
-         * @throws NullPointerException if either component is {@code null}
+         * @throws NullPointerException if any component is {@code null}
          */
         OwnedResource {
             Objects.requireNonNull(invocation, "invocation");
             Objects.requireNonNull(closeAction, "closeAction");
+            Objects.requireNonNull(sessionKey, "sessionKey");
         }
     }
 

@@ -3526,9 +3526,10 @@ requested mode, automatic-mode platform snapshot, ordered exact attempts, immuta
 strings, and any loaded selection. It retains no provider, exception, route decision,
 qualification, cost, storage, or thread state.
 
-When a selection loads, the separate closeable session owns that provider lifetime and lends one
-CPU invocation view. Composition may close the retained owner after quiescing borrowers or transfer
-the invocation and close action exactly once to an [OpenBLAS coordinator](#openblas-coordinator--cpuopenblascoordinator).
+When a selection loads, the separate closeable session owns that provider lifetime, lends one CPU
+invocation view, and creates one opaque per-load association key. Composition may close the
+retained owner after quiescing borrowers or transfer the invocation, close action, and unchanged
+key exactly once to an [OpenBLAS coordinator](#openblas-coordinator--cpuopenblascoordinator).
 After transfer, immutable discovery metadata and the borrowed invocation view remain readable, but
 session close cannot affect the transferred resource. Without transfer, closing the session is
 idempotent, does not restore thread state, and must not race use of the borrowed invocation.
@@ -3538,13 +3539,46 @@ composition can retain the independently valid portable plan. The current types 
 package-private CPU internals, not public Config, Engine, or provider APIs. See the [CPU backend
 guide](backend-guide/cpu-backend.md#internal-automatic-discovery-and-lifetime).
 
+### OpenBLAS qualification
+
+An immutable CPU-private credential issued only after one exact loaded discovery session passes
+cold target, thread-control, and bounded FLOAT32/FLOAT64 general matrix multiplication checks.
+For an absolute-path selection, qualification also inspects the complete file and matching 64-bit
+executable header. The credential retains immutable target, symbol, ordinary 32-bit-`blasint`,
+numerical-case, and optional [binary identity](#openblas-binary-identity) facts plus the opaque
+per-load key, but no provider, coordinator, segment, or close action.
+
+Every credential is usable only with the exact live coordinator carrying that key and qualified
+target. A foreign-session credential is rejected before provider mutation or prepared-recipe
+construction, even when its persistent facts compare equal. A name-loaded credential has
+`SESSION_ONLY` scope and no persistent projection because the JDK lookup exposes no resolved file.
+Qualification establishes only the bounded recorded compatibility facts. It does not authenticate
+code or certify arbitrary ABI behavior, numerics, determinism, builds, processors, or performance.
+
+### OpenBLAS binary identity
+
+The stable versioned compatibility input produced for an absolute-path OpenBLAS qualification.
+It combines the supported target fingerprint with the complete file's SHA-256 digest and byte
+length, the matching thin Mach-O64, little-endian ELF64, or PE32+ format and AArch64/x86-64 machine,
+the exact four required symbols, the ordinary 32-bit-`blasint` evidence, and the bounded numerical-
+case version. A content, schema, target, format, machine, symbol, ABI, or numerical-case change
+changes compatibility.
+
+The resolved path, timestamp, and file key are inspection diagnostics and stability guards rather
+than equality fields, so identical trusted bytes may move. The identity is not a signature or
+code-signing result: SHA-256 and before/after file attributes do not prove that pathname bytes are
+the pages already mapped by the loader or defend against a hostile filesystem. Name-loaded
+libraries have no binary identity and cannot authorize persistent reuse.
+
 ### OpenBLAS coordinator / `CpuOpenBlasCoordinator`
 
 The CPU-private sole owner of one invocation/close pair transferred from an OpenBLAS discovery
 session. It borrows one exact [CPU concurrency budget](#cpu-concurrency-budget--cpuconcurrencybudget),
 excludes its admitted matrix calls from thread-configuration writers, and captures one positive
-original provider thread count. Cold configuration installs and verifies an analysis-selected
-positive count while calls are quiescent. Execution admits the plan only when its fixed count and
+original provider thread count. Cold qualification exclusively installs and verifies count one,
+runs the bounded provider checks, and records the qualified target before issuing a session-bound
+credential. Later cold configuration installs and verifies an analysis-selected positive count
+while calls are quiescent. Execution admits the plan only when its fixed count and
 permit demand match the installed state, then covers the complete copy-in/GEMM/copy-out sequence
 without a per-call thread query or setter.
 

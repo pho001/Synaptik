@@ -22,13 +22,22 @@
  * to one coordinator. Discovery performs no thread query, mutation, restoration, filesystem
  * search, or hot-path work.</p>
  *
- * <p>Compatibility finalization consumes an already-borrowed provider-free count-one invocation.
- * Coordinated finalization instead validates the selected bounded thread candidate against the
- * shared CPU budget and installs it before creating artifacts. The coordinator serializes thread
+ * <p>Qualified finalization requires the exact live coordinator associated with the credential.
+ * It validates the session and target before provider mutation or recipe construction, then
+ * validates the selected bounded thread candidate against the shared CPU budget and installs it
+ * before creating artifacts. A borrowed invocation without that coordinator cannot authorize a
+ * native route. The coordinator serializes thread
  * configuration against admitted native calls, admits complete copy-in/GEMM/copy-out sequences
  * at their fixed plan demand, and restores verified original provider state before closing its
- * transferred owner. Prepared execution borrows that lifetime and, during cold binding, checks
- * coordinator availability or the compatibility invocation's open single-thread state, exact
+ * transferred owner. Before deterministic analysis, cold qualification snapshots the supported
+ * host target, inspects and SHA-256 fingerprints an exact path-loaded binary (or limits a
+ * name-loaded binary to the current session), exclusively verifies count one, and exercises the
+ * exact SGEMM/DGEMM and ordinary C-int symbol contract. The resulting immutable credential carries
+ * an opaque per-load association key but no live provider resource. Its target and SHA-256 binary
+ * facts are compatibility evidence rather than authentication or general ABI, numerical, or
+ * performance certification. Prepared execution borrows
+ * the coordinator lifetime and, during cold binding, checks
+ * coordinator availability, exact
  * carriers, generated-copy identities, spans, alignment, writability, and every buffer/workspace
  * overlap before any write. Each invocation copies left then right when selected, performs
  * exactly one typed GEMM, and finally copies the result when selected. Prepared recipes may be

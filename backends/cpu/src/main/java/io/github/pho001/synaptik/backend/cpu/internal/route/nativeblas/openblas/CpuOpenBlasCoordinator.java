@@ -19,6 +19,7 @@ public final class CpuOpenBlasCoordinator implements AutoCloseable {
     private final CpuOpenBlasInvocation invocation;
     private final CpuOpenBlasDiscoverySession.CloseAction closeAction;
     private final CpuConcurrencyBudget budget;
+    private final CpuOpenBlasQualification.SessionKey sessionKey;
     private final ReentrantLock lock = new ReentrantLock(true);
     private final Condition changed = lock.newCondition();
     private final ThreadLocal<Boolean> admitted = ThreadLocal.withInitial(() -> false);
@@ -27,6 +28,7 @@ public final class CpuOpenBlasCoordinator implements AutoCloseable {
     private int activeCalls;
     private Integer originalCount;
     private Integer installedCount;
+    private CpuOpenBlasQualification.TargetFingerprint qualifiedTarget;
 
     /**
      * Creates the sole owner of one transferred provider resource.
@@ -37,9 +39,24 @@ public final class CpuOpenBlasCoordinator implements AutoCloseable {
      */
     CpuOpenBlasCoordinator(CpuOpenBlasInvocation invocation,
             CpuOpenBlasDiscoverySession.CloseAction closeAction, CpuConcurrencyBudget budget) {
+        this(invocation, closeAction, budget, new CpuOpenBlasQualification.SessionKey());
+    }
+
+    /**
+     * Creates the sole owner while preserving the exact opaque discovery-load association.
+     * @param invocation non-null invocation retained by the transferred owner
+     * @param closeAction non-null action that closes that exact owner
+     * @param budget non-null borrowed shared CPU budget
+     * @param sessionKey non-null opaque key created by the transferred discovery resource
+     * @throws NullPointerException if any argument is {@code null}
+     */
+    CpuOpenBlasCoordinator(CpuOpenBlasInvocation invocation,
+            CpuOpenBlasDiscoverySession.CloseAction closeAction, CpuConcurrencyBudget budget,
+            CpuOpenBlasQualification.SessionKey sessionKey) {
         this.invocation = Objects.requireNonNull(invocation, "invocation");
         this.closeAction = Objects.requireNonNull(closeAction, "closeAction");
         this.budget = Objects.requireNonNull(budget, "budget");
+        this.sessionKey = Objects.requireNonNull(sessionKey, "sessionKey");
     }
 
     /**
@@ -61,6 +78,88 @@ public final class CpuOpenBlasCoordinator implements AutoCloseable {
      * @return the retained non-null invocation
      */
     CpuOpenBlasInvocation invocation() { return invocation; }
+
+    /**
+     * Rejects qualification evidence issued for any other provider load or target before callers
+     * mutate provider state or construct a prepared recipe.
+     *
+     * @param qualification non-null qualification to associate with this live owner
+     * @throws NullPointerException if {@code qualification} is {@code null}
+     * @throws IllegalArgumentException if the qualification belongs to another load
+     * @throws IllegalStateException if this coordinator is not open
+     */
+    public void validateQualification(CpuOpenBlasQualification qualification) {
+        Objects.requireNonNull(qualification, "qualification");
+        lock.lock();
+        try {
+            if (state != State.OPEN_UNCONFIGURED && state != State.OPEN_CONFIGURED) {
+                throw new IllegalStateException("OpenBLAS coordinator is not open");
+            }
+            if (!qualification.belongsTo(sessionKey)) throw new IllegalArgumentException(
+                    "OpenBLAS qualification belongs to another provider session");
+            if (!qualification.targetFingerprint().equals(qualifiedTarget)) {
+                throw new IllegalArgumentException(
+                        "OpenBLAS qualification target disagrees with live session");
+            }
+        } finally { lock.unlock(); }
+    }
+
+    /** Returns the opaque identity used only by the qualification issuer.
+     * @return exact non-null per-load session key */
+    CpuOpenBlasQualification.SessionKey sessionKey() { return sessionKey; }
+
+    /**
+     * Exclusively installs and verifies count one, then runs one cold qualification callback
+     * while calls and configuration writers remain excluded. The provider and callback are never
+     * invoked while the Java lock is held.
+     *
+     * @param target non-null cold target snapshot being qualified
+     * @param action non-null bounded provider qualification callback
+     * @throws NullPointerException if {@code target} or {@code action} is {@code null}
+     * @throws IllegalStateException if provider or lifecycle state is unusable
+     * @throws CpuConcurrencyBudget.CpuCoordinationException if interrupted while acquiring the
+     *     permit or writer boundary; interrupt status is restored
+     * @throws RuntimeException if the callback fails
+     * @throws Error if the callback fails with an error
+     */
+    void qualify(CpuOpenBlasQualification.TargetFingerprint target, Runnable action) {
+        Objects.requireNonNull(target, "target");
+        Objects.requireNonNull(action, "action");
+        try (var ignored = budget.acquire(1)) {
+            beginWriter();
+            boolean restored = false;
+            try {
+                if (!invocation.isOpen()) throw new IllegalStateException(
+                        "OpenBLAS provider is closed");
+                Integer retainedOriginal = retainedOriginalCount();
+                int prior = retainedOriginal == null ? invocation.threadCount() : retainedOriginal;
+                if (prior <= 0) throw new IllegalStateException(
+                        "OpenBLAS original thread count is invalid");
+                if (retainedOriginal == null) retainOriginalCount(prior);
+                invocation.setThreadCount(1);
+                if (invocation.threadCount() != 1) throw new IllegalStateException(
+                        "OpenBLAS qualification thread count did not verify");
+                action.run();
+                retainQualifiedTarget(target);
+                finishWriter(State.OPEN_CONFIGURED, 1);
+                return;
+            } catch (RuntimeException | Error failure) {
+                try {
+                    Integer restoreCount = retainedOriginalCount();
+                    if (restoreCount != null && invocation.isOpen()) {
+                        invocation.setThreadCount(restoreCount);
+                        restored = invocation.threadCount() == restoreCount;
+                        if (!restored) throw new IllegalStateException(
+                                "OpenBLAS original thread count did not verify");
+                    } else restored = restoreCount == null;
+                } catch (RuntimeException | Error restoreFailure) {
+                    failure.addSuppressed(restoreFailure);
+                }
+                finishWriter(restored ? State.OPEN_UNCONFIGURED : State.FAILED, null);
+                throw failure;
+            }
+        }
+    }
     /**
      * Reports whether the coordinator remains in an open configured or unconfigured state.
      *
@@ -271,6 +370,12 @@ public final class CpuOpenBlasCoordinator implements AutoCloseable {
         try {
             if (originalCount == null) originalCount = count;
         } finally { lock.unlock(); }
+    }
+
+    private void retainQualifiedTarget(CpuOpenBlasQualification.TargetFingerprint target) {
+        lock.lock();
+        try { qualifiedTarget = target; }
+        finally { lock.unlock(); }
     }
 
     private void awaitNoWriter() {

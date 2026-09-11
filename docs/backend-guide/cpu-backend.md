@@ -190,10 +190,12 @@ CPU also has an internal cold discovery foundation for composition code. It acce
 automatic, exact-name, or exact-absolute-path intent and returns immutable attempt metadata plus a
 separate closeable session when loading succeeds. This is unsupported package-private machinery,
 not a public configuration or Engine integration point. Loading proves only that the provider's
-required symbols bound; it does not qualify, select, cache, or publish the OpenBLAS route. A loaded
-session may transfer its invocation and close action exactly once to the internal coordinator.
-After transfer, the session retains only immutable metadata and the coordinator becomes the sole
-restoration and close owner.
+required symbols bound; it does not qualify, select, cache, or publish the OpenBLAS route. Each
+loaded resource also owns one opaque per-load session key. A loaded session may transfer its
+invocation, close action, and unchanged key exactly once to the internal coordinator. After
+transfer, the session retains only immutable metadata and the coordinator becomes the sole
+restoration and close owner. A separate cold qualifier can then issue one immutable credential
+only after target, binary when available, thread-control, and bounded numerical checks pass.
 
 ## Prerequisites and terms
 
@@ -214,6 +216,10 @@ deployment JVM permission for restricted native access.
   to coordinate.
 - An [OpenBLAS coordinator](../glossary.md#openblas-coordinator--cpuopenblascoordinator) is the
   CPU-private owner that combines one transferred provider lifetime with that exact budget.
+- An [OpenBLAS qualification](../glossary.md#openblas-qualification) is immutable bounded
+  compatibility evidence tied to the exact coordinator session that produced it.
+- An [OpenBLAS binary identity](../glossary.md#openblas-binary-identity) is the versioned target,
+  executable-header, length, and SHA-256 input available only for a qualified absolute-path load.
 
 ## Ownership mental model and scope
 
@@ -2695,14 +2701,16 @@ facts determine the single required mask, so CPU never adds a speculative copy t
 candidate. Analysis performs no native query, benchmark, cache lookup, machine probe, allocation,
 assumed thread scaling, or fixed vendor-priority choice.
 
-The implemented coordinated path has an explicit internal composition boundary:
+The implemented qualified path has an explicit internal composition boundary:
 
 ```text
 loaded discovery session
   -> one-time ownership transfer to CpuOpenBlasCoordinator
   -> shared CpuConcurrencyBudget identity and capacity
+  -> cold target/binary/thread/numerical qualification on that exact coordinator
+  -> immutable session-bound CpuOpenBlasQualification
   -> CPU analysis selects a fixed thread count and identical permit demand
-  -> CPU finalization verifies capacity and installs the count while calls are quiescent
+  -> CPU finalization verifies session, target, and capacity, then installs the count
   -> execution admits copy-in + GEMM + copy-out once, then releases in finally
   -> coordinator close restores and verifies the original count before provider close
 ```
@@ -2730,9 +2738,36 @@ admission, waits uninterruptibly for active calls and a writer, restores and ver
 count through the still-open owner, closes that owner, and restores the closer's interrupt status.
 Restoration remains primary if provider close also fails.
 
-CPU finalization verifies that the live budget is the exact object borrowed by the worker group and
-coordinator and that its capacity equals the analysis snapshot. It installs only the already
-selected count before constructing the native recipe. Cold binding acquires no permit and performs
+Qualification runs before deterministic CPU analysis and uses the same coordinator writer
+boundary. It excludes admitted calls and other writers, captures the original positive count,
+installs and verifies count one, and runs the bounded checks without holding the Java lock across
+provider work. Qualification exercises the exact four bound symbols: the count setter/getter plus
+one finite and four result-class cases for each of SGEMM and DGEMM. The finite case is a mixed-sign
+`A[2,3] x B[3,2] -> C[2,2]` product with a sentinel-filled output; the other cases require NaN,
+the sole positive or negative infinity, and exact positive zero. A failed check restores the
+captured count immediately when possible and issues no credential.
+
+The target snapshot accepts only macOS, Linux, or Windows on AArch64 or x86-64 with a 64-bit
+address width and little-endian native order. For an absolute-path selection, inspection resolves
+the real regular file, streams at most 1 GiB of complete bytes through SHA-256, parses the matching
+thin Mach-O64, ELF64, or PE32+ machine header, and rejects ordinary size, modification-time, or
+available-file-key change across the read. The persistent identity excludes the path and file
+attributes, so identical trusted bytes can move without changing identity. For a name selection,
+the JDK exposes no resolved file, so qualification performs no path guess and remains
+`SESSION_ONLY` with no persistent identity.
+
+These checks are compatibility evidence, not authentication. The caller must supply a trusted,
+quiescent installed-library path and exclude adversarial replacement. SHA-256 and ordinary file-
+stability checks do not cryptographically associate the pathname read with already mapped pages.
+The result also does not certify arbitrary application binary interfaces (ABIs), matrix shapes,
+numerical orders, builds, processors, thread counts, determinism, or performance.
+
+CPU finalization first verifies that the retained credential belongs to the exact live coordinator
+and matches the target qualified by that coordinator. Foreign-session rejection therefore occurs
+before provider mutation or recipe construction. It then verifies that the live budget is the
+exact object borrowed by the worker group and coordinator and that its capacity equals the
+analysis snapshot. It installs only the already selected count before constructing the native
+recipe. Cold binding acquires no permit and performs
 no provider thread query or setter; it validates coordinator availability, types, native segments,
 accessibility, alignment, complete spans, output writability, generated-copy identity, and every
 buffer-workspace and workspace-workspace overlap before any copy or provider mutation. Execution
@@ -2743,22 +2778,20 @@ The invocation copies `A` then `B` when selected, makes exactly one `sgemm` or `
 cannot reach logical `C` when copy-out is selected, but copy-out is not transactional. Every
 permit is released on normal return, interruption, unchecked failure, or `Error`.
 
-The prior uncoordinated count-one path remains as a compatibility boundary. Composition must keep
-its borrowed provider open and externally exclude all OpenBLAS calls and thread writers;
-finalization and cold binding observe count one, and the prepared call does not acquire the shared
-budget. In either mode, prepared recipes are reusable while each `RunState` receives distinct
-physical workspaces. Closure, installed-count mismatch, interruption, binding failure, copy
+Qualified route finalization now requires the exact coordinator; a borrowed invocation alone
+cannot authorize it. Prepared recipes are reusable while each `RunState` receives distinct
+physical workspaces. Closure, session or target mismatch, installed-count mismatch, interruption,
+binding failure, copy
 failure, or provider failure propagates; no selected native plan retries or falls back to portable
 execution.
 
-The current package-private discovery session can supply that owned lifetime before preparation,
-but a `LOADED` discovery result does not supply qualification, expected-storage, candidates,
+The current package-private discovery session supplies that owned lifetime before preparation,
+but a `LOADED` discovery result alone does not supply qualification, expected-storage, candidates,
 capacity, or cost facts. Disabled or exhausted discovery supplies no invocation and leaves
 portable composition available. A failed exact-name or exact-path request is exclusive: it does
-not continue with automatic candidates. This task supplies only the internal coordination
-primitives and explicit candidate evaluation. It does not automatically qualify an installed
-binary, measure candidates, autotune a model, or mutate a tuning cache. Public Config intent,
-Engine lifecycle integration, automatic qualification, and autotuning remain future work.
+not continue with automatic candidates. Qualification is explicitly invoked and remains internal;
+CPU does not measure candidates, autotune a model, or mutate a tuning cache. Public Config intent,
+Engine lifecycle integration, automatic composition, and autotuning remain future work.
 
 The explicit CPU checkpoint evaluates FLOAT32 and FLOAT64 direct, left-transpose, right-gapped-
 affine, both-input-copy, output-copy, and both-input-plus-output-copy prepared routes
@@ -3269,10 +3302,11 @@ background refresh.
 
 Each failed attempt retains only its position, exact typed selection, failure type name, and
 optional message. The immutable result retains no exception or native resource. On the first
-successful complete provider load, a separate session owns the provider lifetime and exposes a
-borrowed CPU invocation. Composition may either close that session after quiescing every borrower,
-or atomically transfer its invocation and close action once to the CPU-private OpenBLAS
-coordinator. After transfer, session close cannot affect the resource; the coordinator is the sole
+successful complete provider load, a separate session owns the provider lifetime, exposes a
+borrowed CPU invocation, and creates one opaque per-load association key. Composition may either
+close that session after quiescing every borrower, or atomically transfer its invocation, close
+action, and key once to the CPU-private OpenBLAS coordinator. After transfer, session close cannot
+affect the resource; the coordinator is the sole
 restoration and close owner. A session that retains ownership closes idempotently without querying,
 changing, or restoring the OpenBLAS thread count.
 
@@ -3283,7 +3317,8 @@ LOADED discovery result
   = exact selection loaded and four required symbols bound
 
 qualified selected OpenBLAS route
-  = separate ABI/numerical, storage, thread, and whole-plan-cost facts all permit selection
+  = session-bound target/ABI/numerical credential plus storage, thread, and whole-plan-cost facts
+    all permit selection
 ```
 
 Automatic exhaustion and failed exact override produce an unavailable result instead of enabling
@@ -3431,7 +3466,9 @@ invocation completed without a reported failure. It does not establish particula
 | Opening reports missing required symbols | The selected binary is incompatible or incomplete for the four-symbol contract. | Supply a compatible OpenBLAS C library; do not treat a partial binding as available. |
 | A caller expects scalar fallback after `OpenBlasLoadException` | Fallback policy was placed mentally in the leaf provider. | Qualify availability before CPU analysis or handle loading in composition; the provider only reports loading failure. |
 | A caller passes batched, transposed, strided, offset, or tensor-shaped data directly to `sgemm`/`dgemm` | The low-level call was mistaken for CPU normalization. | Use the bounded current CPU route only for its exact eligible form; broader normalization remains future work. |
-| A selected CPU route silently falls back after provider closure or thread drift | Analysis-time ineligibility was confused with post-selection failure. | In coordinated mode, keep the coordinator open and its selected count installed; in compatibility mode, keep the provider open and externally at count one. A selected native plan fails without reselection. |
+| A selected CPU route silently falls back after provider closure or thread drift | Analysis-time ineligibility was confused with post-selection failure. | Keep the exact qualified coordinator open and its selected count installed. A selected native plan fails without reselection. |
+| A loaded library is treated as qualified | Required-symbol binding was confused with bounded compatibility evidence. | Transfer the loaded resource to its coordinator and run the cold qualifier; loading alone never creates a route credential. |
+| A SHA-256 digest is treated as proof of trusted code | Content compatibility was confused with authentication. | Supply a trusted, quiescent installation and treat the digest plus header/target facts only as invalidatable compatibility input. |
 | A caller expects the provider to allocate or return `C` | The borrowed in-place ABI boundary was mistaken for a storage API. | Supply a writable, sufficiently large native `C` segment and retain its ownership. |
 | Two Java handles appear to have independent thread counts | Both may refer to the same loaded binary and mutable library/process state. | Conservatively coordinate their thread mutations together; do not infer sharing across independent copies or namespaces. |
 | A temporary thread setting remains after the Java owner closes | The provider owns only local lookup lifetime and does not retain or restore a prior value. | Capture a positive count, exclude competing native work, and restore explicitly through a still-open owner. |
@@ -3474,6 +3511,15 @@ exercised FLOAT32 and FLOAT64 across all eight representation masks. Cleanup res
 the captured original count 16 before provider close. This is bounded coordination and numerical
 evidence for that binary and process, not automatic qualification, a benchmark, autotuning input,
 or a public composition workflow.
+
+CPU 0010D then ran the exact-path checkpoint against the same 0.3.34 Cellar binary. The cold target
+was macOS/AArch64/64-bit/little-endian; inspection reported thin Mach-O64, 16,085,376 bytes, and
+SHA-256 `aeb5f40d3b5cc0fca84e05e90b8e7da6921cea2c33ca701062b0ccd7b4caf117` with
+`PERSISTENT_BINARY` scope. Qualification exercised both precisions and every bounded finite and
+exceptional case, route construction consumed the issued credential, and coordinator cleanup
+restored count 16. This verifies the exact supplied file, target, process, provider contract, and
+bounded cases. It is not code-signing evidence, a broad ABI/numerical certificate, or a
+performance result.
 
 The current CPU foundation provides the bounded fully static pointwise matrix, static
 resolved-layout affine family, and one-node static movement, indexing, functional-scatter,

@@ -2,7 +2,7 @@
 
 ## Status
 
-Draft
+Complete
 
 ## Goal
 
@@ -677,12 +677,104 @@ Complete until that pass and every required gate succeed. Keep 0010E master-plan
 
 ## Validation evidence
 
-Not yet executed. This planning task creates no Java or test change and runs no Gradle validation.
+- Implementation context `01a0906a-6f0a-7890-9f94-09b4b70bd3f9` ran
+  `./gradlew :backends:cpu:test :testing:backend-conformance:test`: passed. The CPU XML reports
+  982 tests, 28 conditional skips, zero failures, and zero errors; backend conformance reports
+  9 tests with no skips, failures, or errors. Executable production and test behavior did not
+  change afterward, so documentation context `01a09081-2fcc-7593-950e-afac039d7e8a` reused this
+  evidence without repeating the Java suites.
+- The implementation context compiled and ran the specified native checkpoint against exact path
+  `/opt/homebrew/Cellar/openblas/0.3.34/lib/libopenblasp-r0.3.34.dylib`. It passed with target
+  macOS/AARCH64/64-bit/little-endian, thin Mach-O64, 16,085,376 bytes, SHA-256
+  `aeb5f40d3b5cc0fca84e05e90b8e7da6921cea2c33ca701062b0ccd7b4caf117`,
+  `PERSISTENT_BINARY` scope, both floating precisions and bounded result classes, credential-based
+  route construction, same-session association, and restoration of original count 16.
+- The implementation context passed `git diff --check`, exact 19-path executable scope, source
+  inventory, public/internal surface checks, and `javap` checks. Those checks found no optional
+  provider symbol, alternate loader, supported public CPU API, mutable static registry, process,
+  file-write, cache, Runtime qualification, late fallback, or generated-code/schema change.
+- Documentation context `01a09081-2fcc-7593-950e-afac039d7e8a` applied the General,
+  API/Javadoc, Backend Guide, Planning, and Example profiles. It independently inspected all
+  changed production/test source and focused assertions, then finalized affected Javadocs, the
+  package description, CPU guide, glossary, and three planning records without changing
+  executable behavior.
+- The documentation context ran `./gradlew :backends:cpu:javadoc`: passed with the two expected
+  incubating-module warnings and 92 pre-existing missing-`@param` warnings in unchanged
+  `CpuPartitionLowering.LoweredPartition` and `CpuPartitionPreparationPlan` records. It inspected
+  the rendered qualification, coordinator, route plan, selector, analysis-input, finalizer, and
+  package pages for session ownership, target/binary identity, failures, nullability, finalization
+  ordering, and non-authentication boundaries.
+- The documentation context's Markdown validator passed for the CPU guide, glossary, this task,
+  CPU master plan, and roadmap, covering local files/anchors, unique headings, balanced fences,
+  terminology, LF/final newlines, and trailing whitespace. Final source/inventory, public-surface,
+  exact 24-path, 0010D-Complete/0010E-master-plan-only-Draft ordering, no-detailed-0010E, status,
+  and `git diff --check` checks passed.
+- No-change conclusions: provider source, API, tests, and documentation remain accurate because
+  CPU consumes the unchanged exact four-symbol leaf; public Config, Engine, Tensor, Compile, and
+  Training APIs expose no qualification or route activation; architecture, ADRs, and architecture
+  tests need no update because ownership, lifecycle boundaries, dependencies, and supported public
+  contracts are unchanged; shared Prepare and Runtime gain no type or behavior; generated code,
+  schema, Java oracle, and performance evidence are unaffected; Gradle and dependency declarations
+  are unchanged; integration tests are not required because no public end-to-end composition
+  changed; Config 0006A, Prepare 0004, CPU 0010E, and Tuning 0001 remain separate Draft work; and
+  other backends/modules, native packaging, benchmarks, and environment configuration are outside
+  this CPU-private change.
 
 ## Implementation notes
 
-Empty until implemented.
+- Added a technically public but unsupported-internal immutable qualification carrier so
+  `internal.prepare` can consume it while keeping construction package-private. The credential
+  snapshots schema-one target, exact four-symbol order, ordinary C-int ABI, numerical-case
+  version, optional binary identity, and one identity-only per-load key; only its persistent
+  projection excludes that live key.
+- Added field-free qualification and a bounded inspector. Absolute-path inspection resolves one
+  real regular file, streams complete bytes through SHA-256 under the 1-GiB ceiling, retains only
+  a bounded header prefix, accepts the closed thin-Mach-O64/ELF64/PE32+ and AArch64/x86-64 matrix,
+  and checks ordinary before/after stability facts. Name selections perform no path inference and
+  produce session-only credentials.
+- Extended discovery transfer and the 0010C coordinator with one fresh per-load key and an
+  exclusive count-one qualification callback. Success retains the qualified target; failure
+  attempts immediate restore and leaves no credential. Provider calls remain outside the Java
+  lock, and the original count remains coordinator-owned through close.
+- Replaced manually asserted route availability with an optional successful qualification. The
+  selected plan retains that exact credential, and finalization now requires and validates its
+  exact coordinator session and target before installing a selected count or realizing a recipe.
+  The former borrowed-invocation compatibility constructor cannot authorize qualified native
+  finalization.
+- Added provider-free deterministic header, target, identity, numerical, failure, concurrency,
+  route, finalization, conformance, and inventory coverage, and extended the opt-in checkpoint with
+  exact target/binary output and qualification-based route construction.
+- Qualification remains bounded compatibility evidence. It does not authenticate the binary,
+  safely probe arbitrary untrusted ABI mismatches, certify all OpenBLAS shapes or numerical modes,
+  or establish determinism or performance.
 
 ## Completion summary
 
-Empty until implemented.
+- Completed changes: implemented immutable session-bound OpenBLAS qualification, supported-target
+  and binary fingerprinting, coordinator-exclusive cold checks, credential-based analysis and
+  finalization, deterministic tests/conformance, native checkpoint evidence, and final affected
+  documentation.
+- Files changed or created: exactly the 24 authorized paths—ten CPU production paths, eight CPU
+  tests/checkpoint paths, one backend-conformance test, and the five documentation/planning paths.
+- Tests and validation: reused the implementation context's passing 982-test CPU and 9-test
+  conformance run, passing exact native checkpoint, source/inventory/`javap`/scope/whitespace
+  checks; the documentation context passed CPU Javadoc, rendered-page inspection, Markdown,
+  terminology, exact-scope/status/frontier, and final whitespace checks.
+- Documentation-agent review: clean documentation context
+  `01a09081-2fcc-7593-950e-afac039d7e8a` independently reviewed implementation and tests,
+  finalized all affected Javadocs/package prose and explanatory/planning documentation, and made
+  no executable Java or test change.
+- Documentation impact: the CPU guide now explains the load-to-qualification lifecycle, supported
+  target/header matrix, session-only versus persistent scope, finalization ordering, native
+  evidence, and explicit security/numerical/performance limits.
+- Javadoc review: affected constructors, accessors, qualification values, coordinator lifecycle,
+  route configuration/plan, selector, finalizer, and package contracts document inputs, returns,
+  failures, ownership, session binding, and bounded claims.
+- Glossary impact: added OpenBLAS qualification and binary identity and synchronized discovery and
+  coordinator ownership terms.
+- Unresolved issues: None.
+- Follow-up required: None for 0010D. CPU 0010E remains the next master-plan-only `Draft`; no
+  detailed task was created. The requested universal no-conversion BF16 provider-plus-CPU planning
+  change remains separate and is not created or planned here.
+
+Status: Complete

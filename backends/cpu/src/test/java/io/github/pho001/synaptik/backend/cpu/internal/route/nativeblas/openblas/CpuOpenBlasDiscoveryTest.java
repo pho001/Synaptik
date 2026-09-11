@@ -404,6 +404,12 @@ final class CpuOpenBlasDiscoveryTest {
                 () -> assertFalse(Modifier.isPublic(CpuOpenBlasDiscovery.class.getModifiers())),
                 () -> assertFalse(Modifier.isPublic(
                         CpuOpenBlasDiscoverySession.class.getModifiers())),
+                () -> assertTrue(Modifier.isPublic(
+                        CpuOpenBlasQualification.class.getModifiers())),
+                () -> assertFalse(Modifier.isPublic(
+                        CpuOpenBlasQualifier.class.getModifiers())),
+                () -> assertFalse(Modifier.isPublic(
+                        CpuOpenBlasBinaryInspector.class.getModifiers())),
                 () -> assertTrue(CpuOpenBlasDiscoveryRequest.class.isRecord()),
                 () -> assertTrue(CpuOpenBlasDiscoveryResult.class.isRecord()),
                 () -> assertEquals(0, CpuOpenBlasDiscovery.class.getDeclaredFields().length),

@@ -109,24 +109,19 @@ public record CpuPartitionAnalysisInputs(boolean loweringManifestEnabled,
      * Missing cost or threshold components are representable so analysis can fail closed without
      * guessing. The snapshot owns no provider, native handle, segment, slot, or measured result.
      *
-     * @param availability explicit unavailable or CPU-checkpoint-qualified provider fact
+     * @param qualification successful session-bound qualification; empty disables the route
      * @param threadCandidates immutable bounded positive provider-thread candidates
      * @param portableCosts complete or incomplete portable whole-plan cost terms
      * @param representationCosts complete or incomplete per-run representation cost terms
      * @param minimumNetBenefitCostUnits optional non-negative absolute benefit threshold
      * @param minimumBenefitBasisPoints optional relative threshold in {@code [0, 10_000]}
      */
-    public record OpenBlasRouteConfig(Availability availability,
+    public record OpenBlasRouteConfig(
+            Optional<io.github.pho001.synaptik.backend.cpu.internal.route.nativeblas.openblas.CpuOpenBlasQualification> qualification,
             List<ThreadCandidate> threadCandidates, CostTerms portableCosts,
             RepresentationCostTerms representationCosts,
             OptionalLong minimumNetBenefitCostUnits,
             OptionalInt minimumBenefitBasisPoints) {
-        /** Explicit provider qualification state. */
-        public enum Availability {
-            /** No compatible provider is qualified for CPU route use. */ UNAVAILABLE,
-            /** The exact provider binary passed the bounded CPU-native checkpoint. */ QUALIFIED
-        }
-
         /**
          * One immutable positive provider-thread candidate. Incomplete cost terms are retained so
          * route analysis can reject the containing configuration without guessing.
@@ -151,12 +146,13 @@ public record CpuPartitionAnalysisInputs(boolean loweringManifestEnabled,
 
         /** Fail-closed route input used by every compatibility constructor. */
         public static final OpenBlasRouteConfig DISABLED = new OpenBlasRouteConfig(
-                Availability.UNAVAILABLE, List.of(), CostTerms.MISSING,
+                Optional.empty(), List.of(), CostTerms.MISSING,
                 RepresentationCostTerms.MISSING, OptionalLong.empty(), OptionalInt.empty());
 
         /**
          * Creates one complete qualified single-thread route snapshot.
          *
+         * @param qualification successful credential for the exact live provider session
          * @param portableFixed non-negative portable fixed cost per run
          * @param portablePerOutput non-negative portable cost per output element
          * @param portablePerMac non-negative portable cost per multiply-accumulate
@@ -166,14 +162,18 @@ public record CpuPartitionAnalysisInputs(boolean loweringManifestEnabled,
          * @param absoluteThreshold non-negative minimum absolute benefit
          * @param relativeBasisPoints relative benefit threshold in {@code [0, 10_000]}
          * @return a complete immutable qualified configuration; never {@code null}
+         * @throws NullPointerException if {@code qualification} is {@code null}
          * @throws IllegalArgumentException if a cost or threshold is negative or the relative
          *     threshold is greater than 10,000 basis points
          */
-        public static OpenBlasRouteConfig qualifiedSingleThread(long portableFixed,
+        public static OpenBlasRouteConfig qualifiedSingleThread(
+                io.github.pho001.synaptik.backend.cpu.internal.route.nativeblas.openblas.CpuOpenBlasQualification qualification,
+                long portableFixed,
                 long portablePerOutput, long portablePerMac, long openBlasFixed,
                 long openBlasPerOutput, long openBlasPerMac, long absoluteThreshold,
                 int relativeBasisPoints) {
-            return new OpenBlasRouteConfig(Availability.QUALIFIED,
+            return new OpenBlasRouteConfig(Optional.of(java.util.Objects.requireNonNull(
+                            qualification, "qualification")),
                     List.of(new ThreadCandidate(1,
                             CostTerms.complete(openBlasFixed, openBlasPerOutput, openBlasPerMac))),
                     CostTerms.complete(portableFixed, portablePerOutput, portablePerMac),
@@ -185,20 +185,24 @@ public record CpuPartitionAnalysisInputs(boolean loweringManifestEnabled,
          * Creates one complete qualified single-thread route snapshot including representation
          * transition costs.
          *
+         * @param qualification successful credential for the exact live provider session
          * @param portableCosts complete portable GEMM cost terms
          * @param openBlasCosts complete native GEMM/provider cost terms
          * @param representationCosts complete workspace and copy cost terms
          * @param absoluteThreshold non-negative minimum absolute benefit
          * @param relativeBasisPoints relative benefit threshold in {@code [0, 10_000]}
          * @return a complete immutable qualified configuration; never {@code null}
-         * @throws NullPointerException if a cost-term set is {@code null}
+         * @throws NullPointerException if the qualification or a cost-term set is {@code null}
          * @throws IllegalArgumentException if a cost term or threshold is negative or the
          *     relative threshold is greater than 10,000 basis points
          */
-        public static OpenBlasRouteConfig qualifiedSingleThread(CostTerms portableCosts,
+        public static OpenBlasRouteConfig qualifiedSingleThread(
+                io.github.pho001.synaptik.backend.cpu.internal.route.nativeblas.openblas.CpuOpenBlasQualification qualification,
+                CostTerms portableCosts,
                 CostTerms openBlasCosts, RepresentationCostTerms representationCosts,
                 long absoluteThreshold, int relativeBasisPoints) {
-            return new OpenBlasRouteConfig(Availability.QUALIFIED,
+            return new OpenBlasRouteConfig(Optional.of(java.util.Objects.requireNonNull(
+                            qualification, "qualification")),
                     List.of(new ThreadCandidate(1, openBlasCosts)), portableCosts,
                     representationCosts, OptionalLong.of(absoluteThreshold),
                     OptionalInt.of(relativeBasisPoints));
@@ -207,7 +211,7 @@ public record CpuPartitionAnalysisInputs(boolean loweringManifestEnabled,
         /**
          * Validates one immutable qualification snapshot without making it complete.
          *
-         * @param availability non-null provider qualification state
+         * @param qualification non-null optional successful qualification
          * @param threadCandidates non-null ordered candidates, copied defensively; at most 32,
          *     with unique positive counts
          * @param portableCosts non-null complete or incomplete portable cost terms
@@ -220,7 +224,7 @@ public record CpuPartitionAnalysisInputs(boolean loweringManifestEnabled,
          *     greater than 10,000 basis points
          */
         public OpenBlasRouteConfig {
-            java.util.Objects.requireNonNull(availability, "availability");
+            qualification = java.util.Objects.requireNonNull(qualification, "qualification");
             threadCandidates = List.copyOf(threadCandidates);
             if (threadCandidates.size() > 32) throw new IllegalArgumentException(
                     "OpenBLAS thread-candidate count exceeds 32");
@@ -247,7 +251,7 @@ public record CpuPartitionAnalysisInputs(boolean loweringManifestEnabled,
         /** Reports whether every qualification and cost component is present.
          * @return whether selection may evaluate the complete snapshot */
         public boolean complete() {
-            return availability == Availability.QUALIFIED
+            return qualification.isPresent()
                     && !threadCandidates.isEmpty() && portableCosts.complete()
                     && threadCandidates.stream().allMatch(value -> value.openBlasCosts().complete())
                     && representationCosts.complete()

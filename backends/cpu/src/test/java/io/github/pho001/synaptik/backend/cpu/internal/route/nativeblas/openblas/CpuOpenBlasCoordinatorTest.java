@@ -134,6 +134,40 @@ class CpuOpenBlasCoordinatorTest {
         assertFalse(broken.open.get());
     }
 
+    @Test void qualificationIsExclusiveAndRestoresAfterCallbackFailure() throws Exception {
+        var fake = new FakeInvocation(3);
+        var coordinator = new CpuOpenBlasCoordinator(fake, () -> fake.open.set(false),
+                new CpuConcurrencyBudget(2));
+        coordinator.configure(1);
+        var entered = new CountDownLatch(1);
+        var release = new CountDownLatch(1);
+        Thread call = Thread.ofPlatform().start(() -> coordinator.execute(1, 1, () -> {
+            entered.countDown();
+            try { release.await(); } catch (InterruptedException failure) {
+                throw new AssertionError(failure);
+            }
+        }));
+        assertTrue(entered.await(5, TimeUnit.SECONDS));
+        var qualified = new CountDownLatch(1);
+        var target = CpuOpenBlasQualifier.target("Linux", "x86_64", 64,
+                java.nio.ByteOrder.LITTLE_ENDIAN);
+        Thread writer = Thread.ofPlatform().start(() -> {
+            coordinator.qualify(target, qualified::countDown);
+        });
+        assertFalse(qualified.await(100, TimeUnit.MILLISECONDS));
+        release.countDown();
+        call.join(5_000); writer.join(5_000);
+        assertTrue(qualified.await(5, TimeUnit.SECONDS));
+        IllegalArgumentException failure = assertThrows(IllegalArgumentException.class,
+                () -> coordinator.qualify(target, () -> {
+                    throw new IllegalArgumentException("qualification failed");
+                }));
+        assertEquals("qualification failed", failure.getMessage());
+        assertAll(() -> assertEquals(3, fake.threads.get()),
+                () -> assertTrue(coordinator.isOpen()));
+        coordinator.close();
+    }
+
     @Test void discoveryTransfersOwnershipExactlyOnceAndRetainsMetadata() {
         var fake = new FakeInvocation(2);
         var selection = new CpuOpenBlasDiscoveryResult.LibraryName("fake");

@@ -41,6 +41,7 @@ import java.util.Optional;
  * @param openBlasCost checked total OpenBLAS and representation cost across expected runs
  * @param netBenefit exact positive {@code portableCost - openBlasCost}
  * @param benefitBasisPoints floored relative benefit in {@code [0, 10_000]}
+ * @param qualification exact successful session credential retained for live finalization
  */
 public record CpuOpenBlasRoutePlan(DataType dataType, int m, int n, int k,
         int leftBoundaryPosition, int rightBoundaryPosition, int outputBoundaryPosition,
@@ -52,7 +53,60 @@ public record CpuOpenBlasRoutePlan(DataType dataType, int m, int n, int k,
         List<PreparationResourceRequirement.Workspace> workspaceRequirements,
         long expectedRunCount, long workspaceBytes, long inputCopiedElements,
         long outputCopiedElements, long portableCost, long openBlasCost, long netBenefit,
-        int benefitBasisPoints) {
+        int benefitBasisPoints, Optional<CpuOpenBlasQualification> qualification) {
+
+    /**
+     * Compatibility constructor for direct executable tests; an unqualified plan cannot pass
+     * coordinated finalization.
+     *
+     * @param dataType exact common FLOAT32 or FLOAT64 matrix type
+     * @param m positive output row count
+     * @param n positive output column count
+     * @param k positive contraction extent
+     * @param leftBoundaryPosition stable left-input boundary position, exactly zero
+     * @param rightBoundaryPosition stable right-input boundary position, exactly one
+     * @param outputBoundaryPosition stable output boundary position, exactly two
+     * @param threadCandidate complete selected provider-thread cost candidate
+     * @param threadCount fixed positive provider thread count
+     * @param permitDemand fixed positive shared-budget demand equal to {@code threadCount}
+     * @param analysisCapacity positive analysis-time CPU capacity snapshot
+     * @param candidateOrder stable non-negative configured-candidate position
+     * @param representation exact three-boundary copy mask
+     * @param leftMaterialization optional left-input copy
+     * @param rightMaterialization optional right-input copy
+     * @param outputCopy optional route-local output copy
+     * @param workspaceRequirements ordered declarations for every selected copy
+     * @param expectedRunCount positive run count used by cost calculation
+     * @param workspaceBytes exact total selected workspace bytes
+     * @param inputCopiedElements exact total copied input elements
+     * @param outputCopiedElements exact copied output elements
+     * @param portableCost checked total portable cost
+     * @param openBlasCost checked lower OpenBLAS cost
+     * @param netBenefit exact positive portable-minus-OpenBLAS cost
+     * @param benefitBasisPoints floored relative benefit in {@code [0, 10_000]}
+     * @throws NullPointerException if a required reference or workspace entry is {@code null}
+     * @throws IllegalArgumentException if semantic, geometry, representation, resource, or cost
+     *     facts disagree
+     * @throws ArithmeticException if exact validation arithmetic overflows
+     */
+    public CpuOpenBlasRoutePlan(DataType dataType, int m, int n, int k,
+            int leftBoundaryPosition, int rightBoundaryPosition, int outputBoundaryPosition,
+            CpuPartitionAnalysisInputs.OpenBlasRouteConfig.ThreadCandidate threadCandidate,
+            int threadCount, int permitDemand, int analysisCapacity, int candidateOrder,
+            Representation representation, Optional<CpuMaterializationPlan> leftMaterialization,
+            Optional<CpuMaterializationPlan> rightMaterialization,
+            Optional<CpuOpenBlasOutputCopyPlan> outputCopy,
+            List<PreparationResourceRequirement.Workspace> workspaceRequirements,
+            long expectedRunCount, long workspaceBytes, long inputCopiedElements,
+            long outputCopiedElements, long portableCost, long openBlasCost, long netBenefit,
+            int benefitBasisPoints) {
+        this(dataType, m, n, k, leftBoundaryPosition, rightBoundaryPosition,
+                outputBoundaryPosition, threadCandidate, threadCount, permitDemand,
+                analysisCapacity, candidateOrder, representation, leftMaterialization,
+                rightMaterialization, outputCopy, workspaceRequirements, expectedRunCount,
+                workspaceBytes, inputCopiedElements, outputCopiedElements, portableCost,
+                openBlasCost, netBenefit, benefitBasisPoints, Optional.empty());
+    }
 
     /**
      * Preserves the CPU 0010 direct/one-input construction surface for focused tests.
@@ -92,7 +146,7 @@ public record CpuOpenBlasRoutePlan(DataType dataType, int m, int n, int k,
                 workspaceRequirement.map(PreparationResourceRequirement.Workspace::byteSize)
                         .orElse(0L),
                 materialization.map(CpuMaterializationPlan::elementCount).orElse(0L), 0,
-                portableCost, openBlasCost, netBenefit, benefitBasisPoints);
+                portableCost, openBlasCost, netBenefit, benefitBasisPoints, Optional.empty());
     }
 
     /** Stable closed copy-mask order for the bounded route. */
@@ -145,6 +199,7 @@ public record CpuOpenBlasRoutePlan(DataType dataType, int m, int n, int k,
         rightMaterialization = Objects.requireNonNull(rightMaterialization,
                 "rightMaterialization");
         outputCopy = Objects.requireNonNull(outputCopy, "outputCopy");
+        qualification = Objects.requireNonNull(qualification, "qualification");
         workspaceRequirements = List.copyOf(workspaceRequirements);
         if ((dataType != DataType.FLOAT32 && dataType != DataType.FLOAT64)
                 || m <= 0 || n <= 0 || k <= 0

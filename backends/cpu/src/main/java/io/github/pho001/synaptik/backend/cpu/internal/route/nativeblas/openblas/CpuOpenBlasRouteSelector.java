@@ -191,7 +191,7 @@ public final class CpuOpenBlasRouteSelector {
                     thread, thread.threadCount(), thread.threadCount(), analysisCapacity, order,
                     representation, left, right, output, requirements, runs, workspaceBytes,
                     inputElements, outputCopiedElements, portableCost, openBlasCost, benefit,
-                    basis);
+                    basis, config.qualification());
             if (selected == null || candidate.openBlasCost() < selected.openBlasCost()
                     || candidate.openBlasCost() == selected.openBlasCost()
                         && candidate.threadCount() < selected.threadCount()

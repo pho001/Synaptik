@@ -14,6 +14,7 @@ import io.github.pho001.synaptik.backend.cpu.internal.prepare.CpuPartitionPrepar
 import io.github.pho001.synaptik.backend.cpu.internal.route.nativeblas.openblas.CpuOpenBlasInvocation;
 import io.github.pho001.synaptik.backend.cpu.internal.route.nativeblas.openblas.CpuOpenBlasCoordinator;
 import io.github.pho001.synaptik.backend.cpu.internal.route.nativeblas.openblas.CpuOpenBlasRoutePlan;
+import io.github.pho001.synaptik.backend.cpu.internal.route.nativeblas.openblas.CpuOpenBlasQualification;
 import io.github.pho001.synaptik.model.datatype.DataType;
 import io.github.pho001.synaptik.model.graph.CompiledNode;
 import io.github.pho001.synaptik.model.graph.GraphValue;
@@ -55,6 +56,7 @@ import org.junit.jupiter.api.Test;
 
 /** Native-free staged-boundary conformance for the borrowed OpenBLAS CPU route. */
 final class CpuOpenBlasRouteConformanceTest {
+    private static final QualificationFixture QUALIFICATION = qualificationFixture();
     @Test void coordinatedCountTwoRunsAndRestoresThroughNativeFreeStagedBoundary()
             throws Exception {
         DataType type = DataType.FLOAT32;
@@ -77,6 +79,22 @@ final class CpuOpenBlasRouteConformanceTest {
         } finally { coordinator.close(); }
         assertAll(() -> assertEquals(3, fake.threads), () -> assertFalse(fake.open),
                 () -> assertEquals(1, fake.calls));
+    }
+
+    @Test void foreignSessionCredentialFailsBeforeProviderConfiguration() throws Exception {
+        var analysis = new CpuPartitionPreparer().analyze(
+                context(DataType.FLOAT32, false, false, false, 1));
+        var fake = new ComputingInvocation(DataType.FLOAT32);
+        fake.threads = 3;
+        var budget = new CpuConcurrencyBudget(1);
+        CpuOpenBlasCoordinator foreign = coordinator(fake, budget, qualificationFixture());
+        try {
+            assertThrows(IllegalArgumentException.class,
+                    () -> finalize(analysis, foreign, budget));
+            assertEquals(1, fake.threads,
+                    "foreign-session rejection must precede selected-count configuration");
+        } finally { foreign.close(); }
+        assertEquals(3, fake.threads);
     }
 
     @Test void preparesFinalizesBindsAndExecutesDirectFloat32AndFloat64Routes() {
@@ -230,6 +248,7 @@ final class CpuOpenBlasRouteConformanceTest {
         CpuOpenBlasInvocation invocation = new CpuOpenBlasInvocation() {
             @Override public boolean isOpen() { return true; }
             @Override public int threadCount() { return 1; }
+            @Override public void setThreadCount(int count) { assertEquals(1, count); }
             @Override public void sgemm(int m, int n, int k, float alpha, MemorySegment a,
                     MemorySegment b, float beta, MemorySegment c) { throw failure; }
             @Override public void dgemm(int m, int n, int k, double alpha, MemorySegment a,
@@ -261,6 +280,7 @@ final class CpuOpenBlasRouteConformanceTest {
         CpuOpenBlasInvocation invocation = new CpuOpenBlasInvocation() {
             @Override public boolean isOpen() { return true; }
             @Override public int threadCount() { return 1; }
+            @Override public void setThreadCount(int count) { assertEquals(1, count); }
             @Override public void sgemm(int m, int n, int k, float alpha, MemorySegment a,
                     MemorySegment b, float beta, MemorySegment c) { throw new AssertionError(); }
             @Override public synchronized void dgemm(int m, int n, int k, double alpha,
@@ -370,7 +390,7 @@ final class CpuOpenBlasRouteConformanceTest {
                 CpuPartitionAnalysisInputs.PartialReductionEvidence.NONE,
                 storage,
                 new CpuPartitionAnalysisInputs.OpenBlasRouteConfig(
-                        CpuPartitionAnalysisInputs.OpenBlasRouteConfig.Availability.QUALIFIED,
+                        Optional.of(QUALIFICATION.qualification()),
                         List.of(new CpuPartitionAnalysisInputs.OpenBlasRouteConfig.ThreadCandidate(
                                 threads, CpuPartitionAnalysisInputs.CostTerms.complete(1, 1, 1))),
                         CpuPartitionAnalysisInputs.CostTerms.complete(100, 2, 10),
@@ -406,9 +426,15 @@ final class CpuOpenBlasRouteConformanceTest {
             }
         }
         var memory = new PreparedMemoryPlan(buffers, workspaces);
-        return new CpuPartitionFinalizer(Optional.empty(), Optional.empty(),
-                Optional.of(invocation)).finalizePartition(
-                        new BackendPartitionFinalization<>(analysis, memory, assignments));
+        try {
+            var budget = new CpuConcurrencyBudget(1);
+            var coordinator = coordinator(invocation, budget);
+            return new CpuPartitionFinalizer(Optional.empty(), Optional.empty(), budget,
+                    Optional.of(coordinator)).finalizePartition(
+                            new BackendPartitionFinalization<>(analysis, memory, assignments));
+        } catch (Exception failure) {
+            throw new AssertionError(failure);
+        }
     }
 
     private static PreparedExecutable finalize(
@@ -437,20 +463,61 @@ final class CpuOpenBlasRouteConformanceTest {
                         analysis, new PreparedMemoryPlan(buffers, workspaces), assignments));
     }
 
-    private static CpuOpenBlasCoordinator coordinator(ComputingInvocation invocation,
+    private static CpuOpenBlasCoordinator coordinator(CpuOpenBlasInvocation invocation,
             CpuConcurrencyBudget budget) throws Exception {
+        return coordinator(invocation, budget, QUALIFICATION);
+    }
+
+    private static CpuOpenBlasCoordinator coordinator(CpuOpenBlasInvocation invocation,
+            CpuConcurrencyBudget budget, QualificationFixture fixture) throws Exception {
         Class<?> closeAction = Class.forName(
                 "io.github.pho001.synaptik.backend.cpu.internal.route.nativeblas.openblas."
                         + "CpuOpenBlasDiscoverySession$CloseAction");
         Object close = java.lang.reflect.Proxy.newProxyInstance(closeAction.getClassLoader(),
                 new Class<?>[] {closeAction}, (proxy, method, args) -> {
-                    invocation.open = false;
+                    if (invocation instanceof ComputingInvocation computing) {
+                        computing.open = false;
+                    }
                     return null;
                 });
+        Class<?> key = fixture.sessionKey().getClass();
         var constructor = CpuOpenBlasCoordinator.class.getDeclaredConstructor(
-                CpuOpenBlasInvocation.class, closeAction, CpuConcurrencyBudget.class);
+                CpuOpenBlasInvocation.class, closeAction, CpuConcurrencyBudget.class, key);
         constructor.setAccessible(true);
-        return constructor.newInstance(invocation, close, budget);
+        CpuOpenBlasCoordinator coordinator = constructor.newInstance(invocation, close, budget,
+                fixture.sessionKey());
+        var qualify = CpuOpenBlasCoordinator.class.getDeclaredMethod("qualify",
+                CpuOpenBlasQualification.TargetFingerprint.class, Runnable.class);
+        qualify.setAccessible(true);
+        qualify.invoke(coordinator, fixture.target(), (Runnable) () -> { });
+        return coordinator;
+    }
+
+    private record QualificationFixture(CpuOpenBlasQualification qualification,
+            Object sessionKey, CpuOpenBlasQualification.TargetFingerprint target) { }
+
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    private static QualificationFixture qualificationFixture() {
+        try {
+            Class<?> key = Class.forName(CpuOpenBlasQualification.class.getName() + "$SessionKey");
+            var keyConstructor = key.getDeclaredConstructor();
+            keyConstructor.setAccessible(true);
+            Object sessionKey = keyConstructor.newInstance();
+            var target = new CpuOpenBlasQualification.TargetFingerprint(1,
+                    CpuOpenBlasQualification.OperatingSystem.LINUX,
+                    CpuOpenBlasQualification.Machine.X86_64, 64,
+                    java.nio.ByteOrder.LITTLE_ENDIAN);
+            var constructor = CpuOpenBlasQualification.class.getDeclaredConstructor(
+                    CpuOpenBlasQualification.Scope.class,
+                    CpuOpenBlasQualification.TargetFingerprint.class, Optional.class, key);
+            constructor.setAccessible(true);
+            var qualification = constructor.newInstance(
+                    CpuOpenBlasQualification.Scope.SESSION_ONLY, target, Optional.empty(),
+                    sessionKey);
+            return new QualificationFixture(qualification, sessionKey, target);
+        } catch (ReflectiveOperationException failure) {
+            throw new ExceptionInInitializerError(failure);
+        }
     }
 
     private static RunState state(PreparedMemoryPlan plan, DataType type, MemorySegment left,

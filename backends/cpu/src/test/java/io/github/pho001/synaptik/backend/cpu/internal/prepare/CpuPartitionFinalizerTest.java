@@ -63,12 +63,12 @@ public class CpuPartitionFinalizerTest {
         var finalization = finalization(analysis);
         assertThrows(IllegalArgumentException.class,
                 () -> new CpuPartitionFinalizer().finalizePartition(finalization));
-        assertThrows(IllegalStateException.class, () -> new CpuPartitionFinalizer(Optional.empty(),
+        assertThrows(IllegalArgumentException.class, () -> new CpuPartitionFinalizer(Optional.empty(),
                 Optional.empty(), Optional.of(invocation(false, 1))).finalizePartition(finalization));
-        assertThrows(IllegalStateException.class, () -> new CpuPartitionFinalizer(Optional.empty(),
+        assertThrows(IllegalArgumentException.class, () -> new CpuPartitionFinalizer(Optional.empty(),
                 Optional.empty(), Optional.of(invocation(true, 2))).finalizePartition(finalization));
-        assertInstanceOf(CpuOpenBlasPreparedExecutable.class,
-                new CpuPartitionFinalizer(Optional.empty(), Optional.empty(),
+        assertThrows(IllegalArgumentException.class,
+                () -> new CpuPartitionFinalizer(Optional.empty(), Optional.empty(),
                         Optional.of(invocation(true, 1))).finalizePartition(finalization));
     }
 
@@ -529,11 +529,41 @@ public class CpuPartitionFinalizerTest {
                 CpuPartitionAnalysisInputs.MaterializationPolicy.DISABLED, false,
                 CpuPartitionAnalysisInputs.PartialReductionEvidence.NONE, facts,
                 CpuPartitionAnalysisInputs.OpenBlasRouteConfig.qualifiedSingleThread(
-                        100, 2, 10, 1, 1, 1, 1, 1));
+                        qualificationFixture(), 100, 2, 10, 1, 1, 1, 1, 1));
         var context = new io.github.pho001.synaptik.prepare.analysis.PrepareContext<>(
                 base.partition(), base.nodes(), base.values(), base.memoryRequirements(),
                 base.constants(), inputs);
         return new CpuPartitionPreparer().analyze(context);
+    }
+
+    private static io.github.pho001.synaptik.backend.cpu.internal.route.nativeblas.openblas
+            .CpuOpenBlasQualification qualificationFixture() {
+        try {
+            Class<?> type = Class.forName("io.github.pho001.synaptik.backend.cpu.internal.route."
+                    + "nativeblas.openblas.CpuOpenBlasQualification");
+            Class<?> scope = Class.forName(type.getName() + "$Scope");
+            Class<?> target = Class.forName(type.getName() + "$TargetFingerprint");
+            Class<?> os = Class.forName(type.getName() + "$OperatingSystem");
+            Class<?> machine = Class.forName(type.getName() + "$Machine");
+            Class<?> key = Class.forName(type.getName() + "$SessionKey");
+            var targetConstructor = target.getDeclaredConstructors()[0];
+            targetConstructor.setAccessible(true);
+            Object targetValue = targetConstructor.newInstance(1,
+                    java.lang.Enum.valueOf((Class) os, "LINUX"),
+                    java.lang.Enum.valueOf((Class) machine, "X86_64"), 64,
+                    java.nio.ByteOrder.LITTLE_ENDIAN);
+            var keyConstructor = key.getDeclaredConstructor();
+            keyConstructor.setAccessible(true);
+            Object keyValue = keyConstructor.newInstance();
+            var constructor = type.getDeclaredConstructor(scope, target, Optional.class, key);
+            constructor.setAccessible(true);
+            return (io.github.pho001.synaptik.backend.cpu.internal.route.nativeblas.openblas
+                    .CpuOpenBlasQualification) constructor.newInstance(
+                            java.lang.Enum.valueOf((Class) scope, "SESSION_ONLY"), targetValue,
+                            Optional.empty(), keyValue);
+        } catch (ReflectiveOperationException failure) {
+            throw new AssertionError(failure);
+        }
     }
 
     private static BackendPartitionFinalization<CpuPartitionPreparationPlan> finalization(

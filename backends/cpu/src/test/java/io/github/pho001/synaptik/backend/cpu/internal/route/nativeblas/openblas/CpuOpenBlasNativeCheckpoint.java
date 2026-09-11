@@ -79,17 +79,26 @@ public final class CpuOpenBlasNativeCheckpoint {
         CpuConcurrencyBudget budget = new CpuConcurrencyBudget(2);
         CpuOpenBlasCoordinator coordinator = session.transferToCoordinator(budget);
         try {
-                coordinator.configure(1);
+                CpuOpenBlasQualification qualification = CpuOpenBlasQualifier.qualify(
+                        session.result(), coordinator);
+                require(qualification.scope()
+                                == CpuOpenBlasQualification.Scope.PERSISTENT_BINARY,
+                        "absolute-path qualification was not persistent-binary scoped");
+                System.out.println("resolved OpenBLAS path: " + path.toRealPath());
+                System.out.println("target fingerprint: " + qualification.targetFingerprint());
+                System.out.println("binary identity: "
+                        + qualification.binaryIdentity().orElseThrow());
+                System.out.println("qualified scope: " + qualification.scope());
                 require(invocation.threadCount() == 1, "OpenBLAS thread count did not become one");
                 for (DataType type : List.of(DataType.FLOAT32, DataType.FLOAT64)) {
-                    checkFinite(type, coordinator, budget, 1);
-                    checkSpecial(type, coordinator, budget, 1);
+                    checkFinite(type, coordinator, budget, 1, qualification);
+                    checkSpecial(type, coordinator, budget, 1, qualification);
                 }
                 checkOverlappingCountOneCallsAndWriterExclusion(coordinator, invocation);
                 coordinator.configure(2);
                 require(invocation.threadCount() == 2, "OpenBLAS thread count did not become two");
                 for (DataType type : List.of(DataType.FLOAT32, DataType.FLOAT64)) {
-                    checkFinite(type, coordinator, budget, 2);
+                    checkFinite(type, coordinator, budget, 2, qualification);
                 }
         } finally {
             coordinator.close();
@@ -165,7 +174,8 @@ public final class CpuOpenBlasNativeCheckpoint {
     }
 
     private static void checkFinite(DataType type, CpuOpenBlasCoordinator coordinator,
-            CpuConcurrencyBudget budget, int threadCount) {
+            CpuConcurrencyBudget budget, int threadCount,
+            CpuOpenBlasQualification qualification) {
         double[] left = {1, -2, 3, 4, 5, -6};
         double[] right = {7, 8, -9, 10, 11, 12};
         boolean[][] cases = {{false, false, false}, {true, false, false},
@@ -173,23 +183,26 @@ public final class CpuOpenBlasNativeCheckpoint {
                 {true, false, true}, {false, true, true}, {true, true, true}};
         for (boolean[] copy : cases) {
             double[] actual = execute(type, 2, 2, 3, left, right,
-                    copy[0], copy[1], copy[2], coordinator, budget, threadCount);
+                    copy[0], copy[1], copy[2], coordinator, budget, threadCount, qualification);
             checkFiniteOracle(type, 2, 2, 3, left, right, actual);
         }
     }
 
     private static void checkSpecial(DataType type, CpuOpenBlasCoordinator coordinator,
-            CpuConcurrencyBudget budget, int threadCount) {
+            CpuConcurrencyBudget budget, int threadCount,
+            CpuOpenBlasQualification qualification) {
         double nan = execute(type, 1, 1, 3, new double[] {Double.NaN, 0, 0},
-                new double[] {1, 1, 1}, false, false, false, coordinator, budget, threadCount)[0];
+                new double[] {1, 1, 1}, false, false, false, coordinator, budget, threadCount,
+                qualification)[0];
         double positiveInfinity = execute(type, 1, 1, 2,
                 new double[] {Double.POSITIVE_INFINITY, 1}, new double[] {1, 1}, false, false, false,
-                coordinator, budget, threadCount)[0];
+                coordinator, budget, threadCount, qualification)[0];
         double negativeInfinity = execute(type, 1, 1, 2,
                 new double[] {Double.NEGATIVE_INFINITY, 1}, new double[] {1, 1}, false, false, false,
-                coordinator, budget, threadCount)[0];
+                coordinator, budget, threadCount, qualification)[0];
         double positiveZero = execute(type, 1, 1, 2, new double[] {0, 0},
-                new double[] {1, 2}, false, false, false, coordinator, budget, threadCount)[0];
+                new double[] {1, 2}, false, false, false, coordinator, budget, threadCount,
+                qualification)[0];
         require(Double.isNaN(nan), type + " did not preserve the one-NaN product class");
         require(positiveInfinity == Double.POSITIVE_INFINITY,
                 type + " did not preserve sole positive infinity");
@@ -201,10 +214,11 @@ public final class CpuOpenBlasNativeCheckpoint {
 
     private static double[] execute(DataType type, int m, int n, int k, double[] leftValues,
             double[] rightValues, boolean copyLeft, boolean copyRight, boolean copyOutput,
-            CpuOpenBlasCoordinator coordinator, CpuConcurrencyBudget budget, int threadCount) {
+            CpuOpenBlasCoordinator coordinator, CpuConcurrencyBudget budget, int threadCount,
+            CpuOpenBlasQualification qualification) {
         BackendPartitionAnalysis<CpuPartitionPreparationPlan> analysis =
                 new CpuPartitionPreparer().analyze(context(type, m, n, k, copyLeft, copyRight,
-                        copyOutput, threadCount));
+                        copyOutput, threadCount, qualification));
         require(analysis.plan().route() == CpuPartitionPreparationPlan.Route.OPENBLAS,
                 "analysis did not select OpenBLAS");
         require(analysis.plan().openBlasPlan().orElseThrow().representation()
@@ -251,7 +265,7 @@ public final class CpuOpenBlasNativeCheckpoint {
 
     private static PrepareContext<CpuPartitionAnalysisInputs> context(DataType type,
             int m, int n, int k, boolean copyLeft, boolean copyRight, boolean copyOutput,
-            int threadCount) {
+            int threadCount, CpuOpenBlasQualification qualification) {
         var node = new CompiledNode(new NodeId(0),
                 new Operation(MatmulKind.MATMUL, NoOperationAttrs.INSTANCE),
                 List.of(new ValueId(0), new ValueId(1)), List.of(new ValueId(2)));
@@ -300,7 +314,7 @@ public final class CpuOpenBlasNativeCheckpoint {
                         2, 2, 1), policy, false,
                 CpuPartitionAnalysisInputs.PartialReductionEvidence.NONE, storage,
                 new CpuPartitionAnalysisInputs.OpenBlasRouteConfig(
-                        CpuPartitionAnalysisInputs.OpenBlasRouteConfig.Availability.QUALIFIED,
+                        Optional.of(qualification),
                         List.of(new CpuPartitionAnalysisInputs.OpenBlasRouteConfig.ThreadCandidate(
                                 threadCount, CpuPartitionAnalysisInputs.CostTerms.complete(1, 1, 1))),
                         CpuPartitionAnalysisInputs.CostTerms.complete(1_000, 10, 100),

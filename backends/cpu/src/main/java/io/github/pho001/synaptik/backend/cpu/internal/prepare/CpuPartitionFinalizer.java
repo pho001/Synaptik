@@ -28,9 +28,10 @@ import java.util.LinkedHashMap;
  *
  * <p>Every deduplicated partition buffer assignment and every unit-local exact workspace
  * assignment is resolved and checked before the first artifact-store call. Portable finalization
- * then realizes one already-selected artifact per unit in stable order. A compatibility OpenBLAS
- * route requires an open borrowed count-one invocation. An explicitly coordinated route validates
- * the shared budget snapshot and installs its selected count before realizing any selected
+ * then realizes one already-selected artifact per unit in stable order. An OpenBLAS route requires
+ * the exact live coordinator that issued its retained qualification, validates that session and
+ * target plus the shared budget snapshot, and installs its selected count before realizing any
+ * selected
  * affine-copy artifact. Finalization cannot change unit
  * topology, dependencies, materialization, generated carrier patterns, route, strategy,
  * specialization, or declaration geometry. A multi-unit result is wrapped in one CPU-private
@@ -78,11 +79,13 @@ public final class CpuPartitionFinalizer implements BackendPartitionFinalizer<Cp
 
     /**
      * Creates a finalizer with optional persistence and explicitly borrowed execution resources.
-     * Neither the worker group nor the OpenBLAS invocation is configured, restored, or closed.
+     * Neither resource is configured, restored, or closed. A borrowed invocation alone cannot
+     * finalize a qualified OpenBLAS route; that route requires the coordinated constructor.
      *
      * @param trustedArtifactRoot non-null optional trusted local artifact root
      * @param workerGroup non-null optional caller-owned CPU worker group
-     * @param openBlasInvocation non-null optional caller-owned qualified OpenBLAS invocation
+     * @param openBlasInvocation non-null optional caller-owned OpenBLAS invocation retained only
+     *     for compatibility tests; it cannot authorize qualified route finalization
      * @throws NullPointerException if an optional reference is {@code null}
      */
     public CpuPartitionFinalizer(Optional<Path> trustedArtifactRoot,
@@ -136,8 +139,8 @@ public final class CpuPartitionFinalizer implements BackendPartitionFinalizer<Cp
      * @throws NullPointerException if {@code finalization} is {@code null}
      * @throws IllegalArgumentException if ownership, assignments, specialization, or artifact
      *     realization is incompatible with the analyzed plan
-     * @throws IllegalStateException if a compatibility OpenBLAS invocation is closed or not at
-     *     count one, or coordinated configuration, verification, or restoration fails
+     * @throws IllegalStateException if the required OpenBLAS coordinator is not open, or
+     *     coordinated configuration, verification, or restoration fails
      * @throws CpuConcurrencyBudget.CpuCoordinationException if interrupted while waiting for a
      *     coordinated configuration transition; interrupt status is restored
      */
@@ -265,20 +268,18 @@ public final class CpuPartitionFinalizer implements BackendPartitionFinalizer<Cp
         CpuOpenBlasInvocation invocation = openBlasInvocation.orElse(null);
         CpuOpenBlasCoordinator coordinator = openBlasCoordinator.orElse(null);
         if (coordinator != null) {
+            var qualification = route.qualification().orElseThrow(() ->
+                    new IllegalArgumentException(
+                            "selected OpenBLAS route has no qualification credential"));
+            coordinator.validateQualification(qualification);
             CpuConcurrencyBudget budget = concurrencyBudget.orElseThrow();
             if (coordinator.budget() != budget || coordinator.capacity() != route.analysisCapacity()
                     || budget.capacity() != route.analysisCapacity()) {
                 throw new IllegalArgumentException("OpenBLAS plan and live CPU budget disagree");
             }
             coordinator.configure(route.threadCount());
-        } else {
-            if (route.threadCount() != 1 || invocation == null) throw new IllegalArgumentException(
-                    "uncoordinated OpenBLAS finalization supports only count one");
-            if (!invocation.isOpen()) throw new IllegalStateException(
-                    "borrowed OpenBLAS provider is closed");
-            if (invocation.threadCount() != 1) throw new IllegalStateException(
-                    "borrowed OpenBLAS provider must be single-threaded");
-        }
+        } else throw new IllegalArgumentException(
+                "qualified OpenBLAS finalization requires its exact coordinator");
         List<PreparedExecutable.WorkspaceSelection> routeWorkspaces =
                 route.workspaceRequirements().stream().map(requirement -> {
                     PreparedExecutable.WorkspaceSelection selection =

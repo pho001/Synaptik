@@ -300,8 +300,8 @@ created by 0005A. All consume the common analysis above; none creates another ba
 | 0010 | [Narrow OpenBLAS BLAS-compatible native route](tasks/0010-narrow-openblas-blas-compatible-native-route.md) | Complete | 0005A; 0009G1; completed OpenBLAS provider | Added only `route.nativeblas.openblas` for positive rank-two same-type FLOAT32/FLOAT64 bare MATMUL, with direct native or one-input affine materialization, explicit provider/thread qualification, preserved portable plans, exact filtering, deterministic whole-plan transition cost, and native-free backend conformance through the staged preparation/finalization boundary; OpenBLAS is neither universal nor preferred. |
 | 0010A | [Automatic OpenBLAS discovery and internal composition foundation](tasks/0010a-automatic-openblas-discovery-and-internal-composition-foundation.md) | Complete | 0010; completed OpenBLAS provider | Added bounded cold CPU-owned disabled/automatic/exact-name/exact-path loading with immutable discovery metadata and a separate explicit internal provider-lifetime session. Exact override is exclusive, automatic failure retains portable, loading never implies qualification, the provider remains an exact loader, and public Config/Engine composition remains future work. |
 | 0010B | [Bounded OpenBLAS MATMUL representation expansion](tasks/0010b-bounded-openblas-matmul-representation-expansion.md) | Complete | 0010A; 0008E | Added all eight proved copy masks around the unchanged non-transposed provider call, with zero through two CPU-owned input copies, optional route-local output copy, distinct run-owned workspaces, complete checked representation/GEMM/expected-run cost, pre-write binding validation, and native/conformance evidence. Empty/zero-K, batch, broadcast, epilogue, packing, threading, qualification, tuning, and provider API expansion remain excluded. |
-| 0010C | [Coordinated OpenBLAS thread candidates and shared CPU thread budget](tasks/0010c-coordinated-openblas-thread-candidates-and-shared-cpu-thread-budget.md) | Complete | 0010B; stable CPU worker orchestration | Added composition-owned provider-state exclusion/restoration and typed positive OpenBLAS thread-count candidates under one explicit fair CPU concurrency budget shared with portable workers and concurrent independent GEMMs. Configuration is selected and installed cold, execution uses fixed prepared permit demand without per-call query/set, and the externally excluded count-one compatibility path remains available when composition does not share the coordinator. |
-| 0010D | [Installed OpenBLAS qualification and target fingerprinting](tasks/0010d-installed-openblas-qualification-and-target-fingerprinting.md) | Draft | 0010C | Separate loading from cold ABI/numerical qualification. Require architecture and ordinary 32-bit-`blasint` evidence, the four current required symbols, bounded SGEMM/DGEMM route cases, and an exact invalidatable binary/target identity; optional OpenBLAS config/core-name metadata may enrich diagnostics but cannot substitute for binary identity. Name-loaded binaries without a stable exact identity remain session-only and cannot authorize persistent reuse. |
+| 0010C | [Coordinated OpenBLAS thread candidates and shared CPU thread budget](tasks/0010c-coordinated-openblas-thread-candidates-and-shared-cpu-thread-budget.md) | Complete | 0010B; stable CPU worker orchestration | Added composition-owned provider-state exclusion/restoration and typed positive OpenBLAS thread-count candidates under one explicit fair CPU concurrency budget shared with portable workers and concurrent independent GEMMs. Configuration is selected and installed cold, and execution uses fixed prepared permit demand without per-call query/set. Its transitional externally excluded count-one path was later closed for qualified routes by 0010D. |
+| 0010D | [Installed OpenBLAS qualification and target fingerprinting](tasks/0010d-installed-openblas-qualification-and-target-fingerprinting.md) | Complete | 0010C | Added immutable per-load-session qualification after supported target/header, exact four-symbol ordinary 32-bit-`blasint`, count-one, and bounded SGEMM/DGEMM checks. Absolute-path loads receive versioned SHA-256 binary/target compatibility identity; name loads remain session-only. Exact coordinator association is checked before provider mutation or recipe construction. This is compatibility evidence, not authentication or broad ABI, numerical, determinism, or performance certification. |
 | 0010E | OpenBLAS tuning candidates and compatible selection evidence | Draft | 0010D; Config 0006A; Prepare 0004; stable Tuning 0001 artifact contract | Add typed/versioned portable-versus-OpenBLAS thread and representation candidates plus canonical target/hardware, provider/binary, operation, type, shape/layout/carrier, numerical/determinism, and worker/thread compatibility and Prepare-time consumption of an explicit selected decision. `tools/tuning` measures complete candidates and owns persistent cache loading/mutation; CPU owns validity, signatures, safe heuristic fallback, and no Runtime choice. |
 | 0011 | Intel oneMKL BLAS and VML peer routes | Blocked | 0010E; 0005A; 0009; concrete Intel CPU use case and supported oneMKL ABI evidence | The ordered OpenBLAS sequence now precedes this row, and the repository still supplies neither Intel external gate. Once all dependencies exist, add distinct `route.nativeblas.mkl` BLAS and `route.nativeops.mkl` VML leaves over shared analysis while preserving portable Java as the semantic fallback. |
 | 0012 | Intel oneDNN partition peer routes | Draft | 0005A; 0009; stable common CPU lowering; concrete DNN/ML use case and supported oneDNN ABI evidence | Add `route.nativeops.onednn` as a distinct eligible partition route over common lowering/IR and whole-plan cost, without collapsing it into oneMKL or portable code generation. |
@@ -315,10 +315,10 @@ created by 0005A. All consume the common analysis above; none creates another ba
 
 CPU 0010A through 0010E are an ordered OpenBLAS program inserted after completed CPU 0010 and
 before blocked CPU 0011. The insertion is user-authorized and does not reopen or renumber task
-0010. Detailed CPU 0010B and 0010C are `Complete` after completed 0010A. Detailed
-[CPU 0010D](tasks/0010d-installed-openblas-qualification-and-target-fingerprinting.md) is the next
-`Draft` planning frontier, and CPU 0010E remains a master-plan-only `Draft` row behind it until
-its predecessor and named shared contracts are stable.
+0010. Detailed CPU 0010B, 0010C, and
+[CPU 0010D](tasks/0010d-installed-openblas-qualification-and-target-fingerprinting.md) are
+`Complete` after completed 0010A. CPU 0010E is the next master-plan-only `Draft` row and receives
+no detailed specification until its named shared contracts are stable.
 
 CPU 0010A can proceed without Engine because the discovery request, immutable result, bounded
 loader, and provider-lifetime session stay package-private under
@@ -352,13 +352,15 @@ deployments must explicitly share the coordinator or retain the documented exter
 requirement. Provider setters never run as per-call route policy.
 
 CPU 0010D converts a loaded session into qualified target evidence only after cold checks pass. It
-must prove the selected host architecture, current required symbol set, ordinary 32-bit
-`blasint`, bounded FLOAT32/FLOAT64 invocation behavior, and a stable binary/target fingerprint
-that invalidates compatible decisions when the binary changes. Optional OpenBLAS build/config and
-core-name strings may improve diagnostics but are not identity or qualification by themselves.
-Because JDK name lookup exposes no resolved file path, a name-loaded result without another exact
-identity proof may be qualified only for the current session and must remain ineligible for
-persistent-cache compatibility. No task may guess an identity from a short name or version string.
+proves the selected supported host target, current required symbol set, ordinary 32-bit
+`blasint`, and bounded FLOAT32/FLOAT64 invocation behavior. An exact path load additionally gains
+a stable binary/target fingerprint that invalidates compatible decisions when content changes;
+name loads remain session-only because JDK lookup exposes no resolved path. The opaque per-load
+key prevents another coordinator from reusing a credential, even for identical binary identity,
+and finalization checks session and target before provider mutation. The SHA-256 identity and
+ordinary stability guards are compatibility evidence, not binary authentication, broad ABI or
+numerical certification, determinism evidence, or a performance result. No task may guess an
+identity from a short name, version string, path alone, symbol address, or optional metadata.
 
 CPU 0010E is the OpenBLAS-specific proving slice for the architecture's model-autotuning
 boundary. CPU owns typed complete route/configuration candidates, canonical workload and target
@@ -1081,10 +1083,9 @@ fresh benchmarking is non-blocking. CPU 0010 is Complete with the qualified narr
 MATMUL route, its native-free staged-boundary conformance case, and the required real-native and
 documentation checkpoints. Detailed CPU 0010A is `Complete`: it establishes bounded automatic
 OpenBLAS discovery plus an internal composition lifetime without Engine or public Config. CPU
-0010B and detailed CPU 0010C are `Complete`; detailed
-[CPU 0010D](tasks/0010d-installed-openblas-qualification-and-target-fingerprinting.md) is the next
-`Draft` planning frontier, while CPU 0010E remains an ordered master-plan-only `Draft` row without
-a detailed file. CPU
+0010B, detailed CPU 0010C, and detailed
+[CPU 0010D](tasks/0010d-installed-openblas-qualification-and-target-fingerprinting.md) are
+`Complete`; CPU 0010E is the next ordered master-plan-only `Draft` row without a detailed file. CPU
 0011 remains `Blocked` after that sequence because no concrete Intel CPU use case or supported
 oneMKL BLAS/VML ABI evidence is present; CPU 0012 through 0017 remain `Draft`. Prepare
 0003A is Complete.
@@ -1401,7 +1402,7 @@ not alter the ordered task rows or completed earlier CPU families.
 
 ## Decisions made
 
-- Detailed CPU 0010D resolves persistent identity only for exact path-loaded binary content.
+- Complete CPU 0010D resolves persistent identity only for exact path-loaded binary content.
   Automatic or exact name-based loads may qualify for their exact live session but cannot
   authorize persistent reuse because the JDK lookup exposes no resolved path. A name,
   version/config string, core name, or process-local symbol address alone remains insufficient.
