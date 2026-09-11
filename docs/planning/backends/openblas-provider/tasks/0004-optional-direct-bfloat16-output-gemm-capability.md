@@ -2,7 +2,7 @@
 
 ## Status
 
-Ready
+Blocked
 
 ## Goal
 
@@ -483,12 +483,106 @@ or a concrete stale-evidence risk is recorded. Do not mark 0004 Complete until e
 
 ## Validation evidence
 
-Empty until implemented.
+- Clean implementation context `01a090a7-0a5a-7b82-aced-9dc7368cdbdd` pinned upstream OpenBLAS tag `v0.3.31` at commit
+  `76f1be470c9b9f80dc6e27407e13b975df436489` and inspected its release, header, configuration,
+  build, export, wrapper, driver, fallback-kernel, and optimized AArch64-kernel sources before
+  changing production. The seven proof gates resolved as follows:
+
+  | Gate | Result | Pinned evidence |
+  |---|---|---|
+  | Extension identity | **Not proved** | `Changelog.txt:1-10` calls BGEMM/BGEMV new bfloat16 extensions, `CMakeLists.txt:152-161` and `docs/build_system.md:101` make `BUILD_BFLOAT16` optional, and `interface/Makefile:327-333,2049-2052` plus `interface/CMakeLists.txt:151-165` build `cblas_bgemm` only for that option. However, `docs/extensions.md:18-29` documents only `cblas_sbgemm`, not `cblas_bgemm`, and both official shared-library symbol generators omit `cblas_bgemm` from `bfcblasobjs` at `exports/gensymbol:131` and `exports/gensymbol.pl:128` even though they include the Fortran-style `bgemm`. The tag therefore does not establish the required exported C ABI family. |
+  | C representation | **Proved for the source shape** | `openblas_config_template.h:35-40` and `common.h:264-268` define `bfloat16` as `uint16_t`; `cblas.h:481-482` passes both scalars by value and addresses A, B, and C as `bfloat16 *`. JDK 26 `ValueLayout.JAVA_SHORT` is a two-byte, two-byte-aligned native-order layout, and unsigned C integers use the corresponding signed carrier without changing raw bits. |
+  | Integer and enum carriers | **Proved for the selected ordinary build shape** | `openblas_config_template.h:49-53` makes ordinary `blasint` C `int` and selects a wider carrier only under `OPENBLAS_USE64BITINT`; `cblas.h:73-79` defines the CBLAS enums and their fixed values. No `-fshort-enums` use exists in the tag. Apple Clang 21 cross-target LLVM lowering of the exact declaration produced `i32` for all three enums and six dimension/leading-dimension values, `i16` for alpha/beta, pointers for A/B/C, and `void` return for `arm64-apple-macos15`, `x86_64-apple-macos15`, `aarch64-linux-gnu`, `x86_64-linux-gnu`, `aarch64-pc-windows-msvc`, and `x86_64-pc-windows-msvc`. ILP64 remains rejected. |
+  | Exact descriptor | **Proved for the selected ordinary build shape** | `cblas.h:481-482` and `interface/gemm.c:371-378` give exactly fourteen ordered arguments: three enums, M/N/K, BFLOAT16 alpha, A, lda, B, ldb, BFLOAT16 beta, C, ldc, with `void` return. The official JDK 26 `Linker` contract maps C `short`, C `int`, and pointers to canonical value/address layouts and `FunctionDescriptor.ofVoid` models argument layouts with no return layout. The resulting descriptor would be `JAVA_INT` six times, `JAVA_SHORT`, `ADDRESS`, `JAVA_INT`, `ADDRESS`, `JAVA_INT`, `JAVA_SHORT`, `ADDRESS`, `JAVA_INT`. |
+  | Direct result | **Proved for the source shape** | `cblas.h:481-482`, the `BGEMM` specialization in `common.h:317-323`, and `interface/gemm.c:371-378` use BFLOAT16 A, B, scalar, and C carriers directly; there is no FLOAT32 C parameter in this entry point. |
+  | MATMUL compatibility | **Failed** | `param.h:85-87` sets `BGEMM_DEFAULT_Q` to 256. `driver/level3/level3.c:305-322` partitions the contraction dimension into repeated `GEMM_Q`-bounded `ls` blocks, and `driver/level3/level3.c:381-387` invokes the output kernel for every block. The fallback BGEMM kernel accumulates each block in FLOAT32 at `kernel/generic/gemmkernel_2x2.c:42-46,56-109`, then reads BFLOAT16 C and writes `TO_OUTPUT(...)` at lines 110-117. `kernel/generic/conversion_macros.h:34-51` defines that BGEMM output conversion as FLOAT32-to-BFLOAT16. The optimized NEOVERSEV1 BGEMM kernel likewise converts and stores C in each `UPDATE_C` at `kernel/arm64/bgemm_kernel_2vlx4_neoversev1_impl.c:34-69,203-206`. Consequently a sufficiently large contraction is narrowed to BFLOAT16 between K blocks, then widened and accumulated again. This is not FLOAT32 accumulation over the complete contraction followed by one final BFLOAT16 conversion, so it cannot satisfy the task's Model gate merely by allowing reassociation or fused multiply-add. |
+  | Executable proof | **Absent, as required after the failed semantic gate** | `/opt/homebrew/Cellar/openblas/0.3.34/lib/libopenblasp-r0.3.34.dylib` is a real arm64 binary whose `nm -gU` output contains the four mandatory symbols and `cblas_sbgemm` but no `cblas_bgemm`. No direct BFLOAT16 invocation was attempted. The unchanged checkpoint passed its mandatory SGEMM, DGEMM, shared-thread observation, and restoration checks and restored thread count 16. |
+
+- Official JDK 26 contracts used for the FFM review were
+  [`Linker`](https://docs.oracle.com/en/java/javase/26/docs/api/java.base/java/lang/foreign/Linker.html),
+  [`FunctionDescriptor`](https://docs.oracle.com/en/java/javase/26/docs/api/java.base/java/lang/foreign/FunctionDescriptor.html),
+  [`MemorySegment`](https://docs.oracle.com/en/java/javase/26/docs/api/java.base/java/lang/foreign/MemorySegment.html),
+  and [`ValueLayout`](https://docs.oracle.com/en/java/javase/26/docs/api/java.base/java/lang/foreign/ValueLayout.html).
+  The downloaded pages identify themselves as generated JDK 26 API documentation. `Linker`
+  requires a platform-dependent C signature, guarantees canonical layouts for C `short`, `int`,
+  and `void *`, maps unsigned integers through the corresponding signed carrier, and derives the
+  exact downcall method type from the descriptor carriers. `FunctionDescriptor` defines ordered
+  argument layouts and zero or one return layout. `MemorySegment` supplies the native, address,
+  size, scope, accessibility, read-only, slice, and backing-overlap contracts required by the
+  planned validator. `ValueLayout.JAVA_SHORT` has Java-short size, two-byte alignment, and native
+  byte order.
+- The exact final ordinary command
+  `./gradlew :backends:openblas-provider:test :backends:openblas-provider:testClasses` passed with
+  `BUILD SUCCESSFUL`; all three actionable tasks were up-to-date. Existing XML results report five
+  suites and 50 tests with zero failures, errors, or skips. Executable Java and tests were not
+  changed before or after this run.
+- The unchanged real-native command used Java `26.0.1` with
+  `--enable-native-access=ALL-UNNAMED --illegal-native-access=deny` against the exact 0.3.34 path
+  above. It exited zero with `OpenBLAS native checkpoint passed; restored thread count 16`.
+- `javap -public` confirmed that production still exposes only existing library loading,
+  SGEMM/DGEMM, thread control, lifecycle, and load-failure API. Source inspection found no
+  `cblas_bgemm`, `cblas_sbgemm`, `OpenBlasBFloat16Gemm`, or `JAVA_SHORT` in provider production or
+  tests. `git diff --check` passed before this evidence record was written.
+- Clean documentation context `/root/openblas_0004_doc_review` independently re-read the
+  architecture, planning, documentation-profile, prerequisite-provider, CPU-ordering, and Model
+  MATMUL contracts and inspected the exact implementation diff. It verified tag `v0.3.31` at
+  commit `76f1be470c9b9f80dc6e27407e13b975df436489`, the omitted `cblas_bgemm` shared-library export,
+  the `GEMM_Q`-bounded K-panel loop, and per-panel BFLOAT16 conversion in both the fallback and
+  selected optimized kernel source. It also reproduced the six-target Clang descriptor lowering
+  and confirmed that the local arm64 0.3.34 binary exports the mandatory four symbols and
+  `cblas_sbgemm`, but not `cblas_bgemm`.
+- That documentation context changed only this task, the provider master plan, the CPU master
+  plan, and the roadmap. Its four-file Markdown validation passed local links, anchors, unique
+  headings, balanced fences, final newlines, and trailing-whitespace checks. Exact-path,
+  stale-`Ready`, status, dependency/order, task-file-absence, unchanged-`ARCHITECTURE.md`, and
+  `git diff --check` checks passed. It did not rerun Java tests or Javadoc because no executable
+  Java, tests, public API, behavior, or Javadoc changed after the reusable implementation evidence.
 
 ## Implementation notes
 
-Empty until implemented.
+- The proof phase stopped before every production/test/Javadoc edit because the pinned first
+  release does not prove a supported exported `cblas_bgemm` C ABI family and its implementation
+  positively contradicts the required one-final-narrowing Model compatibility gate.
+- No optional lookup, descriptor, method handle, public capability, invocation helper, checkpoint
+  extension, conversion, staging, `cblas_sbgemm` route, platform/version inference, or CPU change
+  was added. The existing mandatory four-symbol load and all current provider behavior remain
+  byte-for-byte unchanged.
+- A later retry requires pinned upstream OpenBLAS source and exported-binary evidence for a
+  versioned direct-BGEMM ABI whose complete contraction remains FLOAT32 until one final BFLOAT16
+  result conversion. A small numerical fixture cannot replace that source proof.
 
 ## Completion summary
 
-Empty until implemented.
+- Completed changes: recorded and independently verified the failed proof result, marked provider
+  0004 `Blocked`, and synchronized the provider, CPU, and global frontier without exposing or
+  invoking an executable capability.
+- Files changed or created: exactly four planning paths—this task, the provider master plan, the
+  CPU master plan, and the roadmap.
+- Tests and validation: reused implementation context
+  `01a090a7-0a5a-7b82-aced-9dc7368cdbdd`'s passing five-suite/50-test provider result and local
+  0.3.34 mandatory native checkpoint that restored thread count 16. Documentation context
+  `/root/openblas_0004_doc_review` independently reproduced the six-target Clang ABI lowering,
+  inspected the pinned sources and local exports, and passed four-file Markdown, exact-path,
+  stale-status/frontier, dependency/order, task-file-absence, unchanged-architecture, and
+  whitespace validation.
+- Documentation-agent review: clean context `/root/openblas_0004_doc_review` completed the
+  targeted planning-document review and status/frontier synchronization without changing or
+  rerunning executable Java, tests, Javadoc, or generated documentation.
+- Documentation impact: the task evidence must remain as the durable failed-gate record. Provider
+  Javadocs, package documentation, CPU guide, and glossary remain unchanged because no capability,
+  API, behavior, configuration, workflow, example, or reusable terminology was added. Tensor,
+  Compile, and Training APIs; Model capabilities; architecture documents/tests; backend
+  conformance and integration tests; Gradle; native packaging; and other modules remain accurate
+  for the same reason.
+- Javadoc review: all provider Java remains unchanged, so its existing Javadoc remains accurate.
+- Glossary impact: none; no new usable capability or project term was introduced.
+- Unresolved issues: upstream v0.3.31 does not export `cblas_bgemm` through its official C symbol
+  lists and its BGEMM driver/kernel path performs intermediate BFLOAT16 narrowing across K blocks.
+- Follow-up required: obtain and pin an upstream direct-BGEMM ABI/implementation that both exports
+  the C symbol and proves complete FLOAT32 contraction accumulation with one final BFLOAT16
+  conversion, or make a separate explicit Model/architecture decision. Until then CPU 0010D1 is
+  non-executable, CPU 0010E remains after it, and the global ordered frontier has no next in-scope
+  task. Neither substitute is authorized here.
+
+Status: Incomplete
+Follow-up required: resolve the failed exported-ABI and one-final-narrowing proof gates before any production capability is added.

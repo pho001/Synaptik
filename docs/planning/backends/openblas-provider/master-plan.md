@@ -66,7 +66,7 @@ native framework, registry, manager, configuration package, or CPU route owner.
 | 0001 | [Library loading and required symbol binding](tasks/0001-library-loading-and-required-symbol-binding.md) | Complete | Prepare 0003; JDK 26 FFM and OpenBLAS C ABI evidence | Load one caller-specified library, bind the exact FLOAT32/FLOAT64 GEMM and get/set thread-count symbols, and own their closeable lookup lifetime without invocation or policy. |
 | 0002 | [FLOAT32/FLOAT64 row-major GEMM invocation](tasks/0002-float32-float64-row-major-gemm-invocation.md) | Complete | 0001 | Add validated dense row-major no-transpose `MemorySegment` GEMM calls over the task-0001 lifetime without Tensor, route, allocation, or fallback behavior. |
 | 0003 | [Thread control and native provider checkpoint](tasks/0003-thread-control-and-native-provider-checkpoint.md) | Complete | 0001–0002 | Add low-level thread-count query/control and explicit compatible-library validation, then close the original provider capability milestone. |
-| 0004 | [Optional direct BFLOAT16-output GEMM capability](tasks/0004-optional-direct-bfloat16-output-gemm-capability.md) | Ready | 0001–0003; pinned OpenBLAS direct-BGEMM ABI and semantic proof | Prove and, only if every gate passes, bind `cblas_bgemm` as an optional versioned typed capability for direct BFLOAT16 inputs and output; preserve mandatory loading when absent and reject SBGEMM or conversion staging. |
+| 0004 | [Optional direct BFLOAT16-output GEMM capability](tasks/0004-optional-direct-bfloat16-output-gemm-capability.md) | Blocked | 0001–0003; pinned OpenBLAS direct-BGEMM ABI and semantic proof | Pinned OpenBLAS v0.3.31 does not establish an exported `cblas_bgemm` C ABI and narrows BFLOAT16 output between sufficiently large contraction panels, so no capability was exposed; retry only with evidence that resolves both gates. |
 
 ## Milestones
 
@@ -77,7 +77,7 @@ native framework, registry, manager, configuration package, or CPU route owner.
 
 ## Current status
 
-In progress. Tasks 0001–0003 remain Complete and provide explicit caller-directed loading, complete required-symbol
+Blocked. Tasks 0001–0003 remain Complete and provide explicit caller-directed loading, complete required-symbol
 binding, caller-owned lookup lifetime, validated FLOAT32/FLOAT64 dense row-major no-transpose GEMM
 invocation, and direct positive thread-count query/control over the already-bound handles. The
 ordinary provider suite passed 5 suites and 50 tests. The isolated native checkpoint passed
@@ -88,12 +88,15 @@ repository/architecture capability checkpoint then passed with 54 actionable tas
 status, later-specification, and whitespace gates passed. That original provider milestone remains
 closed.
 
-Detailed task 0004 is now the sole `Ready` provider frontier. It first proves the OpenBLAS-specific
-direct BFLOAT16-output ABI and Model-compatible accumulation/narrowing semantics, then may add one
-optional typed capability. The current local 0.3.34 installation is evidence of optionality: its
-header declares `cblas_bgemm`, but its binary exports `cblas_sbgemm` and not `cblas_bgemm`. Missing
-direct BFLOAT16 support must leave the completed baseline usable. CPU 0010D1 remains a dependent
-master-plan-only `Draft`; CPU 0010E follows it.
+Detailed task 0004 is the blocked provider frontier. Pinned OpenBLAS v0.3.31 does not establish
+`cblas_bgemm` in its official shared-library C export lists, and its driver/kernel path narrows
+BFLOAT16 output between sufficiently large contraction panels rather than accumulating the full
+contraction in FLOAT32 before one final BFLOAT16 conversion. The local 0.3.34 installation
+independently confirms only optional absence: its header declares `cblas_bgemm`, but its binary
+exports `cblas_sbgemm` and not `cblas_bgemm`. No optional capability was exposed, and the completed
+FLOAT32/FLOAT64/thread baseline remains usable. CPU 0010D1 remains a dependent, non-executable
+master-plan-only `Draft`; CPU 0010E remains after it. No later provider task may advance while
+both proof gates remain unresolved.
 
 ## Open questions
 

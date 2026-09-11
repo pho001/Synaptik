@@ -322,9 +322,10 @@ CPU 0010A through 0010E, including inserted 0010D1, are an ordered OpenBLAS prog
 completed CPU 0010 and before blocked CPU 0011. The insertion is user-authorized and does not
 reopen or renumber task 0010. Detailed CPU 0010B, 0010C, and
 [CPU 0010D](tasks/0010d-installed-openblas-qualification-and-target-fingerprinting.md) are
-`Complete` after completed 0010A. OpenBLAS provider 0004 is the sole detailed `Ready` frontier.
-CPU 0010D1 is a dependent master-plan-only `Draft`, and CPU 0010E follows it as another
-master-plan-only `Draft`; neither receives a detailed specification out of order.
+`Complete` after completed 0010A. OpenBLAS provider 0004 is the blocked detailed frontier after
+its exported-ABI and one-final-narrowing proof gates failed. CPU 0010D1 remains a dependent,
+non-executable master-plan-only `Draft`, and CPU 0010E follows it as another master-plan-only
+`Draft`; neither receives a detailed specification or advances out of order.
 
 CPU 0010A can proceed without Engine because the discovery request, immutable result, bounded
 loader, and provider-lifetime session stay package-private under
@@ -1111,8 +1112,9 @@ documentation checkpoints. Detailed CPU 0010A is `Complete`: it establishes boun
 OpenBLAS discovery plus an internal composition lifetime without Engine or public Config. CPU
 0010B, detailed CPU 0010C, and detailed
 [CPU 0010D](tasks/0010d-installed-openblas-qualification-and-target-fingerprinting.md) are
-`Complete`. OpenBLAS provider 0004 is the sole detailed `Ready` frontier; dependent CPU 0010D1 and
-then CPU 0010E are ordered master-plan-only `Draft` rows without detailed files. CPU 0011 remains
+`Complete`. OpenBLAS provider 0004 is the blocked detailed frontier; dependent CPU 0010D1 remains
+non-executable and then CPU 0010E remains ordered after it, both as master-plan-only `Draft` rows
+without detailed files. CPU 0011 remains
 `Blocked` after that sequence because no concrete Intel CPU use case or supported oneMKL BLAS/VML
 ABI evidence is present; CPU 0012 through 0017 remain `Draft`. Prepare
 0003A is Complete.
