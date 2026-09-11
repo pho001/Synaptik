@@ -299,7 +299,7 @@ created by 0005A. All consume the common analysis above; none creates another ba
 | 0009G1 | [Scalar-strategy evidence correction](tasks/0009g1-scalar-strategy-evidence-correction.md) | Complete | 0009G | Added seven operation-specific selected-scalar witnesses while retaining ADD as the orchestration basis; the checkpoint now derives every live scalar-meaningful form and separately seals the exact eight-owner direct witness basis. No production, schema, selection-policy, or performance change. |
 | 0010 | [Narrow OpenBLAS BLAS-compatible native route](tasks/0010-narrow-openblas-blas-compatible-native-route.md) | Complete | 0005A; 0009G1; completed OpenBLAS provider | Added only `route.nativeblas.openblas` for positive rank-two same-type FLOAT32/FLOAT64 bare MATMUL, with direct native or one-input affine materialization, explicit provider/thread qualification, preserved portable plans, exact filtering, deterministic whole-plan transition cost, and native-free backend conformance through the staged preparation/finalization boundary; OpenBLAS is neither universal nor preferred. |
 | 0010A | [Automatic OpenBLAS discovery and internal composition foundation](tasks/0010a-automatic-openblas-discovery-and-internal-composition-foundation.md) | Complete | 0010; completed OpenBLAS provider | Added bounded cold CPU-owned disabled/automatic/exact-name/exact-path loading with immutable discovery metadata and a separate explicit internal provider-lifetime session. Exact override is exclusive, automatic failure retains portable, loading never implies qualification, the provider remains an exact loader, and public Config/Engine composition remains future work. |
-| 0010B | Bounded OpenBLAS MATMUL representation expansion | Draft | 0010A; 0008E | Retain the provider's current non-transposed SGEMM/DGEMM surface while admitting exactly proved rank-two transpose/affine input forms through zero, one, or two CPU-owned input materializations and an optional canonical output workspace plus copy-out. Compare complete allocation, copy-in, GEMM, copy-out, workspace, and expected-run cost; keep batch, broadcast, epilogue, packing, and provider API expansion out of this task. |
+| 0010B | [Bounded OpenBLAS MATMUL representation expansion](tasks/0010b-bounded-openblas-matmul-representation-expansion.md) | Ready | 0010A; 0008E | Retain the provider's current non-transposed SGEMM/DGEMM surface while admitting exactly proved positive rank-two transpose/affine input forms through zero, one, or two CPU-owned input materializations and an optional canonical output workspace plus copy-out. Compare complete allocation/binding, copy-in, GEMM, copy-out, workspace-byte, and expected-run cost; keep empty/zero-K, batch, broadcast, epilogue, packing, and provider API expansion out of this task. |
 | 0010C | Coordinated OpenBLAS thread candidates and shared CPU thread budget | Draft | 0010B; stable CPU worker orchestration | Add composition-owned provider-state exclusion/restoration and complete typed OpenBLAS thread-count candidates under one explicit CPU concurrency budget shared with portable workers and concurrent independent GEMMs. Select and install configuration cold, use prepared permit demand during execution, never set/discover per call, and retain `SINGLE_THREAD` as the current behavior until the complete task passes. |
 | 0010D | Installed OpenBLAS qualification and target fingerprinting | Draft | 0010C | Separate loading from cold ABI/numerical qualification. Require architecture and ordinary 32-bit-`blasint` evidence, the four current required symbols, bounded SGEMM/DGEMM route cases, and an exact invalidatable binary/target identity; optional OpenBLAS config/core-name metadata may enrich diagnostics but cannot substitute for binary identity. Name-loaded binaries without a stable exact identity remain session-only and cannot authorize persistent reuse. |
 | 0010E | OpenBLAS tuning candidates and compatible selection evidence | Draft | 0010D; Config 0006A; Prepare 0004; stable Tuning 0001 artifact contract | Add typed/versioned portable-versus-OpenBLAS thread and representation candidates plus canonical target/hardware, provider/binary, operation, type, shape/layout/carrier, numerical/determinism, and worker/thread compatibility and Prepare-time consumption of an explicit selected decision. `tools/tuning` measures complete candidates and owns persistent cache loading/mutation; CPU owns validity, signatures, safe heuristic fallback, and no Runtime choice. |
@@ -315,9 +315,9 @@ created by 0005A. All consume the common analysis above; none creates another ba
 
 CPU 0010A through 0010E are an ordered OpenBLAS program inserted after completed CPU 0010 and
 before blocked CPU 0011. The insertion is user-authorized and does not reopen or renumber task
-0010. Only completed 0010A has a detailed specification. CPU 0010B is the next planning frontier,
-but it and tasks 0010C through 0010E remain master-plan-only `Draft` rows until their predecessors
-and named shared contracts are stable. This completion does not make 0010B `Ready`.
+0010. Detailed CPU 0010B is the `Ready` implementation frontier after completed 0010A. Tasks
+0010C through 0010E remain master-plan-only `Draft` rows until their predecessors and named shared
+contracts are stable.
 
 CPU 0010A can proceed without Engine because the discovery request, immutable result, bounded
 loader, and provider-lifetime session stay package-private under
@@ -1078,8 +1078,8 @@ fresh benchmarking is non-blocking. CPU 0010 is Complete with the qualified narr
 MATMUL route, its native-free staged-boundary conformance case, and the required real-native and
 documentation checkpoints. Detailed CPU 0010A is `Complete`: it establishes bounded automatic
 OpenBLAS discovery plus an internal composition lifetime without Engine or public Config. CPU
-0010B is the next planning frontier, and CPU 0010B through 0010E remain ordered `Draft` rows
-without detailed files. CPU
+0010B is the next detailed `Ready` implementation frontier. CPU 0010C through 0010E remain ordered
+`Draft` rows without detailed files. CPU
 0011 remains `Blocked` after that sequence because no concrete Intel CPU use case or supported
 oneMKL BLAS/VML ABI evidence is present; CPU 0012 through 0017 remain `Draft`. Prepare
 0003A is Complete.
