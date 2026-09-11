@@ -1505,7 +1505,6 @@ public record CpuPartitionPreparationPlan(List<ExecutionUnitPlan> units, Route r
             CpuOpenBlasRoutePlan nativePlan = openBlasPlan.orElseThrow();
             var unit = units.getFirst();
             var matmul = unit.portablePlan().specialization().matmulIr();
-            int copied = nativePlan.copiedBoundaryPosition();
             if (units.size() != 1 || bufferDeclarations.size() != 3
                     || unit.boundaryValues().size() != 3 || unit.outputCount() != 1
                     || matmul.isEmpty() || unit.matmulGeometry().isEmpty()
@@ -1525,18 +1524,33 @@ public record CpuPartitionPreparationPlan(List<ExecutionUnitPlan> units, Route r
                     || unit.portablePlan().specialization().numericalMode()
                             != io.github.pho001.synaptik.backend.cpu.internal.cache
                                     .CpuKernelSpecialization.NumericalMode.EXACT_DEFAULT
-                    || !openBlasCanonical(unit.accessBindings().get(2), nativePlan.m(),
+                    || !nativePlan.representation().copiesOutput()
+                        && !openBlasCanonical(unit.accessBindings().get(2), nativePlan.m(),
                             nativePlan.n(), CpuAccessPlan.AccessKind.WRITE)
-                    || copied != 0 && !openBlasCanonical(unit.accessBindings().get(0),
+                    || !nativePlan.representation().copiesLeft()
+                        && !openBlasCanonical(unit.accessBindings().get(0),
                             nativePlan.m(), nativePlan.k(), CpuAccessPlan.AccessKind.READ)
-                    || copied != 1 && !openBlasCanonical(unit.accessBindings().get(1),
+                    || !nativePlan.representation().copiesRight()
+                        && !openBlasCanonical(unit.accessBindings().get(1),
                             nativePlan.k(), nativePlan.n(), CpuAccessPlan.AccessKind.READ)
-                    || copied >= 0 && (!nativePlan.materialization().orElseThrow()
-                            .sourceBinding().equals(unit.accessBindings().get(copied))
-                            || !openBlasCanonical(nativePlan.materialization().orElseThrow()
-                                    .consumerBinding(), copied == 0 ? nativePlan.m() : nativePlan.k(),
-                                    copied == 0 ? nativePlan.k() : nativePlan.n(),
-                                    CpuAccessPlan.AccessKind.READ))
+                    || nativePlan.leftMaterialization().isPresent()
+                        && (!nativePlan.leftMaterialization().orElseThrow().sourceBinding()
+                                .equals(unit.accessBindings().get(0))
+                            || !openBlasCanonical(nativePlan.leftMaterialization().orElseThrow()
+                                .consumerBinding(), nativePlan.m(), nativePlan.k(),
+                                CpuAccessPlan.AccessKind.READ))
+                    || nativePlan.rightMaterialization().isPresent()
+                        && (!nativePlan.rightMaterialization().orElseThrow().sourceBinding()
+                                .equals(unit.accessBindings().get(1))
+                            || !openBlasCanonical(nativePlan.rightMaterialization().orElseThrow()
+                                .consumerBinding(), nativePlan.k(), nativePlan.n(),
+                                CpuAccessPlan.AccessKind.READ))
+                    || nativePlan.outputCopy().isPresent()
+                        && (!nativePlan.outputCopy().orElseThrow().destinationBinding()
+                                .equals(unit.accessBindings().get(2))
+                            || !openBlasCanonical(nativePlan.outputCopy().orElseThrow()
+                                .sourceBinding(), nativePlan.m(), nativePlan.n(),
+                                CpuAccessPlan.AccessKind.READ))
                     || materialization.isPresent() || workspaceDeclaration.isPresent()
                     || !materializations.isEmpty() || !representationUnits.isEmpty()
                     || partialReductionRecipe.isPresent()) {

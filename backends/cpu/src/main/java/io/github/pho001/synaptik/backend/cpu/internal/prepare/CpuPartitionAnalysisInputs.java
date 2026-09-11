@@ -113,12 +113,14 @@ public record CpuPartitionAnalysisInputs(boolean loweringManifestEnabled,
      * @param threadConfiguration selected externally coordinated thread configuration, if known
      * @param portableCosts complete or incomplete portable whole-plan cost terms
      * @param openBlasCosts complete or incomplete OpenBLAS whole-plan cost terms
+     * @param representationCosts complete or incomplete per-run representation cost terms
      * @param minimumNetBenefitCostUnits optional non-negative absolute benefit threshold
      * @param minimumBenefitBasisPoints optional relative threshold in {@code [0, 10_000]}
      */
     public record OpenBlasRouteConfig(Availability availability,
             Optional<ThreadConfiguration> threadConfiguration, CostTerms portableCosts,
-            CostTerms openBlasCosts, OptionalLong minimumNetBenefitCostUnits,
+            CostTerms openBlasCosts, RepresentationCostTerms representationCosts,
+            OptionalLong minimumNetBenefitCostUnits,
             OptionalInt minimumBenefitBasisPoints) {
         /** Explicit provider qualification state. */
         public enum Availability {
@@ -135,7 +137,7 @@ public record CpuPartitionAnalysisInputs(boolean loweringManifestEnabled,
         /** Fail-closed route input used by every compatibility constructor. */
         public static final OpenBlasRouteConfig DISABLED = new OpenBlasRouteConfig(
                 Availability.UNAVAILABLE, Optional.empty(), CostTerms.MISSING, CostTerms.MISSING,
-                OptionalLong.empty(), OptionalInt.empty());
+                RepresentationCostTerms.MISSING, OptionalLong.empty(), OptionalInt.empty());
 
         /**
          * Creates one complete qualified single-thread route snapshot.
@@ -148,7 +150,7 @@ public record CpuPartitionAnalysisInputs(boolean loweringManifestEnabled,
          * @param openBlasPerMac non-negative OpenBLAS cost per multiply-accumulate
          * @param absoluteThreshold non-negative minimum absolute benefit
          * @param relativeBasisPoints relative benefit threshold in {@code [0, 10_000]}
-         * @return a complete immutable qualified configuration
+         * @return a complete immutable qualified configuration; never {@code null}
          * @throws IllegalArgumentException if a cost or threshold is negative or the relative
          *     threshold is greater than 10,000 basis points
          */
@@ -160,7 +162,31 @@ public record CpuPartitionAnalysisInputs(boolean loweringManifestEnabled,
                     Optional.of(ThreadConfiguration.SINGLE_THREAD),
                     CostTerms.complete(portableFixed, portablePerOutput, portablePerMac),
                     CostTerms.complete(openBlasFixed, openBlasPerOutput, openBlasPerMac),
+                    RepresentationCostTerms.ZERO,
                     OptionalLong.of(absoluteThreshold), OptionalInt.of(relativeBasisPoints));
+        }
+
+        /**
+         * Creates one complete qualified single-thread route snapshot including representation
+         * transition costs.
+         *
+         * @param portableCosts complete portable GEMM cost terms
+         * @param openBlasCosts complete native GEMM/provider cost terms
+         * @param representationCosts complete workspace and copy cost terms
+         * @param absoluteThreshold non-negative minimum absolute benefit
+         * @param relativeBasisPoints relative benefit threshold in {@code [0, 10_000]}
+         * @return a complete immutable qualified configuration; never {@code null}
+         * @throws NullPointerException if a cost-term set is {@code null}
+         * @throws IllegalArgumentException if a cost term or threshold is negative or the
+         *     relative threshold is greater than 10,000 basis points
+         */
+        public static OpenBlasRouteConfig qualifiedSingleThread(CostTerms portableCosts,
+                CostTerms openBlasCosts, RepresentationCostTerms representationCosts,
+                long absoluteThreshold, int relativeBasisPoints) {
+            return new OpenBlasRouteConfig(Availability.QUALIFIED,
+                    Optional.of(ThreadConfiguration.SINGLE_THREAD), portableCosts, openBlasCosts,
+                    representationCosts, OptionalLong.of(absoluteThreshold),
+                    OptionalInt.of(relativeBasisPoints));
         }
 
         /**
@@ -170,6 +196,7 @@ public record CpuPartitionAnalysisInputs(boolean loweringManifestEnabled,
          * @param threadConfiguration non-null optional externally coordinated thread mode
          * @param portableCosts non-null complete or incomplete portable cost terms
          * @param openBlasCosts non-null complete or incomplete OpenBLAS cost terms
+         * @param representationCosts non-null complete or incomplete workspace and copy terms
          * @param minimumNetBenefitCostUnits non-null optional absolute threshold
          * @param minimumBenefitBasisPoints non-null optional relative threshold
          * @throws NullPointerException if a required reference is {@code null}
@@ -182,6 +209,7 @@ public record CpuPartitionAnalysisInputs(boolean loweringManifestEnabled,
                     "threadConfiguration");
             java.util.Objects.requireNonNull(portableCosts, "portableCosts");
             java.util.Objects.requireNonNull(openBlasCosts, "openBlasCosts");
+            java.util.Objects.requireNonNull(representationCosts, "representationCosts");
             java.util.Objects.requireNonNull(minimumNetBenefitCostUnits,
                     "minimumNetBenefitCostUnits");
             java.util.Objects.requireNonNull(minimumBenefitBasisPoints,
@@ -204,8 +232,89 @@ public record CpuPartitionAnalysisInputs(boolean loweringManifestEnabled,
                     && threadConfiguration.equals(Optional.of(
                             ThreadConfiguration.SINGLE_THREAD))
                     && portableCosts.complete() && openBlasCosts.complete()
+                    && representationCosts.complete()
                     && minimumNetBenefitCostUnits.isPresent()
                     && minimumBenefitBasisPoints.isPresent();
+        }
+    }
+
+    /**
+     * Six checked per-run representation coefficients for an OpenBLAS route.
+     * Every workspace and copy is charged on every expected run.
+     *
+     * @param workspaceAllocationAndBindingFixed optional non-negative fixed cost for each
+     *     run-owned workspace allocated and bound for one run
+     * @param workspaceCostPerByte optional non-negative cost per declared workspace byte
+     * @param copyInFixed optional non-negative fixed cost for each input copy invocation
+     * @param copyInPerElement optional non-negative cost per copied input element
+     * @param copyOutFixed optional non-negative fixed cost for the output copy invocation
+     * @param copyOutPerElement optional non-negative cost per copied output element
+     */
+    public record RepresentationCostTerms(OptionalLong workspaceAllocationAndBindingFixed,
+            OptionalLong workspaceCostPerByte, OptionalLong copyInFixed,
+            OptionalLong copyInPerElement, OptionalLong copyOutFixed,
+            OptionalLong copyOutPerElement) {
+        /** Deliberately incomplete fail-closed representation term set. */
+        public static final RepresentationCostTerms MISSING = new RepresentationCostTerms(
+                OptionalLong.empty(), OptionalLong.empty(), OptionalLong.empty(),
+                OptionalLong.empty(), OptionalLong.empty(), OptionalLong.empty());
+        /** Complete zero-cost compatibility representation term set. */
+        public static final RepresentationCostTerms ZERO = complete(0, 0, 0, 0, 0, 0);
+
+        /**
+         * Creates a complete non-negative representation term set.
+         *
+         * @param workspaceFixed fixed cost for each run-owned workspace allocation and binding
+         * @param perByte cost per declared workspace byte
+         * @param inputFixed fixed cost for each input copy invocation
+         * @param inputPerElement cost per copied input element
+         * @param outputFixed fixed cost for the output copy invocation
+         * @param outputPerElement cost per copied output element
+         * @return a complete immutable term set; never {@code null}
+         * @throws IllegalArgumentException if any coefficient is negative
+         */
+        public static RepresentationCostTerms complete(long workspaceFixed, long perByte,
+                long inputFixed, long inputPerElement, long outputFixed,
+                long outputPerElement) {
+            return new RepresentationCostTerms(OptionalLong.of(workspaceFixed),
+                    OptionalLong.of(perByte), OptionalLong.of(inputFixed),
+                    OptionalLong.of(inputPerElement), OptionalLong.of(outputFixed),
+                    OptionalLong.of(outputPerElement));
+        }
+
+        /**
+         * Validates and snapshots optional representation coefficients.
+         *
+         * @throws NullPointerException if any optional reference is {@code null}
+         * @throws IllegalArgumentException if any present coefficient is negative
+         */
+        public RepresentationCostTerms {
+            java.util.Objects.requireNonNull(workspaceAllocationAndBindingFixed,
+                    "workspaceAllocationAndBindingFixed");
+            java.util.Objects.requireNonNull(workspaceCostPerByte, "workspaceCostPerByte");
+            java.util.Objects.requireNonNull(copyInFixed, "copyInFixed");
+            java.util.Objects.requireNonNull(copyInPerElement, "copyInPerElement");
+            java.util.Objects.requireNonNull(copyOutFixed, "copyOutFixed");
+            java.util.Objects.requireNonNull(copyOutPerElement, "copyOutPerElement");
+            if (java.util.stream.Stream.of(workspaceAllocationAndBindingFixed,
+                    workspaceCostPerByte, copyInFixed, copyInPerElement, copyOutFixed,
+                    copyOutPerElement).anyMatch(value -> value.isPresent()
+                            && value.getAsLong() < 0)) {
+                throw new IllegalArgumentException(
+                        "OpenBLAS representation costs must be non-negative");
+            }
+        }
+
+        /**
+         * Reports whether exact route selection can consume all representation coefficients.
+         *
+         * @return whether every representation coefficient is present
+         */
+        public boolean complete() {
+            return workspaceAllocationAndBindingFixed.isPresent()
+                    && workspaceCostPerByte.isPresent() && copyInFixed.isPresent()
+                    && copyInPerElement.isPresent() && copyOutFixed.isPresent()
+                    && copyOutPerElement.isPresent();
         }
     }
 

@@ -2,7 +2,7 @@
 
 ## Status
 
-Ready
+Complete
 
 ## Goal
 
@@ -601,19 +601,98 @@ specified validation succeed.
 
 ## Validation evidence
 
-Empty until implemented. Record every command and result, exact test counts, the OpenBLAS 0.3.34
-path and checkpoint cases, reused versus rerun evidence, Javadoc/render/Markdown/scope checks, the
-clean documentation context ID and result, package placement, glossary conclusion, and all
-reasoned no-change conclusions required above.
+Implementation context `01a08fee-b64a-7dc1-ade2-2500c16b1f3e` completed the executable work on
+baseline `63aed444`. Its final affected-project command
+`./gradlew :backends:cpu:test :testing:backend-conformance:test` passed: CPU reported 961 tests,
+zero failures/errors, and 28 pre-existing skips; backend conformance reported 7 tests with zero
+failures, errors, or skips. `./gradlew :backends:cpu:testClasses` also passed. The explicit native
+checkpoint used `/opt/homebrew/opt/openblas/lib/libopenblas.dylib`, whose stable link resolved to
+OpenBLAS 0.3.34. FLOAT32 and FLOAT64 direct, left-transpose, right-gapped-affine, both-input-copy,
+output-copy, and both-input-plus-output-copy cases passed, and the process restored thread count
+16. The final `./gradlew test` repository gate passed with all 63 actionable tasks current. The
+implementation context also passed exact executable-scope and `git diff --check` gates.
+
+Clean documentation context `01a09003-ea2c-7ec3-8a06-fc93954f1b90` independently inspected the
+architecture, planning contracts, complete implementation diff, changed Java sources/tests,
+directly related CPU/provider contracts, and the recorded reports rather than assuming the
+handoff summary was sufficient. It made no executable behavior change and therefore reused the
+fresh Java/native/root evidence above. After finalizing Javadoc and documentation it passed:
+
+- `./gradlew :backends:cpu:javadoc`; the build succeeded and emitted no warning for a 0010B
+  surface (94 pre-existing warnings remain in unchanged legacy constructor documentation);
+- rendered inspection of every changed generated Javadoc type and package page;
+- local Markdown link/anchor, heading order/uniqueness, balanced-fence, example, terminology,
+  LF/final-newline, and trailing-whitespace checks;
+- exact changed-path and allowlist checks with 19 paths, below the 25-path ceiling;
+- CPU internal package inventory, task-status/order, absent-future-file, `git diff --check`, and
+  `git status --short -uall` checks.
+
+The new production type is exactly
+`io.github.pho001.synaptik.backend.cpu.internal.route.nativeblas.openblas.CpuOpenBlasOutputCopyPlan`;
+no package was added. The glossary required one update because its CPU native peer entry still
+described the superseded one-input-only boundary. No new public term was introduced.
+
+The final 19 changed paths are exactly:
+
+```text
+backends/cpu/src/main/java/io/github/pho001/synaptik/backend/cpu/internal/lowering/CpuRepresentationPlanner.java
+backends/cpu/src/main/java/io/github/pho001/synaptik/backend/cpu/internal/prepare/CpuPartitionAnalysisInputs.java
+backends/cpu/src/main/java/io/github/pho001/synaptik/backend/cpu/internal/prepare/CpuPartitionFinalizer.java
+backends/cpu/src/main/java/io/github/pho001/synaptik/backend/cpu/internal/prepare/CpuPartitionPreparationPlan.java
+backends/cpu/src/main/java/io/github/pho001/synaptik/backend/cpu/internal/prepare/CpuPartitionPreparer.java
+backends/cpu/src/main/java/io/github/pho001/synaptik/backend/cpu/internal/route/nativeblas/openblas/CpuOpenBlasOutputCopyPlan.java
+backends/cpu/src/main/java/io/github/pho001/synaptik/backend/cpu/internal/route/nativeblas/openblas/CpuOpenBlasPreparedExecutable.java
+backends/cpu/src/main/java/io/github/pho001/synaptik/backend/cpu/internal/route/nativeblas/openblas/CpuOpenBlasRoutePlan.java
+backends/cpu/src/main/java/io/github/pho001/synaptik/backend/cpu/internal/route/nativeblas/openblas/CpuOpenBlasRouteSelector.java
+backends/cpu/src/main/java/io/github/pho001/synaptik/backend/cpu/internal/route/nativeblas/openblas/package-info.java
+backends/cpu/src/test/java/io/github/pho001/synaptik/backend/cpu/CpuInternalPackageInventoryTest.java
+backends/cpu/src/test/java/io/github/pho001/synaptik/backend/cpu/internal/route/nativeblas/openblas/CpuOpenBlasNativeCheckpoint.java
+backends/cpu/src/test/java/io/github/pho001/synaptik/backend/cpu/internal/route/nativeblas/openblas/CpuOpenBlasRouteSelectorTest.java
+docs/backend-guide/cpu-backend.md
+docs/glossary.md
+docs/planning/backends/cpu/master-plan.md
+docs/planning/backends/cpu/tasks/0010b-bounded-openblas-matmul-representation-expansion.md
+docs/planning/roadmap.md
+testing/backend-conformance/src/test/java/io/github/pho001/synaptik/testing/conformance/CpuOpenBlasRouteConformanceTest.java
+```
 
 ## Implementation notes
 
-Empty until implemented. Record the finalized type placement, copy-mask representation,
-workspace IDs, sequencing owner, cost-fact shape, and any within-scope local decision that differs
-from the proposed route-local output-copy type.
+`CpuOpenBlasRoutePlan.Representation` is the closed eight-mask identity. Input copies remain
+ordered `CpuMaterializationPlan` values; the new route-local `CpuOpenBlasOutputCopyPlan` honestly
+records canonical-workspace-to-logical-output direction. Selected copies receive distinct
+analysis-local workspace IDs 8 through 10 in left, right, output order. All declarations enter
+the analysis before assignment. `CpuOpenBlasPreparedExecutable` owns the final left-copy,
+right-copy, one-GEMM, output-copy sequence and validates the complete bound resource graph before
+returning the invocation.
+
+`OpenBlasRouteConfig` now carries six complete representation coefficients separately from the
+portable and OpenBLAS GEMM terms. Selection records expected runs, total workspace bytes, input
+and output copied elements, both checked totals, absolute benefit, and relative basis points.
+Incomplete or overflowing facts fail closed. No implementation decision differed from the
+planned route-local output-copy design.
+
+Review concluded that no change is required to public Tensor, Compile, Training, Config, or
+Engine APIs; Model MATMUL semantics or capability reporting; the OpenBLAS provider source, tests,
+API, ABI, or documentation; shared Prepare/Runtime contracts; `ARCHITECTURE.md`, explanatory
+architecture documents, or ADRs; Gradle/dependencies; affine-copy emitter, generated schema, or
+other generated families; CPU 0010A discovery; other backend-conformance sources; integration
+tests; or other modules. The existing CPU single-thread external coordination, provider lifetime,
+and qualification boundaries remain exact. No performance or tuning claim is made.
 
 ## Completion summary
 
-Empty until implemented. Use the Planning Guide completion-summary format and include completed
-changes, exact files, tests/validation, documentation-agent review, documentation/Javadoc/glossary
-impact, unresolved issues, required follow-up, and final status.
+Completed the bounded OpenBLAS MATMUL representation expansion across 19 authorized paths. Nine
+CPU production paths implement all eight masks, honest copy-out ownership, exact resource/cost
+facts, declaration-before-assignment, finalization, and pre-write validated execution. Three CPU
+test/checkpoint paths and one backend-conformance path cover selection, costs, binding,
+sequencing, failures, reuse/concurrency, and real OpenBLAS 0.3.34 execution. The clean
+documentation pass finalized affected Javadoc/package documentation, the CPU guide, the necessary
+glossary correction, and synchronized planning evidence.
+
+All required executable, native, repository, Javadoc, rendered-page, Markdown, package, scope,
+status/order, future-file, and whitespace validation passed. There are no unresolved 0010B issues
+and no required corrective follow-up. CPU 0010C is the next `Draft` planning frontier; 0010D and
+0010E remain `Draft`, and CPU 0011 remains `Blocked`.
+
+Status: Complete

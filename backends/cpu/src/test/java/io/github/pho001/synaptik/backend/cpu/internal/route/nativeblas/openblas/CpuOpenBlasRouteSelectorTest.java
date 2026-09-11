@@ -85,6 +85,79 @@ final class CpuOpenBlasRouteSelectorTest {
                 () -> assertEquals(4, analysis.requirements().size()));
     }
 
+    @Test void selectsEveryBoundedCopyMaskWithDistinctOrderedWorkspaces() {
+        record Case(boolean left, boolean right, boolean output,
+                CpuOpenBlasRoutePlan.Representation expected) { }
+        var cases = List.of(
+                new Case(false, false, false, CpuOpenBlasRoutePlan.Representation.DIRECT),
+                new Case(true, false, false, CpuOpenBlasRoutePlan.Representation.COPY_LEFT),
+                new Case(false, true, false, CpuOpenBlasRoutePlan.Representation.COPY_RIGHT),
+                new Case(false, false, true, CpuOpenBlasRoutePlan.Representation.COPY_OUTPUT),
+                new Case(true, true, false, CpuOpenBlasRoutePlan.Representation.COPY_LEFT_RIGHT),
+                new Case(true, false, true, CpuOpenBlasRoutePlan.Representation.COPY_LEFT_OUTPUT),
+                new Case(false, true, true, CpuOpenBlasRoutePlan.Representation.COPY_RIGHT_OUTPUT),
+                new Case(true, true, true,
+                        CpuOpenBlasRoutePlan.Representation.COPY_LEFT_RIGHT_OUTPUT));
+        for (Case value : cases) {
+            var route = analyze(maskInputs(DataType.FLOAT32, value.left(), value.right(),
+                    value.output(), 1, defaultConfig())).openBlasPlan().orElseThrow();
+            int copies = (value.left() ? 1 : 0) + (value.right() ? 1 : 0)
+                    + (value.output() ? 1 : 0);
+            assertAll(value.expected().name(),
+                    () -> assertEquals(value.expected(), route.representation()),
+                    () -> assertEquals(copies, route.workspaceRequirements().size()),
+                    () -> assertEquals(java.util.stream.LongStream.range(8, 8L + copies).boxed()
+                            .toList(), route.workspaceRequirements().stream()
+                                    .map(io.github.pho001.synaptik.prepare.analysis
+                                            .PreparationResourceRequirement.Workspace::requirementId)
+                                    .toList()),
+                    () -> assertEquals(value.left(), route.leftMaterialization().isPresent()),
+                    () -> assertEquals(value.right(), route.rightMaterialization().isPresent()),
+                    () -> assertEquals(value.output(), route.outputCopy().isPresent()));
+        }
+    }
+
+    @Test void chargesCompleteRepresentationCostAcrossExpectedRunsAndFailsClosedWhenMissing() {
+        var config = CpuPartitionAnalysisInputs.OpenBlasRouteConfig.qualifiedSingleThread(
+                CpuPartitionAnalysisInputs.CostTerms.complete(1_000, 0, 0),
+                CpuPartitionAnalysisInputs.CostTerms.complete(1, 1, 1),
+                CpuPartitionAnalysisInputs.RepresentationCostTerms.complete(1, 1, 1, 1, 1, 1),
+                0, 0);
+        var route = analyze(maskInputs(DataType.FLOAT32, true, true, true, 2, config))
+                .openBlasPlan().orElseThrow();
+        assertAll(() -> assertEquals(2_000, route.portableCost()),
+                () -> assertEquals(338, route.openBlasCost()),
+                () -> assertEquals(104, route.workspaceBytes()),
+                () -> assertEquals(18, route.inputCopiedElements()),
+                () -> assertEquals(8, route.outputCopiedElements()),
+                () -> assertEquals(2, route.expectedRunCount()));
+        var missing = new CpuPartitionAnalysisInputs.OpenBlasRouteConfig(
+                CpuPartitionAnalysisInputs.OpenBlasRouteConfig.Availability.QUALIFIED,
+                Optional.of(CpuPartitionAnalysisInputs.OpenBlasRouteConfig.ThreadConfiguration
+                        .SINGLE_THREAD), CpuPartitionAnalysisInputs.CostTerms.complete(1_000, 0, 0),
+                CpuPartitionAnalysisInputs.CostTerms.complete(0, 0, 0),
+                CpuPartitionAnalysisInputs.RepresentationCostTerms.MISSING,
+                java.util.OptionalLong.of(0), java.util.OptionalInt.of(0));
+        assertEquals(CpuPartitionPreparationPlan.Route.PORTABLE,
+                analyze(maskInputs(DataType.FLOAT32, true, true, true, 2, missing)).route());
+    }
+
+    @Test void chargesEachRepresentationCoefficientIndependently() {
+        long[] expected = {3, 104, 2, 18, 1, 8};
+        for (int term = 0; term < expected.length; term++) {
+            long[] values = new long[6];
+            values[term] = 1;
+            var config = CpuPartitionAnalysisInputs.OpenBlasRouteConfig.qualifiedSingleThread(
+                    CpuPartitionAnalysisInputs.CostTerms.complete(1_000, 0, 0),
+                    CpuPartitionAnalysisInputs.CostTerms.complete(0, 0, 0),
+                    CpuPartitionAnalysisInputs.RepresentationCostTerms.complete(values[0],
+                            values[1], values[2], values[3], values[4], values[5]), 0, 0);
+            var route = analyze(maskInputs(DataType.FLOAT32, true, true, true, 1, config))
+                    .openBlasPlan().orElseThrow();
+            assertEquals(expected[term], route.openBlasCost(), "term " + term);
+        }
+    }
+
     @Test void selectsRightCopyAndPrefersDirectWhenCopyCostsTie() {
         DataType type = DataType.FLOAT64;
         int width = type.byteWidth();
@@ -161,6 +234,32 @@ final class CpuOpenBlasRouteSelectorTest {
         return qualified(type, copy, runs,
                 CpuPartitionAnalysisInputs.OpenBlasRouteConfig.qualifiedSingleThread(
                         100, 2, 10, 1, 1, 1, 1, 1));
+    }
+
+    private static CpuPartitionAnalysisInputs.OpenBlasRouteConfig defaultConfig() {
+        return CpuPartitionAnalysisInputs.OpenBlasRouteConfig.qualifiedSingleThread(
+                100, 2, 10, 1, 1, 1, 0, 0);
+    }
+
+    private static CpuPartitionAnalysisInputs maskInputs(DataType type, boolean left,
+            boolean right, boolean output, long runs,
+            CpuPartitionAnalysisInputs.OpenBlasRouteConfig config) {
+        int width = type.byteWidth();
+        CpuKernelSpecialization.CarrierAccess array = type == DataType.FLOAT32
+                ? CpuKernelSpecialization.CarrierAccess.FLOAT_ARRAY
+                : CpuKernelSpecialization.CarrierAccess.DOUBLE_ARRAY;
+        var carriers = List.of(left ? array : CpuKernelSpecialization.CarrierAccess.MEMORY_SEGMENT,
+                right ? array : CpuKernelSpecialization.CarrierAccess.MEMORY_SEGMENT,
+                output ? array : CpuKernelSpecialization.CarrierAccess.MEMORY_SEGMENT);
+        var nativeFact = new CpuPartitionAnalysisInputs.BoundaryStorageFact(true, width);
+        var facts = List.of(left ? CpuPartitionAnalysisInputs.BoundaryStorageFact.UNKNOWN : nativeFact,
+                right ? CpuPartitionAnalysisInputs.BoundaryStorageFact.UNKNOWN : nativeFact,
+                output ? CpuPartitionAnalysisInputs.BoundaryStorageFact.UNKNOWN : nativeFact);
+        var policy = new CpuPartitionAnalysisInputs.MaterializationPolicy(true,
+                0, 0, 10, 0, runs, 1_000_000, 0, 0);
+        return new CpuPartitionAnalysisInputs(false, carriers,
+                CpuPartitionAnalysisInputs.PortableExecutionConfig.DEFAULT, policy, false,
+                CpuPartitionAnalysisInputs.PartialReductionEvidence.NONE, facts, config);
     }
 
     private static CpuPartitionAnalysisInputs qualified(DataType type, boolean copy, long runs,

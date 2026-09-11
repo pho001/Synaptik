@@ -4,64 +4,142 @@ import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuMaterializatio
 import io.github.pho001.synaptik.backend.cpu.internal.prepare.CpuPartitionAnalysisInputs;
 import io.github.pho001.synaptik.model.datatype.DataType;
 import io.github.pho001.synaptik.prepare.analysis.PreparationResourceRequirement;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 
 /**
- * Immutable selected OpenBLAS SGEMM/DGEMM plan produced after common CPU lowering.
- * The plan contains exact logical geometry, stable boundary positions, one externally coordinated
- * thread configuration, at most one existing affine-copy materialization, and the checked
- * whole-plan comparison. It owns no provider, segment, slot, graph object, or mutable resource.
+ * Immutable selected OpenBLAS SGEMM/DGEMM plan with the complete bounded representation
+ * transition and checked whole-plan comparison. It owns no provider, segment, slot, or mutable
+ * resource.
  *
- * @param dataType exact same FLOAT32 or FLOAT64 operand and result type
- * @param m positive provider-representable output row count
- * @param n positive provider-representable output column count
- * @param k positive provider-representable contraction count
- * @param leftBoundaryPosition exact left-input position in the common boundary list
- * @param rightBoundaryPosition exact right-input position in the common boundary list
- * @param outputBoundaryPosition exact output position in the common boundary list
- * @param threadConfiguration exact selected single-thread provider configuration
- * @param representation direct or one-input-copy representation choice
- * @param materialization exact existing affine-copy plan when one input is copied
- * @param workspaceRequirement exact run-owned copy workspace declaration when one input is copied
- * @param portableCost checked complete portable cost across expected runs
- * @param openBlasCost checked complete native plan cost across expected runs
- * @param netBenefit checked {@code portableCost - openBlasCost}
- * @param benefitBasisPoints checked non-negative benefit relative to portable cost
+ * @param dataType exact common FLOAT32 or FLOAT64 matrix type
+ * @param m positive output row count
+ * @param n positive output column count
+ * @param k positive contraction extent
+ * @param leftBoundaryPosition stable left-input boundary position, exactly zero
+ * @param rightBoundaryPosition stable right-input boundary position, exactly one
+ * @param outputBoundaryPosition stable output boundary position, exactly two
+ * @param threadConfiguration externally coordinated single-thread provider configuration
+ * @param representation exact three-boundary copy mask
+ * @param leftMaterialization optional external-read copy for the left input
+ * @param rightMaterialization optional external-read copy for the right input
+ * @param outputCopy optional route-local copy from the canonical result workspace
+ * @param workspaceRequirements immutable left, right, then output workspace declarations for the
+ *     selected copies
+ * @param expectedRunCount positive run count used by the complete cost calculation
+ * @param workspaceBytes exact sum of selected workspace bytes
+ * @param inputCopiedElements exact sum of copied left and right elements
+ * @param outputCopiedElements exact copied output elements, or zero
+ * @param portableCost checked total portable cost across expected runs
+ * @param openBlasCost checked total OpenBLAS and representation cost across expected runs
+ * @param netBenefit exact positive {@code portableCost - openBlasCost}
+ * @param benefitBasisPoints floored relative benefit in {@code [0, 10_000]}
  */
 public record CpuOpenBlasRoutePlan(DataType dataType, int m, int n, int k,
         int leftBoundaryPosition, int rightBoundaryPosition, int outputBoundaryPosition,
         CpuPartitionAnalysisInputs.OpenBlasRouteConfig.ThreadConfiguration threadConfiguration,
-        Representation representation, Optional<CpuMaterializationPlan> materialization,
-        Optional<PreparationResourceRequirement.Workspace> workspaceRequirement,
-        long portableCost, long openBlasCost, long netBenefit, int benefitBasisPoints) {
+        Representation representation, Optional<CpuMaterializationPlan> leftMaterialization,
+        Optional<CpuMaterializationPlan> rightMaterialization,
+        Optional<CpuOpenBlasOutputCopyPlan> outputCopy,
+        List<PreparationResourceRequirement.Workspace> workspaceRequirements,
+        long expectedRunCount, long workspaceBytes, long inputCopiedElements,
+        long outputCopiedElements, long portableCost, long openBlasCost, long netBenefit,
+        int benefitBasisPoints) {
 
-    /** Closed representation choice for the first native route. */
+    /**
+     * Preserves the CPU 0010 direct/one-input construction surface for focused tests.
+     *
+     * @param dataType exact common FLOAT32 or FLOAT64 type
+     * @param m positive output row count
+     * @param n positive output column count
+     * @param k positive contraction extent
+     * @param leftBoundaryPosition left boundary position, exactly zero
+     * @param rightBoundaryPosition right boundary position, exactly one
+     * @param outputBoundaryPosition output boundary position, exactly two
+     * @param threadConfiguration externally coordinated single-thread configuration
+     * @param representation direct, copy-left, or copy-right representation
+     * @param materialization selected sole input copy, if any
+     * @param workspaceRequirement selected sole workspace, if any
+     * @param portableCost checked positive portable total
+     * @param openBlasCost checked lower OpenBLAS total
+     * @param netBenefit exact positive cost difference
+     * @param benefitBasisPoints floored relative benefit
+     * @throws NullPointerException if a required reference is {@code null}
+     * @throws IllegalArgumentException if geometry, representation, resource, or cost facts
+     *     disagree
+     * @throws ArithmeticException if derived totals overflow
+     */
+    public CpuOpenBlasRoutePlan(DataType dataType, int m, int n, int k,
+            int leftBoundaryPosition, int rightBoundaryPosition, int outputBoundaryPosition,
+            CpuPartitionAnalysisInputs.OpenBlasRouteConfig.ThreadConfiguration threadConfiguration,
+            Representation representation, Optional<CpuMaterializationPlan> materialization,
+            Optional<PreparationResourceRequirement.Workspace> workspaceRequirement,
+            long portableCost, long openBlasCost, long netBenefit, int benefitBasisPoints) {
+        this(dataType, m, n, k, leftBoundaryPosition, rightBoundaryPosition,
+                outputBoundaryPosition, threadConfiguration, representation,
+                representation == Representation.COPY_LEFT ? materialization : Optional.empty(),
+                representation == Representation.COPY_RIGHT ? materialization : Optional.empty(),
+                Optional.empty(), workspaceRequirement.stream().toList(),
+                materialization.map(CpuMaterializationPlan::expectedRunCount).orElse(1L),
+                workspaceRequirement.map(PreparationResourceRequirement.Workspace::byteSize)
+                        .orElse(0L),
+                materialization.map(CpuMaterializationPlan::elementCount).orElse(0L), 0,
+                portableCost, openBlasCost, netBenefit, benefitBasisPoints);
+    }
+
+    /** Stable closed copy-mask order for the bounded route. */
     public enum Representation {
-        /** All three matrices use their directly bound native segments. */ DIRECT,
-        /** The left input is copied once into the declared native workspace. */ COPY_LEFT,
-        /** The right input is copied once into the declared native workspace. */ COPY_RIGHT
+        /** No copies. */ DIRECT(false, false, false),
+        /** Copy left input. */ COPY_LEFT(true, false, false),
+        /** Copy right input. */ COPY_RIGHT(false, true, false),
+        /** Copy provider result to the logical output. */ COPY_OUTPUT(false, false, true),
+        /** Copy both inputs. */ COPY_LEFT_RIGHT(true, true, false),
+        /** Copy left input and output. */ COPY_LEFT_OUTPUT(true, false, true),
+        /** Copy right input and output. */ COPY_RIGHT_OUTPUT(false, true, true),
+        /** Copy both inputs and output. */ COPY_LEFT_RIGHT_OUTPUT(true, true, true);
+
+        private final boolean left;
+        private final boolean right;
+        private final boolean output;
+        Representation(boolean left, boolean right, boolean output) {
+            this.left = left; this.right = right; this.output = output;
+        }
+        /** Reports whether the left boundary needs canonicalization.
+         * @return whether the left input is copied */
+        public boolean copiesLeft() { return left; }
+        /** Reports whether the right boundary needs canonicalization.
+         * @return whether the right input is copied */
+        public boolean copiesRight() { return right; }
+        /** Reports whether GEMM writes a route-owned output workspace.
+         * @return whether the output is copied */
+        public boolean copiesOutput() { return output; }
+        /** Counts the distinct workspaces required by this mask.
+         * @return the total number of copied boundaries */
+        public int copyCount() { return (left ? 1 : 0) + (right ? 1 : 0) + (output ? 1 : 0); }
     }
 
     /**
-     * Validates all route, representation, resource, and cost invariants.
+     * Validates and snapshots route, copy-mask, resource, geometry, expected-run, and cost facts.
+     * Optional copy plans and the workspace list are never {@code null}; the list is copied and
+     * every selected copy must own its correspondingly ordered, distinct workspace declaration.
      *
-     * @throws NullPointerException if a required component is {@code null}
-     * @throws IllegalArgumentException if type, geometry, boundary, thread, representation,
-     *     resource, or cost facts disagree
-     * @throws ArithmeticException if supplied cost facts overflow their checked relationship
+     * @throws NullPointerException if a required reference or workspace element is {@code null}
+     * @throws IllegalArgumentException if semantic, copy-mask, resource, geometry, expected-run,
+     *     or cost invariants disagree
+     * @throws ArithmeticException if exact aggregate or relative-benefit arithmetic overflows
      */
     public CpuOpenBlasRoutePlan {
         Objects.requireNonNull(dataType, "dataType");
         Objects.requireNonNull(threadConfiguration, "threadConfiguration");
         Objects.requireNonNull(representation, "representation");
-        materialization = Objects.requireNonNull(materialization, "materialization");
-        workspaceRequirement = Objects.requireNonNull(workspaceRequirement,
-                "workspaceRequirement");
-        int copiedBoundary = representation == Representation.COPY_LEFT
-                ? leftBoundaryPosition : representation == Representation.COPY_RIGHT
-                    ? rightBoundaryPosition : -1;
-        boolean copied = representation != Representation.DIRECT;
+        leftMaterialization = Objects.requireNonNull(leftMaterialization,
+                "leftMaterialization");
+        rightMaterialization = Objects.requireNonNull(rightMaterialization,
+                "rightMaterialization");
+        outputCopy = Objects.requireNonNull(outputCopy, "outputCopy");
+        workspaceRequirements = List.copyOf(workspaceRequirements);
         if ((dataType != DataType.FLOAT32 && dataType != DataType.FLOAT64)
                 || m <= 0 || n <= 0 || k <= 0
                 || leftBoundaryPosition != 0 || rightBoundaryPosition != 1
@@ -69,37 +147,106 @@ public record CpuOpenBlasRoutePlan(DataType dataType, int m, int n, int k,
                 || threadConfiguration
                     != CpuPartitionAnalysisInputs.OpenBlasRouteConfig.ThreadConfiguration
                             .SINGLE_THREAD
-                || materialization.isPresent() != copied
-                || workspaceRequirement.isPresent() != copied
-                || portableCost < 0 || openBlasCost < 0 || openBlasCost >= portableCost
-                || netBenefit <= 0 || netBenefit != Math.subtractExact(portableCost, openBlasCost)
+                || leftMaterialization.isPresent() != representation.copiesLeft()
+                || rightMaterialization.isPresent() != representation.copiesRight()
+                || outputCopy.isPresent() != representation.copiesOutput()
+                || workspaceRequirements.size() != representation.copyCount()
+                || expectedRunCount <= 0 || workspaceBytes < 0 || inputCopiedElements < 0
+                || outputCopiedElements < 0 || portableCost < 0 || openBlasCost < 0
+                || openBlasCost >= portableCost || netBenefit <= 0
+                || netBenefit != Math.subtractExact(portableCost, openBlasCost)
                 || benefitBasisPoints < 0 || benefitBasisPoints > 10_000
+                || portableCost == 0
                 || benefitBasisPoints != Math.toIntExact(Math.floorDiv(
                         Math.multiplyExact(10_000L, netBenefit), portableCost))) {
             throw new IllegalArgumentException("OpenBLAS route-plan facts disagree");
         }
-        if (copied) {
-            CpuMaterializationPlan copy = materialization.orElseThrow();
-            PreparationResourceRequirement.Workspace workspace = workspaceRequirement.orElseThrow();
-            if (copy.sourceBoundaryIndex() != copiedBoundary || copy.dataType() != dataType
+        var copies = new ArrayList<CpuMaterializationPlan>(2);
+        leftMaterialization.ifPresent(copies::add);
+        rightMaterialization.ifPresent(copies::add);
+        long actualInputElements = 0;
+        long actualBytes = 0;
+        int workspaceIndex = 0;
+        for (CpuMaterializationPlan copy : copies) {
+            int boundary = workspaceIndex == 0 && representation.copiesLeft()
+                    ? leftBoundaryPosition : rightBoundaryPosition;
+            var workspace = workspaceRequirements.get(workspaceIndex++);
+            if (copy.sourceBoundaryIndex() != boundary || copy.dataType() != dataType
+                    || copy.expectedRunCount() != expectedRunCount
                     || copy.consumers().size() != 1
                     || copy.consumers().getFirst().unitPosition() != 0
-                    || copy.consumers().getFirst().boundaryPosition() != copiedBoundary
+                    || copy.consumers().getFirst().boundaryPosition() != boundary
                     || workspace.requirementId() != copy.workspaceRequirementId()
                     || workspace.byteSize() != copy.byteCount()
                     || workspace.byteAlignment() != copy.byteAlignment()) {
-                throw new IllegalArgumentException("OpenBLAS copy and workspace facts disagree");
+                throw new IllegalArgumentException("OpenBLAS input-copy facts disagree");
             }
+            actualInputElements = Math.addExact(actualInputElements, copy.elementCount());
+            actualBytes = Math.addExact(actualBytes, copy.byteCount());
+        }
+        if (outputCopy.isPresent()) {
+            var copy = outputCopy.orElseThrow();
+            var workspace = workspaceRequirements.get(workspaceIndex);
+            if (copy.outputBoundaryPosition() != outputBoundaryPosition
+                    || copy.dataType() != dataType
+                    || workspace.requirementId() != copy.workspaceRequirementId()
+                    || workspace.byteSize() != copy.byteCount()
+                    || workspace.byteAlignment() != copy.byteAlignment()) {
+                throw new IllegalArgumentException("OpenBLAS output-copy facts disagree");
+            }
+            actualBytes = Math.addExact(actualBytes, copy.byteCount());
+        }
+        long actualOutputElements = outputCopy.map(CpuOpenBlasOutputCopyPlan::elementCount)
+                .orElse(0L);
+        if (actualInputElements != inputCopiedElements
+                || actualOutputElements != outputCopiedElements
+                || actualBytes != workspaceBytes
+                || workspaceRequirements.stream()
+                    .map(PreparationResourceRequirement.Workspace::requirementId)
+                    .distinct().count() != workspaceRequirements.size()) {
+            throw new IllegalArgumentException("OpenBLAS representation totals disagree");
         }
     }
 
-    /** Returns the boundary position whose effective input comes from the copy workspace.
-     * @return zero or one when copied, or {@code -1} for direct execution */
+    /**
+     * Collects selected external-read transitions in execution order.
+     *
+     * @return an immutable ordered left-then-right list of selected input materializations
+     */
+    public List<CpuMaterializationPlan> inputMaterializations() {
+        var result = new ArrayList<CpuMaterializationPlan>(2);
+        leftMaterialization.ifPresent(result::add);
+        rightMaterialization.ifPresent(result::add);
+        return List.copyOf(result);
+    }
+
+    /**
+     * Returns the legacy single-input-copy view without reinterpreting output copy-out.
+     *
+     * @return the sole selected input materialization, or empty for zero or two input copies
+     */
+    public Optional<CpuMaterializationPlan> materialization() {
+        List<CpuMaterializationPlan> copies = inputMaterializations();
+        return copies.size() == 1 ? Optional.of(copies.getFirst()) : Optional.empty();
+    }
+
+    /**
+     * Returns the legacy single-workspace view across both input and output transitions.
+     *
+     * @return the sole workspace declaration, or empty when the route declares zero or multiple
+     */
+    public Optional<PreparationResourceRequirement.Workspace> workspaceRequirement() {
+        return workspaceRequirements.size() == 1 ? Optional.of(workspaceRequirements.getFirst())
+                : Optional.empty();
+    }
+
+    /**
+     * Reports the legacy single copied-input position without including output copy-out.
+     *
+     * @return the sole copied input position, or {@code -1} for zero or two copied inputs
+     */
     public int copiedBoundaryPosition() {
-        return switch (representation) {
-            case DIRECT -> -1;
-            case COPY_LEFT -> leftBoundaryPosition;
-            case COPY_RIGHT -> rightBoundaryPosition;
-        };
+        return representation.copiesLeft() == representation.copiesRight() ? -1
+                : representation.copiesLeft() ? leftBoundaryPosition : rightBoundaryPosition;
     }
 }

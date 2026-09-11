@@ -2633,45 +2633,61 @@ only for a bare, one-node, one-unit, positive rank-two matrix product. `A[m,k]`,
 `C[m,n]` must all be FLOAT32 or all be FLOAT64; `m`, `n`, and `k` must fit the provider's signed
 32-bit `blasint` dimensions. The operation must use the exact default numerical mode, have no
 broadcast batch, inserted or removed vector axis, bias, terminal, or other epilogue, and produce a
-canonical dense row-major zero-offset output. Every failure or uncertain fact leaves the portable
-plan selected and declares no OpenBLAS-only workspace.
+complete proved rank-two output binding. Every failure or uncertain fact leaves the portable plan
+selected and declares no OpenBLAS-only workspace.
 
-The direct form requires expected native, type-width-aligned `MemorySegment` storage for all three
-matrices. Alternatively, CPU may use exactly one existing affine-copy plan to convert `A` or `B`
-from an admitted non-negative affine layout or heap carrier into one exact aligned, native,
-run-owned contiguous workspace. `C` is never copied, both inputs cannot be copied, and this route
-does not pack panels, transpose, batch, broadcast, or allocate provider-side storage. Common CPU
-lowering remains authoritative, and the selected plan retains the complete portable realization
-as analysis evidence; finalization and Runtime cannot reselect it as a fallback.
+The direct form requires expected native, type-width-aligned `MemorySegment` storage and canonical
+zero-offset dense row-major access for all three matrices. For each boundary that is not direct,
+CPU selects exactly one generated affine copy and one distinct exact-size, type-width-aligned,
+run-owned native workspace. `A` and `B` reuse the existing external-read materialization contract;
+`C` uses a separate route-local copy-out contract from a canonical provider destination to the
+original proved injective logical output. This yields exactly eight masks: direct; left; right;
+output; left+right; left+output; right+output; and left+right+output. It is not general input
+materialization, provider transpose support, panel packing, batching, broadcasting, or
+provider-side allocation. Common CPU lowering remains authoritative, and the selected plan
+retains the complete portable realization as analysis evidence; finalization and Runtime cannot
+reselect it as a fallback.
 
 Selection uses caller-supplied immutable qualification, expected storage, single-thread, and
-dimensionless cost facts. Let `O = m * n`, `W = m * n * k`, `R` be expected runs, and `E` be the
-copied input's logical element count, or zero for direct execution. Checked costs are:
+dimensionless cost facts. Let `O = m * n`, `W = m * n * k`, `R` be expected runs, `S` be selected
+workspace count, `B` their total bytes, `IA + IB` be copied input elements, and `OC` be copied
+output elements. Checked costs are:
 
 ```text
 portable = R * (portableFixed + portablePerOutput * O + portablePerMac * W)
 
 openblas = R * (openblasFixed + openblasPerOutput * O + openblasPerMac * W
-                + copyFixed(if E > 0) + copyPerElement * E)
+                + workspaceAllocationAndBindingFixed * S
+                + workspaceCostPerByte * B
+                + copyInFixed * inputCopyCount
+                + copyInPerElement * (IA + IB)
+                + copyOutFixed * outputCopyCount
+                + copyOutPerElement * OC)
 ```
 
 OpenBLAS wins only when its complete cost is strictly lower and the difference meets both the
-configured absolute and relative basis-point thresholds. Overflow, missing terms, equality, an
-invalid relative denominator, or insufficient benefit fails closed. Among eligible candidates,
-lower cost wins; an exact tie prefers fewer copies, then fewer workspace bytes, then stable order
-direct, copy `A`, copy `B`. Analysis performs no native query, benchmark, cache lookup, machine
-probe, allocation, or fixed vendor-priority choice.
+configured absolute and relative basis-point thresholds. Every workspace and copy is charged on
+every expected run; prepared declarations and generated artifacts do not make copied bytes
+persistent. Overflow, missing terms, equality, a combined workspace-byte ceiling failure, an
+invalid relative denominator, or insufficient benefit fails closed. Boundary facts determine the
+single required mask, so CPU never adds a speculative copy to create another candidate. Analysis
+performs no native query, benchmark, cache lookup, machine probe, allocation, or fixed vendor-
+priority choice.
 
 Composition owns the exact `OpenBlasLibrary` and must qualify the supplied 32-bit-`blasint`
 binary, install thread count one, exclude competing OpenBLAS calls and thread writers throughout
 prepared use, keep the handle open, and restore state afterward if desired. CPU finalization only
 borrows a strongly retained provider-free invocation adapter. Finalization and every cold bind
 require an open provider and observed count one. Cold binding then validates types, native
-segments, accessibility, alignment, complete spans, output writability, workspace geometry, and
-all output/workspace overlaps before any copy or provider mutation. The hot invocation makes
-exactly one `sgemm` or `dgemm` call on the invoking thread with `alpha = 1` and `beta = 0`. Closure,
-thread drift, binding failure, copy failure, or provider failure propagates; no selected native
-plan retries or falls back to portable execution.
+segments, accessibility, alignment, complete spans, output writability, generated-copy identity,
+and every buffer-workspace and workspace-workspace overlap before any copy or provider mutation.
+`A` and `B` may overlap; logical `C` may not overlap either input even when that input is copied.
+The hot invocation copies `A` then `B` when selected, makes exactly one `sgemm` or `dgemm` call on
+the invoking thread with `alpha = 1` and `beta = 0`, then copies the result to logical `C` when
+selected. A provider failure cannot reach logical `C` when copy-out is selected, but copy-out is
+not transactional. Prepared recipes are reusable while each `RunState` receives distinct
+physical workspaces. Closure, thread drift, binding failure, copy failure, or provider failure
+propagates; no selected native plan retries or falls back to portable execution.
 
 The current package-private discovery session can supply that owned lifetime before preparation,
 but a `LOADED` discovery result does not supply any qualification, expected-storage,
@@ -2680,7 +2696,8 @@ leaves portable composition available. A failed exact-name or exact-path request
 does not continue with automatic candidates. Public Config intent, Engine lifecycle integration,
 and automatic installed-binary qualification remain future work.
 
-The explicit CPU checkpoint evaluates FLOAT32 and FLOAT64 direct and one-copy prepared routes
+The explicit CPU checkpoint evaluates FLOAT32 and FLOAT64 direct, left-transpose, right-gapped-
+affine, both-input-copy, output-copy, and both-input-plus-output-copy prepared routes
 against a higher-precision sum-of-products oracle. For unit roundoff `u` (`2^-24` for FLOAT32 or
 `2^-53` for FLOAT64), it requires `2 * k * u < 1`, defines
 `gamma = (2 * k * u) / (1 - 2 * k * u)`, and accepts finite absolute error no greater than:

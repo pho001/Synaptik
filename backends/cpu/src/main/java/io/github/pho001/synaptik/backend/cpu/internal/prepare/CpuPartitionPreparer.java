@@ -188,7 +188,7 @@ public final class CpuPartitionPreparer implements BackendPartitionPreparer<
                 plan.representationUnits(), plan.representationDecisions(),
                 plan.partialReductionRecipe(), Optional.of(nativePlan));
         var requirements = new ArrayList<PreparationResourceRequirement>(analysis.requirements());
-        nativePlan.workspaceRequirement().ifPresent(requirements::add);
+        requirements.addAll(nativePlan.workspaceRequirements());
         return new BackendPartitionAnalysis<>(analysis.partition(), selected, requirements);
     }
 

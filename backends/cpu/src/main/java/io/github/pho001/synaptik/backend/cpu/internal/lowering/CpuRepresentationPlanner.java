@@ -10,6 +10,7 @@ import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuMatmulIr;
 import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuRepresentationDecision;
 import io.github.pho001.synaptik.backend.cpu.internal.prepare.CpuPartitionAnalysisInputs;
 import io.github.pho001.synaptik.backend.cpu.internal.prepare.CpuPartitionPreparationPlan;
+import io.github.pho001.synaptik.backend.cpu.internal.route.nativeblas.openblas.CpuOpenBlasOutputCopyPlan;
 import io.github.pho001.synaptik.model.datatype.DataType;
 import io.github.pho001.synaptik.model.graph.ValueId;
 import io.github.pho001.synaptik.prepare.analysis.PrepareContext;
@@ -57,10 +58,29 @@ public final class CpuRepresentationPlanner {
     public Optional<CpuMaterializationPlan> openBlasInputMaterialization(
             CpuPartitionPreparationPlan plan, int sourceBoundaryIndex,
             CpuPartitionAnalysisInputs.MaterializationPolicy policy) {
+        return openBlasInputMaterialization(plan, sourceBoundaryIndex, policy, 8);
+    }
+
+    /**
+     * Builds an OpenBLAS input materialization with an explicitly assigned route-local identity.
+     *
+     * @param plan non-null common one-unit portable plan
+     * @param sourceBoundaryIndex zero-based left or right input position
+     * @param policy non-null enabled materialization policy and byte ceiling
+     * @param workspaceRequirementId route-local identity, either 8 or 9
+     * @return a complete generated input-copy plan, or empty when it cannot be represented
+     * @throws NullPointerException if {@code plan} or {@code policy} is {@code null}
+     * @throws ArithmeticException if exact copy geometry, bytes, or cost arithmetic overflows
+     */
+    public Optional<CpuMaterializationPlan> openBlasInputMaterialization(
+            CpuPartitionPreparationPlan plan, int sourceBoundaryIndex,
+            CpuPartitionAnalysisInputs.MaterializationPolicy policy,
+            int workspaceRequirementId) {
         Objects.requireNonNull(plan, "plan");
         Objects.requireNonNull(policy, "policy");
         if (!policy.enabled() || plan.units().size() != 1 || sourceBoundaryIndex < 0
-                || sourceBoundaryIndex >= 2 || plan.boundaryValues().size() != 3) {
+                || sourceBoundaryIndex >= 2 || plan.boundaryValues().size() != 3
+                || workspaceRequirementId < 8 || workspaceRequirementId > 9) {
             return Optional.empty();
         }
         var unit = plan.units().getFirst();
@@ -79,9 +99,51 @@ public final class CpuRepresentationPlanner {
         CpuMaterializationPlan copy = withWorkspace(materialization(sourceBoundaryIndex, type,
                 unit.carrierPattern().get(sourceBoundaryIndex), source, dense, List.of(consumer),
                 1, new CpuPartitionAnalysisInputs(false, unit.carrierPattern(),
-                        CpuPartitionAnalysisInputs.PortableExecutionConfig.DEFAULT, policy)), 8);
+                        CpuPartitionAnalysisInputs.PortableExecutionConfig.DEFAULT, policy)),
+                workspaceRequirementId);
         return copy.byteCount() <= policy.maximumAdditionalBytes()
                 ? Optional.of(copy) : Optional.empty();
+    }
+
+    /**
+     * Builds the exact route-local generated affine copy from a canonical native workspace to
+     * the logical MATMUL output.
+     *
+     * @param plan non-null common one-unit portable MATMUL plan
+     * @param workspaceRequirementId selected distinct route-local identity from 8 through 10
+     * @return the immutable copy-out plan when the complete positive FLOAT32/FLOAT64 output can
+     *     use the existing affine-copy machinery; otherwise empty
+     * @throws NullPointerException if {@code plan} is {@code null}
+     * @throws ArithmeticException if exact address or byte geometry overflows
+     */
+    public Optional<CpuOpenBlasOutputCopyPlan> openBlasOutputCopy(
+            CpuPartitionPreparationPlan plan, int workspaceRequirementId) {
+        Objects.requireNonNull(plan, "plan");
+        if (plan.units().size() != 1 || plan.boundaryValues().size() != 3) return Optional.empty();
+        var unit = plan.units().getFirst();
+        CpuAccessPlan.Binding destination = unit.accessBindings().get(2);
+        if (destination.plan().accessKind() != CpuAccessPlan.AccessKind.WRITE
+                || destination.start() != 0 || destination.end() != destination.elementCount()
+                || destination.elementCount() <= 0) return Optional.empty();
+        DataType type = unit.portablePlan().specialization().boundaryDataTypes().get(2);
+        if (type != DataType.FLOAT32 && type != DataType.FLOAT64) return Optional.empty();
+        CpuAccessPlan.Binding source = denseBinding(destination.extents().stream()
+                .mapToLong(Long::longValue).toArray(), destination.elementCount());
+        var copyIr = new CpuAffineCopyIr(type, source.plan(), destination.plan(),
+                List.of(new CpuAffineCopyIr.MappingStep(CpuAffineCopyIr.MappingKind.CONTIGUOUS,
+                        source.plan().iterationRank(), source.plan().iterationRank(), List.of())),
+                CpuAffineCopyIr.WriteDomain.LOGICAL_ELEMENTS);
+        var specialization = new CpuKernelSpecialization(
+                CpuLoweringFingerprint.fromHex(copyIr.structuralKey()),
+                CpuKernelSpecialization.NumericalMode.EXACT_DEFAULT,
+                CpuPartitionPreparationPlan.ExecutionStrategy.SCALAR, List.of(type, type),
+                List.of(CpuKernelSpecialization.CarrierAccess.MEMORY_SEGMENT,
+                        unit.carrierPattern().get(2)), 0, -1, List.of(), false);
+        long elements = destination.elementCount();
+        return Optional.of(new CpuOpenBlasOutputCopyPlan(2, type, source,
+                unit.carrierPattern().get(2), destination, elements,
+                Math.multiplyExact(elements, type.byteWidth()), workspaceRequirementId,
+                type.byteWidth(), copyIr, specialization, outputAffinePairs(destination)));
     }
 
     /**
@@ -440,6 +502,16 @@ public final class CpuRepresentationPlanner {
                         Math.multiplyExact(extents[axis], strides[axis]));
                 coordinates[axis] = 0;
             }
+        }
+        return pairs;
+    }
+
+    private static long[] outputAffinePairs(CpuAccessPlan.Binding binding) {
+        long[] pairs = affinePairs(binding);
+        for (int index = 0; index < pairs.length; index += 2) {
+            long destination = pairs[index];
+            pairs[index] = index / 2;
+            pairs[index + 1] = destination;
         }
         return pairs;
     }

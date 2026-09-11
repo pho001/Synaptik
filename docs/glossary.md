@@ -1343,7 +1343,11 @@ generated code by library identity.
 An exact-capability native realization compared with the portable route by CPU Prepare using
 whole-plan cost. The current first realization is OpenBLAS for one qualified positive rank-two,
 same-type FLOAT32/FLOAT64 bare MATMUL, using direct native matrices or one existing affine input
-copy. Every uncertain or ineligible case remains portable during analysis; a selected native plan
+copy per non-direct input plus a distinct route-local canonical output workspace and copy-out when
+the logical result is non-direct. The eight bounded masks range from no copies through both input
+copies plus output copy; each copied boundary owns one declared run-owned workspace. Output
+copy-out is not general external-read materialization. Every uncertain, overflowing, tied,
+insufficient-benefit, or ineligible case remains portable during analysis; a selected native plan
 does not fall back later. Accelerate BLAS/vDSP/vForce on Apple CPU, distinct oneMKL BLAS/VML and
 oneDNN routes on Intel, and distinct AOCL-BLAS/AOCL-LibM and optional ZenDNN routes on AMD remain
 planned. ARM itself does not name one native library.

@@ -73,8 +73,7 @@ public final class CpuOpenBlasNativeCheckpoint {
                 CpuOpenBlasInvocation invocation =
                         CpuOpenBlasRouteSelector.borrowedInvocation(library);
                 for (DataType type : List.of(DataType.FLOAT32, DataType.FLOAT64)) {
-                    checkFinite(type, false, invocation);
-                    checkFinite(type, true, invocation);
+                    checkFinite(type, invocation);
                     checkSpecial(type, invocation);
                 }
             } catch (Throwable failure) {
@@ -160,25 +159,30 @@ public final class CpuOpenBlasNativeCheckpoint {
         };
     }
 
-    private static void checkFinite(DataType type, boolean copyLeft,
-            CpuOpenBlasInvocation invocation) {
+    private static void checkFinite(DataType type, CpuOpenBlasInvocation invocation) {
         double[] left = {1, -2, 3, 4, 5, -6};
         double[] right = {7, 8, -9, 10, 11, 12};
-        double[] actual = execute(type, 2, 2, 3, left, right, copyLeft, invocation);
-        checkFiniteOracle(type, 2, 2, 3, left, right, actual);
+        boolean[][] cases = {{false, false, false}, {true, false, false},
+                {false, true, false}, {true, true, false}, {false, false, true},
+                {true, true, true}};
+        for (boolean[] copy : cases) {
+            double[] actual = execute(type, 2, 2, 3, left, right,
+                    copy[0], copy[1], copy[2], invocation);
+            checkFiniteOracle(type, 2, 2, 3, left, right, actual);
+        }
     }
 
     private static void checkSpecial(DataType type, CpuOpenBlasInvocation invocation) {
         double nan = execute(type, 1, 1, 3, new double[] {Double.NaN, 0, 0},
-                new double[] {1, 1, 1}, false, invocation)[0];
+                new double[] {1, 1, 1}, false, false, false, invocation)[0];
         double positiveInfinity = execute(type, 1, 1, 2,
-                new double[] {Double.POSITIVE_INFINITY, 1}, new double[] {1, 1}, false,
+                new double[] {Double.POSITIVE_INFINITY, 1}, new double[] {1, 1}, false, false, false,
                 invocation)[0];
         double negativeInfinity = execute(type, 1, 1, 2,
-                new double[] {Double.NEGATIVE_INFINITY, 1}, new double[] {1, 1}, false,
+                new double[] {Double.NEGATIVE_INFINITY, 1}, new double[] {1, 1}, false, false, false,
                 invocation)[0];
         double positiveZero = execute(type, 1, 1, 2, new double[] {0, 0},
-                new double[] {1, 2}, false, invocation)[0];
+                new double[] {1, 2}, false, false, false, invocation)[0];
         require(Double.isNaN(nan), type + " did not preserve the one-NaN product class");
         require(positiveInfinity == Double.POSITIVE_INFINITY,
                 type + " did not preserve sole positive infinity");
@@ -189,14 +193,15 @@ public final class CpuOpenBlasNativeCheckpoint {
     }
 
     private static double[] execute(DataType type, int m, int n, int k, double[] leftValues,
-            double[] rightValues, boolean copyLeft, CpuOpenBlasInvocation invocation) {
+            double[] rightValues, boolean copyLeft, boolean copyRight, boolean copyOutput,
+            CpuOpenBlasInvocation invocation) {
         BackendPartitionAnalysis<CpuPartitionPreparationPlan> analysis =
-                new CpuPartitionPreparer().analyze(context(type, m, n, k, copyLeft));
+                new CpuPartitionPreparer().analyze(context(type, m, n, k, copyLeft, copyRight,
+                        copyOutput));
         require(analysis.plan().route() == CpuPartitionPreparationPlan.Route.OPENBLAS,
                 "analysis did not select OpenBLAS");
         require(analysis.plan().openBlasPlan().orElseThrow().representation()
-                        == (copyLeft ? CpuOpenBlasRoutePlan.Representation.COPY_LEFT
-                                : CpuOpenBlasRoutePlan.Representation.DIRECT),
+                        == representation(copyLeft, copyRight, copyOutput),
                 "analysis selected the wrong representation");
         PreparedExecutable executable = finalize(analysis, invocation);
         try (Arena arena = Arena.ofConfined()) {
@@ -210,11 +215,21 @@ public final class CpuOpenBlasNativeCheckpoint {
                         type.byteWidth());
                 put(type, left, leftValues);
             }
-            MemorySegment right = arena.allocate(Math.multiplyExact((long) k * n,
-                    type.byteWidth()), type.byteWidth());
-            MemorySegment output = arena.allocate(Math.multiplyExact((long) m * n,
-                    type.byteWidth()), type.byteWidth());
-            put(type, right, rightValues);
+            MemorySegment right;
+            if (copyRight) {
+                double[] physical = rightAffinePhysical(k, n, rightValues);
+                right = type == DataType.FLOAT32 ? MemorySegment.ofArray(toFloats(physical))
+                        : MemorySegment.ofArray(physical);
+            } else {
+                right = arena.allocate(Math.multiplyExact((long) k * n, type.byteWidth()),
+                        type.byteWidth());
+                put(type, right, rightValues);
+            }
+            MemorySegment output = copyOutput
+                    ? type == DataType.FLOAT32 ? MemorySegment.ofArray(new float[m * n])
+                            : MemorySegment.ofArray(new double[m * n])
+                    : arena.allocate(Math.multiplyExact((long) m * n, type.byteWidth()),
+                            type.byteWidth());
             List<WorkspaceRepresentation> workspaces = executable.memoryPlan().workspaces().stream()
                     .map(entry -> (WorkspaceRepresentation) CpuContiguousWorkspace.allocate(
                             entry.byteSize(), entry.byteAlignment())).toList();
@@ -222,12 +237,13 @@ public final class CpuOpenBlasNativeCheckpoint {
                     workspaces)) {
                 executable.bind(state).execute();
             }
-            return get(type, output);
+            double[] physical = get(type, output);
+            return copyOutput ? stridedLogical(m, n, physical) : physical;
         }
     }
 
     private static PrepareContext<CpuPartitionAnalysisInputs> context(DataType type,
-            int m, int n, int k, boolean copyLeft) {
+            int m, int n, int k, boolean copyLeft, boolean copyRight, boolean copyOutput) {
         var node = new CompiledNode(new NodeId(0),
                 new Operation(MatmulKind.MATMUL, NoOperationAttrs.INSTANCE),
                 List.of(new ValueId(0), new ValueId(1)), List.of(new ValueId(2)));
@@ -237,8 +253,15 @@ public final class CpuOpenBlasNativeCheckpoint {
         TensorDescriptor left = new TensorDescriptor(type, leftShape, Optional.of(copyLeft
                 ? LayoutDescriptor.of(leftShape, new long[] {1, m}, 0, true)
                 : LayoutDescriptor.contiguous(leftShape)), false);
-        List<TensorDescriptor> descriptors = List.of(left, descriptor(type, Shape.of(k, n)),
-                descriptor(type, Shape.of(m, n)));
+        Shape rightShape = Shape.of(k, n);
+        Shape outputShape = Shape.of(m, n);
+        TensorDescriptor right = new TensorDescriptor(type, rightShape, Optional.of(copyRight
+                ? LayoutDescriptor.of(rightShape, new long[] {n + 1L, 1}, 0, true)
+                : LayoutDescriptor.contiguous(rightShape)), false);
+        TensorDescriptor output = new TensorDescriptor(type, outputShape, Optional.of(copyOutput
+                ? LayoutDescriptor.of(outputShape, new long[] {1, m}, 0, true)
+                : LayoutDescriptor.contiguous(outputShape)), false);
+        List<TensorDescriptor> descriptors = List.of(left, right, output);
         var values = new ArrayList<GraphValue>();
         var memory = new ArrayList<LogicalMemoryRequirement>();
         for (int index = 0; index < 3; index++) {
@@ -249,19 +272,18 @@ public final class CpuOpenBlasNativeCheckpoint {
                     index < 2 ? List.of(partition) : List.of(), index == 2));
         }
         int width = type.byteWidth();
-        var carriers = copyLeft ? List.of(type == DataType.FLOAT32
-                        ? CpuKernelSpecialization.CarrierAccess.FLOAT_ARRAY
-                        : CpuKernelSpecialization.CarrierAccess.DOUBLE_ARRAY,
-                CpuKernelSpecialization.CarrierAccess.MEMORY_SEGMENT,
-                CpuKernelSpecialization.CarrierAccess.MEMORY_SEGMENT)
-                : java.util.Collections.nCopies(3,
-                        CpuKernelSpecialization.CarrierAccess.MEMORY_SEGMENT);
-        var storage = copyLeft ? List.of(CpuPartitionAnalysisInputs.BoundaryStorageFact.UNKNOWN,
-                new CpuPartitionAnalysisInputs.BoundaryStorageFact(true, width),
-                new CpuPartitionAnalysisInputs.BoundaryStorageFact(true, width))
-                : java.util.Collections.nCopies(3,
-                        new CpuPartitionAnalysisInputs.BoundaryStorageFact(true, width));
-        var policy = copyLeft ? new CpuPartitionAnalysisInputs.MaterializationPolicy(true,
+        CpuKernelSpecialization.CarrierAccess array = type == DataType.FLOAT32
+                ? CpuKernelSpecialization.CarrierAccess.FLOAT_ARRAY
+                : CpuKernelSpecialization.CarrierAccess.DOUBLE_ARRAY;
+        var carriers = List.of(copyLeft ? array : CpuKernelSpecialization.CarrierAccess.MEMORY_SEGMENT,
+                copyRight ? array : CpuKernelSpecialization.CarrierAccess.MEMORY_SEGMENT,
+                copyOutput ? array : CpuKernelSpecialization.CarrierAccess.MEMORY_SEGMENT);
+        var nativeFact = new CpuPartitionAnalysisInputs.BoundaryStorageFact(true, width);
+        var storage = List.of(copyLeft ? CpuPartitionAnalysisInputs.BoundaryStorageFact.UNKNOWN : nativeFact,
+                copyRight ? CpuPartitionAnalysisInputs.BoundaryStorageFact.UNKNOWN : nativeFact,
+                copyOutput ? CpuPartitionAnalysisInputs.BoundaryStorageFact.UNKNOWN : nativeFact);
+        var policy = copyLeft || copyRight || copyOutput
+                ? new CpuPartitionAnalysisInputs.MaterializationPolicy(true,
                 1, 1, 10, 0, 2, 1_000_000, 0, 0)
                 : CpuPartitionAnalysisInputs.MaterializationPolicy.DISABLED;
         var inputs = new CpuPartitionAnalysisInputs(false, carriers,
@@ -347,6 +369,35 @@ public final class CpuOpenBlasNativeCheckpoint {
             physical[column * rows + row] = logical[row * columns + column];
         }
         return physical;
+    }
+
+    private static double[] stridedLogical(int rows, int columns, double[] physical) {
+        double[] logical = new double[physical.length];
+        for (int row = 0; row < rows; row++) for (int column = 0; column < columns; column++) {
+            logical[row * columns + column] = physical[column * rows + row];
+        }
+        return logical;
+    }
+
+    private static double[] rightAffinePhysical(int rows, int columns, double[] logical) {
+        int rowStride = columns + 1;
+        double[] physical = new double[(rows - 1) * rowStride + columns];
+        for (int row = 0; row < rows; row++) for (int column = 0; column < columns; column++) {
+            physical[row * rowStride + column] = logical[row * columns + column];
+        }
+        return physical;
+    }
+
+    private static CpuOpenBlasRoutePlan.Representation representation(boolean left,
+            boolean right, boolean output) {
+        if (left && right && output) return CpuOpenBlasRoutePlan.Representation.COPY_LEFT_RIGHT_OUTPUT;
+        if (left && right) return CpuOpenBlasRoutePlan.Representation.COPY_LEFT_RIGHT;
+        if (left && output) return CpuOpenBlasRoutePlan.Representation.COPY_LEFT_OUTPUT;
+        if (right && output) return CpuOpenBlasRoutePlan.Representation.COPY_RIGHT_OUTPUT;
+        if (left) return CpuOpenBlasRoutePlan.Representation.COPY_LEFT;
+        if (right) return CpuOpenBlasRoutePlan.Representation.COPY_RIGHT;
+        if (output) return CpuOpenBlasRoutePlan.Representation.COPY_OUTPUT;
+        return CpuOpenBlasRoutePlan.Representation.DIRECT;
     }
 
     private static float[] toFloats(double[] values) {

@@ -32,6 +32,7 @@ import io.github.pho001.synaptik.prepare.analysis.BackendPartitionAnalysis;
 import io.github.pho001.synaptik.prepare.analysis.PreparationResourceRequirement;
 import io.github.pho001.synaptik.prepare.analysis.PrepareContext;
 import io.github.pho001.synaptik.runtime.execution.PreparedExecutable;
+import io.github.pho001.synaptik.runtime.execution.BoundInvocation;
 import io.github.pho001.synaptik.runtime.memory.BufferSlot;
 import io.github.pho001.synaptik.runtime.memory.PreparedMemoryPlan;
 import io.github.pho001.synaptik.runtime.memory.WorkspaceSlot;
@@ -45,6 +46,9 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
+import java.util.Collections;
+import java.util.concurrent.Executors;
 import org.junit.jupiter.api.Test;
 
 /** Native-free staged-boundary conformance for the borrowed OpenBLAS CPU route. */
@@ -133,12 +137,157 @@ final class CpuOpenBlasRouteConformanceTest {
         }
     }
 
+    @Test void executesBothAffineInputCopiesAndOutputCopyForBothFloatTypes() {
+        for (DataType type : List.of(DataType.FLOAT32, DataType.FLOAT64)) {
+            BackendPartitionAnalysis<CpuPartitionPreparationPlan> analysis =
+                    new CpuPartitionPreparer().analyze(context(type, true, true, true));
+            assertEquals(CpuOpenBlasRoutePlan.Representation.COPY_LEFT_RIGHT_OUTPUT,
+                    analysis.plan().openBlasPlan().orElseThrow().representation());
+            var fake = new ComputingInvocation(type);
+            PreparedExecutable executable = finalize(analysis, fake);
+            MemorySegment left = type == DataType.FLOAT32
+                    ? MemorySegment.ofArray(new float[] {1, 4, 2, 5, 3, 6})
+                    : MemorySegment.ofArray(new double[] {1, 4, 2, 5, 3, 6});
+            MemorySegment right = type == DataType.FLOAT32
+                    ? MemorySegment.ofArray(new float[] {7, 9, 11, 8, 10, 12})
+                    : MemorySegment.ofArray(new double[] {7, 9, 11, 8, 10, 12});
+            MemorySegment output = type == DataType.FLOAT32
+                    ? MemorySegment.ofArray(new float[4])
+                    : MemorySegment.ofArray(new double[4]);
+            List<io.github.pho001.synaptik.runtime.resource.WorkspaceRepresentation> workspaces =
+                    executable.memoryPlan().workspaces().stream().map(entry ->
+                        (io.github.pho001.synaptik.runtime.resource.WorkspaceRepresentation)
+                            CpuContiguousWorkspace.allocate(entry.byteSize(),
+                                    entry.byteAlignment())).toList();
+            try (RunState state = state(executable.memoryPlan(), type, left, right, output,
+                    workspaces)) {
+                executable.bind(state).execute();
+            }
+            assertAll(() -> assertArrayEquals(new double[] {58, 139, 64, 154},
+                            get(type, output)),
+                    () -> assertEquals(1, fake.calls),
+                    () -> assertTrue(fake.left.isNative()),
+                    () -> assertTrue(fake.right.isNative()),
+                    () -> assertTrue(fake.output.isNative()),
+                    () -> assertNotSame(left, fake.left),
+                    () -> assertNotSame(right, fake.right),
+                    () -> assertNotSame(output, fake.output));
+        }
+    }
+
+    @Test void rejectsLogicalOutputAliasingACopiedInputBeforeAnyWrite() {
+        DataType type = DataType.FLOAT32;
+        var analysis = new CpuPartitionPreparer().analyze(context(type, true, false, true));
+        var fake = new ComputingInvocation(type);
+        PreparedExecutable executable = finalize(analysis, fake);
+        float[] shared = {1, 4, 2, 5, 3, 6};
+        float[] before = shared.clone();
+        MemorySegment left = MemorySegment.ofArray(shared).asSlice(0, 6L * Float.BYTES);
+        MemorySegment output = MemorySegment.ofArray(shared).asSlice(0, 4L * Float.BYTES);
+        MemorySegment right = MemorySegment.ofArray(new float[] {7, 8, 9, 10, 11, 12});
+        List<io.github.pho001.synaptik.runtime.resource.WorkspaceRepresentation> workspaces =
+                executable.memoryPlan().workspaces().stream().map(entry ->
+                    (io.github.pho001.synaptik.runtime.resource.WorkspaceRepresentation)
+                        CpuContiguousWorkspace.allocate(entry.byteSize(), entry.byteAlignment()))
+                    .toList();
+        try (RunState state = state(executable.memoryPlan(), type, left, right, output,
+                workspaces)) {
+            assertThrows(IllegalArgumentException.class, () -> executable.bind(state));
+        }
+        assertAll(() -> assertEquals(0, fake.calls), () -> assertArrayEquals(before, shared));
+    }
+
+    @Test void providerFailureDoesNotReachLogicalOutputWhenCopyOutIsSelected() {
+        DataType type = DataType.FLOAT64;
+        var analysis = new CpuPartitionPreparer().analyze(context(type, true, true, true));
+        RuntimeException failure = new IllegalStateException("expected provider failure");
+        CpuOpenBlasInvocation invocation = new CpuOpenBlasInvocation() {
+            @Override public boolean isOpen() { return true; }
+            @Override public int threadCount() { return 1; }
+            @Override public void sgemm(int m, int n, int k, float alpha, MemorySegment a,
+                    MemorySegment b, float beta, MemorySegment c) { throw failure; }
+            @Override public void dgemm(int m, int n, int k, double alpha, MemorySegment a,
+                    MemorySegment b, double beta, MemorySegment c) { throw failure; }
+        };
+        PreparedExecutable executable = finalize(analysis, invocation);
+        MemorySegment left = MemorySegment.ofArray(new double[] {1, 4, 2, 5, 3, 6});
+        MemorySegment right = MemorySegment.ofArray(new double[] {7, 9, 11, 8, 10, 12});
+        double[] outputValues = {31, 32, 33, 34};
+        MemorySegment output = MemorySegment.ofArray(outputValues);
+        List<io.github.pho001.synaptik.runtime.resource.WorkspaceRepresentation> workspaces =
+                executable.memoryPlan().workspaces().stream().map(entry ->
+                    (io.github.pho001.synaptik.runtime.resource.WorkspaceRepresentation)
+                        CpuContiguousWorkspace.allocate(entry.byteSize(), entry.byteAlignment()))
+                    .toList();
+        try (RunState state = state(executable.memoryPlan(), type, left, right, output,
+                workspaces)) {
+            BoundInvocation bound = executable.bind(state);
+            assertSame(failure, assertThrows(IllegalStateException.class, bound::execute));
+        }
+        assertArrayEquals(new double[] {31, 32, 33, 34}, outputValues);
+    }
+
+    @Test void reusesExpandedRecipeAcrossConcurrentRunsWithIsolatedWorkspaces() throws Exception {
+        DataType type = DataType.FLOAT64;
+        var analysis = new CpuPartitionPreparer().analyze(context(type, true, true, true));
+        Set<Long> outputWorkspaceAddresses = Collections.synchronizedSet(
+                new java.util.HashSet<>());
+        CpuOpenBlasInvocation invocation = new CpuOpenBlasInvocation() {
+            @Override public boolean isOpen() { return true; }
+            @Override public int threadCount() { return 1; }
+            @Override public void sgemm(int m, int n, int k, float alpha, MemorySegment a,
+                    MemorySegment b, float beta, MemorySegment c) { throw new AssertionError(); }
+            @Override public synchronized void dgemm(int m, int n, int k, double alpha,
+                    MemorySegment a, MemorySegment b, double beta, MemorySegment c) {
+                outputWorkspaceAddresses.add(c.address());
+                double[] av = get(type, a), bv = get(type, b), result = new double[m * n];
+                for (int row = 0; row < m; row++) for (int column = 0; column < n; column++) {
+                    for (int inner = 0; inner < k; inner++)
+                        result[row * n + column] += av[row * k + inner]
+                                * bv[inner * n + column];
+                }
+                put(type, c, result);
+            }
+        };
+        PreparedExecutable executable = finalize(analysis, invocation);
+        double[] firstOutput = new double[4], secondOutput = new double[4];
+        RunState first = expandedState(executable, firstOutput);
+        RunState second = expandedState(executable, secondOutput);
+        try (first; second; var executor = Executors.newFixedThreadPool(2)) {
+            BoundInvocation firstBound = executable.bind(first);
+            BoundInvocation secondBound = executable.bind(second);
+            var firstFuture = executor.submit(firstBound::execute);
+            var secondFuture = executor.submit(secondBound::execute);
+            firstFuture.get(); secondFuture.get();
+        }
+        assertAll(() -> assertEquals(2, outputWorkspaceAddresses.size()),
+                () -> assertArrayEquals(new double[] {58, 139, 64, 154}, firstOutput),
+                () -> assertArrayEquals(new double[] {58, 139, 64, 154}, secondOutput));
+    }
+
+    private static RunState expandedState(PreparedExecutable executable, double[] output) {
+        MemorySegment left = MemorySegment.ofArray(new double[] {1, 4, 2, 5, 3, 6});
+        MemorySegment right = MemorySegment.ofArray(new double[] {7, 9, 11, 8, 10, 12});
+        List<io.github.pho001.synaptik.runtime.resource.WorkspaceRepresentation> workspaces =
+                executable.memoryPlan().workspaces().stream().map(entry ->
+                    (io.github.pho001.synaptik.runtime.resource.WorkspaceRepresentation)
+                        CpuContiguousWorkspace.allocate(entry.byteSize(), entry.byteAlignment()))
+                    .toList();
+        return state(executable.memoryPlan(), DataType.FLOAT64, left, right,
+                MemorySegment.ofArray(output), workspaces);
+    }
+
     private static PrepareContext<CpuPartitionAnalysisInputs> context(DataType type) {
         return context(type, false);
     }
 
     private static PrepareContext<CpuPartitionAnalysisInputs> context(DataType type,
             boolean copyLeft) {
+        return context(type, copyLeft, false, false);
+    }
+
+    private static PrepareContext<CpuPartitionAnalysisInputs> context(DataType type,
+            boolean copyLeft, boolean copyRight, boolean copyOutput) {
         var node = new CompiledNode(new NodeId(0),
                 new Operation(MatmulKind.MATMUL, NoOperationAttrs.INSTANCE),
                 List.of(new ValueId(0), new ValueId(1)), List.of(new ValueId(2)));
@@ -148,8 +297,15 @@ final class CpuOpenBlasRouteConformanceTest {
         TensorDescriptor left = copyLeft ? new TensorDescriptor(type, leftShape, Optional.of(
                 LayoutDescriptor.of(leftShape, new long[] {1, 2}, 0, true)), false)
                 : descriptor(type, leftShape);
-        List<TensorDescriptor> descriptors = List.of(left,
-                descriptor(type, Shape.of(3, 2)), descriptor(type, Shape.of(2, 2)));
+        Shape rightShape = Shape.of(3, 2);
+        Shape outputShape = Shape.of(2, 2);
+        TensorDescriptor right = copyRight ? new TensorDescriptor(type, rightShape, Optional.of(
+                LayoutDescriptor.of(rightShape, new long[] {1, 3}, 0, true)), false)
+                : descriptor(type, rightShape);
+        TensorDescriptor output = copyOutput ? new TensorDescriptor(type, outputShape, Optional.of(
+                LayoutDescriptor.of(outputShape, new long[] {1, 2}, 0, true)), false)
+                : descriptor(type, outputShape);
+        List<TensorDescriptor> descriptors = List.of(left, right, output);
         var values = new ArrayList<GraphValue>();
         var memory = new ArrayList<LogicalMemoryRequirement>();
         for (int index = 0; index < descriptors.size(); index++) {
@@ -161,19 +317,18 @@ final class CpuOpenBlasRouteConformanceTest {
                     index < 2 ? List.of(partition) : List.of(), index == 2));
         }
         int width = type.byteWidth();
-        var carriers = copyLeft ? List.of(type == DataType.FLOAT32
-                        ? CpuKernelSpecialization.CarrierAccess.FLOAT_ARRAY
-                        : CpuKernelSpecialization.CarrierAccess.DOUBLE_ARRAY,
-                CpuKernelSpecialization.CarrierAccess.MEMORY_SEGMENT,
-                CpuKernelSpecialization.CarrierAccess.MEMORY_SEGMENT)
-                : java.util.Collections.nCopies(3,
-                        CpuKernelSpecialization.CarrierAccess.MEMORY_SEGMENT);
-        var storage = copyLeft ? List.of(CpuPartitionAnalysisInputs.BoundaryStorageFact.UNKNOWN,
-                new CpuPartitionAnalysisInputs.BoundaryStorageFact(true, width),
-                new CpuPartitionAnalysisInputs.BoundaryStorageFact(true, width))
-                : java.util.Collections.nCopies(3,
-                        new CpuPartitionAnalysisInputs.BoundaryStorageFact(true, width));
-        var policy = copyLeft ? new CpuPartitionAnalysisInputs.MaterializationPolicy(true,
+        CpuKernelSpecialization.CarrierAccess array = type == DataType.FLOAT32
+                ? CpuKernelSpecialization.CarrierAccess.FLOAT_ARRAY
+                : CpuKernelSpecialization.CarrierAccess.DOUBLE_ARRAY;
+        var carriers = List.of(copyLeft ? array : CpuKernelSpecialization.CarrierAccess.MEMORY_SEGMENT,
+                copyRight ? array : CpuKernelSpecialization.CarrierAccess.MEMORY_SEGMENT,
+                copyOutput ? array : CpuKernelSpecialization.CarrierAccess.MEMORY_SEGMENT);
+        var nativeFact = new CpuPartitionAnalysisInputs.BoundaryStorageFact(true, width);
+        var storage = List.of(copyLeft ? CpuPartitionAnalysisInputs.BoundaryStorageFact.UNKNOWN : nativeFact,
+                copyRight ? CpuPartitionAnalysisInputs.BoundaryStorageFact.UNKNOWN : nativeFact,
+                copyOutput ? CpuPartitionAnalysisInputs.BoundaryStorageFact.UNKNOWN : nativeFact);
+        var policy = copyLeft || copyRight || copyOutput
+                ? new CpuPartitionAnalysisInputs.MaterializationPolicy(true,
                 1, 1, 10, 0, 2, 1_000_000, 0, 0)
                 : CpuPartitionAnalysisInputs.MaterializationPolicy.DISABLED;
         var inputs = new CpuPartitionAnalysisInputs(false, carriers,

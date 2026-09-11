@@ -15,7 +15,6 @@ import io.github.pho001.synaptik.prepare.analysis.PreparationResourceRequirement
 import io.github.pho001.synaptik.prepare.analysis.PrepareContext;
 import java.lang.foreign.MemorySegment;
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -23,17 +22,21 @@ import java.util.Objects;
 import java.util.Optional;
 
 /**
- * Field-free cold selector for the exact first OpenBLAS MATMUL route.
+ * Field-free cold selector for the exact bounded OpenBLAS MATMUL route.
  * It consumes only common lowering, representation, expected storage, qualification, and cost
  * facts. Any incomplete, ineligible, tied, insufficient-benefit, or overflowing candidate is
- * rejected without changing the already-valid portable plan.
+ * rejected without changing the already-valid portable plan. The three direct/copy decisions are
+ * determined by the proved boundary facts, so selection creates exactly the required one of eight
+ * masks rather than speculative extra copies.
  */
 public final class CpuOpenBlasRouteSelector {
     /** Creates a stateless selector with no provider, cache, or measurement state. */
     public CpuOpenBlasRouteSelector() { }
 
     /**
-     * Selects an OpenBLAS plan only when exact eligibility and both benefit thresholds hold.
+     * Selects an OpenBLAS plan only when exact eligibility, the combined workspace ceiling, and
+     * both benefit thresholds hold. Checked-arithmetic or malformed-candidate failure is treated
+     * as uncertainty and returns empty; the method performs no provider query or allocation.
      *
      * @param context non-null complete CPU analysis projection
      * @param portablePlan non-null already-selected common portable partition plan
@@ -103,83 +106,126 @@ public final class CpuOpenBlasRouteSelector {
                 && !copyable(unit.accessBindings().get(0), m, k))
                 || (!canonical(unit.accessBindings().get(1), k, n, CpuAccessPlan.AccessKind.READ)
                     && !copyable(unit.accessBindings().get(1), k, n))
-                || !canonical(unit.accessBindings().get(2), m, n,
-                        CpuAccessPlan.AccessKind.WRITE)) {
+                || (!canonical(unit.accessBindings().get(2), m, n,
+                        CpuAccessPlan.AccessKind.WRITE)
+                    && !copyableOutput(unit.accessBindings().get(2), m, n))) {
             return Optional.empty();
         }
         List<CpuPartitionAnalysisInputs.BoundaryStorageFact> storage =
                 context.backendInputs().boundaryStorageFacts();
-        if (storage.size() != 3 || !directBoundary(unit, storage, 2, type)) {
-            return Optional.empty();
-        }
+        if (storage.size() != 3) return Optional.empty();
         boolean leftDirect = canonical(unit.accessBindings().get(0), m, k,
                 CpuAccessPlan.AccessKind.READ) && directBoundary(unit, storage, 0, type);
         boolean rightDirect = canonical(unit.accessBindings().get(1), k, n,
                 CpuAccessPlan.AccessKind.READ) && directBoundary(unit, storage, 1, type);
+        boolean outputDirect = canonical(unit.accessBindings().get(2), m, n,
+                CpuAccessPlan.AccessKind.WRITE) && directBoundary(unit, storage, 2, type);
 
         long outputElements = Math.multiplyExact((long) m, n);
         long multiplyAccumulates = Math.multiplyExact(outputElements, k);
         long runs = context.backendInputs().materializationPolicy().expectedRunCount();
         long portableCost = total(config.portableCosts(), outputElements,
-                multiplyAccumulates, 0, runs);
-        var candidates = new ArrayList<Candidate>();
-        if (leftDirect && rightDirect) {
-            addCandidate(candidates, CpuOpenBlasRoutePlan.Representation.DIRECT,
-                    Optional.empty(), type, m, n, k, config, outputElements,
-                    multiplyAccumulates, portableCost, runs, 0);
-        }
+                multiplyAccumulates, runs);
         var policy = context.backendInputs().materializationPolicy();
-        if (rightDirect) {
-            representationPlanner.openBlasInputMaterialization(plan, 0, policy).ifPresent(copy ->
-                    addCandidate(candidates, CpuOpenBlasRoutePlan.Representation.COPY_LEFT,
-                            Optional.of(copy), type, m, n, k, config, outputElements,
-                            multiplyAccumulates, portableCost, runs, 1));
-        }
-        if (leftDirect) {
-            representationPlanner.openBlasInputMaterialization(plan, 1, policy).ifPresent(copy ->
-                    addCandidate(candidates, CpuOpenBlasRoutePlan.Representation.COPY_RIGHT,
-                            Optional.of(copy), type, m, n, k, config, outputElements,
-                            multiplyAccumulates, portableCost, runs, 2));
-        }
-        return candidates.stream().min(Candidate.ORDER).map(Candidate::plan);
+        int nextWorkspace = 8;
+        Optional<CpuMaterializationPlan> left = leftDirect ? Optional.empty()
+                : representationPlanner.openBlasInputMaterialization(plan, 0, policy,
+                        nextWorkspace++);
+        if (!leftDirect && left.isEmpty()) return Optional.empty();
+        Optional<CpuMaterializationPlan> right = rightDirect ? Optional.empty()
+                : representationPlanner.openBlasInputMaterialization(plan, 1, policy,
+                        nextWorkspace++);
+        if (!rightDirect && right.isEmpty()) return Optional.empty();
+        Optional<CpuOpenBlasOutputCopyPlan> output = outputDirect ? Optional.empty()
+                : representationPlanner.openBlasOutputCopy(plan, nextWorkspace);
+        if (!outputDirect && output.isEmpty()) return Optional.empty();
+        CpuOpenBlasRoutePlan.Representation representation = representation(
+                left.isPresent(), right.isPresent(), output.isPresent());
+        return candidate(representation, left, right, output, type, m, n, k, config,
+                outputElements, multiplyAccumulates, portableCost, runs,
+                policy.maximumAdditionalBytes());
     }
 
-    private static void addCandidate(List<Candidate> candidates,
+    private static Optional<CpuOpenBlasRoutePlan> candidate(
             CpuOpenBlasRoutePlan.Representation representation,
-            Optional<CpuMaterializationPlan> materialization, DataType type,
+            Optional<CpuMaterializationPlan> left,
+            Optional<CpuMaterializationPlan> right,
+            Optional<CpuOpenBlasOutputCopyPlan> output, DataType type,
             int m, int n, int k,
             CpuPartitionAnalysisInputs.OpenBlasRouteConfig config,
             long outputElements, long multiplyAccumulates, long portableCost,
-            long runs, int stableOrder) {
-        long copyCost = materialization.map(CpuMaterializationPlan::copyCost).orElse(0L);
-        long openBlasCost = total(config.openBlasCosts(), outputElements,
-                multiplyAccumulates, copyCost, runs);
-        if (openBlasCost >= portableCost) return;
+            long runs, long maximumAdditionalBytes) {
+        var requirements = new ArrayList<PreparationResourceRequirement.Workspace>();
+        left.map(CpuOpenBlasRouteSelector::workspace).ifPresent(requirements::add);
+        right.map(CpuOpenBlasRouteSelector::workspace).ifPresent(requirements::add);
+        output.map(CpuOpenBlasRouteSelector::workspace).ifPresent(requirements::add);
+        long workspaceBytes = requirements.stream().mapToLong(
+                PreparationResourceRequirement.Workspace::byteSize).reduce(0, Math::addExact);
+        if (workspaceBytes > maximumAdditionalBytes) return Optional.empty();
+        long inputElements = Math.addExact(left.map(CpuMaterializationPlan::elementCount).orElse(0L),
+                right.map(CpuMaterializationPlan::elementCount).orElse(0L));
+        long outputCopiedElements = output.map(CpuOpenBlasOutputCopyPlan::elementCount).orElse(0L);
+        long representationCost = representationCost(config.representationCosts(),
+                requirements.size(), workspaceBytes,
+                (left.isPresent() ? 1 : 0) + (right.isPresent() ? 1 : 0),
+                inputElements, output.isPresent() ? 1 : 0, outputCopiedElements);
+        long openBlasCost = Math.multiplyExact(runs, Math.addExact(
+                perRun(config.openBlasCosts(), outputElements, multiplyAccumulates),
+                representationCost));
+        if (openBlasCost >= portableCost) return Optional.empty();
         long benefit = Math.subtractExact(portableCost, openBlasCost);
-        if (benefit < config.minimumNetBenefitCostUnits().orElseThrow()) return;
+        if (benefit < config.minimumNetBenefitCostUnits().orElseThrow()) return Optional.empty();
         int threshold = config.minimumBenefitBasisPoints().orElseThrow();
-        if (portableCost == 0 && threshold != 0) return;
+        if (portableCost == 0 && threshold != 0) return Optional.empty();
         int basis = portableCost == 0 ? 0 : Math.toIntExact(Math.floorDiv(
                 Math.multiplyExact(10_000L, benefit), portableCost));
-        if (basis < threshold) return;
-        Optional<PreparationResourceRequirement.Workspace> workspace = materialization.map(copy ->
-                new PreparationResourceRequirement.Workspace(copy.workspaceRequirementId(),
-                        copy.byteCount(), copy.byteAlignment()));
-        var routePlan = new CpuOpenBlasRoutePlan(type, m, n, k, 0, 1, 2,
-                config.threadConfiguration().orElseThrow(), representation, materialization,
-                workspace, portableCost, openBlasCost, benefit, basis);
-        candidates.add(new Candidate(routePlan, materialization.isPresent() ? 1 : 0,
-                materialization.map(CpuMaterializationPlan::byteCount).orElse(0L), stableOrder));
+        if (basis < threshold) return Optional.empty();
+        return Optional.of(new CpuOpenBlasRoutePlan(type, m, n, k, 0, 1, 2,
+                config.threadConfiguration().orElseThrow(), representation, left, right, output,
+                requirements, runs, workspaceBytes, inputElements, outputCopiedElements,
+                portableCost, openBlasCost, benefit, basis));
+    }
+
+    private static PreparationResourceRequirement.Workspace workspace(CpuMaterializationPlan copy) {
+        return new PreparationResourceRequirement.Workspace(copy.workspaceRequirementId(),
+                copy.byteCount(), copy.byteAlignment());
+    }
+
+    private static PreparationResourceRequirement.Workspace workspace(
+            CpuOpenBlasOutputCopyPlan copy) {
+        return new PreparationResourceRequirement.Workspace(copy.workspaceRequirementId(),
+                copy.byteCount(), copy.byteAlignment());
     }
 
     private static long total(CpuPartitionAnalysisInputs.CostTerms costs, long outputElements,
-            long multiplyAccumulates, long extraPerRun, long runs) {
+            long multiplyAccumulates, long runs) {
+        return Math.multiplyExact(runs, perRun(costs, outputElements, multiplyAccumulates));
+    }
+
+    private static long perRun(CpuPartitionAnalysisInputs.CostTerms costs, long outputElements,
+            long multiplyAccumulates) {
         long perRun = Math.addExact(costs.fixedCostUnits().orElseThrow(),
                 Math.multiplyExact(costs.costUnitsPerOutput().orElseThrow(), outputElements));
         perRun = Math.addExact(perRun,
                 Math.multiplyExact(costs.costUnitsPerMac().orElseThrow(), multiplyAccumulates));
-        perRun = Math.addExact(perRun, extraPerRun);
-        return Math.multiplyExact(runs, perRun);
+        return perRun;
+    }
+
+    private static long representationCost(CpuPartitionAnalysisInputs.RepresentationCostTerms c,
+            int workspaceCount, long workspaceBytes, int inputCopyCount, long inputElements,
+            int outputCopyCount, long outputElements) {
+        long cost = Math.multiplyExact(c.workspaceAllocationAndBindingFixed().orElseThrow(),
+                workspaceCount);
+        cost = Math.addExact(cost, Math.multiplyExact(c.workspaceCostPerByte().orElseThrow(),
+                workspaceBytes));
+        cost = Math.addExact(cost, Math.multiplyExact(c.copyInFixed().orElseThrow(),
+                inputCopyCount));
+        cost = Math.addExact(cost, Math.multiplyExact(c.copyInPerElement().orElseThrow(),
+                inputElements));
+        cost = Math.addExact(cost, Math.multiplyExact(c.copyOutFixed().orElseThrow(),
+                outputCopyCount));
+        return Math.addExact(cost, Math.multiplyExact(c.copyOutPerElement().orElseThrow(),
+                outputElements));
     }
 
     private static boolean directBoundary(
@@ -210,7 +256,28 @@ public final class CpuOpenBlasRouteSelector {
                 && binding.plan().iterationRank() == 2
                 && binding.extents().equals(List.of(rows, columns))
                 && binding.elementCount() == count && binding.start() == 0
-                && binding.end() == count && binding.referencedElementSpan() >= count;
+                && binding.end() == count;
+    }
+
+    private static boolean copyableOutput(CpuAccessPlan.Binding binding, long rows, long columns) {
+        long count = Math.multiplyExact(rows, columns);
+        return binding.plan().accessKind() == CpuAccessPlan.AccessKind.WRITE
+                && binding.plan().iterationRank() == 2
+                && binding.extents().equals(List.of(rows, columns))
+                && binding.elementCount() == count && binding.start() == 0
+                && binding.end() == count;
+    }
+
+    private static CpuOpenBlasRoutePlan.Representation representation(boolean left,
+            boolean right, boolean output) {
+        if (left && right && output) return CpuOpenBlasRoutePlan.Representation.COPY_LEFT_RIGHT_OUTPUT;
+        if (left && right) return CpuOpenBlasRoutePlan.Representation.COPY_LEFT_RIGHT;
+        if (left && output) return CpuOpenBlasRoutePlan.Representation.COPY_LEFT_OUTPUT;
+        if (right && output) return CpuOpenBlasRoutePlan.Representation.COPY_RIGHT_OUTPUT;
+        if (left) return CpuOpenBlasRoutePlan.Representation.COPY_LEFT;
+        if (right) return CpuOpenBlasRoutePlan.Representation.COPY_RIGHT;
+        if (output) return CpuOpenBlasRoutePlan.Representation.COPY_OUTPUT;
+        return CpuOpenBlasRoutePlan.Representation.DIRECT;
     }
 
     /**
@@ -238,12 +305,4 @@ public final class CpuOpenBlasRouteSelector {
         };
     }
 
-    private record Candidate(CpuOpenBlasRoutePlan plan, int copyCount, long workspaceBytes,
-            int stableOrder) {
-        private static final Comparator<Candidate> ORDER = Comparator
-                .comparingLong((Candidate value) -> value.plan().openBlasCost())
-                .thenComparingInt(Candidate::copyCount)
-                .thenComparingLong(Candidate::workspaceBytes)
-                .thenComparingInt(Candidate::stableOrder);
-    }
 }

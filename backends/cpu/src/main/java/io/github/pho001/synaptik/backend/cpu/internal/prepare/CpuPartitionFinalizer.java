@@ -228,26 +228,21 @@ public final class CpuPartitionFinalizer implements BackendPartitionFinalizer<Cp
         if (invocation.threadCount() != 1) throw new IllegalStateException(
                 "borrowed OpenBLAS provider must be single-threaded");
         List<PreparedExecutable.WorkspaceSelection> routeWorkspaces =
-                route.workspaceRequirement().stream().map(requirement -> {
+                route.workspaceRequirements().stream().map(requirement -> {
                     PreparedExecutable.WorkspaceSelection selection =
                             workspaceSelections.get(requirement);
                     if (selection == null) throw new IllegalArgumentException(
                             "selected OpenBLAS workspace assignment is absent");
                     return selection;
                 }).toList();
-        var nativeExecutable = new CpuOpenBlasPreparedExecutable(finalization.memoryPlan(),
-                selections, routeWorkspaces, route, invocation);
-        if (route.materialization().isEmpty()) return nativeExecutable;
-        var copy = route.materialization().orElseThrow();
-        var copyArtifact = artifactStore.loadOrGenerate(copy.copySpecialization(),
-                copy.copyIr().encodedKernelIr());
-        var copyUnit = new CpuPreparedPartitionExecutable.CopyUnit(copy, copyArtifact,
-                copy.sourceBoundaryIndex(), 0);
-        return new CpuPreparedPartitionExecutable(finalization.memoryPlan(), selections,
-                routeWorkspaces, List.of(PreparedExecutable.BufferAccess.READ_ONLY,
-                        PreparedExecutable.BufferAccess.READ_ONLY,
-                        PreparedExecutable.BufferAccess.WRITE_ONLY), List.of(copyUnit),
-                List.of(nativeExecutable), List.of(List.of()));
+        var inputArtifacts = route.inputMaterializations().stream().map(copy ->
+                artifactStore.loadOrGenerate(copy.copySpecialization(),
+                        copy.copyIr().encodedKernelIr())).toList();
+        Optional<io.github.pho001.synaptik.backend.cpu.internal.codegen.emit.CpuGeneratedKernel>
+                outputArtifact = route.outputCopy().map(copy -> artifactStore.loadOrGenerate(
+                        copy.copySpecialization(), copy.copyIr().encodedKernelIr()));
+        return new CpuOpenBlasPreparedExecutable(finalization.memoryPlan(), selections,
+                routeWorkspaces, route, invocation, inputArtifacts, outputArtifact);
     }
 
     private PreparedExecutable finalizeComposite(
