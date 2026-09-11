@@ -2,7 +2,8 @@
 
 ## Goal
 
-Provide a low-level OpenBLAS leaf for library loading, symbol binding, GEMM calls, and thread control.
+Provide a low-level OpenBLAS leaf for library loading, required and optional symbol binding,
+direct supported GEMM calls, and thread control.
 
 ## Architecture references
 
@@ -15,6 +16,8 @@ Provide a low-level OpenBLAS leaf for library loading, symbol binding, GEMM call
 - native library resolution
 - symbol binding
 - GEMM invocation
+- optional, versioned direct BFLOAT16-input/BFLOAT16-output GEMM capability when the exact loaded
+  binary exports and satisfies a proved ABI
 - OpenBLAS thread control
 
 ## Out of scope
@@ -28,8 +31,11 @@ Provide a low-level OpenBLAS leaf for library loading, symbol binding, GEMM call
 
 - The provider remains a low-level leaf.
 - Dependency direction is CPU backend to OpenBLAS provider, never the reverse.
-- The completed baseline remains FLOAT32/FLOAT64 only. No 16-bit capability is inferred from
-  library presence, storage width, or logical `DataType` availability.
+- The completed mandatory baseline remains FLOAT32/FLOAT64 only. No 16-bit capability is inferred
+  from library presence, version, header declarations, architecture, storage width, related
+  symbols, or logical `DataType` availability.
+- Direct BFLOAT16 output is optional per loaded binary. Its absence or failed optional binding
+  never invalidates the required FLOAT32/FLOAT64 and thread-control surface.
 
 ## Allowed dependencies
 
@@ -59,17 +65,19 @@ native framework, registry, manager, configuration package, or CPU route owner.
 |---|---|---|---|---|
 | 0001 | [Library loading and required symbol binding](tasks/0001-library-loading-and-required-symbol-binding.md) | Complete | Prepare 0003; JDK 26 FFM and OpenBLAS C ABI evidence | Load one caller-specified library, bind the exact FLOAT32/FLOAT64 GEMM and get/set thread-count symbols, and own their closeable lookup lifetime without invocation or policy. |
 | 0002 | [FLOAT32/FLOAT64 row-major GEMM invocation](tasks/0002-float32-float64-row-major-gemm-invocation.md) | Complete | 0001 | Add validated dense row-major no-transpose `MemorySegment` GEMM calls over the task-0001 lifetime without Tensor, route, allocation, or fallback behavior. |
-| 0003 | [Thread control and native provider checkpoint](tasks/0003-thread-control-and-native-provider-checkpoint.md) | Complete | 0001–0002 | Add low-level thread-count query/control and explicit compatible-library validation, then close the selected provider capability milestone. |
+| 0003 | [Thread control and native provider checkpoint](tasks/0003-thread-control-and-native-provider-checkpoint.md) | Complete | 0001–0002 | Add low-level thread-count query/control and explicit compatible-library validation, then close the original provider capability milestone. |
+| 0004 | [Optional direct BFLOAT16-output GEMM capability](tasks/0004-optional-direct-bfloat16-output-gemm-capability.md) | Ready | 0001–0003; pinned OpenBLAS direct-BGEMM ABI and semantic proof | Prove and, only if every gate passes, bind `cblas_bgemm` as an optional versioned typed capability for direct BFLOAT16 inputs and output; preserve mandatory loading when absent and reject SBGEMM or conversion staging. |
 
 ## Milestones
 
 - Library and symbols
 - GEMM contract
 - Thread control and native validation
+- Optional direct BFLOAT16-output ABI proof and invocation
 
 ## Current status
 
-Complete. Tasks 0001–0003 provide explicit caller-directed loading, complete required-symbol
+In progress. Tasks 0001–0003 remain Complete and provide explicit caller-directed loading, complete required-symbol
 binding, caller-owned lookup lifetime, validated FLOAT32/FLOAT64 dense row-major no-transpose GEMM
 invocation, and direct positive thread-count query/control over the already-bound handles. The
 ordinary provider suite passed 5 suites and 50 tests. The isolated native checkpoint passed
@@ -77,14 +85,24 @@ against the caller-supplied arm64 OpenBLAS 0.3.33 library, verified shared obser
 owners and the fixed SGEMM/DGEMM cases, and restored the original thread count of 16. The ordered
 repository/architecture capability checkpoint then passed with 54 actionable tasks (2 executed,
 52 up-to-date). Documentation, exact twelve-path scope, surface, package, dependency, history,
-status, later-specification, and whitespace gates passed. The selected provider milestone and
-project area are Complete. CPU is the next Draft planning frontier; no CPU task is Ready and no
-CPU task specification exists.
+status, later-specification, and whitespace gates passed. That original provider milestone remains
+closed.
+
+Detailed task 0004 is now the sole `Ready` provider frontier. It first proves the OpenBLAS-specific
+direct BFLOAT16-output ABI and Model-compatible accumulation/narrowing semantics, then may add one
+optional typed capability. The current local 0.3.34 installation is evidence of optionality: its
+header declares `cblas_bgemm`, but its binary exports `cblas_sbgemm` and not `cblas_bgemm`. Missing
+direct BFLOAT16 support must leave the completed baseline usable. CPU 0010D1 remains a dependent
+master-plan-only `Draft`; CPU 0010E follows it.
 
 ## Open questions
 
-- None for the current provider milestone. Any future symbol, precision, layout, or lifecycle
-  capability requires a separately justified task.
+- Whether pinned OpenBLAS implementation sources prove FLOAT32 accumulation followed by one
+  direct BFLOAT16 result narrowing for every implementation reachable through the exported
+  `cblas_bgemm` ABI. Task 0004 must stop before exposure if this remains ambiguous.
+- Whether 32-bit CBLAS enums and 16-bit by-value BFLOAT16 scalars can be proved for every supported
+  macOS/Linux/Windows AArch64/x86-64 ABI. Any unproved target remains capability-absent rather than
+  being inferred from the current machine.
 
 ## Decisions made
 
@@ -95,13 +113,20 @@ CPU task specification exists.
   signature, objective, budget, or candidate policy.
 - Task 0001 accepts only a caller-specified library name or absolute path. It does not read config,
   environment variables, system properties, probe platform filenames, or decide fallback.
-- Task 0001 requires `cblas_sgemm`, `cblas_dgemm`, `openblas_set_num_threads`, and
+- Task 0001 continues to require `cblas_sgemm`, `cblas_dgemm`, `openblas_set_num_threads`, and
   `openblas_get_num_threads` under the standard 32-bit-`blasint` C ABI. It selects no minimum
-  OpenBLAS version, ILP64 support, or optional BFLOAT16 symbols.
-- OpenBLAS remains primarily a FLOAT32/FLOAT64 CPU fallback. A future BFLOAT16 provider addition
-  requires separate OpenBLAS-version, ISA, ABI, and operation verification plus CPU-owned exact
-  filtering and route/workload evidence. Broad or baseline FLOAT16 support must not be assumed;
-  any such future route also waits for Model task 0026.
+  OpenBLAS version or ILP64 support. Task 0004 may probe its one optional symbol only after this
+  mandatory set binds completely.
+- `cblas_bgemm` is treated as a build-optional, versioned OpenBLAS extension rather than
+  standardized CBLAS. Structural presence comes only from exact optional lookup/binding. Header,
+  version, architecture, build-option text, and `cblas_sbgemm` presence are not substitutes.
+- The task-0004 route is direct BFLOAT16 input and output only. It does not call `cblas_sbgemm`,
+  widen input matrices, stage a FLOAT32 output, or convert a result buffer.
+- CPU 0010D1 owns exact installed-binary numerical qualification, route eligibility, fallback,
+  materialization, fingerprint compatibility, and execution after provider 0004. The provider
+  capability by itself is not a CPU qualification credential.
+- Broad or baseline FLOAT16 support must not be assumed; any such future route also waits for
+  Model task 0026.
 - One caller-owned public library handle encapsulates the shared FFM arena and package-private
   bound handles. No eager singleton, global cache, exposed native address, registry, manager, or
   service locator is planned.
@@ -135,6 +160,11 @@ CPU task specification exists.
 - Treating separate Java library handles as separate OpenBLAS thread-control state.
 - Treating optional or version-specific 16-bit symbols as broad baseline support, or letting the
   provider advertise/select a route from `DataType` availability alone.
+- Treating a declaring installed header or `cblas_sbgemm` export as evidence that the loaded
+  binary exports a compatible direct BFLOAT16-output ABI.
+- Publishing the optional call before proving enum, integer, scalar, accumulation, and narrowing
+  semantics across supported host ABIs.
+- Hiding BFLOAT16/FLOAT32 conversion or FLOAT32 result staging behind a nominal direct capability.
 
 ## Notes
 
