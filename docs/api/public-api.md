@@ -17,9 +17,9 @@ Compiler orchestration now consumes those three operations and uses the public i
 `FunctionalGradientRequest`, `GradientPublicationBinding`, `DerivativeGraphMetadata`,
 `CompileArtifacts`, `PublicationPlan`, `CompileConstantPlan`, and `CompileDiagnostics` contracts.
 Public `GraphCompilationPort` exposes that complete constant-free pipeline as a narrow
-cross-module integration service-provider interface (SPI). Reusable or public capability
-matrices, a public graph-wide Planning workflow, physical allocation/access, concrete backend
-integration, and Engine APIs remain planned.
+cross-module integration service-provider interface (SPI). The CPU backend now also exposes the
+supported cross-module `CpuBackendIntegration` SPI described below. Reusable or public capability
+matrices, a public graph-wide Planning workflow, and Engine APIs remain planned.
 Prepare analysis, finalization, and complete graph-preparation contracts plus the initial Runtime
 geometry, prepared representation creation, per-run resource/validity, executable and transfer
 cold-binding, prepared publication and result leasing, and the ordered schedule contracts are
@@ -462,6 +462,42 @@ physical buffer, transfer, prepared schedule, executable, residency, or mutable 
 `CompileConstantPlan` carries logical splats rather than dense data or storage.
 `CompileDiagnostics` carries deterministic text projections rather than a public predicate
 language, trace schema, or serialization.
+
+The public `backends:cpu` integration surface contains two supported types:
+
+- `CpuCapabilityProvider`, the stateless fail-closed CPU capability provider; and
+- `CpuBackendIntegration`, the closeable lifecycle SPI intended for Engine composition rather
+  than ordinary application code.
+
+One `CpuBackendIntegration.open()` call creates the fixed exact/default CPU composition. It
+reports the immutable `cpu/host` availability fact, exposes the retained capability provider,
+builds the positional preparation and schedule-assembler collaborations for exactly one non-empty
+maximal CPU-owned partition, and borrows intrinsically compatible `HostTensorStorage` as a
+non-owning Runtime buffer representation. It also attempts bounded automatic OpenBLAS discovery
+and qualification. That attempt may add an eligible native candidate; the portable route remains
+available when discovery or qualification fails, and OpenBLAS is neither guaranteed to be present
+nor guaranteed to be selected.
+
+The accepted graph shape is deliberately exact. A zero-node pass-through graph is rejected
+because current Prepare publication has no `PreparedBufferAssignment` for it. A mixed-owner or
+multi-partition artifact is rejected before CPU analysis or schedule assembly because combining
+multiple backend contributions remains later Engine/Prepare work. For an accepted artifact, the
+assembler describes creation of fresh run-owned CPU buffers and workspaces, initialization of
+Compiler constants, one prepared CPU execution occurrence, and publications in Compiler order.
+Assembly performs none of that physical work; Runtime performs it per run from the immutable
+recipe.
+
+The adapter owns any qualified OpenBLAS coordinator until `close()`. Callers must keep it open
+while preparing or running recipes obtained from it and must coordinate closure with active runs.
+Borrowing transfers no storage ownership, and closing a borrowed wrapper does not close caller
+storage. The borrow operation validates only intrinsic storage consistency and current access; it
+cannot validate an expected logical input type, required span, or write role because those target
+facts are absent. Typed logical input binding, a simpler end-user execute surface, and typed or
+host-materialized results remain Engine work.
+
+The adapter does not expose CPU internals, discover backends for Runtime, perform tuning, or turn
+OpenBLAS into another backend identity. CPU directly depends on Compiler only because this SPI
+consumes public `CompileArtifacts`; CPU remains independent of Engine.
 
 The public `modules:runtime` surface now contains five focused packages:
 

@@ -3,6 +3,7 @@ package io.github.pho001.synaptik.testing.conformance;
 import static org.junit.jupiter.api.Assertions.*;
 
 import io.github.pho001.synaptik.backend.cpu.CpuCapabilityProvider;
+import io.github.pho001.synaptik.backend.cpu.CpuBackendIntegration;
 import io.github.pho001.synaptik.backend.cpu.internal.cache.CpuKernelSpecialization;
 import io.github.pho001.synaptik.backend.cpu.internal.executable.CpuConcurrencyBudget;
 import io.github.pho001.synaptik.backend.cpu.internal.memory.CpuBorrowedBuffer;
@@ -57,6 +58,36 @@ import org.junit.jupiter.api.Test;
 /** Native-free staged-boundary conformance for the borrowed OpenBLAS CPU route. */
 final class CpuOpenBlasRouteConformanceTest {
     private static final QualificationFixture QUALIFICATION = qualificationFixture();
+
+    @Test void supportedAdapterBorrowingCrossesThePreparedRuntimeBoundary() {
+        DataType type = DataType.FLOAT32;
+        var analysis = new CpuPartitionPreparer().analyze(context(type));
+        var fake = new ComputingInvocation(type);
+        PreparedExecutable executable = finalize(analysis, fake);
+        try (CpuBackendIntegration integration = CpuBackendIntegration.open();
+                Arena arena = Arena.ofConfined()) {
+            MemorySegment left = arena.allocate(6L * type.byteWidth(), type.byteWidth());
+            MemorySegment right = arena.allocate(6L * type.byteWidth(), type.byteWidth());
+            MemorySegment output = arena.allocate(4L * type.byteWidth(), type.byteWidth());
+            put(type, left, new double[] {1, 2, 3, 4, 5, 6});
+            put(type, right, new double[] {7, 8, 9, 10, 11, 12});
+            try (RunState state = new RunState(executable.memoryPlan(), List.of(
+                    List.of(new BufferRepresentationBinding(integration.borrow(
+                            new MemorySegmentStorage(type, 6, left)),
+                            RunResourceOwnership.BORROWED)),
+                    List.of(new BufferRepresentationBinding(integration.borrow(
+                            new MemorySegmentStorage(type, 6, right)),
+                            RunResourceOwnership.BORROWED)),
+                    List.of(new BufferRepresentationBinding(integration.borrow(
+                            new MemorySegmentStorage(type, 4, output)),
+                            RunResourceOwnership.BORROWED))), List.of())) {
+                executable.bind(state).execute();
+            }
+            assertArrayEquals(new double[] {58, 64, 139, 154}, get(type, output));
+            assertEquals(1, fake.calls);
+        }
+    }
+
     @Test void coordinatedCountTwoRunsAndRestoresThroughNativeFreeStagedBoundary()
             throws Exception {
         DataType type = DataType.FLOAT32;

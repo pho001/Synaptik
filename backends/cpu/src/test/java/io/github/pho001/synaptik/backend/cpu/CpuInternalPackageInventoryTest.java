@@ -9,6 +9,32 @@ import java.util.stream.Collectors;
 import org.junit.jupiter.api.Test;
 
 class CpuInternalPackageInventoryTest {
+    @Test void adapterRepresentationCreatorsInitializeExactConstantsAndRemainFresh() {
+        var entry = new io.github.pho001.synaptik.runtime.memory.PreparedMemoryPlan.BufferEntry(
+                new io.github.pho001.synaptik.runtime.memory.BufferSlot(0), 16, 8);
+        var creator = io.github.pho001.synaptik.backend.cpu.internal.memory.CpuRepresentationRecipes
+                .initializedBuffer(io.github.pho001.synaptik.model.datatype.DataType.FLOAT32,
+                        entry, io.github.pho001.synaptik.model.datatype.ScalarValue.float32(-0.0f));
+        try (var first = (io.github.pho001.synaptik.backend.cpu.internal.memory.CpuNativeBuffer)
+                        creator.create();
+                var second = (io.github.pho001.synaptik.backend.cpu.internal.memory.CpuNativeBuffer)
+                        creator.create()) {
+            assertNotSame(first, second);
+            for (long index = 0; index < 4; index++) {
+                assertEquals(Float.floatToRawIntBits(-0.0f), Float.floatToRawIntBits(
+                        first.segment().getAtIndex(java.lang.foreign.ValueLayout.JAVA_FLOAT,
+                                index)));
+            }
+        }
+        var workspace = new io.github.pho001.synaptik.runtime.memory.PreparedMemoryPlan.WorkspaceEntry(
+                new io.github.pho001.synaptik.runtime.memory.WorkspaceSlot(0), 7, 16);
+        var workspaceCreator = io.github.pho001.synaptik.backend.cpu.internal.memory
+                .CpuRepresentationRecipes.workspace(workspace);
+        try (var first = workspaceCreator.create(); var second = workspaceCreator.create()) {
+            assertNotSame(first, second);
+        }
+    }
+
     @Test void exposesOnlyTheAuthorizedSupportedAndInternalTypeInventory() throws Exception {
         Path root = Path.of("src/main/java/io/github/pho001/synaptik/backend/cpu");
         Set<String> packages;
@@ -29,13 +55,15 @@ class CpuInternalPackageInventoryTest {
                         "internal/route/portable", "internal/cache", "internal/executable",
                         "internal/reference", "internal/route/nativeblas/openblas"), packages),
                 () -> assertEquals(Set.of(
-                        "CpuCapabilityProvider.java", "package-info.java", "internal/package-info.java",
+                        "CpuCapabilityProvider.java", "CpuBackendIntegration.java", "package-info.java", "internal/package-info.java",
                         "internal/memory/CpuBorrowedBuffer.java", "internal/memory/CpuBufferArgument.java",
                         "internal/memory/CpuBufferRepresentation.java", "internal/memory/CpuNativeBuffer.java",
                         "internal/memory/CpuContiguousWorkspace.java",
+                        "internal/memory/CpuRepresentationRecipes.java",
                         "internal/memory/package-info.java", "internal/prepare/CpuPartitionAnalysisInputs.java",
                         "internal/prepare/CpuPartitionPreparationPlan.java",
                         "internal/prepare/CpuPartitionPreparer.java", "internal/prepare/CpuPartitionFinalizer.java",
+                        "internal/prepare/CpuPreparedScheduleAssembler.java",
                         "internal/prepare/package-info.java", "internal/lowering/CpuPartitionLowering.java",
                         "internal/lowering/CpuPartitionDagDecomposer.java",
                         "internal/lowering/CpuFusionProfitabilitySelector.java",
@@ -154,6 +182,7 @@ class CpuInternalPackageInventoryTest {
                         "internal/route/nativeblas/openblas/CpuOpenBlasBinaryInspector.java",
                         "internal/route/nativeblas/openblas/CpuOpenBlasQualification.java",
                         "internal/route/nativeblas/openblas/CpuOpenBlasQualifier.java",
+                        "internal/route/nativeblas/openblas/CpuBackendComposition.java",
                         "internal/route/nativeblas/openblas/package-info.java",
                         "internal/cache/CpuGeneratedKernelArtifactStore.java",
                         "internal/cache/CpuGeneratorSchema.java", "internal/cache/CpuKernelSpecialization.java",

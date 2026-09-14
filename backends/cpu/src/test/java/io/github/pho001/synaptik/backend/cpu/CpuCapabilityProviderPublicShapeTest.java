@@ -33,7 +33,8 @@ class CpuCapabilityProviderPublicShapeTest {
                 () -> {
                     Path root = Path.of("src/main/java/io/github/pho001/synaptik/backend/cpu");
                     try (var paths = Files.list(root)) {
-                        assertEquals(Set.of("CpuCapabilityProvider.java", "internal", "package-info.java"),
+                        assertEquals(Set.of("CpuCapabilityProvider.java", "CpuBackendIntegration.java",
+                                        "internal", "package-info.java"),
                                 paths.filter(path -> Files.isRegularFile(path)
                                                 || path.getFileName().toString().equals("internal"))
                                         .map(path -> path.getFileName().toString())

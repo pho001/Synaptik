@@ -147,6 +147,8 @@ SIMD routes, optional native routes, storage, workspace, and execution.
 
 ## Allowed dependencies
 
+- modules/compiler — direct public `CompileArtifacts` consumption for task 0010F lifecycle
+  preparation; CPU still owns no compilation behavior
 - modules/model
 - modules/config
 - modules/planning
@@ -164,7 +166,8 @@ SIMD routes, optional native routes, storage, workspace, and execution.
 
 ```text
 io.github.pho001.synaptik.backend.cpu/
-  CpuCapabilityProvider       sole public truthful fail-closed CPU capability provider
+  CpuCapabilityProvider       public truthful fail-closed CPU capability provider
+  CpuBackendIntegration       supported Engine-facing lifecycle SPI
   package-info.java           public package boundary and current status
   internal/
     memory/                   representations and cold binding
@@ -181,8 +184,9 @@ io.github.pho001.synaptik.backend.cpu/
 
 Task 0005A adopts this structure atomically. Java subpackages are separate access domains, not
 friends, so only the minimal cross-package contracts are technically public below `.internal` and
-are explicitly unsupported API. `CpuCapabilityProvider` remains the sole supported public CPU
-type. No JPMS export, service locator, registry, broad facade, compatibility bridge, or retained
+are explicitly unsupported API. `CpuCapabilityProvider` and `CpuBackendIntegration` are the
+supported root-package CPU types; the latter is cross-module SPI rather than an ordinary user
+facade. No JPMS export, service locator, registry, broad facade, compatibility bridge, or retained
 flat pipeline is permitted.
 
 Later tasks add only their concrete leaves: `route/nativeblas/{openblas,accelerate,mkl,aocl}` for
@@ -308,7 +312,7 @@ created by 0005A. All consume the common analysis above; none creates another ba
 | 0010D | [Installed OpenBLAS qualification and target fingerprinting](tasks/0010d-installed-openblas-qualification-and-target-fingerprinting.md) | Complete | 0010C | Added immutable per-load-session qualification after supported target/header, exact four-symbol ordinary 32-bit-`blasint`, count-one, and bounded SGEMM/DGEMM checks. Absolute-path loads receive versioned SHA-256 binary/target compatibility identity; name loads remain session-only. Exact coordinator association is checked before provider mutation or recipe construction. This is compatibility evidence, not authentication or broad ABI, numerical, determinism, or performance certification. |
 | 0010D1 | Qualified direct BFLOAT16-output OpenBLAS MATMUL route | Blocked (deferred optional side branch) | 0010D; OpenBLAS provider 0004 | Retain the failed proof as durable evidence and resume only for a concrete direct capability proving BFLOAT16 inputs/output, complete FP32 contraction accumulation, and exactly one final BFLOAT16 narrowing. Portable BFLOAT16 and existing FLOAT32/FLOAT64 routes remain unchanged. |
 | 0010E | [FLOAT32/FLOAT64 OpenBLAS tuning candidates and compatible decisions](tasks/0010e-float32-float64-openblas-tuning-candidates-and-compatible-decisions.md) | Complete | 0010D | Added typed/versioned complete portable-versus-OpenBLAS thread and representation candidates, canonical CPU/workload compatibility facts, and deterministic consumption of one matching selected decision. Exact/default FLOAT32/FLOAT64 only; CPU performs no measurement or persistence and safe heuristic preparation remains available. Final validation passed 194 suites and 991 tests with 28 skips and zero failures/errors; the focused three-class run passed 3 suites and 20 tests. |
-| 0010F | Supported CPU lifecycle integration adapter | Draft | 0010E; Prepare 0003–0004; Runtime 0010 | Publish the smallest CPU-owned Engine integration adapter that encapsulates current internal analysis inputs, preparer/finalizer construction, physical representation recipes, and schedule assembly. Engine consumes it behind Engine-owned standard/advanced composition; user-facade signatures do not expose it, and ordinary users do not construct or name it. |
+| 0010F | [Supported CPU lifecycle integration adapter](tasks/0010f-supported-cpu-lifecycle-integration-adapter.md) | Complete | 0010E; Prepare 0003–0004; Runtime 0010; Compiler 0006B3 | Published the smallest CPU-owned Engine integration adapter for exactly one non-empty maximal CPU partition, encapsulating capability/availability, current internal analysis and finalization, physical representation recipes, deterministic schedule assembly, and automatic OpenBLAS qualification/lifetime with portable fallback. It rejects zero-partition/pass-through and mixed/multi-partition artifacts before CPU analysis/assembly. Future Engine composition consumes it without `.internal` imports; ordinary users do not construct or name it. |
 | 0011 | Intel oneMKL BLAS and VML peer routes | Blocked | 0010E; 0005A; 0009; concrete Intel CPU use case and supported oneMKL ABI evidence | The ordered OpenBLAS sequence now precedes this row, and the repository still supplies neither Intel external gate. Once all dependencies exist, add distinct `route.nativeblas.mkl` BLAS and `route.nativeops.mkl` VML leaves over shared analysis while preserving portable Java as the semantic fallback. |
 | 0012 | Intel oneDNN partition peer routes | Draft | 0005A; 0009; stable common CPU lowering; concrete DNN/ML use case and supported oneDNN ABI evidence | Add `route.nativeops.onednn` as a distinct eligible partition route over common lowering/IR and whole-plan cost, without collapsing it into oneMKL or portable code generation. |
 | 0013 | Apple Accelerate peer routes | Draft | 0005A; 0009; concrete Apple CPU use case and supported Accelerate ABI evidence | Add `route.nativeblas.accelerate` for BLAS and `route.nativeops.accelerate` for vDSP/vForce over shared analysis; Apple Silicon is capability-selected, while MPSGraph and Metal kernels remain outside CPU. |
@@ -333,13 +337,37 @@ CPU 0010E typed candidates and compatible-decision consumption
 CPU 0010E is Complete. It confirms the earlier CPU-first direction while narrowing it: CPU
 stabilizes the values owned by the concrete backend before Prepare can carry them or tuning can
 persist them. Prepare 0004, tools/tuning 0001, and Config 0006A are now Complete. The Engine-frontier
-reassessment adds Draft CPU 0010F after Compiler 0006B3: current supported CPU API exposes only
-`CpuCapabilityProvider`, while the required preparer, finalizer, analysis inputs,
-representations, and composition seams remain under `.internal`, and no production CPU schedule
-assembler exists. CPU 0010F owns that supported SPI boundary; Engine must not import the current
+reassessment added detailed CPU 0010F after Compiler 0006B3. The supported CPU API now exposes
+`CpuCapabilityProvider` plus `CpuBackendIntegration`, while preparer, finalizer, analysis-input,
+representation, and composition implementation remains under `.internal`.
+CPU 0010F owns that supported SPI boundary; Engine must not import the current
 internals, and Engine rather than an ordinary user constructs and consumes the built-in CPU adapter
-behind Engine-owned composition types. This exact/default path does not depend on optional vendor
-peers or relaxed numerics, and Runtime never selects.
+behind Engine-owned composition types. Its one CPU-owned lifetime wraps bounded automatic
+OpenBLAS discovery, qualification, coordinator transfer, fixed untuned safe-heuristic inputs, and
+portable fallback without Config, tuning, Runtime selection, reflection, service location, or a
+global singleton. Existing public Prepare and Runtime seams are sufficient. This exact/default
+path does not depend on optional vendor peers or relaxed numerics. CPU 0010F is Complete; Engine
+0001 is the next Draft frontier and has no task specification.
+
+Planning-time implementation context `01a09f3d-0012-72b3-ba71-38e2f5f6c279` proved that the fixed
+`preparations(CompileArtifacts)` method cannot compile through CPU's current declared dependencies.
+Because CPU directly uses the public Compiler contract, task 0010F now authorizes the truthful
+direct `modules/compiler` dependency, a targeted explanatory synchronization in
+`docs/architecture/dependency-rules.md`, and one focused CPU dependency architecture test. This
+realizes the existing execution-side direction rather than changing it: Engine remains forbidden,
+Prepare is not made to export Compiler transitively, and `ARCHITECTURE.md` plus ADRs remain
+unchanged.
+
+The same implementation context's resumed work and successful partial validation exposed two
+acceptance contradictions before it again removed all Java changes. Prepare 0003 intentionally
+cannot publish a requested zero-node/pass-through value because no backend analysis declares a
+buffer assignment. Planning's maximal same-owner contract also means every non-empty all-CPU
+artifact contains exactly one CPU partition; any valid multi-partition artifact necessarily has
+another owner. CPU 0010F now supports precisely that one-partition CPU-only domain and rejects
+zero-partition/pass-through plus mixed/multi-partition artifacts before analysis or assembly.
+This removes no non-empty CPU-only executable capability. The zero-node limitation remains with
+Prepare, and mixed-backend schedule composition remains a later Engine/Prepare boundary question;
+neither requires a new shared contract or detailed prerequisite task for this Ready CPU frontier.
 
 CPU 0010A can proceed without Engine because the discovery request, immutable result, bounded
 loader, and provider-lifetime session stay package-private under
@@ -1133,9 +1161,10 @@ OpenBLAS discovery plus an internal composition lifetime without Engine or publi
 [CPU 0010D](tasks/0010d-installed-openblas-qualification-and-target-fingerprinting.md) are
 `Complete`. OpenBLAS provider 0004 and CPU 0010D1 remain a blocked/deferred optional BFLOAT16 side
 branch. Detailed CPU 0010E is `Complete` for the independent exact/default FLOAT32/FLOAT64 slice;
-Prepare 0004, tools/tuning 0001, and Config 0006A are Complete. Compiler 0006B3 is Complete. Draft
-CPU 0010F is the next operational frontier; it has no detailed task and is not Ready. Draft Engine
-0001 follows it. CPU 0011 remains
+Prepare 0004, tools/tuning 0001, and Config 0006A are Complete. Compiler 0006B3 is Complete.
+Detailed [CPU 0010F](tasks/0010f-supported-cpu-lifecycle-integration-adapter.md) is Complete. Its
+supported surface closes the CPU operational frontier, and Engine 0001 is now the next Draft
+frontier without a detailed task specification. CPU 0011 remains
 `Blocked` because no concrete Intel CPU use case or supported oneMKL BLAS/VML ABI evidence is
 present; CPU 0012–0015 are optional peer routes, CPU 0016 is later cross-route tuning integration,
 and CPU 0017 waits for relaxed numerical permission. These rows are explicitly deferred and do

@@ -45,6 +45,13 @@ backends/cuda
 
 These diagrams express architectural direction; individual modules should depend only on the contracts they actually use.
 
+The concrete CPU backend now directly consumes Compiler-owned `CompileArtifacts` through its
+supported lifecycle integration adapter. Its build therefore declares
+`backends/cpu -> modules/compiler` directly rather than relying on Prepare to expose Compiler
+transitively. This is one concrete realization of the existing execution-side direction above:
+CPU still owns no compilation behavior, and the prohibited `backends/cpu -> modules/engine` edge
+remains absent.
+
 Neural-network composition and training have a separate extension direction:
 
 ```text
@@ -108,7 +115,13 @@ training extension traverse declared parameters without knowing concrete layer t
 
 ## Dependency scenario
 
-A CPU partition preparer may implement a shared prepare contract and return a runtime `PreparedExecutable`; those dependencies point from the concrete backend toward shared inward contracts. Engine may then depend on CPU to register that implementation. If CPU imported engine to find configuration or register itself, the inward module would depend back on the composition root and create the prohibited reverse edge.
+A CPU partition preparer may implement a shared prepare contract and return a runtime
+`PreparedExecutable`; those dependencies point from the concrete backend toward shared inward
+contracts. The supported `CpuBackendIntegration.preparations(CompileArtifacts)` boundary also
+names Compiler's public immutable output directly, so CPU declares that dependency directly.
+Engine may later depend on CPU to compose the adapter. If CPU imported Engine to find
+configuration or register itself, the inward module would depend back on the composition root and
+create the prohibited reverse edge.
 
 ## Related semantic dependency rules
 
@@ -131,6 +144,7 @@ Tests under `testing/architecture-tests/` should fail when forbidden module or p
 - planning and compiler independence from runtime and concrete implementations;
 - runtime and prepare independence from concrete backends;
 - backend independence from engine;
+- the CPU backend's exact direct dependency set, including Compiler and excluding Engine;
 - the OpenBLAS provider's low-level leaf role;
 - absence of backend support APIs on `Operation`;
 - absence of compile-time graph types in the runtime hot path; and

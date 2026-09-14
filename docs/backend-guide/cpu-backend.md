@@ -5,6 +5,8 @@
 This guide defines the CPU integration boundary and helps contributors avoid treating CPU routes
 as separate backends. The current CPU module accepts the bounded, fully static portable families
 described below.
+It now publishes `CpuBackendIntegration` as the supported lifecycle service-provider interface
+(SPI) for future Engine composition. The SPI is not the ordinary end-user execution facade.
 A CPU-owned partition directed acyclic graph (DAG) contains one through eight supported compiled
 nodes. CPU analysis first decomposes it into established computation-unit seeds, then performs
 bounded deterministic vertical and horizontal fusion only among ordinary pointwise units. The
@@ -236,6 +238,54 @@ CPU prepare: common lowering -> eligible portable / OpenBLAS / vendor peer plans
 runtime: invoke prepared CPU executable
 ```
 
+## Supported lifecycle integration
+
+`CpuBackendIntegration.open()` owns one fixed exact/default CPU composition. It exposes the
+retained `CpuCapabilityProvider`, the immutable `cpu/host` availability snapshot, one positional
+preparation factory, one prepared-schedule assembler, and intrinsic-only borrowing of compatible
+host storage. CPU declares a direct dependency on Compiler because
+`preparations(CompileArtifacts)` consumes that public compile recipe; CPU still has no Engine
+dependency, and Engine remains the outer composition root.
+
+The supported execution domain is exactly one non-empty maximal CPU-owned partition:
+
+```text
+CompileArtifacts with one non-empty CPU partition
+  -> CpuBackendIntegration.preparations(...)
+  -> GraphPreparation with integration.scheduleAssembler()
+  -> representation creation
+  -> one prepared CPU executable
+  -> forward publications, then gradient publications
+```
+
+The diagram reads from immutable Compiler output through cold Prepare recipe construction to
+Runtime schedule order. Schedule assembly allocates, initializes, borrows, executes, and publishes
+nothing. Each Runtime invocation creates fresh run-owned buffers and workspaces, while a borrowed
+caller input remains caller-owned.
+
+A zero-node pass-through artifact is rejected because current Prepare publication has no
+`PreparedBufferAssignment` for its requested value. Mixed-owner and multi-partition artifacts are
+rejected before CPU analysis or assembly; combining backend-owned schedule contributions remains
+future Engine/Prepare composition work. Planning's maximal same-owner partitioning means this
+restriction still accepts every current non-empty all-CPU graph.
+
+Opening the integration attempts only the existing bounded automatic OpenBLAS discovery and
+qualification sequence. Success may make one single-thread FLOAT32/FLOAT64 native candidate
+eligible under the current safe heuristic. It does not prove that OpenBLAS will be selected or
+that it is faster. Failure retains the portable route and does not change the fixed `cpu/host`
+availability identity.
+
+`borrow(HostTensorStorage)` checks only the storage's own type/carrier consistency, capacity and
+byte geometry, liveness, and current-thread segment access. It accepts intrinsically valid
+read-only or writable storage and transfers no ownership. Because the call has no expected logical
+binding, it cannot validate the target tensor type, required span, or write role. Typed logical
+binding and the simpler end-user execute/result surface remain at the Engine frontier.
+
+The adapter and immutable recipes may be reused concurrently, but each active run requires its
+own Runtime state. Keep the adapter open for every preparation and run that uses its recipes.
+Closing it rejects new access, quiesces admitted native calls, restores provider thread state, and
+closes optional provider ownership; repeated and concurrent close calls are idempotent.
+
 The low-level OpenBLAS provider owns library loading, symbol binding, GEMM calls, and thread
 control only. It does not interpret graphs or choose fusion, broadcasting, representations,
 materialization, or Runtime lifetime. Dependency direction is
@@ -249,7 +299,8 @@ candidate pipeline, worker/vector placeholders, and mandatory durable-store beha
 useful as historical evidence only; the current implementation is described under
 [Atomic partition-kernel reset](#atomic-partition-kernel-reset).
 
-`CpuCapabilityProvider` is the only public CPU type. It returns the exact stable
+At that historical point, `CpuCapabilityProvider` was the only public CPU type. It returns the
+exact stable
 `BackendId("cpu")` constant. Its `supports` method returns `true` only for a parameterless binary
 `ADD` occurrence with exactly two inputs and one output, exact equal fully static shapes, and one
 exact common `FLOAT64`, `FLOAT32`, `INT32`, or `INT64` type. Every layout must be unresolved or
@@ -3268,8 +3319,10 @@ fallback only: it does not add another operation topology or a materialization p
 The reset replaces the flat execution package with unsupported `.internal` packages for memory,
 prepare, lowering, IR, portable code generation/emission, `route.portable`, cache, executable, and
 reference responsibilities. Java subpackages are not friends, so only the minimum collaboration
-contracts are technically public below `.internal`; `CpuCapabilityProvider` remains the sole
-supported public CPU API. CPU 0005A created no native placeholder package. CPU 0010 now owns the
+contracts are technically public below `.internal`. The supported root-package surface now
+contains `CpuCapabilityProvider` plus the Engine-facing `CpuBackendIntegration` SPI; every
+preparer, finalizer, representation, route, and composition implementation remains unsupported
+under `.internal`. CPU 0005A created no native placeholder package. CPU 0010 now owns the
 exact `route.nativeblas.openblas` leaf described above; later concrete tasks own distinct
 Accelerate/oneMKL/AOCL `route.nativeblas` leaves and vDSP/vForce/VML/oneDNN/AOCL-LibM/ZenDNN
 `route.nativeops` leaves.
@@ -3501,6 +3554,8 @@ invocation completed without a reported failure. It does not establish particula
 | A caller expects the provider to allocate or return `C` | The borrowed in-place ABI boundary was mistaken for a storage API. | Supply a writable, sufficiently large native `C` segment and retain its ownership. |
 | Two Java handles appear to have independent thread counts | Both may refer to the same loaded binary and mutable library/process state. | Conservatively coordinate their thread mutations together; do not infer sharing across independent copies or namespaces. |
 | A temporary thread setting remains after the Java owner closes | The provider owns only local lookup lifetime and does not retain or restore a prior value. | Capture a positive count, exclude competing native work, and restore explicitly through a still-open owner. |
+| Application code treats `CpuBackendIntegration` as the end-user execution API | A cross-module SPI was confused with the future Engine facade. | Let Engine own composition, typed logical binding, execution convenience, and result access; keep the adapter behind that boundary. |
+| A valid pass-through or mixed graph is expected to prepare through the CPU assembler | The adapter's exact one-partition complete-schedule domain was overlooked. | Use one non-empty all-CPU maximal partition today; leave pass-through publication and mixed-backend schedule composition to their future Prepare/Engine owners. |
 
 ## Toolchain and resources
 

@@ -23,8 +23,8 @@ Parallel work is not the default. It requires an explicit roadmap or master-plan
 | 7 | [`modules/compiler`](modules/compiler/master-plan.md) | Complete through 0006B3 | Model, config, planning, backend-contract, and trace contracts are ready for the complete compiler lifecycle; the Engine reassessment proved one public-entry accessibility gap. | Compile artifacts, graph transformations, autograd compilation, and the narrow Engine-facing complete compile integration port are complete. |
 | 8 | [`modules/prepare`](modules/prepare/master-plan.md) | Complete through Prepare 0004 | Compiler/planning artifacts and Runtime recipe/runner contracts are stable; ADR 0010 authorizes the analysis-first staged handoff. | Shared prepare contracts include partition-local analysis, staged finalization, complete orchestration, and opaque candidate/decision transport. |
 | 9 | [`backends/openblas-provider`](backends/openblas-provider/master-plan.md) | Complete baseline; optional provider 0004 Blocked/deferred | Native interop conventions needed by the provider are decided. | Required FLOAT32/FLOAT64 remains complete; the optional direct BFLOAT16-output capability stays fail-closed until both proof gaps are resolved. |
-| 10 | [`backends/cpu`](backends/cpu/master-plan.md) | In progress (0010F next Draft frontier; 0010D1 Blocked/deferred optional) | Model, config, planning, runtime, prepare, backend-contract, trace, and applicable OpenBLAS contracts are ready. | CPU has a supported Engine integration adapter without `.internal` imports or ordinary-user construction. |
-| 11 | [`modules/engine`](modules/engine/master-plan.md) | Draft (blocked by CPU 0010F) | The public Compiler integration port, shared Runtime/Prepare orchestration, and supported CPU adapter can be composed. | Standard and advanced composition, typed lifecycle, host results, and Engine-owned one-shot forward/backward convenience work end to end on CPU. |
+| 10 | [`backends/cpu`](backends/cpu/master-plan.md) | Complete through 0010F (0010D1 Blocked/deferred optional) | Model, config, planning, runtime, prepare, backend-contract, trace, and applicable OpenBLAS contracts are ready. | CPU has a supported Engine integration adapter without `.internal` imports or ordinary-user construction. |
+| 11 | [`modules/engine`](modules/engine/master-plan.md) | Draft (next frontier; no task specification) | The public Compiler integration port, shared Runtime/Prepare orchestration, and supported CPU adapter can be composed. | Standard and advanced composition, typed lifecycle, host results, and Engine-owned one-shot forward/backward convenience work end to end on CPU. |
 | 12 | [`backends/metal`](backends/metal/master-plan.md) | Draft | Shared backend contracts and CPU reference behavior are stable. | Metal passes the applicable backend-conformance suite. |
 | 13 | [`backends/cuda`](backends/cuda/master-plan.md) | Draft | Shared backend contracts and CPU reference behavior are stable. | CUDA passes the applicable backend-conformance suite. |
 | 14 | [`extensions/onnx`](extensions/onnx/master-plan.md) | Draft | The model representation and public tensor semantics are stable. | Selected import/export mappings and compatibility validation are complete. |
@@ -90,17 +90,47 @@ takes package-private constant ingress; the completed same-package public
 `GraphCompilationPort` integration SPI supplies empty ingress and keeps `GraphCompiler`
 package-private. The SPI is not part of the supported Engine user facade. Prepare's
 `GraphPreparation` and Runtime's
-`PreparedExecutionRunner` are already public and need no prerequisite task. CPU's only supported
-public type is `CpuCapabilityProvider`; preparation, finalization, representations, and
-composition remain under `.internal`, and there is no production CPU schedule assembler, so
-Draft CPU 0010F is now the next operational-lifecycle frontier. It has no detailed task and is not
-Ready. Its adapter is Engine-facing SPI; ordinary users will not construct or name it. Missing
+`PreparedExecutionRunner` are already public and need no prerequisite task. CPU now exposes
+`CpuCapabilityProvider` plus the supported `CpuBackendIntegration` SPI; preparation,
+finalization, representations, and composition implementation remain under `.internal`.
+Detailed
+[CPU 0010F supported lifecycle integration adapter](backends/cpu/tasks/0010f-supported-cpu-lifecycle-integration-adapter.md)
+is Complete. It supplies the supported
+Engine-facing CPU SPI, deterministic CPU representation/schedule composition, and bounded
+automatic OpenBLAS qualification/lifetime with portable fallback and the current untuned safe
+heuristic. Ordinary users will not construct or name it. It adds no Config/tuning integration,
+Runtime selection, reflection, service location, or global singleton. Missing
 `CompileConfig`, `PrepareConfig`, and `RunOptions`
 aggregates do not block the initial exact/default representation-level foundation; standard
 composition, typed logical binding/results, and host materialization remain Engine 0002–0004.
 CPU 0011 is independently blocked, CPU
 0012–0015 are optional vendor peers, CPU 0016 is later cross-route tuning integration, and CPU
 0017 waits for relaxed numerical permission. None gates Engine 0001.
+
+The adapter's executable domain is exactly one non-empty maximal CPU partition. That is not a
+reduction in CPU-only capability: Planning groups every non-empty all-CPU graph into exactly one
+maximal same-owner partition. CPU 0010F rejects zero-partition/pass-through artifacts and every
+mixed/multi-partition artifact before CPU analysis or assembly. Zero-node requested publication
+remains Prepare 0003's documented missing-buffer-assignment limitation. Mixed-backend schedule
+composition remains a later Engine/Prepare boundary question, with no new shared contract or
+detailed prerequisite task introduced here.
+
+Planning-time implementation context `01a09f3d-0012-72b3-ba71-38e2f5f6c279` stopped after CPU
+compilation could not resolve the public `CompileArtifacts` type used directly by the mandatory
+`preparations(CompileArtifacts)` method; it removed all Java changes. Architecture review found no
+new decision: the execution-side direction already permits concrete CPU to depend on Compiler and
+requires direct declaration of contracts actually used, while CPU-to-Engine remains forbidden.
+CPU 0010F therefore includes exactly one `backends/cpu` -> `modules/compiler` Gradle edge, a
+targeted `docs/architecture/dependency-rules.md` clarification, and one focused CPU dependency
+architecture test. It does not make Prepare export Compiler transitively and changes neither root
+`ARCHITECTURE.md` nor an ADR.
+
+That same clean implementation context reported successful partial validation before proving the
+zero-partition and maximal-partition contradictions and removing every Java change. A later clean
+implementation context completed the corrected task, and documentation-focused context
+`01a09f80-d7a3-7930-aee3-aad2482c9f5d` finalized its Javadocs, explanatory documentation, and
+planning evidence without changing executable Java tokens. CPU 0010F is Complete. Engine 0001 is
+the next Draft frontier, and no Engine task specification has been created.
 
 The standard built-in composition is compatible with the current authoritative rule that Engine
 registers backends explicitly. Engine 0002 may directly construct a fixed, ordered set of known
@@ -1628,8 +1658,10 @@ reader is planned.
 The reset replaced the flat execution package with unsupported internal `memory`,
 `prepare`, `lowering`, `ir`, portable `codegen.emit`, `route.portable`, `cache`, `executable`, and
 `reference` packages. Java subpackages are not friends, so only minimal internal collaboration
-contracts may be technically public; `CpuCapabilityProvider` remains the sole supported public CPU
-API. CPU 0005A creates no native placeholder package. Later concrete Draft tasks own
+contracts may be technically public. At that historical reset point, `CpuCapabilityProvider` was
+the sole supported public CPU API; completed CPU 0010F later added the Engine-facing
+`CpuBackendIntegration` SPI. CPU 0005A creates no native placeholder package. Later concrete
+Draft tasks own
 `route.nativeblas` provider leaves for OpenBLAS/Accelerate/oneMKL/AOCL and `route.nativeops` leaves
 for vDSP/vForce/VML/oneDNN/AOCL-LibM/ZenDNN over the shared analysis.
 
@@ -1939,8 +1971,9 @@ the complete current model operation inventory before higher-order work:
 | 0006C Conv3d adjoint expressibility and gradient closure | Draft | 0006B; proven public Tensor algebra or a separately selected Model prerequisite | Close Conv3d gradients only after group, geometry, overlap, symbolic-Shape, and higher-order expressibility are proved. |
 
 Compiler 0005A–0006B3 and their Model prerequisites are Complete. Compiler 0006C and 0007 remain
-explicitly deferred Draft side branches without detailed specifications. CPU 0010F is the next
-Draft operational frontier and has no detailed task; no task is made Ready here.
+explicitly deferred Draft side branches without detailed specifications. Detailed
+[CPU 0010F](backends/cpu/tasks/0010f-supported-cpu-lifecycle-integration-adapter.md) is Complete.
+Engine 0001 is the next Draft operational frontier without a detailed task specification.
 Family tasks
 must not claim that every operation role has a gradient: BOOL, index, random-number-generator
 (RNG) state, mask, and configuration roles remain intentionally non-differentiable where
