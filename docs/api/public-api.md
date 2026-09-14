@@ -20,8 +20,10 @@ Public `GraphCompilationPort` exposes that complete constant-free pipeline as a 
 cross-module integration service-provider interface (SPI). The CPU backend now also exposes the
 supported cross-module `CpuBackendIntegration` SPI described below. The first advanced Engine
 composition surface now connects these contracts for one CPU-only, representation-level compile,
-prepare, and run lifecycle. Reusable or public capability matrices, a public graph-wide Planning
-workflow, and the ordinary typed Engine surface remain planned.
+prepare, and run lifecycle. The ordinary `Engine.standard()` surface now constructs and owns one
+fresh CPU-only composition, but exposes only lifecycle observation and closure. Reusable or public
+capability matrices, a public graph-wide Planning workflow, and ordinary typed binding and result
+access remain planned.
 Prepare analysis, finalization, and complete graph-preparation contracts plus the initial Runtime
 geometry, prepared representation creation, per-run resource/validity, executable and transfer
 cold-binding, prepared publication and result leasing, and the ordered schedule contracts are
@@ -631,7 +633,20 @@ immutable schedule recipe once; Prepare validates exact source, execution, coord
 publication coverage before constructing the prepared root. The advanced Engine now composes this
 operation with the exact CPU integration that it owns.
 
-## Current advanced CPU lifecycle
+## Current ordinary construction and advanced CPU lifecycle
+
+`Engine.standard()` is the current ordinary entry point. Every invocation directly opens one
+fresh CPU integration, transfers its ownership into a private advanced lifecycle owner, and
+returns a distinct `Engine`. The fixed standard inventory is exactly CPU; Metal and CUDA have no
+current lifecycle adapters. There is no discovery, service lookup, caller-supplied backend set,
+or process-global Engine. `isClosed()` observes when delegated closure begins, and `close()` uses
+the advanced owner's thread-safe, idempotent, failure-retaining cleanup protocol.
+
+The ordinary type is intentionally construction-only. It has no compile, prepare, borrow, run,
+binding, publication, result, or materialization member, and exposes no conversion to an advanced
+type. Ordinary typed binding and published-result access are planned for Engine task 0003; host
+materialization is planned separately for task 0004. Those plans do not describe current callable
+APIs.
 
 `AdvancedEngine` is the current low-level composition root. Construction accepts the exact
 `CpuBackendIntegration` returned by `CpuBackendIntegration.open()` and takes ownership of it.
@@ -667,28 +682,30 @@ waits for admitted work, closes still-open results in reverse run order, and the
 CPU integration. Compiled and prepared handles have no independent resource lifecycle, but become
 unusable when their Engine closes.
 
-This surface does not provide mixed-backend composition, backend discovery, typed input binding,
-typed results, host materialization, a standard automatic composition, one-shot execution,
-backward convenience, tuning integration, or ordinary Engine exception translation. Supplying a
+This advanced surface does not provide mixed-backend composition, backend discovery, typed input
+binding, typed results, host materialization, one-shot execution, backward convenience, tuning
+integration, or ordinary Engine exception translation. Supplying a
 gradient request to `compile(...)` invokes the existing compiler mode/request contract; it does
 not add those later conveniences or guarantee that the current CPU-only prepare step can lower
 the resulting artifact.
 
-## Planned ordinary public lifecycle
+## Planned ordinary typed lifecycle
 
 The architecture uses this conceptual shape:
 
 ```java
-// Conceptual ordinary API: these lifecycle types and methods are not implemented yet.
+// Conceptual ordinary typed API: these lifecycle types and methods are not implemented yet.
 CompiledGraph graph = CompiledGraph.compile(output, CompileConfig.auto());
 PreparedExecution execution = graph.prepare(PrepareConfig.defaults());
 RunResult result = execution.run(inputs, RunOptions.defaults());
 ```
 
-This later surface will add typed binding and result access, standard composition, and convenient
-one-shot use above the current advanced representation-level seam. It must not be confused with
-the implemented `AdvancedEngine` lifecycle. See the [compile](compile-api.md) and
-[runtime](runtime-api.md) reference pages for the current and planned boundaries.
+`Engine.standard()` and its lifetime are current; the conceptual methods and lifecycle types above
+are not. Engine task 0003 will define ordinary typed logical binding and published-result access,
+and task 0004 will define host materialization. Later one-shot use builds above those boundaries.
+None of those planned APIs should be confused with the implemented advanced representation-level
+seam. See the [compile](compile-api.md) and [runtime](runtime-api.md) reference pages for the
+current and planned boundaries.
 
 ## Compatibility expectations during development
 

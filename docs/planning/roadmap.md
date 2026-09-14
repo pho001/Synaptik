@@ -24,7 +24,7 @@ Parallel work is not the default. It requires an explicit roadmap or master-plan
 | 8 | [`modules/prepare`](modules/prepare/master-plan.md) | Complete through Prepare 0004 | Compiler/planning artifacts and Runtime recipe/runner contracts are stable; ADR 0010 authorizes the analysis-first staged handoff. | Shared prepare contracts include partition-local analysis, staged finalization, complete orchestration, and opaque candidate/decision transport. |
 | 9 | [`backends/openblas-provider`](backends/openblas-provider/master-plan.md) | Complete baseline; optional provider 0004 Blocked/deferred | Native interop conventions needed by the provider are decided. | Required FLOAT32/FLOAT64 remains complete; the optional direct BFLOAT16-output capability stays fail-closed until both proof gaps are resolved. |
 | 10 | [`backends/cpu`](backends/cpu/master-plan.md) | Complete through 0010F (0010D1 Blocked/deferred optional) | Model, config, planning, runtime, prepare, backend-contract, trace, and applicable OpenBLAS contracts are ready. | CPU has a supported Engine integration adapter without `.internal` imports or ordinary-user construction. |
-| 11 | [`modules/engine`](modules/engine/master-plan.md) | In progress (0001 Complete; 0002 next Draft frontier) | The advanced CPU-only representation lifecycle is complete; the ordinary standard composition remains Draft. | Standard and advanced composition, typed lifecycle, host results, and Engine-owned one-shot forward/backward convenience work end to end on CPU. |
+| 11 | [`modules/engine`](modules/engine/master-plan.md) | In progress (0001–0002 Complete; 0003 next Draft frontier) | Advanced CPU-only representation lifecycle and ordinary CPU-only standard construction are complete; typed logical binding/results remain next. | Standard and advanced composition, typed lifecycle, host results, and Engine-owned one-shot forward/backward convenience work end to end on CPU. |
 | 12 | [`backends/metal`](backends/metal/master-plan.md) | Draft | Shared backend contracts and CPU reference behavior are stable. | Metal passes the applicable backend-conformance suite. |
 | 13 | [`backends/cuda`](backends/cuda/master-plan.md) | Draft | Shared backend contracts and CPU reference behavior are stable. | CUDA passes the applicable backend-conformance suite. |
 | 14 | [`extensions/onnx`](extensions/onnx/master-plan.md) | Draft | The model representation and public tensor semantics are stable. | Selected import/export mappings and compatibility validation are complete. |
@@ -75,8 +75,8 @@ The next operational-lifecycle sequence is:
 Compiler 0006B3 Engine-facing complete compile integration port (Complete)
   -> CPU 0010F supported lifecycle integration adapter
   -> Engine 0001 advanced composition and representation-level lifecycle foundation (Complete)
-  -> Engine 0002 standard built-in composition (next Draft frontier)
-  -> Engine 0003 typed logical input binding and published-result access
+  -> Engine 0002 standard built-in composition (Complete)
+  -> Engine 0003 typed logical input binding and published-result access (next Draft frontier)
   -> Engine 0004 host materialization
   -> Engine 0005 one-shot forward convenience
   -> Engine 0006 scalar-objective backward convenience
@@ -102,7 +102,8 @@ heuristic. Ordinary users will not construct or name it. It adds no Config/tunin
 Runtime selection, reflection, service location, or global singleton. Missing
 `CompileConfig`, `PrepareConfig`, and `RunOptions`
 aggregates do not block the initial exact/default representation-level foundation; standard
-composition, typed logical binding/results, and host materialization remain Engine 0002–0004.
+composition is now complete in Engine 0002, while typed logical binding/results and host
+materialization remain Engine 0003–0004.
 CPU 0011 is independently blocked, CPU
 0012–0015 are optional vendor peers, CPU 0016 is later cross-route tuning integration, and CPU
 0017 waits for relaxed numerical permission. None gates Engine 0001.
@@ -131,8 +132,9 @@ implementation context completed the corrected task, and documentation-focused c
 `01a09f80-d7a3-7930-aee3-aad2482c9f5d` finalized its Javadocs, explanatory documentation, and
 planning evidence without changing executable Java tokens. CPU 0010F is Complete. Detailed
 [Engine 0001 advanced composition and representation-level lifecycle foundation](modules/engine/tasks/0001-advanced-composition-and-representation-level-lifecycle-foundation.md)
-is `Complete`. Engine 0002 is the next Draft frontier; it is not Ready and has no detailed task
-specification.
+is `Complete`. Detailed
+[Engine 0002 standard built-in composition](modules/engine/tasks/0002-standard-built-in-composition.md)
+is `Complete`; Engine 0003 is the next Draft frontier without a detailed specification.
 
 The Engine 0001 seam audit found a bounded actionable foundation, not a mixed-backend composition
 contract. `GraphPreparation` accepts one complete schedule assembler, and the only supported
@@ -142,8 +144,8 @@ therefore owns exactly one caller-supplied CPU integration, keeps compiled and p
 recipes behind opaque owner-bound handles, exposes `BufferRepresentation` only on its advanced
 borrow/run seam, and preserves zero/pass-through plus mixed/multi-partition rejection. It adds no
 public hypothetical backend interface or shared schedule-contribution contract. Standard
-built-in composition remains Engine 0002; typed logical binding/result access and host
-materialization remain 0003–0004.
+built-in composition is now complete in Engine 0002; typed logical binding/result access and
+host materialization remain 0003–0004.
 
 A first clean Engine implementation attempt then proved that the task's original unchanged-build
 assumption was false. The exact advanced API imports Model `Tensor` and `HostTensorStorage`, and
@@ -175,13 +177,27 @@ failures or errors and 28 skipped. Engine Javadoc, a distinct-package public API
 also passed.
 
 The standard built-in composition is compatible with the current authoritative rule that Engine
-registers backends explicitly. Engine 0002 may directly construct a fixed, ordered set of known
-built-in adapters and select eligible partition owners during compile/prepare. This is neither
+registers backends explicitly. Complete Engine 0002 adds a distinct ordinary `Engine.standard()`
+construction-and-close surface that privately owns one fresh CPU integration. It deliberately
+does not add a factory to `AdvancedEngine`: returning the advanced type would expose its Compiler
+request and Runtime representation contracts as the apparent ordinary lifecycle. Typed ordinary
+compile/prepare/run work remains Engine 0003. The current fixed built-in inventory is exactly CPU.
+This is neither
 reflective/classpath discovery nor `ServiceLoader`, hidden service location, mutable process-global
 state, or Runtime backend selection, so no architecture-decision prerequisite is needed. The
 advanced path remains explicit for tests, deployment policy, forced/disabled providers, and custom
 sets through an Engine-owned surface; inward Compiler/Prepare/Runtime/CPU contracts remain SPI
 rather than ordinary lifecycle parameters.
+
+Implementation context `01a0a004-1539-7ff2-a423-3fe8e4c11bc5` passed 12/12 focused and full
+Engine tests, 1/1 standard public-factory integration test, and a fresh 1/1 Engine composition
+architecture test, plus the distinct-package fixture and structural gates. Clean documentation
+context `01a0a00b-e021-76a3-8272-fcef47e1b026` finalized the two Javadocs, three API pages, and
+planning evidence without changing executable Java tokens; Engine Javadoc, public/private/
+bytecode inspection, generated leakage scans, Markdown, exact 11-path scope, status, unchanged
+Gradle/advanced production sources, and whitespace validation passed. The ordinary surface is
+construction-only; typed binding/results remain Engine 0003 and host materialization remains
+Engine 0004.
 
 The eventual ordinary surface is Tensor expression -> standard or advanced Engine composition ->
 compile/prepare/run -> typed input binding -> typed/host results, with Engine-owned one-shot and
@@ -2016,8 +2032,10 @@ Compiler 0005A–0006B3 and their Model prerequisites are Complete. Compiler 000
 explicitly deferred Draft side branches without detailed specifications. Detailed
 [CPU 0010F](backends/cpu/tasks/0010f-supported-cpu-lifecycle-integration-adapter.md) is Complete.
 Detailed [Engine 0001](modules/engine/tasks/0001-advanced-composition-and-representation-level-lifecycle-foundation.md)
-is Complete. Engine 0002 is the next Draft operational frontier but is not Ready. Engine
-0002–0008 remain Draft without detailed task specifications.
+is Complete. Detailed
+[Engine 0002](modules/engine/tasks/0002-standard-built-in-composition.md) is also Complete. Engine
+0003 is the next Draft operational frontier, and Engine 0003–0008 remain Draft without detailed
+task specifications.
 Family tasks
 must not claim that every operation role has a gradient: BOOL, index, random-number-generator
 (RNG) state, mask, and configuration roles remain intentionally non-differentiable where

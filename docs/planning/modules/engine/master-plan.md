@@ -62,6 +62,7 @@ therefore required rather than inherited transitively through Compiler, Prepare,
 
 ```text
 io.github.pho001.synaptik.engine/
+  Engine                      public ordinary standard-composition owner
   AdvancedEngine              public advanced composition and lifecycle owner
   AdvancedCompiledGraph       public opaque owner-bound compile handle
   AdvancedPreparedExecution  public opaque owner-bound prepared handle
@@ -71,15 +72,16 @@ io.github.pho001.synaptik.engine/
 
 The root package is a deliberate small facade. Task 0001 adds no public `spi` package or generic
 backend abstraction: its package-private composition seam has the current CPU realization and a
-focused fake test realization only. Later ordinary-user types must remain distinct from the
-advanced representation-level surface.
+focused fake test realization only. Task 0002 adds the distinct ordinary `Engine` owner with a
+construction-and-close surface only; later ordinary lifecycle methods remain task 0003 work and
+must not expose the advanced representation-level surface.
 
 ## Task list
 
 | ID | Task | Status | Depends on | Summary |
 |---|---|---|---|---|
 | [0001](tasks/0001-advanced-composition-and-representation-level-lifecycle-foundation.md) | Advanced composition and representation-level lifecycle foundation | Complete | Compiler 0006B3; CPU 0010F; current Prepare 0003–0004 and Runtime 0010 contracts | Own exactly one supported CPU lifecycle adapter and expose opaque owner-bound compile/prepare handles plus a representation-level run seam for integration and tests. Reject zero/pass-through and mixed/multi-partition preparation; do not claim nonexistent schedule composition. |
-| 0002 | Standard built-in composition | Draft | 0001; supported built-in backend adapters | Add the ordinary deterministic Engine construction path over the adapters that actually exist; the initial inventory may be CPU-only. Preserve the advanced surface without exposing inward integration contracts in ordinary lifecycle signatures. Mixed-backend success requires a separately justified complete schedule-composition contract and another concrete adapter. |
+| [0002](tasks/0002-standard-built-in-composition.md) | Standard built-in composition | Complete | 0001; supported built-in backend adapters | Added a distinct ordinary `Engine.standard()` construction path that owns one fresh CPU-only built-in composition without exposing `CpuBackendIntegration`, advanced handles, or inward integration contracts. Preserved `AdvancedEngine.takeOwnership(...)`; mixed-backend success still requires another concrete adapter and a justified complete schedule-composition contract. |
 | 0003 | Typed logical input binding and published-result access | Draft | 0001–0002; current Compiler publication artifacts; Prepare source/publication mapping; Runtime result contracts | Map caller Tensor/host inputs and logical publications to Runtime coordinates, preserve aliases and ownership, and expose typed Engine result access without leaking backend representations or cross-module SPI through user signatures. |
 | 0004 | Explicit host materialization boundary | Draft | 0003; concrete-backend host-transfer routes | Materialize selected current Tensor/state values through prepared execution and publication into bounded caller-owned host payloads; add no backend access to NN, Training, or Checkpoint. |
 | 0005 | Engine-owned one-shot forward convenience | Draft | 0002–0004 | Add an Engine-owned one-shot facade from Tensor output(s) and typed inputs through compile, prepare, execute, typed results, materialization, and cleanup. Fix exact names only when this task becomes the planning frontier; add no execution method or runtime dependency to `Tensor`. |
@@ -124,9 +126,9 @@ Task 0001 is deliberately an advanced/integration foundation. It uses the curren
 `CompileMode`, `GraphOptimizationConfig`, `BackendIntent`, and `PartitionScoringConfig` values and
 the existing representation-level Runtime caller input. Missing `CompileConfig`, `PrepareConfig`,
 and `RunOptions` aggregates do not block that seam; their final convenience ownership remains in
-Config. The normal standard composition belongs to Engine 0002, typed binding and result access to
-0003, and host materialization to 0004. Therefore 0001 is not documented as the completed
-end-user experience.
+Config. The normal standard composition is current from Engine 0002, while typed binding and
+result access remain in 0003 and host materialization remains in 0004. Therefore 0001 is not
+documented as the completed end-user experience.
 
 The critical seam audit does not support the earlier broad implication that several registered
 backends can already contribute to one schedule. CPU is the only supported concrete lifecycle
@@ -137,13 +139,13 @@ owner-bound handles, and preserves CPU's zero/pass-through and mixed/multi-parti
 It adds no public hypothetical backend interface. A package-private composition collaboration is
 justified by the current CPU realization and lifecycle failure-injection tests.
 
-The later standard composition remains compatible with the current architecture and requires no
-authoritative decision task. “Registered explicitly” permits a fixed Engine-owned factory to
+The current standard composition is compatible with the architecture and required no
+authoritative decision task. “Registered explicitly” permits its fixed Engine-owned factory to
 construct and register only known built-in adapters in deterministic order. It does not permit
 classpath or annotation scanning, `ServiceLoader`, hidden service location, mutable process-global
 Engine state, or Runtime backend selection. The compile/prepare lifecycle selects eligible
 partition ownership from that fixed composition. Until another concrete adapter and a shared
-complete-schedule contribution contract exist, the truthful standard inventory may be CPU-only.
+complete-schedule contribution contract exist, the truthful standard inventory is CPU-only.
 Ordinary users will not name or construct a CPU adapter.
 
 The supported future user surface converges on Tensor expressions, standard or advanced Engine
@@ -180,8 +182,15 @@ the distinct-package public fixture, exact `javap` inspection, and the repositor
 3,067 tests with zero failures or errors and 28 skipped. It also records the two historical
 compile failures that corrected dependency scope; neither is a final failure.
 
-Engine 0002 is the next Draft frontier. It is not Ready, and no task specification exists for it.
-Tasks 0003–0008 likewise remain Draft without detailed specifications.
+Engine 0002 is Complete. Its implementation adds a distinct ordinary
+`Engine` type with `standard()`, `isClosed()`, and `close()` only. The standard factory owns one
+fresh CPU integration and delegates its lifetime to the already-proved advanced lifecycle; it
+does not expose that delegate. Typed compile/prepare/run signatures remain task 0003 so the
+ordinary surface does not inherit Compiler, Runtime representation, or CPU integration types.
+The implementation and documentation contexts passed the exact 12/12 Engine, 1/1 integration,
+1/1 architecture, Javadoc, public-shape, fixture, bytecode, token, Markdown, scope, status,
+unchanged-Gradle/advanced-source, and whitespace gates recorded by the task. Task 0003 is now the
+next Draft frontier; tasks 0003–0008 remain Draft without detailed specifications.
 
 ## Open questions
 
@@ -189,8 +198,9 @@ Tasks 0003–0008 likewise remain Draft without detailed specifications.
   close behavior without exposing concrete backend representation types.
 - Decide whether materializing already host-backed leaves can use a proven direct fast path while
   preserving the same public ownership and validation contract.
-- Fix the standard built-in inventory/order only when task 0002 becomes the planning frontier;
-  CPU is currently the sole supported lifecycle adapter.
+- Expand the standard built-in inventory only after another supported lifecycle adapter and a
+  complete multi-backend schedule-composition contract exist; task 0002 fixes the current
+  inventory to CPU only.
 - Define mixed-backend schedule contributions only after a second concrete lifecycle adapter
   establishes a non-hypothetical consumer need. The current complete CPU assembler cannot be
   combined with another complete assembler.

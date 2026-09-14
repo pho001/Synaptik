@@ -2,8 +2,10 @@
 
 ## Purpose and implementation status
 
-This reference separates the compile-time contracts implemented today from the ordinary Engine
-lifecycle that remains planned. The compiler module contains package-private `GraphCompiler`.
+This reference separates the compile-time contracts implemented today from the ordinary typed
+Engine lifecycle that remains planned. The current ordinary `Engine.standard()` method constructs
+and owns a CPU-only composition, but the ordinary type has no compile method yet. The compiler
+module contains package-private `GraphCompiler`.
 Its five-argument entry compiles a forward-only or combined one/two-stage functional derivative
 Tensor expression into package-private immutable `GraphCompilation`. A second package-private
 nine-argument entry completes publication and backend-neutral planning and returns public
@@ -39,6 +41,11 @@ each planned region. It will not create physical buffers, choose concrete kernel
 prepared executables.
 
 ## Current advanced Engine compile boundary
+
+The ordinary `Engine` currently exposes only `standard()`, `isClosed()`, and `close()`. It neither
+accepts Tensor outputs nor exposes compiled handles. Engine task 0003 is planned to add ordinary
+typed binding and published-result access; its API is not current. Engine task 0004 is planned to
+add host materialization as a separate boundary.
 
 `AdvancedEngine.compile(...)` is the current public consumer of `GraphCompilationPort`. It
 requires a non-empty ordered output list and receives `BackendIntent`, `CompileMode`,
@@ -1828,7 +1835,7 @@ CompiledGraph graph = CompiledGraph.compile(output, CompileConfig.auto());
   explicit-state training-dropout construction with public output and next-state results and one
   non-public producer mask slot,
   are implemented;
-  the ordinary-user Compiler/Engine facade and every lifecycle orchestration surface,
+  the ordinary-user typed Compiler/Engine lifecycle, binding, and result surface,
   saved-statistic construction and gradient construction outside the closed support table above,
   optional
   softmax, layer-normalization, RMS-normalization, attention, or activation decomposition,
@@ -1903,12 +1910,13 @@ capability analysis may find both CPU and Metal valid. Backend-neutral scoring m
 nodes to Metal to avoid a transfer boundary. The artifact records only `owner = Metal`; it does
 not record MPSGraph or a custom Metal kernel. Metal prepare makes that later choice.
 
-This scenario remains conceptual because no production provider or Engine lifecycle exists.
+The CPU portion of this scenario is current through the explicitly composed advanced lifecycle;
+the Metal ownership alternative remains conceptual because Metal has no lifecycle adapter.
 Current `GraphCompilationPort` can invoke package-private `GraphCompiler` to construct and
-validate its bounded forward-only or combined first-order graph, query explicitly supplied test
-or future backend providers, select backend ownership, derive partitions and logical memory, and
-return `CompileArtifacts`. It cannot deliver publications, bind concrete dimensions, prepare
-work, execute a backend, or expose an end-user lifecycle result.
+validate its bounded forward-only or combined first-order graph, query explicitly supplied
+providers, select backend ownership, derive partitions and logical memory, and return
+`CompileArtifacts`. `AdvancedEngine` uses that port but keeps the artifacts opaque. The ordinary
+`Engine.standard()` facade does not yet compile, bind inputs, or expose results.
 
 ## Related contracts
 

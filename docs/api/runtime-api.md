@@ -30,9 +30,10 @@ creation, execution, transfer, and dense publication-suffix schedule recipes, th
 result lease, two-component prepared-execution aggregate,
 Prepare-owned resource assignments, typed backend finalization, `PreparedPartition`, and complete
 graph preparation are current. Ordinary typed result-value access and general Engine lifecycle
-composition remain planned. The current CPU integration implements physical allocation, storage
-access, finalization, schedule assembly, and execution for the advanced Engine's deliberately
-restricted one-partition path.
+methods remain planned, while ordinary CPU-only construction and lifetime are current through
+`Engine.standard()`. The current CPU integration implements physical allocation, storage access,
+finalization, schedule assembly, and execution for the advanced Engine's deliberately restricted
+one-partition path.
 
 ## Mental model
 
@@ -79,6 +80,16 @@ not invoke or execute any step. Current publication names an already-created val
 leases the complete state to a result, but deliberately exposes no output value. The runner
 composes these contracts without backend discovery or graph interpretation.
 
+## Current ordinary Engine boundary
+
+`Engine.standard()` creates a fresh independent CPU-only composition and privately owns its
+advanced lifecycle delegate. The ordinary public surface contains only `standard()`,
+`isClosed()`, and `close()`: it cannot prepare, run, bind inputs, inspect publications, or expose
+results. Closing one standard Engine does not affect another, and repeated or concurrent close
+calls share the delegated exactly-once cleanup result. Engine task 0003 is planned to add typed
+logical input binding and published-result access. Task 0004 is planned to add host
+materialization. Neither planned surface is callable today.
+
 ## Current advanced Engine prepare and run boundary
 
 `AdvancedEngine.prepare(...)` accepts only an `AdvancedCompiledGraph` created by that exact open
@@ -101,8 +112,8 @@ fails with `IllegalStateException("advanced engine is closed")` before null, own
 validation. Engine close waits for admitted work, closes remaining results in reverse run order,
 and finally closes the exact CPU integration it took into ownership. Handles cease to be usable
 after their owner closes. This path does not provide typed binding, typed or materialized results,
-backend discovery, mixed-backend transfers, standard automatic composition, one-shot execution,
-tuning, or ordinary backward convenience.
+backend discovery, mixed-backend transfers, one-shot execution, tuning, or ordinary backward
+convenience.
 
 ## Current prepared execution
 
@@ -889,7 +900,9 @@ over the same assigned buffer.
 Graph preparation performs no physical allocation, creator invocation, binding, execution,
 transfer, publication, or cleanup. It contains the Compiler aggregate only in shared Prepare;
 concrete backend-facing `PrepareContext` values remain Compiler-free. Engine still owns future
-composition of production backend implementations and an actual schedule assembler.
+typed mapping from logical caller inputs and publications to these Runtime coordinates. Current
+advanced Engine composition already supplies the CPU implementation and schedule assembler; the
+ordinary `Engine` does not yet expose that lifecycle.
 
 ## Current aggregate and run orchestration
 
@@ -899,7 +912,8 @@ remains a Prepare-owned association and does not cross into this Runtime aggrega
 distinct `PreparedUnit`: list position is the occurrence, and the exact executable supplies the
 work recipe and memory-plan association.
 
-Public Prepare orchestration will later construct and validate this aggregate. A future need for
+Public Prepare orchestration currently constructs and validates this aggregate for the advanced
+CPU lifecycle. A future need for
 immutable persistent prepared resources must define its own ownership and partial-construction
 failure lifecycle; the current record does not anticipate it with an empty close contract.
 
