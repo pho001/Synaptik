@@ -2,12 +2,13 @@
 
 ## Purpose and implementation status
 
-This reference separates the compile-time contracts implemented today from the public engine
+This reference separates the compile-time contracts implemented today from the ordinary Engine
 lifecycle that remains planned. The compiler module contains package-private `GraphCompiler`.
 Its five-argument entry compiles a forward-only or combined one/two-stage functional derivative
 Tensor expression into package-private immutable `GraphCompilation`. A second package-private
 nine-argument entry completes publication and backend-neutral planning and returns public
-immutable `CompileArtifacts`.
+immutable `CompileArtifacts`. The advanced Engine now exposes that complete artifact path as an
+explicit CPU-only composition seam.
 
 The current stages are fail-closed autograd preflight, formula construction through public Tensor
 operations, one phase-aware capture, binding-free captured-graph verification with retained
@@ -17,9 +18,10 @@ pipeline, publication-role validation, one owner selection per final graph node,
 same-owner partitioning, logical-memory derivation, and immutable artifact assembly. Public
 `GraphCompilationPort` now exposes the complete constant-free pipeline as a narrow cross-module
 service-provider interface (SPI). It is not the recommended application API and does not provide
-the still-planned `CompileConfig` aggregate, Engine `CompiledGraph`, prepared execution, or
-runnable lifecycle. The compiler also provides the public immutable `FunctionalGradientRequest`
-input value used by this integration boundary.
+the still-planned `CompileConfig` aggregate or ordinary typed lifecycle. `AdvancedEngine` uses
+this port and returns an opaque owner-bound `AdvancedCompiledGraph`, but does not expose the
+underlying `CompileArtifacts`. The compiler also provides the public immutable
+`FunctionalGradientRequest` input value used by this integration boundary.
 The current config module provides four immutable standalone input values that a later compile
 configuration aggregate can contain: `BackendIntent`, `CompileMode`, and
 `GraphOptimizationConfig`, plus `PartitionScoringConfig`. The current planning module provides the
@@ -35,6 +37,22 @@ graph-wide loop and invokes those three Planning operations directly.
 Compilation answers two questions: what the computation means, and which backend identity owns
 each planned region. It will not create physical buffers, choose concrete kernels, or construct
 prepared executables.
+
+## Current advanced Engine compile boundary
+
+`AdvancedEngine.compile(...)` is the current public consumer of `GraphCompilationPort`. It
+requires a non-empty ordered output list and receives `BackendIntent`, `CompileMode`,
+`GraphOptimizationConfig`, `PartitionScoringConfig`, and an optional
+`FunctionalGradientRequest` directly. It snapshots the output list, retains no caller
+collection, and returns a fresh `AdvancedCompiledGraph` bound to the exact open Engine that
+compiled it. The handle is immutable and opaque: callers cannot inspect its model, partitions,
+publication plan, constants, or diagnostics, and it owns no independently closeable resource.
+
+The current Engine supplies one CPU capability provider to the compiler. It does not discover
+backends, build a reusable capability matrix, create `CompileConfig`, translate failures into an
+ordinary Engine exception hierarchy, run model tuning, or promise that every successfully
+compiled artifact is preparable by the CPU-only composition. In particular, preparation is a
+separate boundary and rejects zero, mixed-owner, or multiple maximal partitions.
 
 ## Current model contracts
 
@@ -1556,8 +1574,10 @@ requests current package-private one/two-stage pre-capture autograd plus combine
 forward/backward graph-stage work.
 `TRAINING_STEP` currently performs the same internal graph and artifact construction, but the enum value
 does not itself introduce an optimizer, optimizer-update graph, session, publication delivery,
-schedule, or execution behavior. `GraphCompilationPort` accepts all three values subject to the
-existing mode/request validation; no Engine consumer exists yet.
+schedule, or execution behavior. `GraphCompilationPort` and `AdvancedEngine.compile(...)` accept
+all three values subject to the existing mode/request validation. The advanced Engine adds no
+training-step execution, backward convenience, or guarantee that the resulting artifact can pass
+its CPU-only prepare restriction.
 
 `io.github.pho001.synaptik.config.compile.GraphOptimizationConfig` is another current value:
 

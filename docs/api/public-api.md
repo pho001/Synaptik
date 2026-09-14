@@ -18,13 +18,14 @@ Compiler orchestration now consumes those three operations and uses the public i
 `CompileArtifacts`, `PublicationPlan`, `CompileConstantPlan`, and `CompileDiagnostics` contracts.
 Public `GraphCompilationPort` exposes that complete constant-free pipeline as a narrow
 cross-module integration service-provider interface (SPI). The CPU backend now also exposes the
-supported cross-module `CpuBackendIntegration` SPI described below. Reusable or public capability
-matrices, a public graph-wide Planning workflow, and Engine APIs remain planned.
+supported cross-module `CpuBackendIntegration` SPI described below. The first advanced Engine
+composition surface now connects these contracts for one CPU-only, representation-level compile,
+prepare, and run lifecycle. Reusable or public capability matrices, a public graph-wide Planning
+workflow, and the ordinary typed Engine surface remain planned.
 Prepare analysis, finalization, and complete graph-preparation contracts plus the initial Runtime
 geometry, prepared representation creation, per-run resource/validity, executable and transfer
 cold-binding, prepared publication and result leasing, and the ordered schedule contracts are
-current but do not form an end-to-end runnable public lifecycle without a concrete backend and
-Engine composition. The backend
+current and now form that deliberately low-level lifecycle through the CPU integration. The backend
 contract also contains an immutable caller-supplied availability snapshot; it is data, not a
 discovery or liveness API. A sealed requirement family can now name one hard eligibility target.
 The current config module can record that hard-target optionality, requested graph scope,
@@ -34,7 +35,7 @@ declarative data. The internal baseline consumes the compile preference after ha
 The package-private complete Compiler entry consumes all four compile-config leaves directly, and
 `GraphCompilationPort` supplies them through its public integration call. No current
 `CompileConfig`, public capability-matrix or eligibility surface, numeric scoring evaluator, or
-end-user compile lifecycle is callable. The model-autotuning
+ordinary-user compile lifecycle is callable. The model-autotuning
 request likewise has no current Engine or tuning integration. APIs may change through the ordered
 planning process.
 [`ARCHITECTURE.md`](../../ARCHITECTURE.md) defines module boundaries, not source or binary
@@ -234,8 +235,9 @@ rejects null with message `preferredDeviceClass`; `preferring(null)` rejects nul
 scores, contain profile measurements, choose ownership or a device, select a route or kernel, or
 perform compiler, prepare, runtime, or execution work. Current Planning interprets only its
 optional class preference through a cost-free provider-order baseline, and package-private
-Compiler supplies that value per final graph node. `CompileConfig`, immutable cost profiles,
-public graph-wide planning, and every public lifecycle consumer remain planned.
+Compiler supplies that value per final graph node. `CompileConfig`, immutable cost profiles, and
+public graph-wide planning remain planned; the current advanced Engine consumes the four
+standalone compile inputs directly.
 
 The implemented `config.tuning` package contains one separate declarative facade,
 `ModelAutotuningConfig`. Possessing this value means that model autotuning was requested; there is
@@ -281,8 +283,8 @@ eligible backend candidates. It also interprets the fallback policy: strict mode
 failed or unavailable complete tuning result, while safe-heuristic mode may continue through
 ordinary safe heuristic preparation. The latter grants no candidate eligibility, numerical
 relaxation, cache compatibility, partial-result acceptance, or suppression of an unrelated
-preparation failure. No such translation, fallback control flow, supported CPU adapter, or Engine
-integration is implemented yet; bounded graph/plan tuning also remains planned.
+preparation failure. No such translation, fallback control flow, or Engine tuning integration is
+implemented yet; bounded graph/plan tuning also remains planned.
 
 The public `modules:planning` surface contains eight backend-neutral compile-time declarations:
 
@@ -626,21 +628,67 @@ and gives every workspace declaration a distinct slot. It performs no physical a
 closeable prepared-resource acquisition, run-state creation, invocation binding/execution,
 transfer, residency, materialization, or publication. The supplied assembler constructs an
 immutable schedule recipe once; Prepare validates exact source, execution, coordinate, and
-publication coverage before constructing the prepared root. No production concrete backend or
-Engine composition exists yet.
+publication coverage before constructing the prepared root. The advanced Engine now composes this
+operation with the exact CPU integration that it owns.
 
-## Planned public lifecycle
+## Current advanced CPU lifecycle
+
+`AdvancedEngine` is the current low-level composition root. Construction accepts the exact
+`CpuBackendIntegration` returned by `CpuBackendIntegration.open()` and takes ownership of it.
+The lifecycle is deliberately explicit:
+
+```text
+Tensor outputs + compile leaves -> AdvancedCompiledGraph
+AdvancedCompiledGraph           -> AdvancedPreparedExecution
+prepared execution + borrowed BufferRepresentation inputs -> AdvancedRunResult
+```
+
+`compile(...)` requires a non-empty output list and accepts the four standalone compile inputs
+plus an optional `FunctionalGradientRequest`. The returned `AdvancedCompiledGraph` is an opaque,
+immutable handle bound to the exact open Engine that created it. `prepare(...)` accepts only such
+a handle and currently succeeds only when CPU owns one non-empty maximal partition. A zero-node,
+mixed-owner, or multiple-partition artifact therefore fails during this CPU-only preparation
+step; it is not silently repartitioned or routed elsewhere. The returned
+`AdvancedPreparedExecution` is another immutable owner-bound handle. It may be shared by
+concurrent callers because every `run(...)` creates isolated mutable Runtime state.
+
+Inputs to `run(...)` are already-created Runtime `BufferRepresentation` values in graph-input
+order. `borrow(...)` wraps one caller-owned `MemorySegmentStorage` for this purpose. Neither the
+wrapper nor the Engine owns or closes the storage or its backing arena. The wrapper must remain
+open, and its storage must remain valid, through the run. Closing the wrapper ends only that
+borrow. Compile and run do not retain or mutate their caller lists.
+
+`AdvancedRunResult` owns the completed run state until it or the Engine closes it. It currently
+exposes only `resultCount()`, not published values. Its idempotent `close()` releases that state;
+if a close is already in progress, another close waits uninterruptibly and restores interruption
+before returning. Closing the Engine rejects new work with
+`IllegalStateException("advanced engine is closed")` before argument, owner, or inward validation,
+waits for admitted work, closes still-open results in reverse run order, and then closes its owned
+CPU integration. Compiled and prepared handles have no independent resource lifecycle, but become
+unusable when their Engine closes.
+
+This surface does not provide mixed-backend composition, backend discovery, typed input binding,
+typed results, host materialization, a standard automatic composition, one-shot execution,
+backward convenience, tuning integration, or ordinary Engine exception translation. Supplying a
+gradient request to `compile(...)` invokes the existing compiler mode/request contract; it does
+not add those later conveniences or guarantee that the current CPU-only prepare step can lower
+the resulting artifact.
+
+## Planned ordinary public lifecycle
 
 The architecture uses this conceptual shape:
 
 ```java
-// Conceptual API: these lifecycle types and methods are not implemented yet.
+// Conceptual ordinary API: these lifecycle types and methods are not implemented yet.
 CompiledGraph graph = CompiledGraph.compile(output, CompileConfig.auto());
 PreparedExecution execution = graph.prepare(PrepareConfig.defaults());
 RunResult result = execution.run(inputs, RunOptions.defaults());
 ```
 
-Compile will create immutable graph and ownership artifacts. Prepare will ask explicitly registered concrete backends to lower their assigned partitions. Run will execute the prepared schedule with per-invocation state. See the [compile](compile-api.md) and [runtime](runtime-api.md) reference pages for the planned boundaries.
+This later surface will add typed binding and result access, standard composition, and convenient
+one-shot use above the current advanced representation-level seam. It must not be confused with
+the implemented `AdvancedEngine` lifecycle. See the [compile](compile-api.md) and
+[runtime](runtime-api.md) reference pages for the current and planned boundaries.
 
 ## Compatibility expectations during development
 

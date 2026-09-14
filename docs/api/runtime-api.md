@@ -29,11 +29,10 @@ residency, explicit per-buffer-copy validity, cold-bound invocation and transfer
 creation, execution, transfer, and dense publication-suffix schedule recipes, the whole-state
 result lease, two-component prepared-execution aggregate,
 Prepare-owned resource assignments, typed backend finalization, `PreparedPartition`, and complete
-graph preparation are current. Concrete physical allocation and storage access, public
-result-value access, Engine lifecycle composition, and production schedule assembly remain
-planned. No production concrete backend currently
-implements the creation,
-finalization, or execution contracts.
+graph preparation are current. Ordinary typed result-value access and general Engine lifecycle
+composition remain planned. The current CPU integration implements physical allocation, storage
+access, finalization, schedule assembly, and execution for the advanced Engine's deliberately
+restricted one-partition path.
 
 ## Mental model
 
@@ -79,6 +78,31 @@ followed by executable or transfer occurrences and then a dense publication-only
 not invoke or execute any step. Current publication names an already-created valid copy and
 leases the complete state to a result, but deliberately exposes no output value. The runner
 composes these contracts without backend discovery or graph interpretation.
+
+## Current advanced Engine prepare and run boundary
+
+`AdvancedEngine.prepare(...)` accepts only an `AdvancedCompiledGraph` created by that exact open
+Engine. The CPU-only composition requires exactly one non-empty maximal partition owned by its
+CPU backend; zero-node, mixed-owner, and multiple-partition artifacts fail closed. On success it
+returns an opaque, immutable `AdvancedPreparedExecution` bound to the same owner. The handle owns
+no separately closeable resource and may be shared across concurrent runs because each run
+creates its own `RunState`.
+
+`AdvancedEngine.run(...)` accepts the prepared handle and an ordered list of already-created
+`BufferRepresentation` inputs. `AdvancedEngine.borrow(...)` creates the supported non-owning CPU
+wrapper around caller-owned `MemorySegmentStorage`; closing that wrapper does not close the
+storage or its backing arena. Both must remain valid until the run returns. Every admitted run
+performs the current synchronous Runtime lifecycle and returns `AdvancedRunResult`, whose
+`resultCount()` reports publication cardinality but exposes no value or storage.
+
+The result exclusively owns its completed `RunState` until its idempotent close completes. The
+Engine also tracks open results. Once Engine closure begins, a newly attempted prepare or run
+fails with `IllegalStateException("advanced engine is closed")` before null, owner, or inward
+validation. Engine close waits for admitted work, closes remaining results in reverse run order,
+and finally closes the exact CPU integration it took into ownership. Handles cease to be usable
+after their owner closes. This path does not provide typed binding, typed or materialized results,
+backend discovery, mixed-backend transfers, standard automatic composition, one-shot execution,
+tuning, or ordinary backward convenience.
 
 ## Current prepared execution
 

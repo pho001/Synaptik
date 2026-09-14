@@ -1,4 +1,6 @@
 dependencies {
+    implementation(project(":modules:model"))
+    implementation(project(":modules:planning"))
     implementation(project(":modules:compiler"))
     implementation(project(":modules:runtime"))
     implementation(project(":modules:prepare"))

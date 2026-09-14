@@ -52,6 +52,15 @@ transitively. This is one concrete realization of the existing execution-side di
 CPU still owns no compilation behavior, and the prohibited `backends/cpu -> modules/engine` edge
 remains absent.
 
+The first advanced Engine lifecycle facade directly names Model-owned `Tensor` and
+`HostTensorStorage` in its advanced public surface and Planning-owned
+`BackendCapabilityProvider` in its package-private composition seam. Its implementation therefore
+declares direct `modules/engine -> modules/model` and
+`modules/engine -> modules/planning` dependencies rather than relying on Compiler, Prepare, or a
+concrete backend to expose those contracts transitively. These edges realize Engine's existing
+outer composition-root role; they do not move Model or Planning behavior into Engine and do not
+permit either inward module to depend back on Engine.
+
 Neural-network composition and training have a separate extension direction:
 
 ```text
@@ -119,7 +128,9 @@ A CPU partition preparer may implement a shared prepare contract and return a ru
 `PreparedExecutable`; those dependencies point from the concrete backend toward shared inward
 contracts. The supported `CpuBackendIntegration.preparations(CompileArtifacts)` boundary also
 names Compiler's public immutable output directly, so CPU declares that dependency directly.
-Engine may later depend on CPU to compose the adapter. If CPU imported Engine to find
+Engine directly depends on each public inward contract its lifecycle source names, including
+Model and Planning contracts rather than receiving them transitively, and may depend on CPU to
+compose the adapter. If CPU imported Engine to find
 configuration or register itself, the inward module would depend back on the composition root and
 create the prohibited reverse edge.
 
@@ -144,6 +155,8 @@ Tests under `testing/architecture-tests/` should fail when forbidden module or p
 - planning and compiler independence from runtime and concrete implementations;
 - runtime and prepare independence from concrete backends;
 - backend independence from engine;
+- Engine's exact direct dependency inventory, including direct Model and Planning dependencies
+  for the public and package-private contracts it names;
 - the CPU backend's exact direct dependency set, including Compiler and excluding Engine;
 - the OpenBLAS provider's low-level leaf role;
 - absence of backend support APIs on `Operation`;

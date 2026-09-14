@@ -24,7 +24,7 @@ Parallel work is not the default. It requires an explicit roadmap or master-plan
 | 8 | [`modules/prepare`](modules/prepare/master-plan.md) | Complete through Prepare 0004 | Compiler/planning artifacts and Runtime recipe/runner contracts are stable; ADR 0010 authorizes the analysis-first staged handoff. | Shared prepare contracts include partition-local analysis, staged finalization, complete orchestration, and opaque candidate/decision transport. |
 | 9 | [`backends/openblas-provider`](backends/openblas-provider/master-plan.md) | Complete baseline; optional provider 0004 Blocked/deferred | Native interop conventions needed by the provider are decided. | Required FLOAT32/FLOAT64 remains complete; the optional direct BFLOAT16-output capability stays fail-closed until both proof gaps are resolved. |
 | 10 | [`backends/cpu`](backends/cpu/master-plan.md) | Complete through 0010F (0010D1 Blocked/deferred optional) | Model, config, planning, runtime, prepare, backend-contract, trace, and applicable OpenBLAS contracts are ready. | CPU has a supported Engine integration adapter without `.internal` imports or ordinary-user construction. |
-| 11 | [`modules/engine`](modules/engine/master-plan.md) | Draft (next frontier; no task specification) | The public Compiler integration port, shared Runtime/Prepare orchestration, and supported CPU adapter can be composed. | Standard and advanced composition, typed lifecycle, host results, and Engine-owned one-shot forward/backward convenience work end to end on CPU. |
+| 11 | [`modules/engine`](modules/engine/master-plan.md) | In progress (0001 Complete; 0002 next Draft frontier) | The advanced CPU-only representation lifecycle is complete; the ordinary standard composition remains Draft. | Standard and advanced composition, typed lifecycle, host results, and Engine-owned one-shot forward/backward convenience work end to end on CPU. |
 | 12 | [`backends/metal`](backends/metal/master-plan.md) | Draft | Shared backend contracts and CPU reference behavior are stable. | Metal passes the applicable backend-conformance suite. |
 | 13 | [`backends/cuda`](backends/cuda/master-plan.md) | Draft | Shared backend contracts and CPU reference behavior are stable. | CUDA passes the applicable backend-conformance suite. |
 | 14 | [`extensions/onnx`](extensions/onnx/master-plan.md) | Draft | The model representation and public tensor semantics are stable. | Selected import/export mappings and compatibility validation are complete. |
@@ -74,8 +74,8 @@ The next operational-lifecycle sequence is:
 ```text
 Compiler 0006B3 Engine-facing complete compile integration port (Complete)
   -> CPU 0010F supported lifecycle integration adapter
-  -> Engine 0001 advanced composition and representation-level lifecycle foundation
-  -> Engine 0002 standard built-in composition
+  -> Engine 0001 advanced composition and representation-level lifecycle foundation (Complete)
+  -> Engine 0002 standard built-in composition (next Draft frontier)
   -> Engine 0003 typed logical input binding and published-result access
   -> Engine 0004 host materialization
   -> Engine 0005 one-shot forward convenience
@@ -129,8 +129,50 @@ That same clean implementation context reported successful partial validation be
 zero-partition and maximal-partition contradictions and removing every Java change. A later clean
 implementation context completed the corrected task, and documentation-focused context
 `01a09f80-d7a3-7930-aee3-aad2482c9f5d` finalized its Javadocs, explanatory documentation, and
-planning evidence without changing executable Java tokens. CPU 0010F is Complete. Engine 0001 is
-the next Draft frontier, and no Engine task specification has been created.
+planning evidence without changing executable Java tokens. CPU 0010F is Complete. Detailed
+[Engine 0001 advanced composition and representation-level lifecycle foundation](modules/engine/tasks/0001-advanced-composition-and-representation-level-lifecycle-foundation.md)
+is `Complete`. Engine 0002 is the next Draft frontier; it is not Ready and has no detailed task
+specification.
+
+The Engine 0001 seam audit found a bounded actionable foundation, not a mixed-backend composition
+contract. `GraphPreparation` accepts one complete schedule assembler, and the only supported
+concrete adapter, `CpuBackendIntegration`, supplies an assembler for exactly one non-empty maximal
+CPU partition. Metal and CUDA remain placeholders without lifecycle adapters. Engine 0001
+therefore owns exactly one caller-supplied CPU integration, keeps compiled and prepared inward
+recipes behind opaque owner-bound handles, exposes `BufferRepresentation` only on its advanced
+borrow/run seam, and preserves zero/pass-through plus mixed/multi-partition rejection. It adds no
+public hypothetical backend interface or shared schedule-contribution contract. Standard
+built-in composition remains Engine 0002; typed logical binding/result access and host
+materialization remain 0003–0004.
+
+A first clean Engine implementation attempt then proved that the task's original unchanged-build
+assumption was false. The exact advanced API imports Model `Tensor` and `HostTensorStorage`, and
+the package-private composition seam imports Planning `BackendCapabilityProvider`, while the
+Engine build declares neither direct project dependency. Engine compilation failed with 13
+missing-package/type errors, and the implementation context removed all Java and test changes.
+The corrected Ready task requires direct Engine-to-Model and Engine-to-Planning dependencies plus
+focused exact-inventory enforcement. This is existing composition-root dependency realization,
+not a new architecture direction; no root-contract or ADR change is required.
+
+The corrected implementation subsequently passed Engine compilation, six focused Engine tests,
+one focused Engine composition architecture test after correcting a test-only false positive, and
+`git diff --check`, but exposed a second planning omission at integration-test compilation. The
+integration module depended only on Engine even though Engine intentionally does not export its
+implementation dependencies. The integration test directly names CPU, Config, and Model types,
+and javac must resolve Compiler `FunctionalGradientRequest` and Runtime `BufferRepresentation`
+from the advanced Engine signatures. Its focused compile failed with 48 missing or inaccessible
+type errors, and the implementation correctly stopped without editing the excluded build file.
+Engine 0001 now retains the existing Engine `implementation` dependency and requires exact ordered
+`testImplementation` dependencies on Compiler, Runtime, Config, Model, and CPU, with focused
+inventory enforcement. No Engine dependency becomes `api`; this is test-fixture dependency
+closure rather than another production architecture change. Those failures are historical
+planning evidence, not final validation failures.
+
+The completed implementation passed 7/7 focused Engine tests, 2/2 integration tests, and 1/1
+focused architecture test. The repository dependency checkpoint recorded 3,067 tests with zero
+failures or errors and 28 skipped. Engine Javadoc, a distinct-package public API fixture, exact
+`javap` inspection, and the required source, dependency, path, Markdown, and whitespace checks
+also passed.
 
 The standard built-in composition is compatible with the current authoritative rule that Engine
 registers backends explicitly. Engine 0002 may directly construct a fixed, ordered set of known
@@ -1973,7 +2015,9 @@ the complete current model operation inventory before higher-order work:
 Compiler 0005A–0006B3 and their Model prerequisites are Complete. Compiler 0006C and 0007 remain
 explicitly deferred Draft side branches without detailed specifications. Detailed
 [CPU 0010F](backends/cpu/tasks/0010f-supported-cpu-lifecycle-integration-adapter.md) is Complete.
-Engine 0001 is the next Draft operational frontier without a detailed task specification.
+Detailed [Engine 0001](modules/engine/tasks/0001-advanced-composition-and-representation-level-lifecycle-foundation.md)
+is Complete. Engine 0002 is the next Draft operational frontier but is not Ready. Engine
+0002–0008 remain Draft without detailed task specifications.
 Family tasks
 must not claim that every operation role has a gradient: BOOL, index, random-number-generator
 (RNG) state, mask, and configuration roles remain intentionally non-differentiable where

@@ -82,9 +82,10 @@ exact shared buffer/workspace needs. Slot assignment, finalization, prepared-exe
 construction, the minimal `PreparedPartition` association, complete graph preparation, explicit
 schedule assembly, and schedule validation are current Prepare contracts. Executable,
 buffer-transfer, and publication scheduling plus shared runner execution are current Runtime
-contracts. Other physical resources, production operation routes, Engine composition, and public
-output-value access remain planned. The Runtime executable contract itself is current; a current
-Prepare finalizer constructs a backend subclass against assigned slots.
+contracts. The first advanced CPU-only Engine composition and production operation route are now
+current at the representation level. General physical-resource composition, mixed-backend
+routing, and public output-value access remain planned. The Runtime executable contract itself is
+current; a current Prepare finalizer constructs a backend subclass against assigned slots.
 
 The exact arithmetic scan contains seven semantic rules: duplicate-input binary `MIN` and `MAX`;
 scalar `MUL` by exact typed positive one for all five numeric types; scalar `DIV` and `POW` by exact
