@@ -14,10 +14,12 @@ operations, one phase-aware capture, binding-free captured-graph verification wi
 occurrence-local Shape predicates, mandatory dense
 canonicalization, explicit logical-splat facts, one bounded exact whole-graph optimization
 pipeline, publication-role validation, one owner selection per final graph node, maximal
-same-owner partitioning, logical-memory derivation, and immutable artifact assembly. The
-repository still provides no public compiler entry point, `CompileConfig` aggregate, engine
-`CompiledGraph`, prepared execution, or runnable public graph compiler. It does provide the public
-immutable `FunctionalGradientRequest` input value used by package-private compiler integration.
+same-owner partitioning, logical-memory derivation, and immutable artifact assembly. Public
+`GraphCompilationPort` now exposes the complete constant-free pipeline as a narrow cross-module
+service-provider interface (SPI). It is not the recommended application API and does not provide
+the still-planned `CompileConfig` aggregate, Engine `CompiledGraph`, prepared execution, or
+runnable lifecycle. The compiler also provides the public immutable `FunctionalGradientRequest`
+input value used by this integration boundary.
 The current config module provides four immutable standalone input values that a later compile
 configuration aggregate can contain: `BackendIntent`, `CompileMode`, and
 `GraphOptimizationConfig`, plus `PartitionScoringConfig`. The current planning module provides the
@@ -30,7 +32,7 @@ their owning packages. The module still provides no reusable/public capability m
 graph-wide planner workflow, general cost scoring, or owner-map assembly. Compiler owns the
 graph-wide loop and invokes those three Planning operations directly.
 
-Compilation will answer two questions: what the computation means, and which backend identity owns
+Compilation answers two questions: what the computation means, and which backend identity owns
 each planned region. It will not create physical buffers, choose concrete kernels, or construct
 prepared executables.
 
@@ -95,7 +97,7 @@ derived bindable-input list contains exactly the graph inputs without facts, in 
 Consequently an explicitly fixed source cannot also be supplied later as a caller input. An
 otherwise identical leaf absent from ingress remains bindable, including a leaf created by a
 scalar, zero, one, full, import, allocation, or random factory path. There is no public constant-
-binding or compile entry point.
+binding entry point; `GraphCompilationPort` deliberately supplies empty ingress.
 
 The original capture entries remain forward-only. One package-private combined entry receives
 forward outputs, ordered target/gradient roles, the exact identity set of original forward
@@ -110,9 +112,10 @@ Capture itself performs no inference, transformation, or derivative-rule selecti
 following package-private boundaries revalidate, canonicalize, and optionally optimize the
 captured graph. The original graph-stage entry stops there; the complete entry derives
 publication, invokes Planning, and constructs `CompileArtifacts` only after final graph
-validation. Neither entry prepares backends, allocates physical memory, or executes values. No public
-`GraphCompiler`, `CompiledGraph`, compile entry point, configuration aggregate, capture method,
-validation method, or optimizer method exists.
+validation. Neither entry prepares backends, allocates physical memory, or executes values.
+`GraphCompiler` and both implementation entries remain package-private. The only public compile
+call is the narrow constant-free `GraphCompilationPort`; no Engine `CompiledGraph`, configuration
+aggregate, capture method, validation method, or optimizer method exists.
 
 ### Current package-private verification inference
 
@@ -648,11 +651,12 @@ policy for them.
 This strategy adds no `Tensor.gradient`, `Tensor.backward`, mutable gradient field, ThreadLocal
 scope, model derivative rule, placeholder/`ValueId` conversion map, direct graph-node formula
 language, public gradient registry, runtime tape, physical saved buffer, backend autograd, or
-public compile entry point. It adds no publication, optimizer update, training session, planning,
-backend lowering, preparation, execution, or runtime behavior. The functional request supports
-exactly one optional second reverse-mode stage; further orders remain future work.
+ordinary-user compile facade. It adds no publication delivery, optimizer update, training
+session, additional planning, backend lowering, preparation, execution, or runtime behavior. The
+functional request supports exactly one optional second reverse-mode stage; further orders remain
+future work.
 
-### Current package-private artifact compilation
+### Current complete artifact compilation and integration port
 
 The complete `GraphCompiler.compile(...)` overload has these nine direct inputs:
 
@@ -667,6 +671,51 @@ PartitionScoringConfig
 ordered BackendCapabilityProvider values
 BackendAvailabilitySnapshot values
 ```
+
+Public `GraphCompilationPort.compile(...)` is the cross-module SPI for the same complete pipeline.
+It accepts the same inputs except explicit logical-splat ingress, supplies
+`CompileTimeConstantGraph.Ingress.empty()` internally, and returns the resulting
+`CompileArtifacts` directly. The port performs no graph or planning work of its own. Its public
+visibility exists so future Engine composition can cross the Java package boundary; it is not an
+ordinary-user facade, and both `GraphCompiler` entries remain package-private.
+
+For a current runnable boundary case, a provenance-free Tensor has no graph node and therefore
+needs no capability provider:
+
+```java
+import io.github.pho001.synaptik.compiler.CompileArtifacts;
+import io.github.pho001.synaptik.compiler.GraphCompilationPort;
+import io.github.pho001.synaptik.config.compile.BackendIntent;
+import io.github.pho001.synaptik.config.compile.CompileMode;
+import io.github.pho001.synaptik.config.compile.GraphOptimizationConfig;
+import io.github.pho001.synaptik.config.compile.PartitionScoringConfig;
+import io.github.pho001.synaptik.model.datatype.DataType;
+import io.github.pho001.synaptik.model.shape.Shape;
+import io.github.pho001.synaptik.model.tensor.Tensor;
+import io.github.pho001.synaptik.model.tensor.TensorDescriptor;
+import io.github.pho001.synaptik.model.tensor.TensorFactory;
+import java.util.List;
+import java.util.Optional;
+
+Tensor output = TensorFactory.create(new TensorDescriptor(
+        DataType.FLOAT32, Shape.of(2), Optional.empty(), false));
+
+CompileArtifacts artifacts = GraphCompilationPort.compile(
+        CompileMode.FORWARD_ONLY,
+        List.of(output),
+        Optional.empty(),
+        GraphOptimizationConfig.disabled(),
+        BackendIntent.unconstrained(),
+        PartitionScoringConfig.neutral(),
+        List.of(),
+        List.of());
+```
+
+The input is a caller-bindable rank-one floating leaf. The result contains the same logical graph
+input in `artifacts.constants().bindableInputs()` and no planned partition because there is no
+operation node. This proves only public SPI accessibility and constant-free input classification;
+it does not prove backend support, preparation, execution, or an Engine lifecycle. A graph with
+operation nodes requires explicitly supplied matching capability and availability collaborators.
 
 It validates the nine top-level references in declaration order before graph construction, then
 invokes the unchanged five-argument graph-stage entry exactly once. Provider and snapshot list
@@ -744,7 +793,7 @@ enter the artifacts. The first no-hard-eligible node fails immediately with grap
 context and retains Planning's terminal failure as its cause. Provider-thrown runtime exceptions
 and other Planning composition failures propagate unchanged.
 
-This current boundary adds no public lifecycle call, cost-bearing scoring,
+This current boundary adds no ordinary-user lifecycle call, cost-bearing scoring,
 trace event, concrete-dimension binding, prepare/runtime/backend/engine behavior, physical memory,
 or more than two reverse-mode stages.
 
@@ -1483,9 +1532,9 @@ absence of a hard target.
 The canonical constructor rejects a null optional with `NullPointerException("hardRequirement")`.
 The `requiring` factory rejects a null requirement with `NullPointerException("requirement")`.
 Current internal planning evaluates the hard target before its cost-free baseline owner selection,
-and the package-private complete compiler entry supplies this intent once per final graph node.
-General score calculation, planning cost profiles, `CompileConfig`, and a public compile failure
-remain planned. The separate current `PartitionScoringConfig` value
+and the complete compiler pipeline supplies this intent once per final graph node. General score
+calculation, planning cost profiles, `CompileConfig`, and Engine-owned failure translation remain
+planned. The separate current `PartitionScoringConfig` value
 described below supplies only soft preference input; it does not change these hard-intent
 semantics.
 
@@ -1507,7 +1556,8 @@ requests current package-private one/two-stage pre-capture autograd plus combine
 forward/backward graph-stage work.
 `TRAINING_STEP` currently performs the same internal graph and artifact construction, but the enum value
 does not itself introduce an optimizer, optimizer-update graph, session, publication delivery,
-schedule, or execution behavior. Public compiler consumption of all three values remains planned.
+schedule, or execution behavior. `GraphCompilationPort` accepts all three values subject to the
+existing mode/request validation; no Engine consumer exists yet.
 
 `io.github.pho001.synaptik.config.compile.GraphOptimizationConfig` is another current value:
 
@@ -1527,8 +1577,9 @@ The second permits the compiler's standard optional semantics-preserving pipelin
 a pass list, pass order, internal graph shape, or implementation strategy. It permits no
 approximate mathematics, changed numerical semantics, backend-specific fusion, preparation, or
 execution behavior. Direct construction retains either primitive boolean value, and both factories
-return fresh values. The current package-private compiler transformation boundary consumes this
-permission; no public compiler entry point or `CompileConfig` aggregate does.
+return fresh values. The package-private compiler transformation boundary consumes this
+permission through the public integration port; no `CompileConfig` aggregate or ordinary-user
+compile facade does.
 
 `io.github.pho001.synaptik.config.compile.PartitionScoringConfig` is the fourth current value. It
 holds exactly one `Optional<DeviceClass>` named `preferredDeviceClass`:
@@ -1556,8 +1607,8 @@ candidate enumeration or evaluation, score calculation or comparison, profile lo
 or device selection, route or kernel selection, compilation, preparation, runtime work, or
 execution. Current package-private planning consumes only its optional class preference: the first
 eligible class match wins, or the first eligible backend wins when no preference or match exists.
-The package-private complete compiler entry supplies this value to the current per-occurrence
-Planning collaboration. Backend-neutral cost classification, planning cost inputs, public numeric
+The complete compiler pipeline supplies this value to the current per-occurrence Planning
+collaboration. Backend-neutral cost classification, planning cost inputs, public numeric
 scoring evaluation, and the aggregate remain planned.
 
 ## Current operation-capability contracts
@@ -1757,7 +1808,7 @@ CompiledGraph graph = CompiledGraph.compile(output, CompileConfig.auto());
   explicit-state training-dropout construction with public output and next-state results and one
   non-public producer mask slot,
   are implemented;
-  the public compiler entry point and every lifecycle orchestration surface,
+  the ordinary-user Compiler/Engine facade and every lifecycle orchestration surface,
   saved-statistic construction and gradient construction outside the closed support table above,
   optional
   softmax, layer-normalization, RMS-normalization, attention, or activation decomposition,
@@ -1795,7 +1846,8 @@ CompiledGraph graph = CompiledGraph.compile(output, CompileConfig.auto());
 - `CompileArtifacts` currently combines mode, the exact final `CompiledGraphModel`, maximal
   backend-owned partitions, the derived logical memory plan, publication roles, constant/input
   roles, diagnostics, and derivative-order metadata. Its public record and nested output data are
-  implemented, while the only complete construction entry remains package-private.
+  implemented, and the public constant-free `GraphCompilationPort` delegates to the
+  package-private complete construction entry.
 - `CompiledGraph` will be an engine facade over immutable `CompileArtifacts`, not the same object
   as the current `CompiledGraphModel`.
 
@@ -1820,8 +1872,9 @@ publication roles, planning composition, unsatisfied hard capability, partitions
 roles, or diagnostics before returning an artifact. A no-hard-eligible occurrence becomes a
 compiler-owned `IllegalStateException` with node index, ID, and operation-kind context, while the
 Planning failure remains its cause. Provider runtime failures otherwise propagate unchanged.
-There is still no public callable compiler failure contract; exact public request signatures and
-exception taxonomy remain for compiler and engine tasks.
+The integration port preserves the current compiler and Planning failure classes and identities;
+it performs no Engine exception translation. An ordinary-user Engine failure taxonomy remains
+planned.
 
 ## Example interpretation
 
@@ -1830,12 +1883,12 @@ capability analysis may find both CPU and Metal valid. Backend-neutral scoring m
 nodes to Metal to avoid a transfer boundary. The artifact records only `owner = Metal`; it does
 not record MPSGraph or a custom Metal kernel. Metal prepare makes that later choice.
 
-This scenario remains conceptual because no production provider or public compile entry exists.
-Current package-private `GraphCompiler` can construct and validate its bounded forward-only or
-combined first-order graph, query explicitly supplied test or future backend providers, select
-backend ownership, derive partitions and logical memory, and return `CompileArtifacts`. It cannot
-deliver publications, bind concrete dimensions, prepare work, execute a backend, or expose a
-public lifecycle result.
+This scenario remains conceptual because no production provider or Engine lifecycle exists.
+Current `GraphCompilationPort` can invoke package-private `GraphCompiler` to construct and
+validate its bounded forward-only or combined first-order graph, query explicitly supplied test
+or future backend providers, select backend ownership, derive partitions and logical memory, and
+return `CompileArtifacts`. It cannot deliver publications, bind concrete dimensions, prepare
+work, execute a backend, or expose an end-user lifecycle result.
 
 ## Related contracts
 

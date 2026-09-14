@@ -110,6 +110,14 @@ Planning once per final node. It adds no config type, aggregate, default, profil
 compile entry, so Config 0004 remains Draft. It did not block the separately justified, now
 completed Config 0006A request facade.
 
+The Engine-frontier reassessment does not reopen Config ordering. Compiler 0006B3 and the initial
+Engine foundation can compose the current standalone compile leaves directly; `CompileConfig`,
+`PrepareConfig`, and `RunOptions` remain their existing Draft aggregate/convenience work rather
+than manufactured prerequisites. A later Engine standard-composition task must choose
+deterministic exact/default built-in values explicitly; it must not infer relaxed numerics or
+silently enable tuning. Config 0006 remains required before relaxed candidates, and Config 0006A
+mapping remains later optional tuning integration.
+
 ## Open questions
 
 - Planning 0003 has stabilized the cost-free baseline ownership consumer. The first later concrete

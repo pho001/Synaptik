@@ -291,6 +291,12 @@ direct hot subset. The focused suite and final combined checkpoint passed; there
 - Output value access remains a later Engine/result decision rather than an unresolved Runtime
   semantic gap. Prepare orchestration, concrete backend execution, Trace run payloads, Config
   policy, and tuning likewise retain their existing downstream owners.
+- The Engine-frontier audit confirms that public `PreparedExecutionRunner.run(...)` already
+  supplies the representation-level execution seam needed by Engine 0001. Typed logical input
+  mapping and typed result access remain later Engine work, while final `RunOptions` convenience
+  remains Config work; they are not Runtime prerequisites for the first operational composition
+  foundation. `PreparedExecution`, `BufferRepresentation`, and `RunResult` are cross-module SPI,
+  not types for ordinary Engine user-facade signatures.
 - Prepare 0003 owns the only selected post-closure Runtime surface extension: a generic
   run-owned initialized-buffer origin needed to make non-bindable compiler constant sources
   runnable. It carries no graph or scalar fact and does not reopen Runtime orchestration.

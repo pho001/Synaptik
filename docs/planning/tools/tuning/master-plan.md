@@ -90,7 +90,12 @@ BFLOAT16 side branch or unfinished relaxed numerical configuration. Config 0006A
 its public immutable objective, bounded sampling budget, representative-profile identity,
 fallback policy, and explicit workload-cache path are current declarative vocabulary. Mapping
 those values into tuning 0001 and supplying the missing model and execution facts remain deferred
-to later composition. Tuning 0002 and 0003 remain Draft without detailed specifications.
+to later composition. The shortest Engine foundation path is Compiler 0006B3 -> CPU 0010F ->
+Engine 0001; it does not integrate tuning. Standard built-in Engine composition remains
+deterministic and tuning-free unless a later Engine-owned optional integration explicitly maps
+Config 0006A. Tuning 0002 still depends on operational typed Engine paths, while Config 0006A
+mapping into tuning 0001 belongs to that later outer-composition increment. Tuning 0002 and 0003
+remain Draft without detailed specifications.
 
 ## Open questions
 

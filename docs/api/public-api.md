@@ -16,8 +16,10 @@ partition and logical-memory recipes from compiler-owned graph-wide inputs. Pack
 Compiler orchestration now consumes those three operations and uses the public immutable
 `FunctionalGradientRequest`, `GradientPublicationBinding`, `DerivativeGraphMetadata`,
 `CompileArtifacts`, `PublicationPlan`, `CompileConstantPlan`, and `CompileDiagnostics` contracts.
-Reusable or public capability matrices, a public graph-wide Planning workflow, public compiler
-entry, physical allocation/access, concrete backend integration, and engine APIs remain planned.
+Public `GraphCompilationPort` exposes that complete constant-free pipeline as a narrow
+cross-module integration service-provider interface (SPI). Reusable or public capability
+matrices, a public graph-wide Planning workflow, physical allocation/access, concrete backend
+integration, and Engine APIs remain planned.
 Prepare analysis, finalization, and complete graph-preparation contracts plus the initial Runtime
 geometry, prepared representation creation, per-run resource/validity, executable and transfer
 cold-binding, prepared publication and result leasing, and the ordered schedule contracts are
@@ -29,9 +31,10 @@ The current config module can record that hard-target optionality, requested gra
 permission for optional semantics-preserving compiler optimization, and one optional soft coarse
 device-class preference. It can also hold one explicit immutable model-autotuning request as
 declarative data. The internal baseline consumes the compile preference after hard eligibility.
-The complete Compiler entry consumes all four compile-config leaves directly but remains
-package-private; no current `CompileConfig`, public capability-matrix or eligibility surface,
-numeric scoring evaluator, or public compile lifecycle is callable by users. The model-autotuning
+The package-private complete Compiler entry consumes all four compile-config leaves directly, and
+`GraphCompilationPort` supplies them through its public integration call. No current
+`CompileConfig`, public capability-matrix or eligibility surface, numeric scoring evaluator, or
+end-user compile lifecycle is callable. The model-autotuning
 request likewise has no current Engine or tuning integration. APIs may change through the ordered
 planning process.
 [`ARCHITECTURE.md`](../../ARCHITECTURE.md) defines module boundaries, not source or binary
@@ -426,6 +429,8 @@ construction.
 
 The public `modules:compiler` contract surface now contains:
 
+- `GraphCompilationPort`, the narrow constant-free cross-module compile SPI for future Engine
+  composition, not an ordinary-user lifecycle facade;
 - `FunctionalGradientRequest`, the immutable one/two-stage reverse-mode input with aligned
   cotangent seeds and an explicit disconnected-target policy;
 - `GradientPublicationBinding`, the derivative-order and stage-local
@@ -445,8 +450,11 @@ The public `modules:compiler` contract surface now contains:
 The three output-only plan classes have package-private constructors. `CompileArtifacts` is a public
 record whose canonical constructor cross-validates the supplied components and snapshots
 partition membership. These types are public so later prepare and engine work can consume stable
-compile-time data. The functional request is public compiler input, but these types do not make
-compilation callable: both `GraphCompiler` entries and `GraphCompilation` remain package-private.
+compile-time data. `GraphCompilationPort.compile(...)` makes complete constant-free compilation
+callable for cross-module integration while both `GraphCompiler` entries and `GraphCompilation`
+remain package-private. The port always treats reachable provenance-free forward leaves as
+caller-bindable, retains no provider or availability snapshot, and neither prepares nor executes
+its result.
 
 The artifact result retains no provider, availability snapshot, selected device, route, kernel,
 physical buffer, transfer, prepared schedule, executable, residency, or mutable run state.

@@ -158,7 +158,12 @@ and planning evidence.
 It adds only method-free opaque candidate-batch and decision roles plus one generic exact-partition
 transport. CPU retains and validates candidate and decision meaning, while tools/tuning later owns
 artifact decoding, corruption rejection, measurement, selection, and persistence. Tools/tuning
-0001 is now the next Draft planning frontier; no detailed tuning task specification was created.
+0001 and Config 0006A are now Complete. The Engine-frontier audit found no new shared Prepare
+prerequisite: public `GraphPreparation.prepare(...)`, `PartitionPreparation`, and
+`PreparedScheduleAssembler` already provide the required explicit orchestration seam. Draft CPU
+0010F, not Prepare, owns the missing supported CPU integration adapter and concrete schedule
+assembly. These public Prepare contracts are cross-module SPI; the later supported Engine user
+facade must not expose them in ordinary compile, prepare, run, or one-shot signatures.
 
 ## Open questions
 

@@ -75,8 +75,9 @@ io.github.pho001.synaptik.compiler/
           deterministic canonicalization, exact arithmetic rewriting, logical-splat facts and
           folding, DCE/CSE orchestration, named Tensor-expression gradient rules, reverse
           accumulation, combined-graph gradient result roles, the current narrow public
-          artifact/cross-package Planning boundary justified by Compiler 0005, and the bounded
-          public functional request/result/order contracts selected by Compiler 0006; dedicated
+          artifact/cross-package Planning boundary justified by Compiler 0005, the bounded public
+          functional request/result/order contracts selected by Compiler 0006, and one narrow
+          public module-integration compile port for Engine; dedicated
           package-private recurrent inference remains in this package beside the other family
           inference owners
 ```
@@ -109,6 +110,7 @@ cross-package/public orchestration boundary from a concrete consumer.
 | 0006B | [Conv3d forward adoption and explicit gradient boundary](tasks/0006b-conv3d-forward-adoption-and-explicit-gradient-boundary.md) | Complete | Model 0025H; 0001–0006A | Adopted first-class `CONV3D` as one ordinary flat forward node, independently inferred and final-validated NCDHW descriptors and ordered deferred relations, preserved ordinary CSE/publication/Planning handoff, and rejected backward-capable requests containing it before derivative allocation. Forward coverage is now 39 families, 111 constants, and 132 signatures; first-order support remains 37/107/128 with four deferred signatures. |
 | 0006B1 | [Pool3d and 3D-window forward adoption and explicit gradient boundary](tasks/0006b1-pool3d-and-3d-window-forward-adoption-and-explicit-gradient-boundary.md) | Complete | Model 0025J–0025K; 0006B | Adopted all five Pool3d/`UNFOLD3D`/`FOLD3D` signatures in ordinary forward inference/final validation, restored exact 40-family/115-constant/137-signature forward coverage, preserved publication and Planning handoff, and rejected every backward-capable complete forward inventory containing one before seed validation and derivative allocation. Production first-order support remains 37/107/128 with exactly nine deferred signatures. |
 | 0006B2 | [Pool3d and 3D-window gradient closure](tasks/0006b2-pool3d-and-3d-window-gradient-closure.md) | Complete | Model 0025K; 0006B1; 0005D | Closed the exact two NCDHW pooling gradients and three public `unfold3d`/`fold3d` adjoints through public Tensor algebra, moving first-order support from 37/107/128 to 38/111/133 while forward remains 40/115/137 and only recurrent ×3 plus Conv3d remain deferred. |
+| 0006B3 | [Engine-facing complete compile integration port](tasks/0006b3-public-constant-free-complete-compile-entry.md) | Complete | 0005; 0006B2; current Config 0001–0003 leaves; Engine frontier reassessment | Added one narrowly named public module-integration port in the Compiler package that delegates constant-free requests to the existing complete pipeline, while keeping `GraphCompiler`, both current entries, explicit-constant ingress, and all compile semantics package-private. |
 | 0006C | Conv3d adjoint expressibility and gradient closure | Draft | 0006B; current public Tensor algebra; any separately selected Model prerequisite | Prove whether grouped NCDHW input/weight/bias cotangents are expressible through current public window, layout, matrix, reduction, and fold operations. Implement and add `CONV3D` to the closed derivative inventory only when exact group isolation, dilation/padding, overlap accumulation, symbolic Shape, and higher-order formula closure are representable; otherwise select the smallest Model-owned prerequisite first and keep the family fail-closed. |
 | 0007 | Exact constant identities and permission-aware algebra | Draft | 0006; Config 0006 before any relaxed rule | Reassess remaining graph-level exact constant/algebra identities and any explicitly permitted relaxed rewrites without changing completed 0001–0006 history: preserve current guarded scalar `POW(+1) -> input`, require complete exceptional-value/constant-sidecar/output/publication/phase/autograd/descriptor proof before an exact `POW(0)` typed shape-correct one-splat, and never infer Tensor constants from storage or factory history. |
 
@@ -156,10 +158,13 @@ higher-order path without implementing higher-order requests before 0006.
 - Pool3d and 3D-window gradient closure — Complete
   [task 0006B2](tasks/0006b2-pool3d-and-3d-window-gradient-closure.md), with the exact five
   signatures, formulas, higher-order policy, and 38/111/133 target inventory fixed.
+- Engine-facing complete compile integration port — Complete
+  [task 0006B3](tasks/0006b3-public-constant-free-complete-compile-entry.md), with one public
+  constant-free cross-module SPI delegating to the unchanged package-private complete entry.
 
 ## Current status
 
-Complete through task 0006B2. Tasks 0001–0006B2 are Complete with recorded source, tests,
+Complete through task 0006B3. Tasks 0001–0006B3 are Complete with recorded source, tests,
 documentation, and validation. Detailed
 [task 0006A](tasks/0006a-fixed-recurrent-scan-forward-adoption-and-bptt-boundary.md) is Complete
 after accepted ADR 0012/NN 0021A and completed Model 0025E–0025F. It uses the existing ordinary
@@ -180,8 +185,21 @@ derivative Tensor allocation. Complete detailed
 [task 0006B2](tasks/0006b2-pool3d-and-3d-window-gradient-closure.md) closes all five corresponding
 gradient signatures at exactly 38/111/133 supported, with recurrent ×3 and Conv3d remaining
 deferred. Task 0006C remains the separate Draft Conv3d adjoint-expressibility and gradient-closure
-owner. Compiler 0006C and 0007 have no detailed specifications; no Compiler task is Ready or In
-progress.
+owner. The Engine-frontier reassessment found one concrete Java-accessibility gap: the complete
+`GraphCompiler.compile(...)` path returns public `CompileArtifacts`, but its owner and method are
+package-private and its complete entry requires a package-private explicit-constant ingress.
+Detailed
+[task 0006B3](tasks/0006b3-public-constant-free-complete-compile-entry.md) is Complete. It adds
+`GraphCompilationPort` as a public-for-module-integration Compiler SPI in the
+same Java package, where it can delegate one constant-free request to package-private
+`GraphCompiler`; it does not turn the implementation owner into the recommended user API, create
+`CompileConfig`, expose compiler constant-ingress internals, prepare, execute, or absorb Engine
+composition. The port is technically callable because Java has no module-private public access,
+but it stays out of Engine user-facade signatures. CPU 0010F is now the next Draft operational
+lifecycle frontier; this Compiler completion does not create its detailed task or mark it Ready.
+Draft 0006C
+and 0007 are independent gradient/algebra side branches and are explicitly deferred behind this
+bounded Engine prerequisite rather than silently skipped. Neither has a detailed specification.
 The repository
 roadmap separately records the concurrent CPU execution frontier; this Compiler planning state
 does not authorize implementation ahead of that coordinator-owned order. Compiler 0004, 0004A,

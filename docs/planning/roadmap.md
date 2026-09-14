@@ -20,11 +20,11 @@ Parallel work is not the default. It requires an explicit roadmap or master-plan
 | 4 | [`modules/config`](modules/config/master-plan.md) | In progress (interleaved) | Model and backend identity contracts required by configuration are stable. | Compile, prepare, run, planning-cost, and model-autotuning request contracts are complete where stable consumers justify them. |
 | 5 | [`modules/planning`](modules/planning/master-plan.md) | Complete | Stable model/backend identity contracts permit the explicitly bounded capability-query interleave before config scoring is complete. | Ownership, partitioning, scoring, logical memory planning, and the selected contract-closure audit are complete. |
 | 6 | [`modules/runtime`](modules/runtime/master-plan.md) | Complete | Compiler/planning handoff, backend identities, the trace foundation, and ADR 0011's per-run resource ownership/cold-binding decision are stable. | Runtime 0012, 0013, and 0014 resolved the selected cleanup, status, and architecture-enforcement findings; the Runtime closure milestone is complete. |
-| 7 | [`modules/compiler`](modules/compiler/master-plan.md) | Complete | Model, config, planning, backend-contract, and trace contracts are ready for the complete compiler lifecycle; bounded task 0001 may start from the closed model graph/provenance contracts alone. | Compile artifacts, graph transformations, and autograd compilation are complete. |
+| 7 | [`modules/compiler`](modules/compiler/master-plan.md) | Complete through 0006B3 | Model, config, planning, backend-contract, and trace contracts are ready for the complete compiler lifecycle; the Engine reassessment proved one public-entry accessibility gap. | Compile artifacts, graph transformations, autograd compilation, and the narrow Engine-facing complete compile integration port are complete. |
 | 8 | [`modules/prepare`](modules/prepare/master-plan.md) | Complete through Prepare 0004 | Compiler/planning artifacts and Runtime recipe/runner contracts are stable; ADR 0010 authorizes the analysis-first staged handoff. | Shared prepare contracts include partition-local analysis, staged finalization, complete orchestration, and opaque candidate/decision transport. |
 | 9 | [`backends/openblas-provider`](backends/openblas-provider/master-plan.md) | Complete baseline; optional provider 0004 Blocked/deferred | Native interop conventions needed by the provider are decided. | Required FLOAT32/FLOAT64 remains complete; the optional direct BFLOAT16-output capability stays fail-closed until both proof gaps are resolved. |
-| 10 | [`backends/cpu`](backends/cpu/master-plan.md) | In progress (CPU 0010E Complete; CPU 0010D1 Blocked/deferred optional) | Model, config, planning, runtime, prepare, backend-contract, trace, and applicable OpenBLAS contracts are ready. | CPU is a conforming reference backend for the selected capability set. |
-| 11 | [`modules/engine`](modules/engine/master-plan.md) | Draft | Compiler, runtime, prepare, and the CPU backend can be composed. | The public compile, prepare, and run lifecycle works end to end on CPU. |
+| 10 | [`backends/cpu`](backends/cpu/master-plan.md) | In progress (0010F next Draft frontier; 0010D1 Blocked/deferred optional) | Model, config, planning, runtime, prepare, backend-contract, trace, and applicable OpenBLAS contracts are ready. | CPU has a supported Engine integration adapter without `.internal` imports or ordinary-user construction. |
+| 11 | [`modules/engine`](modules/engine/master-plan.md) | Draft (blocked by CPU 0010F) | The public Compiler integration port, shared Runtime/Prepare orchestration, and supported CPU adapter can be composed. | Standard and advanced composition, typed lifecycle, host results, and Engine-owned one-shot forward/backward convenience work end to end on CPU. |
 | 12 | [`backends/metal`](backends/metal/master-plan.md) | Draft | Shared backend contracts and CPU reference behavior are stable. | Metal passes the applicable backend-conformance suite. |
 | 13 | [`backends/cuda`](backends/cuda/master-plan.md) | Draft | Shared backend contracts and CPU reference behavior are stable. | CUDA passes the applicable backend-conformance suite. |
 | 14 | [`extensions/onnx`](extensions/onnx/master-plan.md) | Draft | The model representation and public tensor semantics are stable. | Selected import/export mappings and compatibility validation are complete. |
@@ -68,6 +68,58 @@ supported public CPU adapter. Tuning 0002–0003 remain `Draft` without specific
 exception. The exception is now closed without selecting or making another task Ready. Optional
 OpenBLAS provider 0004 and CPU 0010D1 remain `Blocked` and deferred.
 Runtime never selects.
+
+The next operational-lifecycle sequence is:
+
+```text
+Compiler 0006B3 Engine-facing complete compile integration port (Complete)
+  -> CPU 0010F supported lifecycle integration adapter
+  -> Engine 0001 advanced composition and representation-level lifecycle foundation
+  -> Engine 0002 standard built-in composition
+  -> Engine 0003 typed logical input binding and published-result access
+  -> Engine 0004 host materialization
+  -> Engine 0005 one-shot forward convenience
+  -> Engine 0006 scalar-objective backward convenience
+  -> optional Engine 0007 Config 0006A/tuning 0001 integration
+  -> later tools/tuning 0002
+```
+
+Detailed [Compiler 0006B3](modules/compiler/tasks/0006b3-public-constant-free-complete-compile-entry.md)
+is `Complete`. The actual complete Compiler implementation entry remains package-private and
+takes package-private constant ingress; the completed same-package public
+`GraphCompilationPort` integration SPI supplies empty ingress and keeps `GraphCompiler`
+package-private. The SPI is not part of the supported Engine user facade. Prepare's
+`GraphPreparation` and Runtime's
+`PreparedExecutionRunner` are already public and need no prerequisite task. CPU's only supported
+public type is `CpuCapabilityProvider`; preparation, finalization, representations, and
+composition remain under `.internal`, and there is no production CPU schedule assembler, so
+Draft CPU 0010F is now the next operational-lifecycle frontier. It has no detailed task and is not
+Ready. Its adapter is Engine-facing SPI; ordinary users will not construct or name it. Missing
+`CompileConfig`, `PrepareConfig`, and `RunOptions`
+aggregates do not block the initial exact/default representation-level foundation; standard
+composition, typed logical binding/results, and host materialization remain Engine 0002–0004.
+CPU 0011 is independently blocked, CPU
+0012–0015 are optional vendor peers, CPU 0016 is later cross-route tuning integration, and CPU
+0017 waits for relaxed numerical permission. None gates Engine 0001.
+
+The standard built-in composition is compatible with the current authoritative rule that Engine
+registers backends explicitly. Engine 0002 may directly construct a fixed, ordered set of known
+built-in adapters and select eligible partition owners during compile/prepare. This is neither
+reflective/classpath discovery nor `ServiceLoader`, hidden service location, mutable process-global
+state, or Runtime backend selection, so no architecture-decision prerequisite is needed. The
+advanced path remains explicit for tests, deployment policy, forced/disabled providers, and custom
+sets through an Engine-owned surface; inward Compiler/Prepare/Runtime/CPU contracts remain SPI
+rather than ordinary lifecycle parameters.
+
+The eventual ordinary surface is Tensor expression -> standard or advanced Engine composition ->
+compile/prepare/run -> typed input binding -> typed/host results, with Engine-owned one-shot and
+optional autotuning conveniences. One-shot names remain unfixed until their frontier. No
+`Tensor.execute()`, `Tensor.backward()`, gradient field, or Model Runtime dependency is planned.
+Backward convenience will require a scalar objective and explicit gradient targets, lower to
+Compiler's functional request, and retain an advanced explicit seed/request path rather than
+guessing targets or promising ambiguous no-argument backward behavior. Public Compiler, Prepare,
+Runtime, and CPU collaboration types remain cross-module SPI and do not leak into ordinary Engine
+signatures; `.internal` remains private.
 
 The Data/Text/Vision and Checkpoint rows are user-authorized future planning, not architecture
 permission or implementation-order authorization. Their proposed Gradle projects do not exist.
@@ -251,7 +303,7 @@ NON_PASSING; forks 1--4 were closed without rerun by user decision. CPU
 0008A validates Conv1d through
 the visible Conv2d composition and adds direct Conv3d execution. CPU 0008B–0008E only then add
 general partition-DAG decomposition and bounded fusion, typed specialized-subgraph recognition,
-profitability decision facts, and bounded multi-input materialization in that order. Engine 0004
+profitability decision facts, and bounded multi-input materialization in that order. Engine 0008
 proves the same typed
 input/publication lifecycle for all three ranks. Only afterward does NN 0025 add separate
 `Conv1d`, `Conv2d`, and `Conv3d` layers and `ModuleFactory` recipes, with NN 0025A as the end-to-end
@@ -390,7 +442,7 @@ The preceding Compiler 0006 supplies the bounded functional one/two-stage reques
 keeps backpropagation through time fail-closed. Complete Compiler 0006B supplies the Conv3d forward
 adoption that precedes CPU 0008 and CPU 0008A; Draft Compiler 0006C separately owns gradient
 closure and does not block CPU forward execution. Compiler 0007 remains the later Draft exact-
-algebra row. Neither 0006C nor 0007 has a detailed specification. Compiler 0006B2 is Complete; no
+algebra row. Neither 0006C nor 0007 has a detailed specification. Compiler 0006B3 is Complete; no
 Compiler task is Ready or In progress.
 
 The completed Runtime implementation frontier is
@@ -1883,10 +1935,12 @@ the complete current model operation inventory before higher-order work:
 | [0006B Conv3d forward adoption and explicit gradient boundary](modules/compiler/tasks/0006b-conv3d-forward-adoption-and-explicit-gradient-boundary.md) | Complete | Model 0025H; 0001–0006A | Adopted first-class Conv3d forward inference and final validation while keeping its backward boundary explicit and fail-closed. |
 | [0006B1 Pool3d and 3D-window forward adoption and explicit gradient boundary](modules/compiler/tasks/0006b1-pool3d-and-3d-window-forward-adoption-and-explicit-gradient-boundary.md) | Complete | Model 0025J–0025K; 0006B | Adopted all five Pool3d and 3D-window signatures, restored exact 40/115/137 forward coverage while production first-order support remains 37/107/128 with exactly nine deferred signatures, and kept all five fail-closed in backward-capable requests before seed validation and derivative Tensor allocation. |
 | [0006B2 Pool3d and 3D-window gradient closure](modules/compiler/tasks/0006b2-pool3d-and-3d-window-gradient-closure.md) | Complete | Model 0025K; 0006B1; 0005D | Closed two exact Pool3d gradients and three 3D-window adjoints through public Tensor algebra, moving production first-order support from 37/107/128 to 38/111/133 while forward remains 40/115/137 and only recurrent ×3 plus Conv3d remain deferred. |
+| [0006B3 Engine-facing complete compile integration port](modules/compiler/tasks/0006b3-public-constant-free-complete-compile-entry.md) | Complete | 0005; 0006B2; current Config 0001–0003 leaves; Engine frontier reassessment | Added one public same-package `GraphCompilationPort` for Engine integration while preserving package-private `GraphCompiler`, constant ingress, current compile entries, and semantics. |
 | 0006C Conv3d adjoint expressibility and gradient closure | Draft | 0006B; proven public Tensor algebra or a separately selected Model prerequisite | Close Conv3d gradients only after group, geometry, overlap, symbolic-Shape, and higher-order expressibility are proved. |
 
-Compiler 0005A–0006B2 and their Model prerequisites are Complete. Compiler 0006C and 0007 remain
-Draft without detailed specifications, and no Compiler task is Ready or In progress.
+Compiler 0005A–0006B3 and their Model prerequisites are Complete. Compiler 0006C and 0007 remain
+explicitly deferred Draft side branches without detailed specifications. CPU 0010F is the next
+Draft operational frontier and has no detailed task; no task is made Ready here.
 Family tasks
 must not claim that every operation role has a gradient: BOOL, index, random-number-generator
 (RNG) state, mask, and configuration roles remain intentionally non-differentiable where

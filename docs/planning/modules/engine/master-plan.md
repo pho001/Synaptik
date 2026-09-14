@@ -14,6 +14,7 @@ Provide the public lifecycle facade and explicit composition root for compiler, 
 
 - public compiled graph facade
 - explicit backend registration
+- deterministic standard composition of known built-in backends
 - compile and prepare orchestration
 - composition of runtime, validators, tracing, and backends
 - explicit typed caller-input binding and published-result access
@@ -25,11 +26,14 @@ Provide the public lifecycle facade and explicit composition root for compiler, 
 - backend internals
 - graph optimizer passes
 - runtime service locator and core reflective discovery
+- Tensor-owned execution, backward methods, gradients, or runtime state
 
 ## Module invariants
 
 - Engine is the outer composition root.
-- Backends are registered explicitly.
+- Every backend is registered explicitly by Engine construction code. The standard factory owns a
+  fixed ordered set of known built-ins; the advanced path accepts an explicit set and policy.
+- Backend eligibility and partition ownership are resolved before Runtime execution.
 - Concrete backends never depend on engine.
 
 ## Allowed dependencies
@@ -49,10 +53,14 @@ Provide the public lifecycle facade and explicit composition root for compiler, 
 
 | ID | Task | Status | Depends on | Summary |
 |---|---|---|---|---|
-| 0001 | Explicit engine composition and lifecycle facade | Draft | CPU reference backend; Compiler/Prepare/Runtime contracts | Compose explicitly registered backends and expose the compile, prepare, and run lifecycle without discovery or inward dependencies. |
-| 0002 | Typed input binding and published output access | Draft | 0001; Runtime publication/result-access extension; Prepare source/publication mapping | Map caller Tensor/host inputs and logical publications to Runtime coordinates, preserve aliases and ownership, and expose typed result values without leaking backend representations. |
-| 0003 | Explicit host materialization boundary | Draft | 0002; concrete-backend host-transfer routes | Materialize selected current Tensor/state values through prepared execution and publication into bounded caller-owned host payloads; add no backend access to NN, Training, or Checkpoint. |
-| 0004 | Engine lifecycle capability checkpoint | Draft | 0001–0003; Compiler 0006B; CPU 0008A | Validate composition, typed input/output ownership, host materialization, cleanup, concurrency, architecture tests, documentation, and representative NCW Conv1d composition plus NCHW Conv2d and NCDHW Conv3d forward execution before persistence adapters or NN convolution integration depend on Engine. |
+| 0001 | Advanced composition and representation-level lifecycle foundation | Draft | Compiler 0006B3; CPU 0010F; current Prepare 0003–0004 and Runtime 0010 contracts | Compose an explicit ordered backend set and expose the compile, prepare, and representation-level run seam for integration and tests without discovery, `.internal` imports, or claims that Runtime representations are the final user experience. |
+| 0002 | Standard built-in composition | Draft | 0001; supported built-in backend adapters | Add the ordinary deterministic Engine construction path that directly registers a fixed ordered set of known built-ins and chooses eligible partition ownership during compile/prepare. Preserve an Engine-owned advanced composition surface for tests, deployment policy, forcing/disabling providers, and custom backend sets without exposing inward integration contracts in lifecycle signatures. |
+| 0003 | Typed logical input binding and published-result access | Draft | 0001–0002; current Compiler publication artifacts; Prepare source/publication mapping; Runtime result contracts | Map caller Tensor/host inputs and logical publications to Runtime coordinates, preserve aliases and ownership, and expose typed Engine result access without leaking backend representations or cross-module SPI through user signatures. |
+| 0004 | Explicit host materialization boundary | Draft | 0003; concrete-backend host-transfer routes | Materialize selected current Tensor/state values through prepared execution and publication into bounded caller-owned host payloads; add no backend access to NN, Training, or Checkpoint. |
+| 0005 | Engine-owned one-shot forward convenience | Draft | 0002–0004 | Add an Engine-owned one-shot facade from Tensor output(s) and typed inputs through compile, prepare, execute, typed results, materialization, and cleanup. Fix exact names only when this task becomes the planning frontier; add no execution method or runtime dependency to `Tensor`. |
+| 0006 | Engine-owned one-shot scalar-objective backward convenience | Draft | 0005; Compiler 0006 functional gradient request contract | Extend an Engine-owned execution request with a simple scalar-objective backward option requiring explicit gradient targets and lowering to Compiler's functional request. Retain an advanced explicit seed/request path; infer neither targets nor mutable autograd state and promise no ambiguous no-argument `withBackward()`. |
+| 0007 | Optional model-autotuning composition | Draft | 0002; 0005; Config 0006A; tools/tuning 0001; operational representative execution facts | Explicitly map Config's request into tuning's generic collaboration before preparation, retaining deterministic untuned fallback and keeping all tuning out of Runtime. This does not yet implement tools/tuning 0002 graph/plan search. |
+| 0008 | Engine lifecycle capability checkpoint | Draft | 0001–0006; Compiler 0006B; CPU 0008A | Validate standard and advanced composition, typed input/output ownership, host materialization, one-shot forward/backward lowering, cleanup, concurrency, architecture tests, documentation, and representative NCW Conv1d plus NCHW Conv2d and NCDHW Conv3d forward execution before persistence adapters or NN convolution integration depend on Engine. |
 
 
 ## Milestones
@@ -63,18 +71,60 @@ Provide the public lifecycle facade and explicit composition root for compiler, 
 
 ## Current status
 
-Draft. Model/training checkpoint persistence depends on the future task 0003 boundary because the
+Draft and not yet actionable. The frontier audit found two required upstream tasks: Compiler
+0006B3 must add a narrow public module-integration port over its existing package-private complete
+compile path, and CPU 0010F must expose a supported CPU integration adapter for preparation,
+representation recipes, and schedule composition without Engine importing `.internal` classes.
+Public
+`GraphPreparation.prepare(...)` and `PreparedExecutionRunner.run(...)` are already callable and
+require no prerequisite changes for task 0001.
+
+Task 0001 is deliberately an advanced/integration foundation. It will use the current standalone
+`CompileMode`, `GraphOptimizationConfig`, `BackendIntent`, and `PartitionScoringConfig` values and
+the existing representation-level Runtime caller input. Missing `CompileConfig`, `PrepareConfig`,
+and `RunOptions` aggregates do not block that seam; their final convenience ownership remains in
+Config. The normal standard composition belongs to Engine 0002, typed binding and result access to
+0003, and host materialization to 0004. Therefore 0001 must not be documented as the completed
+end-user experience.
+
+The clarified standard composition is compatible with the current architecture and requires no
+authoritative decision task. “Registered explicitly” permits a fixed Engine-owned factory to
+construct and register known built-in adapters in deterministic order. It does not permit
+classpath or annotation scanning, `ServiceLoader`, hidden service location, mutable process-global
+Engine state, or Runtime backend selection. The compile/prepare lifecycle selects eligible
+partition ownership from that fixed composition. The advanced path remains available for tests,
+deployment policy, forcing or disabling providers, and custom backend sets; ordinary users do not
+name or construct a CPU adapter.
+
+The supported future user surface converges on Tensor expressions, standard or advanced Engine
+composition, compile/prepare/run, typed input bindings, typed/host results, one-shot convenience,
+and optional autotuning. Compiler, Prepare, Runtime, and CPU integration contracts are public SPI
+only and must not appear in ordinary user-facade signatures; `.internal` stays private.
+
+One-shot execution remains Engine-owned. Task 0005 may provide ergonomics equivalent to executing
+an output directly, but exact type and method names wait for that planning frontier and `Tensor`
+gains no `execute`, `backward`, gradient field, Runtime dependency, or hidden lifecycle state.
+Task 0006 lowers backward convenience to Compiler's explicit functional gradient request. Its
+simple form is restricted to a scalar objective with explicit gradient targets; advanced callers
+may supply explicit seeds or the full request. Engine must not inspect the graph to guess targets
+or invent a no-argument backward promise whose seed/target meaning is undefined.
+
+Config 0006A mapping and tools/tuning 0001 integration belong to optional Engine 0007, not Engine
+0001 or the standard untuned path. Tools/tuning 0002 remains later bounded graph/plan tuning.
+
+Model/training checkpoint persistence depends on the future task 0004 boundary because the
 current Runtime `RunResult` privately retains representations and exposes no value or storage
 access. A checkpoint plan must not bypass that gap by reading backend storage from NN or Training.
 
 The dimensional-convolution program adds no Engine operation switch or convolution-specific
-binding API. Task 0004 will exercise representative rank-one composition and first-class rank-two
+binding API. Task 0008 will exercise representative rank-one composition and first-class rank-two
 and rank-three convolution through the same typed logical-input, Prepare, Runtime, and publication
-mapping established by tasks 0001–0003. This is the execution-readiness gate for the later NN
+mapping established by tasks 0001–0006. This is the execution-readiness gate for the later NN
 layer integration checkpoint; it does not move shape inference, lowering, or kernel selection into
 Engine.
 
-This module is not yet planned in detail. Detailed task specifications will be created when it becomes the current or next implementation frontier.
+No Engine task has a detailed specification. Create task 0001 only after Compiler 0006B3 and CPU
+0010F are Complete and their final public surfaces can be inspected.
 
 ## Open questions
 
@@ -82,6 +132,10 @@ This module is not yet planned in detail. Detailed task specifications will be c
   close behavior without exposing concrete backend representation types.
 - Decide whether materializing already host-backed leaves can use a proven direct fast path while
   preserving the same public ownership and validation contract.
+- Fix the standard built-in inventory/order and the Engine-owned advanced selection/custom-backend
+  abstraction only when task 0002 becomes the planning frontier.
+- Fix one-shot type/method names and result-close ergonomics only after tasks 0003–0004 establish
+  typed binding, publication, and materialization ownership.
 
 ## Decisions made
 

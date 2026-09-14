@@ -2314,23 +2314,25 @@ physical buffers, choose concrete kernels, or create backend executables. See
 The current package-private compiler implements the lifecycle through a validated forward-only or
 combined one/two-stage functional-derivative graph followed by publication roles, per-node owner
 selection, maximal partitions, logical memory, constants, diagnostics, derivative-order metadata,
-and immutable `CompileArtifacts`. Public compilation, publication delivery, preparation, and
-execution remain planned.
+and immutable `CompileArtifacts`. Public `GraphCompilationPort` exposes that complete constant-free
+pipeline as a narrow module-integration boundary. An ordinary-user Engine compile lifecycle,
+publication delivery, preparation, and execution remain planned.
 
 ### Compile artifacts
 
-The current public immutable eight-component `CompileArtifacts` record returned by the
-package-private complete compiler entry. It contains the exact compile mode and final
-`CompiledGraphModel`, an immutable membership snapshot of maximal backend-owned partitions, the
-derived `LogicalMemoryPlan`, and exact `PublicationPlan`, `CompileConstantPlan`, and
-`CompileDiagnostics`, and `DerivativeGraphMetadata` references.
+The current public immutable eight-component `CompileArtifacts` record constructed by the
+package-private complete compiler entry and returned through public `GraphCompilationPort`. It
+contains the exact compile mode and final `CompiledGraphModel`, an immutable membership snapshot
+of maximal backend-owned partitions, the derived `LogicalMemoryPlan`, and exact `PublicationPlan`,
+`CompileConstantPlan`, `CompileDiagnostics`, and `DerivativeGraphMetadata` references.
 
 The constructor cross-validates graph identity, mode and phase roles, maximal graph-order
 partitioning, logical memory, complete graph-input source roles, constant type and gradient
 eligibility, and diagnostic node membership. Compile artifacts are a recipe for later prepare
 work, not executable state. They contain no provider, availability snapshot, selected device,
 physical buffer, concrete route or kernel, transfer, schedule, executable, runtime residency, or
-mutable run state. The artifact type is public, but no public compile entry currently produces it.
+mutable run state. The public integration port produces this artifact without exposing explicit
+constant ingress; it does not prepare or execute the artifact and is not an Engine user facade.
 
 ### Compile constant plan
 

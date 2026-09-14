@@ -308,6 +308,7 @@ created by 0005A. All consume the common analysis above; none creates another ba
 | 0010D | [Installed OpenBLAS qualification and target fingerprinting](tasks/0010d-installed-openblas-qualification-and-target-fingerprinting.md) | Complete | 0010C | Added immutable per-load-session qualification after supported target/header, exact four-symbol ordinary 32-bit-`blasint`, count-one, and bounded SGEMM/DGEMM checks. Absolute-path loads receive versioned SHA-256 binary/target compatibility identity; name loads remain session-only. Exact coordinator association is checked before provider mutation or recipe construction. This is compatibility evidence, not authentication or broad ABI, numerical, determinism, or performance certification. |
 | 0010D1 | Qualified direct BFLOAT16-output OpenBLAS MATMUL route | Blocked (deferred optional side branch) | 0010D; OpenBLAS provider 0004 | Retain the failed proof as durable evidence and resume only for a concrete direct capability proving BFLOAT16 inputs/output, complete FP32 contraction accumulation, and exactly one final BFLOAT16 narrowing. Portable BFLOAT16 and existing FLOAT32/FLOAT64 routes remain unchanged. |
 | 0010E | [FLOAT32/FLOAT64 OpenBLAS tuning candidates and compatible decisions](tasks/0010e-float32-float64-openblas-tuning-candidates-and-compatible-decisions.md) | Complete | 0010D | Added typed/versioned complete portable-versus-OpenBLAS thread and representation candidates, canonical CPU/workload compatibility facts, and deterministic consumption of one matching selected decision. Exact/default FLOAT32/FLOAT64 only; CPU performs no measurement or persistence and safe heuristic preparation remains available. Final validation passed 194 suites and 991 tests with 28 skips and zero failures/errors; the focused three-class run passed 3 suites and 20 tests. |
+| 0010F | Supported CPU lifecycle integration adapter | Draft | 0010E; Prepare 0003–0004; Runtime 0010 | Publish the smallest CPU-owned Engine integration adapter that encapsulates current internal analysis inputs, preparer/finalizer construction, physical representation recipes, and schedule assembly. Engine consumes it behind Engine-owned standard/advanced composition; user-facade signatures do not expose it, and ordinary users do not construct or name it. |
 | 0011 | Intel oneMKL BLAS and VML peer routes | Blocked | 0010E; 0005A; 0009; concrete Intel CPU use case and supported oneMKL ABI evidence | The ordered OpenBLAS sequence now precedes this row, and the repository still supplies neither Intel external gate. Once all dependencies exist, add distinct `route.nativeblas.mkl` BLAS and `route.nativeops.mkl` VML leaves over shared analysis while preserving portable Java as the semantic fallback. |
 | 0012 | Intel oneDNN partition peer routes | Draft | 0005A; 0009; stable common CPU lowering; concrete DNN/ML use case and supported oneDNN ABI evidence | Add `route.nativeops.onednn` as a distinct eligible partition route over common lowering/IR and whole-plan cost, without collapsing it into oneMKL or portable code generation. |
 | 0013 | Apple Accelerate peer routes | Draft | 0005A; 0009; concrete Apple CPU use case and supported Accelerate ABI evidence | Add `route.nativeblas.accelerate` for BLAS and `route.nativeops.accelerate` for vDSP/vForce over shared analysis; Apple Silicon is capability-selected, while MPSGraph and Metal kernels remain outside CPU. |
@@ -331,9 +332,14 @@ CPU 0010E typed candidates and compatible-decision consumption
 
 CPU 0010E is Complete. It confirms the earlier CPU-first direction while narrowing it: CPU
 stabilizes the values owned by the concrete backend before Prepare can carry them or tuning can
-persist them. Prepare 0004 is now the next Draft planning frontier; it has no detailed task and is
-not yet Ready. Tools/tuning 0001 and Config 0006A remain staged Draft work. This first slice uses
-exact/default semantics and tooling-local explicit request inputs, and Runtime never selects.
+persist them. Prepare 0004, tools/tuning 0001, and Config 0006A are now Complete. The Engine-frontier
+reassessment adds Draft CPU 0010F after Compiler 0006B3: current supported CPU API exposes only
+`CpuCapabilityProvider`, while the required preparer, finalizer, analysis inputs,
+representations, and composition seams remain under `.internal`, and no production CPU schedule
+assembler exists. CPU 0010F owns that supported SPI boundary; Engine must not import the current
+internals, and Engine rather than an ordinary user constructs and consumes the built-in CPU adapter
+behind Engine-owned composition types. This exact/default path does not depend on optional vendor
+peers or relaxed numerics, and Runtime never selects.
 
 CPU 0010A can proceed without Engine because the discovery request, immutable result, bounded
 loader, and provider-lifetime session stay package-private under
@@ -1127,10 +1133,13 @@ OpenBLAS discovery plus an internal composition lifetime without Engine or publi
 [CPU 0010D](tasks/0010d-installed-openblas-qualification-and-target-fingerprinting.md) are
 `Complete`. OpenBLAS provider 0004 and CPU 0010D1 remain a blocked/deferred optional BFLOAT16 side
 branch. Detailed CPU 0010E is `Complete` for the independent exact/default FLOAT32/FLOAT64 slice;
-Prepare 0004 is the next Draft planning frontier and tools/tuning 0001 remains staged after it.
-CPU 0011 remains `Blocked` because no concrete Intel CPU use case or supported oneMKL BLAS/VML
-ABI evidence is present; CPU 0012 through 0017 remain `Draft`. Prepare
-0003A is Complete.
+Prepare 0004, tools/tuning 0001, and Config 0006A are Complete. Compiler 0006B3 is Complete. Draft
+CPU 0010F is the next operational frontier; it has no detailed task and is not Ready. Draft Engine
+0001 follows it. CPU 0011 remains
+`Blocked` because no concrete Intel CPU use case or supported oneMKL BLAS/VML ABI evidence is
+present; CPU 0012–0015 are optional peer routes, CPU 0016 is later cross-route tuning integration,
+and CPU 0017 waits for relaxed numerical permission. These rows are explicitly deferred and do
+not gate the portable CPU Engine path. Prepare 0003A is Complete.
 CPU 0005C preserves that exact slice and implements cold selection among all four portable
 strategies. It uses the preferred Java 26 FLOAT64 species only for direct contiguous runs and
 scalar broadcasts, scalar tails and general-odometer fallback, configured/available parallelism
