@@ -14,6 +14,7 @@ import io.github.pho001.synaptik.model.graph.ForwardPublicationBinding;
 import io.github.pho001.synaptik.model.graph.ValueId;
 import io.github.pho001.synaptik.model.tensor.Tensor;
 import io.github.pho001.synaptik.model.tensor.TensorDescriptor;
+import io.github.pho001.synaptik.model.tensor.TensorId;
 import io.github.pho001.synaptik.model.tensor.TensorProducer;
 import io.github.pho001.synaptik.model.tensor.TensorProvenance;
 import io.github.pho001.synaptik.planning.capability.BackendCapabilityProvider;
@@ -184,9 +185,9 @@ final class GraphCompiler {
      *
      * <p>All nine top-level arguments are validated in declaration order before graph
      * construction. The existing graph-stage compile entry is invoked exactly once. Publication,
-     * constant, and diagnostic snapshots are then built from its final graph before each node is
-     * queried in stored order, followed by maximal partitioning, logical-memory derivation, and
-     * final aggregate cross-validation.</p>
+     * constant, caller Tensor identity, and diagnostic snapshots are then built from its final
+     * graph before each node is queried in stored order, followed by maximal partitioning,
+     * logical-memory derivation, and final aggregate cross-validation.</p>
      *
      * @param mode non-null graph-scope mode
      * @param forwardOutputs non-null, non-empty ordered requested forward boundary
@@ -204,8 +205,9 @@ final class GraphCompiler {
      * @throws NullPointerException if a required argument or nested value is {@code null}
      * @throws IllegalArgumentException if graph compilation, publication, planning composition,
      *     partitioning, memory derivation, or artifact cross-validation rejects the request
-     * @throws IllegalStateException if a graph node has no hard-eligible backend; the message adds
-     *     node occurrence context and the Planning failure is retained as its cause
+     * @throws IllegalStateException if a final bindable input lacks captured Tensor identity or a
+     *     graph node has no hard-eligible backend; backend failures add node occurrence context
+     *     and retain the Planning failure as their cause
      * @throws RuntimeException if a capability provider throws; the same failure propagates
      *     unchanged
      */
@@ -248,12 +250,18 @@ final class GraphCompiler {
         PublicationPlan publication =
                 new PublicationPlan(graph, forwardBindings, compilation.gradientResults());
 
-        List<ValueId> bindableInputs = new ArrayList<>();
+        List<CompileConstantPlan.BindableInput> bindableInputs = new ArrayList<>();
         List<CompileConstantPlan.ConstantSource> constantSources = new ArrayList<>();
         for (ValueId input : graph.inputs()) {
             CompileTimeConstantGraph.Splat splat = validated.constants().get(input);
             if (splat == null) {
-                bindableInputs.add(input);
+                TensorId tensorId =
+                        validated.constantGraph().bindableTensorIds().get(input);
+                if (tensorId == null) {
+                    throw new IllegalStateException(
+                            "missing bindable Tensor identity for " + input);
+                }
+                bindableInputs.add(new CompileConstantPlan.BindableInput(tensorId, input));
             } else {
                 constantSources.add(
                         new CompileConstantPlan.ConstantSource(input, splat.value()));

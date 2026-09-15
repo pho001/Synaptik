@@ -9,6 +9,7 @@ import io.github.pho001.synaptik.model.graph.ValueId;
 import io.github.pho001.synaptik.model.tensor.Tensor;
 import io.github.pho001.synaptik.model.tensor.TensorProducer;
 import io.github.pho001.synaptik.model.tensor.TensorProvenance;
+import io.github.pho001.synaptik.model.tensor.TensorId;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -31,8 +32,10 @@ import java.util.Set;
  * {@link GraphPhase#BACKWARD} while assigning every {@link NodeId} and {@link ValueId} once.</p>
  *
  * <p>Capture performs no semantic inference, optimization, derivative-rule selection, numerical
- * evaluation, planning, storage access, preparation, backend work, or execution. Returned graph
- * state retains operations and descriptors but no Tensor, producer, or provenance reference.</p>
+ * evaluation, planning, storage access, preparation, backend work, or execution. Its internal
+ * source sidecar projects only immutable caller {@code TensorId} values for non-constant leaves;
+ * returned graph state retains operations and descriptors but no Tensor, producer, or provenance
+ * reference.</p>
  */
 final class GraphCapture {
     private GraphCapture() {
@@ -74,8 +77,8 @@ final class GraphCapture {
      * @param outputs non-null, non-empty ordered requested results with no null element, repeated
      *     exact Tensor reference, or duplicate resolved graph output
      * @param ingress non-null ordered immutable explicit leaf bindings
-     * @return a non-null immutable captured graph plus exact source facts; unbound leaves remain
-     *     bindable and binding order does not change graph input order
+     * @return a non-null immutable captured graph plus exact constant facts and caller identities;
+     *     unbound leaves remain bindable and binding order does not change graph input order
      * @throws NullPointerException if output validation encounters a null first, or if
      *     {@code ingress} is null after output validation succeeds
      * @throws IllegalArgumentException if output validation fails or an ingress binding is not a
@@ -179,6 +182,7 @@ final class GraphCapture {
         }
         var encounteredIngress = new IdentityHashMap<Tensor, Boolean>();
         var constants = new HashMap<ValueId, CompileTimeConstantGraph.Splat>();
+        var bindableTensorIds = new HashMap<ValueId, TensorId>();
 
         var values = new ArrayList<GraphValue>();
         var nodes = new ArrayList<CompiledNode>();
@@ -199,12 +203,13 @@ final class GraphCapture {
                     leafValues.put(requested, valueId);
                     graphInputs.add(valueId);
                     values.add(new GraphValue(valueId, requested.descriptor()));
-                    addConstant(
+                    addSourceRole(
                             requested,
                             valueId,
                             requestedConstants,
                             encounteredIngress,
-                            constants);
+                            constants,
+                            bindableTensorIds);
                 }
                 continue;
             }
@@ -231,12 +236,13 @@ final class GraphCapture {
                             leafValues.put(input, valueId);
                             graphInputs.add(valueId);
                             values.add(new GraphValue(valueId, input.descriptor()));
-                            addConstant(
+                            addSourceRole(
                                     input,
                                     valueId,
                                     requestedConstants,
                                     encounteredIngress,
-                                    constants);
+                                    constants,
+                                    bindableTensorIds);
                         }
                     } else {
                         TensorProducer inputProducer = inputProvenance.producer();
@@ -317,22 +323,25 @@ final class GraphCapture {
         CompiledGraphModel graph =
                 new CompiledGraphModel(values, nodes, graphInputs, graphOutputs, nodePhases);
         return new CombinedCapture(
-                new CompileTimeConstantGraph(graph, constants),
+                new CompileTimeConstantGraph(graph, constants, bindableTensorIds),
                 forwardOutputs.size(),
                 gradientOutputOrdinals,
                 new DerivativeGraphMetadata(graph, derivativeOrders));
     }
 
-    private static void addConstant(
+    private static void addSourceRole(
             Tensor tensor,
             ValueId valueId,
             IdentityHashMap<Tensor, CompileTimeConstantGraph.Splat> requestedConstants,
             IdentityHashMap<Tensor, Boolean> encounteredIngress,
-            Map<ValueId, CompileTimeConstantGraph.Splat> constants) {
+            Map<ValueId, CompileTimeConstantGraph.Splat> constants,
+            Map<ValueId, TensorId> bindableTensorIds) {
         CompileTimeConstantGraph.Splat splat = requestedConstants.get(tensor);
         if (splat != null) {
             encounteredIngress.put(tensor, Boolean.TRUE);
             constants.put(valueId, splat);
+        } else {
+            bindableTensorIds.put(valueId, tensor.id());
         }
     }
 

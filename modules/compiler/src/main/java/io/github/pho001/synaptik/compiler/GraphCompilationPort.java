@@ -20,8 +20,9 @@ import java.util.Optional;
  * or execution.</p>
  *
  * <p>Because this boundary always supplies empty explicit constant ingress, every reachable
- * provenance-free forward leaf remains caller-bindable. Constants that the Compiler creates
- * internally for a functional gradient request retain their existing Compiler-owned treatment.</p>
+ * provenance-free forward leaf remains caller-bindable and is associated with its immutable
+ * logical Tensor identity. Constants that the Compiler creates internally for a functional
+ * gradient request retain their existing Compiler-owned treatment.</p>
  */
 public final class GraphCompilationPort {
     private GraphCompilationPort() {}
@@ -50,8 +51,9 @@ public final class GraphCompilationPort {
      * @param availabilitySnapshots non-null ordered availability-snapshot list; elements must be
      *     non-null when inspected and are encountered only when a graph node is planned
      * @return non-null immutable complete compile artifacts containing the final graph,
-     *     publication and input roles, backend-neutral plans, diagnostics, and derivative
-     *     metadata; the result retains no provider or availability snapshot
+     *     publication and input roles including typed caller identities, backend-neutral plans,
+     *     diagnostics, and derivative metadata; the result retains no Tensor, provider, or
+     *     availability snapshot
      * @throws NullPointerException if a required argument or inspected nested value is
      *     {@code null}
      * @throws IllegalArgumentException if graph compilation, publication, planning composition,

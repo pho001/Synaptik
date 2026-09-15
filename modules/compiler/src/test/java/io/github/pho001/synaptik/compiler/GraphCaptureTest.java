@@ -84,10 +84,27 @@ final class GraphCaptureTest {
                 () -> assertEquals(ids(0, 1, 3), captured.graph().inputs()),
                 () -> assertSame(splat, captured.constants().get(new ValueId(1))),
                 () -> assertEquals(ids(0, 3), captured.bindableInputs()),
+                () -> assertEquals(
+                        Map.of(new ValueId(0), bindableFirst.id(),
+                                new ValueId(3), equalButDistinct.id()),
+                        captured.bindableTensorIds()),
                 () -> assertEquals(1, captured.constants().size()),
                 () -> assertEquals(GraphCapture.capture(List.of(output)),
                         GraphCapture.capture(List.of(output),
                                 CompileTimeConstantGraph.Ingress.empty()).graph()));
+    }
+
+    @Test
+    void coalescesRepeatedExactLeavesButKeepsEqualDescriptorLeavesDistinct() {
+        Tensor first = tensor(DataType.FLOAT32, Shape.of(2), false);
+        Tensor second = tensor(DataType.FLOAT32, Shape.of(2), false);
+        CompileTimeConstantGraph captured = GraphCapture.capture(
+                List.of(first.add(first).add(second)),
+                CompileTimeConstantGraph.Ingress.empty());
+
+        assertEquals(ids(0, 2), captured.graph().inputs());
+        assertEquals(Map.of(new ValueId(0), first.id(), new ValueId(2), second.id()),
+                captured.bindableTensorIds());
     }
 
     @Test

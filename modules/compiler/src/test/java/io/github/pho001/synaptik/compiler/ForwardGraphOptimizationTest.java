@@ -29,6 +29,7 @@ import io.github.pho001.synaptik.model.operation.layout.TargetShapeAttrs;
 import io.github.pho001.synaptik.model.shape.DynamicDimension;
 import io.github.pho001.synaptik.model.shape.Shape;
 import io.github.pho001.synaptik.model.tensor.TensorDescriptor;
+import io.github.pho001.synaptik.model.tensor.TensorId;
 import java.io.IOException;
 import java.lang.reflect.Modifier;
 import java.nio.file.Files;
@@ -95,7 +96,10 @@ final class ForwardGraphOptimizationTest {
                 List.of(inputId),
                 List.of(outputId),
                 Map.of(nodeId, GraphPhase.FORWARD));
-        ValidatedGraph incoming = CapturedGraphInference.inferAndValidate(graph);
+        TensorId caller = new TensorId(90);
+        ValidatedGraph incoming = CapturedGraphInference.inferAndValidate(
+                new CompileTimeConstantGraph(
+                        graph, Map.of(), Map.of(inputId, caller)));
 
         ValidatedGraph result = ForwardGraphOptimization.optimize(
                 incoming, GraphOptimizationConfig.disabled());
@@ -113,6 +117,8 @@ final class ForwardGraphOptimizationTest {
                         .map(DeferredGraphConstraint::nodeId).toList()),
                 () -> assertEquals(List.of(new NodeId(0)), result.constraints().stream()
                         .map(DeferredGraphConstraint::nodeId).toList()),
+                () -> assertEquals(Map.of(new ValueId(0), caller),
+                        result.constantGraph().bindableTensorIds()),
                 () -> assertNotSame(incoming.constraints(), result.constraints()),
                 () -> assertThrows(UnsupportedOperationException.class,
                         () -> result.constraints().clear()));
@@ -189,7 +195,10 @@ final class ForwardGraphOptimizationTest {
                 Map.of(
                         new NodeId(0), GraphPhase.BACKWARD,
                         new NodeId(1), GraphPhase.FORWARD));
-        ValidatedGraph incoming = CapturedGraphInference.inferAndValidate(graph);
+        TensorId caller = new TensorId(91);
+        ValidatedGraph incoming = CapturedGraphInference.inferAndValidate(
+                new CompileTimeConstantGraph(
+                        graph, Map.of(), Map.of(new ValueId(0), caller)));
 
         ValidatedGraph disabled = ForwardGraphOptimization.optimize(
                 incoming, GraphOptimizationConfig.disabled());
@@ -226,7 +235,10 @@ final class ForwardGraphOptimizationTest {
                 Map.of(
                         new NodeId(0), GraphPhase.FORWARD,
                         new NodeId(1), GraphPhase.FORWARD));
-        ValidatedGraph incoming = CapturedGraphInference.inferAndValidate(graph);
+        TensorId rewriteCaller = new TensorId(92);
+        ValidatedGraph incoming = CapturedGraphInference.inferAndValidate(
+                new CompileTimeConstantGraph(
+                        graph, Map.of(), Map.of(new ValueId(0), rewriteCaller)));
 
         ValidatedGraph disabled = ForwardGraphOptimization.optimize(
                 incoming, GraphOptimizationConfig.disabled());
@@ -239,7 +251,11 @@ final class ForwardGraphOptimizationTest {
                 () -> assertEquals(1, standard.graph().nodes().size()),
                 () -> assertSame(output, standard.graph().nodes().getFirst().operation()),
                 () -> assertEquals(List.of(new ValueId(0)),
-                        standard.graph().nodes().getFirst().inputs()));
+                        standard.graph().nodes().getFirst().inputs()),
+                () -> assertEquals(Map.of(new ValueId(0), rewriteCaller),
+                        disabled.constantGraph().bindableTensorIds()),
+                () -> assertEquals(Map.of(new ValueId(0), rewriteCaller),
+                        standard.constantGraph().bindableTensorIds()));
     }
 
     @Test

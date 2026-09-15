@@ -2224,9 +2224,41 @@ compiler boundary, bindability is derived from the ordered `CompiledGraphModel.i
 inputs absent from the immutable compile-time constant sidecar are bindable, while inputs with
 logical-splat facts are fixed [compile-time constant sources](#compile-time-constant-source).
 
-The classification is logical and immutable for that candidate graph. It does not read Tensor
-storage, bind a value now, allocate a buffer, define a public input API, or implement runtime
-binding. Sidecar-aware dead-code elimination preserves every bindable input even when unused.
+For complete compilation, `CompileConstantPlan.bindableInputBindings()` exposes one
+[bindable input binding](#bindable-input-binding) for every final bindable input in graph-input
+order. The existing `bindableInputs()` method remains the ordered `ValueId` projection. The
+classification is logical and immutable for that candidate graph. It does not read Tensor
+storage, bind a value now, allocate a buffer, define an ordinary public input API, or implement
+runtime binding. Sidecar-aware dead-code elimination preserves every bindable input and its
+identity association even when unused.
+
+### Bindable input binding
+
+The current public `CompileConstantPlan.BindableInput(TensorId, ValueId)` association between one
+logical caller Tensor identity and its exact final [bindable input](#bindable-input). Complete
+compilation emits these immutable entries in final graph-input order. Repeated occurrences of the
+same exact leaf share one entry, while distinct leaves remain distinct even when their descriptors
+are equal. Compiler-generated and explicitly supplied logical constants have no bindable entry.
+
+The entry contains neither a Tensor nor a descriptor, provenance, label, host storage, runtime
+coordinate, or backend representation. Its `ValueId` selects the final graph value whose
+descriptor the current ordinary Engine binding layer inspects. A standalone entry validates its two
+identities but proves graph membership and ordering only inside a validated
+[`CompileArtifacts`](#compile-artifacts) aggregate. The association does not itself bind a value
+or make an artifact executable.
+
+### Caller-input association snapshot
+
+The ordinary Engine run's one-time capture of each required Tensor's current borrowed
+`HostTensorStorage` reference after complete logical `TensorId` and descriptor validation. Inputs
+may arrive in arbitrary caller order; Engine reads associations once in final Compiler binding
+order and borrows a fresh CPU wrapper for every logical input. Replacing or clearing a Tensor's
+association afterward cannot redirect that run.
+
+The snapshot is not atomic across the input set, does not copy or pin bytes, and does not transfer
+storage or arena ownership. The caller must keep every captured storage scope alive, accessible
+where used, and free from conflicting mutation until the Engine `RunResult` closes, including the
+interval after synchronous `run(...)` returns.
 
 ### Cast expression
 
@@ -2329,7 +2361,8 @@ of maximal backend-owned partitions, the derived `LogicalMemoryPlan`, and exact 
 
 The constructor cross-validates graph identity, mode and phase roles, maximal graph-order
 partitioning, logical memory, complete graph-input source roles, constant type and gradient
-eligibility, and diagnostic node membership. Compile artifacts are a recipe for later prepare
+eligibility, typed bindable-input identity/order, and diagnostic node membership. Compile
+artifacts are a recipe for later prepare
 work, not executable state. They contain no provider, availability snapshot, selected device,
 physical buffer, concrete route or kernel, transfer, schedule, executable, runtime residency, or
 mutable run state. The public integration port produces this artifact without exposing explicit
@@ -2340,7 +2373,11 @@ constant ingress; it does not prepare or execute the artifact and is not an Engi
 The current compiler-owned output-only classification of every final graph input as either a
 [bindable input](#bindable-input) or one exact
 [compile-time constant source](#compile-time-constant-source). `CompileConstantPlan` snapshots
-both ordered role lists while retaining exact immutable element references.
+both ordered role lists while retaining exact immutable element references. Its
+`bindableInputBindings()` list contains one
+[`BindableInput(TensorId, ValueId)`](#bindable-input-binding) per caller-bindable input in final
+graph-input order. The existing `bindableInputs()` list is the immutable ordered `ValueId`
+projection of that typed view.
 `ConstantSource(ValueId, ScalarValue)` carries the exact input identity and exact typed scalar
 repeated at every logical coordinate. It is not a Tensor, Shape, dense payload, storage object,
 materialization instruction, backend value, or physical allocation.
@@ -2436,9 +2473,15 @@ The implemented immutable compile-time graph representation. `CompiledGraphModel
 `ValueId` boundaries, and an exact `NodeId`-to-[`GraphPhase`](#graph-phase) mapping. Construction
 validates structural closure, producer rules, topology, and phase coverage and then stores
 immutable collection snapshots without derived indexes. It performs no graph capture, compiler
-transformation, planning, preparation, or execution. The planned public engine facade named
-`CompiledGraph` will expose compiled artifacts and lifecycle orchestration; it is not the graph
-model. See the [Compile API](api/compile-api.md#current-model-contracts).
+transformation, planning, preparation, or execution.
+
+The current ordinary Engine facade named
+`io.github.pho001.synaptik.engine.CompiledGraph` is a different final type. It is an immutable
+owner-bound handle that exposes only final caller-input `TensorId` and descriptor metadata. It
+privately retains the compile recipe needed for preparation but exposes no graph-local identity,
+partition, diagnostic, storage, or execution authority. It has no close lifecycle, and its
+metadata remains readable after Engine closure. See the
+[Compile API](api/compile-api.md#current-model-contracts).
 
 ### Concrete backend
 
@@ -4740,7 +4783,7 @@ Validation covers exact plan identity, caller-input order, initialized compile c
 executable coverage and order, representation coordinates, and forward-then-gradient publication
 occurrences. The operation invokes no creator, allocates no physical resource, executes no work,
 discovers no backend, and retains no collaborator. Concrete backend-facing contexts contain no
-Compiler aggregate; future Engine composition explicitly supplies the collaborators.
+Compiler aggregate; current Engine composition explicitly supplies the collaborators.
 
 ### Prepared execution / `PreparedExecution`
 
@@ -4756,6 +4799,13 @@ its current components are immutable; every later active logical run still requi
 isolated mutable `RunState`. Future persistent prepared resources require an explicit ownership
 and failure-lifecycle contract rather than an empty lifecycle on this record. See the
 [Runtime API](api/runtime-api.md#current-prepared-execution).
+
+The ordinary Engine also exposes a distinct final
+`io.github.pho001.synaptik.engine.PreparedExecution` facade. It is an owner-bound immutable handle,
+not the Runtime record. Its only public accessor returns the exact originating Engine
+`CompiledGraph`; inward schedule, memory, slot, executable, and representation contracts remain
+private. It has no close lifecycle, and its metadata remains readable after Engine closure even
+though it cannot then start a run.
 
 ### Prepared executable / `PreparedExecutable`
 
@@ -5007,6 +5057,20 @@ order. It proves graph membership and boundary order only. It contains no public
 policy, alias/copy decision, Tensor gradient state, storage, backend behavior, preparation, or
 runtime publication.
 
+### Publication occurrence
+
+One ordered logical result role retained independently of the physical representation it selects.
+The ordinary Engine exposes a fresh `RunResult.Publication` object for every occurrence: requested
+forward outputs first, then first-order gradient targets. Forward occurrences carry the requested
+output `TensorId`; gradient occurrences carry the requested target `TensorId`, derivative order
+one, the target-list index, and the final gradient descriptor.
+
+Two occurrences remain distinct when repeated gradient values or a forward/gradient alias select
+one Runtime representation. Their list positions, Tensor identities, and Java object identities
+do not prove separate storage, while shared inward representation identity is not exposed. An
+occurrence has metadata and result-lifecycle observation only; it has no value accessor,
+independent close operation, Tensor gradient field, or training behavior.
+
 ### Residency
 
 Runtime knowledge that an explicitly prepared physical representation exists and is bound to one
@@ -5064,8 +5128,16 @@ result without changing any individual `RunResourceOwnership`. Constructor failu
 publication transfers nothing and closes nothing. `close()` delegates to the state's idempotent,
 ownership-sensitive reverse cleanup; borrowed representations remain caller-owned for the entire
 lease. The result exposes no representation, storage, Tensor, value, or `RunState` accessor and is
-not thread-safe. Public output access remains planned; `PreparedExecutionRunner` currently
+not thread-safe. Runtime representation/value access remains absent; `PreparedExecutionRunner` currently
 assembles this lease after successful traversal.
+
+The ordinary Engine exposes a distinct final
+`io.github.pho001.synaptik.engine.RunResult` facade over that inward lease. It adds an immutable
+forward-then-gradient list of logical [publication occurrences](#publication-occurrence) and owns
+the Engine-created non-owning input wrappers. Closing it releases the Runtime lease and those
+wrappers but never caller storage. Engine closure closes still-open results. Its count,
+publication list, and immutable occurrence metadata remain readable after closure, but no
+numerical value, storage, representation, Tensor, or inward state is exposed.
 
 ### Run state / `RunState`
 

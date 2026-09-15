@@ -34,7 +34,7 @@ final class CompileArtifactsTest {
                 List.of(new ForwardPublicationBinding(new TensorId(7), input)),
                 List.of());
         CompileConstantPlan constants =
-                new CompileConstantPlan(List.of(input), List.of());
+                new CompileConstantPlan(List.of(binding(8, input)), List.of());
         CompileDiagnostics diagnostics = new CompileDiagnostics(List.of());
         LogicalMemoryPlan memory = LogicalMemoryPlanning.plan(graph, List.of());
         List<io.github.pho001.synaptik.planning.partition.PlannedPartition> partitions =
@@ -98,7 +98,7 @@ final class CompileArtifactsTest {
                                 List.of(),
                                 memory,
                                 wrongPublication,
-                                new CompileConstantPlan(List.of(input), List.of()),
+                                new CompileConstantPlan(List.of(binding(8, input)), List.of()),
                                 diagnostics,
                                 DerivativeGraphMetadata.forwardOnly(graph)))
                         .getMessage());
@@ -117,7 +117,7 @@ final class CompileArtifactsTest {
                                 List.of(),
                                 new LogicalMemoryPlan(List.of()),
                                 publication,
-                                new CompileConstantPlan(List.of(input), List.of()),
+                                new CompileConstantPlan(List.of(binding(8, input)), List.of()),
                                 diagnostics,
                                 DerivativeGraphMetadata.forwardOnly(graph)))
                         .getMessage());
@@ -201,6 +201,10 @@ final class CompileArtifactsTest {
                 List.of(input),
                 List.of(input),
                 Map.of());
+    }
+
+    private static CompileConstantPlan.BindableInput binding(long tensorId, ValueId valueId) {
+        return new CompileConstantPlan.BindableInput(new TensorId(tensorId), valueId);
     }
 
     private static TensorDescriptor descriptor(

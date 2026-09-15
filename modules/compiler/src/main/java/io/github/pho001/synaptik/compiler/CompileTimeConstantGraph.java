@@ -6,6 +6,7 @@ import io.github.pho001.synaptik.model.graph.GraphValue;
 import io.github.pho001.synaptik.model.graph.ValueId;
 import io.github.pho001.synaptik.model.tensor.Tensor;
 import io.github.pho001.synaptik.model.tensor.TensorDescriptor;
+import io.github.pho001.synaptik.model.tensor.TensorId;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -24,23 +25,30 @@ import java.util.Objects;
  *
  * @param graph non-null immutable structural graph retained by exact reference
  * @param constants non-null mapping from graph-input IDs to exact splats, snapshotted on creation
+ * @param bindableTensorIds non-null partial mapping from non-constant graph-input IDs to caller
+ *     Tensor identities, snapshotted on creation with unique values
  */
 record CompileTimeConstantGraph(
         CompiledGraphModel graph,
-        Map<ValueId, CompileTimeConstantGraph.Splat> constants) {
+        Map<ValueId, CompileTimeConstantGraph.Splat> constants,
+        Map<ValueId, TensorId> bindableTensorIds) {
     /**
      * Creates immutable logical constant state and validates every source role.
      *
      * @param graph non-null immutable structural graph retained by exact reference
      * @param constants non-null source-fact map; keys and values must be non-null, each key must
      *     name a graph input, and every splat type must equal a non-gradient input descriptor type
-     * @throws NullPointerException if {@code graph}, {@code constants}, a key, or a value is null
+     * @param bindableTensorIds non-null partial caller-identity map; keys and values must be
+     *     non-null, keys must name non-constant graph inputs, and Tensor identities must be unique
+     * @throws NullPointerException if {@code graph}, either map, a key, or a value is null
      * @throws IllegalArgumentException if a fact names a non-input value, disagrees with its input
-     *     descriptor type, or fixes a gradient-eligible input
+     *     descriptor type, fixes a gradient-eligible input, or if bindable metadata names a
+     *     non-input or constant input or repeats a Tensor identity
      */
     CompileTimeConstantGraph {
         Objects.requireNonNull(graph, "graph");
         Objects.requireNonNull(constants, "constants");
+        Objects.requireNonNull(bindableTensorIds, "bindableTensorIds");
 
         List<Map.Entry<ValueId, Splat>> orderedEntries = new ArrayList<>(constants.entrySet());
         orderedEntries.sort(Comparator.comparing(
@@ -74,7 +82,47 @@ record CompileTimeConstantGraph(
                         "constant " + entry.getKey() + " is not a graph input");
             }
         }
+        List<Map.Entry<ValueId, TensorId>> orderedBindings =
+                new ArrayList<>(bindableTensorIds.entrySet());
+        orderedBindings.sort(Comparator.comparing(
+                Map.Entry<ValueId, TensorId>::getKey,
+                Comparator.nullsFirst(Comparator.comparingLong(ValueId::value))));
+        java.util.HashSet<TensorId> tensorIds = new java.util.HashSet<>();
+        for (Map.Entry<ValueId, TensorId> entry : orderedBindings) {
+            ValueId valueId = Objects.requireNonNull(
+                    entry.getKey(), "bindableTensorIds contains null key");
+            TensorId tensorId = Objects.requireNonNull(
+                    entry.getValue(), "bindableTensorIds[" + valueId + "]");
+            if (!inputDescriptors.containsKey(valueId)) {
+                throw new IllegalArgumentException(
+                        "bindable Tensor identity " + valueId + " is not a graph input");
+            }
+            if (constants.containsKey(valueId)) {
+                throw new IllegalArgumentException(
+                        "bindable Tensor identity " + valueId + " overlaps a constant input");
+            }
+            if (!tensorIds.add(tensorId)) {
+                throw new IllegalArgumentException(
+                        "bindableTensorIds[" + valueId + "] repeats " + tensorId);
+            }
+        }
         constants = Map.copyOf(constants);
+        bindableTensorIds = Map.copyOf(bindableTensorIds);
+    }
+
+    /**
+     * Preserves same-package graph-and-constant fixtures without caller identity metadata.
+     *
+     * @param graph non-null immutable structural graph retained by exact reference
+     * @param constants non-null source-fact map validated and snapshotted by the canonical
+     *     constructor
+     * @throws NullPointerException if either argument or a contained fact is null
+     * @throws IllegalArgumentException if a constant fact is invalid for the graph
+     */
+    CompileTimeConstantGraph(
+            CompiledGraphModel graph,
+            Map<ValueId, CompileTimeConstantGraph.Splat> constants) {
+        this(graph, constants, Map.of());
     }
 
     /**
@@ -128,6 +176,7 @@ record CompileTimeConstantGraph(
         Map<ValueId, TensorDescriptor> currentDescriptors = inputDescriptors(graph);
         Map<ValueId, TensorDescriptor> replacementDescriptors = inputDescriptors(replacement);
         Map<ValueId, Splat> remapped = new HashMap<>();
+        Map<ValueId, TensorId> remappedTensorIds = new HashMap<>();
         for (int index = 0; index < graph.inputs().size(); index++) {
             ValueId currentInput = graph.inputs().get(index);
             ValueId replacementInput = replacement.inputs().get(index);
@@ -141,8 +190,12 @@ record CompileTimeConstantGraph(
             if (splat != null) {
                 remapped.put(replacementInput, splat);
             }
+            TensorId tensorId = bindableTensorIds.get(currentInput);
+            if (tensorId != null) {
+                remappedTensorIds.put(replacementInput, tensorId);
+            }
         }
-        return new CompileTimeConstantGraph(replacement, remapped);
+        return new CompileTimeConstantGraph(replacement, remapped, remappedTensorIds);
     }
 
     private static Map<ValueId, TensorDescriptor> inputDescriptors(CompiledGraphModel graph) {

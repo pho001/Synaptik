@@ -1,6 +1,8 @@
 package io.github.pho001.synaptik.engine;
 
 import io.github.pho001.synaptik.runtime.run.RunResult;
+import io.github.pho001.synaptik.runtime.resource.BufferRepresentation;
+import java.util.List;
 import java.util.Objects;
 
 /**
@@ -8,13 +10,15 @@ import java.util.Objects;
  *
  * <p>The immutable publication count remains available after closure, but published values and
  * representations are deliberately inaccessible. Closing is thread-safe and idempotent,
- * delegates to the exact Runtime result at most once, and unregisters this result from its Engine
- * even when Runtime cleanup fails. The owning Engine also closes an open result during Engine
- * shutdown.</p>
+ * delegates to the exact Runtime result at most once, then closes any ordinary-run wrappers in
+ * reverse borrow order, and unregisters this result from its Engine even when cleanup fails.
+ * Wrapper cleanup never closes caller-owned host storage. The owning Engine also closes an open
+ * result during Engine shutdown.</p>
  */
 public final class AdvancedRunResult implements AutoCloseable {
     private final AdvancedEngine owner;
     private final RunResult delegate;
+    private final List<BufferRepresentation> ownedBorrowedInputs;
     private final int resultCount;
     private boolean closed;
     private boolean cleanupComplete;
@@ -28,8 +32,30 @@ public final class AdvancedRunResult implements AutoCloseable {
      * @throws NullPointerException if either argument is null
      */
     AdvancedRunResult(AdvancedEngine owner, RunResult delegate) {
+        this(owner, delegate, List.of());
+    }
+
+    /**
+     * Creates one owner-bound result and takes ownership of ordinary-created borrow wrappers.
+     *
+     * @param owner non-null exact Engine responsible for result cleanup
+     * @param delegate non-null exact Runtime result whose ownership transfers
+     * @param ownedBorrowedInputs non-null borrow-order snapshot of non-null wrappers whose wrapper
+     *     ownership transfers; their caller-owned storage does not transfer
+     * @throws NullPointerException if an argument or wrapper is {@code null}
+     */
+    AdvancedRunResult(
+            AdvancedEngine owner,
+            RunResult delegate,
+            List<BufferRepresentation> ownedBorrowedInputs) {
         this.owner = Objects.requireNonNull(owner, "owner");
         this.delegate = Objects.requireNonNull(delegate, "delegate");
+        Objects.requireNonNull(ownedBorrowedInputs, "ownedBorrowedInputs");
+        for (int index = 0; index < ownedBorrowedInputs.size(); index++) {
+            Objects.requireNonNull(
+                    ownedBorrowedInputs.get(index), "ownedBorrowedInputs[" + index + "]");
+        }
+        this.ownedBorrowedInputs = List.copyOf(ownedBorrowedInputs);
         resultCount = delegate.resultCount();
     }
 
@@ -53,7 +79,8 @@ public final class AdvancedRunResult implements AutoCloseable {
     }
 
     /**
-     * Closes the exact Runtime result once and always unregisters this wrapper from its Engine.
+     * Closes the exact Runtime result, then every owned ordinary borrow wrapper in reverse order,
+     * once, and always unregisters this wrapper from its Engine.
      * Concurrent and repeated calls wait for the first cleanup attempt and then return or rethrow
      * its exact retained failure without invoking Runtime cleanup again. Waiting is
      * uninterruptible; an interrupted waiting thread has its interrupt status restored before
@@ -84,9 +111,10 @@ public final class AdvancedRunResult implements AutoCloseable {
         }
         Throwable failure = null;
         try {
-            delegate.close();
-        } catch (RuntimeException | Error cleanupFailure) {
-            failure = cleanupFailure;
+            failure = closeAndAccumulate(delegate, failure);
+            for (int index = ownedBorrowedInputs.size() - 1; index >= 0; index--) {
+                failure = closeAndAccumulate(ownedBorrowedInputs.get(index), failure);
+            }
         } finally {
             owner.unregister(this);
             synchronized (this) {
@@ -96,6 +124,22 @@ public final class AdvancedRunResult implements AutoCloseable {
             }
         }
         rethrow(failure);
+    }
+
+    private static Throwable closeAndAccumulate(AutoCloseable closeable, Throwable first) {
+        try {
+            closeable.close();
+        } catch (RuntimeException | Error next) {
+            if (first == null) {
+                return next;
+            }
+            if (next != first) {
+                first.addSuppressed(next);
+            }
+        } catch (Exception impossible) {
+            throw new AssertionError("close contract declared an unexpected checked failure", impossible);
+        }
+        return first;
     }
 
     private static void rethrow(Throwable failure) {

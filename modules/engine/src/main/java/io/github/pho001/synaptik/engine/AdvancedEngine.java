@@ -10,11 +10,15 @@ import io.github.pho001.synaptik.config.compile.GraphOptimizationConfig;
 import io.github.pho001.synaptik.config.compile.PartitionScoringConfig;
 import io.github.pho001.synaptik.model.storage.HostTensorStorage;
 import io.github.pho001.synaptik.model.tensor.Tensor;
+import io.github.pho001.synaptik.model.tensor.TensorId;
 import io.github.pho001.synaptik.runtime.resource.BufferRepresentation;
 import io.github.pho001.synaptik.runtime.run.PreparedExecutionRunner;
-import io.github.pho001.synaptik.runtime.run.RunResult;
 import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.IdentityHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 
@@ -26,7 +30,9 @@ import java.util.Optional;
  * an opaque owner-bound handle, preparation produces an opaque reusable owner-bound handle, and
  * each run creates isolated mutable Runtime state behind a lifecycle-only result. Engine closure
  * closes successful open results in reverse run order before closing the adapter. Caller storage
- * and borrowed input representations remain caller-owned.</p>
+ * and advanced caller-created borrowed input representations remain caller-owned. Ordinary runs
+ * reuse this lifecycle owner privately but transfer cleanup of their Engine-created non-owning
+ * wrappers to the registered result; the wrapped storage never transfers.</p>
  *
  * <p>Closure rejects new work, waits uninterruptibly for admitted calls while restoring the
  * waiting thread's interrupt status, attempts all cleanup, and retains the first unchecked
@@ -223,7 +229,7 @@ public final class AdvancedEngine implements AutoCloseable {
             AdvancedPreparedExecution preparedExecution,
             List<BufferRepresentation> callerInputs) {
         beginOperation();
-        RunResult delegate;
+        io.github.pho001.synaptik.runtime.run.RunResult delegate;
         try {
             Objects.requireNonNull(preparedExecution, "preparedExecution");
             Objects.requireNonNull(callerInputs, "callerInputs");
@@ -255,6 +261,193 @@ public final class AdvancedEngine implements AutoCloseable {
         }
         finishFailure();
         throw closed;
+    }
+
+    CompiledGraph compileOrdinary(Engine owner, List<Tensor> forwardOutputs) {
+        beginOperation();
+        CompiledGraph result;
+        try {
+            Objects.requireNonNull(owner, "owner");
+            List<Tensor> outputs = snapshotIdentityUnique(
+                    forwardOutputs, "forwardOutputs", true);
+            CompileArtifacts artifacts = GraphCompilationPort.compile(
+                    CompileMode.FORWARD_ONLY,
+                    outputs,
+                    Optional.empty(),
+                    GraphOptimizationConfig.standard(),
+                    BackendIntent.unconstrained(),
+                    PartitionScoringConfig.neutral(),
+                    composition.capabilityProviders(),
+                    composition.availabilitySnapshots());
+            result = new CompiledGraph(owner, artifacts);
+        } catch (RuntimeException | Error failure) {
+            finishFailure();
+            throw failure;
+        }
+        return finishHandle(result);
+    }
+
+    CompiledGraph compileOrdinary(
+            Engine owner,
+            List<Tensor> forwardOutputs,
+            List<Tensor> cotangentSeeds,
+            List<Tensor> targets) {
+        beginOperation();
+        CompiledGraph result;
+        try {
+            Objects.requireNonNull(owner, "owner");
+            List<Tensor> outputs = snapshotIdentityUnique(
+                    forwardOutputs, "forwardOutputs", true);
+            List<Tensor> seeds = snapshotElements(cotangentSeeds, "cotangentSeeds");
+            List<Tensor> targetSnapshot = snapshotIdentityUnique(targets, "targets", true);
+            if (seeds.size() != outputs.size()) {
+                throw new IllegalArgumentException(
+                        "cotangentSeeds size must equal forwardOutputs size");
+            }
+            var outputReferences = outputs.stream()
+                    .map(FunctionalGradientRequest.ForwardTensorReference::new)
+                    .map(reference -> (FunctionalGradientRequest.OutputReference) reference)
+                    .toList();
+            var seedOptionals = seeds.stream().map(Optional::of).toList();
+            var stage = new FunctionalGradientRequest.Stage(
+                    outputReferences,
+                    seedOptionals,
+                    targetSnapshot,
+                    false,
+                    FunctionalGradientRequest.DisconnectedPolicy.ERROR);
+            CompileArtifacts artifacts = GraphCompilationPort.compile(
+                    CompileMode.FORWARD_AND_BACKWARD,
+                    outputs,
+                    Optional.of(new FunctionalGradientRequest(List.of(stage))),
+                    GraphOptimizationConfig.standard(),
+                    BackendIntent.unconstrained(),
+                    PartitionScoringConfig.neutral(),
+                    composition.capabilityProviders(),
+                    composition.availabilitySnapshots());
+            result = new CompiledGraph(owner, artifacts);
+        } catch (RuntimeException | Error failure) {
+            finishFailure();
+            throw failure;
+        }
+        return finishHandle(result);
+    }
+
+    io.github.pho001.synaptik.engine.PreparedExecution prepareOrdinary(
+            Engine owner, CompiledGraph compiledGraph) {
+        beginOperation();
+        io.github.pho001.synaptik.engine.PreparedExecution result;
+        try {
+            Objects.requireNonNull(owner, "owner");
+            Objects.requireNonNull(compiledGraph, "compiledGraph");
+            requireOrdinaryOwner(owner, compiledGraph.owner());
+            result = new io.github.pho001.synaptik.engine.PreparedExecution(
+                    owner, compiledGraph, composition.prepare(compiledGraph.artifacts()));
+        } catch (RuntimeException | Error failure) {
+            finishFailure();
+            throw failure;
+        }
+        return finishHandle(result);
+    }
+
+    io.github.pho001.synaptik.engine.RunResult runOrdinary(
+            Engine owner,
+            io.github.pho001.synaptik.engine.PreparedExecution preparedExecution,
+            List<Tensor> inputs) {
+        beginOperation();
+        var borrowed = new ArrayList<BufferRepresentation>();
+        io.github.pho001.synaptik.runtime.run.RunResult inwardResult = null;
+        boolean ownershipTransferred = false;
+        try {
+            Objects.requireNonNull(owner, "owner");
+            Objects.requireNonNull(preparedExecution, "preparedExecution");
+            Objects.requireNonNull(inputs, "inputs");
+            requireOrdinaryOwner(owner, preparedExecution.owner());
+            List<Tensor> supplied = snapshotElements(inputs, "inputs");
+            List<CompiledGraph.Input> required = preparedExecution.compiledGraph().inputs();
+
+            Map<TensorId, CompiledGraph.Input> expected = new HashMap<>();
+            required.forEach(input -> expected.put(input.tensorId(), input));
+            Map<TensorId, Tensor> suppliedById = new HashMap<>();
+            for (Tensor tensor : supplied) {
+                TensorId id = tensor.id();
+                CompiledGraph.Input input = expected.get(id);
+                if (input == null) {
+                    throw new IllegalArgumentException("unexpected input " + id);
+                }
+                if (suppliedById.putIfAbsent(id, tensor) != null) {
+                    throw new IllegalArgumentException("duplicate input " + id);
+                }
+                if (!tensor.descriptor().equals(input.descriptor())) {
+                    throw new IllegalArgumentException("input descriptor does not match " + id);
+                }
+            }
+            if (suppliedById.size() != required.size()) {
+                throw new IllegalArgumentException(
+                        "input count must equal required input count: expected="
+                                + required.size() + ", actual=" + suppliedById.size());
+            }
+
+            var storages = new ArrayList<HostTensorStorage>(required.size());
+            for (CompiledGraph.Input input : required) {
+                Tensor tensor = suppliedById.get(input.tensorId());
+                if (tensor == null) {
+                    throw new IllegalArgumentException("missing input " + input.tensorId());
+                }
+                HostTensorStorage storage = tensor.hostStorage().orElseThrow(
+                        () -> new IllegalStateException(
+                                "input has no host storage: " + input.tensorId()));
+                storages.add(storage);
+            }
+            for (int index = 0; index < required.size(); index++) {
+                validateStorage(required.get(index), storages.get(index));
+            }
+            for (HostTensorStorage storage : storages) {
+                borrowed.add(composition.borrow(storage));
+            }
+
+            inwardResult = runner.run(preparedExecution.execution(), borrowed);
+            List<CompiledGraph.PublicationSpec> specifications =
+                    preparedExecution.compiledGraph().publicationSpecs();
+            if (inwardResult.resultCount() != specifications.size()) {
+                throw new IllegalStateException(
+                        "Runtime result count does not match publication count: expected="
+                                + specifications.size() + ", actual=" + inwardResult.resultCount());
+            }
+            AdvancedRunResult resultOwner = new AdvancedRunResult(this, inwardResult, borrowed);
+            io.github.pho001.synaptik.engine.RunResult result =
+                    new io.github.pho001.synaptik.engine.RunResult(resultOwner, specifications);
+            synchronized (lifecycleLock) {
+                if (lifecycle == Lifecycle.OPEN) {
+                    openResults.add(resultOwner);
+                    activeOperations--;
+                    lifecycleLock.notifyAll();
+                    ownershipTransferred = true;
+                    return result;
+                }
+            }
+            IllegalStateException closed = closedFailure();
+            try {
+                resultOwner.close();
+            } catch (RuntimeException | Error rollbackFailure) {
+                suppressDistinct(closed, rollbackFailure);
+            }
+            ownershipTransferred = true;
+            finishFailure();
+            throw closed;
+        } catch (RuntimeException | Error failure) {
+            if (!ownershipTransferred) {
+                if (inwardResult != null) {
+                    try {
+                        inwardResult.close();
+                    } catch (RuntimeException | Error cleanupFailure) {
+                        suppressDistinct(failure, cleanupFailure);
+                    }
+                }
+                closeBorrowedReverse(borrowed, failure);
+                finishFailure();
+            }
+            throw failure;
+        }
     }
 
     /**
@@ -369,6 +562,76 @@ public final class AdvancedEngine implements AutoCloseable {
     private void requireOwner(AdvancedEngine owner) {
         if (owner != this) {
             throw new IllegalArgumentException("handle belongs to another advanced engine");
+        }
+    }
+
+    private static void requireOrdinaryOwner(Engine expected, Engine actual) {
+        if (actual != expected) {
+            throw new IllegalArgumentException("handle belongs to another engine");
+        }
+    }
+
+    private static List<Tensor> snapshotElements(List<Tensor> values, String name) {
+        Objects.requireNonNull(values, name);
+        var snapshot = new ArrayList<Tensor>(values.size());
+        for (int index = 0; index < values.size(); index++) {
+            snapshot.add(Objects.requireNonNull(values.get(index), name + "[" + index + "]"));
+        }
+        return List.copyOf(snapshot);
+    }
+
+    private static List<Tensor> snapshotIdentityUnique(
+            List<Tensor> values, String name, boolean requireNonEmpty) {
+        List<Tensor> snapshot = snapshotElements(values, name);
+        if (requireNonEmpty && snapshot.isEmpty()) {
+            throw new IllegalArgumentException(name + " must not be empty");
+        }
+        IdentityHashMap<Tensor, Integer> positions = new IdentityHashMap<>();
+        for (int index = 0; index < snapshot.size(); index++) {
+            Integer first = positions.putIfAbsent(snapshot.get(index), index);
+            if (first != null) {
+                throw new IllegalArgumentException(
+                        name + "[" + index + "] duplicates " + name + "[" + first + "]");
+            }
+        }
+        return snapshot;
+    }
+
+    private static void validateStorage(
+            CompiledGraph.Input input, HostTensorStorage storage) {
+        TensorId id = input.tensorId();
+        if (storage.dataType() != input.descriptor().dataType()) {
+            throw new IllegalArgumentException("input storage data type does not match " + id);
+        }
+        input.descriptor().layout().ifPresent(layout -> {
+            if (storage.elementCapacity() < layout.referencedElementSpan()) {
+                throw new IllegalArgumentException(
+                        "input storage capacity is insufficient for " + id);
+            }
+        });
+        if (!storage.isAlive()) {
+            throw new IllegalStateException("input storage is not alive: " + id);
+        }
+        if (!storage.segment().isAccessibleBy(Thread.currentThread())) {
+            throw new IllegalStateException(
+                    "input storage is not accessible to current thread: " + id);
+        }
+    }
+
+    private static void closeBorrowedReverse(
+            List<BufferRepresentation> borrowed, Throwable primary) {
+        for (int index = borrowed.size() - 1; index >= 0; index--) {
+            try {
+                borrowed.get(index).close();
+            } catch (RuntimeException | Error cleanupFailure) {
+                suppressDistinct(primary, cleanupFailure);
+            }
+        }
+    }
+
+    private static void suppressDistinct(Throwable primary, Throwable next) {
+        if (next != primary) {
+            primary.addSuppressed(next);
         }
     }
 

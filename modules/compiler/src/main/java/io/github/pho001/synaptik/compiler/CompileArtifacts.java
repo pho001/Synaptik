@@ -7,6 +7,7 @@ import io.github.pho001.synaptik.model.graph.GraphValue;
 import io.github.pho001.synaptik.model.graph.NodeId;
 import io.github.pho001.synaptik.model.graph.ValueId;
 import io.github.pho001.synaptik.model.tensor.TensorDescriptor;
+import io.github.pho001.synaptik.model.tensor.TensorId;
 import io.github.pho001.synaptik.planning.memory.LogicalMemoryPlan;
 import io.github.pho001.synaptik.planning.memory.LogicalMemoryPlanning;
 import io.github.pho001.synaptik.planning.partition.PlannedPartition;
@@ -34,7 +35,8 @@ import java.util.Set;
  * @param partitions non-null exact maximal graph-order partition recipes; membership snapshotted
  * @param memory non-null logical-memory plan derived from this graph and partition list
  * @param publication non-null ordered publication bindings owning this exact graph reference
- * @param constants non-null complete graph-input source-role classification
+ * @param constants non-null complete graph-input source-role classification with exact caller
+ *     Tensor identities for bindable inputs
  * @param diagnostics non-null successful-compile deferred diagnostics
  * @param derivatives non-null derivative-order metadata owning this exact graph
  */
@@ -55,7 +57,8 @@ public record CompileArtifacts(
      * @param partitions non-null ordered exact maximal graph partitions
      * @param memory non-null logical-memory plan for the supplied graph and partitions
      * @param publication non-null publication plan retaining the exact graph reference
-     * @param constants non-null complete graph-input source-role classification
+     * @param constants non-null complete graph-input source-role classification whose typed and
+     *     compatibility bindable views must agree
      * @param diagnostics non-null successful-compile deferred diagnostics
      * @param derivatives non-null derivative-order metadata for the exact graph
      * @throws NullPointerException if a component or partition element is {@code null}
@@ -135,6 +138,24 @@ public record CompileArtifacts(
 
         int bindableIndex = 0;
         int constantIndex = 0;
+        if (constants.bindableInputBindings().size() != constants.bindableInputs().size()) {
+            throw new IllegalArgumentException(
+                    "bindable input bindings and legacy projection differ in size");
+        }
+        Set<TensorId> tensorIds = new HashSet<>();
+        for (int index = 0; index < constants.bindableInputBindings().size(); index++) {
+            CompileConstantPlan.BindableInput binding =
+                    constants.bindableInputBindings().get(index);
+            if (!binding.valueId().equals(constants.bindableInputs().get(index))) {
+                throw new IllegalArgumentException(
+                        "bindableInputBindings[" + index
+                                + "] does not match bindableInputs projection");
+            }
+            if (!tensorIds.add(binding.tensorId())) {
+                throw new IllegalArgumentException(
+                        "bindableInputBindings[" + index + "] repeats a TensorId");
+            }
+        }
         for (int inputIndex = 0; inputIndex < graph.inputs().size(); inputIndex++) {
             ValueId input = graph.inputs().get(inputIndex);
             if (bindableIndex < constants.bindableInputs().size()

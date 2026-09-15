@@ -16,6 +16,7 @@ import io.github.pho001.synaptik.model.operation.elementwise.logical.BooleanLogi
 import io.github.pho001.synaptik.model.operation.elementwise.scalar.ScalarElementwiseKind;
 import io.github.pho001.synaptik.model.operation.elementwise.scalar.ScalarValueAttrs;
 import io.github.pho001.synaptik.model.tensor.TensorDescriptor;
+import io.github.pho001.synaptik.model.tensor.TensorId;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -50,8 +51,9 @@ final class ForwardConstantFolding {
      * @param constantGraph non-null successfully validated immutable graph and source facts; it is
      *     not mutated
      * @return the exact {@code constantGraph} when no occurrence folds; otherwise a non-null
-     *     immutable result with original inputs first, synthetic constants in fold order, dense
-     *     IDs, and retained boundaries, operations, descriptors, and phases
+     *     immutable result with original inputs first, their caller identities remapped exactly,
+     *     synthetic constants without caller identity in fold order, dense IDs, and retained
+     *     boundaries, operations, descriptors, and phases
      * @throws NullPointerException if {@code constantGraph} is null
      */
     static CompileTimeConstantGraph fold(CompileTimeConstantGraph constantGraph) {
@@ -295,6 +297,7 @@ final class ForwardConstantFolding {
         CompiledGraphModel graph = source.graph();
         Map<ValueId, ValueId> remapping = new HashMap<>();
         Map<ValueId, CompileTimeConstantGraph.Splat> constants = new HashMap<>();
+        Map<ValueId, TensorId> bindableTensorIds = new HashMap<>();
         List<GraphValue> values = new ArrayList<>(graph.values().size());
         List<ValueId> inputs = new ArrayList<>(graph.inputs().size() + folded.size());
         long nextValueId = 0;
@@ -307,6 +310,10 @@ final class ForwardConstantFolding {
             CompileTimeConstantGraph.Splat splat = source.constants().get(input);
             if (splat != null) {
                 constants.put(rebuilt, splat);
+            }
+            TensorId tensorId = source.bindableTensorIds().get(input);
+            if (tensorId != null) {
+                bindableTensorIds.put(rebuilt, tensorId);
             }
         }
         for (CompiledNode node : graph.nodes()) {
@@ -349,7 +356,7 @@ final class ForwardConstantFolding {
         CompiledGraphModel rebuilt = new CompiledGraphModel(
                 values, nodes, inputs, remap(graph.outputs(), remapping), phases);
         return new Rebuild(
-                new CompileTimeConstantGraph(rebuilt, constants),
+                new CompileTimeConstantGraph(rebuilt, constants, bindableTensorIds),
                 List.copyOf(sourceNodeIds));
     }
 

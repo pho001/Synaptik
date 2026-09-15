@@ -118,6 +118,14 @@ final class GraphCompilerTest {
         assertTrue(artifacts.publication().gradientBindings().isEmpty());
         assertEquals(artifacts.graph().values().size(), artifacts.memory().requirements().size());
         assertTrue(artifacts.diagnostics().deferredConstraints().isEmpty());
+        assertEquals(
+                List.of(new CompileConstantPlan.BindableInput(
+                        input.id(), artifacts.graph().inputs().getFirst())),
+                artifacts.constants().bindableInputBindings());
+        assertEquals(artifacts.constants().bindableInputs(),
+                artifacts.constants().bindableInputBindings().stream()
+                        .map(CompileConstantPlan.BindableInput::valueId)
+                        .toList());
 
         Map<ValueId, GraphValue> values = artifacts.graph().values().stream()
                 .collect(java.util.stream.Collectors.toMap(GraphValue::id, value -> value));
@@ -162,6 +170,8 @@ final class GraphCompilerTest {
         assertTrue(artifacts.partitions().isEmpty());
         assertEquals(1, artifacts.memory().requirements().size());
         assertEquals(1, artifacts.constants().bindableInputs().size());
+        assertEquals(output.id(),
+                artifacts.constants().bindableInputBindings().getFirst().tensorId());
     }
 
     @Test
@@ -254,6 +264,7 @@ final class GraphCompilerTest {
                 List.of());
 
         assertTrue(constantArtifacts.constants().bindableInputs().isEmpty());
+        assertTrue(constantArtifacts.constants().bindableInputBindings().isEmpty());
         assertSame(
                 value,
                 constantArtifacts.constants().constantSources().getFirst().value());
@@ -281,6 +292,99 @@ final class GraphCompilerTest {
                 target.id(),
                 backwardArtifacts.publication().gradientBindings().getFirst().target());
         assertTrue(backwardArtifacts.graph().nodePhases().containsValue(GraphPhase.BACKWARD));
+        assertEquals(target.id(),
+                backwardArtifacts.constants().bindableInputBindings().getFirst().tensorId());
+    }
+
+    @Test
+    void completeCompilePreservesRepeatedAndEqualDescriptorCallerIdentitiesInInputOrder() {
+        Tensor first = tensor();
+        Tensor equalDescriptorButDistinct = tensor();
+        Tensor output = first.add(first).add(equalDescriptorButDistinct);
+        BackendId backendId = new BackendId("cpu");
+
+        CompileArtifacts artifacts = GraphCompiler.compile(
+                CompileMode.FORWARD_ONLY,
+                List.of(output),
+                Optional.empty(),
+                CompileTimeConstantGraph.Ingress.empty(),
+                GraphOptimizationConfig.standard(),
+                BackendIntent.unconstrained(),
+                PartitionScoringConfig.neutral(),
+                List.of(provider(backendId, new ArrayList<>(), true)),
+                List.of(snapshot(backendId)));
+
+        assertEquals(List.of(first.id(), equalDescriptorButDistinct.id()),
+                artifacts.constants().bindableInputBindings().stream()
+                        .map(CompileConstantPlan.BindableInput::tensorId)
+                        .toList());
+        assertEquals(artifacts.constants().bindableInputs(),
+                artifacts.constants().bindableInputBindings().stream()
+                        .map(CompileConstantPlan.BindableInput::valueId)
+                        .toList());
+    }
+
+    @Test
+    void completeCompileClassifiesExplicitAndGeneratedSeedsAcrossBothDerivativeStages() {
+        Tensor target = tensor();
+        Tensor objective = target.mul(target).sum();
+        Tensor explicitSeed = TensorFactory.create(new TensorDescriptor(
+                DataType.FLOAT32, Shape.scalar(), Optional.empty(), false));
+        Tensor secondSeed = TensorFactory.create(new TensorDescriptor(
+                DataType.FLOAT32, Shape.of(2), Optional.empty(), false));
+        FunctionalGradientRequest.Stage first = new FunctionalGradientRequest.Stage(
+                List.of(new FunctionalGradientRequest.ForwardTensorReference(objective)),
+                List.of(Optional.of(explicitSeed)),
+                List.of(target),
+                true,
+                FunctionalGradientRequest.DisconnectedPolicy.ERROR);
+        FunctionalGradientRequest.Stage second = new FunctionalGradientRequest.Stage(
+                List.of(new FunctionalGradientRequest.FirstStageGradientReference(0)),
+                List.of(Optional.of(secondSeed)),
+                List.of(target),
+                false,
+                FunctionalGradientRequest.DisconnectedPolicy.ERROR);
+        BackendId backendId = new BackendId("cpu");
+
+        CompileArtifacts explicit = GraphCompiler.compile(
+                CompileMode.FORWARD_AND_BACKWARD,
+                List.of(objective),
+                Optional.of(new FunctionalGradientRequest(List.of(first, second))),
+                CompileTimeConstantGraph.Ingress.empty(),
+                GraphOptimizationConfig.standard(),
+                BackendIntent.unconstrained(),
+                PartitionScoringConfig.neutral(),
+                List.of(provider(backendId, new ArrayList<>(), true)),
+                List.of(snapshot(backendId)));
+
+        assertTrue(explicit.constants().bindableInputBindings().stream()
+                .map(CompileConstantPlan.BindableInput::tensorId)
+                .toList().containsAll(List.of(target.id(), explicitSeed.id(), secondSeed.id())));
+        assertTrue(explicit.constants().constantSources().stream()
+                .noneMatch(source -> explicit.constants().bindableInputs()
+                        .contains(source.valueId())));
+
+        FunctionalGradientRequest.Stage defaultSeed = new FunctionalGradientRequest.Stage(
+                List.of(new FunctionalGradientRequest.ForwardTensorReference(objective)),
+                List.of(Optional.empty()),
+                List.of(target),
+                false,
+                FunctionalGradientRequest.DisconnectedPolicy.ERROR);
+        CompileArtifacts generated = GraphCompiler.compile(
+                CompileMode.TRAINING_STEP,
+                List.of(objective),
+                Optional.of(new FunctionalGradientRequest(List.of(defaultSeed))),
+                CompileTimeConstantGraph.Ingress.empty(),
+                GraphOptimizationConfig.standard(),
+                BackendIntent.unconstrained(),
+                PartitionScoringConfig.neutral(),
+                List.of(provider(backendId, new ArrayList<>(), true)),
+                List.of(snapshot(backendId)));
+
+        assertEquals(List.of(target.id()), generated.constants().bindableInputBindings().stream()
+                .map(CompileConstantPlan.BindableInput::tensorId)
+                .toList());
+        assertFalse(generated.constants().constantSources().isEmpty());
     }
 
     @Test

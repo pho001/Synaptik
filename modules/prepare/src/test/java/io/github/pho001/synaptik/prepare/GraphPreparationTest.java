@@ -632,7 +632,7 @@ class GraphPreparationTest {
         CompileConstantPlan constants = construct(
                 CompileConstantPlan.class,
                 new Class<?>[] {List.class, List.class},
-                List.of(input),
+                List.of(new CompileConstantPlan.BindableInput(new TensorId(9001), input)),
                 List.of(new CompileConstantPlan.ConstantSource(constant, scalar)));
         PublicationPlan publication = construct(
                 PublicationPlan.class,
@@ -694,7 +694,7 @@ class GraphPreparationTest {
         CompileConstantPlan constants = construct(
                 CompileConstantPlan.class,
                 new Class<?>[] {List.class, List.class},
-                List.of(valueId),
+                List.of(new CompileConstantPlan.BindableInput(new TensorId(9002), valueId)),
                 List.of());
         PublicationPlan publication = construct(
                 PublicationPlan.class,

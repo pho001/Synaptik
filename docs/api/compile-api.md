@@ -2,9 +2,9 @@
 
 ## Purpose and implementation status
 
-This reference separates the compile-time contracts implemented today from the ordinary typed
-Engine lifecycle that remains planned. The current ordinary `Engine.standard()` method constructs
-and owns a CPU-only composition, but the ordinary type has no compile method yet. The compiler
+This reference separates the compile-time contracts implemented today from later Engine
+conveniences. The ordinary `Engine.standard()` method constructs and owns a CPU-only composition
+and now exposes forward-only and explicitly seeded first-order compile overloads. The compiler
 module contains package-private `GraphCompiler`.
 Its five-argument entry compiles a forward-only or combined one/two-stage functional derivative
 Tensor expression into package-private immutable `GraphCompilation`. A second package-private
@@ -20,10 +20,16 @@ pipeline, publication-role validation, one owner selection per final graph node,
 same-owner partitioning, logical-memory derivation, and immutable artifact assembly. Public
 `GraphCompilationPort` now exposes the complete constant-free pipeline as a narrow cross-module
 service-provider interface (SPI). It is not the recommended application API and does not provide
-the still-planned `CompileConfig` aggregate or ordinary typed lifecycle. `AdvancedEngine` uses
+the still-planned `CompileConfig` aggregate. `AdvancedEngine` uses
 this port and returns an opaque owner-bound `AdvancedCompiledGraph`, but does not expose the
 underlying `CompileArtifacts`. The compiler also provides the public immutable
-`FunctionalGradientRequest` input value used by this integration boundary.
+`FunctionalGradientRequest` input value used by this integration boundary. Ordinary Engine
+callers do not construct that request: the three-list overload maps their explicit outputs,
+aligned cotangent seeds, and ordered targets to one fixed first-order stage.
+Final compile artifacts now associate every caller-bindable graph input with the immutable
+`TensorId` of its originating logical caller Tensor. The ordinary Engine uses that metadata for
+current logical binding; the association itself retains no Tensor, descriptor copy, host storage,
+or runtime representation.
 The current config module provides four immutable standalone input values that a later compile
 configuration aggregate can contain: `BackendIntent`, `CompileMode`, and
 `GraphOptimizationConfig`, plus `PartitionScoringConfig`. The current planning module provides the
@@ -40,12 +46,36 @@ Compilation answers two questions: what the computation means, and which backend
 each planned region. It will not create physical buffers, choose concrete kernels, or construct
 prepared executables.
 
-## Current advanced Engine compile boundary
+## Current ordinary and advanced Engine compile boundaries
 
-The ordinary `Engine` currently exposes only `standard()`, `isClosed()`, and `close()`. It neither
-accepts Tensor outputs nor exposes compiled handles. Engine task 0003 is planned to add ordinary
-typed binding and published-result access; its API is not current. Engine task 0004 is planned to
-add host materialization as a separate boundary.
+The ordinary `Engine` exposes these two compile forms:
+
+```java
+CompiledGraph forward = engine.compile(List.of(output));
+CompiledGraph differentiated = engine.compile(
+        List.of(output), List.of(cotangentSeed), List.of(target));
+```
+
+The first form selects `FORWARD_ONLY`. The second selects `FORWARD_AND_BACKWARD` and constructs
+exactly one functional-gradient stage with one explicit non-null seed per forward output,
+identity-unique non-empty targets, `createGraph == false`, and disconnected-target policy
+`ERROR`. Seeds may repeat and may themselves be expressions. Neither form infers targets, creates
+an implicit scalar seed, adds a second derivative stage, selects `TRAINING_STEP`, or supplies
+no-argument backward.
+
+Both forms use standard optional graph optimization, unconstrained backend intent, and neutral
+partition scoring. They return a fresh immutable `CompiledGraph` owned by the exact Engine. Its
+`inputs()` list contains only final caller-bindable `TensorId` and descriptor metadata in Compiler
+binding order. Repeated use of one leaf yields one input; identity-distinct equal-descriptor leaves
+remain distinct; compiler constants are omitted; surviving explicit seed leaves remain ordinary
+inputs. The handle retains no caller Tensor, request list, provenance, or host-storage reference,
+and compile does not read `Tensor.hostStorage()`.
+
+The ordinary handle deliberately exposes no `CompileArtifacts`, graph-local `ValueId`, partition,
+diagnostic, or advanced handle. It is not closeable. Its metadata remains readable after Engine
+closure, although the closed Engine rejects preparation and all other new work. Engine task 0004
+owns host materialization, while tasks 0005–0006 own one-shot forward and scalar-objective
+backward convenience.
 
 `AdvancedEngine.compile(...)` is the current public consumer of `GraphCompilationPort`. It
 requires a non-empty ordered output list and receives `BackendIntent`, `CompileMode`,
@@ -59,7 +89,9 @@ The current Engine supplies one CPU capability provider to the compiler. It does
 backends, build a reusable capability matrix, create `CompileConfig`, translate failures into an
 ordinary Engine exception hierarchy, run model tuning, or promise that every successfully
 compiled artifact is preparable by the CPU-only composition. In particular, preparation is a
-separate boundary and rejects zero, mixed-owner, or multiple maximal partitions.
+separate boundary and rejects zero, mixed-owner, or multiple maximal partitions. A successful
+compile is therefore not a promise that the current CPU composition can prepare or execute the
+artifact.
 
 ## Current model contracts
 
@@ -117,8 +149,11 @@ reachable leaf. It does not read `Tensor.hostStorage()` or infer a constant from
 descriptor, layout, label, storage contents, or the mere absence of provenance.
 
 The result of that overload is an internal immutable sidecar around the unchanged
-`CompiledGraphModel`. Every fixed source remains structurally a graph input, while the sidecar's
-derived bindable-input list contains exactly the graph inputs without facts, in graph-input order.
+`CompiledGraphModel`. Every fixed source remains structurally a graph input. For every other
+captured leaf, the sidecar records only its immutable `TensorId` against the current graph-local
+`ValueId`; it retains no Tensor or provenance. Canonicalization and optimization remap this
+association with the graph inputs, and complete compilation projects it in final graph-input
+order.
 Consequently an explicitly fixed source cannot also be supplied later as a caller input. An
 otherwise identical leaf absent from ingress remains bindable, including a leaf created by a
 scalar, zero, one, full, import, allocation, or random factory path. There is no public constant-
@@ -701,7 +736,7 @@ Public `GraphCompilationPort.compile(...)` is the cross-module SPI for the same 
 It accepts the same inputs except explicit logical-splat ingress, supplies
 `CompileTimeConstantGraph.Ingress.empty()` internally, and returns the resulting
 `CompileArtifacts` directly. The port performs no graph or planning work of its own. Its public
-visibility exists so future Engine composition can cross the Java package boundary; it is not an
+visibility lets current Engine composition cross the Java package boundary; it is not an
 ordinary-user facade, and both `GraphCompiler` entries remain package-private.
 
 For a current runnable boundary case, a provenance-free Tensor has no graph node and therefore
@@ -736,11 +771,14 @@ CompileArtifacts artifacts = GraphCompilationPort.compile(
         List.of());
 ```
 
-The input is a caller-bindable rank-one floating leaf. The result contains the same logical graph
-input in `artifacts.constants().bindableInputs()` and no planned partition because there is no
-operation node. This proves only public SPI accessibility and constant-free input classification;
-it does not prove backend support, preparation, execution, or an Engine lifecycle. A graph with
-operation nodes requires explicitly supplied matching capability and availability collaborators.
+The input is a caller-bindable rank-one floating leaf. The result contains
+`BindableInput(output.id(), artifacts.graph().inputs().getFirst())` in
+`artifacts.constants().bindableInputBindings()`. Its compatibility projection
+`artifacts.constants().bindableInputs()` contains the same final `ValueId`, and there is no
+planned partition because there is no operation node. This proves only public SPI accessibility,
+constant-free input classification, and stable logical identity association; it does not prove
+backend support, preparation, execution, or an Engine lifecycle. A graph with operation nodes
+requires explicitly supplied matching capability and availability collaborators.
 
 It validates the nine top-level references in declaration order before graph construction, then
 invokes the unchanged five-argument graph-stage entry exactly once. Provider and snapshot list
@@ -772,11 +810,17 @@ each derivative order. Gradient values may repeat or equal a forward value; the 
 contains the forward prefix followed by each previously unseen gradient value in binding order.
 
 `CompileConstantPlan` is a public final output-only source-role classification with
-package-private construction. Its immutable `bindableInputs()` list and immutable
-`constantSources()` list classify every final graph input exactly once in graph-input order. A
+package-private construction. Its immutable `bindableInputBindings()` list contains one
+`BindableInput(TensorId, ValueId)` for each caller-bindable input in final graph-input order.
+Repeated use of one exact leaf produces one entry, while distinct leaves with equal descriptors
+remain distinct. The existing immutable `bindableInputs()` list is the ordered `ValueId`
+projection of those entries, so existing Prepare consumers retain the same contract.
+`constantSources()` contains the disjoint fixed inputs in graph-input order. A
 `ConstantSource(ValueId, ScalarValue)` retains the exact input identity and exact typed scalar
-whose bits repeat at every logical coordinate. It is not a dense payload, Tensor, storage object,
-materialization instruction, or physical allocation.
+whose bits repeat at every logical coordinate. Neither entry retains a Tensor, descriptor,
+storage object, dense payload, materialization instruction, or physical allocation. A standalone
+`BindableInput` validates its components but proves final graph membership and ordering only when
+the owning `CompileArtifacts` validates the complete source plan.
 
 `CompileDiagnostics` is a public final output-only successful-compile diagnostic bundle with
 package-private construction. It exposes ordered immutable
@@ -1786,14 +1830,13 @@ package-private compiler invokes it after partition generation and retains the e
 
 ## Current expression input and compile output
 
-Conceptually, compilation will receive a requested tensor output and declarative `CompileConfig`:
+Ordinary compilation receives an ordered Tensor-output list through the current Engine:
 
 ```java
-// Conceptual API; not currently runnable.
-CompiledGraph graph = CompiledGraph.compile(output, CompileConfig.auto());
+CompiledGraph graph = engine.compile(List.of(output));
 ```
 
-- `output` will identify a current public `Tensor` expression for the future compiler to capture.
+- `output` identifies a current public `Tensor` expression for the compiler to capture.
   Public Tensor state plus binary arithmetic, binary comparison, boolean logical, conditional
   selection, cast, unary numeric including exact GELU, fixed tanh-approximation GELU, and SiLU,
   floating-classification, scalar, numeric aggregate expression
@@ -1835,7 +1878,7 @@ CompiledGraph graph = CompiledGraph.compile(output, CompileConfig.auto());
   explicit-state training-dropout construction with public output and next-state results and one
   non-public producer mask slot,
   are implemented;
-  the ordinary-user typed Compiler/Engine lifecycle, binding, and result surface,
+  additional ordinary compile options and host result values,
   saved-statistic construction and gradient construction outside the closed support table above,
   optional
   softmax, layer-normalization, RMS-normalization, attention, or activation decomposition,
@@ -1867,7 +1910,9 @@ CompiledGraph graph = CompiledGraph.compile(output, CompileConfig.auto());
   gradient publication bindings and the exact final graph. It is separate from the model graph
   and adds no publication delivery policy or runtime behavior.
 - `CompileConstantPlan` is current compiler-owned output-only classification of final graph inputs
-  as caller-bindable or exact logical splats.
+  as caller-bindable or exact logical splats. Its typed bindable view associates each final
+  caller-bindable `ValueId` with its originating immutable `TensorId`; `bindableInputs()` remains
+  the compatibility `ValueId` projection.
 - `CompileDiagnostics` is current compiler-owned output-only projection of successful deferred
   graph constraints without exposing the internal predicate vocabulary.
 - `CompileArtifacts` currently combines mode, the exact final `CompiledGraphModel`, maximal
@@ -1875,10 +1920,11 @@ CompiledGraph graph = CompiledGraph.compile(output, CompileConfig.auto());
   roles, diagnostics, and derivative-order metadata. Its public record and nested output data are
   implemented, and the public constant-free `GraphCompilationPort` delegates to the
   package-private complete construction entry.
-- `CompiledGraph` will be an engine facade over immutable `CompileArtifacts`, not the same object
-  as the current `CompiledGraphModel`.
+- Engine `CompiledGraph` is an owner-bound facade over immutable `CompileArtifacts`, not the same
+  object as `CompiledGraphModel`. It exposes only final caller-bindable Tensor identity and
+  descriptor metadata.
 
-The planned artifacts deliberately contain no device buffers, backend executable objects, runtime
+The compile artifacts deliberately contain no device buffers, backend executable objects, runtime
 residency, prepared schedules, or mutable run state.
 
 ## Current internal lifecycle and planned public failures
@@ -1916,7 +1962,9 @@ Current `GraphCompilationPort` can invoke package-private `GraphCompiler` to con
 validate its bounded forward-only or combined first-order graph, query explicitly supplied
 providers, select backend ownership, derive partitions and logical memory, and return
 `CompileArtifacts`. `AdvancedEngine` uses that port but keeps the artifacts opaque. The ordinary
-`Engine.standard()` facade does not yet compile, bind inputs, or expose results.
+`Engine.standard()` facade also keeps artifacts opaque while providing its fixed forward-only and
+explicitly seeded first-order compile overloads; typed binding and metadata-only results continue
+through the [Runtime API](runtime-api.md#current-ordinary-engine-boundary).
 
 ## Related contracts
 

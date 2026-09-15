@@ -19,6 +19,7 @@ import io.github.pho001.synaptik.model.shape.Shape;
 import io.github.pho001.synaptik.model.tensor.Tensor;
 import io.github.pho001.synaptik.model.tensor.TensorDescriptor;
 import io.github.pho001.synaptik.model.tensor.TensorFactory;
+import io.github.pho001.synaptik.model.tensor.TensorId;
 import java.lang.reflect.Modifier;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -34,7 +35,7 @@ final class CompileTimeConstantGraphTest {
         assertAll(
                 () -> assertTrue(CompileTimeConstantGraph.class.isRecord()),
                 () -> assertFalse(Modifier.isPublic(CompileTimeConstantGraph.class.getModifiers())),
-                () -> assertEquals(List.of("graph", "constants"), Arrays.stream(
+                () -> assertEquals(List.of("graph", "constants", "bindableTensorIds"), Arrays.stream(
                                 CompileTimeConstantGraph.class.getRecordComponents())
                         .map(component -> component.getName()).toList()),
                 () -> assertTrue(CompileTimeConstantGraph.Splat.class.isRecord()),
@@ -202,7 +203,8 @@ final class CompileTimeConstantGraphTest {
         CompileTimeConstantGraph sidecar = new CompileTimeConstantGraph(
                 original,
                 Map.of(new ValueId(1),
-                        new CompileTimeConstantGraph.Splat(ScalarValue.int64(8))));
+                        new CompileTimeConstantGraph.Splat(ScalarValue.int64(8))),
+                Map.of(new ValueId(0), new TensorId(41)));
         CompiledGraphModel replacement = inputsGraphWithIds(
                 List.of(first, second), List.of(20L, 10L), 0);
 
@@ -213,6 +215,8 @@ final class CompileTimeConstantGraphTest {
                 () -> assertSame(sidecar, sidecar.replaceGraphPreservingInputRoles(original)),
                 () -> assertSame(replacement, remapped.graph()),
                 () -> assertEquals(List.of(new ValueId(20)), remapped.bindableInputs()),
+                () -> assertEquals(Map.of(new ValueId(20), new TensorId(41)),
+                        remapped.bindableTensorIds()),
                 () -> assertEquals(ScalarValue.int64(8),
                         remapped.constants().get(new ValueId(10)).value()),
                 () -> assertThrows(IllegalArgumentException.class,
@@ -221,6 +225,39 @@ final class CompileTimeConstantGraphTest {
                 () -> assertThrows(IllegalArgumentException.class,
                         () -> sidecar.replaceGraphPreservingInputRoles(
                                 inputsGraph(List.of(second, first), 0))));
+    }
+
+    @Test
+    void validatesAndSnapshotsPartialBindableIdentitySidecar() {
+        TensorDescriptor descriptor = descriptor(
+                DataType.FLOAT32, Shape.of(2), Optional.empty(), false);
+        CompiledGraphModel graph = inputsGraph(List.of(descriptor, descriptor), 0);
+        Map<ValueId, TensorId> mutable = new HashMap<>();
+        mutable.put(new ValueId(0), new TensorId(10));
+        CompileTimeConstantGraph sidecar =
+                new CompileTimeConstantGraph(graph, Map.of(), mutable);
+        mutable.clear();
+
+        assertAll(
+                () -> assertEquals(Map.of(new ValueId(0), new TensorId(10)),
+                        sidecar.bindableTensorIds()),
+                () -> assertThrows(UnsupportedOperationException.class,
+                        () -> sidecar.bindableTensorIds().clear()),
+                () -> assertEquals("bindableTensorIds", assertThrows(NullPointerException.class,
+                        () -> new CompileTimeConstantGraph(graph, Map.of(), null)).getMessage()),
+                () -> assertTrue(assertThrows(IllegalArgumentException.class,
+                        () -> new CompileTimeConstantGraph(
+                                graph,
+                                Map.of(),
+                                Map.of(new ValueId(9), new TensorId(1))))
+                        .getMessage().contains("not a graph input")),
+                () -> assertTrue(assertThrows(IllegalArgumentException.class,
+                        () -> new CompileTimeConstantGraph(
+                                graph,
+                                Map.of(),
+                                Map.of(new ValueId(0), new TensorId(1),
+                                        new ValueId(1), new TensorId(1))))
+                        .getMessage().contains("repeats")));
     }
 
     private static Tensor tensor(DataType type, boolean requiresGrad) {

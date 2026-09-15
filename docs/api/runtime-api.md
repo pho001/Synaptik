@@ -29,11 +29,11 @@ residency, explicit per-buffer-copy validity, cold-bound invocation and transfer
 creation, execution, transfer, and dense publication-suffix schedule recipes, the whole-state
 result lease, two-component prepared-execution aggregate,
 Prepare-owned resource assignments, typed backend finalization, `PreparedPartition`, and complete
-graph preparation are current. Ordinary typed result-value access and general Engine lifecycle
-methods remain planned, while ordinary CPU-only construction and lifetime are current through
-`Engine.standard()`. The current CPU integration implements physical allocation, storage access,
-finalization, schedule assembly, and execution for the advanced Engine's deliberately restricted
-one-partition path.
+graph preparation are current. Ordinary CPU-only compile, prepare, logical host-input binding,
+synchronous run, and typed publication metadata are current through `Engine.standard()`. Numerical
+result values and host materialization remain planned. The current CPU integration implements
+physical allocation, storage access, finalization, schedule assembly, and execution for Engine's
+deliberately restricted one-partition path.
 
 ## Mental model
 
@@ -83,12 +83,143 @@ composes these contracts without backend discovery or graph interpretation.
 ## Current ordinary Engine boundary
 
 `Engine.standard()` creates a fresh independent CPU-only composition and privately owns its
-advanced lifecycle delegate. The ordinary public surface contains only `standard()`,
-`isClosed()`, and `close()`: it cannot prepare, run, bind inputs, inspect publications, or expose
-results. Closing one standard Engine does not affect another, and repeated or concurrent close
-calls share the delegated exactly-once cleanup result. Engine task 0003 is planned to add typed
-logical input binding and published-result access. Task 0004 is planned to add host
-materialization. Neither planned surface is callable today.
+advanced lifecycle delegate. `compile(...)` returns an immutable owner-bound `CompiledGraph`,
+whose `inputs()` list reports the final caller-bindable `TensorId` and descriptor pairs.
+`prepare(...)` accepts only a handle from the same exact Engine and returns a fresh immutable
+`io.github.pho001.synaptik.engine.PreparedExecution`. That Engine facade must not be confused with
+the inward Runtime recipe of the same simple name; its sole public accessor returns the exact
+originating `CompiledGraph`.
+
+`run(...)` accepts every required logical Tensor exactly once in arbitrary caller order. It
+matches `Tensor.id()` by value equality, verifies the complete descriptor, then reads each
+Tensor's current `HostTensorStorage` association exactly once in final Compiler binding order.
+That per-run association snapshot is neither atomic across all inputs nor a copy or pin of the
+underlying bytes. Engine borrows one fresh non-owning CPU representation per input, including
+when distinct Tensor identities share one storage object. The caller retains every storage and
+arena and must keep its scope alive, accessible where used, and free from conflicting mutation
+until the returned result closes, including after the synchronous call has returned.
+
+The Engine `RunResult` is a metadata-only result lease. Its immutable publication list is ordered
+with requested forward occurrences first and first-order gradient-target occurrences second.
+Forward metadata identifies the requested output Tensor. Gradient metadata identifies the
+requested target Tensor, derivative order one, and the target's zero-based request position; the
+descriptor belongs to the final gradient value. Repeated gradient values and forward/gradient
+aliases remain distinct Java occurrence objects even when they select one inward representation.
+That does not assert physical aliasing or expose storage or numerical values.
+
+Closing the result releases its inward Runtime lease and Engine-created wrappers but never caller
+storage. Closing the Engine closes any still-open results in reverse successful-run order before
+its CPU integration. Immutable result metadata remains readable after closure. Closing one
+standard Engine does not affect another, and repeated or concurrent close calls share the
+delegated exactly-once cleanup result.
+
+The current CPU path accepts exactly one non-empty maximal CPU partition and requires fully static
+Shapes and resolved compatible layouts for its occurrences. Zero-node pass-through, mixed-owner,
+and multiple-partition preparation remain rejected. In particular, public `ADD` currently has an
+unresolved result layout; applying `contiguous()` afterward resolves only the new CONTIGUOUS
+occurrence and does not make the preceding ADD executable. Compile success is therefore not a
+prepare or run guarantee.
+
+The following complete setup creates exact-size, resolved `FLOAT32` input leaves backed by a
+caller-owned shared arena:
+
+```java
+import io.github.pho001.synaptik.engine.CompiledGraph;
+import io.github.pho001.synaptik.engine.Engine;
+import io.github.pho001.synaptik.engine.RunResult;
+import io.github.pho001.synaptik.model.datatype.DataType;
+import io.github.pho001.synaptik.model.layout.LayoutDescriptor;
+import io.github.pho001.synaptik.model.shape.Shape;
+import io.github.pho001.synaptik.model.storage.MemorySegmentStorage;
+import io.github.pho001.synaptik.model.tensor.Tensor;
+import io.github.pho001.synaptik.model.tensor.TensorDescriptor;
+import io.github.pho001.synaptik.model.tensor.TensorFactory;
+import java.lang.foreign.Arena;
+import java.util.List;
+import java.util.Optional;
+
+static Tensor input(Arena arena, boolean requiresGrad) {
+    Shape shape = Shape.of(2);
+    TensorDescriptor descriptor = new TensorDescriptor(
+            DataType.FLOAT32,
+            shape,
+            Optional.of(LayoutDescriptor.contiguous(shape)),
+            requiresGrad);
+    MemorySegmentStorage storage = new MemorySegmentStorage(
+            DataType.FLOAT32,
+            2,
+            arena.allocate(2L * DataType.FLOAT32.byteWidth(), Float.BYTES));
+    return TensorFactory.create(descriptor, Optional.empty(), Optional.of(storage));
+}
+```
+
+A forward-only run uses two supported CONTIGUOUS occurrences and deliberately supplies inputs in
+the reverse of final binding order:
+
+```java
+try (Arena arena = Arena.ofShared(); Engine engine = Engine.standard()) {
+    Tensor left = input(arena, false);
+    Tensor right = input(arena, false);
+    Tensor leftOutput = left.contiguous();
+    Tensor rightOutput = right.contiguous();
+
+    CompiledGraph graph = engine.compile(List.of(leftOutput, rightOutput));
+    var prepared = engine.prepare(graph);
+    try (RunResult result = engine.run(prepared, List.of(right, left))) {
+        assert graph.inputs().stream().map(CompiledGraph.Input::tensorId).toList()
+                .equals(List.of(left.id(), right.id()));
+        assert result.publications().stream()
+                .map(RunResult.Publication::tensorId).toList()
+                .equals(List.of(leftOutput.id(), rightOutput.id()));
+    }
+}
+```
+
+The inputs are `left` and `right`; the result is two ordered forward metadata occurrences. The
+reversed input list demonstrates identity matching, not value access. Closing the result ends the
+borrow lifetime before the arena closes.
+
+An explicitly seeded first-order run reuses one produced seed value for two outputs while retaining
+two identity-distinct gradient-target occurrences:
+
+```java
+try (Arena arena = Arena.ofShared(); Engine engine = Engine.standard()) {
+    Tensor left = input(arena, true);
+    Tensor right = input(arena, true);
+    Tensor seedLeaf = input(arena, false);
+    Tensor leftOutput = left.contiguous();
+    Tensor rightOutput = right.contiguous();
+    Tensor seed = seedLeaf.contiguous();
+
+    CompiledGraph graph = engine.compile(
+            List.of(leftOutput, rightOutput),
+            List.of(seed, seed),
+            List.of(left, right));
+    var prepared = engine.prepare(graph);
+    try (RunResult result = engine.run(prepared, List.of(seedLeaf, right, left))) {
+        assert result.publications().stream().map(RunResult.Publication::role).toList()
+                .equals(List.of(
+                        RunResult.Role.FORWARD,
+                        RunResult.Role.FORWARD,
+                        RunResult.Role.GRADIENT,
+                        RunResult.Role.GRADIENT));
+        assert result.publications().get(2).tensorId().equals(left.id());
+        assert result.publications().get(2).targetIndex().orElseThrow() == 0;
+        assert result.publications().get(3).tensorId().equals(right.id());
+        assert result.publications().get(3).targetIndex().orElseThrow() == 1;
+    }
+}
+```
+
+The compiled inputs are `left`, `right`, and `seedLeaf`; the seed expression itself is produced
+inside the graph. The four results are metadata only. This proves neither numerical gradient
+access nor training. A shared seed leaf without `contiguous()` would be a zero-node pass-through
+publication with no current prepared buffer assignment.
+
+Host materialization and numerical access remain Engine task 0004. Engine-owned one-shot
+`output.execute()`-style ergonomics remain task 0005, and scalar-objective
+`withBackward`-style convenience remains task 0006. The latter will require explicit targets;
+there is no current or promised no-argument backward call.
 
 ## Current advanced Engine prepare and run boundary
 
@@ -102,8 +233,8 @@ creates its own `RunState`.
 `AdvancedEngine.run(...)` accepts the prepared handle and an ordered list of already-created
 `BufferRepresentation` inputs. `AdvancedEngine.borrow(...)` creates the supported non-owning CPU
 wrapper around caller-owned `MemorySegmentStorage`; closing that wrapper does not close the
-storage or its backing arena. Both must remain valid until the run returns. Every admitted run
-performs the current synchronous Runtime lifecycle and returns `AdvancedRunResult`, whose
+storage or its backing arena. Both must remain valid until the advanced result closes. Every
+admitted run performs the current synchronous Runtime lifecycle and returns `AdvancedRunResult`, whose
 `resultCount()` reports publication cardinality but exposes no value or storage.
 
 The result exclusively owns its completed `RunState` until its idempotent close completes. The
@@ -111,9 +242,9 @@ Engine also tracks open results. Once Engine closure begins, a newly attempted p
 fails with `IllegalStateException("advanced engine is closed")` before null, owner, or inward
 validation. Engine close waits for admitted work, closes remaining results in reverse run order,
 and finally closes the exact CPU integration it took into ownership. Handles cease to be usable
-after their owner closes. This path does not provide typed binding, typed or materialized results,
-backend discovery, mixed-backend transfers, one-shot execution, tuning, or ordinary backward
-convenience.
+after their owner closes. This path does not provide typed logical binding, typed publication
+metadata or materialized results, backend discovery, mixed-backend transfers, one-shot execution,
+tuning, or ordinary backward convenience.
 
 ## Current prepared execution
 
@@ -899,10 +1030,9 @@ over the same assigned buffer.
 
 Graph preparation performs no physical allocation, creator invocation, binding, execution,
 transfer, publication, or cleanup. It contains the Compiler aggregate only in shared Prepare;
-concrete backend-facing `PrepareContext` values remain Compiler-free. Engine still owns future
-typed mapping from logical caller inputs and publications to these Runtime coordinates. Current
-advanced Engine composition already supplies the CPU implementation and schedule assembler; the
-ordinary `Engine` does not yet expose that lifecycle.
+concrete backend-facing `PrepareContext` values remain Compiler-free. The current ordinary Engine
+maps logical caller inputs and publication roles to these Runtime coordinates without exposing
+them. Advanced Engine composition supplies the CPU implementation and schedule assembler directly.
 
 ## Current aggregate and run orchestration
 

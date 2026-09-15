@@ -6,6 +6,7 @@ import io.github.pho001.synaptik.model.graph.GraphPhase;
 import io.github.pho001.synaptik.model.graph.GraphValue;
 import io.github.pho001.synaptik.model.graph.NodeId;
 import io.github.pho001.synaptik.model.graph.ValueId;
+import io.github.pho001.synaptik.model.tensor.TensorId;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -84,9 +85,10 @@ final class ForwardDeadCodeElimination {
     /**
      * Eliminates dead whole-graph work and prunes only unused fixed constant sources.
      *
-     * <p>The graph-only pass runs first and preserves its existing contract. Source roles are then
-     * remapped by input position. Every bindable input remains even when unused; a constant input
-     * remains only when it is a graph output or an ordered input of a retained node.</p>
+     * <p>The graph-only pass runs first and preserves its existing contract. Constant roles and
+     * caller Tensor identities are then remapped by input position. Every bindable input and its
+     * identity remain even when unused; a constant input remains only when it is a graph output or
+     * an ordered input of a retained node.</p>
      *
      * @param constantGraph non-null immutable graph and exact source facts; it is not mutated
      * @return the exact argument when neither graph work nor a constant source is removed;
@@ -240,6 +242,7 @@ final class ForwardDeadCodeElimination {
 
         Map<ValueId, ValueId> remapping = new HashMap<>();
         Map<ValueId, CompileTimeConstantGraph.Splat> constants = new HashMap<>();
+        Map<ValueId, TensorId> bindableTensorIds = new HashMap<>();
         List<GraphValue> values = new ArrayList<>(
                 graph.values().size() - (graph.inputs().size() - retainedInputCount));
         List<ValueId> inputs = new ArrayList<>(retainedInputCount);
@@ -255,6 +258,10 @@ final class ForwardDeadCodeElimination {
             values.add(new GraphValue(rebuilt, originalValues.get(input).descriptor()));
             if (splat != null) {
                 constants.put(rebuilt, splat);
+            }
+            TensorId tensorId = source.bindableTensorIds().get(input);
+            if (tensorId != null) {
+                bindableTensorIds.put(rebuilt, tensorId);
             }
         }
 
@@ -278,7 +285,7 @@ final class ForwardDeadCodeElimination {
 
         CompiledGraphModel rebuilt = new CompiledGraphModel(
                 values, nodes, inputs, remap(graph.outputs(), remapping), phases);
-        return new CompileTimeConstantGraph(rebuilt, constants);
+        return new CompileTimeConstantGraph(rebuilt, constants, bindableTensorIds);
     }
 
     private static List<ValueId> remap(

@@ -18,12 +18,13 @@ Compiler orchestration now consumes those three operations and uses the public i
 `CompileArtifacts`, `PublicationPlan`, `CompileConstantPlan`, and `CompileDiagnostics` contracts.
 Public `GraphCompilationPort` exposes that complete constant-free pipeline as a narrow
 cross-module integration service-provider interface (SPI). The CPU backend now also exposes the
-supported cross-module `CpuBackendIntegration` SPI described below. The first advanced Engine
-composition surface now connects these contracts for one CPU-only, representation-level compile,
-prepare, and run lifecycle. The ordinary `Engine.standard()` surface now constructs and owns one
-fresh CPU-only composition, but exposes only lifecycle observation and closure. Reusable or public
-capability matrices, a public graph-wide Planning workflow, and ordinary typed binding and result
-access remain planned.
+supported cross-module `CpuBackendIntegration` SPI described below. The advanced Engine
+composition surface connects these contracts for one CPU-only, representation-level compile,
+prepare, and run lifecycle. The ordinary `Engine.standard()` surface constructs and owns one
+fresh CPU-only composition and now exposes owner-bound compile and prepared handles,
+`TensorId`-matched host-input binding, synchronous run, and metadata-only forward and gradient
+publication occurrences. Host value access remains planned. Reusable or public capability
+matrices and a public graph-wide Planning workflow also remain planned.
 Prepare analysis, finalization, and complete graph-preparation contracts plus the initial Runtime
 geometry, prepared representation creation, per-run resource/validity, executable and transfer
 cold-binding, prepared publication and result leasing, and the ordered schedule contracts are
@@ -36,8 +37,9 @@ device-class preference. It can also hold one explicit immutable model-autotunin
 declarative data. The internal baseline consumes the compile preference after hard eligibility.
 The package-private complete Compiler entry consumes all four compile-config leaves directly, and
 `GraphCompilationPort` supplies them through its public integration call. No current
-`CompileConfig`, public capability-matrix or eligibility surface, numeric scoring evaluator, or
-ordinary-user compile lifecycle is callable. The model-autotuning
+`CompileConfig`, public capability-matrix or eligibility surface, or numeric scoring evaluator is
+callable. The ordinary Engine supplies fixed compile settings rather than those configurable
+surfaces. The model-autotuning
 request likewise has no current Engine or tuning integration. APIs may change through the ordered
 planning process.
 [`ARCHITECTURE.md`](../../ARCHITECTURE.md) defines module boundaries, not source or binary
@@ -433,7 +435,7 @@ construction.
 
 The public `modules:compiler` contract surface now contains:
 
-- `GraphCompilationPort`, the narrow constant-free cross-module compile SPI for future Engine
+- `GraphCompilationPort`, the narrow constant-free cross-module compile SPI used by Engine
   composition, not an ordinary-user lifecycle facade;
 - `FunctionalGradientRequest`, the immutable one/two-stage reverse-mode input with aligned
   cotangent seeds and an explicit disconnected-target policy;
@@ -447,7 +449,8 @@ The public `modules:compiler` contract surface now contains:
   `forwardBindings()` of `ForwardPublicationBinding` values and `gradientBindings()` of
   `GradientPublicationBinding` values;
 - `CompileConstantPlan`, an output-only immutable graph-input classification with nested
-  `ConstantSource(ValueId, ScalarValue)` values; and
+  `BindableInput(TensorId, ValueId)` associations and `ConstantSource(ValueId, ScalarValue)`
+  values; and
 - `CompileDiagnostics`, an output-only immutable successful-compile projection with nested
   `DeferredConstraintDiagnostic(NodeId, subject, predicate)` values.
 
@@ -463,7 +466,11 @@ its result.
 The artifact result retains no provider, availability snapshot, selected device, route, kernel,
 physical buffer, transfer, prepared schedule, executable, residency, or mutable run state.
 `PublicationPlan` validates graph membership and boundary order but adds no delivery policy.
-`CompileConstantPlan` carries logical splats rather than dense data or storage.
+`CompileConstantPlan.bindableInputBindings()` associates every final caller-bindable graph input
+with its originating immutable Tensor identity in graph-input order. Its existing
+`bindableInputs()` method remains the ordered `ValueId` projection for compatibility, and its
+constant entries carry logical splats rather than dense data or storage. No source entry retains a
+live Tensor, descriptor copy, provenance, or host storage.
 `CompileDiagnostics` carries deterministic text projections rather than a public predicate
 language, trace schema, or serialization.
 
@@ -633,7 +640,7 @@ immutable schedule recipe once; Prepare validates exact source, execution, coord
 publication coverage before constructing the prepared root. The advanced Engine now composes this
 operation with the exact CPU integration that it owns.
 
-## Current ordinary construction and advanced CPU lifecycle
+## Current ordinary and advanced CPU lifecycle
 
 `Engine.standard()` is the current ordinary entry point. Every invocation directly opens one
 fresh CPU integration, transfers its ownership into a private advanced lifecycle owner, and
@@ -642,11 +649,44 @@ current lifecycle adapters. There is no discovery, service lookup, caller-suppli
 or process-global Engine. `isClosed()` observes when delegated closure begins, and `close()` uses
 the advanced owner's thread-safe, idempotent, failure-retaining cleanup protocol.
 
-The ordinary type is intentionally construction-only. It has no compile, prepare, borrow, run,
-binding, publication, result, or materialization member, and exposes no conversion to an advanced
-type. Ordinary typed binding and published-result access are planned for Engine task 0003; host
-materialization is planned separately for task 0004. Those plans do not describe current callable
-APIs.
+The ordinary lifecycle is:
+
+```text
+ordered Tensor output expressions -> CompiledGraph
+CompiledGraph                     -> PreparedExecution
+PreparedExecution + caller Tensors in any order -> RunResult
+```
+
+`compile(List<Tensor>)` creates a forward-only handle. Its three-list overload accepts ordered
+forward outputs, one explicit cotangent seed per output, and identity-unique ordered gradient
+targets for one first-order reverse-mode request. It does not infer a seed or targets and does not
+provide no-argument backward. `CompiledGraph.inputs()` reports the final caller-bindable
+`TensorId` and descriptor pairs in Compiler binding order. Compilation and preparation retain no
+caller Tensor or host-storage reference and do not read current host associations.
+
+`prepare(...)` accepts only a compile handle from the same exact Engine and returns a fresh,
+immutable, reusable owner-bound handle. `run(...)` accepts every required logical Tensor exactly
+once in arbitrary order, matches by `TensorId`, validates the complete descriptor, and then
+snapshots each Tensor's current `HostTensorStorage` association once in final binding order. Each
+run borrows fresh non-owning CPU wrappers and owns an isolated Runtime state. The caller retains
+the storage and its arena and must keep its scope alive, accessible where used, and free from
+conflicting mutation until the returned result closes, including after synchronous `run(...)`
+returns. Replacing a Tensor's association after the snapshot cannot redirect that run.
+
+`RunResult.publications()` returns the same immutable forward-then-gradient occurrence list on
+every call. Each occurrence has a dense result index, final descriptor, role, and logical Tensor
+identity. A forward occurrence uses the requested output identity. A gradient occurrence uses the
+requested target identity, derivative order one, and the target's explicit list index; it does
+not claim a generated gradient Tensor identity. Repeated gradient values and forward/gradient
+aliases remain distinct occurrence objects even when Runtime selects one physical
+representation. The metadata does not reveal physical aliasing, storage, or numerical values.
+
+Closing a result releases its Runtime lease and Engine-created wrappers but never caller storage.
+Closing the Engine closes still-open results in reverse successful-run order before the CPU
+integration. Result metadata remains readable after either close; compiled and prepared metadata
+also remains readable, but closed-Engine handles cannot start new work. Task 0004 owns host
+materialization and numerical value access. Tasks 0005–0006 own one-shot forward and
+scalar-objective backward convenience.
 
 `AdvancedEngine` is the current low-level composition root. Construction accepts the exact
 `CpuBackendIntegration` returned by `CpuBackendIntegration.open()` and takes ownership of it.
@@ -670,8 +710,9 @@ concurrent callers because every `run(...)` creates isolated mutable Runtime sta
 Inputs to `run(...)` are already-created Runtime `BufferRepresentation` values in graph-input
 order. `borrow(...)` wraps one caller-owned `MemorySegmentStorage` for this purpose. Neither the
 wrapper nor the Engine owns or closes the storage or its backing arena. The wrapper must remain
-open, and its storage must remain valid, through the run. Closing the wrapper ends only that
-borrow. Compile and run do not retain or mutate their caller lists.
+open, and its storage must remain valid, through advanced-result closure, including after the
+synchronous run returns. Closing the wrapper ends only that borrow. Compile and run do not retain
+or mutate their caller lists.
 
 `AdvancedRunResult` owns the completed run state until it or the Engine closes it. It currently
 exposes only `resultCount()`, not published values. Its idempotent `close()` releases that state;
@@ -682,30 +723,33 @@ waits for admitted work, closes still-open results in reverse run order, and the
 CPU integration. Compiled and prepared handles have no independent resource lifecycle, but become
 unusable when their Engine closes.
 
-This advanced surface does not provide mixed-backend composition, backend discovery, typed input
-binding, typed results, host materialization, one-shot execution, backward convenience, tuning
-integration, or ordinary Engine exception translation. Supplying a
+This advanced surface does not provide mixed-backend composition, backend discovery, typed
+logical input binding, typed publication metadata, host materialization, one-shot execution,
+backward convenience, tuning integration, or ordinary Engine exception translation. Supplying a
 gradient request to `compile(...)` invokes the existing compiler mode/request contract; it does
 not add those later conveniences or guarantee that the current CPU-only prepare step can lower
 the resulting artifact.
 
-## Planned ordinary typed lifecycle
+## Current CPU limitations and planned conveniences
 
-The architecture uses this conceptual shape:
+The current CPU composition prepares exactly one non-empty maximal CPU partition. Zero-node
+pass-through graphs, mixed-owner graphs, and multiple partitions are rejected. Inputs and every
+CPU operation occurrence require fully static Shapes and resolved compatible layouts; adding
+`contiguous()` after an operation does not retroactively resolve that operation's inputs or
+output. A compile success therefore does not guarantee CPU preparation or execution success.
 
-```java
-// Conceptual ordinary typed API: these lifecycle types and methods are not implemented yet.
-CompiledGraph graph = CompiledGraph.compile(output, CompileConfig.auto());
-PreparedExecution execution = graph.prepare(PrepareConfig.defaults());
-RunResult result = execution.run(inputs, RunOptions.defaults());
-```
+The focused supported examples use `CONTIGUOUS` directly over resolved `FLOAT32` leaves. The
+seeded example reuses `seedLeaf.contiguous()` as the explicit seed for two outputs. It does not use
+`ADD`, whose current public expression result has unresolved layout, and it does not publish a
+pass-through seed leaf, for which current Prepare has no buffer assignment. See the
+[Runtime API ordinary examples](runtime-api.md#current-ordinary-engine-boundary) for the complete
+setup.
 
-`Engine.standard()` and its lifetime are current; the conceptual methods and lifecycle types above
-are not. Engine task 0003 will define ordinary typed logical binding and published-result access,
-and task 0004 will define host materialization. Later one-shot use builds above those boundaries.
-None of those planned APIs should be confused with the implemented advanced representation-level
-seam. See the [compile](compile-api.md) and [runtime](runtime-api.md) reference pages for the
-current and planned boundaries.
+Host materialization and numerical access remain Engine task 0004. One-shot ergonomics equivalent
+to `output.execute()` remain task 0005 and will stay Engine-owned rather than becoming a Tensor
+execution method. Scalar-objective `withBackward`-style convenience remains task 0006 and will
+still require explicit targets; no no-argument backward contract is promised. Tasks 0004–0006 are
+plans, not current callable APIs.
 
 ## Compatibility expectations during development
 
